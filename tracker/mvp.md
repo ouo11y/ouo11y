@@ -6,7 +6,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 |---|---|---|---|---|
 | 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
 | 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
-| 2 Browser SDK + web demo | `phase-2-web` | | todo | sdk-browser, web-demo |
+| 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
 | 3 rum-api | `phase-3-rum-api` | | todo | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | | todo | grafana-plugin |
 | 5 React Native | `phase-5-mobile` | | todo | sdk-react-native |
@@ -30,10 +30,10 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 2 Browser SDK + web demo
 
-- [ ] `sdk/browser`: init API, session manager (spec test cases 1 to 4 and 7), SpanProcessor + log attributes, fetch/XHR instrumentation with `traceparent` and baggage, errors (fatal / non-fatal), Web Vitals events, navigation events, rrweb recording with chunk upload (ADR-0003), privacy defaults, replay pause/disable
-- [ ] `examples/web`: React storefront with product, cart, checkout, buttons to trigger slow request, 500, uncaught error, handled error
-- [ ] Verified: spans in Tempo with `session.id`, events in Loki, chunks on disk via rum-api stub or real
-- [ ] kb/otel-browser-sdk.md and kb/rrweb-chunking.md filled
+- [x] `sdk/browser`: init API, session manager (spec test cases 1 to 4 and 7), SpanProcessor + log attributes, fetch/XHR instrumentation with `traceparent` and baggage, errors (fatal / non-fatal), Web Vitals events, navigation events, rrweb recording with chunk upload (ADR-0003), privacy defaults, replay pause/disable (45 Vitest tests incl. jsdom integration against OTLP payloads; see `agents/sdk-browser/summaries/2026-10-06-phase-2.md`)
+- [x] `examples/web`: React storefront with product, cart, checkout, buttons to trigger slow request, 500, uncaught error, handled error (verified by browser click-through against the backend; see `agents/web-demo/summaries/2026-10-06-phase-2.md`)
+- [x] Verified: spans in Tempo with `session.id`, events in Loki, chunks on disk via rum-api stub or real (real Chromium session: 4 traces in Tempo incl. demo-backend child spans via baggage, 14 Loki records all with `session_id`, 8 gzip/keepalive chunks decoded by a Node stub; commands in the sdk-browser summary)
+- [x] kb/otel-browser-sdk.md and kb/rrweb-chunking.md filled
 
 ## Phase 3 rum-api
 

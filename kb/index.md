@@ -13,3 +13,4 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [grafana-app-plugin.md](grafana-app-plugin.md) | Scaffold, unsigned plugin loading, route proxy, embedding rrweb-player (filled in Phase 4) |
 | [competitors.md](competitors.md) | Notes on how Sentry, Datadog, Grafana Faro, PostHog and OpenReplay model sessions and replay |
 | [otel-go-baggage.md](otel-go-baggage.md) | How the Go demo backend copies baggage `session.id` onto spans and logs; otelhttp route naming, otelslog bridge, Tempo search and local port quirks (Phase 1) |
+| [web-demo-storefront.md](web-demo-storefront.md) | How examples/web is wired to the demo backend and the browser SDK, stub mode, backend JSON quirks, React dev double-reporting of uncaught errors (Phase 2) |
