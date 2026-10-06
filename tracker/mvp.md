@@ -4,8 +4,8 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 0 Foundation | `phase-0-foundation` | | review | orchestrator |
-| 1 Platform + backend | `phase-1-platform` | | todo | platform-infra, backend-demo |
+| 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
+| 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
 | 2 Browser SDK + web demo | `phase-2-web` | | todo | sdk-browser, web-demo |
 | 3 rum-api | `phase-3-rum-api` | | todo | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | | todo | grafana-plugin |
