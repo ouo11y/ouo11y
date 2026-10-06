@@ -12,3 +12,4 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [rrweb-chunking.md](rrweb-chunking.md) | rrweb record/replay settings, chunk sizes, privacy classes (filled in Phase 2) |
 | [grafana-app-plugin.md](grafana-app-plugin.md) | Scaffold, unsigned plugin loading, route proxy, embedding rrweb-player (filled in Phase 4) |
 | [competitors.md](competitors.md) | Notes on how Sentry, Datadog, Grafana Faro, PostHog and OpenReplay model sessions and replay |
+| [otel-go-baggage.md](otel-go-baggage.md) | How the Go demo backend copies baggage `session.id` onto spans and logs; otelhttp route naming, otelslog bridge, Tempo search and local port quirks (Phase 1) |

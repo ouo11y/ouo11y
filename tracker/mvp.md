@@ -22,11 +22,11 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 1 Platform + backend
 
-- [ ] `deploy/docker/compose.yaml`: Grafana, Loki, Tempo, Mimir, OTel Collector (CORS on OTLP/HTTP), demo backend
-- [ ] Grafana provisioning: Loki, Tempo, Mimir datasources, trace to logs correlation on `session.id`
-- [ ] `examples/backend`: Go API with `/api/products`, `/api/cart`, `/api/checkout` (slow and 500 variants via query flags), OTel traces and logs, baggage `session.id` copied to spans
-- [ ] Smoke script: send a test span via curl and find it in Tempo; send a test log and find it in Loki
-- [ ] kb/collector-lgtm.md filled
+- [x] `deploy/docker/compose.yaml`: Grafana, Loki, Tempo, Mimir, OTel Collector (CORS on OTLP/HTTP), demo backend
+- [x] Grafana provisioning: Loki, Tempo, Mimir datasources, trace to logs correlation on `session.id`
+- [x] `examples/backend`: Go API with `/api/products`, `/api/cart`, `/api/checkout` (slow and 500 variants via query flags), OTel traces and logs, baggage `session.id` copied to spans (verified: `go vet`, `go test`, docker image, trace with `session.id` found in Tempo and log line in Loki; see `agents/backend-demo/summaries/2026-10-06-phase-1.md`)
+- [x] Smoke script: send a test span via curl and find it in Tempo; send a test log and find it in Loki
+- [x] kb/collector-lgtm.md filled
 
 ## Phase 2 Browser SDK + web demo
 
