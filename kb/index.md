@@ -14,3 +14,4 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [competitors.md](competitors.md) | Notes on how Sentry, Datadog, Grafana Faro, PostHog and OpenReplay model sessions and replay |
 | [otel-go-baggage.md](otel-go-baggage.md) | How the Go demo backend copies baggage `session.id` onto spans and logs; otelhttp route naming, otelslog bridge, Tempo search and local port quirks (Phase 1) |
 | [web-demo-storefront.md](web-demo-storefront.md) | How examples/web is wired to the demo backend and the browser SDK, stub mode, backend JSON quirks, React dev double-reporting of uncaught errors (Phase 2) |
+| [e2e-scenario.md](e2e-scenario.md) | How the Phase 6 scenario generates synthetic web/mobile sessions via OTLP/JSON and asserts rum-api and Grafana; Tempo/Grafana API quirks; forcing a fresh browser session (Phase 6) |

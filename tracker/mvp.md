@@ -10,7 +10,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 | 3 rum-api | `phase-3-rum-api` | | review | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | review | grafana-plugin |
 | 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | review | sdk-react-native |
-| 6 End-to-end QA + reports | `phase-6-qa` | | todo | qa |
+| 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | review | qa |
 
 ## Phase 0 Foundation
 
@@ -62,7 +62,9 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 6 End-to-end QA + reports
 
-- [ ] Scripted scenario that produces N web and mobile sessions with known statuses, then asserts the API percentages and trace counts
-- [ ] Every acceptance check in docs/MVP.md ticked with method
-- [ ] HTML report in `reports/` with health charts, session to trace table, and a screenshot-free description of the replay flow
-- [ ] README quickstart
+- [x] Scripted scenario that produces N web and mobile sessions with known statuses, then asserts the API percentages and trace counts (`tests/e2e/scenario.mjs` via `deploy/scripts/e2e.sh`: 40 sessions, 2 services x 2 versions x 5/3/2, health buckets, crashed lists, detail timelines, trace counts, Grafana links and datasource resolution; passes, run `muymf83c`; see `agents/qa/summaries/2026-10-08-phase-6.md`)
+- [x] Every acceptance check in docs/MVP.md ticked with method (mobile check verified on Expo web, simulator still owed to Phase 5)
+- [x] HTML report in `reports/` with health charts, session to trace table, and a screenshot-free description of the replay flow (`reports/mvp-verification.html`; the replay flow is described in the acceptance table and additionally illustrated with screenshots under `agents/qa/reports/`)
+- [x] README quickstart (root `README.md`)
+
+Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser emits a second `session.start` when rotating an expired session) must be routed to sdk-browser; the Phase 5 simulator box stays open.
