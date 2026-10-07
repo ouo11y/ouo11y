@@ -1,0 +1,129 @@
+{
+ "status": "success",
+ "data": {
+  "resultType": "streams",
+  "result": [
+   {
+    "stream": {
+     "event_name": "session.start",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "session_id": "G"
+    },
+    "values": [
+     [
+      "1791280900000000000",
+      "session.start"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "event_name": "custom.thing",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "session_id": "G",
+     "user_id": "late-user",
+     "ouo_event_custom": "true"
+    },
+    "values": [
+     [
+      "1791280901000000000",
+      "custom.thing"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "event_name": "session.start",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "session_id": "H",
+     "user_id": "u1"
+    },
+    "values": [
+     [
+      "1791280850000000000",
+      "session.start"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "event_name": "navigation",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "user_id": "u1"
+    },
+    "values": [
+     [
+      "1791280860000000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "event_name": "navigation",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "session_id": "I",
+     "user_id": "u1"
+    },
+    "values": [
+     [
+      "1791280870000000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "event_name": "exception",
+     "service_name": "web-store",
+     "ouo_platform": "web",
+     "deployment_environment_name": "local",
+     "service_version": "1.4.2",
+     "severity_text": "INFO",
+     "telemetry_sdk_name": "opentelemetry",
+     "scope_name": "@ouo/browser",
+     "session_id": "I",
+     "user_id": "u1",
+     "ouo_exception_fatal": "TRUE"
+    },
+    "values": [
+     [
+      "1791280871000000000",
+      "exception"
+     ]
+    ]
+   }
+  ],
+  "stats": {}
+ }
+}

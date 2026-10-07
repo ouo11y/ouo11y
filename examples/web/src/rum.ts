@@ -9,7 +9,7 @@ const env = import.meta.env;
 
 export const config = {
   otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4328",
-  rumApi: env.VITE_RUM_API ?? "http://localhost:8082",
+  rumApi: env.VITE_RUM_API ?? "http://localhost:8080",
   backendUrl: env.VITE_BACKEND_URL ?? "http://localhost:8082",
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
   stub: typeof __OUO_RUM_STUB__ !== "undefined" && __OUO_RUM_STUB__,

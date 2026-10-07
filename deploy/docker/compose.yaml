@@ -94,8 +94,35 @@ services:
     depends_on:
       - otel-collector
 
-  # Phase 3 adds `rum-api` (Go, port 8080) here: build context ../../services/rum-api,
-  # replay storage bind-mounted from ../data/replays, OTLP to otel-collector:4318.
+  # rum-api (Phase 3): replay chunk storage, session folding over Loki,
+  # trace search over Tempo, JSON API for the Grafana plugin.
+  rum-api:
+    build:
+      context: ../../services/rum-api
+    ports:
+      - "${OUO_RUM_API_PORT:-8080}:8080"
+    environment:
+      RUM_API_ADDR: ":8080"
+      LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
+      # Browser-facing Grafana URL used in trace deep links.
+      GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}
+      GRAFANA_TEMPO_DATASOURCE_UID: tempo
+      DATA_DIR: /data
+      SESSION_INACTIVITY: 30m
+      SESSION_MAX_DURATION: 4h
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: rum-api
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
+    volumes:
+      # Replay chunks: deploy/data/rum-api/replays/<session_id>/<seq>.json.gz (gitignored).
+      - ../data/rum-api:/data
+    depends_on:
+      - loki
+      - tempo
+      - otel-collector
 
 volumes:
   grafana-data:

@@ -1,0 +1,494 @@
+{
+ "status": "success",
+ "data": {
+  "resultType": "streams",
+  "result": [
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "code_filepath": "http://localhost:4173/main.js",
+     "code_lineno": "46",
+     "deployment_environment_name": "local",
+     "detected_level": "error",
+     "event_name": "exception",
+     "exception_message": "scenario uncaught",
+     "exception_stacktrace": "TypeError: scenario uncaught\n    at http://localhost:4173/main.js:46:28",
+     "exception_type": "TypeError",
+     "observed_timestamp": "1791263181470000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_exception_fatal": "true",
+     "ouo_exception_handled": "false",
+     "ouo_exception_kind": "uncaught",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "17",
+     "severity_text": "ERROR",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263181470000000",
+      "exception"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "error",
+     "event_name": "exception",
+     "exception_message": "scenario console.error",
+     "exception_type": "ConsoleError",
+     "observed_timestamp": "1791263181469000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_exception_fatal": "false",
+     "ouo_exception_handled": "true",
+     "ouo_exception_kind": "console",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "17",
+     "severity_text": "ERROR",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263181469000000",
+      "exception"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "error",
+     "event_name": "exception",
+     "exception_message": "scenario handled",
+     "exception_stacktrace": "Error: scenario handled\n    at scenario (http://localhost:4173/main.js:42:20)",
+     "exception_type": "Error",
+     "observed_timestamp": "1791263181468000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_exception_fatal": "false",
+     "ouo_exception_handled": "true",
+     "ouo_exception_kind": "captured",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "17",
+     "severity_text": "ERROR",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb",
+     "where": "scenario"
+    },
+    "values": [
+     [
+      "1791263181468000000",
+      "exception"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "error",
+     "event_name": "http.request.failed",
+     "http_request_method": "POST",
+     "http_response_status_code": "500",
+     "observed_timestamp": "1791263181464000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "17",
+     "severity_text": "ERROR",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_full": "http://localhost:8082/api/checkout?fail=500",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263181464000000",
+      "http.request.failed"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "cart.added",
+     "observed_timestamp": "1791263181469000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_event_custom": "true",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "qty": "1",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "sku": "sku-1",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263181469000000",
+      "cart.added"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "cart.added",
+     "observed_timestamp": "1791263198324000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_event_custom": "true",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "qty": "1",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "sku": "sku-1",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263198324000000",
+      "cart.added"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "navigation",
+     "observed_timestamp": "1791263180897000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_navigation_kind": "load",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_full": "http://localhost:4173/?auto",
+     "url_path": "/",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263180897000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "navigation",
+     "observed_timestamp": "1791263181469000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_navigation_from": "/",
+     "ouo_navigation_kind": "push",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_full": "http://localhost:4173/cart",
+     "url_path": "/cart",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263181469000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "navigation",
+     "observed_timestamp": "1791263200728000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_navigation_kind": "load",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_full": "http://localhost:4173/?noreplay",
+     "url_path": "/",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263200728000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "session.start",
+     "observed_timestamp": "1791263180896000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_session_started_at": "1791263180896",
+     "ouo_user_anonymous": "true",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263180896000000",
+      "session.start"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "web_vital",
+     "observed_timestamp": "1791263180942000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "ouo_web_vital_delta": "4.700000286102295",
+     "ouo_web_vital_id": "v6-1791263180898-1661186392783",
+     "ouo_web_vital_name": "TTFB",
+     "ouo_web_vital_navigation_type": "navigate",
+     "ouo_web_vital_rating": "good",
+     "ouo_web_vital_value": "4.700000286102295",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_path": "/",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263180942000000",
+      "web_vital"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "browser_brands": "[\"Not=A?Brand 99\",\"Google Chrome 151\",\"Chromium 151\"]",
+     "browser_language": "en-US",
+     "browser_mobile": "false",
+     "browser_platform": "macOS",
+     "deployment_environment_name": "local",
+     "detected_level": "info",
+     "event_name": "web_vital",
+     "observed_timestamp": "1791263200747000000",
+     "os_name": "macOS",
+     "os_version": "10.15.7",
+     "ouo_platform": "web",
+     "ouo_sdk_name": "@ouo/browser",
+     "ouo_sdk_version": "0.1.0",
+     "ouo_user_anonymous": "true",
+     "ouo_web_vital_delta": "4.800000190734863",
+     "ouo_web_vital_id": "v6-1791263200728-8875283907873",
+     "ouo_web_vital_name": "TTFB",
+     "ouo_web_vital_navigation_type": "navigate",
+     "ouo_web_vital_rating": "good",
+     "ouo_web_vital_value": "4.800000190734863",
+     "scope_name": "@ouo/browser",
+     "scope_version": "0.1.0",
+     "service_name": "web-store",
+     "service_version": "1.4.2",
+     "session_id": "a4d47dfa-db30-4856-9bfe-3a657ccc9471",
+     "severity_number": "9",
+     "severity_text": "INFO",
+     "telemetry_sdk_language": "webjs",
+     "telemetry_sdk_name": "opentelemetry",
+     "telemetry_sdk_version": "2.11.0",
+     "url_path": "/",
+     "user_agent_original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+     "user_id": "3c63803d-6d13-4d79-944a-72c1c26f23cb"
+    },
+    "values": [
+     [
+      "1791263200747000000",
+      "web_vital"
+     ]
+    ]
+   }
+  ]
+ }
+}

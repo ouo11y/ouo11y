@@ -7,7 +7,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 | 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
 | 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
 | 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
-| 3 rum-api | `phase-3-rum-api` | | todo | rum-api |
+| 3 rum-api | `phase-3-rum-api` | | review | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | | todo | grafana-plugin |
 | 5 React Native | `phase-5-mobile` | | todo | sdk-react-native |
 | 6 End-to-end QA + reports | `phase-6-qa` | | todo | qa |
@@ -37,13 +37,13 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 3 rum-api
 
-- [ ] `POST /v1/replay/chunks`, `GET /v1/sessions/{id}/replay`
-- [ ] `GET /v1/sessions` (range, platform, version, status, user filters), `GET /v1/sessions/{id}` (record + timeline events + traces)
-- [ ] `GET /v1/stats/health` (percentages by platform and version)
-- [ ] Session folding and classification per ADR-0004 with unit tests on fixture Loki responses
-- [ ] Tempo search per session with trace count and Tempo deep links
-- [ ] Own OTel instrumentation, Dockerfile, added to compose
-- [ ] kb/loki-session-queries.md and kb/tempo-session-search.md filled
+- [x] `POST /v1/replay/chunks`, `GET /v1/sessions/{id}/replay` (+ `/replay/events` stream, `DELETE`; verified with curl and a real browser session: 11 gzip chunks on disk, 186 rrweb events served; see `agents/rum-api/summaries/2026-10-06-phase-3.md`)
+- [x] `GET /v1/sessions` (range, platform, version, status, user filters), `GET /v1/sessions/{id}` (record + timeline events + traces) (verified: fresh web session listed as crashed with user, 22 traces, has_replay; timeline in order)
+- [x] `GET /v1/stats/health` (percentages by platform and version) (verified: buckets per platform/service/version, rows sum to 100)
+- [x] Session folding and classification per ADR-0004 with unit tests on fixture Loki responses (`services/rum-api/internal/session`, 8 fixtures incl. a real Loki response; synthetic mobile session classified errored / 9.9.9)
+- [x] Tempo search per session with trace count and Tempo deep links (Explore `panes` URL opened in Grafana 13.2.1)
+- [x] Own OTel instrumentation, Dockerfile, added to compose (`service.name=rum-api` traces in Tempo, logs in Loki)
+- [x] kb/loki-session-queries.md and kb/tempo-session-search.md filled
 
 ## Phase 4 Grafana plugin
 
