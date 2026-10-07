@@ -8,8 +8,8 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 | 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
 | 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
 | 3 rum-api | `phase-3-rum-api` | | review | rum-api |
-| 4 Grafana plugin | `phase-4-plugin` | | todo | grafana-plugin |
-| 5 React Native | `phase-5-mobile` | | todo | sdk-react-native |
+| 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | review | grafana-plugin |
+| 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | review | sdk-react-native |
 | 6 End-to-end QA + reports | `phase-6-qa` | | todo | qa |
 
 ## Phase 0 Foundation
@@ -47,18 +47,18 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 4 Grafana plugin
 
-- [ ] `plugins/ouo-rum-app` scaffold, route proxy to rum-api, loaded unsigned in compose Grafana
-- [ ] Overview page: health percentages web and mobile by version, time range picker
-- [ ] Sessions page: table with filters, status, user, version, trace count
-- [ ] Session detail: timeline, trace list with Explore links, rrweb player synced to timeline markers
-- [ ] kb/grafana-app-plugin.md filled
+- [x] `plugins/ouo-rum-app` scaffold, route proxy to rum-api, loaded unsigned in compose Grafana (create-plugin 7.12.1 toolchain, `routes: rum/* -> jsonData.rumApiUrl`, provisioned via `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml`; verified: `/api/plugins/ouo-rum-app/settings` enabled, `/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health` returns rum-api JSON; see `agents/grafana-plugin/summaries/2026-10-07-phase-4.md`)
+- [x] Overview page: health percentages web and mobile by version, time range picker (verified in Grafana 13.2.1: tiles and version rows equal `GET /v1/stats/health?from=now-24h`)
+- [x] Sessions page: table with filters, status, user, version, trace count (verified: crashed web session with user and 19 traces, filters pre-set from Overview links)
+- [x] Session detail: timeline, trace list with Explore links, rrweb player synced to timeline markers (verified: Explore opens the Tempo trace view, marker and timeline clicks seek the player, inputs masked, sandboxed iframe; `agents/grafana-plugin/reports/phase-4-verification.html`)
+- [x] kb/grafana-app-plugin.md filled
 
 ## Phase 5 React Native
 
-- [ ] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export
-- [ ] `examples/mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config
-- [ ] Verified on iOS Simulator: sessions and crash show up in plugin with version split
-- [ ] kb/otel-react-native.md filled
+- [x] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export (36 Vitest tests; `npm run -w sdk/react-native build` then `npm run -w sdk/react-native test`)
+- [x] `examples/mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
+- [ ] Verified on iOS Simulator: sessions and crash show up in plugin with version split. **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
+- [x] kb/otel-react-native.md filled
 
 ## Phase 6 End-to-end QA + reports
 

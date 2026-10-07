@@ -113,14 +113,32 @@ curl localhost:8080/v1/sessions/<session_id>/replay/events    # rrweb events for
 
 The web demo's `VITE_RUM_API` must point at this port (default `http://localhost:8080`).
 
-## Later phases
+## Grafana app plugin (Phase 4)
 
-- **Phase 4 (Grafana plugin)**: Grafana already runs with
-  `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app` and
-  `GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app`. Uncomment the
-  `../../plugins/ouo-rum-app/dist` volume on the grafana service once that directory
-  exists; compose refuses to start when a bind-mount source is missing, which is why
-  it is commented out today.
+`plugins/ouo-rum-app` is the MVP UI (Overview, Sessions, Session detail with replay). It is
+loaded **unsigned** (`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`,
+`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app`) from the bind mount
+`../../plugins/ouo-rum-app/dist -> /var/lib/grafana/plugins/ouo-rum-app`. When `dist/` does
+not exist Docker creates an empty directory and Grafana starts without the plugin.
+
+```bash
+npm install && npm run -w plugins/ouo-rum-app build       # repo root
+docker compose -f deploy/docker/compose.yaml up -d grafana  # (re)create so the mount is picked up
+open http://localhost:${OUO_GRAFANA_PORT:-3000}/a/ouo-rum-app/overview
+```
+
+`grafana/provisioning/plugins/ouo-rum-app.yaml` enables the app for org 1 with
+`jsonData.rumApiUrl: http://rum-api:8080`. The plugin never calls rum-api from the browser:
+it requests `/api/plugin-proxy/ouo-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl`
+(route `rum/*` in `plugin.json`; empty `rumApiUrl` falls back to `http://rum-api:8080`).
+The URL can be changed at `/plugins/ouo-rum-app` (Configuration) without restarting
+Grafana. Restart Grafana after changing `src/plugin.json`; for JS-only rebuilds a hard
+browser reload is enough.
+
+```bash
+curl -u admin:admin localhost:3000/api/plugins/ouo-rum-app/settings | jq '{enabled, jsonData}'
+curl -u admin:admin 'localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
+```
 
 ## Notes
 

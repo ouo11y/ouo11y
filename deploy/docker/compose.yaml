@@ -22,9 +22,10 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
-      # Phase 4 adds the unsigned app plugin build output. Uncomment once
-      # plugins/ouo-rum-app/dist exists (compose fails if a bind source is missing):
-      # - ../../plugins/ouo-rum-app/dist:/var/lib/grafana/plugins/ouo-rum-app:ro
+      # Phase 4: the unsigned app plugin build output (npm run -w plugins/ouo-rum-app build).
+      # Short bind syntax: Docker creates an empty host dir when dist is missing, so
+      # Grafana still starts (the plugin is simply absent until it is built).
+      - ../../plugins/ouo-rum-app/dist:/var/lib/grafana/plugins/ouo-rum-app:ro
     depends_on:
       - loki
       - tempo
