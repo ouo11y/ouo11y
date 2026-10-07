@@ -27,7 +27,7 @@
   <table>
     <thead><tr><th>#</th><th>Severity</th><th>Owner</th><th>Summary</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="sev bug">bug</td><td>sdk-browser (check sdk-react-native too)</td><td>Rotating an expired session emits two <code>session.start</code> events with different ids; a phantom one-event session appears in rum-api.</td></tr>
+      <tr><td>1</td><td class="sev bug">bug</td><td>sdk-browser (check sdk-react-native too)</td><td>Rotating an expired session emits two <code>session.start</code> events with different ids; a phantom one-event session appears in rum-api. <strong>Fixed 2026-10-08</strong> by sdk-browser (atomic rotation + ensure-free log processor, regression test <code>sdk/browser/test/rotation.test.ts</code>; react-native not affected, guarded by <code>sdk/react-native/test/rotation.test.ts</code>).</td></tr>
       <tr><td>2</td><td class="sev minor">minor</td><td>rum-api / grafana-plugin</td><td>Trace ids from Tempo search lose leading zeros (31 chars); passed through to the API and the plugin.</td></tr>
       <tr><td>3</td><td class="sev minor">minor</td><td>rum-api</td><td>Timeline tie-break: initial <code>navigation (load)</code> sorts before <code>session.start</code> at the same millisecond.</td></tr>
       <tr><td>4</td><td class="sev minor">minor</td><td>rum-api</td><td><code>ended_at</code> uses the <code>session.end</code> record timestamp (detection time) instead of <code>ouo.session.ended_at</code> (actual expiry).</td></tr>
@@ -59,6 +59,7 @@ curl -sG localhost:3101/loki/api/v1/query_range \
   --data-urlencode "start=$(( $(date +%s) - 600 ))000000000" --data-urlencode "end=$(date +%s)000000000" \
   | jq '.data.result[] | [.values[0][0], .stream.session_id]'        # two rows instead of one
 </pre></dd>
+    <dt>Status</dt><dd><strong>Fixed 2026-10-08</strong> (sdk-browser, see <code>agents/sdk-browser/summaries/2026-10-08-bugfix.md</code>): the manager now installs the replacement session before emitting <code>session.end</code> / <code>session.start</code> (<code>rotate()</code>), and <code>SessionLogProcessor</code> no longer calls <code>session.id()</code> for records that already carry <code>session.id</code>. Live re-check: rotation of <code>071a0ed0-...</code> produced only <code>98143ee0-...</code>; Loki shows one <code>session.start</code> with that <code>previous_id</code> and one <code>session.end</code> (<code>end_reason=inactivity</code>). sdk/react-native was not affected (its processor already used <code>peek()</code>).</dd>
     <dt>Suggested fix</dt><dd>Make <code>create()</code> / <code>ensure()</code> re-entrancy safe: for example set <code>this.current</code> to the new record (or a "creating" guard) before emitting <code>session.end</code>, or have the log processor skip <code>ensure()</code> when the record already carries <code>session.id</code> (compute <code>sessionAttributes</code> lazily). Add a unit test asserting exactly one <code>session.start</code> per rotation with the real processor chain (the jsdom integration test only covers a fresh init). Check <code>sdk/react-native</code>'s manager for the same pattern (cold start with an expired persisted session, background rotation).</dd>
   </dl>
 

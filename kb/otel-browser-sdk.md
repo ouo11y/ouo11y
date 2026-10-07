@@ -117,3 +117,16 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
   through it so nothing router-specific is needed.
 - Resource load errors (`<img>`, `<script>`) only reach a capture-phase `error` listener on
   `window`; they are reported non-fatal with `ouo.exception.kind=resource`.
+- Never ask the session manager for the *active* id from inside the log pipeline for a
+  record that already names its session. `session.id()` is lazy (`ensure()` creates a
+  session when none is active), and `session.end` is emitted at exactly the moment there is
+  no active session, so a processor that calls `session.id()` for every record starts a
+  session as a side effect of exporting `session.end`; the caller then creates another one
+  and you get two `session.start` records per rotation (QA phase 6 bug 1). Rules now in
+  place: `SessionLogProcessor` fills only user/platform/version fields for records carrying
+  `session.id` (reads `peek()`, never `ensure()`), and `SessionManager.rotate()` installs
+  the replacement record before emitting either event so a re-entrant `ensure()` returns
+  it. Regression tests: `sdk/browser/test/rotation.test.ts` (and the mobile counterpart).
+- To reproduce an expiry rotation in the demo by hand, write the aged `ouo.session` record
+  from a `pagehide` listener registered after the SDK's: the SDK re-persists the in-memory
+  record on `pagehide`, which overwrites a plain devtools edit before the reload.

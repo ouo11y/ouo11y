@@ -107,11 +107,11 @@ export class SessionManager {
         return;
       }
       if (reason) {
-        this.end(persisted, reason, now);
-      } else {
-        // Ended by another tab earlier; the end event was already emitted there.
-        this.lastEnded = persisted;
+        this.rotate(persisted, reason, now);
+        return;
       }
+      // Ended by another tab earlier; the end event was already emitted there.
+      this.lastEnded = persisted;
     }
     this.create(now);
   }
@@ -217,7 +217,7 @@ export class SessionManager {
     if (this.current) {
       const reason = this.expiredReason(this.current, now);
       if (!reason) return this.current;
-      this.end(this.current, reason, now);
+      return this.rotate(this.current, reason, now);
     }
     return this.create(now);
   }
@@ -229,7 +229,30 @@ export class SessionManager {
     return inactivityDeadline <= maxDeadline ? "inactivity" : "max_duration";
   }
 
+  /**
+   * Replace an expired session with a new one. State is fully updated (old record
+   * closed and persisted, new record installed as `current`) before either event is
+   * emitted, so a re-entrant `ensure()` from an event consumer (the OTel log processor
+   * asks for the active id while `session.end` is being emitted) returns the replacement
+   * instead of creating a second session. Exactly one `session.end` and one
+   * `session.start` are emitted per rotation.
+   */
+  private rotate(rec: SessionRecord, reason: EndReason, now: number): SessionRecord {
+    const endAttributes = this.close(rec, reason, now);
+    const next = this.install(now);
+    this.onEvent({ name: "session.end", attributes: endAttributes });
+    this.announce(next);
+    return next;
+  }
+
   private create(now: number): SessionRecord {
+    const rec = this.install(now);
+    this.announce(rec);
+    return rec;
+  }
+
+  /** Create and persist a new record as the active session without emitting anything. */
+  private install(now: number): SessionRecord {
     const previousId = this.lastEnded?.id;
     const rec: SessionRecord = {
       id: uuidv4(),
@@ -241,18 +264,28 @@ export class SessionManager {
     this.current = rec;
     this.persist(rec, true);
     this.logger?.log("session started", rec.id, previousId ? `(previous ${previousId})` : "");
+    return rec;
+  }
+
+  /** Emit `session.start` for an installed record, arm the expiry timer and notify listeners. */
+  private announce(rec: SessionRecord): void {
     const attributes: Attrs = {
       "session.id": rec.id,
       "ouo.session.started_at": rec.startedAt,
     };
-    if (previousId) attributes["session.previous_id"] = previousId;
+    if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
     this.onEvent({ name: "session.start", attributes });
     this.schedule();
-    this.onRotate?.(rec, previousId);
-    return rec;
+    this.onRotate?.(rec, rec.previousId);
   }
 
+  /** End a session with no replacement (timer path: the next signal creates one lazily). */
   private end(rec: SessionRecord, reason: EndReason, now: number): void {
+    this.onEvent({ name: "session.end", attributes: this.close(rec, reason, now) });
+  }
+
+  /** Mark a record ended, persist the marker and return the `session.end` attributes. */
+  private close(rec: SessionRecord, reason: EndReason, now: number): Attrs {
     const endedAt =
       reason === "inactivity"
         ? Math.min(rec.lastActivity + this.inactivityTimeoutMs, now)
@@ -273,7 +306,7 @@ export class SessionManager {
       "ouo.session.ended_at": endedAt,
     };
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
-    this.onEvent({ name: "session.end", attributes });
+    return attributes;
   }
 
   /** Same-tab expiry detection: one timer at the earliest deadline, re-evaluated when it fires. */

@@ -40,7 +40,13 @@ export class SessionSpanProcessor implements SpanProcessor {
   }
 }
 
-/** Adds session identifiers to every log record unless the record already carries them (session.end does). */
+/**
+ * Adds session identifiers to every log record unless the record already carries them.
+ * A `session.start` / `session.end` record names its own session: it must neither inherit
+ * the active session's ids nor, by asking for the active id, create a session (a
+ * `session.end` is emitted at the moment there is no active session, so `session.id()`
+ * would start one; see agents/qa/reports/phase-6-bugs.html bug 1).
+ */
 export class SessionLogProcessor implements LogRecordProcessor {
   constructor(
     private readonly session: SessionManager,
@@ -49,14 +55,21 @@ export class SessionLogProcessor implements LogRecordProcessor {
 
   onEmit(record: SdkLogRecord): void {
     const existing = record.attributes;
-    const attrs = correlationAttributes(this.session, this.serviceVersion);
-    // A session.end record names the session that just ended; it must not inherit the
-    // new session's previous_id (which is itself).
-    const ownSession = existing["session.id"] === undefined || existing["session.id"] === attrs["session.id"];
-    for (const key of Object.keys(attrs)) {
-      if (!ownSession && key === "session.previous_id") continue;
-      if (existing[key] === undefined) record.setAttribute(key, attrs[key]!);
+    const set = (key: string, value: AttrValue): void => {
+      if (existing[key] === undefined) record.setAttribute(key, value);
+    };
+    if (existing["session.id"] !== undefined) {
+      // Record about a named session: fill the non-session fields only, without ensure().
+      set("user.id", this.session.userId());
+      set("ouo.user.anonymous", this.session.isAnonymousUser());
+      set("ouo.platform", "web");
+      set("service.version", this.serviceVersion);
+      const current = this.session.peek();
+      if (current && current.id === existing["session.id"] && current.previousId) set("session.previous_id", current.previousId);
+      return;
     }
+    const attrs = correlationAttributes(this.session, this.serviceVersion);
+    for (const key of Object.keys(attrs)) set(key, attrs[key]!);
   }
 
   forceFlush(): Promise<void> {
