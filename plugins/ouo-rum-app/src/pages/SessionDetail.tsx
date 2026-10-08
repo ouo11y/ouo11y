@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
+import { FramePlayer } from '../components/FramePlayer';
 import { PlatformIcon } from '../components/PlatformIcon';
 import { ReplayMarkers } from '../components/ReplayMarkers';
 import { ReplayPlayer, type ReplayHandle } from '../components/ReplayPlayer';
@@ -17,6 +18,7 @@ import { useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
 import { formatDateTime, formatDuration, formatTraceCount, parseTs, sessionDurationMs } from '../utils/format';
+import { framesBounds, replayRenderer } from '../utils/frames';
 import { buildMarkers, latestEventIndex, replayBounds, seekOffset } from '../utils/markers';
 
 export default function SessionDetail() {
@@ -31,15 +33,28 @@ export default function SessionDetail() {
   );
   const session = detail.data;
   const wantsReplay = Boolean(session?.has_replay);
-  const replay = useRumQuery(() => rumApi.replayEvents(id), `${id}|replay`, wantsReplay);
+  // The renderer comes from `replay_kind` on the record; older records need the replay meta.
+  const needsMeta = wantsReplay && session?.replay_kind !== 'frames' && session?.replay_kind !== 'rrweb';
+  const meta = useRumQuery(() => rumApi.replayMeta(id), `${id}|replay-meta`, needsMeta);
+  const renderer = replayRenderer(session, meta.data);
+  const replay = useRumQuery(() => rumApi.replayEvents(id), `${id}|replay`, renderer === 'rrweb');
+  const frames = useRumQuery(() => rumApi.replayFrames(id), `${id}|replay-frames`, renderer === 'frames');
 
   const playerRef = useRef<ReplayHandle | null>(null);
   const [currentMs, setCurrentMs] = useState(0);
 
   const timeline = useMemo(() => session?.timeline ?? [], [session]);
   const sessionStart = parseTs(session?.started_at);
-  const bounds = useMemo(() => replayBounds(replay.data ?? []), [replay.data]);
-  const hasReplay = wantsReplay && Boolean(replay.data?.length);
+  const bounds = useMemo(
+    () => (renderer === 'frames' ? framesBounds(frames.data) : replayBounds(replay.data ?? [])),
+    [renderer, frames.data, replay.data]
+  );
+  const hasRrweb = renderer === 'rrweb' && Boolean(replay.data?.length);
+  const hasFrames = renderer === 'frames' && Boolean(frames.data?.frames.length);
+  const hasReplay = hasRrweb || hasFrames;
+  const replayError = replay.error ?? frames.error ?? meta.error;
+  const replayLoading =
+    wantsReplay && !hasReplay && !replayError && (meta.loading || replay.loading || frames.loading);
   const markers = useMemo(
     () => (hasReplay ? buildMarkers(timeline, bounds.start, bounds.durationMs) : []),
     [hasReplay, timeline, bounds]
@@ -138,30 +153,64 @@ export default function SessionDetail() {
               {!session.has_replay && (
                 <div className={styles.muted}>
                   {session.platform === 'mobile'
-                    ? 'Mobile sessions have no replay in the MVP.'
+                    ? 'No replay was recorded for this session (mobile replay needs the native SDK with replay enabled).'
                     : 'No replay was recorded for this session.'}
                 </div>
               )}
-              {wantsReplay && replay.error && <ApiErrorAlert error={replay.error} onRetry={replay.reload} />}
-              {wantsReplay && replay.loading && !replay.data && <LoadingPlaceholder text="Loading replay events…" />}
-              {hasReplay && replay.data && (
-                <>
-                  <ReplayPlayer ref={playerRef} events={replay.data} onTime={setCurrentMs} />
-                  <ReplayMarkers
-                    markers={markers}
-                    durationMs={bounds.durationMs}
-                    currentMs={currentMs}
-                    onSeek={(ms) => seekTo(ms)}
-                  />
-                  <div className={styles.replayInfo}>
-                    {replay.data.length} rrweb events · {formatDuration(bounds.durationMs)} · inputs are masked by the
-                    SDK at record time · rendered in a sandboxed iframe
-                  </div>
-                </>
+              {wantsReplay && replayError && (
+                <ApiErrorAlert
+                  error={replayError}
+                  onRetry={meta.error ? meta.reload : frames.error ? frames.reload : replay.reload}
+                />
               )}
-              {wantsReplay && replay.data && replay.data.length === 0 && (
+              {replayLoading && (
+                <LoadingPlaceholder
+                  text={renderer === 'frames' ? 'Loading replay frames…' : 'Loading replay events…'}
+                />
+              )}
+              {hasRrweb && replay.data && (
+                <ReplayPlayer ref={playerRef} events={replay.data} onTime={setCurrentMs} />
+              )}
+              {hasFrames && frames.data && (
+                <FramePlayer
+                  ref={playerRef}
+                  frames={frames.data.frames}
+                  touches={frames.data.touches ?? []}
+                  viewport={frames.data.viewport}
+                  startTs={bounds.start}
+                  durationMs={bounds.durationMs}
+                  onTime={setCurrentMs}
+                />
+              )}
+              {hasReplay && (
+                <ReplayMarkers
+                  markers={markers}
+                  durationMs={bounds.durationMs}
+                  currentMs={currentMs}
+                  onSeek={(ms) => seekTo(ms)}
+                />
+              )}
+              {hasRrweb && replay.data && (
+                <div className={styles.replayInfo}>
+                  {replay.data.length} rrweb events · {formatDuration(bounds.durationMs)} · inputs are masked by the
+                  SDK at record time · rendered in a sandboxed iframe
+                </div>
+              )}
+              {hasFrames && frames.data && (
+                <div className={styles.replayInfo}>
+                  {frames.data.frames.length} frames · {(frames.data.touches ?? []).length} touches ·{' '}
+                  {formatDuration(bounds.durationMs)} · {frames.data.platform} {frames.data.viewport.width}×
+                  {frames.data.viewport.height} pt · text, inputs and images are masked on the device before upload
+                </div>
+              )}
+              {renderer === 'rrweb' && replay.data && replay.data.length === 0 && (
                 <Alert severity="info" title="Replay is empty">
                   rum-api reports a replay for this session but no events were decodable.
+                </Alert>
+              )}
+              {renderer === 'frames' && frames.data && frames.data.frames.length === 0 && (
+                <Alert severity="info" title="Replay is empty">
+                  rum-api reports a frames replay for this session but it holds no frames.
                 </Alert>
               )}
             </section>

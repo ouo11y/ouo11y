@@ -1,5 +1,5 @@
-// Command rum-api is the ouo session and replay service: it stores rrweb
-// replay chunks, folds Loki session events into session records with a
+// Command rum-api is the ouo session and replay service: it stores replay
+// chunks (rrweb events from the web SDK, JPEG frames from mobile), folds Loki session events into session records with a
 // health status, lists traces per session from Tempo and serves the JSON API
 // used by the Grafana app plugin. See README.md for the API.
 package main
@@ -78,6 +78,7 @@ func run(cfg config.Config) error {
 		ListLookback:       cfg.SessionMaxDuration,
 		DetailLookback:     cfg.DetailLookback,
 		MaxChunkBytes:      cfg.MaxChunkBytes,
+		MaxFrameChunkBytes: cfg.MaxFrameChunkBytes,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",

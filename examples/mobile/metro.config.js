@@ -10,7 +10,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // The SDK's peer dependencies must resolve to THIS app's copies, never to the SDK's own
 // devDependencies (sdk/react-native/node_modules holds a second react-native for its tests)
 // or to the monorepo root node_modules.
-const PEERS = ["react", "react-native", "@react-native-async-storage/async-storage", "promise"];
+const PEERS = ["react", "react-native", "@react-native-async-storage/async-storage", "promise", "expo-modules-core"];
 
 const config = getDefaultConfig(projectRoot);
 

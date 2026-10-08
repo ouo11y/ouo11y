@@ -1,28 +1,33 @@
 {
   "name": "@ouo/react-native",
   "version": "0.1.0",
-  "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version and fetch tracing.",
+  "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS).",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "react-native": "./dist/index.js",
   "files": [
     "dist",
+    "ios",
+    "android",
+    "expo-module.config.json",
     "README.md"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node scripts/sync-ios.mjs && tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sync:ios": "node scripts/sync-ios.mjs"
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": ">=1.21.0",
     "react": ">=18",
-    "react-native": ">=0.74"
+    "react-native": ">=0.74",
+    "expo-modules-core": ">=2.0.0"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
@@ -45,5 +50,10 @@
     "tsup": "^8.5.1",
     "typescript": "~5.9.3",
     "vitest": "^5.0.3"
+  },
+  "peerDependenciesMeta": {
+    "expo-modules-core": {
+      "optional": true
+    }
   }
 }

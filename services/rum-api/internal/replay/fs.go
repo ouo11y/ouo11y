@@ -24,6 +24,10 @@ type FS struct {
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
+	// kinds caches session id -> replay kind (a kind never changes once the
+	// first chunk is stored; Delete evicts). Saves parsing meta.json for every
+	// session of a list request.
+	kinds map[string]string
 }
 
 // NewFS creates the store rooted at dataDir (replays live in dataDir/replays).
@@ -32,7 +36,7 @@ func NewFS(dataDir string) (*FS, error) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return nil, fmt.Errorf("create %s: %w", root, err)
 	}
-	return &FS{Root: root, Now: time.Now, locks: map[string]*sync.Mutex{}}, nil
+	return &FS{Root: root, Now: time.Now, locks: map[string]*sync.Mutex{}, kinds: map[string]string{}}, nil
 }
 
 func (s *FS) lock(sessionID string) func() {
@@ -50,77 +54,6 @@ func (s *FS) lock(sessionID string) func() {
 func (s *FS) dir(sessionID string) string { return filepath.Join(s.Root, sessionID) }
 
 func chunkName(seq int) string { return fmt.Sprintf("%06d.json.gz", seq) }
-
-// parseChunk validates the envelope and counts events without keeping them.
-func parseChunk(body []byte) (Chunk, error) {
-	var c Chunk
-	dec := json.NewDecoder(bytes.NewReader(body))
-	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return c, fmt.Errorf("%w: body must be a JSON object", ErrInvalid)
-	}
-	seenEvents := false
-	for dec.More() {
-		keyTok, err := dec.Token()
-		if err != nil {
-			return c, fmt.Errorf("%w: %v", ErrInvalid, err)
-		}
-		key, _ := keyTok.(string)
-		switch key {
-		case "session_id":
-			if err := dec.Decode(&c.SessionID); err != nil {
-				return c, fmt.Errorf("%w: session_id: %v", ErrInvalid, err)
-			}
-		case "seq":
-			if err := dec.Decode(&c.Seq); err != nil {
-				return c, fmt.Errorf("%w: seq: %v", ErrInvalid, err)
-			}
-		case "started_at":
-			if err := dec.Decode(&c.StartedAt); err != nil {
-				return c, fmt.Errorf("%w: started_at: %v", ErrInvalid, err)
-			}
-		case "ended_at":
-			if err := dec.Decode(&c.EndedAt); err != nil {
-				return c, fmt.Errorf("%w: ended_at: %v", ErrInvalid, err)
-			}
-		case "events":
-			seenEvents = true
-			if tok, err := dec.Token(); err != nil || tok != json.Delim('[') {
-				return c, fmt.Errorf("%w: events must be an array", ErrInvalid)
-			}
-			for dec.More() {
-				var raw json.RawMessage
-				if err := dec.Decode(&raw); err != nil {
-					return c, fmt.Errorf("%w: events[%d]: %v", ErrInvalid, c.EventCount, err)
-				}
-				c.EventCount++
-			}
-			if _, err := dec.Token(); err != nil {
-				return c, fmt.Errorf("%w: events: %v", ErrInvalid, err)
-			}
-		default:
-			var skip json.RawMessage
-			if err := dec.Decode(&skip); err != nil {
-				return c, fmt.Errorf("%w: %s: %v", ErrInvalid, key, err)
-			}
-		}
-	}
-	if _, err := dec.Token(); err != nil {
-		return c, fmt.Errorf("%w: %v", ErrInvalid, err)
-	}
-	if !ValidSessionID(c.SessionID) {
-		return c, fmt.Errorf("%w: session_id must match %s", ErrInvalid, sessionIDRe)
-	}
-	if c.Seq < 0 || c.Seq > 999999 {
-		return c, fmt.Errorf("%w: seq must be between 0 and 999999", ErrInvalid)
-	}
-	if !seenEvents {
-		return c, fmt.Errorf("%w: events missing", ErrInvalid)
-	}
-	if c.EndedAt < c.StartedAt {
-		c.EndedAt = c.StartedAt
-	}
-	return c, nil
-}
 
 // Put implements Store.
 func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, error) {
@@ -144,6 +77,14 @@ func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, erro
 	unlock := s.lock(c.SessionID)
 	defer unlock()
 
+	meta, err := s.readMeta(c.SessionID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return c, err
+	}
+	if err == nil && meta.Kind != c.Kind {
+		return c, fmt.Errorf("%w: session %s holds a %s replay, chunk is %s", ErrWrongKind, c.SessionID, meta.Kind, c.Kind)
+	}
+
 	dir := s.dir(c.SessionID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return c, err
@@ -152,12 +93,15 @@ func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, erro
 		return c, err
 	}
 
-	meta, err := s.readMeta(c.SessionID)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return c, err
-	}
 	meta.SessionID = c.SessionID
-	info := ChunkInfo{Seq: c.Seq, StartedAt: c.StartedAt, EndedAt: c.EndedAt, Bytes: int64(len(data)), EventCount: c.EventCount}
+	meta.Kind = c.Kind
+	if c.Kind == KindFrames {
+		// Viewport and platform follow the latest chunk (a device does not
+		// change viewport mid-session; orientation changes are out of scope).
+		meta.Viewport, meta.Platform = c.Viewport, c.Platform
+	}
+	info := ChunkInfo{Seq: c.Seq, StartedAt: c.StartedAt, EndedAt: c.EndedAt, Bytes: int64(len(data)),
+		EventCount: c.EventCount, FrameCount: c.FrameCount, TouchCount: c.TouchCount}
 	replaced := false
 	for i := range meta.Chunks {
 		if meta.Chunks[i].Seq == c.Seq {
@@ -170,15 +114,24 @@ func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, erro
 	}
 	sort.Slice(meta.Chunks, func(i, j int) bool { return meta.Chunks[i].Seq < meta.Chunks[j].Seq })
 	meta.recompute(s.Now())
-	return c, s.writeMeta(meta)
+	if err := s.writeMeta(meta); err != nil {
+		return c, err
+	}
+	s.mu.Lock()
+	s.kinds[c.SessionID] = c.Kind
+	s.mu.Unlock()
+	return c, nil
 }
 
 func (m *Meta) recompute(now time.Time) {
 	m.ChunkCount = len(m.Chunks)
 	m.Bytes = 0
+	m.FrameCount, m.TouchCount = 0, 0
 	m.StartedAt, m.EndedAt = 0, 0
 	for i, ch := range m.Chunks {
 		m.Bytes += ch.Bytes
+		m.FrameCount += ch.FrameCount
+		m.TouchCount += ch.TouchCount
 		if i == 0 {
 			m.FirstSeq, m.StartedAt, m.EndedAt = ch.Seq, ch.StartedAt, ch.EndedAt
 		}
@@ -205,6 +158,7 @@ func (s *FS) readMeta(sessionID string) (Meta, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return m, fmt.Errorf("corrupt meta.json for %s: %w", sessionID, err)
 	}
+	m.Kind = normalizeKind(m.Kind) // meta.json written before Phase 7 has no kind
 	return m, nil
 }
 
@@ -267,6 +221,28 @@ func (s *FS) Has(ctx context.Context, sessionID string) bool {
 	return err == nil
 }
 
+// Kind implements Store: a stat of meta.json plus a cached kind, so listing
+// many sessions does not parse every meta.json.
+func (s *FS) Kind(ctx context.Context, sessionID string) (string, error) {
+	if !s.Has(ctx, sessionID) {
+		return "", ErrNotFound
+	}
+	s.mu.Lock()
+	k, ok := s.kinds[sessionID]
+	s.mu.Unlock()
+	if ok {
+		return k, nil
+	}
+	m, err := s.readMeta(sessionID)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	s.kinds[sessionID] = m.Kind
+	s.mu.Unlock()
+	return m.Kind, nil
+}
+
 type gzReadCloser struct {
 	*gzip.Reader
 	f *os.File
@@ -304,77 +280,8 @@ func (s *FS) Delete(ctx context.Context, sessionID string) error {
 	}
 	unlock := s.lock(sessionID)
 	defer unlock()
+	s.mu.Lock()
+	delete(s.kinds, sessionID)
+	s.mu.Unlock()
 	return os.RemoveAll(s.dir(sessionID))
-}
-
-// WriteEvents streams every chunk of the session in seq order as one JSON
-// array of rrweb events to w. It returns ErrNotFound when the session has no
-// replay. Chunks that fail to decode are skipped (the player plays from the
-// next full snapshot).
-func WriteEvents(ctx context.Context, st Store, sessionID string, w io.Writer) error {
-	meta, err := st.Meta(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-	if _, err := io.WriteString(w, "["); err != nil {
-		return err
-	}
-	first := true
-	for _, ch := range meta.Chunks {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		rc, err := st.OpenChunk(ctx, sessionID, ch.Seq)
-		if err != nil {
-			continue
-		}
-		err = copyEvents(rc, w, &first)
-		rc.Close()
-		if err != nil {
-			return err
-		}
-	}
-	_, err = io.WriteString(w, "]")
-	return err
-}
-
-// copyEvents finds the "events" array in a chunk and copies its elements.
-func copyEvents(r io.Reader, w io.Writer, first *bool) error {
-	dec := json.NewDecoder(r)
-	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return nil // corrupt chunk: skip
-	}
-	for dec.More() {
-		keyTok, err := dec.Token()
-		if err != nil {
-			return nil
-		}
-		if key, _ := keyTok.(string); key != "events" {
-			var skip json.RawMessage
-			if err := dec.Decode(&skip); err != nil {
-				return nil
-			}
-			continue
-		}
-		if tok, err := dec.Token(); err != nil || tok != json.Delim('[') {
-			return nil
-		}
-		for dec.More() {
-			var raw json.RawMessage
-			if err := dec.Decode(&raw); err != nil {
-				return nil
-			}
-			if !*first {
-				if _, err := io.WriteString(w, ","); err != nil {
-					return err
-				}
-			}
-			*first = false
-			if _, err := w.Write(raw); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return nil
 }

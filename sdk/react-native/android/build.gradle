@@ -1,0 +1,17 @@
+// Android side of @ouo/react-native: a no-op OuoReplayModule so Expo autolinking and the
+// Android build do not break. Replay capture on Android is a later phase (ADR-0006).
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.ouo'
+version = '0.1.0'
+
+android {
+  namespace "dev.ouo.replay"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

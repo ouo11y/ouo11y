@@ -58,6 +58,14 @@ export function ChaosScreen() {
     await rum.flush();
     note("flushed");
   };
+  const replayToggle = () => {
+    if (rum.replay.isRecording()) {
+      rum.replay.pause();
+    } else {
+      rum.replay.resume();
+    }
+    note(`replay ${rum.replay.isRecording() ? "recording" : "paused (or unavailable: needs the dev client)"}`);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -71,6 +79,7 @@ export function ChaosScreen() {
       <Button title="Custom event" tone="muted" onPress={custom} />
       <Button title="Set user" tone="muted" onPress={setUser} />
       <Button title="Flush" tone="muted" onPress={() => void flush()} />
+      <Button title={`Replay pause/resume (${rum.replay.isRecording() ? "recording" : "off"})`} tone="muted" onPress={replayToggle} />
       {log.map((line, i) => (
         <Text key={i} style={styles.mono}>
           {line}

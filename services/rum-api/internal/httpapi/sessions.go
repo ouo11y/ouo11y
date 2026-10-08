@@ -153,12 +153,12 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, listResponse{Sessions: recs, Count: len(recs), From: lq.from, To: lq.to})
 }
 
-// decorate fills trace_count (best effort, concurrent, -1 on Tempo error)
-// and has_replay.
+// decorate fills trace_count (best effort, concurrent, -1 on Tempo error),
+// has_replay and replay_kind.
 func (s *Server) decorate(r *http.Request, recs []session.Record) {
 	var wg sync.WaitGroup
 	for i := range recs {
-		recs[i].HasReplay = s.store.Has(r.Context(), recs[i].SessionID)
+		s.decorateReplay(r, &recs[i])
 		wg.Add(1)
 		go func(rec *session.Record) {
 			defer wg.Done()
@@ -173,6 +173,19 @@ func (s *Server) decorate(r *http.Request, recs []session.Record) {
 		}(&recs[i])
 	}
 	wg.Wait()
+}
+
+// decorateReplay sets has_replay / replay_kind from the replay store.
+func (s *Server) decorateReplay(r *http.Request, rec *session.Record) {
+	kind, err := s.store.Kind(r.Context(), rec.SessionID)
+	if err != nil {
+		if !isNotFound(err) {
+			slog.Warn("replay kind lookup failed", "session_id", rec.SessionID, "error", err)
+		}
+		rec.HasReplay, rec.ReplayKind = false, nil
+		return
+	}
+	rec.HasReplay, rec.ReplayKind = true, &kind
 }
 
 // traceWindow is the Tempo search range of a session, rounded to whole
@@ -231,7 +244,7 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	for _, ev := range rec.Events {
 		timeline = append(timeline, timelineItem{TS: ev.TS, Type: ev.Type(), Name: ev.Name, Attrs: ev.Attrs})
 	}
-	rec.HasReplay = s.store.Has(r.Context(), id)
+	s.decorateReplay(r, rec)
 	start, end := s.traceWindow(rec)
 	traces, err := s.traces.SessionTraces(r.Context(), id, start, end)
 	if err != nil {

@@ -1,0 +1,133 @@
+import Foundation
+import Testing
+@testable import OuoReplayCore
+
+@Suite struct RedactionPlannerTests {
+    private let window = CGRect(x: 0, y: 0, width: 393, height: 852)
+    private let planner = RedactionPlanner(rules: RedactionRules(), mergeOverlapping: false)
+
+    private func node(_ cls: String, _ frame: CGRect, hidden: Bool = false, alpha: CGFloat = 1, id: String? = nil, supers: [String] = [], _ children: [ViewNode] = []) -> ViewNode {
+        ViewNode(className: cls, superclassNames: supers, frameInWindow: frame, hidden: hidden, alpha: alpha, accessibilityIdentifier: id, children: children)
+    }
+
+    @Test func MaskedClassesByDefault() {
+        let root = node("UIWindow", window, [
+            node("UIView", window, [
+                node("UITextField", CGRect(x: 10, y: 10, width: 100, height: 40)),
+                node("UITextView", CGRect(x: 10, y: 60, width: 100, height: 40)),
+                node("UILabel", CGRect(x: 10, y: 110, width: 100, height: 40)),
+                node("RCTTextView", CGRect(x: 10, y: 160, width: 100, height: 40)),
+                node("RCTParagraphComponentView", CGRect(x: 10, y: 210, width: 100, height: 40)),
+                node("UIImageView", CGRect(x: 10, y: 260, width: 100, height: 40)),
+                node("RCTImageView", CGRect(x: 10, y: 310, width: 100, height: 40)),
+                node("RCTImageComponentView", CGRect(x: 10, y: 360, width: 100, height: 40)),
+                node("WKWebView", CGRect(x: 10, y: 410, width: 100, height: 40)),
+                node("UIButton", CGRect(x: 10, y: 460, width: 100, height: 40)),
+                node("RCTViewComponentView", CGRect(x: 10, y: 510, width: 100, height: 40)),
+            ]),
+        ])
+        let rects = planner.rects(for: root, window: window)
+        #expect(rects.count == 9)
+        #expect(rects.map(\.origin.y) == [10, 60, 110, 160, 210, 260, 310, 360, 410])
+    }
+
+    @Test func SubclassesMatchViaSuperclassNames() {
+        let root = node("UIWindow", window, [
+            node("RCTUITextFieldSubclass", CGRect(x: 0, y: 0, width: 50, height: 50), supers: ["RCTUITextField", "UITextField", "UIControl"]),
+            node("MyFancyView", CGRect(x: 0, y: 100, width: 50, height: 50), supers: ["UIControl"]),
+        ])
+        #expect(planner.rects(for: root, window: window) == [CGRect(x: 0, y: 0, width: 50, height: 50)])
+    }
+
+    @Test func MaskFlagsDisableCategories() {
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: 0, y: 0, width: 50, height: 50)),
+            node("UIImageView", CGRect(x: 0, y: 100, width: 50, height: 50)),
+            node("WKWebView", CGRect(x: 0, y: 200, width: 50, height: 50)),
+        ])
+        let textOnly = RedactionPlanner(rules: RedactionRules(maskText: true, maskImages: false, maskWebViews: false))
+        #expect(textOnly.rects(for: root, window: window).map(\.origin.y) == [0])
+        let none = RedactionPlanner(rules: RedactionRules(maskText: false, maskImages: false, maskWebViews: false))
+        #expect(none.rects(for: root, window: window) == [])
+        #expect(!(none.rules.masksAnything))
+        let extra = RedactionPlanner(rules: RedactionRules(maskText: false, maskImages: false, maskWebViews: false, extraClasses: ["WKWebView"]))
+        #expect(extra.rects(for: root, window: window).map(\.origin.y) == [200])
+    }
+
+    @Test func OuoMaskForcesAnyView() {
+        let root = node("UIWindow", window, [
+            node("RCTViewComponentView", CGRect(x: 20, y: 20, width: 200, height: 60), id: "ouo-mask", [
+                node("UIButton", CGRect(x: 30, y: 30, width: 50, height: 20)),
+            ]),
+        ])
+        let rects = planner.rects(for: root, window: window)
+        #expect(rects == [CGRect(x: 20, y: 20, width: 200, height: 60)], "the forced rect covers the subtree, children are not listed separately")
+    }
+
+    @Test func OuoUnmaskSkipsSubtree() {
+        let root = node("UIWindow", window, [
+            node("RCTViewComponentView", CGRect(x: 0, y: 0, width: 393, height: 200), id: "ouo-unmask", [
+                node("UILabel", CGRect(x: 10, y: 10, width: 100, height: 20)),
+                node("RCTParagraphComponentView", CGRect(x: 10, y: 40, width: 100, height: 20)),
+            ]),
+            node("UILabel", CGRect(x: 10, y: 300, width: 100, height: 20)),
+        ])
+        #expect(planner.rects(for: root, window: window) == [CGRect(x: 10, y: 300, width: 100, height: 20)])
+    }
+
+    @Test func UnmaskOnTheMaskedViewItself() {
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: 10, y: 10, width: 100, height: 20), id: "ouo-unmask"),
+        ])
+        #expect(planner.rects(for: root, window: window) == [])
+    }
+
+    @Test func HiddenAndTransparentSubtreesAreSkipped() {
+        let root = node("UIWindow", window, [
+            node("UIView", window, hidden: true, [
+                node("UILabel", CGRect(x: 10, y: 10, width: 100, height: 20)),
+            ]),
+            node("UIView", window, alpha: 0, [
+                node("UILabel", CGRect(x: 10, y: 50, width: 100, height: 20)),
+            ]),
+            node("UILabel", CGRect(x: 10, y: 90, width: 100, height: 20), hidden: true),
+            node("UILabel", CGRect(x: 10, y: 130, width: 100, height: 20), alpha: 0.005),
+            node("UILabel", CGRect(x: 10, y: 170, width: 100, height: 20), alpha: 0.5),
+        ])
+        #expect(planner.rects(for: root, window: window) == [CGRect(x: 10, y: 170, width: 100, height: 20)])
+    }
+
+    @Test func ClipsToWindowAndDropsOffscreen() {
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: -50, y: -10, width: 100, height: 40)),       // partially visible
+            node("UILabel", CGRect(x: 500, y: 10, width: 100, height: 40)),       // fully off to the right
+            node("UILabel", CGRect(x: 10, y: 900, width: 100, height: 40)),       // below the window
+            node("UILabel", CGRect(x: 350, y: 830, width: 100, height: 40)),      // bottom-right corner
+            node("UIView", CGRect(x: 1000, y: 0, width: 100, height: 100), [      // offscreen container hides children
+                node("UILabel", CGRect(x: 10, y: 10, width: 10, height: 10)),
+            ]),
+            node("UILabel", CGRect(x: 10, y: 10, width: 0, height: 40)),          // zero width
+        ])
+        let rects = planner.rects(for: root, window: window)
+        #expect(rects == [
+            CGRect(x: 0, y: 0, width: 50, height: 30),
+            CGRect(x: 350, y: 830, width: 43, height: 22),
+        ])
+    }
+
+    @Test func MergeOverlapping() {
+        let merged = RedactionPlanner.merge([
+            CGRect(x: 0, y: 0, width: 10, height: 10),
+            CGRect(x: 5, y: 5, width: 10, height: 10),
+            CGRect(x: 50, y: 50, width: 10, height: 10),
+            CGRect(x: 14, y: 14, width: 2, height: 2),
+        ])
+        #expect(merged == [CGRect(x: 0, y: 0, width: 16, height: 16), CGRect(x: 50, y: 50, width: 10, height: 10)])
+        let merging = RedactionPlanner(rules: RedactionRules(), mergeOverlapping: true)
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: 0, y: 0, width: 10, height: 10)),
+            node("UILabel", CGRect(x: 5, y: 5, width: 10, height: 10)),
+        ])
+        #expect(merging.rects(for: root, window: window) == [CGRect(x: 0, y: 0, width: 15, height: 15)])
+    }
+}

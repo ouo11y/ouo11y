@@ -42,6 +42,8 @@ type Record struct {
 	EventCount         int        `json:"event_count"`
 	TraceCount         int        `json:"trace_count"`
 	HasReplay          bool       `json:"has_replay"`
+	// ReplayKind is "rrweb" or "frames" when HasReplay, null otherwise.
+	ReplayKind *string `json:"replay_kind"`
 
 	// Events is the session's events in time order (not serialised; the
 	// API builds the timeline from it).

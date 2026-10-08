@@ -8,6 +8,12 @@ Screens: Products, Product, Cart, Checkout (`card` succeeds, `broken-card` makes
 backend answer 500), Order, Chaos. The header badge shows `v<app version> · <short session id>`
 and updates when the session rotates.
 
+Session replay (iOS, ADR-0006) is enabled in `src/rum.ts` (`replay: { enabled: true }`). The
+Checkout screen has a promo-code field with `testID="ouo-mask"` and the Product screen's title
+has `testID="ouo-unmask"` to show the two overrides; the Chaos screen's "Replay pause/resume"
+button toggles the recorder and shows `rum.replay.isRecording()`. Replay only records in a
+development build (below), never in Expo Go or on web.
+
 Chaos buttons: slow request (`?delay=2000`), 500 from the backend (`?fail=500` ->
 `http.request.failed`, session `errored`), handled error (`captureError`, non-fatal),
 unhandled promise rejection (non-fatal, unhandled), **fatal error** (thrown from a
@@ -39,16 +45,34 @@ the SDK with `"@ouo/react-native": "file:../../sdk/react-native"` plus `metro.co
 `kb/otel-react-native.md`.
 
 ```bash
-# from the repo root: build the SDK first (Metro consumes dist/index.js)
+# from the repo root: build the SDK first (Metro consumes dist/index.js, CocoaPods the vendored Swift sources)
 npm run -w sdk/react-native build
 
 cd examples/mobile
 npm install
-npx expo start --ios                      # iOS Simulator (needs Xcode + Expo Go)
+npx expo start --ios                      # Expo Go: telemetry only, replay stays off
 APP_VERSION=2.4.0 npx expo start --ios    # a second app version for the health split
 npx expo start --web --port 8083          # react-native-web build in a browser
 npx expo export --platform ios            # bundle check without a simulator
 ```
+
+### Development build (replay)
+
+The `OuoReplay` Expo module is native code, so the app must be built with Xcode once
+(`kb/xcode-setup.md` has the full machine setup):
+
+```bash
+cd examples/mobile
+npx expo prebuild --platform ios          # generates ios/ (gitignored), runs pod install
+npx expo run:ios                          # builds the dev client, boots the simulator, starts Metro
+APP_VERSION=2.4.0 npx expo run:ios
+```
+
+`npm run ios` is `expo run:ios` since prebuild. `ios/` and `android/` are generated and
+gitignored: re-run `prebuild` after changing `app.config.ts` or the SDK's native sources
+(`--clean` to start over). Without Xcode, `npx expo prebuild --platform ios --no-install` still
+generates the project and `npx expo-modules-autolinking resolve -p apple` lists the three ouo
+pods, which is as far as this machine got (see `agents/ios-replay/`).
 
 Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 
@@ -57,7 +81,11 @@ Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 ```bash
 curl -s 'localhost:8080/v1/sessions?from=now-1h&platform=mobile' | jq '.sessions[] | {session_id, service_version, status, end_reason}'
 curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .buckets
+curl -s "localhost:8080/v1/sessions/<session id>/replay" | jq        # kind: frames, chunk_count, frame_count
 ```
+
+In Grafana (ouo RUM app) the session's replay plays as frames with touch markers; masked fields
+are black.
 
 Without a simulator, `sdk/react-native/playground/` runs the same flows headlessly against
 the real collector (see the SDK README).

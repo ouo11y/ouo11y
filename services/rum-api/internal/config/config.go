@@ -22,7 +22,8 @@ type Config struct {
 	SessionMaxDuration time.Duration // SESSION_MAX_DURATION, default 4h (also the Loki lookback for the list)
 	TempoConcurrency   int           // TEMPO_CONCURRENCY, default 8
 	TempoCacheTTL      time.Duration // TEMPO_CACHE_TTL, default 60s
-	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed)
+	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
+	MaxFrameChunkBytes int64         // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	DetailLookback     time.Duration // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
 }
 
@@ -62,6 +63,11 @@ func FromEnv() (Config, error) {
 		return c, err
 	}
 	c.MaxChunkBytes = int64(mcb)
+	mfb, err := envInt("MAX_FRAME_CHUNK_BYTES", 8<<20)
+	if err != nil {
+		return c, err
+	}
+	c.MaxFrameChunkBytes = int64(mfb)
 	return c, nil
 }
 

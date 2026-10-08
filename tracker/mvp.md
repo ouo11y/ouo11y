@@ -7,7 +7,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 | 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
 | 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
 | 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
-| 3 rum-api | `phase-3-rum-api` | | review | rum-api |
+| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ZiadMansourM/ouo/pull/4) | review | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | review | grafana-plugin |
 | 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | review | sdk-react-native |
 | 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | review | qa |
@@ -68,3 +68,17 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 - [x] README quickstart (root `README.md`)
 
 Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser emits a second `session.start` when rotating an expired session) must be routed to sdk-browser; the Phase 5 simulator box stays open.
+
+## Phase 7 iOS replay (post-MVP, ADR-0006)
+
+| Phase | Branch | PR | Status | Owner agents |
+|---|---|---|---|---|
+| 7 iOS replay | `phase-7-ios-replay` | [#8](https://github.com/ZiadMansourM/ouo/pull/8) | in-progress | ios-replay, rum-api, grafana-plugin |
+
+- [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
+- [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
+- [x] `examples/mobile` uses a dev client (`expo prebuild`) with replay enabled (prebuild generated the project; `pod install` / `run:ios` pending Xcode)
+- [x] rum-api accepts `kind: frames` chunks (8 MB), meta `kind`, `GET .../replay/frames` (validation of base64 JPEG magic, touches, viewport; 409 on mixed kinds and on events/frames of the other kind; `replay_kind` on session records; verified with `go test ./...` and curl against the rebuilt compose service, session `frames-test-1791471557`; see `agents/rum-api/summaries/2026-10-08-phase-7.md`)
+- [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
+- [ ] Verified on the iOS Simulator: masked fields are black, replay plays in Grafana (blocked until Xcode is installed)
+- [x] kb/ios-replay.md, kb/xcode-setup.md

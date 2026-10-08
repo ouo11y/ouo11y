@@ -34,6 +34,9 @@ export const rum: RUM = initRUM({
     ...(Device.osName ? { osName: Device.osName } : {}),
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
   },
+  // Native session replay (ADR-0006): needs the development build (npx expo run:ios); a no-op
+  // in Expo Go and on web. Chunks go to rum-api at the OTLP host on port 8080 (replayEndpoint).
+  replay: { enabled: true },
   debug: __DEV__,
 });
 
