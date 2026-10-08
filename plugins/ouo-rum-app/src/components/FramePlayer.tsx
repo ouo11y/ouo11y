@@ -234,7 +234,9 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
 });
 
 /** Viewport height minus the Grafana chrome and the Replay panel's own header, controls, markers and info line. */
-const STAGE_MAX_HEIGHT = 'calc(100vh - 300px)';
+// 70vh is the size users liked; the sticky Replay panel may extend past short viewports, which is
+// preferable to a tiny frame.
+const STAGE_MAX_HEIGHT = '70vh';
 
 const getStyles = (theme: GrafanaTheme2) => ({
   wrap: css({
