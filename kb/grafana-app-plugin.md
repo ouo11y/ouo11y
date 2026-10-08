@@ -116,3 +116,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   relative to it).
 - **Sorting**: plain `<table>` with `<button>` headers (`aria-sort`, arrow icon) and a pure
   comparator in `src/utils/sort.ts`; `InteractiveTable` still lacks a row click handler.
+
+## Stale plugin after a rebuild (2026-10-08)
+
+Grafana loads `module.js?_cache=<plugin version>` and the scaffold's webpack config names lazy chunks `<id>.js?_cache=<contenthash>`. After a rebuild with the **same** plugin version the browser keeps the old `module.js`, which still points at the old chunk hashes, so nothing appears to change even after `docker compose restart grafana`. Fix: bump `version` in `plugins/ouo-rum-app/package.json` (it becomes `plugin.json`'s version) for every user-visible change, or hard-reload (Cmd+Shift+R). Bumped to 0.2.0 for the Phase 7b changes.
