@@ -25,6 +25,10 @@ export interface SessionRecord {
   has_replay: boolean;
   /** Set by rum-api from the replay meta; absent on older records (fall back to the replay meta). */
   replay_kind?: ReplayKind | null;
+  /** Replay length (meta ended_at - started_at) in ms; null or absent when unknown or there is no replay. */
+  replay_duration_ms?: number | null;
+  /** Number of screenshot frames for `frames` replays; null or absent otherwise. */
+  replay_frame_count?: number | null;
 }
 
 export interface SessionsResponse {

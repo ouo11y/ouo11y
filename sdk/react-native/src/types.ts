@@ -44,8 +44,13 @@ export interface ReplayOptions {
   enabled?: boolean;
   /** Seconds between timer frames. Default 1. */
   frameInterval?: number;
-  /** Redact text inputs, labels and React Native text. Default true. */
+  /**
+   * Redact labels and React Native `<Text>` (not inputs). Default true. Set to `false` when
+   * replays must stay readable; inputs are governed by `maskInputs` and stay redacted.
+   */
   maskText?: boolean;
+  /** Redact text inputs (`TextInput`, `UITextField`, `UITextView`). Default true. */
+  maskInputs?: boolean;
   /** Redact image views. Default true. */
   maskImages?: boolean;
   /** Redact WKWebView. Default true. */

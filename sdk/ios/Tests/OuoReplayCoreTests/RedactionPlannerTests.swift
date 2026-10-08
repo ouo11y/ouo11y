@@ -63,11 +63,44 @@ import Testing
         ])
         let textOnly = RedactionPlanner(rules: RedactionRules(maskText: true, maskImages: false, maskWebViews: false))
         #expect(textOnly.rects(for: root, window: window).map(\.origin.y) == [0])
-        let none = RedactionPlanner(rules: RedactionRules(maskText: false, maskImages: false, maskWebViews: false))
+        let none = RedactionPlanner(rules: RedactionRules(maskText: false, maskInputs: false, maskImages: false, maskWebViews: false))
         #expect(none.rects(for: root, window: window) == [])
         #expect(!(none.rules.masksAnything))
-        let extra = RedactionPlanner(rules: RedactionRules(maskText: false, maskImages: false, maskWebViews: false, extraClasses: ["WKWebView"]))
+        let extra = RedactionPlanner(rules: RedactionRules(maskText: false, maskInputs: false, maskImages: false, maskWebViews: false, extraClasses: ["WKWebView"]))
         #expect(extra.rects(for: root, window: window).map(\.origin.y) == [200])
+        #expect(extra.rules.masksAnything)
+    }
+
+    /// `maskText: false` shows labels and React Native text but must keep every text input
+    /// redacted: inputs are governed by `maskInputs` alone.
+    @Test func MaskTextFalseKeepsInputsMasked() {
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: 0, y: 0, width: 50, height: 50)),
+            node("RCTParagraphComponentView", CGRect(x: 0, y: 100, width: 50, height: 50)),
+            node("_TtCC5UIKit19NavigationButtonBar15ItemWrapperView", CGRect(x: 0, y: 200, width: 50, height: 50)),
+            node("UITextField", CGRect(x: 0, y: 300, width: 50, height: 50)),
+            node("UITextView", CGRect(x: 0, y: 400, width: 50, height: 50)),
+            node("RCTTextInputComponentView", CGRect(x: 0, y: 500, width: 50, height: 50)),
+            node("RCTUITextField", CGRect(x: 0, y: 600, width: 50, height: 50), supers: ["UITextField", "UIControl"]),
+            node("RCTUITextView", CGRect(x: 0, y: 700, width: 50, height: 50), supers: ["UITextView", "UIScrollView"]),
+        ])
+        let labelsVisible = RedactionPlanner(rules: RedactionRules(maskText: false), mergeOverlapping: false)
+        #expect(labelsVisible.rects(for: root, window: window).map(\.origin.y) == [300, 400, 500, 600, 700])
+        #expect(labelsVisible.rules.masksAnything)
+        #expect(RedactionRules.textClasses.isDisjoint(with: RedactionRules.inputClasses))
+    }
+
+    /// `maskInputs: false` with `maskText: true` masks labels but not inputs (the opposite split).
+    @Test func MaskInputsFalseKeepsLabelsMasked() {
+        let root = node("UIWindow", window, [
+            node("UILabel", CGRect(x: 0, y: 0, width: 50, height: 50)),
+            node("RCTTextView", CGRect(x: 0, y: 100, width: 50, height: 50)),
+            node("UITextField", CGRect(x: 0, y: 200, width: 50, height: 50)),
+            node("RCTTextInputComponentView", CGRect(x: 0, y: 300, width: 50, height: 50)),
+            node("RCTUITextField", CGRect(x: 0, y: 400, width: 50, height: 50), supers: ["UITextField", "UIControl"]),
+        ])
+        let inputsVisible = RedactionPlanner(rules: RedactionRules(maskText: true, maskInputs: false), mergeOverlapping: false)
+        #expect(inputsVisible.rects(for: root, window: window).map(\.origin.y) == [0, 100])
     }
 
     @Test func OuoMaskForcesAnyView() {

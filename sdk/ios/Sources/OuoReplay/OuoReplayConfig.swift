@@ -9,7 +9,11 @@ public struct OuoReplayConfig {
     public var sessionId: () -> String
     /// Seconds between timer frames. Default 1.
     public var frameInterval: TimeInterval
+    /// Redact labels and React Native text. Default true.
     public var maskText: Bool
+    /// Redact text inputs (`UITextField`, `UITextView`, RN inputs). Default true; independent
+    /// of `maskText`, so inputs stay redacted when labels are shown.
+    public var maskInputs: Bool
     public var maskImages: Bool
     public var maskWebViews: Bool
     /// Extra view class names to redact.
@@ -33,6 +37,7 @@ public struct OuoReplayConfig {
         sessionId: @escaping () -> String,
         frameInterval: TimeInterval = 1.0,
         maskText: Bool = true,
+        maskInputs: Bool = true,
         maskImages: Bool = true,
         maskWebViews: Bool = true,
         maskClasses: Set<String> = [],
@@ -48,6 +53,7 @@ public struct OuoReplayConfig {
         self.sessionId = sessionId
         self.frameInterval = frameInterval
         self.maskText = maskText
+        self.maskInputs = maskInputs
         self.maskImages = maskImages
         self.maskWebViews = maskWebViews
         self.maskClasses = maskClasses
@@ -61,6 +67,6 @@ public struct OuoReplayConfig {
     }
 
     public var redactionRules: RedactionRules {
-        RedactionRules(maskText: maskText, maskImages: maskImages, maskWebViews: maskWebViews, extraClasses: maskClasses)
+        RedactionRules(maskText: maskText, maskInputs: maskInputs, maskImages: maskImages, maskWebViews: maskWebViews, extraClasses: maskClasses)
     }
 }

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 7b UX fixes</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Phase 7b: session detail layout, replay column, sortable sessions table</h1>
+<p class="lead">grafana-plugin agent, 2026-10-08. Grafana 13.2.1 at <code>localhost:3001</code>, rum-api at <code>localhost:8080</code>, plugin built from <code>plugins/ouo-rum-app</code> on branch <code>phase-7b-ux-masking</code>. Browser: Claude desktop built-in browser, viewport emulated at 1400x900 (screenshots are scaled to 800 wide) and 800x900 for the stacked check.</p>
+
+<h2>Checks</h2>
+<table>
+  <tr><th>Check</th><th>Method</th><th>Result</th></tr>
+  <tr><td>Replay panel stays visible while the page scrolls (two-column layout)</td><td>Web session <code>6843eaa9</code> (26 events, rrweb): scrolled the page 5 wheel ticks over the Replay panel, read <code>getBoundingClientRect()</code> of both panels</td><td class="ok">replay top = 8px, timeline top = -188px, page header at -342px (figure 2)</td></tr>
+  <tr><td>Timeline scrolls inside its own container</td><td>Mobile session <code>e2a746a8</code> (45 events, frames): 10 wheel ticks over the list</td><td class="ok">list <code>scrollTop</code> 1000 of 2972, Replay panel unchanged (figure 3)</td></tr>
+  <tr><td>Current event auto-scrolls into view during playback without moving the page</td><td>Seeked the frame player scrubber to the end (frame 69/70)</td><td class="ok">active index 44/45, list <code>scrollTop</code> 2222 (max), active row inside the list box, page header offset unchanged at -142px (figure 4)</td></tr>
+  <tr><td>Replay panel fits the viewport</td><td>Portrait frames session at 1400x900</td><td class="ok">Replay panel 821px tall, Timeline panel stretched to the same 821px (was 851px with the 70vh stage cap, taller than the 860px available)</td></tr>
+  <tr><td>Stacked layout below 900px, no sticky</td><td>Viewport 800x900, same mobile session</td><td class="ok">one 736px column, Replay first (top 333px) then Timeline (top 1152px), <code>position: static</code> (figure 11)</td></tr>
+  <tr><td>Replay column shows duration + kind</td><td>Sessions page, Replay sorted desc</td><td class="ok">"19m 45s rrweb", "15m 37s frames", "–" for no replay; rum-api shipped <code>replay_duration_ms</code> during this run so the icon fallback was only exercised by the Jest test (figures 9, 10)</td></tr>
+  <tr><td>Sortable headers flip and show an indicator</td><td>Clicked Started, Status (twice), Replay (twice); read <code>data-sort-key</code>/<code>data-sort-dir</code> and the rendered column</td><td class="ok">started asc puts 00:29:27 first; status asc = 79 healthy, 11 errored, 10 crashed, desc reversed; replay desc longest first, asc dashes first (figures 6 to 10)</td></tr>
+  <tr><td>Build gates</td><td><code>npm run -w plugins/ouo-rum-app typecheck | lint | test | build</code></td><td class="ok">all green, 52 Jest tests (sort, scroll, replay summary, SessionsTable, formatDuration carry)</td></tr>
+</table>
+
+<h2>Session detail</h2>
+<figure><img src="7b-01-detail-top.jpg" alt="Session detail top at 1400x900: Timeline and Replay side by side"><figcaption>1. Mobile session e2a746a8 at the top of the page: Timeline (45 events, own scroll box) and Replay (frame stage capped to the viewport) side by side.</figcaption></figure>
+<figure><img src="7b-02-detail-web-sticky.jpg" alt="Web session scrolled: Replay pinned at the top while the Timeline panel has scrolled up"><figcaption>2. Web session 6843eaa9 after scrolling the page: the Replay panel is pinned 8px from the top of the scroll container while the Timeline panel (taller) has moved up by 188px.</figcaption></figure>
+<figure><img src="7b-03-detail-mobile-list-scrolled.jpg" alt="Timeline list scrolled inside its own container"><figcaption>3. Wheel over the Timeline: only the list scrolls (scrollTop 1000); the Replay panel does not move.</figcaption></figure>
+<figure><img src="7b-04-detail-mobile-autoscroll.jpg" alt="Frame player seeked to the end; the last timeline event is highlighted and scrolled into view"><figcaption>4. Frame player seeked to +15m 12s: the last event is highlighted and the list auto-scrolled to it; the page itself stayed where it was.</figcaption></figure>
+<figure><img src="7b-11-detail-stacked-800.jpg" alt="Stacked layout at 800px wide: Replay first, then Timeline"><figcaption>11. At 800px wide the panels stack, Replay first, nothing sticky.</figcaption></figure>
+
+<h2>Sessions list</h2>
+<figure><img src="7b-05-sessions-default.jpg" alt="Sessions table default sort: Started descending with arrow"><figcaption>5. Default sort: Started descending (arrow in the header). Subtitle says sorting is client-side over the loaded page.</figcaption></figure>
+<figure><img src="7b-06-sessions-started-asc.jpg" alt="Started ascending"><figcaption>6. Click on Started: ascending, oldest first.</figcaption></figure>
+<figure><img src="7b-07-sessions-status-asc.jpg" alt="Status ascending: healthy first"><figcaption>7. Status ascending: healthy, then errored, then crashed (severity order, not alphabetical).</figcaption></figure>
+<figure><img src="7b-08-sessions-status-desc.jpg" alt="Status descending: crashed first"><figcaption>8. Second click on Status: crashed first.</figcaption></figure>
+<figure><img src="7b-09-sessions-replay-desc.jpg" alt="Replay column sorted descending showing durations and kinds"><figcaption>9. Replay descending (table scrolled right): duration formatted like the Duration column plus the kind badge (rrweb or frames).</figcaption></figure>
+<figure><img src="7b-10-sessions-replay-asc.jpg" alt="Replay ascending: sessions without replay first"><figcaption>10. Replay ascending: sessions without a replay ("–") come first.</figcaption></figure>
+
+<h2>Notes</h2>
+<ul>
+  <li>The Replay panel is sticky within the Timeline/Replay grid row only; once the Traces section scrolls up past it, it leaves the viewport with the row (Traces stays below the grid, as before).</li>
+  <li>Grafana returned 404 for a new webpack chunk (<code>865.js</code>) that existed in the mounted <code>dist/</code>: the plugin's static file list is built when the plugin loads, so a build that adds chunk files needs <code>docker compose restart grafana</code>, not just a hard reload. Recorded in <code>kb/grafana-app-plugin.md</code>.</li>
+  <li><code>formatDuration</code> printed "4m 60s" for 299.6s (seen on the marker bar); it now carries into the minute ("5m 00s").</li>
+</ul>
+</body>
+</html>

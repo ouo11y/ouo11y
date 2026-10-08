@@ -82,3 +82,19 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 - [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
 - [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (agents/ios-replay/reports/phase-7-ios-verification.html): checkout input masked, `ouo-unmask` honoured, header texts masked, crash flow verified
 - [x] kb/ios-replay.md, kb/xcode-setup.md
+
+## Phase 7b UX and masking fixes
+
+| Phase | Branch | PR | Status | Owner agents |
+|---|---|---|---|---|
+| 7b UX and masking | `phase-7b-ux-masking` | - | in-progress | ios-replay, grafana-plugin |
+
+- [x] Masking opt-out is correct: `maskInputs` (default true) governs text inputs separately from `maskText` (labels); `maskText: false` keeps inputs black. Swift 38 tests, RN 57 tests; verified on the iOS 27 simulator (`agents/ios-replay/reports/12-frame-masktext-false.jpg`)
+- [x] Masking documented with opt-out options and per-view overrides in `sdk/react-native/README.md` and `sdk/ios/README.md`; demo uses `replay: { enabled: true, maskText: false }`
+- [x] rum-api session records carry `replay_duration_ms` and `replay_frame_count` (list and detail), unit-tested, `go vet` / `go test` green, compose service rebuilt and checked with curl
+
+## Phase 7b UX and masking fixes
+
+- [x] Session detail keeps the Replay panel pinned while the Timeline scrolls in its own container; current event auto-scrolls into view during playback; panels stack below 900px (verified in Grafana 13.2.1 at 1400x900 and 800x900 on sessions `6843eaa9` and `e2a746a8`; `agents/grafana-plugin/reports/phase-7b-ux.html`)
+- [x] Sessions list shows the replay duration and kind in a Replay column (`replay_duration_ms` / `replay_kind` from rum-api, play icon while the duration is unknown, "–" without replay; verified against the live list)
+- [x] Sessions list columns are sortable client-side over the loaded page, default Started desc, indicator and tooltip (verified: Started, Status and Replay headers flip the order; 52 Jest tests incl. `sort.test.ts` and `SessionsTable.test.tsx`)

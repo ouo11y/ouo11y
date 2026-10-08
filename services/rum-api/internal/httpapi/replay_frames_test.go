@@ -265,11 +265,48 @@ func TestSessionReplayKind(t *testing.T) {
 	if raw["replay_kind"] != "frames" || raw["has_replay"] != true {
 		t.Fatalf("detail replay_kind: %v", raw["replay_kind"])
 	}
+	// The frames chunk above spans [1000, 1000+n] with one frame.
+	if d, ok := raw["replay_duration_ms"].(float64); !ok || d < 0 || raw["replay_frame_count"] != float64(1) {
+		t.Fatalf("detail replay duration/frames: %v %v", raw["replay_duration_ms"], raw["replay_frame_count"])
+	}
 	store.Delete(ctx, "mobile-1")
 	resp, _ = http.Get(ts.URL + "/v1/sessions/mobile-1")
 	raw = nil
 	json.NewDecoder(resp.Body).Decode(&raw)
 	if v, ok := raw["replay_kind"]; !ok || v != nil || raw["has_replay"] != false {
 		t.Fatalf("detail without replay: %v %v", raw["replay_kind"], raw["has_replay"])
+	}
+	for _, k := range []string{"replay_duration_ms", "replay_frame_count"} {
+		if v, ok := raw[k]; !ok || v != nil {
+			t.Fatalf("detail without replay: %s=%v", k, v)
+		}
+	}
+}
+
+func TestReplaySummaryFromMeta(t *testing.T) {
+	ptr64 := func(v int64) *int64 { return &v }
+	ptr := func(v int) *int { return &v }
+	cases := []struct {
+		name   string
+		meta   replay.Meta
+		wantD  *int64
+		wantFC *int
+	}{
+		{"frames", replay.Meta{Kind: replay.KindFrames, StartedAt: 1791471538578, EndedAt: 1791471548578, FrameCount: 12}, ptr64(10000), ptr(12)},
+		{"rrweb", replay.Meta{Kind: replay.KindRRWeb, StartedAt: 100, EndedAt: 250}, ptr64(150), nil},
+		{"single instant", replay.Meta{Kind: replay.KindFrames, StartedAt: 5, EndedAt: 5, FrameCount: 1}, ptr64(0), ptr(1)},
+		{"no timestamps", replay.Meta{Kind: replay.KindFrames, FrameCount: 3}, nil, ptr(3)},
+		{"ended before started", replay.Meta{Kind: replay.KindRRWeb, StartedAt: 10, EndedAt: 4}, nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, fc := replaySummary(tc.meta)
+			if (d == nil) != (tc.wantD == nil) || (d != nil && *d != *tc.wantD) {
+				t.Fatalf("duration: got %v want %v", d, tc.wantD)
+			}
+			if (fc == nil) != (tc.wantFC == nil) || (fc != nil && *fc != *tc.wantFC) {
+				t.Fatalf("frame count: got %v want %v", fc, tc.wantFC)
+			}
+		})
 	}
 }

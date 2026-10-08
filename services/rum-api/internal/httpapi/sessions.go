@@ -175,17 +175,39 @@ func (s *Server) decorate(r *http.Request, recs []session.Record) {
 	wg.Wait()
 }
 
-// decorateReplay sets has_replay / replay_kind from the replay store.
+// decorateReplay sets has_replay, replay_kind, replay_duration_ms and
+// replay_frame_count from the replay meta.
 func (s *Server) decorateReplay(r *http.Request, rec *session.Record) {
-	kind, err := s.store.Kind(r.Context(), rec.SessionID)
-	if err != nil {
-		if !isNotFound(err) {
-			slog.Warn("replay kind lookup failed", "session_id", rec.SessionID, "error", err)
-		}
-		rec.HasReplay, rec.ReplayKind = false, nil
+	rec.HasReplay, rec.ReplayKind, rec.ReplayDurationMs, rec.ReplayFrameCount = false, nil, nil, nil
+	if !s.store.Has(r.Context(), rec.SessionID) {
 		return
 	}
+	m, err := s.store.Meta(r.Context(), rec.SessionID)
+	if err != nil {
+		if !isNotFound(err) {
+			slog.Warn("replay meta lookup failed", "session_id", rec.SessionID, "error", err)
+		}
+		return
+	}
+	kind := m.Kind
 	rec.HasReplay, rec.ReplayKind = true, &kind
+	rec.ReplayDurationMs, rec.ReplayFrameCount = replaySummary(m)
+}
+
+// replaySummary derives the session record's replay_duration_ms and
+// replay_frame_count from a replay meta: the duration is ended_at - started_at
+// (null unless both are set and ordered), the frame count is set for frames
+// replays only (rrweb has events, not frames).
+func replaySummary(m replay.Meta) (durationMs *int64, frameCount *int) {
+	if m.StartedAt > 0 && m.EndedAt >= m.StartedAt {
+		d := m.EndedAt - m.StartedAt
+		durationMs = &d
+	}
+	if m.Kind == replay.KindFrames {
+		n := m.FrameCount
+		frameCount = &n
+	}
+	return durationMs, frameCount
 }
 
 // traceWindow is the Tempo search range of a session, rounded to whole

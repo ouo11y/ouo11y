@@ -149,13 +149,19 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
   "started_at":"2026-10-06T05:06:20.896Z","last_signal_at":"2026-10-06T05:06:40.747Z",
   "ended_at":null,"end_reason":null,"state":"active","status":"crashed",
   "error_count":2,"crash_count":1,"failed_request_count":1,"event_count":12,
-  "trace_count":5,"has_replay":true,"replay_kind":"rrweb"
+  "trace_count":5,"has_replay":true,"replay_kind":"rrweb",
+  "replay_duration_ms":20410,"replay_frame_count":null
  }],"count":1,"from":"2026-10-06T04:30:00Z","to":"2026-10-06T05:30:00Z"}
 ```
 
 - `has_replay` / `replay_kind`: `replay_kind` is `"rrweb"` or `"frames"` when a replay
-  exists, `null` otherwise, so the plugin can pick the player without a second call. It is a
-  `stat` of `meta.json` plus an in-memory kind cache per session.
+  exists, `null` otherwise, so the plugin can pick the player without a second call.
+- `replay_duration_ms` / `replay_frame_count`: from the replay's `meta.json`
+  (`ended_at - started_at` in ms; `frame_count`). `replay_duration_ms` is `null` without a
+  replay or when the meta has no usable timestamps; `replay_frame_count` is `null` for rrweb
+  replays (they have events, not frames) and without a replay. Both are filled on the list
+  and the detail endpoints by reading `meta.json` per session (a `stat` first, so sessions
+  without a replay cost one syscall).
 
 - `status` per ADR-0004: `crashed` if any `exception` with `ouo.exception.fatal=true` (or a
   `session.end` with reason `crash`), else `errored` if any non-fatal `exception` or

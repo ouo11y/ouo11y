@@ -13,6 +13,7 @@
 <tr><td>Session lifecycle on relaunch</td><td class="pass">pass</td><td>Metro log: previous session ended with reason <code>terminated</code>, new session carries <code>session.previous_id</code></td></tr>
 <tr><td>Checkout input masking and <code>ouo-unmask</code> on the product title</td><td class="pass">pass</td><td>Figure 6: promo input (text field plus <code>ouo-mask</code>) and every label redacted while text was typed into it; figure 11: product title readable, price and button hidden</td></tr>
 <tr><td>Crash flow: fatal error marks the session crashed and the relaunch closes it with reason crash</td><td class="pass">pass</td><td>Figures 7 to 9: Grafana lists the session as crashed, timeline shows navigations, the 500, the fatal error and the session end; replay has 5 frames and 6 touches, 5 traces with the 500 flagged</td></tr>
+<tr><td>Masking opt-out: <code>maskText: false</code> keeps inputs masked</td><td class="pass">pass</td><td>Figure 12 (Phase 7b): with the demo's <code>replay: { enabled: true, maskText: false }</code> every label, the bar title, the back-button title and the header badge are readable while the promo input (a text input, also <code>ouo-mask</code>) is solid black with <code>SAVE10</code> typed into it. The back chevron is black because it is a <code>UIImageView</code> and <code>maskImages</code> stays on. Rules were split into <code>textClasses</code> (<code>maskText</code>) and <code>inputClasses</code> (<code>maskInputs</code>, default true)</td></tr>
 <tr><td>Navigation bar masking on iOS 27</td><td class="pass">pass</td><td>Figures 10 and 11: bar background visible, title, back-button label and header badge redacted. Needed three fixes: skip empty <code>UIImageView</code>s, add <code>RCTParagraphTextView</code> and the iOS 26+ bar item wrapper to the rules, and keep walking children of zero-sized or off-screen nodes</td></tr>
 </table>
 <h2>Figures</h2>
@@ -28,6 +29,7 @@
 <figure><img src="09-grafana-crashed-replay-traces.jpg" alt="Crashed session replay and traces"><figcaption>9. Same session: frame player with markers, 5 traces with the failed one flagged.</figcaption></figure>
 <figure><img src="10-frame-products-final-rules.jpg" alt="Products frame with final rules"><figcaption>10. Products frame with the final rules: header badge and title redacted, bar background intact.</figcaption></figure>
 <figure><img src="11-frame-product-final-rules.jpg" alt="Product frame with final rules"><figcaption>11. Product frame with the final rules: back-button label redacted, unmasked title readable.</figcaption></figure>
+<figure><img src="12-frame-masktext-false.jpg" alt="Checkout frame with maskText false"><figcaption>12. Phase 7b, checkout frame with <code>maskText: false</code>: labels, bar titles and the header badge readable, the promo input (with text typed into it) black. Session <code>cc9fcfdf-…</code>, 13 frames, <code>replay_duration_ms</code> 39717.</figcaption></figure>
 </div>
 <h2>Fixes made during verification</h2>
 <ul>

@@ -13,3 +13,5 @@
 | open | `xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build` | blocked: Xcode |
 | 2026-10-08 | Native verification on iOS 27 simulator: replay captured, masked, stored, played in Grafana; 3 fixes landed | review |
 | 2026-10-08 | Tap-driven checks done on the simulator panel: checkout masking, ouo-unmask, header masking (3 planner/rule fixes), crash flow | review |
+| 2026-10-08 | Phase 7b: `maskInputs` split from `maskText` (Swift core, config, Expo record, JS options, docs), demo `maskText: false`, simulator proof (figure 12) | review |
+| 2026-10-08 | Phase 7b: rum-api `replay_duration_ms` / `replay_frame_count` on session records (list + detail), unit test, compose rebuilt | review |

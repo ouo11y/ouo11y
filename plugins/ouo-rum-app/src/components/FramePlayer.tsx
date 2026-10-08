@@ -160,6 +160,9 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   }
 
   const ratio = viewport.width > 0 && viewport.height > 0 ? viewport.width / viewport.height : 9 / 19.5;
+  // Portrait frames are height-limited: the stage is capped so the whole Replay panel (header,
+  // controls, markers, info) fits the viewport and can stay pinned while the page scrolls.
+  const stageWidth = `min(100%, calc(${STAGE_MAX_HEIGHT} * ${ratio}))`;
 
   return (
     <div
@@ -172,7 +175,7 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
     >
       <div
         className={styles.stage}
-        style={{ aspectRatio: `${ratio}`, width: `min(100%, calc(70vh * ${ratio}))` }}
+        style={{ aspectRatio: `${ratio}`, width: stageWidth }}
         data-testid="frame-stage"
       >
         {frame && (
@@ -230,6 +233,9 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   );
 });
 
+/** Viewport height minus the Grafana chrome and the Replay panel's own header, controls, markers and info line. */
+const STAGE_MAX_HEIGHT = 'calc(100vh - 300px)';
+
 const getStyles = (theme: GrafanaTheme2) => ({
   wrap: css({
     width: '100%',
@@ -240,7 +246,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
   stage: css({
     position: 'relative',
     margin: '0 auto',
-    maxHeight: '70vh',
+    maxHeight: STAGE_MAX_HEIGHT,
     background: theme.colors.background.canvas,
     border: `1px solid ${theme.colors.border.weak}`,
     borderRadius: theme.shape.radius.default,

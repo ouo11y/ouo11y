@@ -50,11 +50,13 @@ and what can be verified on a Mac without Xcode?
 
 ## Masking class list and why RN text views matter
 
-Default masked classes (`RedactionRules`): `UITextField`, `UITextView`, `UILabel`,
-`RCTTextView` (RN Paper text), `RCTParagraphComponentView` (RN Fabric text),
-`RCTUITextField` / `RCTUITextView` / `RCTTextInputComponentView` (RN inputs; the first two
-subclass UIKit's and would match anyway), `UIImageView`, `RCTImageView`,
-`RCTImageComponentView`, `WKWebView`. React Native does **not** render `<Text>` with
+Default masked classes (`RedactionRules`), in four independent groups since Phase 7b:
+`textClasses` (`maskText`): `UILabel`, `RCTTextView` (RN Paper text),
+`RCTParagraphComponentView` / `RCTParagraphTextView` (RN Fabric text), the iOS 26+ bar item
+wrapper; `inputClasses` (`maskInputs`): `UITextField`, `UITextView`, `RCTUITextField` /
+`RCTUITextView` / `RCTTextInputComponentView` (RN inputs; the first two subclass UIKit's and
+would match anyway); `imageClasses` (`maskImages`): `UIImageView`, `RCTImageView`,
+`RCTImageComponentView`; `webViewClasses` (`maskWebViews`): `WKWebView`. React Native does **not** render `<Text>` with
 `UILabel`: Paper draws text in `RCTTextView` and Fabric in `RCTParagraphComponentView`
 (both `UIView` subclasses drawing an `NSAttributedString` themselves). Masking only UIKit
 classes would leave every RN label unredacted, which is why those two names are in the list.
@@ -142,3 +144,21 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 - **Header text on iOS 27 needed three things** (found with the debug class dump): React Native's inner `RCTParagraphTextView` draws the text while its `RCTParagraphComponentView` parent reports an empty frame inside navigation bars; the back-button title lives in `_TtCC5UIKit19NavigationButtonBar15ItemWrapperView`; and the planner must keep visiting children of zero-sized or off-screen nodes (UIKit does not clip subviews by default). Do **not** mask `_UIGraphicsView` / `CGDrawingView` by default: on iOS 26+ the bar's glass background is one of them.
 - Swift `print` from the app is invisible to `log show`; the native logger uses `NSLog`, so `xcrun simctl spawn booted log show --predicate 'process == "mobilestore"'` shows `[ouo replay]` lines including the `redaction: unmatched content-like classes [...]` diagnostic.
 - LogBox itself throws "An error was thrown when attempting to render log messages via LogBox" in the Expo 57 dev client on iOS 27; the SDK reports it as a non-fatal exception. The demo app silences LogBox with `EXPO_PUBLIC_QUIET_LOGBOX=1`.
+
+## Phase 7b: masking opt-out (2026-10-08)
+
+- `maskText` used to govern labels **and** inputs, so a host that wanted readable replays
+  (`maskText: false`) silently unmasked every `TextInput`. `RedactionRules` now has
+  `inputClasses` + `maskInputs` (default true) separate from `textClasses` + `maskText`;
+  `masksAnything` includes it. The option is threaded through `OuoReplayConfig`, the Expo
+  `StartOptions` record, `ReplayOptions.maskInputs` and `NativeStartOptions` in JS.
+- Verified on the iOS 27 simulator with the demo's `replay: { enabled: true, maskText: false }`:
+  labels, bar titles and the header badge readable, promo input black with text typed in
+  (`agents/ios-replay/reports/12-frame-masktext-false.jpg`). The back chevron is a
+  `UIImageView` and stays black while `maskImages` is on; hosts that want it visible can set
+  `maskImages: false` or mark the bar `ouo-unmask`.
+- Driving the simulator panel: screenshots lag one action behind taps; sleep ~1 to 2 s between a
+  tap and the screenshot that should show its result, and ~7 s after the last action before
+  fetching frames (5 s chunk flush plus the upload).
+- rum-api session records carry `replay_duration_ms` / `replay_frame_count` from `meta.json`
+  (`decorateReplay` reads the meta instead of only the cached kind).

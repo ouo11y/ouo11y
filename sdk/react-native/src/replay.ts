@@ -22,6 +22,7 @@ export interface NativeStartOptions {
   sessionId: string;
   frameInterval: number;
   maskText: boolean;
+  maskInputs: boolean;
   maskImages: boolean;
   maskWebViews: boolean;
   debug: boolean;
@@ -151,6 +152,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         sessionId,
         frameInterval: opts.options?.frameInterval ?? 1,
         maskText: opts.options?.maskText !== false,
+        maskInputs: opts.options?.maskInputs !== false,
         maskImages: opts.options?.maskImages !== false,
         maskWebViews: opts.options?.maskWebViews !== false,
         debug: logger.enabled,

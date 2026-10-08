@@ -84,8 +84,9 @@ curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .bucke
 curl -s "localhost:8080/v1/sessions/<session id>/replay" | jq        # kind: frames, chunk_count, frame_count
 ```
 
-In Grafana (ouo RUM app) the session's replay plays as frames with touch markers; masked fields
-are black.
+In Grafana (ouo RUM app) the session's replay plays as frames with touch markers. The demo sets
+`replay: { enabled: true, maskText: false }` (`src/rum.ts`) so labels are readable in replays;
+text inputs, images and web views keep the default masking, so the promo field is black.
 
 Without a simulator, `sdk/react-native/playground/` runs the same flows headlessly against
 the real collector (see the SDK README).

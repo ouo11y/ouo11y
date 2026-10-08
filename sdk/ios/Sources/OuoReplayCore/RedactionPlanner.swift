@@ -40,13 +40,20 @@ public struct RedactionRules: Sendable {
     public static let maskIdentifier = "ouo-mask"
     public static let unmaskIdentifier = "ouo-unmask"
 
-    /// UIKit text entry and display plus the React Native text components (RN renders text with
-    /// its own views, not UILabel: Paper `RCTTextView`, Fabric `RCTParagraphComponentView`,
-    /// inputs `RCTUITextField` / `RCTUITextView` subclass UIKit's).
-    public static let textClasses: Set<String> = [
-        "UITextField", "UITextView", "UILabel",
-        "RCTTextView", "RCTParagraphComponentView", "RCTParagraphTextView",
+    /// Text inputs: UIKit entry views plus the React Native input components (`RCTUITextField` /
+    /// `RCTUITextView` subclass UIKit's; Fabric wraps them in `RCTTextInputComponentView`).
+    /// Governed by `maskInputs`, separately from `maskText`, so a host that opts out of label
+    /// masking keeps whatever the user types redacted.
+    public static let inputClasses: Set<String> = [
+        "UITextField", "UITextView",
         "RCTUITextField", "RCTUITextView", "RCTTextInputComponentView",
+    ]
+    /// Displayed text: `UILabel` plus the React Native text components (RN renders text with
+    /// its own views, not UILabel: Paper `RCTTextView`, Fabric `RCTParagraphComponentView`).
+    /// Governed by `maskText`.
+    public static let textClasses: Set<String> = [
+        "UILabel",
+        "RCTTextView", "RCTParagraphComponentView", "RCTParagraphTextView",
         // Not included: SwiftUI drawing views (`_UIGraphicsView`, `CGDrawingView`). On iOS 26+ the
         // navigation bar's glass background is one of them, so masking them blacks out whole bars.
         // Hosts with SwiftUI text can add them through `extraClasses`.
@@ -58,14 +65,18 @@ public struct RedactionRules: Sendable {
     ]
     public static let webViewClasses: Set<String> = ["WKWebView"]
 
+    /// Labels and React Native text (`textClasses`).
     public var maskText: Bool
+    /// Text inputs (`inputClasses`). Independent of `maskText`.
+    public var maskInputs: Bool
     public var maskImages: Bool
     public var maskWebViews: Bool
     /// Extra class names the host wants masked.
     public var extraClasses: Set<String>
 
-    public init(maskText: Bool = true, maskImages: Bool = true, maskWebViews: Bool = true, extraClasses: Set<String> = []) {
+    public init(maskText: Bool = true, maskInputs: Bool = true, maskImages: Bool = true, maskWebViews: Bool = true, extraClasses: Set<String> = []) {
         self.maskText = maskText
+        self.maskInputs = maskInputs
         self.maskImages = maskImages
         self.maskWebViews = maskWebViews
         self.extraClasses = extraClasses
@@ -74,13 +85,14 @@ public struct RedactionRules: Sendable {
     public var maskedClasses: Set<String> {
         var set = extraClasses
         if maskText { set.formUnion(RedactionRules.textClasses) }
+        if maskInputs { set.formUnion(RedactionRules.inputClasses) }
         if maskImages { set.formUnion(RedactionRules.imageClasses) }
         if maskWebViews { set.formUnion(RedactionRules.webViewClasses) }
         return set
     }
 
     /// True when any rule masks (used for the chunk's `masked` flag).
-    public var masksAnything: Bool { maskText || maskImages || maskWebViews || !extraClasses.isEmpty }
+    public var masksAnything: Bool { maskText || maskInputs || maskImages || maskWebViews || !extraClasses.isEmpty }
 }
 
 /// Computes the rectangles (window coordinates, points) to paint black before a frame is encoded.

@@ -82,7 +82,7 @@ regex), `zone.js`, `XMLHttpRequest` instrumentation or `document`.
 initRUM({
   endpoint: "http://localhost:4328",
   replayEndpoint: "http://localhost:8080", // rum-api; defaults to the OTLP host on port 8080
-  replay: { enabled: true, frameInterval: 1, maskText: true, maskImages: true, maskWebViews: true },
+  replay: { enabled: true, frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
   // ...
 });
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
@@ -96,9 +96,25 @@ rotation (`sessionDidRotate`), flushes with `rum.flush()`, and is a silent no-op
 native module is absent: Expo Go, web, Jest/Vitest, bare apps without `expo-modules-core`
 (a debug-only warning is logged once).
 
-Masking: text inputs, labels and React Native text, images and web views are painted black on
-the device. `testID="ouo-mask"` forces a view to be redacted, `testID="ouo-unmask"` keeps a
-view (and its subtree) visible. Details in `sdk/ios/README.md`.
+### Masking and how to opt out
+
+By default everything that can carry user content is painted black on the device before a
+frame is encoded: labels and `<Text>` (`maskText`), text inputs (`maskInputs`), images
+(`maskImages`) and web views (`maskWebViews`). The default is deliberately aggressive: a replay
+must never leak what a user typed or read, so you opt in to visibility rather than out of
+privacy (the same default Sentry ships). Opt out per category in `replay`:
+
+- `maskText: false` shows labels, paragraphs and navigation-bar titles so replays stay readable.
+  Inputs are **not** affected: they are governed by `maskInputs` alone.
+- `maskImages: false` shows images (product photos, avatars).
+- `maskInputs: false` shows what users type into `TextInput`s. Only set it if you really mean it.
+- `maskWebViews: false` shows `WKWebView` content.
+
+Per view, `testID="ouo-unmask"` keeps a view and its subtree visible whatever the class rules say,
+and `testID="ouo-mask"` redacts a view (its rectangle covers the subtree); both work with any
+combination of the options above. Extra class names can be masked with `maskClasses` on the
+Swift config (`extraClasses` in the planner) when embedding the package directly. Details and the
+class lists are in `sdk/ios/README.md`.
 
 Requirements: `expo-modules-core` (peer, optional), a development build instead of Expo Go
 (`npx expo prebuild --platform ios && npx expo run:ios`, needs Xcode + CocoaPods), and

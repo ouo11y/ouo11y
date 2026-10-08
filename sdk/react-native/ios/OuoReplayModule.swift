@@ -7,6 +7,7 @@ struct StartOptions: Record {
   @Field var sessionId: String = ""
   @Field var frameInterval: Double = 1.0
   @Field var maskText: Bool = true
+  @Field var maskInputs: Bool = true
   @Field var maskImages: Bool = true
   @Field var maskWebViews: Bool = true
   @Field var debug: Bool = false
@@ -42,6 +43,7 @@ public class OuoReplayModule: Module {
         sessionId: { box.get() },
         frameInterval: options.frameInterval,
         maskText: options.maskText,
+        maskInputs: options.maskInputs,
         maskImages: options.maskImages,
         maskWebViews: options.maskWebViews,
         debug: options.debug

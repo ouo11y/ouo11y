@@ -37,7 +37,7 @@ OuoReplay.start(OuoReplayConfig(
     endpoint: URL(string: "http://localhost:8080")!,   // rum-api base URL
     sessionId: { SessionStore.shared.currentId },       // called when a chunk opens
     frameInterval: 1.0,
-    maskText: true, maskImages: true, maskWebViews: true,
+    maskText: true, maskInputs: true, maskImages: true, maskWebViews: true,
     debug: false))
 
 OuoReplay.pause()               // stops the timer, flushes
@@ -56,23 +56,39 @@ All calls are safe from any thread; the capture runs on the main thread (UIKit r
 (0.5), `maxLongestSide` (1000 px), `maxTouchCapturesPerSecond` (4), `maskClasses` (extra class
 names) and `seqStore` (`UserDefaultsSeqStore` by default, `InMemorySeqStore` for tests).
 
-## Masking
+## Masking and how to opt out
 
-Redacted by default (spec rule 2): `UITextField`, `UITextView`, `UILabel`, React Native text
-(`RCTTextView`, `RCTParagraphComponentView`, `RCTUITextField`, `RCTUITextView`,
-`RCTTextInputComponentView`), `UIImageView`, `RCTImageView`, `RCTImageComponentView`,
-`WKWebView`. Subclasses match through their superclass chain. Hidden views, views with alpha
-`<= 0.01`, and views entirely outside the window are skipped together with their subtrees;
-visible rectangles are clipped to the window and overlapping ones merged.
+Redacted by default (spec rule 2), in four independent groups (`RedactionRules`):
 
-Overrides through `accessibilityIdentifier` (React Native `testID`):
+| Option (default `true`) | Classes |
+|---|---|
+| `maskText` | `UILabel`, React Native text (`RCTTextView`, `RCTParagraphComponentView`, `RCTParagraphTextView`), iOS 26+ bar item wrapper (`_TtCC5UIKit19NavigationButtonBar15ItemWrapperView`) |
+| `maskInputs` | `UITextField`, `UITextView`, `RCTUITextField`, `RCTUITextView`, `RCTTextInputComponentView` |
+| `maskImages` | `UIImageView` (with an image), `RCTImageView`, `RCTImageComponentView` |
+| `maskWebViews` | `WKWebView` |
+
+Subclasses match through their superclass chain. Hidden views, views with alpha `<= 0.01`, and
+views entirely outside the window are skipped together with their subtrees; visible rectangles
+are clipped to the window and overlapping ones merged.
+
+The default is privacy first: everything that can carry user content is black until the host
+opts in to visibility (Sentry's mobile replay ships the same default). To opt out:
+
+- `maskText: false` makes labels, paragraphs and bar titles readable. Inputs stay black because
+  they are governed by `maskInputs`, not `maskText`.
+- `maskImages: false` shows images; `maskWebViews: false` shows web views.
+- `maskInputs: false` shows typed text. Only set it if you really mean it.
+- `maskClasses: ["MyChartView"]` (`RedactionRules.extraClasses`) masks additional class names.
+
+Per-view overrides through `accessibilityIdentifier` (React Native `testID`), honoured whatever
+the options above say:
 
 - `ouo-mask`: the view is redacted whatever its class; the rectangle covers its subtree.
 - `ouo-unmask`: the view and its whole subtree are left visible.
 
 Rectangles are filled with opaque black on the rendered image, then the image is downscaled so
 its longest side is at most 1000 px and encoded as JPEG (quality 0.5). The chunk's `masked`
-flag is `true` when any rule is active.
+flag is `true` when any rule (including `extraClasses`) is active.
 
 ## Chunks and upload
 

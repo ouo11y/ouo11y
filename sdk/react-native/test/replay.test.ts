@@ -59,6 +59,7 @@ describe("replay controller", () => {
       sessionId: "sess-1",
       frameInterval: 1,
       maskText: true,
+      maskInputs: true,
       maskImages: true,
       maskWebViews: true,
       debug: false,
@@ -81,6 +82,16 @@ describe("replay controller", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     c.start("s");
     expect(native.start.mock.calls[0]![1]).toMatchObject({ frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
+  });
+
+  it("maskText: false keeps inputs masked (maskInputs defaults to true on its own)", () => {
+    const native = fakeNative();
+    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true, maskText: false }, native, logger });
+    c.start("s");
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ maskText: false, maskInputs: true, maskImages: true, maskWebViews: true });
+    const c2 = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true, maskInputs: false }, native: fakeNative(), logger });
+    c2.start("s");
+    expect(c2.active).toBe(true);
   });
 
   it("pause / resume / isRecording delegate to the native module", () => {

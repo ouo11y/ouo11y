@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { css } from '@emotion/css';
+import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
 import { Alert, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
@@ -134,7 +134,7 @@ export default function SessionDetail() {
           </header>
 
           <div className={styles.grid}>
-            <section className={styles.panel} data-testid="panel-timeline">
+            <section className={cx(styles.panel, styles.timelinePanel)} data-testid="panel-timeline">
               <h4 className={styles.h4}>
                 <Icon name="history" /> Timeline <span className={styles.muted}>({timeline.length} events)</span>
               </h4>
@@ -146,7 +146,7 @@ export default function SessionDetail() {
               />
             </section>
 
-            <section className={styles.panel} data-testid="panel-replay">
+            <section className={cx(styles.panel, styles.replayPanel)} data-testid="panel-replay">
               <h4 className={styles.h4}>
                 <Icon name="play" /> Replay
               </h4>
@@ -230,6 +230,9 @@ export default function SessionDetail() {
   );
 }
 
+/** Viewports narrower than this stack the Timeline and Replay panels. */
+const STACKED = '@media (max-width: 899px)';
+
 const getStyles = (theme: GrafanaTheme2) => ({
   header: css({ marginBottom: theme.spacing(2) }),
   headRow: css({
@@ -249,12 +252,23 @@ const getStyles = (theme: GrafanaTheme2) => ({
     dt: { color: theme.colors.text.secondary },
     dd: { margin: 0 },
   }),
+  // Two columns: the Timeline panel scrolls inside itself (see Timeline) and the Replay panel is
+  // pinned to the top of the page's scroll container while the page scrolls. Below 900px the
+  // panels stack with the Replay first (the Timeline scrolls inside itself) and nothing is pinned.
   grid: css({
     display: 'grid',
     gridTemplateColumns: 'minmax(320px, 2fr) minmax(360px, 3fr)',
     gap: theme.spacing(2),
     marginBottom: theme.spacing(2),
-    [theme.breakpoints.down('lg')]: { gridTemplateColumns: '1fr' },
+    [STACKED]: { gridTemplateColumns: '1fr' },
+  }),
+  // Stretches to the row (the Replay panel's height when that is taller); the list inside scrolls.
+  timelinePanel: css({ display: 'flex', flexDirection: 'column', minHeight: 0 }),
+  replayPanel: css({
+    position: 'sticky',
+    top: theme.spacing(1),
+    alignSelf: 'start',
+    [STACKED]: { position: 'static', alignSelf: 'auto', order: -1 },
   }),
   panel: css({
     background: theme.colors.background.primary,
