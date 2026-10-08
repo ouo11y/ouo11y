@@ -73,7 +73,7 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 7 iOS replay | `phase-7-ios-replay` | [#8](https://github.com/ZiadMansourM/ouo/pull/8) | in-progress | ios-replay, rum-api, grafana-plugin |
+| 7 iOS replay | `phase-7-ios-replay` | [#8](https://github.com/ZiadMansourM/ouo/pull/9) | in-progress | ios-replay, rum-api, grafana-plugin |
 
 - [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
 - [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
