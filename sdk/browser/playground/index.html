@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ouo browser SDK playground</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    button { margin: 0.25rem; padding: 0.5rem 0.8rem; }
+    pre { background: #f4f4f4; padding: 0.5rem; max-height: 300px; overflow: auto; }
+    .ouo-mask { color: #600; }
+  </style>
+</head>
+<body>
+  <h1>ouo playground</h1>
+  <p id="session">session: …</p>
+  <p class="ouo-mask">This text is masked in the replay (ouo-mask).</p>
+  <div class="ouo-block" style="border:1px solid #999;padding:4px">This block is blocked in the replay (ouo-block).</div>
+  <input id="name" placeholder="type here, inputs are masked" />
+  <div>
+    <button id="btn-ok">fetch /api/products (200)</button>
+    <button id="btn-500">fetch /api/checkout (500)</button>
+    <button id="btn-slow">fetch slow</button>
+    <button id="btn-404">fetch 404</button>
+    <button id="btn-net">fetch network failure</button>
+    <button id="btn-throw">uncaught error</button>
+    <button id="btn-reject">unhandled rejection</button>
+    <button id="btn-capture">captureError</button>
+    <button id="btn-console">console.error</button>
+    <button id="btn-nav">pushState /cart</button>
+    <button id="btn-event">addEvent</button>
+    <button id="btn-pause">replay pause</button>
+    <button id="btn-resume">replay resume</button>
+    <button id="btn-flush">flush</button>
+    <button id="btn-scenario">run scenario</button>
+  </div>
+  <pre id="log"></pre>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Orchestrator tracker
+
+| Date | Event |
+|---|---|
+| 2026-10-06 | Repository initialised. Phase 0 foundation written: AGENTS.md, MVP scope, session spec, ADR 0001 to 0005, kb/agents/tracker/reports skeleton. |
+| 2026-10-06 | Phase 2: sdk-browser and web-demo agents ran in parallel against a shared API contract. Orchestrator reran SDK build + 45 tests and the web build. Opened PR #3 on top of phase-1. Note: `npm run build test` passes `test` to tsup; run scripts separately. |
+| 2026-10-07 | Phase 3: rum-api agent done and verified live (crashed web session listed with 22 traces, replay streamed, synthetic mobile session classified errored). Opened PR #4 on top of phase-2. The Phase 5 mobile agent was cut off by a usage limit mid-run; restarted on 2026-10-07 to continue from its partial files. |
+| 2026-10-08 | Phase 4: grafana-plugin agent done, browser-verified with HTML report. Orchestrator reran build + 14 tests + proxy curl. Opened PR #5 on top of phase-3. |
+| 2026-10-08 | Phase 5: sdk-react-native agent resumed and finished (36 tests, Expo iOS export, Expo web run, mobile health split by version in rum-api). Native simulator not run: this Mac has no Xcode.app. Opened PR #6 on top of phase-4. |
+| 2026-10-08 | Phase 6: qa agent done. e2e synthetic matrix passes against rum-api, all 9 MVP acceptance checks ticked, HTML report in reports/. One SDK bug found (double session.start on rotation), routed to sdk-browser for a fix on the same branch. Opened PR #7 on top of phase-5. |
+| 2026-10-08 | sdk-browser fixed the double session.start rotation bug (atomic rotate, log processor no longer triggers ensure()); browser 49 tests, RN 39 tests. Pushed to phase-6-qa (PR #7). MVP phases 0 to 6 all in review. |

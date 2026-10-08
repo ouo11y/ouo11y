@@ -1,0 +1,650 @@
+{
+  "run_id": "muymf83c",
+  "started_at": "2026-10-07T21:29:52.056Z",
+  "range": "1791408532056",
+  "matrix": {
+    "healthy": 5,
+    "errored": 3,
+    "crashed": 2
+  },
+  "versions": [
+    "1.0.0",
+    "1.1.0"
+  ],
+  "services": [
+    {
+      "platform": "web",
+      "service": "qa-web",
+      "code": "w"
+    },
+    {
+      "platform": "mobile",
+      "service": "qa-mobile",
+      "code": "m"
+    }
+  ],
+  "health": {
+    "qa-web": {
+      "url": "http://localhost:8080/v1/stats/health?from=1791408532056&service=qa-web",
+      "body": {
+        "buckets": [
+          {
+            "platform": "web",
+            "service_name": "qa-web",
+            "service_version": "1.0.0",
+            "total": 10,
+            "healthy": 5,
+            "errored": 3,
+            "crashed": 2,
+            "healthy_pct": 50,
+            "errored_pct": 30,
+            "crashed_pct": 20
+          },
+          {
+            "platform": "web",
+            "service_name": "qa-web",
+            "service_version": "1.1.0",
+            "total": 10,
+            "healthy": 5,
+            "errored": 3,
+            "crashed": 2,
+            "healthy_pct": 50,
+            "errored_pct": 30,
+            "crashed_pct": 20
+          }
+        ],
+        "totals": {
+          "platform": "",
+          "service_name": "",
+          "service_version": "",
+          "total": 20,
+          "healthy": 10,
+          "errored": 6,
+          "crashed": 4,
+          "healthy_pct": 50,
+          "errored_pct": 30,
+          "crashed_pct": 20
+        },
+        "from": "2026-10-07T21:28:52.056Z",
+        "to": "2026-10-07T21:29:55.135696292Z"
+      }
+    },
+    "qa-mobile": {
+      "url": "http://localhost:8080/v1/stats/health?from=1791408532056&service=qa-mobile",
+      "body": {
+        "buckets": [
+          {
+            "platform": "mobile",
+            "service_name": "qa-mobile",
+            "service_version": "1.0.0",
+            "total": 10,
+            "healthy": 5,
+            "errored": 3,
+            "crashed": 2,
+            "healthy_pct": 50,
+            "errored_pct": 30,
+            "crashed_pct": 20
+          },
+          {
+            "platform": "mobile",
+            "service_name": "qa-mobile",
+            "service_version": "1.1.0",
+            "total": 10,
+            "healthy": 5,
+            "errored": 3,
+            "crashed": 2,
+            "healthy_pct": 50,
+            "errored_pct": 30,
+            "crashed_pct": 20
+          }
+        ],
+        "totals": {
+          "platform": "",
+          "service_name": "",
+          "service_version": "",
+          "total": 20,
+          "healthy": 10,
+          "errored": 6,
+          "crashed": 4,
+          "healthy_pct": 50,
+          "errored_pct": 30,
+          "crashed_pct": 20
+        },
+        "from": "2026-10-07T21:28:52.056Z",
+        "to": "2026-10-07T21:29:55.211522042Z"
+      }
+    }
+  },
+  "crashed": {
+    "qa-web": {
+      "url": "http://localhost:8080/v1/sessions?from=1791408532056&service=qa-web&status=crashed&limit=1000",
+      "count": 4,
+      "ids": [
+        "qa-muymf83c-w-100-c0",
+        "qa-muymf83c-w-100-c1",
+        "qa-muymf83c-w-110-c0",
+        "qa-muymf83c-w-110-c1"
+      ]
+    },
+    "qa-mobile": {
+      "url": "http://localhost:8080/v1/sessions?from=1791408532056&service=qa-mobile&status=crashed&limit=1000",
+      "count": 4,
+      "ids": [
+        "qa-muymf83c-m-100-c0",
+        "qa-muymf83c-m-100-c1",
+        "qa-muymf83c-m-110-c0",
+        "qa-muymf83c-m-110-c1"
+      ]
+    }
+  },
+  "details": {
+    "qa-muymf83c-w-100-e2": {
+      "url": "http://localhost:8080/v1/sessions/qa-muymf83c-w-100-e2",
+      "record": {
+        "session_id": "qa-muymf83c-w-100-e2",
+        "user_id": "qa-user-w-2",
+        "platform": "web",
+        "service_name": "qa-web",
+        "service_version": "1.0.0",
+        "started_at": "2026-10-07T21:29:23.806Z",
+        "last_signal_at": "2026-10-07T21:29:25.006Z",
+        "ended_at": null,
+        "end_reason": null,
+        "state": "active",
+        "status": "errored",
+        "error_count": 1,
+        "crash_count": 0,
+        "failed_request_count": 1,
+        "event_count": 4,
+        "trace_count": 3,
+        "has_replay": false,
+        "timeline": [
+          {
+            "ts": "2026-10-07T21:29:23.806Z",
+            "type": "session.start",
+            "name": "session.start",
+            "attrs": {
+              "ouo_session_started_at": "1791408563806",
+              "severity_text": "INFO"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:24.056Z",
+            "type": "navigation",
+            "name": "navigation",
+            "attrs": {
+              "ouo_navigation_kind": "load",
+              "severity_text": "INFO",
+              "url_path": "/"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:24.756Z",
+            "type": "exception",
+            "name": "exception",
+            "attrs": {
+              "exception_message": "qa handled error",
+              "exception_stacktrace": "Error: qa handled error\n    at qa (scenario.mjs:1:1)",
+              "exception_type": "Error",
+              "ouo_exception_fatal": "false",
+              "ouo_exception_handled": "true",
+              "severity_text": "WARN"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:25.006Z",
+            "type": "http.request.failed",
+            "name": "http.request.failed",
+            "attrs": {
+              "http_request_method": "POST",
+              "http_response_status_code": "500",
+              "severity_text": "INFO",
+              "url_full": "http://qa-backend/api/checkout?fail=500"
+            }
+          }
+        ],
+        "traces": [
+          {
+            "trace_id": "3e5e28bd63f68f355d88362161221fa8",
+            "root_name": "HTTP POST",
+            "root_service": "qa-web",
+            "start": "2026-10-07T21:29:24.606Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%223e5e28bd63f68f355d88362161221fa8%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408264606%22%2C%22to%22%3A%221791408864726%22%7D%7D%7D&schemaVersion=1"
+          },
+          {
+            "trace_id": "f64309b11f7a212fdfdfabb5ad87770b",
+            "root_name": "HTTP POST",
+            "root_service": "qa-web",
+            "start": "2026-10-07T21:29:24.456Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%22f64309b11f7a212fdfdfabb5ad87770b%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408264456%22%2C%22to%22%3A%221791408864576%22%7D%7D%7D&schemaVersion=1"
+          },
+          {
+            "trace_id": "8d37f002f7e43c7ecfc518f94b8bbefd",
+            "root_name": "HTTP GET",
+            "root_service": "qa-web",
+            "start": "2026-10-07T21:29:24.306Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": true,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%228d37f002f7e43c7ecfc518f94b8bbefd%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408264306%22%2C%22to%22%3A%221791408864426%22%7D%7D%7D&schemaVersion=1"
+          }
+        ]
+      },
+      "timeline": [
+        {
+          "ts": "2026-10-07T21:29:23.806Z",
+          "type": "session.start",
+          "name": "session.start"
+        },
+        {
+          "ts": "2026-10-07T21:29:24.056Z",
+          "type": "navigation",
+          "name": "navigation"
+        },
+        {
+          "ts": "2026-10-07T21:29:24.756Z",
+          "type": "exception",
+          "name": "exception"
+        },
+        {
+          "ts": "2026-10-07T21:29:25.006Z",
+          "type": "http.request.failed",
+          "name": "http.request.failed"
+        }
+      ],
+      "traces": [
+        {
+          "trace_id": "3e5e28bd63f68f355d88362161221fa8",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-web HTTP POST",
+          "span_count": 2
+        },
+        {
+          "trace_id": "f64309b11f7a212fdfdfabb5ad87770b",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-web HTTP POST",
+          "span_count": 2
+        },
+        {
+          "trace_id": "8d37f002f7e43c7ecfc518f94b8bbefd",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": true,
+          "root": "qa-web HTTP GET",
+          "span_count": 2
+        }
+      ],
+      "short_trace_ids": []
+    },
+    "qa-muymf83c-w-110-c0": {
+      "url": "http://localhost:8080/v1/sessions/qa-muymf83c-w-110-c0",
+      "record": {
+        "session_id": "qa-muymf83c-w-110-c0",
+        "user_id": "qa-user-w-0",
+        "platform": "web",
+        "service_name": "qa-web",
+        "service_version": "1.1.0",
+        "started_at": "2026-10-07T21:29:26.556Z",
+        "last_signal_at": "2026-10-07T21:29:27.206Z",
+        "ended_at": null,
+        "end_reason": null,
+        "state": "active",
+        "status": "crashed",
+        "error_count": 0,
+        "crash_count": 1,
+        "failed_request_count": 0,
+        "event_count": 3,
+        "trace_count": 1,
+        "has_replay": false,
+        "timeline": [
+          {
+            "ts": "2026-10-07T21:29:26.556Z",
+            "type": "session.start",
+            "name": "session.start",
+            "attrs": {
+              "ouo_session_started_at": "1791408566556",
+              "severity_text": "INFO"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:26.806Z",
+            "type": "navigation",
+            "name": "navigation",
+            "attrs": {
+              "ouo_navigation_kind": "load",
+              "severity_text": "INFO",
+              "url_path": "/"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:27.206Z",
+            "type": "exception",
+            "name": "exception",
+            "attrs": {
+              "exception_message": "qa fatal error",
+              "exception_stacktrace": "TypeError: qa fatal error\n    at qa (scenario.mjs:2:2)",
+              "exception_type": "TypeError",
+              "ouo_exception_fatal": "true",
+              "ouo_exception_handled": "false",
+              "ouo_exception_kind": "uncaught",
+              "severity_text": "ERROR"
+            }
+          }
+        ],
+        "traces": [
+          {
+            "trace_id": "49c91a456a6e16193f7af43798aef1f9",
+            "root_name": "HTTP GET",
+            "root_service": "qa-web",
+            "start": "2026-10-07T21:29:27.056Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%2249c91a456a6e16193f7af43798aef1f9%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408267056%22%2C%22to%22%3A%221791408867176%22%7D%7D%7D&schemaVersion=1"
+          }
+        ]
+      },
+      "timeline": [
+        {
+          "ts": "2026-10-07T21:29:26.556Z",
+          "type": "session.start",
+          "name": "session.start"
+        },
+        {
+          "ts": "2026-10-07T21:29:26.806Z",
+          "type": "navigation",
+          "name": "navigation"
+        },
+        {
+          "ts": "2026-10-07T21:29:27.206Z",
+          "type": "exception",
+          "name": "exception"
+        }
+      ],
+      "traces": [
+        {
+          "trace_id": "49c91a456a6e16193f7af43798aef1f9",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-web HTTP GET",
+          "span_count": 2
+        }
+      ],
+      "short_trace_ids": []
+    },
+    "qa-muymf83c-m-100-e2": {
+      "url": "http://localhost:8080/v1/sessions/qa-muymf83c-m-100-e2",
+      "record": {
+        "session_id": "qa-muymf83c-m-100-e2",
+        "user_id": "qa-user-m-2",
+        "platform": "mobile",
+        "service_name": "qa-mobile",
+        "service_version": "1.0.0",
+        "started_at": "2026-10-07T21:29:28.806Z",
+        "last_signal_at": "2026-10-07T21:29:30.006Z",
+        "ended_at": null,
+        "end_reason": null,
+        "state": "active",
+        "status": "errored",
+        "error_count": 1,
+        "crash_count": 0,
+        "failed_request_count": 1,
+        "event_count": 4,
+        "trace_count": 3,
+        "has_replay": false,
+        "timeline": [
+          {
+            "ts": "2026-10-07T21:29:28.806Z",
+            "type": "session.start",
+            "name": "session.start",
+            "attrs": {
+              "ouo_session_started_at": "1791408568806",
+              "severity_text": "INFO"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:29.056Z",
+            "type": "navigation",
+            "name": "navigation",
+            "attrs": {
+              "ouo_navigation_kind": "load",
+              "severity_text": "INFO",
+              "url_path": "/"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:29.756Z",
+            "type": "exception",
+            "name": "exception",
+            "attrs": {
+              "exception_message": "qa handled error",
+              "exception_stacktrace": "Error: qa handled error\n    at qa (scenario.mjs:1:1)",
+              "exception_type": "Error",
+              "ouo_exception_fatal": "false",
+              "ouo_exception_handled": "true",
+              "severity_text": "WARN"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:30.006Z",
+            "type": "http.request.failed",
+            "name": "http.request.failed",
+            "attrs": {
+              "http_request_method": "POST",
+              "http_response_status_code": "500",
+              "severity_text": "INFO",
+              "url_full": "http://qa-backend/api/checkout?fail=500"
+            }
+          }
+        ],
+        "traces": [
+          {
+            "trace_id": "95994f63db29352fb42bbe6ea9905a54",
+            "root_name": "HTTP POST",
+            "root_service": "qa-mobile",
+            "start": "2026-10-07T21:29:29.606Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%2295994f63db29352fb42bbe6ea9905a54%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408269606%22%2C%22to%22%3A%221791408869726%22%7D%7D%7D&schemaVersion=1"
+          },
+          {
+            "trace_id": "4ab4fbb3b87bc8bf941ae9f4e5dea2a3",
+            "root_name": "HTTP POST",
+            "root_service": "qa-mobile",
+            "start": "2026-10-07T21:29:29.456Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%224ab4fbb3b87bc8bf941ae9f4e5dea2a3%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408269456%22%2C%22to%22%3A%221791408869576%22%7D%7D%7D&schemaVersion=1"
+          },
+          {
+            "trace_id": "d4ef04756ee57819fa8b455082c19faf",
+            "root_name": "HTTP GET",
+            "root_service": "qa-mobile",
+            "start": "2026-10-07T21:29:29.306Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": true,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%22d4ef04756ee57819fa8b455082c19faf%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408269306%22%2C%22to%22%3A%221791408869426%22%7D%7D%7D&schemaVersion=1"
+          }
+        ]
+      },
+      "timeline": [
+        {
+          "ts": "2026-10-07T21:29:28.806Z",
+          "type": "session.start",
+          "name": "session.start"
+        },
+        {
+          "ts": "2026-10-07T21:29:29.056Z",
+          "type": "navigation",
+          "name": "navigation"
+        },
+        {
+          "ts": "2026-10-07T21:29:29.756Z",
+          "type": "exception",
+          "name": "exception"
+        },
+        {
+          "ts": "2026-10-07T21:29:30.006Z",
+          "type": "http.request.failed",
+          "name": "http.request.failed"
+        }
+      ],
+      "traces": [
+        {
+          "trace_id": "95994f63db29352fb42bbe6ea9905a54",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-mobile HTTP POST",
+          "span_count": 2
+        },
+        {
+          "trace_id": "4ab4fbb3b87bc8bf941ae9f4e5dea2a3",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-mobile HTTP POST",
+          "span_count": 2
+        },
+        {
+          "trace_id": "d4ef04756ee57819fa8b455082c19faf",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": true,
+          "root": "qa-mobile HTTP GET",
+          "span_count": 2
+        }
+      ],
+      "short_trace_ids": []
+    },
+    "qa-muymf83c-m-110-c0": {
+      "url": "http://localhost:8080/v1/sessions/qa-muymf83c-m-110-c0",
+      "record": {
+        "session_id": "qa-muymf83c-m-110-c0",
+        "user_id": "qa-user-m-0",
+        "platform": "mobile",
+        "service_name": "qa-mobile",
+        "service_version": "1.1.0",
+        "started_at": "2026-10-07T21:29:31.556Z",
+        "last_signal_at": "2026-10-07T21:29:32.456Z",
+        "ended_at": "2026-10-07T21:29:32.456Z",
+        "end_reason": "crash",
+        "state": "ended",
+        "status": "crashed",
+        "error_count": 0,
+        "crash_count": 1,
+        "failed_request_count": 0,
+        "event_count": 4,
+        "trace_count": 1,
+        "has_replay": false,
+        "timeline": [
+          {
+            "ts": "2026-10-07T21:29:31.556Z",
+            "type": "session.start",
+            "name": "session.start",
+            "attrs": {
+              "ouo_session_started_at": "1791408571556",
+              "severity_text": "INFO"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:31.806Z",
+            "type": "navigation",
+            "name": "navigation",
+            "attrs": {
+              "ouo_navigation_kind": "load",
+              "severity_text": "INFO",
+              "url_path": "/"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:32.206Z",
+            "type": "exception",
+            "name": "exception",
+            "attrs": {
+              "exception_message": "qa fatal error",
+              "exception_stacktrace": "TypeError: qa fatal error\n    at qa (scenario.mjs:2:2)",
+              "exception_type": "TypeError",
+              "ouo_exception_fatal": "true",
+              "ouo_exception_handled": "false",
+              "ouo_exception_kind": "uncaught",
+              "severity_text": "ERROR"
+            }
+          },
+          {
+            "ts": "2026-10-07T21:29:32.456Z",
+            "type": "session.end",
+            "name": "session.end",
+            "attrs": {
+              "ouo_session_duration_ms": "900",
+              "ouo_session_end_reason": "crash",
+              "ouo_session_started_at": "1791408571556",
+              "severity_text": "INFO"
+            }
+          }
+        ],
+        "traces": [
+          {
+            "trace_id": "9091bf4c6e6442e28a7244be95770e60",
+            "root_name": "HTTP GET",
+            "root_service": "qa-mobile",
+            "start": "2026-10-07T21:29:32.056Z",
+            "duration_ms": 120,
+            "span_count": 2,
+            "has_error": false,
+            "grafana_url": "http://localhost:3001/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%229091bf4c6e6442e28a7244be95770e60%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221791408272056%22%2C%22to%22%3A%221791408872176%22%7D%7D%7D&schemaVersion=1"
+          }
+        ]
+      },
+      "timeline": [
+        {
+          "ts": "2026-10-07T21:29:31.556Z",
+          "type": "session.start",
+          "name": "session.start"
+        },
+        {
+          "ts": "2026-10-07T21:29:31.806Z",
+          "type": "navigation",
+          "name": "navigation"
+        },
+        {
+          "ts": "2026-10-07T21:29:32.206Z",
+          "type": "exception",
+          "name": "exception"
+        },
+        {
+          "ts": "2026-10-07T21:29:32.456Z",
+          "type": "session.end",
+          "name": "session.end"
+        }
+      ],
+      "traces": [
+        {
+          "trace_id": "9091bf4c6e6442e28a7244be95770e60",
+          "status": 200,
+          "grafana_spans": 2,
+          "has_error": false,
+          "root": "qa-mobile HTTP GET",
+          "span_count": 2
+        }
+      ],
+      "short_trace_ids": []
+    }
+  },
+  "failures": [],
+  "ingest_wait_ms": 64393
+}
