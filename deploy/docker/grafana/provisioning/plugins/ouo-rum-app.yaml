@@ -1,0 +1,12 @@
+# Enables the ouo RUM app plugin (plugins/ouo-rum-app, loaded unsigned from
+# /var/lib/grafana/plugins/ouo-rum-app) and points its "rum" route at the
+# in-network rum-api. The browser never talks to rum-api directly: the plugin
+# calls /api/plugin-proxy/ouo-rum-app/rum/v1/... and Grafana forwards to rumApiUrl.
+apiVersion: 1
+
+apps:
+  - type: ouo-rum-app
+    org_id: 1
+    disabled: false
+    jsonData:
+      rumApiUrl: http://rum-api:8080

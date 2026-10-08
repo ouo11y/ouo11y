@@ -1,0 +1,79 @@
+# OpenTelemetry Collector (contrib) for the ouo local stack.
+# Single ingress for browser, mobile and backend telemetry.
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          # Browser SDK (Vite dev server) posts directly to the collector.
+          allowed_origins:
+            - "http://localhost:*"
+            - "http://127.0.0.1:*"
+          allowed_headers:
+            - "*"
+          max_age: 7200
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+  # Copy the OTLP top-level event_name (OTel Logs API `eventName`) into the
+  # `event.name` log attribute so Loki can index it as a label regardless of
+  # whether the SDK set it as a field or as an attribute. Also makes sure
+  # `ouo.platform` exists as a log attribute when it was only set on the resource.
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+          - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+
+# Collector >= 0.150 names the exporters otlp_grpc / otlp_http (otlp / otlphttp are deprecated aliases).
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls:
+      insecure: true
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/events, batch]
+      exporters: [otlp_http/loki]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/mimir]

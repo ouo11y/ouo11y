@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "app",
+  "name": "ouo RUM",
+  "id": "ouo-rum-app",
+  "info": {
+    "keywords": ["app", "rum", "opentelemetry", "session replay", "ouo"],
+    "description": "Real User Monitoring on OpenTelemetry: session health, sessions, timeline, traces and rrweb replay served by rum-api.",
+    "author": {
+      "name": "ouo"
+    },
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "includes": [
+    {
+      "type": "page",
+      "name": "Overview",
+      "icon": "heart-rate",
+      "path": "/a/%PLUGIN_ID%/overview",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": true
+    },
+    {
+      "type": "page",
+      "name": "Sessions",
+      "icon": "list-ul",
+      "path": "/a/%PLUGIN_ID%/sessions",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": false
+    },
+    {
+      "type": "page",
+      "name": "Session detail",
+      "path": "/a/%PLUGIN_ID%/sessions/:id",
+      "role": "Viewer",
+      "addToNav": false,
+      "defaultNav": false
+    },
+    {
+      "type": "page",
+      "icon": "cog",
+      "name": "Configuration",
+      "path": "/plugins/%PLUGIN_ID%",
+      "role": "Admin",
+      "addToNav": true
+    }
+  ],
+  "routes": [
+    {
+      "path": "rum/*",
+      "method": "*",
+      "reqRole": "Viewer",
+      "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}"
+    }
+  ],
+  "dependencies": {
+    "grafanaDependency": ">=13.0.0",
+    "plugins": []
+  }
+}

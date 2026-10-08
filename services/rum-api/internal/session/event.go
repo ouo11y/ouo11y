@@ -1,0 +1,186 @@
+// Package session folds Loki session events into session records and
+// classifies them (docs/specs/session-lifecycle.md, ADR-0004). Everything in
+// this package is pure: no I/O, time is passed in.
+package session
+
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Event is one Loki log entry with its stream labels and structured metadata
+// flattened into Attrs (Loki merges structured metadata into the stream
+// labels of each result and rewrites "." to "_" in names).
+type Event struct {
+	TS   time.Time
+	Name string // raw event_name label, e.g. "session.start", "cart.added"
+	Line string // log line body
+	// Session identifiers.
+	SessionID      string
+	UserID         string
+	Platform       string
+	ServiceName    string
+	ServiceVersion string
+	// Attrs holds every label / metadata key except the identifiers above.
+	Attrs map[string]string
+}
+
+// Type is the normalised timeline type of an event.
+type Type string
+
+const (
+	TypeSessionStart  Type = "session.start"
+	TypeSessionEnd    Type = "session.end"
+	TypeException     Type = "exception"
+	TypeRequestFailed Type = "http.request.failed"
+	TypeNavigation    Type = "navigation"
+	TypeWebVital      Type = "web_vital"
+	TypeCustom        Type = "custom"
+)
+
+// KnownNames is the event_name regex used in the Loki selector for the
+// session list (custom events are fetched too so event_count is complete, but
+// they are classified as TypeCustom).
+var KnownNames = []string{"session.start", "session.end", "exception", "http.request.failed", "navigation", "web_vital"}
+
+// TypeOf maps a raw event name to its timeline type.
+func TypeOf(name string) Type {
+	switch name {
+	case "session.start":
+		return TypeSessionStart
+	case "session.end":
+		return TypeSessionEnd
+	case "exception":
+		return TypeException
+	case "http.request.failed":
+		return TypeRequestFailed
+	case "navigation":
+		return TypeNavigation
+	case "web_vital":
+		return TypeWebVital
+	}
+	return TypeCustom
+}
+
+// identifierKeys are lifted out of Attrs into Event fields.
+var identifierKeys = map[string]bool{
+	"session_id": true, "user_id": true, "ouo_platform": true,
+	"service_name": true, "service_version": true, "event_name": true,
+}
+
+// noiseKeys are per-SDK constants that would bloat every timeline entry.
+var noiseKeys = map[string]bool{
+	"observed_timestamp": true, "detected_level": true, "scope_name": true, "scope_version": true,
+	"telemetry_sdk_language": true, "telemetry_sdk_name": true, "telemetry_sdk_version": true,
+	"deployment_environment_name": true, "ouo_sdk_name": true, "ouo_sdk_version": true,
+	"user_agent_original": true, "browser_brands": true, "browser_language": true,
+	"browser_mobile": true, "browser_platform": true, "os_name": true, "os_version": true,
+	"severity_number": true, "ouo_user_anonymous": true,
+}
+
+// LokiQueryResponse is the subset of Loki's /loki/api/v1/query_range response
+// this package reads.
+type LokiQueryResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		ResultType string       `json:"resultType"`
+		Result     []LokiStream `json:"result"`
+	} `json:"data"`
+}
+
+// LokiStream is one stream in a Loki streams result.
+type LokiStream struct {
+	Stream map[string]string `json:"stream"`
+	Values [][2]string       `json:"values"` // [ts nanoseconds, line]
+}
+
+// ParseLokiResponse decodes a raw query_range body into events (sorted by time).
+func ParseLokiResponse(body []byte) ([]Event, error) {
+	var resp LokiQueryResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("decode loki response: %w", err)
+	}
+	if resp.Status != "success" {
+		return nil, fmt.Errorf("loki status %q", resp.Status)
+	}
+	if resp.Data.ResultType != "streams" && resp.Data.ResultType != "" {
+		return nil, fmt.Errorf("loki resultType %q, want streams", resp.Data.ResultType)
+	}
+	return EventsFromStreams(resp.Data.Result), nil
+}
+
+// EventsFromStreams flattens Loki streams into events sorted by timestamp.
+func EventsFromStreams(streams []LokiStream) []Event {
+	var out []Event
+	for _, s := range streams {
+		for _, v := range s.Values {
+			ns, err := strconv.ParseInt(v[0], 10, 64)
+			if err != nil {
+				continue
+			}
+			out = append(out, eventFromLabels(time.Unix(0, ns).UTC(), s.Stream, v[1]))
+		}
+	}
+	SortEvents(out)
+	return out
+}
+
+// SortEvents orders events by time, then name, then line (stable, total).
+func SortEvents(evs []Event) {
+	sort.SliceStable(evs, func(i, j int) bool {
+		if !evs[i].TS.Equal(evs[j].TS) {
+			return evs[i].TS.Before(evs[j].TS)
+		}
+		if evs[i].Name != evs[j].Name {
+			return evs[i].Name < evs[j].Name
+		}
+		return evs[i].Line < evs[j].Line
+	})
+}
+
+func eventFromLabels(ts time.Time, labels map[string]string, line string) Event {
+	ev := Event{
+		TS:             ts,
+		Line:           line,
+		Name:           labels["event_name"],
+		SessionID:      labels["session_id"],
+		UserID:         labels["user_id"],
+		Platform:       labels["ouo_platform"],
+		ServiceName:    labels["service_name"],
+		ServiceVersion: labels["service_version"],
+		Attrs:          map[string]string{},
+	}
+	for k, v := range labels {
+		if identifierKeys[k] || noiseKeys[k] {
+			continue
+		}
+		ev.Attrs[k] = v
+	}
+	return ev
+}
+
+// Type returns the timeline type of the event.
+func (e Event) Type() Type { return TypeOf(e.Name) }
+
+// Fatal reports whether an exception event is fatal (ouo.exception.fatal).
+func (e Event) Fatal() bool { return isTrue(e.Attrs["ouo_exception_fatal"]) }
+
+// EndReason returns ouo.session.end_reason for a session.end event.
+func (e Event) EndReason() string { return e.Attrs["ouo_session_end_reason"] }
+
+// Key identifies an event for de-duplication across paginated Loki pages.
+func (e Event) Key() string {
+	return strconv.FormatInt(e.TS.UnixNano(), 10) + "|" + e.SessionID + "|" + e.Name + "|" + e.Line
+}
+
+func isTrue(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "1", "yes":
+		return true
+	}
+	return false
+}

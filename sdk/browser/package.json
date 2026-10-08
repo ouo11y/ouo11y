@@ -1,0 +1,61 @@
+{
+  "name": "@ouo/browser",
+  "version": "0.1.0",
+  "description": "ouo Real User Monitoring SDK for browsers: OpenTelemetry sessions, errors, fetch tracing, Web Vitals and rrweb replay.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "size": "node scripts/size.mjs",
+    "playground": "npm run build && vite --config playground/vite.config.mjs"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
+    "@opentelemetry/instrumentation": "^0.222.0",
+    "@opentelemetry/instrumentation-document-load": "^0.67.0",
+    "@opentelemetry/instrumentation-fetch": "^0.222.0",
+    "@opentelemetry/instrumentation-xml-http-request": "^0.222.0",
+    "@opentelemetry/opentelemetry-browser-detector": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-logs": "^0.222.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@opentelemetry/sdk-trace-web": "^2.11.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "rrweb": "^2.1.7",
+    "web-vitals": "^6.2.3"
+  },
+  "devDependencies": {
+    "@rrweb/types": "^2.1.7",
+    "@types/node": "^24.0.0",
+    "jsdom": "^30.1.2",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^5.0.3"
+  }
+}
