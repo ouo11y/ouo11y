@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Phase 7 iOS replay verification</title>
+<style>body{font:15px/1.5 -apple-system,Segoe UI,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#1c1c1c}h1,h2{line-height:1.2}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #ddd;padding:.4rem .6rem;text-align:left;vertical-align:top}th{background:#f4f4f4}.pass{color:#137333;font-weight:600}.gap{color:#b06000;font-weight:600}figure{margin:1rem 0}figure img{max-width:100%;border:1px solid #ccc}figcaption{font-size:.9rem;color:#555}.row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}</style></head><body>
+<h1>Phase 7: iOS session replay, native verification</h1>
+<p>2026-10-08, Xcode 27.0 on macOS 27.0.1, iPhone 18 Pro simulator with iOS 27.0, Expo 57 dev client built from <code>examples/mobile</code> with the <code>OuoReplay</code> native module linked through CocoaPods.</p>
+<h2>Checks</h2>
+<table><tr><th>Check</th><th>Result</th><th>Evidence</th></tr>
+<tr><td>App launches on iOS 27 and reaches the Products screen</td><td class="pass">pass</td><td>Required adopting the UIScene life cycle (new config plugin <code>examples/mobile/plugins/withUIScene.js</code>); figure 1</td></tr>
+<tr><td>Native module registered and started by the JS SDK</td><td class="pass">pass</td><td>Metro log: <code>replay: started {endpoint: http://localhost:8080, frameInterval: 1, maskText: true, ...}</code>, after fixing module lookup to use <code>globalThis.expo.modules</code></td></tr>
+<tr><td>Frame chunk reaches rum-api with <code>kind: frames</code></td><td class="pass">pass</td><td><code>GET /v1/sessions/df12dfd1-…/replay</code>: chunk_count 1, frame_count 2, viewport 402×874, platform ios</td></tr>
+<tr><td>Text is redacted on device before upload</td><td class="pass">pass</td><td>Figure 2: every product name, price and button label is a black rectangle in the captured JPEG</td></tr>
+<tr><td>Session appears in Grafana with status, version and trace</td><td class="pass">pass</td><td>Figure 3: healthy, mobile, mobile-store 2.3.0, 1 trace with Explore link</td></tr>
+<tr><td>Frame player plays and scrubs in Grafana</td><td class="pass">pass</td><td>Figure 4: playback advanced to frame 2/2 showing the masked screen; markers and scrubber rendered</td></tr>
+<tr><td>Session lifecycle on relaunch</td><td class="pass">pass</td><td>Metro log: previous session ended with reason <code>terminated</code>, new session carries <code>session.previous_id</code></td></tr>
+<tr><td>Checkout input masking and <code>ouo-unmask</code> on the product title</td><td class="gap">not yet verified on device</td><td>Needs taps; the simulator panel requires <code>sudo xcode-select -s /Applications/Xcode.app/Contents/Developer</code> on this Mac</td></tr>
+<tr><td>Navigation bar fully redacted (over-masking)</td><td class="gap">fixed, re-verification pending</td><td>Empty <code>UIImageView</code>s (bar backgrounds) are now reported as plain views; rebuilt after this report was written</td></tr>
+</table>
+<h2>Figures</h2>
+<div class="row">
+<figure><img src="01-simulator-products.jpg" alt="Products screen on the simulator"><figcaption>1. Products screen on the iOS 27 simulator (version 2.3.0, session id in the header).</figcaption></figure>
+<figure><img src="02-captured-frame-masked.jpg" alt="Captured frame with masked text"><figcaption>2. The frame the SDK uploaded for the same screen: text redacted on device.</figcaption></figure>
+<figure><img src="03-grafana-session-detail.jpg" alt="Grafana session detail"><figcaption>3. Grafana: the iOS session with timeline, counts and replay panel.</figcaption></figure>
+<figure><img src="04-grafana-frame-player-playing.jpg" alt="Grafana frame player"><figcaption>4. Grafana frame player after pressing play: frame 2/2, scrubber, markers, trace row below.</figcaption></figure>
+</div>
+<h2>Fixes made during verification</h2>
+<ul>
+<li>iOS 27 traps at launch without UIScene adoption; Expo 57's template lacks it, so the demo app gained a config plugin that adds the scene manifest, a <code>SceneDelegate</code> subclassing <code>ExpoAppSceneDelegate</code>, and the AppDelegate changes.</li>
+<li>The Expo bridge double-qualified <code>OuoReplay.OuoReplay</code>, which fails under CocoaPods.</li>
+<li>The JS SDK required <code>expo-modules-core</code>, which Metro cannot resolve from a symlinked package; it now reads <code>globalThis.expo.modules</code> first and reports the reason when the module is missing.</li>
+</ul>
+<h2>Reproduce</h2>
+<pre>export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8
+cd examples/mobile && npx expo prebuild --platform ios && (cd ios && pod install)
+cd ios && xcodebuild -workspace mobilestore.xcworkspace -scheme mobilestore -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcrun simctl boot "iPhone 18 Pro" && xcrun simctl install booted &lt;build&gt;/mobilestore.app
+npx expo start --dev-client --port 8081   # in examples/mobile
+xcrun simctl launch booted dev.ouo.mobilestore
+curl localhost:8080/v1/sessions?from=now-10m&amp;platform=mobile</pre>
+</body></html>

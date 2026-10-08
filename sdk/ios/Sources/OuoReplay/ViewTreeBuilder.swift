@@ -18,8 +18,14 @@ enum ViewTreeBuilder {
         } else {
             children = []
         }
+        // An image view without an image (UIKit bar backgrounds, placeholders) carries no user
+        // content; reporting it as a plain view keeps whole navigation bars from being redacted.
+        var className = NSStringFromClass(type(of: view))
+        if let imageView = view as? UIImageView, imageView.image == nil {
+            className = "UIView"
+        }
         return ViewNode(
-            className: NSStringFromClass(type(of: view)),
+            className: className,
             superclassNames: superclasses,
             frameInWindow: frame,
             hidden: view.isHidden,

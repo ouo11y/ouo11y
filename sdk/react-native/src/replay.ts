@@ -37,13 +37,33 @@ export const DEFAULT_REPLAY_PORT = 8080;
  * bundles: Metro resolves the literal module name, so hosts without `expo-modules-core` must
  * alias it (see the README).
  */
+/** Why the last `loadNativeReplayModule()` returned undefined; surfaced in the debug warning. */
+export let lastNativeLoadError: string | undefined;
+
 export function loadNativeReplayModule(): NativeReplayModule | undefined {
+  lastNativeLoadError = undefined;
   try {
-    const core = expoModulesCore();
-    if (!core || typeof core.requireNativeModule !== "function") return undefined;
-    const mod = core.requireNativeModule(NATIVE_MODULE_NAME);
-    return mod && typeof mod.start === "function" ? mod : undefined;
-  } catch {
+    // Expo registers every native module on `globalThis.expo.modules`; reading it directly avoids a
+    // `require("expo-modules-core")` that Metro cannot resolve when this package is symlinked from
+    // outside the app (npm workspaces, `file:` links). The require is only a fallback.
+    const registry = (globalThis as { expo?: { modules?: Record<string, NativeReplayModule> } }).expo?.modules;
+    let mod: NativeReplayModule | undefined = registry?.[NATIVE_MODULE_NAME];
+    if (!mod) {
+      const core = expoModulesCore();
+      if (!core || typeof core.requireNativeModule !== "function") {
+        lastNativeLoadError = "native module not registered and expo-modules-core not resolvable";
+        return undefined;
+      }
+      mod = core.requireNativeModule(NATIVE_MODULE_NAME);
+    }
+    if (!mod || typeof mod.start !== "function") {
+      lastNativeLoadError = `native module has no start(): keys=${Object.keys(mod ?? {}).join(",")}`;
+      return undefined;
+    }
+    return mod;
+  } catch (err) {
+    const registered = Object.keys((globalThis as { expo?: { modules?: object } }).expo?.modules ?? {});
+    lastNativeLoadError = `${err instanceof Error ? err.message : String(err)} (registered: ${registered.join(",") || "none"})`;
     return undefined;
   }
 }
@@ -106,7 +126,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
 
   if (enabled && !native) {
     // One line, debug only: Expo Go, web and Jest/Vitest all land here.
-    logger.warn("replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled");
+    logger.warn(`replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled. ${lastNativeLoadError ?? ""}`);
   }
   if (enabled && native && !endpoint) {
     logger.warn("replay: no replayEndpoint and the OTLP endpoint could not be parsed; replay disabled");

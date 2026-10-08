@@ -11,3 +11,4 @@
 | 2026-10-08 | kb entries, tracker boxes, summary | done |
 | open | Simulator verification (masked fields black, pause stops chunks, Grafana playback) | blocked: Xcode not installed (`kb/xcode-setup.md`) |
 | open | `xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build` | blocked: Xcode |
+| 2026-10-08 | Native verification on iOS 27 simulator: replay captured, masked, stored, played in Grafana; 3 fixes landed | review |

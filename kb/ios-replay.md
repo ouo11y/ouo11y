@@ -130,3 +130,12 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 - `UIScreen.main` is deprecated on iOS 16+ but still works; the recorder only uses it for the
   initial viewport before the first capture replaces it with the window bounds.
 - `expo prebuild` rewrites the app's `ios`/`android` npm scripts to `expo run:*`; kept.
+
+## Native verification findings (2026-10-08, Xcode 27 / iOS 27 simulator)
+
+- **iOS 27 requires the UIScene life cycle.** Apps without a scene manifest trap at launch inside `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`; a second launch of the same build shows a black window instead. Expo 57.0.27's prebuild template still has no scene delegate, but `expo/ios/AppDelegates/ExpoAppSceneDelegate.swift` exists for exactly this. `examples/mobile/plugins/withUIScene.js` adds the manifest, writes `SceneDelegate.swift` (`internal import Expo` to match the generated AppDelegate's access-level import), registers it in the pbxproj, makes the AppDelegate conform to `ExpoReactNativeFactoryProvider` and removes its own window creation. Drop the plugin when the Expo template catches up.
+- **Do not `require("expo-modules-core")` from the SDK.** With the package symlinked from `sdk/react-native` (npm `file:` link), Metro resolves bare requires relative to the real path and reports "Requiring unknown module expo-modules-core", even though the native module is registered. `loadNativeReplayModule` now reads `globalThis.expo.modules.OuoReplay` first; the debug warning prints the underlying error and the list of registered native modules.
+- **`expo prebuild` without `--clean` still deletes `ios/Pods` and the `.xcworkspace`**; run `pod install` again afterwards.
+- **Over-masking:** UIKit navigation bars contain an empty `UIImageView` background, which the class rule redacted as a solid block. `ViewTreeBuilder` now reports image views with `image == nil` as `UIView`.
+- Measured: first chunk for a static Products screen was 2 frames / 9.9 KB gzip (dedupe drops unchanged frames); JPEG at scale 1.14 of a 402×874 pt viewport is 460×1001 px, 9 to 23 KB each.
+- Headless driving: `xcrun simctl install/launch/io screenshot` work without `xcode-select`; taps need the simulator panel, which does require `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`. Xcode 27 has no `Simulator.app` under `Contents/Developer/Applications`; the device window lives in `DeviceHub.app`.
