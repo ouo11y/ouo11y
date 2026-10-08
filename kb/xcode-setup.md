@@ -71,3 +71,12 @@ development client and check the replay in the simulator and in Grafana?
 - Whether `drawHierarchy(in:afterScreenUpdates:false)` captures RN's Fabric surfaces and
   `react-native-screens` stacks completely; Sentry uses the same call, so it should.
 - Capture cost on real devices; the 1000 px cap and quality 0.5 are the spec defaults.
+
+## Verified on 2026-10-08 with Xcode 27.0 (macOS 27.0.1)
+
+- No `sudo xcode-select` is needed for builds: export `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` and `xcodebuild`, `xcrun`, `swift test` (with XCTest and Swift Testing) all use the full Xcode. Opening Xcode.app once accepts the license through the GUI.
+- `swift test` in `sdk/ios` passes 35 tests with that variable set; `sdk/ios/test.sh` is only needed with the Command Line Tools alone.
+- `xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build` succeeds for the UIKit target.
+- `pod install` in `examples/mobile/ios` (CocoaPods 1.17 from Homebrew, `LANG=en_US.UTF-8`) links `OuoReplay`, `OuoReplayCore` and `OuoReactNative`; `xcodebuild -workspace mobilestore.xcworkspace -scheme mobilestore -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build` succeeds.
+- Gotcha: inside the CocoaPods build the module and the enum share the name `OuoReplay`, and bare `OuoReplay.start(...)` resolves to the enum; writing `OuoReplay.OuoReplay.start` fails with "type 'OuoReplay' has no member 'OuoReplay'".
+- Running on the simulator needs the iOS runtime from Xcode > Settings > Components (about 8 GB), separate from the Xcode download.

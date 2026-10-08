@@ -37,7 +37,7 @@ public class OuoReplayModule: Module {
         self.sessionId.set(options.sessionId)
       }
       let box = self.sessionId
-      OuoReplay.OuoReplay.start(OuoReplayConfig(
+      OuoReplay.start(OuoReplayConfig(
         endpoint: url,
         sessionId: { box.get() },
         frameInterval: options.frameInterval,
@@ -49,26 +49,26 @@ public class OuoReplayModule: Module {
     }
 
     Function("pause") {
-      OuoReplay.OuoReplay.pause()
+      OuoReplay.pause()
     }
 
     Function("resume") {
-      OuoReplay.OuoReplay.resume()
+      OuoReplay.resume()
     }
 
     Function("isRecording") { () -> Bool in
-      OuoReplay.OuoReplay.isRecording
+      OuoReplay.isRecording
     }
 
     AsyncFunction("flush") { (promise: Promise) in
-      OuoReplay.OuoReplay.flush {
+      OuoReplay.flush {
         promise.resolve(nil)
       }
     }
 
     Function("sessionDidRotate") { (id: String) in
       self.sessionId.set(id)
-      OuoReplay.OuoReplay.sessionDidRotate(newId: id)
+      OuoReplay.sessionDidRotate(newId: id)
     }
 
     Function("setSessionId") { (id: String) in
@@ -76,7 +76,7 @@ public class OuoReplayModule: Module {
     }
 
     Function("stop") {
-      OuoReplay.OuoReplay.stop()
+      OuoReplay.stop()
     }
   }
 }
