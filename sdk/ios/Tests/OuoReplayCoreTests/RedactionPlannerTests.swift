@@ -10,6 +10,22 @@ import Testing
         ViewNode(className: cls, superclassNames: supers, frameInWindow: frame, hidden: hidden, alpha: alpha, accessibilityIdentifier: id, children: children)
     }
 
+    /// A matched parent with an empty frame must not hide a child that draws (React Native
+    /// paragraph views inside navigation bars), and an off-screen parent must not hide an
+    /// on-screen child either: UIKit does not clip subviews by default.
+    @Test func EmptyOrOffscreenParentsDoNotStopTheWalk() {
+        let root = node("UIWindow", window, [
+            node("RCTParagraphComponentView", CGRect(x: 300, y: 20, width: 0, height: 0), [
+                node("RCTParagraphTextView", CGRect(x: 300, y: 20, width: 80, height: 16)),
+            ]),
+            node("UIView", CGRect(x: -500, y: 0, width: 10, height: 10), [
+                node("UILabel", CGRect(x: 10, y: 100, width: 50, height: 20)),
+            ]),
+        ])
+        let rects = planner.rects(for: root, window: window)
+        #expect(rects == [CGRect(x: 300, y: 20, width: 80, height: 16), CGRect(x: 10, y: 100, width: 50, height: 20)])
+    }
+
     @Test func MaskedClassesByDefault() {
         let root = node("UIWindow", window, [
             node("UIView", window, [
@@ -103,7 +119,7 @@ import Testing
             node("UILabel", CGRect(x: 500, y: 10, width: 100, height: 40)),       // fully off to the right
             node("UILabel", CGRect(x: 10, y: 900, width: 100, height: 40)),       // below the window
             node("UILabel", CGRect(x: 350, y: 830, width: 100, height: 40)),      // bottom-right corner
-            node("UIView", CGRect(x: 1000, y: 0, width: 100, height: 100), [      // offscreen container hides children
+            node("UIView", CGRect(x: 1000, y: 0, width: 100, height: 100), [      // offscreen container, child still visible
                 node("UILabel", CGRect(x: 10, y: 10, width: 10, height: 10)),
             ]),
             node("UILabel", CGRect(x: 10, y: 10, width: 0, height: 40)),          // zero width
@@ -112,6 +128,7 @@ import Testing
         #expect(rects == [
             CGRect(x: 0, y: 0, width: 50, height: 30),
             CGRect(x: 350, y: 830, width: 43, height: 22),
+            CGRect(x: 10, y: 10, width: 10, height: 10),
         ])
     }
 

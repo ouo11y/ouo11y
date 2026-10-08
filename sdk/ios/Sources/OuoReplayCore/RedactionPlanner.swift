@@ -45,8 +45,13 @@ public struct RedactionRules: Sendable {
     /// inputs `RCTUITextField` / `RCTUITextView` subclass UIKit's).
     public static let textClasses: Set<String> = [
         "UITextField", "UITextView", "UILabel",
-        "RCTTextView", "RCTParagraphComponentView",
+        "RCTTextView", "RCTParagraphComponentView", "RCTParagraphTextView",
         "RCTUITextField", "RCTUITextView", "RCTTextInputComponentView",
+        // Not included: SwiftUI drawing views (`_UIGraphicsView`, `CGDrawingView`). On iOS 26+ the
+        // navigation bar's glass background is one of them, so masking them blacks out whole bars.
+        // Hosts with SwiftUI text can add them through `extraClasses`.
+        // iOS 26+ navigation bar items (back button title, bar button titles) are wrapped here.
+        "_TtCC5UIKit19NavigationButtonBar15ItemWrapperView",
     ]
     public static let imageClasses: Set<String> = [
         "UIImageView", "RCTImageView", "RCTImageComponentView",
@@ -103,12 +108,13 @@ public struct RedactionPlanner: Sendable {
         // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
         if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return }
         let clipped = node.frameInWindow.intersection(window)
-        // Views clipped entirely outside the window cannot be seen, nor can their children.
-        if clipped.isNull || clipped.isEmpty {
-            return
-        }
+        // UIKit does not clip subviews to their parent's bounds by default, so a zero-sized or
+        // off-screen node can still have visible children (React Native paragraph views in
+        // navigation bars report an empty frame while their text child draws). Only a node with a
+        // visible rectangle of its own can cover its subtree; otherwise keep walking.
+        let visible = !(clipped.isNull || clipped.isEmpty)
         let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier
-        if forced || matches(node, masked) {
+        if visible, forced || matches(node, masked) {
             out.append(clipped)
             // The rectangle covers the subtree: no need to look inside.
             return
@@ -125,6 +131,22 @@ public struct RedactionPlanner: Sendable {
     }
 
     /// Union-merges every pair of intersecting rectangles until none intersect.
+    /// Diagnostic: class names in the tree that look like text or images but matched no rule.
+    /// Logged in debug mode so new UIKit / React Native classes can be added to the rules.
+    public func unmatchedContentClasses(in root: ViewNode) -> [String] {
+        var out = Set<String>()
+        let masked = rules.maskedClasses
+        func visit(_ node: ViewNode) {
+            if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return }
+            let name = node.className
+            let looksLikeContent = ["Text", "Label", "Paragraph", "Image", "Glyph", "Graphics", "Drawing", "Button"].contains { name.contains($0) }
+            if looksLikeContent, !matches(node, masked) { out.insert(name) }
+            node.children.forEach(visit)
+        }
+        visit(root)
+        return out.sorted()
+    }
+
     public static func merge(_ rects: [CGRect]) -> [CGRect] {
         var result = rects
         var changed = true

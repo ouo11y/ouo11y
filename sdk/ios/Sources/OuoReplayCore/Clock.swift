@@ -16,9 +16,9 @@ public struct ReplayLogger: Sendable {
     public let enabled: Bool
     public init(enabled: Bool) { self.enabled = enabled }
     public func log(_ message: @autoclosure () -> String) {
-        if enabled { print("[ouo replay] \(message())") }
+        if enabled { NSLog("[ouo replay] %@", message()) }
     }
     public func warn(_ message: @autoclosure () -> String) {
-        if enabled { print("[ouo replay] warning: \(message())") }
+        if enabled { NSLog("[ouo replay] warning: %@", message()) }
     }
 }

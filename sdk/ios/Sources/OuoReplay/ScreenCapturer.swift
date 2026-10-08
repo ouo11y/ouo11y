@@ -14,6 +14,8 @@ final class ScreenCapturer {
     }
 
     private let planner: RedactionPlanner
+    /// Last diagnostic set, so the debug log reports changes only (main thread).
+    nonisolated(unsafe) private static var lastUnmatched: [String] = []
     private let jpegQuality: CGFloat
     private let maxLongestSide: CGFloat
     private let logger: ReplayLogger
@@ -48,6 +50,13 @@ final class ScreenCapturer {
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         let tree = ViewTreeBuilder.node(for: window)
         let rects = planner.rects(for: tree, window: bounds)
+        if logger.enabled {
+            let unmatched = planner.unmatchedContentClasses(in: tree)
+            if !unmatched.isEmpty, unmatched != Self.lastUnmatched {
+                Self.lastUnmatched = unmatched
+                logger.log("redaction: unmatched content-like classes \(unmatched)")
+            }
+        }
         let scale = renderScale(for: bounds, screenScale: window.screen.scale)
 
         let format = UIGraphicsImageRendererFormat()

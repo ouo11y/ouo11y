@@ -57,7 +57,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 - [x] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export (36 Vitest tests; `npm run -w sdk/react-native build` then `npm run -w sdk/react-native test`)
 - [x] `examples/mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
-- [x] Verified on iOS Simulator: sessions show up in plugin with version 2.3.0 (2026-10-08, iOS 27 simulator); crash flow still to be tapped through. **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
+- [x] Verified on iOS Simulator: sessions show up in plugin with version 2.3.0 (2026-10-08, iOS 27 simulator); crash flow verified on the simulator (fatal error, relaunch, session.end reason crash, Grafana shows crashed with replay). **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
 - [x] kb/otel-react-native.md filled
 
 ## Phase 6 End-to-end QA + reports
@@ -80,5 +80,5 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 - [x] `examples/mobile` uses a dev client (`expo prebuild`) with replay enabled (prebuild generated the project; `pod install` / `run:ios` pending Xcode)
 - [x] rum-api accepts `kind: frames` chunks (8 MB), meta `kind`, `GET .../replay/frames` (validation of base64 JPEG magic, touches, viewport; 409 on mixed kinds and on events/frames of the other kind; `replay_kind` on session records; verified with `go test ./...` and curl against the rebuilt compose service, session `frames-test-1791471557`; see `agents/rum-api/summaries/2026-10-08-phase-7.md`)
 - [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
-- [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (agents/ios-replay/reports/phase-7-ios-verification.html); checkout-input masking and `ouo-unmask` still need taps (simulator panel needs `sudo xcode-select`)
+- [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (agents/ios-replay/reports/phase-7-ios-verification.html): checkout input masked, `ouo-unmask` honoured, header texts masked, crash flow verified
 - [x] kb/ios-replay.md, kb/xcode-setup.md

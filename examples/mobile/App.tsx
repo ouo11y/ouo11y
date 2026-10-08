@@ -3,7 +3,13 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Text } from "react-native";
+import { LogBox, Text } from "react-native";
+
+// LogBox's own renderer throws in the iOS 27 dev client and its toast covers the bottom buttons.
+// Set EXPO_PUBLIC_QUIET_LOGBOX=1 when starting Metro to silence it (dev builds only).
+if (__DEV__ && process.env.EXPO_PUBLIC_QUIET_LOGBOX === "1") {
+  LogBox.ignoreAllLogs(true);
+}
 import type { RootStackParamList } from "./src/navigation";
 import { appVersion, rum, shortId } from "./src/rum";
 import { CartScreen } from "./src/screens/CartScreen";
