@@ -1,0 +1,30 @@
+{{- if .Values.collector.enabled }}
+# ClusterIP only (ADR-0007 section 8): never expose the collector to browsers.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ouo.collector.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "collector") | nindent 4 }}
+  {{- with .Values.collector.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.collector.service.type }}
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: health
+      port: 13133
+      targetPort: health
+      protocol: TCP
+  selector:
+    {{- include "ouo.selectorLabels" (dict "root" . "component" "collector") | nindent 4 }}
+{{- end }}

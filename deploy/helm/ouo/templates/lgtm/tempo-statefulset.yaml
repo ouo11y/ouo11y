@@ -1,0 +1,6 @@
+{{- if eq .Values.lgtm.mode "bundled" }}
+{{- $ports := list (dict "name" "http" "port" 3200) (dict "name" "otlp-grpc" "port" 4317) (dict "name" "otlp-http" "port" 4318) }}
+{{- include "ouo.lgtm.statefulset" (dict "root" . "component" "tempo" "values" .Values.lgtm.bundled.tempo "name" (include "ouo.tempo.fullname" .) "mountPath" "/var/tempo" "configPath" "/etc/tempo/config.yaml" "ports" $ports "readyPort" "http") }}
+---
+{{ include "ouo.lgtm.service" (dict "root" . "component" "tempo" "name" (include "ouo.tempo.fullname" .) "ports" $ports) }}
+{{- end }}
