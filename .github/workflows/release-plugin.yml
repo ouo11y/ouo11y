@@ -1,0 +1,129 @@
+# Builds the Grafana app plugin, zips it as ouo-rum-app-<version>.zip and attaches it to a
+# GitHub release when a plugin tag is pushed (plugin-v0.3.0 -> plugins/ouo-rum-app 0.3.0).
+#
+# Signing is optional and off until the secret exists:
+#   GRAFANA_ACCESS_POLICY_TOKEN  (secret)  access policy token with the plugins:write scope,
+#                                           created at grafana.com for the publishing org
+#   GRAFANA_ROOT_URLS            (variable) comma separated Grafana root URLs allowed to load
+#                                           the private signature, e.g. https://grafana.example.com
+# Without the token the zip is unsigned and Grafana needs
+# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app. See kb/release-packaging.md.
+name: release-plugin
+
+on:
+  push:
+    tags:
+      - 'plugin-v*'
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_ID: ouo-rum-app
+  PLUGIN_DIR: plugins/ouo-rum-app
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check the tag matches package.json
+        id: ver
+        run: |
+          version="${GITHUB_REF_NAME#plugin-v}"
+          actual=$(node -p "require('./$PLUGIN_DIR/package.json').version")
+          if [ "$actual" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME says $version but $PLUGIN_DIR/package.json says $actual"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - name: Build
+        run: npm run build -w "$PLUGIN_DIR"
+      - name: Test
+        run: npm run test -w "$PLUGIN_DIR"
+      - name: Check plugin.json carries the version
+        run: |
+          built=$(node -p "require('./$PLUGIN_DIR/dist/plugin.json').info.version")
+          test "$built" = "${{ steps.ver.outputs.version }}" || { echo "::error::dist/plugin.json has $built"; exit 1; }
+
+      # Private signature: only runs when the secret is configured. Grafana rejects a private
+      # signature from any root URL that is not in --rootUrls.
+      - name: Sign (private signature)
+        if: env.GRAFANA_ACCESS_POLICY_TOKEN != ''
+        working-directory: ${{ env.PLUGIN_DIR }}
+        env:
+          GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+          GRAFANA_ROOT_URLS: ${{ vars.GRAFANA_ROOT_URLS }}
+        run: |
+          if [ -z "$GRAFANA_ROOT_URLS" ]; then
+            echo "::error::GRAFANA_ACCESS_POLICY_TOKEN is set but the GRAFANA_ROOT_URLS variable is empty"
+            exit 1
+          fi
+          npx --yes @grafana/sign-plugin@3 --rootUrls "$GRAFANA_ROOT_URLS"
+          test -f dist/MANIFEST.txt
+          echo "signed=true" >> "$GITHUB_ENV"
+
+      - name: Unsigned notice
+        if: env.GRAFANA_ACCESS_POLICY_TOKEN == ''
+        run: |
+          echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN not set; publishing an UNSIGNED plugin. Grafana needs GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=$PLUGIN_ID"
+          echo "signed=false" >> "$GITHUB_ENV"
+
+      - name: Zip
+        id: zip
+        run: |
+          version="${{ steps.ver.outputs.version }}"
+          out="$PLUGIN_ID-$version.zip"
+          rm -rf stage && mkdir stage
+          cp -R "$PLUGIN_DIR/dist" "stage/$PLUGIN_ID"
+          (cd stage && zip -qr "../$out" "$PLUGIN_ID")
+          sha1sum "$out" > "$out.sha1"
+          md5sum "$out" > "$out.md5"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+          unzip -l "$out" | head -20
+
+      - name: Release notes from the plugin changelog
+        run: |
+          version="${{ steps.ver.outputs.version }}"
+          {
+            echo "Grafana app plugin \`$PLUGIN_ID\` $version"
+            echo
+            if [ "$signed" = "true" ]; then
+              echo "Signed (private signature) for the root URLs configured at release time."
+            else
+              echo "**Unsigned.** Set \`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=$PLUGIN_ID\` on Grafana."
+            fi
+            echo
+            echo "Install: unzip into the Grafana plugins directory so that \`<plugins>/$PLUGIN_ID/plugin.json\` exists, restart Grafana."
+            echo
+            echo "## Changes"
+            echo
+            # Section of plugins/ouo-rum-app/CHANGELOG.md for this version, if present.
+            awk -v v="$version" '
+              /^## / { show = index($0, v) > 0 ; if (show) { next } }
+              show { print }
+            ' "$PLUGIN_DIR/CHANGELOG.md"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create GitHub release and attach the zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease=""
+          case "${{ steps.ver.outputs.version }}" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$PLUGIN_ID ${{ steps.ver.outputs.version }}" \
+            --notes-file release-notes.md \
+            $prerelease \
+            "${{ steps.zip.outputs.file }}" \
+            "${{ steps.zip.outputs.file }}.sha1" \
+            "${{ steps.zip.outputs.file }}.md5"
