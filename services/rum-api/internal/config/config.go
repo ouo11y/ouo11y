@@ -25,6 +25,21 @@ type Config struct {
 	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
 	MaxFrameChunkBytes int64         // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	DetailLookback     time.Duration // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
+
+	// ADR-0007 ingest gateway.
+	ProjectsFile      string        // OUO_PROJECTS_FILE: YAML project registry; when empty the OUO_PROJECT_* fallback is used
+	ProjectID         string        // OUO_PROJECT_ID, default "default"
+	ProjectToken      string        // OUO_PROJECT_TOKEN (required without a projects file)
+	AllowedOrigins    []string      // OUO_ALLOWED_ORIGINS, comma separated origin patterns of the fallback project
+	MaxIngestBytes    int64         // OUO_MAX_INGEST_BYTES, default 4 MiB
+	RateLimitRPS      float64       // OUO_RATE_LIMIT_RPS, default 1000 (per project)
+	RateLimitBurst    int           // OUO_RATE_LIMIT_BURST, default 5000
+	IPRateLimitRPS    float64       // OUO_IP_RATE_LIMIT_RPS, default 100 (per client IP)
+	IPRateLimitBurst  int           // OUO_IP_RATE_LIMIT_BURST, default 300
+	TrustProxy        bool          // OUO_TRUST_PROXY=true: client IP from the last X-Forwarded-For hop
+	CollectorEndpoint string        // OUO_COLLECTOR_OTLP_ENDPOINT, default http://otel-collector:4318
+	CollectorTimeout  time.Duration // OUO_COLLECTOR_TIMEOUT, default 10s
+	ReadToken         string        // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need a bearer token
 }
 
 // FromEnv builds the config from environment variables with defaults.
@@ -36,13 +51,36 @@ func FromEnv() (Config, error) {
 		GrafanaURL:         env("GRAFANA_URL", "http://localhost:3000"),
 		TempoDatasourceUID: env("GRAFANA_TEMPO_DATASOURCE_UID", "tempo"),
 		DataDir:            env("DATA_DIR", "/data"),
-	}
-	for o := range strings.SplitSeq(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
-		if o = strings.TrimSpace(strings.TrimSuffix(o, "/")); o != "" {
-			c.CORSAllowedOrigins = append(c.CORSAllowedOrigins, o)
-		}
+		ProjectsFile:       os.Getenv("OUO_PROJECTS_FILE"),
+		ProjectID:          env("OUO_PROJECT_ID", "default"),
+		ProjectToken:       os.Getenv("OUO_PROJECT_TOKEN"),
+		AllowedOrigins:     envList("OUO_ALLOWED_ORIGINS"),
+		CORSAllowedOrigins: envList("CORS_ALLOWED_ORIGINS"),
+		CollectorEndpoint:  env("OUO_COLLECTOR_OTLP_ENDPOINT", "http://otel-collector:4318"),
+		ReadToken:          os.Getenv("OUO_READ_TOKEN"),
+		TrustProxy:         strings.EqualFold(os.Getenv("OUO_TRUST_PROXY"), "true"),
 	}
 	var err error
+	if c.CollectorTimeout, err = envDuration("OUO_COLLECTOR_TIMEOUT", 10*time.Second); err != nil {
+		return c, err
+	}
+	if c.RateLimitRPS, err = envFloat("OUO_RATE_LIMIT_RPS", 1000); err != nil {
+		return c, err
+	}
+	if c.RateLimitBurst, err = envInt("OUO_RATE_LIMIT_BURST", 5000); err != nil {
+		return c, err
+	}
+	if c.IPRateLimitRPS, err = envFloat("OUO_IP_RATE_LIMIT_RPS", 100); err != nil {
+		return c, err
+	}
+	if c.IPRateLimitBurst, err = envInt("OUO_IP_RATE_LIMIT_BURST", 300); err != nil {
+		return c, err
+	}
+	mib, err := envInt("OUO_MAX_INGEST_BYTES", 4<<20)
+	if err != nil {
+		return c, err
+	}
+	c.MaxIngestBytes = int64(mib)
 	if c.SessionInactivity, err = envDuration("SESSION_INACTIVITY", 30*time.Minute); err != nil {
 		return c, err
 	}
@@ -71,6 +109,18 @@ func FromEnv() (Config, error) {
 	return c, nil
 }
 
+// envList splits a comma separated variable, trimming spaces and trailing
+// slashes and dropping empty items.
+func envList(key string) []string {
+	var out []string
+	for o := range strings.SplitSeq(os.Getenv(key), ",") {
+		if o = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(o), "/")); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
 func env(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -88,6 +138,18 @@ func envDuration(key string, def time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
 	return d, nil
+}
+
+func envFloat(key string, def float64) (float64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return f, nil
 }
 
 func envInt(key string, def int) (int, error) {
