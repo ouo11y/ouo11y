@@ -11,8 +11,8 @@ interface Extra {
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
 
 export const config: Extra = {
-  backendUrl: extra.backendUrl ?? "http://localhost:8082",
-  otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4328",
+  backendUrl: extra.backendUrl ?? "http://localhost:8081",
+  otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4318",
   environment: extra.environment ?? "local",
 };
 
