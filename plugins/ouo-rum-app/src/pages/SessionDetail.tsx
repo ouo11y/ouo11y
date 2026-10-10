@@ -157,7 +157,7 @@ export default function SessionDetail() {
                     : 'No replay was recorded for this session.'}
                 </div>
               )}
-              {wantsReplay && replayError && (
+              {wantsReplay && replayError && !detail.error?.unauthorized && (
                 <ApiErrorAlert
                   error={replayError}
                   onRetry={meta.error ? meta.reload : frames.error ? frames.reload : replay.reload}

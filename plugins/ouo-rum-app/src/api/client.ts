@@ -12,6 +12,9 @@ import type {
   TracesResponse,
 } from './types';
 
+/** Shown whenever rum-api answers 401 (ADR-0007 section 6: the read token is missing or wrong). */
+export const READ_TOKEN_REJECTED = 'rum-api rejected the read token';
+
 export class RumApiError extends Error {
   constructor(
     message: string,
@@ -20,6 +23,15 @@ export class RumApiError extends Error {
   ) {
     super(message);
     this.name = 'RumApiError';
+  }
+
+  /**
+   * True when rum-api answered 401. Grafana itself never answers 401 through the plugin proxy
+   * for a signed-in user (missing role is 403), so a 401 here always means the read token the
+   * proxy adds from secureJsonData.readToken does not match OUO_READ_TOKEN.
+   */
+  get unauthorized(): boolean {
+    return this.status === 401;
   }
 }
 
@@ -46,6 +58,13 @@ function describeError(err: unknown, url: string): RumApiError {
     const detail =
       typeof data === 'string' ? data : (data?.error ?? data?.message ?? err.statusText ?? 'request failed');
     const status = err.status;
+    if (status === 401) {
+      return new RumApiError(
+        `HTTP 401: ${READ_TOKEN_REJECTED} (${detail}). Set the read token in the plugin settings to the OUO_READ_TOKEN value rum-api was started with.`,
+        url,
+        401
+      );
+    }
     const hint =
       status === 502 || status === 503 || status === 504 || status === 0
         ? ' (is rum-api running and reachable from Grafana as configured in the plugin settings?)'
@@ -74,12 +93,13 @@ export async function rumGet<T>(path: string, params: Params = {}): Promise<T> {
 }
 
 export const rumApi = {
+  /** Liveness probe, open without a token; proves the proxy reaches rum-api at jsonData.rumApiUrl. */
+  healthz: () => rumGet<unknown>('/healthz'),
   health: (params: Params) => rumGet<HealthResponse>('/v1/stats/health', params),
   sessions: (filters: SessionFilters) => rumGet<SessionsResponse>('/v1/sessions', { ...filters }),
   session: (id: string, params: Params = {}) => rumGet<SessionDetail>(`/v1/sessions/${encodeURIComponent(id)}`, params),
   traces: (id: string) => rumGet<TracesResponse>(`/v1/sessions/${encodeURIComponent(id)}/traces`),
   replayMeta: (id: string) => rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`),
   replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
-  replayFrames: (id: string) =>
-    rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
+  replayFrames: (id: string) => rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
 };
