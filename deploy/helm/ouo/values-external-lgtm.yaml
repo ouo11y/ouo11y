@@ -1,0 +1,68 @@
+# Install ouo next to an existing Grafana LGTM stack (the customer's Loki, Tempo and
+# Mimir). Nothing LGTM is deployed; rum-api, the collector and Grafana point at the URLs
+# below. Replace the hosts with your Services (the defaults match the upstream
+# grafana/loki, grafana/tempo-distributed and grafana/mimir-distributed charts installed
+# in namespace `observability`).
+#
+#   helm install ouo deploy/helm/ouo -n ouo --create-namespace \
+#     -f deploy/helm/ouo/values-external-lgtm.yaml \
+#     --set project.token=$(echo pt_$(openssl rand -hex 16)) \
+#     --set readToken=$(echo rt_$(openssl rand -hex 16)) \
+#     --set grafana.adminPassword=$(openssl rand -base64 18)
+
+lgtm:
+  mode: external
+  external:
+    lokiUrl: http://loki-gateway.observability.svc:80
+    tempoUrl: http://tempo-query-frontend.observability.svc:3200
+    tempoOtlpGrpcEndpoint: tempo-distributor.observability.svc:4317
+    mimirUrl: http://mimir-nginx.observability.svc:80
+    # Uncomment when the write path differs from the read path or the stack is multi-tenant.
+    # lokiOtlpUrl: http://loki-distributor.observability.svc:3100/otlp
+    # mimirOtlpUrl: http://mimir-distributor.observability.svc:8080/otlp
+    # mimirPrometheusUrl: http://mimir-query-frontend.observability.svc:8080/prometheus
+    # tenantId: ouo
+
+project:
+  id: web-store
+  token: ""          # --set project.token=pt_...  (public identifier, ships in browser bundles)
+  allowedOrigins: "https://shop.example.com,https://*.preview.example.com"
+readToken: ""        # --set readToken=rt_...      (secret: Grafana -> rum-api)
+
+rumApi:
+  image:
+    repository: ghcr.io/ziadmansourm/ouo/rum-api
+    tag: "0.2.0"
+  config:
+    trustProxy: true           # behind the Ingress controller
+  persistence:
+    size: 50Gi
+    storageClass: ""           # cluster default
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      nginx.ingress.kubernetes.io/proxy-body-size: 16m   # replay chunks are up to 8 MiB
+    host: rum.example.com
+    tls:
+      enabled: true
+      secretName: ouo-rum-api-tls
+
+grafana:
+  image:
+    repository: ghcr.io/ziadmansourm/ouo/grafana
+    tag: "0.2.0"
+  adminPassword: ""  # --set grafana.adminPassword=...  or grafana.existingSecret
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    host: grafana.example.com
+    tls:
+      enabled: true
+      secretName: ouo-grafana-tls
+  # Already running Grafana? Set grafana.enabled=false, build deploy/images/grafana or
+  # copy plugins/ouo-rum-app/dist into your Grafana, and provision the app with
+  # jsonData.rumApiUrl=http://<release>-rum-api.<ns>.svc:8080 and secureJsonData.readToken.

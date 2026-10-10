@@ -1,0 +1,95 @@
+{{- if eq .Values.lgtm.mode "bundled" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.mimir.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "mimir") | nindent 4 }}
+data:
+  config.yaml: |
+    {{- if .Values.lgtm.bundled.mimir.configOverride }}
+    {{- .Values.lgtm.bundled.mimir.configOverride | nindent 4 }}
+    {{- else }}
+    # Mimir monolithic mode, filesystem storage, OTLP push at /otlp/v1/metrics
+    # (mirrors deploy/docker/mimir/config.yaml).
+    target: all
+    multitenancy_enabled: false
+
+    server:
+      http_listen_port: 9009
+      grpc_listen_port: 9095
+      log_level: warn
+
+    common:
+      storage:
+        backend: filesystem
+        filesystem:
+          dir: /data/blocks
+
+    blocks_storage:
+      storage_prefix: blocks
+      bucket_store:
+        sync_dir: /data/tsdb-sync
+      tsdb:
+        dir: /data/tsdb
+
+    compactor:
+      data_dir: /data/compactor
+      sharding_ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: memberlist
+
+    distributor:
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: memberlist
+
+    ingester:
+      ring:
+        instance_addr: 127.0.0.1
+        replication_factor: 1
+        kvstore:
+          store: memberlist
+
+    store_gateway:
+      sharding_ring:
+        instance_addr: 127.0.0.1
+        replication_factor: 1
+        kvstore:
+          store: memberlist
+
+    ruler_storage:
+      storage_prefix: rules
+
+    alertmanager_storage:
+      storage_prefix: alertmanager
+
+    memberlist:
+      bind_addr: [127.0.0.1]
+      join_members: []
+
+    limits:
+      otel_metric_suffixes_enabled: false
+      max_global_series_per_user: 1000000
+      ingestion_rate: 100000
+      ingestion_burst_size: 500000
+      out_of_order_time_window: 5m
+
+    usage_stats:
+      enabled: false
+
+    # Mimir defaults several paths to its working directory (./metrics-activity.log,
+    # ./data-ruler/, ./data-alertmanager/), which is read-only when the pod runs as uid
+    # 10001; put them all on the data volume (kb/helm-kind.md).
+    activity_tracker:
+      filepath: /data/metrics-activity.log
+
+    ruler:
+      rule_path: /data/ruler
+
+    alertmanager:
+      data_dir: /data/alertmanager
+    {{- end }}
+{{- end }}
