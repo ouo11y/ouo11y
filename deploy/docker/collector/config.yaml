@@ -1,5 +1,9 @@
 # OpenTelemetry Collector (contrib) for the ouo local stack.
-# Single ingress for browser, mobile and backend telemetry.
+# Internal ingress (ADR-0007): trusted backend services and rum-api post OTLP here.
+# Browsers and mobile apps never talk to it; they post to rum-api
+# (/ingest/otlp/v1/*) with a project token and rum-api forwards validated,
+# project-stamped payloads to otel-collector:4318. The receiver therefore has no
+# CORS block, and compose publishes the ports on 127.0.0.1 only.
 
 extensions:
   health_check:
@@ -11,15 +15,11 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
       http:
+        # 0.0.0.0 inside the container (localhost would be unreachable from the
+        # network); exposure is restricted by the compose port binding, not here.
+        # No `cors:` block on purpose: a browser preflight against this port fails,
+        # which is the intended signal that an SDK is misconfigured to bypass rum-api.
         endpoint: 0.0.0.0:4318
-        cors:
-          # Browser SDK (Vite dev server) posts directly to the collector.
-          allowed_origins:
-            - "http://localhost:*"
-            - "http://127.0.0.1:*"
-          allowed_headers:
-            - "*"
-          max_age: 7200
 
 processors:
   memory_limiter:

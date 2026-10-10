@@ -94,7 +94,16 @@ go mod tidy
 ```
 
 No gRPC exporter is needed; everything goes over OTLP/HTTP (`http/protobuf`) to
-port 4318, the same port the browser uses.
+port 4318. Since ADR-0007 that port is published on `127.0.0.1` of the stack host only:
+your backend on the same machine (or inside the compose network as
+`otel-collector:4318`) reaches it, browsers and phones do not. They post to rum-api on
+port 8080 with a project token, and so can a backend that runs somewhere else (below).
+
+```
+your backend (same host) --OTLP--> 127.0.0.1:4318 ──> otel-collector ──> tempo / loki / mimir
+your backend (elsewhere) --OTLP + X-Ouo-Project-Token--> rum-api :8080 ──^
+browser / mobile SDK     --OTLP + X-Ouo-Project-Token--> rum-api :8080 ──^
+```
 
 ## (b) Environment variables the SDK reads
 
@@ -112,6 +121,19 @@ themselves. `OTEL_EXPORTER_OTLP_PROTOCOL` is informational here: only the HTTP
 exporters are compiled in, so there is no gRPC fallback to pick. Without a
 reachable collector the exporters retry, log `traces export: ...` errors and drop
 the batch; the API keeps serving and startup never blocks.
+
+Backend on a different machine than the stack (or against a `deploy/vm` install): the
+collector is not reachable, so go through the gateway with two standard variables and
+no code change. rum-api checks the token, stamps `ouo.project.id` and forwards:
+
+| Variable | Value |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://rum.example.com/ingest/otlp` (local stack: `http://localhost:8080/ingest/otlp`) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | `X-Ouo-Project-Token=pt_dev_demo_0000000000000000` (the token from `deploy/docker/.env`) |
+
+The exporters append `/v1/traces` and friends to that base, which is exactly what
+rum-api serves. Server-side requests carry no `Origin`, so the origin allowlist does not
+apply to them; the project rate and size limits do.
 
 `service.name` is what you filter on everywhere (`{service_name="orders-api"}` in
 Loki, `resource.service.name` in Tempo, `job` in Mimir). Pick it once.
@@ -848,7 +870,8 @@ Read `examples/backend` in this order.
 ## (g) Run it locally and see the trace
 
 Stack from `00-stack.md` is up. Start the reference backend against it (adjust
-`4318` if you overrode `OUO_OTLP_HTTP_PORT`):
+`4318` if you overrode `OUO_OTLP_HTTP_PORT`; `localhost:4318` works because the
+collector is published on the loopback interface and you are on the stack host):
 
 ```bash
 cd examples/backend
