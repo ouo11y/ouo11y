@@ -2,9 +2,10 @@
 
 OpenTelemetry-native Real User Monitoring for the browser: sessions, errors, fetch/XHR
 tracing with W3C Trace Context and Baggage, Web Vitals, navigation events and rrweb session
-replay. Everything goes to one host, `rum-api`: spans and log records as OTLP/HTTP (JSON) on
-`/ingest/otlp/v1/{traces,logs}`, replay chunks on `/v1/replay/chunks`, every request carrying
-the project token (ADR-0007). rum-api validates and forwards OTLP to the collector.
+replay. Everything goes to the OpenTelemetry Collector (`ouo-collector`, the only public
+ingest): spans and log records as OTLP/HTTP (JSON) on `/v1/traces` and `/v1/logs`, replay
+chunks on the collector's replay receiver `/v1/replay/chunks`, every request carrying HTTP
+Basic project credentials (ADR-0007). rum-api is internal and never reached from the browser.
 
 ## Install
 
@@ -22,8 +23,10 @@ session is sampled.
 import { initRUM, type RUM } from "@ouo/browser";
 
 const rum: RUM = initRUM({
-  endpoint: "http://localhost:8080",            // rum-api base; SDK derives /ingest/otlp/v1/{traces,logs} and /v1/replay/chunks
-  projectToken: "pt_dev_demo_0000000000000000", // public project identifier, sent as X-Ouo-Project-Token
+  endpoint: "http://localhost:4318",            // collector OTLP/HTTP base: /v1/traces, /v1/logs
+  // replayEndpoint: "http://localhost:4319",   // optional; this is the default when endpoint uses port 4318
+  projectId: "demo",                            // Basic auth username
+  projectToken: "pt_dev_demo_0000000000000000", // Basic auth password; public, ships in the bundle
   service: { name: "web-store", version: "1.4.2", environment: "local" },
   tracing: { propagateTo: [/^http:\/\/localhost:8081/] },
   replay: { enabled: true, maskAllInputs: true },
@@ -39,18 +42,22 @@ await rum.flush();
 ```
 
 Call `initRUM` once, as early as possible (before the app renders). Repeated calls return
-the same instance. A missing or empty `projectToken` throws at init (nothing is installed), so
-a misconfigured deployment fails loudly instead of posting telemetry that rum-api rejects with
-`401`. The token is public by design: it names the project, grants only the right to write into
-it under rum-api's limits, and is rotated in the project config, like every RUM vendor's key.
+the same instance. A missing or empty `projectId` or `projectToken` throws at init (nothing is
+installed), so a misconfigured deployment fails loudly instead of posting telemetry that the
+collector rejects with `401`. The token is public by design: it names the project, grants only
+the right to write into it under the collector's limits, and is rotated in the collector's
+htpasswd file, like every RUM vendor's key. Every request carries
+`Authorization: Basic base64(projectId + ":" + projectToken)`; a stock OpenTelemetry SDK with
+`OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64>` reaches the same endpoint.
 
 ## Options
 
 | Option | Default | Meaning |
 |---|---|---|
-| `endpoint` | required | rum-api base URL. OTLP goes to `${endpoint}/ingest/otlp/v1/traces` and `/ingest/otlp/v1/logs`, replay chunks to `${endpoint}/v1/replay/chunks`. |
-| `projectToken` | required | Public project identifier, sent as `X-Ouo-Project-Token` on every ingest request. Throws when missing or empty. |
-| `otlpEndpoint` | none | Escape hatch for trusted in-network apps: OTLP goes to `${otlpEndpoint}/v1/traces` and `/v1/logs` (for example straight to a collector) instead of through rum-api. The token header is still sent; replay stays on `endpoint`. |
+| `endpoint` | required | Collector OTLP/HTTP base URL. OTLP goes to `${endpoint}/v1/traces` and `${endpoint}/v1/logs`. |
+| `replayEndpoint` | derived | Replay receiver base; chunks go to `${replayEndpoint}/v1/replay/chunks`. Default: `endpoint` with port `4319` when `endpoint` uses port `4318`, otherwise `endpoint` itself (a proxy routing `/v1/replay/*`). |
+| `projectId` | required | Project identifier, the Basic auth username. Throws when missing, empty or containing `:`. |
+| `projectToken` | required | Public project token, the Basic auth password. Throws when missing or empty. |
 | `service.name` / `service.version` / `service.environment` | required | Resource attributes `service.name`, `service.version`, `deployment.environment.name`. `service.version` is also put on every span and log record. |
 | `tracing.propagateTo` | `[]` | Origins (RegExp or exact string) that receive `traceparent` and `baggage` on fetch/XHR. Same-origin requests always do. |
 | `tracing.ignoreUrls` | `[]` | URLs never traced. The OTLP and replay endpoints are always ignored. |
@@ -101,29 +108,29 @@ Spans: `documentLoad` (and its resource fetches), one `CLIENT` span per fetch/XH
 
 - rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min, no canvas or font collection.
 - Privacy classes: add `ouo-block` to an element to exclude it from the recording (rendered as a placeholder), `ouo-mask` to replace its text with asterisks. Inputs are masked by default.
-- Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, gzip-compressed with `CompressionStream`, `POST ${endpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip`, `x-ouo-project-token`, `x-ouo-session-id`, `x-ouo-seq`. On `pagehide` the remaining buffer is sent uncompressed with `fetch(..., { keepalive: true })`.
+- Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, gzip-compressed with `CompressionStream`, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip`, `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. On `pagehide` the remaining buffer is sent uncompressed with `fetch(..., { keepalive: true })`, same headers.
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.
 - Upload failures retry 3 times with backoff; pending data is capped at 2 MB (oldest chunks dropped).
 - `rum.replay.pause()` stops recording and flushes; `resume()` starts a new recording with a full snapshot.
-- rum-api must answer CORS preflights allowing the headers above (it does, per project `allowed_origins`, ADR-0007 section 5).
+- The collector's replay receiver must answer CORS preflights allowing the headers above (`Authorization`, `Content-Type`, `Content-Encoding`, `X-Ouo-Session-Id`, `X-Ouo-Seq`) for your origin; the OTLP receiver needs `Authorization` and `Content-Type` (ADR-0007 section 4).
 
 ## Debugging
 
-With `debug: true` the SDK logs one init line with the URLs it derived, never the token:
+With `debug: true` the SDK logs one init line with the URLs it derived and the project id, never the token:
 
 ```
-[ouo] @ouo/browser@0.2.0 initialised { endpoint: "http://localhost:8080", traces: "http://localhost:8080/ingest/otlp/v1/traces", logs: "http://localhost:8080/ingest/otlp/v1/logs", replay: "http://localhost:8080/v1/replay/chunks", otlpBypass: false, session: "...", user: "..." }
+[ouo] @ouo/browser@0.2.0 initialised { endpoint: "http://localhost:4318", replayEndpoint: "http://localhost:4319", traces: "http://localhost:4318/v1/traces", logs: "http://localhost:4318/v1/logs", replay: "http://localhost:4319/v1/replay/chunks", projectId: "demo", session: "...", user: "..." }
 ```
 
-Common rum-api answers: `401` wrong or missing token, `403` the page origin is not in the project's `allowed_origins`, `429` rate limited, `413` payload too large, `502` collector unreachable. Exporter responses are visible with the OTel diag logger (`debug: true` wires it to `console.warn`).
+Common collector answers: `401` wrong or missing credential (basicauth), `429` or `503` rate limited (`ouoratelimit`, retried by the exporters), `413` payload too large, a CORS error with no POST at all when the page origin is not in the collector's `allowed_origins` or `Authorization` is missing from its allowed headers. Exporter responses are visible with the OTel diag logger (`debug: true` wires it to `console.warn`).
 
 ## Development
 
 ```bash
 npm run -w sdk/browser build      # tsup -> dist/index.js (+ rrweb chunk, .d.ts)
-npm run -w sdk/browser test       # vitest + jsdom (includes a real-socket check against a stub rum-api on 127.0.0.1:18081)
+npm run -w sdk/browser test       # vitest + jsdom (includes a real-socket check against collector stubs on 127.0.0.1:18081 and :18082)
 npm run -w sdk/browser size       # gzip sizes
-node sdk/browser/playground/server.mjs   # static playground on :4173 + rum-api ingest stub on :8090 (OTLP + replay, token-checked)
+node sdk/browser/playground/server.mjs   # static playground on :4173 + collector stub on :8090 (OTLP + replay on one port, Basic-auth checked)
 ```
 
 Tests run against the browser builds of the OTel packages (see `vitest.config.ts`).

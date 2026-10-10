@@ -12,11 +12,14 @@ export interface RUMServiceConfig {
 }
 
 export interface RUMConfig {
-  /** rum-api base URL (0.2.0: OTLP and replay both go here). */
+  /** Collector OTLP/HTTP base URL (0.2.0, ADR-0007). */
   endpoint: string;
-  /** Public project identifier; the real SDK throws when it is empty. */
+  /** Replay receiver base; the real SDK derives it (4318 -> 4319) when absent. */
+  replayEndpoint?: string;
+  /** Basic auth username; the real SDK throws when it is empty. */
+  projectId: string;
+  /** Basic auth password (public); the real SDK throws when it is empty. */
   projectToken: string;
-  otlpEndpoint?: string;
   service: RUMServiceConfig;
   tracing?: { propagateTo?: Array<RegExp | string> };
   replay?: { enabled?: boolean; maskAllInputs?: boolean };
@@ -50,6 +53,7 @@ function uuid(): string {
 }
 
 export function initRUM(config: RUMConfig): RUM {
+  if (!config.projectId) throw new Error("[ouo stub] initRUM: `projectId` is required");
   if (!config.projectToken) throw new Error("[ouo stub] initRUM: `projectToken` is required");
   const sessionId = uuid();
   let userId: string = config.user?.id ?? "anon-" + uuid().slice(0, 8);

@@ -1,68 +1,115 @@
 /**
- * Ingest gateway wiring (ADR-0007). The SDK talks to one host, rum-api, which validates
- * the project token and forwards OTLP to the collector. Pure helpers, no I/O.
+ * Ingest wiring (ADR-0007, revised): the OpenTelemetry Collector is the only edge. OTLP goes
+ * to `${endpoint}/v1/traces` and `/v1/logs`, replay chunks to `${replayEndpoint}/v1/replay/chunks`,
+ * every request carrying `Authorization: Basic base64(projectId:projectToken)`. Pure helpers, no I/O.
  */
 
-/** Request header carrying the public project identifier on every ingest request. */
-export const PROJECT_TOKEN_HEADER = "X-Ouo-Project-Token";
+/** Header carrying the project credential on every ingest request (OTLP and replay). */
+export const AUTHORIZATION_HEADER = "Authorization";
 
-/** rum-api route prefix that accepts stock OTLP/HTTP (`/v1/traces`, `/v1/logs`, `/v1/metrics` below it). */
-export const OTLP_INGEST_PATH = "/ingest/otlp";
+/** Collector OTLP/HTTP port; when `endpoint` uses it the replay receiver is assumed on the next port. */
+export const OTLP_HTTP_PORT = "4318";
+export const REPLAY_PORT = "4319";
 
+export const TRACES_PATH = "/v1/traces";
+export const LOGS_PATH = "/v1/logs";
 export const REPLAY_CHUNKS_PATH = "/v1/replay/chunks";
 
 export interface IngestInput {
-  /** rum-api base URL. */
+  /** Collector OTLP/HTTP base URL. */
   endpoint: string;
-  /** Public project token; required, non-empty. */
+  /** Replay receiver base URL; derived from `endpoint` when absent. */
+  replayEndpoint?: string | undefined;
+  /** Project id: the Basic auth username. Required, non-empty, no `:`. */
+  projectId: string;
+  /** Public project token: the Basic auth password. Required, non-empty. */
   projectToken: string;
-  /** Escape hatch: a trusted in-network OTLP/HTTP base that bypasses rum-api for traces and logs. */
-  otlpEndpoint?: string | undefined;
 }
 
 export interface IngestUrls {
-  /** rum-api base, trailing slashes removed. */
+  /** Collector OTLP/HTTP base, trailing slashes removed. */
   endpoint: string;
-  /** OTLP/HTTP base the exporters append `/v1/traces` and `/v1/logs` to. */
-  otlpBase: string;
+  /** Replay receiver base, trailing slashes removed. */
+  replayEndpoint: string;
   traces: string;
   logs: string;
   replay: string;
-  /** True when `otlpEndpoint` was given and OTLP bypasses rum-api. */
-  otlpBypass: boolean;
 }
 
 export function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+/** base64 of the UTF-8 bytes of `input` (`btoa` alone throws on code points above U+00FF). */
+export function base64Utf8(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  if (typeof btoa === "function") return btoa(binary);
+  // Runtimes without btoa (old Node): Buffer is there instead.
+  const B = (globalThis as { Buffer?: { from(b: Uint8Array): { toString(enc: string): string } } }).Buffer;
+  if (B) return B.from(bytes).toString("base64");
+  throw new Error("[ouo] no base64 encoder available (btoa or Buffer)");
+}
+
+function requireNonEmpty(value: unknown, name: string, hint: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`[ouo] initRUM: \`${name}\` is required. ${hint}`);
+  }
+  return value.trim();
+}
+
 /**
- * Validates the token and derives every URL the SDK posts to. Throws on a missing or
- * empty token or an empty endpoint so a misconfigured app fails at init, not silently.
+ * The value of the `Authorization` header: `Basic base64("<projectId>:<projectToken>")`.
+ * Throws when either part is missing, or when the id contains `:` (it would split the credential).
  */
-export function deriveIngestUrls(input: IngestInput): IngestUrls {
-  if (typeof input.endpoint !== "string" || input.endpoint.trim() === "") {
-    throw new Error("[ouo] initRUM: `endpoint` (the rum-api base URL) is required");
-  }
-  if (typeof input.projectToken !== "string" || input.projectToken.trim() === "") {
-    throw new Error(
-      "[ouo] initRUM: `projectToken` is required. It is the public project identifier from your ouo project settings (ADR-0007); pass it as `initRUM({ endpoint, projectToken, ... })`.",
-    );
-  }
-  const endpoint = trimSlash(input.endpoint.trim());
-  const otlpBypass = typeof input.otlpEndpoint === "string" && input.otlpEndpoint.trim() !== "";
-  const otlpBase = otlpBypass ? trimSlash(input.otlpEndpoint!.trim()) : `${endpoint}${OTLP_INGEST_PATH}`;
-  return {
-    endpoint,
-    otlpBase,
-    traces: `${otlpBase}/v1/traces`,
-    logs: `${otlpBase}/v1/logs`,
-    replay: `${endpoint}${REPLAY_CHUNKS_PATH}`,
-    otlpBypass,
-  };
+export function basicAuthorization(projectId: string, projectToken: string): string {
+  const id = requireNonEmpty(projectId, "projectId", "It is the project identifier (the Basic auth username) from your ouo project settings (ADR-0007); pass it as `initRUM({ endpoint, projectId, projectToken, ... })`.");
+  const token = requireNonEmpty(projectToken, "projectToken", "It is the public project token (the Basic auth password) from your ouo project settings (ADR-0007); pass it as `initRUM({ endpoint, projectId, projectToken, ... })`.");
+  if (id.includes(":")) throw new Error("[ouo] initRUM: `projectId` must not contain `:` (HTTP Basic splits the credential at the first colon)");
+  return `Basic ${base64Utf8(`${id}:${token}`)}`;
 }
 
 /** Headers attached to every OTLP export and replay chunk upload. */
-export function projectTokenHeaders(projectToken: string): Record<string, string> {
-  return { [PROJECT_TOKEN_HEADER]: projectToken };
+export function ingestHeaders(authorization: string): Record<string, string> {
+  return { [AUTHORIZATION_HEADER]: authorization };
+}
+
+/**
+ * Default replay base: when `endpoint` uses port 4318 (the collector's OTLP/HTTP port) the
+ * replay receiver is on 4319 with the same scheme, host and path; otherwise (a reverse proxy
+ * routing `/v1/replay/*` itself, or any other port) it is `endpoint`.
+ */
+export function deriveReplayEndpoint(endpoint: string): string {
+  const base = trimSlash(endpoint.trim());
+  let u: URL;
+  try {
+    u = new URL(base);
+  } catch {
+    return base;
+  }
+  if (u.port !== OTLP_HTTP_PORT) return base;
+  u.port = REPLAY_PORT;
+  return trimSlash(u.href);
+}
+
+/**
+ * Validates the credential parts and derives every URL the SDK posts to. Throws on a missing
+ * id, token or endpoint so a misconfigured app fails at init, not silently.
+ */
+export function deriveIngestUrls(input: IngestInput): IngestUrls {
+  const endpoint = trimSlash(requireNonEmpty(input.endpoint, "endpoint", "It is the collector's OTLP/HTTP base URL, for example `https://otel.example.com` or `http://localhost:4318`."));
+  // Validate the credential here too so a bad id or token fails before any URL is used.
+  basicAuthorization(input.projectId, input.projectToken);
+  const replayEndpoint =
+    typeof input.replayEndpoint === "string" && input.replayEndpoint.trim() !== ""
+      ? trimSlash(input.replayEndpoint.trim())
+      : deriveReplayEndpoint(endpoint);
+  return {
+    endpoint,
+    replayEndpoint,
+    traces: `${endpoint}${TRACES_PATH}`,
+    logs: `${endpoint}${LOGS_PATH}`,
+    replay: `${replayEndpoint}${REPLAY_CHUNKS_PATH}`,
+  };
 }

@@ -10,7 +10,7 @@ import { BatchSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-
 import { installActivityListeners } from "./activity";
 import { exceptionAttributes } from "./errors/classify";
 import { installErrorCapture } from "./errors/install";
-import { deriveIngestUrls, projectTokenHeaders } from "./ingest";
+import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
 import { createLogger } from "./logger";
 import { installNavigation } from "./navigation";
 import { createNetworkInstrumentations } from "./network";
@@ -30,7 +30,7 @@ import { SDK_NAME, SDK_VERSION } from "./version";
 export type * from "./types";
 export { SDK_VERSION } from "./version";
 export type { ReplayChunk } from "./replay/chunker";
-export { deriveIngestUrls, PROJECT_TOKEN_HEADER, type IngestUrls } from "./ingest";
+export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
 
 let instance: RUM | undefined;
 
@@ -47,9 +47,15 @@ export function initRUM(options: RUMOptions): RUM {
     console.warn("[ouo] initRUM called twice; returning the existing instance");
     return instance;
   }
-  // Fail fast, before any provider or listener exists: a missing token means nothing would be accepted.
-  const urls = deriveIngestUrls({ endpoint: options.endpoint, projectToken: options.projectToken, otlpEndpoint: options.otlpEndpoint });
-  const ingestHeaders = projectTokenHeaders(options.projectToken);
+  // Fail fast, before any provider or listener exists: a missing id or token means nothing would be accepted.
+  const urls = deriveIngestUrls({
+    endpoint: options.endpoint,
+    replayEndpoint: options.replayEndpoint,
+    projectId: options.projectId,
+    projectToken: options.projectToken,
+  });
+  const authorization = basicAuthorization(options.projectId, options.projectToken);
+  const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
   if (options.debug) {
     // Never console.error here: the SDK instruments console.error and would report its own diagnostics as exceptions.
@@ -83,7 +89,7 @@ export function initRUM(options: RUMOptions): RUM {
   const resource = buildResource(options.service);
 
   // ---- logs (events) ----
-  const logExporter = new OTLPLogExporter({ url: urls.logs, headers: ingestHeaders });
+  const logExporter = new OTLPLogExporter({ url: urls.logs, headers: authHeaders });
   const logBatch = new BatchLogRecordProcessor({
     exporter: logExporter,
     scheduledDelayMillis: 1000,
@@ -99,7 +105,7 @@ export function initRUM(options: RUMOptions): RUM {
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
-  const traceExporter = new OTLPTraceExporter({ url: urls.traces, headers: ingestHeaders });
+  const traceExporter = new OTLPTraceExporter({ url: urls.traces, headers: authHeaders });
   const tracerProvider = new WebTracerProvider({
     resource,
     spanProcessors: [
@@ -127,8 +133,8 @@ export function initRUM(options: RUMOptions): RUM {
   // The exporters and the uploader already call the un-instrumented fetch; this keeps any
   // other path to the ingest URLs (XHR, a second fetch wrapper) out of the traces too.
   const ignoreUrls: Array<RegExp | string> = [
-    new RegExp(`^${escapeRegExp(urls.otlpBase)}/`),
-    new RegExp(`^${escapeRegExp(urls.endpoint)}/v1/replay/`),
+    new RegExp(`^${escapeRegExp(urls.endpoint)}/v1/`),
+    new RegExp(`^${escapeRegExp(urls.replayEndpoint)}/v1/replay/`),
     ...(options.tracing?.ignoreUrls ?? []),
   ];
   const instrumentations: Instrumentation[] = createNetworkInstrumentations({
@@ -156,7 +162,7 @@ export function initRUM(options: RUMOptions): RUM {
   const chunker = new ReplayChunker({
     sessionId: () => session.id(),
     nextSeq: () => session.nextReplaySeq(),
-    upload: createChunkUploader({ endpoint: urls.endpoint, projectToken: options.projectToken, logger }),
+    upload: createChunkUploader({ replayEndpoint: urls.replayEndpoint, authorization, logger }),
     ...(options.replay?.flushIntervalMs !== undefined ? { flushIntervalMs: options.replay.flushIntervalMs } : {}),
     ...(options.replay?.maxChunkBytes !== undefined ? { maxChunkBytes: options.replay.maxChunkBytes } : {}),
     logger,
@@ -192,13 +198,14 @@ export function initRUM(options: RUMOptions): RUM {
   document.addEventListener("visibilitychange", onVisibility);
   globalThis.addEventListener("pagehide", onPageHide);
 
-  // Self-diagnostics: the derived URLs once, never the token.
+  // Self-diagnostics: the derived URLs and the project id once, never the token or the header value.
   logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
     endpoint: urls.endpoint,
+    replayEndpoint: urls.replayEndpoint,
     traces: urls.traces,
     logs: urls.logs,
     replay: replayEnabled ? urls.replay : null,
-    otlpBypass: urls.otlpBypass,
+    projectId: options.projectId.trim(),
     session: session.id(),
     user: session.userId(),
   });

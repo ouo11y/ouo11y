@@ -1,6 +1,6 @@
 # otel browser sdk
 
-Status: filled in Phase 2 by sdk-browser (2026-10-06), ingest-gateway section added in Phase 8a (2026-10-10). Code: `sdk/browser`.
+Status: filled in Phase 2 by sdk-browser (2026-10-06), project-credentials section added in Phase 8a (2026-10-10, revised the same day when ADR-0007 made the collector the edge). Code: `sdk/browser`.
 
 ## Question
 
@@ -91,65 +91,85 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
     bug: the `web_vital` pipeline is proven with TTFB end to end and the other metrics by a
     unit test with a mocked `web-vitals`. Check them in a normal foreground Chrome window.
 
-## Ingest gateway and project tokens (Phase 8a, SDK 0.2.0, ADR-0007)
+## Project credentials on the collector (Phase 8a, SDK 0.2.0, ADR-0007)
 
 14. **Headers on the OTLP exporters**: `OTLPTraceExporter` / `OTLPLogExporter` (0.222)
     take `headers?: Record<string, string> | (() => Promise<Record<string,string>>)` in
     their config (`OTLPExporterConfigBase`, `otlp-exporter-base/configuration/legacy-base-configuration.d.ts`).
     A plain object is merged with the defaults (`Content-Type: application/json`,
     `User-Agent: OTel-OTLP-Exporter-JavaScript/...`) and the fetch transport calls
-    `await this._parameters.headers()` on every request, so `headers: { "X-Ouo-Project-Token": token }`
-    is all that is needed; no transport subclassing. The factory form exists for rotating
-    tokens and must not throw. We pass the same object to both exporters
-    (`src/ingest.ts` `projectTokenHeaders`).
-15. **URL derivation lives in one pure function**: `deriveIngestUrls({ endpoint, projectToken,
-    otlpEndpoint })` returns `{ endpoint, otlpBase, traces, logs, replay, otlpBypass }` and
-    throws on an empty token or endpoint. `initRUM` calls it first, before creating any
-    provider, so a misconfigured app throws synchronously with nothing installed (test:
-    `addEventListener` never called, `ouo.session` never written). The exporters get
-    `url: urls.traces` (a full URL, which the base config takes verbatim; the
-    `signalResourcePath` default only applies when `url` is absent).
-16. **CORS consequences**: `Content-Type: application/json` already made every OTLP export
-    a preflighted request, and the replay upload already carried `x-ouo-session-id` /
-    `x-ouo-seq`, so adding `X-Ouo-Project-Token` adds no new preflight, only a new name in
-    `Access-Control-Allow-Headers`. rum-api must list it (and `Content-Encoding`,
-    `traceparent`, `baggage`, the replay headers); a preflight carries no token, so rum-api
-    answers it for any origin some project allows (ADR-0007 section 5). A wrong token is a
-    plain `401` on the POST, visible in the network tab; a missing header name in the
-    preflight answer shows up as a CORS error with no POST at all. `Access-Control-Max-Age`
-    on rum-api matters for the `pagehide` upload: `fetch(..., { keepalive: true })` with
-    custom headers still needs a preflight, and the cached one is what lets the unload
-    request go out without waiting on a round trip.
-17. **Keepalive with a custom header**: the uploader uses one function for both paths; on
-    `pagehide` it skips gzip (async) but keeps the same `headers` object, so the token is on
-    the keepalive request too (`test/uploader.test.ts` asserts it). The OTel fetch transport
-    sets `keepalive` itself under the 60 KB / 9 in-flight budget and sends the configured
-    headers either way.
-18. **Ignore lists after the change**: `endpoint` is now the rum-api origin, which an app
-    could legitimately call (for example a support page reading its own session). The
-    built-in `ignoreUrls` therefore match `^${otlpBase}/` and `^${endpoint}/v1/replay/`
-    rather than the whole origin. The exporters and the uploader still go through
+    `await this._parameters.headers()` on every request, so
+    `headers: { Authorization: "Basic <base64>" }` is all that is needed; no transport
+    subclassing. The factory form exists for rotating tokens and must not throw. We pass the
+    same object to both exporters (`src/ingest.ts` `ingestHeaders`). This is exactly what a
+    stock SDK does with `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64>`, so the
+    collector's `basicauth` extension sees no difference between ouo and a plain OTel app.
+15. **The Basic credential**: `basicAuthorization(projectId, projectToken)` returns
+    `Basic base64(id + ":" + token)`. `btoa` throws on code points above U+00FF and encodes
+    U+0080..U+00FF as single Latin-1 bytes, while `basicauth` (and RFC 7617 with
+    `charset="UTF-8"`) decodes UTF-8, so the SDK base64-encodes the UTF-8 bytes
+    (`TextEncoder` + `btoa` of a binary string, `Buffer` fallback where `btoa` is absent).
+    Ids and tokens are ASCII in practice; the test covers `ö` and `€` anyway. A `:` in the
+    id is rejected because the server splits at the first colon. Both parts are trimmed.
+16. **URL derivation lives in one pure function**: `deriveIngestUrls({ endpoint,
+    replayEndpoint, projectId, projectToken })` returns `{ endpoint, replayEndpoint, traces,
+    logs, replay }` and throws on an empty endpoint, id or token. The replay default is
+    `deriveReplayEndpoint(endpoint)`: `new URL(endpoint)`, and when `port === "4318"` set
+    `port = "4319"` (scheme, host and path preserved, so `https://h:4318/base` gives
+    `https://h:4319/base/v1/replay/chunks`); any other port, including none (a proxy that
+    routes `/v1/replay/*` itself, ADR section 7), returns `endpoint`. `initRUM` calls it
+    first, before creating any provider, so a misconfigured app throws synchronously with
+    nothing installed (test: `addEventListener` never called, `ouo.session` never written).
+    The exporters get `url: urls.traces` (a full URL, which the base config takes verbatim;
+    the `signalResourcePath` default only applies when `url` is absent).
+17. **CORS with `Authorization`**: `Content-Type: application/json` already made every OTLP
+    export a preflighted request, and the replay upload already carried `x-ouo-session-id` /
+    `x-ouo-seq`, so `Authorization` adds no new preflight, only a name the collector must
+    list in `Access-Control-Allow-Headers` (`confighttp` `cors.allowed_headers`; the
+    defaults only cover `Content-Type` and friends). A manually set `Authorization` request
+    header is **not** a CORS credential: the SDK never sets `credentials: "include"`, so
+    `Access-Control-Allow-Origin: *` still works and no `Access-Control-Allow-Credentials`
+    is needed. A preflight carries no credential, so `basicauth` must not run on `OPTIONS`
+    (confighttp handles CORS before the authenticator). Failure signatures in the network
+    tab: wrong id/token = `OPTIONS 204` then `POST 401`; origin not allowed or header not
+    listed = `OPTIONS` without the matching `Access-Control-Allow-*` and no `POST` at all,
+    plus a console CORS error. `Access-Control-Max-Age` on the collector matters for the
+    `pagehide` upload: `fetch(..., { keepalive: true })` with custom headers still needs a
+    preflight, and the cached one is what lets the unload request go out without waiting on
+    a round trip. Both receivers (OTLP on 4318, replay on 4319) are separate origins to the
+    browser, so each one is preflighted and each one needs the same CORS settings; behind a
+    proxy that serves both on one host there is one origin and one preflight per path.
+18. **Keepalive with a custom header**: the uploader uses one function for both paths; on
+    `pagehide` it skips gzip (async) but keeps the same `headers` object, so the credential
+    is on the keepalive request too (`test/uploader.test.ts` asserts it). The OTel fetch
+    transport sets `keepalive` itself under the 60 KB / 9 in-flight budget and sends the
+    configured headers either way.
+19. **Ignore lists after the change**: the built-in `ignoreUrls` match `^${endpoint}/v1/`
+    and `^${replayEndpoint}/v1/replay/`. The exporters and the uploader still go through
     `fetch.__original`, so the ignore list is a second line of defence for XHR or other
     fetch wrappers.
-19. **Testing the transport without rum-api**: in the Vitest jsdom environment
+20. **Testing the transport without the collector**: in the Vitest jsdom environment
     `globalThis.fetch` is Node's undici fetch (jsdom 30 has none), and it accepts
-    `mode: "cors"` and `keepalive: true` without complaint, so a `node:http` server on
-    `127.0.0.1:18081` can stand in for rum-api (`test/ingest-stub-server.test.ts`): the
-    exporters, the fetch instrumentation (`traceparent` on the app request) and the gzip
-    replay upload all arrive on a real socket with the token header, in about 1 s. No
-    `Origin` header is sent by undici, which matches the ADR's "requests without Origin
-    pass the origin check" path, not the browser path; browser CORS still needs the live
-    check. The playground stub (`playground/server.mjs`) also accepts
-    `/ingest/otlp/v1/*` and returns `401` without the token, for a manual browser run.
-20. **Bundle impact**: 39.0 KB -> 39.7 KB gzip for `dist/index.js`; rrweb chunk unchanged.
+    `mode: "cors"` and `keepalive: true` without complaint, so two `node:http` servers on
+    `127.0.0.1:18081` (OTLP) and `:18082` (replay, via an explicit `replayEndpoint` because
+    4318/4319 are taken by the running stack) stand in for `ouo-collector`
+    (`test/ingest-stub-server.test.ts`): the exporters, the fetch instrumentation
+    (`traceparent` on the app request, no `Authorization` there) and the gzip replay upload
+    all arrive on real sockets with the Basic header, answering `401` otherwise, in about
+    1 s. No `Origin` header is sent by undici, so browser CORS still needs the live check.
+    The playground stub (`playground/server.mjs`, `:8090`) serves OTLP and replay on one
+    port, which exercises the "replay shares the endpoint" default.
+21. **Bundle impact**: 39.0 KB (0.1.0) -> 40.1 KB gzip for `dist/index.js`; rrweb chunk
+    unchanged.
 
 ## What works (summary)
 
 - `initRUM()` (`sdk/browser/src/index.ts`): LoggerProvider + BatchLogRecordProcessor
   (1 s, 64 per batch) and WebTracerProvider + BatchSpanProcessor (2 s, 64 per batch), both
   auto-flush on `visibilitychange: hidden` / `pagehide`; `rum.flush()` forces both plus the
-  replay chunker. Since 0.2.0 both exporters post to rum-api `/ingest/otlp/v1/*` with
-  `X-Ouo-Project-Token`; replay to `/v1/replay/chunks` on the same host.
+  replay chunker. Since 0.2.0 both exporters post to the collector `/v1/{traces,logs}` with
+  `Authorization: Basic base64(projectId:projectToken)`; replay to the collector's replay
+  receiver `/v1/replay/chunks` (port 4319 by default) with the same header.
 - Session manager (`src/session/manager.ts`): pure, injectable clock and storage, covers
   spec cases 1 to 4 and 7, cross-tab sync through the `storage` event, replay seq and
   sampling persisted with the session.
@@ -158,7 +178,7 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
   spans; Loki `{service_name="web-store"} | session_id="<id>"` returns `session.start`,
   `navigation`, `exception` (fatal true and false), `http.request.failed`, `web_vital`,
   custom events, all with `session_id` structured metadata.
-- Bundle (0.2.0): `dist/index.js` 132 KB raw / 39.7 KB gzip; rrweb in a lazily imported
+- Bundle (0.2.0): `dist/index.js` 133 KB raw / 40.1 KB gzip; rrweb in a lazily imported
   chunk 257 KB raw / 80 KB gzip.
 
 ## Gotchas

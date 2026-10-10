@@ -49,23 +49,30 @@ export interface UserOptions {
 
 export interface RUMOptions {
   /**
-   * rum-api base URL, for example `https://rum.example.com`. The SDK posts OTLP to
-   * `${endpoint}/ingest/otlp/v1/traces` and `/ingest/otlp/v1/logs` and replay chunks to
-   * `${endpoint}/v1/replay/chunks` (ADR-0007).
+   * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
+   * `http://localhost:4318`. The SDK posts OTLP to `${endpoint}/v1/traces` and `/v1/logs`
+   * (ADR-0007).
    */
   endpoint: string;
   /**
-   * Public project identifier, sent as `X-Ouo-Project-Token` on every ingest request. It is
-   * not a secret (browser code is readable by anyone); it only selects the project telemetry
-   * is written to. Required: `initRUM` throws when it is missing or empty.
+   * Replay receiver base URL; chunks go to `${replayEndpoint}/v1/replay/chunks`. Optional:
+   * when `endpoint` uses port 4318 the default is the same scheme and host on port 4319
+   * (the collector's replay receiver), otherwise `endpoint` itself (a proxy routing
+   * `/v1/replay/*` to the receiver).
+   */
+  replayEndpoint?: string;
+  /**
+   * Project identifier, the HTTP Basic username. Required: `initRUM` throws when it is missing,
+   * empty or contains `:`.
+   */
+  projectId: string;
+  /**
+   * Public project token, the HTTP Basic password. Every ingest request (OTLP and replay)
+   * carries `Authorization: Basic base64(projectId + ":" + projectToken)`. It is not a secret
+   * (browser code is readable by anyone); it only selects the project telemetry is written to.
+   * Required: `initRUM` throws when it is missing or empty.
    */
   projectToken: string;
-  /**
-   * Escape hatch for trusted in-network apps: when set, OTLP goes to `${otlpEndpoint}/v1/traces`
-   * and `/v1/logs` (for example straight to a collector) instead of through rum-api. The token
-   * header is still sent. Replay chunks always go to `${endpoint}/v1/replay/chunks`.
-   */
-  otlpEndpoint?: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;
