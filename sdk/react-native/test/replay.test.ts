@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLogger } from "../src/logger";
-import { _setExpoModulesCore, createReplayController, defaultReplayEndpoint, loadNativeReplayModule, type NativeReplayModule } from "../src/replay";
+import { _setExpoModulesCore, createReplayController, loadNativeReplayModule, type NativeReplayModule } from "../src/replay";
 import { MemoryAsyncStorage } from "../src/session/storage";
 import { initRUM, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
@@ -11,7 +11,8 @@ const { nativeReplay, resetNative, setNativeAvailable } = expoModulesCoreMock;
 // The SDK reaches expo-modules-core through a bare require (Metro resolves it); point it at the mock here.
 _setExpoModulesCore(() => expoModulesCoreMock);
 
-const ENDPOINT = "http://collector.test:4318";
+const ENDPOINT = "http://rum.test:8080";
+const TOKEN = "pt_test_token_0000000000000000";
 
 function fakeNative() {
   const state = { recording: false };
@@ -37,26 +38,18 @@ function fakeNative() {
   return n;
 }
 
-describe("defaultReplayEndpoint", () => {
-  it("keeps scheme and host, uses port 8080", () => {
-    expect(defaultReplayEndpoint("http://localhost:4328")).toBe("http://localhost:8080");
-    expect(defaultReplayEndpoint("https://otel.example.com/")).toBe("https://otel.example.com:8080");
-    expect(defaultReplayEndpoint("http://192.168.1.20:4318/v1")).toBe("http://192.168.1.20:8080");
-    expect(defaultReplayEndpoint("not a url")).toBeUndefined();
-  });
-});
-
 describe("replay controller", () => {
   const logger = createLogger(false);
 
   it("starts the native recorder with the endpoint, session id and option defaults", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native, logger });
     expect(c.active).toBe(false);
     c.start("sess-1");
     expect(native.setSessionId).toHaveBeenCalledWith("sess-1");
     expect(native.start).toHaveBeenCalledWith("http://localhost:8080", {
       sessionId: "sess-1",
+      projectToken: TOKEN,
       frameInterval: 1,
       maskText: true,
       maskInputs: true,
@@ -75,6 +68,7 @@ describe("replay controller", () => {
     const native = fakeNative();
     const c = createReplayController({
       endpoint: "http://localhost:8080",
+      projectToken: TOKEN,
       options: { enabled: true, frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false },
       native,
       logger: createLogger(true),
@@ -86,17 +80,17 @@ describe("replay controller", () => {
 
   it("maskText: false keeps inputs masked (maskInputs defaults to true on its own)", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true, maskText: false }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true, maskText: false }, native, logger });
     c.start("s");
     expect(native.start.mock.calls[0]![1]).toMatchObject({ maskText: false, maskInputs: true, maskImages: true, maskWebViews: true });
-    const c2 = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true, maskInputs: false }, native: fakeNative(), logger });
+    const c2 = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true, maskInputs: false }, native: fakeNative(), logger });
     c2.start("s");
     expect(c2.active).toBe(true);
   });
 
   it("pause / resume / isRecording delegate to the native module", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native, logger });
     c.start("s");
     c.pause();
     expect(native.pause).toHaveBeenCalledTimes(1);
@@ -108,7 +102,7 @@ describe("replay controller", () => {
 
   it("forwards rotations once per new id and ignores the current id", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native, logger });
     c.start("a");
     c.sessionDidRotate("a");
     expect(native.sessionDidRotate).not.toHaveBeenCalled();
@@ -120,7 +114,7 @@ describe("replay controller", () => {
 
   it("flush awaits the native flush and stop releases the recorder", async () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native, logger });
     c.start("s");
     await c.flush();
     expect(native.flush).toHaveBeenCalledTimes(1);
@@ -134,7 +128,7 @@ describe("replay controller", () => {
 
   it("is a no-op when replay is not enabled, even with a native module present", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: undefined, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: undefined, native, logger });
     c.start("s");
     c.pause();
     c.resume();
@@ -147,7 +141,7 @@ describe("replay controller", () => {
 
   it("is safe when the native module is absent and warns once in debug", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native: null, logger: createLogger(true) });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native: null, logger: createLogger(true) });
     c.start("s");
     c.pause();
     c.resume();
@@ -164,14 +158,14 @@ describe("replay controller", () => {
     native.start.mockImplementation(() => {
       throw new Error("boom");
     });
-    const c = createReplayController({ endpoint: "http://localhost:8080", options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectToken: TOKEN, options: { enabled: true }, native, logger });
     expect(() => c.start("s")).not.toThrow();
     expect(c.active).toBe(false);
   });
 
   it("does not start without an endpoint", () => {
     const native = fakeNative();
-    const c = createReplayController({ endpoint: undefined, options: { enabled: true }, native, logger });
+    const c = createReplayController({ endpoint: undefined, projectToken: TOKEN, options: { enabled: true }, native, logger });
     c.start("s");
     expect(native.start).not.toHaveBeenCalled();
   });
@@ -208,16 +202,17 @@ describe("initRUM({ replay })", () => {
 
   const options = (extra: Record<string, unknown> = {}) => ({
     endpoint: ENDPOINT,
+    projectToken: TOKEN,
     service: { name: "mobile-store", version: "2.3.0", environment: "test" },
     storage: new MemoryAsyncStorage(),
     ...extra,
   });
 
-  it("starts the native recorder with the default replay endpoint and the session id", async () => {
+  it("starts the native recorder with the rum-api endpoint, the project token and the session id", async () => {
     const rum = initRUM(options({ replay: { enabled: true } })) as RUMInternal;
     expect(nativeReplay.setSessionId).toHaveBeenCalledWith(rum.session.id());
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
-    expect(nativeReplay.start).toHaveBeenCalledWith("http://collector.test:8080", expect.objectContaining({ sessionId: rum.session.id(), frameInterval: 1 }));
+    expect(nativeReplay.start).toHaveBeenCalledWith(ENDPOINT, expect.objectContaining({ sessionId: rum.session.id(), projectToken: TOKEN, frameInterval: 1 }));
     await rum.ready;
     // The cold-start resolution reports the initial session through onRotate: not a rotation.
     expect(nativeReplay.sessionDidRotate).not.toHaveBeenCalled();
@@ -232,8 +227,8 @@ describe("initRUM({ replay })", () => {
     expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
   });
 
-  it("uses replayEndpoint when given", () => {
-    initRUM(options({ replay: { enabled: true }, replayEndpoint: "http://rum.test:9999/" }));
+  it("strips the trailing slash from the endpoint and keeps replay on rum-api even with otlpEndpoint set", () => {
+    initRUM(options({ replay: { enabled: true }, endpoint: "http://rum.test:9999/", otlpEndpoint: "http://collector.test:4318" }));
     expect(nativeReplay.start.mock.calls[0]![0]).toBe("http://rum.test:9999");
   });
 

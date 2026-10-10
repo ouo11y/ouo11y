@@ -25,7 +25,7 @@ final class ReplayRecorder {
     init(config: OuoReplayConfig) {
         let logger = ReplayLogger(enabled: config.debug)
         let rules = config.redactionRules
-        let uploader = ChunkUploader(endpoint: config.endpoint, logger: logger)
+        let uploader = ChunkUploader(endpoint: config.endpoint, projectToken: config.projectToken, logger: logger)
         let screen = UIScreen.main.bounds
         self.config = config
         self.logger = logger
