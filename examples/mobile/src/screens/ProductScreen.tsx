@@ -34,7 +34,10 @@ export function ProductScreen({ route, navigation }: ScreenProps<"Product">) {
 
   return (
     <Screen>
-      <Text style={styles.title}>{product.name}</Text>
+      {/* testID "ouo-unmask" keeps this text readable in the replay although text is masked by default. */}
+      <Text style={styles.title} testID="ouo-unmask">
+        {product.name}
+      </Text>
       <Text style={styles.text}>{formatPrice(product.price)}</Text>
       <Button title="Add to cart" onPress={add} disabled={adding} />
     </Screen>

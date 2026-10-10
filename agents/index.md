@@ -13,5 +13,7 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [grafana-plugin](grafana-plugin/) | `plugins/ouo-rum-app` | 4 |
 | [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/mobile` | 5 |
 | [qa](qa/) | end-to-end verification, `reports/` | 6 |
+| [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/mobile` | 7 |
+| [fast-tracked](fast-tracked/) | `examples/fast-tracked` onboarding guides (stack, Go backend, React, Expo iOS) | docs |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

@@ -15,6 +15,7 @@ export default defineConfig({
   minify: false,
   // Bundle every OTel package so Metro never has to resolve their `browser` field remaps.
   noExternal: [/^@opentelemetry\//],
-  external: ["react", "react-native", "@react-native-async-storage/async-storage", "promise/setimmediate/rejection-tracking"],
+  // expo-modules-core stays external: the guarded require in src/replay.ts resolves it at runtime.
+  external: ["react", "react-native", "@react-native-async-storage/async-storage", "promise/setimmediate/rejection-tracking", "expo-modules-core"],
   outDir: "dist",
 });

@@ -75,7 +75,7 @@ export default function Sessions() {
   return (
     <PluginPage
       actions={<TimeRangeBar />}
-      subTitle="Sessions whose start falls inside the time range, newest first. Click a row for the timeline, traces and replay."
+      subTitle="Sessions whose start falls inside the time range, newest first. Click a column header to sort the loaded page (up to the Limit filter) client-side; click a row for the timeline, traces and replay."
     >
       <div className={styles.filters}>
         <Stack gap={1} wrap="wrap" alignItems="flex-end">

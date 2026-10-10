@@ -153,12 +153,12 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, listResponse{Sessions: recs, Count: len(recs), From: lq.from, To: lq.to})
 }
 
-// decorate fills trace_count (best effort, concurrent, -1 on Tempo error)
-// and has_replay.
+// decorate fills trace_count (best effort, concurrent, -1 on Tempo error),
+// has_replay and replay_kind.
 func (s *Server) decorate(r *http.Request, recs []session.Record) {
 	var wg sync.WaitGroup
 	for i := range recs {
-		recs[i].HasReplay = s.store.Has(r.Context(), recs[i].SessionID)
+		s.decorateReplay(r, &recs[i])
 		wg.Add(1)
 		go func(rec *session.Record) {
 			defer wg.Done()
@@ -173,6 +173,41 @@ func (s *Server) decorate(r *http.Request, recs []session.Record) {
 		}(&recs[i])
 	}
 	wg.Wait()
+}
+
+// decorateReplay sets has_replay, replay_kind, replay_duration_ms and
+// replay_frame_count from the replay meta.
+func (s *Server) decorateReplay(r *http.Request, rec *session.Record) {
+	rec.HasReplay, rec.ReplayKind, rec.ReplayDurationMs, rec.ReplayFrameCount = false, nil, nil, nil
+	if !s.store.Has(r.Context(), rec.SessionID) {
+		return
+	}
+	m, err := s.store.Meta(r.Context(), rec.SessionID)
+	if err != nil {
+		if !isNotFound(err) {
+			slog.Warn("replay meta lookup failed", "session_id", rec.SessionID, "error", err)
+		}
+		return
+	}
+	kind := m.Kind
+	rec.HasReplay, rec.ReplayKind = true, &kind
+	rec.ReplayDurationMs, rec.ReplayFrameCount = replaySummary(m)
+}
+
+// replaySummary derives the session record's replay_duration_ms and
+// replay_frame_count from a replay meta: the duration is ended_at - started_at
+// (null unless both are set and ordered), the frame count is set for frames
+// replays only (rrweb has events, not frames).
+func replaySummary(m replay.Meta) (durationMs *int64, frameCount *int) {
+	if m.StartedAt > 0 && m.EndedAt >= m.StartedAt {
+		d := m.EndedAt - m.StartedAt
+		durationMs = &d
+	}
+	if m.Kind == replay.KindFrames {
+		n := m.FrameCount
+		frameCount = &n
+	}
+	return durationMs, frameCount
 }
 
 // traceWindow is the Tempo search range of a session, rounded to whole
@@ -231,7 +266,7 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	for _, ev := range rec.Events {
 		timeline = append(timeline, timelineItem{TS: ev.TS, Type: ev.Type(), Name: ev.Name, Attrs: ev.Attrs})
 	}
-	rec.HasReplay = s.store.Has(r.Context(), id)
+	s.decorateReplay(r, rec)
 	start, end := s.traceWindow(rec)
 	traces, err := s.traces.SessionTraces(r.Context(), id, start, end)
 	if err != nil {

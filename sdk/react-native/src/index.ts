@@ -18,6 +18,7 @@ import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
 import { installFetchInstrumentation } from "./network";
+import { createReplayController, defaultReplayEndpoint } from "./replay";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
@@ -33,6 +34,7 @@ export { SDK_VERSION } from "./version";
 export { RUMProvider, type RUMProviderProps } from "./provider";
 export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { getRUM } from "./instance";
+export { defaultReplayEndpoint, type NativeReplayModule, type NativeStartOptions } from "./replay";
 
 /** Test / dev hook: tears everything down so initRUM can run again in the same process. */
 export interface RUMInternal extends RUM {
@@ -76,6 +78,10 @@ export function initRUM(options: RUMOptions): RUM {
   // Late-bound: the session manager emits session events through this.
   let events: EventEmitter;
 
+  // ---- replay (native, ADR-0006) ----
+  const replayEndpoint = options.replayEndpoint ? trimSlash(options.replayEndpoint) : defaultReplayEndpoint(endpoint);
+  const replay = createReplayController({ endpoint: replayEndpoint, options: options.replay, logger });
+
   const session = new SessionManager({
     storage,
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
@@ -85,6 +91,7 @@ export function initRUM(options: RUMOptions): RUM {
     serviceVersion,
     logger,
     onEvent: (event) => events.emit(event.name, event.attributes, "info", event.timestamp),
+    onRotate: (next) => replay.sessionDidRotate(next.id),
   });
 
   const resource = buildResource(options.service, options.device);
@@ -127,7 +134,7 @@ export function initRUM(options: RUMOptions): RUM {
 
   const flush = async (): Promise<void> => {
     session.persistNow();
-    await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush()]);
+    await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), replay.flush()]);
   };
   const flushWithin = (ms: number): Promise<void> =>
     new Promise<void>((resolve) => {
@@ -147,6 +154,8 @@ export function initRUM(options: RUMOptions): RUM {
   // ---- session ----
   const ready = session.start().then(() => logger.log("session ready", session.id(), "previous", session.previousId() ?? null));
   const onActivity = (): void => session.touch();
+  // The native recorder keys chunks by the session id it is told; rotations arrive through onRotate.
+  replay.start(session.id());
 
   // ---- instrumentation ----
   const ignoreUrls: Array<RegExp | string> = [new RegExp(`^${escapeRegExp(endpoint)}/`), ...(options.tracing?.ignoreUrls ?? [])];
@@ -185,7 +194,7 @@ export function initRUM(options: RUMOptions): RUM {
     onActivity();
   });
 
-  logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, { endpoint, session: session.id(), user: session.userId() });
+  logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, { endpoint, replayEndpoint: replay.active ? replayEndpoint : null, session: session.id(), user: session.userId() });
 
   const rum: RUMInternal = {
     setUser(user: UserOptions): void {
@@ -202,6 +211,11 @@ export function initRUM(options: RUMOptions): RUM {
       navigation.track(path, attrs);
     },
     recordActivity: onActivity,
+    replay: {
+      pause: () => replay.pause(),
+      resume: () => replay.resume(),
+      isRecording: () => replay.isRecording(),
+    },
     session: {
       id: () => session.id(),
       userId: () => session.userId(),
@@ -213,6 +227,7 @@ export function initRUM(options: RUMOptions): RUM {
       uninstallFetch();
       uninstallErrors();
       uninstallAppState();
+      replay.stop();
       session.stop();
       await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
       trace.disable();

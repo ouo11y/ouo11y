@@ -20,9 +20,9 @@ npm run -w examples/web dev                 # http://localhost:5173
 ```
 
 The demo backend and the LGTM stack must be running (`docker compose -f
-deploy/docker/compose.yaml up -d`). Check `deploy/docker/.env` for the host
-ports in use on your machine; the defaults below match this repository's
-override file (backend 8082, OTLP/HTTP 4328, Grafana 3001).
+deploy/docker/compose.yaml up -d`). The defaults below are the stock host ports
+from `deploy/docker/.env.example`. If you moved ports in `deploy/docker/.env`,
+copy `.env.example` to `.env` here and change the URLs.
 
 Build and preview:
 
@@ -47,9 +47,9 @@ Copy `.env.example` to `.env` and adjust.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_OTLP_ENDPOINT` | `http://localhost:4328` | OTel Collector OTLP/HTTP base URL (traces and logs) |
-| `VITE_RUM_API` | `http://localhost:8082` | rum-api base URL for replay chunk upload (Phase 3; placeholder until then) |
-| `VITE_BACKEND_URL` | `http://localhost:8082` | demo backend; `tracing.propagateTo` is derived from it |
+| `VITE_OTLP_ENDPOINT` | `http://localhost:4318` | OTel Collector OTLP/HTTP base URL (traces and logs) |
+| `VITE_RUM_API` | `http://localhost:8080` | rum-api base URL for replay chunk upload |
+| `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `tracing.propagateTo` is derived from it |
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
@@ -159,7 +159,7 @@ else is affected.
 The flow above, without a browser (uses the same endpoints the app calls):
 
 ```bash
-B=http://localhost:8082; H='content-type: application/json'; U='x-user-id: cli-user'
+B=http://localhost:8081; H='content-type: application/json'; U='x-user-id: cli-user'
 curl -s $B/api/products | head -c 200
 curl -s -X POST $B/api/cart -H "$H" -H "$U" -d '{"productId":"p-1001","qty":2}'
 curl -s $B/api/cart -H "$U"

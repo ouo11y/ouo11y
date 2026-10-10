@@ -24,4 +24,4 @@ How is the demo React storefront wired to the demo backend and to `@ouo/browser`
 
 - React 18 development builds re-throw errors thrown in event handlers through `invokeGuardedCallback`, so an uncaught error from a click handler reaches `window.onerror` twice in `vite dev` and once in the production build. Count exception events in Loki with that in mind.
 - Vite HMR of a module that creates a React context (`cart.tsx`) throws `useCart must be used inside CartProvider` once until the page reloads; harmless, dev only.
-- The `.env.example` defaults are the alternate host ports of `deploy/docker/.env` on this machine (backend 8082, OTLP 4328); on a stock stack use 8081 and 4318.
+- The `.env.example` and `src/rum.ts` defaults are the stock ports (backend 8081, OTLP 4318) since 2026-10-10; the dev Mac's alternate ports (8082, 4328) live only in the gitignored `examples/web/.env` and `examples/mobile/.env`.

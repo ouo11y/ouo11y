@@ -42,6 +42,15 @@ type Record struct {
 	EventCount         int        `json:"event_count"`
 	TraceCount         int        `json:"trace_count"`
 	HasReplay          bool       `json:"has_replay"`
+	// ReplayKind is "rrweb" or "frames" when HasReplay, null otherwise.
+	ReplayKind *string `json:"replay_kind"`
+	// ReplayDurationMs is the replay's ended_at - started_at from its meta
+	// (milliseconds); null when there is no replay or the meta carries no
+	// usable timestamps.
+	ReplayDurationMs *int64 `json:"replay_duration_ms"`
+	// ReplayFrameCount is the total frame count of a frames replay; null for
+	// rrweb replays and when there is no replay.
+	ReplayFrameCount *int `json:"replay_frame_count"`
 
 	// Events is the session's events in time order (not serialised; the
 	// API builds the timeline from it).

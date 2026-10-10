@@ -131,3 +131,7 @@ server spans, so Tempo `{ span.session.id = "<id>" }` returns the mobile client 
 - Verification on this machine: **no Xcode installed** (only Command Line Tools), so the iOS
   Simulator could not be used in Phase 5. The Node playground against the real collector and
   the Expo web build were used instead; the native run (Expo Go on a simulator) is still owed.
+
+## Metro port collision with the demo backend (2026-10-10)
+
+Metro's default port is 8081, which is also the stock host port of `examples/backend` in `deploy/docker/compose.yaml`. On a stock stack Expo CLI prompts to move Metro to the next free port; `npx expo start --port 8082` avoids the prompt. The dev Mac never hit this because its `deploy/docker/.env` puts the backend on 8082. `BACKEND_URL` always points at the Go backend, never at Metro.

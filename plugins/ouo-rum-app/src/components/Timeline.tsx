@@ -4,6 +4,7 @@ import { type GrafanaTheme2, type IconName } from '@grafana/data';
 import { Icon, useStyles2, useTheme2 } from '@grafana/ui';
 import type { TimelineEvent } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
+import { scrollRowIntoView } from '../utils/scroll';
 
 interface Props {
   timeline: TimelineEvent[];
@@ -90,10 +91,19 @@ export function eventLook(ev: TimelineEvent): Look {
 export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props) {
   const styles = useStyles2(getStyles);
   const theme = useTheme2();
+  const listRef = useRef<HTMLOListElement | null>(null);
   const activeRef = useRef<HTMLLIElement | null>(null);
 
+  // Keep the highlighted event visible while a replay plays. Only the list scrolls (never the
+  // page, which would move the pinned replay), and at most once per animation frame.
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    const item = activeRef.current;
+    if (!list || !item) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => scrollRowIntoView(list, item));
+    return () => cancelAnimationFrame(frame);
   }, [activeIndex]);
 
   if (!timeline.length) {
@@ -101,7 +111,7 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props)
   }
 
   return (
-    <ol className={styles.list} data-testid="timeline">
+    <ol ref={listRef} className={styles.list} data-testid="timeline">
       {timeline.map((ev, i) => {
         const look = eventLook(ev);
         const ts = parseTs(ev.ts);
@@ -131,7 +141,20 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props)
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
-  list: css({ listStyle: 'none', margin: 0, padding: 0, maxHeight: 560, overflowY: 'auto' }),
+  // The list is the only scroll container of the Timeline panel: it is capped to the viewport so a
+  // long session scrolls here instead of pushing the pinned Replay panel off screen, and it grows
+  // to fill the panel when the panel is stretched to the Replay panel's height.
+  list: css({
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    position: 'relative',
+    flex: '1 1 auto',
+    minHeight: 160,
+    maxHeight: 'calc(100vh - 150px)',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+  }),
   item: css({
     display: 'grid',
     gridTemplateColumns: '72px 20px 1fr',

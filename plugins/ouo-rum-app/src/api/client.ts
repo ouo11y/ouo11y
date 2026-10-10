@@ -3,6 +3,7 @@ import { getBackendSrv, isFetchError } from '@grafana/runtime';
 import { RUM_PROXY_BASE } from '../constants';
 import type {
   HealthResponse,
+  ReplayFramesResponse,
   ReplayMeta,
   RrwebEvent,
   SessionDetail,
@@ -79,4 +80,6 @@ export const rumApi = {
   traces: (id: string) => rumGet<TracesResponse>(`/v1/sessions/${encodeURIComponent(id)}/traces`),
   replayMeta: (id: string) => rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`),
   replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
+  replayFrames: (id: string) =>
+    rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
 };

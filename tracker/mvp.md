@@ -7,7 +7,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 | 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
 | 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
 | 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
-| 3 rum-api | `phase-3-rum-api` | | review | rum-api |
+| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ZiadMansourM/ouo/pull/4) | review | rum-api |
 | 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | review | grafana-plugin |
 | 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | review | sdk-react-native |
 | 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | review | qa |
@@ -57,7 +57,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 - [x] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export (36 Vitest tests; `npm run -w sdk/react-native build` then `npm run -w sdk/react-native test`)
 - [x] `examples/mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
-- [ ] Verified on iOS Simulator: sessions and crash show up in plugin with version split. **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
+- [x] Verified on iOS Simulator: sessions show up in plugin with version 2.3.0 (2026-10-08, iOS 27 simulator); crash flow verified on the simulator (fatal error, relaunch, session.end reason crash, Grafana shows crashed with replay). **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
 - [x] kb/otel-react-native.md filled
 
 ## Phase 6 End-to-end QA + reports
@@ -68,3 +68,37 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 - [x] README quickstart (root `README.md`)
 
 Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser emits a second `session.start` when rotating an expired session) must be routed to sdk-browser; the Phase 5 simulator box stays open.
+
+## Phase 7 iOS replay (post-MVP, ADR-0006)
+
+| Phase | Branch | PR | Status | Owner agents |
+|---|---|---|---|---|
+| 7 iOS replay | `phase-7-ios-replay` | [#8](https://github.com/ZiadMansourM/ouo/pull/9) | in-progress | ios-replay, rum-api, grafana-plugin |
+
+- [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
+- [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
+- [x] `examples/mobile` uses a dev client (`expo prebuild`) with replay enabled (prebuild generated the project; `pod install` / `run:ios` pending Xcode)
+- [x] rum-api accepts `kind: frames` chunks (8 MB), meta `kind`, `GET .../replay/frames` (validation of base64 JPEG magic, touches, viewport; 409 on mixed kinds and on events/frames of the other kind; `replay_kind` on session records; verified with `go test ./...` and curl against the rebuilt compose service, session `frames-test-1791471557`; see `agents/rum-api/summaries/2026-10-08-phase-7.md`)
+- [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
+- [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (agents/ios-replay/reports/phase-7-ios-verification.html): checkout input masked, `ouo-unmask` honoured, header texts masked, crash flow verified
+- [x] kb/ios-replay.md, kb/xcode-setup.md
+
+## Phase 7b UX and masking fixes
+
+| Phase | Branch | PR | Status | Owner agents |
+|---|---|---|---|---|
+| 7b UX and masking | `phase-7b-ux-masking` | - | in-progress | ios-replay, grafana-plugin |
+
+- [x] Masking opt-out is correct: `maskInputs` (default true) governs text inputs separately from `maskText` (labels); `maskText: false` keeps inputs black. Swift 38 tests, RN 57 tests; verified on the iOS 27 simulator (`agents/ios-replay/reports/12-frame-masktext-false.jpg`)
+- [x] Masking documented with opt-out options and per-view overrides in `sdk/react-native/README.md` and `sdk/ios/README.md`; demo uses `replay: { enabled: true, maskText: false }`
+- [x] rum-api session records carry `replay_duration_ms` and `replay_frame_count` (list and detail), unit-tested, `go vet` / `go test` green, compose service rebuilt and checked with curl
+
+## Phase 7b UX and masking fixes
+
+- [x] Session detail keeps the Replay panel pinned while the Timeline scrolls in its own container; current event auto-scrolls into view during playback; panels stack below 900px (verified in Grafana 13.2.1 at 1400x900 and 800x900 on sessions `6843eaa9` and `e2a746a8`; `agents/grafana-plugin/reports/phase-7b-ux.html`)
+- [x] Sessions list shows the replay duration and kind in a Replay column (`replay_duration_ms` / `replay_kind` from rum-api, play icon while the duration is unknown, "–" without replay; verified against the live list)
+- [x] Sessions list columns are sortable client-side over the loaded page, default Started desc, indicator and tooltip (verified: Started, Status and Replay headers flip the order; 52 Jest tests incl. `sort.test.ts` and `SessionsTable.test.tsx`)
+
+## Docs: fast-tracked onboarding (2026-10-10)
+
+PR #12 (`fast-tracked`, stacked on #11). `examples/fast-tracked/` holds four copy-and-paste guides (stack, Go backend, React, Expo iOS) routed by `index.md`. Also fixed the demo apps' port fallbacks to the stock values. Status: review. Agent folder: `agents/fast-tracked/`.

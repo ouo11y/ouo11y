@@ -1,11 +1,13 @@
 # rum-api
 
 Go service that turns the telemetry the ouo SDKs send through the OpenTelemetry
-Collector into **session records**, stores **rrweb replay chunks**, and exposes the
-JSON API used by the Grafana app plugin (`plugins/ouo-rum-app`).
+Collector into **session records**, stores **replay chunks** (rrweb events from the web
+SDK, JPEG frames from the iOS SDK), and exposes the JSON API used by the Grafana app
+plugin (`plugins/ouo-rum-app`).
 
 ```
-browser SDK --POST /v1/replay/chunks--> rum-api --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz
+browser SDK --POST /v1/replay/chunks (rrweb)---> rum-api --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz
+iOS SDK     --POST /v1/replay/chunks (frames)--> rum-api --> same layout, meta.json kind=frames
 Grafana plugin --GET /v1/...--> rum-api --> Loki (session events, LogQL)
                                        --> Tempo (traces per session, TraceQL)
                                        --> replay store
@@ -13,7 +15,8 @@ rum-api --OTLP/HTTP--> otel-collector (service.name=rum-api)
 ```
 
 Design references: `docs/specs/session-lifecycle.md` (server-side record, end inference),
-ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed), `kb/loki-session-queries.md`,
+ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed), ADR-0006 and
+`docs/specs/mobile-replay.md` (frame chunks), `kb/loki-session-queries.md`,
 `kb/tempo-session-search.md`.
 
 ## Run
@@ -47,7 +50,8 @@ GRAFANA_URL=http://localhost:3000 DATA_DIR=./data go run .
 | `SESSION_DETAIL_LOOKBACK` | `168h` | how far back `GET /v1/sessions/{id}` searches when `from` is not given |
 | `TEMPO_CONCURRENCY` | `8` | parallel Tempo searches |
 | `TEMPO_CACHE_TTL` | `60s` | in-memory cache of Tempo results per session id + range |
-| `MAX_CHUNK_BYTES` | `4194304` | max replay chunk size (compressed and decompressed) |
+| `MAX_CHUNK_BYTES` | `4194304` | max rrweb chunk size (compressed and decompressed) |
+| `MAX_FRAME_CHUNK_BYTES` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | OTel defaults | own telemetry; `OTEL_SDK_DISABLED=true` turns it off |
 
 ## API
@@ -55,8 +59,8 @@ GRAFANA_URL=http://localhost:3000 DATA_DIR=./data go run .
 All endpoints are JSON. CORS: any `http://localhost:*` / `http://127.0.0.1:*` origin (plus
 `CORS_ALLOWED_ORIGINS`) with methods `GET, POST, DELETE, OPTIONS` and headers
 `content-type, content-encoding, x-ouo-session-id, x-ouo-seq, accept, accept-encoding`.
-Errors are `{"error": "..."}` with 400 (bad input), 404, 413 (chunk too large),
-502 (Loki / Tempo failed).
+Errors are `{"error": "..."}` with 400 (bad input), 404, 409 (replay kind conflict),
+413 (chunk too large), 502 (Loki / Tempo failed).
 
 Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or relative
 `now`, `now-30m`, `now-1h`, `now-7d`. Defaults: `from=now-1h`, `to=now`.
@@ -69,31 +73,68 @@ Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or 
 
 ### Replay
 
-`POST /v1/replay/chunks` accepts the SDK chunk
-`{session_id, seq, started_at, ended_at, events: [...]}` (timestamps are epoch
-milliseconds). Body is gzip when `Content-Encoding: gzip`, plain JSON otherwise.
-`session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is `0..999999`.
-Re-posting a `seq` replaces that chunk. Response `202`:
+A session has one replay of one **kind**: `rrweb` (web SDK, ADR-0003) or `frames` (iOS SDK,
+ADR-0006 / `docs/specs/mobile-replay.md`). Both kinds share the upload endpoint and the
+storage layout; `meta.json` records the kind of the first chunk and a chunk of the other
+kind is rejected with 409.
+
+`POST /v1/replay/chunks` accepts one SDK chunk. Body is gzip when `Content-Encoding: gzip`,
+plain JSON otherwise. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is
+`0..999999`. Re-posting a `seq` replaces that chunk.
+
+- rrweb (no `kind`, or `kind: "rrweb"`): `{session_id, seq, started_at, ended_at, events: [...]}`,
+  at most `MAX_CHUNK_BYTES` (4 MiB).
+- frames (`kind: "frames"`): `{kind, schema_version: 1, session_id, seq, started_at, ended_at,
+  viewport: {width, height, scale}, platform, frames: [{ts, jpeg, reason}], touches: [{ts, x, y, phase}], masked}`,
+  at most `MAX_FRAME_CHUNK_BYTES` (8 MiB). Validation: `schema_version` is `1`,
+  `started_at > 0`, `ended_at >= started_at`, `viewport.width/height > 0` (`scale` defaults to
+  1), `frames` is an array (may be empty) where every element has `ts > 0` and a non-empty
+  base64 `jpeg` that decodes (padded or unpadded) and starts with the JPEG marker `FF D8`;
+  every touch has `ts`, `x`, `y` and `phase` in `began | moved | ended`. At most 1000 frames
+  per chunk. Unknown keys are ignored. `platform` is optional.
+
+Timestamps are epoch milliseconds. The body is read up to the frames limit; a body above
+the rrweb limit is accepted only when its `kind` is `frames`. Response `202`:
 
 ```json
-{"accepted":true,"session_id":"<id>","seq":3,"events":12,"bytes":5321}
+{"accepted":true,"session_id":"<id>","kind":"frames","seq":1,"events":0,"frames":2,"touches":3,"bytes":5823}
 ```
+
+(`events` counts rrweb events, `frames` / `touches` count frame-chunk items; the other
+kind's counters are 0.) 409 `{"error":"replay kind mismatch: session <id> holds a frames replay, chunk is rrweb"}`
+when the session already has a replay of the other kind; nothing is written.
 
 On disk (always gzip): `<DATA_DIR>/replays/<session_id>/000003.json.gz` plus
 `meta.json`, both written atomically (temp file + rename, one mutex per session).
 
-- `GET /v1/sessions/{id}/replay` -> the meta:
+- `GET /v1/sessions/{id}/replay` -> the meta. `kind` is always present (`meta.json` files
+  written before frames existed read as `rrweb`); `viewport` and `platform` only for frames;
+  `frame_count` / `touch_count` are totals (0 for rrweb):
 
 ```json
-{"session_id":"<id>","chunk_count":8,"first_seq":0,"last_seq":7,
- "started_at":1791263180896,"ended_at":1791263220123,"bytes":12345,"updated_at":"2026-10-06T05:07:00Z",
- "chunks":[{"seq":0,"started_at":1791263180896,"ended_at":1791263185900,"bytes":1316,"event_count":4}, ...]}
+{"session_id":"<id>","kind":"frames","chunk_count":2,"first_seq":0,"last_seq":1,
+ "started_at":1791471538578,"ended_at":1791471548578,"bytes":1796,"frame_count":5,"touch_count":5,
+ "viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","updated_at":"2026-10-08T15:00:08Z",
+ "chunks":[{"seq":0,"started_at":1791471538578,"ended_at":1791471543578,"bytes":918,"event_count":0,"frame_count":3,"touch_count":2}, ...]}
 ```
 
 - `GET /v1/sessions/{id}/replay/events` -> one JSON array with every rrweb event of every
   chunk in `seq` order (streamed; gzip when `Accept-Encoding: gzip`). Feed it to
-  `rrweb-player` as `events`. Chunks that fail to decode are skipped.
-- `DELETE /v1/sessions/{id}/replay` -> `204`, removes the directory.
+  `rrweb-player` as `events`. Chunks that fail to decode are skipped. **409** when the
+  session's replay is `frames`.
+- `GET /v1/sessions/{id}/replay/frames` -> all frame chunks concatenated in `seq` order
+  (streamed; gzip when accepted; frame objects are copied through as uploaded):
+
+```json
+{"session_id":"<id>","kind":"frames","viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios",
+ "started_at":1791471538578,"ended_at":1791471548578,
+ "frames":[{"ts":1791471538678,"jpeg":"<base64>","reason":"resume"}, ...],
+ "touches":[{"ts":1791471540828,"x":120.5,"y":640,"phase":"began"}, ...]}
+```
+
+  **409** when the replay is `rrweb`, 404 when there is none. Both streaming endpoints set
+  `X-Ouo-Replay-Kind`.
+- `DELETE /v1/sessions/{id}/replay` -> `204`, removes the directory (either kind).
 
 ### Sessions
 
@@ -108,9 +149,19 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
   "started_at":"2026-10-06T05:06:20.896Z","last_signal_at":"2026-10-06T05:06:40.747Z",
   "ended_at":null,"end_reason":null,"state":"active","status":"crashed",
   "error_count":2,"crash_count":1,"failed_request_count":1,"event_count":12,
-  "trace_count":5,"has_replay":true
+  "trace_count":5,"has_replay":true,"replay_kind":"rrweb",
+  "replay_duration_ms":20410,"replay_frame_count":null
  }],"count":1,"from":"2026-10-06T04:30:00Z","to":"2026-10-06T05:30:00Z"}
 ```
+
+- `has_replay` / `replay_kind`: `replay_kind` is `"rrweb"` or `"frames"` when a replay
+  exists, `null` otherwise, so the plugin can pick the player without a second call.
+- `replay_duration_ms` / `replay_frame_count`: from the replay's `meta.json`
+  (`ended_at - started_at` in ms; `frame_count`). `replay_duration_ms` is `null` without a
+  replay or when the meta has no usable timestamps; `replay_frame_count` is `null` for rrweb
+  replays (they have events, not frames) and without a replay. Both are filled on the list
+  and the detail endpoints by reading `meta.json` per session (a `stat` first, so sessions
+  without a replay cost one syscall).
 
 - `status` per ADR-0004: `crashed` if any `exception` with `ouo.exception.fatal=true` (or a
   `session.end` with reason `crash`), else `errored` if any non-fatal `exception` or
@@ -180,6 +231,11 @@ curl -i -X POST localhost:8080/v1/replay/chunks -H 'content-type: application/js
 gzip -c chunk.json | curl -i -X POST localhost:8080/v1/replay/chunks -H 'content-type: application/json' -H 'content-encoding: gzip' --data-binary @-
 curl localhost:8080/v1/sessions/demo-1/replay
 curl --compressed localhost:8080/v1/sessions/demo-1/replay/events | head -c 300
+# upload a frames chunk (jpeg is a base64 JPEG; "/9j/" is the base64 of FF D8 FF)
+curl -i -X POST localhost:8080/v1/replay/chunks -H 'content-type: application/json' \
+  -d '{"kind":"frames","schema_version":1,"session_id":"demo-ios-1","seq":0,"started_at":1791471538578,"ended_at":1791471543578,"viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","frames":[{"ts":1791471538678,"jpeg":"/9j/4AAQSkZJRg...","reason":"resume"}],"touches":[{"ts":1791471540828,"x":120.5,"y":640,"phase":"began"}]}'
+curl --compressed localhost:8080/v1/sessions/demo-ios-1/replay/frames | head -c 300
+curl -i localhost:8080/v1/sessions/demo-ios-1/replay/events     # 409
 curl -X DELETE -i localhost:8080/v1/sessions/demo-1/replay
 
 curl 'localhost:8080/v1/sessions?from=now-2h&status=crashed&platform=web'
@@ -201,8 +257,12 @@ curl 'localhost:8080/v1/stats/health?from=now-24h' | jq
   session's window (started_at - 2 min .. last signal + 2 min, or now while active), then
   `{ span.session.id = "<id>" && status = error }` for `has_error`. One search per session
   through a semaphore of `TEMPO_CONCURRENCY`, cached for `TEMPO_CACHE_TTL`.
-- **Replay**: `internal/replay.Store` interface, filesystem implementation; the events
-  endpoint streams chunk files through a JSON token decoder without loading everything.
+- **Replay**: `internal/replay.Store` interface, filesystem implementation; the events and
+  frames endpoints stream chunk files through a JSON token decoder without loading
+  everything (touches of a frames replay are buffered, frames are copied through). The kind
+  is checked under the per-session lock before the chunk file is written, so a rejected
+  chunk leaves nothing behind. `PeekKind` scans only top-level keys and runs only for bodies
+  above the rrweb limit.
 
 ## Layout
 
@@ -213,7 +273,7 @@ internal/httpapi             routes, CORS, handlers (+ tests with fakes)
 internal/session             Loki stream -> Event, Fold, Classify, Health (+ fixtures)
 internal/loki                query_range client with pagination
 internal/tempo               search client, cache, Grafana Explore links
-internal/replay              Store interface, filesystem store, event streaming
+internal/replay              Store interface, chunk validation (rrweb + frames), filesystem store, event / frame streaming
 internal/timerange           from/to parsing
 internal/telemetry           OTel SDK setup (traces, logs, metrics via OTLP/HTTP)
 ```

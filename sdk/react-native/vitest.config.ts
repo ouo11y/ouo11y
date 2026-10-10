@@ -15,6 +15,7 @@ export default defineConfig({
     alias: {
       "react-native": mock("react-native"),
       "@react-native-async-storage/async-storage": mock("async-storage"),
+      "expo-modules-core": mock("expo-modules-core"),
     },
   },
   test: {
