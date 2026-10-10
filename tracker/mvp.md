@@ -98,3 +98,7 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 - [x] Session detail keeps the Replay panel pinned while the Timeline scrolls in its own container; current event auto-scrolls into view during playback; panels stack below 900px (verified in Grafana 13.2.1 at 1400x900 and 800x900 on sessions `6843eaa9` and `e2a746a8`; `agents/grafana-plugin/reports/phase-7b-ux.html`)
 - [x] Sessions list shows the replay duration and kind in a Replay column (`replay_duration_ms` / `replay_kind` from rum-api, play icon while the duration is unknown, "–" without replay; verified against the live list)
 - [x] Sessions list columns are sortable client-side over the loaded page, default Started desc, indicator and tooltip (verified: Started, Status and Replay headers flip the order; 52 Jest tests incl. `sort.test.ts` and `SessionsTable.test.tsx`)
+
+## Docs: fast-tracked onboarding (2026-10-10)
+
+PR #12 (`fast-tracked`, stacked on #11). `examples/fast-tracked/` holds four copy-and-paste guides (stack, Go backend, React, Expo iOS) routed by `index.md`. Also fixed the demo apps' port fallbacks to the stock values. Status: review. Agent folder: `agents/fast-tracked/`.

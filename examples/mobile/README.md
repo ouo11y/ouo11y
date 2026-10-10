@@ -29,11 +29,11 @@ set user, flush.
 | Setting | Default | Override |
 |---|---|---|
 | `version` (-> `service.version`) | `2.3.0` | `APP_VERSION=2.4.0 npx expo start --ios` |
-| `extra.backendUrl` | `http://localhost:8082` | `BACKEND_URL` |
-| `extra.otlpEndpoint` | `http://localhost:4328` | `OTLP_ENDPOINT` |
+| `extra.backendUrl` | `http://localhost:8081` | `BACKEND_URL` |
+| `extra.otlpEndpoint` | `http://localhost:4318` | `OTLP_ENDPOINT` |
 | `extra.environment` | `local` | `OUO_ENV` |
 
-The defaults are the host ports of `deploy/docker/.env` on the machine this was built on.
+The defaults are the stock host ports from `deploy/docker/.env.example`. If you moved ports in `deploy/docker/.env`, copy `.env.example` to `.env` here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`.
 From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP
 in `BACKEND_URL` / `OTLP_ENDPOINT`.
 

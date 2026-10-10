@@ -9,3 +9,4 @@
 | [adr/](adr/README.md) | architecture decision records |
 | [business/product-plan.md](business/product-plan.md) | product thesis, offers, pricing, checklist (proposal) |
 | [business/roadmap.md](business/roadmap.md) | sequenced build roadmap from MVP to product: interview decisions, phases 8 to 14 with exit criteria, enterprise readiness matrix, hiring tie-in (proposal) |
+| [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
