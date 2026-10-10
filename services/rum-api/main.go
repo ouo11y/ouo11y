@@ -22,9 +22,7 @@ import (
 
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/config"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/httpapi"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/ingest"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/project"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/telemetry"
@@ -65,27 +63,6 @@ func run(cfg config.Config) error {
 		}
 	}()
 
-	registry, err := project.Load(project.Source{File: cfg.ProjectsFile, ID: cfg.ProjectID, Token: cfg.ProjectToken, AllowedOrigins: cfg.AllowedOrigins})
-	if err != nil {
-		return fmt.Errorf("projects: %w", err)
-	}
-	gateway, err := ingest.New(ingest.Options{
-		Registry:          registry,
-		CollectorEndpoint: cfg.CollectorEndpoint,
-		CollectorTimeout:  cfg.CollectorTimeout,
-		MaxBodyBytes:      cfg.MaxIngestBytes,
-		RateLimitRPS:      cfg.RateLimitRPS,
-		RateLimitBurst:    cfg.RateLimitBurst,
-		IPRateLimitRPS:    cfg.IPRateLimitRPS,
-		IPRateLimitBurst:  cfg.IPRateLimitBurst,
-		TrustProxy:        cfg.TrustProxy,
-		// Forwarding to the collector is traced like the other outbound calls.
-		HTTPClient: &http.Client{Timeout: cfg.CollectorTimeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
-	})
-	if err != nil {
-		return fmt.Errorf("ingest gateway: %w", err)
-	}
-
 	store, err := replay.NewFS(cfg.DataDir)
 	if err != nil {
 		return err
@@ -102,7 +79,7 @@ func run(cfg config.Config) error {
 		DetailLookback:     cfg.DetailLookback,
 		MaxChunkBytes:      cfg.MaxChunkBytes,
 		MaxFrameChunkBytes: cfg.MaxFrameChunkBytes,
-		Gateway:            gateway,
+		IngestToken:        cfg.IngestToken,
 		ReadToken:          cfg.ReadToken,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 	})
@@ -127,8 +104,7 @@ func run(cfg config.Config) error {
 			"addr", srv.Addr,
 			"loki", cfg.LokiURL, "tempo", cfg.TempoURL, "grafana", cfg.GrafanaURL,
 			"data_dir", cfg.DataDir,
-			"collector", cfg.CollectorEndpoint,
-			"projects", len(registry.Projects()),
+			"ingest_token", cfg.IngestToken != "",
 			"read_token", cfg.ReadToken != "",
 			"otlp.endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		)

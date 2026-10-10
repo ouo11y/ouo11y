@@ -1,106 +1,88 @@
-# Ingest gateway: OTLP decode / re-encode in Go, OTLP/JSON gotchas, rate limiter
+# Replay sink contract: why the ingest gateway moved to the collector
 
-Question: what does an OTLP/HTTP gateway written with the standard library plus
-`go.opentelemetry.io/proto/otlp` need to get right? Written while implementing ADR-0007 in
-`services/rum-api/internal/ingest` (Phase 8a). Package docs: `services/rum-api/README.md`.
+Question: what does rum-api accept on `POST /v1/replay/chunks` now that it is internal, and
+why did the Phase 8a gateway leave rum-api? Written while revising ADR-0007 in
+`services/rum-api` (Phase 8a, revision 2). Package docs: `services/rum-api/README.md`.
 
-## OTLP/JSON is not protojson for ids
+## Why the gateway moved
 
-- The OTLP spec encodes `traceId`, `spanId` and `parentSpanId` as **hex** strings in JSON.
-  `protojson` decodes every `bytes` field as **base64**. A 32-char hex trace id is also
-  valid base64 (length is a multiple of 4), so `protojson.Unmarshal` silently turns it into
-  24 wrong bytes; the collector then stores a trace id nobody can look up. Fix used: decode
-  the JSON generically, rewrite values under the keys `traceId` / `trace_id`, `spanId` /
-  `span_id`, `parentSpanId` / `parent_span_id` (span `links` and log records included) from
-  hex to base64 when they are hex of length 32 / 16, re-marshal, then `protojson`. Base64
-  of 16 / 8 bytes is 24 / 12 chars, so the length test never misfires on an already
-  base64 value. `AnyValue.bytesValue` stays base64 (spec and protojson agree there).
-- Decode with `json.Decoder.UseNumber()`: `startTimeUnixNano` from the JS SDK is a string,
-  but a numeric 1.79e18 nanosecond timestamp as `float64` loses the low digits. `json.Number`
-  round-trips the literal and protojson accepts 64-bit integers as strings or numbers.
-- `protojson.UnmarshalOptions{DiscardUnknown: true}`: SDKs newer than the proto module may
-  send fields it lacks (and the JS SDK sends `droppedAttributesCount` style fields on every
-  object). Consequence: a trace payload posted to the logs route decodes to an *empty* logs
-  export and is forwarded as such (200), not a 400. Accepted trade-off.
-- protojson accepts enums as numbers (`"kind":3`) or names and camelCase or original
-  field names, so the JS SDK and `protojson.Marshal` output both parse.
-- Checked `camelCase` vs `snake_case` key handling by posting the real JS SDK shape in a test
-  (`jsSDKTrace` in `gateway_test.go`).
+The first 8a draft made rum-api the internet-facing edge: `/ingest/otlp/v1/*` with a project
+token header, a YAML project registry, per-project CORS and origin patterns, a token-bucket
+rate limiter, OTLP decode / stamp / re-encode and a forward to the collector. It worked
+(see the first summary in `agents/rum-api/summaries/2026-10-10-phase-8a.md`) but it put a
+second ingress next to the standard one, and it meant re-implementing in Go what the
+OpenTelemetry Collector already has: receivers with auth, CORS, body limits, batching and
+back-pressure. The founder's review restated the principle: the collector is the only
+ingress, every other service is hidden. The revised `docs/adr/0007-ingest-gateway-project-tokens.md`
+moves project tokens (`basicauth`), stamping (`resource` processor), limits (`ouoratelimit`)
+and the replay receiver into a custom `ouo-collector` distribution; rum-api drops all of it
+and keeps one write endpoint for the collector's `ouoreplay` exporter.
 
-## Responses
+Lessons that survive from the deleted code, for whoever writes the collector components:
 
-- OTLP/HTTP says the response uses the request's encoding. rum-api always sends protobuf to
-  the collector, so a JSON client would otherwise get protobuf back. The collector's 2xx
-  body is an `Export*ServiceResponse` (the real collector always sets an empty
-  `partialSuccess`, so JSON clients see `{"partialSuccess":{}}`), non-2xx bodies are
-  `google.rpc.Status`; both are transcoded with `protojson.Marshal` for JSON clients.
-  `google.golang.org/genproto/googleapis/rpc/status` is already in the module graph via
-  grpc-gateway.
-- Pass `Retry-After` through when the collector sets it (memory limiter / queue full
-  return 503 with it).
+- OTLP/JSON encodes `traceId` / `spanId` as hex, protojson decodes `bytes` as base64; a
+  32-char hex id is also valid base64 and silently becomes 24 wrong bytes. The upstream OTLP
+  receiver handles this; a hand-written decoder must rewrite ids first.
+- A size check must bound both the wire bytes and the decompressed bytes or a 4 MiB limit
+  admits a gzip bomb. `confighttp`'s `max_request_body_size` applies to the wire size; the
+  replay receiver must still bound the inflated chunk.
+- Check order matters for the response code: size before auth (413 before 401), auth before
+  anything that reveals validation detail.
 
-## Stamping
+## The sink contract (rum-api side)
 
-- `ResourceSpans.Resource` may be nil in a valid payload; create it before appending the
-  attribute. Filter out any client-sent `ouo.project.id` first so there is exactly one.
-- `proto.MarshalOptions{Deterministic: true}` keeps the forwarded bytes stable for tests.
-- The proto packages (`collector/trace/v1` etc.) import grpc and grpc-gateway because the
-  generated files include the gRPC service and gateway stubs; both were already indirect
-  dependencies of the OTLP exporters, so no new module appears.
+`POST /v1/replay/chunks`, called only by the collector's `ouoreplay` exporter.
 
-## Check order and sizes
+| Check (in order) | Status |
+|---|---|
+| `Content-Length` above `MAX_FRAME_CHUNK_BYTES` (8 MiB) | 413 |
+| `Authorization: Bearer <OUO_INGEST_TOKEN>` missing or wrong, when the variable is set | 401 + `WWW-Authenticate: Bearer` |
+| `X-Ouo-Project-Id` missing or not matching `^[a-z0-9][a-z0-9._-]{0,63}$` (trimmed) | 400 |
+| body read (wire or decompressed above the limit) | 413 |
+| `Content-Encoding` other than `gzip`, `x-gzip`, `identity`, empty | 415 |
+| bad gzip, invalid chunk envelope | 400 |
+| rrweb chunk above `MAX_CHUNK_BYTES` (4 MiB) | 413 |
+| chunk kind differs from the session's replay | 409 |
+| project id differs from the session's recorded `project_id` | 403 |
+| stored | 202 `{"accepted":true,"project_id":...,"session_id":...,"kind":...,"seq":...,...}` |
 
-- Size must beat token (413 before 401) but the project's `max_body_bytes` needs the
-  project. Resolution: look the token up first *without rejecting*, compute the limit, check
-  `Content-Length`, then reject on the token. Bodies without `Content-Length` (chunked) hit
-  the limit in `http.MaxBytesReader` after authentication, still 413.
-- Gzip: the limit applies to both the wire bytes (`MaxBytesReader`) and the inflated bytes
-  (`io.LimitReader(gr, limit+1)` then compare), otherwise a 4 MiB limit admits a 4 GiB
-  zip bomb. Same pattern as the replay upload.
-- Replay uploads reuse checks 1 to 4 through `Gateway.Authorize(w, r, "replay", limit)` and
-  keep their own body handling (the rrweb / frames split needs the decompressed body).
+`X-Ouo-Session-Id` and `X-Ouo-Seq` are informational: the body wins, a mismatch is a
+warning in rum-api's log. The project id goes into `meta.json` as `project_id`; replays
+written before 8a have none, read fine, and adopt the first project that writes to them.
+Metrics `ouo.replay.chunks` and `ouo.replay.bytes` carry `ouo.project.id`.
 
-## Rate limiter
+Design notes:
 
-- Plain token bucket per key: `tokens = min(burst, tokens + elapsed*rate)`, take one,
-  `Retry-After = ceil((1 - tokens) / rate)` seconds (never 0). A clock function is injected
-  so tests advance time instead of sleeping.
-- Idle buckets: a bucket idle for `burst / rate` seconds is full again, which is exactly a
-  fresh bucket, so a sweep that deletes those changes nothing observable. The sweep runs
-  inline from `Allow` at most once per minute (no background goroutine, nothing to stop on
-  shutdown, deterministic in tests).
-- Per-project limiters are separate `Limiter` instances (project `rate_limit` overrides),
-  the per-IP limiter is one instance keyed by IP across projects. Rejections before the
-  rate check (size, token, origin) do not consume a token.
-- Client IP: `net.SplitHostPort(r.RemoteAddr)`; with `OUO_TRUST_PROXY=true` the **last**
-  `X-Forwarded-For` entry (the one the trusted proxy appended; the first entry is client
-  controlled). Without the flag the header is ignored entirely.
-- Limits are per process. With N replicas the effective limit is N times the configured one.
+- The ingest token is a shared secret between two internal services, so a plain bearer is
+  enough; it is optional for installs where the network already isolates rum-api (Compose
+  without a published port, a ClusterIP Service with a NetworkPolicy).
+- rum-api trusts the project id it is given. Authentication happened at the collector; the
+  sink only validates the shape so the value is safe in `meta.json` and as a metric
+  attribute.
+- Bearer before project id: an unauthenticated caller learns nothing about header
+  validation. 413 on `Content-Length` comes first because it costs nothing and the body is
+  never read.
+- The 403 on a project mismatch is kept from the first draft: it stops a session id
+  collision across projects from mixing two customers' chunks in one directory.
 
-## CORS per project
+## Read side and CORS
 
-- Preflights carry no custom headers, so the token cannot identify the project; the answer
-  is "any project allows this origin". The per-project Origin check then runs on the
-  actual request (403 when the token's project does not list it).
-- Returning 403 for a disallowed preflight (instead of letting it fall through to a 404 /
-  405) makes the failure visible in the browser network tab.
-- `Access-Control-Expose-Headers: Retry-After` is needed or the browser SDK cannot read
-  the back-off hint on 429.
-- Origin patterns: parse both sides into `scheme / host / port`, lower-case, fold default
-  ports, tolerate a trailing slash. `*` is allowed only as the whole leading label
-  (`https://*.preview.example.com` matches exactly one label) or as the port
-  (`http://localhost:*`). `Origin: null` (sandboxed iframes, file://) never matches.
-
-## Read token
-
-- `Authorization: Bearer <token>` compared with `crypto/subtle.ConstantTimeCompare`; the
-  scheme is case-insensitive. Applied to `GET`, `HEAD`, `DELETE` under `/v1/`, which leaves
-  `POST /v1/replay/chunks` (project token), `/ingest/*`, probes and `OPTIONS` alone.
+- `GET` / `DELETE /v1/*` need `Authorization: Bearer <OUO_READ_TOKEN>` when set
+  (`crypto/subtle.ConstantTimeCompare`, case-insensitive scheme). Grafana's plugin proxy
+  injects it from `secureJsonData.readToken`; the browser never sees it.
+- CORS is back to the pre-gateway rule: reflect `http://localhost:*`, `http://127.0.0.1:*`
+  and `CORS_ALLOWED_ORIGINS` (exact), otherwise no CORS headers. `Authorization` is in the
+  allowed headers so local tooling can send the read token from a browser page. Per-project
+  origin allowlists are a collector concern (global CORS on both receivers in 8a).
 
 ## Verified
 
-- `go test ./...` in `services/rum-api` (fake collector asserting the forwarded protobuf).
-- Live: OTLP/JSON trace with hex ids posted to a local binary on `:18080`, forwarded to the
-  collector on `:4328`, found in Tempo on `:3201` by id with `ouo.project.id=demo` about
-  30 s later (TraceQL search lagged behind the by-id lookup). Details in
-  `agents/rum-api/summaries/2026-10-10-phase-8a.md`.
+- `go vet ./... && go test ./...` in `services/rum-api`: `TestReplaySink` (400 cases,
+  `project_id` in response / meta / `meta.json`, 403 cross-project, legacy adoption,
+  `ouo.replay.*` series through a `ManualReader`, no `ouo.ingest.*` left),
+  `TestReplaySinkIngestToken` (401 / 401 / 401 / 400 / 202), `TestReadToken`,
+  `TestCORSReflect`, plus the existing replay and session tests.
+- Live binary on `127.0.0.1:18089` with `OUO_INGEST_TOKEN` and `OUO_READ_TOKEN` set and no
+  project configuration: 401 -> 400 -> 400 -> 202 (gzip, `project_id: demo` in the ack and in
+  `meta.json`), read 401 / 200, localhost preflight 204 with `Authorization` allowed, foreign
+  preflight and `POST /ingest/otlp/v1/traces` both 404.

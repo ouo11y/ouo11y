@@ -30,7 +30,7 @@ var ErrInvalid = errors.New("invalid chunk")
 var ErrWrongKind = errors.New("replay kind mismatch")
 
 // ErrWrongProject is returned when a chunk arrives for a session whose replay
-// belongs to another project (ADR-0007). The API maps it to 403.
+// was recorded under another project id (ADR-0007). The API maps it to 403.
 var ErrWrongProject = errors.New("replay belongs to another project")
 
 // Viewport is the device viewport of a frames replay (points) and the scale
@@ -75,8 +75,9 @@ type ChunkInfo struct {
 // TouchCount are totals over all chunks (0 for rrweb).
 type Meta struct {
 	SessionID string `json:"session_id"`
-	// ProjectID is the project whose token uploaded the replay (ADR-0007).
-	// Empty on meta.json files written before Phase 8a.
+	// ProjectID is the project the collector authenticated for the upload
+	// (ADR-0007, X-Ouo-Project-Id on the sink). Empty on meta.json files
+	// written before Phase 8a.
 	ProjectID  string      `json:"project_id,omitempty"`
 	Kind       string      `json:"kind"`
 	ChunkCount int         `json:"chunk_count"`
