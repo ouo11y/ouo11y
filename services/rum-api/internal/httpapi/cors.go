@@ -3,62 +3,66 @@ package httpapi
 import (
 	"net/http"
 	"strings"
-
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/project"
 )
 
-// allowedHeaders covers the SDK's OTLP ingest (token, gzip, W3C context),
-// the replay upload headers and the read token of plain API calls.
+// allowedHeaders covers the collector's replay sink headers (project id,
+// gzip body, chunk headers, ingest bearer) and plain JSON API calls with the
+// read token from local tooling or a browser.
 const (
-	allowedHeaders = "X-Ouo-Project-Token, Content-Type, Content-Encoding, traceparent, baggage, Authorization, X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding"
+	allowedHeaders = "Authorization, Content-Type, Content-Encoding, X-Ouo-Project-Id, X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding"
 	allowedMethods = "GET, POST, DELETE, OPTIONS"
 )
 
-// cors answers for an origin when any project allows it (ADR-0007 5: a
-// preflight carries no token) or when it is one of the deprecated exact
-// CORS_ALLOWED_ORIGINS. A preflight from any other origin is 403 without
-// CORS headers; other requests pass through (the handlers then apply the
-// per-project Origin check themselves).
-func cors(reg *project.Registry, extra []string, next http.Handler) http.Handler {
+// cors reflects the Origin header for any http://localhost:* or
+// http://127.0.0.1:* origin plus the configured extra origins, answers
+// preflights with 204, and passes everything else through. rum-api is
+// internal (ADR-0007 5): the Grafana plugin reaches it through Grafana's
+// server-side proxy, so only local development tooling needs CORS.
+func cors(extra []string, next http.Handler) http.Handler {
 	extras := map[string]bool{}
 	for _, o := range extra {
 		extras[strings.TrimSuffix(o, "/")] = true
 	}
-	allowed := func(origin string) bool {
-		return reg.AnyAllowsOrigin(origin) || extras[strings.TrimSuffix(origin, "/")]
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		preflight := r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
-		if origin == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		h := w.Header()
-		h.Add("Vary", "Origin")
-		if !allowed(origin) {
-			if preflight {
-				writeError(w, http.StatusForbidden, "origin not allowed")
+		if origin != "" && (localOrigin(origin) || extras[strings.TrimSuffix(origin, "/")]) {
+			h := w.Header()
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Add("Vary", "Origin")
+			h.Set("Access-Control-Allow-Methods", allowedMethods)
+			h.Set("Access-Control-Allow-Headers", allowedHeaders)
+			h.Set("Access-Control-Expose-Headers", "X-Ouo-Replay-Kind")
+			h.Set("Access-Control-Max-Age", "600")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			next.ServeHTTP(w, r)
-			return
-		}
-		h.Set("Access-Control-Allow-Origin", origin)
-		h.Set("Access-Control-Allow-Methods", allowedMethods)
-		h.Set("Access-Control-Allow-Headers", allowedHeaders)
-		h.Set("Access-Control-Expose-Headers", "Retry-After, X-Ouo-Replay-Kind")
-		h.Set("Access-Control-Max-Age", "600")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
+// localOrigin reports whether origin is http://localhost[:port] or
+// http://127.0.0.1[:port].
+func localOrigin(origin string) bool {
+	rest, ok := strings.CutPrefix(origin, "http://")
+	if !ok {
+		return false
+	}
+	host, port, _ := strings.Cut(rest, ":")
+	if host != "localhost" && host != "127.0.0.1" {
+		return false
+	}
+	for _, c := range port {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // readAuth enforces OUO_READ_TOKEN on GET and DELETE /v1/* when it is set
-// (ADR-0007 6). Preflights, /healthz, /readyz and the ingest routes are not
+// (ADR-0007 5). Preflights, /healthz, /readyz and the replay sink are not
 // behind it.
 func readAuth(token string, next http.Handler) http.Handler {
 	if token == "" {
