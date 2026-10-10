@@ -1,0 +1,6 @@
+{{- if eq .Values.lgtm.mode "bundled" }}
+{{- $ports := list (dict "name" "http" "port" 3100) (dict "name" "grpc" "port" 9096) }}
+{{- include "ouo.lgtm.statefulset" (dict "root" . "component" "loki" "values" .Values.lgtm.bundled.loki "name" (include "ouo.loki.fullname" .) "mountPath" "/loki" "configPath" "/etc/loki/config.yaml" "ports" $ports "readyPort" "http") }}
+---
+{{ include "ouo.lgtm.service" (dict "root" . "component" "loki" "name" (include "ouo.loki.fullname" .) "ports" $ports) }}
+{{- end }}

@@ -1,0 +1,14 @@
+{{- if .Values.projects }}
+# ADR-0007 project registry. Project tokens are public identifiers (they ship in
+# browser bundles), which is why a ConfigMap is acceptable here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.rumApi.fullname" . }}-projects
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "rum-api") | nindent 4 }}
+data:
+  projects.yaml: |
+    projects:
+      {{- toYaml .Values.projects | nindent 6 }}
+{{- end }}

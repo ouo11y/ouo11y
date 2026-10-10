@@ -1,0 +1,106 @@
+{{- if and .Values.grafana.enabled .Values.grafana.datasources.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.grafana.fullname" . }}-datasources
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "grafana") | nindent 4 }}
+data:
+  datasources.yaml: |
+    # Mirrors deploy/docker/grafana/provisioning/datasources/datasources.yaml with the
+    # URLs taken from lgtm.mode / lgtm.external. `$$` escapes the provisioner's own
+    # ${...} expansion (kb/collector-lgtm.md).
+    apiVersion: 1
+
+    deleteDatasources:
+      - name: Loki
+        orgId: 1
+      - name: Tempo
+        orgId: 1
+      - name: Mimir
+        orgId: 1
+
+    datasources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: {{ include "ouo.lokiUrl" . }}
+        editable: false
+        jsonData:
+          maxLines: 1000
+          {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+          httpHeaderName1: X-Scope-OrgID
+          {{- end }}{{ end }}
+          derivedFields:
+            - name: TraceID
+              datasourceUid: tempo
+              matcherType: label
+              matcherRegex: trace_id
+              url: "$${__value.raw}"
+              urlDisplayLabel: View trace
+        {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+        secureJsonData:
+          httpHeaderValue1: {{ . | quote }}
+        {{- end }}{{ end }}
+
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: {{ include "ouo.tempoUrl" . }}
+        editable: false
+        jsonData:
+          {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+          httpHeaderName1: X-Scope-OrgID
+          {{- end }}{{ end }}
+          streamingEnabled:
+            search: true
+          nodeGraph:
+            enabled: true
+          serviceMap:
+            datasourceUid: mimir
+          tracesToMetrics:
+            datasourceUid: mimir
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+          lokiSearch:
+            datasourceUid: loki
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-30m"
+            spanEndTimeShift: "30m"
+            filterByTraceID: false
+            filterBySpanID: false
+            customQuery: true
+            tags:
+              - key: service.name
+                value: service_name
+            query: '{service_name="$${__span.tags["service.name"]}"} | session_id="$${__span.tags["session.id"]}"'
+        {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+        secureJsonData:
+          httpHeaderValue1: {{ . | quote }}
+        {{- end }}{{ end }}
+
+      - name: Mimir
+        uid: mimir
+        type: prometheus
+        access: proxy
+        url: {{ include "ouo.mimirPrometheusUrl" . }}
+        editable: false
+        jsonData:
+          {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+          httpHeaderName1: X-Scope-OrgID
+          {{- end }}{{ end }}
+          httpMethod: POST
+          prometheusType: Mimir
+          prometheusVersion: "2.9.1"
+          timeInterval: 15s
+          exemplarTraceIdDestination:
+            - name: trace_id
+              datasourceUid: tempo
+        {{- with .Values.lgtm.external.tenantId }}{{ if eq $.Values.lgtm.mode "external" }}
+        secureJsonData:
+          httpHeaderValue1: {{ . | quote }}
+        {{- end }}{{ end }}
+{{- end }}
