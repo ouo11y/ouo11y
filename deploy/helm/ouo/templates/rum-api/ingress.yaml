@@ -1,0 +1,33 @@
+{{- if .Values.rumApi.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ouo.rumApi.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "rum-api") | nindent 4 }}
+  {{- with .Values.rumApi.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.rumApi.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.rumApi.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.rumApi.ingress.host | quote }}
+      secretName: {{ .Values.rumApi.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.rumApi.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.rumApi.ingress.path }}
+            pathType: {{ .Values.rumApi.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "ouo.rumApi.fullname" . }}
+                port:
+                  name: http
+{{- end }}

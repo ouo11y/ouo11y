@@ -1,0 +1,8 @@
+.DS_Store
+.git/
+*.swp
+*.tmp
+*.orig
+values-kind.yaml
+values-external-lgtm.yaml
+values-ha-example.yaml

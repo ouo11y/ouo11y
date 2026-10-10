@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ouo.rumApi.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "rum-api") | nindent 4 }}
+  {{- with .Values.rumApi.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.rumApi.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.rumApi.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ouo.selectorLabels" (dict "root" . "component" "rum-api") | nindent 4 }}

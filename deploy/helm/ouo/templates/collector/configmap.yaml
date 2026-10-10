@@ -1,0 +1,99 @@
+{{- if .Values.collector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.collector.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "collector") | nindent 4 }}
+data:
+  config.yaml: |
+    {{- if .Values.collector.configOverride }}
+    {{- .Values.collector.configOverride | nindent 4 }}
+    {{- else }}
+    # Mirrors deploy/docker/collector/config.yaml without the browser CORS block:
+    # only rum-api and trusted in-cluster services talk to this receiver (ADR-0007).
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: {{ .Values.collector.memoryLimiter.limitMib }}
+        spike_limit_mib: {{ .Values.collector.memoryLimiter.spikeLimitMib }}
+      batch:
+        timeout: {{ .Values.collector.batch.timeout }}
+        send_batch_size: {{ .Values.collector.batch.sendBatchSize }}
+        send_batch_max_size: {{ .Values.collector.batch.sendBatchMaxSize }}
+      # Copy the OTLP top-level event_name into the `event.name` log attribute so Loki
+      # indexes it as a label however the SDK set it; same for a resource-level ouo.platform.
+      transform/events:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+              - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+
+    exporters:
+      otlp_grpc/tempo:
+        endpoint: {{ include "ouo.tempoOtlpGrpcEndpoint" . }}
+        tls:
+          insecure: true
+        {{- with .Values.lgtm.external.tenantId }}
+        {{- if eq $.Values.lgtm.mode "external" }}
+        headers:
+          X-Scope-OrgID: {{ . | quote }}
+        {{- end }}
+        {{- end }}
+      otlp_http/loki:
+        endpoint: {{ include "ouo.lokiOtlpUrl" . }}
+        tls:
+          insecure: true
+        {{- with .Values.lgtm.external.tenantId }}
+        {{- if eq $.Values.lgtm.mode "external" }}
+        headers:
+          X-Scope-OrgID: {{ . | quote }}
+        {{- end }}
+        {{- end }}
+      otlp_http/mimir:
+        endpoint: {{ include "ouo.mimirOtlpUrl" . }}
+        tls:
+          insecure: true
+        {{- with .Values.lgtm.external.tenantId }}
+        {{- if eq $.Values.lgtm.mode "external" }}
+        headers:
+          X-Scope-OrgID: {{ . | quote }}
+        {{- end }}
+        {{- end }}
+      debug:
+        verbosity: basic
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_grpc/tempo]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, transform/events, batch]
+          exporters: [otlp_http/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_http/mimir]
+    {{- end }}
+{{- end }}

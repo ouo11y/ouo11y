@@ -1,0 +1,358 @@
+# Default values for the ouo chart.
+# Every image is pinned here and can be overridden with --set <component>.image.tag=...
+# See README.md for the install paths and values-kind.yaml / values-external-lgtm.yaml /
+# values-ha-example.yaml for complete examples.
+
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+commonLabels: {}
+
+# -----------------------------------------------------------------------------
+# Project registry (ADR-0007). Either a single project through environment
+# variables (`project`) or a list rendered to a projects.yaml ConfigMap
+# (`projects`, takes precedence). rum-api refuses to start with no project.
+# A project token is a public identifier: it only grants the right to write
+# telemetry into that project under the rate and size limits.
+# -----------------------------------------------------------------------------
+project:
+  id: default
+  # Required unless `projects` or `rumApi.existingSecret` is set.
+  token: ""
+  # Comma separated `scheme://host[:port]` patterns; `*` may replace the leading
+  # host label or the port. Requests without an Origin header (mobile, servers) pass.
+  allowedOrigins: ""
+
+# Multi-project registry (list of ADR-0007 project objects). When non-empty it is
+# rendered to /etc/ouo/projects.yaml and OUO_PROJECTS_FILE points at it.
+# projects:
+#   - id: web-store
+#     name: Web store
+#     tokens: [pt_live_9f3c..., pt_prev_...]
+#     allowed_origins: ["https://shop.example.com", "https://*.preview.example.com"]
+#     rate_limit: { requests_per_second: 500, burst: 2000 }
+#     max_body_bytes: 4194304
+projects: []
+
+# Read token (OUO_READ_TOKEN): required by rum-api on GET/DELETE /v1/*; the Grafana
+# plugin sends it from secureJsonData through the plugin route proxy. Empty disables
+# read authentication (development only).
+readToken: ""
+
+# -----------------------------------------------------------------------------
+# rum-api: ingest gateway, session API, replay store.
+# -----------------------------------------------------------------------------
+rumApi:
+  image:
+    repository: ouo/rum-api
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # Name of a pre-created Secret with keys `project-token` and `read-token`.
+  # When set, `project.token` and `readToken` are ignored.
+  existingSecret: ""
+  config:
+    # Browser-facing Grafana URL used in trace deep links. Empty: derived from
+    # grafana.ingress when enabled, otherwise http://localhost:3000 (port-forward).
+    grafanaUrl: ""
+    tempoDatasourceUid: tempo
+    sessionInactivity: 30m
+    sessionMaxDuration: 4h
+    # Extra exact origins for the legacy CORS allowlist (CORS_ALLOWED_ORIGINS).
+    corsAllowedOrigins: ""
+    maxIngestBytes: 4194304
+    rateLimit:
+      requestsPerSecond: 1000
+      burst: 5000
+    ipRateLimit:
+      requestsPerSecond: 100
+      burst: 300
+    # Set to true behind an Ingress / load balancer so the client IP is read from
+    # the last X-Forwarded-For hop.
+    trustProxy: false
+  otel:
+    # rum-api's own telemetry goes to the chart's collector (OTEL_SDK_DISABLED when false).
+    enabled: true
+    environment: production
+  # Extra environment variables (list of core/v1 EnvVar).
+  extraEnv: []
+  persistence:
+    # Replay chunks (DATA_DIR=/data). With more than one replica the volume must be
+    # ReadWriteMany; see values-ha-example.yaml.
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 20Gi
+    annotations: {}
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    # annotations:
+    #   cert-manager.io/cluster-issuer: letsencrypt
+    host: rum.example.com
+    path: /
+    pathType: Prefix
+    tls:
+      enabled: false
+      # cert-manager fills this Secret when the annotation above is present.
+      secretName: ouo-rum-api-tls
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    # distroless nonroot
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  priorityClassName: ""
+  livenessProbe:
+    httpGet: { path: /healthz, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    httpGet: { path: /readyz, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 12
+
+# -----------------------------------------------------------------------------
+# OpenTelemetry Collector (contrib). ClusterIP only: browsers and mobile apps
+# never reach it, they post to rum-api which forwards (ADR-0007 section 8).
+# -----------------------------------------------------------------------------
+collector:
+  enabled: true
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.160.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  memoryLimiter:
+    limitMib: 512
+    spikeLimitMib: 128
+  batch:
+    timeout: 1s
+    sendBatchSize: 512
+    sendBatchMaxSize: 1024
+  # Full collector config as a string; replaces the generated one when set.
+  configOverride: ""
+  service:
+    type: ClusterIP
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Grafana with the ouo RUM app plugin baked into the image
+# (deploy/images/grafana/Dockerfile).
+# -----------------------------------------------------------------------------
+grafana:
+  enabled: true
+  image:
+    repository: ouo/grafana
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  adminUser: admin
+  # Required unless grafana.existingSecret is set.
+  adminPassword: ""
+  # Pre-created Secret with keys `admin-user` and `admin-password`.
+  existingSecret: ""
+  # GF_SERVER_ROOT_URL. Empty: derived from grafana.ingress when enabled.
+  rootUrl: ""
+  defaultTheme: dark
+  anonymousEnabled: false
+  # Extra GF_* environment variables (map).
+  env: {}
+  # Extra environment variables (list of core/v1 EnvVar).
+  extraEnv: []
+  plugin:
+    # rum-api URL the plugin route proxy calls. Empty: in-cluster rum-api Service.
+    rumApiUrl: ""
+  datasources:
+    # Provision Loki, Tempo and Mimir datasources (uids loki, tempo, mimir).
+    enabled: true
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+    annotations: {}
+  service:
+    type: ClusterIP
+    port: 3000
+    annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: grafana.example.com
+    path: /
+    pathType: Prefix
+    tls:
+      enabled: false
+      secretName: ouo-grafana-tls
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 472
+    runAsGroup: 0
+    fsGroup: 472
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  livenessProbe:
+    httpGet: { path: /api/health, port: http }
+    initialDelaySeconds: 20
+    periodSeconds: 10
+  readinessProbe:
+    httpGet: { path: /api/health, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 24
+
+# -----------------------------------------------------------------------------
+# LGTM backends.
+#   bundled : single-binary Loki, Tempo and Mimir StatefulSets with the configs
+#             from deploy/docker (kind, development, small installs).
+#   external: nothing is deployed; the URLs below point at the customer's stack
+#             (upstream grafana/loki, grafana/tempo-distributed, grafana/mimir-distributed
+#             charts, Grafana Cloud, ...). See values-external-lgtm.yaml and
+#             values-ha-example.yaml.
+# -----------------------------------------------------------------------------
+lgtm:
+  mode: bundled
+  external:
+    # Loki HTTP base (query API and, by default, OTLP at <lokiUrl>/otlp).
+    lokiUrl: http://loki-gateway.observability.svc:80
+    # Tempo HTTP base (query API).
+    tempoUrl: http://tempo-query-frontend.observability.svc:3200
+    # Tempo OTLP gRPC receiver host:port for the collector.
+    tempoOtlpGrpcEndpoint: tempo-distributor.observability.svc:4317
+    # Mimir base: Grafana queries <mimirUrl>/prometheus, the collector pushes to <mimirUrl>/otlp.
+    mimirUrl: http://mimir-nginx.observability.svc:80
+    # Optional overrides when the write path differs from the read path.
+    lokiOtlpUrl: ""
+    mimirOtlpUrl: ""
+    mimirPrometheusUrl: ""
+    # Tenant id sent by the collector and Grafana when the external stack has
+    # multitenancy enabled (X-Scope-OrgID). Empty: no header.
+    tenantId: ""
+  bundled:
+    loki:
+      image:
+        repository: grafana/loki
+        tag: "3.7.7"
+        pullPolicy: IfNotPresent
+      configOverride: ""
+      persistence:
+        enabled: true
+        storageClass: ""
+        accessModes: [ReadWriteOnce]
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits: {}
+      podAnnotations: {}
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+    tempo:
+      image:
+        repository: grafana/tempo
+        tag: "3.0.3"
+        pullPolicy: IfNotPresent
+      configOverride: ""
+      persistence:
+        enabled: true
+        storageClass: ""
+        accessModes: [ReadWriteOnce]
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 384Mi
+        limits: {}
+      podAnnotations: {}
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+    mimir:
+      image:
+        repository: grafana/mimir
+        tag: "3.2.1"
+        pullPolicy: IfNotPresent
+      configOverride: ""
+      persistence:
+        enabled: true
+        storageClass: ""
+        accessModes: [ReadWriteOnce]
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits: {}
+      podAnnotations: {}
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
