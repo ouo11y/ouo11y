@@ -4,7 +4,10 @@ Phases from [docs/business/roadmap.md](../docs/business/roadmap.md). One stacked
 
 | Phase | Proposed branch | PR | Weeks | Status | Owner agents (proposed) |
 |---|---|---|---|---|---|
-| 8 Pilot-ready platform | `phase-8-pilot-ready` | | 1 to 8 | todo | platform-infra, rum-api, sdk-browser, sdk-react-native, grafana-plugin, qa |
+| 8a Install and secure | `phase-8a-install-secure` | | 1 to 3 | in-progress | rum-api, sdk-browser, sdk-react-native, platform-infra, helm, grafana-plugin, release, qa |
+| 8b Data lifecycle | `phase-8b-data-lifecycle` | | 4 to 5 | todo | rum-api, sdk-browser, sdk-react-native, platform-infra |
+| 8c Operate | `phase-8c-operate` | | 6 to 7 | todo | platform-infra, rum-api |
+| 8d Pilot kit | `phase-8d-pilot-kit` | | 8 | todo | orchestrator |
 | 9 Release health + public benchmarks | `phase-9-release-health` | | 9 to 13 | todo | rum-api, grafana-plugin, new: benchmarks |
 | 10 Android replay (Expo) | `phase-10-android-replay` | | 14 to 16 | todo | new: android-replay, sdk-react-native |
 | 11 Scale foundation + multi-project | `phase-11-scale` | | 17 to 24 | todo | rum-api, platform-infra, qa |
@@ -13,6 +16,8 @@ Phases from [docs/business/roadmap.md](../docs/business/roadmap.md). One stacked
 | 14 Standalone UI | | | year two | todo | decision after tenth customer |
 
 ## Phase 8 Pilot-ready platform
+
+Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 
 ### 8a Install and secure
 
