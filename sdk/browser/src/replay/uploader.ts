@@ -1,20 +1,20 @@
 import type { ReplayChunk, UploadOptions } from "./chunker";
-import { PROJECT_TOKEN_HEADER, REPLAY_CHUNKS_PATH, trimSlash } from "../ingest";
+import { AUTHORIZATION_HEADER, REPLAY_CHUNKS_PATH, trimSlash } from "../ingest";
 import type { DebugLogger } from "../logger";
 
 export interface UploaderOptions {
-  /** rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`. */
-  endpoint: string;
-  /** Public project token, sent as `X-Ouo-Project-Token` on every upload (ADR-0007). */
-  projectToken: string;
+  /** Replay receiver base URL; chunks go to `${replayEndpoint}/v1/replay/chunks`. */
+  replayEndpoint: string;
+  /** `Authorization` header value (`Basic ...`), sent on every upload including the keepalive unload path (ADR-0007). */
+  authorization: string;
   logger: DebugLogger;
   fetchImpl?: typeof fetch;
 }
 
 export { REPLAY_CHUNKS_PATH };
 
-export function replayChunksUrl(endpoint: string): string {
-  return `${trimSlash(endpoint)}${REPLAY_CHUNKS_PATH}`;
+export function replayChunksUrl(replayEndpoint: string): string {
+  return `${trimSlash(replayEndpoint)}${REPLAY_CHUNKS_PATH}`;
 }
 
 export function canGzip(): boolean {
@@ -36,13 +36,13 @@ function rawFetch(): typeof fetch {
 }
 
 export function createChunkUploader(options: UploaderOptions): (chunk: ReplayChunk, upload: UploadOptions) => Promise<void> {
-  const url = replayChunksUrl(options.endpoint);
+  const url = replayChunksUrl(options.replayEndpoint);
   return async (chunk, upload) => {
     const json = JSON.stringify(chunk);
-    // The token rides on both paths (regular and pagehide keepalive): same function, same headers.
+    // The credential rides on both paths (regular and pagehide keepalive): same function, same headers.
     const headers: Record<string, string> = {
       "content-type": "application/json",
-      [PROJECT_TOKEN_HEADER]: options.projectToken,
+      [AUTHORIZATION_HEADER]: options.authorization,
       "x-ouo-session-id": chunk.session_id,
       "x-ouo-seq": String(chunk.seq),
     };

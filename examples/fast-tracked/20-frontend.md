@@ -30,19 +30,20 @@ The SDK does this on its own once `initRUM` has run:
 - `navigation` records on page load and on `pushState` / `replaceState` / `popstate`
   (React Router goes through `pushState`, nothing router specific is needed).
 - `web_vital` records for TTFB, FCP, LCP, CLS, INP.
-- rrweb replay: a chunk is uploaded every 5 s or at 256 KB, gzip, to rum-api
-  `POST /v1/replay/chunks`; on `pagehide` the rest goes out with `keepalive`. Inputs are
-  masked by default.
-- One host for everything (ADR-0007): spans and log records go to rum-api
-  `POST /ingest/otlp/v1/traces` and `/ingest/otlp/v1/logs`, replay to `/v1/replay/chunks`,
-  every request with the `X-Ouo-Project-Token` header. rum-api checks the token, the page
-  origin, size and rate, stamps `ouo.project.id`, and forwards OTLP to the collector. The
-  browser never talks to the collector.
+- rrweb replay: a chunk is uploaded every 5 s or at 256 KB, gzip, to the collector's
+  replay receiver `POST /v1/replay/chunks` (port 4319); on `pagehide` the rest goes out with
+  `keepalive`. Inputs are masked by default.
+- One edge for everything (ADR-0007): spans and log records go to the OpenTelemetry
+  Collector `POST /v1/traces` and `/v1/logs` (port 4318), replay to its replay receiver
+  (port 4319), every request with `Authorization: Basic base64(projectId:projectToken)`.
+  The collector checks the credential, the page origin (CORS), size and rate, stamps
+  `ouo.project.id`, and forwards to Tempo, Loki and (replay) rum-api. The browser never
+  talks to rum-api.
 
 You still have to do these yourself:
 
-1. Call `initRUM` before React renders with your rum-api URL and your project token
-   (section 3).
+1. Call `initRUM` before React renders with your collector URL, your project id and your
+   project token (section 3).
 2. Tell the SDK the origin of your backend in `tracing.propagateTo`, otherwise
    cross-origin requests get no `traceparent` / `baggage` and your traces end at the browser.
 3. Make your backend's CORS answer allow the `traceparent`, `tracestate` and `baggage`
@@ -117,44 +118,51 @@ npm install -D vite @vitejs/plugin-react typescript @types/react @types/react-do
 Requirements: `@ouo/browser` is ESM only and needs Node `>=24` for the build tooling
 (`engines` in `sdk/browser/package.json`).
 
-## 2. Endpoint, project token and environment
+## 2. Endpoint, project credentials and environment
 
-The SDK needs one URL and one token. Both come from the stack started in `00-stack.md`:
+The SDK needs one URL and one pair of credentials. All three come from the stack started in
+`00-stack.md`:
 
 | Option | Local default | What is behind it |
 |---|---|---|
-| `endpoint` | `http://localhost:8080` | rum-api. The SDK derives `/ingest/otlp/v1/traces`, `/ingest/otlp/v1/logs` and `/v1/replay/chunks` from it. |
-| `projectToken` | `pt_dev_demo_0000000000000000` | The project's public token. rum-api answers `401` without it. |
+| `endpoint` | `http://localhost:4318` | The collector's OTLP/HTTP receiver. The SDK posts to `/v1/traces` and `/v1/logs`. |
+| `replayEndpoint` | derived: `http://localhost:4319` | The collector's replay receiver (`/v1/replay/chunks`). When `endpoint` uses port 4318 the SDK assumes 4319 on the same host; otherwise it uses `endpoint` itself (a proxy such as Caddy routing `/v1/replay/*`, section 7 of the ADR). Set it only when neither applies. |
+| `projectId` | `demo` | The project id, used as the HTTP Basic username. |
+| `projectToken` | `pt_dev_demo_0000000000000000` | The project's public token, the HTTP Basic password. The collector answers `401` without the right pair. |
 
 **The token is a public identifier, not a secret.** It ships in your JavaScript bundle where
 anyone can read it, exactly like every RUM vendor's "public key" or DSN. It only names the
-project that telemetry is written into, under rum-api's origin, size and rate limits
-(ADR-0007). The local stack is provisioned with the development token above
-(`deploy/docker/.env.example`, `OUO_PROJECT_TOKEN`); for anything other than the local stack,
-use the token from your project's configuration. Do not put a rum-api **read** token in the
-browser; that one is secret and only Grafana uses it.
+project that telemetry is written into, under the collector's origin, size and rate limits
+(ADR-0007). A stock OpenTelemetry SDK can use the same credential with
+`OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64(id:token)>`. The local stack is
+provisioned with the development values above (`deploy/docker/.env.example`,
+`OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN`, hashed into the collector's htpasswd file); for
+anything other than the local stack, use the values from your project's configuration. Do not
+put a rum-api **read** token in the browser; that one is secret and only Grafana uses it.
 
-Default host ports are in `deploy/docker/.env.example`: Grafana 3000, rum-api 8080, demo
-backend 8081, Loki 3100, Tempo 3200. The collector's OTLP port (4318) is bound to
-`127.0.0.1` and is not used by the browser any more. If you created `deploy/docker/.env`
-to move ports, use those values instead everywhere below: for the demo app, copy
-`examples/web/.env.example` to `examples/web/.env` (gitignored) and change `VITE_RUM_API`
-and `VITE_BACKEND_URL`.
+Default host ports are in `deploy/docker/.env.example`: Grafana 3000, collector 4318 (OTLP)
+and 4319 (replay), demo backend 8081, Loki 3100, Tempo 3200. rum-api is internal: nothing in
+the browser needs its port. If you created `deploy/docker/.env` to move ports, use those
+values instead everywhere below: for the demo app, copy `examples/web/.env.example` to
+`examples/web/.env` (gitignored) and change `VITE_OTLP_ENDPOINT` and `VITE_BACKEND_URL`.
 
-CORS is handled by rum-api per project: the development project allows
-`http://localhost:*` and `http://127.0.0.1:*`, and rum-api's preflight answer lists
-`X-Ouo-Project-Token`, `Content-Type`, `Content-Encoding`, `traceparent`, `baggage` and the
-replay headers (ADR-0007 section 5). So Vite on 5173, 5174, 3001 or any other `localhost`
-port works without touching the stack. A `403` from rum-api means your page's origin is not
-in the project's `allowed_origins`.
+CORS is handled by the collector (both receivers share the `confighttp` settings): the local
+config allows `http://localhost:*` and `http://127.0.0.1:*`, and its preflight answer lists
+`Authorization`, `Content-Type`, `Content-Encoding`, `traceparent`, `baggage` and the replay
+headers (ADR-0007 section 4). So Vite on 5173, 5174, 3001 or any other `localhost` port works
+without touching the stack. A CORS error in the console with no `POST` following the
+`OPTIONS` means your page's origin is not in the collector's `allowed_origins` (or
+`Authorization` is missing from its allowed headers); a `401` on the `POST` means the id or
+token is wrong.
 
-The demo reads its endpoint and token from Vite env variables. Copy this to `.env` in your
-app (ref: `examples/web/.env.example`, adjusted to the stock ports):
+The demo reads its endpoint and credentials from Vite env variables. Copy this to `.env` in
+your app (ref: `examples/web/.env.example`, adjusted to the stock ports):
 
 ```bash
-# rum-api base URL. The SDK derives /ingest/otlp/v1/{traces,logs} and /v1/replay/chunks.
-VITE_RUM_API=http://localhost:8080
-# Public project token (X-Ouo-Project-Token). Development token of the local stack.
+# Collector OTLP/HTTP base URL. The SDK posts to /v1/{traces,logs} and derives :4319/v1/replay/chunks.
+VITE_OTLP_ENDPOINT=http://localhost:4318
+# HTTP Basic project credentials (Authorization: Basic base64(id:token)). Development values of the local stack.
+VITE_OUO_PROJECT_ID=demo
 VITE_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000
 # Your backend. tracing.propagateTo is derived from it.
 VITE_BACKEND_URL=http://localhost:8081
@@ -186,9 +194,12 @@ export const USER_STORAGE_KEY = "ouo.demo.user_id";
 const env = import.meta.env;
 
 export const config = {
-  // rum-api is the only host the SDK talks to (ADR-0007): OTLP via /ingest/otlp, replay via /v1/replay/chunks.
-  rumApi: env.VITE_RUM_API ?? "http://localhost:8080",
-  // Public project identifier, not a secret. The development token every local stack component agrees on.
+  // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
+  // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
+  otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
+  // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
+  // names the project. These are the development values the local stack is provisioned with.
+  projectId: env.VITE_OUO_PROJECT_ID ?? "demo",
   projectToken: env.VITE_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
   backendUrl: env.VITE_BACKEND_URL ?? "http://localhost:8081",
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
@@ -211,7 +222,8 @@ function escapeRegExp(s: string): string {
 const initialUser = storedUserId();
 
 export const rum: RUM = initRUM({
-  endpoint: config.rumApi,
+  endpoint: config.otlpEndpoint,
+  projectId: config.projectId,
   projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
@@ -257,10 +269,10 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 
 `initRUM` must be called once. A second call logs a warning and returns the first
 instance, so React StrictMode double-rendering and Vite HMR are safe. A missing or empty
-`projectToken` throws
-`[ouo] initRUM: \`projectToken\` is required ...` before anything is installed, so a
-misconfigured build fails on the first page load instead of posting telemetry that rum-api
-rejects with `401`.
+`projectId` or `projectToken` throws
+`[ouo] initRUM: \`projectId\` is required ...` (or `projectToken`) before anything is
+installed, so a misconfigured build fails on the first page load instead of posting telemetry
+that the collector rejects with `401`.
 
 ### The options, one by one
 
@@ -269,9 +281,10 @@ Names, defaults and meanings are taken from `sdk/browser/src/types.ts` and
 
 | Option | Default | What it does |
 |---|---|---|
-| `endpoint` | required | rum-api base. Spans go to `<endpoint>/ingest/otlp/v1/traces`, log records to `<endpoint>/ingest/otlp/v1/logs`, batched (logs every 1 s, spans every 2 s, 64 per batch) and force-flushed when the tab is hidden or unloaded. Replay chunks go to `<endpoint>/v1/replay/chunks`. |
-| `projectToken` | required | Public project identifier, sent as `X-Ouo-Project-Token` on every request above. Throws at init when missing or empty. |
-| `otlpEndpoint` | none | Escape hatch for a trusted in-network app: send OTLP to `<otlpEndpoint>/v1/traces` and `/v1/logs` (for example a collector) instead of through rum-api. The token header is still sent; replay stays on `endpoint`. You do not need this for the local stack. |
+| `endpoint` | required | Collector OTLP/HTTP base. Spans go to `<endpoint>/v1/traces`, log records to `<endpoint>/v1/logs`, batched (logs every 1 s, spans every 2 s, 64 per batch) and force-flushed when the tab is hidden or unloaded. |
+| `replayEndpoint` | derived | Replay receiver base; chunks go to `<replayEndpoint>/v1/replay/chunks`. Default: `endpoint` with port 4319 when `endpoint` uses port 4318, otherwise `endpoint` itself. You do not need to set it for the local stack. |
+| `projectId` | required | Project id, the Basic auth username. Throws at init when missing, empty or containing `:`. |
+| `projectToken` | required | Public project token, the Basic auth password. Sent with the id as `Authorization: Basic ...` on every request above. Throws at init when missing or empty. |
 | `service.name` | required | `service.name` resource attribute. This is the `service=` filter in rum-api and the `service_name` label in Loki. |
 | `service.version` | required | `service.version`, also copied onto every span and log record. Health percentages are grouped by it. |
 | `service.environment` | required | `deployment.environment.name`. |
@@ -357,22 +370,31 @@ SID=paste-your-session-id-here
 ```
 
 What you should see in the browser before touching the stack: with `VITE_RUM_DEBUG=1` the
-console shows `[ouo] @ouo/browser@0.2.0 initialised` with `endpoint`, the derived `traces`,
-`logs` and `replay` URLs, `otlpBypass: false`, session and user (the token is never
-logged). The network tab shows `POST http://localhost:8080/ingest/otlp/v1/logs` and
-`POST http://localhost:8080/ingest/otlp/v1/traces` (status 200, request header
-`X-Ouo-Project-Token`) and `POST http://localhost:8080/v1/replay/chunks` (status 202,
-`content-encoding: gzip`, headers `X-Ouo-Project-Token`, `x-ouo-session-id` and
-`x-ouo-seq` counting up from 0). Each one is preceded by an `OPTIONS` preflight the first
-time, then cached. If you see `401`, the token in `.env` does not match rum-api's project
-config; `403` means your origin is not in the project's `allowed_origins`.
+console shows `[ouo] @ouo/browser@0.2.0 initialised` with `endpoint`, `replayEndpoint`, the
+derived `traces`, `logs` and `replay` URLs, `projectId`, session and user (the token is never
+logged). The network tab shows `POST http://localhost:4318/v1/logs` and
+`POST http://localhost:4318/v1/traces` (status 200, request header
+`Authorization: Basic ...`) and `POST http://localhost:4319/v1/replay/chunks` (status 202,
+`content-encoding: gzip`, headers `Authorization`, `x-ouo-session-id` and `x-ouo-seq`
+counting up from 0). Each one is preceded by an `OPTIONS` preflight the first time, then
+cached. If you see `401`, the id or token in `.env` does not match the collector's htpasswd;
+a CORS error with no `POST` means your origin is not in the collector's `allowed_origins`.
 
 ### rum-api
+
+rum-api is internal (ADR-0007): the browser never calls it, and its read API is locked with
+the stack's read token (`OUO_READ_TOKEN`, `rt_dev_0000000000000000` on the local stack; the
+Grafana plugin injects it server side). On the local Docker stack it is still reachable from
+this host on port 8080 for the checks below. Export the read token once:
+
+```bash
+RT='Authorization: Bearer rt_dev_0000000000000000'
+```
 
 Sessions started in the last hour:
 
 ```bash
-curl -s 'http://localhost:8080/v1/sessions?from=now-1h' | jq '.sessions[] | {session_id, user_id, status, state, event_count, trace_count, has_replay}'
+curl -s -H "$RT" 'http://localhost:8080/v1/sessions?from=now-1h' | jq '.sessions[] | {session_id, user_id, status, state, event_count, trace_count, has_replay}'
 ```
 
 What you should see: one record for your session with `platform: "web"`, your
@@ -382,7 +404,7 @@ What you should see: one record for your session with `platform: "web"`, your
 One session with its timeline and traces:
 
 ```bash
-curl -s "http://localhost:8080/v1/sessions/$SID" | jq '.timeline[] | {ts, type, name}'
+curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID" | jq '.timeline[] | {ts, type, name}'
 ```
 
 What you should see: `session.start`, `navigation` (kind `load`), `web_vital` lines (TTFB
@@ -390,7 +412,7 @@ at least; FCP, LCP, CLS, INP arrive as the page is used), `navigation` (kind `pu
 product page, and your custom event (`add_to_cart` in the demo, `type: "custom"`).
 
 ```bash
-curl -s "http://localhost:8080/v1/sessions/$SID" | jq '.traces[] | {trace_id, root_name, root_service, span_count, has_error}'
+curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID" | jq '.traces[] | {trace_id, root_name, root_service, span_count, has_error}'
 ```
 
 What you should see: one trace per `fetch` (`GET`, `POST`) with `root_service` equal to
@@ -399,11 +421,11 @@ your `service.name` and `span_count` greater than 1 when the backend joined the 
 The replay meta and its events:
 
 ```bash
-curl -s "http://localhost:8080/v1/sessions/$SID/replay" | jq '{kind, chunk_count, first_seq, last_seq, bytes}'
+curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID/replay" | jq '{kind, chunk_count, first_seq, last_seq, bytes}'
 ```
 
 ```bash
-curl -s --compressed "http://localhost:8080/v1/sessions/$SID/replay/events" | head -c 300
+curl -s -H "$RT" --compressed "http://localhost:8080/v1/sessions/$SID/replay/events" | head -c 300
 ```
 
 What you should see: `kind: "rrweb"`, `chunk_count` of at least 1 and growing every 5 s
@@ -506,15 +528,16 @@ Read in this order.
 
 Where to look when you want to know what a signal contains.
 
-- `index.ts`: the public entry. `initRUM` validates the token and derives the ingest
+- `index.ts`: the public entry. `initRUM` validates the credentials and derives the ingest
   URLs, wires the OTel `LoggerProvider` and `WebTracerProvider` with OTLP/HTTP JSON
-  exporters (with the `X-Ouo-Project-Token` header), starts the session, registers the
+  exporters (with the `Authorization: Basic` header), starts the session, registers the
   fetch / XHR / document-load instrumentations, installs error capture, navigation and
   Web Vitals, starts the replay recorder, and flushes on `visibilitychange: hidden` and
   `pagehide`. Returns the `RUM` object.
-- `ingest.ts`: `deriveIngestUrls` (rum-api base to `/ingest/otlp/v1/{traces,logs}` and
-  `/v1/replay/chunks`, or the `otlpEndpoint` escape hatch), the token validation and the
-  `PROJECT_TOKEN_HEADER` constant. Pure, exported, unit-tested in `test/ingest.test.ts`.
+- `ingest.ts`: `deriveIngestUrls` (collector base to `/v1/{traces,logs}`, replay base
+  derived 4318 to 4319 or explicit, `/v1/replay/chunks`), `basicAuthorization` (UTF-8 safe
+  base64 of `id:token`) and the credential validation. Pure, exported, unit-tested in
+  `test/ingest.test.ts`.
 - `types.ts`: every option and the `RUM` interface, with defaults in the doc comments.
 - `session/manager.ts` (with `storage.ts`, `clock.ts`, `ids.ts`): the session state
   machine. Persists `ouo.session` and `ouo.user`, resumes or rotates on init, inactivity
@@ -542,7 +565,7 @@ Where to look when you want to know what a signal contains.
 - `replay/chunker.ts`: buffers rrweb events, cuts a chunk every 5 s or at 256 KB,
   sequential upload queue with 3 retries and a 2 MB cap.
 - `replay/uploader.ts`: gzip with `CompressionStream`, `POST /v1/replay/chunks` with
-  `X-Ouo-Project-Token`, `x-ouo-session-id` / `x-ouo-seq`, `keepalive` on unload (same
+  `Authorization: Basic`, `x-ouo-session-id` / `x-ouo-seq`, `keepalive` on unload (same
   headers on both paths).
 - `logger.ts`, `version.ts`: the `[ouo]` debug logger and the SDK version string.
 
