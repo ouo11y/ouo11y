@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/ingest"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
@@ -33,30 +34,28 @@ type TraceSource interface {
 // Options tune the handlers.
 type Options struct {
 	SessionOptions     session.Options
-	ListLookback       time.Duration   // extra Loki lookback before `from` so sessions started earlier still fold completely
-	DetailLookback     time.Duration   // how far back a single-session lookup searches
-	MaxChunkBytes      int64           // rrweb chunks (decompressed); default 4 MiB
-	MaxFrameChunkBytes int64           // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
-	Gateway            *ingest.Gateway // ADR-0007 ingest gateway: OTLP routes, token / origin / rate checks on replay uploads (required)
-	ReadToken          string          // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
-	CORSAllowedOrigins []string        // deprecated CORS_ALLOWED_ORIGINS: extra exact origins for the read side
+	ListLookback       time.Duration // extra Loki lookback before `from` so sessions started earlier still fold completely
+	DetailLookback     time.Duration // how far back a single-session lookup searches
+	MaxChunkBytes      int64         // rrweb chunks (decompressed); default 4 MiB
+	MaxFrameChunkBytes int64         // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
+	IngestToken        string        // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken          string        // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	CORSAllowedOrigins []string      // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
+	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
 
 // Server holds the dependencies of the handlers.
 type Server struct {
-	events EventSource
-	traces TraceSource
-	store  replay.Store
-	opts   Options
+	events  EventSource
+	traces  TraceSource
+	store   replay.Store
+	opts    Options
+	metrics replayMetrics
 }
 
 // New wires the handlers onto a ServeMux and returns the root handler.
-// opts.Gateway is required (there is no "auth off" mode).
 func New(events EventSource, traces TraceSource, store replay.Store, opts Options) *Server {
-	if opts.Gateway == nil {
-		panic("httpapi: Options.Gateway is required")
-	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -73,7 +72,7 @@ func New(events EventSource, traces TraceSource, store replay.Store, opts Option
 		opts.MaxFrameChunkBytes = 8 << 20
 	}
 	opts.MaxFrameChunkBytes = max(opts.MaxFrameChunkBytes, opts.MaxChunkBytes)
-	return &Server{events: events, traces: traces, store: store, opts: opts}
+	return &Server{events: events, traces: traces, store: store, opts: opts, metrics: newReplayMetrics(opts.MeterProvider)}
 }
 
 // Handler returns the routed handler with CORS and the read token applied.
@@ -81,9 +80,6 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
-	for _, signal := range []string{ingest.SignalTraces, ingest.SignalLogs, ingest.SignalMetrics} {
-		mux.Handle("POST /ingest/otlp/v1/"+signal, s.opts.Gateway.Handler(signal))
-	}
 	mux.HandleFunc("POST /v1/replay/chunks", s.postChunk)
 	mux.HandleFunc("GET /v1/sessions", s.listSessions)
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
@@ -96,7 +92,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})
-	return cors(s.opts.Gateway.Registry(), s.opts.CORSAllowedOrigins, readAuth(s.opts.ReadToken, mux))
+	return cors(s.opts.CORSAllowedOrigins, readAuth(s.opts.ReadToken, mux))
 }
 
 // bearerMatches compares `Authorization: Bearer <token>` in constant time.

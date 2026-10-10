@@ -5,26 +5,28 @@ Collector into **session records**, stores **replay chunks** (rrweb events from 
 SDK, JPEG frames from the iOS SDK), and exposes the JSON API used by the Grafana app
 plugin (`plugins/ouo-rum-app`).
 
-Since Phase 8a (ADR-0007) it is also the **ingest gateway**: the only endpoint untrusted
-clients talk to. SDKs post OTLP to `/ingest/otlp/v1/{traces,logs,metrics}` with a public
-project token; rum-api checks size, token, Origin and rate limits, stamps the resource
-attribute `ouo.project.id` and forwards protobuf to the collector.
+rum-api is **internal** (ADR-0007 5). It is never exposed to the internet: the only
+public services are the `ouo-collector` and Grafana. Replay chunks reach it from the
+collector's `ouoreplay` exporter, which has already authenticated the project (Basic
+project token at the collector) and stamps the project id on the request; session and
+replay reads come from Grafana's server-side plugin proxy with the read token.
 
 ```
-browser / mobile SDK --POST /ingest/otlp/v1/{traces,logs,metrics} + X-Ouo-Project-Token--> rum-api --OTLP protobuf--> otel-collector
-browser SDK --POST /v1/replay/chunks (rrweb) + token---> rum-api --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz
-iOS SDK     --POST /v1/replay/chunks (frames) + token--> rum-api --> same layout, meta.json kind=frames, project_id
-Grafana plugin --GET /v1/... + Authorization: Bearer <read token>--> rum-api --> Loki (session events, LogQL)
-                                                                           --> Tempo (traces per session, TraceQL)
-                                                                           --> replay store
-rum-api --OTLP/HTTP--> otel-collector (service.name=rum-api; own traces, logs, ingest metrics)
+browser / mobile SDK --OTLP + replay chunks, Basic <project id>:<token>--> ouo-collector (public)
+ouo-collector --OTLP--> Loki / Tempo / Mimir
+ouo-collector --POST /v1/replay/chunks + X-Ouo-Project-Id [+ Bearer OUO_INGEST_TOKEN]--> rum-api (internal)
+                                                                                           --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz, meta.json (kind, project_id)
+Grafana plugin proxy --GET /v1/... + Authorization: Bearer <OUO_READ_TOKEN>--> rum-api --> Loki (session events, LogQL)
+                                                                                      --> Tempo (traces per session, TraceQL)
+                                                                                      --> replay store
+rum-api --OTLP/HTTP--> ouo-collector (service.name=rum-api; own traces, logs, replay metrics)
 ```
 
-Design references: `docs/adr/0007-ingest-gateway-project-tokens.md` (ingest gateway,
-project tokens, read token), `docs/specs/session-lifecycle.md` (server-side record, end
-inference), ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed), ADR-0006 and
-`docs/specs/mobile-replay.md` (frame chunks), `kb/ingest-gateway.md`,
-`kb/loki-session-queries.md`, `kb/tempo-session-search.md`.
+Design references: `docs/adr/0007-ingest-gateway-project-tokens.md` (the collector is the
+edge, replay sink contract, read token), `docs/specs/session-lifecycle.md` (server-side
+record, end inference), ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed),
+ADR-0006 and `docs/specs/mobile-replay.md` (frame chunks), `kb/ingest-gateway.md` (sink
+contract notes), `kb/loki-session-queries.md`, `kb/tempo-session-search.md`.
 
 ## Run
 
@@ -34,15 +36,13 @@ docker compose -f deploy/docker/compose.yaml up -d --build rum-api   # from the 
 curl localhost:8080/readyz
 ```
 
-Local binary against a running stack (ports from `deploy/docker/.env`). A project is
-required; there is no "auth off" mode:
+Local binary against a running stack (ports from `deploy/docker/.env`). No project
+configuration is needed; both tokens are optional and default to off:
 
 ```bash
 OTEL_SDK_DISABLED=true LOKI_URL=http://localhost:3100 TEMPO_URL=http://localhost:3200 \
-OUO_COLLECTOR_OTLP_ENDPOINT=http://localhost:4318 GRAFANA_URL=http://localhost:3000 \
-OUO_PROJECT_ID=demo OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 \
-OUO_ALLOWED_ORIGINS='http://localhost:*,http://127.0.0.1:*' OUO_READ_TOKEN=rt_dev_0000000000000000 \
-DATA_DIR=./data go run .
+GRAFANA_URL=http://localhost:3000 OUO_INGEST_TOKEN=it_dev_0000000000000000 \
+OUO_READ_TOKEN=rt_dev_0000000000000000 DATA_DIR=./data go run .
 ```
 
 ## Configuration (environment)
@@ -55,18 +55,9 @@ DATA_DIR=./data go run .
 | `GRAFANA_URL` | `http://localhost:3000` | browser-facing Grafana URL used in trace deep links |
 | `GRAFANA_TEMPO_DATASOURCE_UID` | `tempo` | datasource uid in the deep links |
 | `DATA_DIR` | `/data` | replay chunks live in `$DATA_DIR/replays` |
-| `OUO_PROJECTS_FILE` | | YAML project registry (format below). When set, the `OUO_PROJECT_*` variables are ignored |
-| `OUO_PROJECT_ID` | `default` | id of the single fallback project (becomes `ouo.project.id`) |
-| `OUO_PROJECT_TOKEN` | | token of the fallback project; **required** when `OUO_PROJECTS_FILE` is unset (startup fails otherwise) |
-| `OUO_ALLOWED_ORIGINS` | | comma separated origin patterns of the fallback project (`scheme://host[:port]`, `*` may replace the leading host label or the port, e.g. `http://localhost:*,https://*.preview.example.com`) |
-| `OUO_READ_TOKEN` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and ingest are unaffected |
-| `OUO_MAX_INGEST_BYTES` | `4194304` | max OTLP ingest body (wire and decompressed), unless the project sets `max_body_bytes` |
-| `OUO_RATE_LIMIT_RPS` / `OUO_RATE_LIMIT_BURST` | `1000` / `5000` | per-project token bucket for ingest + replay uploads, unless the project sets `rate_limit`; `0` disables |
-| `OUO_IP_RATE_LIMIT_RPS` / `OUO_IP_RATE_LIMIT_BURST` | `100` / `300` | per-client-IP token bucket (all projects); `0` disables |
-| `OUO_TRUST_PROXY` | `false` | `true`: the client IP is the last `X-Forwarded-For` hop instead of the connection peer. Set only behind a proxy that overwrites that header |
-| `OUO_COLLECTOR_OTLP_ENDPOINT` | `http://otel-collector:4318` | where validated OTLP is forwarded (`/v1/<signal>` is appended) |
-| `OUO_COLLECTOR_TIMEOUT` | `10s` | timeout of one forward; expiry or connection failure is `502` |
-| `CORS_ALLOWED_ORIGINS` | | **deprecated** (pre 8a): extra exact origins for the read-side API. Put origins on the project instead; the old implicit `http://localhost:*` / `http://127.0.0.1:*` allowance is gone |
+| `OUO_INGEST_TOKEN` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
+| `OUO_READ_TOKEN` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
+| `CORS_ALLOWED_ORIGINS` | | comma separated exact origins allowed besides the implicit `http://localhost:*` and `http://127.0.0.1:*` (local tooling only; browsers never talk to rum-api in a deployment) |
 | `SESSION_INACTIVITY` | `30m` | a session with no signal for this long is `ended` (`end_reason: inactivity`) |
 | `SESSION_MAX_DURATION` | `4h` | sessions that lasted at least this long end with `max_duration`; also the Loki lookback before `from` |
 | `SESSION_DETAIL_LOOKBACK` | `168h` | how far back `GET /v1/sessions/{id}` searches when `from` is not given |
@@ -76,72 +67,25 @@ DATA_DIR=./data go run .
 | `MAX_FRAME_CHUNK_BYTES` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | OTel defaults | own telemetry; `OTEL_SDK_DISABLED=true` turns it off |
 
-### Projects file (`OUO_PROJECTS_FILE`)
-
-```yaml
-projects:
-  - id: web-store            # becomes resource attribute ouo.project.id
-    name: Web store
-    tokens: [pt_live_9f3c..., pt_prev_...]           # several tokens = rotation
-    allowed_origins: ["https://shop.example.com", "https://*.preview.example.com", "http://localhost:*"]
-    rate_limit: { requests_per_second: 500, burst: 2000 }   # optional, overrides OUO_RATE_LIMIT_*
-    max_body_bytes: 4194304                                   # optional, overrides OUO_MAX_INGEST_BYTES
-```
-
-Unknown keys, duplicate ids or tokens, negative limits and malformed origin patterns are
-startup errors. `name` defaults to `id`. A project without `allowed_origins` accepts only
-requests that carry no `Origin` header (mobile, server-side).
-
 ## API
 
-All endpoints are JSON unless noted. Errors are `{"error": "..."}` with 400 (bad input),
-401 (missing / unknown project token, missing read token), 403 (Origin not allowed for the
-project, replay of another project), 404, 409 (replay kind conflict), 413 (too large), 429
-(rate limited, with `Retry-After` seconds), 502 (collector / Loki / Tempo failed).
+All endpoints are JSON unless noted. Errors are `{"error": "..."}` with 400 (bad input,
+missing or invalid `X-Ouo-Project-Id`), 401 (missing ingest token on the sink, missing read
+token on reads), 403 (replay recorded under another project id), 404, 409 (replay kind
+conflict), 413 (too large), 415 (unsupported `Content-Encoding`), 502 (Loki / Tempo failed).
 
-**CORS** is per project (ADR-0007 5): a request or preflight from an `Origin` is answered
-when any configured project's `allowed_origins` matches it (or it is one of the deprecated
-exact `CORS_ALLOWED_ORIGINS`). Methods `GET, POST, DELETE, OPTIONS`; headers
-`X-Ouo-Project-Token, Content-Type, Content-Encoding, traceparent, baggage, Authorization,
-X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding`; `Retry-After` and
-`X-Ouo-Replay-Kind` are exposed. A preflight from a disallowed origin is `403`.
+**CORS**: the `Origin` is reflected when it is `http://localhost[:port]`,
+`http://127.0.0.1[:port]` or one of `CORS_ALLOWED_ORIGINS` (exact match); any other origin
+gets no CORS headers and the request is handled normally. Methods `GET, POST, DELETE,
+OPTIONS`; headers `Authorization, Content-Type, Content-Encoding, X-Ouo-Project-Id,
+X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding`; `X-Ouo-Replay-Kind` is exposed.
+Preflights are answered with 204 before authentication.
 
-**Authentication**: ingest routes (`/ingest/otlp/v1/*`, `POST /v1/replay/chunks`) need
-`X-Ouo-Project-Token: <token>`; read routes (`GET` / `DELETE /v1/*`) need
-`Authorization: Bearer <OUO_READ_TOKEN>` when that variable is set.
-
-### Ingest (OTLP/HTTP)
-
-`POST /ingest/otlp/v1/traces | logs | metrics` accept an OTLP `Export*ServiceRequest` as
-`application/x-protobuf` or `application/json` (OTLP/JSON: hex `traceId` / `spanId`,
-64-bit integers as strings or numbers), optionally `Content-Encoding: gzip`. A stock
-OpenTelemetry SDK works with `OTEL_EXPORTER_OTLP_ENDPOINT=https://rum.example.com/ingest/otlp`
-and `OTEL_EXPORTER_OTLP_HEADERS=X-Ouo-Project-Token=<token>`.
-
-Checks run in this order and stop at the first failure (each rejection is counted in
-`ouo.ingest.requests` with its `reason`):
-
-1. body size (`Content-Length`, then the actual wire and decompressed size) against the
-   project's `max_body_bytes` or `OUO_MAX_INGEST_BYTES`: **413** (`size`)
-2. token present and known: **401** (`token`)
-3. `Origin`, when present, matches the project's patterns: **403** (`origin`); no `Origin`
-   passes
-4. per-project then per-client-IP token bucket: **429** + `Retry-After` (`rate`)
-5. the body decodes as the route's message; unsupported content type / encoding, bad gzip,
-   malformed JSON or protobuf: **400** (`decode`). Unknown fields are ignored
-6. `ouo.project.id` is set on every resource (created when the client sent none),
-   overwriting whatever the client sent
-7. the request is re-encoded as protobuf and posted to
-   `OUO_COLLECTOR_OTLP_ENDPOINT/v1/<signal>` within `OUO_COLLECTOR_TIMEOUT`. The collector's
-   status, `Retry-After` and body are passed back (the body is transcoded to JSON for JSON
-   clients: `{"partialSuccess":{}}` on success, a `google.rpc.Status` otherwise). Connection
-   failure or timeout: **502** (`collector`).
-
-Metrics (exported through rum-api's own OTel pipeline, `service.name=rum-api`):
-`ouo.ingest.requests` (`ouo.project.id`, `signal` = traces|logs|metrics|replay,
-`outcome` = ok|rejected|error, `reason` = size|token|origin|rate|decode|collector on
-rejections and errors), `ouo.ingest.bytes` (decompressed bytes accepted, `ouo.project.id`,
-`signal`), `ouo.replay.chunks` and `ouo.replay.bytes` (`ouo.project.id`).
+**Authentication**: the replay sink (`POST /v1/replay/chunks`) needs `Authorization: Bearer
+<OUO_INGEST_TOKEN>` when that variable is set; read routes (`GET` / `DELETE /v1/*`) need
+`Authorization: Bearer <OUO_READ_TOKEN>` when that one is set. The two tokens are
+independent: the ingest token does not read, the read token does not write. Both are
+compared in constant time; the scheme is case-insensitive.
 
 Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or relative
 `now`, `now-30m`, `now-1h`, `now-7d`. Defaults: `from=now-1h`, `to=now`.
@@ -152,19 +96,34 @@ Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or 
 - `GET /readyz` -> `{"ready":true,"checks":{"loki":"ok","tempo":"ok"}}` (503 when a
   backend is unreachable)
 
-### Replay
+### Replay sink (collector -> rum-api)
+
+`POST /v1/replay/chunks` is the sink for the collector's `ouoreplay` exporter (ADR-0007
+5). It is not meant for SDKs: they post to the collector's replay receiver on port 4319
+with the project credential, and the exporter forwards each chunk here.
+
+Request:
+
+| Header | Required | Meaning |
+|---|---|---|
+| `Authorization: Bearer <OUO_INGEST_TOKEN>` | when `OUO_INGEST_TOKEN` is set | shared secret; **401** + `WWW-Authenticate: Bearer` otherwise |
+| `X-Ouo-Project-Id` | yes | the project the collector authenticated; must match `^[a-z0-9][a-z0-9._-]{0,63}$` (surrounding spaces are trimmed). Missing or invalid: **400**, nothing is read or stored |
+| `Content-Type: application/json` | | the chunk envelope (below) |
+| `Content-Encoding: gzip` | no | body is gzip; `identity` or absent means plain JSON; anything else **415** |
+| `X-Ouo-Session-Id`, `X-Ouo-Seq` | no | informational copies of the body fields; a mismatch is logged as a warning, the body wins |
+
+Checks run in this order and stop at the first failure: `Content-Length` above the frames
+limit (**413**), ingest token (**401**), project id (**400**), body read and decompression
+(**413** when the wire or the decompressed size exceeds the limit, **400** on bad gzip),
+then the chunk rules below. The project id is recorded as `project_id` in `meta.json` and
+returned in the response; a chunk with a different project id for an existing session is
+**403** and nothing is written (replays stored before Phase 8a have no `project_id` and
+adopt the first project that writes to them).
 
 A session has one replay of one **kind**: `rrweb` (web SDK, ADR-0003) or `frames` (iOS SDK,
-ADR-0006 / `docs/specs/mobile-replay.md`). Both kinds share the upload endpoint and the
-storage layout; `meta.json` records the kind of the first chunk and a chunk of the other
-kind is rejected with 409.
-
-`POST /v1/replay/chunks` accepts one SDK chunk after the same token, Origin and rate checks
-as the OTLP routes (size is checked against the chunk limits below; `413` / `401` / `403` /
-`429`). The project of the token is recorded as `project_id` in `meta.json`; a chunk from
-another project for an existing session is `403` and nothing is written (replays stored
-before 8a have no `project_id` and adopt the first project that writes to them). Body is
-gzip when `Content-Encoding: gzip`, plain JSON otherwise. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is
+ADR-0006 / `docs/specs/mobile-replay.md`). Both kinds share the sink and the storage
+layout; `meta.json` records the kind of the first chunk and a chunk of the other kind is
+rejected with 409. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is
 `0..999999`. Re-posting a `seq` replaces that chunk.
 
 - rrweb (no `kind`, or `kind: "rrweb"`): `{session_id, seq, started_at, ended_at, events: [...]}`,
@@ -182,7 +141,7 @@ Timestamps are epoch milliseconds. The body is read up to the frames limit; a bo
 the rrweb limit is accepted only when its `kind` is `frames`. Response `202`:
 
 ```json
-{"accepted":true,"session_id":"<id>","kind":"frames","seq":1,"events":0,"frames":2,"touches":3,"bytes":5823}
+{"accepted":true,"project_id":"web-store","session_id":"<id>","kind":"frames","seq":1,"events":0,"frames":2,"touches":3,"bytes":5823}
 ```
 
 (`events` counts rrweb events, `frames` / `touches` count frame-chunk items; the other
@@ -192,13 +151,20 @@ when the session already has a replay of the other kind; nothing is written.
 On disk (always gzip): `<DATA_DIR>/replays/<session_id>/000003.json.gz` plus
 `meta.json`, both written atomically (temp file + rename, one mutex per session).
 
+Metrics (exported through rum-api's own OTel pipeline, `service.name=rum-api`):
+`ouo.replay.chunks` (`{chunk}`) and `ouo.replay.bytes` (`By`, decompressed), both with the
+attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
+`otelcol_receiver_*` and `ouo_replay_chunks_total` cover the edge.
+
+### Replay reads
+
 - `GET /v1/sessions/{id}/replay` -> the meta. `kind` is always present (`meta.json` files
   written before frames existed read as `rrweb`); `project_id` since 8a (absent on older
   replays); `viewport` and `platform` only for frames; `frame_count` / `touch_count` are
   totals (0 for rrweb):
 
 ```json
-{"session_id":"<id>","project_id":"demo","kind":"frames","chunk_count":2,"first_seq":0,"last_seq":1,
+{"session_id":"<id>","project_id":"web-store","kind":"frames","chunk_count":2,"first_seq":0,"last_seq":1,
  "started_at":1791471538578,"ended_at":1791471548578,"bytes":1796,"frame_count":5,"touch_count":5,
  "viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","updated_at":"2026-10-08T15:00:08Z",
  "chunks":[{"seq":0,"started_at":1791471538578,"ended_at":1791471543578,"bytes":918,"event_count":0,"frame_count":3,"touch_count":2}, ...]}
@@ -309,36 +275,26 @@ Buckets are sorted by platform, service, version; percentages are rounded to two
 
 ## curl examples
 
-Development values (`deploy/docker/.env.example`): token `pt_dev_demo_0000000000000000`,
-read token `rt_dev_0000000000000000`.
+Development values (`deploy/docker/.env.example`): ingest token `it_dev_0000000000000000`,
+read token `rt_dev_0000000000000000`. The sink calls below imitate the collector's
+exporter; in a deployment only the collector reaches this port.
 
 ```bash
-T='X-Ouo-Project-Token: pt_dev_demo_0000000000000000'
+I='Authorization: Bearer it_dev_0000000000000000'
+P='X-Ouo-Project-Id: demo'
 R='Authorization: Bearer rt_dev_0000000000000000'
 
-# send an OTLP/JSON trace through the gateway (hex ids as the JS SDK writes them;
-# ouo.project.id is overwritten with the token's project)
-NOW=$(python3 -c 'import time;print(int(time.time()*1e9))')
-curl -i -X POST localhost:8080/ingest/otlp/v1/traces -H "$T" -H 'content-type: application/json' \
-  -H 'origin: http://localhost:5173' -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"web-store"}}]},
-  "scopeSpans":[{"scope":{"name":"curl"},"spans":[{"traceId":"10398504df131ef48188906b1d611cc8","spanId":"8188906b1d611cc8",
-  "name":"GET /","kind":3,"startTimeUnixNano":"'$NOW'","endTimeUnixNano":"'$((NOW+5000000))'",
-  "attributes":[{"key":"session.id","value":{"stringValue":"demo-1"}}],"status":{"code":1}}]}]}]}'
-# -> 200 {"partialSuccess":{}}; 401 without -H "$T"; 403 with an origin the project does not list
-# same, protobuf + gzip (what the SDKs send)
-gzip -c trace.pb | curl -i -X POST localhost:8080/ingest/otlp/v1/traces -H "$T" -H 'content-type: application/x-protobuf' -H 'content-encoding: gzip' --data-binary @-
-# find it in Tempo with the stamped attribute
-curl -G localhost:3200/api/search --data-urlencode 'q={ resource.ouo.project.id = "demo" && span.session.id = "demo-1" }'
-
-# upload a plain chunk
-curl -i -X POST localhost:8080/v1/replay/chunks -H "$T" -H 'content-type: application/json' \
+# store a plain chunk as the collector would
+curl -i -X POST localhost:8080/v1/replay/chunks -H "$I" -H "$P" -H 'content-type: application/json' \
   -d '{"session_id":"demo-1","seq":0,"started_at":1000,"ended_at":2000,"events":[{"type":4,"data":{"href":"http://x"},"timestamp":1000},{"type":2,"data":{},"timestamp":1001}]}'
-# upload a gzip chunk
-gzip -c chunk.json | curl -i -X POST localhost:8080/v1/replay/chunks -H "$T" -H 'content-type: application/json' -H 'content-encoding: gzip' --data-binary @-
+# -> 202 {"accepted":true,"project_id":"demo",...}; 401 without -H "$I" when OUO_INGEST_TOKEN is set; 400 without -H "$P"
+# gzip chunk with the informational headers
+gzip -c chunk.json | curl -i -X POST localhost:8080/v1/replay/chunks -H "$I" -H "$P" -H 'x-ouo-session-id: demo-1' -H 'x-ouo-seq: 1' \
+  -H 'content-type: application/json' -H 'content-encoding: gzip' --data-binary @-
 curl -H "$R" localhost:8080/v1/sessions/demo-1/replay          # 401 without the read token when OUO_READ_TOKEN is set
 curl -H "$R" --compressed localhost:8080/v1/sessions/demo-1/replay/events | head -c 300
-# upload a frames chunk (jpeg is a base64 JPEG; "/9j/" is the base64 of FF D8 FF)
-curl -i -X POST localhost:8080/v1/replay/chunks -H "$T" -H 'content-type: application/json' \
+# frames chunk (jpeg is a base64 JPEG; "/9j/" is the base64 of FF D8 FF)
+curl -i -X POST localhost:8080/v1/replay/chunks -H "$I" -H "$P" -H 'content-type: application/json' \
   -d '{"kind":"frames","schema_version":1,"session_id":"demo-ios-1","seq":0,"started_at":1791471538578,"ended_at":1791471543578,"viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","frames":[{"ts":1791471538678,"jpeg":"/9j/4AAQSkZJRg...","reason":"resume"}],"touches":[{"ts":1791471540828,"x":120.5,"y":640,"phase":"began"}]}'
 curl -H "$R" --compressed localhost:8080/v1/sessions/demo-ios-1/replay/frames | head -c 300
 curl -H "$R" -i localhost:8080/v1/sessions/demo-ios-1/replay/events     # 409
@@ -352,14 +308,6 @@ curl -H "$R" 'localhost:8080/v1/stats/health?from=now-24h' | jq
 
 ## How it works
 
-- **Ingest gateway** (`internal/ingest`, `internal/project`): the registry maps tokens to
-  projects and compiles origin patterns once. Rate limits are token buckets written in
-  the package (no dependency): one `Limiter` per project (project `rate_limit` or the
-  defaults) and one shared `Limiter` keyed by client IP; idle IP buckets are swept inline
-  from `Allow` once per minute. OTLP is decoded with `go.opentelemetry.io/proto/otlp` +
-  `google.golang.org/protobuf` (`protojson` for JSON after rewriting hex ids to base64,
-  see `kb/ingest-gateway.md`), stamped and re-encoded deterministically; the forward is
-  a plain `http.Client` with the collector timeout (traced via otelhttp).
 - **Loki**: one `query_range` over
   `{service_name=~".+", event_name=~".+"[, ouo_platform="web"][, service_name="x"]} [| session_id="..."] [| service_version="..."] [| user_id="..."]`
   with `direction=forward`, `limit=5000`, paging by moving `start` to the last timestamp
@@ -374,18 +322,19 @@ curl -H "$R" 'localhost:8080/v1/stats/health?from=now-24h' | jq
 - **Replay**: `internal/replay.Store` interface, filesystem implementation; the events and
   frames endpoints stream chunk files through a JSON token decoder without loading
   everything (touches of a frames replay are buffered, frames are copied through). The kind
-  is checked under the per-session lock before the chunk file is written, so a rejected
-  chunk leaves nothing behind. `PeekKind` scans only top-level keys and runs only for bodies
-  above the rrweb limit.
+  and the project id are checked under the per-session lock before the chunk file is
+  written, so a rejected chunk leaves nothing behind. `PeekKind` scans only top-level keys
+  and runs only for bodies above the rrweb limit.
+- **Auth**: two independent bearer tokens compared with `crypto/subtle`; the ingest token
+  guards only the sink, the read token only `GET` / `DELETE /v1/*`. Project identity is not
+  verified here: the collector authenticated it, rum-api records what the collector says.
 
 ## Layout
 
 ```
 main.go                      config, telemetry, HTTP server, -check healthcheck
 internal/config              env parsing
-internal/project             project registry (YAML / env), token lookup, origin patterns
-internal/ingest              OTLP ingest gateway: checks, rate limiter, decode / stamp / encode, forward, metrics
-internal/httpapi             routes, per-project CORS, read token, handlers (+ tests with fakes)
+internal/httpapi             routes, CORS (local origins), ingest / read tokens, replay sink, handlers, metrics (+ tests with fakes)
 internal/session             Loki stream -> Event, Fold, Classify, Health (+ fixtures)
 internal/loki                query_range client with pagination
 internal/tempo               search client, cache, Grafana Explore links

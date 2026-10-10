@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/ingest"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 )
 
@@ -61,7 +60,7 @@ func post(t *testing.T, url string, body []byte, gzipIt bool) (int, map[string]a
 	}
 	req, _ := http.NewRequest(http.MethodPost, url, r)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(ingest.TokenHeader, testToken)
+	req.Header.Set(ProjectIDHeader, testProject)
 	if gzipIt {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
