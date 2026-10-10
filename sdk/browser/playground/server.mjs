@@ -1,7 +1,9 @@
 // Throwaway verification servers (not part of the SDK):
 //   :4173  static server for playground/ and dist/
-//   :8090  replay chunk stub: accepts POST /v1/replay/chunks (gzip or plain JSON),
-//          validates the envelope and writes <dir>/<session>/<seq>.json
+//   :8090  rum-api ingest stub (ADR-0007): requires X-Ouo-Project-Token on every POST;
+//          POST /ingest/otlp/v1/{traces,logs,metrics} is accepted and logged (bodies dropped),
+//          POST /v1/replay/chunks (gzip or plain JSON) validates the envelope and writes
+//          <dir>/<session>/<seq>.json
 import { createServer } from "node:http";
 import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
@@ -9,6 +11,7 @@ import { extname, join, resolve } from "node:path";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const outDir = process.env.OUO_CHUNK_DIR ?? resolve(root, "playground", ".chunks");
+const token = process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000";
 mkdirSync(outDir, { recursive: true });
 
 const types = { ".html": "text/html", ".js": "text/javascript", ".map": "application/json", ".css": "text/css" };
@@ -23,17 +26,26 @@ createServer((req, res) => {
 
 const cors = (res, req) => {
   res.setHeader("access-control-allow-origin", req.headers.origin ?? "*");
-  res.setHeader("access-control-allow-headers", "content-type, content-encoding, x-ouo-session-id, x-ouo-seq");
+  res.setHeader("access-control-allow-headers", "content-type, content-encoding, x-ouo-project-token, x-ouo-session-id, x-ouo-seq, traceparent, baggage");
   res.setHeader("access-control-allow-methods", "POST, OPTIONS");
 };
 createServer((req, res) => {
   cors(res, req);
   if (req.method === "OPTIONS") return res.writeHead(204).end();
-  if (req.method !== "POST" || req.url !== "/v1/replay/chunks") return res.writeHead(404).end();
+  if (req.method !== "POST") return res.writeHead(404).end();
+  if (req.headers["x-ouo-project-token"] !== token) {
+    console.log(`401 ${req.url} (token ${req.headers["x-ouo-project-token"] ? "unknown" : "missing"})`);
+    return res.writeHead(401).end();
+  }
   const parts = [];
   req.on("data", (c) => parts.push(c));
   req.on("end", () => {
     const raw = Buffer.concat(parts);
+    if (/^\/ingest\/otlp\/v1\/(traces|logs|metrics)$/.test(req.url)) {
+      console.log(`otlp ${req.url} ${raw.length}B ${req.headers["content-type"]}`);
+      return res.writeHead(200, { "content-type": "application/json" }).end("{}");
+    }
+    if (req.url !== "/v1/replay/chunks") return res.writeHead(404).end();
     try {
       const json = req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw;
       const chunk = JSON.parse(json.toString("utf8"));
@@ -52,4 +64,4 @@ createServer((req, res) => {
       res.writeHead(400).end(String(err.message));
     }
   });
-}).listen(8090, () => console.log("replay stub http://localhost:8090 ->", outDir));
+}).listen(8090, () => console.log("rum-api ingest stub http://localhost:8090 (token-checked) ->", outDir));

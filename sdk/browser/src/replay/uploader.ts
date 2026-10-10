@@ -1,17 +1,20 @@
 import type { ReplayChunk, UploadOptions } from "./chunker";
+import { PROJECT_TOKEN_HEADER, REPLAY_CHUNKS_PATH, trimSlash } from "../ingest";
 import type { DebugLogger } from "../logger";
 
 export interface UploaderOptions {
   /** rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`. */
   endpoint: string;
+  /** Public project token, sent as `X-Ouo-Project-Token` on every upload (ADR-0007). */
+  projectToken: string;
   logger: DebugLogger;
   fetchImpl?: typeof fetch;
 }
 
-export const REPLAY_CHUNKS_PATH = "/v1/replay/chunks";
+export { REPLAY_CHUNKS_PATH };
 
 export function replayChunksUrl(endpoint: string): string {
-  return `${endpoint.replace(/\/+$/, "")}${REPLAY_CHUNKS_PATH}`;
+  return `${trimSlash(endpoint)}${REPLAY_CHUNKS_PATH}`;
 }
 
 export function canGzip(): boolean {
@@ -36,8 +39,10 @@ export function createChunkUploader(options: UploaderOptions): (chunk: ReplayChu
   const url = replayChunksUrl(options.endpoint);
   return async (chunk, upload) => {
     const json = JSON.stringify(chunk);
+    // The token rides on both paths (regular and pagehide keepalive): same function, same headers.
     const headers: Record<string, string> = {
       "content-type": "application/json",
+      [PROJECT_TOKEN_HEADER]: options.projectToken,
       "x-ouo-session-id": chunk.session_id,
       "x-ouo-seq": String(chunk.seq),
     };
