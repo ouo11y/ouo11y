@@ -1,6 +1,6 @@
 {
   "name": "ouo-rum-app",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Grafana app plugin for ouo Real User Monitoring: session health, sessions, timeline, traces and rrweb replay.",
   "license": "Apache-2.0",
