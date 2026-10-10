@@ -1,0 +1,4 @@
+# Deliberately empty: when a directory has an .npmignore, npm stops reading its .gitignore,
+# so the vendored Swift copies (OuoReplayCore/, OuoReplay/, written by scripts/sync-ios.mjs
+# and gitignored) are included in the published tarball. Without them the CocoaPods specs
+# would glob nothing and the installed module would be empty.

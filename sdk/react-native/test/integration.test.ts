@@ -33,7 +33,8 @@ const attr = (attrs: OtlpAttr[], key: string): unknown => {
   return v.doubleValue;
 };
 
-const ENDPOINT = "http://collector.test:4318";
+const ENDPOINT = "http://rum.test:8080";
+const TOKEN = "pt_test_token_0000000000000000";
 const BACKEND = "http://backend.test";
 
 interface Captured {
@@ -41,13 +42,22 @@ interface Captured {
   spans: OtlpSpan[];
   resource: OtlpAttr[];
   requests: Array<{ url: string; headers: Record<string, string> }>;
+  /** Every export request the SDK made to rum-api: URL plus lower-cased headers. */
+  exports: Array<{ url: string; headers: Record<string, string> }>;
+}
+
+function lowerHeaders(h: RequestInit["headers"] | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  new Headers(h ?? {}).forEach((v, k) => (out[k.toLowerCase()] = v));
+  return out;
 }
 
 function installFetchStub(): Captured {
-  const captured: Captured = { logs: [], spans: [], resource: [], requests: [] };
+  const captured: Captured = { logs: [], spans: [], resource: [], requests: [], exports: [] };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : (input as Request).url;
     if (url.startsWith(ENDPOINT)) {
+      captured.exports.push({ url, headers: lowerHeaders(init?.headers) });
       const body = init?.body as Uint8Array;
       const json = JSON.parse(new TextDecoder().decode(body)) as {
         resourceLogs?: Array<{ resource: { attributes: OtlpAttr[] }; scopeLogs: Array<{ logRecords: OtlpLog[] }> }>;
@@ -83,6 +93,7 @@ let rejectionTracker: { onUnhandled: (id: number, e: unknown) => void } | undefi
 function makeOptions(storage: MemoryAsyncStorage, version = "2.3.0") {
   return {
     endpoint: ENDPOINT,
+    projectToken: TOKEN,
     service: { name: "mobile-store", version, environment: "test" },
     tracing: { propagateTo: [BACKEND] },
     storage,
@@ -145,7 +156,16 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
 
     await rum.flush();
 
+    // ---- ingest routes and token (ADR-0007) ----
+    const exportUrls = new Set(captured.exports.map((e) => e.url));
+    expect(exportUrls).toEqual(new Set([`${ENDPOINT}/ingest/otlp/v1/traces`, `${ENDPOINT}/ingest/otlp/v1/logs`]));
+    for (const e of captured.exports) {
+      expect(e.headers["x-ouo-project-token"]).toBe(TOKEN);
+      expect(e.headers["content-type"]).toBe("application/json");
+    }
+
     // ---- traces ----
+    // Exports to rum-api are never traced: only the four app requests have spans.
     const spans = captured.spans;
     expect(spans.map((s) => s.name)).toEqual(["HTTP GET", "HTTP POST", "HTTP GET", "HTTP GET"]);
     for (const s of spans) {

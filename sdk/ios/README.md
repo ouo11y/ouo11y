@@ -4,7 +4,8 @@ Native session replay capture for iOS, the native half of ouo mobile replay (ADR
 contract in `docs/specs/mobile-replay.md`). It snapshots the key window about once a second
 and on touches, paints opaque rectangles over sensitive views **before the frame leaves the
 device**, drops unchanged frames, and uploads gzip JSON frame chunks to rum-api
-(`POST /v1/replay/chunks`, `kind: "frames"`) keyed by the host's `session.id`.
+(`POST /v1/replay/chunks`, `kind: "frames"`) keyed by the host's `session.id` and authenticated
+with the project token (`X-Ouo-Project-Token`, ADR-0007).
 
 The React Native SDK (`sdk/react-native`) wraps this package through an Expo module; native
 apps use it directly.
@@ -28,6 +29,11 @@ Swift Package Manager, local path in this repository:
 
 Minimum iOS 15. The package has no third-party dependencies (zlib is linked from the system).
 
+Not yet consumable by URL: SwiftPM resolves a remote package only when `Package.swift` sits at
+the root of the repository (or of a tagged mirror repository). `sdk/ios` is a subdirectory of
+the monorepo, so `.package(url: "https://github.com/ZiadMansourM/ouo", ...)` does not work; a
+`ouo-ios` mirror with its own tags is the usual answer (release process, not decided here).
+
 ## Usage
 
 ```swift
@@ -35,6 +41,7 @@ import OuoReplay
 
 OuoReplay.start(OuoReplayConfig(
     endpoint: URL(string: "http://localhost:8080")!,   // rum-api base URL
+    projectToken: "pt_dev_demo_0000000000000000",      // X-Ouo-Project-Token on every upload (ADR-0007)
     sessionId: { SessionStore.shared.currentId },       // called when a chunk opens
     frameInterval: 1.0,
     maskText: true, maskInputs: true, maskImages: true, maskWebViews: true,
@@ -98,7 +105,8 @@ frames, or on `pause` / background / rotation / `flush`. Frames whose 16x16 gray
 thumbnail hashes (FNV-1a) like the previous one are dropped; `resume` and rotation reset the
 reference so the next frame is always sent.
 
-`ChunkUploader` POSTs `${endpoint}/v1/replay/chunks` with `content-type: application/json`,
+`ChunkUploader` POSTs `${endpoint}/v1/replay/chunks` with `X-Ouo-Project-Token` (the project
+token from the config; rum-api answers 401 without it), `content-type: application/json`,
 `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`; sends chunks in order, retries
 three times (1 s, 2 s), and drops the oldest queued chunk when more than 2 MB is waiting.
 Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
@@ -109,8 +117,8 @@ Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
 ```bash
 cd sdk/ios
 swift build            # macOS: Core builds fully, OuoReplay compiles to the stub
-./test.sh              # Core tests (35), Swift Testing; works with the Command Line Tools only
-OUO_REPLAY_STUB_URL=http://localhost:8080 ./test.sh --filter RealHTTP   # push real chunks to rum-api
+./test.sh              # Core tests (39), Swift Testing; works with the Command Line Tools only
+OUO_REPLAY_STUB_URL=http://localhost:8080 OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 ./test.sh --filter RealHTTP   # push real chunks to rum-api
 ```
 
 `./test.sh` is `swift test` plus the framework search paths for Swift Testing, which the

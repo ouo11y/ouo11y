@@ -3,6 +3,8 @@ import Testing
 @testable import OuoReplayCore
 
 @Suite struct ChunkUploaderTests {
+    private let token = "pt_test_token_0000000000000000"
+
     private func chunk(seq: Int, session: String = "sess-1", frames: Int = 1) -> FrameChunk {
         FrameChunk(
             sessionId: session, seq: seq, startedAt: 1_760_000_000_000, endedAt: 1_760_000_005_000,
@@ -20,7 +22,7 @@ import Testing
 
     @Test func PostsGzipJSONWithSpecHeaders() async throws {
         let transport = FakeTransport()
-        let u = ChunkUploader(endpoint: URL(string: "http://localhost:8080/")!, transport: transport)
+        let u = ChunkUploader(endpoint: URL(string: "http://localhost:8080/")!, projectToken: token, transport: transport)
         #expect(u.url.absoluteString == "http://localhost:8080/v1/replay/chunks")
         let c = chunk(seq: 7)
         u.enqueue(c)
@@ -34,8 +36,33 @@ import Testing
         #expect(sent.request.value(forHTTPHeaderField: "content-encoding") == "gzip")
         #expect(sent.request.value(forHTTPHeaderField: "x-ouo-session-id") == "sess-1")
         #expect(sent.request.value(forHTTPHeaderField: "x-ouo-seq") == "7")
+        #expect(sent.request.value(forHTTPHeaderField: "X-Ouo-Project-Token") == token)
         #expect(try FrameChunk.decode(try Gzip.decompress(sent.body)) == c)
         #expect(u.uploaded == 1)
+    }
+
+    /// ADR-0007: every upload, including retries, carries the project token; header lookup is case-insensitive.
+    @Test func EveryRequestCarriesTheProjectTokenHeader() async {
+        let transport = FakeTransport()
+        transport.responses = [.success(401), .success(202), .success(202)]
+        let u = ChunkUploader(
+            endpoint: URL(string: "https://rum.example.com")!,
+            projectToken: "pt_live_9f3c",
+            config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { _ in 0 }),
+            transport: transport
+        )
+        #expect(u.projectToken == "pt_live_9f3c")
+        #expect(ChunkUploader.projectTokenHeader == "X-Ouo-Project-Token")
+        u.enqueue(chunk(seq: 0))
+        u.enqueue(chunk(seq: 1))
+        await drain(u)
+        #expect(transport.sent.count == 3)
+        for s in transport.sent {
+            #expect(s.request.url?.absoluteString == "https://rum.example.com/v1/replay/chunks")
+            #expect(s.request.value(forHTTPHeaderField: "x-ouo-project-token") == "pt_live_9f3c")
+        }
+        let direct = ChunkUploader.makeRequest(url: u.url, projectToken: "pt_other", sessionId: "s", seq: 3, gzipBody: Data())
+        #expect(direct.allHTTPHeaderFields?["X-Ouo-Project-Token"] == "pt_other")
     }
 
     @Test func SendsInOrderAndRetriesWithBackoff() async {
@@ -45,6 +72,7 @@ import Testing
         let lock = NSLock()
         let u = ChunkUploader(
             endpoint: URL(string: "http://localhost:8080")!,
+            projectToken: token,
             config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { attempt in
                 lock.lock(); delays.append(attempt); lock.unlock()
                 return 0
@@ -72,6 +100,7 @@ import Testing
         transport.responses = [.success(503), .success(503), .success(503), .success(202)]
         let u = ChunkUploader(
             endpoint: URL(string: "http://localhost:8080")!,
+            projectToken: token,
             config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { _ in 0 }),
             transport: transport
         )
@@ -93,6 +122,7 @@ import Testing
         let bodySize = try! Gzip.compress(try! big.encodedJSON()).count
         let u = ChunkUploader(
             endpoint: URL(string: "http://localhost:8080")!,
+            projectToken: token,
             config: ChunkUploader.Config(maxAttempts: 1, maxQueueBytes: bodySize * 3 + 10, retryDelay: { _ in 0 }),
             transport: blocking
         )
@@ -109,13 +139,15 @@ import Testing
     }
 
     /// Set OUO_REPLAY_STUB_URL=http://localhost:8080 (rum-api, or the Node stub in the agent
-    /// summary) to push real gzip chunks through URLSession. The session id is unique per run so
-    /// rum-api's seq ordering never conflicts with an earlier run.
+    /// summary) and OUO_PROJECT_TOKEN (default: the development token) to push real gzip chunks
+    /// through URLSession. The session id is unique per run so rum-api's seq ordering never
+    /// conflicts with an earlier run.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["OUO_REPLAY_STUB_URL"] != nil))
     func RealHTTPAgainstStubWhenConfigured() async throws {
-        let url = try #require(URL(string: ProcessInfo.processInfo.environment["OUO_REPLAY_STUB_URL"] ?? ""))
+        let env = ProcessInfo.processInfo.environment
+        let url = try #require(URL(string: env["OUO_REPLAY_STUB_URL"] ?? ""))
         let session = "swift-uploader-\(Int(Date().timeIntervalSince1970))"
-        let u = ChunkUploader(endpoint: url, logger: ReplayLogger(enabled: true))
+        let u = ChunkUploader(endpoint: url, projectToken: env["OUO_PROJECT_TOKEN"] ?? "pt_dev_demo_0000000000000000", logger: ReplayLogger(enabled: true))
         u.enqueue(chunk(seq: 0, session: session, frames: 3))
         u.enqueue(chunk(seq: 1, session: session, frames: 2))
         await drain(u)

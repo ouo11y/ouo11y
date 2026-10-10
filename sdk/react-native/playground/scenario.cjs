@@ -5,12 +5,16 @@
  *   crash    : products, then a fatal error through ErrorUtils (writes the crash marker)
  *   relaunch : nothing but init (processes the crash marker -> session.end crash)
  *   background: long background stay -> session rotation
- * Env: OUO_OTLP (default http://localhost:4328), OUO_BACKEND (default http://localhost:8082),
- *      APP_VERSION (default 2.3.0), OUO_STORAGE_FILE (shared "disk").
+ * Env: OUO_RUM_API (rum-api base URL, default http://localhost:8080), OUO_PROJECT_TOKEN (default
+ *      the development token pt_dev_demo_0000000000000000), OUO_OTLP (optional escape hatch: OTLP
+ *      straight to the collector instead of rum-api's /ingest/otlp routes), OUO_BACKEND (default
+ *      http://localhost:8082), APP_VERSION (default 2.3.0), OUO_STORAGE_FILE (shared "disk").
  */
 const { initRUM } = require("../dist/index.js");
 
-const OTLP = process.env.OUO_OTLP || "http://localhost:4328";
+const RUM_API = process.env.OUO_RUM_API || "http://localhost:8080";
+const PROJECT_TOKEN = process.env.OUO_PROJECT_TOKEN || "pt_dev_demo_0000000000000000";
+const OTLP = process.env.OUO_OTLP;
 const BACKEND = process.env.OUO_BACKEND || "http://localhost:8082";
 const VERSION = process.env.APP_VERSION || "2.3.0";
 const SCENARIO = process.env.SCENARIO || "healthy";
@@ -18,7 +22,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
   const rum = initRUM({
-    endpoint: OTLP,
+    endpoint: RUM_API,
+    projectToken: PROJECT_TOKEN,
+    ...(OTLP ? { otlpEndpoint: OTLP } : {}),
     service: { name: "mobile-store", version: VERSION, environment: "local" },
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
     session: { backgroundTimeoutMs: 2000 },
