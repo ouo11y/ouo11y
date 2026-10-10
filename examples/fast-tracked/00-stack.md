@@ -8,12 +8,18 @@ Everything below is copy and paste. Commands have no `$` prompt. Every file you 
 to copy is listed with its path in this repo and inlined when it is short.
 
 ```
-browser / mobile / your backend --OTLP--> otel-collector --> tempo (traces)
-                                                        --> loki  (logs / session events)
-                                                        --> mimir (metrics)
+browser / mobile SDK --OTLP + X-Ouo-Project-Token--> rum-api :8080 --> otel-collector --> tempo (traces)
+your backend (trusted) --OTLP--> 127.0.0.1:4318 ------------------------^                --> loki  (logs / session events)
+                                                                                          --> mimir (metrics)
 grafana --> loki, tempo, mimir (provisioned datasources)
-grafana app plugin --> rum-api --> loki + tempo + replay chunks on disk
+grafana app plugin --Bearer <read token>--> rum-api --> loki + tempo + replay chunks on disk
 ```
+
+Two kinds of clients (ADR-0007): **untrusted** ones (browsers, phones) post to `rum-api`
+with a **public project token** and rum-api validates, stamps `ouo.project.id` and forwards
+to the collector; **trusted** ones (your backend, rum-api itself) post straight to the
+collector, which is published on `127.0.0.1` only. The **read token** that unlocks session
+data is secret and only Grafana has it.
 
 ## Prerequisites
 
@@ -21,15 +27,16 @@ grafana app plugin --> rum-api --> loki + tempo + replay chunks on disk
 - `curl`. `python3` only if you want to run `deploy/scripts/smoke.sh`.
 - Node 24 and npm if you want the ouo Grafana plugin (the unified UI). Optional for
   the raw Grafana Explore experience.
-- Free host ports: 3000, 3100, 3200, 9009, 4317, 4318, 13133, 8081, 8080. If any of
-  them is taken, see "Ports and the .env override" below. Do not skip that check: an
+- Free host ports: 3000, 3100, 3200, 9009, 4317, 4318, 13133, 8081, 8080 (4317, 4318
+  and 13133 are bound to `127.0.0.1` only). If any of them is taken, see "Ports and the
+  .env override" below. Do not skip that check: an
   OTLP endpoint that belongs to another collector swallows your telemetry silently.
 
 ## Step 1. Get the files
 
 The fastest route is to run the stack straight from a clone of this repo next to your
 own project. Nothing in `deploy/` knows about your code; your backend only needs the
-collector's URL.
+collector's URL, your web and mobile apps need rum-api's URL and the project token.
 
 ```bash
 git clone https://github.com/ZiadMansourM/ouo.git
@@ -45,17 +52,18 @@ the same relative layout** (the compose file reaches `../../services/rum-api` an
 
 | Ref file (copy as is) | What to change |
 |---|---|
-| `deploy/docker/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else. |
-| `deploy/docker/.env.example` | copy to `deploy/docker/.env` only if a default host port collides |
-| `deploy/docker/collector/config.yaml` | nothing. Add your dev server origin under `cors.allowed_origins` if it is not `http://localhost:*` or `http://127.0.0.1:*` |
+| `deploy/docker/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else on a laptop; anywhere else set real tokens in `.env` |
+| `deploy/docker/.env.example` | copy to `deploy/docker/.env` if a default host port collides, if your dev server origin is not `http://localhost:*` / `http://127.0.0.1:*` (`OUO_ALLOWED_ORIGINS`), or to replace the development tokens |
+| `deploy/docker/projects.example.yaml` | only for several projects or token rotation (`OUO_PROJECTS_FILE`) |
+| `deploy/docker/collector/config.yaml` | nothing. Browsers never talk to it (no CORS block); origins are configured on rum-api |
 | `deploy/docker/loki/config.yaml` | nothing |
 | `deploy/docker/tempo/config.yaml` | nothing |
 | `deploy/docker/mimir/config.yaml` | nothing |
 | `deploy/docker/grafana/provisioning/datasources/datasources.yaml` | nothing |
-| `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing |
+| `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
 | `services/rum-api/` (whole Go module) | nothing; compose builds it |
 | `plugins/ouo-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | nothing; you build `dist/` once |
-| `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/docker/.env` |
+| `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/docker/.env` (ports and tokens) |
 
 The full content of each config file is at the end of this page under "The ref files,
 inlined".
@@ -70,14 +78,16 @@ Default host ports (container ports never change):
 | loki | 3100 | Loki API (`/ready`, `/loki/api/v1/...`, OTLP at `/otlp/v1/logs`) |
 | tempo | 3200 | Tempo API (`/ready`, `/api/search`, `/api/traces/{id}`) |
 | mimir | 9009 | Mimir (`/ready`, `/prometheus/api/v1/...`, OTLP at `/otlp/v1/metrics`) |
-| otel-collector | 4317 | OTLP/gRPC |
-| otel-collector | 4318 | OTLP/HTTP (CORS enabled, this is what browsers and your backend use) |
-| otel-collector | 13133 | collector health (`GET /`) |
+| otel-collector | 127.0.0.1:4317 | OTLP/gRPC, loopback only (your backend on this machine) |
+| otel-collector | 127.0.0.1:4318 | OTLP/HTTP, loopback only, no CORS: your backend uses it, browsers cannot |
+| otel-collector | 127.0.0.1:13133 | collector health (`GET /`) |
 | backend | 8081 | ouo demo backend (delete the service if you do not want it) |
-| rum-api | 8080 | session and replay API used by the Grafana plugin |
+| rum-api | 8080 | ingest gateway for browser and mobile SDKs (`/ingest/otlp/v1/*`, `/v1/replay/chunks`, project token) and the session API behind the Grafana plugin (read token) |
 
-To change any host port, copy the example file and edit it. Compose reads
-`deploy/docker/.env` automatically and so do the scripts.
+To change any host port, the allowed browser origins or the tokens, copy the example
+file and edit it. Compose reads `deploy/docker/.env` automatically and so do the scripts.
+Without a `.env` the stack runs with the development tokens shown below, which is fine
+as long as nobody but you can reach port 8080.
 
 ```bash
 cp deploy/docker/.env.example deploy/docker/.env
@@ -86,17 +96,51 @@ cp deploy/docker/.env.example deploy/docker/.env
 `deploy/docker/.env.example` (ref file, inline):
 
 ```dotenv
-# Host port overrides for deploy/docker/compose.yaml. Copy to deploy/docker/.env
-# (gitignored) only if the defaults collide with something else on your machine.
+# Overrides for deploy/docker/compose.yaml. Copy to deploy/docker/.env (gitignored).
+# Compose reads this file for ${VAR:-default} interpolation; deploy/scripts/*.sh source it.
+# Every value here has the same default inside compose.yaml, so a fresh clone works
+# without copying anything.
+
+# --- Host ports (only if the defaults collide with something on your machine) ------
 OUO_GRAFANA_PORT=3000
 OUO_LOKI_PORT=3100
 OUO_TEMPO_PORT=3200
 OUO_MIMIR_PORT=9009
+# The collector ports are published on 127.0.0.1 only (ADR-0007): reachable from
+# processes on this host, never from a browser, a phone or another machine.
 OUO_OTLP_GRPC_PORT=4317
 OUO_OTLP_HTTP_PORT=4318
 OUO_COLLECTOR_HEALTH_PORT=13133
 OUO_BACKEND_PORT=8081
 OUO_RUM_API_PORT=8080
+
+# --- Project registry and tokens (ADR-0007) -----------------------------------------
+# !!! DEVELOPMENT VALUES, LOCAL USE ONLY !!!
+# !!! These tokens are committed to the public repo; everybody knows them. They are
+# !!! fine on a laptop where rum-api is only reachable from localhost. Never use them
+# !!! on a machine that other people or the internet can reach: deploy/vm/install.sh
+# !!! generates random ones (`pt_$(openssl rand -hex 16)`, `rt_$(openssl rand -hex 16)`).
+#
+# OUO_PROJECT_TOKEN is PUBLIC: it ships inside browser bundles and only grants the
+# right to write telemetry into project OUO_PROJECT_ID, within rum-api's limits.
+# OUO_READ_TOKEN is SECRET: it unlocks GET/DELETE /v1/* on rum-api (session data,
+# replays). Grafana stores it in the plugin's secureJsonData; keep it out of the browser.
+OUO_PROJECT_ID=demo
+OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000
+# Comma separated `scheme://host[:port]` patterns; `*` may replace the leading host
+# label or the port. Requests with no Origin header (mobile, server side) always pass.
+OUO_ALLOWED_ORIGINS=http://localhost:*,http://127.0.0.1:*
+OUO_READ_TOKEN=rt_dev_0000000000000000
+# Several projects / token rotation: copy projects.example.yaml to projects.yaml, edit it,
+# then uncomment OUO_PROJECTS_FILE and the ./projects.yaml bind mount in compose.yaml.
+# OUO_PROJECTS_FILE=/etc/ouo/projects.yaml
+
+# --- VM install with TLS (deploy/vm/compose.tls.yaml, written by deploy/vm/install.sh) --
+# OUO_DOMAIN=ouo.example.com            # Grafana + plugin
+# OUO_RUM_DOMAIN=rum.ouo.example.com    # rum-api (SDK endpoint)
+# OUO_TLS=you@example.com               # ACME account email (Let's Encrypt), or `internal`
+#                                       # for a self-signed CA on a LAN / IP address
+# OUO_GRAFANA_ADMIN_PASSWORD=change-me  # generated by install.sh
 ```
 
 Example: on the ouo developer Mac other containers already own 3000, 3100, 3200,
@@ -176,13 +220,22 @@ Grafana answers within seconds. Loki, Tempo and Mimir return a non-200 body that
 explains what they are still waiting for (ring membership, ingester warm-up) for
 roughly the first 15 to 30 s; keep polling.
 
-Confirm the browser CORS path on the collector (the web SDK posts straight to it
-from your dev server origin). You want `access-control-allow-origin` and
-`access-control-allow-headers` in the reply:
+Confirm the browser path on rum-api (the web SDK posts to it from your dev server
+origin). You want `access-control-allow-origin` and an `access-control-allow-headers`
+that includes `x-ouo-project-token` in the reply:
 
 ```bash
-curl -s -i -X OPTIONS http://localhost:4318/v1/traces -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type,traceparent,baggage'
+curl -s -i -X OPTIONS http://localhost:8080/ingest/otlp/v1/traces -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type,x-ouo-project-token,traceparent,baggage'
 ```
+
+And that the gateway refuses anonymous writes (expect `401`):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/ingest/otlp/v1/traces -H 'Content-Type: application/json' --data-binary '{"resourceSpans":[]}'
+```
+
+The collector on `127.0.0.1:4318` answers no browser preflight at all any more; an SDK
+that is still pointed at it fails loudly in the browser console, which is intended.
 
 ### Send one trace by hand and find it in Tempo
 
@@ -203,11 +256,12 @@ NOW_NS=$(( $(date +%s) * 1000000000 ))
 TRACE_ID=0af7651916cd43dd8448eb211c80319c
 ```
 
-Post one span with `session.id` as a span attribute (this is the attribute the ouo
-SDKs and the backend baggage processor set):
+Post one span through rum-api with the development project token and `session.id`
+as a span attribute (this is the attribute the ouo SDKs and the backend baggage
+processor set). rum-api stamps `ouo.project.id=demo` on the resource for you:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:4318/v1/traces -H 'Content-Type: application/json' --data-binary '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"hello"}},{"key":"ouo.platform","value":{"stringValue":"web"}}]},"scopeSpans":[{"scope":{"name":"hand"},"spans":[{"traceId":"'"$TRACE_ID"'","spanId":"b7ad6b7169203331","name":"GET /hello","kind":2,"startTimeUnixNano":"'"$((NOW_NS - 50000000))"'","endTimeUnixNano":"'"$NOW_NS"'","attributes":[{"key":"session.id","value":{"stringValue":"hand-session"}}],"status":{"code":1}}]}]}]}'
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/ingest/otlp/v1/traces -H 'X-Ouo-Project-Token: pt_dev_demo_0000000000000000' -H 'Content-Type: application/json' --data-binary '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"hello"}},{"key":"ouo.platform","value":{"stringValue":"web"}}]},"scopeSpans":[{"scope":{"name":"hand"},"spans":[{"traceId":"'"$TRACE_ID"'","spanId":"b7ad6b7169203331","name":"GET /hello","kind":2,"startTimeUnixNano":"'"$((NOW_NS - 50000000))"'","endTimeUnixNano":"'"$NOW_NS"'","attributes":[{"key":"session.id","value":{"stringValue":"hand-session"}}],"status":{"code":1}}]}]}]}'
 ```
 
 Expect `200`. Fetch it by id (works within a second or two):
@@ -223,17 +277,33 @@ Search by session (TraceQL). Tempo only searches a tiny recent window when you o
 curl -s -G http://localhost:3200/api/search --data-urlencode 'q={ span.session.id = "hand-session" }' --data-urlencode "start=$(( $(date +%s) - 600 ))" --data-urlencode "end=$(( $(date +%s) + 60 ))"
 ```
 
-Logs and metrics follow the same pattern: `POST /v1/logs` and `POST /v1/metrics` on
-port 4318, then query `http://localhost:3100/loki/api/v1/query_range` and
-`http://localhost:9009/prometheus/api/v1/query`. Exact bodies are in
-`deploy/scripts/smoke.sh`.
+Filter by project (rum-api set it, whatever the client sent):
+
+```bash
+curl -s -G http://localhost:3200/api/search --data-urlencode 'q={ resource.ouo.project.id = "demo" && span.session.id = "hand-session" }' --data-urlencode "start=$(( $(date +%s) - 600 ))" --data-urlencode "end=$(( $(date +%s) + 60 ))"
+```
+
+Logs and metrics follow the same pattern: `POST /ingest/otlp/v1/logs` and
+`POST /ingest/otlp/v1/metrics` on rum-api with the same header, then query
+`http://localhost:3100/loki/api/v1/query_range` and
+`http://localhost:9009/prometheus/api/v1/query`. Exact bodies, plus the negative checks
+(no token 401, foreign origin 403), are in `deploy/scripts/smoke.sh`.
+
+Your own backend on this machine keeps posting to `http://localhost:4318` directly (it is
+trusted and the port is on loopback); a stock OTel SDK anywhere else goes through the
+gateway with `OTEL_EXPORTER_OTLP_ENDPOINT=http://<host>:8080/ingest/otlp` and
+`OTEL_EXPORTER_OTLP_HEADERS=X-Ouo-Project-Token=pt_dev_demo_0000000000000000`.
 
 ## Step 5. rum-api and the Grafana plugin (the unified UI)
 
 `rum-api` is already part of the compose project and starts with everything else.
-It reads Loki and Tempo in-network, stores replay chunks under
-`deploy/data/rum-api/replays`, and sends its own telemetry to the collector as
-`service.name=rum-api`. Check it:
+It is the ingest gateway (project token, per-project origins, size and rate limits,
+`ouo.project.id` stamping, forward to `otel-collector:4318`), reads Loki and Tempo
+in-network, stores replay chunks under `deploy/data/rum-api/replays`, and sends its own
+telemetry to the collector as `service.name=rum-api`. Its project comes from
+`OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN` / `OUO_ALLOWED_ORIGINS` (compose defaults `demo`,
+`pt_dev_demo_0000000000000000`, `http://localhost:*,http://127.0.0.1:*`) and its read
+side is locked with `OUO_READ_TOKEN` (`rt_dev_0000000000000000`). Check it:
 
 ```bash
 curl -s http://localhost:8080/readyz
@@ -273,10 +343,12 @@ Check the plugin is enabled and points at rum-api in-network:
 curl -s -u admin:admin http://localhost:3000/api/plugins/ouo-rum-app/settings
 ```
 
-Expect `"enabled":true` and `"jsonData":{"rumApiUrl":"http://rum-api:8080"}`. The
+Expect `"enabled":true`, `"jsonData":{"rumApiUrl":"http://rum-api:8080"}` and
+`"secureJsonFields":{"readToken":true}` (the token itself is never returned). The
 browser never calls rum-api directly: the plugin requests
-`/api/plugin-proxy/ouo-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl`.
-Prove the proxy works:
+`/api/plugin-proxy/ouo-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl`, adding
+`Authorization: Bearer <read token>` on the way. Prove the proxy works (this curl
+succeeds without a token because Grafana adds it):
 
 ```bash
 curl -s -u admin:admin 'http://localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
@@ -303,8 +375,9 @@ editable from the UI. Trace to logs is a custom query on `service_name` plus
 
 ## What each collector pipeline does
 
-`deploy/docker/collector/config.yaml` is the single ingress for browser, mobile and
-backend telemetry. One `otlp` receiver (gRPC 4317, HTTP 4318), three pipelines:
+`deploy/docker/collector/config.yaml` is the internal ingress: your backend and
+rum-api post to it, browsers and phones never do. One `otlp` receiver (gRPC 4317,
+HTTP 4318, both published on `127.0.0.1` only), three pipelines:
 
 - **traces**: `otlp` -> `memory_limiter`, `batch` -> `otlp_grpc/tempo` (Tempo's own
   OTLP gRPC receiver on `tempo:4317`).
@@ -320,12 +393,15 @@ backend telemetry. One `otlp` receiver (gRPC 4317, HTTP 4318), three pipelines:
   so a counter named `ouo.demo.requests` is queried as `ouo_demo_requests`, not
   `ouo_demo_requests_total`.
 
-**Why CORS on the receiver**: the browser SDK posts OTLP/HTTP directly from the page
-origin (for example the Vite dev server on `http://localhost:5173`) to port 4318.
-Without `cors.allowed_origins` the preflight fails and the browser drops every export
-without an error you can see in the collector. `allowed_headers: ["*"]` is needed
-because the SDK sends `content-type`, and your own backend must do the same for
-`traceparent`, `tracestate` and `baggage` (covered in `10-backend.md`).
+**Why browsers go through rum-api, not the collector**: a collector that is reachable
+from a browser accepts anything from anyone, cannot tell projects apart and has no
+rate or size limits. rum-api answers the CORS preflight per project
+(`OUO_ALLOWED_ORIGINS`), requires `X-Ouo-Project-Token`, rejects oversized or malformed
+payloads, rate-limits per project and per IP, overwrites `ouo.project.id` on every
+resource and only then forwards protobuf to `otel-collector:4318`. The collector
+therefore has no `cors:` block and compose binds its ports to `127.0.0.1`. Your own
+backend still has to allow `traceparent`, `tracestate` and `baggage` in *its* CORS,
+because the browser calls your API directly (covered in `10-backend.md`).
 
 Collector >= 0.150 names the exporters `otlp_grpc` / `otlp_http`; `otlp` and
 `otlphttp` are deprecated aliases. Pinned images: Grafana 13.2.1, Loki 3.7.7,
@@ -346,9 +422,9 @@ Dockerfile. The environment it receives is exactly what your own service needs.
     image: otel/opentelemetry-collector-contrib:0.160.0
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
-      - "${OUO_OTLP_GRPC_PORT:-4317}:4317"   # OTLP gRPC
-      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"   # OTLP HTTP (CORS enabled for browsers)
-      - "${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133" # health_check extension
+      - "127.0.0.1:${OUO_OTLP_GRPC_PORT:-4317}:4317"           # OTLP gRPC (loopback only)
+      - "127.0.0.1:${OUO_OTLP_HTTP_PORT:-4318}:4318"           # OTLP HTTP (loopback only, no CORS)
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"  # health_check extension (loopback only)
     volumes:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
     depends_on:
@@ -370,21 +446,41 @@ Dockerfile. The environment it receives is exactly what your own service needs.
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     depends_on:
       - otel-collector
+
+  rum-api:
+    build:
+      context: ../../services/rum-api
+    ports:
+      - "${OUO_RUM_API_PORT:-8080}:8080"
+    environment:
+      # ... LOKI_URL, TEMPO_URL, GRAFANA_URL, DATA_DIR as before, plus (ADR-0007):
+      OUO_PROJECT_ID: ${OUO_PROJECT_ID:-demo}
+      OUO_PROJECT_TOKEN: ${OUO_PROJECT_TOKEN:-pt_dev_demo_0000000000000000}
+      OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+      OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+      OUO_COLLECTOR_OTLP_ENDPOINT: http://otel-collector:4318
+      # OUO_PROJECTS_FILE: /etc/ouo/projects.yaml      # several projects: see projects.example.yaml
 ```
 
 The `grafana` service mounts `./grafana/provisioning` read-only and the plugin build
 output `../../plugins/ouo-rum-app/dist` at `/var/lib/grafana/plugins/ouo-rum-app`,
-with `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app` and
-`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app`. The `rum-api`
-service builds `../../services/rum-api`, gets `LOKI_URL=http://loki:3100`,
+with `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`,
+`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app` and
+`OUO_READ_TOKEN=${OUO_READ_TOKEN:-rt_dev_0000000000000000}` for the plugin provisioning
+file. The `rum-api` service builds `../../services/rum-api`, gets `LOKI_URL=http://loki:3100`,
 `TEMPO_URL=http://tempo:3200`, `GRAFANA_URL=http://localhost:${OUO_GRAFANA_PORT:-3000}`
-(browser-facing, used in deep links) and mounts `../data/rum-api` at `/data`.
+(browser-facing, used in deep links), the `OUO_*` gateway variables above and mounts
+`../data/rum-api` at `/data`.
 
 ### `deploy/docker/collector/config.yaml`
 
 ```yaml
 # OpenTelemetry Collector (contrib) for the ouo local stack.
-# Single ingress for browser, mobile and backend telemetry.
+# Internal ingress (ADR-0007): trusted backend services and rum-api post OTLP here.
+# Browsers and mobile apps never talk to it; they post to rum-api
+# (/ingest/otlp/v1/*) with a project token and rum-api forwards validated,
+# project-stamped payloads to otel-collector:4318. The receiver therefore has no
+# CORS block, and compose publishes the ports on 127.0.0.1 only.
 
 extensions:
   health_check:
@@ -396,15 +492,11 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
       http:
+        # 0.0.0.0 inside the container (localhost would be unreachable from the
+        # network); exposure is restricted by the compose port binding, not here.
+        # No `cors:` block on purpose: a browser preflight against this port fails,
+        # which is the intended signal that an SDK is misconfigured to bypass rum-api.
         endpoint: 0.0.0.0:4318
-        cors:
-          # Browser SDK (Vite dev server) posts directly to the collector.
-          allowed_origins:
-            - "http://localhost:*"
-            - "http://127.0.0.1:*"
-          allowed_headers:
-            - "*"
-          max_age: 7200
 
 processors:
   memory_limiter:
@@ -785,7 +877,13 @@ datasources:
 # Enables the ouo RUM app plugin (plugins/ouo-rum-app, loaded unsigned from
 # /var/lib/grafana/plugins/ouo-rum-app) and points its "rum" route at the
 # in-network rum-api. The browser never talks to rum-api directly: the plugin
-# calls /api/plugin-proxy/ouo-rum-app/rum/v1/... and Grafana forwards to rumApiUrl.
+# calls /api/plugin-proxy/ouo-rum-app/rum/v1/... and Grafana forwards to rumApiUrl,
+# adding `Authorization: Bearer <readToken>` from secureJsonData (ADR-0007 section 6).
+#
+# ${OUO_READ_TOKEN} is expanded by the Grafana provisioner from the container's
+# environment (compose passes it through; default rt_dev_0000000000000000, a
+# development value). It must equal rum-api's OUO_READ_TOKEN. Secure fields are
+# write-only: the settings API reports `secureJsonFields: {readToken: true}`.
 apiVersion: 1
 
 apps:
@@ -794,19 +892,23 @@ apps:
     disabled: false
     jsonData:
       rumApiUrl: http://rum-api:8080
+    secureJsonData:
+      readToken: ${OUO_READ_TOKEN}
 ```
 
 ### `deploy/scripts/wait-ready.sh`
 
 Reference for the readiness loop. It sources `deploy/docker/.env`, then polls
-`/ready` on Loki, Tempo and Mimir, `/` on the collector health port and
-`/api/health` on Grafana until each returns 200 or `OUO_READY_TIMEOUT` (120 s)
-passes.
+`/ready` on Loki, Tempo and Mimir, `/` on the collector health port (loopback),
+`/api/health` on Grafana and `/readyz` on rum-api until each returns 200 or
+`OUO_READY_TIMEOUT` (120 s) passes.
 
 ```bash
 #!/usr/bin/env bash
-# Wait until Loki, Tempo, Mimir, the collector and Grafana answer their readiness endpoints.
+# Wait until Loki, Tempo, Mimir, the collector, Grafana and rum-api answer their readiness endpoints.
 # Honors the OUO_*_PORT overrides from deploy/docker/.env (same defaults as compose.yaml).
+# The collector health port is published on 127.0.0.1 only (ADR-0007), which is still
+# reachable from this host.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -816,8 +918,9 @@ if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"
 TEMPO="http://localhost:${OUO_TEMPO_PORT:-3200}"
 MIMIR="http://localhost:${OUO_MIMIR_PORT:-9009}"
-COLLECTOR_HEALTH="http://localhost:${OUO_COLLECTOR_HEALTH_PORT:-13133}"
+COLLECTOR_HEALTH="http://127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}"
 GRAFANA="http://localhost:${OUO_GRAFANA_PORT:-3000}"
+RUM_API="${OUO_RUM_API:-http://localhost:${OUO_RUM_API_PORT:-8080}}"
 TIMEOUT="${OUO_READY_TIMEOUT:-120}"
 
 wait_for() {
@@ -837,6 +940,8 @@ wait_for tempo "$TEMPO/ready"
 wait_for mimir "$MIMIR/ready"
 wait_for otel-collector "$COLLECTOR_HEALTH/"
 wait_for grafana "$GRAFANA/api/health"
+# /readyz is 503 until rum-api can reach Loki and Tempo; it needs no token.
+wait_for rum-api "$RUM_API/readyz"
 ```
 
 ## What you should see
@@ -844,13 +949,14 @@ wait_for grafana "$GRAFANA/api/health"
 - `docker compose -f deploy/docker/compose.yaml ps` lists `grafana`, `loki`, `tempo`,
   `mimir`, `otel-collector`, `rum-api` (and `backend` if kept) as `running`; `grafana`
   shows `(healthy)`.
-- The five readiness curls print `200`. `deploy/scripts/wait-ready.sh` prints five
-  `ready:` lines.
-- The CORS preflight reply contains `Access-Control-Allow-Origin: http://localhost:5173`.
+- The five readiness curls print `200`. `deploy/scripts/wait-ready.sh` prints six
+  `ready:` lines (it also waits for `rum-api /readyz`).
+- The rum-api preflight reply contains `Access-Control-Allow-Origin: http://localhost:5173`
+  and `x-ouo-project-token` in `Access-Control-Allow-Headers`; the token-less POST prints `401`.
 - `curl http://localhost:3200/api/traces/0af7651916cd43dd8448eb211c80319c` returns a
   JSON trace, and the TraceQL search returns one entry under `traces`.
 - `curl http://localhost:8080/readyz` returns `{"ready":true,...}`.
-- `deploy/scripts/smoke.sh` ends with `SMOKE OK: trace_id=... session.id=smoke-session ...`.
+- `deploy/scripts/smoke.sh` ends with `SMOKE OK: trace_id=... session.id=smoke-session service=smoke project=demo ...`.
 - Grafana at http://localhost:3000 logs you in as `admin`, Connections -> Data sources
   lists Loki, Tempo and Mimir, and http://localhost:3000/a/ouo-rum-app/overview renders
   the plugin (empty until an SDK sends sessions).
