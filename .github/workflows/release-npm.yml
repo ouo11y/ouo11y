@@ -1,0 +1,87 @@
+# Publishes @ouo/browser or @ouo/react-native to npm when a package tag is pushed.
+#   browser-v0.2.0        -> sdk/browser        -> @ouo/browser@0.2.0
+#   react-native-v0.2.0   -> sdk/react-native   -> @ouo/react-native@0.2.0
+# The tag version must equal the version in the workspace package.json (bump it in the
+# release PR first, see docs/releasing.md).
+#
+# Required secret: NPM_TOKEN, an npm granular access token with publish rights on the
+# @ouo scope (Read and write, "Bypass 2FA" allowed for automation). Provenance needs
+# id-token: write and a public repository; see kb/release-packaging.md.
+name: release-npm
+
+on:
+  push:
+    tags:
+      - 'browser-v*'
+      - 'react-native-v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Resolve workspace from tag and check the version matches
+        id: pkg
+        run: |
+          tag="$GITHUB_REF_NAME"
+          case "$tag" in
+            browser-v*)      ws=sdk/browser;      version="${tag#browser-v}" ;;
+            react-native-v*) ws=sdk/react-native; version="${tag#react-native-v}" ;;
+            *) echo "::error::unexpected tag $tag"; exit 1 ;;
+          esac
+          name=$(node -p "require('./$ws/package.json').name")
+          actual=$(node -p "require('./$ws/package.json').version")
+          if [ "$actual" != "$version" ]; then
+            echo "::error::tag $tag says $version but $ws/package.json says $actual"
+            exit 1
+          fi
+          {
+            echo "workspace=$ws"
+            echo "name=$name"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $name@$version from $ws"
+
+      - name: Refuse to publish without NPM_TOKEN
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN secret is not set; see docs/releasing.md"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build -w ${{ steps.pkg.outputs.workspace }}
+
+      - name: Test
+        run: npm run test -w ${{ steps.pkg.outputs.workspace }}
+
+      - name: Show what will be published
+        run: npm pack --dry-run -w ${{ steps.pkg.outputs.workspace }}
+
+      - name: Publish with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w ${{ steps.pkg.outputs.workspace }} --provenance --access public
+
+      - name: Summary
+        run: |
+          {
+            echo "Published \`${{ steps.pkg.outputs.name }}@${{ steps.pkg.outputs.version }}\`"
+            echo
+            echo "https://www.npmjs.com/package/${{ steps.pkg.outputs.name }}/v/${{ steps.pkg.outputs.version }}"
+          } >> "$GITHUB_STEP_SUMMARY"
