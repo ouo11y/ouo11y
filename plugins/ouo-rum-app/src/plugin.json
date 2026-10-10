@@ -58,7 +58,13 @@
       "path": "rum/*",
       "method": "*",
       "reqRole": "Viewer",
-      "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}"
+      "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}",
+      "headers": [
+        {
+          "name": "Authorization",
+          "content": "Bearer {{ .SecureJsonData.readToken }}"
+        }
+      ]
     }
   ],
   "dependencies": {

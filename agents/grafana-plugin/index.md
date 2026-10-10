@@ -6,6 +6,7 @@ Owns `plugins/ouo-rum-app` (Grafana app plugin: Overview, Sessions, Session deta
 - `summaries/`
   - [2026-10-07-phase-4.md](summaries/2026-10-07-phase-4.md) Phase 4: plugin built, proxied, provisioned, verified in Grafana 13.2.1
   - [2026-10-08-phase-7b.md](summaries/2026-10-08-phase-7b.md) Phase 7b: pinned replay with self-scrolling timeline, Replay duration column, sortable sessions table
+  - [2026-10-10-phase-8a.md](summaries/2026-10-10-phase-8a.md) Phase 8a: read token (secureJsonData + route header), config page with Test connection, 401 banner, plugin 0.3.0
 - `reports/`
   - [phase-4-verification.html](reports/phase-4-verification.html) browser verification with screenshots (overview numbers, sessions, detail, replay seek and masking, Explore link, error and empty states)
   - [phase-7b-ux.html](reports/phase-7b-ux.html) Phase 7b browser verification: sticky replay, timeline scroll, stacked layout, sortable headers, Replay column (`7b-*.jpg`)
