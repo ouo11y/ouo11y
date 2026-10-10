@@ -1,0 +1,30 @@
+ouo is licensed per directory, not as a single work.
+
+  Path                       Licence                      Text
+  -------------------------  ---------------------------  --------------------------------
+  sdk/browser/               Apache License 2.0           sdk/browser/LICENSE
+  sdk/react-native/          Apache License 2.0           sdk/react-native/LICENSE
+  sdk/ios/                   Apache License 2.0           sdk/ios/LICENSE
+  plugins/ouo-rum-app/       Apache License 2.0           plugins/ouo-rum-app/LICENSE
+  examples/                  Apache License 2.0           same text as sdk/browser/LICENSE
+  services/rum-api/          GNU Affero General Public    services/rum-api/LICENSE
+                             License, version 3
+  deploy/, kb/, agents/,     Apache License 2.0           same text as sdk/browser/LICENSE
+  tracker/, reports/
+  docs/                      PROPOSED: Creative Commons   not applied yet; docs fall under
+                             Attribution 4.0 (CC-BY-4.0)  Apache-2.0 until a decision is
+                                                          recorded in docs/adr/
+
+Why the split (docs/business/product-plan.md section 6, docs/VISION.md section 28):
+everything a customer embeds in their own application or cluster (SDKs, the Grafana
+plugin, examples, deployment files) is Apache-2.0 so it can be used without legal
+review. The server (services/) is AGPL-3.0 so the platform cannot be resold as a
+hosted service without contributing changes back.
+
+Each package directory carries the full licence text. A file is covered by the licence
+of the nearest LICENSE file above it in the tree. Third-party dependencies keep their
+own licences.
+
+SPDX identifiers: Apache-2.0, AGPL-3.0-only.
+
+Copyright 2025-2026 the ouo authors.
