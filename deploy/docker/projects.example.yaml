@@ -1,0 +1,27 @@
+# Multi-project registry for rum-api (ADR-0007 section 3). Copy to
+# deploy/docker/projects.yaml (gitignored), edit, then in compose.yaml uncomment
+# `OUO_PROJECTS_FILE: /etc/ouo/projects.yaml` and the bind mount
+# `./projects.yaml:/etc/ouo/projects.yaml:ro`. When this file is in use the
+# OUO_PROJECT_ID / OUO_PROJECT_TOKEN / OUO_ALLOWED_ORIGINS variables are ignored.
+#
+# Tokens are public identifiers (they ship in browser bundles), not secrets; list
+# several per project to rotate without downtime. Generate with:
+#   echo "pt_$(openssl rand -hex 16)"
+projects:
+  - id: demo                        # becomes resource attribute ouo.project.id on every payload
+    name: Demo (development)
+    tokens: [pt_dev_demo_0000000000000000]
+    allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
+
+  - id: web-store
+    name: Web store
+    tokens: [pt_live_replace_me, pt_prev_replace_me]
+    allowed_origins: ["https://shop.example.com", "https://*.preview.example.com", "http://localhost:*"]
+    rate_limit: { requests_per_second: 500, burst: 2000 }   # per project, optional
+    max_body_bytes: 4194304                                   # optional, default OUO_MAX_INGEST_BYTES (4 MiB)
+
+  - id: mobile-app
+    name: Mobile app
+    tokens: [pt_live_replace_me_too]
+    # Mobile clients send no Origin header, so allowed_origins may stay empty.
+    allowed_origins: []
