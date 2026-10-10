@@ -70,14 +70,14 @@ func TestFramesPutMetaAndStream(t *testing.T) {
 
 	// seq 1 arrives first (out of order), with touches, as gzip.
 	c1 := mustJSON(t, framesChunk(t, id, 1, 6000, 2, touches1))
-	c, err := st.Put(ctx, c1, gz(c1))
+	c, err := st.Put(ctx, "demo", c1, gz(c1))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.Kind != KindFrames || c.FrameCount != 2 || c.TouchCount != 2 || c.Platform != "ios" || c.Viewport == nil || c.Viewport.Width != 393 || c.Viewport.Scale != 0.5 {
 		t.Fatalf("chunk: %+v", c)
 	}
-	if _, err := st.Put(ctx, mustJSON(t, framesChunk(t, id, 0, 1000, 3, nil)), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, framesChunk(t, id, 0, 1000, 3, nil)), nil); err != nil {
 		t.Fatal(err)
 	}
 	k, err := st.Kind(ctx, id)
@@ -143,7 +143,7 @@ func TestFramesPutMetaAndStream(t *testing.T) {
 		t.Fatalf("events on frames replay: %v", err)
 	}
 	rr := "rrweb-session-1"
-	if _, err := st.Put(ctx, chunkJSON(rr, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", chunkJSON(rr, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := WriteFrames(ctx, st, rr, &out); !errors.Is(err, ErrWrongKind) {
@@ -166,10 +166,10 @@ func TestMixedKindsRejected(t *testing.T) {
 	ctx := context.Background()
 	st, _ := NewFS(t.TempDir())
 	id := "mixed-1"
-	if _, err := st.Put(ctx, mustJSON(t, framesChunk(t, id, 0, 1000, 1, nil)), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, framesChunk(t, id, 0, 1000, 1, nil)), nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.Put(ctx, chunkJSON(id, 1, 6000, map[string]any{"type": 3}), nil); !errors.Is(err, ErrWrongKind) {
+	if _, err := st.Put(ctx, "demo", chunkJSON(id, 1, 6000, map[string]any{"type": 3}), nil); !errors.Is(err, ErrWrongKind) {
 		t.Fatalf("rrweb chunk onto frames session: %v", err)
 	}
 	// Nothing written for the rejected chunk, meta unchanged.
@@ -180,10 +180,10 @@ func TestMixedKindsRejected(t *testing.T) {
 		t.Fatalf("meta after reject: %+v", m)
 	}
 	id2 := "mixed-2"
-	if _, err := st.Put(ctx, chunkJSON(id2, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", chunkJSON(id2, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.Put(ctx, mustJSON(t, framesChunk(t, id2, 1, 6000, 1, nil)), nil); !errors.Is(err, ErrWrongKind) {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, framesChunk(t, id2, 1, 6000, 1, nil)), nil); !errors.Is(err, ErrWrongKind) {
 		t.Fatalf("frames chunk onto rrweb session: %v", err)
 	}
 }
@@ -192,7 +192,7 @@ func TestLegacyMetaWithoutKind(t *testing.T) {
 	ctx := context.Background()
 	st, _ := NewFS(t.TempDir())
 	id := "legacy-1"
-	if _, err := st.Put(ctx, chunkJSON(id, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", chunkJSON(id, 0, 1000, map[string]any{"type": 4}), nil); err != nil {
 		t.Fatal(err)
 	}
 	// Strip kind from meta.json as Phase 3 wrote it.
@@ -210,7 +210,7 @@ func TestLegacyMetaWithoutKind(t *testing.T) {
 	if meta, _ := st2.Meta(ctx, id); meta.Kind != KindRRWeb {
 		t.Fatalf("legacy meta: %+v", meta)
 	}
-	if _, err := st2.Put(ctx, chunkJSON(id, 1, 6000, map[string]any{"type": 3}), nil); err != nil {
+	if _, err := st2.Put(ctx, "demo", chunkJSON(id, 1, 6000, map[string]any{"type": 3}), nil); err != nil {
 		t.Fatalf("rrweb chunk onto legacy session: %v", err)
 	}
 }
@@ -219,27 +219,27 @@ func TestFramesValidation(t *testing.T) {
 	ctx := context.Background()
 	st, _ := NewFS(t.TempDir())
 	good := framesChunk(t, "v-1", 0, 1000, 1, []map[string]any{{"ts": 1500, "x": 1, "y": 2, "phase": "moved"}})
-	if _, err := st.Put(ctx, mustJSON(t, good), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, good), nil); err != nil {
 		t.Fatalf("good chunk: %v", err)
 	}
 	jpg := good["frames"].([]map[string]any)[0]["jpeg"].(string)
 	// Unpadded base64 is accepted too (RawStdEncoding).
 	rawB64 := strings.TrimRight(jpg, "=")
-	if _, err := st.Put(ctx, mustJSON(t, mutate(good, func(m map[string]any) {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, mutate(good, func(m map[string]any) {
 		m["session_id"] = "v-raw"
 		m["frames"] = []map[string]any{{"ts": 1000, "jpeg": rawB64}}
 	})), nil); err != nil {
 		t.Fatalf("unpadded base64: %v", err)
 	}
 	// Empty frames array with touches only is a valid flush.
-	if _, err := st.Put(ctx, mustJSON(t, mutate(good, func(m map[string]any) {
+	if _, err := st.Put(ctx, "demo", mustJSON(t, mutate(good, func(m map[string]any) {
 		m["session_id"] = "v-empty"
 		m["frames"] = []map[string]any{}
 	})), nil); err != nil {
 		t.Fatalf("empty frames: %v", err)
 	}
 	// Viewport scale defaults to 1 when absent.
-	c, err := st.Put(ctx, mustJSON(t, mutate(good, func(m map[string]any) {
+	c, err := st.Put(ctx, "demo", mustJSON(t, mutate(good, func(m map[string]any) {
 		m["session_id"] = "v-scale"
 		m["viewport"] = map[string]any{"width": 10, "height": 20}
 	})), nil)
@@ -283,7 +283,7 @@ func TestFramesValidation(t *testing.T) {
 	}
 	for name, mut := range bad {
 		b := mustJSON(t, mutate(good, mut))
-		if _, err := st.Put(ctx, b, nil); !errors.Is(err, ErrInvalid) {
+		if _, err := st.Put(ctx, "demo", b, nil); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: expected ErrInvalid, got %v", name, err)
 		}
 	}

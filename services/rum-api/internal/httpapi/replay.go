@@ -11,10 +11,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ZiadMansourM/ouo/services/rum-api/internal/ingest"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 )
 
-// postChunk accepts one SDK chunk (rrweb or frames), gzip or plain JSON.
+// postChunk accepts one SDK chunk (rrweb or frames), gzip or plain JSON,
+// after the ADR-0007 checks (size from Content-Length, project token,
+// Origin, rate limits) of the ingest gateway.
 //
 // Size limits: the body is read up to the frames limit (8 MiB by default)
 // because the kind is only known after decompression. A chunk above the
@@ -22,15 +25,23 @@ import (
 // kind peek runs only for those oversized bodies.
 func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 	limit := s.opts.MaxFrameChunkBytes
+	proj := s.opts.Gateway.Authorize(w, r, ingest.SignalReplay, limit)
+	if proj == nil {
+		return
+	}
+	reject := func(status int, reason, msg string) {
+		s.opts.Gateway.RecordRejected(r.Context(), proj.ID, ingest.SignalReplay, reason)
+		writeError(w, status, msg)
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("chunk larger than %d bytes", limit))
+			reject(http.StatusRequestEntityTooLarge, ingest.ReasonSize, fmt.Sprintf("chunk larger than %d bytes", limit))
 			return
 		}
-		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
+		reject(http.StatusBadRequest, ingest.ReasonDecode, "read body: "+err.Error())
 		return
 	}
 	var body, gzBody []byte
@@ -38,44 +49,47 @@ func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 	case "gzip", "x-gzip":
 		gr, err := gzip.NewReader(bytes.NewReader(raw))
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid gzip body: "+err.Error())
+			reject(http.StatusBadRequest, ingest.ReasonDecode, "invalid gzip body: "+err.Error())
 			return
 		}
 		body, err = io.ReadAll(io.LimitReader(gr, limit+1))
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid gzip body: "+err.Error())
+			reject(http.StatusBadRequest, ingest.ReasonDecode, "invalid gzip body: "+err.Error())
 			return
 		}
 		if int64(len(body)) > limit {
-			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("decompressed chunk larger than %d bytes", limit))
+			reject(http.StatusRequestEntityTooLarge, ingest.ReasonSize, fmt.Sprintf("decompressed chunk larger than %d bytes", limit))
 			return
 		}
 		gzBody = raw
 	case "", "identity":
 		body = raw
 	default:
-		writeError(w, http.StatusUnsupportedMediaType, "unsupported content-encoding "+enc)
+		reject(http.StatusUnsupportedMediaType, ingest.ReasonDecode, "unsupported content-encoding "+enc)
 		return
 	}
 	if int64(len(body)) > s.opts.MaxChunkBytes && replay.PeekKind(body) != replay.KindFrames {
-		writeError(w, http.StatusRequestEntityTooLarge,
+		reject(http.StatusRequestEntityTooLarge, ingest.ReasonSize,
 			fmt.Sprintf("rrweb chunk larger than %d bytes (only kind \"frames\" may be up to %d bytes)", s.opts.MaxChunkBytes, limit))
 		return
 	}
 
-	chunk, err := s.store.Put(r.Context(), body, gzBody)
+	chunk, err := s.store.Put(r.Context(), proj.ID, body, gzBody)
 	if err != nil {
 		switch {
 		case errors.Is(err, replay.ErrInvalid):
-			writeError(w, http.StatusBadRequest, err.Error())
+			reject(http.StatusBadRequest, ingest.ReasonDecode, err.Error())
 		case errors.Is(err, replay.ErrWrongKind):
-			writeError(w, http.StatusConflict, err.Error())
+			reject(http.StatusConflict, ingest.ReasonDecode, err.Error())
+		case errors.Is(err, replay.ErrWrongProject):
+			reject(http.StatusForbidden, ingest.ReasonOrigin, err.Error())
 		default:
 			slog.Error("store chunk", "error", err)
 			writeError(w, http.StatusInternalServerError, "store chunk")
 		}
 		return
 	}
+	s.opts.Gateway.RecordAccepted(r.Context(), proj.ID, ingest.SignalReplay, int64(len(body)))
 	if h := r.Header.Get("X-Ouo-Session-Id"); h != "" && h != chunk.SessionID {
 		slog.Warn("x-ouo-session-id header differs from body", "header", h, "body", chunk.SessionID)
 	}

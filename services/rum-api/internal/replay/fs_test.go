@@ -40,12 +40,12 @@ func TestPutMetaEvents(t *testing.T) {
 	inc := map[string]any{"type": 3, "data": map[string]any{"source": 1}, "timestamp": 1002}
 
 	// seq 1 arrives first (out of order), plain body.
-	if _, err := st.Put(ctx, chunkJSON(id, 1, 6000, inc), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", chunkJSON(id, 1, 6000, inc), nil); err != nil {
 		t.Fatal(err)
 	}
 	// seq 0 arrives gzip.
 	plain0 := chunkJSON(id, 0, 1000, meta4, full)
-	c, err := st.Put(ctx, plain0, gz(plain0))
+	c, err := st.Put(ctx, "demo", plain0, gz(plain0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestPutMetaEvents(t *testing.T) {
 		t.Fatal("gzip body was not stored as-is")
 	}
 	// Re-post of seq 1 replaces instead of duplicating.
-	if _, err := st.Put(ctx, chunkJSON(id, 1, 6000, inc, inc), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", chunkJSON(id, 1, 6000, inc, inc), nil); err != nil {
 		t.Fatal(err)
 	}
 	m, _ = st.Meta(ctx, id)
@@ -124,11 +124,11 @@ func TestPutValidation(t *testing.T) {
 		[]byte(`{"session_id":"ok","seq":0,"events":[`),
 	}
 	for _, b := range bad {
-		if _, err := st.Put(ctx, b, nil); !errors.Is(err, ErrInvalid) {
+		if _, err := st.Put(ctx, "demo", b, nil); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: expected ErrInvalid, got %v", b, err)
 		}
 	}
-	if _, err := st.Put(ctx, []byte(`{"session_id":"ok-1","seq":0,"events":[],"extra":{"x":1}}`), nil); err != nil {
+	if _, err := st.Put(ctx, "demo", []byte(`{"session_id":"ok-1","seq":0,"events":[],"extra":{"x":1}}`), nil); err != nil {
 		t.Errorf("unknown keys must be tolerated: %v", err)
 	}
 	if st.Has(ctx, "../etc") || st.Has(ctx, "") {
@@ -148,7 +148,7 @@ func TestConcurrentPuts(t *testing.T) {
 		wg.Add(1)
 		go func(seq int) {
 			defer wg.Done()
-			if _, err := st.Put(ctx, chunkJSON(id, seq, int64(seq*1000), map[string]any{"type": 3, "n": seq}), nil); err != nil {
+			if _, err := st.Put(ctx, "demo", chunkJSON(id, seq, int64(seq*1000), map[string]any{"type": 3, "n": seq}), nil); err != nil {
 				t.Error(err)
 			}
 		}(i)
