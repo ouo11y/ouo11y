@@ -48,10 +48,24 @@ export interface UserOptions {
 }
 
 export interface RUMOptions {
-  /** OTLP/HTTP base URL. The SDK appends `/v1/traces` and `/v1/logs`. */
+  /**
+   * rum-api base URL, for example `https://rum.example.com`. The SDK posts OTLP to
+   * `${endpoint}/ingest/otlp/v1/traces` and `/ingest/otlp/v1/logs` and replay chunks to
+   * `${endpoint}/v1/replay/chunks` (ADR-0007).
+   */
   endpoint: string;
-  /** rum-api base URL. The SDK posts replay chunks to `${replayEndpoint}/v1/replay/chunks`. */
-  replayEndpoint?: string;
+  /**
+   * Public project identifier, sent as `X-Ouo-Project-Token` on every ingest request. It is
+   * not a secret (browser code is readable by anyone); it only selects the project telemetry
+   * is written to. Required: `initRUM` throws when it is missing or empty.
+   */
+  projectToken: string;
+  /**
+   * Escape hatch for trusted in-network apps: when set, OTLP goes to `${otlpEndpoint}/v1/traces`
+   * and `/v1/logs` (for example straight to a collector) instead of through rum-api. The token
+   * header is still sent. Replay chunks always go to `${endpoint}/v1/replay/chunks`.
+   */
+  otlpEndpoint?: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;

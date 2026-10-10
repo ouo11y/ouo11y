@@ -3,8 +3,9 @@ import { initRUM } from "../dist/index.js";
 const params = new URLSearchParams(location.search);
 const backend = params.get("backend") ?? "http://localhost:8082";
 const rum = initRUM({
-  endpoint: params.get("otlp") ?? "http://localhost:4328",
-  replayEndpoint: params.get("replay") ?? "http://localhost:8090",
+  endpoint: params.get("rum") ?? "http://localhost:8090", // rum-api (or the stub in server.mjs)
+  projectToken: params.get("token") ?? "pt_dev_demo_0000000000000000",
+  ...(params.get("otlp") ? { otlpEndpoint: params.get("otlp") } : {}), // escape hatch: straight to a collector
   service: { name: "web-store", version: "1.4.2", environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + backend.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))] },
   replay: { enabled: params.get("noreplay") === null, maskAllInputs: true },
