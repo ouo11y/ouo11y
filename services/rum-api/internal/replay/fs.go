@@ -56,7 +56,7 @@ func (s *FS) dir(sessionID string) string { return filepath.Join(s.Root, session
 func chunkName(seq int) string { return fmt.Sprintf("%06d.json.gz", seq) }
 
 // Put implements Store.
-func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, error) {
+func (s *FS) Put(ctx context.Context, projectID string, body []byte, gzipBody []byte) (Chunk, error) {
 	c, err := parseChunk(body)
 	if err != nil {
 		return c, err
@@ -84,6 +84,9 @@ func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, erro
 	if err == nil && meta.Kind != c.Kind {
 		return c, fmt.Errorf("%w: session %s holds a %s replay, chunk is %s", ErrWrongKind, c.SessionID, meta.Kind, c.Kind)
 	}
+	if err == nil && meta.ProjectID != "" && projectID != "" && meta.ProjectID != projectID {
+		return c, fmt.Errorf("%w: session %s", ErrWrongProject, c.SessionID)
+	}
 
 	dir := s.dir(c.SessionID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -94,6 +97,9 @@ func (s *FS) Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, erro
 	}
 
 	meta.SessionID = c.SessionID
+	if projectID != "" {
+		meta.ProjectID = projectID
+	}
 	meta.Kind = c.Kind
 	if c.Kind == KindFrames {
 		// Viewport and platform follow the latest chunk (a device does not
