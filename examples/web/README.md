@@ -47,14 +47,16 @@ Copy `.env.example` to `.env` and adjust.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_OTLP_ENDPOINT` | `http://localhost:4318` | OTel Collector OTLP/HTTP base URL (traces and logs) |
-| `VITE_RUM_API` | `http://localhost:8080` | rum-api base URL for replay chunk upload |
+| `VITE_RUM_API` | `http://localhost:8080` | rum-api base URL. The SDK derives `/ingest/otlp/v1/{traces,logs}` and `/v1/replay/chunks` from it (ADR-0007) |
+| `VITE_OUO_PROJECT_TOKEN` | `pt_dev_demo_0000000000000000` | public project token, sent as `X-Ouo-Project-Token` on every ingest request; the development token the whole local stack agrees on |
 | `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `tracing.propagateTo` is derived from it |
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
 
-All SDK usage is in `src/rum.ts`; pages import `rum` from there. `src/api.ts`
+All SDK usage is in `src/rum.ts`; pages import `rum` from there. The token is
+read from `VITE_OUO_PROJECT_TOKEN` and is public by design (it ends up in the
+built JavaScript, like any RUM vendor's key). `src/api.ts`
 wraps `fetch` for the backend and adds `x-user-id`; `traceparent` and
 `baggage` come from the SDK's fetch instrumentation, never from app code.
 
@@ -150,9 +152,12 @@ Expect `session.start`, `navigation`, `add_to_cart`, `checkout_submitted`,
 From a Tempo span, "Logs for this span" jumps to Loki filtered on the same
 `session_id` (provisioned trace-to-logs correlation).
 
-Replay chunks are posted to `VITE_RUM_API` `POST /v1/replay/chunks`; until
-rum-api ships (Phase 3) those requests fail in the network tab and nothing
-else is affected.
+Everything the SDK sends goes to `VITE_RUM_API`: `POST /ingest/otlp/v1/traces`,
+`POST /ingest/otlp/v1/logs` and `POST /v1/replay/chunks`, each with the
+`X-Ouo-Project-Token` header. A `401` in the network tab means the token does
+not match rum-api's project config; a `403` means `http://localhost:5173` is not
+in the project's `allowed_origins`. The collector is no longer reached from the
+browser.
 
 ## API usage from the command line
 
