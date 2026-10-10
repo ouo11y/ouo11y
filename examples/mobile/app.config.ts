@@ -3,7 +3,9 @@ import type { ExpoConfig } from "expo/config";
 /**
  * APP_VERSION switches `service.version` so the health split by version has data:
  *   APP_VERSION=2.4.0 npx expo start --ios
- * BACKEND_URL / OTLP_ENDPOINT default to the alternate host ports of deploy/docker/.env.
+ * EXPO_PUBLIC_RUM_API is the rum-api base URL (ADR-0007: the SDK talks only to rum-api, which
+ * forwards OTLP to the collector), EXPO_PUBLIC_OUO_PROJECT_TOKEN the project token; both default
+ * to the stock compose stack and its development token. BACKEND_URL is the demo backend.
  * From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP.
  */
 const config: ExpoConfig = {
@@ -31,7 +33,8 @@ const config: ExpoConfig = {
   plugins: ["./plugins/withUIScene.js"],
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
-    otlpEndpoint: process.env.OTLP_ENDPOINT ?? "http://localhost:4318",
+    rumApi: process.env.EXPO_PUBLIC_RUM_API ?? "http://localhost:8080",
+    projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
   },
 };

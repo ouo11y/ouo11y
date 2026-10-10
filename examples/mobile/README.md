@@ -30,12 +30,22 @@ set user, flush.
 |---|---|---|
 | `version` (-> `service.version`) | `2.3.0` | `APP_VERSION=2.4.0 npx expo start --ios` |
 | `extra.backendUrl` | `http://localhost:8081` | `BACKEND_URL` |
-| `extra.otlpEndpoint` | `http://localhost:4318` | `OTLP_ENDPOINT` |
+| `extra.rumApi` (-> `initRUM({ endpoint })`) | `http://localhost:8080` | `EXPO_PUBLIC_RUM_API` |
+| `extra.projectToken` (-> `initRUM({ projectToken })`) | `pt_dev_demo_0000000000000000` | `EXPO_PUBLIC_OUO_PROJECT_TOKEN` |
 | `extra.environment` | `local` | `OUO_ENV` |
 
-The defaults are the stock host ports from `deploy/docker/.env.example`. If you moved ports in `deploy/docker/.env`, copy `.env.example` to `.env` here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`.
+Since ADR-0007 the app talks only to rum-api: OTLP goes to `${rumApi}/ingest/otlp/v1/{traces,logs}`
+and replay chunks to `${rumApi}/v1/replay/chunks`, all with the `X-Ouo-Project-Token` header. The
+collector is not reachable from the device any more, so there is no OTLP endpoint setting. The
+default token is the development token of the stock compose stack (`deploy/docker/.env.example`).
+
+The defaults are the stock host ports from `deploy/docker/.env.example`. If you moved ports or
+changed the token in `deploy/docker/.env`, copy `.env.example` to `.env` here; Expo CLI loads it
+into `process.env` before evaluating `app.config.ts`.
 From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP
-in `BACKEND_URL` / `OTLP_ENDPOINT`.
+in `BACKEND_URL` / `EXPO_PUBLIC_RUM_API`.
+
+Typecheck: `npx tsc --noEmit` in this folder (after `npm install`).
 
 ## Run
 
@@ -77,6 +87,10 @@ pods, which is as far as this machine got (see `agents/ios-replay/`).
 Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 
 ## Verify
+
+When `OUO_READ_TOKEN` is set on rum-api (the compose stack sets it in `deploy/docker/.env`), the
+read endpoints need `-H "Authorization: Bearer $OUO_READ_TOKEN"`; the ingest routes the app uses
+take the project token instead.
 
 ```bash
 curl -s 'localhost:8080/v1/sessions?from=now-1h&platform=mobile' | jq '.sessions[] | {session_id, service_version, status, end_reason}'

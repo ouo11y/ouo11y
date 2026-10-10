@@ -101,8 +101,8 @@ bytecode bundle (`.hbc`) without a simulator and is the cheapest "does it bundle
 `global.fetch` wrapper: one CLIENT span `HTTP <METHOD>` with `http.request.method`, `url.full`,
 `server.address`, `url.path`, `http.response.status_code`; `traceparent` + `baggage`
 (`session.id`, `user.id`, `ouo.platform=mobile`) for `propagateTo` URLs; `http.request.failed`
-for 5xx and network failures (not 4xx, not `AbortError`). The OTLP endpoint is always ignored
-and the wrapper keeps `fetch.__original`. The Go demo backend copies the baggage onto its
+for 5xx and network failures (not 4xx, not `AbortError`). The SDK's own ingest URLs are always
+ignored and the wrapper keeps `fetch.__original`. The Go demo backend copies the baggage onto its
 server spans, so Tempo `{ span.session.id = "<id>" }` returns the mobile client span plus the
 `demo-backend` `POST /api/checkout`, `db.query`, `payment.charge` ... spans in one trace.
 
@@ -135,3 +135,38 @@ server spans, so Tempo `{ span.session.id = "<id>" }` returns the mobile client 
 ## Metro port collision with the demo backend (2026-10-10)
 
 Metro's default port is 8081, which is also the stock host port of `examples/backend` in `deploy/docker/compose.yaml`. On a stock stack Expo CLI prompts to move Metro to the next free port; `npx expo start --port 8082` avoids the prompt. The dev Mac never hit this because its `deploy/docker/.env` puts the backend on 8082. `BACKEND_URL` always points at the Go backend, never at Metro.
+
+## Phase 8a: ingest gateway and project token (2026-10-10, ADR-0007)
+
+- **Init shape (0.2.0, breaking).** `initRUM({ endpoint, projectToken })`: `endpoint` is the rum-api
+  base URL, the SDK derives `${endpoint}/ingest/otlp/v1/{traces,logs}` and
+  `${endpoint}/v1/replay/chunks` (`src/endpoints.ts`, `resolveEndpoints`). `replayEndpoint` and the
+  "same host, port 8080" default are gone. `otlpEndpoint` is the escape hatch for in-network apps
+  (OTLP to `${otlpEndpoint}/v1/...`, replay still on rum-api). Missing `projectToken` or `endpoint`
+  throws a `TypeError` naming the option before anything is installed (no exporter, no fetch wrapper).
+- **Token header on the OTel exporters.** `new OTLPTraceExporter({ url, headers: { "X-Ouo-Project-Token": token } })`
+  (same for logs). In `@opentelemetry/otlp-exporter-base` 0.222 the browser build always uses the
+  fetch transport (`createOtlpFetchExportDelegate`; `sendBeacon` is gone), so a static `headers`
+  object simply lands in `fetch(url, { headers })`; no XHR switch, nothing to shim on Hermes. The
+  transport calls `new URL(url)` once per export, which Hermes/Expo provide.
+- **Ignore patterns.** The fetch wrapper ignores `^${otlpBase}/` and `^${replayChunks}` so the
+  SDK never traces its own uploads whichever endpoint (rum-api or the escape hatch) is in use.
+- **Native replay.** `NativeStartOptions.projectToken` rides along `start(endpoint, options)`;
+  the Expo `StartOptions` record has `@Field var projectToken`, `OuoReplayConfig.projectToken`
+  feeds `ChunkUploader`, which sets `X-Ouo-Project-Token` on every chunk request including
+  retries (Swift test `EveryRequestCarriesTheProjectTokenHeader`).
+- **Local verification without rum-api.** `test/ingest-stub.test.ts` starts a Node `http` server
+  on 127.0.0.1:18082 (ephemeral fallback) that answers `401` without the token and `200` with it,
+  and drives `initRUM` through the real `fetch` (Vitest's jsdom environment keeps Node's `fetch`,
+  `Response` and `Headers`). Vitest 5 swallows `console.log` from `afterAll`, so the request
+  excerpt is written with `process.stdout.write` inside the test.
+- **Publishing.** `npm pack --dry-run -w sdk/react-native` must list `ios/OuoReplayCore/*.swift`
+  and `ios/OuoReplay/*.swift` (the vendored copies CocoaPods globs). They are gitignored by
+  `ios/.gitignore`, and npm reads a directory's `.gitignore` when it has no `.npmignore`, so an
+  empty `ios/.npmignore` is what keeps them in the tarball. `prepack` runs the build so the
+  copies are fresh. `exports` keeps a `react-native` condition for Metro and `require`/`default`
+  for Node; `./package.json` and `./expo-module.config.json` are exported for tooling.
+- **Demo app.** `examples/mobile` reads `EXPO_PUBLIC_RUM_API` (default `http://localhost:8080`)
+  and `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (default `pt_dev_demo_0000000000000000`) in `app.config.ts`
+  into `extra.rumApi` / `extra.projectToken`; the OTLP endpoint extra is gone. Typecheck with
+  `npx tsc --noEmit` in `examples/mobile` (needs its own `npm install`).

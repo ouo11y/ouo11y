@@ -33,11 +33,13 @@ public final class URLSessionTransport: ChunkTransport {
 }
 
 /// Serialises chunks to gzip JSON and POSTs them to `${endpoint}/v1/replay/chunks` in order, with
-/// the headers the browser uploader sends. Mirrors `sdk/browser/src/replay/chunker.ts`: retry up
+/// the headers the browser uploader sends plus the project token (ADR-0007). Mirrors `sdk/browser/src/replay/chunker.ts`: retry up
 /// to `maxAttempts` with 1 s, 2 s backoff; a bounded queue (`maxQueueBytes`) drops the oldest
 /// chunk when the app is offline for long.
 public final class ChunkUploader {
     public static let chunksPath = "/v1/replay/chunks"
+    /// Header that identifies the project on every ingest request (ADR-0007).
+    public static let projectTokenHeader = "X-Ouo-Project-Token"
 
     public struct Config: Sendable {
         public var maxAttempts: Int
@@ -68,6 +70,7 @@ public final class ChunkUploader {
     }
 
     public let url: URL
+    public let projectToken: String
     public let config: Config
     private let transport: ChunkTransport
     private let logger: ReplayLogger
@@ -82,18 +85,20 @@ public final class ChunkUploader {
     public private(set) var dropped = 0
     public private(set) var failed = 0
 
-    public init(endpoint: URL, config: Config = Config(), transport: ChunkTransport = URLSessionTransport(), logger: ReplayLogger = ReplayLogger(enabled: false)) {
+    public init(endpoint: URL, projectToken: String, config: Config = Config(), transport: ChunkTransport = URLSessionTransport(), logger: ReplayLogger = ReplayLogger(enabled: false)) {
         var base = endpoint.absoluteString
         while base.hasSuffix("/") { base.removeLast() }
         self.url = URL(string: base + ChunkUploader.chunksPath) ?? endpoint
+        self.projectToken = projectToken
         self.config = config
         self.transport = transport
         self.logger = logger
     }
 
-    public static func makeRequest(url: URL, sessionId: String, seq: Int, gzipBody: Data) -> URLRequest {
+    public static func makeRequest(url: URL, projectToken: String, sessionId: String, seq: Int, gzipBody: Data) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.setValue(projectToken, forHTTPHeaderField: ChunkUploader.projectTokenHeader)
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("gzip", forHTTPHeaderField: "content-encoding")
         request.setValue(sessionId, forHTTPHeaderField: "x-ouo-session-id")
@@ -156,7 +161,7 @@ public final class ChunkUploader {
             return
         }
         sending = true
-        let request = ChunkUploader.makeRequest(url: url, sessionId: head.sessionId, seq: head.seq, gzipBody: head.body)
+        let request = ChunkUploader.makeRequest(url: url, projectToken: projectToken, sessionId: head.sessionId, seq: head.seq, gzipBody: head.body)
         transport.send(request) { result in
             self.queue.async { self.finish(head: head, result: result) }
         }

@@ -17,8 +17,9 @@ import { installErrorCapture } from "./errors/install";
 import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
+import { ingestHeaders, requireProjectToken, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation } from "./network";
-import { createReplayController, defaultReplayEndpoint } from "./replay";
+import { createReplayController } from "./replay";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
@@ -34,15 +35,12 @@ export { SDK_VERSION } from "./version";
 export { RUMProvider, type RUMProviderProps } from "./provider";
 export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { getRUM } from "./instance";
-export { defaultReplayEndpoint, type NativeReplayModule, type NativeStartOptions } from "./replay";
+export { type NativeReplayModule, type NativeStartOptions } from "./replay";
+export { PROJECT_TOKEN_HEADER, resolveEndpoints, type EndpointOptions, type ResolvedEndpoints } from "./endpoints";
 
 /** Test / dev hook: tears everything down so initRUM can run again in the same process. */
 export interface RUMInternal extends RUM {
   _uninstall(): Promise<void>;
-}
-
-function trimSlash(url: string): string {
-  return url.replace(/\/+$/, "");
 }
 
 /**
@@ -57,6 +55,9 @@ export function initRUM(options: RUMOptions): RUM {
     console.warn("[ouo] initRUM called twice; returning the existing instance");
     return existing;
   }
+  // Configuration errors throw: a missing token means 401 on every request (ADR-0007).
+  const endpoints = resolveEndpoints(options);
+  const projectToken = requireProjectToken(options.projectToken);
   const logger = createLogger(options.debug === true);
   if (options.debug) {
     // Never console.error here: the SDK instruments console.error and would report its own diagnostics.
@@ -71,16 +72,14 @@ export function initRUM(options: RUMOptions): RUM {
   }
   logger.log("shims", shims);
 
-  const endpoint = trimSlash(options.endpoint);
   const serviceVersion = options.service.version;
   const storage = safeStorage(options.storage ?? AsyncStorage, (err) => logger.warn("storage error", err));
 
   // Late-bound: the session manager emits session events through this.
   let events: EventEmitter;
 
-  // ---- replay (native, ADR-0006) ----
-  const replayEndpoint = options.replayEndpoint ? trimSlash(options.replayEndpoint) : defaultReplayEndpoint(endpoint);
-  const replay = createReplayController({ endpoint: replayEndpoint, options: options.replay, logger });
+  // ---- replay (native, ADR-0006; chunks go to rum-api with the token, ADR-0007) ----
+  const replay = createReplayController({ endpoint: endpoints.replayEndpoint, projectToken, options: options.replay, logger });
 
   const session = new SessionManager({
     storage,
@@ -97,7 +96,7 @@ export function initRUM(options: RUMOptions): RUM {
   const resource = buildResource(options.service, options.device);
 
   // ---- logs (events) ----
-  const logExporter = new OTLPLogExporter({ url: `${endpoint}/v1/logs` });
+  const logExporter = new OTLPLogExporter({ url: endpoints.logs, headers: ingestHeaders(projectToken) });
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
@@ -115,7 +114,7 @@ export function initRUM(options: RUMOptions): RUM {
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
-  const traceExporter = new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
+  const traceExporter = new OTLPTraceExporter({ url: endpoints.traces, headers: ingestHeaders(projectToken) });
   const tracerProvider = new BasicTracerProvider({
     resource,
     spanProcessors: [
@@ -158,7 +157,12 @@ export function initRUM(options: RUMOptions): RUM {
   replay.start(session.id());
 
   // ---- instrumentation ----
-  const ignoreUrls: Array<RegExp | string> = [new RegExp(`^${escapeRegExp(endpoint)}/`), ...(options.tracing?.ignoreUrls ?? [])];
+  // The SDK's own uploads are never traced: OTLP (through rum-api or the escape hatch) and replay chunks.
+  const ignoreUrls: Array<RegExp | string> = [
+    new RegExp(`^${escapeRegExp(endpoints.otlpBase)}/`),
+    new RegExp(`^${escapeRegExp(endpoints.replayChunks)}(?:[/?#]|$)`),
+    ...(options.tracing?.ignoreUrls ?? []),
+  ];
   const uninstallFetch = installFetchInstrumentation({
     tracer,
     events,
@@ -194,7 +198,16 @@ export function initRUM(options: RUMOptions): RUM {
     onActivity();
   });
 
-  logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, { endpoint, replayEndpoint: replay.active ? replayEndpoint : null, session: session.id(), user: session.userId() });
+  logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
+    rumApi: endpoints.rumApi,
+    traces: endpoints.traces,
+    logs: endpoints.logs,
+    otlpBypassesRumApi: endpoints.otlpBypassesRumApi,
+    replayChunks: replay.active ? endpoints.replayChunks : null,
+    projectToken: `${projectToken.slice(0, 8)}…`,
+    session: session.id(),
+    user: session.userId(),
+  });
 
   const rum: RUMInternal = {
     setUser(user: UserOptions): void {

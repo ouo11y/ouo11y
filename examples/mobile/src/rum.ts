@@ -4,7 +4,10 @@ import * as Device from "expo-device";
 
 interface Extra {
   backendUrl: string;
-  otlpEndpoint: string;
+  /** rum-api base URL (ADR-0007): OTLP and replay chunks both go there. */
+  rumApi: string;
+  /** Project token, public by nature; the stock compose stack ships this development token. */
+  projectToken: string;
   environment: string;
 }
 
@@ -12,7 +15,8 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
 
 export const config: Extra = {
   backendUrl: extra.backendUrl ?? "http://localhost:8081",
-  otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4318",
+  rumApi: extra.rumApi ?? "http://localhost:8080",
+  projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
 };
 
@@ -24,7 +28,8 @@ function escapeRegExp(s: string): string {
 }
 
 export const rum: RUM = initRUM({
-  endpoint: config.otlpEndpoint,
+  endpoint: config.rumApi,
+  projectToken: config.projectToken,
   service: { name: "mobile-store", version: appVersion, environment: config.environment },
   tracing: { propagateTo: [new RegExp(`^${escapeRegExp(config.backendUrl)}`)] },
   device: {
@@ -35,7 +40,7 @@ export const rum: RUM = initRUM({
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
   },
   // Native session replay (ADR-0006): needs the development build (npx expo run:ios); a no-op
-  // in Expo Go and on web. Chunks go to rum-api at the OTLP host on port 8080 (replayEndpoint).
+  // in Expo Go and on web. Chunks go to `${endpoint}/v1/replay/chunks` with the project token.
   // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
   // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
   // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".

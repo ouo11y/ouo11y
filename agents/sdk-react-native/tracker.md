@@ -8,3 +8,4 @@
 | 2026-10-07 | End-to-end against the real collector: rum-api statuses per version, Tempo traces with demo-backend spans | verified (Node playground + Expo web) |
 | 2026-10-07 | iOS Simulator verification | **blocked: no Xcode installed on this machine** |
 | 2026-10-07 | kb/otel-react-native.md | filled |
+| 2026-10-10 | Phase 8a (ADR-0007): `@ouo/react-native` 0.2.0: `endpoint` = rum-api, required `projectToken` (header `X-Ouo-Project-Token` on OTLP exporters and native replay), `otlpEndpoint` escape hatch, `replayEndpoint` removed, publishable package (`exports`, `prepack`, `ios/.npmignore`, CHANGELOG), demo app on `EXPO_PUBLIC_RUM_API` / `EXPO_PUBLIC_OUO_PROJECT_TOKEN`, guide 30 and kb updated | review: 67 RN tests, ingest stub on :18082, demo tsc clean, dev client compiles; live run owed to QA ([summary](summaries/2026-10-10-phase-8a.md)) |
