@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ZiadMansourM/ouo/services/rum-api/internal/ingest"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 )
 
@@ -60,6 +61,7 @@ func post(t *testing.T, url string, body []byte, gzipIt bool) (int, map[string]a
 	}
 	req, _ := http.NewRequest(http.MethodPost, url, r)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(ingest.TokenHeader, testToken)
 	if gzipIt {
 		req.Header.Set("Content-Encoding", "gzip")
 	}
@@ -236,10 +238,10 @@ func TestChunkSizeLimitsPerKind(t *testing.T) {
 func TestSessionReplayKind(t *testing.T) {
 	ts, _, store := newTestServer(t)
 	ctx := context.Background()
-	if _, err := store.Put(ctx, []byte(`{"session_id":"`+realSession+`","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`), nil); err != nil {
+	if _, err := store.Put(ctx, "demo", []byte(`{"session_id":"`+realSession+`","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`), nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Put(ctx, framesBody(t, "mobile-1", 0, 1000, []string{jpegB64(t, 0)}, nil), nil); err != nil {
+	if _, err := store.Put(ctx, "demo", framesBody(t, "mobile-1", 0, 1000, []string{jpegB64(t, 0)}, nil), nil); err != nil {
 		t.Fatal(err)
 	}
 	var list listResponse
