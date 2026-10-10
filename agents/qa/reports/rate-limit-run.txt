@@ -1,0 +1,2 @@
+{"n":400,"elapsed_ms":127,"counts":{"200":308,"429":92},"first429":{"s":429,"ra":"1","body":"{\"error\":\"client rate limit exceeded\"}\n"}}
+{"recovery":[{"after_s":1,"status":200,"retry_after":null},{"after_s":2,"status":200,"retry_after":null},{"after_s":3,"status":200,"retry_after":null},{"after_s":4,"status":200,"retry_after":null},{"after_s":5,"status":200,"retry_after":null},{"after_s":6,"status":200,"retry_after":null}]}

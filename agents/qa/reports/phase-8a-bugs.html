@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 8a bugs and observations</title>
+<style>
+:root{--bg:#fff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--red:#c0392b;--amber:#b7791f;--blue:#2f6fed;--green:#1e8e3e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.15rem;margin:32px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.sub{color:var(--muted);margin:0 0 20px}
+article{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+article h3{margin:0 0 6px;font-size:1.02rem}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:999px;color:#fff;margin-right:6px;vertical-align:middle}
+.minor{background:var(--amber)}.obs{background:var(--blue)}.bug{background:var(--red)}.env{background:var(--muted)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:8px 0 0}dt{color:var(--muted)}dd{margin:0}
+table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+</style>
+</head>
+<body>
+<main>
+<h1>Phase 8a: bugs and observations (qa, 2026-10-10)</h1>
+<p class="sub">Found while verifying the ingest gateway (ADR-0007) against the <code>ouo-8a</code> compose stack. Nothing here was fixed by qa; owners in brackets. Severity: <span class="tag bug">bug</span> breaks a documented behaviour, <span class="tag minor">minor</span> wrong but harmless, <span class="tag obs">observation</span> worth knowing, <span class="tag env">environment</span> tooling caveat.</p>
+
+<h2>Summary</h2>
+<table>
+<tr><th>#</th><th>Severity</th><th>Owner</th><th>Title</th></tr>
+<tr><td>1</td><td><span class="tag minor">minor</span></td><td>rum-api (timeline)</td><td>Resource attributes (<code>ouo_project_id</code>, <code>device_*</code>, <code>session_previous_id</code>) shown as custom-event attributes</td></tr>
+<tr><td>2</td><td><span class="tag minor">minor</span></td><td>sdk-react-native</td><td>A fatal error also emits a second, non-fatal <code>exception</code> record after <code>session.end</code> (error_count 1 without any handled error)</td></tr>
+<tr><td>3</td><td><span class="tag obs">observation</span></td><td>sdk-react-native</td><td>Dev-only 1-span <code>HTTP POST</code> traces at crash time (Metro symbolicate calls traced)</td></tr>
+<tr><td>4</td><td><span class="tag env">environment</span></td><td>sdk-browser / qa</td><td>Keepalive chunk delivered on navigation (seq 11) but dropped when the Claude browser pane closed the tab (seq 9 gap); needs a stock Chrome check</td></tr>
+<tr><td>5</td><td><span class="tag env">environment</span></td><td>examples/mobile docs</td><td><code>expo.extra</code> is baked at <code>xcodebuild</code> time: the env must be present for the native build, not only for Metro; a bare RN debug app connects to Metro on 8081</td></tr>
+<tr><td>6</td><td><span class="tag obs">observation</span></td><td>grafana-plugin (kb)</td><td>"Reset then save empty" does <em>not</em> leave <code>secureJsonFields.readToken: true</code> on Grafana 13.2.1: the key is dropped</td></tr>
+</table>
+
+<h2>Details</h2>
+
+<article>
+<h3><span class="tag minor">minor</span> 1. Resource attributes leak into custom-event attributes in the timeline</h3>
+<dl>
+<dt>Where</dt><dd><code>GET /v1/sessions/{id}</code> timeline entries of type <code>custom</code>; rendered under the event name in the plugin Session detail.</dd>
+<dt>Seen</dt><dd>Web session <code>d6eedf18</code>: <code>add_to_cart</code> shows <code>ouo_project_id=demo product_id=p-1001 qty=1</code>; <code>checkout_submitted</code> shows <code>item_count=1 ouo_project_id=demo payment_method=card total=129</code>. Mobile session <code>6a3c20eb</code>: <code>cart.added</code> shows <code>device_manufacturer=Apple device_model_identifier=arm64 device_model_name=Simulator iOS ouo_project_id=demo product_id=p-1001 product_price=129 session_previous_id=…</code>.</dd>
+<dt>Why it matters</dt><dd><code>ouo.project.id</code> is new in 8a (stamped by rum-api on the resource and promoted to a Loki label/structured metadata by the collector); the timeline builder treats every unknown Loki field as a custom attribute, so every custom event now carries the project id and, on mobile, the whole device resource. Noise, not data loss.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s -H 'Authorization: Bearer rt_dev_0000000000000000' \
+  'localhost:8090/v1/sessions/d6eedf18-04e7-40b5-be33-ec535335df53' \
+  | python3 -c 'import json,sys; [print(e["name"], e.get("attributes")) for e in json.load(sys.stdin)["timeline"] if e["type"]=="custom"]'</pre></dd>
+<dt>Suggested fix</dt><dd>Filter the resource-derived labels (<code>ouo_project_id</code>, <code>device_*</code>, <code>session_previous_id</code>, …) from the custom-attribute set in the timeline builder, the same way <code>service_name</code> and friends already are.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag minor">minor</span> 2. RN SDK: one fatal error, two exception records</h3>
+<dl>
+<dt>Where</dt><dd><code>@ouo/react-native</code> 0.2.0, Expo 57 dev build on the iOS simulator (<code>examples/mobile</code>).</dd>
+<dt>Seen</dt><dd>Metro log after Chaos &gt; "Fatal error (crash)": <code>[ouo] event exception {… "ouo.exception.fatal": true}</code>, then <code>[ouo] fatal error, writing crash marker and flushing</code>, then a second <code>[ouo] event exception {"exception.message": "Error: Fatal error from the Chaos screen (setTimeout)", … "ouo.exception.fatal": false}</code>. rum-api session <code>6a3c20eb</code>: timeline <code>exception (fatal)</code> 16:03:58.973, <code>session.end crash</code> .976, <code>exception</code> .984; counts <code>error_count: 1, crash_count: 1</code> although no handled error was triggered.</dd>
+<dt>Hypothesis</dt><dd>The dev-mode LogBox re-reports the uncaught error through <code>console.error</code> ("Error: Error: …" double prefix), and the SDK's console hook records it as a handled exception. Likely dev-only; check a release build.</dd>
+<dt>Reproduce</dt><dd>Run the dev client against the 8a stack, Chaos &gt; "Fatal error (crash)", relaunch the app, then <code>GET /v1/sessions/&lt;id&gt;</code> with the read token and look at the last three timeline entries and <code>error_count</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> 3. Dev-only 1-span <code>HTTP POST</code> traces at crash time</h3>
+<dl>
+<dt>Seen</dt><dd>Mobile session <code>6a3c20eb</code> lists two traces <code>HTTP POST</code>, 1 span, at 19:03:58 and 19:03:59 (exactly the fatal error time), no backend join. Everything else in the session joins <code>demo-backend</code>.</dd>
+<dt>Hypothesis</dt><dd>LogBox POSTs to Metro's <code>/symbolicate</code>; the SDK's fetch instrumentation traces them. Suggest adding the Metro origin to the built-in ignore list when <code>__DEV__</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag env">environment</span> 4. Keepalive upload on unload: delivered on navigation, dropped on pane tab close</h3>
+<dl>
+<dt>Setup</dt><dd>Web demo on <code>http://localhost:5174</code> (Vite), rum-api <code>localhost:8090</code>, Claude desktop browser pane (Chromium).</dd>
+<dt>Seen</dt><dd>Session <code>d6eedf18</code>: before closing the tab <code>last_seq=7</code>. Two clicks then <code>tabs_close</code>: no new chunk; the next page load continued at <code>seq=10</code>, so the SDK had cut <code>seq=9</code> on <code>pagehide</code> but its keepalive POST never reached rum-api (ingest counter <code>signal=replay</code> shows no rejection either). Two clicks then a cross-origin navigation in the same tab: <code>seq=11</code> (14 events, plain JSON) arrived and was accepted, counted <code>outcome=ok</code>. Final meta: <code>seqs [0..8, 10, 11]</code>; rum-api tolerates the gap.</dd>
+<dt>Reading</dt><dd>The keepalive path with the token works on navigation (the browser-only behaviour the SDK summary asked to confirm). The lost chunk on tab close is most likely the pane destroying the renderer before the keepalive request is issued; stock Chrome keeps keepalive requests alive after tab close. Re-check once in a normal Chrome window before calling it an SDK bug.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag env">environment</span> 5. iOS: <code>expo.extra</code> is baked by <code>xcodebuild</code>, and a bare RN debug app picks Metro on 8081</h3>
+<dl>
+<dt>Seen</dt><dd>First build via <code>xcodebuild</code> without the env: the app initialised with <code>rumApi: http://localhost:8080</code> (the main stack's old rum-api, 404 on <code>/ingest/otlp</code>) although Metro was started with <code>EXPO_PUBLIC_RUM_API=http://localhost:8090</code>. <code>mobilestore.app/EXConstants.bundle/app.config</code> carried the defaults: expo-constants evaluates <code>app.config.ts</code> during the Xcode build (<code>get-app-config-ios.sh</code>), not at Metro time. Rebuilding with the variables exported (or in <code>examples/mobile/.env</code>) fixed it. The app also auto-connected to another session's Metro on 8081; <code>xcrun simctl spawn booted defaults write dev.ouo.mobilestore RCT_jsLocation "localhost:8091"</code> redirects it (deep links need the real scheme <code>dev.ouo.mobilestore://</code>, and without <code>expo-dev-client</code> they do not switch servers).</dd>
+<dt>Suggestion</dt><dd>Say in <code>examples/mobile/README.md</code> and the fast-tracked guide that the env must be present for <code>npx expo run:ios</code> / <code>xcodebuild</code>, not only for <code>expo start</code>. Recorded in <code>kb/e2e-scenario.md</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> 6. Plugin "Reset then save empty": the key is dropped, no stale "configured"</h3>
+<dl>
+<dt>Seen</dt><dd>Config page: Reset, Save with the field empty, page reloads: no "configured" badge, no Reset button; <code>GET /api/plugins/ouo-rum-app/settings</code> returns <code>"secureJsonFields": {}</code>; the proxied <code>/rum/v1/stats/health</code> is 401 (rum-api sees no usable Bearer); the 401 banner appears on the app pages. Restoring via <code>POST /api/plugins/ouo-rum-app/settings</code> with <code>secureJsonData.readToken</code> (or restarting Grafana so provisioning re-applies) brings <code>secureJsonFields.readToken: true</code> and 200 back. The quirk feared in <code>kb/grafana-app-plugin.md</code> ("saving an empty string still shows configured") does not occur on Grafana 13.2.1; the kb line can be rewritten.</dd>
+</dl>
+</article>
+
+<h2>Carried over from Phase 6 (still present)</h2>
+<ul>
+<li>React dev mode double-reports the uncaught error in the web demo: session <code>d6eedf18</code> has <code>crash_count: 2</code> for one click (two identical <code>exception</code> records 1 ms apart).</li>
+<li>Tempo search strips leading zeros from trace ids (<code>54996e993b44c6e67a5acb7792bc1e3</code>, 31 chars, in the web session).</li>
+</ul>
+</main>
+</body>
+</html>

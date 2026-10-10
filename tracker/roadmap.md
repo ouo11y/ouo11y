@@ -21,12 +21,12 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 
 ### 8a Install and secure
 
-- [ ] Helm chart: rum-api, collector, Grafana with plugin provisioned; values for existing LGTM versus bundled LGTM (upstream charts, replicated mode, object storage)
-- [ ] One-command VM install: TLS via reverse proxy, systemd units, documented `.env`
-- [ ] Project token for SDK ingest at rum-api: origin allowlist, rate limit, body-size limit, per-project quota; collector no longer exposed to browsers
-- [ ] Grafana service account for plugin reads
-- [ ] Publish `@ouo/browser` and `@ouo/react-native` to npm, `OuoReplay` via SwiftPM, plugin signed for private distribution or documented unsigned allowlist; changelog and semantic versioning
-- [ ] Upgrade procedure tested from the previous release, replay schema-version check
+- [x] Helm chart: rum-api, collector, Grafana with plugin provisioned; values for existing LGTM versus bundled LGTM [helm agent 2026-10-10: `deploy/helm/ouo` lint and template clean; installed on kind `ouo-8a` in bundled mode with images from the tree, 6 pods Ready, 3 `helm upgrade`s, readyz, plugin 0.3.0 enabled with read token through the proxy, ingest 401/403/200 with `ouo.project.id=demo` in Tempo, replay chunk 202; external and HA values rendered only, not installed; `agents/helm/summaries/2026-10-10-phase-8a.md`]
+- [ ] One-command VM install: TLS via reverse proxy, systemd units, documented `.env` [platform-infra 2026-10-10: `deploy/vm/` written; compose override, Caddyfile (`caddy validate` in internal, ACME and unset modes) and a throwaway Caddy with fake upstreams served both hosts over TLS from the internal CA; `install.sh` not yet run on a fresh VM, owed to the Phase 8 exit criterion run]
+- [x] Project token for SDK ingest at rum-api: origin allowlist, rate limit, body-size limit, per-project quota; collector no longer exposed to browsers [qa 2026-10-10: `deploy/scripts/e2e.sh` gateway checks 401/403/400 and `ouo.project.id=demo` stamping in Tempo, smoke.sh, 400-request burst 92 x 429 with `Retry-After`, 4.3 MB body 413, collector bound to 127.0.0.1 only, real web and iOS sessions through rum-api; per-project quota only unit-tested; `reports/phase-8a-verification.html`]
+- [x] Read token for plugin reads (ADR-0007 section 6; replaces the planned Grafana service account) [qa 2026-10-10: `secureJsonData.readToken` provisioned, proxy injects the Bearer server-side, browser carries no token, direct reads 401, wrong token shows the banner on all three pages and fails Test connection, restore recovers]
+- [ ] Publish `@ouo/browser` and `@ouo/react-native` to npm, `OuoReplay` via SwiftPM, plugin signed for private distribution or documented unsigned allowlist; changelog and semantic versioning [release agent 2026-10-10: packages publishable (`npm pack --dry-run` lists LICENSE and CHANGELOG), workflows written and actionlint clean, versioning policy in `docs/releasing.md`, unsigned allowlist documented; nothing published: needs the npm org, GHCR visibility, optional Grafana signing token and the `ouo-ios` mirror repo, listed in `agents/release/summaries/2026-10-10-phase-8a.md`]
+- [ ] Upgrade procedure tested from the previous release, replay schema-version check [release agent 2026-10-10: `docs/operations/upgrade.md` written, `helm upgrade` exercised three times on kind; an upgrade from the Phase 7b release on a data directory with existing replays and the schema-version refusal are owed to Phase 8b]
 
 ### 8b Data lifecycle
 
