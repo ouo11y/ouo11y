@@ -50,7 +50,7 @@ p.lead { color: var(--text-secondary); margin: 0 0 24px; }
 .row + .row { border-top: 1px solid var(--surface-2); }
 .row .label { font-size: 13px; color: var(--text-secondary); padding-right: 12px; }
 .bar { position: relative; height: 26px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px;
-  font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; cursor: default;
+  font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: visible; cursor: default;
   border: 1px solid transparent; margin: 0 1px; }
 .bar.platform { background: var(--platform-soft); border-color: var(--platform); }
 .bar.product { background: var(--product-soft); border-color: var(--product); }
@@ -120,19 +120,19 @@ const phases = [
   { id: '8', name: 'Pilot-ready platform', track: 'platform', start: 1, end: 8,
     buys: 'Install on your cluster in an afternoon; data never leaves; retention, deletion, backup and upgrade documented.',
     exit: 'A non-founder engineer installs on a fresh cluster and VM from the docs, resolves a staged incident, verifies retention and deletion, restores from backup. Timed and recorded.' },
-  { id: '9', name: 'Release health + benchmarks', track: 'product', start: 9, end: 13,
+  { id: '9', name: 'Release health, benchmarks', track: 'product', start: 9, end: 13,
     buys: 'The headline mobile feature and the device-impact numbers competitors do not publish.',
     exit: 'Two demo versions compared in the plugin; public benchmark site live with web results for five products and iOS for three.' },
   { id: '10', name: 'Android replay (Expo)', track: 'sdk', start: 14, end: 16,
     buys: '"Mobile" means both platforms.',
     exit: 'Android session with masked replay and a crash in the plugin; health by version includes Android.' },
-  { id: '11', name: 'Scale + multi-project', track: 'platform', start: 17, end: 24,
+  { id: '11', name: 'Scale, multi-project', track: 'platform', start: 17, end: 24,
     buys: 'A scale answer with numbers; isolation for a second project or a managed customer.',
     exit: 'Load test at one million sessions per day published; two projects isolated; p95 rum-api latency under one second.' },
   { id: '12', name: 'Migration kit', track: 'platform', start: 25, end: 28, cond: true,
     buys: 'Run LGTM next to your ELK or Datadog for 90 days, compare, decide. Pulled into Phase 8 if the first buyer is on ELK or Datadog.',
     exit: 'Demo backend reporting to both stacks with matching trace counts and a generated cost comparison.' },
-  { id: '13', name: 'Native SDKs: suite, Swift, Kotlin, Flutter', track: 'sdk', start: 29, end: 36, open: true,
+  { id: '13', name: 'Native SDKs', track: 'sdk', start: 29, end: 36, open: true,
     buys: 'Customers whose apps are not React Native. First hire\'s workstream.',
     exit: 'Per SDK: conformance suite green, demo app instrumented, benchmark page extended.' },
   { id: 'AI', name: 'Investigation experiment', track: 'product', start: 9, end: 36, dashed: true,
