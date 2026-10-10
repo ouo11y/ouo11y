@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 8a verification</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--ok:#1e8e3e;--warn:#b7791f;--bad:#c0392b;--acc:#2f6fed;--acc2:#7c3aed;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:1080px;margin:0 auto;padding:24px 16px 72px}
+h1{font-size:1.7rem;margin:0 0 4px}h2{font-size:1.2rem;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:4px}h3{font-size:1rem;margin:18px 0 6px}
+.sub{color:var(--muted);margin:0 0 18px}
+nav a{margin-right:14px;color:var(--acc);text-decoration:none}nav{margin:8px 0 20px;font-size:.92rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card b{display:block;font-size:1.5rem;line-height:1.2}.card span{color:var(--muted);font-size:.84rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem;margin:8px 0}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}.na{background:var(--muted)}
+figure{margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+figure img{max-width:100%;height:auto;border-radius:6px;display:block}figcaption{color:var(--muted);font-size:.84rem;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;min-width:160px}.bar i{display:block;height:100%}
+.bar .h{background:var(--ok)}.bar .e{background:var(--warn)}.bar .c{background:var(--bad)}
+svg text{font-family:inherit}
+details summary{cursor:pointer;color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>Phase 8a verification: install and secure</h1>
+<p class="sub">qa agent, 2026-10-10, branch <code>phase-8a-install-secure</code>, compose project <code>ouo-8a</code> (Grafana 3002, rum-api 8090, backend 8083, collector loopback 4330). Spec: ADR-0007. Everything below was run live against that stack; commands to reproduce are at the end.</p>
+<nav><a href="#arch">Architecture</a><a href="#checklist">Checklist</a><a href="#e2e">e2e numbers</a><a href="#web">Web session</a><a href="#plugin">Plugin and read token</a><a href="#ios">iOS</a><a href="#limits">Rate and size limits</a><a href="#bugs">Bugs</a><a href="#repro">Reproduce</a></nav>
+
+<div class="cards">
+<div class="card"><b>40</b><span>synthetic sessions, 0 mismatches (run <code>mv2kfrpc</code>)</span></div>
+<div class="card"><b>10/10</b><span>gateway negative checks (401 / 403 / 400 / read 401)</span></div>
+<div class="card"><b>demo</b><span><code>ouo.project.id</code> on every Tempo resource, spoof overwritten</span></div>
+<div class="card"><b>2</b><span>real sessions: web crashed + rrweb, iOS crashed + 14 frames</span></div>
+<div class="card"><b>92</b><span>429s with <code>Retry-After: 1</code> out of 400 burst requests</span></div>
+<div class="card"><b>6</b><span>findings: 2 minor, 4 observations, 0 blocking</span></div>
+</div>
+
+<h2 id="arch">The new ingest path</h2>
+<svg viewBox="0 0 1000 330" width="100%" role="img" aria-label="Untrusted clients post OTLP and replay chunks to rum-api with the project token; rum-api validates, stamps ouo.project.id and forwards to the collector on the private network; Grafana reads rum-api through the plugin proxy with the read token">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5 0 10z" fill="currentColor"/></marker></defs>
+<g font-size="13" fill="currentColor">
+<rect x="20" y="40" width="190" height="64" rx="8" fill="none" stroke="var(--acc)" stroke-width="1.5"/>
+<text x="115" y="64" text-anchor="middle" font-weight="600">@ouo/browser 0.2.0</text><text x="115" y="84" text-anchor="middle" fill="var(--muted)">web-store, localhost:5174</text>
+<rect x="20" y="130" width="190" height="64" rx="8" fill="none" stroke="var(--acc)" stroke-width="1.5"/>
+<text x="115" y="154" text-anchor="middle" font-weight="600">@ouo/react-native 0.2.0</text><text x="115" y="174" text-anchor="middle" fill="var(--muted)">mobile-store, iOS simulator</text>
+<rect x="20" y="220" width="190" height="64" rx="8" fill="none" stroke="var(--acc)" stroke-width="1.5"/>
+<text x="115" y="244" text-anchor="middle" font-weight="600">tests/e2e/scenario.mjs</text><text x="115" y="264" text-anchor="middle" fill="var(--muted)">smoke.sh, curl</text>
+<text x="115" y="28" text-anchor="middle" fill="var(--muted)" font-size="12">untrusted clients</text>
+
+<line x1="210" y1="72" x2="330" y2="140" stroke="currentColor" marker-end="url(#a)"/>
+<line x1="210" y1="162" x2="330" y2="162" stroke="currentColor" marker-end="url(#a)"/>
+<line x1="210" y1="252" x2="330" y2="184" stroke="currentColor" marker-end="url(#a)"/>
+<text x="270" y="118" text-anchor="middle" font-size="11" fill="var(--muted)">X-Ouo-Project-Token</text>
+
+<rect x="335" y="90" width="250" height="150" rx="10" fill="var(--card)" stroke="var(--acc2)" stroke-width="2"/>
+<text x="460" y="112" text-anchor="middle" font-weight="700">rum-api :8090</text>
+<text x="460" y="132" text-anchor="middle" font-size="11.5">POST /ingest/otlp/v1/{traces,logs,metrics}</text>
+<text x="460" y="148" text-anchor="middle" font-size="11.5">POST /v1/replay/chunks</text>
+<text x="460" y="172" text-anchor="middle" font-size="11" fill="var(--muted)">413 size, 401 token, 403 origin, 429 rate,</text>
+<text x="460" y="187" text-anchor="middle" font-size="11" fill="var(--muted)">400 decode, stamp ouo.project.id, re-encode</text>
+<text x="460" y="212" text-anchor="middle" font-size="11.5">GET /v1/* needs Bearer OUO_READ_TOKEN</text>
+<text x="460" y="228" text-anchor="middle" font-size="11" fill="var(--muted)">metrics ouo.ingest.requests / bytes</text>
+
+<line x1="585" y1="140" x2="700" y2="140" stroke="currentColor" marker-end="url(#a)"/>
+<text x="642" y="130" text-anchor="middle" font-size="11" fill="var(--muted)">protobuf, in-network</text>
+<rect x="705" y="110" width="150" height="60" rx="8" fill="none" stroke="currentColor"/>
+<text x="780" y="134" text-anchor="middle" font-weight="600">otel-collector</text><text x="780" y="152" text-anchor="middle" fill="var(--muted)" font-size="11.5">host 127.0.0.1:4330 only</text>
+<line x1="855" y1="140" x2="900" y2="140" stroke="currentColor" marker-end="url(#a)"/>
+<rect x="905" y="100" width="80" height="80" rx="8" fill="none" stroke="currentColor"/>
+<text x="945" y="128" text-anchor="middle" font-size="12">Loki</text><text x="945" y="146" text-anchor="middle" font-size="12">Tempo</text><text x="945" y="164" text-anchor="middle" font-size="12">Mimir</text>
+
+<rect x="705" y="220" width="280" height="90" rx="8" fill="none" stroke="var(--ok)" stroke-width="1.5"/>
+<text x="845" y="243" text-anchor="middle" font-weight="600">Grafana :3002 + ouo-rum-app 0.3.0</text>
+<text x="845" y="262" text-anchor="middle" font-size="11.5">browser → /api/plugin-proxy/ouo-rum-app/rum/* (no token)</text>
+<text x="845" y="279" text-anchor="middle" font-size="11.5">Grafana adds Authorization: Bearer {{secureJsonData.readToken}}</text>
+<text x="845" y="296" text-anchor="middle" font-size="11" fill="var(--muted)">provisioned from OUO_READ_TOKEN</text>
+<line x1="705" y1="250" x2="590" y2="215" stroke="var(--ok)" marker-end="url(#a)"/>
+<line x1="905" y1="220" x2="945" y2="182" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#a)"/>
+<text x="940" y="205" text-anchor="start" font-size="10.5" fill="var(--muted)">datasources</text>
+</g>
+</svg>
+
+<h2 id="checklist">Phase 8a checklist (tracker/roadmap.md) with evidence</h2>
+<table>
+<tr><th style="width:36%">Item</th><th style="width:12%">Result</th><th>Evidence / method</th></tr>
+<tr><td>Helm chart: rum-api, collector, Grafana with plugin provisioned; values for existing versus bundled LGTM</td><td><span class="tag na">not verified</span></td><td>No Kubernetes cluster in this run; <code>deploy/helm/</code> is the helm agent's deliverable. Left unticked.</td></tr>
+<tr><td>One-command VM install: TLS via reverse proxy, systemd units, documented <code>.env</code></td><td><span class="tag na">not verified</span></td><td>No Ubuntu VM in this run; platform-infra proved the Caddy routing and compose merge in pieces (its summary). Left unticked; this is the Phase 8 exit-criterion drill.</td></tr>
+<tr><td>Project token for SDK ingest at rum-api: origin allowlist, rate limit, body-size limit, per-project quota; collector no longer exposed to browsers</td><td><span class="tag ok">verified</span></td><td>e2e gateway checks (401 no/unknown token, 403 foreign Origin on POST and preflight, 400 bad body, 401 replay without token); smoke.sh by the orchestrator; 400-request burst: 92 x 429 with <code>Retry-After: 1</code>, recovered within 1 s; 4.3 MB body: <code>413 {"error":"body larger than 4194304 bytes"}</code>; collector published on <code>127.0.0.1:4330</code> only (POST from the LAN IP refused, loopback 200, rum-api on the LAN IP 200); real web and iOS sessions ingested only through <code>:8090</code>. Per-project quota: the per-project bucket exists (defaults 1000 rps / 5000) and is unit-tested; only the per-IP bucket was exercised live.</td></tr>
+<tr><td>Grafana service account for plugin reads</td><td><span class="tag warn">verified as read token</span></td><td>Implemented per ADR-0007 section 6 as a rum-api read token, not a Grafana service account: <code>secureJsonFields.readToken: true</code> from provisioning; <code>/api/plugin-proxy/…/rum/v1/stats/health</code> 200 from the browser with only the Grafana cookie while the same path on rum-api without a Bearer is 401; wrong token through the settings API gives the "rum-api rejected the read token" banner on Overview, Sessions and Session detail (one banner each, no logout, Grafana's single retry visible); "Test connection" reports healthz 200 / stats 401 and, after restore, "rum-api reachable, read token accepted". Left unticked because the roadmap wording (service account) is not what exists; the orchestrator may reword the item.</td></tr>
+<tr><td>Publish <code>@ouo/browser</code> and <code>@ouo/react-native</code> to npm, <code>OuoReplay</code> via SwiftPM, plugin signed or documented unsigned allowlist; changelog and semantic versioning</td><td><span class="tag na">not verified</span></td><td>qa did not publish anything. Versions present and used live: browser 0.2.0 (init log), RN 0.2.0 (Metro init log), plugin 0.3.0 (Grafana settings API, unsigned with the allowlist warning shown on the config page). Release agent's scope.</td></tr>
+<tr><td>Upgrade procedure tested from the previous release, replay schema-version check</td><td><span class="tag na">not verified</span></td><td>The 8a stack was started fresh; no upgrade from a Phase 7 install was performed in this run.</td></tr>
+</table>
+
+<h3>Agent "what qa must verify live" items</h3>
+<table>
+<tr><th>Agent</th><th>Item</th><th>Result</th><th>Evidence</th></tr>
+<tr><td>rum-api</td><td>TraceQL by <code>resource.ouo.project.id</code> once the stack runs the new image; README curl sequence</td><td><span class="tag ok">verified</span></td><td>smoke.sh (orchestrator) and the e2e project-stamping check: both sampled traces have exactly one <code>ouo.project.id=demo</code> per resource (2 resources each), client value <code>spoofed-by-client</code> gone. <code>ouo_ingest_requests</code> in Mimir counts every rejection with its reason (token 8, origin 3, decode 2, rate 92).</td></tr>
+<tr><td>sdk-browser</td><td>init line, network tab (OPTIONS + POST to <code>/ingest/otlp/v1/*</code> and <code>/v1/replay/chunks</code>, nothing to 4318), negative checks, unload keepalive, session in rum-api and Grafana</td><td><span class="tag ok">verified</span> (unload: see finding 4)</td><td><code>[ouo] @ouo/browser@0.2.0 initialised {endpoint: http://localhost:8090, traces: …/ingest/otlp/v1/traces, logs: …/ingest/otlp/v1/logs, replay: …/v1/replay/chunks, otlpBypass: false}</code>; 22 requests to :8090 all 204/200/202, none to 4330; keepalive chunk (plain JSON, 14 events) accepted on navigation; session <code>d6eedf18</code> crashed, 12 traces, 11 rrweb chunks, listed in rum-api and rendered in the plugin. Wrong-token and foreign-origin negatives were run from the scenario rather than by rebuilding the demo.</td></tr>
+<tr><td>sdk-react-native</td><td>Metro init line with the derived URLs, checkout on the simulator, <code>replay_kind: frames</code>, traces joined with the backend, upload carried the token</td><td><span class="tag ok">verified</span></td><td><code>[ouo] @ouo/react-native@0.2.0 initialised {rumApi: http://localhost:8090, traces: …/ingest/otlp/v1/traces, logs: …, replayChunks: …/v1/replay/chunks, projectToken: "pt_dev_d…"}</code>; simulator log <code>[ouo replay] queued … seq=5 3 frames 4 touches 76289 bytes gzip</code> / <code>uploaded seq=5</code> (a 401 would log <code>upload … failed (httpStatus(401))</code>); rum-api: <code>kind: frames, chunk_count: 9, frame_count: 14, touch_count: 18, project_id: demo</code>; 8 traces, the checkout POST has 6 spans (mobile-store + demo-backend); crash marker on relaunch gave <code>status crashed, end_reason crash</code>. Ingest counter <code>signal=replay outcome=ok</code> went from 11 to 21 during the iOS run with no rejection.</td></tr>
+<tr><td>platform-infra</td><td>collector on 127.0.0.1, provisioning (<code>secureJsonFields.readToken</code>), proxy 200 vs direct 401, e2e with the token</td><td><span class="tag ok">verified</span></td><td>See the checklist rows above and the e2e section.</td></tr>
+<tr><td>grafana-plugin</td><td>provisioning, proxy header, config page, 401 banner on the three pages, restore, "Reset then save empty" quirk, Viewer role</td><td><span class="tag ok">verified</span> (Viewer role not run)</td><td>All in the plugin section below. Reset + empty save drops the key (<code>secureJsonFields: {}</code>), the stale "configured" quirk does not happen on Grafana 13.2.1. The Viewer-role check needs a second Grafana user and was skipped.</td></tr>
+</table>
+
+<h2 id="e2e">Synthetic matrix through the gateway (deploy/scripts/e2e.sh)</h2>
+<p><code>tests/e2e/scenario.mjs</code> now posts OTLP/JSON to <code>${OUO_RUM_API}/ingest/otlp/v1/{logs,traces}</code> with <code>X-Ouo-Project-Token</code>, sends every resource with <code>ouo.project.id=spoofed-by-client</code>, reads rum-api with <code>Authorization: Bearer $OUO_READ_TOKEN</code>, runs ten gateway checks before sending, and asserts the stored project id through Grafana's Tempo datasource proxy. Run <code>mv2kfrpc</code>, 2026-10-10T15:44:22Z, ingestion wait 64 s, result file <a href="../agents/qa/reports/e2e-phase-8a-run.json">agents/qa/reports/e2e-phase-8a-run.json</a>.</p>
+<pre>gateway checks: no_token=401 unknown_token=401 foreign_origin=403 foreign_preflight=403 bad_body=400
+                no_token_replay=401 read_no_token=401 read_wrong_token=401 read_token=200 healthz_open=200
+sent qa-web: 20 sessions, 52 log records, 72 spans      sent qa-mobile: 20 sessions, 54 log records, 72 spans</pre>
+<table id="matrix"><tr><th>platform</th><th>service</th><th>version</th><th>sent h/e/c</th><th>rum-api h/e/c</th><th>%</th><th>split</th></tr></table>
+<table>
+<tr><th>session</th><th>status</th><th>end_reason</th><th>events</th><th>traces</th><th>Grafana links 200</th><th>Tempo spans via ds/query</th><th>ouo.project.id per resource</th></tr>
+<tr><td>qa-mv2kfrpc-w-100-e2</td><td>errored</td><td>-</td><td>4</td><td>3</td><td>3/3</td><td>2,2,2</td><td>demo, demo (trace 945624be…)</td></tr>
+<tr><td>qa-mv2kfrpc-w-110-c0</td><td>crashed</td><td>-</td><td>3</td><td>1</td><td>1/1</td><td>2</td><td></td></tr>
+<tr><td>qa-mv2kfrpc-m-100-e2</td><td>errored</td><td>-</td><td>4</td><td>3</td><td>3/3</td><td>2,2,2</td><td>demo, demo (trace eeb123f1…)</td></tr>
+<tr><td>qa-mv2kfrpc-m-110-c0</td><td>crashed</td><td>crash</td><td>4</td><td>1</td><td>1/1</td><td>2</td><td></td></tr>
+</table>
+<p><code>E2E OK: 40 sessions, run_id=mv2kfrpc, ingestion wait 64 s</code>. A first run failed on one of my own assertions (<code>WWW-Authenticate</code> is <code>Bearer realm="ouo-rum-api"</code>, the check wanted the bare word); relaxed to a prefix match.</p>
+
+<h2 id="web">Real web session (web-store 1.4.2, @ouo/browser 0.2.0)</h2>
+<p>Vite on <code>http://localhost:5174</code> with <code>VITE_RUM_API=http://localhost:8090 VITE_OUO_PROJECT_TOKEN=pt_dev_demo_… VITE_BACKEND_URL=http://localhost:8083 VITE_RUM_DEBUG=1</code>, driven in the Claude browser pane: set user <code>qa-8a-web</code>, product p-1001, add to cart, cart, checkout (card), order <code>ord-000001</code>, Chaos: <code>POST /api/checkout?fail=500</code>, "throw inside the click handler", flush.</p>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Console init line</td><td><code>@ouo/browser@0.2.0 initialised {endpoint: http://localhost:8090, traces: http://localhost:8090/ingest/otlp/v1/traces, logs: …/ingest/otlp/v1/logs, replay: …/v1/replay/chunks, otlpBypass: false}</code></td></tr>
+<tr><td>Network (pane request log, filter <code>8090</code>)</td><td>OPTIONS 204 then POST 200 on <code>/ingest/otlp/v1/logs</code> and <code>/traces</code>; POST 202 on <code>/v1/replay/chunks</code> (gzip); 22 requests, all to :8090, none to the collector port. Accepted means the token was present (401 otherwise; the counter shows no token rejection from the demo).</td></tr>
+<tr><td>rum-api <code>GET /v1/sessions/d6eedf18…</code> (read token)</td><td><code>status crashed, user qa-8a-web, service web-store 1.4.2, trace_count 12, has_replay true, crash_count 2 (React dev double report), failed_request_count 1</code>; timeline: session.start, navigation x7, web_vital, add_to_cart, checkout_submitted, http.request.failed, exception x2; traces: 500 POST <code>has_error</code>, GETs with 4 spans and POSTs with 5 to 6 spans (web-store + demo-backend), documentLoad 28 spans</td></tr>
+<tr><td>rum-api <code>GET …/replay</code></td><td><code>project_id demo, kind rrweb</code>, 11 chunks (seq 0..8, 10, 11), 10.8 KB gzip</td></tr>
+<tr><td><code>GET /v1/sessions?status=crashed&amp;service=web-store</code></td><td>exactly <code>d6eedf18…</code>, <code>has_replay: true</code></td></tr>
+<tr><td>Unload path</td><td>Two clicks then a cross-origin navigation: chunk seq 11 (14 events, plain JSON keepalive) accepted; two clicks then the pane's tab close: seq 9 was cut but never arrived (finding 4)</td></tr>
+</table>
+<div class="grid">
+<figure><img src="../agents/qa/reports/8a-web-order.jpg" alt="web-store order confirmation ord-000001 with user qa-8a-web"><figcaption>Checkout completed against backend :8083 (session d6eedf18 in the footer).</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-web-chaos.jpg" alt="chaos page log: flush, uncaught error, 500 ApiError"><figcaption>Chaos page after the 500, the uncaught error and the flush.</figcaption></figure>
+</div>
+
+<h2 id="plugin">Grafana plugin 0.3.0 through the proxy, and the read token</h2>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Provisioning</td><td><code>GET /api/plugins/ouo-rum-app/settings</code>: <code>jsonData.rumApiUrl http://rum-api:8080</code>, <code>secureJsonFields {readToken: true}</code>, version 0.3.0; the secret is not in the response</td></tr>
+<tr><td>Proxy injects the header; the browser sends none</td><td>From the Grafana page: <code>fetch('/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-1h')</code> with only the session cookie → 200; <code>fetch('http://localhost:8090/v1/stats/health?from=now-1h')</code> → 401 <code>{"error":"read token required"}</code>. <code>curl -u admin:admin</code> on the proxy path → 200.</td></tr>
+<tr><td>Overview, Sessions, Session detail</td><td>Render through <code>/api/plugin-proxy/ouo-rum-app/rum/v1/…</code> (200): Overview web-store 1.4.2 1 session 0/0/1 next to the qa matrix; Sessions filtered <code>platform=web&amp;service=web-store</code> lists d6eedf18 crashed, 12 traces, rrweb 45.5 s; detail shows the 13-event timeline, 12 traces with Explore links, the rrweb player (92 events, inputs masked: the user box shows asterisks at 00:20)</td></tr>
+<tr><td>Wrong token via <code>POST /api/plugins/ouo-rum-app/settings</code> (<code>secureJsonData.readToken: rt_wrong</code>)</td><td>Proxy stats 401, healthz 200. Overview, Sessions and Session detail each show one "rum-api rejected the read token" banner with "Open plugin settings" (→ <code>/plugins/ouo-rum-app</code>) and Retry, no table, no second banner; still logged in; the request log shows the 401 twice per page (Grafana's backend_srv retry)</td></tr>
+<tr><td>Config page "Test connection"</td><td>With the wrong token: "read token rejected by rum-api: GET …/rum/healthz HTTP 200 …; GET …/rum/v1/stats/health?from=now-1h HTTP 401 …". After restore: "rum-api reachable, read token accepted"</td></tr>
+<tr><td>Reset then save empty</td><td><code>secureJsonFields: {}</code>, no "configured" badge, proxy 401 (finding 6, the feared stale-"configured" quirk does not occur)</td></tr>
+<tr><td>Restore</td><td>Settings API with the right token: <code>secureJsonFields {readToken: true}</code>, proxy 200, pages load; the Overview totals are unchanged</td></tr>
+</table>
+<div class="grid">
+<figure><img src="../agents/qa/reports/8a-plugin-overview.jpg" alt="plugin overview with qa-web, smoke and web-store rows"><figcaption>Overview via the proxy: qa matrix rows plus web-store 1.4.2 (1 crashed).</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-sessions.jpg" alt="sessions list with the crashed web-store session"><figcaption>Sessions: d6eedf18 crashed, 12 traces, rrweb replay.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-session-detail.jpg" alt="session detail with timeline and replay"><figcaption>Session detail: timeline, 12 traces, rrweb player.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-replay-playing.jpg" alt="rrweb replay playing the cart page with masked user field"><figcaption>Replay at 00:20: cart page, user field masked.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-401-banner.jpg" alt="rum-api rejected the read token banner"><figcaption>Wrong read token: the 401 banner with the settings link.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-test-connection-401.jpg" alt="config page with test connection reporting 401"><figcaption>Config page: "Test connection" reports the 401.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-test-connection-ok.jpg" alt="config page with test connection success"><figcaption>After restore: token "configured", connection test green.</figcaption></figure>
+</div>
+
+<h2 id="ios">iOS simulator (mobile-store 2.3.0, @ouo/react-native 0.2.0, OuoReplay 0.2.0)</h2>
+<p>Xcode 27.0 via <code>DEVELOPER_DIR</code>, iPhone 18 Pro (iOS 27.0), dev build with <code>xcodebuild</code> on <code>examples/mobile/ios/mobilestore.xcworkspace</code>, Metro on 8091 (another session owns 8081), env <code>EXPO_PUBLIC_RUM_API=http://localhost:8090 EXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_… BACKEND_URL=http://localhost:8083</code> present at build time (finding 5). Driven with the simulator tool: Products → Trail Runner Shoes → Add to cart → Cart → Checkout (typed <code>SAVE10</code> in the promo field) → Pay → order <code>ord-000002</code> → Chaos → "500 from the backend" → "Fatal error (crash)" → terminate and relaunch.</p>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Metro init line</td><td><code>[ouo] @ouo/react-native@0.2.0 initialised {"logs": "http://localhost:8090/ingest/otlp/v1/logs", "otlpBypassesRumApi": false, "projectToken": "pt_dev_d…", "replayChunks": "http://localhost:8090/v1/replay/chunks", "rumApi": "http://localhost:8090", "session": "6a3c20eb-…", "traces": "http://localhost:8090/ingest/otlp/v1/traces"}</code>, no <code>export response failure</code> afterwards (the first, mis-built binary pointed at :8080 and logged 404s, see finding 5)</td></tr>
+<tr><td>Frame uploads with the token</td><td><code>log show --predicate 'process == "mobilestore"'</code>: <code>[ouo replay] queued session=6a3c20eb… seq=5 3 frames 4 touches 76289 bytes gzip</code>, <code>uploaded seq=5</code>, <code>seq=6 1 frames 2 touches</code>, <code>uploaded seq=6</code>; Mimir <code>ouo_ingest_requests{signal="replay",outcome="ok"}</code> 11 → 21 during the run, no <code>reason="token"</code> increase</td></tr>
+<tr><td>Crash marker</td><td>Metro after relaunch: <code>[ouo] session ended 6a3c20eb… crash</code>, <code>event session.end {"ouo.session.end_reason": "crash", "ouo.session.duration_ms": 191177, …}</code></td></tr>
+<tr><td>rum-api <code>GET /v1/sessions/6a3c20eb…</code></td><td><code>platform mobile, service mobile-store 2.3.0, status crashed, state ended, end_reason crash, trace_count 8, has_replay true, error_count 1, crash_count 1, failed_request_count 1</code>; timeline: session.start, navigation x8, cart.added, http.request.failed, exception (fatal), session.end, exception (finding 2)</td></tr>
+<tr><td>rum-api <code>GET …/replay</code></td><td><code>project_id demo, kind frames, chunk_count 9 (seq 0..8), frame_count 14, touch_count 18, 231 KB</code>; a frame decoded from <code>/replay/frames</code> shows the Product screen with the back chevron redacted</td></tr>
+<tr><td><code>GET /v1/sessions?platform=mobile&amp;status=crashed</code></td><td>6a3c20eb first, <code>replay_kind frames, replay_frame_count 14</code>, followed by the qa-mobile synthetic crashes</td></tr>
+<tr><td>Plugin Session detail</td><td>crashed, ended · crash, 3m 11s, 13 events, 8 traces, frame player "14 frames · 18 touches · ios 402×874 pt", frame 4/14 renders the Product screen with the touch marker; checkout POST trace 6 spans (mobile-store + demo-backend)</td></tr>
+</table>
+<div class="grid">
+<figure><img src="../agents/qa/reports/8a-ios-order.jpg" alt="iOS order confirmation ord-000002"><figcaption>Simulator: order ord-000002 (session 6a3c20eb in the badge).</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-ios-chaos.jpg" alt="iOS chaos screen"><figcaption>Chaos screen before the 500 and the fatal error.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-ios-fatal.jpg" alt="iOS fatal error red box"><figcaption>The fatal error (dev-build LogBox); the SDK wrote the crash marker.</figcaption></figure>
+<figure><img src="../agents/qa/reports/8a-plugin-mobile-session-frames.jpg" alt="plugin session detail for the mobile session with a frame"><figcaption>Plugin: mobile session crashed, frames replay rendering.</figcaption></figure>
+</div>
+
+<h2 id="limits">Rate limit, body size, collector exposure</h2>
+<pre>node ratelimit.mjs (400 parallel POST /ingest/otlp/v1/logs, 19-byte body, valid token)
+{"n":400,"elapsed_ms":127,"counts":{"200":308,"429":92},
+ "first429":{"s":429,"ra":"1","body":"{\"error\":\"client rate limit exceeded\"}"}}
+recovery: 1 s later 200, then 200 x5                       (burst 300 + ~8 refilled at 100 rps during 127 ms)
+Mimir: ouo_ingest_requests{outcome="rejected",reason="rate",signal="logs"} = 92
+
+POST 4.3 MB body with token -> 413 {"error":"body larger than 4194304 bytes"}
+docker compose -p ouo-8a ps: otel-collector 127.0.0.1:4329->4317, 127.0.0.1:4330->4318, 127.0.0.1:13135->13133
+POST http://127.0.0.1:4330/v1/logs (no token)      -> 200   (loopback, trusted backends)
+POST http://192.168.1.21:4330/v1/logs (LAN address) -> connection refused
+GET  http://192.168.1.21:8090/healthz               -> 200   (rum-api is the exposed one)</pre>
+<p>Final ingest counters (Mimir <code>ouo_ingest_requests</code>): ok logs 342, traces 19, metrics 1, replay 21; rejected token 8 (6 traces + 2 replay), origin 3, decode 2, rate 92. Bytes accepted: traces 307 KB, logs 180 KB.</p>
+
+<h2 id="bugs">Findings</h2>
+<p>Full write-up with reproduction steps: <a href="../agents/qa/reports/phase-8a-bugs.html">agents/qa/reports/phase-8a-bugs.html</a>.</p>
+<table>
+<tr><th>#</th><th>Severity</th><th>Owner</th><th>Summary</th></tr>
+<tr><td>1</td><td><span class="tag warn">minor</span></td><td>rum-api</td><td>Resource attributes (<code>ouo_project_id</code>, <code>device_*</code>, <code>session_previous_id</code>) appear as custom-event attributes in the timeline</td></tr>
+<tr><td>2</td><td><span class="tag warn">minor</span></td><td>sdk-react-native</td><td>One fatal error yields a second non-fatal <code>exception</code> after <code>session.end</code> (error_count 1); probably LogBox's console.error in dev</td></tr>
+<tr><td>3</td><td><span class="tag na">observation</span></td><td>sdk-react-native</td><td>Dev-only 1-span <code>HTTP POST</code> traces (Metro symbolicate) at crash time</td></tr>
+<tr><td>4</td><td><span class="tag na">environment</span></td><td>sdk-browser / qa</td><td>Keepalive chunk accepted on navigation, lost on the Claude pane's tab close; re-check in stock Chrome</td></tr>
+<tr><td>5</td><td><span class="tag na">environment</span></td><td>examples/mobile docs</td><td><code>expo.extra</code> baked at <code>xcodebuild</code> time; bare RN debug app connects to Metro 8081</td></tr>
+<tr><td>6</td><td><span class="tag na">observation</span></td><td>grafana-plugin kb</td><td>Reset + empty save drops the secure key on Grafana 13.2.1 (no stale "configured")</td></tr>
+</table>
+
+<h2 id="repro">How to reproduce every check</h2>
+<pre># stack (this worktree, compose project ouo-8a, ports in deploy/docker/.env)
+docker compose -p ouo-8a -f deploy/docker/compose.yaml --env-file deploy/docker/.env up -d --build
+OUO_ENV_FILE=deploy/docker/.env bash deploy/scripts/smoke.sh
+
+# 1. synthetic matrix + gateway checks + project stamping (writes the JSON used above)
+OUO_ENV_FILE=deploy/docker/.env bash deploy/scripts/e2e.sh --out agents/qa/reports/e2e-phase-8a-run.json
+
+# 2. web demo
+npm run -w sdk/browser build
+VITE_RUM_API=http://localhost:8090 VITE_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 \
+VITE_BACKEND_URL=http://localhost:8083 VITE_RUM_DEBUG=1 npm run -w examples/web dev -- --port 5174
+#   drive: set user, product, add to cart, cart, checkout, Chaos 500 + uncaught error + flush; then
+RT='Authorization: Bearer rt_dev_0000000000000000'
+curl -s -H "$RT" 'localhost:8090/v1/sessions?from=now-1h&status=crashed&service=web-store'
+curl -s -H "$RT" localhost:8090/v1/sessions/&lt;id&gt;/replay
+
+# 3. plugin read token
+curl -s -u admin:admin localhost:3002/api/plugins/ouo-rum-app/settings | jq '{jsonData, secureJsonFields}'
+curl -s -u admin:admin -X POST -H 'content-type: application/json' localhost:3002/api/plugins/ouo-rum-app/settings \
+  -d '{"enabled":true,"pinned":true,"jsonData":{"rumApiUrl":"http://rum-api:8080"},"secureJsonData":{"readToken":"rt_wrong"}}'
+#   open http://localhost:3002/a/ouo-rum-app (banner), /plugins/ouo-rum-app (Test connection), then restore:
+curl -s -u admin:admin -X POST -H 'content-type: application/json' localhost:3002/api/plugins/ouo-rum-app/settings \
+  -d '{"enabled":true,"pinned":true,"jsonData":{"rumApiUrl":"http://rum-api:8080"},"secureJsonData":{"readToken":"rt_dev_0000000000000000"}}'
+#   or: docker compose -p ouo-8a -f deploy/docker/compose.yaml --env-file deploy/docker/.env restart grafana
+
+# 4. unload path: note last_seq, click twice in the demo, navigate the tab elsewhere, re-read .../replay
+
+# 5. iOS (env must be present for the native build, see finding 5)
+npm run -w sdk/react-native build
+cd examples/mobile &amp;&amp; printf 'EXPO_PUBLIC_RUM_API=http://localhost:8090\nEXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000\nBACKEND_URL=http://localhost:8083\n' &gt; .env
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8 npx expo run:ios --device "iPhone 18 Pro"
+#   (or xcodebuild -workspace ios/mobilestore.xcworkspace -scheme mobilestore -sdk iphonesimulator -derivedDataPath ios/build build,
+#    then launch the .app; if another Metro owns 8081: expo start --port 8091 and
+#    xcrun simctl spawn booted defaults write dev.ouo.mobilestore RCT_jsLocation "localhost:8091")
+xcrun simctl spawn booted log show --last 5m --predicate 'process == "mobilestore"' | grep "ouo replay"
+curl -s -H "$RT" 'localhost:8090/v1/sessions?from=now-1h&platform=mobile&status=crashed'
+
+# 6. rate limit and size
+node agents/qa/reports/rate-limit.mjs        # 400 parallel tiny POSTs, then one per second; output in agents/qa/reports/rate-limit-run.txt
+python3 -c 'print("{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"p\",\"value\":{\"stringValue\":\"" + "x"*4300000 + "\"}}]},\"scopeLogs\":[]}]}")' &gt; big.json
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'content-type: application/json' -H 'x-ouo-project-token: pt_dev_demo_0000000000000000' --data-binary @big.json localhost:8090/ingest/otlp/v1/logs   # 413
+curl -s -G localhost:9010/prometheus/api/v1/query --data-urlencode 'query=sum by (signal,outcome,reason) (ouo_ingest_requests)'</pre>
+
+<script>
+(function(){
+  var rows=[
+    ["web","qa-web","1.0.0",5,3,2,5,3,2,"50/30/20"],
+    ["web","qa-web","1.1.0",5,3,2,5,3,2,"50/30/20"],
+    ["mobile","qa-mobile","1.0.0",5,3,2,5,3,2,"50/30/20"],
+    ["mobile","qa-mobile","1.1.0",5,3,2,5,3,2,"50/30/20"]
+  ];
+  var t=document.getElementById("matrix");
+  rows.forEach(function(r){
+    var tr=document.createElement("tr");
+    var tot=r[6]+r[7]+r[8];
+    tr.innerHTML="<td>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+r[3]+"/"+r[4]+"/"+r[5]+"</td><td>"+r[6]+"/"+r[7]+"/"+r[8]+"</td><td>"+r[9]+"</td>"+
+      "<td><div class='bar' title='healthy / errored / crashed'><i class='h' style='width:"+(100*r[6]/tot)+"%'></i><i class='e' style='width:"+(100*r[7]/tot)+"%'></i><i class='c' style='width:"+(100*r[8]/tot)+"%'></i></div></td>";
+    t.appendChild(tr);
+  });
+})();
+</script>
+</main>
+</body>
+</html>

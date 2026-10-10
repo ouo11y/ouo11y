@@ -1,22 +1,32 @@
 #!/usr/bin/env node
-// End-to-end scenario for the ouo MVP (Phase 6 QA).
+// End-to-end scenario for the ouo MVP (Phase 6 QA, Phase 8a ingest gateway).
 //
+// 0. Gateway checks (ADR-0007): POST /ingest/otlp/v1/traces without a project token is 401,
+//    with the token but a foreign Origin is 403, GET /v1/* without the read token is 401.
 // 1. Generates a known matrix of synthetic sessions (web + mobile, two versions,
 //    5 healthy / 3 errored / 2 crashed per version) by posting OTLP/JSON logs and
-//    traces straight to the OpenTelemetry Collector, exactly as the SDKs would.
-// 2. Waits for Loki / Tempo ingestion, then asserts rum-api:
+//    traces to rum-api's ingest routes with `X-Ouo-Project-Token`, exactly as the SDKs
+//    do. Every resource carries a spoofed `ouo.project.id` that rum-api must overwrite.
+// 2. Waits for Loki / Tempo ingestion, then asserts rum-api (reads carry the read token):
 //      GET /v1/stats/health            buckets equal the matrix (counts and percentages)
 //      GET /v1/sessions?status=crashed exactly the crashed ids, with service_version
 //      GET /v1/sessions/{id}           trace_count, ordered timeline, Grafana trace links (HTTP 200)
+//      Tempo (via Grafana's datasource proxy): every resource of a sampled trace has
+//                                      ouo.project.id = OUO_PROJECT_ID, the spoof is gone
 // 3. Prints a summary table and exits non-zero with a diff on any mismatch.
 //
 // Node 24, no dependencies. Configuration (env, see deploy/scripts/e2e.sh):
-//   OUO_OTLP_URL      default http://localhost:${OUO_OTLP_HTTP_PORT:-4318}
-//   OUO_RUM_API_URL   default http://localhost:${OUO_RUM_API_PORT:-8080}
-//   OUO_GRAFANA_URL   default http://localhost:${OUO_GRAFANA_PORT:-3000}
-//   OUO_GRAFANA_AUTH  default admin:admin
-//   OUO_E2E_TIMEOUT   seconds to wait for ingestion (default 120)
-// Flags: --out <file> writes the full result as JSON (used by reports/mvp-verification.html).
+//   OUO_RUM_API_URL     default http://localhost:${OUO_RUM_API_PORT:-8080} (alias OUO_RUM_API)
+//   OUO_OTLP_URL        default ${OUO_RUM_API_URL}/ingest/otlp (through the gateway)
+//   OUO_PROJECT_TOKEN   default pt_dev_demo_0000000000000000, sent as X-Ouo-Project-Token
+//   OUO_PROJECT_ID      default demo, expected ouo.project.id after stamping
+//   OUO_READ_TOKEN      default rt_dev_0000000000000000, sent as Authorization: Bearer on reads
+//                       (set it empty to run against a rum-api without a read token)
+//   OUO_GRAFANA_URL     default http://localhost:${OUO_GRAFANA_PORT:-3000}
+//   OUO_GRAFANA_AUTH    default admin:admin
+//   OUO_TEMPO_DS_UID    Grafana datasource uid used for the trace-by-id lookups (default tempo)
+//   OUO_E2E_TIMEOUT     seconds to wait for ingestion (default 120)
+// Flags: --out <file> writes the full result as JSON (used by reports/*-verification.html).
 
 import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -25,8 +35,14 @@ import { dirname } from "node:path";
 // ---------------------------------------------------------------- configuration
 
 const env = process.env;
-const OTLP = (env.OUO_OTLP_URL ?? `http://localhost:${env.OUO_OTLP_HTTP_PORT ?? 4318}`).replace(/\/$/, "");
-const RUM = (env.OUO_RUM_API_URL ?? `http://localhost:${env.OUO_RUM_API_PORT ?? 8080}`).replace(/\/$/, "");
+const RUM = (env.OUO_RUM_API_URL ?? env.OUO_RUM_API ?? `http://localhost:${env.OUO_RUM_API_PORT ?? 8080}`).replace(/\/$/, "");
+const OTLP = (env.OUO_OTLP_URL ?? `${RUM}/ingest/otlp`).replace(/\/$/, "");
+const PROJECT_TOKEN = env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000";
+const PROJECT_ID = env.OUO_PROJECT_ID ?? "demo";
+const READ_TOKEN = env.OUO_READ_TOKEN ?? "rt_dev_0000000000000000";
+const TEMPO_DS_UID = env.OUO_TEMPO_DS_UID ?? "tempo";
+const PROJECT_TOKEN_HEADER = "X-Ouo-Project-Token";
+const FOREIGN_ORIGIN = "https://evil.example";
 const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");
 const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:admin";
 const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 120);
@@ -66,8 +82,17 @@ function check(name, expected, actual, detail) {
   return ok;
 }
 
-async function getJSON(url) {
-  const res = await fetch(url);
+const grafanaAuth = () => ({ authorization: "Basic " + Buffer.from(GRAFANA_AUTH).toString("base64") });
+
+/** Headers for a rum-api read: the read token when one is configured (ADR-0007 section 6). */
+function readHeaders() {
+  return READ_TOKEN ? { authorization: `Bearer ${READ_TOKEN}` } : {};
+}
+
+async function getJSON(url, headers = {}) {
+  // rum-api reads carry the read token; Grafana calls carry basic auth; the token never goes elsewhere.
+  const auth = url.startsWith(RUM + "/") ? readHeaders() : url.startsWith(GRAFANA + "/") ? grafanaAuth() : {};
+  const res = await fetch(url, { headers: { ...auth, ...headers } });
   const text = await res.text();
   if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text);
@@ -76,11 +101,18 @@ async function getJSON(url) {
 async function postOTLP(path, body) {
   const res = await fetch(`${OTLP}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", [PROJECT_TOKEN_HEADER]: PROJECT_TOKEN },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`POST ${path} -> HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return res.json();
+}
+
+/** One raw request, returns { status, retry_after, body } without throwing (gateway checks). */
+async function probe(url, { method = "GET", headers = {}, body } = {}) {
+  const res = await fetch(url, { method, headers, body });
+  const text = await res.text();
+  return { status: res.status, retry_after: res.headers.get("retry-after"), www_authenticate: res.headers.get("www-authenticate"), body: text.slice(0, 200) };
 }
 
 async function pollUntil(label, fn, timeoutS = TIMEOUT_S, everyMs = 3000) {
@@ -281,6 +313,8 @@ function resourceAttrs({ service, version, platform }) {
     "service.version": str(version),
     "deployment.environment.name": str("qa"),
     "ouo.sdk.name": str("qa-scenario"),
+    // ADR-0007 section 4.6: rum-api overwrites this with the project the token belongs to.
+    "ouo.project.id": str("spoofed-by-client"),
   };
   if (platform) attrs["ouo.platform"] = str(platform);
   return { attributes: kv(attrs) };
@@ -518,6 +552,83 @@ async function grafanaTraceSpans(traceId, grafanaUrl) {
   return frame?.data?.values?.[0]?.length ?? 0;
 }
 
+// ---------------------------------------------------------------- gateway (ADR-0007)
+
+/** Negative checks against rum-api's ingest and read routes. Nothing here is ingested. */
+async function assertGateway() {
+  const tracesUrl = `${OTLP}/v1/traces`;
+  const empty = JSON.stringify({ resourceSpans: [] });
+  const json = { "content-type": "application/json" };
+  const checks = {};
+
+  checks.no_token = await probe(tracesUrl, { method: "POST", headers: json, body: empty });
+  check("gateway: POST /ingest/otlp/v1/traces without token -> 401", 401, checks.no_token.status, tracesUrl);
+
+  checks.unknown_token = await probe(tracesUrl, { method: "POST", headers: { ...json, [PROJECT_TOKEN_HEADER]: "pt_unknown_000000000000" }, body: empty });
+  check("gateway: unknown token -> 401", 401, checks.unknown_token.status, tracesUrl);
+
+  checks.foreign_origin = await probe(tracesUrl, { method: "POST", headers: { ...json, [PROJECT_TOKEN_HEADER]: PROJECT_TOKEN, origin: FOREIGN_ORIGIN }, body: empty });
+  check(`gateway: valid token + Origin ${FOREIGN_ORIGIN} -> 403`, 403, checks.foreign_origin.status, tracesUrl);
+
+  checks.foreign_preflight = await probe(tracesUrl, {
+    method: "OPTIONS",
+    headers: { origin: FOREIGN_ORIGIN, "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-ouo-project-token" },
+  });
+  check(`gateway: preflight from ${FOREIGN_ORIGIN} -> 403`, 403, checks.foreign_preflight.status, tracesUrl);
+
+  checks.bad_body = await probe(tracesUrl, { method: "POST", headers: { ...json, [PROJECT_TOKEN_HEADER]: PROJECT_TOKEN }, body: JSON.stringify({ resourceSpans: 1 }) });
+  check("gateway: valid token + undecodable body -> 400", 400, checks.bad_body.status, tracesUrl);
+
+  checks.no_token_replay = await probe(`${RUM}/v1/replay/chunks`, { method: "POST", headers: json, body: "{}" });
+  check("gateway: POST /v1/replay/chunks without token -> 401", 401, checks.no_token_replay.status, `${RUM}/v1/replay/chunks`);
+
+  const readUrl = `${RUM}/v1/sessions?from=${RANGE}&limit=1`;
+  if (READ_TOKEN) {
+    checks.read_no_token = await probe(readUrl);
+    check("read: GET /v1/sessions without read token -> 401", 401, checks.read_no_token.status, readUrl);
+    check("read: 401 carries WWW-Authenticate: Bearer", true, String(checks.read_no_token.www_authenticate ?? "").startsWith("Bearer"), readUrl);
+    checks.read_wrong_token = await probe(readUrl, { headers: { authorization: "Bearer rt_wrong" } });
+    check("read: GET /v1/sessions with a wrong read token -> 401", 401, checks.read_wrong_token.status, readUrl);
+    checks.read_token = await probe(readUrl, { headers: readHeaders() });
+    check("read: GET /v1/sessions with the read token -> 200", 200, checks.read_token.status, readUrl);
+    checks.healthz_open = await probe(`${RUM}/healthz`);
+    check("read: GET /healthz stays open -> 200", 200, checks.healthz_open.status, `${RUM}/healthz`);
+  } else {
+    checks.read_no_token = { skipped: "OUO_READ_TOKEN empty" };
+  }
+  return checks;
+}
+
+/**
+ * Resource attributes `ouo.project.id` of a trace as stored in Tempo, read through Grafana's
+ * datasource proxy (Tempo itself is not published to the scenario). Handles the v1 `batches`
+ * and the v2 `trace.resourceSpans` response shapes.
+ */
+async function tempoProjectIds(traceId) {
+  const url = `${GRAFANA}/api/datasources/proxy/uid/${TEMPO_DS_UID}/api/traces/${traceId}`;
+  const body = await getJSON(url);
+  const resources = body.batches ?? body.trace?.resourceSpans ?? body.resourceSpans ?? [];
+  const values = [];
+  for (const r of resources) {
+    for (const a of r.resource?.attributes ?? []) {
+      if (a.key === "ouo.project.id") values.push(a.value?.stringValue ?? a.value?.string_value ?? JSON.stringify(a.value));
+    }
+  }
+  return { url, resources: resources.length, values };
+}
+
+async function assertProjectId(session) {
+  const traceId = session.traces[0].traceId;
+  // Tempo may answer 404 for a few seconds after the search index already knows the id.
+  const found = await pollUntil(`tempo trace ${traceId} project ids`, async () => {
+    const r = await tempoProjectIds(traceId);
+    return { done: r.resources >= 2, value: r, seen: r.resources };
+  }, 90);
+  check(`project id: trace ${traceId} has one ouo.project.id per resource`, found.resources, found.values.length, found.url);
+  check(`project id: every resource of trace ${traceId} is ${PROJECT_ID} (client sent spoofed-by-client)`, [PROJECT_ID], [...new Set(found.values)], found.url);
+  return { trace_id: traceId, ...found };
+}
+
 // ---------------------------------------------------------------- output
 
 function table(rows) {
@@ -546,16 +657,19 @@ function printDiff(f) {
 
 async function main() {
   console.log(`ouo e2e scenario run_id=${RUN_ID}`);
-  console.log(`collector ${OTLP}  rum-api ${RUM}  grafana ${GRAFANA}  from=${RANGE} (${new Date(Number(RANGE)).toISOString()})`);
+  console.log(`otlp ${OTLP}  rum-api ${RUM}  grafana ${GRAFANA}  project=${PROJECT_ID} token=${PROJECT_TOKEN.slice(0, 8)}… read-token=${READ_TOKEN ? "set" : "none"}  from=${RANGE} (${new Date(Number(RANGE)).toISOString()})`);
 
   const ready = await getJSON(`${RUM}/readyz`).catch((e) => ({ ready: false, error: String(e) }));
   if (!ready.ready) throw new Error(`rum-api not ready: ${JSON.stringify(ready)}`);
+
+  const gateway = await assertGateway();
+  console.log(`gateway checks: ${Object.entries(gateway).map(([k, v]) => `${k}=${v.status ?? v.skipped}`).join(" ")}`);
 
   const sessions = generateMatrix();
   const t0 = T0;
   await sendMatrix(sessions);
 
-  const result = { run_id: RUN_ID, started_at: new Date(t0).toISOString(), range: RANGE, matrix: COUNTS, versions: VERSIONS, services: SERVICES, health: {}, crashed: {}, details: {}, failures: [] };
+  const result = { run_id: RUN_ID, started_at: new Date(t0).toISOString(), range: RANGE, otlp_url: OTLP, rum_api_url: RUM, project_id: PROJECT_ID, read_token: Boolean(READ_TOKEN), matrix: COUNTS, versions: VERSIONS, services: SERVICES, gateway, health: {}, crashed: {}, details: {}, project_ids: {}, failures: [] };
 
   for (const svc of SERVICES) {
     result.health[svc.service] = await assertHealth(svc, sessions);
@@ -569,6 +683,8 @@ async function main() {
     // and a crashed one with session.end (mobile) / fatal only (web)
     const c = sessions.find((x) => x.service === svc.service && x.status === "crashed" && x.version === VERSIONS[1]);
     result.details[c.id] = await assertDetail(c);
+    // ADR-0007 section 4.6: the stored resources carry the project of the token, not the client's value
+    result.project_ids[s.id] = await assertProjectId(s);
   }
 
   result.ingest_wait_ms = Date.now() - t0;
@@ -593,6 +709,9 @@ async function main() {
     }
   }
   table(rows);
+
+  console.log("\nproject stamping (Tempo via Grafana datasource proxy):");
+  table(Object.entries(result.project_ids).map(([id, p]) => ({ session: id, trace: p.trace_id, resources: p.resources, "ouo.project.id": [...new Set(p.values)].join(",") || "-" })));
 
   console.log("\nsession detail checks:");
   table(
