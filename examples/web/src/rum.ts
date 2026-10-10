@@ -8,8 +8,10 @@ export const USER_STORAGE_KEY = "ouo.demo.user_id";
 const env = import.meta.env;
 
 export const config = {
-  otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
+  // rum-api is the only host the SDK talks to (ADR-0007): OTLP via /ingest/otlp, replay via /v1/replay/chunks.
   rumApi: env.VITE_RUM_API ?? "http://localhost:8080",
+  // Public project identifier, not a secret. The development token every local stack component agrees on.
+  projectToken: env.VITE_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
   backendUrl: env.VITE_BACKEND_URL ?? "http://localhost:8081",
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
   stub: typeof __OUO_RUM_STUB__ !== "undefined" && __OUO_RUM_STUB__,
@@ -31,8 +33,8 @@ function escapeRegExp(s: string): string {
 const initialUser = storedUserId();
 
 export const rum: RUM = initRUM({
-  endpoint: config.otlpEndpoint,
-  replayEndpoint: config.rumApi,
+  endpoint: config.rumApi,
+  projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
   replay: { enabled: true, maskAllInputs: true },
