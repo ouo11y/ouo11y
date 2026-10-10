@@ -47,16 +47,18 @@ Copy `.env.example` to `.env` and adjust.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_RUM_API` | `http://localhost:8080` | rum-api base URL. The SDK derives `/ingest/otlp/v1/{traces,logs}` and `/v1/replay/chunks` from it (ADR-0007) |
-| `VITE_OUO_PROJECT_TOKEN` | `pt_dev_demo_0000000000000000` | public project token, sent as `X-Ouo-Project-Token` on every ingest request; the development token the whole local stack agrees on |
+| `VITE_OTLP_ENDPOINT` | `http://localhost:4318` | collector OTLP/HTTP base URL. The SDK posts to `/v1/traces` and `/v1/logs` and derives the replay receiver (`:4319/v1/replay/chunks`) from it (ADR-0007) |
+| `VITE_OUO_PROJECT_ID` | `demo` | project id, the HTTP Basic username |
+| `VITE_OUO_PROJECT_TOKEN` | `pt_dev_demo_0000000000000000` | public project token, the HTTP Basic password; the development value the whole local stack agrees on |
 | `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `tracing.propagateTo` is derived from it |
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
 
-All SDK usage is in `src/rum.ts`; pages import `rum` from there. The token is
-read from `VITE_OUO_PROJECT_TOKEN` and is public by design (it ends up in the
-built JavaScript, like any RUM vendor's key). `src/api.ts`
+All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
+token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are
+public by design (they end up in the built JavaScript as a Basic credential,
+like any RUM vendor's key). `src/api.ts`
 wraps `fetch` for the backend and adds `x-user-id`; `traceparent` and
 `baggage` come from the SDK's fetch instrumentation, never from app code.
 
@@ -152,12 +154,13 @@ Expect `session.start`, `navigation`, `add_to_cart`, `checkout_submitted`,
 From a Tempo span, "Logs for this span" jumps to Loki filtered on the same
 `session_id` (provisioned trace-to-logs correlation).
 
-Everything the SDK sends goes to `VITE_RUM_API`: `POST /ingest/otlp/v1/traces`,
-`POST /ingest/otlp/v1/logs` and `POST /v1/replay/chunks`, each with the
-`X-Ouo-Project-Token` header. A `401` in the network tab means the token does
-not match rum-api's project config; a `403` means `http://localhost:5173` is not
-in the project's `allowed_origins`. The collector is no longer reached from the
-browser.
+Everything the SDK sends goes to the collector: `POST <VITE_OTLP_ENDPOINT>/v1/traces`
+and `/v1/logs`, and `POST :4319/v1/replay/chunks` on the same host, each with
+`Authorization: Basic base64(id:token)`. A `401` in the network tab means the id
+or token does not match the collector's htpasswd; a CORS error with no POST at
+all means `http://localhost:5173` is not in the collector's `allowed_origins`
+or `Authorization` is missing from its allowed headers. rum-api is internal and
+never reached from the browser.
 
 ## API usage from the command line
 

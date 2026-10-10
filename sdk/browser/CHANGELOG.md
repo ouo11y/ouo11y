@@ -2,41 +2,40 @@
 
 All notable changes to `@ouo/browser`. The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
-## 0.2.0 - 2026-10-10
+## 0.2.0 - unreleased
 
-Ingest gateway and project tokens (ADR-0007). The SDK now talks to one host, rum-api, and authenticates every request with a public project token.
+The OpenTelemetry Collector is the only edge (ADR-0007). The SDK posts OTLP straight to `ouo-collector` and replay chunks to its replay receiver, and authenticates every request with HTTP Basic project credentials. Nothing from the earlier 0.2.0 draft (rum-api `/ingest/otlp`, `X-Ouo-Project-Token`) was released.
 
 ### Breaking
 
-- `endpoint` is now the **rum-api base URL** (for example `https://rum.example.com`), not the collector's OTLP/HTTP base. The SDK derives `${endpoint}/ingest/otlp/v1/traces`, `${endpoint}/ingest/otlp/v1/logs` and `${endpoint}/v1/replay/chunks` from it.
-- `projectToken: string` is **required**. `initRUM` throws `[ouo] initRUM: \`projectToken\` is required ...` when it is missing or empty, before any provider, listener or storage write happens. The token is a public project identifier, not a secret.
-- `replayEndpoint` is **removed**. Replay chunks always go to `${endpoint}/v1/replay/chunks`; replay is on unless `replay.enabled: false`. (In 0.1.x replay was silently disabled when `replayEndpoint` was absent.)
-- The debug init line changed shape: it prints `endpoint`, `traces`, `logs`, `replay`, `otlpBypass`, `session`, `user` (never the token).
+- `projectId: string` and `projectToken: string` are **required**. Every ingest request (OTLP and replay) carries `Authorization: Basic base64(projectId + ":" + projectToken)`. `initRUM` throws `[ouo] initRUM: \`projectId\` is required ...` / `\`projectToken\` is required ...` when either is missing or empty (and when the id contains `:`), before any provider, listener or storage write happens. The token is a public project identifier, not a secret.
+- `endpoint` is the **collector OTLP/HTTP base** (for example `https://otel.example.com` or `http://localhost:4318`); OTLP goes to `${endpoint}/v1/traces` and `/v1/logs`. In 0.1.x it was the same URL without authentication.
+- `replayEndpoint` is now **optional** and points at the collector's replay receiver, not rum-api. Default: when `endpoint` uses port `4318`, the same scheme and host on port `4319`; otherwise `endpoint` itself (a reverse proxy routing `/v1/replay/*`). Chunks go to `${replayEndpoint}/v1/replay/chunks`. Replay is on unless `replay.enabled: false` (in 0.1.x it was silently disabled when `replayEndpoint` was absent).
+- The debug init line changed shape: `endpoint`, `replayEndpoint`, `traces`, `logs`, `replay`, `projectId`, `session`, `user` (never the token or the header value).
 
 ### Added
 
-- `otlpEndpoint?: string` escape hatch for trusted in-network apps: when set, OTLP goes to `${otlpEndpoint}/v1/traces` and `/v1/logs` instead of through rum-api. The token header is still sent. Replay is unaffected.
-- `X-Ouo-Project-Token` header on the OTLP trace and log exporters (exporter `headers` option) and on every replay chunk upload, including the `pagehide` keepalive path.
-- Exports `deriveIngestUrls`, `PROJECT_TOKEN_HEADER` and the `IngestUrls` type for tooling and tests.
+- `Authorization` header on the OTLP trace and log exporters (exporter `headers` option) and on every replay chunk upload, including the `pagehide` keepalive path.
+- Exports `deriveIngestUrls`, `deriveReplayEndpoint`, `basicAuthorization` and the `IngestUrls` type for tooling and tests.
 - Package metadata for publishing (`repository`, `homepage`, `bugs`, `keywords`, `publishConfig`); `CHANGELOG.md` and `LICENSE` ship in the tarball.
 
 ### Changed
 
-- `tracing.ignoreUrls` built-ins now cover `${otlpBase}/` and `${endpoint}/v1/replay/` instead of the whole `endpoint` origin.
+- `tracing.ignoreUrls` built-ins cover `${endpoint}/v1/` and `${replayEndpoint}/v1/replay/`.
 
 ### Migration
 
 ```diff
  initRUM({
--  endpoint: "http://localhost:4318",
+   endpoint: "http://localhost:4318",
 -  replayEndpoint: "http://localhost:8080",
-+  endpoint: "http://localhost:8080",
++  projectId: "demo",
 +  projectToken: "pt_dev_demo_0000000000000000",
    service: { name: "web-store", version: "1.4.2", environment: "local" },
  });
 ```
 
-rum-api must be 0.2.0 or later (it answers `/ingest/otlp/*` and requires the token). The collector no longer needs browser CORS or a public port.
+The stack must run `ouo-collector` (basicauth on the OTLP receiver, replay receiver on 4319) with the browser origin in the collector's CORS `allowed_origins` and `Authorization` in its allowed headers. rum-api is internal and no longer reachable from the browser.
 
 ## 0.1.0 - 2026-10-06
 

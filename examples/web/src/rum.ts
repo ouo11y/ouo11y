@@ -8,9 +8,12 @@ export const USER_STORAGE_KEY = "ouo.demo.user_id";
 const env = import.meta.env;
 
 export const config = {
-  // rum-api is the only host the SDK talks to (ADR-0007): OTLP via /ingest/otlp, replay via /v1/replay/chunks.
-  rumApi: env.VITE_RUM_API ?? "http://localhost:8080",
-  // Public project identifier, not a secret. The development token every local stack component agrees on.
+  // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
+  // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
+  otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
+  // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
+  // names the project. These are the development values the local stack is provisioned with.
+  projectId: env.VITE_OUO_PROJECT_ID ?? "demo",
   projectToken: env.VITE_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
   backendUrl: env.VITE_BACKEND_URL ?? "http://localhost:8081",
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
@@ -33,7 +36,8 @@ function escapeRegExp(s: string): string {
 const initialUser = storedUserId();
 
 export const rum: RUM = initRUM({
-  endpoint: config.rumApi,
+  endpoint: config.otlpEndpoint,
+  projectId: config.projectId,
   projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
