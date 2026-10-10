@@ -3,6 +3,9 @@ import pluginJson from './plugin.json';
 export const PLUGIN_ID = pluginJson.id;
 export const PLUGIN_BASE_URL = `/a/${PLUGIN_ID}`;
 
+/** Plugin configuration page (jsonData.rumApiUrl, secureJsonData.readToken). */
+export const PLUGIN_CONFIG_URL = `/plugins/${PLUGIN_ID}`;
+
 /** Grafana proxies `routes[].path` of an app plugin under /api/plugin-proxy/<id>/<path>. */
 export const RUM_PROXY_BASE = `/api/plugin-proxy/${PLUGIN_ID}/rum`;
 

@@ -12,3 +12,4 @@
 | open | Replace deprecated `Select` with `Combobox`; Playwright e2e | todo (post-MVP) |
 | 2026-10-08 | Phase 7 frame player: code + 34 tests landed; visual check in Grafana pending | review |
 | 2026-10-08 | Phase 7b: sticky replay + self-scrolling timeline, Replay duration column, sortable sessions table (52 tests, browser-verified, `reports/phase-7b-ux.html`) | done |
+| 2026-10-10 | Phase 8a: read token via `secureJsonData.readToken` + route `Authorization` header, config page with SecretInput and Test connection, 401 banner with settings link, version 0.3.0 + CHANGELOG, 62 Jest tests, build green; live checks handed to qa | done (code), qa pending |
