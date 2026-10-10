@@ -11,8 +11,8 @@ interface Extra {
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
 
 export const config: Extra = {
-  backendUrl: extra.backendUrl ?? "http://localhost:8082",
-  otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4328",
+  backendUrl: extra.backendUrl ?? "http://localhost:8081",
+  otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4318",
   environment: extra.environment ?? "local",
 };
 
@@ -34,6 +34,12 @@ export const rum: RUM = initRUM({
     ...(Device.osName ? { osName: Device.osName } : {}),
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
   },
+  // Native session replay (ADR-0006): needs the development build (npx expo run:ios); a no-op
+  // in Expo Go and on web. Chunks go to rum-api at the OTLP host on port 8080 (replayEndpoint).
+  // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
+  // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
+  // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".
+  replay: { enabled: true, maskText: false },
   debug: __DEV__,
 });
 

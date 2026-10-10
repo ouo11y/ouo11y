@@ -1,4 +1,6 @@
 export type Platform = 'web' | 'mobile';
+/** Replay renderer family: rrweb DOM events (web) or native screenshot frames (mobile, ADR-0006). */
+export type ReplayKind = 'rrweb' | 'frames';
 export type SessionStatus = 'healthy' | 'errored' | 'crashed';
 export type SessionState = 'active' | 'ended';
 
@@ -21,6 +23,12 @@ export interface SessionRecord {
   /** -1 when Tempo failed for that session. */
   trace_count: number;
   has_replay: boolean;
+  /** Set by rum-api from the replay meta; absent on older records (fall back to the replay meta). */
+  replay_kind?: ReplayKind | null;
+  /** Replay length (meta ended_at - started_at) in ms; null or absent when unknown or there is no replay. */
+  replay_duration_ms?: number | null;
+  /** Number of screenshot frames for `frames` replays; null or absent otherwise. */
+  replay_frame_count?: number | null;
 }
 
 export interface SessionsResponse {
@@ -90,8 +98,22 @@ export interface ReplayChunkMeta {
   event_count: number;
 }
 
+export interface ReplayViewport {
+  /** Points of the unscaled device viewport; touch coordinates are in this space. */
+  width: number;
+  height: number;
+  /** Capture scale applied by the SDK (frame pixels = points * scale). */
+  scale?: number;
+}
+
 export interface ReplayMeta {
   session_id: string;
+  /** Missing on replays stored before Phase 7; treat as rrweb. */
+  kind?: ReplayKind;
+  viewport?: ReplayViewport;
+  platform?: string;
+  frame_count?: number;
+  touch_count?: number;
   chunk_count: number;
   first_seq: number;
   last_seq: number;
@@ -100,6 +122,37 @@ export interface ReplayMeta {
   bytes: number;
   updated_at: string;
   chunks: ReplayChunkMeta[];
+}
+
+export type FrameReason = 'timer' | 'touch' | 'navigation' | 'resume';
+export type TouchPhase = 'began' | 'moved' | 'ended';
+
+export interface ReplayFrame {
+  /** Epoch ms (device clock). */
+  ts: number;
+  /** Base64 JPEG, masked by the SDK before upload. */
+  jpeg: string;
+  reason: FrameReason | string;
+}
+
+export interface ReplayTouch {
+  ts: number;
+  /** Points in the unscaled viewport. */
+  x: number;
+  y: number;
+  phase: TouchPhase | string;
+}
+
+/** `GET /v1/sessions/{id}/replay/frames`: all frame chunks concatenated in seq order. */
+export interface ReplayFramesResponse {
+  session_id: string;
+  kind: 'frames';
+  viewport: ReplayViewport;
+  platform: string;
+  started_at: number;
+  ended_at: number;
+  frames: ReplayFrame[];
+  touches: ReplayTouch[];
 }
 
 /** Minimal rrweb event shape; the full type lives in @rrweb/types. */

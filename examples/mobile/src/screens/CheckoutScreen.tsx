@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { checkout, type PaymentMethod } from "../api";
 import type { ScreenProps } from "../navigation";
 import { Button, ErrorBox, Screen, styles } from "../ui";
@@ -13,6 +13,7 @@ export function CheckoutScreen({ navigation }: ScreenProps<"Checkout">) {
   const [method, setMethod] = useState<PaymentMethod>("card");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [promo, setPromo] = useState("");
 
   const pay = async () => {
     setBusy(true);
@@ -36,6 +37,17 @@ export function CheckoutScreen({ navigation }: ScreenProps<"Checkout">) {
           <Text style={styles.dim}>{method === m.id ? "selected" : ""}</Text>
         </Pressable>
       ))}
+      <Text style={styles.text}>Promo code</Text>
+      {/* testID "ouo-mask" forces the replay recorder to redact this view (text inputs are masked
+          anyway; the identifier is how any view, e.g. a card preview, would opt in). */}
+      <TextInput
+        testID="ouo-mask"
+        value={promo}
+        onChangeText={setPromo}
+        placeholder="SAVE10"
+        autoCapitalize="characters"
+        style={styles.input}
+      />
       {error ? <ErrorBox message={error} /> : null}
       <View>
         <Button title="Pay" onPress={pay} disabled={busy} />

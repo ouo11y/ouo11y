@@ -1,4 +1,4 @@
-import { formatDuration, formatPct, formatRelative, pct, sessionDurationMs, formatTraceCount } from './format';
+import { formatDuration, formatPct, formatRelative, pct, replaySummary, sessionDurationMs, formatTraceCount } from './format';
 
 describe('formatPct', () => {
   it('matches rum-api rounding to two decimals', () => {
@@ -27,6 +27,11 @@ describe('formatDuration', () => {
     expect(formatDuration(245_000)).toBe('4m 05s');
     expect(formatDuration(3_720_000)).toBe('1h 02m');
     expect(formatDuration(-1)).toBe('–');
+  });
+
+  it('carries rounded seconds into the minute instead of printing 60s', () => {
+    expect(formatDuration(299_600)).toBe('5m 00s');
+    expect(formatDuration(3_599_600)).toBe('1h 00m');
   });
 });
 
@@ -62,5 +67,34 @@ describe('formatTraceCount', () => {
   it('shows n/a when Tempo failed', () => {
     expect(formatTraceCount(-1)).toBe('n/a');
     expect(formatTraceCount(22)).toBe('22');
+  });
+});
+
+describe('replaySummary', () => {
+  it('is null without a replay', () => {
+    expect(replaySummary({ has_replay: false, replay_kind: 'rrweb', replay_duration_ms: 1000 })).toBeNull();
+  });
+
+  it('formats the replay length like the Duration column and keeps the kind', () => {
+    expect(replaySummary({ has_replay: true, replay_kind: 'frames', replay_duration_ms: 245_000 })).toEqual({
+      kind: 'frames',
+      duration: '4m 05s',
+    });
+    expect(replaySummary({ has_replay: true, replay_kind: 'rrweb', replay_duration_ms: 850 })).toEqual({
+      kind: 'rrweb',
+      duration: '850ms',
+    });
+  });
+
+  it('reports an unknown length until rum-api ships replay_duration_ms', () => {
+    expect(replaySummary({ has_replay: true, replay_kind: 'rrweb' })).toEqual({ kind: 'rrweb', duration: null });
+    expect(replaySummary({ has_replay: true, replay_kind: null, replay_duration_ms: null })).toEqual({
+      kind: null,
+      duration: null,
+    });
+    expect(replaySummary({ has_replay: true, replay_kind: 'frames', replay_duration_ms: -5 })).toEqual({
+      kind: 'frames',
+      duration: null,
+    });
   });
 });

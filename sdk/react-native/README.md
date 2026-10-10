@@ -2,8 +2,9 @@
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
 sessions, errors and JS crashes, app version, outbound `fetch` tracing with W3C Trace
-Context and Baggage, all exported over OTLP/HTTP to the ouo collector. No native code;
-it runs in Expo Go.
+Context and Baggage, all exported over OTLP/HTTP to the ouo collector. Telemetry needs no
+native code and runs in Expo Go; session replay (iOS) is an Expo native module and needs a
+development build.
 
 Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004.
 Runtime notes and gotchas: `kb/otel-react-native.md`.
@@ -11,7 +12,7 @@ Runtime notes and gotchas: `kb/otel-react-native.md`.
 ## Install
 
 ```bash
-npm install @ouo/react-native @react-native-async-storage/async-storage
+npm install @ouo/react-native @react-native-async-storage/async-storage   # expo-modules-core comes with expo
 # in this repository: "@ouo/react-native": "file:../../sdk/react-native" plus the Metro config below
 ```
 
@@ -74,6 +75,54 @@ The SDK installs, only when missing: `performance.timeOrigin` (Hermes exposes
 not need `crypto.getRandomValues` (trace ids use `Math.random`, session ids use
 `crypto.randomUUID` when present and fall back otherwise), `URL` (URLs are parsed with a
 regex), `zone.js`, `XMLHttpRequest` instrumentation or `document`.
+
+### Session replay (iOS, ADR-0006)
+
+```ts
+initRUM({
+  endpoint: "http://localhost:4328",
+  replayEndpoint: "http://localhost:8080", // rum-api; defaults to the OTLP host on port 8080
+  replay: { enabled: true, frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
+  // ...
+});
+rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
+```
+
+The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
+the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,
+gzip frame chunks to `POST /v1/replay/chunks`), `android/` is a no-op that logs once. The JS
+side calls native `start` with the rum-api endpoint and the session id, forwards every session
+rotation (`sessionDidRotate`), flushes with `rum.flush()`, and is a silent no-op where the
+native module is absent: Expo Go, web, Jest/Vitest, bare apps without `expo-modules-core`
+(a debug-only warning is logged once).
+
+### Masking and how to opt out
+
+By default everything that can carry user content is painted black on the device before a
+frame is encoded: labels and `<Text>` (`maskText`), text inputs (`maskInputs`), images
+(`maskImages`) and web views (`maskWebViews`). The default is deliberately aggressive: a replay
+must never leak what a user typed or read, so you opt in to visibility rather than out of
+privacy (the same default Sentry ships). Opt out per category in `replay`:
+
+- `maskText: false` shows labels, paragraphs and navigation-bar titles so replays stay readable.
+  Inputs are **not** affected: they are governed by `maskInputs` alone.
+- `maskImages: false` shows images (product photos, avatars).
+- `maskInputs: false` shows what users type into `TextInput`s. Only set it if you really mean it.
+- `maskWebViews: false` shows `WKWebView` content.
+
+Per view, `testID="ouo-unmask"` keeps a view and its subtree visible whatever the class rules say,
+and `testID="ouo-mask"` redacts a view (its rectangle covers the subtree); both work with any
+combination of the options above. Extra class names can be masked with `maskClasses` on the
+Swift config (`extraClasses` in the planner) when embedding the package directly. Details and the
+class lists are in `sdk/ios/README.md`.
+
+Requirements: `expo-modules-core` (peer, optional), a development build instead of Expo Go
+(`npx expo prebuild --platform ios && npx expo run:ios`, needs Xcode + CocoaPods), and
+`npm run -w sdk/react-native build` before `pod install`: the build copies the Swift sources of
+`sdk/ios` into `ios/OuoReplayCore` and `ios/OuoReplay` (gitignored) because CocoaPods only globs
+files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `OuoReplay`,
+`OuoReactNative`. In this monorepo `examples/mobile/metro.config.js` also redirects the SDK's
+`expo-modules-core` import to the app's copy.
 
 ## API
 

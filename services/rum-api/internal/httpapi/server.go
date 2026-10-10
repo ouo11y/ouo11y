@@ -32,7 +32,8 @@ type Options struct {
 	SessionOptions     session.Options
 	ListLookback       time.Duration // extra Loki lookback before `from` so sessions started earlier still fold completely
 	DetailLookback     time.Duration // how far back a single-session lookup searches
-	MaxChunkBytes      int64
+	MaxChunkBytes      int64         // rrweb chunks (decompressed); default 4 MiB
+	MaxFrameChunkBytes int64         // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
 	CORSAllowedOrigins []string
 	Now                func() time.Time
 }
@@ -59,6 +60,10 @@ func New(events EventSource, traces TraceSource, store replay.Store, opts Option
 	if opts.MaxChunkBytes <= 0 {
 		opts.MaxChunkBytes = 4 << 20
 	}
+	if opts.MaxFrameChunkBytes <= 0 {
+		opts.MaxFrameChunkBytes = 8 << 20
+	}
+	opts.MaxFrameChunkBytes = max(opts.MaxFrameChunkBytes, opts.MaxChunkBytes)
 	return &Server{events: events, traces: traces, store: store, opts: opts}
 }
 
@@ -73,6 +78,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions/{id}/traces", s.getSessionTraces)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay", s.getReplay)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/events", s.getReplayEvents)
+	mux.HandleFunc("GET /v1/sessions/{id}/replay/frames", s.getReplayFrames)
 	mux.HandleFunc("DELETE /v1/sessions/{id}/replay", s.deleteReplay)
 	mux.HandleFunc("GET /v1/stats/health", s.statsHealth)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

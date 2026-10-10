@@ -27,9 +27,11 @@ const config: ExpoConfig = {
     },
   },
   web: { favicon: "./assets/favicon.png" },
+  // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet.
+  plugins: ["./plugins/withUIScene.js"],
   extra: {
-    backendUrl: process.env.BACKEND_URL ?? "http://localhost:8082",
-    otlpEndpoint: process.env.OTLP_ENDPOINT ?? "http://localhost:4328",
+    backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
+    otlpEndpoint: process.env.OTLP_ENDPOINT ?? "http://localhost:4318",
     environment: process.env.OUO_ENV ?? "local",
   },
 };

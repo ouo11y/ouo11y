@@ -1,4 +1,4 @@
-import type { SessionStatus } from '../api/types';
+import type { ReplayKind, SessionRecord, SessionStatus } from '../api/types';
 
 /** Formats a percentage the way rum-api reports it: at most two decimals, no trailing zeros. */
 export function formatPct(value: number | undefined | null): string {
@@ -29,8 +29,10 @@ export function formatDuration(ms: number | undefined | null): string {
   if (s < 60) {
     return `${s.toFixed(1)}s`;
   }
-  const minutes = Math.floor(s / 60);
-  const seconds = Math.round(s - minutes * 60);
+  // Round to whole seconds first so 4m 59.6s reads "5m 00s", never "4m 60s".
+  const total = Math.round(s);
+  const minutes = Math.floor(total / 60);
+  const seconds = total - minutes * 60;
   if (minutes < 60) {
     return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
   }
@@ -77,6 +79,26 @@ export function formatDateTime(ts: string | number | undefined | null): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+export interface ReplaySummary {
+  /** `rrweb` or `frames`; null when the record predates `replay_kind`. */
+  kind: ReplayKind | null;
+  /** Formatted like the Duration column; null until rum-api reports `replay_duration_ms`. */
+  duration: string | null;
+}
+
+/** Replay column content: null when the session has no replay. */
+export function replaySummary(
+  s: Pick<SessionRecord, 'has_replay' | 'replay_kind' | 'replay_duration_ms'>
+): ReplaySummary | null {
+  if (!s.has_replay) {
+    return null;
+  }
+  const ms = s.replay_duration_ms;
+  const duration = ms === undefined || ms === null || Number.isNaN(ms) || ms < 0 ? null : formatDuration(ms);
+  const kind = s.replay_kind === 'rrweb' || s.replay_kind === 'frames' ? s.replay_kind : null;
+  return { kind, duration };
 }
 
 export function formatTraceCount(n: number): string {

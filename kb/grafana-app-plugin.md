@@ -92,3 +92,31 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
 - `Select` from `@grafana/ui` is deprecated in 13 (warning only); `Combobox` is the successor.
 - `GRAFANA_URL` in rum-api must be the browser-facing URL (`http://localhost:3001` here) for
   the Explore links the plugin opens in a new tab.
+
+## Phase 7b additions (grafana-plugin, 2026-10-08)
+
+- **New chunk files need a Grafana restart.** Grafana builds the plugin's static file allowlist when
+  the plugin loads; a webpack build that produces a chunk name that did not exist before (e.g.
+  `865.js` after a code split) is on disk in the mounted `dist/` but Grafana answers 404
+  (`Content-Type: application/json`), the browser logs `ChunkLoadError` and the page shows "Plugin
+  failed to load". `docker compose -f deploy/docker/compose.yaml restart grafana` fixes it; a hard
+  reload (`fetch(url, { cache: 'reload' })` on every `/public/plugins/ouo-rum-app/*` URL) is enough
+  when only the contents of existing files changed.
+- **Pinned replay next to a long timeline.** `position: sticky` on a grid item only moves inside
+  its own grid area, so the sticky panel must be shorter than the row: give it `align-self: start`,
+  make the other panel a stretched flex column whose list is the scroll container
+  (`flex: 1; max-height: calc(100vh - 150px); overflow-y: auto`), and cap the frame stage with
+  `calc(100vh - 300px)` so a portrait mobile replay fits the viewport (a `70vh` stage plus controls
+  and markers was taller than the window). Grafana's page scrolls inside its own container, not
+  the window, and sticky works there without extra wrappers; `top: 8px` is the right offset since
+  the page header scrolls away with the content.
+- **Auto-scrolling the active event** with `element.scrollIntoView({ block: 'nearest' })` also
+  scrolls the page container and drags the pinned replay along; set the list's `scrollTop`
+  directly instead (`src/utils/scroll.ts`, list has `position: relative` so `offsetTop` is
+  relative to it).
+- **Sorting**: plain `<table>` with `<button>` headers (`aria-sort`, arrow icon) and a pure
+  comparator in `src/utils/sort.ts`; `InteractiveTable` still lacks a row click handler.
+
+## Stale plugin after a rebuild (2026-10-08)
+
+Grafana loads `module.js?_cache=<plugin version>` and the scaffold's webpack config names lazy chunks `<id>.js?_cache=<contenthash>`. After a rebuild with the **same** plugin version the browser keeps the old `module.js`, which still points at the old chunk hashes, so nothing appears to change even after `docker compose restart grafana`. Fix: bump `version` in `plugins/ouo-rum-app/package.json` (it becomes `plugin.json`'s version) for every user-visible change, or hard-reload (Cmd+Shift+R). Bumped to 0.2.0 for the Phase 7b changes.

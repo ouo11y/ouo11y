@@ -34,6 +34,29 @@ export interface UserOptions {
   id: string;
 }
 
+/**
+ * Session replay (ADR-0006): native screenshot capture through the `OuoReplay` Expo module
+ * (iOS; Android is a no-op stub). Off unless `enabled: true`. Needs a development build
+ * (`npx expo prebuild && npx expo run:ios`); in Expo Go and on web it silently stays off.
+ */
+export interface ReplayOptions {
+  /** Default false. */
+  enabled?: boolean;
+  /** Seconds between timer frames. Default 1. */
+  frameInterval?: number;
+  /**
+   * Redact labels and React Native `<Text>` (not inputs). Default true. Set to `false` when
+   * replays must stay readable; inputs are governed by `maskInputs` and stay redacted.
+   */
+  maskText?: boolean;
+  /** Redact text inputs (`TextInput`, `UITextField`, `UITextView`). Default true. */
+  maskInputs?: boolean;
+  /** Redact image views. Default true. */
+  maskImages?: boolean;
+  /** Redact WKWebView. Default true. */
+  maskWebViews?: boolean;
+}
+
 /** Device attributes the host app can supply (for example from `expo-device`). */
 export interface DeviceOptions {
   /** `device.model.identifier`, for example `iPhone15,2`. */
@@ -65,8 +88,14 @@ export interface ErrorOptions {
 export interface RUMOptions {
   /** OTLP/HTTP base URL. The SDK appends `/v1/traces` and `/v1/logs`. */
   endpoint: string;
+  /**
+   * rum-api base URL; the native recorder posts replay chunks to `${replayEndpoint}/v1/replay/chunks`.
+   * Defaults to the OTLP endpoint's scheme and host on port 8080.
+   */
+  replayEndpoint?: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
+  replay?: ReplayOptions;
   session?: SessionOptions;
   user?: UserOptions;
   device?: DeviceOptions;
@@ -75,6 +104,13 @@ export interface RUMOptions {
   storage?: AsyncKeyValueStorage;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */
   debug?: boolean;
+}
+
+/** Mirrors the browser SDK's `rum.replay`. No-ops when replay is disabled or the native module is absent. */
+export interface RUMReplay {
+  pause(): void;
+  resume(): void;
+  isRecording(): boolean;
 }
 
 export interface RUMSession {
@@ -94,9 +130,10 @@ export interface RUM {
   trackNavigation(path: string, attrs?: Attrs): void;
   /** Count a user interaction as session activity (the `RUMProvider` does this for touches). */
   recordActivity(): void;
+  replay: RUMReplay;
   session: RUMSession;
   /** Resolves once the persisted session state was read and `session.start` was emitted. */
   ready: Promise<void>;
-  /** Force export of pending spans and log records. */
+  /** Force export of pending spans, log records and replay chunks. */
   flush(): Promise<void>;
 }

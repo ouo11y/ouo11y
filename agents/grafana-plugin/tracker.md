@@ -10,3 +10,5 @@
 | 2026-10-07 | Tests (format, markers), typecheck, lint, build | done |
 | 2026-10-07 | kb/grafana-app-plugin.md, deploy/README.md, tracker/mvp.md Phase 4, HTML report | done |
 | open | Replace deprecated `Select` with `Combobox`; Playwright e2e | todo (post-MVP) |
+| 2026-10-08 | Phase 7 frame player: code + 34 tests landed; visual check in Grafana pending | review |
+| 2026-10-08 | Phase 7b: sticky replay + self-scrolling timeline, Replay duration column, sortable sessions table (52 tests, browser-verified, `reports/phase-7b-ux.html`) | done |

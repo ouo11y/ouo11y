@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Phase 7 iOS replay verification</title>
+<style>body{font:15px/1.5 -apple-system,Segoe UI,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#1c1c1c}h1,h2{line-height:1.2}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #ddd;padding:.4rem .6rem;text-align:left;vertical-align:top}th{background:#f4f4f4}.pass{color:#137333;font-weight:600}.gap{color:#b06000;font-weight:600}figure{margin:1rem 0}figure img{max-width:100%;border:1px solid #ccc}figcaption{font-size:.9rem;color:#555}.row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}</style></head><body>
+<h1>Phase 7: iOS session replay, native verification</h1>
+<p>2026-10-08, Xcode 27.0 on macOS 27.0.1, iPhone 18 Pro simulator with iOS 27.0, Expo 57 dev client built from <code>examples/mobile</code> with the <code>OuoReplay</code> native module linked through CocoaPods.</p>
+<h2>Checks</h2>
+<table><tr><th>Check</th><th>Result</th><th>Evidence</th></tr>
+<tr><td>App launches on iOS 27 and reaches the Products screen</td><td class="pass">pass</td><td>Required adopting the UIScene life cycle (new config plugin <code>examples/mobile/plugins/withUIScene.js</code>); figure 1</td></tr>
+<tr><td>Native module registered and started by the JS SDK</td><td class="pass">pass</td><td>Metro log: <code>replay: started {endpoint: http://localhost:8080, frameInterval: 1, maskText: true, ...}</code>, after fixing module lookup to use <code>globalThis.expo.modules</code></td></tr>
+<tr><td>Frame chunk reaches rum-api with <code>kind: frames</code></td><td class="pass">pass</td><td><code>GET /v1/sessions/df12dfd1-…/replay</code>: chunk_count 1, frame_count 2, viewport 402×874, platform ios</td></tr>
+<tr><td>Text is redacted on device before upload</td><td class="pass">pass</td><td>Figure 2: every product name, price and button label is a black rectangle in the captured JPEG</td></tr>
+<tr><td>Session appears in Grafana with status, version and trace</td><td class="pass">pass</td><td>Figure 3: healthy, mobile, mobile-store 2.3.0, 1 trace with Explore link</td></tr>
+<tr><td>Frame player plays and scrubs in Grafana</td><td class="pass">pass</td><td>Figure 4: playback advanced to frame 2/2 showing the masked screen; markers and scrubber rendered</td></tr>
+<tr><td>Session lifecycle on relaunch</td><td class="pass">pass</td><td>Metro log: previous session ended with reason <code>terminated</code>, new session carries <code>session.previous_id</code></td></tr>
+<tr><td>Checkout input masking and <code>ouo-unmask</code> on the product title</td><td class="pass">pass</td><td>Figure 6: promo input (text field plus <code>ouo-mask</code>) and every label redacted while text was typed into it; figure 11: product title readable, price and button hidden</td></tr>
+<tr><td>Crash flow: fatal error marks the session crashed and the relaunch closes it with reason crash</td><td class="pass">pass</td><td>Figures 7 to 9: Grafana lists the session as crashed, timeline shows navigations, the 500, the fatal error and the session end; replay has 5 frames and 6 touches, 5 traces with the 500 flagged</td></tr>
+<tr><td>Masking opt-out: <code>maskText: false</code> keeps inputs masked</td><td class="pass">pass</td><td>Figure 12 (Phase 7b): with the demo's <code>replay: { enabled: true, maskText: false }</code> every label, the bar title, the back-button title and the header badge are readable while the promo input (a text input, also <code>ouo-mask</code>) is solid black with <code>SAVE10</code> typed into it. The back chevron is black because it is a <code>UIImageView</code> and <code>maskImages</code> stays on. Rules were split into <code>textClasses</code> (<code>maskText</code>) and <code>inputClasses</code> (<code>maskInputs</code>, default true)</td></tr>
+<tr><td>Navigation bar masking on iOS 27</td><td class="pass">pass</td><td>Figures 10 and 11: bar background visible, title, back-button label and header badge redacted. Needed three fixes: skip empty <code>UIImageView</code>s, add <code>RCTParagraphTextView</code> and the iOS 26+ bar item wrapper to the rules, and keep walking children of zero-sized or off-screen nodes</td></tr>
+</table>
+<h2>Figures</h2>
+<div class="row">
+<figure><img src="01-simulator-products.jpg" alt="Products screen on the simulator"><figcaption>1. Products screen on the iOS 27 simulator (version 2.3.0, session id in the header).</figcaption></figure>
+<figure><img src="02-captured-frame-masked.jpg" alt="Captured frame with masked text"><figcaption>2. The frame the SDK uploaded for the same screen: text redacted on device.</figcaption></figure>
+<figure><img src="03-grafana-session-detail.jpg" alt="Grafana session detail"><figcaption>3. Grafana: the iOS session with timeline, counts and replay panel.</figcaption></figure>
+<figure><img src="04-grafana-frame-player-playing.jpg" alt="Grafana frame player"><figcaption>4. Grafana frame player after pressing play: frame 2/2, scrubber, markers, trace row below.</figcaption></figure>
+<figure><img src="05-frame-product-unmask.jpg" alt="Product frame"><figcaption>5. Product screen frame: <code>ouo-unmask</code> title readable, price and button masked (before the header fixes).</figcaption></figure>
+<figure><img src="06-frame-checkout-masked-input.jpg" alt="Checkout frame"><figcaption>6. Checkout frame while typing into the promo field: input and labels redacted.</figcaption></figure>
+<figure><img src="07-grafana-mobile-sessions.jpg" alt="Grafana mobile sessions"><figcaption>7. Grafana sessions list filtered to mobile: healthy, errored and crashed sessions from the simulator.</figcaption></figure>
+<figure><img src="08-grafana-crashed-session.jpg" alt="Crashed session detail"><figcaption>8. The crashed session: timeline with the 500, the fatal error and the session end.</figcaption></figure>
+<figure><img src="09-grafana-crashed-replay-traces.jpg" alt="Crashed session replay and traces"><figcaption>9. Same session: frame player with markers, 5 traces with the failed one flagged.</figcaption></figure>
+<figure><img src="10-frame-products-final-rules.jpg" alt="Products frame with final rules"><figcaption>10. Products frame with the final rules: header badge and title redacted, bar background intact.</figcaption></figure>
+<figure><img src="11-frame-product-final-rules.jpg" alt="Product frame with final rules"><figcaption>11. Product frame with the final rules: back-button label redacted, unmasked title readable.</figcaption></figure>
+<figure><img src="12-frame-masktext-false.jpg" alt="Checkout frame with maskText false"><figcaption>12. Phase 7b, checkout frame with <code>maskText: false</code>: labels, bar titles and the header badge readable, the promo input (with text typed into it) black. Session <code>cc9fcfdf-…</code>, 13 frames, <code>replay_duration_ms</code> 39717.</figcaption></figure>
+</div>
+<h2>Fixes made during verification</h2>
+<ul>
+<li>iOS 27 traps at launch without UIScene adoption; Expo 57's template lacks it, so the demo app gained a config plugin that adds the scene manifest, a <code>SceneDelegate</code> subclassing <code>ExpoAppSceneDelegate</code>, and the AppDelegate changes.</li>
+<li>The Expo bridge double-qualified <code>OuoReplay.OuoReplay</code>, which fails under CocoaPods.</li>
+<li>The JS SDK required <code>expo-modules-core</code>, which Metro cannot resolve from a symlinked package; it now reads <code>globalThis.expo.modules</code> first and reports the reason when the module is missing.</li>
+<li>Redaction rules: empty <code>UIImageView</code>s are no longer masked (bar backgrounds), <code>RCTParagraphTextView</code> and <code>_TtCC5UIKit19NavigationButtonBar15ItemWrapperView</code> were added, and the planner keeps walking children of zero-sized or off-screen nodes because UIKit does not clip subviews by default. SwiftUI drawing views are deliberately not in the defaults: on iOS 26+ the glass bar background is one, and masking it blacks out whole bars.</li>
+<li>Diagnostics: in debug mode the recorder logs (via <code>NSLog</code>) content-like view classes that matched no rule, so new UIKit or React Native classes can be added quickly.</li>
+<li>LogBox's own renderer throws in this dev client and its toast covered the bottom buttons; the demo app silences it when Metro starts with <code>EXPO_PUBLIC_QUIET_LOGBOX=1</code>.</li>
+</ul>
+<h2>Reproduce</h2>
+<pre>export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8
+cd examples/mobile && npx expo prebuild --platform ios && (cd ios && pod install)
+cd ios && xcodebuild -workspace mobilestore.xcworkspace -scheme mobilestore -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcrun simctl boot "iPhone 18 Pro" && xcrun simctl install booted &lt;build&gt;/mobilestore.app
+npx expo start --dev-client --port 8081   # in examples/mobile
+xcrun simctl launch booted dev.ouo.mobilestore
+curl localhost:8080/v1/sessions?from=now-10m&amp;platform=mobile</pre>
+</body></html>

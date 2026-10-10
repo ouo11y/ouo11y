@@ -51,5 +51,6 @@ export const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "600" },
   text: { fontSize: 16 },
   dim: { color: "#6b7280" },
+  input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, marginBottom: 12 },
   mono: { fontFamily: "Courier", fontSize: 12, color: "#374151" },
 });
