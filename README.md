@@ -67,6 +67,7 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 | `sdk/browser`, `sdk/react-native` | the SDKs (`@ouo/browser`, `@ouo/react-native`) |
 | `plugins/ouo-rum-app` | the Grafana app plugin |
 | `examples/web`, `examples/mobile`, `examples/backend` | demo apps |
+| `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |
 | `tests/e2e` | the end-to-end scenario script |
 
 Working in this repository: read `AGENTS.md` first.
