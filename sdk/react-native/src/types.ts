@@ -17,7 +17,7 @@ export interface TracingOptions {
    * headers on outbound fetch requests. Requests to other hosts still get a client span.
    */
   propagateTo?: Array<RegExp | string>;
-  /** URLs (RegExp or exact strings) never traced. The OTLP endpoint is always ignored. */
+  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` / `otlpEndpoint` are always ignored. */
   ignoreUrls?: Array<RegExp | string>;
 }
 
@@ -86,13 +86,24 @@ export interface ErrorOptions {
 }
 
 export interface RUMOptions {
-  /** OTLP/HTTP base URL. The SDK appends `/v1/traces` and `/v1/logs`. */
+  /**
+   * rum-api base URL, for example `https://rum.example.com` (ADR-0007). The SDK derives
+   * `${endpoint}/ingest/otlp/v1/traces`, `${endpoint}/ingest/otlp/v1/logs` and
+   * `${endpoint}/v1/replay/chunks` from it. Requests to these URLs are never traced.
+   */
   endpoint: string;
   /**
-   * rum-api base URL; the native recorder posts replay chunks to `${replayEndpoint}/v1/replay/chunks`.
-   * Defaults to the OTLP endpoint's scheme and host on port 8080.
+   * Project token, sent as `X-Ouo-Project-Token` on every OTLP export and replay upload.
+   * Public by nature (it only grants the right to write telemetry into one project); required,
+   * `initRUM` throws without it.
    */
-  replayEndpoint?: string;
+  projectToken: string;
+  /**
+   * Escape hatch for a trusted in-network app: OTLP/HTTP base URL used instead of rum-api's
+   * ingest routes (`${otlpEndpoint}/v1/traces` and `/v1/logs`, token header still sent).
+   * Replay chunks always go to rum-api. Leave unset for apps that run on user devices.
+   */
+  otlpEndpoint?: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;

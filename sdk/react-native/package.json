@@ -1,17 +1,49 @@
 {
   "name": "@ouo/react-native",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS).",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZiadMansourM/ouo.git",
+    "directory": "sdk/react-native"
+  },
+  "homepage": "https://github.com/ZiadMansourM/ouo/tree/main/sdk/react-native#readme",
+  "bugs": {
+    "url": "https://github.com/ZiadMansourM/ouo/issues"
+  },
+  "keywords": [
+    "opentelemetry",
+    "rum",
+    "real-user-monitoring",
+    "session-replay",
+    "react-native",
+    "expo",
+    "ios"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "react-native": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./expo-module.config.json": "./expo-module.config.json"
+  },
   "files": [
     "dist",
     "ios",
     "android",
     "expo-module.config.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=24"
@@ -21,13 +53,19 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sync:ios": "node scripts/sync-ios.mjs"
+    "sync:ios": "node scripts/sync-ios.mjs",
+    "prepack": "npm run build"
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": ">=1.21.0",
     "react": ">=18",
     "react-native": ">=0.74",
     "expo-modules-core": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "expo-modules-core": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
@@ -50,10 +88,5 @@
     "tsup": "^8.5.1",
     "typescript": "~5.9.3",
     "vitest": "^5.0.3"
-  },
-  "peerDependenciesMeta": {
-    "expo-modules-core": {
-      "optional": true
-    }
   }
 }

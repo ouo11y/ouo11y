@@ -5,6 +5,9 @@ import Foundation
 public struct OuoReplayConfig {
     /// rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`.
     public var endpoint: URL
+    /// Project token sent as `X-Ouo-Project-Token` on every upload (ADR-0007). Public by nature;
+    /// rum-api answers 401 without it.
+    public var projectToken: String
     /// Called when a chunk is opened; must return the active `session.id`.
     public var sessionId: () -> String
     /// Seconds between timer frames. Default 1.
@@ -34,6 +37,7 @@ public struct OuoReplayConfig {
 
     public init(
         endpoint: URL,
+        projectToken: String,
         sessionId: @escaping () -> String,
         frameInterval: TimeInterval = 1.0,
         maskText: Bool = true,
@@ -50,6 +54,7 @@ public struct OuoReplayConfig {
         seqStore: SeqStore = UserDefaultsSeqStore()
     ) {
         self.endpoint = endpoint
+        self.projectToken = projectToken
         self.sessionId = sessionId
         self.frameInterval = frameInterval
         self.maskText = maskText

@@ -2,12 +2,12 @@
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
 sessions, errors and JS crashes, app version, outbound `fetch` tracing with W3C Trace
-Context and Baggage, all exported over OTLP/HTTP to the ouo collector. Telemetry needs no
-native code and runs in Expo Go; session replay (iOS) is an Expo native module and needs a
-development build.
+Context and Baggage, all exported over OTLP/HTTP to rum-api's ingest gateway, which validates
+the project token and forwards to the ouo collector (ADR-0007). Telemetry needs no native code
+and runs in Expo Go; session replay (iOS) is an Expo native module and needs a development build.
 
-Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004.
-Runtime notes and gotchas: `kb/otel-react-native.md`.
+Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004, ingest and
+project tokens: ADR-0007. Runtime notes and gotchas: `kb/otel-react-native.md`. Changes: `CHANGELOG.md`.
 
 ## Install
 
@@ -40,9 +40,10 @@ to resolve their `browser` field remaps.
    import * as Device from "expo-device";
 
    export const rum = initRUM({
-     endpoint: "http://localhost:4328", // OTLP/HTTP base URL of the collector
+     endpoint: "http://localhost:8080",              // rum-api base URL (ADR-0007)
+     projectToken: "pt_dev_demo_0000000000000000",   // X-Ouo-Project-Token; required, public by nature
      service: { name: "mobile-store", version: Constants.expoConfig?.version ?? "0.0.0", environment: "local" },
-     tracing: { propagateTo: [/^http:\/\/localhost:8082/] },
+     tracing: { propagateTo: [/^http:\/\/localhost:8081/] },
      device: { modelIdentifier: Device.modelId ?? undefined, manufacturer: Device.manufacturer ?? undefined },
      debug: __DEV__,
    });
@@ -76,12 +77,33 @@ not need `crypto.getRandomValues` (trace ids use `Math.random`, session ids use
 `crypto.randomUUID` when present and fall back otherwise), `URL` (URLs are parsed with a
 regex), `zone.js`, `XMLHttpRequest` instrumentation or `document`.
 
+### Endpoints and the project token (ADR-0007)
+
+`endpoint` is the rum-api base URL and `projectToken` is required. From them the SDK derives:
+
+| Signal | URL | Header |
+|---|---|---|
+| traces | `${endpoint}/ingest/otlp/v1/traces` | `X-Ouo-Project-Token: <projectToken>` |
+| events (logs) | `${endpoint}/ingest/otlp/v1/logs` | same |
+| replay chunks (native) | `${endpoint}/v1/replay/chunks` | same, plus `x-ouo-session-id`, `x-ouo-seq` |
+
+rum-api checks the token (401 when missing or unknown), the `Origin` (irrelevant for a native app,
+which sends none), rate and size limits, stamps `ouo.project.id` on every resource and forwards to
+the collector; the collector itself is not reachable from devices. `initRUM` throws a `TypeError`
+when `projectToken` is missing or empty. The token is public (it only allows writing telemetry into
+one project), so shipping it in the app bundle is expected, exactly like every RUM vendor's key.
+
+Escape hatch for a trusted in-network app: `otlpEndpoint: "http://otel-collector:4318"` sends OTLP
+to `${otlpEndpoint}/v1/{traces,logs}` (token header still set) while replay stays on rum-api.
+`resolveEndpoints({ endpoint, otlpEndpoint })` is exported so hosts and tests can see the derived URLs.
+Requests to the derived URLs are never traced.
+
 ### Session replay (iOS, ADR-0006)
 
 ```ts
 initRUM({
-  endpoint: "http://localhost:4328",
-  replayEndpoint: "http://localhost:8080", // rum-api; defaults to the OTLP host on port 8080
+  endpoint: "http://localhost:8080",              // rum-api; chunks go to /v1/replay/chunks
+  projectToken: "pt_dev_demo_0000000000000000",
   replay: { enabled: true, frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
   // ...
 });
@@ -90,11 +112,11 @@ rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 
 The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
 the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,
-gzip frame chunks to `POST /v1/replay/chunks`), `android/` is a no-op that logs once. The JS
-side calls native `start` with the rum-api endpoint and the session id, forwards every session
-rotation (`sessionDidRotate`), flushes with `rum.flush()`, and is a silent no-op where the
-native module is absent: Expo Go, web, Jest/Vitest, bare apps without `expo-modules-core`
-(a debug-only warning is logged once).
+gzip frame chunks to `POST /v1/replay/chunks` with `X-Ouo-Project-Token`), `android/` is a no-op
+that logs once. The JS side calls native `start(endpoint, { projectToken, sessionId, ... })` with
+the rum-api endpoint, forwards every session rotation (`sessionDidRotate`), flushes with
+`rum.flush()`, and is a silent no-op where the native module is absent: Expo Go, web, Jest/Vitest,
+bare apps without `expo-modules-core` (a debug-only warning is logged once).
 
 ### Masking and how to opt out
 
@@ -130,9 +152,11 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 import { initRUM, type RUM } from "@ouo/react-native";
 
 const rum: RUM = initRUM({
-  endpoint: "http://localhost:4328",
+  endpoint: "http://localhost:8080",              // rum-api base URL, required
+  projectToken: "pt_dev_demo_0000000000000000",   // required
+  otlpEndpoint: undefined,                        // optional escape hatch, see above
   service: { name: "mobile-store", version: "2.3.0", environment: "local" },
-  tracing: { propagateTo: [/^http:\/\/localhost:8082/], ignoreUrls: [] },
+  tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
   session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
   user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional
@@ -194,7 +218,7 @@ an uncaught error counts as fatal (ADR-0004, web rule).
 `http.response.status_code` (`error.type` on failure); `traceparent` and `baggage`
 (`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
-OTLP endpoint is never traced and the exporter uses the unwrapped `fetch.__original`.
+SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
 
 ## Events (OTel log records, `event.name`)
 
@@ -211,11 +235,15 @@ and `service.version`. Resource: `service.name`, `service.version`,
 ## Development
 
 ```bash
-npm run -w sdk/react-native build   # tsup -> dist/index.js (cjs) + index.d.ts
+npm run -w sdk/react-native build   # sync Swift sources into ios/, tsup -> dist/index.js (cjs) + index.d.ts
 npm run -w sdk/react-native test    # vitest (jsdom env so the OTel browser builds are used)
+npm pack --dry-run -w sdk/react-native   # what gets published (dist, ios incl. vendored Swift, android, config)
 # run the built bundle in Node against the live stack (no simulator needed):
 cd sdk/react-native && SCENARIO=healthy node --require ./playground/preload.cjs playground/scenario.cjs
 ```
 
 Scenarios: `healthy`, `errored`, `crash`, `relaunch`, `background`; `APP_VERSION`,
-`OUO_OTLP`, `OUO_BACKEND`, `OUO_STORAGE_FILE` (the shared "disk" between launches).
+`OUO_RUM_API` (default `http://localhost:8080`), `OUO_PROJECT_TOKEN` (default the development
+token), `OUO_OTLP` (optional escape hatch), `OUO_BACKEND`, `OUO_STORAGE_FILE` (the shared "disk"
+between launches). `test/ingest-stub.test.ts` starts a Node stub of rum-api's gateway on port
+18082 and checks that traces and logs arrive on the ingest routes with the token.

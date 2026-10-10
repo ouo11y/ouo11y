@@ -5,6 +5,8 @@ import OuoReplay
 /// Options passed by `initRUM({ replay })` through `start(endpoint, options)`.
 struct StartOptions: Record {
   @Field var sessionId: String = ""
+  /// Sent as `X-Ouo-Project-Token` on every chunk upload (ADR-0007). JS validates it first.
+  @Field var projectToken: String = ""
   @Field var frameInterval: Double = 1.0
   @Field var maskText: Bool = true
   @Field var maskInputs: Bool = true
@@ -34,12 +36,17 @@ public class OuoReplayModule: Module {
       guard let url = URL(string: endpoint) else {
         throw Exception(name: "ERR_OUO_REPLAY_ENDPOINT", description: "invalid replay endpoint: \(endpoint)")
       }
+      let token = options.projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !token.isEmpty else {
+        throw Exception(name: "ERR_OUO_REPLAY_TOKEN", description: "projectToken is required (ADR-0007); rum-api rejects uploads without X-Ouo-Project-Token")
+      }
       if !options.sessionId.isEmpty {
         self.sessionId.set(options.sessionId)
       }
       let box = self.sessionId
       OuoReplay.start(OuoReplayConfig(
         endpoint: url,
+        projectToken: token,
         sessionId: { box.get() },
         frameInterval: options.frameInterval,
         maskText: options.maskText,
