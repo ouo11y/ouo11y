@@ -5,17 +5,26 @@ LGTM mode: {{ .Values.lgtm.mode }}{{ if eq .Values.lgtm.mode "external" }} (Loki
 Wait for everything to be Ready (the bundled Loki takes ~20 s, Mimir ~30 s):
 
   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+{{- if .Values.collector.enabled }}
+{{- if .Values.collector.ingress.enabled }}
 
-{{- if .Values.rumApi.ingress.enabled }}
-
-rum-api (SDK endpoint): {{ ternary "https" "http" .Values.rumApi.ingress.tls.enabled }}://{{ .Values.rumApi.ingress.host }}
+Collector (the only public ingest, ADR-0007): {{ include "ouo.collectorPublicUrl" . }}
+  /v1/traces, /v1/logs, /v1/metrics -> OTLP/HTTP 4318;  /v1/replay/chunks -> replay 4319
 {{- else }}
 
-rum-api has no Ingress; reach it with a port-forward:
+The collector Service {{ include "ouo.collector.fullname" . }} is {{ .Values.collector.service.type }}; without an Ingress reach both
+public ports with port-forwards (set collector.ingress.enabled=true or collector.service.type=LoadBalancer for real clients):
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.collector.fullname" . }} 4318:4318 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.collector.fullname" . }} 4319:4319 &
+{{- end }}
+{{- end }}
+
+rum-api is ClusterIP only and has no Ingress by design (ADR-0007 section 5); the collector and
+Grafana reach it in-cluster. For debugging only:
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.rumApi.fullname" . }} 8080:{{ .Values.rumApi.service.port }}
   curl -s localhost:8080/readyz
-{{- end }}
 {{- if .Values.grafana.enabled }}
 {{- if .Values.grafana.ingress.enabled }}
 
@@ -30,28 +39,39 @@ Grafana has no Ingress; reach it with a port-forward:
   Plugin settings: /api/plugins/ouo-rum-app/settings  (rumApiUrl = {{ include "ouo.rumApiUrl" . }})
 {{- end }}
 
-Project token (ADR-0007): every SDK and every OTLP exporter must send
-  X-Ouo-Project-Token: <token>
-to {{ if .Values.rumApi.ingress.enabled }}{{ ternary "https" "http" .Values.rumApi.ingress.tls.enabled }}://{{ .Values.rumApi.ingress.host }}{{ else }}http://localhost:8080{{ end }}/ingest/otlp/v1/{traces,logs,metrics} and /v1/replay/chunks.
-{{- if .Values.projects }}
-  Projects come from the ConfigMap {{ include "ouo.rumApi.fullname" . }}-projects ({{ len .Values.projects }} project(s)).
+Projects (ADR-0007): every SDK and every OTLP exporter authenticates with HTTP Basic
+  Authorization: Basic base64("<project id>:<project token>")
+{{- if .Values.collector.existingProjectsSecret }}
+  from your Secret {{ .Values.collector.existingProjectsSecret }} (key projects.htpasswd).
 {{- else }}
-  Project id: {{ .Values.project.id }}
-  Token:      kubectl -n {{ .Release.Namespace }} get secret {{ include "ouo.rumApi.secretName" . }} -o jsonpath='{.data.project-token}' | base64 -d
+  {{ len .Values.projects }} project(s) in Secret {{ include "ouo.collector.projectsSecretName" . }}:{{ range .Values.projects }} {{ .id }}{{ end }}
+  Add or rotate: edit `projects` in your values and `helm upgrade`; the collector rolls on the checksum.
 {{- end }}
   Read token (Grafana -> rum-api): kubectl -n {{ .Release.Namespace }} get secret {{ include "ouo.rumApi.secretName" . }} -o jsonpath='{.data.read-token}' | base64 -d
-{{- if or (eq .Values.project.token "pt_dev_demo_0000000000000000") (eq .Values.readToken "rt_dev_0000000000000000") }}
+{{- $dev := false }}
+{{- range .Values.projects }}{{ if eq .token "pt_dev_demo_0000000000000000" }}{{ $dev = true }}{{ end }}{{ end }}
+{{- if or $dev (eq .Values.readToken "rt_dev_0000000000000000") (eq .Values.ingestToken "it_dev_0000000000000000") }}
 
   !!! You are running with the committed DEVELOPMENT tokens. Fine on kind or a laptop;
-  !!! rotate them (pt_$(openssl rand -hex 16), rt_$(openssl rand -hex 16)) before anything
-  !!! another person can reach.
+  !!! rotate them (pt_$(openssl rand -hex 16), rt_$(openssl rand -hex 16), it_$(openssl rand -hex 16))
+  !!! before anything another person can reach.
 {{- end }}
 
-SDK snippet:
-  initRUM({ endpoint: "<rum-api URL>", projectToken: "<token>", service: { name: "web-store", version: "1.0.0" } })
+SDK snippet (browser and React Native SDKs 0.2.0):
+  initRUM({
+    endpoint: "{{ include "ouo.collectorPublicUrl" . }}",{{ if not .Values.collector.ingress.enabled }}
+    replayEndpoint: "http://localhost:4319",        // defaults to endpoint on port 4319 when endpoint uses 4318{{ end }}
+    projectId: "{{ with first .Values.projects }}{{ .id }}{{ else }}<project id>{{ end }}",
+    projectToken: "<project token>",
+    service: { name: "web-store", version: "1.0.0", environment: "production" },
+  })
+Stock OpenTelemetry SDKs: OTEL_EXPORTER_OTLP_ENDPOINT={{ include "ouo.collectorPublicUrl" . }}
+  OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic%20$(printf '<id>:<token>' | base64)"
+{{- if .Values.collector.enabled }}
 
-The OpenTelemetry Collector ({{ include "ouo.collector.fullname" . }}:4318) is ClusterIP only. Trusted in-cluster
-services can send OTLP to it directly; browsers and mobile apps go through rum-api.
+In-cluster services send OTLP to {{ include "ouo.collector.fullname" . }}:4318 (HTTP) or {{ include "ouo.collector.internalName" . }}:4317 (gRPC),
+with the same Basic credential (gRPC metadata `authorization`). Client rate-limit key: {{ include "ouo.rateLimitClientKey" . }}.
+{{- end }}
 
 Uninstall keeps the data: PersistentVolumeClaims are annotated helm.sh/resource-policy: keep
 (rum-api replays, Grafana) or belong to StatefulSets (Loki, Tempo, Mimir). See README.md.
