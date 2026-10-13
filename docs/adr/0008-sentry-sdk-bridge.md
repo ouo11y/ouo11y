@@ -1,6 +1,6 @@
 # ADR-0008 Sentry SDK bridge: a Sentry receiver in ouo-collector, dual delivery, video replay kind
 
-Status: proposed (2026-10-13)
+Status: proposed (2026-10-13). Implemented and verified on iOS on 2026-10-14 (`reports/sentry-bridge-verification.html`); acceptance is the founder's call.
 
 ## Context
 
@@ -32,7 +32,7 @@ What makes this feasible:
    3. returns the upstream status, `X-Sentry-Rate-Limits`, `Retry-After` and body to the SDK verbatim, so SDK caching, retry and rate limiting behave exactly as without the bridge;
    4. only when upstream answered `2xx`, hands the envelope to the translator **asynchronously** through a bounded in-memory queue. A full queue drops the envelope on the ouo side and counts it; it never delays or fails the Sentry response.
 
-   Translating only accepted envelopes means an SDK retry after an upstream failure is not double counted in ouo, and ouo sees what Sentry saw. Upstream unreachable is `502` to the SDK, which caches the envelope and retries, exactly as if Sentry were down.
+   Translating only accepted envelopes means an SDK retry after an upstream failure is not double counted in ouo, and ouo sees what Sentry saw. When the upstream is unreachable the receiver aborts the client connection, so the SDK sees a network error, caches the envelope and retries, exactly as if Sentry were down (a `502` could make an SDK drop the envelope). The receiver adds `X-Forwarded-For` so Sentry keeps the device's IP.
 
    A project may set `upstream: none`. The receiver then answers `200 {"id":"<event_id>"}` itself and only translates. That is the cutover mode, and the mode for apps that never used Sentry.
 
@@ -53,7 +53,7 @@ What makes this feasible:
 
    Records that match no rule are still emitted, without `session.id`, so they are visible in Loki and Tempo but not folded into a session. State lives in a bounded LRU with a TTL of `SESSION_MAX_DURATION` (default 4 h). Replay segments that cannot be resolved yet are held up to 10 minutes, then dropped and counted.
 
-   Which of these rules carry real traffic is the first implementation task: capture a day of envelopes from a debug build of each app and record the match rates in a kb entry before writing the translator.
+   Captures of real iOS traffic (2026-10-14) showed all three rules in use and one trap: transactions can carry a stale replay id after a background rotation, so rule 2 also checks the session's time window (spec section 8).
 
 5. **rum-api gains a `video` replay kind.** The replay pipeline from ADR-0007 is reused: the receiver emits chunk records into a dedicated pipeline and the existing `ouoreplay` exporter posts them to rum-api's internal `POST /v1/replay/chunks`. rum-api changes:
    - accept `kind: "video"` chunks (contract in `docs/specs/sentry-bridge.md`), validate the mp4 (`ftyp` box), limit by `MAX_VIDEO_CHUNK_BYTES` (default 8 MiB);

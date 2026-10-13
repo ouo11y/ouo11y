@@ -86,6 +86,26 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 - [ ] Sentry SDK bridge (ADR-0008 proposed 2026-10-13, spec `docs/specs/sentry-bridge.md`). Order of work: (1) capture golden envelopes from both apps and answer the spec's verify items [collector]; (2) `ouosentry` receiver: forward, parse, translate, resolve sessions [collector]; (3) `video` replay kind [rum-api]; (4) video player [grafana-plugin]; (5) Sentry vs ouo comparison report [qa]. Placement ahead of Phase 10 is a founder decision (roadmap section 6 trigger)
 - [ ] Exit: demo backend reporting to both stacks with matching trace counts and a generated cost comparison
 
+## Sentry bridge (ADR-0008), pulled forward on 2026-10-14
+
+Founder ask: Sentry SDKs point at the collector; the collector forwards everything to Sentry as if it were not there; replay goes to rum-api; traces and logs go to LGTM. Branch `claude/sentry-bridge-design`, PR #16. Each sub-phase closes only when its verification is recorded here.
+
+**MVP scope (founder, 2026-10-14):** S1 (forward to Sentry as if the collector were not there) and S3 (session replay to rum-api) are the MVP and get the strong verification. S2 (traces and logs to LGTM) was first marked "can be implemented later", then put back in scope the same day because the plugin's session list is built from the session events in Loki: S2 gets the full verification gate. Android (S5) is deferred.
+
+| Sub-phase | Delivers | Verification gate |
+|---|---|---|
+| S1 Transparent forward | `ouosentry` receiver: auth table, raw-byte forward, verbatim response, `upstream: none`; `sentrytap` record/forward tool | Go tests against a fake upstream (body, headers, query byte-identical incl. gzip; 200, 429 + `X-Sentry-Rate-Limits` + `Retry-After`, 413 passthrough; upstream down 502; unknown key 403 not forwarded; body limit). Live: real Sentry iOS SDK through tap A, collector, tap B: every request in A appears in B byte-identical, responses identical; latency overhead measured |
+| S2 Telemetry to LGTM | envelope parser, session, error, transaction mapping, session resolution, OTLP out | Golden tests on envelopes captured in S1. Live: simulator journey yields healthy, errored and crashed sessions in rum-api with the same counts as the Sentry session updates; exceptions in Loki; transactions in Tempo with `session.id` |
+| S3 Replay to rum-api | `replay_video` decode, `kind: "video"` chunks via routing connector and `ouoreplay` exporter; rum-api video kind, manifest, mp4 range serving | Unit tests both sides. Live: replay segments of a simulator session stored, every mp4 has `ftyp` and plays (AVFoundation probe), range request 206, touches present |
+| S4 Plugin player + report | video player in the plugin, HTML verification report | Grafana shows the bridged session with timeline, traces and playing video; report in `reports/` |
+| S5 Android (deferred) | same as S1 to S3 on Android | Deferred by the founder; also no Android SDK, emulator or JDK on the build Mac |
+
+- [x] S1 Transparent forward [2026-10-14: Go tests against a fake upstream; live in `ouo-sb` with real sentry-cocoa 9.30.1 traffic: `sentrytap compare` 39/39 requests byte-identical with identical responses, bridge overhead p50 2.8 ms p95 4.4 ms; 429 + `X-Sentry-Rate-Limits` + `Retry-After` passed through the container; unreachable upstream aborts the connection; outage run: SDK retried, flushed on recovery, ouo recorded each event once; `reports/sentry-bridge-verification.html`]
+- [x] S2 Telemetry to LGTM [2026-10-14: golden tests on 54 captured requests; `verify-bridge.py` on two live runs: 6 sessions with status and end reason matching the SDK's updates, 8/8 errors in Loki (fatal ones fatal), 11/11 transactions in Tempo with `session.id` on every span; real-traffic fixes: stale replay id window, platform detection, crash end time, touch moves]
+- [x] S3 Replay to rum-api [2026-10-14: 26/26 segments of 6 replays stored under the session they were recorded in, sha256 equal to the SDK's mp4, all decoded by AVFoundation at 402x874; rum-api tests incl. Range 206 and cross-kind 409]
+- [x] S4 Plugin player + report [2026-10-14: plugin 0.4.0 video player, 97 Jest tests; live in Grafana 13.2.1 on real bridged sessions, Range/206 through the plugin proxy, timeline seek lands in the right segment; `reports/sentry-bridge-verification.html`, `agents/grafana-plugin/reports/s4-video-player.html`]
+- [ ] S5 Android (deferred)
+
 ## Phase 13 Native SDKs
 
 - [ ] 13.0 Conformance suite driving any SDK through session spec cases, error classification, baggage, replay contract; browser and React Native SDKs pass it

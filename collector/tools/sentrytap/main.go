@@ -126,7 +126,10 @@ func (t *tap) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.DurationMS = float64(time.Since(start).Microseconds()) / 1000
 	t.write(reqDir, "response.json", mustJSON(resp))
-	log.Printf("#%d %s %s?%s %dB -> %d (%.1f ms)", seq, r.Method, r.URL.Path, r.URL.RawQuery, len(body), resp.Status, resp.DurationMS)
+	log.Printf("#%d %s %s?%s %dB -> %d %s(%.1f ms)", seq, r.Method, r.URL.Path, r.URL.RawQuery, len(body), resp.Status, resp.Error, resp.DurationMS)
+	if resp.Status == 0 {
+		panic(http.ErrAbortHandler) // connection dropped, like the upstream did
+	}
 }
 
 func (t *tap) answer(w http.ResponseWriter, body []byte) recordedResponse {
@@ -170,8 +173,9 @@ func (t *tap) proxy(w http.ResponseWriter, r *http.Request, body []byte) recorde
 	}
 	resp, err := t.client.Do(out)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return recordedResponse{Status: http.StatusBadGateway, Error: err.Error()}
+		// Mirror the failure instead of inventing a 502: the client must see
+		// the same dropped connection it would see without the tap.
+		return recordedResponse{Status: 0, Error: err.Error()}
 	}
 	defer resp.Body.Close()
 	rb, _ := io.ReadAll(resp.Body)
@@ -299,9 +303,14 @@ func compare(args []string) int {
 	}
 	problems := 0
 	matched := 0
+	dropped := 0 // connection dropped before the upstream answered (upstream down): SDK retries
 	for _, ca := range a {
 		k := ca.req.Method + " " + ca.req.Path + "?" + ca.req.RawQuery + " " + ca.req.BodySHA256
 		list := byKey[k]
+		if ca.resp.Status == 0 && len(list) == 0 {
+			dropped++
+			continue
+		}
 		if len(list) == 0 {
 			fmt.Printf("MISSING  A#%d %s %s (%d B, sha256 %s…) never reached the upstream byte-identical\n", ca.req.Seq, ca.req.Method, ca.req.Path, ca.req.BodyLen, ca.req.BodySHA256[:12])
 			problems++
@@ -333,7 +342,7 @@ func compare(args []string) int {
 	for _, l := range byKey {
 		extra += len(l)
 	}
-	fmt.Printf("requests before bridge: %d, at upstream: %d, matched byte-identical: %d, extra at upstream: %d, problems: %d\n", len(a), len(b), matched, extra, problems)
+	fmt.Printf("requests before bridge: %d, at upstream: %d, matched byte-identical: %d, dropped while upstream down: %d, extra at upstream: %d, problems: %d\n", len(a), len(b), matched, dropped, extra, problems)
 	if problems > 0 || extra > 0 {
 		return 1
 	}
