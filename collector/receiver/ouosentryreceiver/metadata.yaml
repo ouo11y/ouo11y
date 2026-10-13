@@ -1,0 +1,37 @@
+# Component metadata in the mdatagen shape (documentation only; internal/metadata is hand-written).
+type: ouosentry
+
+status:
+  class: receiver
+  stability:
+    alpha: [logs, traces]
+  distributions: [ouo-collector]
+  codeowners:
+    active: [ZiadMansourM]
+
+telemetry:
+  metrics:
+    ouo_sentry_envelopes_total:
+      enabled: true
+      description: Envelope requests by ouo project and outcome (forwarded, rejected, upstream_error, accepted_local).
+      unit: "{envelope}"
+      sum: { value_type: int, monotonic: true }
+      attributes: [ouo.project.id, outcome, reason, status_code]
+    ouo_sentry_upstream_duration_seconds:
+      enabled: true
+      description: Time from receiving the request to the upstream Sentry response headers.
+      unit: s
+      histogram: { value_type: double }
+      attributes: [ouo.project.id]
+    ouo_sentry_items_total:
+      enabled: true
+      description: Envelope items seen by the translator, by type and whether they were translated.
+      unit: "{item}"
+      sum: { value_type: int, monotonic: true }
+      attributes: [ouo.project.id, type, translated]
+    ouo_sentry_translate_dropped_total:
+      enabled: true
+      description: Envelopes or items the translator dropped, by reason.
+      unit: "{envelope}"
+      sum: { value_type: int, monotonic: true }
+      attributes: [ouo.project.id, reason]

@@ -1,0 +1,504 @@
+package ouosentryreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+
+import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"sync"
+	"time"
+
+	"go.opentelemetry.io/collector/client"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.uber.org/zap"
+)
+
+// Replay chunk attributes, the ones the ouoreplay exporter reads (ADR-0007).
+const (
+	attrReplaySeq      = "ouo.replay.seq"
+	attrReplayKind     = "ouo.replay.kind"
+	attrReplayEncoding = "ouo.replay.encoding"
+	// attrReplayChunk routes the record to the replay pipeline (spec section 10).
+	attrReplayChunk   = "ouo.replay.chunk"
+	replayServiceName = "ouo-replay"
+	maxPendingReplays = 2000
+)
+
+// replayEvent is the `replay_event` part of a replay_video item.
+type replayEvent struct {
+	ReplayID             string      `json:"replay_id"`
+	SegmentID            int         `json:"segment_id"`
+	ReplayType           string      `json:"replay_type"`
+	ReplayStartTimestamp flexTime    `json:"replay_start_timestamp"`
+	Timestamp            flexTime    `json:"timestamp"`
+	Release              string      `json:"release"`
+	Environment          string      `json:"environment"`
+	Platform             string      `json:"platform"`
+	SDK                  *SDKInfo    `json:"sdk"`
+	User                 *sentryUser `json:"user"`
+	Contexts             contexts    `json:"contexts"`
+}
+
+// replaySegment is one decoded replay_video item.
+type replaySegment struct {
+	event       replayEvent
+	video       []byte
+	videoMeta   *videoPayload
+	startedAt   time.Time
+	touches     []touch
+	received    time.Time
+	os          string
+	resolvedSID string
+}
+
+type videoPayload struct {
+	SegmentID     int    `json:"segmentId"`
+	Size          int64  `json:"size"`
+	Duration      int64  `json:"duration"`
+	Encoding      string `json:"encoding"`
+	Container     string `json:"container"`
+	Height        int    `json:"height"`
+	Width         int    `json:"width"`
+	FrameCount    int    `json:"frameCount"`
+	FrameRate     int    `json:"frameRate"`
+	FrameRateType string `json:"frameRateType"`
+	Left          int    `json:"left"`
+	Top           int    `json:"top"`
+}
+
+type touch struct {
+	TS    int64   `json:"ts"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	Phase string  `json:"phase"`
+}
+
+// decodeReplayVideo decodes the msgpack map {replay_event, replay_recording,
+// replay_video} (sentry-java SentryEnvelopeItem.fromReplay; spec section 9).
+func decodeReplayVideo(payload []byte) (*replaySegment, error) {
+	m, err := decodeMsgpackMap(payload)
+	if err != nil {
+		return nil, err
+	}
+	seg := &replaySegment{}
+	ev, ok := m["replay_event"]
+	if !ok {
+		return nil, errors.New("replay_video item without replay_event")
+	}
+	if err := json.Unmarshal(ev, &seg.event); err != nil {
+		return nil, fmt.Errorf("replay_event: %w", err)
+	}
+	if seg.event.ReplayID == "" {
+		return nil, errors.New("replay_event without replay_id")
+	}
+	seg.video = m["replay_video"]
+	if rec, ok := m["replay_recording"]; ok {
+		if err := seg.parseRecording(rec); err != nil {
+			return nil, fmt.Errorf("replay_recording: %w", err)
+		}
+	}
+	return seg, nil
+}
+
+// parseRecording reads `{"segment_id":n}\n[events]` (optionally gzip) and
+// extracts the video event and the touches.
+func (seg *replaySegment) parseRecording(rec []byte) error {
+	if len(rec) > 2 && rec[0] == 0x1f && rec[1] == 0x8b {
+		zr, err := gzip.NewReader(bytes.NewReader(rec))
+		if err != nil {
+			return err
+		}
+		if rec, err = io.ReadAll(io.LimitReader(zr, 64<<20)); err != nil {
+			return err
+		}
+	}
+	_, body, found := bytes.Cut(rec, []byte("\n"))
+	if !found {
+		body = rec
+	}
+	body = bytes.TrimSpace(body)
+	if len(body) > 2 && body[0] == 0x1f && body[1] == 0x8b {
+		zr, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		var err2 error
+		if body, err2 = io.ReadAll(io.LimitReader(zr, 64<<20)); err2 != nil {
+			return err2
+		}
+	}
+	var events []struct {
+		Type      int             `json:"type"`
+		Timestamp float64         `json:"timestamp"`
+		Data      json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &events); err != nil {
+		return err
+	}
+	for _, e := range events {
+		ts := int64(e.Timestamp)
+		if e.Timestamp > 0 && e.Timestamp < 1e11 { // seconds, not milliseconds
+			ts = int64(e.Timestamp * 1000)
+		}
+		switch e.Type {
+		case 5: // custom
+			var d struct {
+				Tag     string          `json:"tag"`
+				Payload json.RawMessage `json:"payload"`
+			}
+			if json.Unmarshal(e.Data, &d) != nil || d.Tag != "video" {
+				continue
+			}
+			var vp videoPayload
+			if json.Unmarshal(d.Payload, &vp) == nil {
+				seg.videoMeta = &vp
+				seg.startedAt = time.UnixMilli(ts).UTC()
+			}
+		case 3: // incremental snapshot
+			var d struct {
+				Source int      `json:"source"`
+				Type   int      `json:"type"`
+				X      *float64 `json:"x"`
+				Y      *float64 `json:"y"`
+			}
+			if json.Unmarshal(e.Data, &d) != nil || d.Source != 2 || d.X == nil || d.Y == nil {
+				continue
+			}
+			phase := map[int]string{7: "began", 8: "moved", 9: "ended", 10: "ended"}[d.Type]
+			if phase == "" {
+				continue
+			}
+			seg.touches = append(seg.touches, touch{TS: ts, X: *d.X, Y: *d.Y, Phase: phase})
+		}
+	}
+	return nil
+}
+
+// videoChunk is the `kind: "video"` replay chunk (spec section 9 "Output").
+type videoChunk struct {
+	Kind          string   `json:"kind"`
+	SchemaVersion int      `json:"schema_version"`
+	SessionID     string   `json:"session_id"`
+	Seq           int      `json:"seq"`
+	StartedAt     int64    `json:"started_at"`
+	EndedAt       int64    `json:"ended_at"`
+	Viewport      viewport `json:"viewport"`
+	Platform      string   `json:"platform,omitempty"`
+	Video         struct {
+		Container  string `json:"container"`
+		Encoding   string `json:"encoding"`
+		DurationMS int64  `json:"duration_ms"`
+		FrameCount int    `json:"frame_count"`
+		FrameRate  int    `json:"frame_rate"`
+		MP4        string `json:"mp4"`
+	} `json:"video"`
+	Touches []touch `json:"touches"`
+	Source  struct {
+		Vendor     string `json:"vendor"`
+		ReplayID   string `json:"replay_id"`
+		SegmentID  int    `json:"segment_id"`
+		ReplayType string `json:"replay_type,omitempty"`
+	} `json:"source"`
+	Masked bool `json:"masked"`
+}
+
+type viewport struct {
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	Scale  float64 `json:"scale"`
+}
+
+// pendingReplays holds segments whose session is not known yet.
+type pendingReplays struct {
+	mu   sync.Mutex
+	segs map[string][]pendingSeg // project/replay_id
+	n    int
+}
+
+type pendingSeg struct {
+	j     job
+	seg   *replaySegment
+	until time.Time
+}
+
+// handleReplay resolves the session of a segment and emits it, or holds it.
+func (r *sentryReceiver) handleReplay(ctx context.Context, j job, seg *replaySegment) {
+	if seg.videoMeta == nil || len(seg.video) < 8 {
+		r.drop(ctx, j.project.OuoProjectID, "replay_incomplete")
+		return
+	}
+	sid, ok := r.resolveReplay(j, seg)
+	if !ok {
+		r.holdReplay(ctx, j, seg)
+		return
+	}
+	if sid == "" {
+		r.drop(ctx, j.project.OuoProjectID, "replay_conflict")
+		return
+	}
+	r.emitReplay(ctx, j, seg, sid)
+}
+
+// resolveReplay returns the session id of a segment: through the learned
+// replay id, else through the device (rule 3). ok=false when unknown yet;
+// sid="" with ok=true when the session already holds another replay.
+func (r *sentryReceiver) resolveReplay(j job, seg *replaySegment) (string, bool) {
+	var sid string
+	var found bool
+	r.state.withLock(func() {
+		st := r.state
+		project := j.project.OuoProjectID
+		x := st.byReplayID(project, seg.event.ReplayID)
+		if x == nil && seg.event.User != nil {
+			at := firstTime(seg.startedAt, seg.event.Timestamp.Time)
+			if c := st.byDeviceAt(project, seg.event.User.ID, at); c != nil {
+				x = c
+				st.learnReplay(c, seg.event.ReplayID)
+			}
+		}
+		if x == nil {
+			return
+		}
+		found = true
+		if x.replayID != "" && x.replayID != seg.event.ReplayID {
+			return // one session, one replay (ADR-0003)
+		}
+		x.replayID = seg.event.ReplayID
+		sid = x.sid
+	})
+	return sid, found
+}
+
+func (r *sentryReceiver) holdReplay(ctx context.Context, j job, seg *replaySegment) {
+	hold := r.cfg.State.ReplayHold
+	if hold <= 0 {
+		hold = 10 * time.Minute
+	}
+	p := &r.pending
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.segs == nil {
+		p.segs = map[string][]pendingSeg{}
+	}
+	if p.n >= maxPendingReplays {
+		r.drop(ctx, j.project.OuoProjectID, "replay_unresolved")
+		return
+	}
+	k := j.project.OuoProjectID + "/" + seg.event.ReplayID
+	p.segs[k] = append(p.segs[k], pendingSeg{j: j, seg: seg, until: time.Now().Add(hold)})
+	p.n++
+}
+
+// flushPending retries held segments after the state changed, and drops
+// expired ones.
+func (r *sentryReceiver) flushPending(ctx context.Context) {
+	p := &r.pending
+	p.mu.Lock()
+	var ready []pendingSeg
+	now := time.Now()
+	for k, list := range p.segs {
+		var keep []pendingSeg
+		for _, ps := range list {
+			sid, ok := r.resolveReplay(ps.j, ps.seg)
+			switch {
+			case ok && sid != "":
+				ps.seg.resolvedSID = sid
+				ready = append(ready, ps)
+			case ok:
+				r.drop(ctx, ps.j.project.OuoProjectID, "replay_conflict")
+			case now.After(ps.until):
+				r.drop(ctx, ps.j.project.OuoProjectID, "replay_unresolved")
+			default:
+				keep = append(keep, ps)
+				continue
+			}
+			p.n--
+		}
+		if len(keep) == 0 {
+			delete(p.segs, k)
+		} else {
+			p.segs[k] = keep
+		}
+	}
+	p.mu.Unlock()
+	for _, ps := range ready {
+		r.emitReplay(ctx, ps.j, ps.seg, ps.seg.resolvedSID)
+	}
+}
+
+// emitReplay builds the video chunk and sends it as one log record.
+func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegment, sid string) {
+	logsNext, _ := r.consumers()
+	if logsNext == nil {
+		return
+	}
+	vm := seg.videoMeta
+	c := videoChunk{Kind: "video", SchemaVersion: 1, SessionID: sid, Seq: seg.event.SegmentID, Masked: true}
+	start := seg.startedAt
+	if start.IsZero() {
+		start = seg.event.Timestamp.Time
+	}
+	c.StartedAt = start.UnixMilli()
+	c.EndedAt = c.StartedAt + vm.Duration
+	c.Viewport = viewport{Width: vm.Width, Height: vm.Height, Scale: 1}
+	c.Platform = seg.os
+	c.Video.Container = firstString(vm.Container, "mp4")
+	c.Video.Encoding = firstString(vm.Encoding, "h264")
+	c.Video.DurationMS = vm.Duration
+	c.Video.FrameCount = vm.FrameCount
+	c.Video.FrameRate = vm.FrameRate
+	c.Video.MP4 = base64.StdEncoding.EncodeToString(seg.video)
+	c.Touches = seg.touches
+	if c.Touches == nil {
+		c.Touches = []touch{}
+	}
+	c.Source.Vendor = "sentry"
+	c.Source.ReplayID = seg.event.ReplayID
+	c.Source.SegmentID = seg.event.SegmentID
+	c.Source.ReplayType = seg.event.ReplayType
+	body, err := json.Marshal(c)
+	if err != nil {
+		r.drop(ctx, j.project.OuoProjectID, "replay_encode")
+		return
+	}
+
+	ld := plog.NewLogs()
+	rl := ld.ResourceLogs().AppendEmpty()
+	rl.Resource().Attributes().PutStr("service.name", replayServiceName)
+	rl.Resource().Attributes().PutStr(attrProjectID, j.project.OuoProjectID)
+	sl := rl.ScopeLogs().AppendEmpty()
+	sl.Scope().SetName(scopeName)
+	lr := sl.LogRecords().AppendEmpty()
+	lr.SetTimestamp(pcommon.NewTimestampFromTime(start))
+	lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(j.receivedAt))
+	lr.Body().SetEmptyBytes().FromRaw(body)
+	a := lr.Attributes()
+	a.PutStr(attrProjectID, j.project.OuoProjectID)
+	a.PutStr(attrSessionID, sid)
+	a.PutInt(attrReplaySeq, int64(c.Seq))
+	a.PutStr(attrReplayKind, "video")
+	a.PutStr(attrReplayEncoding, "json")
+	a.PutBool(attrReplayChunk, true)
+
+	info := client.Info{Auth: projectAuth(j.project.OuoProjectID)}
+	if ip := net.ParseIP(j.clientAddr); ip != nil {
+		info.Addr = &net.IPAddr{IP: ip}
+	}
+	if err := logsNext.ConsumeLogs(client.NewContext(ctx, info), ld); err != nil {
+		r.drop(ctx, j.project.OuoProjectID, "consumer_replay")
+		r.set.Logger.Debug("replay chunk rejected by the pipeline", zap.Error(err))
+	}
+}
+
+// ---- msgpack subset ------------------------------------------------------------
+
+// decodeMsgpackMap decodes a top-level msgpack map with string keys and
+// binary (or string) values: exactly what the Sentry SDKs write for
+// replay_video. Anything else is an error.
+func decodeMsgpackMap(b []byte) (map[string][]byte, error) {
+	d := &mpDecoder{b: b}
+	n, err := d.mapLen()
+	if err != nil {
+		return nil, err
+	}
+	// Every entry needs at least two bytes (empty key and empty value); a
+	// header claiming more entries than that is hostile or truncated.
+	if n > (len(b)-d.pos)/2 {
+		return nil, errMsgpack
+	}
+	out := make(map[string][]byte, n)
+	for range n {
+		k, err := d.bytesOrString()
+		if err != nil {
+			return nil, fmt.Errorf("msgpack key: %w", err)
+		}
+		v, err := d.bytesOrString()
+		if err != nil {
+			return nil, fmt.Errorf("msgpack value of %q: %w", k, err)
+		}
+		out[string(k)] = v
+	}
+	return out, nil
+}
+
+type mpDecoder struct {
+	b   []byte
+	pos int
+}
+
+var errMsgpack = errors.New("unsupported or truncated msgpack")
+
+func (d *mpDecoder) take(n int) ([]byte, error) {
+	if n < 0 || d.pos+n > len(d.b) {
+		return nil, errMsgpack
+	}
+	v := d.b[d.pos : d.pos+n]
+	d.pos += n
+	return v, nil
+}
+
+func (d *mpDecoder) uint(n int) (int, error) {
+	v, err := d.take(n)
+	if err != nil {
+		return 0, err
+	}
+	switch n {
+	case 1:
+		return int(v[0]), nil
+	case 2:
+		return int(binary.BigEndian.Uint16(v)), nil
+	default:
+		u := binary.BigEndian.Uint32(v)
+		if u > 1<<31-1 {
+			return 0, errMsgpack
+		}
+		return int(u), nil
+	}
+}
+
+func (d *mpDecoder) mapLen() (int, error) {
+	t, err := d.take(1)
+	if err != nil {
+		return 0, err
+	}
+	switch c := t[0]; {
+	case c >= 0x80 && c <= 0x8f:
+		return int(c & 0x0f), nil
+	case c == 0xde:
+		return d.uint(2)
+	case c == 0xdf:
+		return d.uint(4)
+	}
+	return 0, errMsgpack
+}
+
+func (d *mpDecoder) bytesOrString() ([]byte, error) {
+	t, err := d.take(1)
+	if err != nil {
+		return nil, err
+	}
+	var n int
+	switch c := t[0]; {
+	case c >= 0xa0 && c <= 0xbf:
+		n = int(c & 0x1f)
+	case c == 0xd9 || c == 0xc4:
+		n, err = d.uint(1)
+	case c == 0xda || c == 0xc5:
+		n, err = d.uint(2)
+	case c == 0xdb || c == 0xc6:
+		n, err = d.uint(4)
+	default:
+		return nil, errMsgpack
+	}
+	if err != nil {
+		return nil, err
+	}
+	return d.take(n)
+}

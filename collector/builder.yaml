@@ -10,7 +10,7 @@
 dist:
   module: github.com/ZiadMansourM/ouo/collector/dist
   name: ouo-collector
-  description: ouo OpenTelemetry Collector distribution (OTLP + replay ingest edge)
+  description: ouo OpenTelemetry Collector distribution (OTLP, replay and Sentry SDK ingest edge)
   version: 0.1.0
   output_path: ./dist
 
@@ -21,6 +21,7 @@ extensions:
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
   - gomod: github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver v0.0.0
+  - gomod: github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver v0.0.0
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.160.0
@@ -36,14 +37,20 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
   - gomod: github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter v0.0.0
 
+# routing: sends the Sentry bridge's replay chunk records (ouo.replay.chunk=true) to the
+# replay pipeline and everything else to the logs pipeline (ADR-0008).
+connectors:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.160.0
+
 providers:
   - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.66.0
   - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.66.0
   - gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.66.0
 
-# Our three components live in this repository; the generated go.mod is in
+# Our components live in this repository; the generated go.mod is in
 # output_path, so the paths are relative to collector/dist.
 replaces:
   - github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver => ../receiver/ouoreplayreceiver
+  - github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver => ../receiver/ouosentryreceiver
   - github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter => ../exporter/ouoreplayexporter
   - github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor => ../processor/ouoratelimitprocessor

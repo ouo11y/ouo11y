@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ouo-collector image: the OpenTelemetry Collector Builder (ocb) compiles builder.yaml
-# (upstream components pinned to 0.160.0 plus our three modules) into a static binary.
+# (upstream components pinned to 0.160.0 plus our own modules) into a static binary.
 #
 #   docker build -t ouo/collector:dev collector
 #
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /ouo-collector /ouo-collector
-EXPOSE 4317 4318 4319 13133
+EXPOSE 4317 4318 4319 4320 13133
 USER nonroot:nonroot
 ENTRYPOINT ["/ouo-collector"]
 CMD ["--config=/etc/otelcol/config.yaml"]
