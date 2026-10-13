@@ -1,6 +1,9 @@
 export type Platform = 'web' | 'mobile';
-/** Replay renderer family: rrweb DOM events (web) or native screenshot frames (mobile, ADR-0006). */
-export type ReplayKind = 'rrweb' | 'frames';
+/**
+ * Replay renderer family: rrweb DOM events (web), native screenshot frames (mobile, ADR-0006) or
+ * mp4 video segments (Sentry mobile Session Replay through the Sentry bridge, ADR-0008).
+ */
+export type ReplayKind = 'rrweb' | 'frames' | 'video';
 export type SessionStatus = 'healthy' | 'errored' | 'crashed';
 export type SessionState = 'active' | 'ended';
 
@@ -27,7 +30,7 @@ export interface SessionRecord {
   replay_kind?: ReplayKind | null;
   /** Replay length (meta ended_at - started_at) in ms; null or absent when unknown or there is no replay. */
   replay_duration_ms?: number | null;
-  /** Number of screenshot frames for `frames` replays; null or absent otherwise. */
+  /** Number of screenshot frames (`frames`) or encoded video frames (`video`); null or absent otherwise. */
   replay_frame_count?: number | null;
 }
 
@@ -110,6 +113,8 @@ export interface ReplayMeta {
   session_id: string;
   /** Missing on replays stored before Phase 7; treat as rrweb. */
   kind?: ReplayKind;
+  /** Video replays only: `{vendor, replay_id}` of the first chunk that had one. */
+  source?: ReplaySource | null;
   viewport?: ReplayViewport;
   platform?: string;
   frame_count?: number;
@@ -153,6 +158,41 @@ export interface ReplayFramesResponse {
   ended_at: number;
   frames: ReplayFrame[];
   touches: ReplayTouch[];
+}
+
+/** Where a replay came from when it was not recorded by an ouo SDK (ADR-0008). */
+export interface ReplaySource {
+  vendor: string;
+  replay_id?: string;
+}
+
+/** One mp4 segment of a video replay (one uploaded chunk, about 5 s at ~1 fps for Sentry). */
+export interface VideoSegment {
+  seq: number;
+  /** Epoch ms. */
+  started_at: number;
+  ended_at: number;
+  /** Media duration; rum-api falls back to `ended_at - started_at` when the chunk had none. */
+  duration_ms: number;
+  frame_count: number;
+  /** mp4 size in bytes. */
+  bytes: number;
+  /** Relative to the rum-api root, e.g. `/v1/sessions/<id>/replay/video/0`. */
+  path: string;
+}
+
+/** `GET /v1/sessions/{id}/replay/video`: the segment list of a video replay plus touches. */
+export interface VideoManifest {
+  session_id: string;
+  kind: 'video';
+  /** Pixel size of the video; touch x/y are in the same space. */
+  viewport: ReplayViewport;
+  platform: string;
+  started_at: number;
+  ended_at: number;
+  segments: VideoSegment[];
+  touches: ReplayTouch[];
+  source: ReplaySource | null;
 }
 
 /** Minimal rrweb event shape; the full type lives in @rrweb/types. */

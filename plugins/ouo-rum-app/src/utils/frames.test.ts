@@ -103,11 +103,13 @@ describe('replayRenderer', () => {
   it('prefers replay_kind on the record', () => {
     expect(replayRenderer({ has_replay: true, replay_kind: 'frames' }, undefined)).toBe('frames');
     expect(replayRenderer({ has_replay: true, replay_kind: 'rrweb' }, undefined)).toBe('rrweb');
+    expect(replayRenderer({ has_replay: true, replay_kind: 'video' }, undefined)).toBe('video');
   });
   it('falls back to the replay meta kind, rrweb when the meta has none', () => {
     expect(replayRenderer({ has_replay: true, replay_kind: null }, undefined)).toBeUndefined();
     expect(replayRenderer({ has_replay: true }, { kind: 'frames' })).toBe('frames');
     expect(replayRenderer({ has_replay: true }, { kind: 'rrweb' })).toBe('rrweb');
+    expect(replayRenderer({ has_replay: true }, { kind: 'video' })).toBe('video');
     expect(replayRenderer({ has_replay: true }, {})).toBe('rrweb');
   });
   it('is null without a replay and undefined without a session', () => {

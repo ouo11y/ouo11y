@@ -1,13 +1,15 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { css, cx } from '@emotion/css';
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo } from 'react';
+import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { IconButton, RadioButtonGroup, useStyles2 } from '@grafana/ui';
 import type { ReplayFrame, ReplayTouch, ReplayViewport } from '../api/types';
+import { usePlaybackClock, type PlaybackSpeed } from '../hooks/usePlaybackClock';
 import { formatDuration, formatRelative } from '../utils/format';
-import { clampOffset, frameIndexAt, stepFrameIndex, visibleTouches } from '../utils/frames';
+import { frameIndexAt, stepFrameIndex } from '../utils/frames';
 import type { ReplayHandle } from './ReplayPlayer';
+import { TouchOverlay } from './TouchOverlay';
 
-export type PlaybackSpeed = 1 | 2;
+export type { PlaybackSpeed };
 
 interface Props {
   frames: ReplayFrame[];
@@ -21,13 +23,10 @@ interface Props {
   onTime?: (offsetMs: number) => void;
 }
 
-const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
+export const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
   { label: '1×', value: 1 },
   { label: '2×', value: 2 },
 ];
-
-/** Throttle for `onTime` while the clock advances (same cadence as the rrweb wrapper). */
-const REPORT_EVERY_MS = 100;
 
 /**
  * Frame-based replay for mobile sessions (ADR-0006): shows the latest frame at or before the
@@ -39,72 +38,19 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   ref
 ) {
   const styles = useStyles2(getStyles);
-  const [offsetMs, setOffsetMs] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
-  const offsetRef = useRef(0);
-  const onTimeRef = useRef(onTime);
-  onTimeRef.current = onTime;
-  const lastReportRef = useRef(0);
+  const { offsetMs, offsetRef, playing, speed, setSpeed, goto, play, pause, toggle } = usePlaybackClock({
+    durationMs,
+    onTime,
+  });
 
   // One data URL per frame, computed once; the base64 string is kept, nothing is decoded here.
   const urls = useMemo(() => frames.map((f) => `data:image/jpeg;base64,${f.jpeg}`), [frames]);
 
-  const goto = useCallback(
-    (ms: number) => {
-      const next = clampOffset(ms, durationMs);
-      offsetRef.current = next;
-      setOffsetMs(next);
-      lastReportRef.current = performance.now();
-      onTimeRef.current?.(next);
-    },
-    [durationMs]
-  );
-
-  const play = useCallback(() => {
-    if (durationMs <= 0) {
-      return;
-    }
-    if (offsetRef.current >= durationMs) {
-      goto(0);
-    }
-    setPlaying(true);
-  }, [durationMs, goto]);
-  const pause = useCallback(() => setPlaying(false), []);
-  const toggle = useCallback(() => (playing ? pause() : play()), [playing, pause, play]);
-
   useImperativeHandle(ref, () => ({ goto, play, pause }), [goto, play, pause]);
-
-  // Playback clock: requestAnimationFrame advances the offset by wall time × speed.
-  useEffect(() => {
-    if (!playing) {
-      return;
-    }
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const next = Math.min(durationMs, offsetRef.current + (now - last) * speed);
-      last = now;
-      offsetRef.current = next;
-      setOffsetMs(next);
-      if (now - lastReportRef.current >= REPORT_EVERY_MS || next >= durationMs) {
-        lastReportRef.current = now;
-        onTimeRef.current?.(next);
-      }
-      if (next >= durationMs) {
-        setPlaying(false);
-        return;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, speed, durationMs]);
 
   const cursorTs = startTs + offsetMs;
   const frameIndex = frameIndexAt(frames, cursorTs);
   const frame = frameIndex >= 0 ? frames[frameIndex] : undefined;
-  const activeTouches = useMemo(() => visibleTouches(touches, viewport, cursorTs), [touches, viewport, cursorTs]);
 
   const stepFrame = useCallback(
     (delta: -1 | 1) => {
@@ -120,7 +66,7 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
       const next = stepFrameIndex(frames.length, frameIndex, delta);
       goto(frames[next].ts - startTs);
     },
-    [frameIndex, frames, startTs, goto]
+    [frameIndex, frames, startTs, goto, offsetRef]
   );
 
   const onKeyDown = useCallback(
@@ -173,11 +119,7 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
       aria-label="Session replay (frames). Space plays or pauses, arrow keys step one frame."
       data-testid="frame-player"
     >
-      <div
-        className={styles.stage}
-        style={{ aspectRatio: `${ratio}`, width: stageWidth }}
-        data-testid="frame-stage"
-      >
+      <div className={styles.stage} style={{ aspectRatio: `${ratio}`, width: stageWidth }} data-testid="frame-stage">
         {frame && (
           <img
             className={styles.img}
@@ -188,16 +130,7 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
             data-frame-index={frameIndex}
           />
         )}
-        {activeTouches.map((t, i) => (
-          <span
-            key={`${t.touch.ts}-${i}`}
-            className={cx(styles.touch, t.touch.phase === 'ended' ? styles.touchEnded : styles.touchActive)}
-            style={{ left: `${t.left * 100}%`, top: `${t.top * 100}%`, opacity: t.opacity }}
-            data-testid="frame-touch"
-            data-phase={t.touch.phase}
-            aria-hidden="true"
-          />
-        ))}
+        <TouchOverlay touches={touches} viewport={viewport} cursorTs={cursorTs} testId="frame-touch" />
       </div>
 
       <div className={styles.controls}>
@@ -233,10 +166,11 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   );
 });
 
-/** Viewport height minus the Grafana chrome and the Replay panel's own header, controls, markers and info line. */
-// 70vh is the size users liked; the sticky Replay panel may extend past short viewports, which is
-// preferable to a tiny frame.
-const STAGE_MAX_HEIGHT = '70vh';
+/**
+ * Cap of the replay stage height (frame and video players). 70vh is the size users liked; the
+ * sticky Replay panel may extend past short viewports, which is preferable to a tiny frame.
+ */
+export const STAGE_MAX_HEIGHT = '70vh';
 
 const getStyles = (theme: GrafanaTheme2) => ({
   wrap: css({
@@ -261,24 +195,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
     height: '100%',
     // The stage already has the viewport's aspect ratio; fill maps touch points 1:1.
     objectFit: 'fill',
-  }),
-  touch: css({
-    position: 'absolute',
-    width: 28,
-    height: 28,
-    marginLeft: -14,
-    marginTop: -14,
-    borderRadius: '50%',
-    pointerEvents: 'none',
-    boxSizing: 'border-box',
-  }),
-  touchActive: css({
-    background: theme.colors.primary.transparent,
-    border: `2px solid ${theme.colors.primary.main}`,
-    boxShadow: `0 0 0 4px ${theme.colors.primary.transparent}`,
-  }),
-  touchEnded: css({
-    border: `2px solid ${theme.colors.primary.main}`,
   }),
   controls: css({
     display: 'flex',

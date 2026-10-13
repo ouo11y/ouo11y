@@ -10,6 +10,8 @@ import type {
   SessionFilters,
   SessionsResponse,
   TracesResponse,
+  VideoManifest,
+  VideoSegment,
 } from './types';
 
 /** Shown whenever rum-api answers 401 (ADR-0007 section 6: the read token is missing or wrong). */
@@ -102,4 +104,20 @@ export const rumApi = {
   replayMeta: (id: string) => rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`),
   replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
   replayFrames: (id: string) => rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
+  replayVideo: (id: string) => rumGet<VideoManifest>(`/v1/sessions/${encodeURIComponent(id)}/replay/video`),
 };
+
+/**
+ * Browser URL of one mp4 segment. The manifest `path` is relative to the rum-api root; it is mapped
+ * onto the plugin proxy route so Grafana adds the read token server-side and a `<video src>` (which
+ * cannot set headers) is authenticated by the Grafana session cookie. The proxy passes `Range`
+ * through (206), so the element can stream and seek. Falls back to the canonical path when the
+ * manifest has none or it is not a `/v1/` path.
+ */
+export function videoSegmentUrl(sessionId: string, segment: Pick<VideoSegment, 'seq' | 'path'>): string {
+  const path =
+    typeof segment.path === 'string' && segment.path.startsWith('/v1/')
+      ? segment.path
+      : `/v1/sessions/${encodeURIComponent(sessionId)}/replay/video/${segment.seq}`;
+  return `${RUM_PROXY_BASE}${path}`;
+}
