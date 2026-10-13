@@ -151,3 +151,7 @@ too large"}`). Our replay receiver answers 413.
   receiver's 202 means "accepted by the exporter queue". With `sending_queue.enabled`, a
   rum-api outage is absorbed by the queue (1000 chunks) and retried for 5 minutes; a 4xx from
   rum-api is permanent and the chunk is dropped (logged).
+
+## CORS preflight: requested headers must be sorted (found 2026-10-13)
+
+The collector's CORS handler (rs/cors, via confighttp 0.160) only accepts an `Access-Control-Request-Headers` value in the form browsers send it: lowercase, sorted, comma separated without spaces. `authorization,content-type` passes; `content-type,authorization` is rejected with a 204 that carries no `Access-Control-Allow-Origin`. Real browsers are unaffected. Hand-written curl preflights in scripts and docs must list the headers sorted, or they report a CORS failure that does not exist. The replay port (4319) does not allow `traceparent` or `baggage`; the replay uploaders never send them.

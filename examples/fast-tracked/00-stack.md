@@ -248,11 +248,11 @@ origin). You want `access-control-allow-origin` and an `access-control-allow-hea
 that includes `authorization` in the reply, on both ports:
 
 ```bash
-curl -s -i -X OPTIONS http://localhost:4318/v1/traces -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type,traceparent,baggage'
+curl -s -i -X OPTIONS http://localhost:4318/v1/traces -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,baggage,content-type,traceparent'
 ```
 
 ```bash
-curl -s -i -X OPTIONS http://localhost:4319/v1/replay/chunks -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type,content-encoding'
+curl -s -i -X OPTIONS http://localhost:4319/v1/replay/chunks -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-encoding,content-type'
 ```
 
 And that the collector refuses anonymous writes (expect `401`):
