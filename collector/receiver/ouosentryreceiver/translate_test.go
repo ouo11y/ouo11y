@@ -442,8 +442,19 @@ func TestHelpers(t *testing.T) {
 	if !ft.A.Equal(want) || !ft.B.Equal(want) || !ft.C.Equal(want) {
 		t.Errorf("flexTime: %v %v %v", ft.A, ft.B, ft.C)
 	}
-	if detectOS("sentry.cocoa", "") != "ios" || detectOS("sentry.javascript.react-native", "Android") != "android" || detectOS("sentry.java.android", "") != "android" {
-		t.Error("detectOS")
+	for _, c := range []struct{ sdk, os, platform, want string }{
+		{"sentry.cocoa", "", "", "ios"},
+		{"sentry.cocoa.react-native", "", "", "ios"},
+		{"sentry.javascript.react-native", "", "cocoa", "ios"},
+		{"sentry.javascript.react-native", "iOS", "javascript", "ios"},
+		{"sentry.javascript.react-native", "Android", "", "android"},
+		{"sentry.javascript.react-native", "", "javascript", ""},
+		{"sentry.java.android", "", "", "android"},
+		{"sentry.java", "", "java", "android"},
+	} {
+		if got := detectOS(c.sdk, c.os, c.platform); got != c.want {
+			t.Errorf("detectOS(%q, %q, %q) = %q, want %q", c.sdk, c.os, c.platform, got, c.want)
+		}
 	}
 }
 
