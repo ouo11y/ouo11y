@@ -1,2 +1,3 @@
-# Local multi-project registry (copy of projects.example.yaml with real tokens).
-projects.yaml
+# Server-side project registry written by deploy/vm/install.sh (real tokens); the
+# development registry is collector/projects.htpasswd and is committed.
+projects.htpasswd
