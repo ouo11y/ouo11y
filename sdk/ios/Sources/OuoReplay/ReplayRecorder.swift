@@ -25,7 +25,7 @@ final class ReplayRecorder {
     init(config: OuoReplayConfig) {
         let logger = ReplayLogger(enabled: config.debug)
         let rules = config.redactionRules
-        let uploader = ChunkUploader(endpoint: config.endpoint, projectToken: config.projectToken, logger: logger)
+        let uploader = ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)
         let screen = UIScreen.main.bounds
         self.config = config
         self.logger = logger
@@ -59,7 +59,7 @@ final class ReplayRecorder {
         ]
         pausedByHost = false
         resumeCapture(reason: .resume)
-        logger.log("started endpoint=\(config.endpoint.absoluteString) interval=\(config.frameInterval)s")
+        logger.log("started endpoint=\(config.endpoint.absoluteString) project=\(config.projectId) interval=\(config.frameInterval)s")
     }
 
     func pause() {

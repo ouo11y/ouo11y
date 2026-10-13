@@ -19,7 +19,11 @@ export interface NativeReplayModule {
 /** Options the native `start` receives; mirrors `OuoReplayConfig` (docs/specs/mobile-replay.md). */
 export interface NativeStartOptions {
   sessionId: string;
-  /** Sent as `X-Ouo-Project-Token` on every chunk upload (ADR-0007). */
+  /**
+   * Project credential (ADR-0007): the native uploader sends
+   * `Authorization: Basic base64("<projectId>:<projectToken>")` on every chunk upload.
+   */
+  projectId: string;
   projectToken: string;
   frameInterval: number;
   maskText: boolean;
@@ -84,9 +88,10 @@ export function _setExpoModulesCore(resolver: (() => ExpoModulesCoreLike | undef
 }
 
 export interface ReplayControllerOptions {
-  /** rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`. */
+  /** Replay receiver base URL (the collector's `ouoreplay` port); chunks go to `${endpoint}/v1/replay/chunks`. */
   endpoint: string | undefined;
-  /** Project token the native uploader sends as `X-Ouo-Project-Token`. */
+  /** Project credential the native uploader turns into the Basic `Authorization` header. */
+  projectId: string;
   projectToken: string;
   options: ReplayOptions | undefined;
   /** Injected for tests; `undefined` means "load from expo-modules-core", `null` means "absent". */
@@ -121,7 +126,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     logger.warn(`replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled. ${lastNativeLoadError ?? ""}`);
   }
   if (enabled && native && !endpoint) {
-    logger.warn("replay: no rum-api endpoint; replay disabled");
+    logger.warn("replay: no replay endpoint; replay disabled");
   }
 
   const call = (what: string, fn: () => void): void => {
@@ -141,6 +146,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       currentId = sessionId;
       const startOptions: NativeStartOptions = {
         sessionId,
+        projectId: opts.projectId,
         projectToken: opts.projectToken,
         frameInterval: opts.options?.frameInterval ?? 1,
         maskText: opts.options?.maskText !== false,

@@ -136,37 +136,60 @@ server spans, so Tempo `{ span.session.id = "<id>" }` returns the mobile client 
 
 Metro's default port is 8081, which is also the stock host port of `examples/backend` in `deploy/docker/compose.yaml`. On a stock stack Expo CLI prompts to move Metro to the next free port; `npx expo start --port 8082` avoids the prompt. The dev Mac never hit this because its `deploy/docker/.env` puts the backend on 8082. `BACKEND_URL` always points at the Go backend, never at Metro.
 
-## Phase 8a: ingest gateway and project token (2026-10-10, ADR-0007)
+## Phase 8a: the collector is the edge, project credential as HTTP Basic (2026-10-10, ADR-0007 revised)
 
-- **Init shape (0.2.0, breaking).** `initRUM({ endpoint, projectToken })`: `endpoint` is the rum-api
-  base URL, the SDK derives `${endpoint}/ingest/otlp/v1/{traces,logs}` and
-  `${endpoint}/v1/replay/chunks` (`src/endpoints.ts`, `resolveEndpoints`). `replayEndpoint` and the
-  "same host, port 8080" default are gone. `otlpEndpoint` is the escape hatch for in-network apps
-  (OTLP to `${otlpEndpoint}/v1/...`, replay still on rum-api). Missing `projectToken` or `endpoint`
-  throws a `TypeError` naming the option before anything is installed (no exporter, no fetch wrapper).
-- **Token header on the OTel exporters.** `new OTLPTraceExporter({ url, headers: { "X-Ouo-Project-Token": token } })`
-  (same for logs). In `@opentelemetry/otlp-exporter-base` 0.222 the browser build always uses the
-  fetch transport (`createOtlpFetchExportDelegate`; `sendBeacon` is gone), so a static `headers`
-  object simply lands in `fetch(url, { headers })`; no XHR switch, nothing to shim on Hermes. The
-  transport calls `new URL(url)` once per export, which Hermes/Expo provide.
-- **Ignore patterns.** The fetch wrapper ignores `^${otlpBase}/` and `^${replayChunks}` so the
-  SDK never traces its own uploads whichever endpoint (rum-api or the escape hatch) is in use.
-- **Native replay.** `NativeStartOptions.projectToken` rides along `start(endpoint, options)`;
-  the Expo `StartOptions` record has `@Field var projectToken`, `OuoReplayConfig.projectToken`
-  feeds `ChunkUploader`, which sets `X-Ouo-Project-Token` on every chunk request including
-  retries (Swift test `EveryRequestCarriesTheProjectTokenHeader`).
-- **Local verification without rum-api.** `test/ingest-stub.test.ts` starts a Node `http` server
-  on 127.0.0.1:18082 (ephemeral fallback) that answers `401` without the token and `200` with it,
-  and drives `initRUM` through the real `fetch` (Vitest's jsdom environment keeps Node's `fetch`,
-  `Response` and `Headers`). Vitest 5 swallows `console.log` from `afterAll`, so the request
-  excerpt is written with `process.stdout.write` inside the test.
+Revision 1 of this phase (same day) pointed the SDK at a rum-api ingest gateway with an
+`X-Ouo-Project-Token` header; it was replaced before release by the revised ADR-0007: the
+OpenTelemetry Collector (`ouo-collector`) is the only public ingest, rum-api is internal. What is
+true now:
+
+- **Init shape (0.2.0, breaking).** `initRUM({ endpoint, replayEndpoint?, projectId, projectToken })`:
+  `endpoint` is the collector OTLP/HTTP base, the SDK posts to `${endpoint}/v1/traces` and
+  `/v1/logs` (`src/endpoints.ts`, `resolveEndpoints`). `replayEndpoint` defaults to `endpoint` with
+  port 4318 replaced by 4319 (the `ouoreplay` receiver's port) and to `endpoint` itself for any
+  other port or none (`defaultReplayEndpoint`; a regex on the authority, never on the path, IPv6
+  brackets included), chunks go to `${replayEndpoint}/v1/replay/chunks`. Missing `endpoint`,
+  `projectId` or `projectToken` throws a `TypeError` naming the option before anything is installed;
+  a `:` in `projectId` is rejected because Basic splits on the first colon.
+- **Credential.** `Authorization: Basic base64("<projectId>:<projectToken>")` on both OTLP
+  exporters (`new OTLPTraceExporter({ url, headers: { Authorization } })`) and, built natively, on
+  every replay chunk request. `btoa` is not guaranteed on every React Native runtime and `Buffer`
+  does not exist on Hermes, so `base64Encode` in `endpoints.ts` is a 20-line RFC 4648 encoder over
+  the UTF-8 bytes (surrogate pairs handled); `test/endpoints.test.ts` compares it with Node's
+  `Buffer` on ASCII and non-ASCII vectors, and the Swift test uses the same vectors so both sides
+  agree byte for byte. The exporters put a static `headers` object into `fetch(url, { headers })`
+  (otlp-exporter-base 0.222 browser build is fetch only), nothing to shim.
+- **Ignore patterns.** The fetch wrapper ignores `^${traces}`, `^${logs}` and `^${replayChunks}`
+  (each anchored, followed by `/`, `?`, `#` or end) so the SDK never traces its own uploads.
+- **Native replay.** `NativeStartOptions` carries `projectId` and `projectToken` (no prebuilt header
+  value: Swift builds the Basic string with `Data.base64EncodedString()`, so the credential crosses
+  the bridge in one shape and both encoders are testable against the same vectors). The Expo
+  `StartOptions` record has both `@Field`s and throws `ERR_OUO_REPLAY_CREDENTIAL` when either is
+  empty; `OuoReplayConfig(endpoint:projectId:projectToken:...)`, `ChunkUploader` sets
+  `Authorization` on every request including retries (Swift test `EveryRequestCarriesTheBasicCredential`).
+- **Local verification without the collector.** `test/ingest-stub.test.ts` starts a Node `http`
+  server on 127.0.0.1:18082 (ephemeral fallback) that mimics `basicauth`: `401` plus
+  `WWW-Authenticate: Basic realm="ouo"` unless `authorization` equals
+  `Basic base64("demo:pt_dev_demo_0000000000000000")`, `200` otherwise, on `/v1/traces`, `/v1/logs`,
+  `/v1/replay/chunks`; it drives `initRUM` through the real `fetch` (Vitest's jsdom environment
+  keeps Node's `fetch`, `Response`, `Headers`) and asserts the header value, that
+  `x-ouo-project-token` is absent, and the `401` with a wrong token. Vitest 5 swallows
+  `console.log` from `afterAll`, so the request excerpt is written with `process.stdout.write`.
+- **A stock OTel SDK works too.** Nothing in the contract is ouo specific:
+  `OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.com`,
+  `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64>`.
 - **Publishing.** `npm pack --dry-run -w sdk/react-native` must list `ios/OuoReplayCore/*.swift`
   and `ios/OuoReplay/*.swift` (the vendored copies CocoaPods globs). They are gitignored by
   `ios/.gitignore`, and npm reads a directory's `.gitignore` when it has no `.npmignore`, so an
   empty `ios/.npmignore` is what keeps them in the tarball. `prepack` runs the build so the
   copies are fresh. `exports` keeps a `react-native` condition for Metro and `require`/`default`
   for Node; `./package.json` and `./expo-module.config.json` are exported for tooling.
-- **Demo app.** `examples/mobile` reads `EXPO_PUBLIC_RUM_API` (default `http://localhost:8080`)
-  and `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (default `pt_dev_demo_0000000000000000`) in `app.config.ts`
-  into `extra.rumApi` / `extra.projectToken`; the OTLP endpoint extra is gone. Typecheck with
-  `npx tsc --noEmit` in `examples/mobile` (needs its own `npm install`).
+- **Demo app.** `examples/mobile` reads `EXPO_PUBLIC_OTLP_ENDPOINT` (default `http://localhost:4318`),
+  `EXPO_PUBLIC_OUO_PROJECT_ID` (default `demo`) and `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (default
+  `pt_dev_demo_0000000000000000`) in `app.config.ts` into `extra.otlpEndpoint` / `extra.projectId` /
+  `extra.projectToken`; the replay endpoint is derived (`localhost:4319`). `EXPO_PUBLIC_RUM_API` is
+  gone. Typecheck with `npx tsc --noEmit` in `examples/mobile` (needs its own `npm install`).
+  Changing the native record (`StartOptions`) needs a dev-client rebuild:
+  `npx expo run:ios --no-bundler --device "iPhone 18 Pro"` recompiles the three ouo pods from the
+  vendored copies (run `npm run -w sdk/react-native build` first) and reinstalls the app without
+  starting Metro; `pod install` is only needed when the Swift file list changes.
