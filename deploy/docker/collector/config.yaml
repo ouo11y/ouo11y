@@ -12,6 +12,7 @@
 #   OUO_INGEST_TOKEN     bearer the ouoreplay exporter sends to rum-api (must equal rum-api's)
 #   OUO_ALLOWED_ORIGINS  optional comma-separated CORS origin list, no spaces
 #                        (default http://localhost:*,http://127.0.0.1:*)
+#   OUO_RATELIMIT_CLIENT_KEY  address (default) or x_forwarded_for behind a reverse proxy
 #
 # Every receiver uses include_metadata: true so the resource processor and ouoratelimit
 # can read the authenticated project (auth.username) and request headers from the
@@ -63,8 +64,9 @@ processors:
     spike_limit_mib: 128
   # Token buckets per project (auth.username) and per client; over the limit the OTLP
   # receiver answers 429 + Retry-After (gRPC RESOURCE_EXHAUSTED + RetryInfo). All
-  # pipelines share one set of buckets. Behind Caddy (deploy/vm) set
-  # client.key_from: x_forwarded_for, otherwise every request has Caddy's address.
+  # pipelines share one set of buckets. Behind a reverse proxy (deploy/vm sets
+  # OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for) the TCP peer is the proxy, so key the
+  # client bucket on the first X-Forwarded-For hop instead of the address.
   ouoratelimit:
     project:
       rate: 1000
@@ -72,7 +74,7 @@ processors:
     client:
       rate: 100
       burst: 300
-      key_from: address
+      key_from: ${env:OUO_RATELIMIT_CLIENT_KEY:-address}
     idle_timeout: 10m
   # Stamp the authenticated project on every resource, overwriting whatever the client
   # sent (delete first so a request without auth context can never keep a spoofed value).
