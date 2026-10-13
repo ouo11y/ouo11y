@@ -94,16 +94,21 @@ go mod tidy
 ```
 
 No gRPC exporter is needed; everything goes over OTLP/HTTP (`http/protobuf`) to
-port 4318. Since ADR-0007 that port is published on `127.0.0.1` of the stack host only:
-your backend on the same machine (or inside the compose network as
-`otel-collector:4318`) reaches it, browsers and phones do not. They post to rum-api on
-port 8080 with a project token, and so can a backend that runs somewhere else (below).
+the collector on port 4318. Since ADR-0007 the collector is the single ingress for every
+client, and every request needs the project credential
+`Authorization: Basic base64("<project id>:<project token>")`. Your backend is no
+exception; the only difference from a browser is where it runs, which decides the URL:
 
 ```
-your backend (same host) --OTLP--> 127.0.0.1:4318 ──> otel-collector ──> tempo / loki / mimir
-your backend (elsewhere) --OTLP + X-Ouo-Project-Token--> rum-api :8080 ──^
-browser / mobile SDK     --OTLP + X-Ouo-Project-Token--> rum-api :8080 ──^
+your backend (same host)   --OTLP + Basic--> localhost:4318        ──> otel-collector ──> tempo / loki / mimir
+your backend (in compose)  --OTLP + Basic--> otel-collector:4318   ──^
+your backend (elsewhere)   --OTLP + Basic--> https://otel.<domain> ──^
+browser / mobile SDK       --OTLP + Basic--> same endpoint         ──^   (+ replay chunks to :4319)
 ```
+
+The collector stamps `ouo.project.id` from the Basic username, so a backend and the
+browser that calls it end up in the same project when they share a credential (or in
+different ones when they do not; both show up in one trace either way).
 
 ## (b) Environment variables the SDK reads
 
@@ -112,9 +117,16 @@ The exporters and `resource.WithFromEnv()` read these; your code never parses th
 | Variable | Local value, binary on the host | Value inside compose |
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` (or your `OUO_OTLP_HTTP_PORT`) | `http://otel-collector:4318` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw` | same |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf` |
 | `OTEL_SERVICE_NAME` | your service name, for example `orders-api` | same |
 | `OTEL_RESOURCE_ATTRIBUTES` | `deployment.environment.name=local` | `deployment.environment.name=local` |
+
+`OTEL_EXPORTER_OTLP_HEADERS` is the project credential: `base64("demo:pt_dev_demo_0000000000000000")`
+for the development project (`printf '%s' 'demo:pt_...' | base64`). The OTLP spec says the
+value is URL-encoded, hence `%20` for the space; the Go exporters decode it (any header
+without it would be sent as `Basic` followed by nothing). Without it the collector answers
+`401` and the exporter logs `traces export: ... 401 Unauthorized`.
 
 The exporters append `/v1/traces`, `/v1/logs` and `/v1/metrics` to the endpoint
 themselves. `OTEL_EXPORTER_OTLP_PROTOCOL` is informational here: only the HTTP
@@ -122,18 +134,18 @@ exporters are compiled in, so there is no gRPC fallback to pick. Without a
 reachable collector the exporters retry, log `traces export: ...` errors and drop
 the batch; the API keeps serving and startup never blocks.
 
-Backend on a different machine than the stack (or against a `deploy/vm` install): the
-collector is not reachable, so go through the gateway with two standard variables and
-no code change. rum-api checks the token, stamps `ouo.project.id` and forwards:
+Backend on a different machine than the stack (or against a `deploy/vm` install): same
+two variables, public URL:
 
 | Variable | Value |
 |---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://rum.example.com/ingest/otlp` (local stack: `http://localhost:8080/ingest/otlp`) |
-| `OTEL_EXPORTER_OTLP_HEADERS` | `X-Ouo-Project-Token=pt_dev_demo_0000000000000000` (the token from `deploy/docker/.env`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otel.example.com` (what `deploy/vm/install.sh` prints) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64 of "<project id>:<project token>">` (also printed by the installer) |
 
-The exporters append `/v1/traces` and friends to that base, which is exactly what
-rum-api serves. Server-side requests carry no `Origin`, so the origin allowlist does not
-apply to them; the project rate and size limits do.
+Server-side requests carry no `Origin`, so CORS does not apply to them; the project rate
+and size limits do. A backend on the stack host may also use the loopback gRPC port
+`localhost:4317` (the compose file publishes it on `127.0.0.1` only) if you compile the
+gRPC exporters in; this guide stays on HTTP.
 
 `service.name` is what you filter on everywhere (`{service_name="orders-api"}` in
 Loki, `resource.service.name` in Tempo, `job` in Mimir). Pick it once.
@@ -870,15 +882,15 @@ Read `examples/backend` in this order.
 ## (g) Run it locally and see the trace
 
 Stack from `00-stack.md` is up. Start the reference backend against it (adjust
-`4318` if you overrode `OUO_OTLP_HTTP_PORT`; `localhost:4318` works because the
-collector is published on the loopback interface and you are on the stack host):
+`4318` if you overrode `OUO_OTLP_HTTP_PORT`; the header is the development project's
+Basic credential):
 
 ```bash
 cd examples/backend
 ```
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf OTEL_SERVICE_NAME=demo-backend OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local go run .
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf OTEL_SERVICE_NAME=demo-backend OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local go run .
 ```
 
 It logs `demo-backend listening addr=:8081 ...`. In a second terminal, send one
