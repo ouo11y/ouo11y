@@ -28,3 +28,16 @@ Allowed paths: `tests/e2e/**`, `reports/**`, `agents/qa/**`, `tracker/roadmap.md
 - [x] Rate limit 400 burst -> 92 x 429 `Retry-After: 1`, recovery; 413 at 4.3 MB; collector loopback-only
 - [x] `reports/phase-8a-verification.html` + `reports/index.md`; `agents/qa/reports/phase-8a-bugs.html`; `tracker/roadmap.md` 8a ticks; `kb/e2e-scenario.md`
 - [ ] Not done: Helm on a cluster, VM install, publish, upgrade (other agents / drills); plugin Viewer-role check; keepalive on stock Chrome tab close; per-project limit overrides live
+
+## Phase 8a revision 2, the collector is the edge (2026-10-13)
+
+Same allowed paths as revision 1. Stack `ouo-8a` (collector OTLP 4330, replay 4331).
+
+- [x] `tests/e2e/scenario.mjs`: OTLP to `OUO_OTLP_URL` and one replay chunk to `OUO_REPLAY_URL` with `Authorization: Basic`, 14 edge / sink / read checks, sorted browser-style preflights, `ouo.project.id=demo` on sampled traces, replay stored with `project_id demo`; rev-1 gateway assertions removed; `e2e.sh` passes (run `mv6swsxe`, 40 sessions, 0 mismatches, `agents/qa/reports/e2e-phase-8a-rev2-run.json`)
+- [x] Real web session `b652aad5`: crashed, 24+ traces, 14 rrweb chunks; OTLP 20 x 200 to :4330 and replay 10 x 202 to :4331 with `Authorization: Basic`, nothing to :8090; plugin Overview / Sessions / detail via the proxy (temporary replay endpoint override, finding R2-1)
+- [x] Unload: seq 12 plain-JSON keepalive chunk with Basic at `pagehide` on cross-origin navigation, stored; tab close delivered seq 13
+- [x] iOS `3d4ea94f`: checkout `ord-000002`, 500, fatal, relaunch; crashed / `end_reason crash`, 8 traces, 8 frames chunks / 17 frames, native `uploaded seq=0..7`, Mimir frames accepted 9 (temporary JS override, finding R2-2)
+- [x] Collector rate limit: 400 burst -> 307 x 200, 93 x 429 `Retry-After: 1`, recovery; `ouo_ratelimit_rejected_total` 93 in Mimir (self-metrics arrive; 401s not counted, R2-3); body limits 400 / 413
+- [x] Plugin read token re-check: proxy 200, wrong token 401 + banner, restore 200
+- [x] `reports/phase-8a-verification.html` rewritten for revision 2, `reports/index.md` line, `agents/qa/reports/phase-8a-bugs.html` R2 section, `tracker/roadmap.md` project-token item rewritten and ticked, `kb/e2e-scenario.md`
+- [ ] Not done: per-project rate bucket and quota live; foreign-origin CORS rejection from a real browser (the collector list is global, smoke warns); stock-SDK `OTEL_EXPORTER_OTLP_HEADERS` client; Helm / VM / publish / upgrade (other agents)
