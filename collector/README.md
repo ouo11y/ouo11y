@@ -3,7 +3,8 @@
 `ouo-collector` is a custom OpenTelemetry Collector distribution, built with the
 [OpenTelemetry Collector Builder (ocb)](https://github.com/open-telemetry/opentelemetry-collector/tree/main/cmd/builder).
 It is the only internet-facing ingest of ouo (ADR-0007): browsers, phones and backends send
-OTLP and replay chunks to it with a project credential. rum-api, Loki, Tempo and Mimir stay
+OTLP and replay chunks to it with a project credential, and apps that use the Sentry SDKs send
+their envelopes to it unchanged (ADR-0008). rum-api, Loki, Tempo and Mimir stay
 internal.
 
 ## What is in the distribution
@@ -14,18 +15,22 @@ versions as `otel/opentelemetry-collector-contrib:0.160.0`.
 | Kind | Components |
 |---|---|
 | Extensions | `basicauth`, `health_check` |
-| Receivers | `otlp`, **`ouoreplay`** |
+| Receivers | `otlp`, **`ouoreplay`**, **`ouosentry`** |
 | Processors | `memory_limiter`, `batch`, `attributes`, `resource`, `transform`, **`ouoratelimit`** |
 | Exporters | `otlp_grpc`, `otlp_http`, `debug`, **`ouoreplay`** |
+| Connectors | `routing` (sends the Sentry bridge's replay chunks to the replay pipeline) |
 | Config providers | `env`, `file`, `yaml` |
 
-The three components in bold are ours, one Go module each:
+The components in bold are ours, one Go module each:
 
 ```
 collector/
   builder.yaml                          ocb manifest (dist name ouo-collector, output ./dist)
   Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ziadmansourm/ouo/collector)
   receiver/ouoreplayreceiver/           POST /v1/replay/chunks -> one log record per chunk
+  receiver/ouosentryreceiver/           POST /api/{id}/envelope/ -> forward to Sentry unchanged, then
+                                        sessions, errors, spans and video replay chunks (ADR-0008)
+  tools/sentrytap/                      records Sentry SDK traffic, fakes Sentry, proves byte-identical forwarding
   exporter/ouoreplayexporter/           log record -> rum-api POST /v1/replay/chunks
   processor/ouoratelimitprocessor/      token buckets per project and per client
 ```
@@ -47,14 +52,14 @@ cd collector && builder --config builder.yaml          # -> collector/dist/ouo-c
 docker build -t ouo/collector:dev collector
 
 # Component tests
-for m in receiver/ouoreplayreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor; do
+for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor tools/sentrytap; do
   (cd collector/$m && go vet ./... && go test -race ./...)
 done
 ```
 
 The image is distroless (`gcr.io/distroless/static-debian12:nonroot`), entrypoint
 `/ouo-collector`, default command `--config=/etc/otelcol/config.yaml`, ports 4317 4318
-4319 13133. Mount the config and the htpasswd file into `/etc/otelcol/`.
+4319 4320 13133. Mount the config and the htpasswd file into `/etc/otelcol/`.
 
 ## Adding the components to another distribution
 
@@ -160,3 +165,53 @@ metrics and replay. Over the limit it returns gRPC `ResourceExhausted` with `Ret
 `ouo_ratelimit_rejected_total{key_kind=project|client}`.
 
 Place it after `memory_limiter` and before `batch` (batch drops the client context).
+
+## Sentry SDK bridge (`ouosentry`)
+
+Apps instrumented with the Sentry mobile SDKs change only the host of their DSN:
+
+```
+before: https://<public_key>@o123.ingest.sentry.io/4504
+after:  https://<public_key>@otel.example.com:4320/4504
+```
+
+The receiver serves `POST /api/{project_id}/envelope/`. It authenticates the DSN public key
+against its project table (unknown keys are `403` and never forwarded), forwards the raw
+request bytes to the project's upstream Sentry, and returns Sentry's status, headers
+(`X-Sentry-Rate-Limits`, `Retry-After`) and body unchanged. When Sentry cannot be reached it
+aborts the connection, so the SDK keeps the envelope and retries exactly as if Sentry were down.
+Envelopes Sentry accepted are translated off the request path into session events, exceptions
+and spans (logs and traces pipelines) and `kind: "video"` replay chunks (routed to the replay
+pipeline). `upstream: none` answers locally instead (cutover). Mapping:
+`docs/specs/sentry-bridge.md`; protocol notes: `kb/sentry-envelope-format.md`.
+
+```yaml
+receivers:
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    max_request_body_size: 104857600   # raw body; Sentry itself accepts large envelopes
+    upstream_timeout: 30s
+    max_translate_bytes: 20971520      # bigger envelopes are forwarded, not translated
+    translate_queue_size: 10000
+    state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m }
+    projects:
+      - sentry_project_id: "4504"
+        public_keys: ["<public key>"]
+        upstream: https://o123.ingest.sentry.io   # or none
+        ouo_project_id: mobile-store
+        service_name: mobile-store-ios
+```
+
+`compression_algorithms` is ignored on this receiver: it needs the raw bytes to forward them.
+Metrics: `ouo_sentry_envelopes_total`, `ouo_sentry_upstream_duration_seconds`,
+`ouo_sentry_items_total`, `ouo_sentry_translate_dropped_total`. Run it as a single replica
+(or with client-address affinity): session correlation state is in memory.
+
+`tools/sentrytap` checks the "as if the bridge were not there" claim on real traffic:
+
+```bash
+go run ./tools/sentrytap -listen 127.0.0.1:4411 -dir caps/B -sink                    # fake Sentry
+go run ./tools/sentrytap -listen 127.0.0.1:4410 -dir caps/A -forward http://localhost:4320
+# point the app DSN at 127.0.0.1:4410, use the app, then:
+go run ./tools/sentrytap compare caps/A caps/B    # exit 0: every request arrived byte-identical
+```
