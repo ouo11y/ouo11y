@@ -63,8 +63,9 @@ printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_9f3c... | openssl dgst -b
 - **Add a project**: `echo "pt_$(openssl rand -hex 16)"` for the token, append the line
   above to `deploy/docker/projects.htpasswd`, `sudo systemctl restart ouo` (the
   `basicauth` extension reads the file at start). Give the app `projectId` + `projectToken`.
-- **Rotate**: append a second line for the same project id with the new token, restart,
-  move the SDKs, delete the old line, restart.
+- **Rotate** (cut-over): replace the project's line with one for the new token, restart,
+  ship the new token to the apps. The collector's `basicauth` keeps only one line per
+  project id, so the old token stops working at the restart (ADR-0007 section 2).
 - **Revoke**: delete the line, restart.
 - Which project an operator script (`smoke.sh`, `e2e.sh`) sends as comes from
   `OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN` in `.env`; compose itself never reads them.
