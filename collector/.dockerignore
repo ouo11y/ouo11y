@@ -1,0 +1,7 @@
+# Build context is collector/: only the manifest and the three component modules are needed.
+dist/
+**/*_test.go
+README.md
+Dockerfile
+.dockerignore
+.gitignore
