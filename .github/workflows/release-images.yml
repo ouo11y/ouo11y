@@ -1,6 +1,9 @@
 # Builds and pushes multi-arch container images to GHCR when an image tag is pushed.
 #   rum-api-v0.2.0  -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0 (+ 0.2, latest)
 #   grafana-v0.2.0  -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0 (+ 0.2, latest)
+#   collector-v0.2.0 -> ghcr.io/ziadmansourm/ouo/collector:0.2.0 (+ 0.2, latest)
+#     (ouo-collector, the ocb distribution in collector/; the Dockerfile cross-compiles,
+#     so the arm64 build does not run the Go compiler under QEMU)
 # The grafana image is Grafana with the ouo-rum-app plugin baked in; it needs
 # deploy/images/grafana/Dockerfile (owned by the platform-infra / helm agents) with the
 # repo root as build context and plugins/ouo-rum-app/dist already built.
@@ -15,6 +18,7 @@ on:
     tags:
       - 'rum-api-v*'
       - 'grafana-v*'
+      - 'collector-v*'
 
 permissions:
   contents: read
@@ -45,6 +49,12 @@ jobs:
               context=.
               dockerfile=deploy/images/grafana/Dockerfile
               version="${tag#grafana-v}"
+              ;;
+            collector-v*)
+              image=collector
+              context=collector
+              dockerfile=collector/Dockerfile
+              version="${tag#collector-v}"
               ;;
             *) echo "::error::unexpected tag $tag"; exit 1 ;;
           esac

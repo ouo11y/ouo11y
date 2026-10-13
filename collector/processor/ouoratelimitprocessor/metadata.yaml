@@ -1,0 +1,21 @@
+# Component metadata in the mdatagen shape (documentation only; internal/metadata is hand-written).
+type: ouoratelimit
+
+status:
+  class: processor
+  stability:
+    alpha: [traces, metrics, logs]
+  distributions: [ouo-collector]
+  codeowners:
+    active: [ZiadMansourM]
+
+telemetry:
+  metrics:
+    ouo_ratelimit_rejected_total:
+      enabled: true
+      description: Requests rejected by the rate limiter, by the bucket that rejected them.
+      unit: "{request}"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [key_kind]   # project | client

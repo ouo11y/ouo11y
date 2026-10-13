@@ -1,5 +1,6 @@
 # Continuous integration for every pull request and for pushes to main.
-# Mirrors the local commands in AGENTS.md: go vet + go test per Go module, npm build + test
+# Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
+# ocb build (collector/), npm build + test
 # across the workspaces (Node 24), the Swift core tests of sdk/ios on macOS, and helm lint
 # when the chart exists. See docs/releasing.md.
 name: ci
@@ -39,6 +40,34 @@ jobs:
         run: go vet ./...
       - name: go test
         run: go test ./...
+
+  collector:
+    name: collector (ocb distribution)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/receiver/ouoreplayreceiver/go.mod
+          cache-dependency-path: collector/**/go.sum
+      - name: go vet + go test (ouoreplay receiver, ouoreplay exporter, ouoratelimit processor)
+        run: |
+          for m in receiver/ouoreplayreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor; do
+            echo "::group::$m"
+            (cd "collector/$m" && go mod verify && go vet ./... && go test -race ./...)
+            echo "::endgroup::"
+          done
+      - name: Build ouo-collector with ocb (version must match the pinned components)
+        working-directory: collector
+        run: |
+          go install go.opentelemetry.io/collector/cmd/builder@v0.160.0
+          "$(go env GOPATH)/bin/builder" --config builder.yaml
+          ./dist/ouo-collector components > /dev/null
+      - name: Validate the reference config
+        working-directory: collector
+        env:
+          OUO_INGEST_TOKEN: it_ci
+        run: ./dist/ouo-collector validate --config=../deploy/docker/collector/config.yaml
 
   node:
     name: node (workspaces)
