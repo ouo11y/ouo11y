@@ -42,11 +42,18 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "ok: $*"; }
 warn() { echo "warn: $*" >&2; }
 
+# Requested headers are listed the way browsers send them: lowercase and sorted
+# (the collector's CORS handler rejects unsorted lists, see kb/collector-components.md).
+# The OTLP SDK exporters send trace context headers; the replay uploaders do not.
+OTLP_PREFLIGHT_HEADERS="authorization,baggage,content-encoding,content-type,traceparent"
+REPLAY_PREFLIGHT_HEADERS="authorization,content-encoding,content-type"
 preflight() { # $1 url, $2 origin -> prints response headers
+  local hdrs="$OTLP_PREFLIGHT_HEADERS"
+  [[ "$1" == */v1/replay/* ]] && hdrs="$REPLAY_PREFLIGHT_HEADERS"
   curl -s -i -X OPTIONS "$1" \
     -H "Origin: $2" \
     -H "Access-Control-Request-Method: POST" \
-    -H "Access-Control-Request-Headers: authorization,content-type,content-encoding,traceparent,baggage"
+    -H "Access-Control-Request-Headers: $hdrs"
 }
 has_header() { # $1 response, $2 header name (lowercase), optional $3 exact value
   if [[ $# -ge 3 ]]; then printf '%s' "$1" | grep -qi "^$2: $3"; else printf '%s' "$1" | grep -qi "^$2:"; fi
