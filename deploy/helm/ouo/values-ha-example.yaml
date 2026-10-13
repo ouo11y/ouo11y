@@ -60,7 +60,8 @@
 #
 # 5. ouo (this chart) against them:
 #      helm install ouo deploy/helm/ouo -n ouo --create-namespace -f values-ha-example.yaml \
-#        --set project.token=... --set readToken=... --set grafana.adminPassword=...
+#        --set projects[0].id=web-store --set projects[0].token=pt_... \
+#        --set ingestToken=it_... --set readToken=rt_... --set grafana.adminPassword=...
 
 lgtm:
   mode: external
@@ -72,11 +73,10 @@ lgtm:
 
 # rum-api: two replicas need a ReadWriteMany replay volume (NFS, EFS, CephFS, ...) because
 # the replay store is a filesystem until the object-storage store lands (Phase 8b/11).
-# Until then run one replica, or point both at the same RWX claim.
+# Until then run one replica, or point both at the same RWX claim. rum-api is ClusterIP
+# only; there is no Ingress option (ADR-0007 section 5).
 rumApi:
   replicas: 2
-  config:
-    trustProxy: true
   persistence:
     enabled: true
     accessModes: [ReadWriteMany]
@@ -93,21 +93,35 @@ rumApi:
             topologyKey: kubernetes.io/hostname
             labelSelector:
               matchLabels: { app.kubernetes.io/component: rum-api }
-  ingress:
-    enabled: true
-    className: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
-      nginx.ingress.kubernetes.io/proxy-body-size: 16m
-    host: rum.example.com
-    tls: { enabled: true, secretName: ouo-rum-api-tls }
 
+# The collector is the public ingest: two replicas behind one Ingress host that routes
+# /v1/replay/* to 4319 and the OTLP paths to 4318. The ouoratelimit buckets are per pod
+# (shared state is post-MVP), so per-project limits are effectively multiplied by replicas.
 collector:
   replicas: 2
   memoryLimiter: { limitMib: 1536, spikeLimitMib: 384 }
   resources:
     requests: { cpu: 500m, memory: 1Gi }
     limits: { memory: 2Gi }
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels: { app.kubernetes.io/component: collector }
+  allowedOrigins:
+    - https://shop.example.com
+    - https://*.preview.example.com
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    host: otel.example.com
+    tls: { enabled: true, secretName: ouo-collector-tls }
 
 # Grafana stays at one replica on SQLite. For HA Grafana set grafana.env with
 # GF_DATABASE_TYPE=postgres, GF_DATABASE_HOST=..., GF_DATABASE_USER / GF_DATABASE_PASSWORD
@@ -124,6 +138,5 @@ grafana:
   resources:
     requests: { cpu: 250m, memory: 512Mi }
 
-project:
-  id: web-store
-  allowedOrigins: "https://shop.example.com,https://*.preview.example.com"
+# --set projects[0].id=web-store --set projects[0].token=pt_...  (public identifier)
+projects: []

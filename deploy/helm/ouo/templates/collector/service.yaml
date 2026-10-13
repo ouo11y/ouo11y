@@ -1,5 +1,6 @@
 {{- if .Values.collector.enabled }}
-# ClusterIP only (ADR-0007 section 8): never expose the collector to browsers.
+# Public ingest Service (ADR-0007 section 7): OTLP/HTTP 4318 and replay 4319, both behind
+# basic auth. Expose it with collector.ingress or collector.service.type=LoadBalancer.
 apiVersion: v1
 kind: Service
 metadata:
@@ -13,13 +14,36 @@ metadata:
 spec:
   type: {{ .Values.collector.service.type }}
   ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: replay
+      port: 4319
+      targetPort: replay
+      protocol: TCP
+  selector:
+    {{- include "ouo.selectorLabels" (dict "root" . "component" "collector") | nindent 4 }}
+---
+# Cluster-internal Service: OTLP gRPC 4317 (Basic auth like the public ports) for backend
+# services, the health port and the self-metrics port. Always ClusterIP, never behind the
+# Ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ouo.collector.internalName" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "collector") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
     - name: otlp-grpc
       port: 4317
       targetPort: otlp-grpc
       protocol: TCP
-    - name: otlp-http
-      port: 4318
-      targetPort: otlp-http
+    - name: metrics
+      port: 8888
+      targetPort: metrics
       protocol: TCP
     - name: health
       port: 13133

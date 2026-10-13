@@ -108,8 +108,47 @@ LGTM endpoints. Bundled mode points at the chart's own Services; external mode a
 {{- if include "ouo.lgtm.bundled" . -}}http://{{ include "ouo.mimir.fullname" . }}:9009/prometheus{{- else if .Values.lgtm.external.mimirPrometheusUrl -}}{{ .Values.lgtm.external.mimirPrometheusUrl | trimSuffix "/" }}{{- else -}}{{ include "ouo.mimirUrl" . }}/prometheus{{- end -}}
 {{- end -}}
 
-{{/* In-cluster collector OTLP/HTTP endpoint */}}
-{{- define "ouo.collectorOtlpHttp" -}}http://{{ include "ouo.collector.fullname" . }}:4318{{- end -}}
+{{/* Collector resource names and in-cluster endpoints */}}
+{{- define "ouo.collector.internalName" -}}{{ include "ouo.collector.fullname" . }}-internal{{- end -}}
+{{- define "ouo.collector.projectsSecretName" -}}
+{{- if .Values.collector.existingProjectsSecret -}}{{ .Values.collector.existingProjectsSecret }}{{- else -}}{{ include "ouo.collector.fullname" . }}-projects{{- end -}}
+{{- end -}}
+{{/* OTLP/HTTP endpoint for rum-api's own telemetry: the collector's 4318 in-cluster, with a project credential. */}}
+{{- define "ouo.rumApiOtlpEndpoint" -}}
+{{- if .Values.rumApi.otel.endpoint -}}{{ .Values.rumApi.otel.endpoint | trimSuffix "/" }}{{- else -}}http://{{ include "ouo.collector.fullname" . }}:4318{{- end -}}
+{{- end -}}
+{{/*
+OTEL_EXPORTER_OTLP_HEADERS value for rum-api's own telemetry: the Basic credential of
+rumApi.otel.project (default: the first entry of `projects`). Empty when not resolvable
+(collector.existingProjectsSecret without `projects`): bring it via rumApi.existingSecret.
+*/}}
+{{- define "ouo.rumApiOtlpHeaders" -}}
+{{- $want := .Values.rumApi.otel.project -}}
+{{- $found := "" -}}
+{{- range .Values.projects -}}
+{{- if and (not $found) (or (not $want) (eq .id $want)) -}}
+{{- $found = printf "Authorization=Basic%%20%s" (printf "%s:%s" .id .token | b64enc) -}}
+{{- end -}}
+{{- end -}}
+{{- $found -}}
+{{- end -}}
+{{/* X-Scope-OrgID on the collector exporters in external multi-tenant mode */}}
+{{- define "ouo.tenantHeaders" -}}
+{{- if and (eq .Values.lgtm.mode "external") .Values.lgtm.external.tenantId }}
+headers:
+  X-Scope-OrgID: {{ .Values.lgtm.external.tenantId | quote }}
+{{- end }}
+{{- end -}}
+{{/* Client key of the ouoratelimit client bucket */}}
+{{- define "ouo.rateLimitClientKey" -}}
+{{- if .Values.collector.rateLimit.client.keyFrom -}}{{ .Values.collector.rateLimit.client.keyFrom }}{{- else if .Values.collector.ingress.enabled -}}x_forwarded_for{{- else -}}address{{- end -}}
+{{- end -}}
+{{/* rum-api URL the collector's replay exporter posts to */}}
+{{- define "ouo.rumApiInternalUrl" -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
+{{/* Public collector base URL (Ingress) or the port-forward default */}}
+{{- define "ouo.collectorPublicUrl" -}}
+{{- if .Values.collector.ingress.enabled -}}{{ ternary "https" "http" .Values.collector.ingress.tls.enabled }}://{{ .Values.collector.ingress.host }}{{- else -}}http://localhost:4318{{- end -}}
+{{- end -}}
 
 {{/* In-cluster rum-api URL (what the Grafana plugin proxies to) */}}
 {{- define "ouo.rumApiUrl" -}}
@@ -129,8 +168,21 @@ LGTM endpoints. Bundled mode points at the chart's own Services; external mode a
 Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 */}}
 {{- define "ouo.validate" -}}
-{{- if and (not .Values.projects) (not .Values.project.token) (not .Values.rumApi.existingSecret) -}}
-{{- fail "ouo: set project.token (single project), projects (registry) or rumApi.existingSecret; rum-api refuses to start without a project (ADR-0007)" -}}
+{{- if and .Values.collector.enabled (not .Values.projects) (not .Values.collector.existingProjectsSecret) -}}
+{{- fail "ouo: set projects (list of {id, token}) or collector.existingProjectsSecret; the collector refuses every ingest request without a project (ADR-0007)" -}}
+{{- end -}}
+{{- $seen := dict -}}
+{{- range .Values.projects -}}
+{{- if hasKey $seen (toString .id) -}}
+{{- fail (printf "ouo: project id %q appears twice in projects. The collector's basicauth (htpasswd) keeps only the LAST line per username, so the earlier token would silently stop working (verified on kind, see kb/helm-kind.md). Rotate by replacing the token in place" (toString .id)) -}}
+{{- end -}}
+{{- $_ := set $seen (toString .id) true -}}
+{{- if or (not .id) (not .token) -}}
+{{- fail "ouo: every entry of projects needs a non-empty id and token" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9._-]{0,63}$" (toString .id)) -}}
+{{- fail (printf "ouo: project id %q must match ^[a-z0-9][a-z0-9._-]{0,63}$ (rum-api and the replay receiver reject other ids; ':' would break htpasswd)" (toString .id)) -}}
+{{- end -}}
 {{- end -}}
 {{- if and .Values.grafana.enabled (not .Values.grafana.adminPassword) (not .Values.grafana.existingSecret) -}}
 {{- fail "ouo: set grafana.adminPassword or grafana.existingSecret" -}}
@@ -138,4 +190,39 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- if not (has .Values.lgtm.mode (list "bundled" "external")) -}}
 {{- fail (printf "ouo: lgtm.mode must be bundled or external, got %q" .Values.lgtm.mode) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+htpasswd `{SHA}` digest of a token: base64 of the raw 20-byte SHA-1. Sprig's sha1sum
+returns hex and has no hex decoder, so the hex is converted to a bit string and
+re-grouped into base64 sextets here (160 bits + 2 zero bits = 27 characters + one "=").
+Cheap on purpose: the collector verifies it on every request and the token is a public
+identifier (ADR-0007 section 2); bcrypt is not acceptable at ingest rates.
+*/}}
+{{- define "ouo.htpasswdSha" -}}
+{{- $hex := sha1sum . -}}
+{{- $nib := dict "0" "0000" "1" "0001" "2" "0010" "3" "0011" "4" "0100" "5" "0101" "6" "0110" "7" "0111" "8" "1000" "9" "1001" "a" "1010" "b" "1011" "c" "1100" "d" "1101" "e" "1110" "f" "1111" -}}
+{{- $bits := "" -}}
+{{- range $i := until 40 -}}
+{{- $bits = printf "%s%s" $bits (index $nib (substr $i (add1 $i | int) $hex)) -}}
+{{- end -}}
+{{- $bits = printf "%s00" $bits -}}
+{{- $alpha := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" -}}
+{{- $out := "" -}}
+{{- range $i := until 27 -}}
+{{- $chunk := substr (mul $i 6 | int) (mul (add1 $i) 6 | int) $bits -}}
+{{- $v := 0 -}}
+{{- range $j := until 6 -}}
+{{- $v = add (mul $v 2) (substr $j (add1 $j | int) $chunk | atoi) | int -}}
+{{- end -}}
+{{- $out = printf "%s%s" $out (substr $v (add1 $v | int) $alpha) -}}
+{{- end -}}
+{{- printf "{SHA}%s=" $out -}}
+{{- end -}}
+
+{{/* The htpasswd file: one line per project entry */}}
+{{- define "ouo.projectsHtpasswd" -}}
+{{- range .Values.projects -}}
+{{ .id }}:{{ include "ouo.htpasswdSha" .token }}
+{{ end -}}
 {{- end -}}
