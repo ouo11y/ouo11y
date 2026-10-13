@@ -11,6 +11,8 @@ export const config = {
   // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
   // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
   otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
+  // Optional: only needed when the collector's replay receiver is not on port 4319 of the OTLP host.
+  replayEndpoint: env.VITE_OUO_REPLAY_ENDPOINT || undefined,
   // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
   // names the project. These are the development values the local stack is provisioned with.
   projectId: env.VITE_OUO_PROJECT_ID ?? "demo",
@@ -37,6 +39,7 @@ const initialUser = storedUserId();
 
 export const rum: RUM = initRUM({
   endpoint: config.otlpEndpoint,
+  ...(config.replayEndpoint ? { replayEndpoint: config.replayEndpoint } : {}),
   projectId: config.projectId,
   projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },

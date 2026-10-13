@@ -35,6 +35,7 @@ const config: ExpoConfig = {
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
     otlpEndpoint: process.env.EXPO_PUBLIC_OTLP_ENDPOINT ?? "http://localhost:4318",
+    replayEndpoint: process.env.EXPO_PUBLIC_OUO_REPLAY_ENDPOINT || undefined,
     projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
     projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
