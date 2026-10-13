@@ -78,8 +78,9 @@ In-cluster addresses never change (`otel-collector:4318` / `4319`, `loki:3100`,
 
 Projects are not environment: they are lines in `deploy/docker/collector/projects.htpasswd`
 (`<project id>:{SHA}<base64 sha1(token)>`, exactly what `htpasswd -nbs <id> <token>`
-prints; cheap on purpose, the token is public). Add a line per project, two lines for the
-same id while rotating, then `docker compose ... restart otel-collector`:
+prints; cheap on purpose, the token is public). One line per project id: `basicauth` keeps
+only the last line for an id, so rotation is a cut-over (replace the line, restart, ship the
+new token; ADR-0007 section 2). After editing, `docker compose ... restart otel-collector`:
 
 ```bash
 echo "pt_$(openssl rand -hex 16)"                                   # new token

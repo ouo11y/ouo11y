@@ -138,9 +138,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
 # deploy/vm/compose.tls.yaml) and by deploy/scripts/*.sh. Keep this file private:
 # OUO_INGEST_TOKEN, OUO_READ_TOKEN and OUO_GRAFANA_ADMIN_PASSWORD are secrets.
 # OUO_PROJECT_ID / OUO_PROJECT_TOKEN are the PUBLIC credential SDKs send (HTTP Basic);
-# the collector checks them against deploy/docker/projects.htpasswd. To rotate: add a
-# second line for the project to projects.htpasswd, `systemctl restart ouo`, move the
-# SDKs, delete the old line.
+# the collector checks them against deploy/docker/projects.htpasswd. To rotate (cut-over,
+# one line per project id is honoured): replace the project's line, `systemctl restart ouo`,
+# ship the new token to the apps.
 HDR
   chmod 600 "$ENV_FILE"
 fi
@@ -168,7 +168,7 @@ set_env OUO_BACKEND_OTLP_HEADERS "Authorization=Basic%20$BASIC"
 echo "tls: $(get_env OUO_TLS)   grafana: https://$DOMAIN   collector: https://$OTEL_DOMAIN   project: $PROJECT_ID"
 
 log "writing $HTPASSWD_FILE"
-# One `<project id>:{SHA}<hash>` line per project (and per token during a rotation).
+# Exactly one `<project id>:{SHA}<hash>` line per project (basicauth keeps only the last one).
 # Hashes only, so the file is world-readable: the collector runs as a non-root user.
 if [[ ! -f "$HTPASSWD_FILE" ]]; then
   printf '# ouo project registry (ADR-0007). One line per project token: <project id>:{SHA}<base64 sha1>.\n# Add a line with: deploy/vm/install.sh prints the command, or htpasswd -nbs <id> <token>.\n' > "$HTPASSWD_FILE"
