@@ -6,6 +6,8 @@ interface Extra {
   backendUrl: string;
   /** Collector OTLP/HTTP base URL (ADR-0007); replay chunks go to the same host on port 4319. */
   otlpEndpoint: string;
+  /** Optional replay receiver base URL; unset derives port 4319 from 4318 (ADR-0007 section 6). */
+  replayEndpoint?: string;
   /** Project credential (HTTP Basic: id is the user name, token the password). Public by nature; the stock compose stack ships this development project. */
   projectId: string;
   projectToken: string;
@@ -17,6 +19,7 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
 export const config: Extra = {
   backendUrl: extra.backendUrl ?? "http://localhost:8081",
   otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4318",
+  ...(extra.replayEndpoint ? { replayEndpoint: extra.replayEndpoint } : {}),
   projectId: extra.projectId ?? "demo",
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
@@ -31,7 +34,8 @@ function escapeRegExp(s: string): string {
 
 export const rum: RUM = initRUM({
   endpoint: config.otlpEndpoint,
-  // replayEndpoint is derived: http://localhost:4318 -> http://localhost:4319 (ADR-0007 section 6).
+  // Unset replayEndpoint is derived: http://localhost:4318 -> http://localhost:4319 (ADR-0007 section 6).
+  ...(config.replayEndpoint ? { replayEndpoint: config.replayEndpoint } : {}),
   projectId: config.projectId,
   projectToken: config.projectToken,
   service: { name: "mobile-store", version: appVersion, environment: config.environment },
