@@ -24,6 +24,7 @@ type Config struct {
 	TempoCacheTTL      time.Duration // TEMPO_CACHE_TTL, default 60s
 	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
 	MaxFrameChunkBytes int64         // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
+	MaxVideoChunkBytes int64         // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
 	DetailLookback     time.Duration // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
 
 	// ADR-0007 5: rum-api is internal. The collector's replay exporter is the
@@ -71,6 +72,12 @@ func FromEnv() (Config, error) {
 		return c, err
 	}
 	c.MaxFrameChunkBytes = int64(mfb)
+	mvb, err := envInt("MAX_VIDEO_CHUNK_BYTES", 8<<20)
+	if err != nil {
+		return c, err
+	}
+	// Like the frames limit, never below the rrweb limit.
+	c.MaxVideoChunkBytes = max(int64(mvb), c.MaxChunkBytes)
 	return c, nil
 }
 

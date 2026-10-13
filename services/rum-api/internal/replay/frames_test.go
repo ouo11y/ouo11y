@@ -277,7 +277,8 @@ func TestFramesValidation(t *testing.T) {
 		"touch missing xy":     func(m map[string]any) { m["touches"] = []map[string]any{{"ts": 1, "phase": "began"}} },
 		"touch missing ts":     func(m map[string]any) { m["touches"] = []map[string]any{{"x": 1, "y": 1, "phase": "began"}} },
 		"touches not array":    func(m map[string]any) { m["touches"] = "none" },
-		"unknown kind":         func(m map[string]any) { m["kind"] = "video" },
+		"unknown kind":         func(m map[string]any) { m["kind"] = "gif" },
+		"video without video":  func(m map[string]any) { m["kind"] = "video" },
 		"bad session id":       func(m map[string]any) { m["session_id"] = "../x" },
 		"rrweb with no events": func(m map[string]any) { m["kind"] = "rrweb" },
 	}

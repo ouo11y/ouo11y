@@ -276,6 +276,14 @@ Additions to `services/rum-api/README.md` and ADR-0006's contract, nothing else 
 - `409` when the replay is not video; `/replay/events` and `/replay/frames` return `409` for a video replay. All three streaming endpoints set `X-Ouo-Replay-Kind`.
 - Session list and detail: `replay_kind: "video"`, `replay_duration_ms` from the meta, `replay_frame_count` from the video frame counts.
 
+Clarifications from the implementation (rum-api, 2026-10-14):
+
+- Body limit: a video chunk body (base64 mp4 plus envelope) may be up to `base64(MAX_VIDEO_CHUNK_BYTES) + 1 MiB`, about 12.2 MiB by default, compressed and decompressed. A body above it is `413` before parsing; a decoded mp4 above `MAX_VIDEO_CHUNK_BYTES` is `413` too (not `400`). Whatever forwards video chunks to rum-api (the `ouoreplay` exporter) must allow bodies of that size.
+- Optional `video` fields: `encoding` (string), `duration_ms` and `frame_count` (integers >= 0), `frame_rate` (number). A segment's duration is `video.duration_ms`, or `ended_at - started_at` without it. `source.vendor` and `source.replay_id` must be strings when present.
+- `202` body as for the other kinds: `frames` is `video.frame_count`, `touches` the touch count, `events` 0.
+- Meta: `chunks[]` of a video replay carry `duration_ms` and `video_bytes` (mp4 size); `source` is `{vendor, replay_id}` of the first chunk that had one. `segment_id` and `replay_type` stay in the chunk file.
+- Segment endpoint: also `ETag` (size and mtime, so a `seq` replaced within the same second is not served from cache), `Cache-Control: private, no-cache`, `400` for a `seq` outside `0..999999`, `416` for an unsatisfiable range. The manifest's `path` is relative to the rum-api root; the plugin maps it onto its proxy route. Its `source` is `null` when no chunk had one.
+
 Plugin (`plugins/ouo-rum-app`): a video player mounted when `replay_kind` is `video`. One `<video>` element per segment in sequence (preload the next), global time to `(segment, offset)` mapping for the scrubber and timeline markers, touch overlay fading over 500 ms as in the frame player, gaps between segments shown as a still of the last frame.
 
 ## 12. Attribute allowlist

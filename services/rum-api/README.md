@@ -2,7 +2,8 @@
 
 Go service that turns the telemetry the ouo SDKs send through the OpenTelemetry
 Collector into **session records**, stores **replay chunks** (rrweb events from the web
-SDK, JPEG frames from the iOS SDK), and exposes the JSON API used by the Grafana app
+SDK, JPEG frames from the iOS SDK, mp4 video segments from Sentry mobile Session Replay
+through the collector's Sentry bridge), and exposes the JSON API used by the Grafana app
 plugin (`plugins/ouo-rum-app`).
 
 rum-api is **internal** (ADR-0007 5). It is never exposed to the internet: the only
@@ -15,7 +16,7 @@ replay reads come from Grafana's server-side plugin proxy with the read token.
 browser / mobile SDK --OTLP + replay chunks, Basic <project id>:<token>--> ouo-collector (public)
 ouo-collector --OTLP--> Loki / Tempo / Mimir
 ouo-collector --POST /v1/replay/chunks + X-Ouo-Project-Id [+ Bearer OUO_INGEST_TOKEN]--> rum-api (internal)
-                                                                                           --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz, meta.json (kind, project_id)
+                                                                                           --> <DATA_DIR>/replays/<session_id>/<seq>.json.gz [+ <seq>.mp4], meta.json (kind, project_id)
 Grafana plugin proxy --GET /v1/... + Authorization: Bearer <OUO_READ_TOKEN>--> rum-api --> Loki (session events, LogQL)
                                                                                       --> Tempo (traces per session, TraceQL)
                                                                                       --> replay store
@@ -25,7 +26,8 @@ rum-api --OTLP/HTTP--> ouo-collector (service.name=rum-api; own traces, logs, re
 Design references: `docs/adr/0007-ingest-gateway-project-tokens.md` (the collector is the
 edge, replay sink contract, read token), `docs/specs/session-lifecycle.md` (server-side
 record, end inference), ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed),
-ADR-0006 and `docs/specs/mobile-replay.md` (frame chunks), `kb/ingest-gateway.md` (sink
+ADR-0006 and `docs/specs/mobile-replay.md` (frame chunks), ADR-0008 and
+`docs/specs/sentry-bridge.md` section 11 (video chunks), `kb/ingest-gateway.md` (sink
 contract notes), `kb/loki-session-queries.md`, `kb/tempo-session-search.md`.
 
 ## Run
@@ -65,6 +67,7 @@ OUO_READ_TOKEN=rt_dev_0000000000000000 DATA_DIR=./data go run .
 | `TEMPO_CACHE_TTL` | `60s` | in-memory cache of Tempo results per session id + range |
 | `MAX_CHUNK_BYTES` | `4194304` | max rrweb chunk size (compressed and decompressed) |
 | `MAX_FRAME_CHUNK_BYTES` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
+| `MAX_VIDEO_CHUNK_BYTES` | `8388608` | max decoded `video.mp4` of one `kind: "video"` chunk; never below `MAX_CHUNK_BYTES`. The chunk body (base64 mp4 + envelope) may be up to `base64(MAX_VIDEO_CHUNK_BYTES) + 1 MiB` (12.2 MiB by default), compressed and decompressed |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | OTel defaults | own telemetry; `OTEL_SDK_DISABLED=true` turns it off |
 
 ## API
@@ -78,7 +81,8 @@ conflict), 413 (too large), 415 (unsupported `Content-Encoding`), 502 (Loki / Te
 `http://127.0.0.1[:port]` or one of `CORS_ALLOWED_ORIGINS` (exact match); any other origin
 gets no CORS headers and the request is handled normally. Methods `GET, POST, DELETE,
 OPTIONS`; headers `Authorization, Content-Type, Content-Encoding, X-Ouo-Project-Id,
-X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding`; `X-Ouo-Replay-Kind` is exposed.
+X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding, Range`; `X-Ouo-Replay-Kind`,
+`Content-Range` and `Accept-Ranges` are exposed.
 Preflights are answered with 204 before authentication.
 
 **Authentication**: the replay sink (`POST /v1/replay/chunks`) needs `Authorization: Bearer
@@ -112,18 +116,19 @@ Request:
 | `Content-Encoding: gzip` | no | body is gzip; `identity` or absent means plain JSON; anything else **415** |
 | `X-Ouo-Session-Id`, `X-Ouo-Seq` | no | informational copies of the body fields; a mismatch is logged as a warning, the body wins |
 
-Checks run in this order and stop at the first failure: `Content-Length` above the frames
-limit (**413**), ingest token (**401**), project id (**400**), body read and decompression
+Checks run in this order and stop at the first failure: `Content-Length` above the largest
+body limit (frames or video, **413**), ingest token (**401**), project id (**400**), body read and decompression
 (**413** when the wire or the decompressed size exceeds the limit, **400** on bad gzip),
 then the chunk rules below. The project id is recorded as `project_id` in `meta.json` and
 returned in the response; a chunk with a different project id for an existing session is
 **403** and nothing is written (replays stored before Phase 8a have no `project_id` and
 adopt the first project that writes to them).
 
-A session has one replay of one **kind**: `rrweb` (web SDK, ADR-0003) or `frames` (iOS SDK,
-ADR-0006 / `docs/specs/mobile-replay.md`). Both kinds share the sink and the storage
-layout; `meta.json` records the kind of the first chunk and a chunk of the other kind is
-rejected with 409. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is
+A session has one replay of one **kind**: `rrweb` (web SDK, ADR-0003), `frames` (iOS SDK,
+ADR-0006 / `docs/specs/mobile-replay.md`) or `video` (Sentry mobile Session Replay through
+the collector's `ouosentry` receiver, ADR-0008 / `docs/specs/sentry-bridge.md`). All kinds
+share the sink and the storage layout; `meta.json` records the kind of the first chunk and a
+chunk of another kind is rejected with 409. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, `seq` is
 `0..999999`. Re-posting a `seq` replaces that chunk.
 
 - rrweb (no `kind`, or `kind: "rrweb"`): `{session_id, seq, started_at, ended_at, events: [...]}`,
@@ -136,20 +141,37 @@ rejected with 409. `session_id` must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`, 
   base64 `jpeg` that decodes (padded or unpadded) and starts with the JPEG marker `FF D8`;
   every touch has `ts`, `x`, `y` and `phase` in `began | moved | ended`. At most 1000 frames
   per chunk. Unknown keys are ignored. `platform` is optional.
+- video (`kind: "video"`): `{kind, schema_version: 1, session_id, seq, started_at, ended_at,
+  viewport: {width, height, scale}, platform, video: {container, encoding, duration_ms, frame_count,
+  frame_rate, mp4}, touches: [{ts, x, y, phase}], source: {vendor, replay_id, segment_id, replay_type}, masked}`.
+  Validation: `schema_version` is `1`, `started_at > 0`, `ended_at >= started_at`,
+  `viewport.width/height > 0` (`scale` defaults to 1), `video` is an object with
+  `container: "mp4"` and a non-empty base64 `mp4` (padded or unpadded) that decodes to at most
+  `MAX_VIDEO_CHUNK_BYTES` (**413** above) and has `ftyp` at byte offset 4; `encoding` (string),
+  `duration_ms` and `frame_count` (integers >= 0) and `frame_rate` (number) are optional;
+  touches as for frames. `source` is optional; when present it must be an object whose
+  `vendor` / `replay_id` are strings. Unknown keys (in the chunk and in `video`) are kept.
+  A segment's duration is `video.duration_ms`, or `ended_at - started_at` without it.
 
-Timestamps are epoch milliseconds. The body is read up to the frames limit; a body above
-the rrweb limit is accepted only when its `kind` is `frames`. Response `202`:
+Timestamps are epoch milliseconds. The body is read up to the largest limit; a body above the
+rrweb limit is then checked against the limit of its `kind` (`frames` 8 MiB, `video`
+base64(`MAX_VIDEO_CHUNK_BYTES`) + 1 MiB). Response `202`:
 
 ```json
 {"accepted":true,"project_id":"web-store","session_id":"<id>","kind":"frames","seq":1,"events":0,"frames":2,"touches":3,"bytes":5823}
+{"accepted":true,"project_id":"mobile-store","session_id":"<id>","kind":"video","seq":3,"events":0,"frames":5,"touches":1,"bytes":64410}
 ```
 
-(`events` counts rrweb events, `frames` / `touches` count frame-chunk items; the other
-kind's counters are 0.) 409 `{"error":"replay kind mismatch: session <id> holds a frames replay, chunk is rrweb"}`
-when the session already has a replay of the other kind; nothing is written.
+(`events` counts rrweb events; `frames` counts frame-chunk frames, or `video.frame_count` for
+video; `touches` counts touches; the other kinds' counters are 0; `bytes` is the
+decompressed request body.) 409 `{"error":"replay kind mismatch: session <id> holds a frames replay, chunk is rrweb"}`
+when the session already has a replay of another kind; nothing is written.
 
-On disk (always gzip): `<DATA_DIR>/replays/<session_id>/000003.json.gz` plus
-`meta.json`, both written atomically (temp file + rename, one mutex per session).
+On disk: `<DATA_DIR>/replays/<session_id>/000003.json.gz` (always gzip) plus `meta.json`,
+both written atomically (temp file + rename, one mutex per session). A video chunk also
+writes `000003.mp4` (the decoded mp4, written first) and its `000003.json.gz` is the chunk
+without `video.mp4` and with `video.bytes` (the mp4 size); every other byte of the upload is
+kept. Re-posting a `seq` replaces both files.
 
 Metrics (exported through rum-api's own OTel pipeline, `service.name=rum-api`):
 `ouo.replay.chunks` (`{chunk}`) and `ouo.replay.bytes` (`By`, decompressed), both with the
@@ -160,14 +182,23 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
 
 - `GET /v1/sessions/{id}/replay` -> the meta. `kind` is always present (`meta.json` files
   written before frames existed read as `rrweb`); `project_id` since 8a (absent on older
-  replays); `viewport` and `platform` only for frames; `frame_count` / `touch_count` are
-  totals (0 for rrweb):
+  replays); `viewport` and `platform` only for frames and video; `frame_count` /
+  `touch_count` are totals (0 for rrweb; for video `frame_count` sums `video.frame_count`);
+  `source` (`{vendor, replay_id}` of the first chunk that had one) only for video. Video
+  chunks add `duration_ms` and `video_bytes` (mp4 size) and their `bytes` counts the mp4
+  plus the gzip JSON:
 
 ```json
 {"session_id":"<id>","project_id":"web-store","kind":"frames","chunk_count":2,"first_seq":0,"last_seq":1,
  "started_at":1791471538578,"ended_at":1791471548578,"bytes":1796,"frame_count":5,"touch_count":5,
  "viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","updated_at":"2026-10-08T15:00:08Z",
  "chunks":[{"seq":0,"started_at":1791471538578,"ended_at":1791471543578,"bytes":918,"event_count":0,"frame_count":3,"touch_count":2}, ...]}
+{"session_id":"<id>","project_id":"mobile-store","kind":"video","chunk_count":2,"first_seq":0,"last_seq":1,
+ "started_at":1791471538578,"ended_at":1791471548578,"bytes":97240,"frame_count":10,"touch_count":1,
+ "viewport":{"width":288,"height":624,"scale":1},"platform":"ios",
+ "source":{"vendor":"sentry","replay_id":"<32 hex>"},"updated_at":"2026-10-14T10:00:08Z",
+ "chunks":[{"seq":0,"started_at":1791471538578,"ended_at":1791471543578,"bytes":48530,"event_count":0,"frame_count":5,"touch_count":1,
+            "duration_ms":5000,"video_bytes":48211}, ...]}
 ```
 
 - `GET /v1/sessions/{id}/replay/events` -> one JSON array with every rrweb event of every
@@ -184,9 +215,32 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
  "touches":[{"ts":1791471540828,"x":120.5,"y":640,"phase":"began"}, ...]}
 ```
 
-  **409** when the replay is `rrweb`, 404 when there is none. Both streaming endpoints set
-  `X-Ouo-Replay-Kind`.
-- `DELETE /v1/sessions/{id}/replay` -> `204`, removes the directory (either kind).
+  **409** when the replay is `rrweb` or `video`, 404 when there is none.
+- `GET /v1/sessions/{id}/replay/video` -> the video manifest (gzip when accepted): segments
+  in `seq` order (`bytes` is the mp4 size, `path` serves it), every touch of every chunk in
+  `seq` order, `source` (`null` when no chunk had one). **409** when the replay is `rrweb` or
+  `frames`:
+
+```json
+{"session_id":"<id>","kind":"video","viewport":{"width":288,"height":624,"scale":1},"platform":"ios",
+ "started_at":1791471538578,"ended_at":1791471548578,
+ "segments":[{"seq":0,"started_at":1791471538578,"ended_at":1791471543578,"duration_ms":5000,"frame_count":5,"bytes":48211,
+              "path":"/v1/sessions/<id>/replay/video/0"}, ...],
+ "touches":[{"ts":1791471540828,"x":120.5,"y":410,"phase":"began"}],
+ "source":{"vendor":"sentry","replay_id":"<32 hex>"}}
+```
+
+- `GET /v1/sessions/{id}/replay/video/{seq}` -> the mp4 (`Content-Type: video/mp4`) through
+  `http.ServeContent`: `Range` requests (**206** + `Content-Range`, **416** outside the
+  file), `Last-Modified` and `ETag` (size + mtime) with `If-Modified-Since` /
+  `If-None-Match` (**304**), `HEAD`; `Cache-Control: private, no-cache` because a re-posted
+  `seq` replaces the file. **400** when `seq` is not an integer in `0..999999`, **404** when
+  the session or the segment is missing, **409** when the replay is not video.
+
+  The three streaming endpoints (`/replay/events`, `/replay/frames`, `/replay/video`) and the
+  segment endpoint set `X-Ouo-Replay-Kind`; a 409 names the endpoint of the replay's kind.
+- `DELETE /v1/sessions/{id}/replay` -> `204`, removes the directory (any kind, mp4 files
+  included).
 
 ### Sessions
 
@@ -206,12 +260,13 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
  }],"count":1,"from":"2026-10-06T04:30:00Z","to":"2026-10-06T05:30:00Z"}
 ```
 
-- `has_replay` / `replay_kind`: `replay_kind` is `"rrweb"` or `"frames"` when a replay
-  exists, `null` otherwise, so the plugin can pick the player without a second call.
+- `has_replay` / `replay_kind`: `replay_kind` is `"rrweb"`, `"frames"` or `"video"` when a
+  replay exists, `null` otherwise, so the plugin can pick the player without a second call.
 - `replay_duration_ms` / `replay_frame_count`: from the replay's `meta.json`
-  (`ended_at - started_at` in ms; `frame_count`). `replay_duration_ms` is `null` without a
-  replay or when the meta has no usable timestamps; `replay_frame_count` is `null` for rrweb
-  replays (they have events, not frames) and without a replay. Both are filled on the list
+  (`ended_at - started_at` in ms; `frame_count`, for video the sum of the segments'
+  `video.frame_count`). `replay_duration_ms` is `null` without a replay or when the meta has
+  no usable timestamps; `replay_frame_count` is `null` for rrweb replays (they have events,
+  not frames) and without a replay. Both are filled on the list
   and the detail endpoints by reading `meta.json` per session (a `stat` first, so sessions
   without a replay cost one syscall).
 
@@ -298,6 +353,11 @@ curl -i -X POST localhost:8080/v1/replay/chunks -H "$I" -H "$P" -H 'content-type
   -d '{"kind":"frames","schema_version":1,"session_id":"demo-ios-1","seq":0,"started_at":1791471538578,"ended_at":1791471543578,"viewport":{"width":393,"height":852,"scale":0.5},"platform":"ios","frames":[{"ts":1791471538678,"jpeg":"/9j/4AAQSkZJRg...","reason":"resume"}],"touches":[{"ts":1791471540828,"x":120.5,"y":640,"phase":"began"}]}'
 curl -H "$R" --compressed localhost:8080/v1/sessions/demo-ios-1/replay/frames | head -c 300
 curl -H "$R" -i localhost:8080/v1/sessions/demo-ios-1/replay/events     # 409
+# video chunk as the Sentry bridge emits it (mp4 is base64; "AAAAGGZ0eXBtcDQy" is 00 00 00 18 "ftypmp42")
+curl -i -X POST localhost:8080/v1/replay/chunks -H "$I" -H 'X-Ouo-Project-Id: mobile-store' -H 'content-type: application/json' \
+  -d '{"kind":"video","schema_version":1,"session_id":"demo-sentry-1","seq":0,"started_at":1791471538578,"ended_at":1791471543578,"viewport":{"width":288,"height":624,"scale":1},"platform":"ios","video":{"container":"mp4","encoding":"h264","duration_ms":5000,"frame_count":5,"frame_rate":1,"mp4":"AAAAGGZ0eXBtcDQyAAAAAG1wNDJpc29t..."},"touches":[],"source":{"vendor":"sentry","replay_id":"0123456789abcdef0123456789abcdef","segment_id":0,"replay_type":"session"}}'
+curl -H "$R" --compressed localhost:8080/v1/sessions/demo-sentry-1/replay/video
+curl -H "$R" -r 0-99 -D - -o /dev/null localhost:8080/v1/sessions/demo-sentry-1/replay/video/0   # 206, Content-Range: bytes 0-99/<size>
 curl -H "$R" -X DELETE -i localhost:8080/v1/sessions/demo-1/replay
 
 curl -H "$R" 'localhost:8080/v1/sessions?from=now-2h&status=crashed&platform=web'
@@ -321,7 +381,10 @@ curl -H "$R" 'localhost:8080/v1/stats/health?from=now-24h' | jq
   through a semaphore of `TEMPO_CONCURRENCY`, cached for `TEMPO_CACHE_TTL`.
 - **Replay**: `internal/replay.Store` interface, filesystem implementation; the events and
   frames endpoints stream chunk files through a JSON token decoder without loading
-  everything (touches of a frames replay are buffered, frames are copied through). The kind
+  everything (touches of a frames replay are buffered, frames are copied through). A video
+  chunk's mp4 is decoded once at ingest and stored raw, so segment reads are plain file
+  serving; the stored JSON is the upload with only the `video` value replaced (byte offsets
+  from the token decoder), and the manifest reads only those small JSON files. The kind
   and the project id are checked under the per-session lock before the chunk file is
   written, so a rejected chunk leaves nothing behind. `PeekKind` scans only top-level keys
   and runs only for bodies above the rrweb limit.
@@ -338,7 +401,7 @@ internal/httpapi             routes, CORS (local origins), ingest / read tokens,
 internal/session             Loki stream -> Event, Fold, Classify, Health (+ fixtures)
 internal/loki                query_range client with pagination
 internal/tempo               search client, cache, Grafana Explore links
-internal/replay              Store interface, chunk validation (rrweb + frames), filesystem store, event / frame streaming
+internal/replay              Store interface, chunk validation (rrweb, frames, video), filesystem store (+ mp4 segments), event / frame streaming, video manifest
 internal/timerange           from/to parsing
 internal/telemetry           OTel SDK setup (traces, logs, metrics via OTLP/HTTP)
 ```
