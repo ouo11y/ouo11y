@@ -1,16 +1,17 @@
 # collector lgtm
 
 Status: filled in Phase 1 by platform-infra (2026-10-06), verified with `deploy/scripts/smoke.sh`.
-Updated in Phase 8a (2026-10-10): the collector is no longer browser-facing (ADR-0007), see
-"Exposure change" at the end.
+Updated in Phase 8a (2026-10-10, ADR-0007 revised): the collector is a custom distribution
+(`collector/`) and the only public ingest, with Basic project credentials; see "Exposure
+change" at the end. The collector config itself is now owned by the collector agent.
 
 ## Question
 
-Which OpenTelemetry Collector + Loki + Tempo + Mimir configuration accepts OTLP from
-trusted backends and from rum-api (which fronts browsers and phones), stores traces
-searchable by `session.id`, stores session events in Loki with `service_name`,
-`event_name`, `ouo_platform` as the only promoted labels, and stores metrics in Mimir,
-all on one laptop with Docker Compose?
+Which OpenTelemetry Collector + Loki + Tempo + Mimir configuration accepts OTLP (and
+replay chunks) from browsers, phones and backends behind a per-project HTTP Basic
+credential, stamps `ouo.project.id`, stores traces searchable by `session.id`, stores
+session events in Loki with `service_name`, `event_name`, `ouo_platform` as the only
+promoted labels, and stores metrics in Mimir, all on one laptop with Docker Compose?
 
 ## Exact image tags (pinned in deploy/docker/compose.yaml)
 
@@ -20,7 +21,7 @@ all on one laptop with Docker Compose?
 | grafana/loki | 3.7.7 | distroless |
 | grafana/tempo | 3.0.3 | distroless; **config schema changed vs 2.x** |
 | grafana/mimir | 3.2.1 | distroless |
-| otel/opentelemetry-collector-contrib | 0.160.0 | distroless |
+| ouo/collector (built from `collector/`, ocb) | compose `build` | distroless; upstream components pinned in `collector/builder.yaml` (contrib 0.160.0 line). Phases 1 to 8a-rev1 ran `otel/opentelemetry-collector-contrib:0.160.0` |
 
 ## What was tried
 
@@ -52,15 +53,23 @@ all on one laptop with Docker Compose?
 
 ### Collector (`deploy/docker/collector/config.yaml`)
 
-- `receivers.otlp.protocols.http` on `0.0.0.0:4318`, **no `cors:` block since Phase 8a**
-  (browsers go through rum-api, see "Exposure change"). Phases 1 to 7 ran with
-  `cors.allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]` and
-  `allowed_headers: ["*"]`, which made a preflight `OPTIONS /v1/traces` with
-  `Origin: http://localhost:5173` answer `Access-Control-Allow-Origin` and
-  `Access-Control-Allow-Headers: Content-Type, Traceparent, Baggage`; that is the shape
-  to restore if a collector ever has to face a browser again. Note the endpoints must be
-  `0.0.0.0:…`; recent collectors default to `localhost`, which is unreachable inside a
-  container. Exposure is decided by the compose port binding, not by the receiver.
+- `receivers.otlp.protocols.http` on `0.0.0.0:4318` with `auth.authenticator:
+  basicauth/projects` (htpasswd file), `include_metadata: true` and a `cors:` block
+  (`allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]`, `allowed_headers:
+  ["*"]`). Verified against a throwaway stock contrib 0.160.0 with exactly that shape: a
+  preflight `OPTIONS /v1/traces` from `Origin: http://localhost:5173` answers `204` with
+  `Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: authorization,content-type`
+  (it echoes the requested headers), `Access-Control-Allow-Credentials: true`; a foreign
+  origin gets `204` with no allow headers; `POST` without credential, with a wrong
+  password or with an unknown username is `401`; and a `resource` processor with
+  `from_context: auth.username` upserts `ouo.project.id=demo` over a client-sent
+  `spoofed` (seen in the debug exporter). Note the endpoints must be `0.0.0.0:…`; recent
+  collectors default to `localhost`, which is unreachable inside a container. Network
+  exposure is decided by the compose port binding, not by the receiver.
+- The `{SHA}` htpasswd format is `base64(sha1(token))`: `htpasswd -nbs demo <token>` and
+  `printf '%s:{SHA}%s\n' demo "$(printf '%s' <token> | openssl dgst -binary -sha1 | openssl base64)"`
+  produce the identical line (`demo:{SHA}IUpHBAUPHvXoJmvv4inmF4cN96I=` for the dev token),
+  so `install.sh` needs no `apache2-utils`.
 - Pipelines: traces -> `otlp_grpc/tempo` (`tempo:4317`, insecure), logs ->
   `otlp_http/loki` (`http://loki:3100/otlp`), metrics -> `otlp_http/mimir`
   (`http://mimir:9009/otlp`). Processors `memory_limiter` then `batch`.
@@ -165,41 +174,63 @@ filesystem`, memberlist rings bound to `127.0.0.1`. OTLP push is
   on each log record, because it is listed in both `resource_attributes` and
   `log_attributes` and the collector copies it down from the resource.
 
-## Exposure change (Phase 8a, ADR-0007)
+## Exposure change (Phase 8a, ADR-0007 revised)
 
 Until Phase 7 the browser SDK posted OTLP straight to `localhost:4318` and the collector
-published that port on `0.0.0.0` with wildcard-ish CORS. That is fine on a laptop and
-unacceptable anywhere else: anyone who can reach the port can write arbitrary telemetry
-into Loki, Tempo and Mimir, projects cannot be told apart, nothing is rate- or
-size-limited, and a browser preflight that succeeds against the collector means an SDK
-can silently bypass every rule rum-api enforces.
+published that port on `0.0.0.0` with wildcard-ish CORS. Fine on a laptop, unacceptable
+anywhere else: anyone who can reach the port can write arbitrary telemetry into Loki,
+Tempo and Mimir, projects cannot be told apart, nothing is rate- or size-limited.
 
-What changed in `deploy/`:
+The first 8a draft moved the browser path into rum-api (`/ingest/otlp/*`, project token
+header, collector on loopback). The founder's review reversed it: the OpenTelemetry
+Collector is the product's ingress, so it has to be the *only* edge, and rum-api is as
+internal as Loki. What `deploy/` looks like after the revision:
 
-- `compose.yaml` publishes the collector ports as `127.0.0.1:${OUO_OTLP_HTTP_PORT:-4318}:4318`
-  (same for 4317 and the health port 13133). A backend started with `go run .` on the
-  stack host still exports to `http://localhost:4318`; a browser, a phone or another
-  machine cannot reach it. In-network (`otel-collector:4318`) nothing changed.
-- `collector/config.yaml` lost the `cors:` block. A preflight against the collector now
-  returns no `Access-Control-Allow-Origin`, and `smoke.sh` asserts exactly that as a
-  regression check.
-- rum-api gained `/ingest/otlp/v1/{traces,logs,metrics}`: project token
-  (`X-Ouo-Project-Token`, `401`), per-project origin allowlist (`403`), body and rate
-  limits (`413`, `429`), OTLP decode (`400`), `ouo.project.id` stamped on every resource,
-  protobuf forward to `OUO_COLLECTOR_OTLP_ENDPOINT=http://otel-collector:4318`. The
-  compose defaults are the development values `demo` / `pt_dev_demo_0000000000000000` /
-  `http://localhost:*,http://127.0.0.1:*` / `rt_dev_0000000000000000`.
-- `smoke.sh` posts through rum-api and additionally proves the stamp: TraceQL
-  `{ resource.ouo.project.id = "demo" }` finds the trace, `GET /api/traces/<id>` carries
-  `ouo.project.id=demo` even though the client sent `spoofed`, and the Loki record has
-  `ouo_project_id="demo"` as structured metadata (not a label; the Loki `otlp_config`
-  promotion list is unchanged).
-- Server install: `deploy/vm/compose.tls.yaml` adds Caddy (`caddy:2.11.7`) with
-  `tls {$OUO_TLS:internal}` (ACME email or internal CA, a single Caddyfile token so it
-  works through env substitution) and re-binds every other port to loopback with
-  `ports: !override`. Verified with `caddy validate` in both modes and a throwaway Caddy
-  with fake `grafana` / `rum-api` upstreams: both hosts served over TLS from the internal
-  CA, HTTP redirected with 308, unknown SNI refused.
+- `compose.yaml` builds `ouo/collector` from `../../collector` (ocb distribution with
+  `basicauth`, the `ouoreplay` receiver + exporter and the `ouoratelimit` processor) and
+  publishes `${OUO_OTLP_HTTP_PORT:-4318}:4318` and `${OUO_REPLAY_PORT:-4319}:4319` on all
+  interfaces. `4317` (gRPC) and `13133` (health) stay on `127.0.0.1`. Config and
+  `projects.htpasswd` are bind-mounted from `deploy/docker/collector/` (collector agent's
+  files). The collector gets `OUO_INGEST_TOKEN`, the bearer its replay exporter presents
+  to rum-api.
+- Every ingest request carries `Authorization: Basic base64("<project id>:<project
+  token>")`. The username becomes `ouo.project.id` (a `resource` processor reading
+  `auth.username`), so the client-sent value is overwritten. Hash is `{SHA}`: cheap, the
+  token is public anyway.
+- rum-api lost the gateway, the project registry (`projects.example.yaml` is gone) and
+  all `OUO_PROJECT_*` / `OUO_ALLOWED_ORIGINS` / `OUO_COLLECTOR_*` variables. It keeps
+  `POST /v1/replay/chunks` as the sink for the collector (requires `X-Ouo-Project-Id` and
+  `Bearer <OUO_INGEST_TOKEN>`) and `OUO_READ_TOKEN` for `GET/DELETE /v1/*`. Its host port
+  stays published on the laptop for curl; the VM override binds it to loopback and the
+  Helm chart gives it a ClusterIP Service.
+- In-network services are clients like everybody else: the `backend` and `rum-api`
+  services carry `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64>` (variable
+  `OUO_BACKEND_OTLP_HEADERS`, default demo). `%20` is the OTLP env-var encoding of the
+  space; the Go exporters `url.PathUnescape` header values (checked in
+  `otlptracehttp@v1.47.0/internal/envconfig`).
+- `smoke.sh` posts to the collector and proves: CORS allow headers on both public ports
+  for `http://localhost:5173`; `401` without credential, wrong token, unknown project,
+  replay chunk without credential; `401` on rum-api's sink without the ingest token;
+  the stamp (`{ resource.ouo.project.id = "demo" }`, trace by id, Loki
+  `ouo_project_id="demo"`); and that a chunk posted to `:4319` is readable from rum-api
+  with the read token. `wait-ready.sh` probes the collector health on loopback and expects
+  any HTTP answer (401) from the two public ports. `e2e.sh` exports `OUO_OTLP_URL`
+  (`:4318`), `OUO_REPLAY_URL` (`:4319`), `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN`,
+  `OUO_PROJECT_BASIC`, `OUO_RUM_API_URL`, `OUO_READ_TOKEN` and the Grafana variables.
+- Server install: `deploy/vm/compose.tls.yaml` adds Caddy (`caddy:2.11.7`); the Caddyfile
+  routes `otel.<domain>` with `@replay path /v1/replay/*` to `otel-collector:4319` and a
+  bare `handle` to `otel-collector:4318`, `<domain>` to Grafana, `tls {$OUO_TLS:internal}`.
+  Every other port, the collector's included, is re-bound to loopback with `ports:
+  !override`, and `volumes: !override` swaps the dev `projects.htpasswd` for the
+  server-side `deploy/docker/projects.htpasswd` (gitignored) that `install.sh` writes.
+  Verified with `caddy validate` (internal, ACME email, unset) and a throwaway Caddy with
+  fake `grafana` / `otel-collector` upstreams: `/v1/traces` and `/v1/logs` hit 4318,
+  `/v1/replay/chunks` hit 4319 (`202` passed through), Grafana host served, unknown SNI
+  refused, `X-Forwarded-For` appended.
+- Caveat for the collector agent: behind Caddy the collector's TCP peer is always Caddy,
+  so an `ouoratelimit` per-`client.address` bucket would throttle the whole site. It
+  needs to read `X-Forwarded-For` from the request metadata (`include_metadata: true`
+  makes headers available) or the per-client limit must be disabled in the VM config.
 
 Why the collector keeps `0.0.0.0` inside the container: a receiver bound to `localhost`
 is unreachable from rum-api and the demo backend on the compose network. Network
