@@ -84,6 +84,7 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 - [ ] Comparison dashboards and coverage report
 - [ ] Cost model from real ingest volumes
 - [ ] Cutover runbook with rollback
+- [ ] Sentry SDK bridge (ADR-0008 proposed 2026-10-13, spec `docs/specs/sentry-bridge.md`). Order of work: (1) capture golden envelopes from both apps and answer the spec's verify items [collector]; (2) `ouosentry` receiver: forward, parse, translate, resolve sessions [collector]; (3) `video` replay kind [rum-api]; (4) video player [grafana-plugin]; (5) Sentry vs ouo comparison report [qa]. Placement ahead of Phase 10 is a founder decision (roadmap section 6 trigger)
 - [ ] Exit: demo backend reporting to both stacks with matching trace counts and a generated cost comparison
 
 ## Phase 13 Native SDKs
