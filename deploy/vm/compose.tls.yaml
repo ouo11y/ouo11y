@@ -63,6 +63,10 @@ services:
       - "127.0.0.1:${OUO_OTLP_HTTP_PORT:-4318}:4318"
       - "127.0.0.1:${OUO_REPLAY_PORT:-4319}:4319"
       - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"
+    environment:
+      # Every request reaches the collector from Caddy; rate-limit clients by the
+      # X-Forwarded-For hop Caddy sets (Caddy discards client-sent X-Forwarded-For by default).
+      OUO_RATELIMIT_CLIENT_KEY: x_forwarded_for
     volumes: !override
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro

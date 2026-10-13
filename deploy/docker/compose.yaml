@@ -108,6 +108,10 @@ services:
       # Shared secret the ouoreplay exporter sends to rum-api as
       # `Authorization: Bearer ...`; must equal rum-api's OUO_INGEST_TOKEN.
       OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
+      # Browser origins allowed by CORS on 4318 and 4319 (comma separated, no spaces).
+      OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+      # Per-client rate-limit key: address, or x_forwarded_for behind a reverse proxy.
+      OUO_RATELIMIT_CLIENT_KEY: ${OUO_RATELIMIT_CLIENT_KEY:-address}
     volumes:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - ./collector/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
