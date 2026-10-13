@@ -1,6 +1,6 @@
 # Sentry bridge specification
 
-Status: proposed with ADR-0008. Becomes normative when ADR-0008 is accepted. Field names marked **(verify)** are taken from the MIT SDK sources and must be confirmed against captured envelopes (section 11) before the translator is written.
+Status: implemented (`collector/receiver/ouosentryreceiver`, rum-api video kind, plugin 0.4.0) and verified on real `@sentry/react-native` 8.30.0 / `sentry-cocoa` 9.30.1 traffic on 2026-10-14 (`reports/sentry-bridge-verification.html`). Becomes normative when ADR-0008 is accepted. The former **(verify)** items are resolved below from the captures in `collector/receiver/ouosentryreceiver/testdata/golden/`; Android payloads are still unverified.
 
 Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). The supported SDK version range is pinned when the golden envelopes are captured and listed here.
 
@@ -13,7 +13,8 @@ POST /api/{sentry_project_id}/envelope/        port 4320 (ouosentry receiver in 
 - Auth, in this order, and all present ones must agree: `X-Sentry-Auth: Sentry sentry_key=<public key>, ...`, query `?sentry_key=<public key>`, envelope header `dsn`. The pair `(sentry_project_id, public key)` must exist in the project table, else `403 {"detail":"unknown project or key"}` and nothing is forwarded.
 - Body: `Content-Encoding` `gzip`, `deflate` or none is translated. Any other encoding (for example `br`) is forwarded but not translated, and counted with reason `encoding`.
 - Body limit: `max_request_body_size` (default 20 MiB), `413` above it, not forwarded.
-- CORS: none. Mobile SDKs send no `Origin`. Requests with an `Origin` header are `403`, since the browser SDK is out of scope.
+- CORS: none. Mobile SDKs send no `Origin` (verified); the receiver adds no CORS headers, so browsers cannot use it, which is fine while the browser SDK is out of scope.
+- Observed on iOS: every request is `Content-Encoding: gzip`, `Content-Type: application/x-sentry-envelope`, auth in `X-Sentry-Auth` only (no query key, no envelope `dsn`).
 - `ouoratelimit` applies per ouo project and client address to the **translated** side only. Upstream Sentry enforces its own limits on the forwarded side.
 
 ## 2. Forwarding
@@ -22,7 +23,7 @@ For a known project with an upstream:
 
 1. Send `POST {upstream}/api/{sentry_project_id}/envelope/` with the original query string, the original body bytes, and the headers `Content-Type`, `Content-Encoding`, `X-Sentry-Auth`, `User-Agent`. Add `X-Forwarded-For` with the client address. Timeout `upstream_timeout` (default 10 s), pooled client, HTTP/2 when offered.
 2. Copy the upstream status, `Content-Type`, `X-Sentry-Rate-Limits`, `Retry-After` and body to the response.
-3. Upstream timeout or connection error: `502`, not translated. The SDK caches and retries.
+3. Upstream timeout or connection error: the receiver **aborts the client connection** instead of answering, and does not translate. The SDK then sees exactly what it sees when Sentry is down: a network error, so it keeps the envelope and retries (a `5xx` answer could make an SDK discard it). Verified on iOS: during an outage sentry-cocoa retried with backoff and flushed every cached envelope once Sentry was back; ouo recorded each event once.
 4. Upstream `2xx`: enqueue the decoded envelope for translation. Queue size `translate_queue_size` (default 10 000 envelopes). When full, drop and count with reason `queue_full`.
 5. Upstream non-`2xx`: not translated.
 
@@ -53,7 +54,7 @@ Every record and span produced from one envelope gets:
 | `deployment.environment.name` (resource) | `environment` |
 | `ouo.platform` | `mobile` |
 | `os.name`, `os.version` (resource) | `contexts.os.name`, `contexts.os.version` |
-| `device.model.identifier` (resource) | `contexts.device.model` (verify) |
+| `device.model.identifier` (resource) | `contexts.device.model` |
 | `telemetry.sdk.name`, `telemetry.sdk.version` (resource) | envelope `sdk.name`, `sdk.version`, else event `sdk` |
 | `ouo.sentry.sdk` | `sdk.name` (`sentry.cocoa`, `sentry.java.android`, `sentry.javascript.react-native`) |
 | `session.id` | resolved per section 8 |
@@ -75,7 +76,8 @@ Payload fields used: `sid`, `did`, `init`, `started`, `timestamp`, `status`, `er
 | `status: abnormal` | `session.end`, `ouo.session.end_reason = terminated`, `ouo.sentry.abnormal_mechanism` (for example `anr_foreground`) |
 | `status: unhandled` | none; the error event in the same envelope carries the exception |
 
-- `session.end` timestamp is the update `timestamp`. `ouo.session.duration_ms` is `duration * 1000` when present, else `timestamp - started`.
+- `session.end` timestamp is the update `timestamp`, except: a `crashed` session ends at its fatal exception (sentry-cocoa reports the crash and the `crashed` update on the next launch), and an `abnormal` update whose `timestamp` equals `started` (killed process, reported on the next launch with duration 0) ends at the last activity the receiver saw for the session. `ouo.session.duration_ms` is `duration * 1000` when present and positive, else end minus `started`.
+- Observed on iOS: updates after the first omit `init` (treated as `false`); `exited` is sent when the app returns to the foreground with `timestamp` = the moment it went to the background; after a crash the next session's `init` arrives before the crash event and the `crashed` update; `did` equals the default event `user.id`.
 - Every `session.end` also carries `ouo.sentry.session.status` (raw status) and `ouo.sentry.session.errors`.
 - The receiver emits at most one `session.start` and one `session.end` per `sid` while it holds the state. After a restart a duplicate is possible. It is harmless: it comes from the same Sentry update, so it has the same timestamp and reason, and rum-api folding keeps the last `session.end` of a session.
 - **Unsampled errors.** Sentry counts every error in `errors` even when the error event itself was sampled out or dropped by `beforeSend`. When an update's `errors` exceeds the number of `exception` records the receiver emitted for that `sid`, it emits the difference as `exception` records with `exception.type = "sentry.unsampled_error"`, `exception.message = ""`, `ouo.exception.fatal = false`, `ouo.exception.handled = true`, `ouo.sentry.synthetic = true`. This keeps ADR-0004 `errored` in line with Sentry.
@@ -133,8 +135,8 @@ Envelope header `trace.replay_id`, when present, feeds the `replay_id -> sid` ma
 Rules in order; the first match wins.
 
 1. **envelope**: the envelope contains exactly one `session` item. Its `sid` applies to every item in the envelope. With several `session` items, the one whose `errors` changed applies to `event` items, and transactions fall through to rule 2.
-2. **replay**: the item has a replay id (`contexts.replay.replay_id` on events and replay events, envelope header `trace.replay_id`) (verify both), and `replay_id -> sid` is known. The map is learned from any envelope where rule 1 matched and a replay id is present.
-3. **device**: `(ouo project, did)` has a session whose window `[started, last_update + 30 min]` contains the item timestamp. The device key of an item is its `user.id` (verify: both mobile SDKs default `user.id` to the installation id that they also use as `did` when the app sets no user). When the app sets its own user id, `did` follows it, so the key still matches.
+2. **replay**: the item has a replay id (`contexts.replay.replay_id` on events; envelope header `trace.replay_id` on event and transaction envelopes, both observed), `replay_id -> sid` is known, and the item's time falls inside that session's window (`[started - 1 min, last activity + 30 min]`, or `+ 30 s` once the session has ended). The window check is required: after a background rotation the React Native JS layer keeps sending the previous session's replay id in transaction trace headers. The map is learned from any envelope where rule 1 matched and a replay id is present. Replay segments themselves are matched by replay id without the window check (a session's last segments are flushed after it ended).
+3. **device**: `(ouo project, did)` has a session whose window `[started, last_update + 30 min]` contains the item timestamp. The device key of an item is its `user.id` (verified on iOS: the default `user.id` is the installation id the SDK also uses as `did`). When the app sets its own user id, `did` follows it, so the key still matches.
 4. **none**: emitted without `session.id`.
 
 State: LRU of `max_sessions` (default 200 000) entries, TTL 4 h after the last update. Replay segments with no resolution are held up to `replay_hold` (default 10 min, at most `replay_hold_max_bytes`, default 256 MiB), retried on every state change, then dropped with reason `replay_unresolved`.
@@ -143,7 +145,7 @@ State: LRU of `max_sessions` (default 200 000) entries, TTL 4 h after the last u
 
 ### Input
 
-The item payload is a msgpack map with binary values under the keys `replay_event`, `replay_recording`, `replay_video`, in that order (from `sentry-java` `SentryEnvelopeItem.fromReplay`; iOS identical (verify)). `replay_recording` and `replay_video` may be absent.
+The item payload is a msgpack map with binary values under the keys `replay_event`, `replay_recording`, `replay_video`, in any order (sentry-java writes them in that order; sentry-cocoa varies it between segments, observed). `replay_recording` and `replay_video` may be absent. Observed on iOS: fixmap with str8 keys and bin32 values, uncompressed recording JSON, H.264 mp4 at 1 fps, a segment every 5 to 6 s; `replay_start_timestamp` is present on every segment and equals that segment's start.
 
 - `replay_event` (JSON): `replay_id`, `segment_id`, `replay_type` (`session` or `buffer`), `replay_start_timestamp` (first segment), `timestamp`, `trace_ids`, `platform`, plus scope data (`user`, `contexts`).
 - `replay_recording`: a JSON header line `{"segment_id": n}`, a newline, then a JSON array of rrweb-style events. The array may be gzip compressed (check for `1f 8b`).
@@ -154,7 +156,8 @@ Recording events used:
 | rrweb event | Meaning | Fields |
 |---|---|---|
 | `type: 5` (custom), `data.tag: "video"` | the segment | `timestamp` (ms, segment start), `data.payload`: `segmentId`, `size`, `duration` (ms), `encoding`, `container`, `height`, `width`, `frameCount`, `frameRate`, `frameRateType`, `left`, `top` |
-| `type: 3` (incremental), `data.source: 2` (mouse interaction) | a touch | `timestamp`, `data.type` 7 TouchStart, 8 TouchMove_Departed, 9 TouchEnd, 10 TouchCancel; `data.x`, `data.y`, `data.pointerId` |
+| `type: 3` (incremental), `data.source: 2` (mouse interaction) | a touch start or end | `timestamp`, `data.type` 7 TouchStart, 8 TouchMove_Departed, 9 TouchEnd, 10 TouchCancel; `data.x`, `data.y`, `data.pointerId` |
+| `type: 3` (incremental), `data.source: 6` (touch move) | touch moves | `data.positions[]`: `x`, `y`, `id`, `timeOffset` (ms, negative = before the event `timestamp`) |
 
 Other events (breadcrumb custom events, meta events) are ignored in this version.
 
@@ -187,9 +190,9 @@ One chunk per segment, emitted into the replay pipeline (section 10):
 ```
 
 - `seq` = `segment_id`. `started_at` = the video event `timestamp`; `ended_at` = `started_at + duration`. A segment without a video event or without mp4 bytes is dropped with reason `replay_incomplete`.
-- `viewport` = video `width` and `height`, `scale` 1. Touches are copied in the recording's coordinate space, which is assumed to be the video's (verify on both platforms; if the SDK records in screen points, the receiver scales by `width / screen width` from `contexts.device`).
-- Touch `phase`: 7 `began`, 8 `moved`, 9 and 10 `ended`.
-- `platform`: `ios` for `sentry.cocoa`, `android` for `sentry.java.android`, from `contexts.os.name` under React Native.
+- `viewport` = video `width` and `height`, `scale` 1. Touches are copied in the recording's coordinate space, which on iOS is the video's (both in points, 402x874 on an iPhone 18 Pro, observed). Android unverified.
+- Touch `phase`: 7 `began`, 8 and source 6 `moved`, 9 and 10 `ended`.
+- `platform`: from `contexts.os.name` when present, else `replay_event.platform` (`cocoa` is `ios`, `java` is `android`), else the SDK name (`sentry.cocoa*` is `ios`, `sentry.java*` but not `sentry.javascript*` is `android`). React Native envelopes are named `sentry.javascript.react-native` or `sentry.cocoa.react-native`, never plain `sentry.cocoa`.
 - A session keeps the first `replay_id` it sees. Segments of another `replay_id` for the same `sid` are dropped with reason `replay_conflict`.
 
 ## 10. Collector wiring
@@ -303,7 +306,10 @@ Only the attributes named in sections 4 to 9 are produced. In particular these S
 
 ## 14. Verification
 
-1. **Capture first.** A debug build of each app (or the official `sentry-cocoa` and `sentry-android` sample apps at pinned versions) with the DSN on a capture proxy that writes every request to disk and forwards to a throwaway Sentry project. Journey: cold start, two screens, a handled error, a failing request, background for 40 s, foreground, a crash, relaunch. Scrub and commit the envelopes as `collector/ouosentry/testdata/{ios,android}/*.envelope`. Answer every **(verify)** in this spec and record the match rate of each section 8 rule in `kb/sentry-envelope-format.md`.
-2. **Unit tests**: envelope parser (length and newline payloads, gzip and deflate, malformed input), msgpack decoder (fuzz), translation goldens (envelope in, OTLP JSON out), resolution rules, forwarding against a fake upstream (body and headers byte-identical, status and rate-limit headers echoed, unknown key `403` and not forwarded, upstream `5xx` not translated, full queue does not change the response).
-3. **rum-api tests**: video chunk validation, storage, manifest, range request (`curl -r 0-99`), cross-kind `409`.
-4. **End to end**: the sample app with its DSN on the bridge and upstream set to a real Sentry project. Sentry and the ouo plugin show the same sessions, the crash as `crashed`, the handled error as `errored`, and the replay plays in both. An HTML comparison report goes to `reports/`.
+Done on 2026-10-14 for iOS; results in `reports/sentry-bridge-verification.html`.
+
+1. **Capture.** `examples/sentry-mobile` (Expo app on `@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1) drives an unattended journey on the iOS Simulator (`scripts/journey.sh`). `collector/tools/sentrytap` records every request in front of the bridge (A) and at a fake Sentry behind it (B). Two captures are committed as golden fixtures in `collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/`; findings in `kb/sentry-react-native-demo.md` and `kb/sentry-envelope-format.md`.
+2. **Unit tests**: envelope parser, msgpack decoder (both fuzzed), forwarding against a fake upstream (body and headers byte-identical, status and rate-limit headers echoed, unknown key `403` and not forwarded, upstream non-2xx not translated, unreachable upstream aborts the connection), translation of a synthetic journey, restart baseline, replay resolution and hold queue, and golden tests on the real captures with an invariant that nothing lands outside its session's window.
+3. **rum-api tests**: video chunk validation, storage, manifest, range request, cross-kind `409`.
+4. **End to end**: `sentrytap compare A B` must report every request byte-identical with identical responses; `examples/sentry-mobile/scripts/verify-bridge.py` derives sessions, errors, transactions and replays from the raw envelopes and checks rum-api, Loki, Tempo and every mp4 (sha256 and AVFoundation decode). A run with the fake Sentry stopped checks that the SDK retries and that ouo records each event once.
+5. **Not done yet**: a run against a real Sentry project as upstream, Android, other SDK versions.

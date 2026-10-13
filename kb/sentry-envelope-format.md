@@ -2,7 +2,7 @@
 
 Question: what exactly do the Sentry mobile SDKs send, so `ouosentry` can forward it untouched and translate it into ouo telemetry?
 
-Researched 2026-10-13 from develop.sentry.dev and the MIT `sentry-java` sources. Nothing here has been checked against captured traffic yet. Spec section 14 step 1 does that and must update this file with what it finds.
+Researched 2026-10-13 from develop.sentry.dev and the MIT `sentry-java` sources; checked against real iOS traffic on 2026-10-14 (`@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1; captures in `collector/receiver/ouosentryreceiver/testdata/golden/`). Details of the capture setup: `kb/sentry-react-native-demo.md`.
 
 ## Transport
 
@@ -35,7 +35,7 @@ Web replay is two items, `replay_event` plus `replay_recording`. Mobile replay i
 
 Source: `sentry/src/main/java/io/sentry/SentryEnvelopeItem.java`, `fromReplay` and `serializeToMsgpack`.
 
-iOS is expected to produce the same layout because Relay accepts one format for the item. Not yet confirmed: the `sentry-cocoa` source path guessed during research returned 404.
+iOS (sentry-cocoa 9.30.1) produces the same single msgpack item, confirmed on captured traffic, **but the key order varies between segments** (for example `replay_video, replay_event, replay_recording`): decode it as a map. `replay_start_timestamp` is on every segment and equals that segment's start.
 
 Recording events (`sentry-java` `io.sentry.rrweb`):
 
@@ -44,12 +44,19 @@ Recording events (`sentry-java` `io.sentry.rrweb`):
 
 Session mode sends a segment about every 5 s. The maximum replay is 60 minutes. Buffer mode keeps about 30 s and flushes on error, then continues as a session-mode stream with `replay_type` still `buffer`.
 
-## Open questions (to answer from a capture)
+## Answered by the iOS capture (2026-10-14)
 
-- Do error events and transactions carry `contexts.replay.replay_id`, and does the envelope `trace` header carry `replay_id`, on both platforms?
-- Is the default event `user.id` the same installation id the SDK uses as session `did`?
-- What is the touch coordinate space: video pixels or screen points?
-- Is `exited` sent when the app goes to the background or when it next comes to the foreground?
+- **Replay id on errors and transactions**: events carry `contexts.replay.replay_id`; event and transaction envelopes carry `trace.replay_id` in the envelope header. After a background rotation the React Native JS layer keeps sending the **previous** session's replay id on transactions for a while, so a replay-id match must also check the session's time window.
+- **`did` and `user.id`**: equal. The default event `user.id` is the installation id the SDK uses as `did`.
+- **Touch coordinates**: video and touches are both in points (402x874 on an iPhone 18 Pro), no scaling. Starts and ends are incremental source 2, types 7 and 9; **moves are source 6** with `positions[]` (`x`, `y`, `id`, `timeOffset` ms, negative = before the event).
+- **`exited`**: sent when the app returns to the foreground; its `timestamp` is the moment it went to the background.
+- **Crashes**: reported on the next launch. The new session's `init` arrives first, then the crash event together with the `crashed` update of the old session.
+- **Killed process**: reported on the next launch as `abnormal` with `timestamp == started` and duration 0. The timestamp is not a real end time.
+- **Auth and transport**: `X-Sentry-Auth` header only (no `sentry_key` query, no envelope `dsn`), always gzip, no `Origin`.
+- **SDK names**: `sentry.javascript.react-native` (JS events, transactions, most replay segments) and `sentry.cocoa.react-native` (sessions, native crash, some replay segments). Plain `sentry.cocoa` never appears from React Native. `replay_event.platform` is `cocoa`.
+- **When Sentry is unreachable**: with the connection dropped, sentry-cocoa retries the first envelope with backoff, keeps the rest on disk, and flushes everything right after the endpoint answers again.
+
+Still open: Android (`sentry-java`) payloads and native-only iOS apps.
 
 ## Licensing
 
