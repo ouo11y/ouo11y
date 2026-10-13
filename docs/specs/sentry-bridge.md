@@ -194,7 +194,16 @@ One chunk per segment, emitted into the replay pipeline (section 10):
 
 ## 10. Collector wiring
 
-The receiver produces traces and logs. Replay chunks are log records with the chunk JSON as body and the attributes the `ouoreplay` exporter expects (ADR-0007): `session.id`, `ouo.replay.seq`, `ouo.replay.kind = video`, `ouo.replay.encoding = identity`, plus `ouo.replay.chunk = true`. A routing connector sends them to the replay pipeline and everything else to the normal logs pipeline:
+Checked against the Phase 8a rev 2 components in `collector/` and `deploy/docker/collector/config.yaml`.
+
+**Project context.** On the OTLP and replay paths, `basicauth` puts the project id in `client.Info.Auth` as `username`. `resource/project` stamps `ouo.project.id` from it, and `ouoratelimit` keys its project bucket on it. The Sentry path has no Basic credential. After the project table lookup, the receiver therefore puts an auth value with `username = <ouo_project_id>` into `client.Info` on the context it hands to its consumers. Both processors then work unchanged. The receiver also sets `client.Info.Addr` to the client address.
+
+**Replay records.** These are the records the `ouoreplay` exporter already consumes, as the `ouoreplay` receiver writes them:
+- body: the chunk JSON as bytes;
+- resource `ouo.project.id`, and `service.name = ouo-replay`;
+- attributes `ouo.project.id`, `session.id`, `ouo.replay.seq` (int), `ouo.replay.kind = video` and `ouo.replay.encoding = json`.
+
+The receiver adds `ouo.replay.chunk = true`. A routing connector uses it to send these records to `logs/replay` and everything else to `logs`.
 
 ```yaml
 receivers:
@@ -216,18 +225,30 @@ connectors:
   routing/sentry:
     default_pipelines: [logs]
     table:
-      - condition: attributes["ouo.replay.chunk"] == true   # exact syntax pinned to the ocb manifest version
+      - condition: attributes["ouo.replay.chunk"] == true   # exact syntax pinned to the ocb manifest version (0.160.0)
         pipelines: [logs/replay]
 
 service:
   pipelines:
-    traces:         { receivers: [otlp, ouosentry], processors: [memory_limiter, ouoratelimit, resource/project, batch], exporters: [otlp/tempo] }
-    logs/sentry:    { receivers: [ouosentry], processors: [memory_limiter, ouoratelimit], exporters: [routing/sentry] }
-    logs:           { receivers: [otlp, routing/sentry], processors: [resource/project, batch], exporters: [otlphttp/loki] }
-    logs/replay:    { receivers: [ouoreplay, routing/sentry], processors: [], exporters: [ouoreplay] }
+    traces:
+      receivers: [otlp, ouosentry]
+      processors: [memory_limiter, ouoratelimit, resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    logs/sentry:
+      receivers: [ouosentry]
+      processors: [memory_limiter]
+      exporters: [routing/sentry]
+    logs:
+      receivers: [otlp, routing/sentry]
+      processors: [memory_limiter, ouoratelimit, resource/project, transform/events, batch]
+      exporters: [otlp_http/loki]
+    logs/replay:
+      receivers: [ouoreplay, routing/sentry]
+      processors: [memory_limiter, ouoratelimit]
+      exporters: [ouoreplay]
 ```
 
-The receiver stamps `ouo.project.id` itself, because there is no Basic auth context on the Sentry path.
+The `ouoreplay` receiver's chunk validation and the `ouoreplay` exporter must accept `kind: "video"`. The exporter copies the body through. The receiver's kind check rejects anything other than `rrweb` and `frames` today, which matters only for clients posting video chunks to port 4319 directly. Bridged chunks never pass through that receiver.
 
 Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment (or with client-address affinity) until correlation state moves to a shared store (Phase 11). It exports OTLP to the main collector or directly to the backends.
 
