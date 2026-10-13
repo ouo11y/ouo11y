@@ -1,10 +1,11 @@
-# e2e scenario (synthetic sessions through the rum-api ingest gateway)
+# e2e scenario (synthetic sessions through the collector edge)
 
-Status: filled in Phase 6 by qa (2026-10-08), updated for the Phase 8a gateway (2026-10-10). Code:
-`tests/e2e/scenario.mjs`, `deploy/scripts/e2e.sh`. Verified against the Phase 1 to 5 stack and the
-Phase 8a stack (collector-contrib 0.160.0, Loki 3.7.7, Tempo 3.0.3, Grafana 13.2.1, rum-api from
-this tree). Since 8a the script posts to `${OUO_RUM_API}/ingest/otlp/v1/*` with
-`X-Ouo-Project-Token`, never to the collector (which is loopback-only).
+Status: filled in Phase 6 by qa (2026-10-08), updated for Phase 8a revision 2 (2026-10-13, ADR-0007:
+the `ouo-collector` is the only public edge, rum-api is internal). Code: `tests/e2e/scenario.mjs`,
+`deploy/scripts/e2e.sh`. Verified against the `ouo-8a` stack (ouo-collector 0.1.0 on collector
+0.160.0, Loki 3.7.7, Tempo 3.0.3, Grafana 13.2.1, rum-api from this tree). The script posts OTLP to
+`${OUO_OTLP_URL}/v1/*` and replay chunks to `${OUO_REPLAY_URL}/v1/replay/chunks`, both with
+`Authorization: Basic base64(project id:project token)`, and reads rum-api with the read token.
 
 ## Question
 
@@ -35,41 +36,64 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
   trace counts may take up to 90 s (Tempo ingester + rum-api's 60 s cache). Poll, do not sleep.
 - Session ids must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`; `qa-<base36>-w-100-e2` does.
 
-## Phase 8a: gateway, tokens, project stamping
+## Phase 8a: collector edge, tokens, project stamping
 
-- `deploy/scripts/e2e.sh` exports `OUO_RUM_API`, `OUO_OTLP_URL=$OUO_RUM_API/ingest/otlp`,
-  `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN`, `OUO_READ_TOKEN` from `deploy/docker/.env`
-  (`OUO_ENV_FILE=...` to point at another env file, needed when the ports are not the stock ones).
-  The scenario sends the token on every OTLP post and `Authorization: Bearer` on every rum-api read;
-  an empty `OUO_READ_TOKEN` skips the read-auth checks for a rum-api without a read token.
-- Negative checks cost nothing and run before ingestion: POST without / with an unknown token is 401,
-  a valid token with `Origin: https://evil.example` is 403 (the preflight too), `{"resourceSpans": 1}`
-  is 400, `/v1/replay/chunks` without token 401, reads without the read token 401 with
-  `WWW-Authenticate: Bearer realm="ouo-rum-api"` (compare the prefix, not the whole value).
+- `deploy/scripts/e2e.sh` exports `OUO_OTLP_URL` (collector 4318), `OUO_REPLAY_URL` (4319),
+  `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN`, `OUO_PROJECT_BASIC`, `OUO_RUM_API_URL` (read side only),
+  `OUO_READ_TOKEN`, `OUO_GRAFANA_URL` from `deploy/docker/.env` (`OUO_ENV_FILE=...` when the ports
+  are not the stock ones; the `ouo-8a` stack uses 4330 / 4331 / 8090). An empty `OUO_READ_TOKEN`
+  skips the read-auth checks.
+- Edge checks cost nothing and run before ingestion: OTLP without credential, wrong token and
+  unknown project are 401 (`{"code":16,"message":"no basic auth provided"}` / `invalid credentials`);
+  an empty `resourceSpans` batch with the credential is 200; replay without credential or with a
+  wrong token 401; rum-api's sink without the ingest token, or with the public project Basic
+  instead, 401; reads without / with a wrong read token 401 (`WWW-Authenticate: Bearer…`, compare
+  the prefix).
+- CORS preflights by hand must send `Access-Control-Request-Headers` lowercase and **sorted**
+  (`authorization,content-type` on 4318, `authorization,content-encoding,content-type,x-ouo-seq,x-ouo-session-id`
+  on 4319). rs/cors answers an unsorted list with a 204 that has no `Access-Control-Allow-Origin`,
+  which looks like a CORS failure that browsers never hit. A refused origin also gets 204 without
+  the allow headers, so assert the header, not the status.
 - To prove stamping, send `ouo.project.id=spoofed-by-client` on every resource and read the stored
   trace back through Grafana's datasource proxy
-  `GET $GRAFANA/api/datasources/proxy/uid/tempo/api/traces/<trace id>` (basic auth): Tempo answers
-  the v1 `batches[].resource.attributes` shape here, the walker also accepts `trace.resourceSpans`.
-  Expect exactly one `ouo.project.id` per resource, all equal to `OUO_PROJECT_ID`; the trace can
-  404 for a few seconds after search already finds it, poll.
-- Rate-limit check: 400 parallel tiny POSTs from one Node process finish in ~130 ms and get
-  ~300 x 200 then 429 `Retry-After: 1` (`{"error":"client rate limit exceeded"}`); a second later
-  everything is 200 again. Mimir `ouo_ingest_requests{outcome="rejected",reason="rate"}` counts them
-  (metric names in Mimir are `ouo_ingest_requests` / `ouo_ingest_bytes`, no `_total`).
+  `GET $GRAFANA/api/datasources/proxy/uid/tempo/api/traces/<trace id>` (basic auth; v1 `batches`
+  shape, the walker also accepts `trace.resourceSpans`). Expect one `ouo.project.id` per resource,
+  all equal to `OUO_PROJECT_ID`. The trace can 404 for a few seconds after search finds it; poll.
+- Replay end to end: one rrweb chunk for one matrix session to the replay receiver answers 202
+  `{"accepted":1,...}`; the exporter forwards it to rum-api in well under a second, so
+  `GET /v1/sessions/<id>/replay` shows `chunk_count 1, project_id demo` on the first poll and the
+  session detail flips to `has_replay: true` (the others stay false). Use a session that is
+  already in the matrix; a replay-only session id is not listed by rum-api.
+- Rate limit at the collector: 400 parallel tiny authenticated OTLP posts from one Node process
+  finish in ~160 ms with ~307 x 200 and ~93 x 429 `Retry-After: 1` (body is the gRPC status JSON
+  with `RetryInfo`); one second later 200. On Docker Desktop every host request comes from the VM
+  gateway (`192.168.65.1` here), so the per-client bucket (100/s, burst 300) is per laptop.
+  Mimir has `ouo_ratelimit_rejected_total{key_kind="client"}` and
+  `otelcol_receiver_refused_log_records{receiver="otlp"}` with the same count (collector
+  self-metrics are pushed every 15 s; `otelcol_*` names carry no `_total`). 401s are not counted.
+- Body limits: OTLP over 4 MiB is **400** (`http: request body too large`), not 413; an rrweb
+  chunk over 4 MiB on the replay port is 413; a big body without credential is 401 (auth first).
 - Manual QA of the Grafana plugin read token: change it with
   `POST /api/plugins/ouo-rum-app/settings {"enabled":true,"pinned":true,"jsonData":{...},"secureJsonData":{"readToken":"..."}}`
   (admin basic auth) and restore the same way; a Grafana restart re-applies provisioning. On
   Grafana 13.2.1 Reset + empty save deletes the key (`secureJsonFields: {}`).
+- Demo apps on remapped ports: the SDKs derive the replay URL as port 4319 only from 4318. With
+  4330 neither `examples/web` nor `examples/mobile` exposes `replayEndpoint` (qa finding R2-1/R2-2);
+  pass it explicitly or chunks hit the OTLP port and get 404.
 - iOS dev builds: expo-constants evaluates `app.config.ts` during `xcodebuild`
-  (`EXConstants.bundle/app.config`), so `EXPO_PUBLIC_RUM_API` / `BACKEND_URL` must be set for the
-  native build (or in `examples/mobile/.env`), not only for `expo start`. Without `expo-dev-client`
-  the app connects to Metro on 8081 whatever `expo start --port` says; redirect it with
+  (`EXConstants.bundle/app.config`), so `EXPO_PUBLIC_*` / `BACKEND_URL` given only to `expo start`
+  do not reach `Constants.expoConfig.extra`; `process.env.EXPO_PUBLIC_*` read in app code is inlined
+  by Metro and does. Without `expo-dev-client` the app connects to Metro on 8081 whatever
+  `expo start --port` says; redirect it with
   `xcrun simctl spawn booted defaults write dev.ouo.mobilestore RCT_jsLocation "localhost:8091"` and
-  relaunch (delete the key afterwards). The app's URL scheme is `dev.ouo.mobilestore`, not
-  `mobilestore`.
-- Pane-driven unload test: closing the tab from the Claude browser pane did not deliver the
-  pagehide keepalive chunk (a seq gap appears, rum-api tolerates it); a navigation in the same tab
-  does. Use navigation to test the keepalive path, a real Chrome window for tab close.
+  relaunch (delete the key afterwards). In dev the fatal error does not kill the app: terminate and
+  relaunch to get `session.end crash`; pending frames chunks upload on the relaunch.
+- Header evidence in the Claude browser pane: its network log has URLs and statuses but no request
+  headers. Wrap `window.fetch` from `javascript_tool` and record `url`, `Authorization`,
+  `keepalive`, `Content-Encoding`, `x-ouo-seq` into `localStorage` (survives a cross-origin
+  navigation, read it back from a new tab on the same origin) plus a capture-phase `pagehide`
+  listener. In revision 2 both navigation and the pane's tab close delivered the final keepalive
+  chunk.
 
 ## Gotchas
 
