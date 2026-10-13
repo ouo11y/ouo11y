@@ -24,8 +24,66 @@ table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{text-align:left
 </head>
 <body>
 <main>
-<h1>Phase 8a: bugs and observations (qa, 2026-10-10)</h1>
-<p class="sub">Found while verifying the ingest gateway (ADR-0007) against the <code>ouo-8a</code> compose stack. Nothing here was fixed by qa; owners in brackets. Severity: <span class="tag bug">bug</span> breaks a documented behaviour, <span class="tag minor">minor</span> wrong but harmless, <span class="tag obs">observation</span> worth knowing, <span class="tag env">environment</span> tooling caveat.</p>
+<h1>Phase 8a: bugs and observations (qa, 2026-10-10, revision 2 on 2026-10-13)</h1>
+<p class="sub">Found while verifying ADR-0007 against the <code>ouo-8a</code> compose stack: revision 1 (rum-api ingest gateway, 2026-10-10) and revision 2 (the <code>ouo-collector</code> is the only public edge, 2026-10-13). Nothing here was fixed by qa; owners in brackets. Severity: <span class="tag bug">bug</span> breaks a documented behaviour, <span class="tag minor">minor</span> wrong but harmless, <span class="tag obs">observation</span> worth knowing, <span class="tag env">environment</span> tooling caveat.</p>
+
+<h2>Revision 2 (2026-10-13): the collector is the edge</h2>
+<table>
+<tr><th>#</th><th>Severity</th><th>Owner</th><th>Title</th></tr>
+<tr><td>R2-1</td><td><span class="tag minor">minor</span></td><td>examples/web (sdk-browser)</td><td>No way to set <code>replayEndpoint</code>: with an OTLP port other than 4318 replay chunks go to the OTLP port and get 404</td></tr>
+<tr><td>R2-2</td><td><span class="tag minor">minor</span></td><td>examples/mobile (sdk-react-native)</td><td>Same for mobile, and the installed dev client ignores Metro's <code>EXPO_PUBLIC_*</code> (config baked at build time; revision 1 finding 5 still applies)</td></tr>
+<tr><td>R2-3</td><td><span class="tag obs">observation</span></td><td>collector</td><td>Authentication failures (401) at the collector are not visible in Mimir: no counter covers them at <code>telemetry.metrics.level: normal</code></td></tr>
+<tr><td>R2-4</td><td><span class="tag obs">observation</span></td><td>qa (status)</td><td>Revision 1 findings 1, 2 and 3 still reproduce; finding 4 (chunk lost on tab close) did not reproduce</td></tr>
+</table>
+
+<article>
+<h3><span class="tag minor">minor</span> R2-1. examples/web exposes no replay endpoint</h3>
+<dl>
+<dt>Where</dt><dd><code>examples/web/src/rum.ts</code>, <code>.env.example</code>, README env table: only <code>VITE_OTLP_ENDPOINT</code>, <code>VITE_OUO_PROJECT_ID</code>, <code>VITE_OUO_PROJECT_TOKEN</code> reach <code>initRUM</code>.</dd>
+<dt>Seen</dt><dd>The SDK derives the replay receiver as port 4319 only when the endpoint uses 4318; otherwise it uses the endpoint itself. Any stack with remapped ports (here <code>OUO_OTLP_HTTP_PORT=4330</code>, <code>OUO_REPLAY_PORT=4331</code>, both documented in <code>deploy/docker/.env.example</code>) sends chunks to <code>http://localhost:4330/v1/replay/chunks</code>, which the OTLP receiver answers with <strong>404</strong>: the session has no replay and nothing says why except a debug log line.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s -o /dev/null -w '%{http_code}\n' -u demo:pt_dev_demo_0000000000000000 -X POST \
+  -H 'content-type: application/json' -d '{"session_id":"x","seq":0,"started_at":1,"ended_at":2,"events":[]}' \
+  localhost:4330/v1/replay/chunks        # 404 (the derived URL when VITE_OTLP_ENDPOINT=http://localhost:4330)</pre></dd>
+<dt>Worked around</dt><dd>Temporary two-line override in <code>src/rum.ts</code> (<code>replayEndpoint</code> from <code>VITE_OUO_REPLAY_ENDPOINT</code>), reverted after the run.</dd>
+<dt>Suggested fix</dt><dd>Add <code>VITE_OUO_REPLAY_ENDPOINT</code> (optional, passed as <code>replayEndpoint</code>) to <code>rum.ts</code>, <code>.env.example</code> and the README table, with a note that it is needed whenever the OTLP port is not 4318 and there is no proxy routing <code>/v1/replay/*</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag minor">minor</span> R2-2. examples/mobile: no replay endpoint, and Metro env does not reach the dev client</h3>
+<dl>
+<dt>Where</dt><dd><code>examples/mobile/app.config.ts</code> (<code>extra</code>) and <code>src/rum.ts</code>; the dev client installed on the booted iPhone 18 Pro.</dd>
+<dt>Seen</dt><dd>(a) Same as R2-1: <code>rum.ts</code> passes no <code>replayEndpoint</code>, so with 4330 the chunks would go to 4330 and get 404. (b) The installed app's <code>EXConstants.bundle/app.config</code> holds <code>otlpEndpoint: http://localhost:4318</code> and <code>backendUrl: http://localhost:8081</code> from its build; <code>EXPO_PUBLIC_OTLP_ENDPOINT</code> given to <code>npx expo start</code> changes nothing. On this Mac 4318 is the other compose project and 8081 is another session's Metro, so the documented "run Metro with these variables" sends the app's telemetry to the wrong stack and its API calls to a Metro server. A session <code>1da85981</code> started 14:48 UTC (before this run, by another launch) was evidently created that way.</dd>
+<dt>Reproduce</dt><dd><pre>APP=$(xcrun simctl get_app_container booted dev.ouo.mobilestore app)
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["extra"])' "$APP/EXConstants.bundle/app.config"</pre></dd>
+<dt>Worked around</dt><dd>Temporary override in <code>src/rum.ts</code> reading Metro-inlined <code>process.env.EXPO_PUBLIC_OTLP_ENDPOINT</code>, <code>EXPO_PUBLIC_BACKEND_URL</code>, <code>EXPO_PUBLIC_OUO_REPLAY_ENDPOINT</code> (reverted), plus <code>RCT_jsLocation=localhost:8091</code> in the simulator defaults (deleted afterwards).</dd>
+<dt>Suggested fix</dt><dd>Read <code>process.env.EXPO_PUBLIC_*</code> first in <code>rum.ts</code> (inlined at bundle time, so Metro's env wins over the baked <code>extra</code>), add <code>EXPO_PUBLIC_OUO_REPLAY_ENDPOINT</code>, and rename <code>BACKEND_URL</code> to <code>EXPO_PUBLIC_BACKEND_URL</code>; or document that the dev client must be rebuilt with the env.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> R2-3. Collector 401s are invisible in Mimir</h3>
+<dl>
+<dt>Seen</dt><dd>After the e2e edge checks and smoke (several 401s on 4318 and 4319), Mimir has <code>otelcol_receiver_refused_log_records{receiver="otlp"} 93</code> (exactly the 93 rate-limited requests) and <code>ouo_ratelimit_rejected_total{key_kind="client"} 93</code>, but no series for the 401s: basicauth rejects before the receiver counts anything, <code>ouo_replay_chunks_total</code> only has <code>outcome="accepted"</code>, and no <code>http_server_*</code> series with <code>job="ouo-collector"</code> exist at level <code>normal</code> (rum-api and the backend do export them).</dd>
+<dt>Why it matters</dt><dd>A rotated or mistyped project token in a customer app is the most likely ingest failure; the operator has no metric to alert on.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s localhost:9010/prometheus/api/v1/query --data-urlencode \
+  'query=sum by (job, http_response_status_code) (http_server_request_duration_count)'   # no job="ouo-collector"</pre></dd>
+<dt>Suggested fix</dt><dd>Count auth failures in the replay receiver's error handler (<code>outcome="unauthenticated"</code>) and either enable the confighttp server metrics (<code>level: detailed</code>) or wrap the OTLP receiver's auth error handler in a counter.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> R2-4. Status of the revision 1 findings</h3>
+<dl>
+<dt>1 (rum-api timeline)</dt><dd>Still present: web <code>add_to_cart</code> shows <code>ouo_project_id=demo … session_previous_id=…</code>; mobile <code>cart.added</code> shows <code>device_* ouo_project_id=demo …</code> (screenshots <code>8a-rev2-plugin-session-detail.jpg</code>, <code>8a-rev2-plugin-mobile-frames.jpg</code>).</dd>
+<dt>2 (RN double exception)</dt><dd>Still present: session <code>3d4ea94f</code> timeline ends <code>exception, session.end, exception</code>, <code>error_count 1</code>.</dd>
+<dt>3 (RN dev traces)</dt><dd>Still present: two 1-span <code>HTTP POST</code> traces at crash time.</dd>
+<dt>4 (keepalive on tab close)</dt><dd>Not reproduced: in revision 2 the unload chunk arrived on a cross-origin navigation (seq 12, plain JSON, keepalive, Basic) and on the pane's tab close (seq 13), see <code>8a-rev2-unload-keepalive.txt</code>.</dd>
+<dt>5, 6</dt><dd>5 is superseded by R2-2; 6 not re-checked.</dd>
+</dl>
+</article>
+
+<h2>Revision 1 (2026-10-10)</h2>
 
 <h2>Summary</h2>
 <table>
