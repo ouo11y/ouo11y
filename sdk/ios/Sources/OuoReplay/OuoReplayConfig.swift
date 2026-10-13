@@ -3,10 +3,13 @@ import Foundation
 
 /// Host configuration (docs/specs/mobile-replay.md, "Host API").
 public struct OuoReplayConfig {
-    /// rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`.
+    /// Replay receiver base URL (the collector's `ouoreplay` port, 4319 by default, or the proxy
+    /// host that routes `/v1/replay/*` to it); chunks go to `${endpoint}/v1/replay/chunks`.
     public var endpoint: URL
-    /// Project token sent as `X-Ouo-Project-Token` on every upload (ADR-0007). Public by nature;
-    /// rum-api answers 401 without it.
+    /// Project id: the user name of the HTTP Basic credential sent on every upload (ADR-0007).
+    public var projectId: String
+    /// Project token: the password of the Basic credential. Public by nature; the collector
+    /// answers 401 without a valid pair.
     public var projectToken: String
     /// Called when a chunk is opened; must return the active `session.id`.
     public var sessionId: () -> String
@@ -37,6 +40,7 @@ public struct OuoReplayConfig {
 
     public init(
         endpoint: URL,
+        projectId: String,
         projectToken: String,
         sessionId: @escaping () -> String,
         frameInterval: TimeInterval = 1.0,
@@ -54,6 +58,7 @@ public struct OuoReplayConfig {
         seqStore: SeqStore = UserDefaultsSeqStore()
     ) {
         self.endpoint = endpoint
+        self.projectId = projectId
         self.projectToken = projectToken
         self.sessionId = sessionId
         self.frameInterval = frameInterval
@@ -69,6 +74,11 @@ public struct OuoReplayConfig {
         self.maxLongestSide = maxLongestSide
         self.maxTouchCapturesPerSecond = maxTouchCapturesPerSecond
         self.seqStore = seqStore
+    }
+
+    /// `Basic base64("<projectId>:<projectToken>")`, what `ChunkUploader` puts in `Authorization`.
+    public var authorization: String {
+        ChunkUploader.basicAuthorization(projectId: projectId, projectToken: projectToken)
     }
 
     public var redactionRules: RedactionRules {
