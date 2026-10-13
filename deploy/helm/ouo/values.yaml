@@ -9,30 +9,26 @@ imagePullSecrets: []
 commonLabels: {}
 
 # -----------------------------------------------------------------------------
-# Project registry (ADR-0007). Either a single project through environment
-# variables (`project`) or a list rendered to a projects.yaml ConfigMap
-# (`projects`, takes precedence). rum-api refuses to start with no project.
-# A project token is a public identifier: it only grants the right to write
-# telemetry into that project under the rate and size limits.
+# Projects (ADR-0007). The collector is the only internet-facing ingest; every
+# SDK / OTLP request carries `Authorization: Basic base64("<id>:<token>")` and the
+# collector's basicauth extension checks it against an htpasswd file rendered from
+# this list into the Secret <release>-collector-projects (one `{SHA}` line per entry,
+# computed in the template from `token`). A project token is a public identifier:
+# it only grants the right to write telemetry into that project under the limits.
+# Ids are unique and match ^[a-z0-9][a-z0-9._-]{0,63}$. Rotation replaces the token in
+# place: upstream basicauth keeps only the last htpasswd line per username, so two
+# entries with the same id cannot overlap (README.md). At least one entry (or
+# collector.existingProjectsSecret) is required.
 # -----------------------------------------------------------------------------
-project:
-  id: default
-  # Required unless `projects` or `rumApi.existingSecret` is set.
-  token: ""
-  # Comma separated `scheme://host[:port]` patterns; `*` may replace the leading
-  # host label or the port. Requests without an Origin header (mobile, servers) pass.
-  allowedOrigins: ""
-
-# Multi-project registry (list of ADR-0007 project objects). When non-empty it is
-# rendered to /etc/ouo/projects.yaml and OUO_PROJECTS_FILE points at it.
-# projects:
-#   - id: web-store
-#     name: Web store
-#     tokens: [pt_live_9f3c..., pt_prev_...]
-#     allowed_origins: ["https://shop.example.com", "https://*.preview.example.com"]
-#     rate_limit: { requests_per_second: 500, burst: 2000 }
-#     max_body_bytes: 4194304
 projects: []
+#  - id: web-store
+#    token: pt_live_9f3c...
+
+# Shared secret between the collector's replay exporter and rum-api
+# (OUO_INGEST_TOKEN on both): rum-api accepts POST /v1/replay/chunks only with
+# `Authorization: Bearer <ingestToken>` and X-Ouo-Project-Id. Empty disables the
+# check (rum-api is ClusterIP only, so this is defence in depth).
+ingestToken: ""
 
 # Read token (OUO_READ_TOKEN): required by rum-api on GET/DELETE /v1/*; the Grafana
 # plugin sends it from secureJsonData through the plugin route proxy. Empty disables
@@ -40,7 +36,8 @@ projects: []
 readToken: ""
 
 # -----------------------------------------------------------------------------
-# rum-api: ingest gateway, session API, replay store.
+# rum-api: session API, replay store, internal replay sink. ClusterIP only, never
+# an Ingress (ADR-0007 section 5): only the collector and Grafana talk to it.
 # -----------------------------------------------------------------------------
 rumApi:
   image:
@@ -48,8 +45,8 @@ rumApi:
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
-  # Name of a pre-created Secret with keys `project-token` and `read-token`.
-  # When set, `project.token` and `readToken` are ignored.
+  # Name of a pre-created Secret with keys `ingest-token` and `read-token`.
+  # When set, `ingestToken` and `readToken` are ignored.
   existingSecret: ""
   config:
     # Browser-facing Grafana URL used in trace deep links. Empty: derived from
@@ -58,23 +55,19 @@ rumApi:
     tempoDatasourceUid: tempo
     sessionInactivity: 30m
     sessionMaxDuration: 4h
-    # Extra exact origins for the legacy CORS allowlist (CORS_ALLOWED_ORIGINS).
-    corsAllowedOrigins: ""
-    maxIngestBytes: 4194304
-    rateLimit:
-      requestsPerSecond: 1000
-      burst: 5000
-    ipRateLimit:
-      requestsPerSecond: 100
-      burst: 300
-    # Set to true behind an Ingress / load balancer so the client IP is read from
-    # the last X-Forwarded-For hop.
-    trustProxy: false
   otel:
-    # rum-api's own telemetry goes to the chart's collector (OTEL_SDK_DISABLED when false).
+    # rum-api's own telemetry goes to the chart's collector through its internal,
+    # unauthenticated OTLP/HTTP receiver (OTEL_SDK_DISABLED when false).
     enabled: true
     environment: production
-  # Extra environment variables (list of core/v1 EnvVar).
+    # Telemetry goes to the collector's 4318 with the Basic credential of this project
+    # (OTEL_EXPORTER_OTLP_HEADERS, rendered into the rum-api Secret key `otlp-headers`).
+    # Empty: the first entry of `projects`. Every OTLP client needs a credential,
+    # in-cluster ones included (ADR-0007; gRPC 4317 is authenticated too).
+    project: ""
+    # Override when collector.enabled=false (another OTLP/HTTP endpoint).
+    endpoint: ""
+  # Extra environment variables (list of core/v1 EnvVar), e.g. MAX_FRAME_CHUNK_BYTES.
   extraEnv: []
   persistence:
     # Replay chunks (DATA_DIR=/data). With more than one replica the volume must be
@@ -86,22 +79,9 @@ rumApi:
     size: 20Gi
     annotations: {}
   service:
-    type: ClusterIP
+    # Always ClusterIP; there is no type or Ingress option on purpose.
     port: 8080
     annotations: {}
-  ingress:
-    enabled: false
-    className: ""
-    annotations: {}
-    # annotations:
-    #   cert-manager.io/cluster-issuer: letsencrypt
-    host: rum.example.com
-    path: /
-    pathType: Prefix
-    tls:
-      enabled: false
-      # cert-manager fills this Secret when the annotation above is present.
-      secretName: ouo-rum-api-tls
   resources:
     requests:
       cpu: 100m
@@ -135,16 +115,48 @@ rumApi:
     failureThreshold: 12
 
 # -----------------------------------------------------------------------------
-# OpenTelemetry Collector (contrib). ClusterIP only: browsers and mobile apps
-# never reach it, they post to rum-api which forwards (ADR-0007 section 8).
+# ouo collector: the custom OpenTelemetry Collector distribution (collector/,
+# image ouo/collector) and the only public ingest (ADR-0007 sections 1, 4, 7).
+#   4318  OTLP/HTTP   public, Basic auth (project id : project token), CORS
+#   4319  replay      public, Basic auth, CORS, POST /v1/replay/chunks (ouoreplay receiver)
+#   4317  OTLP gRPC   cluster-internal only, same Basic auth (backend services)
+#   13133 health, 8888 self-metrics: cluster-internal only
+# Service <release>-collector carries 4318 and 4319 (type below, Ingress optional);
+# Service <release>-collector-internal (always ClusterIP) carries 4317, 13133 and 8888.
 # -----------------------------------------------------------------------------
 collector:
   enabled: true
   image:
-    repository: otel/opentelemetry-collector-contrib
-    tag: "0.160.0"
+    repository: ouo/collector
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
+  # Pre-created Secret with key `projects.htpasswd` (htpasswd lines, {SHA} or apr1,
+  # never bcrypt). When set, `projects` is not rendered into a Secret.
+  existingProjectsSecret: ""
+  # CORS allowed origins for browser SDKs on both public receivers (OUO_ALLOWED_ORIGINS):
+  # the union of all projects' origins. `*` wildcards work (https://*.example.com).
+  # Empty: the reference default http://localhost:*,http://127.0.0.1:* (mobile and
+  # server clients send no Origin and are unaffected either way).
+  allowedOrigins: []
+  #  - https://shop.example.com
+  #  - https://*.preview.example.com
+  limits:
+    # max_request_body_size per receiver (bytes).
+    otlpMaxBodyBytes: 4194304
+    replayMaxBodyBytes: 8388608
+  rateLimit:
+    # ouoratelimit processor: token buckets per authenticated project and per client address.
+    project:
+      requestsPerSecond: 1000
+      burst: 5000
+    client:
+      requestsPerSecond: 100
+      burst: 300
+      # OUO_RATELIMIT_CLIENT_KEY: `address` (TCP peer) or `x_forwarded_for` (first hop).
+      # Empty: x_forwarded_for when collector.ingress.enabled, otherwise address. Use
+      # x_forwarded_for only behind a proxy that overwrites the header.
+      keyFrom: ""
   memoryLimiter:
     limitMib: 512
     spikeLimitMib: 128
@@ -155,8 +167,24 @@ collector:
   # Full collector config as a string; replaces the generated one when set.
   configOverride: ""
   service:
+    # Public Service with ports 4318 (otlp-http) and 4319 (replay). ClusterIP with an
+    # Ingress, or LoadBalancer when the cluster hands out addresses.
     type: ClusterIP
     annotations: {}
+  ingress:
+    # Routes /v1/replay/* to 4319 and everything else to 4318 on one host.
+    enabled: false
+    className: ""
+    annotations: {}
+    # annotations:
+    #   cert-manager.io/cluster-issuer: letsencrypt
+    #   nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    host: otel.example.com
+    pathType: Prefix
+    tls:
+      enabled: false
+      # cert-manager fills this Secret when the annotation above is present.
+      secretName: ouo-collector-tls
   resources:
     requests:
       cpu: 100m

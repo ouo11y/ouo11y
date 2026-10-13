@@ -19,6 +19,12 @@ spec:
         {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/collector/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.collector.existingProjectsSecret }}
+        checksum/projects: {{ include (print $.Template.BasePath "/collector/secret-projects.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if not .Values.rumApi.existingSecret }}
+        checksum/tokens: {{ include (print $.Template.BasePath "/rum-api/secret.yaml") . | sha256sum }}
+        {{- end }}
         {{- with .Values.collector.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -30,24 +36,45 @@ spec:
       securityContext:
         {{- toYaml .Values.collector.podSecurityContext | nindent 8 }}
       containers:
-        - name: otel-collector
+        - name: collector
           image: {{ include "ouo.image" .Values.collector.image }}
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
           args: ["--config=/etc/otelcol/config.yaml"]
           securityContext:
             {{- toYaml .Values.collector.containerSecurityContext | nindent 12 }}
+          env:
+            # Bearer the replay exporter sends to rum-api (same Secret key rum-api reads).
+            - name: OUO_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: ingest-token
+                  optional: true
+            {{- with .Values.collector.allowedOrigins }}
+            - name: OUO_ALLOWED_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: OUO_RATELIMIT_CLIENT_KEY
+              value: {{ include "ouo.rateLimitClientKey" . | quote }}
           ports:
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: replay
+              containerPort: 4319
+              protocol: TCP
             - name: otlp-grpc
               containerPort: 4317
               protocol: TCP
-            - name: otlp-http
-              containerPort: 4318
+            - name: metrics
+              containerPort: 8888
               protocol: TCP
             - name: health
               containerPort: 13133
               protocol: TCP
           volumeMounts:
-            - name: config
+            # config.yaml (ConfigMap) and projects.htpasswd (Secret) side by side.
+            - name: etc-otelcol
               mountPath: /etc/otelcol
               readOnly: true
           livenessProbe:
@@ -65,9 +92,19 @@ spec:
           resources:
             {{- toYaml .Values.collector.resources | nindent 12 }}
       volumes:
-        - name: config
-          configMap:
-            name: {{ include "ouo.collector.fullname" . }}
+        - name: etc-otelcol
+          projected:
+            sources:
+              - configMap:
+                  name: {{ include "ouo.collector.fullname" . }}
+                  items:
+                    - key: config.yaml
+                      path: config.yaml
+              - secret:
+                  name: {{ include "ouo.collector.projectsSecretName" . }}
+                  items:
+                    - key: projects.htpasswd
+                      path: projects.htpasswd
       {{- with .Values.collector.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

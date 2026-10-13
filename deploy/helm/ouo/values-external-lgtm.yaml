@@ -1,13 +1,14 @@
 # Install ouo next to an existing Grafana LGTM stack (the customer's Loki, Tempo and
-# Mimir). Nothing LGTM is deployed; rum-api, the collector and Grafana point at the URLs
+# Mimir). Nothing LGTM is deployed; the collector, rum-api and Grafana point at the URLs
 # below. Replace the hosts with your Services (the defaults match the upstream
 # grafana/loki, grafana/tempo-distributed and grafana/mimir-distributed charts installed
 # in namespace `observability`).
 #
 #   helm install ouo deploy/helm/ouo -n ouo --create-namespace \
 #     -f deploy/helm/ouo/values-external-lgtm.yaml \
-#     --set project.token=$(echo pt_$(openssl rand -hex 16)) \
-#     --set readToken=$(echo rt_$(openssl rand -hex 16)) \
+#     --set projects[0].id=web-store --set projects[0].token=pt_$(openssl rand -hex 16) \
+#     --set ingestToken=it_$(openssl rand -hex 16) \
+#     --set readToken=rt_$(openssl rand -hex 16) \
 #     --set grafana.adminPassword=$(openssl rand -base64 18)
 
 lgtm:
@@ -23,31 +24,39 @@ lgtm:
     # mimirPrometheusUrl: http://mimir-query-frontend.observability.svc:8080/prometheus
     # tenantId: ouo
 
-project:
-  id: web-store
-  token: ""          # --set project.token=pt_...  (public identifier, ships in browser bundles)
-  allowedOrigins: "https://shop.example.com,https://*.preview.example.com"
-readToken: ""        # --set readToken=rt_...      (secret: Grafana -> rum-api)
+# Public project identifiers (they ship in browser bundles): --set projects[0].token=pt_...
+projects: []
+#  - id: web-store
+#    token: pt_live_...
+ingestToken: ""      # --set ingestToken=it_...   (secret: collector -> rum-api)
+readToken: ""        # --set readToken=rt_...     (secret: Grafana -> rum-api)
 
-rumApi:
+collector:
   image:
-    repository: ghcr.io/ziadmansourm/ouo/rum-api
+    repository: ghcr.io/ziadmansourm/ouo/collector
     tag: "0.2.0"
-  config:
-    trustProxy: true           # behind the Ingress controller
-  persistence:
-    size: 50Gi
-    storageClass: ""           # cluster default
+  # Union of every project's browser origins.
+  allowedOrigins:
+    - https://shop.example.com
+    - https://*.preview.example.com
   ingress:
     enabled: true
     className: nginx
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt
       nginx.ingress.kubernetes.io/proxy-body-size: 16m   # replay chunks are up to 8 MiB
-    host: rum.example.com
+    host: otel.example.com
     tls:
       enabled: true
-      secretName: ouo-rum-api-tls
+      secretName: ouo-collector-tls
+
+rumApi:
+  image:
+    repository: ghcr.io/ziadmansourm/ouo/rum-api
+    tag: "0.2.0"
+  persistence:
+    size: 50Gi
+    storageClass: ""           # cluster default
 
 grafana:
   image:
