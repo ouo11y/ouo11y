@@ -3,7 +3,7 @@
 Plugin id `ouo-rum-app`, version in `package.json` (see `CHANGELOG.md`). Frontend-only Grafana app
 plugin that is the ouo user interface: **Overview** (healthy / errored / crashed percentages per
 platform and version), **Sessions** (filterable list) and **Session detail** (timeline, traces with
-Grafana Explore links, rrweb or frame replay synced to the timeline). All data comes from
+Grafana Explore links, rrweb, frame or video replay synced to the timeline). All data comes from
 `services/rum-api` through the plugin route proxy; the browser never talks to rum-api directly and
 never sees the read token.
 
@@ -18,8 +18,20 @@ browser --/api/plugin-proxy/ouo-rum-app/rum/v1/...--> Grafana --(routes[0].url =
 |---|---|
 | `/a/ouo-rum-app/overview?from=now-24h&to=now` | stat tiles + version table per platform, Grafana time range picker (state in the URL) |
 | `/a/ouo-rum-app/sessions?from&to&platform&status&service&version&user&limit` | sessions table; row click opens the detail |
-| `/a/ouo-rum-app/sessions/<session_id>?from&to` | header, timeline, replay (web `rrweb` or native `frames`), traces |
+| `/a/ouo-rum-app/sessions/<session_id>?from&to` | header, timeline, replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge), traces |
 | `/plugins/ouo-rum-app` | configuration: `rumApiUrl`, `readToken` (write-only), "Test connection" |
+
+## Replay players
+
+`replay_kind` on the session record (or `kind` in `GET /v1/sessions/{id}/replay` for older records) picks the
+player; all three expose the same `goto`/`play`/`pause` handle, so replay markers and timeline clicks seek them
+the same way.
+
+| Kind | Data | Player |
+|---|---|---|
+| `rrweb` | `/replay/events` | `ReplayPlayer` (rrweb-player in a sandboxed iframe) |
+| `frames` | `/replay/frames` (base64 JPEG + touches) | `FramePlayer` |
+| `video` | `/replay/video` manifest + `/replay/video/{seq}` mp4 (ADR-0008) | `VideoPlayer`: one `<video>` per segment (current + next preloaded) whose `src` is the proxy URL (`/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/<id>/replay/video/<seq>`); the Grafana session cookie authenticates it and the proxy passes `Range`/206 through. The replay clock is the master, gaps keep the previous segment's last frame, touches fade over 500 ms, "Sentry replay" badge from `source.vendor`. Keys: space, arrows (one frame), shift+arrows (one segment). |
 
 ## Configuration
 

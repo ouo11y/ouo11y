@@ -49,6 +49,11 @@ const SORT_HINT = 'Sorts the loaded page client-side (rows limited by the Limit 
 const REPLAY_KIND: Record<ReplayKind, { icon: IconName; label: string; title: string }> = {
   rrweb: { icon: 'brackets-curly', label: 'rrweb', title: 'DOM replay recorded by the browser SDK (rrweb)' },
   frames: { icon: 'camera', label: 'frames', title: 'Screenshot replay recorded by the native SDK' },
+  video: {
+    icon: 'presentation-play',
+    label: 'video',
+    title: 'Video replay (mp4 segments) recorded by a mobile SDK, e.g. Sentry Session Replay',
+  },
 };
 
 export function SessionsTable({ sessions, onOpen, initialSort = DEFAULT_SORT }: Props) {
@@ -157,11 +162,7 @@ export function ReplayCell({ session }: { session: SessionRecord }) {
   return (
     <Tooltip content={title}>
       <span className={styles.replay} data-testid="replay-cell" data-replay-kind={replay.kind ?? undefined}>
-        {replay.duration ? (
-          <span className={styles.replayDuration}>{replay.duration}</span>
-        ) : (
-          <Icon name="play" />
-        )}
+        {replay.duration ? <span className={styles.replayDuration}>{replay.duration}</span> : <Icon name="play" />}
         {kind && (
           <span className={styles.kind}>
             <Icon name={kind.icon} size="sm" /> {kind.label}

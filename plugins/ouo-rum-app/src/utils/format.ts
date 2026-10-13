@@ -82,10 +82,14 @@ export function formatDateTime(ts: string | number | undefined | null): string {
 }
 
 export interface ReplaySummary {
-  /** `rrweb` or `frames`; null when the record predates `replay_kind`. */
+  /** `rrweb`, `frames` or `video`; null when the record predates `replay_kind`. */
   kind: ReplayKind | null;
   /** Formatted like the Duration column; null until rum-api reports `replay_duration_ms`. */
   duration: string | null;
+}
+
+export function isReplayKind(value: unknown): value is ReplayKind {
+  return value === 'rrweb' || value === 'frames' || value === 'video';
 }
 
 /** Replay column content: null when the session has no replay. */
@@ -97,7 +101,7 @@ export function replaySummary(
   }
   const ms = s.replay_duration_ms;
   const duration = ms === undefined || ms === null || Number.isNaN(ms) || ms < 0 ? null : formatDuration(ms);
-  const kind = s.replay_kind === 'rrweb' || s.replay_kind === 'frames' ? s.replay_kind : null;
+  const kind = isReplayKind(s.replay_kind) ? s.replay_kind : null;
   return { kind, duration };
 }
 

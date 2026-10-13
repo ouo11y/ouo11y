@@ -44,8 +44,10 @@ rejected so there is exactly one span.
 - Go 1.26's built-in MIME table does map `.mp4` to `video/mp4`, but rum-api sets the
   `Content-Type` explicitly anyway.
 
-## Open for the plugin
+## Through the Grafana plugin proxy
 
-Not yet verified: whether Grafana's plugin route proxy passes `Range` through and returns
-the 206 unchanged. If it does not, the player can fetch each segment whole as a blob
-(`URL.createObjectURL`); segments are small.
+Verified on 2026-10-14 (Grafana 13.2.1, `ouo-sb` stack): the plugin route proxy passes `Range`
+through and returns the 206 unchanged (`curl -r 100-199` gave `Content-Range: bytes 100-199/7728`,
+and Chrome's own `<video>` requests got 206). Grafana adds `Cache-Control: no-store` and
+`Content-Security-Policy: sandbox` to proxied responses; playback still works. The player uses
+the proxy URL as `<video src>` directly. Details: `kb/grafana-plugin-video-player.md`.

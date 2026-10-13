@@ -94,6 +94,19 @@ describe('SessionsTable', () => {
     expect(within(byId('older-crashed')).getByTestId('replay-none')).toBeInTheDocument();
   });
 
+  it('labels a video replay (Sentry bridge) in the Replay column', () => {
+    render(
+      <SessionsTable
+        sessions={[session({ session_id: 'video-1', has_replay: true, replay_kind: 'video', replay_duration_ms: 17_000 })]}
+        onOpen={jest.fn()}
+      />
+    );
+    const cell = screen.getByTestId('replay-cell');
+    expect(cell.getAttribute('data-replay-kind')).toBe('video');
+    expect(cell.textContent).toContain('17.0s');
+    expect(cell.textContent).toContain('video');
+  });
+
   it('opens a row on click and on Enter', () => {
     const onOpen = jest.fn();
     render(<SessionsTable sessions={sessions} onOpen={onOpen} />);
