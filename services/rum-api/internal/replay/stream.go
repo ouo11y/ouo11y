@@ -7,9 +7,21 @@ import (
 	"io"
 )
 
+// ReadPath is the read endpoint (below /v1/sessions/{id}) of a replay kind.
+func ReadPath(kind string) string {
+	switch kind {
+	case KindFrames:
+		return "/replay/frames"
+	case KindVideo:
+		return "/replay/video"
+	default:
+		return "/replay/events"
+	}
+}
+
 // WriteEvents streams every chunk of an rrweb replay in seq order as one JSON
 // array of rrweb events to w. It returns ErrNotFound when the session has no
-// replay and ErrWrongKind when the replay is frames. Chunks that fail to
+// replay and ErrWrongKind when the replay is of another kind. Chunks that fail to
 // decode are skipped (the player plays from the next full snapshot).
 func WriteEvents(ctx context.Context, st Store, sessionID string, w io.Writer) error {
 	meta, err := st.Meta(ctx, sessionID)
@@ -17,7 +29,7 @@ func WriteEvents(ctx context.Context, st Store, sessionID string, w io.Writer) e
 		return err
 	}
 	if meta.Kind != KindRRWeb {
-		return fmt.Errorf("%w: replay of session %s is %s, use /replay/frames", ErrWrongKind, sessionID, meta.Kind)
+		return fmt.Errorf("%w: replay of session %s is %s, use %s", ErrWrongKind, sessionID, meta.Kind, ReadPath(meta.Kind))
 	}
 	if _, err := io.WriteString(w, "["); err != nil {
 		return err
@@ -46,14 +58,14 @@ func WriteEvents(ctx context.Context, st Store, sessionID string, w io.Writer) e
 // with the frames and touches of every chunk concatenated in seq order.
 // Frames are copied through without re-encoding (they hold the base64 JPEGs);
 // touches are small and buffered until the frames array is closed. It returns
-// ErrNotFound when the session has no replay and ErrWrongKind for rrweb.
+// ErrNotFound when the session has no replay and ErrWrongKind for another kind.
 func WriteFrames(ctx context.Context, st Store, sessionID string, w io.Writer) error {
 	meta, err := st.Meta(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	if meta.Kind != KindFrames {
-		return fmt.Errorf("%w: replay of session %s is %s, use /replay/events", ErrWrongKind, sessionID, meta.Kind)
+		return fmt.Errorf("%w: replay of session %s is %s, use %s", ErrWrongKind, sessionID, meta.Kind, ReadPath(meta.Kind))
 	}
 	head, err := json.Marshal(struct {
 		SessionID string    `json:"session_id"`
@@ -106,6 +118,86 @@ func WriteFrames(ctx context.Context, st Store, sessionID string, w io.Writer) e
 	}
 	_, err = io.WriteString(w, "]}")
 	return err
+}
+
+// VideoManifest is the body of GET /v1/sessions/{id}/replay/video
+// (sentry-bridge.md 11): the segments in seq order with the path of each mp4,
+// and every touch of every chunk in seq order.
+type VideoManifest struct {
+	SessionID string            `json:"session_id"`
+	Kind      string            `json:"kind"`
+	Viewport  *Viewport         `json:"viewport"`
+	Platform  string            `json:"platform"`
+	StartedAt int64             `json:"started_at"`
+	EndedAt   int64             `json:"ended_at"`
+	Segments  []VideoSegment    `json:"segments"`
+	Touches   []json.RawMessage `json:"touches"`
+	Source    *Source           `json:"source"`
+}
+
+// VideoSegment is one mp4 of a video replay. Bytes is the mp4 size; Path is
+// the rum-api path that serves it (relative to the API root).
+type VideoSegment struct {
+	Seq        int    `json:"seq"`
+	StartedAt  int64  `json:"started_at"`
+	EndedAt    int64  `json:"ended_at"`
+	DurationMs int64  `json:"duration_ms"`
+	FrameCount int    `json:"frame_count"`
+	Bytes      int64  `json:"bytes"`
+	Path       string `json:"path"`
+}
+
+// BuildVideoManifest reads a video replay's meta and the touches of its
+// chunk files. It returns ErrNotFound when the session has no replay and
+// ErrWrongKind for another kind. Chunk files that fail to decode contribute
+// no touches; their segment is still listed.
+func BuildVideoManifest(ctx context.Context, st Store, sessionID string) (VideoManifest, error) {
+	meta, err := st.Meta(ctx, sessionID)
+	if err != nil {
+		return VideoManifest{}, err
+	}
+	if meta.Kind != KindVideo {
+		return VideoManifest{}, fmt.Errorf("%w: replay of session %s is %s, use %s", ErrWrongKind, sessionID, meta.Kind, ReadPath(meta.Kind))
+	}
+	m := VideoManifest{
+		SessionID: meta.SessionID, Kind: meta.Kind, Viewport: meta.Viewport, Platform: meta.Platform,
+		StartedAt: meta.StartedAt, EndedAt: meta.EndedAt, Source: meta.Source,
+		Segments: make([]VideoSegment, 0, len(meta.Chunks)), Touches: []json.RawMessage{},
+	}
+	for _, ch := range meta.Chunks {
+		if err := ctx.Err(); err != nil {
+			return VideoManifest{}, err
+		}
+		d := ch.EndedAt - ch.StartedAt
+		if ch.DurationMs != nil {
+			d = *ch.DurationMs
+		}
+		m.Segments = append(m.Segments, VideoSegment{
+			Seq: ch.Seq, StartedAt: ch.StartedAt, EndedAt: ch.EndedAt, DurationMs: d,
+			FrameCount: ch.FrameCount, Bytes: ch.VideoBytes,
+			Path: fmt.Sprintf("/v1/sessions/%s/replay/video/%d", sessionID, ch.Seq),
+		})
+		rc, err := st.OpenChunk(ctx, sessionID, ch.Seq)
+		if err != nil {
+			continue
+		}
+		copyArray(rc, "touches", func(raw json.RawMessage) error {
+			m.Touches = append(m.Touches, raw)
+			return nil
+		})
+		rc.Close()
+	}
+	return m, nil
+}
+
+// WriteVideo writes the video manifest of a session as JSON to w (same
+// errors as BuildVideoManifest).
+func WriteVideo(ctx context.Context, st Store, sessionID string, w io.Writer) error {
+	m, err := BuildVideoManifest(ctx, st, sessionID)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(w).Encode(m)
 }
 
 func writeElem(w io.Writer, raw json.RawMessage, first *bool) error {

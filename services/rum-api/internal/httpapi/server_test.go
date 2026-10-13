@@ -113,6 +113,8 @@ func newTestServerWith(t *testing.T, mod func(*Options)) (*httptest.Server, *fak
 	if mod != nil {
 		mod(&opts)
 	}
+	// main.go hands the same limit to the store and the API.
+	store.MaxVideoBytes = opts.MaxVideoChunkBytes
 	srv := New(fe, ft, store, opts)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

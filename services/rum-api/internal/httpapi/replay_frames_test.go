@@ -295,6 +295,7 @@ func TestReplaySummaryFromMeta(t *testing.T) {
 	}{
 		{"frames", replay.Meta{Kind: replay.KindFrames, StartedAt: 1791471538578, EndedAt: 1791471548578, FrameCount: 12}, ptr64(10000), ptr(12)},
 		{"rrweb", replay.Meta{Kind: replay.KindRRWeb, StartedAt: 100, EndedAt: 250}, ptr64(150), nil},
+		{"video", replay.Meta{Kind: replay.KindVideo, StartedAt: 1000, EndedAt: 11000, FrameCount: 10}, ptr64(10000), ptr(10)},
 		{"single instant", replay.Meta{Kind: replay.KindFrames, StartedAt: 5, EndedAt: 5, FrameCount: 1}, ptr64(0), ptr(1)},
 		{"no timestamps", replay.Meta{Kind: replay.KindFrames, FrameCount: 3}, nil, ptr(3)},
 		{"ended before started", replay.Meta{Kind: replay.KindRRWeb, StartedAt: 10, EndedAt: 4}, nil, nil},
