@@ -36,7 +36,7 @@ What makes this feasible:
 
    A project may set `upstream: none`. The receiver then answers `200 {"id":"<event_id>"}` itself and only translates. That is the cutover mode, and the mode for apps that never used Sentry.
 
-3. **Translation produces ordinary ouo telemetry.** The translator emits OTLP log records and spans that satisfy `docs/specs/session-lifecycle.md`, with `ouo.project.id` stamped from the project table as every other receiver does. Downstream nothing knows the data came from Sentry: Loki, Tempo, rum-api folding, ADR-0004 classification and the Grafana plugin work unchanged. The normative mapping is in `docs/specs/sentry-bridge.md`. In short:
+3. **Translation produces ordinary ouo telemetry.** The translator emits OTLP log records and spans that satisfy `docs/specs/session-lifecycle.md`, with the ouo project from the project table placed in the request's client auth context, so the existing `resource/project` and `ouoratelimit` processors stamp and limit it exactly as for Basic-authenticated OTLP. Downstream nothing knows the data came from Sentry: Loki, Tempo, rum-api folding, ADR-0004 classification and the Grafana plugin work unchanged. The normative mapping is in `docs/specs/sentry-bridge.md`. In short:
 
    | Envelope item | ouo output |
    |---|---|
