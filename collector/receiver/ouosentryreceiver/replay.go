@@ -163,19 +163,31 @@ func (seg *replaySegment) parseRecording(rec []byte) error {
 			}
 		case 3: // incremental snapshot
 			var d struct {
-				Source int      `json:"source"`
-				Type   int      `json:"type"`
-				X      *float64 `json:"x"`
-				Y      *float64 `json:"y"`
+				Source    int      `json:"source"`
+				Type      int      `json:"type"`
+				X         *float64 `json:"x"`
+				Y         *float64 `json:"y"`
+				Positions []struct {
+					X          float64 `json:"x"`
+					Y          float64 `json:"y"`
+					TimeOffset float64 `json:"timeOffset"`
+				} `json:"positions"`
 			}
-			if json.Unmarshal(e.Data, &d) != nil || d.Source != 2 || d.X == nil || d.Y == nil {
+			if json.Unmarshal(e.Data, &d) != nil {
 				continue
 			}
-			phase := map[int]string{7: "began", 8: "moved", 9: "ended", 10: "ended"}[d.Type]
-			if phase == "" {
-				continue
+			switch d.Source {
+			case 2: // mouse interaction: TouchStart 7, TouchMove_Departed 8, TouchEnd 9, TouchCancel 10
+				phase := map[int]string{7: "began", 8: "moved", 9: "ended", 10: "ended"}[d.Type]
+				if phase == "" || d.X == nil || d.Y == nil {
+					continue
+				}
+				seg.touches = append(seg.touches, touch{TS: ts, X: *d.X, Y: *d.Y, Phase: phase})
+			case 6: // touch move: positions with timeOffset (ms, negative = before the event)
+				for _, p := range d.Positions {
+					seg.touches = append(seg.touches, touch{TS: ts + int64(p.TimeOffset), X: p.X, Y: p.Y, Phase: "moved"})
+				}
 			}
-			seg.touches = append(seg.touches, touch{TS: ts, X: *d.X, Y: *d.Y, Phase: phase})
 		}
 	}
 	return nil
@@ -349,6 +361,13 @@ func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegme
 	c.EndedAt = c.StartedAt + vm.Duration
 	c.Viewport = viewport{Width: vm.Width, Height: vm.Height, Scale: 1}
 	c.Platform = seg.os
+	if c.Platform == "" {
+		osName := ""
+		if seg.event.Contexts.OS != nil {
+			osName = seg.event.Contexts.OS.Name
+		}
+		c.Platform = detectOS("", osName, seg.event.Platform)
+	}
 	c.Video.Container = firstString(vm.Container, "mp4")
 	c.Video.Encoding = firstString(vm.Encoding, "h264")
 	c.Video.DurationMS = vm.Duration

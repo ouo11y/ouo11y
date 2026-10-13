@@ -11,6 +11,27 @@ import (
 // timeout.
 const deviceWindow = 30 * time.Minute
 
+// endedGrace is how long after an ended session's last update it still claims
+// items. Mobile SDKs end a session after 30 s in the background and the next
+// one starts on foreground, so nothing later than that can belong to it.
+const endedGrace = 30 * time.Second
+
+// startSkew tolerates items timed slightly before the session's start (the app
+// start transaction begins before the SDK opens the session).
+const startSkew = time.Minute
+
+// covers reports whether an item at `at` can belong to the session.
+func (x *sess) covers(at time.Time) bool {
+	if at.IsZero() {
+		return true
+	}
+	end := x.lastEvent.Add(deviceWindow)
+	if x.endEmitted {
+		end = x.lastEvent.Add(endedGrace)
+	}
+	return !at.Before(x.started.Add(-startSkew)) && !at.After(end)
+}
+
 // sess is what the bridge remembers about one Sentry session.
 type sess struct {
 	key       string // project + "/" + sid
@@ -28,6 +49,7 @@ type sess struct {
 	errorsSeen        int // last `errors` value of a session update
 	exceptionsEmitted int // exception records emitted for this session
 	replayID          string
+	fatalAt           time.Time // time of the first fatal exception
 	lastScreen        string
 	elem              *list.Element
 }
@@ -147,14 +169,8 @@ func (s *sessionState) byDeviceAt(project, did string, at time.Time) *sess {
 	}
 	var best *sess
 	for x := range s.byDevice[project+"/"+did] {
-		end := x.lastEvent.Add(deviceWindow)
-		if x.endEmitted {
-			end = x.lastEvent
-		}
-		if at.IsZero() || (!at.Before(x.started.Add(-time.Minute)) && !at.After(end)) {
-			if best == nil || x.started.After(best.started) {
-				best = x
-			}
+		if x.covers(at) && (best == nil || x.started.After(best.started)) {
+			best = x
 		}
 	}
 	return best

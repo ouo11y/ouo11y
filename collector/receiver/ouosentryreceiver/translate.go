@@ -201,7 +201,7 @@ func (t *translation) buildResource(items []decodedItem) {
 	p := t.j.project
 	release, environment, sdkVersion := "", "", t.env.Header.SDK.Version
 	t.sdkName = t.env.Header.SDK.Name
-	osName, osVersion, model := "", "", ""
+	osName, osVersion, model, platformHint := "", "", "", ""
 	for _, it := range items {
 		if s := it.session; s != nil {
 			release = firstString(release, s.Attrs.Release)
@@ -228,9 +228,17 @@ func (t *translation) buildResource(items []decodedItem) {
 			if seg.event.SDK != nil {
 				t.sdkName = firstString(t.sdkName, seg.event.SDK.Name)
 			}
+			if seg.event.Contexts.OS != nil {
+				osName = firstString(osName, seg.event.Contexts.OS.Name)
+			}
+			// replay_event.platform is "cocoa" on iOS, "java" on Android.
+			platformHint = firstString(platformHint, seg.event.Platform)
+		}
+		if e := it.event; e != nil {
+			platformHint = firstString(platformHint, e.Platform)
 		}
 	}
-	t.os = detectOS(t.sdkName, osName)
+	t.os = detectOS(t.sdkName, osName, platformHint)
 
 	res := pcommon.NewMap()
 	res.PutStr("service.name", p.ServiceName)
@@ -291,7 +299,10 @@ func (t *translation) resolve(st *sessionState, envSessions map[string]*sentrySe
 		}
 	}
 	if x == nil {
-		if c := st.byReplayID(project, replayID); c != nil {
+		// The replay id of a transaction can be stale: after a background
+		// rotation the JS layer keeps sending the previous session's id in the
+		// trace header for a while. Accept it only inside that session's window.
+		if c := st.byReplayID(project, replayID); c != nil && c.covers(eventTime(e, t.j.receivedAt)) {
 			x, match = c, matchReplay
 		}
 	}
@@ -431,6 +442,9 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 	t.setTraceContext(lr, e.Contexts.Trace)
 	if x != nil {
 		x.exceptionsEmitted++
+		if fatal && (x.fatalAt.IsZero() || ts.Before(x.fatalAt)) {
+			x.fatalAt = ts
+		}
 	}
 }
 
@@ -495,11 +509,21 @@ func (t *translation) emitSession(st *sessionState, s *sentrySession) {
 	if reason == "" || x.endEmitted {
 		return
 	}
-	lr := t.newRecord("session.end", updatedAt, x, matchEnvelope, s.DID, plog.SeverityNumberInfo)
+	endAt := updatedAt
+	switch {
+	case s.Status == "crashed" && !x.fatalAt.IsZero() && x.fatalAt.Before(endAt):
+		// Reported on the next launch: the session ended when it crashed.
+		endAt = x.fatalAt
+	case s.Status == "abnormal" && x.lastEvent.After(endAt):
+		// Sent on the next launch with timestamp == started: the last thing the
+		// bridge saw is the best end time available.
+		endAt = x.lastEvent
+	}
+	lr := t.newRecord("session.end", endAt, x, matchEnvelope, s.DID, plog.SeverityNumberInfo)
 	a := lr.Attributes()
 	a.PutStr("ouo.session.end_reason", reason)
-	dur := updatedAt.Sub(x.started).Milliseconds()
-	if s.Duration != nil {
+	dur := endAt.Sub(x.started).Milliseconds()
+	if s.Duration != nil && *s.Duration > 0 {
 		dur = int64(*s.Duration * 1000)
 	}
 	a.PutInt("ouo.session.duration_ms", dur)
@@ -749,13 +773,22 @@ func firstString(ss ...string) string {
 	return ""
 }
 
-func detectOS(sdkName, osName string) string {
-	n := strings.ToLower(sdkName + " " + osName)
+func detectOS(sdkName, osName, platform string) string {
+	o := strings.ToLower(osName)
 	switch {
-	case strings.Contains(n, "cocoa") || strings.Contains(n, "ios") || strings.Contains(n, "ipados"):
+	case strings.Contains(o, "ios") || strings.Contains(o, "ipados"):
 		return "ios"
-	case strings.Contains(n, "android"):
+	case strings.Contains(o, "android"):
 		return "android"
 	}
-	return strings.ToLower(osName)
+	p := strings.ToLower(platform)
+	n := strings.ToLower(sdkName)
+	switch {
+	case p == "cocoa" || strings.Contains(n, "cocoa"):
+		return "ios"
+	case p == "java" || p == "android" || strings.Contains(n, "android") ||
+		(strings.HasPrefix(n, "sentry.java") && !strings.HasPrefix(n, "sentry.javascript")):
+		return "android"
+	}
+	return o
 }
