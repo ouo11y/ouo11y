@@ -28,6 +28,12 @@ export function HomeScreen({ navigation }: ScreenProps<"Home">) {
       ))}
       <Button title="Open cart" tone="muted" onPress={() => navigation.navigate("Cart")} />
 
+      <Text style={styles.section}>Shop flows (traces + logs)</Text>
+      <ActionButton name="browse-catalog" />
+      <ActionButton name="search" />
+      <ActionButton name="checkout" />
+      <ActionButton name="checkout-fail" />
+
       <Text style={styles.section}>Network</Text>
       <ActionButton name="fetch-ok" />
       <ActionButton name="fetch-500" />

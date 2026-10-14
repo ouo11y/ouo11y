@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Unattended Sentry SDK journey on the booted iOS Simulator (no taps: deep links only).
 #
-#   scripts/journey.sh [--no-nav] [--no-network] [--no-errors] [--no-background] [--no-crash]
-#                      [--js-fatal] [--bg-seconds 40] [--replay-wait 12] [--device <udid>] [--openurl]
+#   scripts/journey.sh [--no-nav] [--no-network] [--no-shop] [--no-errors] [--no-background] [--no-crash]
+#                      [--js-fatal] [--shop-rounds 2] [--bg-seconds 40] [--replay-wait 12] [--device <udid>] [--openurl]
 #
 # Commands use the deep-link grammar (action/<name>, screen/<name>). By default they are delivered
 # through the app's file mailbox (Documents/journey-command, polled by src/mailbox.ts) because on
@@ -13,6 +13,9 @@
 #   launch      terminate + launch the app (session init, app start, first replay segment)
 #   nav         Home -> Product -> Cart -> Home (navigation transactions)
 #   network     fetch OK, fetch 500, slow fetch (http.client spans)
+#   shop        --shop-rounds x (browse catalog, search, checkout, declined checkout): manually
+#               instrumented transactions whose fetches reach the backend (app + backend spans in
+#               one trace) and Sentry.logger calls (log items)
 #   errors      handled error, breadcrumb + message, unhandled promise rejection
 #   replay      wait so replay segments flush (one segment about every 5 s)
 #   background  Settings app in front for --bg-seconds (> 30 s), relaunch: session `exited` + new session
@@ -26,7 +29,8 @@ set -euo pipefail
 
 DEVICE="${SIM_UDID:-D64DE653-47C7-4349-91E3-D6E64D9EF009}"
 BUNDLE=dev.ouo.sentrydemo
-NAV=1 NETWORK=1 ERRORS=1 BACKGROUND=1 CRASH=1 JSFATAL=0
+NAV=1 NETWORK=1 SHOP=1 ERRORS=1 BACKGROUND=1 CRASH=1 JSFATAL=0
+SHOP_ROUNDS=2
 BG_SECONDS=40
 OPENURL=0
 REPLAY_WAIT=12
@@ -35,6 +39,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-nav) NAV=0 ;;
     --no-network) NETWORK=0 ;;
+    --no-shop) SHOP=0 ;;
+    --shop-rounds) SHOP_ROUNDS="$2"; shift ;;
     --no-errors) ERRORS=0 ;;
     --no-background) BACKGROUND=0 ;;
     --no-crash) CRASH=0 ;;
@@ -43,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     --replay-wait) REPLAY_WAIT="$2"; shift ;;
     --device) DEVICE="$2"; shift ;;
     --openurl) OPENURL=1 ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
     *) echo "unknown flag $1" >&2; exit 2 ;;
   esac
   shift
@@ -93,6 +99,18 @@ if [[ $NETWORK == 1 ]]; then
   link "action/fetch-ok"; wait_s 2
   link "action/fetch-500"; wait_s 2
   link "action/fetch-slow"; wait_s 5
+fi
+
+if [[ $SHOP == 1 ]]; then
+  log "== phase shop ($SHOP_ROUNDS rounds)"
+  for ((round = 1; round <= SHOP_ROUNDS; round++)); do
+    link "action/browse-catalog"; wait_s 3
+    link "action/search"; wait_s 3
+    link "screen/product?id=p-100$((round + 3))"; wait_s 3
+    link "screen/home"; wait_s 2
+    link "action/checkout"; wait_s 3
+    link "action/checkout-fail"; wait_s 3
+  done
 fi
 
 if [[ $ERRORS == 1 ]]; then

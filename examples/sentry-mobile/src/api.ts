@@ -59,4 +59,14 @@ export const getProduct = (id: string) => api<Product>(`/api/products/${encodeUR
 export const getCart = () => api<Cart>("/api/cart");
 export const addToCart = (productId: string) => api<Cart>("/api/cart", { method: "POST", json: { productId, qty: 1 } });
 
+export interface Order {
+  orderId: string;
+  total: number;
+  items: number;
+}
+
+/** `broken-card` makes the backend answer 500 (payment gateway unavailable). */
+export const checkout = (paymentMethod: "card" | "broken-card") => api<Order>("/api/checkout", { method: "POST", json: { paymentMethod } });
+export const searchProducts = (delay: number) => api<Product[]>("/api/products", { flags: { delay } });
+
 export const formatPrice = (n: number) => `$${n.toFixed(2)}`;
