@@ -220,14 +220,63 @@ which still bundles `ErrorUtils` but whose browser timers never reach it) the `e
 `unhandledrejection` window events are installed as well, de-duplicated per error object, and
 an uncaught error counts as fatal (ADR-0004, web rule).
 
+Hermes keeps one promise rejection tracker: every `enablePromiseRejectionTracker` call replaces
+the previous one, and `HermesInternal` is frozen, so the tracker cannot be shared. The SDK
+initialised last gets unhandled rejections. `errors.onUnhandledRejection` hands each rejection
+on after ouo recorded it (to Sentry, see "Next to Sentry").
+
 ## Network
 
-`globalThis.fetch` is wrapped: one `CLIENT` span `HTTP <METHOD>` per request with
+`globalThis.fetch` and `XMLHttpRequest` (axios, superagent and other XHR clients) are wrapped:
+one `CLIENT` span `HTTP <METHOD>` per request with
 `http.request.method`, `url.full`, `url.scheme`, `url.path`, `server.address`, `server.port`,
 `http.response.status_code` (`error.type` on failure); `traceparent` and `baggage`
 (`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
 SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
+React Native's `fetch` runs on `XMLHttpRequest`; the XHR that a wrapped `fetch` call opens is
+skipped, so a fetch is one span, not two. On XHR, `traceparent` is only added when the request
+has none yet (XHR would join two into one invalid header); `baggage` is merged.
+
+## Next to Sentry
+
+The SDK runs in an app that keeps `@sentry/react-native`, the way an APM agent and an
+OpenTelemetry SDK can run side by side while a team moves over. Verified on the iOS Simulator
+with `examples/sentry-mobile` built with `OUO_SDK=1` (@sentry/react-native 8.30.0, Hermes).
+
+1. **Initialise ouo after Sentry** and forward unhandled rejections to it:
+
+   ```js
+   // index.js: imports run in order, and before any code in this file
+   import "./src/sentry"; // Sentry.init(...)
+   import "./src/ouo";    // initRUM(...) below
+   import App from "./App";
+   ```
+
+   ```js
+   initRUM({
+     // ...
+     errors: {
+       onUnhandledRejection: (e) =>
+         Sentry.captureException(e, { mechanism: { type: "onunhandledrejection", handled: true } }),
+     },
+   });
+   ```
+
+   Hermes keeps one rejection tracker and the SDK initialised last owns it; ouo records each
+   rejection and hands it to Sentry, so both report it once. Without the hook, the SDK warns in
+   debug mode that Sentry stopped getting rejections. Initialised the other way round, Sentry
+   owns the tracker and ouo never sees a rejection.
+2. **Trace headers**: initialised last, ouo's fetch and XHR wrappers run first and set
+   `traceparent`; Sentry then adds `sentry-trace` and its `baggage` entries but no second
+   `traceparent`, whatever its `propagateTraceparent` says. The backend joins ouo's trace.
+3. **Errors**: each global error handler calls the one before it; both SDKs see every error.
+   `Sentry.captureException` calls stay Sentry-only (use `rum.captureError` for ouo).
+4. **Exclude ouo's uploads from Sentry's tracing**, or Sentry records them as `http.client`
+   spans: `Sentry.reactNativeTracingIntegration({ shouldCreateSpanForRequest: (url) => !url.startsWith(OUO_ENDPOINT) })`.
+5. Two independent sessions (ouo's rules and Sentry's), two replays when both record (about twice
+   the capture cost), two uploads. Do not also point Sentry's DSN at the ouo collector's Sentry
+   bridge while both SDKs run: ouo would get every session twice.
 
 ## Events (OTel log records, `event.name`)
 
