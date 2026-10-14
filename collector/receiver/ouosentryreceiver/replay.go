@@ -56,6 +56,10 @@ type replaySegment struct {
 	received    time.Time
 	os          string
 	resolvedSID string
+	resource    pcommon.Map // resource of the envelope, for breadcrumb records
+	sdkName     string
+	breadcrumbs []breadcrumb
+	masked      *bool // from the recording's `options` event (first segment of a replay)
 }
 
 type videoPayload struct {
@@ -153,7 +157,29 @@ func (seg *replaySegment) parseRecording(rec []byte) error {
 				Tag     string          `json:"tag"`
 				Payload json.RawMessage `json:"payload"`
 			}
-			if json.Unmarshal(e.Data, &d) != nil || d.Tag != "video" {
+			if json.Unmarshal(e.Data, &d) != nil {
+				continue
+			}
+			switch d.Tag {
+			case "breadcrumb":
+				var b breadcrumb
+				if json.Unmarshal(d.Payload, &b) == nil {
+					b.at = time.UnixMilli(ts).UTC()
+					seg.breadcrumbs = append(seg.breadcrumbs, b)
+				}
+				continue
+			case "options":
+				var o struct {
+					MaskAllText   *bool `json:"maskAllText"`
+					MaskAllImages *bool `json:"maskAllImages"`
+				}
+				if json.Unmarshal(d.Payload, &o) == nil && o.MaskAllText != nil && o.MaskAllImages != nil {
+					m := *o.MaskAllText || *o.MaskAllImages
+					seg.masked = &m
+				}
+				continue
+			case "video":
+			default:
 				continue
 			}
 			var vp videoPayload
@@ -270,7 +296,7 @@ func (r *sentryReceiver) resolveReplay(j job, seg *replaySegment) (string, bool)
 		x := st.byReplayID(project, seg.event.ReplayID)
 		if x == nil && seg.event.User != nil {
 			at := firstTime(seg.startedAt, seg.event.Timestamp.Time)
-			if c := st.byDeviceAt(project, seg.event.User.ID, at); c != nil {
+			if c := st.byDeviceForReplay(project, seg.event.User.ID, at); c != nil {
 				x = c
 				st.learnReplay(c, seg.event.ReplayID)
 			}
@@ -284,6 +310,13 @@ func (r *sentryReceiver) resolveReplay(j job, seg *replaySegment) (string, bool)
 		}
 		x.replayID = seg.event.ReplayID
 		sid = x.sid
+		// Only the first segment carries the masking options; later ones
+		// inherit them from the session.
+		if seg.masked != nil {
+			x.replayMasked = seg.masked
+		} else {
+			seg.masked = x.replayMasked
+		}
 	})
 	return sid, found
 }
@@ -352,7 +385,9 @@ func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegme
 		return
 	}
 	vm := seg.videoMeta
-	c := videoChunk{Kind: "video", SchemaVersion: 1, SessionID: sid, Seq: seg.event.SegmentID, Masked: true}
+	// Unknown masking options count as masked (the SDK default).
+	masked := seg.masked == nil || *seg.masked
+	c := videoChunk{Kind: "video", SchemaVersion: 1, SessionID: sid, Seq: seg.event.SegmentID, Masked: masked}
 	start := seg.startedAt
 	if start.IsZero() {
 		start = seg.event.Timestamp.Time
@@ -414,6 +449,7 @@ func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegme
 		r.drop(ctx, j.project.OuoProjectID, "consumer_replay")
 		r.set.Logger.Debug("replay chunk rejected by the pipeline", zap.Error(err))
 	}
+	r.emitBreadcrumbs(ctx, j, seg, sid)
 }
 
 // ---- msgpack subset ------------------------------------------------------------

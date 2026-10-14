@@ -29,7 +29,8 @@ collector/
   Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ziadmansourm/ouo/collector)
   receiver/ouoreplayreceiver/           POST /v1/replay/chunks -> one log record per chunk
   receiver/ouosentryreceiver/           POST /api/{id}/envelope/ -> forward to Sentry unchanged, then
-                                        sessions, errors, spans and video replay chunks (ADR-0008)
+                                        sessions, errors, spans, logs, replay breadcrumbs and video
+                                        replay chunks (ADR-0008)
   tools/sentrytap/                      records Sentry SDK traffic, fakes Sentry, proves byte-identical forwarding
   exporter/ouoreplayexporter/           log record -> rum-api POST /v1/replay/chunks
   processor/ouoratelimitprocessor/      token buckets per project and per client
@@ -193,7 +194,7 @@ receivers:
     upstream_timeout: 30s
     max_translate_bytes: 20971520      # bigger envelopes are forwarded, not translated
     translate_queue_size: 10000
-    state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m }
+    state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m, log_hold: 1m }
     projects:
       - sentry_project_id: "4504"
         public_keys: ["<public key>"]

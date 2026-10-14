@@ -37,6 +37,7 @@ const (
 	matchEnvelope = "envelope"
 	matchReplay   = "replay"
 	matchDevice   = "device"
+	matchTrace    = "trace"
 	matchNone     = "none"
 )
 
@@ -67,6 +68,7 @@ type decodedItem struct {
 	session *sentrySession
 	event   *sentryEvent
 	replay  *replaySegment
+	logs    []sentryLog
 }
 
 // translation accumulates the output of one envelope.
@@ -103,6 +105,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 	envReplayID := traceReplayID(env.Header.Trace)
 
 	var replays []*replaySegment
+	var heldLogs []sentryLog
 	r.state.withLock(func() {
 		st := r.state
 		project := j.project.OuoProjectID
@@ -134,6 +137,19 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 		for _, s := range sessionOrder {
 			t.emitSession(st, s)
 		}
+		// Sentry logs: resolved through the state updated above, else held
+		// until the error or transaction carrying their trace id arrives.
+		for _, it := range items {
+			for i := range it.logs {
+				l := &it.logs[i]
+				if x, match := resolveLog(st, project, l); x != nil {
+					st.touch(x, l.Timestamp.Time)
+					t.emitLog(l, x, match)
+				} else {
+					heldLogs = append(heldLogs, *l)
+				}
+			}
+		}
 		// Replay segments resolve against the state updated above.
 		for _, it := range items {
 			if it.replay != nil {
@@ -142,14 +158,19 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 		}
 	})
 
+	r.holdLogs(ctx, t, heldLogs)
 	t.consume(ctx)
 	for _, seg := range replays {
 		seg.os = t.os
 		seg.received = j.receivedAt
+		seg.resource = t.resource
+		seg.sdkName = t.sdkName
 		r.handleReplay(ctx, j, seg)
 	}
-	// Sessions or replay ids learned from this envelope may resolve held segments.
+	// Sessions, replay ids and trace ids learned from this envelope may
+	// resolve held segments and logs.
 	r.flushPending(ctx)
+	r.flushPendingLogs(ctx, false)
 }
 
 // decode parses the items the translator understands and counts all of them.
@@ -171,6 +192,13 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			var e sentryEvent
 			if json.Unmarshal(it.Payload, &e) == nil {
 				d.event = &e
+			} else {
+				translated = false
+			}
+		case "log":
+			logs, err := decodeLogs(it.Payload)
+			if err == nil {
+				d.logs = logs
 			} else {
 				translated = false
 			}
@@ -311,12 +339,23 @@ func (t *translation) resolve(st *sessionState, envSessions map[string]*sentrySe
 			x, match = c, matchDevice
 		}
 	}
+	var tid string
+	if e.Contexts.Trace != nil {
+		tid = normTraceID(e.Contexts.Trace.TraceID)
+	}
+	if x == nil {
+		if c := st.byTraceAt(project, tid, eventTime(e, t.j.receivedAt)); c != nil {
+			x, match = c, matchTrace
+		}
+	}
 	if x == nil {
 		return nil, matchNone
 	}
 	if match == matchEnvelope {
 		st.learnReplay(x, replayID)
 	}
+	// Rule 4: later logs and transactions of this trace belong to this session.
+	st.learnTrace(x, tid)
 	st.touch(x, eventTime(e, t.j.receivedAt))
 	return x, match
 }
@@ -358,7 +397,7 @@ func (t *translation) newRecord(name string, ts time.Time, x *sess, match, userI
 	lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(t.j.receivedAt))
 	lr.SetEventName(name)
 	lr.SetSeverityNumber(sev)
-	lr.SetSeverityText(map[plog.SeverityNumber]string{plog.SeverityNumberInfo: "INFO", plog.SeverityNumberWarn: "WARN", plog.SeverityNumberError: "ERROR", plog.SeverityNumberFatal: "FATAL"}[sev])
+	lr.SetSeverityText(map[plog.SeverityNumber]string{plog.SeverityNumberTrace: "TRACE", plog.SeverityNumberDebug: "DEBUG", plog.SeverityNumberInfo: "INFO", plog.SeverityNumberWarn: "WARN", plog.SeverityNumberError: "ERROR", plog.SeverityNumberFatal: "FATAL"}[sev])
 	lr.Body().SetStr(name)
 	a := lr.Attributes()
 	a.PutStr(attrEventName, name)
