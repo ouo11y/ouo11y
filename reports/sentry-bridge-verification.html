@@ -135,6 +135,16 @@ PASS every served mp4 is byte-identical to the mp4 the SDK sent (sha256)  (25 se
 <figure><img src="sentry-bridge/grafana-timeline-unmasked.jpg" alt="Session timeline with requests, logs and console lines next to the unmasked replay at the checkout"><figcaption>Timeline with requests, logs and console lines; clicking "order ord-000007 placed" seeks the unmasked replay to +40.4 s.</figcaption></figure>
 <figure><img src="sentry-bridge/grafana-explore-joined-trace.jpg" alt="Explore showing trace sentry-demo checkout-fail with demo-backend spans nested under the app's GET span"><figcaption>"Open in Explore" on a <code>checkout-fail</code> trace: 29 spans, 2 services; the backend's <code>GET /api/products</code>, <code>inventory.lookup</code> and <code>db.query</code> under the app's span.</figcaption></figure>
 </div>
+<h3>Founder review: taps, timeline layout, session logs (plugin 0.5.0)</h3>
+<ul>
+<li><b>Clicks not in the recording</b>: the scripted journey drives the app through a file mailbox, so it has no real touches (0 in the manifest). A session tapped on the simulator has 24 touch points (11 taps, 2 moves) and 9 <code>ui.tap</code> timeline events named by the touched component (<code>action-checkout</code>, <code>btn-Add to cart</code>). The marker was drawn but invisible: a theme-blue ring at 15 % fill on the demo's purple buttons, gone after 500 ms at 1 frame per second. It is now white with a dark halo and stays 1.5 s on video replays.</li>
+<li><b>Empty space under the timeline</b>: the list was capped at <code>100vh - 150px</code> while the panel stretched to the taller replay panel. The list now fills the panel (measured: 17 px from the list to the panel edge, the panel's padding and border, at 1500x900 and 2000x1000).</li>
+<li><b>Logs section</b>: rum-api <code>GET /v1/sessions/{id}/logs</code> returns the session's own lines and every line that shares one of its traces. One LogQL query: <code>session_id="…" or trace_id=~"…"</code>. On the main session: 119 lines (29 logs, 19 console, 3 errors, 68 backend request lines through 26 traces). Filters, text search, click to seek, a trace link per line and the query in Loki Explore.</li>
+</ul>
+<div class="grid">
+<figure><img src="sentry-bridge/grafana-session-logs.jpg" alt="Logs section with app logs and demo-backend request lines interleaved"><figcaption>Logs section: the backend's <code>request failed error=payment gateway unavailable</code> next to the app's <code>payment failed: HTTP 500</code>.</figcaption></figure>
+<figure><img src="sentry-bridge/grafana-tap-marker.jpg" alt="Replay seeked to the Checkout tap, white touch marker on the Checkout button"><figcaption>A real tap: timeline "Tap action-checkout" seeks the replay; the marker sits on the Checkout button.</figcaption></figure>
+</div>
 <p>What the SDK does that shaped the design:</p>
 <ul>
 <li><code>enableLogs</code> in @sentry/react-native 8.30 also captures <code>console.*</code>, and the same lines are breadcrumbs in the replay. The bridge maps console log entries to <code>console</code> events and drops the second copy of a line (same message within 2 s in the session).</li>
