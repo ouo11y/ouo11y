@@ -58,6 +58,16 @@ Session mode sends a segment about every 5 s. The maximum replay is 60 minutes. 
 
 Still open: Android (`sentry-java`) payloads and native-only iOS apps.
 
+## Logs and replay breadcrumbs (observed 2026-10-14, @sentry/react-native 8.30.0 / @sentry/core 10.76.0)
+
+- `log` item header: `{"type":"log","item_count":N,"content_type":"application/vnd.sentry.items.log+json","length":L}`. Payload `{"version":2,"items":[...]}`. The envelope carries only the `sdk` header (no `trace` DSC, never a `session` item).
+- Entry: `timestamp` (Unix seconds, float), `level`, `body`, `trace_id`, `severity_number` (OTel numbers; `info` sent as 10 for console output), `attributes` as `{"value":..,"type":"string|boolean|integer|double"}`.
+- Attributes the RN SDK adds itself: `sentry.release`, `sentry.environment`, `sentry.sdk.name`, `sentry.sdk.version`, `sentry.replay_id` (present on iOS: the mobile replay integration answers `getReplayId`), `sentry.timestamp.sequence`, `sentry.origin` (`auto.log.console` for console capture), `sentry.message.template` and `sentry.message.parameter.N` with `logger.fmt`, `sentry.trace.parent_span_id` inside a span, and from `LogEnricher` `device.model`, `device.family`, `os.name`, `os.version`. `user.id`/`user.email`/`user.name` only when the JS scope has a user.
+- `enableLogs: true` in RN 8.30 also installs console capture: every `console.*` line becomes a log entry. The same lines are console breadcrumbs in the replay recording, so they arrive twice.
+- Logs are flushed 5 s after the last one (RN client idle timer), usually after the transaction with the same trace id.
+- Replay recordings carry the scope breadcrumbs as rrweb custom events `{"type":5,"data":{"tag":"breadcrumb","payload":{category, message, level, type, timestamp, data}}}`, each in one segment: `fetch` (`method`, `url`, `status_code`, `__span`), `console`, `navigation`, `app.inactive` / `app.background`, `sentry.transaction`, and every `Sentry.addBreadcrumb`. Segment 0 also has a `{"tag":"options"}` event with `maskAllText`, `maskAllImages`, `quality`, `maskedViewClasses`.
+- Without `startNewTrace`, every root span (`startSpan({forceTransaction: true})`) reuses the scope's propagation trace id until the next navigation, so several user flows share one trace id.
+
 ## Licensing
 
 The SDKs are MIT. Relay and the Sentry server are FSL, so do not copy their code. Implement from develop.sentry.dev and the SDK sources only.

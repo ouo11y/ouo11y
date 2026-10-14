@@ -130,14 +130,38 @@ Derived log records (same trace and span id as their span):
 
 Envelope header `trace.replay_id`, when present, feeds the `replay_id -> sid` map (section 8).
 
+## 7a. Structured logs (`log` item)
+
+Sentry logs (`enableLogs: true`, `Sentry.logger.*`) arrive as one `log` item per flush (header `item_count`, `content_type: application/vnd.sentry.items.log+json`). The payload is `{"version": 2, "items": [...]}` (observed `version` 2 with @sentry/core 10.76.0); each entry has `timestamp` (Unix seconds, float), `level`, `body`, `trace_id`, `severity_number` and typed `attributes` (`{"value": ..., "type": "string" | "boolean" | "integer" | "double"}`).
+
+Each entry becomes one log record with `event.name = log`, or `console` for console output (`attributes["sentry.origin"] = auto.log.console`: `enableLogs` in @sentry/react-native 8.30.0 also captures `console.*`, observed):
+
+| Log record | From |
+|---|---|
+| timestamp | `timestamp` |
+| severity number, text | `severity_number` (OTel numbers, 1 to 24), else from `level`; text = `level` upper-cased |
+| body, `message` | `body` (`message` truncated to 1 KiB) |
+| trace id, span id | `trace_id`, `attributes["sentry.trace.parent_span_id"]` |
+| `ouo.sentry.level` | `level` |
+| `ouo.sentry.log.template` | `attributes["sentry.message.template"]` (`Sentry.logger.fmt`) |
+| `ouo.sentry.origin` | `attributes["sentry.origin"]` |
+| other attributes | every attribute the app set, typed, at most 32, string values truncated to 1 KiB |
+
+Not copied: the SDK's `sentry.*` attributes (release, environment and SDK are on the resource), `device.*` and `os.*` (resource), `user.email`, `user.name`, `user.ip_address`. `user.id` becomes the record's `user.id` when no session supplies one.
+
+Session resolution (section 8): `attributes["sentry.replay_id"]` (rule 2; present on iOS React Native entries, observed), `trace_id` (rule 4), `attributes["user.id"]` (rule 3). A log item never travels with a `session` item, so rule 1 does not apply. The JS SDK flushes logs 5 s after the last one, usually after the transaction that carries the same trace id; an entry whose session is not known yet is held up to `log_hold` (default 1 min) and retried after every envelope and every 5 s. After the hold, or at shutdown, it is emitted without `session.id` (`ouo.sentry.session_match = none`), never dropped. At most 20 000 entries are held; beyond that new entries are emitted without a session.
+
 ## 8. Session resolution
 
 Rules in order; the first match wins.
 
 1. **envelope**: the envelope contains exactly one `session` item. Its `sid` applies to every item in the envelope. With several `session` items, the one whose `errors` changed applies to `event` items, and transactions fall through to rule 2.
 2. **replay**: the item has a replay id (`contexts.replay.replay_id` on events; envelope header `trace.replay_id` on event and transaction envelopes, both observed), `replay_id -> sid` is known, and the item's time falls inside that session's window (`[started - 1 min, last activity + 30 min]`, or `+ 30 s` once the session has ended). The window check is required: after a background rotation the React Native JS layer keeps sending the previous session's replay id in transaction trace headers. The map is learned from any envelope where rule 1 matched and a replay id is present. Replay segments themselves are matched by replay id without the window check (a session's last segments are flushed after it ended).
-3. **device**: `(ouo project, did)` has a session whose window `[started, last_update + 30 min]` contains the item timestamp. The device key of an item is its `user.id` (verified on iOS: the default `user.id` is the installation id the SDK also uses as `did`). When the app sets its own user id, `did` follows it, so the key still matches.
-4. **none**: emitted without `session.id`.
+3. **device**: `(ouo project, did)` has a session whose window `[started, last_update + 30 min]` contains the item timestamp. The device key of an item is its `user.id` (verified on iOS: the default `user.id` is the installation id the SDK also uses as `did`). When the app sets its own user id, `did` follows it, so the key still matches. For a replay segment the session must also have started at most 10 s after the segment (a replay starts with its session): otherwise a held segment of a session the bridge never saw (bridge restarted mid-replay) would claim the device's next session, and that session's own replay would be dropped as `replay_conflict` (found on a real run).
+4. **trace**: the item's trace id (`contexts.trace.trace_id` of events and transactions, `trace_id` of log entries) was seen on an item resolved by rules 1 to 3, and the item's time falls inside that session's window. A trace id can map to several sessions (the JS SDK's scope trace id outlives a background rotation); the latest started session whose window contains the item wins. At most 512 trace ids are remembered per session.
+5. **none**: emitted without `session.id`.
+
+`ouo.sentry.session_match` on every record and span says which rule matched: `envelope`, `replay`, `device`, `trace` or `none`.
 
 State: LRU of `max_sessions` (default 200 000) entries, TTL 4 h after the last update. Replay segments with no resolution are held up to `replay_hold` (default 10 min, at most `replay_hold_max_bytes`, default 256 MiB), retried on every state change, then dropped with reason `replay_unresolved`.
 
@@ -159,7 +183,10 @@ Recording events used:
 | `type: 3` (incremental), `data.source: 2` (mouse interaction) | a touch start or end | `timestamp`, `data.type` 7 TouchStart, 8 TouchMove_Departed, 9 TouchEnd, 10 TouchCancel; `data.x`, `data.y`, `data.pointerId` |
 | `type: 3` (incremental), `data.source: 6` (touch move) | touch moves | `data.positions[]`: `x`, `y`, `id`, `timeOffset` (ms, negative = before the event `timestamp`) |
 
-Other events (breadcrumb custom events, meta events) are ignored in this version.
+| `type: 5` (custom), `data.tag: "options"` | masking options, first segment of a replay only | `maskAllText`, `maskAllImages`, `quality`, `maskedViewClasses` |
+| `type: 5` (custom), `data.tag: "breadcrumb"` | one breadcrumb (section 9a) | `data.payload`: `category`, `message`, `level`, `data` |
+
+Meta events and other custom events are ignored.
 
 ### Output: `kind: "video"` chunk
 
@@ -194,6 +221,22 @@ One chunk per segment, emitted into the replay pipeline (section 10):
 - Touch `phase`: 7 `began`, 8 and source 6 `moved`, 9 and 10 `ended`.
 - `platform`: from `contexts.os.name` when present, else `replay_event.platform` (`cocoa` is `ios`, `java` is `android`), else the SDK name (`sentry.cocoa*` is `ios`, `sentry.java*` but not `sentry.javascript*` is `android`). React Native envelopes are named `sentry.javascript.react-native` or `sentry.cocoa.react-native`, never plain `sentry.cocoa`.
 - A session keeps the first `replay_id` it sees. Segments of another `replay_id` for the same `sid` are dropped with reason `replay_conflict`.
+- `masked` = `maskAllText || maskAllImages` from the replay's `options` event. Later segments inherit the value from the session state. When the options are unknown (bridge restarted mid-replay) `masked` is `true`, the SDK default.
+
+### 9a. Breadcrumbs from the recording
+
+Sentry records the scope's breadcrumbs into the replay recording, each in exactly one segment (observed on iOS: fetches with status code and span id, console output, custom breadcrumbs, app lifecycle). The bridge turns them into session events in the session of the segment, emitted after the chunk, with `ouo.sentry.session_match = replay`. They exist only for sessions that have a replay. A segment retried by the SDK produces identical records, which rum-api de-duplicates (same time, session, name and body). Console lines arrive twice when the app enables Sentry logs (a `console` log entry and a `console` breadcrumb, with timestamps a few microseconds apart): the bridge emits the first copy it sees and drops a second one with the same message within 2 s in the same session.
+
+| Breadcrumb `category` | `event.name` | Attributes |
+|---|---|---|
+| `fetch`, `xhr`, `http` with `status_code` 1 to 499 | `http.request` | `http.request.method`, `url.full`, `http.response.status_code`; span id from `data.__span` |
+| `console` | `console` | `message`, `ouo.sentry.level` |
+| `app.*` (`app.inactive`, `app.background`, `app.foreground` on iOS; `app.lifecycle` with `data.state` on Android) | `app.lifecycle` | `ouo.app.state` |
+| `ui.tap`, `ui.click`, `touch` | `ui.tap` | `ouo.ui.target` (message, `view.id` or `target`) |
+| `navigation`, `sentry.transaction`, `sentry.event` | none | navigation records come from transactions; the others are SDK notes |
+| anything else | `breadcrumb` | `ouo.breadcrumb.category`, `message`, scalar `data` values as `ouo.breadcrumb.data.<key>` (at most 16, keys starting with `__` skipped) |
+
+Requests that failed (status 500 and above, or no status) are not taken from breadcrumbs: `http.request.failed` comes from the `http.client` span, which carries the trace.
 
 ## 10. Collector wiring
 
@@ -215,7 +258,7 @@ receivers:
     max_request_body_size: 20971520
     upstream_timeout: 10s
     translate_queue_size: 10000
-    state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m, replay_hold_max_bytes: 268435456 }
+    state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m, replay_hold_max_bytes: 268435456, log_hold: 1m }
     projects:
       - sentry_project_id: "4504"
         public_keys: ["<public key>"]
@@ -291,7 +334,7 @@ Plugin (`plugins/ouo-rum-app`): a video player mounted when `replay_kind` is `vi
 
 ## 12. Attribute allowlist
 
-Only the attributes named in sections 4 to 9 are produced. In particular these Sentry fields are never copied: `user.ip_address`, `user.email`, `user.username`, `request.*`, `extra`, `tags`, `contexts` other than `os`, `device.model`, `trace`, `replay`, breadcrumbs, attachments, view hierarchies and screenshots attached to errors.
+Only the attributes named in sections 4 to 9a are produced. In particular these Sentry fields are never copied: `user.ip_address`, `user.email`, `user.username`, `request.*`, `extra`, `tags`, `contexts` other than `os`, `device.model`, `trace`, `replay`, the breadcrumbs attached to error events, attachments, view hierarchies and screenshots attached to errors. Two inputs carry app-chosen content by design: the attributes of Sentry log entries (section 7a) and the message and `data` of replay breadcrumbs (section 9a); apps decide what they log there.
 
 ## 13. Expected differences between Sentry and ouo
 
@@ -303,6 +346,8 @@ Only the attributes named in sections 4 to 9 are produced. In particular these S
 | Traces per session | sampled by `tracesSampleRate` | same sampled set; `trace_count` and derived `http.request.failed` / `navigation` are lower than a fully traced ouo SDK would produce |
 | Session boundaries | Sentry's (30 s background) | Sentry's; ouo's own SDK rules do not apply to bridged apps |
 | Replay | session or on-error buffer sampling | exactly the segments Sentry accepted |
+| Logs | Sentry Logs | `log` session events in Loki; the few whose trace id no error or transaction ever carried have no session |
+| Breadcrumbs | attached to error events and in the replay | timeline events, only for sessions with a replay |
 
 ## 14. Verification
 
