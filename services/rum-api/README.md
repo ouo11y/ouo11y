@@ -56,6 +56,7 @@ OUO_READ_TOKEN=rt_dev_0000000000000000 DATA_DIR=./data go run .
 | `TEMPO_URL` | `http://tempo:3200` | Tempo base URL |
 | `GRAFANA_URL` | `http://localhost:3000` | browser-facing Grafana URL used in trace deep links |
 | `GRAFANA_TEMPO_DATASOURCE_UID` | `tempo` | datasource uid in the deep links |
+| `GRAFANA_LOKI_DATASOURCE_UID` | `loki` | datasource uid in the session logs' Explore link |
 | `DATA_DIR` | `/data` | replay chunks live in `$DATA_DIR/replays` |
 | `OUO_INGEST_TOKEN` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
 | `OUO_READ_TOKEN` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
@@ -312,6 +313,29 @@ fails). `grafana_url` opens Grafana Explore on the Tempo datasource with that tr
 "datasource":{"type":"tempo","uid":"tempo"},"queryType":"traceql","query":"<trace id>"}],
 "range":{"from":"<ms>","to":"<ms>"}}}`).
 
+`GET /v1/sessions/{id}/logs[?from=&to=]` -> the session's log lines and the lines of other
+services that share one of its traces (a backend's request logs when the app propagates
+`traceparent` but no session id):
+
+```json
+{"session_id":"...","count":119,"truncated":false,"trace_count":26,
+ "query":"{service_name=~\".+\"} | session_id=\"<id>\" or trace_id=~\"<id1>|<id2>\"",
+ "explore_url":"http://localhost:3000/explore?...loki...",
+ "logs":[{"ts":"...","service":"demo-backend","level":"error","body":"request failed",
+          "trace_id":"...","span_id":"...","source":"trace","trace_url":"http://.../explore?...tempo...",
+          "attrs":{"http_route":"/api/checkout","http_response_status_code":"500"}}]}
+```
+
+The Tempo search of `/traces` gives the trace ids (padded to 32 hex, at most 200); one LogQL
+query over the session's window returns both kinds of lines. Session events that are the
+timeline rather than log lines (`session.start`, `session.end`, `navigation`, `http.request`,
+`http.request.failed`, `web_vital`, `app.lifecycle`, `ui.tap`, `breadcrumb`) are left out;
+`log`, `console`, `exception` and lines without an event name stay. `source` is `session`
+(the record carries the session id) or `trace`. `level` is the lower-cased severity text. At
+most 2000 lines (`truncated`); `explore_url` opens the full query in Explore. When Tempo
+fails, `trace_count` is -1 and only the session's own lines are returned. 404 for an unknown
+session.
+
 ### Stats
 
 `GET /v1/stats/health?from=now-24h&to=now&platform=&service=&version=&user=`
@@ -363,6 +387,7 @@ curl -H "$R" -X DELETE -i localhost:8080/v1/sessions/demo-1/replay
 curl -H "$R" 'localhost:8080/v1/sessions?from=now-2h&status=crashed&platform=web'
 curl -H "$R" 'localhost:8080/v1/sessions/<session_id>' | jq '.timeline[] | {ts, type, name}'
 curl -H "$R" 'localhost:8080/v1/sessions/<session_id>/traces' | jq '.traces[] | {trace_id, root_name, span_count, has_error, grafana_url}'
+curl -H "$R" 'localhost:8080/v1/sessions/<session_id>/logs?from=now-24h' | jq '.logs[] | {ts, service, level, body}'
 curl -H "$R" 'localhost:8080/v1/stats/health?from=now-24h' | jq
 ```
 
