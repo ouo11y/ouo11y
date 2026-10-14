@@ -166,6 +166,7 @@ services:
       # Browser-facing Grafana URL used in trace deep links.
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}
       GRAFANA_TEMPO_DATASOURCE_UID: tempo
+      GRAFANA_LOKI_DATASOURCE_UID: loki
       DATA_DIR: /data
       SESSION_INACTIVITY: 30m
       SESSION_MAX_DURATION: 4h

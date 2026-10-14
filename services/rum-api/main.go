@@ -74,6 +74,7 @@ func run(cfg config.Config) error {
 	lokiClient := loki.New(cfg.LokiURL, httpClient)
 	tempoClient := tempo.New(cfg.TempoURL, httpClient, cfg.TempoConcurrency, cfg.TempoCacheTTL)
 	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.TempoDatasourceUID}
+	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.LokiDatasourceUID}
 
 	api := httpapi.New(lokiClient, tempoClient, store, httpapi.Options{
 		SessionOptions:     session.Options{Inactivity: cfg.SessionInactivity, MaxDuration: cfg.SessionMaxDuration},
@@ -85,6 +86,8 @@ func run(cfg config.Config) error {
 		IngestToken:        cfg.IngestToken,
 		ReadToken:          cfg.ReadToken,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		TraceLinks:         tempoClient.Links,
+		LokiLinks:          lokiLinks,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",
 		otelhttp.WithFilter(func(r *http.Request) bool {

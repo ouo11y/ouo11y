@@ -16,6 +16,7 @@ type Config struct {
 	TempoURL           string        // TEMPO_URL, default http://tempo:3200
 	GrafanaURL         string        // GRAFANA_URL, default http://localhost:3000 (deep links, browser-facing)
 	TempoDatasourceUID string        // GRAFANA_TEMPO_DATASOURCE_UID, default tempo
+	LokiDatasourceUID  string        // GRAFANA_LOKI_DATASOURCE_UID, default loki
 	DataDir            string        // DATA_DIR, default /data
 	CORSAllowedOrigins []string      // CORS_ALLOWED_ORIGINS, comma separated extra origins
 	SessionInactivity  time.Duration // SESSION_INACTIVITY, default 30m
@@ -41,6 +42,7 @@ func FromEnv() (Config, error) {
 		TempoURL:           env("TEMPO_URL", "http://tempo:3200"),
 		GrafanaURL:         env("GRAFANA_URL", "http://localhost:3000"),
 		TempoDatasourceUID: env("GRAFANA_TEMPO_DATASOURCE_UID", "tempo"),
+		LokiDatasourceUID:  env("GRAFANA_LOKI_DATASOURCE_UID", "loki"),
 		DataDir:            env("DATA_DIR", "/data"),
 		CORSAllowedOrigins: envList("CORS_ALLOWED_ORIGINS"),
 		IngestToken:        os.Getenv("OUO_INGEST_TOKEN"),

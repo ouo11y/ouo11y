@@ -22,6 +22,8 @@ import (
 // EventSource is what the API needs from Loki.
 type EventSource interface {
 	Events(ctx context.Context, f loki.Filters, start, end time.Time) ([]session.Event, error)
+	// EventsQuery runs a raw LogQL query (the session's logs, section Logs).
+	EventsQuery(ctx context.Context, query string, start, end time.Time) ([]session.Event, error)
 	Ready(ctx context.Context) error
 }
 
@@ -34,14 +36,16 @@ type TraceSource interface {
 // Options tune the handlers.
 type Options struct {
 	SessionOptions     session.Options
-	ListLookback       time.Duration // extra Loki lookback before `from` so sessions started earlier still fold completely
-	DetailLookback     time.Duration // how far back a single-session lookup searches
-	MaxChunkBytes      int64         // rrweb chunks (decompressed); default 4 MiB
-	MaxFrameChunkBytes int64         // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
-	MaxVideoChunkBytes int64         // decoded mp4 of a kind video chunk; default 8 MiB, never below MaxChunkBytes. The store enforces it (replay.FS.MaxVideoBytes); here it sizes the body limit
-	IngestToken        string        // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
-	ReadToken          string        // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
-	CORSAllowedOrigins []string      // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
+	ListLookback       time.Duration      // extra Loki lookback before `from` so sessions started earlier still fold completely
+	DetailLookback     time.Duration      // how far back a single-session lookup searches
+	MaxChunkBytes      int64              // rrweb chunks (decompressed); default 4 MiB
+	MaxFrameChunkBytes int64              // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
+	MaxVideoChunkBytes int64              // decoded mp4 of a kind video chunk; default 8 MiB, never below MaxChunkBytes. The store enforces it (replay.FS.MaxVideoBytes); here it sizes the body limit
+	IngestToken        string             // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken          string             // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	CORSAllowedOrigins []string           // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
+	TraceLinks         *tempo.LinkBuilder // Explore links for log lines' traces (nil: none)
+	LokiLinks          *loki.LinkBuilder  // Explore link for the session's log query (nil: none)
 	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
@@ -89,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions", s.listSessions)
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
 	mux.HandleFunc("GET /v1/sessions/{id}/traces", s.getSessionTraces)
+	mux.HandleFunc("GET /v1/sessions/{id}/logs", s.getSessionLogs)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay", s.getReplay)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/events", s.getReplayEvents)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/frames", s.getReplayFrames)
