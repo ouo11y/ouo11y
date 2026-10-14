@@ -294,6 +294,11 @@ func TestGoldenTouch(t *testing.T) {
 	if !jsFatal {
 		t.Error("no fatal unhandled JS exception")
 	}
+	// Real taps: the touch boundary's breadcrumbs, labelled by the touched component.
+	taps := x.byName("ui.tap")
+	if len(taps) != 2 || taps[0].attrs["ouo.ui.target"] != "action-fetch-ok" || taps[1].attrs["ouo.ui.target"] != "HeaderHeightContext" {
+		t.Errorf("ui.tap: %+v", taps)
+	}
 }
 
 // TestGoldenShop replays a run with Sentry logs (enableLogs, which also

@@ -120,10 +120,17 @@ func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
 		lr.Attributes().PutStr("ouo.app.state", state)
 	case cat == "ui.tap" || cat == "ui.click" || cat == "touch":
 		lr := t.newRecord(eventUITap, b.at, x, matchReplay, "", plog.SeverityNumberInfo)
-		target := firstString(b.Message, anyString(b.Data["view.id"]), anyString(b.Data["target"]))
-		lr.Body().SetStr(firstString(target, "tap"))
+		// React Native: the touched component path, innermost labelled component
+		// first ("action-fetch-ok > action-fetch-ok > Text"), sometimes prefixed.
+		path := strings.TrimPrefix(firstString(b.Message, anyString(b.Data["view.id"]), anyString(b.Data["target"])), "Touch event within element: ")
+		target, _, _ := strings.Cut(path, " > ")
+		lr.Body().SetStr(firstString(path, "tap"))
+		a := lr.Attributes()
 		if target != "" {
-			lr.Attributes().PutStr("ouo.ui.target", truncate(target, maxLogAttributeLen))
+			a.PutStr("ouo.ui.target", truncate(target, maxLogAttributeLen))
+		}
+		if path != target {
+			a.PutStr("ouo.ui.path", truncate(path, maxLogAttributeLen))
 		}
 	default:
 		lr := t.newRecord(eventBreadcrumb, b.at, x, matchReplay, "", severityOfLevel(b.Level))
