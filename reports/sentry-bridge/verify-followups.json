@@ -1,0 +1,136 @@
+{
+  "capture": "captures/f1-033245/A",
+  "checks": [
+    {
+      "check": "session 065EC74A listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session 065EC74A status errored",
+      "ok": true,
+      "detail": "rum-api errored"
+    },
+    {
+      "check": "session 065EC74A ended background",
+      "ok": true,
+      "detail": "rum-api ended background"
+    },
+    {
+      "check": "session AF510578 listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session AF510578 status crashed",
+      "ok": true,
+      "detail": "rum-api crashed"
+    },
+    {
+      "check": "session AF510578 ended crash",
+      "ok": true,
+      "detail": "rum-api ended crash"
+    },
+    {
+      "check": "session A85D1357 listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session A85D1357 status healthy (or errored only by failed requests)",
+      "ok": true,
+      "detail": "rum-api healthy"
+    },
+    {
+      "check": "session A85D1357 not ended by the bridge",
+      "ok": true,
+      "detail": "rum-api None"
+    },
+    {
+      "check": "every Sentry error event is an exception record in Loki",
+      "ok": true,
+      "detail": "4 in Loki, 4 sent"
+    },
+    {
+      "check": "fatal events are fatal in Loki",
+      "ok": true,
+      "detail": "1 fatal"
+    },
+    {
+      "check": "console output is one `console` record per line (log entries and breadcrumbs de-duplicated)",
+      "ok": true,
+      "detail": "21 in Loki, 20 console log entries + 18 breadcrumbs = 21 lines"
+    },
+    {
+      "check": "every Sentry.logger entry is a `log` record in Loki",
+      "ok": true,
+      "detail": "30 in Loki, 30 sent"
+    },
+    {
+      "check": "every log and console record has a session",
+      "ok": true,
+      "detail": "51/51; matches: replay 50, trace 1"
+    },
+    {
+      "check": "log records are in sessions of this capture",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "every replay breadcrumb of kind http.request is a record in Loki",
+      "ok": true,
+      "detail": "45 in Loki, 45 in the recordings"
+    },
+    {
+      "check": "every Sentry transaction is a trace in Tempo with session.id on all app spans",
+      "ok": true,
+      "detail": "29/29"
+    },
+    {
+      "check": "every transaction that called the backend is one trace with the backend's spans (traceparent)",
+      "ok": true,
+      "detail": "27/27"
+    },
+    {
+      "check": "replay d9f37b8e -> session 065EC74A: every segment stored",
+      "ok": true,
+      "detail": "19/19 segments"
+    },
+    {
+      "check": "replay d9f37b8e belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "replay c9785f8f -> session AF510578: every segment stored",
+      "ok": true,
+      "detail": "3/3 segments"
+    },
+    {
+      "check": "replay c9785f8f belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "replay 41e1395d -> session A85D1357: every segment stored",
+      "ok": true,
+      "detail": "3/3 segments"
+    },
+    {
+      "check": "replay 41e1395d belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "every served mp4 is byte-identical to the mp4 the SDK sent (sha256)",
+      "ok": true,
+      "detail": "25 segments, 0 mismatches"
+    },
+    {
+      "check": "every segment decodes as H.264 video at the manifest's viewport size (AVFoundation)",
+      "ok": true,
+      "detail": "25/25 decoded"
+    }
+  ],
+  "at": "2026-10-14T00:37:10.716006+00:00"
+}

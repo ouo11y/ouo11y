@@ -35,7 +35,7 @@ svg .box{fill:var(--card);stroke:var(--line)}svg .edge{stroke:var(--edge);fill:n
 <main>
 <h1>Sentry bridge verification</h1>
 <p class="sub">ADR-0008, branch <code>claude/sentry-bridge-design</code>, 2026-10-14. Real traffic from <code>@sentry/react-native</code> 8.30.0 (sentry-cocoa 9.30.1) on the iOS 27 simulator, through the <code>ouo-collector</code> in an isolated compose project <code>ouo-sb</code>.</p>
-<nav><a href="#arch">Architecture</a><a href="#gates">Gates</a><a href="#s1">S1 forward</a><a href="#s23">S2/S3 telemetry and replay</a><a href="#outage">Sentry outage</a><a href="#ui">Grafana</a><a href="#fixes">Found on real traffic</a><a href="#gaps">Gaps</a><a href="#repro">Reproduce</a></nav>
+<nav><a href="#arch">Architecture</a><a href="#gates">Gates</a><a href="#s1">S1 forward</a><a href="#s23">S2/S3 telemetry and replay</a><a href="#outage">Sentry outage</a><a href="#ui">Grafana</a><a href="#followups">Follow-ups F1 to F4</a><a href="#fixes">Found on real traffic</a><a href="#gaps">Gaps</a><a href="#repro">Reproduce</a></nav>
 
 <div class="cards">
 <div class="card"><b>39/39</b><span>real SDK requests reached Sentry byte-identical, same responses</span></div>
@@ -111,6 +111,37 @@ dropped and later re-delivered: 1 of 1 distinct item; never re-delivered: none
 <figure><img src="sentry-bridge/grafana-seek-failed-request.jpg" alt="Timeline entry Failed request 500 selected, video seeked to +20.6 s, segment 4 of 9"><figcaption>Clicking "Failed request 500" seeks the video to +20.6 s (segment 4/9, seq 3, 3.58 s in, decoded 402x874).</figcaption></figure>
 </div>
 
+<h2 id="followups">Follow-ups: logs, richer timeline, joined traces, unmasked replay</h2>
+<p>Founder request after S4: Sentry logs into Loki, many traces that reach the backend with "Open in Explore" working, unmasked recordings, and a fuller timeline. The demo app now enables <code>enableLogs</code> and <code>propagateTraceparent</code>, turns masking off (demo only), and has four manually instrumented flows (<code>browse catalog</code>, <code>search products</code>, <code>checkout</code>, <code>checkout-fail</code>), each in its own trace (<code>startNewTrace</code>). Run: <code>journey.sh --shop-rounds 3</code>, 79 requests.</p>
+<div class="tablewrap"><table>
+<tr><th>Item</th><th>Gate</th><th>Result</th><th>Evidence</th></tr>
+<tr><td>F1 Sentry logs to Loki</td><td>every <code>Sentry.logger</code> entry is a <code>log</code> session event, typed attributes, in the right session</td><td><span class="tag ok">pass</span></td><td>30/30 in Loki, 51/51 log and console records with a session (50 by the <code>sentry.replay_id</code> attribute, 1 by trace id); unit tests for trace, device, hold, expiry and sessions sharing a trace id</td></tr>
+<tr><td>F2 Richer timeline</td><td>replay breadcrumbs become timeline events, no duplicates</td><td><span class="tag ok">pass</span></td><td>45/45 answered fetches as <code>http.request</code>; console output once per line (20 log entries + 18 breadcrumbs = 21 lines); 127 timeline events in the main session: 42 requests, 29 logs, 19 console lines, 16 breadcrumbs, 1 app lifecycle, and the 20 of the types that existed before (11 navigations, 4 failed requests, 3 errors, start, end)</td></tr>
+<tr><td>F3 Traces into the backend</td><td>one trace per flow holding app and backend spans; Explore opens it</td><td><span class="tag ok">pass</span></td><td>29/29 transactions in Tempo with <code>session.id</code> on all app spans; 27/27 that called the backend are one trace whose backend server span is a child of the app's <code>http.client</code> span; Explore screenshot below</td></tr>
+<tr><td>F4 Unmasked recordings</td><td>readable screens; <code>masked</code> follows the SDK options</td><td><span class="tag ok">pass</span></td><td>25/25 segments byte-identical and decoded; chunks carry <code>masked: false</code> from the recording's <code>options</code> event</td></tr>
+<tr><td>S1 still transparent</td><td>new item types forwarded unchanged</td><td><span class="tag ok">pass</span></td><td><code>sentrytap compare</code>: 79/79 byte-identical, 0 problems</td></tr>
+</table></div>
+<pre>capture: 4 sessions (3 started here), 4 error events, 29 transactions (27 calling the backend), 50 log entries, 3 replays / 25 segments
+PASS console output is one `console` record per line (log entries and breadcrumbs de-duplicated)  (21 in Loki, 20 console log entries + 18 breadcrumbs = 21 lines)
+PASS every Sentry.logger entry is a `log` record in Loki  (30 in Loki, 30 sent)
+PASS every log and console record has a session  (51/51; matches: replay 50, trace 1)
+PASS every replay breadcrumb of kind http.request is a record in Loki  (45 in Loki, 45 in the recordings)
+PASS every Sentry transaction is a trace in Tempo with session.id on all app spans  (29/29)
+PASS every transaction that called the backend is one trace with the backend's spans (traceparent)  (27/27)
+PASS every served mp4 is byte-identical to the mp4 the SDK sent (sha256)  (25 segments, 0 mismatches)
+26/26 checks passed</pre>
+<p>Raw results: <a href="sentry-bridge/verify-followups.json">verify-followups.json</a>. The capture is the golden fixture <code>testdata/golden/ios-rn-8.30.0/shop</code> (<code>TestGoldenShop</code>).</p>
+<div class="grid">
+<figure><img src="sentry-bridge/grafana-timeline-unmasked.jpg" alt="Session timeline with requests, logs and console lines next to the unmasked replay at the checkout"><figcaption>Timeline with requests, logs and console lines; clicking "order ord-000007 placed" seeks the unmasked replay to +40.4 s.</figcaption></figure>
+<figure><img src="sentry-bridge/grafana-explore-joined-trace.jpg" alt="Explore showing trace sentry-demo checkout-fail with demo-backend spans nested under the app's GET span"><figcaption>"Open in Explore" on a <code>checkout-fail</code> trace: 29 spans, 2 services; the backend's <code>GET /api/products</code>, <code>inventory.lookup</code> and <code>db.query</code> under the app's span.</figcaption></figure>
+</div>
+<p>What the SDK does that shaped the design:</p>
+<ul>
+<li><code>enableLogs</code> in @sentry/react-native 8.30 also captures <code>console.*</code>, and the same lines are breadcrumbs in the replay. The bridge maps console log entries to <code>console</code> events and drops the second copy of a line (same message within 2 s in the session).</li>
+<li>Log envelopes carry no session and no trace header. React Native puts <code>sentry.replay_id</code> on every entry, which resolves nearly all of them; the trace id (new rule 4) covers the rest, and an entry waits up to 1 min for its session before it goes out without one.</li>
+<li>Without <code>startNewTrace</code> every root span reuses the scope's trace id until the next navigation, so all flows on one screen share a trace. The demo starts a new trace per flow.</li>
+</ul>
+
 <h2 id="fixes">Found only on real traffic, fixed</h2>
 <div class="tablewrap"><table>
 <tr><th>Finding</th><th>Effect before the fix</th><th>Fix</th></tr>
@@ -119,6 +150,7 @@ dropped and later re-delivered: 1 of 1 distinct item; never re-delivered: none
 <tr><td>Crashed sessions are reported on the next launch</td><td>session ended at relaunch time</td><td>ends at the fatal exception's time</td></tr>
 <tr><td>Touch moves are rrweb source 6 with <code>positions[]</code></td><td>moves dropped</td><td>parsed with <code>timeOffset</code></td></tr>
 <tr><td>Bridge restart mid-session</td><td>new errors after the restart were never backfilled</td><td>first update is a baseline, later increments are counted</td></tr>
+<tr><td>Collector restarted while the app was still sending: segments of a session the bridge never saw were held, then the device rule gave them to the device's next session (1 min start tolerance)</td><td>that session's own 19-segment replay dropped as <code>replay_conflict</code> (run 2 of the follow-ups)</td><td>a replay segment matches a session by device only if the session started at most 10 s after it; regression test reproduces the drop without the fix</td></tr>
 <tr><td>msgpack map32 header claiming 800 M entries (fuzzer)</td><td>huge allocation</td><td>entry count capped by remaining bytes; crasher kept as seed</td></tr>
 </table></div>
 
@@ -127,7 +159,9 @@ dropped and later re-delivered: 1 of 1 distinct item; never re-delivered: none
 <li><b>Real sentry.io as upstream</b>: every run used a local fake Sentry (tap B). Byte-identical forwarding makes the upstream's behaviour irrelevant to the bridge, but a run against a real Sentry project has not been done.</li>
 <li><b>Android</b>: deferred. The receiver handles <code>sentry.java.android</code> payloads by spec, untested on real traffic.</li>
 <li><b>SDK versions</b>: only @sentry/react-native 8.30.0 / sentry-cocoa 9.30.1. Native-only iOS apps send the same native items (sessions, crashes, replay) but have not been captured.</li>
-<li><b>Not translated</b>: Sentry <code>log</code> items, metrics, profiles, attachments, client reports and check-ins (forwarded to Sentry only).</li>
+<li><b>Not translated</b>: metrics, profiles, attachments, client reports and check-ins (forwarded to Sentry only). Logs are translated since the follow-ups.</li>
+<li><b>Breadcrumb events need a replay</b>: they come from the replay recording, so sessions Sentry does not record have only errors, transactions, logs and session events on the timeline. Some breadcrumbs that fall between two segments are missing from the recording itself (sentry-cocoa), so the timeline lacks them too.</li>
+<li><b>Backend spans have no <code>session.id</code></b>: Sentry's <code>baggage</code> carries only <code>sentry-*</code> keys, so the backend cannot copy the session; the trace links them instead.</li>
 <li><b>Failed requests</b> only exist when a transaction is active: Sentry records no span for a fetch outside one, so ouo's failed-request counts for bridged apps are lower than with ouo's own SDK.</li>
 <li><b>Single replica</b>: correlation state is in memory; run the Sentry receiver as one replica or with client-address affinity until Phase 11.</li>
 </ul>
@@ -140,8 +174,8 @@ docker compose -p ouo-sb --env-file sb.env -f deploy/docker/compose.yaml -f over
 go run ./collector/tools/sentrytap -listen 127.0.0.1:4411 -dir caps/B -sink
 go run ./collector/tools/sentrytap -listen 127.0.0.1:4400 -dir caps/A -forward http://127.0.0.1:4340
 
-# app (DSN http://publickey0000000000000000000000@localhost:4400/1) and journey
-cd examples/sentry-mobile && npm ci && scripts/build-ios.sh && scripts/journey.sh --js-fatal
+# app (DSN http://publickey0000000000000000000000@localhost:4400/1, backend of the same stack) and journey
+cd examples/sentry-mobile && npm ci && BACKEND_URL=http://localhost:8084 scripts/build-ios.sh && scripts/journey.sh --shop-rounds 3
 
 # checks
 go run ./collector/tools/sentrytap compare caps/A caps/B
