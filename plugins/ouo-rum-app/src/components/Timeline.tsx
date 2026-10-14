@@ -183,49 +183,59 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props)
   }
 
   return (
-    <ol ref={listRef} className={styles.list} data-testid="timeline">
-      {timeline.map((ev, i) => {
-        const look = eventLook(ev);
-        const ts = parseTs(ev.ts);
-        const active = i === activeIndex;
-        return (
-          <li
-            key={`${ev.ts}-${i}`}
-            ref={active ? activeRef : undefined}
-            className={cx(styles.item, active && styles.active, onSeek && styles.clickable)}
-            onClick={onSeek ? () => onSeek(ts, ev) : undefined}
-            title={formatDateTime(ts)}
-            data-active={active ? 'true' : undefined}
-          >
-            <span className={styles.time}>{Number.isNaN(ts) ? '' : formatRelative(ts - sessionStart)}</span>
-            <span className={styles.icon} style={{ color: look.color(theme) }}>
-              <Icon name={look.icon} />
-            </span>
-            <span className={styles.body}>
-              <span className={styles.title}>{look.title(ev)}</span>
-              {look.detail(ev) && <span className={styles.detail}>{look.detail(ev)}</span>}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+    <div className={styles.frame}>
+      <ol ref={listRef} className={styles.list} data-testid="timeline">
+        {timeline.map((ev, i) => {
+          const look = eventLook(ev);
+          const ts = parseTs(ev.ts);
+          const active = i === activeIndex;
+          return (
+            <li
+              key={`${ev.ts}-${i}`}
+              ref={active ? activeRef : undefined}
+              className={cx(styles.item, active && styles.active, onSeek && styles.clickable)}
+              onClick={onSeek ? () => onSeek(ts, ev) : undefined}
+              title={formatDateTime(ts)}
+              data-active={active ? 'true' : undefined}
+            >
+              <span className={styles.time}>{Number.isNaN(ts) ? '' : formatRelative(ts - sessionStart)}</span>
+              <span className={styles.icon} style={{ color: look.color(theme) }}>
+                <Icon name={look.icon} />
+              </span>
+              <span className={styles.body}>
+                <span className={styles.title}>{look.title(ev)}</span>
+                {look.detail(ev) && <span className={styles.detail}>{look.detail(ev)}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
-  // The list is the only scroll container of the Timeline panel: it is capped to the viewport so a
-  // long session scrolls here instead of pushing the pinned Replay panel off screen, and it grows
-  // to fill the panel when the panel is stretched to the Replay panel's height.
+  // The list is the only scroll container of the Timeline panel. It is absolutely positioned in a
+  // frame that fills the rest of the panel, so the timeline adds no height of its own: the grid row
+  // takes the Replay panel's height and the list fills the Timeline panel to its bottom edge (a
+  // max-height on the list left the panel's lower part empty when the Replay panel was taller).
+  // Without a replay the frame keeps a usable height. Stacked (narrow) layouts have no row to
+  // fill, so there the list is in the flow again, capped to the viewport.
+  frame: css({
+    position: 'relative',
+    flex: '1 1 auto',
+    minHeight: 'min(480px, calc(100vh - 150px))',
+    '@media (max-width: 899px)': { position: 'static', minHeight: 0 },
+  }),
   list: css({
     listStyle: 'none',
     margin: 0,
     padding: 0,
-    position: 'relative',
-    flex: '1 1 auto',
-    minHeight: 160,
-    maxHeight: 'calc(100vh - 150px)',
+    position: 'absolute',
+    inset: 0,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
+    '@media (max-width: 899px)': { position: 'relative', inset: 'auto', maxHeight: 'calc(100vh - 150px)' },
   }),
   item: css({
     display: 'grid',

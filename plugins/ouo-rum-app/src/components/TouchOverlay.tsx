@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { css, cx } from '@emotion/css';
-import { type GrafanaTheme2 } from '@grafana/data';
 import { useStyles2 } from '@grafana/ui';
 import type { ReplayTouch } from '../api/types';
 import { visibleTouches } from '../utils/frames';
@@ -13,15 +12,22 @@ interface Props {
   cursorTs: number;
   /** `data-testid` of each touch dot. */
   testId: string;
+  /** How long a touch stays visible while it fades (ms). */
+  windowMs?: number;
 }
 
 /**
  * Touch indicators over a replay stage that has the viewport's aspect ratio: each touch is placed at
- * `x / width`, `y / height` of the rendered stage and fades out over 500 ms (frame and video players).
+ * `x / width`, `y / height` of the rendered stage and fades out over `windowMs` (default 500 ms).
+ * The dot is white with a dark halo so it shows on any screen colour (a theme-coloured ring vanished
+ * on the demo's purple buttons).
  */
-export function TouchOverlay({ touches, viewport, cursorTs, testId }: Props) {
+export function TouchOverlay({ touches, viewport, cursorTs, testId, windowMs }: Props) {
   const styles = useStyles2(getStyles);
-  const active = useMemo(() => visibleTouches(touches, viewport, cursorTs), [touches, viewport, cursorTs]);
+  const active = useMemo(
+    () => visibleTouches(touches, viewport, cursorTs, windowMs),
+    [touches, viewport, cursorTs, windowMs]
+  );
   return (
     <>
       {active.map((t, i) => (
@@ -38,24 +44,25 @@ export function TouchOverlay({ touches, viewport, cursorTs, testId }: Props) {
   );
 }
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = () => ({
   touch: css({
     position: 'absolute',
     zIndex: 2,
-    width: 28,
-    height: 28,
-    marginLeft: -14,
-    marginTop: -14,
+    width: 32,
+    height: 32,
+    marginLeft: -16,
+    marginTop: -16,
     borderRadius: '50%',
     pointerEvents: 'none',
     boxSizing: 'border-box',
+    border: '3px solid #fff',
+    // Dark halo inside and outside the white ring: visible on light and dark screens alike.
+    boxShadow: '0 0 0 2px rgba(0, 0, 0, 0.55), inset 0 0 0 2px rgba(0, 0, 0, 0.35)',
   }),
   touchActive: css({
-    background: theme.colors.primary.transparent,
-    border: `2px solid ${theme.colors.primary.main}`,
-    boxShadow: `0 0 0 4px ${theme.colors.primary.transparent}`,
+    background: 'rgba(255, 255, 255, 0.45)',
   }),
   touchEnded: css({
-    border: `2px solid ${theme.colors.primary.main}`,
+    background: 'transparent',
   }),
 });

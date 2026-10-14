@@ -150,7 +150,7 @@ describe('VideoPlayer', () => {
     expect(onTime).toHaveBeenLastCalledWith(500);
   });
 
-  it('draws touches scaled to the stage, fading over 500 ms', () => {
+  it('draws touches scaled to the stage, fading over 1.5 s (about one video frame per second)', () => {
     const { ref } = renderPlayer();
     act(() => ref.current!.goto(2000));
     let dots = screen.getAllByTestId('video-touch');
@@ -158,9 +158,9 @@ describe('VideoPlayer', () => {
     expect(dots[0].style.left).toBe('50%');
     expect(dots[0].style.top).toBe('50%');
     expect(Number(dots[0].style.opacity)).toBeCloseTo(1);
-    act(() => ref.current!.goto(2400));
-    expect(Number(screen.getByTestId('video-touch').style.opacity)).toBeCloseTo(0.2);
     act(() => ref.current!.goto(2600));
+    expect(Number(screen.getByTestId('video-touch').style.opacity)).toBeCloseTo(0.6);
+    act(() => ref.current!.goto(3501));
     expect(screen.queryByTestId('video-touch')).toBeNull();
     act(() => ref.current!.goto(6500));
     dots = screen.getAllByTestId('video-touch');
