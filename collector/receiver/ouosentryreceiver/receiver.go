@@ -63,10 +63,13 @@ type sentryReceiver struct {
 	nextLogs   consumer.Logs
 	nextTraces consumer.Traces
 
-	queue   chan job
-	workers sync.WaitGroup
-	state   *sessionState
-	pending pendingReplays
+	queue       chan job
+	workers     sync.WaitGroup
+	state       *sessionState
+	pending     pendingReplays
+	pendingLogs pendingLogs
+	stopTick    chan struct{}
+	tickWG      sync.WaitGroup
 
 	envelopes   metric.Int64Counter
 	upstreamDur metric.Float64Histogram
@@ -82,6 +85,9 @@ type sentryReceiver struct {
 	// onEnvelope, when set (tests), sees every parsed envelope before translation.
 	onEnvelope func(job, *Envelope)
 }
+
+// pendingTick is how often held logs are retried and expired.
+const pendingTick = 5 * time.Second
 
 func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 	r := &sentryReceiver{cfg: cfg, set: set, projects: map[string]*project{}}
@@ -207,6 +213,20 @@ func (r *sentryReceiver) start(ctx context.Context, host component.Host) error {
 	for range workers {
 		r.workers.Go(r.work)
 	}
+	// Held logs expire on a clock, not only when the next envelope arrives.
+	r.stopTick = make(chan struct{})
+	r.tickWG.Go(func() {
+		t := time.NewTicker(pendingTick)
+		defer t.Stop()
+		for {
+			select {
+			case <-r.stopTick:
+				return
+			case <-t.C:
+				r.flushPendingLogs(context.Background(), false)
+			}
+		}
+	})
 	r.serveWG.Go(func() {
 		if errHTTP := r.server.Serve(ln); errHTTP != nil && !errors.Is(errHTTP, http.ErrServerClosed) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
@@ -230,6 +250,10 @@ func (r *sentryReceiver) Shutdown(ctx context.Context) error {
 			case <-done:
 			case <-ctx.Done():
 			}
+			close(r.stopTick)
+			r.tickWG.Wait()
+			// Logs still waiting for a session go out without one.
+			r.flushPendingLogs(context.Background(), true)
 		}
 		if r.release != nil {
 			r.release()

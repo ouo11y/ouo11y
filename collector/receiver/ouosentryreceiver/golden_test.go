@@ -240,6 +240,25 @@ func TestGoldenJourney(t *testing.T) {
 	if g.spans == 0 {
 		t.Error("no spans")
 	}
+	for _, c := range g.chunks {
+		if !c.Masked {
+			t.Errorf("chunk %s/%d not masked: the capture ran with the default masking options", c.SessionID, c.Seq)
+		}
+	}
+	// Breadcrumbs of the recordings: 9 answered fetches (the 500 comes from its
+	// span), 8 console lines, 6 demo.action + 1 demo breadcrumbs, inactive and
+	// background before the 40 s background phase.
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	for _, r := range x.byName("http.request") {
+		if r.attrs["http.response.status_code"] != int64(200) || r.attrs["url.full"] == nil {
+			t.Errorf("http.request: %+v", r.attrs)
+		}
+	}
 }
 
 // TestGoldenTouch replays a capture with real taps and drags, and a JS fatal.
@@ -274,5 +293,52 @@ func TestGoldenTouch(t *testing.T) {
 	}
 	if !jsFatal {
 		t.Error("no fatal unhandled JS exception")
+	}
+}
+
+// TestGoldenShop replays a run with Sentry logs (enableLogs, which also
+// captures console output), manual spans in new traces per flow, W3C
+// traceparent to the backend and unmasked replay (journey.sh --shop-rounds 3).
+func TestGoldenShop(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/shop"))
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+
+	// 50 log entries: 30 Sentry.logger calls and 20 console lines; the replays
+	// hold 18 console breadcrumbs, 17 of them duplicates of console log entries.
+	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 4}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	for _, name := range []string{"log", "console"} {
+		for _, r := range x.byName(name) {
+			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" {
+				t.Errorf("%s %q matched by %v", name, r.body, m)
+			}
+		}
+	}
+	levels := map[any]int{}
+	for _, r := range x.byName("log") {
+		levels[r.attrs["ouo.sentry.level"]]++
+	}
+	if levels["error"] != 3 || levels["warn"] != 1 || levels["debug"] != 3 {
+		t.Errorf("log levels: %v", levels)
+	}
+	if n := len(x.r.pendingLogs.entries); n != 0 {
+		t.Errorf("%d logs never found their session", n)
+	}
+	if len(g.chunks) != 25 {
+		t.Errorf("replay chunks: %d, want 25", len(g.chunks))
+	}
+	for _, c := range g.chunks {
+		if c.Masked {
+			t.Errorf("chunk %s/%d masked: the app ran with masking off", c.SessionID, c.Seq)
+		}
+	}
+	if x.r.pending.n != 0 {
+		t.Errorf("replay segments still held: %d", x.r.pending.n)
 	}
 }

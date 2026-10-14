@@ -329,12 +329,17 @@ func msgpackMap(entries [][2][]byte) []byte {
 var fakeMP4 = append([]byte{0, 0, 0, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}, bytes.Repeat([]byte{0x42}, 64)...)
 
 func replayItem(replayID string, segment int, startMS int64, userID string) string {
+	return replayItemWith(replayID, segment, startMS, userID, "")
+}
+
+// replayItemWith appends extra rrweb events (each starting with a comma) to the recording.
+func replayItemWith(replayID string, segment int, startMS int64, userID, extra string) string {
 	ev, _ := json.Marshal(map[string]any{"type": "replay_event", "replay_id": replayID, "segment_id": segment, "replay_type": "session",
 		"timestamp": float64(startMS)/1000 + 5, "user": map[string]any{"id": userID}, "release": "com.acme.store@2.3.0+45"})
 	recording := fmt.Sprintf(`{"segment_id":%d}`+"\n"+`[{"type":5,"timestamp":%d,"data":{"tag":"video","payload":{"segmentId":%d,"size":76,"duration":5000,"encoding":"h264","container":"mp4","height":844,"width":390,"frameCount":5,"frameRate":1,"frameRateType":"constant","left":0,"top":0}}},`+
 		`{"type":3,"timestamp":%d,"data":{"source":2,"type":7,"id":0,"x":120.5,"y":410,"pointerType":2,"pointerId":0}},`+
 		`{"type":3,"timestamp":%d,"data":{"source":2,"type":9,"id":0,"x":121,"y":411,"pointerType":2,"pointerId":0}},`+
-		`{"type":5,"timestamp":%d,"data":{"tag":"breadcrumb","payload":{"category":"ui.tap"}}}]`, segment, startMS, segment, startMS+1000, startMS+1100, startMS+1200)
+		`{"type":5,"timestamp":%d,"data":{"tag":"breadcrumb","payload":{"category":"ui.tap"}}}%s]`, segment, startMS, segment, startMS+1000, startMS+1100, startMS+1200, extra)
 	return binItem("replay_video", msgpackMap([][2][]byte{{[]byte("replay_event"), ev}, {[]byte("replay_recording"), []byte(recording)}, {[]byte("replay_video"), fakeMP4}}))
 }
 
@@ -480,4 +485,24 @@ func FuzzDecodeMsgpackMap(f *testing.F) {
 		_, _ = decodeMsgpackMap(b)
 		_, _ = decodeReplayVideo(b)
 	})
+}
+
+// A segment of a session the bridge never saw (it restarted mid-replay) is
+// held; when the device's next session starts a minute later, the old segment
+// must not claim it, or the new session's own replay is dropped as a conflict
+// (found on a real run).
+func TestHeldOldSegmentDoesNotClaimNextSession(t *testing.T) {
+	x := newTx(t)
+	start := int64(1791972000000) // 10:00:00, session() start
+	x.send(t, hdr("sentry.cocoa"), replayItem("0000000000000000000000000000dead", 7, start-40000, device))
+	x.send(t, hdr("sentry.cocoa"), item("session", session(sid1, true, "ok", 0, "2026-10-14T10:00:00Z")))
+	x.send(t, hdr("sentry.cocoa"), replayItem(replay, 0, start, device))
+	x.send(t, hdr("sentry.cocoa"), replayItem(replay, 1, start+5000, device))
+	cs := x.chunks(t)
+	if len(cs) != 2 || cs[0].Source.ReplayID != replay || cs[1].Source.ReplayID != replay || cs[0].SessionID != sid1 {
+		t.Fatalf("chunks: %+v", cs)
+	}
+	if x.r.pending.n != 1 {
+		t.Errorf("the old segment should still be held (then expire): %d held", x.r.pending.n)
+	}
 }

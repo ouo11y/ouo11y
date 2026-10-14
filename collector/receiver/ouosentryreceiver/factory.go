@@ -34,7 +34,7 @@ func createDefaultConfig() component.Config {
 		UpstreamTimeout:    DefaultUpstreamTimeout,
 		MaxTranslateBytes:  DefaultMaxTranslateBytes,
 		TranslateQueueSize: DefaultTranslateQueueSize,
-		State:              StateConfig{MaxSessions: 200000, TTL: 4 * time.Hour, ReplayHold: 10 * time.Minute},
+		State:              StateConfig{MaxSessions: 200000, TTL: 4 * time.Hour, ReplayHold: 10 * time.Minute, LogHold: time.Minute},
 	}
 }
 
