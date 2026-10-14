@@ -70,6 +70,22 @@ and CocoaPods. `ios/` is generated and gitignored. `pod install` downloads the p
 `Sentry.xcframework` from the sentry-cocoa GitHub release (cached in
 `~/Library/Caches/sentry-react-native/`).
 
+## Parallel mode: ouo SDK next to Sentry (`OUO_SDK=1`)
+
+Built with `OUO_SDK=1`, the app also runs `@ouo/react-native` (`file:` link to
+`../../sdk/react-native`, Metro rules in `metro.config.js`), the way an app on Sentry adopts
+ouo: `src/ouo.ts` is imported after `src/sentry.ts` (index.ts), forwards unhandled rejections to
+Sentry, and exports to the isolated `ouo-sb` collector (`OUO_OTLP_ENDPOINT`, default :4338;
+`OUO_REPLAY_ENDPOINT`, default :4339) as service `sentry-demo-ouo`. Sentry's tracing skips the
+ouo uploads (`shouldCreateSpanForRequest`). The action `xhr-cart` calls the backend through a
+raw `XMLHttpRequest` (axios' transport in React Native). Without the flag the ouo SDK is linked
+but never started. Findings: `kb/ouo-next-to-sentry.md`.
+
+```bash
+OUO_SDK=1 BACKEND_URL=http://localhost:8084 scripts/build-ios.sh
+scripts/journey.sh --no-background --no-crash --shop-rounds 1
+```
+
 ## Capture and journey
 
 Preferred recorder: `collector/tools/sentrytap` (same capture format the bridge tests use).

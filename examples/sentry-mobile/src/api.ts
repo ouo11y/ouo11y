@@ -69,4 +69,21 @@ export interface Order {
 export const checkout = (paymentMethod: "card" | "broken-card") => api<Order>("/api/checkout", { method: "POST", json: { paymentMethod } });
 export const searchProducts = (delay: number) => api<Product[]>("/api/products", { flags: { delay } });
 
+/**
+ * GET through a raw XMLHttpRequest, the transport axios uses in React Native (juhi-app's API
+ * client): proves that XHR clients are traced and propagate like fetch.
+ */
+export function xhrGet<T>(path: string): Promise<T> {
+  const url = apiUrl(path);
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    xhr.setRequestHeader("accept", "application/json");
+    xhr.setRequestHeader("x-user-id", USER_ID);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve(JSON.parse(xhr.responseText) as T) : reject(new HttpError(xhr.status, url)));
+    xhr.onerror = () => reject(new HttpError(0, url));
+    xhr.send();
+  });
+}
+
 export const formatPrice = (n: number) => `$${n.toFixed(2)}`;

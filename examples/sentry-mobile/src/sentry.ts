@@ -20,6 +20,8 @@ Sentry.init({
   // sentry-trace + baggage on requests to the demo backend, plus W3C `traceparent` so the
   // OpenTelemetry backend joins the app's trace (one trace in Tempo: app spans + backend spans).
   tracePropagationTargets: ["localhost", /^http:\/\/127\.0\.0\.1/],
+  // In parallel mode ouo, initialised after Sentry, sets `traceparent` first and Sentry then
+  // adds none of its own: one per request whatever this option says.
   propagateTraceparent: true,
 
   // Sentry structured logs (`log` envelope items): Sentry.logger.* in src/actions.ts and the screens.
@@ -36,6 +38,14 @@ Sentry.init({
   integrations: [
     Sentry.mobileReplayIntegration({ maskAllText: false, maskAllImages: false, maskAllVectors: false }),
     navigationIntegration,
+    // Parallel mode: the ouo SDK's own uploads are not app requests.
+    ...(config.ouoSdk
+      ? [
+          Sentry.reactNativeTracingIntegration({
+            shouldCreateSpanForRequest: (url) => !url.startsWith(config.ouoOtlpEndpoint) && !url.startsWith(config.ouoReplayEndpoint),
+          }),
+        ]
+      : []),
   ],
 });
 
