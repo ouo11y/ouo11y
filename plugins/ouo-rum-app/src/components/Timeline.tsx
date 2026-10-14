@@ -73,6 +73,74 @@ const LOOKS: Record<string, Look> = {
   },
 };
 
+// Custom events with a known name: what the Sentry bridge derives from Sentry logs, messages and the
+// breadcrumbs of replay recordings (docs/specs/sentry-bridge.md sections 7a and 9a).
+const levelColor = (level: string | undefined) => (t: GrafanaTheme2) => {
+  switch (level) {
+    case 'error':
+    case 'fatal':
+      return t.colors.error.main;
+    case 'warn':
+    case 'warning':
+      return t.colors.warning.main;
+    default:
+      return t.colors.text.secondary;
+  }
+};
+
+const NAMED: Record<string, (ev: TimelineEvent) => Look> = {
+  log: (ev) => ({
+    icon: 'gf-logs',
+    color: levelColor(ev.attrs.ouo_sentry_level),
+    title: (e) => `Log${e.attrs.ouo_sentry_level ? ` (${e.attrs.ouo_sentry_level})` : ''}`,
+    detail: (e) => e.attrs.message ?? '',
+  }),
+  console: (ev) => ({
+    icon: 'brackets-curly',
+    color: levelColor(ev.attrs.ouo_sentry_level),
+    title: () => 'Console',
+    detail: (e) => e.attrs.message ?? '',
+  }),
+  'http.request': () => ({
+    icon: 'exchange-alt',
+    color: (t) => t.colors.text.secondary,
+    title: (e) => `Request ${e.attrs.http_response_status_code ?? ''}`.trim(),
+    detail: (e) => `${e.attrs.http_request_method ?? ''} ${e.attrs.url_full ?? ''}`.trim(),
+  }),
+  'app.lifecycle': () => ({
+    icon: 'mobile-android',
+    color: (t) => t.colors.text.secondary,
+    title: (e) => `App ${e.attrs.ouo_app_state ?? ''}`.trim(),
+    detail: () => '',
+  }),
+  'ui.tap': () => ({
+    icon: 'arrow-right',
+    color: (t) => t.colors.text.primary,
+    title: () => 'Tap',
+    detail: (e) => e.attrs.ouo_ui_target ?? '',
+  }),
+  breadcrumb: () => ({
+    icon: 'list-ul',
+    color: (t) => t.colors.text.secondary,
+    title: (e) => e.attrs.ouo_breadcrumb_category ?? 'Breadcrumb',
+    detail: (e) =>
+      [
+        e.attrs.message,
+        ...Object.entries(e.attrs)
+          .filter(([k]) => k.startsWith('ouo_breadcrumb_data_'))
+          .map(([k, v]) => `${k.slice('ouo_breadcrumb_data_'.length)}=${v}`),
+      ]
+        .filter(Boolean)
+        .join(' '),
+  }),
+  'sentry.message': () => ({
+    icon: 'comment-alt',
+    color: (t) => t.colors.text.primary,
+    title: () => 'Message',
+    detail: (e) => e.attrs.message ?? '',
+  }),
+};
+
 const FALLBACK: Look = {
   icon: 'info-circle',
   color: (t) => t.colors.text.secondary,
@@ -81,6 +149,10 @@ const FALLBACK: Look = {
 };
 
 export function eventLook(ev: TimelineEvent): Look {
+  const named = ev.type === 'custom' ? NAMED[ev.name] : undefined;
+  if (named) {
+    return named(ev);
+  }
   const look = LOOKS[ev.type] ?? FALLBACK;
   if (ev.type === 'exception' && ev.attrs.ouo_exception_fatal !== 'true') {
     return { ...look, color: (t) => t.colors.warning.main };
