@@ -115,6 +115,8 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 - [x] Founder review 2026-10-14 [taps: real touches recorded (24 in a tapped session) and `ui.tap` events named by component; marker made visible (white + halo, 1.5 s on video); timeline list fills its panel; Logs section (rum-api `GET /v1/sessions/{id}/logs`: session lines + lines sharing its traces, 119 on the main session incl. 68 backend lines); plugin 0.5.0]
 
+- [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
+
 State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
 
 ## Phase 13 Native SDKs
