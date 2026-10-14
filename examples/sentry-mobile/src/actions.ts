@@ -2,7 +2,7 @@
 // (`sentrydemo://action/<name>`, see src/deeplinks.ts). Names are the deep-link path.
 import { startNewTrace } from "@sentry/core";
 import * as Sentry from "@sentry/react-native";
-import { addToCart, checkout, getCart, getProduct, getProducts, searchProducts } from "./api";
+import { addToCart, type Cart, checkout, getCart, getProduct, getProducts, searchProducts, xhrGet } from "./api";
 import { setStatus } from "./status";
 
 export type ActionName =
@@ -18,6 +18,7 @@ export type ActionName =
   | "search"
   | "checkout"
   | "checkout-fail"
+  | "xhr-cart"
   | "flush";
 
 // Without startNewTrace every root span reuses the scope's trace id until the next navigation, so
@@ -170,6 +171,15 @@ export const actions: Record<ActionName, { title: string; run: () => void | Prom
   search: { title: "Search (slow backend)", run: search },
   checkout: { title: "Checkout", run: () => checkoutFlow("card") },
   "checkout-fail": { title: "Checkout, card declined (500)", run: () => checkoutFlow("broken-card") },
+  "xhr-cart": {
+    title: "Cart via XMLHttpRequest (axios path)",
+    run: () =>
+      action("xhr cart", async () => {
+        const cart = await xhrGet<Cart>("/api/cart");
+        Sentry.logger.info(Sentry.logger.fmt`xhr cart: ${cart.items.length} lines`, { "cart.lines": cart.items.length });
+        setStatus(`xhr-cart: ${cart.items.length} lines`);
+      }),
+  },
   flush: {
     title: "Flush",
     run: async () => {

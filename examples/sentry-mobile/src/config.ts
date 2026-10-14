@@ -7,6 +7,11 @@ interface Extra {
   environment: string;
   backendUrl: string;
   sentryDebug: boolean;
+  ouoSdk: boolean;
+  ouoOtlpEndpoint: string;
+  ouoReplayEndpoint: string;
+  ouoProjectId: string;
+  ouoProjectToken: string;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -18,4 +23,9 @@ export const config: Extra = {
   environment: extra.environment ?? "development",
   backendUrl: extra.backendUrl ?? "http://localhost:8082",
   sentryDebug: extra.sentryDebug ?? false,
+  ouoSdk: extra.ouoSdk ?? false,
+  ouoOtlpEndpoint: extra.ouoOtlpEndpoint ?? "http://localhost:4338",
+  ouoReplayEndpoint: extra.ouoReplayEndpoint ?? "http://localhost:4339",
+  ouoProjectId: extra.ouoProjectId ?? "demo",
+  ouoProjectToken: extra.ouoProjectToken ?? "pt_dev_demo_0000000000000000",
 };

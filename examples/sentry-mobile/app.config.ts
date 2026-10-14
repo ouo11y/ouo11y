@@ -11,6 +11,9 @@ import type { ExpoConfig } from "expo/config";
  *   BACKEND_URL  demo backend (examples/backend). Default: the main compose stack on :8082.
  *   APP_VERSION  release version, BUILD_NUMBER the build: release = sentry-demo@<version>+<build>.
  *   SENTRY_DEBUG=1 turns on the SDK debug logger (JS and native).
+ *   OUO_SDK=1    parallel mode: @ouo/react-native runs next to Sentry (initialised after it, see
+ *                index.ts and src/ouo.ts), exporting to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT
+ *                (default the isolated ouo-sb collector: 4338 and 4339).
  * Values are baked into the JS bundle (Release build), so rebuild after changing them.
  */
 const version = process.env.APP_VERSION ?? "1.0.0";
@@ -47,6 +50,11 @@ const config: ExpoConfig = {
     environment: process.env.SENTRY_ENVIRONMENT ?? "development",
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8082",
     sentryDebug: process.env.SENTRY_DEBUG === "1",
+    ouoSdk: process.env.OUO_SDK === "1",
+    ouoOtlpEndpoint: process.env.OUO_OTLP_ENDPOINT ?? "http://localhost:4338",
+    ouoReplayEndpoint: process.env.OUO_REPLAY_ENDPOINT ?? "http://localhost:4339",
+    ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",
+    ouoProjectToken: process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
   },
 };
 

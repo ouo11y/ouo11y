@@ -99,6 +99,7 @@ if [[ $NETWORK == 1 ]]; then
   link "action/fetch-ok"; wait_s 2
   link "action/fetch-500"; wait_s 2
   link "action/fetch-slow"; wait_s 5
+  link "action/xhr-cart"; wait_s 2
 fi
 
 if [[ $SHOP == 1 ]]; then

@@ -38,6 +38,7 @@ export function HomeScreen({ navigation }: ScreenProps<"Home">) {
       <ActionButton name="fetch-ok" />
       <ActionButton name="fetch-500" />
       <ActionButton name="fetch-slow" />
+      <ActionButton name="xhr-cart" />
 
       <Text style={styles.section}>Errors</Text>
       <ActionButton name="handled-error" />
