@@ -12,9 +12,12 @@ receiver. Never point it at sentry.io from this repo.
 
 - Screens: Home (3 products from the backend, action buttons), Product, Cart.
 - `src/sentry.ts`: `Sentry.init` with `tracesSampleRate: 1`, React Navigation integration
-  (`navigation` transactions, time to initial display), fetch tracing, native auto session
-  tracking, `mobileReplayIntegration()` with default masking at `replaysSessionSampleRate: 1` and
-  `replaysOnErrorSampleRate: 1`.
+  (`navigation` transactions, time to initial display), fetch tracing with W3C `traceparent`
+  (`propagateTraceparent: true`, so the OpenTelemetry demo backend joins the app's traces),
+  structured logs (`enableLogs: true`; this also captures `console.*`), native auto session
+  tracking, `mobileReplayIntegration` with masking **off** (`maskAllText`, `maskAllImages`,
+  `maskAllVectors` false; demo only, the app shows no personal data) at
+  `replaysSessionSampleRate: 1` and `replaysOnErrorSampleRate: 1`.
 - `src/actions.ts`: every action, also reachable by deep link.
 
 | Action (deep link `sentrydemo://action/<name>`) | What Sentry records |
@@ -27,7 +30,16 @@ receiver. Never point it at sentry.io from this repo.
 | `unhandled-rejection` | `Promise.reject` nobody awaits: `event` level `error`, mechanism `onunhandledrejection` but `handled: true` (sic, SDK 8.30); session stays `ok`, `errors` + 1; the app keeps running |
 | `js-fatal` | `throw` inside `setTimeout`: `event` level `fatal`, mechanism `onerror`, `handled: false`, sent together with the session update `crashed` before RN terminates the app (Release). Opt-in in the journey (`--js-fatal`) |
 | `native-crash` | `Sentry.nativeCrash()`: on the **next** launch sentry-cocoa sends `event` (level `fatal`, `EXC_BAD_ACCESS`, mechanism `mach`, `handled: false`) + session `crashed` in one envelope, after the new session's `init` |
+| `browse-catalog` | new trace (`startNewTrace`), `ui.action` transaction `browse catalog` with manual spans `load catalog`, `load product details` (4 parallel `GET /api/products/{id}`), `rank products`; one `Sentry.logger.info` |
+| `search` | new trace, `search products`: `query backend` (`GET /api/products?delay=600`, the backend sleeps in a `db.query` span), `filter results`; `logger.debug` + `logger.info` |
+| `checkout` | new trace, `checkout`: `pick products`, two `add <id> to cart` (`POST /api/cart`), `review cart`, `submit order` (`POST /api/checkout`); `logger.info` with cart and order attributes |
+| `checkout-fail` | same with `paymentMethod: broken-card`: the backend answers 500, root span status `internal_error`, `logger.error` |
 | `flush` | `Sentry.flush()` |
+
+Every action runs in its own trace (`startNewTrace` from `@sentry/core`, which
+`@sentry/react-native` does not re-export): without it the JS SDK reuses the scope's trace id for
+every root span until the next navigation, and Tempo would show one trace per screen. The Product
+screen logs `viewed product` and `added ... to cart` with `Sentry.logger.info`.
 
 Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 `sentrydemo://screen/cart`, `sentrydemo://screen/back`.
@@ -37,7 +49,7 @@ Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 | Variable | Default |
 |---|---|
 | `SENTRY_DSN` | `http://publickey0000000000000000000000@localhost:4400/1` |
-| `BACKEND_URL` | `http://localhost:8082` (demo backend of the main `ouo` compose stack) |
+| `BACKEND_URL` | `http://localhost:8082` (demo backend of the main `ouo` compose stack). Build with the backend of the stack whose collector receives the app's traffic, or the backend spans land in another Tempo: `BACKEND_URL=http://localhost:8084` for the isolated `ouo-sb` stack |
 | `APP_VERSION`, `BUILD_NUMBER` | `1.0.0`, `1`: release `sentry-demo@1.0.0+1`, dist `1` |
 | `SENTRY_ENVIRONMENT` | `development` |
 | `SENTRY_DEBUG=1` | SDK debug logging (JS and native), off by default |
@@ -79,10 +91,12 @@ the app is inactive, so replay does not start). It writes the same deep-link pat
 `Documents/journey-command` in the app's data container instead, which `src/mailbox.ts` polls.
 `--openurl` switches back to real deep links for attended runs.
 
-`journey.sh` phases: launch, nav, network, errors, replay wait, background (Settings in front for
-40 s, then relaunch: session `exited` plus a new session), crash (native crash, relaunch), end.
-Flags: `--no-nav`, `--no-network`, `--no-errors`, `--no-background`, `--no-crash`, `--js-fatal`,
-`--bg-seconds N`, `--replay-wait N`, `--device UDID`, `--openurl`.
+`journey.sh` phases: launch, nav, network, shop (`--shop-rounds N`, default 2: browse catalog,
+search, a product screen, checkout, declined checkout), errors, replay wait, background (Settings
+in front for 40 s, then relaunch: session `exited` plus a new session), crash (native crash,
+relaunch), end. Flags: `--no-nav`, `--no-network`, `--no-shop`, `--no-errors`, `--no-background`,
+`--no-crash`, `--js-fatal`, `--shop-rounds N`, `--bg-seconds N`, `--replay-wait N`,
+`--device UDID`, `--openurl`.
 
 The journey ends with `simctl terminate` (SIGKILL), so the last session is reported as
 `abnormal` on the next launch.
