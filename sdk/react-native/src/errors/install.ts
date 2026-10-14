@@ -1,6 +1,7 @@
 import type { DebugLogger } from "../logger";
 import type { EventEmitter } from "../telemetry/events";
 import { exceptionAttributes, serializeConsoleArgs } from "./classify";
+import { sentryClientPresent } from "./sentry";
 
 /** React Native's global error hook (`global.ErrorUtils`). */
 export interface ErrorUtilsLike {
@@ -27,6 +28,8 @@ export interface ErrorCaptureOptions {
    */
   onFatal: (error: unknown) => Promise<void>;
   consoleErrors?: boolean;
+  /** Also hands every unhandled promise rejection to this function (see ErrorOptions). */
+  onUnhandledRejection?: (error: unknown) => void;
 }
 
 /**
@@ -130,11 +133,26 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
     } catch (e) {
       logger.warn("rejection capture failed", e);
     }
+    if (opts.onUnhandledRejection) {
+      try {
+        opts.onUnhandledRejection(error);
+      } catch (e) {
+        logger.warn("onUnhandledRejection threw", e);
+      }
+    }
     // React Native's own tracker printed a warning; keep that behaviour visible when debugging.
     logger.warn("Possible unhandled promise rejection", error);
   };
   const hermes = g.HermesInternal;
   if (hermes && typeof hermes.enablePromiseRejectionTracker === "function" && (hermes.hasPromise?.() ?? true)) {
+    // Hermes keeps ONE tracker (HermesInternal is frozen, so it cannot be shared): this replaces
+    // any tracker registered before, e.g. Sentry's. errors.onUnhandledRejection hands the
+    // rejections on to it.
+    if (sentryClientPresent() && !opts.onUnhandledRejection) {
+      logger.warn(
+        "Sentry is initialised: ouo now owns the Hermes promise rejection tracker and Sentry no longer gets unhandled rejections. Forward them with errors.onUnhandledRejection (README, Next to Sentry).",
+      );
+    }
     hermes.enablePromiseRejectionTracker({ allRejections: true, onUnhandled });
     logger.log("promise rejection tracking: HermesInternal");
   } else if (hasWindowEvents) {

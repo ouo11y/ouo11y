@@ -39,6 +39,15 @@ its `ouoreplay` receiver for replay chunks. rum-api is internal and never addres
 
 ### Added
 
+- `XMLHttpRequest` instrumentation: axios and other XHR clients get the same `CLIENT` spans,
+  propagation and `http.request.failed` as `fetch`. The XHR that React Native's `fetch` opens is
+  skipped (one span per fetch), and `traceparent` is never added twice.
+- `errors.onUnhandledRejection(error)`: called with every unhandled promise rejection after ouo
+  recorded it. Hermes keeps one rejection tracker (the SDK initialised last owns it) and
+  `HermesInternal` is frozen, so next to Sentry the SDK is initialised after Sentry and forwards
+  rejections to `Sentry.captureException`. Debug-mode warning when a Sentry client exists and
+  nothing forwards. README "Next to Sentry".
+
 - A small RFC 4648 base64 encoder (UTF-8 input) so the header value is built the same way on
   every React Native runtime; `btoa` is not guaranteed on Hermes and `Buffer` does not exist
   there.
