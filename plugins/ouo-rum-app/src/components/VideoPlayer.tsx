@@ -42,6 +42,12 @@ const VENDOR_LABEL: Record<string, string> = { sentry: 'Sentry replay' };
  * hidden so it preloads, and a gap between segments keeps the previous segment's last frame.
  * Exposes the same `goto`/`play`/`pause` handle as the other players for markers and the timeline.
  */
+/**
+ * Sentry mobile replay records about 1 frame per second, so a 500 ms touch could appear and vanish
+ * between two frames: video replays keep a touch on screen for 1.5 s.
+ */
+export const VIDEO_TOUCH_WINDOW_MS = 1500;
+
 export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
   { manifest, startTs, durationMs, onTime, segmentUrl },
   ref
@@ -275,7 +281,13 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
             no video here · showing the {beforeFirst ? 'first' : 'last'} frame
           </div>
         )}
-        <TouchOverlay touches={touches} viewport={viewport} cursorTs={cursorTs} testId="video-touch" />
+        <TouchOverlay
+          touches={touches}
+          viewport={viewport}
+          cursorTs={cursorTs}
+          testId="video-touch"
+          windowMs={VIDEO_TOUCH_WINDOW_MS}
+        />
       </div>
 
       <div className={styles.controls}>

@@ -8,6 +8,7 @@ import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
 import { FramePlayer } from '../components/FramePlayer';
+import { LogsPanel } from '../components/LogsPanel';
 import { PlatformIcon } from '../components/PlatformIcon';
 import { ReplayMarkers } from '../components/ReplayMarkers';
 import { ReplayPlayer, type ReplayHandle } from '../components/ReplayPlayer';
@@ -34,6 +35,12 @@ export default function SessionDetail() {
     Boolean(id)
   );
   const session = detail.data;
+  // Logs load after the session is known (the endpoint searches the session's window and traces).
+  const logs = useRumQuery(
+    () => rumApi.logs(id, { from: range.from, to: range.to }),
+    `${id}|logs|${range.from}|${range.to}`,
+    Boolean(session)
+  );
   const wantsReplay = Boolean(session?.has_replay);
   // The renderer comes from `replay_kind` on the record; older records need the replay meta.
   const needsMeta =
@@ -87,6 +94,16 @@ export default function SessionDetail() {
       seekTo(seekOffset(ts, bounds.start, bounds.durationMs));
     },
     [hasReplay, bounds, seekTo]
+  );
+
+  // The Logs panel is below the fold: seek, then bring the replay into view.
+  const replayPanelRef = useRef<HTMLElement | null>(null);
+  const onLogSeek = useCallback(
+    (ts: number) => {
+      seekTo(seekOffset(ts, bounds.start, bounds.durationMs));
+      replayPanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+    [bounds, seekTo]
   );
 
   const pageNav = {
@@ -159,7 +176,7 @@ export default function SessionDetail() {
               />
             </section>
 
-            <section className={cx(styles.panel, styles.replayPanel)} data-testid="panel-replay">
+            <section ref={replayPanelRef} className={cx(styles.panel, styles.replayPanel)} data-testid="panel-replay">
               <h4 className={styles.h4}>
                 <Icon name="play" /> Replay
               </h4>
@@ -264,6 +281,19 @@ export default function SessionDetail() {
               </Stack>
             </h4>
             <TracesTable traces={session.traces} />
+          </section>
+
+          <section className={styles.panel} data-testid="panel-logs">
+            <h4 className={styles.h4}>
+              <Stack alignItems="center" gap={1}>
+                <Icon name="gf-logs" /> Logs {logs.data && <span className={styles.muted}>({logs.data.count})</span>}
+              </Stack>
+            </h4>
+            {logs.error && !detail.error?.unauthorized && <ApiErrorAlert error={logs.error} onRetry={logs.reload} />}
+            {logs.loading && !logs.data && <LoadingPlaceholder text="Loading logs…" />}
+            {logs.data && (
+              <LogsPanel data={logs.data} sessionStart={sessionStart} onSeek={hasReplay ? onLogSeek : undefined} />
+            )}
           </section>
         </>
       )}

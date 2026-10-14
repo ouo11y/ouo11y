@@ -67,6 +67,32 @@ export interface SessionDetail extends SessionRecord {
   traces: TraceSummary[];
 }
 
+/** One line of GET /v1/sessions/{id}/logs. */
+export interface LogLine {
+  ts: string;
+  service: string;
+  level: string;
+  body: string;
+  event_name?: string;
+  trace_id?: string;
+  span_id?: string;
+  /** `session`: the record carries the session id; `trace`: it shares one of the session's traces (backend logs). */
+  source: 'session' | 'trace';
+  trace_url?: string;
+  attrs: Record<string, string>;
+}
+
+export interface LogsResponse {
+  session_id: string;
+  logs: LogLine[];
+  count: number;
+  truncated: boolean;
+  /** Traces whose logs were joined; -1 when Tempo could not be searched. */
+  trace_count: number;
+  query: string;
+  explore_url?: string;
+}
+
 export interface TracesResponse {
   session_id: string;
   traces: TraceSummary[];
