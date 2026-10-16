@@ -1,0 +1,29 @@
+Phase 8a rev 2, unload path (examples/web on Vite :5174, @ouo/browser 0.2.0, collector OTLP :4330, replay :4331)
+Session b652aad5-3a16-43e5-9cfe-5b738f3464b5, 2026-10-13.
+
+Method: window.fetch wrapped in the page (inspection only) to record url, Authorization, keepalive,
+Content-Encoding and X-Ouo-Seq of every non-backend request into localStorage, plus a capture-phase
+pagehide listener. Then: SPA click Products -> product p-1002, then immediately a cross-origin
+navigation to http://localhost:3002/a/ouo-rum-app. The log was read back from a new tab on :5174.
+
+Recorded (t = epoch ms):
+1791903463925 POST http://localhost:4331/v1/replay/chunks  Authorization: Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw  keepalive=true  content-encoding=gzip  seq=11   (periodic chunk)
+1791903477976 POST http://localhost:4330/v1/logs           Authorization: Basic ZGVt...  keepalive=true
+1791903479290 POST http://localhost:4330/v1/traces         Authorization: Basic ZGVt...  keepalive=true
+1791903481770 POST http://localhost:4331/v1/replay/chunks  Authorization: Basic ZGVt...  keepalive=true  content-encoding=(none, plain JSON)  seq=12   <- unload chunk
+1791903481771 POST http://localhost:4330/v1/logs           Authorization: Basic ZGVt...  keepalive=true
+1791903481771 pagehide
+
+rum-api (read token) GET /v1/sessions/b652aad5-.../replay after the navigation:
+  chunk_count 13, last_seq 12, updated_at 2026-10-13T14:58:01.773Z (= 1791903481773, 3 ms after the keepalive POST)
+  000012.json.gz: seq 12, started_at 1791903476973, ended_at 1791903481741, 13 events (incremental
+  mutations + mouse interactions from the Products / product clicks), project_id demo in meta.json.
+
+Result: the final replay chunk is delivered on navigation as a plain-JSON keepalive fetch carrying
+the Basic credential, accepted by the collector's replay receiver (no 401), forwarded by the ouoreplay
+exporter, stored by rum-api. The pane's network log cannot show request headers, so the page-side
+record and the rum-api store are the evidence.
+
+Tab close (follow-up): the read-back tab (tab-1, same session) was closed with the pane's tab-close;
+rum-api then showed chunk_count 14, last_seq 13, updated_at 2026-10-13T14:58:21.649Z: the tab-close
+chunk arrived too (the rev-1 run lost seq 9 on tab close; not reproduced here).

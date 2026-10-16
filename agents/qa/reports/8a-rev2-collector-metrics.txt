@@ -1,0 +1,22 @@
+Mimir (localhost:9010/prometheus), 2026-10-13 after the rate-limit run; collector restarted 14:49 UTC
+== ouo_ratelimit_rejected_total
+  {'__name__': 'ouo_ratelimit_rejected_total', 'job': 'ouo-collector', 'key_kind': 'client'} 93
+== ouo_replay_chunks_total
+  {'__name__': 'ouo_replay_chunks_total', 'job': 'ouo-collector', 'ouo_project_id': 'demo', 'ouo_replay_kind': 'rrweb', 'outcome': 'accepted'} 16
+== sum by (receiver, transport) (otelcol_receiver_refused_log_records)
+  {'receiver': 'ouoreplay', 'transport': 'http'} 0
+  {'receiver': 'otlp', 'transport': 'http'} 93
+== sum by (receiver, transport) (otelcol_receiver_accepted_log_records)
+  {'receiver': 'ouoreplay', 'transport': 'http'} 16
+  {'receiver': 'otlp', 'transport': 'http'} 469
+== sum by (receiver) (otelcol_receiver_accepted_spans)
+  {'receiver': 'otlp'} 486
+== sum by (job, http_response_status_code, server_port) (http_server_request_duration_count)
+  {'http_response_status_code': '401', 'job': 'rum-api', 'server_port': '8080'} 3
+  {'http_response_status_code': '500', 'job': 'demo-backend', 'server_port': '8083'} 1
+  {'http_response_status_code': '202', 'job': 'rum-api', 'server_port': '8080'} 16
+  {'http_response_status_code': '200', 'job': 'demo-backend', 'server_port': '8083'} 22
+  {'http_response_status_code': '200', 'job': 'rum-api', 'server_port': '8090'} 37
+  {'http_response_status_code': '401', 'job': 'rum-api', 'server_port': '8090'} 7
+  {'http_response_status_code': '200', 'job': 'rum-api', 'server_port': '8080'} 7
+note: no http_server_* series with job=ouo-collector: collector 401s (basicauth) are not visible in Mimir at telemetry level normal

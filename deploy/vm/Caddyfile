@@ -1,0 +1,44 @@
+# Caddy reverse proxy for the ouo VM install (deploy/vm/compose.tls.yaml).
+#
+# Two hostnames, both pointing at this VM (ADR-0007 section 7):
+#   OUO_DOMAIN       -> grafana:3000          UI and the ouo plugin; the read token stays server side
+#   OUO_OTEL_DOMAIN  -> otel-collector:4319   /v1/replay/*  (replay chunks)
+#                    -> otel-collector:4318   everything else (OTLP/HTTP: /v1/traces, /v1/logs, /v1/metrics)
+# The collector checks `Authorization: Basic <project id>:<project token>` itself, answers
+# the browser preflights (CORS) itself and stamps ouo.project.id; Caddy only terminates
+# TLS. rum-api, Loki, Tempo and Mimir have no hostname: they are internal.
+#
+# OUO_TLS selects the certificate source for both sites:
+#   OUO_TLS=you@example.com   ACME (Let's Encrypt / ZeroSSL) with that account email.
+#                             Needs public DNS for both names and ports 80 + 443 open.
+#   OUO_TLS=internal          Caddy's own CA (self-signed). For LAN testing, IP addresses
+#                             or names that do not resolve publicly. Browsers warn until
+#                             you trust /data/caddy/pki/authorities/local/root.crt.
+# The value is a single token, so `tls {$OUO_TLS}` is either `tls internal` or
+# `tls <email>`, both valid Caddyfile forms. Defaults to internal when unset.
+
+{
+	# Caddy's admin API is not needed inside the container.
+	admin off
+}
+
+{$OUO_DOMAIN} {
+	tls {$OUO_TLS:internal}
+	encode zstd gzip
+	# Grafana does its own auth; Caddy only terminates TLS and forwards the Host header.
+	reverse_proxy grafana:3000
+}
+
+{$OUO_OTEL_DOMAIN} {
+	tls {$OUO_TLS:internal}
+	# OTLP bodies are protobuf and replay chunks arrive gzip'ed already. No encode.
+	# reverse_proxy appends the client IP to X-Forwarded-For; the collector's TCP peer is
+	# Caddy, so a per-client-address rate limit must read that header (collector concern).
+	@replay path /v1/replay/*
+	handle @replay {
+		reverse_proxy otel-collector:4319
+	}
+	handle {
+		reverse_proxy otel-collector:4318
+	}
+}

@@ -2,12 +2,13 @@
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
 sessions, errors and JS crashes, app version, outbound `fetch` tracing with W3C Trace
-Context and Baggage, all exported over OTLP/HTTP to the ouo collector. Telemetry needs no
+Context and Baggage, all exported over OTLP/HTTP to the ouo collector (`ouo-collector`, the only
+internet-facing service, ADR-0007) with the project credential as HTTP Basic. Telemetry needs no
 native code and runs in Expo Go; session replay (iOS) is an Expo native module and needs a
 development build.
 
-Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004.
-Runtime notes and gotchas: `kb/otel-react-native.md`.
+Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004, ingest and
+project tokens: ADR-0007. Runtime notes and gotchas: `kb/otel-react-native.md`. Changes: `CHANGELOG.md`.
 
 ## Install
 
@@ -40,9 +41,11 @@ to resolve their `browser` field remaps.
    import * as Device from "expo-device";
 
    export const rum = initRUM({
-     endpoint: "http://localhost:4328", // OTLP/HTTP base URL of the collector
+     endpoint: "http://localhost:4318",              // collector OTLP/HTTP base (ADR-0007); replay defaults to :4319
+     projectId: "demo",                              // user name of the Basic credential; required
+     projectToken: "pt_dev_demo_0000000000000000",   // password of the Basic credential; required, public by nature
      service: { name: "mobile-store", version: Constants.expoConfig?.version ?? "0.0.0", environment: "local" },
-     tracing: { propagateTo: [/^http:\/\/localhost:8082/] },
+     tracing: { propagateTo: [/^http:\/\/localhost:8081/] },
      device: { modelIdentifier: Device.modelId ?? undefined, manufacturer: Device.manufacturer ?? undefined },
      debug: __DEV__,
    });
@@ -76,12 +79,39 @@ not need `crypto.getRandomValues` (trace ids use `Math.random`, session ids use
 `crypto.randomUUID` when present and fall back otherwise), `URL` (URLs are parsed with a
 regex), `zone.js`, `XMLHttpRequest` instrumentation or `document`.
 
+### Endpoints and the project credential (ADR-0007)
+
+`endpoint` is the collector's OTLP/HTTP base URL; `projectId` and `projectToken` are required.
+From them the SDK derives:
+
+| Signal | URL | Header |
+|---|---|---|
+| traces | `${endpoint}/v1/traces` | `Authorization: Basic base64("<projectId>:<projectToken>")` |
+| events (logs) | `${endpoint}/v1/logs` | same |
+| replay chunks (native) | `${replayEndpoint}/v1/replay/chunks` | same, plus `x-ouo-session-id`, `x-ouo-seq` |
+
+`replayEndpoint` is optional: it defaults to `endpoint` with port 4318 replaced by 4319 (the
+collector's `ouoreplay` receiver listens next to OTLP), or to `endpoint` itself when it uses any
+other port or none (a proxy such as `https://otel.example.com` routes `/v1/replay/*` to the
+receiver). The collector's `basicauth` extension checks the credential (401 when missing or
+unknown; the user name is the project id, the password the token), its rate limiter and body
+limits apply, and it stamps `ouo.project.id` on every resource from the authenticated user name.
+`initRUM` throws a `TypeError` when `projectId` or `projectToken` is missing or empty. The token
+is public (it only allows writing telemetry into one project), so shipping it in the app bundle
+is expected, exactly like every RUM vendor's key. The header value is built with the SDK's own
+base64 encoder (`basicAuthorization`, `base64Encode`): `btoa` is not available on every React
+Native runtime.
+
+`resolveEndpoints({ endpoint, replayEndpoint })` and `defaultReplayEndpoint(endpoint)` are
+exported so hosts and tests can see the derived URLs. Requests to the derived URLs are never traced.
+
 ### Session replay (iOS, ADR-0006)
 
 ```ts
 initRUM({
-  endpoint: "http://localhost:4328",
-  replayEndpoint: "http://localhost:8080", // rum-api; defaults to the OTLP host on port 8080
+  endpoint: "http://localhost:4318",              // chunks go to http://localhost:4319/v1/replay/chunks
+  projectId: "demo",
+  projectToken: "pt_dev_demo_0000000000000000",
   replay: { enabled: true, frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
   // ...
 });
@@ -90,11 +120,11 @@ rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 
 The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
 the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,
-gzip frame chunks to `POST /v1/replay/chunks`), `android/` is a no-op that logs once. The JS
-side calls native `start` with the rum-api endpoint and the session id, forwards every session
-rotation (`sessionDidRotate`), flushes with `rum.flush()`, and is a silent no-op where the
-native module is absent: Expo Go, web, Jest/Vitest, bare apps without `expo-modules-core`
-(a debug-only warning is logged once).
+gzip frame chunks to `POST /v1/replay/chunks` with the Basic `Authorization` header), `android/`
+is a no-op that logs once. The JS side calls native `start(replayEndpoint, { projectId, projectToken,
+sessionId, ... })`, forwards every session rotation (`sessionDidRotate`), flushes with
+`rum.flush()`, and is a silent no-op where the native module is absent: Expo Go, web, Jest/Vitest,
+bare apps without `expo-modules-core` (a debug-only warning is logged once).
 
 ### Masking and how to opt out
 
@@ -130,9 +160,12 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 import { initRUM, type RUM } from "@ouo/react-native";
 
 const rum: RUM = initRUM({
-  endpoint: "http://localhost:4328",
+  endpoint: "http://localhost:4318",              // collector OTLP/HTTP base URL, required
+  replayEndpoint: undefined,                      // optional; default: endpoint with 4318 -> 4319, else endpoint
+  projectId: "demo",                              // required
+  projectToken: "pt_dev_demo_0000000000000000",   // required
   service: { name: "mobile-store", version: "2.3.0", environment: "local" },
-  tracing: { propagateTo: [/^http:\/\/localhost:8082/], ignoreUrls: [] },
+  tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
   session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
   user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional
@@ -194,7 +227,7 @@ an uncaught error counts as fatal (ADR-0004, web rule).
 `http.response.status_code` (`error.type` on failure); `traceparent` and `baggage`
 (`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
-OTLP endpoint is never traced and the exporter uses the unwrapped `fetch.__original`.
+SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
 
 ## Events (OTel log records, `event.name`)
 
@@ -211,11 +244,16 @@ and `service.version`. Resource: `service.name`, `service.version`,
 ## Development
 
 ```bash
-npm run -w sdk/react-native build   # tsup -> dist/index.js (cjs) + index.d.ts
+npm run -w sdk/react-native build   # sync Swift sources into ios/, tsup -> dist/index.js (cjs) + index.d.ts
 npm run -w sdk/react-native test    # vitest (jsdom env so the OTel browser builds are used)
+npm pack --dry-run -w sdk/react-native   # what gets published (dist, ios incl. vendored Swift, android, config)
 # run the built bundle in Node against the live stack (no simulator needed):
 cd sdk/react-native && SCENARIO=healthy node --require ./playground/preload.cjs playground/scenario.cjs
 ```
 
 Scenarios: `healthy`, `errored`, `crash`, `relaunch`, `background`; `APP_VERSION`,
-`OUO_OTLP`, `OUO_BACKEND`, `OUO_STORAGE_FILE` (the shared "disk" between launches).
+`OUO_OTLP` (collector OTLP/HTTP base, default `http://localhost:4318`), `OUO_PROJECT_ID` (default
+`demo`), `OUO_PROJECT_TOKEN` (default the development token), `OUO_REPLAY_ENDPOINT` (optional),
+`OUO_BACKEND`, `OUO_STORAGE_FILE` (the shared "disk" between launches). `test/ingest-stub.test.ts`
+starts a Node stub of the collector with `basicauth` on port 18082 and checks that traces and logs
+arrive on `/v1/traces` and `/v1/logs` with `Authorization: Basic …` and that a wrong token is a 401.

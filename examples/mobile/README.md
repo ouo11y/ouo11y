@@ -30,12 +30,27 @@ set user, flush.
 |---|---|---|
 | `version` (-> `service.version`) | `2.3.0` | `APP_VERSION=2.4.0 npx expo start --ios` |
 | `extra.backendUrl` | `http://localhost:8081` | `BACKEND_URL` |
-| `extra.otlpEndpoint` | `http://localhost:4318` | `OTLP_ENDPOINT` |
+| `extra.otlpEndpoint` (-> `initRUM({ endpoint })`) | `http://localhost:4318` | `EXPO_PUBLIC_OTLP_ENDPOINT` |
+| `extra.projectId` (-> `initRUM({ projectId })`) | `demo` | `EXPO_PUBLIC_OUO_PROJECT_ID` |
+| `extra.projectToken` (-> `initRUM({ projectToken })`) | `pt_dev_demo_0000000000000000` | `EXPO_PUBLIC_OUO_PROJECT_TOKEN` |
 | `extra.environment` | `local` | `OUO_ENV` |
 
-The defaults are the stock host ports from `deploy/docker/.env.example`. If you moved ports in `deploy/docker/.env`, copy `.env.example` to `.env` here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`.
+Since ADR-0007 the app talks only to the collector (`ouo-collector`): OTLP goes to
+`${otlpEndpoint}/v1/{traces,logs}` and replay chunks to the collector's replay receiver on port
+4319 (`http://localhost:4319/v1/replay/chunks`, derived by the SDK from port 4318), every request
+with `Authorization: Basic base64("<projectId>:<projectToken>")`. rum-api is internal and the app
+never addresses it. The defaults are the development project of the stock compose stack
+(`deploy/docker/.env.example`, user `demo` in the collector's htpasswd).
+
+If you moved ports or changed the project in `deploy/docker/.env`, copy `.env.example` to `.env`
+here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`. When the collector
+sits behind a proxy on one host (`https://otel.example.com`), set `EXPO_PUBLIC_OTLP_ENDPOINT` to it
+and the SDK uses the same host for replay; pass `replayEndpoint` in `src/rum.ts` only if the
+replay receiver lives elsewhere.
 From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP
-in `BACKEND_URL` / `OTLP_ENDPOINT`.
+in `BACKEND_URL` / `EXPO_PUBLIC_OTLP_ENDPOINT`.
+
+Typecheck: `npx tsc --noEmit` in this folder (after `npm install`).
 
 ## Run
 
@@ -78,6 +93,11 @@ Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 
 ## Verify
 
+rum-api stays internal (ADR-0007); in the local stack its port 8080 is published on loopback for
+these checks. When `OUO_READ_TOKEN` is set (the compose stack sets it in `deploy/docker/.env`), the
+read endpoints need `-H "Authorization: Bearer $OUO_READ_TOKEN"`. The app itself never talks to
+rum-api: its OTLP and replay uploads carry the project credential to the collector.
+
 ```bash
 curl -s 'localhost:8080/v1/sessions?from=now-1h&platform=mobile' | jq '.sessions[] | {session_id, service_version, status, end_reason}'
 curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .buckets
@@ -89,4 +109,4 @@ In Grafana (ouo RUM app) the session's replay plays as frames with touch markers
 text inputs, images and web views keep the default masking, so the promo field is black.
 
 Without a simulator, `sdk/react-native/playground/` runs the same flows headlessly against
-the real collector (see the SDK README).
+the real collector (`OUO_OTLP`, `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN`; see the SDK README).

@@ -2,12 +2,17 @@
 
 This guide is for an engineer who has their own Expo app and wants sessions, errors, crashes,
 fetch traces and screenshot replay from it in the ouo stack, running on a Mac with the latest
-macOS (27.x) and Xcode 27. It assumes the local stack from `00-stack.md` is up: collector on
-`http://localhost:4318`, rum-api on `http://localhost:8080`, Grafana on `http://localhost:3000`.
+macOS (27.x) and Xcode 27. It assumes the local stack from `00-stack.md` is up: the ouo collector
+(`ouo-collector`, the only endpoint the app talks to since ADR-0007) with OTLP/HTTP on
+`http://localhost:4318` and its replay receiver on `http://localhost:4319`, and Grafana on
+`http://localhost:3000`. rum-api, Loki, Tempo and Mimir are internal.
 
 Everything below was checked against this repository on 2026-10-10 (macOS 27.0.1, Xcode 27.0,
-iOS 27.0 simulator runtime, CocoaPods 1.17, Node 24.15, Expo SDK 57, React Native 0.86).
-Anything that could not be checked in the repo is marked **not verified in this repo**.
+iOS 27.0 simulator runtime, CocoaPods 1.17, Node 24.15, Expo SDK 57, React Native 0.86,
+`@ouo/react-native` 0.2.0). Anything that could not be checked in the repo is marked
+**not verified in this repo**. The 0.2.0 init shape (`endpoint` = collector, `projectId` +
+`projectToken` as HTTP Basic) is verified with unit tests and a local stub; the live run against
+the Phase 8a collector is owed to the QA pass (see the note in section 7).
 
 Reference app: `examples/mobile` ("mobile-store"). You copy four files from it as they are
 (listed under "Ref files") and write the rest yourself.
@@ -18,16 +23,20 @@ Reference app: `examples/mobile` ("mobile-store"). You copy four files from it a
 
 | Signal | Who produces it | Where it lands |
 |---|---|---|
-| `session.start` / `session.end` events, 30 min inactivity, 4 h max, 30 s background rule | SDK, automatic | Loki (via collector) |
+| `session.start` / `session.end` events, 30 min inactivity, 4 h max, 30 s background rule | SDK, automatic | Loki (via the collector) |
 | `exception` events, fatal JS errors with `ouo.exception.fatal=true`, crash marker on next launch | SDK, automatic | Loki |
 | `HTTP <METHOD>` client spans for every `fetch`, `traceparent` + `baggage` to your backend | SDK, automatic | Tempo |
 | `http.request.failed` on 5xx / network failure | SDK, automatic | Loki |
 | `navigation` events | you call `rum.trackNavigation` or wire `navigationStateListener` | Loki |
 | custom events, handled errors, user id | you call `rum.addEvent`, `rum.captureError`, `rum.setUser` | Loki |
-| screenshot frames at 1 Hz plus one per touch, redacted on the device, gzip JSON chunks | native `OuoReplay` module, automatic once `replay.enabled: true` | rum-api `/v1/replay/chunks` |
+| screenshot frames at 1 Hz plus one per touch, redacted on the device, gzip JSON chunks | native `OuoReplay` module, automatic once `replay.enabled: true` | the collector's replay receiver (`:4319/v1/replay/chunks`), then rum-api's replay store |
 
-rum-api folds the Loki events into session records (`healthy` / `errored` / `crashed`), the
-Grafana app plugin (`ouo-rum-app`) lists them and plays the frames.
+Every request above carries `Authorization: Basic base64("<project id>:<project token>")`
+(ADR-0007). The collector's `basicauth` extension checks the credential, its rate limiter and body
+limits apply, a `resource` processor stamps `ouo.project.id` from the authenticated user name, and
+the pipelines export to Tempo and Loki; replay chunks take the `ouoreplay` receiver and exporter to
+rum-api's internal chunk sink. rum-api folds the Loki events into session records (`healthy` /
+`errored` / `crashed`), and the Grafana app plugin (`ouo-rum-app`) lists them and plays the frames.
 
 ---
 
@@ -121,24 +130,36 @@ From the ouo checkout (full steps in `00-stack.md`):
 docker compose -f deploy/docker/compose.yaml up -d
 ```
 
+An empty OTLP logs request with the development credential must answer `200`; the same request
+without `-u` answers `401` (that is the collector's `basicauth` extension):
+
 ```bash
-curl -s localhost:8080/readyz
+curl -s -o /dev/null -w '%{http_code}\n' -u demo:pt_dev_demo_0000000000000000 -X POST -H 'content-type: application/json' -d '{}' localhost:4318/v1/logs
 ```
 
-Port note. The ports in `deploy/docker/.env.example` are the defaults (`4318` OTLP/HTTP,
-`8080` rum-api, `8081` demo backend, `3000` Grafana) and `examples/mobile/app.config.ts`
-falls back to the same values, so with a stock stack you do not need to pass anything. If
-you moved ports in a gitignored `deploy/docker/.env`, copy `examples/mobile/.env.example`
-to `examples/mobile/.env` and set `OTLP_ENDPOINT` and `BACKEND_URL` there; Expo CLI loads
-that file into `process.env` before it evaluates `app.config.ts`. The commands below pass
-the values explicitly anyway so it is obvious where they go.
+Port and project note. The ports in `deploy/docker/.env.example` are the defaults (`4318` the
+collector's OTLP/HTTP, `4319` its replay receiver, both published on all interfaces because they
+are the public ingest; `8081` demo backend, `3000` Grafana; rum-api's `8080` is on loopback for
+the `curl` checks in section 7.1 and never for apps) and the stack ships a development project:
+id `demo`, token `pt_dev_demo_0000000000000000` (a line in the collector's htpasswd).
+`examples/mobile/app.config.ts` falls back to the same values, so with a stock stack you do not
+need to pass anything. If you moved ports or changed the project in a gitignored
+`deploy/docker/.env`, copy `examples/mobile/.env.example` to `examples/mobile/.env` and set
+`EXPO_PUBLIC_OTLP_ENDPOINT`, `EXPO_PUBLIC_OUO_PROJECT_ID`, `EXPO_PUBLIC_OUO_PROJECT_TOKEN` and
+`BACKEND_URL` there; Expo CLI loads that file into `process.env` before it evaluates
+`app.config.ts`. The commands below pass the values explicitly anyway so it is obvious where
+they go. For your own deployment, the id and token come from the project's line in the
+collector's htpasswd (`deploy/docker/collector/projects.htpasswd` locally, a Secret in
+Kubernetes); the token is public by design, so putting it in the app bundle is expected.
 
 ---
 
 ## 3. Get the SDK into your app
 
-`@ouo/react-native` is not published to npm yet. You consume it from a local checkout of this
-repository through an npm `file:` link, exactly like `examples/mobile` does.
+`@ouo/react-native` 0.2.0 is packaged for npm (`npm pack --dry-run -w sdk/react-native` lists
+`dist/`, `ios/` with the vendored Swift sources, `android/`, `expo-module.config.json`) but not
+published yet. Until it is, you consume it from a local checkout of this repository through an
+npm `file:` link, exactly like `examples/mobile` does.
 
 ### 3.1 Build the SDK once
 
@@ -152,7 +173,7 @@ npm install
 npm run -w sdk/react-native build
 ```
 
-`build` runs two things: `scripts/sync-ios.mjs` copies the Swift sources of `sdk/ios/Sources`
+`build` runs two things (`npm pack` runs it too, through `prepack`): `scripts/sync-ios.mjs` copies the Swift sources of `sdk/ios/Sources`
 into `sdk/react-native/ios/OuoReplayCore` and `sdk/react-native/ios/OuoReplay` (gitignored
 copies; CocoaPods can only glob files under a podspec's own directory, so the Swift package
 outside the npm package cannot be referenced directly), then `tsup` bundles `src/` into
@@ -186,7 +207,8 @@ npx expo install expo-constants
 ```
 
 Reads `Constants.expoConfig.version` (becomes `service.version`, the version dimension of the
-health percentages) and `Constants.expoConfig.extra` (your endpoints) in `src/rum.ts`.
+health percentages) and `Constants.expoConfig.extra` (collector URL, project id and token,
+backend URL) in `src/rum.ts`.
 
 ```bash
 npx expo install expo-device
@@ -292,7 +314,7 @@ Copy from `examples/mobile/` into the same relative place in your app.
 | File | Purpose |
 |---|---|
 | `examples/mobile/metro.config.js` | Metro config for the `file:` link (inlined above, change `sdkRoot`) |
-| `examples/mobile/app.config.ts` | Expo config: bundle id, version from `APP_VERSION`, endpoints from env, the UIScene plugin |
+| `examples/mobile/app.config.ts` | Expo config: bundle id, version from `APP_VERSION`, collector URL and project credential from env, the UIScene plugin |
 | `examples/mobile/plugins/withUIScene.js` | Config plugin that makes the app launch on iOS 27 |
 | `examples/mobile/src/rum.ts` | SDK initialisation (the one file you edit) |
 
@@ -306,7 +328,10 @@ import type { ExpoConfig } from "expo/config";
 /**
  * APP_VERSION switches `service.version` so the health split by version has data:
  *   APP_VERSION=2.4.0 npx expo start --ios
- * BACKEND_URL / OTLP_ENDPOINT default to the alternate host ports of deploy/docker/.env.
+ * EXPO_PUBLIC_OTLP_ENDPOINT is the collector's OTLP/HTTP base URL (ADR-0007: the collector is the
+ * only edge; the SDK derives the replay receiver on port 4319 from port 4318), EXPO_PUBLIC_OUO_PROJECT_ID
+ * and EXPO_PUBLIC_OUO_PROJECT_TOKEN the project credential (sent as HTTP Basic); all three default to
+ * the stock compose stack and its development project. BACKEND_URL is the demo backend.
  * From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP.
  */
 const config: ExpoConfig = {
@@ -334,7 +359,9 @@ const config: ExpoConfig = {
   plugins: ["./plugins/withUIScene.js"],
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
-    otlpEndpoint: process.env.OTLP_ENDPOINT ?? "http://localhost:4318",
+    otlpEndpoint: process.env.EXPO_PUBLIC_OTLP_ENDPOINT ?? "http://localhost:4318",
+    projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
+    projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
   },
 };
@@ -344,8 +371,11 @@ export default config;
 
 The env variables are read when Expo evaluates the config, so set them on the `npx expo
 run:ios` / `npx expo start` / `npx expo prebuild` command line. `Constants.expoConfig.extra`
-then carries them into the JS bundle. The defaults are the stock ports; put your own values in
-`examples/mobile/.env` (gitignored, template in `.env.example`) if you do not want to pass them every time.
+then carries them into the JS bundle. The defaults are the stock ports and the stock
+development project; put your own values in `examples/mobile/.env` (gitignored, template in
+`.env.example`) if you do not want to pass them every time. (`EXPO_PUBLIC_*` variables are also
+inlined by Metro wherever `process.env.EXPO_PUBLIC_OTLP_ENDPOINT` appears in app code; the
+reference app reads them through `extra` so there is one path for all settings.)
 
 ### 4.2 `examples/mobile/plugins/withUIScene.js`
 
@@ -455,7 +485,11 @@ import * as Device from "expo-device";
 
 interface Extra {
   backendUrl: string;
+  /** Collector OTLP/HTTP base URL (ADR-0007); replay chunks go to the same host on port 4319. */
   otlpEndpoint: string;
+  /** Project credential (HTTP Basic: id is the user name, token the password). Public by nature; the stock compose stack ships this development project. */
+  projectId: string;
+  projectToken: string;
   environment: string;
 }
 
@@ -464,6 +498,8 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
 export const config: Extra = {
   backendUrl: extra.backendUrl ?? "http://localhost:8081",
   otlpEndpoint: extra.otlpEndpoint ?? "http://localhost:4318",
+  projectId: extra.projectId ?? "demo",
+  projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
 };
 
@@ -476,6 +512,9 @@ function escapeRegExp(s: string): string {
 
 export const rum: RUM = initRUM({
   endpoint: config.otlpEndpoint,
+  // replayEndpoint is derived: http://localhost:4318 -> http://localhost:4319 (ADR-0007 section 6).
+  projectId: config.projectId,
+  projectToken: config.projectToken,
   service: { name: "mobile-store", version: appVersion, environment: config.environment },
   tracing: { propagateTo: [new RegExp(`^${escapeRegExp(config.backendUrl)}`)] },
   device: {
@@ -486,7 +525,7 @@ export const rum: RUM = initRUM({
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
   },
   // Native session replay (ADR-0006): needs the development build (npx expo run:ios); a no-op
-  // in Expo Go and on web. Chunks go to rum-api at the OTLP host on port 8080 (replayEndpoint).
+  // in Expo Go and on web. Chunks go to `${replayEndpoint}/v1/replay/chunks` with the Basic credential.
   // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
   // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
   // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".
@@ -522,19 +561,23 @@ registerRootComponent(App);
 ```
 
 `initRUM` returns the same instance on repeated calls (hot reload resumes the session);
-`getRUM()` returns it from anywhere.
+`getRUM()` returns it from anywhere. It throws a `TypeError` naming the option when `endpoint`,
+`projectId` or `projectToken` is missing or empty, so a misconfigured build fails at startup
+instead of getting `401` on every export.
 
 ### 5.2 Every `initRUM` option (verified in `sdk/react-native/src/types.ts`)
 
 | Option | What it does | Default |
 |---|---|---|
-| `endpoint` | OTLP/HTTP base URL of the collector. The SDK appends `/v1/traces` and `/v1/logs`. Requests to it are never traced. | required |
-| `replayEndpoint` | rum-api base URL; the native recorder posts to `${replayEndpoint}/v1/replay/chunks`. | OTLP scheme + host on port `8080` (`defaultReplayEndpoint`) |
+| `endpoint` | Collector OTLP/HTTP base URL (ADR-0007). The SDK posts to `${endpoint}/v1/traces` and `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced. | required |
+| `replayEndpoint` | Base URL of the collector's replay receiver; chunks go to `${replayEndpoint}/v1/replay/chunks`. | `endpoint` with port 4318 replaced by 4319, else `endpoint` itself |
+| `projectId` | User name of the HTTP Basic credential (`Authorization: Basic base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload. `initRUM` throws without it. | required |
+| `projectToken` | Password of the Basic credential. Public by nature; `initRUM` throws without it. | required |
 | `service.name` | `service.name` resource attribute, the service filter in rum-api and Grafana. | required |
 | `service.version` | `service.version`: the app version; the version dimension of the health percentages. Pass `Constants.expoConfig.version`. | required |
 | `service.environment` | `deployment.environment.name`. | required |
 | `tracing.propagateTo` | URL prefixes (RegExp or exact string) that receive `traceparent` and `baggage` (`session.id`, `user.id`, `ouo.platform=mobile`). Other hosts still get a client span, no headers. | `[]` |
-| `tracing.ignoreUrls` | URLs never traced (the OTLP endpoint is always ignored). | `[]` |
+| `tracing.ignoreUrls` | URLs never traced (the derived ingest URLs are always ignored). | `[]` |
 | `session.inactivityTimeoutMs` | No activity for this long ends the session (`inactivity`). | 30 min |
 | `session.maxDurationMs` | Hard cap (`max_duration`). | 4 h |
 | `session.backgroundTimeoutMs` | Background longer than this ends the session on foreground (`background`) and a new one starts. | 30 s |
@@ -547,7 +590,7 @@ registerRootComponent(App);
 | `replay` | See below. | off |
 
 `replay` options (`ReplayOptions`, forwarded one to one to the native `start` as
-`NativeStartOptions`):
+`NativeStartOptions`, together with `sessionId`, `projectId` and `projectToken`):
 
 | Option | What it does | Default |
 |---|---|---|
@@ -651,9 +694,9 @@ await rum.flush();                              // spans, log records and replay
   present, frames at `frameInterval` plus one per touch `began` / `ended` (at most 4 per
   second) are captured from the key window with `drawHierarchy`, redaction rectangles are
   painted black on the device, unchanged frames are dropped (16x16 grayscale hash), and chunks
-  go out every 5 s or 10 frames or on pause / background / rotation / flush as gzip JSON with
-  headers `x-ouo-session-id` and `x-ouo-seq`. Background stops the timer and flushes;
-  foreground sends a `resume` frame.
+  go out every 5 s or 10 frames or on pause / background / rotation / flush as gzip JSON to the
+  collector's replay receiver with headers `Authorization: Basic …`, `x-ouo-session-id` and
+  `x-ouo-seq`. Background stops the timer and flushes; foreground sends a `resume` frame.
 
 ---
 
@@ -705,7 +748,7 @@ One command does all three (build with xcodebuild, boot the simulator if needed,
 app, start Metro):
 
 ```bash
-OTLP_ENDPOINT=http://localhost:4318 BACKEND_URL=http://localhost:8081 npx expo run:ios --device "iPhone 18 Pro"
+EXPO_PUBLIC_OTLP_ENDPOINT=http://localhost:4318 EXPO_PUBLIC_OUO_PROJECT_ID=demo EXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 BACKEND_URL=http://localhost:8081 npx expo run:ios --device "iPhone 18 Pro"
 ```
 
 `--device` takes a simulator name or UDID (`npx expo run:ios --help`). Without it Expo picks a
@@ -720,7 +763,7 @@ Later runs, when the native project has not changed, only need Metro and the alr
 dev client:
 
 ```bash
-OTLP_ENDPOINT=http://localhost:4318 BACKEND_URL=http://localhost:8081 EXPO_PUBLIC_QUIET_LOGBOX=1 npx expo start
+EXPO_PUBLIC_OTLP_ENDPOINT=http://localhost:4318 EXPO_PUBLIC_OUO_PROJECT_ID=demo EXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 BACKEND_URL=http://localhost:8081 EXPO_PUBLIC_QUIET_LOGBOX=1 npx expo start
 ```
 
 Then open the app on the simulator. `EXPO_PUBLIC_QUIET_LOGBOX=1` silences LogBox, whose own
@@ -730,7 +773,7 @@ exception, so a quiet LogBox also keeps your sessions `healthy`).
 Second app version for the health split by version:
 
 ```bash
-APP_VERSION=2.4.0 OTLP_ENDPOINT=http://localhost:4318 BACKEND_URL=http://localhost:8081 npx expo run:ios
+APP_VERSION=2.4.0 EXPO_PUBLIC_OTLP_ENDPOINT=http://localhost:4318 EXPO_PUBLIC_OUO_PROJECT_ID=demo EXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 BACKEND_URL=http://localhost:8081 npx expo run:ios
 ```
 
 The simulator shares the Mac's network namespace, so `localhost` inside the app is the Mac.
@@ -738,8 +781,11 @@ The simulator shares the Mac's network namespace, so `localhost` inside the app 
 ### 6.4 Read the logs
 
 JS side (`debug: __DEV__`): Metro's terminal prints `[ouo] ...` lines:
-`[ouo] shims {...}`, `[ouo] session ready <id>`, `[ouo] replay: started {endpoint, ...}`,
-`[ouo] event navigation {...}`. If replay is off you get one
+`[ouo] shims {...}`, `[ouo] @ouo/react-native@0.2.0 initialised {endpoint, traces, logs,
+replayChunks, replayEndpointDerived, projectId, projectToken: "pt_dev_d…", ...}`, `[ouo] session
+ready <id>`, `[ouo] replay: started {endpoint, ...}`, `[ouo] event navigation {...}`. A `401`
+from the collector shows up as `[ouo:otel] export response failure (status: 401)`: wrong project
+id or token. If replay is off you get one
 `[ouo] replay: native module OuoReplay unavailable (...)` with the underlying error and the
 list of registered native modules.
 
@@ -768,40 +814,68 @@ covers.
 
 ## 7. How telemetry reaches the collector
 
+Since ADR-0007 the collector (`ouo-collector`, a custom OpenTelemetry Collector distribution) is
+the only public ingest. Its `basicauth` extension checks the project credential on every request,
+`ouoratelimit` and the body limits apply, a `resource` processor stamps `ouo.project.id` from the
+authenticated user name, and the standard pipelines export to Tempo, Loki and Mimir. Replay
+chunks enter through the `ouoreplay` receiver on its own port (4319) and leave through the
+`ouoreplay` exporter to rum-api's internal chunk sink. rum-api, Loki, Tempo and Mimir are never
+published for apps; Grafana is the only other public service.
+
 ```
  iOS Simulator (same network namespace as the Mac)              Docker (deploy/docker/compose.yaml)
- +-----------------------------------------------+     +---------------------------------------------+
- |  your app                                     |     |                                             |
- |  @ouo/react-native (JS, Hermes)               |     |  otel-collector :4318 (OTLP/HTTP)           |
- |    POST {endpoint}/v1/traces  ----------------------->   -> tempo  :3200   (spans)               |
- |    POST {endpoint}/v1/logs    ----------------------->   -> loki   :3100   (events)              |
- |    endpoint = http://localhost:4318           |     |   -> mimir  :9009   (metrics, not from RN)  |
- |                                               |     |                                             |
- |  OuoReplay (Swift, Expo module)               |     |  rum-api :8080                              |
- |    POST {replayEndpoint}/v1/replay/chunks ---------->   replays/<session_id>/<seq>.json.gz        |
- |    replayEndpoint = http://localhost:8080     |     |   GET /v1/sessions  <- Loki + Tempo + store |
- |                                               |     |                                             |
- |  fetch("http://localhost:8081/api/...") ------------>  demo backend :8081 (traceparent, baggage) |
- +-----------------------------------------------+     |         |                                   |
-                                                       |  grafana :3000  ouo-rum-app --> rum-api     |
-                                                       +---------------------------------------------+
+ +-----------------------------------------------+     +------------------------------------------------------+
+ |  your app                                     |     |  ouo-collector (public ingest, ADR-0007)             |
+ |  @ouo/react-native (JS, Hermes)               |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
+ |    POST {endpoint}/v1/traces ---------------------->|     ouoratelimit -> resource: ouo.project.id=<user>  |
+ |    POST {endpoint}/v1/logs   ---------------------->|       -> tempo :4317 (spans)                         |
+ |    Authorization: Basic b64(projectId:token)  |     |       -> loki  :3100 (events)                        |
+ |    endpoint = http://localhost:4318           |     |       -> mimir :9009 (metrics, not from RN)          |
+ |                                               |     |   :4319 ouoreplay receiver (same auth, 8 MiB limit)  |
+ |  OuoReplay (Swift, Expo module)               |     |     -> ouoreplay exporter -> rum-api (internal)      |
+ |    POST {replayEndpoint}/v1/replay/chunks --------->|          POST /v1/replay/chunks + X-Ouo-Project-Id   |
+ |    Authorization: Basic b64(projectId:token)  |     |          replays/<session_id>/<seq>.json.gz          |
+ |    replayEndpoint = http://localhost:4319     |     |                                                      |
+ |                                               |     |  rum-api :8080 (loopback only on the host)           |
+ |  fetch("http://localhost:8081/api/...") ----------->|  demo backend :8081 (traceparent, baggage)           |
+ +-----------------------------------------------+     |  grafana :3000  ouo-rum-app --> rum-api (read token) |
+                                                       +------------------------------------------------------+
 ```
 
 Where the values come from, in the reference app:
 
 | Value | Set by | Reaches the SDK as |
 |---|---|---|
-| `OTLP_ENDPOINT` (env, default `http://localhost:4318`) | `app.config.ts` -> `extra.otlpEndpoint` | `initRUM({ endpoint })` |
-| derived | `defaultReplayEndpoint(endpoint)` = same scheme and host, port 8080 | `initRUM({ replayEndpoint })` (override explicitly if rum-api is elsewhere) |
+| `EXPO_PUBLIC_OTLP_ENDPOINT` (env, default `http://localhost:4318`) | `app.config.ts` -> `extra.otlpEndpoint` | `initRUM({ endpoint })`; `/v1/traces`, `/v1/logs` and the replay endpoint (port 4318 -> 4319) are derived from it (`resolveEndpoints`) |
+| `EXPO_PUBLIC_OUO_PROJECT_ID` (env, default `demo`) | `app.config.ts` -> `extra.projectId` | `initRUM({ projectId })`, user name of the Basic credential |
+| `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (env, default `pt_dev_demo_0000000000000000`) | `app.config.ts` -> `extra.projectToken` | `initRUM({ projectToken })`, password of the Basic credential; `Authorization: Basic …` on OTLP exports and replay uploads |
 | `BACKEND_URL` (env, default `http://localhost:8081`) | `app.config.ts` -> `extra.backendUrl` | `tracing.propagateTo` prefix |
 | `OUO_ENV` (env, default `local`) | `app.config.ts` -> `extra.environment` | `service.environment` |
 | `APP_VERSION` (env, default `2.3.0`) | `app.config.ts` -> `version` | `service.version` via `Constants.expoConfig.version` |
 | `EXPO_PUBLIC_QUIET_LOGBOX` (env) | read directly in `App.tsx` | not an SDK setting |
 
-The collector's CORS allow-list (`http://localhost:*`, `http://127.0.0.1:*`) only matters for
-browsers; a native app sends no `Origin` header, so nothing to configure there.
+The collector's CORS allow-list only matters for browsers; a native app sends no `Origin`
+header, so the Basic credential is the whole check. A missing or unknown credential is a `401` on
+every export (visible as `[ouo:otel] export response failure (status: 401)` in Metro with `debug`
+on); a wrong collector URL is a `404` or a network error. Behind a proxy that serves both receivers
+from one host (`https://otel.example.com`, the VM install), set `EXPO_PUBLIC_OTLP_ENDPOINT` to that
+host: with no port 4318 in it the SDK sends replay chunks to the same host.
+
+Verified how: the 0.2.0 SDK was driven in Vitest against a Node stub of the collector with
+`basicauth` (`sdk/react-native/test/ingest-stub.test.ts`, port 18082): `POST /v1/traces` and
+`POST /v1/logs` arrive with `authorization=Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw`
+(`demo:pt_dev_demo_0000000000000000`) and are accepted, a wrong token is rejected with `401`. The
+Swift uploader test asserts the same header value on every chunk request including retries. The
+live run against the Phase 8a collector on the simulator is the QA pass
+(`agents/sdk-react-native/summaries/2026-10-10-phase-8a-rev2.md`).
 
 ### 7.1 Verify from the terminal
+
+rum-api is internal; the local stack publishes its `8080` on loopback so these checks work from
+the Mac. When rum-api runs with `OUO_READ_TOKEN` set (the compose stack does, see
+`deploy/docker/.env`), every `GET /v1/*` below needs `-H "Authorization: Bearer $OUO_READ_TOKEN"`;
+add it to the `curl` commands. The app never uses these routes: its uploads go to the collector
+with the project credential.
 
 Session records (platform is `mobile`; `ouo.platform=mobile` is what the RN SDK sets):
 
@@ -860,8 +934,8 @@ Read in this order.
 **The app**
 
 1. `examples/mobile/index.ts`: imports `./src/rum` before `registerRootComponent`, nothing else.
-2. `examples/mobile/src/rum.ts`: the one `initRUM` call; endpoints from `expo-constants`,
-   device attributes from `expo-device`, `replay: { enabled: true, maskText: false }`.
+2. `examples/mobile/src/rum.ts`: the one `initRUM` call; collector URL, project id and token
+   from `expo-constants`, device attributes from `expo-device`, `replay: { enabled: true, maskText: false }`.
 3. `examples/mobile/App.tsx`: `RUMProvider`, `navigationStateListener`, the LogBox switch, a
    header badge that polls `rum.session.id()` every second so you can see rotations.
 4. `examples/mobile/src/api.ts`: plain `fetch` to the backend; the SDK adds `traceparent` and
@@ -874,9 +948,13 @@ Read in this order.
 
 **The React Native SDK (`sdk/react-native/src`)**
 
-6. `index.ts`: `initRUM` wires everything: shims, session manager, OTLP log and trace exporters
-   with batch processors, the session span/log processors, the propagator, fetch
-   instrumentation, error capture, AppState listener, navigation tracker, the replay controller.
+6. `index.ts`: `initRUM` wires everything: configuration checks (`endpoint`, `projectId`,
+   `projectToken`), shims, session manager, OTLP log and trace exporters with the Basic
+   `Authorization` header and batch processors, the session span/log processors, the propagator,
+   fetch instrumentation, error capture, AppState listener, navigation tracker, the replay
+   controller. `endpoints.ts`: `resolveEndpoints` derives `/v1/traces`, `/v1/logs` and the replay
+   endpoint (4318 -> 4319) from `endpoint` / `replayEndpoint`; `basicAuthorization` builds the
+   header with the SDK's own base64 encoder (no `btoa` on every RN runtime).
 7. `shims.ts`: installs `performance.timeOrigin` and a UTF-8 `TextEncoder` only when missing
    (without `timeOrigin` every OTel timestamp is `NaN`).
 8. `session/manager.ts`: the session rules (cold start, previous run, background, timers,
@@ -891,9 +969,9 @@ Read in this order.
     `telemetry/propagator.ts`: resource attributes (`ouo.platform=mobile`, `os.*`,
     `device.*`), the per-signal session attributes, events as OTel log records with
     `event.name`, `traceparent` + `baggage` injection.
-13. `replay.ts`: loads the native module from `globalThis.expo.modules.OuoReplay`, computes the
-    default rum-api endpoint, and exposes a controller that is a no-op when replay is off or the
-    module is absent.
+13. `replay.ts`: loads the native module from `globalThis.expo.modules.OuoReplay`, passes the
+    replay endpoint, the project id and the token to native `start`, and exposes a controller
+    that is a no-op when replay is off or the module is absent.
 
 **The Expo module bridge (`sdk/react-native`)**
 
@@ -901,14 +979,16 @@ Read in this order.
     `ios/OuoReplayCore.podspec`, `scripts/sync-ios.mjs`: how autolinking finds three pods and
     where their Swift files come from.
 15. `ios/OuoReplayModule.swift`: the `Module` named `OuoReplay`; `start(endpoint, options)`
-    builds an `OuoReplayConfig`, the other functions forward to the Swift package. The session id
+    builds an `OuoReplayConfig` (rejects an empty `projectId` or `projectToken` with
+    `ERR_OUO_REPLAY_CREDENTIAL`), the other functions forward to the Swift package. The session id
     lives in a lock-protected box because the JS side pushes rotations down.
 
 **The Swift package (`sdk/ios/Sources`)**
 
 16. `OuoReplay/OuoReplay.swift`: public entry point (`start`, `pause`, `resume`, `isRecording`,
     `flush`, `sessionDidRotate`, `stop`), everything hops to the main thread.
-17. `OuoReplay/OuoReplayConfig.swift`: every knob, including the ones JS does not expose.
+17. `OuoReplay/OuoReplayConfig.swift`: every knob (`projectId` and `projectToken` first among
+    them, `authorization` computed from both), including the ones JS does not expose.
 18. `OuoReplay/ReplayRecorder.swift`: the 1 Hz timer in `.common` run-loop mode, touch-triggered
     captures, background/foreground, the chunk builder and uploader.
 19. `OuoReplay/ScreenCapturer.swift`: `drawHierarchy` at a render scale that caps the longest side
@@ -921,7 +1001,8 @@ Read in this order.
 23. `OuoReplayCore/ChunkBuilder.swift`, `SeqStore.swift`, `FrameDeduper.swift`, `Gzip.swift`,
     `ChunkUploader.swift`, `Models.swift`, `Clock.swift`: chunk open/flush rules, `seq`
     persistence in `UserDefaults`, FNV-1a dedupe, RFC 1952 gzip through zlib, in-order upload
-    with 3 attempts and a 2 MB queue, the spec's JSON keys, the `[ouo replay]` logger.
+    with the Basic `Authorization` header (`ChunkUploader.basicAuthorization`), 3 attempts and a
+    2 MB queue, the spec's JSON keys, the `[ouo replay]` logger.
 
 ---
 
@@ -955,7 +1036,7 @@ open ios/*.xcworkspace
 ### A.2 Build to the device
 
 ```bash
-OTLP_ENDPOINT=http://<mac-lan-ip>:4318 BACKEND_URL=http://<mac-lan-ip>:8081 npx expo run:ios --device
+EXPO_PUBLIC_OTLP_ENDPOINT=http://<mac-lan-ip>:4318 BACKEND_URL=http://<mac-lan-ip>:8081 npx expo run:ios --device
 ```
 
 `--device` without a value lists connected devices and simulators and lets you pick the phone;
@@ -967,9 +1048,10 @@ app again.
 
 Yes, as long as the phone and the Mac are on the same Wi-Fi / LAN and the app uses the Mac's
 LAN address instead of `localhost`. On the phone `localhost` is the phone itself; in the
-simulator it was the Mac. Nothing else in the pipeline changes: the SDK posts to whatever
-`endpoint` you give it, and `replayEndpoint` is derived from the same host on port 8080, so one
-variable covers both.
+simulator it was the Mac. Nothing else in the pipeline changes: the SDK posts OTLP to
+`{endpoint}/v1/...` on port 4318 and replay chunks to the same host on port 4319 (derived; one
+variable covers both), and compose publishes exactly those two collector ports on all
+interfaces. rum-api stays on loopback and never needs to be reachable from the phone.
 
 Get the Mac's LAN IP (`en0` is Wi-Fi on most Macs; use `en1` or the interface shown in System
 Settings > Network if empty):
@@ -988,11 +1070,11 @@ scutil --get LocalHostName
 Pass it to the app. The variables are the ones `app.config.ts` reads:
 
 ```bash
-OTLP_ENDPOINT=http://192.168.1.23:4318 BACKEND_URL=http://192.168.1.23:8081 npx expo start
+EXPO_PUBLIC_OTLP_ENDPOINT=http://192.168.1.23:4318 BACKEND_URL=http://192.168.1.23:8081 npx expo start
 ```
 
-The replay endpoint becomes `http://192.168.1.23:8080` automatically (`defaultReplayEndpoint`);
-set `replayEndpoint` in `initRUM` only if rum-api runs somewhere else.
+OTLP (`:4318/v1/traces`, `:4318/v1/logs`) and replay chunks (`:4319/v1/replay/chunks`) both go
+to that address; the project id and token stay the same.
 
 Things that can block it, and what to do:
 
@@ -1002,13 +1084,13 @@ Things that can block it, and what to do:
   Wi-Fi isolates clients from each other, `npx expo start --tunnel` gets Metro through ngrok,
   but that does nothing for OTLP and replay: those still need a direct route to the Mac.
 - **macOS firewall.** System Settings > Network > Firewall: if it is on, allow incoming
-  connections for Docker (the app that owns the published ports 4318, 8080 and 8081) or turn
+  connections for Docker (the app that owns the published ports 4318, 4319 and 8081) or turn
   "Block all incoming connections" off. Not verified in this repo.
 - **App Transport Security (ATS).** The generated `examples/mobile/ios/mobilestore/Info.plist`
   (verified) has `NSAppTransportSecurity` with `NSAllowsArbitraryLoads: false` and
   `NSAllowsLocalNetworking: true`. Apple documents `NSAllowsLocalNetworking` as the exception
   for local-network resources, and Expo relies on it to load the JS bundle from Metro at the
-  Mac's LAN IP over plain HTTP, so plain-HTTP OTLP to the same address is expected to work.
+  Mac's LAN IP over plain HTTP, so plain-HTTP ingest to the same address is expected to work.
   Whether it covers every private IP range is **not verified in this repo**. If the device log
   shows "App Transport Security has blocked a cleartext HTTP" for the collector, add this to
   `app.config.ts` for development builds and prebuild again:
@@ -1023,7 +1105,8 @@ Things that can block it, and what to do:
   ```
 
   Do not ship `NSAllowsArbitraryLoads` in a release build; put the collector behind HTTPS
-  instead.
+  instead (the VM and Kubernetes installs do: `otel.<domain>` routes `/v1/replay/*` to 4319 and
+  everything else to 4318, so one `EXPO_PUBLIC_OTLP_ENDPOINT=https://otel.<domain>` covers both).
 - **Local Network privacy prompt.** iOS asks once whether the app may "find and connect to
   devices on your local network" the first time it talks to a LAN address; if the user taps
   "Don't Allow", nothing reaches the Mac (Settings > Privacy & Security > Local Network to fix).
@@ -1031,14 +1114,14 @@ Things that can block it, and what to do:
   add `ios.infoPlist.NSLocalNetworkUsageDescription: "Sends diagnostics to the development
   server"` so the prompt explains itself. Behaviour of the prompt itself is **not verified in
   this repo**.
-- **CORS is irrelevant.** The collector and rum-api CORS lists are for browsers; the native app
-  sends no `Origin`.
+- **CORS is irrelevant.** The collector's origin allow-list is for browsers; the native app
+  sends no `Origin`, the Basic credential is the whole check.
 - **USB instead of Wi-Fi** (brief, optional, **not verified in this repo**): `iproxy` from
   `libimobiledevice` (`brew install libimobiledevice`) forwards a Mac port to a port on the
   phone over usbmuxd, which is the wrong direction for an app that must reach the Mac. The
   practical USB route is the phone's Personal Hotspot over USB: the Mac joins the phone's
   network and gets an address (typically `172.20.10.x`) that the app can use in
-  `OTLP_ENDPOINT` / `BACKEND_URL`.
+  `EXPO_PUBLIC_OTLP_ENDPOINT` / `BACKEND_URL`.
 
 Verify from the Mac exactly as in section 7.1; the session record will show `os.name iOS`,
 the real `device.model.identifier` (for example `iPhone17,1`) and `replay_kind: "frames"`.
@@ -1061,5 +1144,13 @@ the real `device.model.identifier` (for example `iPhone17,1`) and `replay_kind: 
   `maskImages: true` even when `maskText: false`. Not a bug.
 - After tapping, wait about 7 s (5 s chunk flush plus upload) before expecting the frame in
   rum-api.
+- `401` on every export: `EXPO_PUBLIC_OUO_PROJECT_ID` / `EXPO_PUBLIC_OUO_PROJECT_TOKEN` do not
+  match a line in the collector's htpasswd (`deploy/docker/collector/projects.htpasswd`; the
+  user name is the project id). The SDK never retries a `401`; fix the values and restart Metro
+  (they are baked into `extra` when the config is evaluated). Check the pair from the Mac with
+  the `curl -u` line in section 2.4.
+- Replay chunks fail with a connection error while OTLP works: the replay receiver is a second
+  port. With `EXPO_PUBLIC_OTLP_ENDPOINT=http://<host>:4318` the SDK derives `http://<host>:4319`;
+  make sure 4319 is published (compose does) or pass `replayEndpoint` in `src/rum.ts`.
 - Scrolling must stay smooth while recording (10 to 30 ms per frame on a simulator); if it
   stutters, raise `frameInterval`.

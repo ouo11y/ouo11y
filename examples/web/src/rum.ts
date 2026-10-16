@@ -8,8 +8,15 @@ export const USER_STORAGE_KEY = "ouo.demo.user_id";
 const env = import.meta.env;
 
 export const config = {
+  // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
+  // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
   otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
-  rumApi: env.VITE_RUM_API ?? "http://localhost:8080",
+  // Optional: only needed when the collector's replay receiver is not on port 4319 of the OTLP host.
+  replayEndpoint: env.VITE_OUO_REPLAY_ENDPOINT || undefined,
+  // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
+  // names the project. These are the development values the local stack is provisioned with.
+  projectId: env.VITE_OUO_PROJECT_ID ?? "demo",
+  projectToken: env.VITE_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
   backendUrl: env.VITE_BACKEND_URL ?? "http://localhost:8081",
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
   stub: typeof __OUO_RUM_STUB__ !== "undefined" && __OUO_RUM_STUB__,
@@ -32,7 +39,9 @@ const initialUser = storedUserId();
 
 export const rum: RUM = initRUM({
   endpoint: config.otlpEndpoint,
-  replayEndpoint: config.rumApi,
+  ...(config.replayEndpoint ? { replayEndpoint: config.replayEndpoint } : {}),
+  projectId: config.projectId,
+  projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
   replay: { enabled: true, maskAllInputs: true },

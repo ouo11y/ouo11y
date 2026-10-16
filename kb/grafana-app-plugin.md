@@ -120,3 +120,46 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
 ## Stale plugin after a rebuild (2026-10-08)
 
 Grafana loads `module.js?_cache=<plugin version>` and the scaffold's webpack config names lazy chunks `<id>.js?_cache=<contenthash>`. After a rebuild with the **same** plugin version the browser keeps the old `module.js`, which still points at the old chunk hashes, so nothing appears to change even after `docker compose restart grafana`. Fix: bump `version` in `plugins/ouo-rum-app/package.json` (it becomes `plugin.json`'s version) for every user-visible change, or hard-reload (Cmd+Shift+R). Bumped to 0.2.0 for the Phase 7b changes.
+
+## Phase 8a additions: read token, secureJsonData, route headers (grafana-plugin, 2026-10-10)
+
+Context: ADR-0007 section 6. rum-api requires `Authorization: Bearer <OUO_READ_TOKEN>` on `/v1/*`
+when the variable is set; the plugin must add it without exposing it to the browser. Plugin 0.3.0.
+
+- **Route headers are templates too.** `routes[].headers[].content` is evaluated like `url`, as a Go
+  `text/template` against the app settings: `.JsonData.<key>` and the *decrypted* `.SecureJsonData.<key>`.
+  `{"name": "Authorization", "content": "Bearer {{ .SecureJsonData.readToken }}"}` is enough; the
+  browser request to `/api/plugin-proxy/ouo-rum-app/rum/...` carries only the Grafana session. Any
+  `plugin.json` edit (routes, headers) needs a Grafana restart; changing the stored settings does not.
+  With no token stored the header is literally `Bearer ` (empty), which rum-api without
+  `OUO_READ_TOKEN` ignores.
+- **App plugin settings API.** `GET /api/plugins/<id>/settings` returns `enabled`, `pinned`, `jsonData`
+  and `secureJsonFields` (`{"readToken": true}`), never the secret. `POST /api/plugins/<id>/settings`
+  takes `{ enabled, pinned, jsonData, secureJsonData }`. Grafana encrypts each `secureJsonData` value
+  and **merges per key** into the stored map: keys absent from the body keep their stored value, so the
+  config page sends `secureJsonData` only when the user typed a token or pressed Reset. `jsonData` is
+  replaced as a whole, so always send the complete object. Quirk to confirm live: `secureJsonFields.<key>`
+  is `true` for any stored ciphertext, so saving an empty string after Reset still shows "configured"
+  (the proxied header becomes `Bearer `). The plugin meta the frontend gets (`plugin.meta.secureJsonFields`)
+  is read at page load; the config page reloads after a save.
+- **Provisioning**: `apps[].secureJsonData` is supported in `provisioning/plugins/*.yaml`; `$VAR` and
+  `${VAR}` are expanded from Grafana's environment, so `readToken: $OUO_READ_TOKEN` keeps the secret in
+  `.env`. Provisioning runs on every Grafana start and overwrites UI-saved settings for that app.
+- **UI**: `SecretInput` from `@grafana/ui` (`isConfigured`, `onReset`, rest are `Input` props). When
+  configured it renders a disabled text input with value `configured` and a `Reset` button and keeps the
+  `id`, so the `Field` label still points at it. In Jest, `Field`'s `<label>` text includes the
+  description, so `getByLabelText('Read token')` fails: look inputs up by `id`.
+- **401 through the proxy.** Grafana core's `backend_srv` treats a 401 from any `/api/...` call,
+  including the plugin proxy, as a possibly expired Grafana session: it refreshes the session (token
+  rotation / login ping) and retries once before surfacing `status: 401`; the user is only logged out
+  if that refresh itself fails. Read from `public/app/core/services/backend_srv.ts`; the retry is to be
+  confirmed live (expect two rum-api 401 log lines per plugin request). A signed-in user without the
+  `reqRole` gets 403, so 401 can be mapped unambiguously to "rum-api rejected the read token"
+  (`RumApiError.unauthorized`, `ApiErrorAlert` renders the settings link).
+- **Testable save flow**: `window.location.reload` cannot be spied on in jsdom (Jest 29, jsdom 20);
+  the config page takes an optional `onSaved` prop (default: reload) so tests assert the `POST` body
+  and skip the reload. Grafana only passes `PluginConfigPageProps`, so the extra prop is inert in
+  production.
+- **Versioning rule**: every user-visible change bumps `package.json` `version` and gets a line in
+  `plugins/ouo-rum-app/CHANGELOG.md`; the version ends up in `dist/plugin.json` through the
+  `%VERSION%` replacement in `.config/webpack/webpack.config.ts`.

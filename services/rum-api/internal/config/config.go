@@ -25,6 +25,11 @@ type Config struct {
 	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
 	MaxFrameChunkBytes int64         // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	DetailLookback     time.Duration // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
+
+	// ADR-0007 5: rum-api is internal. The collector's replay exporter is the
+	// only writer, the Grafana plugin proxy the only reader.
+	IngestToken string // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken   string // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
 }
 
 // FromEnv builds the config from environment variables with defaults.
@@ -36,11 +41,9 @@ func FromEnv() (Config, error) {
 		GrafanaURL:         env("GRAFANA_URL", "http://localhost:3000"),
 		TempoDatasourceUID: env("GRAFANA_TEMPO_DATASOURCE_UID", "tempo"),
 		DataDir:            env("DATA_DIR", "/data"),
-	}
-	for o := range strings.SplitSeq(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
-		if o = strings.TrimSpace(strings.TrimSuffix(o, "/")); o != "" {
-			c.CORSAllowedOrigins = append(c.CORSAllowedOrigins, o)
-		}
+		CORSAllowedOrigins: envList("CORS_ALLOWED_ORIGINS"),
+		IngestToken:        os.Getenv("OUO_INGEST_TOKEN"),
+		ReadToken:          os.Getenv("OUO_READ_TOKEN"),
 	}
 	var err error
 	if c.SessionInactivity, err = envDuration("SESSION_INACTIVITY", 30*time.Minute); err != nil {
@@ -69,6 +72,18 @@ func FromEnv() (Config, error) {
 	}
 	c.MaxFrameChunkBytes = int64(mfb)
 	return c, nil
+}
+
+// envList splits a comma separated variable, trimming spaces and trailing
+// slashes and dropping empty items.
+func envList(key string) []string {
+	var out []string
+	for o := range strings.SplitSeq(os.Getenv(key), ",") {
+		if o = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(o), "/")); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
 }
 
 func env(key, def string) string {

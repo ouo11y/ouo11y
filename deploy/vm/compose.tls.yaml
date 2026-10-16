@@ -1,0 +1,103 @@
+# VM / server override for deploy/docker/compose.yaml (ADR-0007, Phase 8a).
+#
+#   docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml up -d
+#
+# What it changes relative to the laptop stack:
+#   - adds Caddy on 80/443 with automatic TLS (ACME or `tls internal`) in front of
+#     Grafana (OUO_DOMAIN) and the collector (OUO_OTEL_DOMAIN: /v1/replay/* -> 4319,
+#     everything else -> 4318); Caddyfile is ../vm/Caddyfile (paths are relative to the
+#     first compose file's directory, deploy/docker)
+#   - re-binds every other published port, the collector's 4318/4319 included, to
+#     127.0.0.1. Docker publishes ports by inserting its own iptables rules ahead of ufw,
+#     so a 0.0.0.0 binding would be reachable from the internet no matter what the host
+#     firewall says. On the VM only 22, 80 and 443 are open; everything else is loopback
+#     for the operator. rum-api in particular is never reachable from outside.
+#   - mounts the server-side project registry deploy/docker/projects.htpasswd (gitignored,
+#     written by install.sh with a random token) instead of the committed development
+#     registry collector/projects.htpasswd (demo / pt_dev_demo_...)
+#   - restart: unless-stopped on every service, so `systemctl start ouo` after a
+#     reboot brings the stack back (deploy/vm/ouo.service)
+#   - Grafana learns its public URL and a generated admin password; rum-api builds
+#     deep links to the public Grafana
+#
+# Required in deploy/docker/.env (written by deploy/vm/install.sh):
+#   OUO_DOMAIN, OUO_OTEL_DOMAIN, OUO_TLS, OUO_INGEST_TOKEN, OUO_READ_TOKEN,
+#   OUO_GRAFANA_ADMIN_PASSWORD, OUO_BACKEND_OTLP_HEADERS (Basic credential of the
+#   generated project, for the demo backend and rum-api's own telemetry)
+
+services:
+  caddy:
+    image: caddy:2.11.7
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      OUO_DOMAIN: ${OUO_DOMAIN:?set OUO_DOMAIN in deploy/docker/.env (Grafana hostname)}
+      OUO_OTEL_DOMAIN: ${OUO_OTEL_DOMAIN:?set OUO_OTEL_DOMAIN in deploy/docker/.env (collector hostname for SDKs)}
+      OUO_TLS: ${OUO_TLS:-internal}
+    volumes:
+      - ../vm/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data        # certificates, ACME account, internal CA
+      - caddy-config:/config
+    depends_on:
+      - grafana
+      - otel-collector
+
+  grafana:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SERVER_ROOT_URL: https://${OUO_DOMAIN:-localhost}
+      GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_COOKIE_SECURE: "true"
+
+  otel-collector:
+    restart: unless-stopped
+    # Caddy is the only way in; the collector's own ports become loopback for the operator
+    # (deploy/scripts/wait-ready.sh, smoke.sh run on the VM).
+    ports: !override
+      - "127.0.0.1:${OUO_OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${OUO_OTLP_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${OUO_REPLAY_PORT:-4319}:4319"
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"
+    environment:
+      # Every request reaches the collector from Caddy; rate-limit clients by the
+      # X-Forwarded-For hop Caddy sets (Caddy discards client-sent X-Forwarded-For by default).
+      OUO_RATELIMIT_CLIENT_KEY: x_forwarded_for
+    volumes: !override
+      - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
+
+  rum-api:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_RUM_API_PORT:-8080}:8080"
+    environment:
+      GRAFANA_URL: https://${OUO_DOMAIN:-localhost}
+
+  loki:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_LOKI_PORT:-3100}:3100"
+
+  tempo:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_TEMPO_PORT:-3200}:3200"
+
+  mimir:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_MIMIR_PORT:-9009}:9009"
+
+  backend:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:${OUO_BACKEND_PORT:-8081}:8081"
+
+volumes:
+  caddy-data:
+  caddy-config:

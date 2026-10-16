@@ -42,8 +42,10 @@ and what can be verified on a Mac without Xcode?
   `sessionDidRotate` gets correct numbering. Mobile cold starts always begin a new session
   (session spec), so "persist across restarts" matters only for warm relaunches within a session.
 - **Upload** (`ChunkUploader`): JSON (`JSONEncoder`, sorted keys, snake_case `CodingKeys`) ->
-  gzip -> `POST {endpoint}/v1/replay/chunks` with `content-type: application/json`,
-  `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`. Serial queue, in order, 3 attempts
+  gzip -> `POST {endpoint}/v1/replay/chunks` (the collector's `ouoreplay` receiver, port 4319 in
+  the local stack) with `Authorization: Basic base64(projectId:projectToken)` (ADR-0007, Phase 8a),
+  `content-type: application/json`, `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`.
+  Serial queue, in order, 3 attempts
   with 1 s / 2 s backoff (delay function injectable for tests), queue bounded at 2 MB dropping
   the oldest non-in-flight chunk. `ChunkTransport` protocol so tests capture requests without a
   server; `URLSessionTransport` (ephemeral session, 15 s timeout) in production.
@@ -102,7 +104,9 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 - JS: `src/replay.ts` loads `expo-modules-core` through a guarded bare `require` (Metro bundles
   it; Node, Vitest, bare RN hosts fall into the catch), `requireNativeModule("OuoReplay")`
   throws in Expo Go and on web -> inert controller that warns once in debug. `initRUM` starts
-  replay with `replayEndpoint` (default: OTLP scheme + host, port 8080) and the session id,
+  replay with the derived or explicit `replayEndpoint`, `projectId`, `projectToken` and the
+  session id (Phase 8a; in 0.1.0 `replayEndpoint` defaulted to the OTLP host on port 8080, now
+  to the OTLP host with 4318 -> 4319),
   passes `SessionManager.onRotate` to `sessionDidRotate` (the cold-start resolution reports the
   initial id too; same id is ignored), and `rum.flush()` awaits the native flush. Vitest cannot
   alias a bare `require`, hence `_setExpoModulesCore()` as the test hook.
@@ -162,3 +166,41 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
   fetching frames (5 s chunk flush plus the upload).
 - rum-api session records carry `replay_duration_ms` / `replay_frame_count` from `meta.json`
   (`decorateReplay` reads the meta instead of only the cached kind).
+
+## Phase 8a: project credential on chunk uploads (2026-10-10, ADR-0007 revised)
+
+Revision 1 (same day) added `OuoReplayConfig.projectToken` and an `X-Ouo-Project-Token` header
+to rum-api; the revised ADR-0007 makes the collector the only edge and the credential HTTP Basic.
+What is true now:
+
+- `OuoReplayConfig` takes `endpoint:` (the replay receiver base URL: `http://localhost:4319`
+  locally, or the proxy host that routes `/v1/replay/*` in a deployment), `projectId:` and
+  `projectToken:` (second and third initialiser parameters); the computed `authorization` is
+  `ChunkUploader.basicAuthorization(projectId:projectToken:)` =
+  `"Basic " + Data("\(id):\(token)".utf8).base64EncodedString()`. `ReplayRecorder` hands both ids
+  to `ChunkUploader(endpoint:projectId:projectToken:...)`, which builds the header once and sets it
+  through `makeRequest(url:authorization:sessionId:seq:gzipBody:)` on every request including
+  retries (`ChunkUploader.authorizationHeader == "Authorization"`;
+  `URLRequest.value(forHTTPHeaderField:)` is case-insensitive, so tests check either spelling).
+- Why id + token cross the Expo bridge instead of a prebuilt header: one shape for native hosts
+  and the bridge, and the two base64 encoders (JS `base64Encode`, Foundation) are checked against
+  the same vectors (`demo:pt_dev_demo_…`, `web-store:pt_live_9f3c`, a non-ASCII pair) in
+  `test/endpoints.test.ts` and `BasicAuthorizationValue`.
+- Expo module: `StartOptions` has `@Field var projectId` and `@Field var projectToken`; `start`
+  trims both and throws `ERR_OUO_REPLAY_CREDENTIAL` when either is empty (JS validates first, so
+  this only catches a host that calls the native module directly). `scripts/sync-ios.mjs` is
+  unchanged: it copies whatever is in `sdk/ios/Sources`, so the vendored pods pick up the new
+  initialiser on the next `npm run build`; the Swift file list did not change, so the dev client
+  only needs `npx expo run:ios --no-bundler` (no `pod install`).
+- `RealHTTPAgainstStubWhenConfigured` reads `OUO_REPLAY_STUB_URL` (point it at `:4319`),
+  `OUO_PROJECT_ID` (default `demo`) and `OUO_PROJECT_TOKEN` (default the development token).
+- Verified: `sdk/ios/test.sh` 40 tests (`BasicAuthorizationValue`,
+  `EveryRequestCarriesTheBasicCredential`), `xcodebuild -scheme OuoReplay -destination
+  'generic/platform=iOS Simulator' build` succeeds, and the demo dev client was rebuilt and
+  installed on the iOS 27 "iPhone 18 Pro" simulator with the new record. The live upload to the
+  collector's replay receiver with `401`-on-wrong-token is the QA pass.
+- **SwiftPM by URL.** `.package(url:)` needs `Package.swift` at the root of the fetched
+  repository; `sdk/ios` is nested in the monorepo, so remote consumers cannot add it yet. A
+  tagged mirror (for example `ouo-ios`, pushed from `sdk/ios` by the release workflow) is the
+  usual fix; the release agent decides. Local-path consumption and CocoaPods vendoring are
+  unaffected.

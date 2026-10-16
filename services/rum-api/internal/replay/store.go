@@ -29,6 +29,10 @@ var ErrInvalid = errors.New("invalid chunk")
 // is asked of a replay of the other kind. The API maps it to 409.
 var ErrWrongKind = errors.New("replay kind mismatch")
 
+// ErrWrongProject is returned when a chunk arrives for a session whose replay
+// was recorded under another project id (ADR-0007). The API maps it to 403.
+var ErrWrongProject = errors.New("replay belongs to another project")
+
 // Viewport is the device viewport of a frames replay (points) and the scale
 // the SDK applied before encoding the JPEGs.
 type Viewport struct {
@@ -70,7 +74,11 @@ type ChunkInfo struct {
 // Viewport and Platform are set for frames replays only. FrameCount and
 // TouchCount are totals over all chunks (0 for rrweb).
 type Meta struct {
-	SessionID  string      `json:"session_id"`
+	SessionID string `json:"session_id"`
+	// ProjectID is the project the collector authenticated for the upload
+	// (ADR-0007, X-Ouo-Project-Id on the sink). Empty on meta.json files
+	// written before Phase 8a.
+	ProjectID  string      `json:"project_id,omitempty"`
 	Kind       string      `json:"kind"`
 	ChunkCount int         `json:"chunk_count"`
 	FirstSeq   int         `json:"first_seq"`
@@ -88,12 +96,14 @@ type Meta struct {
 
 // Store is the replay storage abstraction (filesystem now, S3 later).
 type Store interface {
-	// Put validates and stores one chunk. body is the chunk JSON (already
-	// decompressed); gzipBody, if non-nil, is the original gzip bytes and is
-	// stored as-is to avoid recompressing. It returns ErrInvalid for a bad
-	// chunk and ErrWrongKind when the session already holds a replay of the
-	// other kind (nothing is written in either case).
-	Put(ctx context.Context, body []byte, gzipBody []byte) (Chunk, error)
+	// Put validates and stores one chunk for projectID. body is the chunk
+	// JSON (already decompressed); gzipBody, if non-nil, is the original gzip
+	// bytes and is stored as-is to avoid recompressing. It returns ErrInvalid
+	// for a bad chunk, ErrWrongKind when the session already holds a replay
+	// of the other kind and ErrWrongProject when it belongs to another
+	// project (nothing is written in any of these cases). A replay recorded
+	// without a project (pre Phase 8a) adopts projectID.
+	Put(ctx context.Context, projectID string, body []byte, gzipBody []byte) (Chunk, error)
 	// Meta returns the session's replay metadata or ErrNotFound.
 	Meta(ctx context.Context, sessionID string) (Meta, error)
 	// Has reports whether the session has at least one chunk.

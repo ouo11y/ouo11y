@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 8a bugs and observations</title>
+<style>
+:root{--bg:#fff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--red:#c0392b;--amber:#b7791f;--blue:#2f6fed;--green:#1e8e3e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.15rem;margin:32px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.sub{color:var(--muted);margin:0 0 20px}
+article{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+article h3{margin:0 0 6px;font-size:1.02rem}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:999px;color:#fff;margin-right:6px;vertical-align:middle}
+.minor{background:var(--amber)}.obs{background:var(--blue)}.bug{background:var(--red)}.env{background:var(--muted)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:8px 0 0}dt{color:var(--muted)}dd{margin:0}
+table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+</style>
+</head>
+<body>
+<main>
+<h1>Phase 8a: bugs and observations (qa, 2026-10-10, revision 2 on 2026-10-13)</h1>
+<p class="sub">Found while verifying ADR-0007 against the <code>ouo-8a</code> compose stack: revision 1 (rum-api ingest gateway, 2026-10-10) and revision 2 (the <code>ouo-collector</code> is the only public edge, 2026-10-13). Nothing here was fixed by qa; owners in brackets. Severity: <span class="tag bug">bug</span> breaks a documented behaviour, <span class="tag minor">minor</span> wrong but harmless, <span class="tag obs">observation</span> worth knowing, <span class="tag env">environment</span> tooling caveat.</p>
+
+<h2>Revision 2 (2026-10-13): the collector is the edge</h2>
+<table>
+<tr><th>#</th><th>Severity</th><th>Owner</th><th>Title</th></tr>
+<tr><td>R2-1</td><td><span class="tag minor">minor</span></td><td>examples/web (sdk-browser)</td><td>No way to set <code>replayEndpoint</code>: with an OTLP port other than 4318 replay chunks go to the OTLP port and get 404</td></tr>
+<tr><td>R2-2</td><td><span class="tag minor">minor</span></td><td>examples/mobile (sdk-react-native)</td><td>Same for mobile, and the installed dev client ignores Metro's <code>EXPO_PUBLIC_*</code> (config baked at build time; revision 1 finding 5 still applies)</td></tr>
+<tr><td>R2-3</td><td><span class="tag obs">observation</span></td><td>collector</td><td>Authentication failures (401) at the collector are not visible in Mimir: no counter covers them at <code>telemetry.metrics.level: normal</code></td></tr>
+<tr><td>R2-4</td><td><span class="tag obs">observation</span></td><td>qa (status)</td><td>Revision 1 findings 1, 2 and 3 still reproduce; finding 4 (chunk lost on tab close) did not reproduce</td></tr>
+</table>
+
+<article>
+<h3><span class="tag minor">minor</span> R2-1. examples/web exposes no replay endpoint</h3>
+<dl>
+<dt>Where</dt><dd><code>examples/web/src/rum.ts</code>, <code>.env.example</code>, README env table: only <code>VITE_OTLP_ENDPOINT</code>, <code>VITE_OUO_PROJECT_ID</code>, <code>VITE_OUO_PROJECT_TOKEN</code> reach <code>initRUM</code>.</dd>
+<dt>Seen</dt><dd>The SDK derives the replay receiver as port 4319 only when the endpoint uses 4318; otherwise it uses the endpoint itself. Any stack with remapped ports (here <code>OUO_OTLP_HTTP_PORT=4330</code>, <code>OUO_REPLAY_PORT=4331</code>, both documented in <code>deploy/docker/.env.example</code>) sends chunks to <code>http://localhost:4330/v1/replay/chunks</code>, which the OTLP receiver answers with <strong>404</strong>: the session has no replay and nothing says why except a debug log line.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s -o /dev/null -w '%{http_code}\n' -u demo:pt_dev_demo_0000000000000000 -X POST \
+  -H 'content-type: application/json' -d '{"session_id":"x","seq":0,"started_at":1,"ended_at":2,"events":[]}' \
+  localhost:4330/v1/replay/chunks        # 404 (the derived URL when VITE_OTLP_ENDPOINT=http://localhost:4330)</pre></dd>
+<dt>Worked around</dt><dd>Temporary two-line override in <code>src/rum.ts</code> (<code>replayEndpoint</code> from <code>VITE_OUO_REPLAY_ENDPOINT</code>), reverted after the run.</dd>
+<dt>Suggested fix</dt><dd>Add <code>VITE_OUO_REPLAY_ENDPOINT</code> (optional, passed as <code>replayEndpoint</code>) to <code>rum.ts</code>, <code>.env.example</code> and the README table, with a note that it is needed whenever the OTLP port is not 4318 and there is no proxy routing <code>/v1/replay/*</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag minor">minor</span> R2-2. examples/mobile: no replay endpoint, and Metro env does not reach the dev client</h3>
+<dl>
+<dt>Where</dt><dd><code>examples/mobile/app.config.ts</code> (<code>extra</code>) and <code>src/rum.ts</code>; the dev client installed on the booted iPhone 18 Pro.</dd>
+<dt>Seen</dt><dd>(a) Same as R2-1: <code>rum.ts</code> passes no <code>replayEndpoint</code>, so with 4330 the chunks would go to 4330 and get 404. (b) The installed app's <code>EXConstants.bundle/app.config</code> holds <code>otlpEndpoint: http://localhost:4318</code> and <code>backendUrl: http://localhost:8081</code> from its build; <code>EXPO_PUBLIC_OTLP_ENDPOINT</code> given to <code>npx expo start</code> changes nothing. On this Mac 4318 is the other compose project and 8081 is another session's Metro, so the documented "run Metro with these variables" sends the app's telemetry to the wrong stack and its API calls to a Metro server. A session <code>1da85981</code> started 14:48 UTC (before this run, by another launch) was evidently created that way.</dd>
+<dt>Reproduce</dt><dd><pre>APP=$(xcrun simctl get_app_container booted dev.ouo.mobilestore app)
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["extra"])' "$APP/EXConstants.bundle/app.config"</pre></dd>
+<dt>Worked around</dt><dd>Temporary override in <code>src/rum.ts</code> reading Metro-inlined <code>process.env.EXPO_PUBLIC_OTLP_ENDPOINT</code>, <code>EXPO_PUBLIC_BACKEND_URL</code>, <code>EXPO_PUBLIC_OUO_REPLAY_ENDPOINT</code> (reverted), plus <code>RCT_jsLocation=localhost:8091</code> in the simulator defaults (deleted afterwards).</dd>
+<dt>Suggested fix</dt><dd>Read <code>process.env.EXPO_PUBLIC_*</code> first in <code>rum.ts</code> (inlined at bundle time, so Metro's env wins over the baked <code>extra</code>), add <code>EXPO_PUBLIC_OUO_REPLAY_ENDPOINT</code>, and rename <code>BACKEND_URL</code> to <code>EXPO_PUBLIC_BACKEND_URL</code>; or document that the dev client must be rebuilt with the env.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> R2-3. Collector 401s are invisible in Mimir</h3>
+<dl>
+<dt>Seen</dt><dd>After the e2e edge checks and smoke (several 401s on 4318 and 4319), Mimir has <code>otelcol_receiver_refused_log_records{receiver="otlp"} 93</code> (exactly the 93 rate-limited requests) and <code>ouo_ratelimit_rejected_total{key_kind="client"} 93</code>, but no series for the 401s: basicauth rejects before the receiver counts anything, <code>ouo_replay_chunks_total</code> only has <code>outcome="accepted"</code>, and no <code>http_server_*</code> series with <code>job="ouo-collector"</code> exist at level <code>normal</code> (rum-api and the backend do export them).</dd>
+<dt>Why it matters</dt><dd>A rotated or mistyped project token in a customer app is the most likely ingest failure; the operator has no metric to alert on.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s localhost:9010/prometheus/api/v1/query --data-urlencode \
+  'query=sum by (job, http_response_status_code) (http_server_request_duration_count)'   # no job="ouo-collector"</pre></dd>
+<dt>Suggested fix</dt><dd>Count auth failures in the replay receiver's error handler (<code>outcome="unauthenticated"</code>) and either enable the confighttp server metrics (<code>level: detailed</code>) or wrap the OTLP receiver's auth error handler in a counter.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> R2-4. Status of the revision 1 findings</h3>
+<dl>
+<dt>1 (rum-api timeline)</dt><dd>Still present: web <code>add_to_cart</code> shows <code>ouo_project_id=demo … session_previous_id=…</code>; mobile <code>cart.added</code> shows <code>device_* ouo_project_id=demo …</code> (screenshots <code>8a-rev2-plugin-session-detail.jpg</code>, <code>8a-rev2-plugin-mobile-frames.jpg</code>).</dd>
+<dt>2 (RN double exception)</dt><dd>Still present: session <code>3d4ea94f</code> timeline ends <code>exception, session.end, exception</code>, <code>error_count 1</code>.</dd>
+<dt>3 (RN dev traces)</dt><dd>Still present: two 1-span <code>HTTP POST</code> traces at crash time.</dd>
+<dt>4 (keepalive on tab close)</dt><dd>Not reproduced: in revision 2 the unload chunk arrived on a cross-origin navigation (seq 12, plain JSON, keepalive, Basic) and on the pane's tab close (seq 13), see <code>8a-rev2-unload-keepalive.txt</code>.</dd>
+<dt>5, 6</dt><dd>5 is superseded by R2-2; 6 not re-checked.</dd>
+</dl>
+</article>
+
+<h2>Revision 1 (2026-10-10)</h2>
+
+<h2>Summary</h2>
+<table>
+<tr><th>#</th><th>Severity</th><th>Owner</th><th>Title</th></tr>
+<tr><td>1</td><td><span class="tag minor">minor</span></td><td>rum-api (timeline)</td><td>Resource attributes (<code>ouo_project_id</code>, <code>device_*</code>, <code>session_previous_id</code>) shown as custom-event attributes</td></tr>
+<tr><td>2</td><td><span class="tag minor">minor</span></td><td>sdk-react-native</td><td>A fatal error also emits a second, non-fatal <code>exception</code> record after <code>session.end</code> (error_count 1 without any handled error)</td></tr>
+<tr><td>3</td><td><span class="tag obs">observation</span></td><td>sdk-react-native</td><td>Dev-only 1-span <code>HTTP POST</code> traces at crash time (Metro symbolicate calls traced)</td></tr>
+<tr><td>4</td><td><span class="tag env">environment</span></td><td>sdk-browser / qa</td><td>Keepalive chunk delivered on navigation (seq 11) but dropped when the Claude browser pane closed the tab (seq 9 gap); needs a stock Chrome check</td></tr>
+<tr><td>5</td><td><span class="tag env">environment</span></td><td>examples/mobile docs</td><td><code>expo.extra</code> is baked at <code>xcodebuild</code> time: the env must be present for the native build, not only for Metro; a bare RN debug app connects to Metro on 8081</td></tr>
+<tr><td>6</td><td><span class="tag obs">observation</span></td><td>grafana-plugin (kb)</td><td>"Reset then save empty" does <em>not</em> leave <code>secureJsonFields.readToken: true</code> on Grafana 13.2.1: the key is dropped</td></tr>
+</table>
+
+<h2>Details</h2>
+
+<article>
+<h3><span class="tag minor">minor</span> 1. Resource attributes leak into custom-event attributes in the timeline</h3>
+<dl>
+<dt>Where</dt><dd><code>GET /v1/sessions/{id}</code> timeline entries of type <code>custom</code>; rendered under the event name in the plugin Session detail.</dd>
+<dt>Seen</dt><dd>Web session <code>d6eedf18</code>: <code>add_to_cart</code> shows <code>ouo_project_id=demo product_id=p-1001 qty=1</code>; <code>checkout_submitted</code> shows <code>item_count=1 ouo_project_id=demo payment_method=card total=129</code>. Mobile session <code>6a3c20eb</code>: <code>cart.added</code> shows <code>device_manufacturer=Apple device_model_identifier=arm64 device_model_name=Simulator iOS ouo_project_id=demo product_id=p-1001 product_price=129 session_previous_id=…</code>.</dd>
+<dt>Why it matters</dt><dd><code>ouo.project.id</code> is new in 8a (stamped by rum-api on the resource and promoted to a Loki label/structured metadata by the collector); the timeline builder treats every unknown Loki field as a custom attribute, so every custom event now carries the project id and, on mobile, the whole device resource. Noise, not data loss.</dd>
+<dt>Reproduce</dt><dd><pre>curl -s -H 'Authorization: Bearer rt_dev_0000000000000000' \
+  'localhost:8090/v1/sessions/d6eedf18-04e7-40b5-be33-ec535335df53' \
+  | python3 -c 'import json,sys; [print(e["name"], e.get("attributes")) for e in json.load(sys.stdin)["timeline"] if e["type"]=="custom"]'</pre></dd>
+<dt>Suggested fix</dt><dd>Filter the resource-derived labels (<code>ouo_project_id</code>, <code>device_*</code>, <code>session_previous_id</code>, …) from the custom-attribute set in the timeline builder, the same way <code>service_name</code> and friends already are.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag minor">minor</span> 2. RN SDK: one fatal error, two exception records</h3>
+<dl>
+<dt>Where</dt><dd><code>@ouo/react-native</code> 0.2.0, Expo 57 dev build on the iOS simulator (<code>examples/mobile</code>).</dd>
+<dt>Seen</dt><dd>Metro log after Chaos &gt; "Fatal error (crash)": <code>[ouo] event exception {… "ouo.exception.fatal": true}</code>, then <code>[ouo] fatal error, writing crash marker and flushing</code>, then a second <code>[ouo] event exception {"exception.message": "Error: Fatal error from the Chaos screen (setTimeout)", … "ouo.exception.fatal": false}</code>. rum-api session <code>6a3c20eb</code>: timeline <code>exception (fatal)</code> 16:03:58.973, <code>session.end crash</code> .976, <code>exception</code> .984; counts <code>error_count: 1, crash_count: 1</code> although no handled error was triggered.</dd>
+<dt>Hypothesis</dt><dd>The dev-mode LogBox re-reports the uncaught error through <code>console.error</code> ("Error: Error: …" double prefix), and the SDK's console hook records it as a handled exception. Likely dev-only; check a release build.</dd>
+<dt>Reproduce</dt><dd>Run the dev client against the 8a stack, Chaos &gt; "Fatal error (crash)", relaunch the app, then <code>GET /v1/sessions/&lt;id&gt;</code> with the read token and look at the last three timeline entries and <code>error_count</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> 3. Dev-only 1-span <code>HTTP POST</code> traces at crash time</h3>
+<dl>
+<dt>Seen</dt><dd>Mobile session <code>6a3c20eb</code> lists two traces <code>HTTP POST</code>, 1 span, at 19:03:58 and 19:03:59 (exactly the fatal error time), no backend join. Everything else in the session joins <code>demo-backend</code>.</dd>
+<dt>Hypothesis</dt><dd>LogBox POSTs to Metro's <code>/symbolicate</code>; the SDK's fetch instrumentation traces them. Suggest adding the Metro origin to the built-in ignore list when <code>__DEV__</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag env">environment</span> 4. Keepalive upload on unload: delivered on navigation, dropped on pane tab close</h3>
+<dl>
+<dt>Setup</dt><dd>Web demo on <code>http://localhost:5174</code> (Vite), rum-api <code>localhost:8090</code>, Claude desktop browser pane (Chromium).</dd>
+<dt>Seen</dt><dd>Session <code>d6eedf18</code>: before closing the tab <code>last_seq=7</code>. Two clicks then <code>tabs_close</code>: no new chunk; the next page load continued at <code>seq=10</code>, so the SDK had cut <code>seq=9</code> on <code>pagehide</code> but its keepalive POST never reached rum-api (ingest counter <code>signal=replay</code> shows no rejection either). Two clicks then a cross-origin navigation in the same tab: <code>seq=11</code> (14 events, plain JSON) arrived and was accepted, counted <code>outcome=ok</code>. Final meta: <code>seqs [0..8, 10, 11]</code>; rum-api tolerates the gap.</dd>
+<dt>Reading</dt><dd>The keepalive path with the token works on navigation (the browser-only behaviour the SDK summary asked to confirm). The lost chunk on tab close is most likely the pane destroying the renderer before the keepalive request is issued; stock Chrome keeps keepalive requests alive after tab close. Re-check once in a normal Chrome window before calling it an SDK bug.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag env">environment</span> 5. iOS: <code>expo.extra</code> is baked by <code>xcodebuild</code>, and a bare RN debug app picks Metro on 8081</h3>
+<dl>
+<dt>Seen</dt><dd>First build via <code>xcodebuild</code> without the env: the app initialised with <code>rumApi: http://localhost:8080</code> (the main stack's old rum-api, 404 on <code>/ingest/otlp</code>) although Metro was started with <code>EXPO_PUBLIC_RUM_API=http://localhost:8090</code>. <code>mobilestore.app/EXConstants.bundle/app.config</code> carried the defaults: expo-constants evaluates <code>app.config.ts</code> during the Xcode build (<code>get-app-config-ios.sh</code>), not at Metro time. Rebuilding with the variables exported (or in <code>examples/mobile/.env</code>) fixed it. The app also auto-connected to another session's Metro on 8081; <code>xcrun simctl spawn booted defaults write dev.ouo.mobilestore RCT_jsLocation "localhost:8091"</code> redirects it (deep links need the real scheme <code>dev.ouo.mobilestore://</code>, and without <code>expo-dev-client</code> they do not switch servers).</dd>
+<dt>Suggestion</dt><dd>Say in <code>examples/mobile/README.md</code> and the fast-tracked guide that the env must be present for <code>npx expo run:ios</code> / <code>xcodebuild</code>, not only for <code>expo start</code>. Recorded in <code>kb/e2e-scenario.md</code>.</dd>
+</dl>
+</article>
+
+<article>
+<h3><span class="tag obs">observation</span> 6. Plugin "Reset then save empty": the key is dropped, no stale "configured"</h3>
+<dl>
+<dt>Seen</dt><dd>Config page: Reset, Save with the field empty, page reloads: no "configured" badge, no Reset button; <code>GET /api/plugins/ouo-rum-app/settings</code> returns <code>"secureJsonFields": {}</code>; the proxied <code>/rum/v1/stats/health</code> is 401 (rum-api sees no usable Bearer); the 401 banner appears on the app pages. Restoring via <code>POST /api/plugins/ouo-rum-app/settings</code> with <code>secureJsonData.readToken</code> (or restarting Grafana so provisioning re-applies) brings <code>secureJsonFields.readToken: true</code> and 200 back. The quirk feared in <code>kb/grafana-app-plugin.md</code> ("saving an empty string still shows configured") does not occur on Grafana 13.2.1; the kb line can be rewritten.</dd>
+</dl>
+</article>
+
+<h2>Carried over from Phase 6 (still present)</h2>
+<ul>
+<li>React dev mode double-reports the uncaught error in the web demo: session <code>d6eedf18</code> has <code>crash_count: 2</code> for one click (two identical <code>exception</code> records 1 ms apart).</li>
+<li>Tempo search strips leading zeros from trace ids (<code>54996e993b44c6e67a5acb7792bc1e3</code>, 31 chars, in the web session).</li>
+</ul>
+</main>
+</body>
+</html>

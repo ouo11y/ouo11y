@@ -79,6 +79,8 @@ func run(cfg config.Config) error {
 		DetailLookback:     cfg.DetailLookback,
 		MaxChunkBytes:      cfg.MaxChunkBytes,
 		MaxFrameChunkBytes: cfg.MaxFrameChunkBytes,
+		IngestToken:        cfg.IngestToken,
+		ReadToken:          cfg.ReadToken,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",
@@ -102,6 +104,8 @@ func run(cfg config.Config) error {
 			"addr", srv.Addr,
 			"loki", cfg.LokiURL, "tempo", cfg.TempoURL, "grafana", cfg.GrafanaURL,
 			"data_dir", cfg.DataDir,
+			"ingest_token", cfg.IngestToken != "",
+			"read_token", cfg.ReadToken != "",
 			"otlp.endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

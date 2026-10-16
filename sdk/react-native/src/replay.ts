@@ -1,6 +1,5 @@
 import type { DebugLogger } from "./logger";
 import type { ReplayOptions, RUMReplay } from "./types";
-import { parseUrl } from "./url";
 
 /**
  * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
@@ -20,6 +19,12 @@ export interface NativeReplayModule {
 /** Options the native `start` receives; mirrors `OuoReplayConfig` (docs/specs/mobile-replay.md). */
 export interface NativeStartOptions {
   sessionId: string;
+  /**
+   * Project credential (ADR-0007): the native uploader sends
+   * `Authorization: Basic base64("<projectId>:<projectToken>")` on every chunk upload.
+   */
+  projectId: string;
+  projectToken: string;
   frameInterval: number;
   maskText: boolean;
   maskInputs: boolean;
@@ -29,7 +34,6 @@ export interface NativeStartOptions {
 }
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
-export const DEFAULT_REPLAY_PORT = 8080;
 
 /**
  * Loads the Expo native module. Returns undefined in Expo Go, on web, in Node and in tests
@@ -83,20 +87,12 @@ export function _setExpoModulesCore(resolver: (() => ExpoModulesCoreLike | undef
   expoModulesCore = resolver ?? (() => require("expo-modules-core") as ExpoModulesCoreLike | undefined);
 }
 
-/**
- * Default replay endpoint (rum-api): same scheme and host as the OTLP endpoint, port 8080.
- * The browser SDK takes `replayEndpoint` explicitly; mobile defaults it so the demo app's
- * `app.config.ts` does not need another setting.
- */
-export function defaultReplayEndpoint(otlpEndpoint: string): string | undefined {
-  const parsed = parseUrl(otlpEndpoint);
-  if (!parsed) return undefined;
-  return `${parsed.scheme}://${parsed.host}:${DEFAULT_REPLAY_PORT}`;
-}
-
 export interface ReplayControllerOptions {
-  /** rum-api base URL; chunks go to `${endpoint}/v1/replay/chunks`. */
+  /** Replay receiver base URL (the collector's `ouoreplay` port); chunks go to `${endpoint}/v1/replay/chunks`. */
   endpoint: string | undefined;
+  /** Project credential the native uploader turns into the Basic `Authorization` header. */
+  projectId: string;
+  projectToken: string;
   options: ReplayOptions | undefined;
   /** Injected for tests; `undefined` means "load from expo-modules-core", `null` means "absent". */
   native?: NativeReplayModule | null;
@@ -130,7 +126,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     logger.warn(`replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled. ${lastNativeLoadError ?? ""}`);
   }
   if (enabled && native && !endpoint) {
-    logger.warn("replay: no replayEndpoint and the OTLP endpoint could not be parsed; replay disabled");
+    logger.warn("replay: no replay endpoint; replay disabled");
   }
 
   const call = (what: string, fn: () => void): void => {
@@ -150,6 +146,8 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       currentId = sessionId;
       const startOptions: NativeStartOptions = {
         sessionId,
+        projectId: opts.projectId,
+        projectToken: opts.projectToken,
         frameInterval: opts.options?.frameInterval ?? 1,
         maskText: opts.options?.maskText !== false,
         maskInputs: opts.options?.maskInputs !== false,
@@ -161,7 +159,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         native.setSessionId(sessionId);
         native.start(endpoint, startOptions);
         active = true;
-        logger.log("replay: started", { endpoint, ...startOptions });
+        logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
       });
     },
     sessionDidRotate(id: string): void {

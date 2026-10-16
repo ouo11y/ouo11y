@@ -48,10 +48,31 @@ export interface UserOptions {
 }
 
 export interface RUMOptions {
-  /** OTLP/HTTP base URL. The SDK appends `/v1/traces` and `/v1/logs`. */
+  /**
+   * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
+   * `http://localhost:4318`. The SDK posts OTLP to `${endpoint}/v1/traces` and `/v1/logs`
+   * (ADR-0007).
+   */
   endpoint: string;
-  /** rum-api base URL. The SDK posts replay chunks to `${replayEndpoint}/v1/replay/chunks`. */
+  /**
+   * Replay receiver base URL; chunks go to `${replayEndpoint}/v1/replay/chunks`. Optional:
+   * when `endpoint` uses port 4318 the default is the same scheme and host on port 4319
+   * (the collector's replay receiver), otherwise `endpoint` itself (a proxy routing
+   * `/v1/replay/*` to the receiver).
+   */
   replayEndpoint?: string;
+  /**
+   * Project identifier, the HTTP Basic username. Required: `initRUM` throws when it is missing,
+   * empty or contains `:`.
+   */
+  projectId: string;
+  /**
+   * Public project token, the HTTP Basic password. Every ingest request (OTLP and replay)
+   * carries `Authorization: Basic base64(projectId + ":" + projectToken)`. It is not a secret
+   * (browser code is readable by anyone); it only selects the project telemetry is written to.
+   * Required: `initRUM` throws when it is missing or empty.
+   */
+  projectToken: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;

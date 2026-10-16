@@ -1,0 +1,6 @@
+{{- if eq .Values.lgtm.mode "bundled" }}
+{{- $ports := list (dict "name" "http" "port" 9009) (dict "name" "grpc" "port" 9095) }}
+{{- include "ouo.lgtm.statefulset" (dict "root" . "component" "mimir" "values" .Values.lgtm.bundled.mimir "name" (include "ouo.mimir.fullname" .) "mountPath" "/data" "configPath" "/etc/mimir/config.yaml" "ports" $ports "readyPort" "http") }}
+---
+{{ include "ouo.lgtm.service" (dict "root" . "component" "mimir" "name" (include "ouo.mimir.fullname" .) "ports" $ports) }}
+{{- end }}

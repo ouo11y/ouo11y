@@ -1,0 +1,9 @@
+{'ouo_project_id': 'demo', 'outcome': 'ok', 'signal': 'replay'} 21
+{'ouo_project_id': 'demo', 'outcome': 'ok', 'signal': 'logs'} 342
+{'ouo_project_id': 'demo', 'outcome': 'rejected', 'reason': 'origin', 'signal': 'traces'} 3
+{'ouo_project_id': 'demo', 'outcome': 'rejected', 'reason': 'rate', 'signal': 'logs'} 92
+{'ouo_project_id': 'demo', 'outcome': 'rejected', 'reason': 'decode', 'signal': 'traces'} 2
+{'outcome': 'rejected', 'reason': 'token', 'signal': 'replay'} 2
+{'ouo_project_id': 'demo', 'outcome': 'ok', 'signal': 'traces'} 19
+{'outcome': 'rejected', 'reason': 'token', 'signal': 'traces'} 6
+{'ouo_project_id': 'demo', 'outcome': 'ok', 'signal': 'metrics'} 1
