@@ -1,0 +1,52 @@
+# Released images instead of local builds. Override for deploy/docker/compose.yaml:
+#
+#   docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+#
+# rum-api, the ouo collector and Grafana (with the ouo-rum-app plugin baked in) are pulled
+# from ghcr.io at the versions pinned in deploy/docker/.env (see .env.example), so no Go
+# toolchain, ocb or Node build is needed and services/, collector/ and plugins/ can be
+# absent. The demo backend is still built from examples/backend (it is example code, not a
+# released image); delete that service when you do not need it.
+#
+# Build from source instead: leave this file out (compose.yaml alone builds the collector
+# and rum-api and bind-mounts plugins/ouo-rum-app/dist). That is the contributor path and
+# the one to use when changing services/rum-api, collector/ or the plugin.
+#
+# Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
+# RELEASING.md.
+
+services:
+  otel-collector:
+    build: !reset null
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/collector:${OUO_COLLECTOR_VERSION:-0.2.0}
+    pull_policy: missing
+
+  rum-api:
+    build: !reset null
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/rum-api:${OUO_RUM_API_VERSION:-0.2.0}
+    pull_policy: missing
+    # --- rum-api 0.2.0: YAML config file and S3 / MinIO replay storage --------------------
+    # Placeholder until the rum-api YAML config + S3 work is merged (it is what makes the
+    # first rum-api release 0.2.0). The keys below follow that work in progress
+    # (`-config.file`, STORAGE_BACKEND, S3_*); confirm them against
+    # services/rum-api/config.example.yaml before uncommenting. Every env var compose.yaml
+    # already sets keeps working and overrides the file.
+    # command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env"]
+    # environment:
+    #   STORAGE_BACKEND: ${OUO_RUM_API_STORAGE_BACKEND:-filesystem}   # filesystem | s3
+    #   S3_ENDPOINT: ${OUO_S3_ENDPOINT:-}                              # e.g. http://minio:9000
+    #   S3_BUCKET: ${OUO_S3_BUCKET:-ouo-replays}
+    #   S3_REGION: ${OUO_S3_REGION:-us-east-1}
+    #   S3_ACCESS_KEY_ID: ${OUO_S3_ACCESS_KEY_ID:-}
+    #   S3_SECRET_ACCESS_KEY: ${OUO_S3_SECRET_ACCESS_KEY:-}
+    #   S3_FORCE_PATH_STYLE: "true"                                     # MinIO
+    # volumes:
+    #   - ./rum-api/config.yaml:/etc/rum-api/config.yaml:ro
+
+  grafana:
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/grafana:${OUO_GRAFANA_VERSION:-0.2.0}
+    pull_policy: missing
+    # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo-rum-app/dist.
+    volumes: !override
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana

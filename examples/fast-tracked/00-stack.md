@@ -53,15 +53,31 @@ git clone https://github.com/ZiadMansourM/ouo.git
 cd ouo
 ```
 
+The stack runs the **released images** of the three ouo components, pinned to exact
+versions in `deploy/docker/.env.example`:
+
+| Image | Default version | Variable |
+|---|---|---|
+| `ghcr.io/ziadmansourm/ouo/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.2.0` | `OUO_COLLECTOR_VERSION` |
+| `ghcr.io/ziadmansourm/ouo/rum-api` | `0.2.0` | `OUO_RUM_API_VERSION` |
+| `ghcr.io/ziadmansourm/ouo/grafana` (Grafana with the ouo app plugin baked in) | `0.2.0` | `OUO_GRAFANA_VERSION` |
+
+They come in through the override file `deploy/docker/compose.images.yaml`; without it,
+`compose.yaml` builds the same three from source (the contributor path, see "Build from
+source" in Step 3). Release notes for every version are on the repository's GitHub
+Releases page (`rum-api-v0.2.0`, `collector-v0.2.0`, `grafana-v0.2.0`).
+
 If you would rather vendor the stack into your own repo, copy these paths **keeping
-the same relative layout** (the compose file reaches `../../collector`,
-`../../services/rum-api` and `../../plugins/ouo-rum-app/dist` with relative paths):
+the same relative layout**. With the released images you only need `deploy/`; the rows
+marked *source only* are needed only to build from source (the compose file then reaches
+`../../collector`, `../../services/rum-api` and `../../plugins/ouo-rum-app/dist`):
 
 | Ref file (copy as is) | What to change |
 |---|---|
 | `deploy/docker/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else on a laptop; anywhere else set real tokens in `.env` and a real `projects.htpasswd` |
-| `deploy/docker/.env.example` | copy to `deploy/docker/.env` if a default host port collides or to replace the development ingest / read tokens |
-| `collector/` (whole Go module: ocb manifest, Dockerfile, ouo components) | nothing; compose builds the image |
+| `deploy/docker/compose.images.yaml` | nothing; it swaps the three builds for the pinned `ghcr.io/ziadmansourm/ouo/*` images |
+| `deploy/docker/.env.example` | copy to `deploy/docker/.env` to change an image version, if a default host port collides or to replace the development ingest / read tokens |
+| `collector/` (whole Go module: ocb manifest, Dockerfile, ouo components) | *source only*; compose builds the image |
 | `deploy/docker/collector/config.yaml` | the collector config: `cors.allowed_origins` if your dev server origin is not `http://localhost:*` / `http://127.0.0.1:*`; otherwise nothing |
 | `deploy/docker/collector/projects.htpasswd` | one `<project id>:{SHA}<hash>` line per project (`htpasswd -nbs <id> <token>`); ships with `demo` / `pt_dev_demo_0000000000000000`. Add your project here |
 | `deploy/docker/loki/config.yaml` | nothing |
@@ -69,8 +85,8 @@ the same relative layout** (the compose file reaches `../../collector`,
 | `deploy/docker/mimir/config.yaml` | nothing |
 | `deploy/docker/grafana/provisioning/datasources/datasources.yaml` | nothing |
 | `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
-| `services/rum-api/` (whole Go module) | nothing; compose builds it |
-| `plugins/ouo-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | nothing; you build `dist/` once |
+| `services/rum-api/` (whole Go module) | *source only*; compose builds it |
+| `plugins/ouo-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | *source only*; you build `dist/` once |
 | `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/docker/.env` (ports and tokens) |
 
 The full content of each config file is at the end of this page under "The ref files,
@@ -127,6 +143,24 @@ OUO_COLLECTOR_HEALTH_PORT=13133
 OUO_BACKEND_PORT=8081
 OUO_RUM_API_PORT=8080
 
+# --- Released images (only read with -f compose.images.yaml) -----------------------
+# `docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d`
+# pulls these instead of building collector/ and services/rum-api and mounting the plugin
+# build. Each image has its own version (RELEASING.md); pin exact versions, never latest.
+# Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
+# everything is built from source.
+OUO_IMAGE_REGISTRY=ghcr.io/ziadmansourm/ouo
+OUO_RUM_API_VERSION=0.2.0
+OUO_COLLECTOR_VERSION=0.2.0
+OUO_GRAFANA_VERSION=0.2.0
+# rum-api S3 / MinIO replay storage (placeholder, see compose.images.yaml; not wired yet).
+# OUO_RUM_API_STORAGE_BACKEND=filesystem
+# OUO_S3_ENDPOINT=http://minio:9000
+# OUO_S3_BUCKET=ouo-replays
+# OUO_S3_REGION=us-east-1
+# OUO_S3_ACCESS_KEY_ID=
+# OUO_S3_SECRET_ACCESS_KEY=
+
 # --- Tokens (ADR-0007) --------------------------------------------------------------
 # !!! DEVELOPMENT VALUES, LOCAL USE ONLY !!!
 # !!! Everything below, plus the `demo` line in collector/projects.htpasswd, is
@@ -163,6 +197,10 @@ OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000
 # OUO_TLS=you@example.com               # ACME account email (Let's Encrypt), or `internal`
 #                                       # for a self-signed CA on a LAN / IP address
 # OUO_GRAFANA_ADMIN_PASSWORD=change-me  # generated by install.sh
+
+# Collector CORS origins (comma separated, no spaces) and per-client rate-limit key.
+OUO_ALLOWED_ORIGINS=http://localhost:*,http://127.0.0.1:*
+OUO_RATELIMIT_CLIENT_KEY=address
 ```
 
 Example: on the ouo developer Mac other containers already own 3000, 3100, 3200,
@@ -177,12 +215,30 @@ In-cluster addresses are fixed and independent of `.env`: `otel-collector:4318` 
 From the repo root:
 
 ```bash
+docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+```
+
+The first run pulls the Loki, Tempo and Mimir images plus the pinned ouo collector,
+rum-api and Grafana images, and builds the demo backend if you kept it. To save typing,
+put `COMPOSE_FILE=deploy/docker/compose.yaml:deploy/docker/compose.images.yaml` in your
+shell (`export`) and drop the `-f` flags; the commands below show `compose.yaml` alone,
+add the second `-f` (or keep `COMPOSE_FILE` set) for every one of them.
+
+To try another version, set `OUO_RUM_API_VERSION` / `OUO_COLLECTOR_VERSION` /
+`OUO_GRAFANA_VERSION` in `deploy/docker/.env` (pre-releases look like `0.2.0-rc.1`) and
+run the same `up -d`. Pin exact versions; the images also carry `latest` and
+`<major>.<minor>` tags, but a pinned stack is the one you can reproduce.
+
+**Build from source** (you change `collector/`, `services/rum-api/` or the plugin, or an
+image is not published yet): leave `compose.images.yaml` out.
+
+```bash
 docker compose -f deploy/docker/compose.yaml up -d
 ```
 
-The first run pulls four images and builds the ouo collector distribution (the
-OpenTelemetry Collector Builder compiles it from `collector/`; this is the slow step),
-`rum-api` and the demo backend if you kept it. Allow several minutes.
+That builds the ouo collector distribution (the OpenTelemetry Collector Builder compiles
+it from `collector/`; this is the slow step) and `rum-api`, and bind-mounts the plugin
+build from `plugins/ouo-rum-app/dist` (build it once, Step 5). Allow several minutes.
 
 Useful variants:
 
@@ -354,10 +410,14 @@ curl -s http://localhost:8080/readyz
 Expected: `{"ready":true,"checks":{"loki":"ok","tempo":"ok"}}` (503 while Loki or
 Tempo are still starting). Full API in `services/rum-api/README.md`.
 
-The Grafana plugin is the Overview / Sessions / Session detail UI. Grafana loads it
-unsigned from a bind mount of `plugins/ouo-rum-app/dist`. When `dist/` does not
-exist Docker mounts an empty directory and Grafana starts without the plugin, so you
-build it once and then re-create the Grafana container so the mount is picked up.
+The Grafana plugin is the Overview / Sessions / Session detail UI. With the released
+images it is already inside `ghcr.io/ziadmansourm/ouo/grafana` (loaded unsigned); skip to
+the settings check below.
+
+Build from source only: Grafana loads the plugin unsigned from a bind mount of
+`plugins/ouo-rum-app/dist`. When `dist/` does not exist Docker mounts an empty directory
+and Grafana starts without the plugin, so you build it once and then re-create the
+Grafana container so the mount is picked up.
 
 From the repo root:
 
