@@ -154,23 +154,20 @@ services:
   rum-api:
     build:
       context: ../../services/rum-api
+    # Configured like Loki and Tempo: a YAML file (./rum-api/config.yaml, every key in
+    # services/rum-api/config.example.yaml) with ${VAR} expansion for the secrets.
+    # Environment variables override the file.
+    command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
     # Laptop convenience only (curl the read API, e2e assertions). Production never
     # exposes rum-api: deploy/vm/compose.tls.yaml re-binds this to 127.0.0.1 and the
     # Helm chart gives it a ClusterIP Service. SDKs never talk to it.
     ports:
       - "${OUO_RUM_API_PORT:-8080}:8080"
     environment:
-      RUM_API_ADDR: ":8080"
-      LOKI_URL: http://loki:3100
-      TEMPO_URL: http://tempo:3200
-      # Browser-facing Grafana URL used in trace deep links.
+      # Browser-facing Grafana URL used in trace deep links (overrides the file).
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}
-      GRAFANA_TEMPO_DATASOURCE_UID: tempo
-      GRAFANA_LOKI_DATASOURCE_UID: loki
-      DATA_DIR: /data
-      SESSION_INACTIVITY: 30m
-      SESSION_MAX_DURATION: 4h
       # --- ADR-0007 secrets (both are SECRET, unlike the public project token) ---------
+      # Read by the config file as ${OUO_INGEST_TOKEN} / ${OUO_READ_TOKEN}.
       # Bearer the collector's replay exporter must present on POST /v1/replay/chunks.
       OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
       # Bearer that unlocks GET/DELETE /v1/* (Grafana's plugin proxy injects it).
@@ -182,15 +179,69 @@ services:
       OTEL_SERVICE_NAME: rum-api
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
     volumes:
-      # Replay chunks: deploy/data/rum-api/replays/<session_id>/<seq>.json.gz (gitignored).
+      - ./rum-api/config.yaml:/etc/rum-api/config.yaml:ro
+      # Replay chunks (storage.backend filesystem, the default):
+      # deploy/data/rum-api/replays/<session_id>/<seq>.json.gz (gitignored).
       - ../data/rum-api:/data
     depends_on:
       - loki
       - tempo
       - otel-collector
 
+  # MinIO (S3 compatible object storage) for rum-api's s3 replay store. Opt-in, like the
+  # s3 store itself: Loki, Tempo and Mimir keep local filesystem storage in this stack,
+  # so rum-api does too by default. `--profile s3` starts MinIO alone (e.g. for the
+  # rum-api S3 tests, OUO_TEST_S3_ENDPOINT=localhost:9000); compose.s3.yaml also points
+  # rum-api at it. The official minio/minio images are no longer published; pgsty/minio
+  # is the community-maintained build of the same server (kb/rum-api-config-s3.md).
+  minio:
+    image: ${OUO_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    profiles: [s3]
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "127.0.0.1:${OUO_MINIO_PORT:-9000}:9000"          # S3 API (loopback only)
+      - "127.0.0.1:${OUO_MINIO_CONSOLE_PORT:-9001}:9001"  # web console (loopback only)
+    environment:
+      # Development root credentials (public, laptop only).
+      MINIO_ROOT_USER: ${OUO_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${OUO_MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+
+  # One-shot: creates the replay bucket and a rum-api user whose policy only reaches
+  # that bucket (rum-api never runs with the root credentials). Idempotent.
+  minio-init:
+    image: ${OUO_MC_IMAGE:-pgsty/mc:RELEASE.2026-09-16T00-00-00Z}
+    profiles: [s3]
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${OUO_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${OUO_MINIO_ROOT_PASSWORD:-minioadmin}
+      BUCKET: ${OUO_RUM_API_S3_BUCKET:-ouo-replays}
+      RUM_API_KEY: ${OUO_RUM_API_S3_ACCESS_KEY:-rum-api}
+      RUM_API_SECRET: ${OUO_RUM_API_S3_SECRET_KEY:-rum-api-dev-secret-0000}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        # Wait for MinIO (no image-specific healthcheck tooling needed).
+        i=0; until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+          i=$$((i+1)); [ $$i -lt 60 ] || { echo "minio not reachable"; exit 1; }; sleep 1; done
+        mc ready local
+        mc mb --ignore-existing "local/$$BUCKET"
+        cat > /tmp/rum-api-policy.json <<POLICY
+        {"Version":"2012-10-17","Statement":[
+          {"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$$BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$$BUCKET/*"]}]}
+        POLICY
+        mc admin policy create local rum-api /tmp/rum-api-policy.json
+        mc admin user add local "$$RUM_API_KEY" "$$RUM_API_SECRET"
+        mc admin policy attach local rum-api --user "$$RUM_API_KEY" || true
+        echo "bucket $$BUCKET and user $$RUM_API_KEY ready"
+
 volumes:
   grafana-data:
   loki-data:
   tempo-data:
   mimir-data:
+  minio-data:

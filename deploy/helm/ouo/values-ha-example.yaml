@@ -4,7 +4,10 @@
 # kind; this file documents the HA path for the Phase 8 exit criterion ("install on a
 # fresh Kubernetes cluster") and is the starting point for a real HA install.
 #
-# 1. Object storage: one S3 bucket (or GCS / Azure / MinIO) per backend.
+# 1. Object storage: one S3 bucket (or GCS / Azure / MinIO) per backend, rum-api's replay
+#    bucket included (S3 compatible only: AWS S3, MinIO, Ceph RGW, R2, ...):
+#      kubectl -n ouo create secret generic ouo-rum-api-s3 \
+#        --from-literal=access-key-id=... --from-literal=secret-access-key=...
 #
 # 2. Loki (chart grafana/loki, "simple scalable" or "distributed"):
 #      helm install loki grafana/loki -n observability -f loki-values.yaml
@@ -71,17 +74,26 @@ lgtm:
     tempoOtlpGrpcEndpoint: tempo-distributor.observability.svc:4317
     mimirUrl: http://mimir-nginx.observability.svc:80
 
-# rum-api: two replicas need a ReadWriteMany replay volume (NFS, EFS, CephFS, ...) because
-# the replay store is a filesystem until the object-storage store lands (Phase 8b/11).
-# Until then run one replica, or point both at the same RWX claim. rum-api is ClusterIP
-# only; there is no Ingress option (ADR-0007 section 5).
+# rum-api: replays in object storage (storage.backend s3), so any number of replicas share
+# one bucket without a ReadWriteMany volume (meta.json is written with conditional PUTs,
+# kb/rum-api-config-s3.md). Create the bucket first; rum-api never creates it. Credentials:
+# pod identity (EKS IRSA: serviceAccountName with the role annotation, keys left empty) or
+# a pre-created Secret with access-key-id / secret-access-key (storage.s3.existingSecret).
+# For MinIO set endpoint (host:port), forcePathStyle: true and, without TLS, insecure: true.
+# rum-api is ClusterIP only; there is no Ingress option (ADR-0007 section 5).
 rumApi:
   replicas: 2
+  storage:
+    backend: s3
+    s3:
+      bucket: ouo-replays
+      region: eu-central-1
+      # endpoint: minio.storage.svc:9000
+      # forcePathStyle: true
+      # insecure: true
+      existingSecret: ouo-rum-api-s3
   persistence:
-    enabled: true
-    accessModes: [ReadWriteMany]
-    storageClass: efs-sc
-    size: 200Gi
+    enabled: false
   resources:
     requests: { cpu: 500m, memory: 512Mi }
     limits: { memory: 1Gi }

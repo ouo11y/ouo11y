@@ -47,29 +47,76 @@ GRAFANA_URL=http://localhost:3000 OUO_INGEST_TOKEN=it_dev_0000000000000000 \
 OUO_READ_TOKEN=rt_dev_0000000000000000 DATA_DIR=./data go run .
 ```
 
-## Configuration (environment)
+## Configuration
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `RUM_API_ADDR` | `:8080` | listen address |
-| `LOKI_URL` | `http://loki:3100` | Loki base URL |
-| `TEMPO_URL` | `http://tempo:3200` | Tempo base URL |
-| `GRAFANA_URL` | `http://localhost:3000` | browser-facing Grafana URL used in trace deep links |
-| `GRAFANA_TEMPO_DATASOURCE_UID` | `tempo` | datasource uid in the deep links |
-| `GRAFANA_LOKI_DATASOURCE_UID` | `loki` | datasource uid in the session logs' Explore link |
-| `DATA_DIR` | `/data` | replay chunks live in `$DATA_DIR/replays` |
-| `OUO_INGEST_TOKEN` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
-| `OUO_READ_TOKEN` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
-| `CORS_ALLOWED_ORIGINS` | | comma separated exact origins allowed besides the implicit `http://localhost:*` and `http://127.0.0.1:*` (local tooling only; browsers never talk to rum-api in a deployment) |
-| `SESSION_INACTIVITY` | `30m` | a session with no signal for this long is `ended` (`end_reason: inactivity`) |
-| `SESSION_MAX_DURATION` | `4h` | sessions that lasted at least this long end with `max_duration`; also the Loki lookback before `from` |
-| `SESSION_DETAIL_LOOKBACK` | `168h` | how far back `GET /v1/sessions/{id}` searches when `from` is not given |
-| `TEMPO_CONCURRENCY` | `8` | parallel Tempo searches |
-| `TEMPO_CACHE_TTL` | `60s` | in-memory cache of Tempo results per session id + range |
-| `MAX_CHUNK_BYTES` | `4194304` | max rrweb chunk size (compressed and decompressed) |
-| `MAX_FRAME_CHUNK_BYTES` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
-| `MAX_VIDEO_CHUNK_BYTES` | `8388608` | max decoded `video.mp4` of one `kind: "video"` chunk; never below `MAX_CHUNK_BYTES`. The chunk body (base64 mp4 + envelope) may be up to `base64(MAX_VIDEO_CHUNK_BYTES) + 1 MiB` (12.2 MiB by default), compressed and decompressed |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | OTel defaults | own telemetry; `OTEL_SDK_DISABLED=true` turns it off |
+rum-api is configured like Loki and Tempo: an optional YAML file plus environment
+variables.
+
+```bash
+rum-api -config.file=/etc/rum-api/config.yaml -config.expand-env=true
+rum-api -config.file=/etc/rum-api/config.yaml -config.expand-env=true -config.verify  # validate, print redacted, exit
+```
+
+| Flag | Meaning |
+|---|---|
+| `-config.file` | YAML file; every key, its default and its variable are in [`config.example.yaml`](config.example.yaml). Unknown keys are errors |
+| `-config.expand-env` | replace `${VAR}` and `${VAR:-default}` in the file before parsing (Loki's syntax), so tokens and S3 keys stay in the environment. A bare `$VAR` is left alone, `$${` is a literal `${` |
+| `-config.verify` | load and validate, print the effective config with secrets redacted, exit 0 (2 when invalid) |
+| `-check` | probe `GET /healthz` on the configured address and exit (container health check) |
+
+Precedence: built-in defaults < file < environment variables. Every variable below keeps
+working and **overrides the file**, so env-only deployments need no change (an empty
+variable counts as unset). Do not bake these variables into an image or a base manifest
+when you ship a file: they would silently win over it. The Dockerfile sets none.
+
+| Variable | File key | Default | Meaning |
+|---|---|---|---|
+| `RUM_API_ADDR` | `server.http_listen_address` | `:8080` | listen address |
+| `LOKI_URL` | `loki.url` | `http://loki:3100` | Loki base URL |
+| `TEMPO_URL` | `tempo.url` | `http://tempo:3200` | Tempo base URL |
+| `GRAFANA_URL` | `grafana.url` | `http://localhost:3000` | browser-facing Grafana URL used in trace deep links |
+| `GRAFANA_TEMPO_DATASOURCE_UID` | `tempo.datasource_uid` | `tempo` | datasource uid in the deep links |
+| `GRAFANA_LOKI_DATASOURCE_UID` | `loki.datasource_uid` | `loki` | datasource uid in the session logs' Explore link |
+| `STORAGE_BACKEND` | `storage.backend` | `filesystem` | replay store: `filesystem` or `s3` (below) |
+| `DATA_DIR` | `storage.filesystem.dir` | `/data` | filesystem store: replay chunks live in `$DATA_DIR/replays` |
+| `S3_ENDPOINT` | `storage.s3.endpoint` | AWS `s3.<region>.amazonaws.com` | s3 store: `host[:port]`, no scheme |
+| `S3_BUCKET` | `storage.s3.bucket` | | s3 store: bucket (required; rum-api never creates it) |
+| `S3_REGION` | `storage.s3.region` | `us-east-1` | |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_SESSION_TOKEN` | `storage.s3.access_key_id`, `.secret_access_key`, `.session_token` | | static keys; all empty uses the AWS chain (`AWS_*` / `MINIO_*` variables, `~/.aws/credentials`, instance or pod role such as EKS IRSA) |
+| `S3_INSECURE` | `storage.s3.insecure` | `false` | plain HTTP (local MinIO) |
+| `S3_INSECURE_SKIP_VERIFY` | `storage.s3.insecure_skip_verify` | `false` | TLS without certificate verification |
+| `S3_FORCE_PATH_STYLE` | `storage.s3.force_path_style` | `false` | bucket in the path (MinIO and most S3 compatibles) |
+| `S3_PREFIX` | `storage.s3.prefix` | | optional key prefix (environment, tenant) |
+| `OUO_INGEST_TOKEN` | `auth.ingest_token` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
+| `OUO_READ_TOKEN` | `auth.read_token` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
+| `CORS_ALLOWED_ORIGINS` | `server.cors_allowed_origins` | | comma separated exact origins allowed besides the implicit `http://localhost:*` and `http://127.0.0.1:*` (local tooling only; browsers never talk to rum-api in a deployment) |
+| `SESSION_INACTIVITY` | `session.inactivity` | `30m` | a session with no signal for this long is `ended` (`end_reason: inactivity`) |
+| `SESSION_MAX_DURATION` | `session.max_duration` | `4h` | sessions that lasted at least this long end with `max_duration`; also the Loki lookback before `from` |
+| `SESSION_DETAIL_LOOKBACK` | `session.detail_lookback` | `168h` | how far back `GET /v1/sessions/{id}` searches when `from` is not given |
+| `TEMPO_CONCURRENCY` | `tempo.concurrency` | `8` | parallel Tempo searches |
+| `TEMPO_CACHE_TTL` | `tempo.cache_ttl` | `60s` | in-memory cache of Tempo results per session id + range |
+| `MAX_CHUNK_BYTES` | `limits.max_chunk_bytes` | `4194304` | max rrweb chunk size (compressed and decompressed) |
+| `MAX_FRAME_CHUNK_BYTES` | `limits.max_frame_chunk_bytes` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
+| `MAX_VIDEO_CHUNK_BYTES` | `limits.max_video_chunk_bytes` | `8388608` | max decoded `video.mp4` of one `kind: "video"` chunk; never below `MAX_CHUNK_BYTES`. The chunk body (base64 mp4 + envelope) may be up to `base64(MAX_VIDEO_CHUNK_BYTES) + 1 MiB` (12.2 MiB by default), compressed and decompressed |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | | OTel defaults | own telemetry; `OTEL_SDK_DISABLED=true` turns it off |
+
+### Replay storage
+
+Both stores keep the same layout, `replays/<session_id>/<seq %06d>.json.gz` (+
+`<seq>.mp4` for video chunks) and `meta.json`, under `DATA_DIR` or under
+`[<prefix>/]` in the bucket, so `mc mirror <DATA_DIR>/replays <alias>/<bucket>/[<prefix>/]replays`
+moves a filesystem store to S3. The S3 store (`internal/replay/s3.go`, minio-go):
+
+- writes the chunk objects, then `meta.json` with a conditional PUT (`If-Match` on the
+  ETag it read, `If-None-Match: *` for a new replay) and re-reads on a 412 / 409, so
+  several replicas on one bucket never drop a chunk from the meta. A retried `seq`
+  overwrites its objects and replaces its meta entry (no duplicates), as on the filesystem;
+- serves `GET .../replay/video/{seq}` with ranged GETs (`http.ServeContent` seeks a
+  `minio.Object`), the object's ETag and `Last-Modified`;
+- checks the bucket at start (exit when it is missing or the keys are wrong) and in
+  `/readyz` (`"storage": "ok"`).
+
+The size limits and kind / project checks are shared code, identical for both stores.
 
 ## API
 
@@ -99,7 +146,7 @@ Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or 
 
 - `GET /healthz` -> `{"status":"ok"}`
 - `GET /readyz` -> `{"ready":true,"checks":{"loki":"ok","tempo":"ok"}}` (503 when a
-  backend is unreachable)
+  backend is unreachable); with the s3 store `checks` also has `"storage"` (bucket reachable)
 
 ### Replay sink (collector -> rum-api)
 

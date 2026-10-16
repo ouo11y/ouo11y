@@ -1,5 +1,6 @@
 // Package replay stores replay chunks (ADR-0003, ADR-0006, ADR-0008): one
-// directory per session, one gzip JSON file per chunk, plus meta.json. A
+// directory (filesystem) or key prefix (S3) per session, one gzip JSON file
+// per chunk, plus meta.json. A
 // session's replay is rrweb events (web), JPEG frames (ouo mobile SDK) or mp4
 // video segments (Sentry mobile Session Replay through the collector's Sentry
 // bridge, docs/specs/sentry-bridge.md 11); the chunk's `kind` says which, and
@@ -132,7 +133,8 @@ type Meta struct {
 	Chunks     []ChunkInfo `json:"chunks"`
 }
 
-// Store is the replay storage abstraction (filesystem now, S3 later).
+// Store is the replay storage abstraction: FS (fs.go, the default) and S3
+// (s3.go), selected by storage.backend.
 type Store interface {
 	// Put validates and stores one chunk for projectID. body is the chunk
 	// JSON (already decompressed); gzipBody, if non-nil, is the original gzip
@@ -161,10 +163,19 @@ type Store interface {
 
 // VideoFile is one stored mp4 segment: seekable content for range requests,
 // its size and modification time (Last-Modified). The caller closes Content.
+// ETag is the backend's entity tag (S3); empty means the API derives one
+// from Size and ModTime (filesystem).
 type VideoFile struct {
 	Content io.ReadSeekCloser
 	Size    int64
 	ModTime time.Time
+	ETag    string
+}
+
+// Pinger is implemented by stores that depend on a remote backend (S3): the
+// /readyz storage check.
+type Pinger interface {
+	Ready(ctx context.Context) error
 }
 
 // sessionIDRe: UUID-ish, safe as a path segment, at most 64 chars.
