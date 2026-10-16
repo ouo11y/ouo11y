@@ -1,0 +1,131 @@
+{
+  "capture": "/private/tmp/claude-501/-Users-ziadhassanin-Desktop-personal-ouo--claude-worktrees-rum-api-sentry-sdk-compat-ede203/15a3d1d6-fb31-4c42-a8c0-a58610809187/scratchpad/live1/A",
+  "checks": [
+    {
+      "check": "session D0C60116 listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session D0C60116 status errored",
+      "ok": true,
+      "detail": "rum-api errored"
+    },
+    {
+      "check": "session D0C60116 ended background",
+      "ok": true,
+      "detail": "rum-api ended background"
+    },
+    {
+      "check": "session FE2E0123 listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session FE2E0123 status crashed",
+      "ok": true,
+      "detail": "rum-api crashed"
+    },
+    {
+      "check": "session FE2E0123 ended crash",
+      "ok": true,
+      "detail": "rum-api ended crash"
+    },
+    {
+      "check": "session 30E0D27C listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session 30E0D27C status crashed",
+      "ok": true,
+      "detail": "rum-api crashed"
+    },
+    {
+      "check": "session 30E0D27C ended crash",
+      "ok": true,
+      "detail": "rum-api ended crash"
+    },
+    {
+      "check": "session 8BD4E3D1 listed by rum-api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session 8BD4E3D1 status healthy (or errored only by failed requests)",
+      "ok": true,
+      "detail": "rum-api healthy"
+    },
+    {
+      "check": "session 8BD4E3D1 not ended by the bridge",
+      "ok": true,
+      "detail": "rum-api None"
+    },
+    {
+      "check": "every Sentry error event is an exception record in Loki",
+      "ok": true,
+      "detail": "5 in Loki, 5 sent"
+    },
+    {
+      "check": "fatal events are fatal in Loki",
+      "ok": true,
+      "detail": "2 fatal"
+    },
+    {
+      "check": "every Sentry transaction is a trace in Tempo with session.id on all spans",
+      "ok": true,
+      "detail": "9/9"
+    },
+    {
+      "check": "replay e57bfd38 -> session D0C60116: every segment stored",
+      "ok": true,
+      "detail": "9/9 segments"
+    },
+    {
+      "check": "replay e57bfd38 belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "replay 81ae9a9e -> session FE2E0123: every segment stored",
+      "ok": true,
+      "detail": "2/2 segments"
+    },
+    {
+      "check": "replay 81ae9a9e belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "replay 00cc7a14 -> session 30E0D27C: every segment stored",
+      "ok": true,
+      "detail": "2/2 segments"
+    },
+    {
+      "check": "replay 00cc7a14 belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "replay 57bbb257 -> session 8BD4E3D1: every segment stored",
+      "ok": true,
+      "detail": "3/3 segments"
+    },
+    {
+      "check": "replay 57bbb257 belongs to the session it was recorded in",
+      "ok": true,
+      "detail": "first segment +0.0 s after session start"
+    },
+    {
+      "check": "every served mp4 is byte-identical to the mp4 the SDK sent (sha256)",
+      "ok": true,
+      "detail": "16 segments, 0 mismatches"
+    },
+    {
+      "check": "every segment decodes as H.264 video at the manifest's viewport size (AVFoundation)",
+      "ok": true,
+      "detail": "16/16 decoded"
+    }
+  ],
+  "at": "2026-10-13T22:44:58.997671+00:00"
+}

@@ -13,6 +13,13 @@ export interface NetworkOptions {
   onActivity: () => void;
 }
 
+/**
+ * Depth of ouo's fetch wrapper calling the original fetch. React Native's fetch (whatwg-fetch)
+ * creates, opens and sends its XMLHttpRequest synchronously inside that call; the XHR
+ * instrumentation skips those requests because the fetch wrapper already traces them.
+ */
+let insideFetch = 0;
+
 type FetchFn = typeof fetch;
 type WrappedFetch = FetchFn & { __original?: FetchFn; __ouo?: true };
 
@@ -69,6 +76,35 @@ function requestMethod(input: unknown, init: RequestInit | undefined): string {
   return "GET";
 }
 
+function failedRequestEmitter(events: EventEmitter) {
+  return (span: Span, status: number, url: string, method: string, errorType?: string): void => {
+    events.emit(
+      "http.request.failed",
+      {
+        "http.request.method": method,
+        "url.full": url,
+        "http.response.status_code": status,
+        ...(errorType ? { "error.type": errorType } : {}),
+      },
+      "error",
+    );
+    span.setAttribute("ouo.http.failed", true);
+  };
+}
+
+function startClientSpan(tracer: Tracer, method: string, url: string): Span {
+  const parsed = parseUrl(url);
+  return tracer.startSpan(`HTTP ${method}`, {
+    kind: SpanKind.CLIENT,
+    attributes: {
+      "http.request.method": method,
+      "url.full": url,
+      ...(parsed ? { "server.address": parsed.host, "url.scheme": parsed.scheme, "url.path": parsed.path } : {}),
+      ...(parsed?.port !== undefined ? { "server.port": parsed.port } : {}),
+    },
+  });
+}
+
 /**
  * Wraps `globalThis.fetch`: one CLIENT span per request, `traceparent` + `baggage` on
  * matching URLs, `http.request.failed` on 5xx / network failure, session activity.
@@ -84,35 +120,14 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
   if (original.__ouo) return () => {};
   const { tracer, events, onActivity } = opts;
 
-  const emitFailed = (span: Span, status: number, url: string, method: string, errorType?: string): void => {
-    events.emit(
-      "http.request.failed",
-      {
-        "http.request.method": method,
-        "url.full": url,
-        "http.response.status_code": status,
-        ...(errorType ? { "error.type": errorType } : {}),
-      },
-      "error",
-    );
-    span.setAttribute("ouo.http.failed", true);
-  };
+  const emitFailed = failedRequestEmitter(events);
 
   const wrapped: WrappedFetch = function ouoFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const url = requestUrl(input);
     if (matchesAny(url, opts.ignoreUrls)) return original.call(this ?? globalThis, input, init);
     onActivity();
     const method = requestMethod(input, init);
-    const parsed = parseUrl(url);
-    const span = tracer.startSpan(`HTTP ${method}`, {
-      kind: SpanKind.CLIENT,
-      attributes: {
-        "http.request.method": method,
-        "url.full": url,
-        ...(parsed ? { "server.address": parsed.host, "url.scheme": parsed.scheme, "url.path": parsed.path } : {}),
-        ...(parsed?.port !== undefined ? { "server.port": parsed.port } : {}),
-      },
-    });
+    const span = startClientSpan(tracer, method, url);
 
     let nextInit = init;
     if (matchesAny(url, opts.propagateTo)) {
@@ -125,11 +140,14 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
     }
 
     let result: Promise<Response>;
+    insideFetch++;
     try {
       result = original.call(this ?? globalThis, input, nextInit);
     } catch (err) {
       finishError(err);
       return Promise.reject(err);
+    } finally {
+      insideFetch--;
     }
     return result.then(
       (res) => {
@@ -162,5 +180,132 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
   g.fetch = wrapped;
   return () => {
     if (g.fetch === wrapped) g.fetch = original;
+  };
+}
+
+// ---- XMLHttpRequest ------------------------------------------------------------------------
+
+interface XhrState {
+  method: string;
+  url: string;
+  /** Lower-cased names of the headers set so far (by the app or another SDK). */
+  headers: Set<string>;
+  skip: boolean;
+}
+
+interface XhrLike {
+  status: number;
+  setRequestHeader(name: string, value: string): void;
+  addEventListener?(type: string, listener: () => void): void;
+  __ouoXhr?: XhrState;
+}
+
+interface XhrProto {
+  open(this: XhrLike, method: string, url: string | URL, ...rest: unknown[]): void;
+  setRequestHeader(this: XhrLike, name: string, value: string): void;
+  send(this: XhrLike, body?: unknown): void;
+}
+
+/**
+ * Wraps `XMLHttpRequest.prototype` (open, setRequestHeader, send): one CLIENT span per request
+ * with the same attributes, propagation and failed-request rule as the fetch wrapper. Clients
+ * built on XHR (axios, superagent) are traced this way; fetch's own XHR is skipped.
+ *
+ * `traceparent` is only added when the request has none yet: XHR joins repeated headers into
+ * one value, and two trace parents (another SDK, e.g. Sentry with `propagateTraceparent`, ran
+ * first) would be an invalid header. `baggage` is merged the same way, which is valid.
+ */
+export function installXhrInstrumentation(opts: NetworkOptions): () => void {
+  const Xhr = (globalThis as { XMLHttpRequest?: { prototype: XhrProto & { __ouo?: true } } }).XMLHttpRequest;
+  const proto = Xhr?.prototype;
+  if (!proto || typeof proto.open !== "function" || typeof proto.send !== "function") {
+    opts.logger.log("XMLHttpRequest not available: XHR instrumentation skipped");
+    return () => {};
+  }
+  if (proto.__ouo) return () => {};
+  const { tracer, events, onActivity } = opts;
+  const emitFailed = failedRequestEmitter(events);
+  const original = { open: proto.open, setRequestHeader: proto.setRequestHeader, send: proto.send };
+
+  proto.open = function ouoOpen(this: XhrLike, method: string, url: string | URL, ...rest: unknown[]): void {
+    const u = typeof url === "string" ? url : String(url);
+    this.__ouoXhr = {
+      method: String(method || "GET").toUpperCase(),
+      url: u,
+      headers: new Set(),
+      skip: insideFetch > 0 || matchesAny(u, opts.ignoreUrls),
+    };
+    return original.open.call(this, method, url, ...rest);
+  };
+
+  proto.setRequestHeader = function ouoSetRequestHeader(this: XhrLike, name: string, value: string): void {
+    this.__ouoXhr?.headers.add(String(name).toLowerCase());
+    return original.setRequestHeader.call(this, name, value);
+  };
+
+  proto.send = function ouoSend(this: XhrLike, body?: unknown): void {
+    const state = this.__ouoXhr;
+    if (!state || state.skip) return original.send.call(this, body);
+    onActivity();
+    const { method, url } = state;
+    const span = startClientSpan(tracer, method, url);
+
+    if (matchesAny(url, opts.propagateTo)) {
+      const carrier: Record<string, string> = {};
+      propagation.inject(trace.setSpan(context.active(), span), carrier);
+      for (const [name, value] of Object.entries(carrier)) {
+        const lower = name.toLowerCase();
+        if ((lower === "traceparent" || lower === "tracestate") && state.headers.has("traceparent")) continue;
+        try {
+          this.setRequestHeader(name, value);
+        } catch (e) {
+          opts.logger.warn("could not set", name, e);
+        }
+      }
+    }
+
+    let done = false;
+    let aborted = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      const status = typeof this.status === "number" ? this.status : 0;
+      if (aborted) {
+        span.setAttribute("error.type", "AbortError");
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "aborted" });
+      } else {
+        span.setAttribute("http.response.status_code", status);
+        if (isFailedRequest(status)) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: status ? `HTTP ${status}` : "network error" });
+          emitFailed(span, status, url, method, status ? undefined : "NetworkError");
+        }
+      }
+      span.end();
+    };
+    if (typeof this.addEventListener === "function") {
+      this.addEventListener("abort", () => {
+        aborted = true;
+      });
+      this.addEventListener("loadend", finish);
+    }
+    try {
+      return original.send.call(this, body);
+    } catch (err) {
+      const type = err instanceof Error ? err.name || "Error" : typeof err;
+      span.setAttribute("error.type", type);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
+      emitFailed(span, 0, url, method, type);
+      done = true;
+      span.end();
+      throw err;
+    }
+  };
+  proto.__ouo = true;
+
+  return () => {
+    proto.open = original.open;
+    proto.setRequestHeader = original.setRequestHeader;
+    proto.send = original.send;
+    delete proto.__ouo;
   };
 }

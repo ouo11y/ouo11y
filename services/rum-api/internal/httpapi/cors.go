@@ -6,11 +6,14 @@ import (
 )
 
 // allowedHeaders covers the collector's replay sink headers (project id,
-// gzip body, chunk headers, ingest bearer) and plain JSON API calls with the
-// read token from local tooling or a browser.
+// gzip body, chunk headers, ingest bearer), plain JSON API calls with the
+// read token from local tooling or a browser, and range requests for video
+// segments. exposedHeaders lets such a caller read the replay kind and the
+// range response headers.
 const (
-	allowedHeaders = "Authorization, Content-Type, Content-Encoding, X-Ouo-Project-Id, X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding"
+	allowedHeaders = "Authorization, Content-Type, Content-Encoding, X-Ouo-Project-Id, X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding, Range"
 	allowedMethods = "GET, POST, DELETE, OPTIONS"
+	exposedHeaders = "X-Ouo-Replay-Kind, Content-Range, Accept-Ranges"
 )
 
 // cors reflects the Origin header for any http://localhost:* or
@@ -31,7 +34,7 @@ func cors(extra []string, next http.Handler) http.Handler {
 			h.Add("Vary", "Origin")
 			h.Set("Access-Control-Allow-Methods", allowedMethods)
 			h.Set("Access-Control-Allow-Headers", allowedHeaders)
-			h.Set("Access-Control-Expose-Headers", "X-Ouo-Replay-Kind")
+			h.Set("Access-Control-Expose-Headers", exposedHeaders)
 			h.Set("Access-Control-Max-Age", "600")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)

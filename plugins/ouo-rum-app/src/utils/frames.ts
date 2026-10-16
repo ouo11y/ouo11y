@@ -1,4 +1,5 @@
 import type { ReplayFramesResponse, ReplayKind, ReplayMeta, ReplayTouch, SessionRecord } from '../api/types';
+import { isReplayKind } from './format';
 
 /** How long a touch indicator stays visible after the touch instant. */
 export const TOUCH_WINDOW_MS = 500;
@@ -68,9 +69,10 @@ export function visibleTouches(
 }
 
 /** Replay start and duration for a frames replay: `started_at`/`ended_at` of the response. */
-export function framesBounds(
-  resp: Pick<ReplayFramesResponse, 'started_at' | 'ended_at' | 'frames'> | undefined
-): { start: number; durationMs: number } {
+export function framesBounds(resp: Pick<ReplayFramesResponse, 'started_at' | 'ended_at' | 'frames'> | undefined): {
+  start: number;
+  durationMs: number;
+} {
   if (!resp) {
     return { start: NaN, durationMs: 0 };
   }
@@ -113,13 +115,13 @@ export function replayRenderer(
   if (!session.has_replay) {
     return null;
   }
-  if (session.replay_kind === 'frames' || session.replay_kind === 'rrweb') {
+  if (isReplayKind(session.replay_kind)) {
     return session.replay_kind;
   }
   if (!meta) {
     return undefined;
   }
-  return meta.kind === 'frames' ? 'frames' : 'rrweb';
+  return meta.kind === 'frames' || meta.kind === 'video' ? meta.kind : 'rrweb';
 }
 
 /** Index of the frame before / after the current one, clamped (used by arrow-key stepping). */

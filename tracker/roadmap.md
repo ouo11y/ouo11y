@@ -84,7 +84,41 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 - [ ] Comparison dashboards and coverage report
 - [ ] Cost model from real ingest volumes
 - [ ] Cutover runbook with rollback
+- [ ] Sentry SDK bridge (ADR-0008 proposed 2026-10-13, spec `docs/specs/sentry-bridge.md`). Order of work: (1) capture golden envelopes from both apps and answer the spec's verify items [collector]; (2) `ouosentry` receiver: forward, parse, translate, resolve sessions [collector]; (3) `video` replay kind [rum-api]; (4) video player [grafana-plugin]; (5) Sentry vs ouo comparison report [qa]. Placement ahead of Phase 10 is a founder decision (roadmap section 6 trigger)
 - [ ] Exit: demo backend reporting to both stacks with matching trace counts and a generated cost comparison
+
+## Sentry bridge (ADR-0008), pulled forward on 2026-10-14
+
+Founder ask: Sentry SDKs point at the collector; the collector forwards everything to Sentry as if it were not there; replay goes to rum-api; traces and logs go to LGTM. Branch `claude/sentry-bridge-design`, PR #16. Each sub-phase closes only when its verification is recorded here.
+
+**MVP scope (founder, 2026-10-14):** S1 (forward to Sentry as if the collector were not there) and S3 (session replay to rum-api) are the MVP and get the strong verification. S2 (traces and logs to LGTM) was first marked "can be implemented later", then put back in scope the same day because the plugin's session list is built from the session events in Loki: S2 gets the full verification gate. Android (S5) is deferred.
+
+| Sub-phase | Delivers | Verification gate |
+|---|---|---|
+| S1 Transparent forward | `ouosentry` receiver: auth table, raw-byte forward, verbatim response, `upstream: none`; `sentrytap` record/forward tool | Go tests against a fake upstream (body, headers, query byte-identical incl. gzip; 200, 429 + `X-Sentry-Rate-Limits` + `Retry-After`, 413 passthrough; upstream down 502; unknown key 403 not forwarded; body limit). Live: real Sentry iOS SDK through tap A, collector, tap B: every request in A appears in B byte-identical, responses identical; latency overhead measured |
+| S2 Telemetry to LGTM | envelope parser, session, error, transaction mapping, session resolution, OTLP out | Golden tests on envelopes captured in S1. Live: simulator journey yields healthy, errored and crashed sessions in rum-api with the same counts as the Sentry session updates; exceptions in Loki; transactions in Tempo with `session.id` |
+| S3 Replay to rum-api | `replay_video` decode, `kind: "video"` chunks via routing connector and `ouoreplay` exporter; rum-api video kind, manifest, mp4 range serving | Unit tests both sides. Live: replay segments of a simulator session stored, every mp4 has `ftyp` and plays (AVFoundation probe), range request 206, touches present |
+| S4 Plugin player + report | video player in the plugin, HTML verification report | Grafana shows the bridged session with timeline, traces and playing video; report in `reports/` |
+| S5 Android (deferred) | same as S1 to S3 on Android | Deferred by the founder; also no Android SDK, emulator or JDK on the build Mac |
+
+- [x] S1 Transparent forward [2026-10-14: Go tests against a fake upstream; live in `ouo-sb` with real sentry-cocoa 9.30.1 traffic: `sentrytap compare` 39/39 requests byte-identical with identical responses, bridge overhead p50 2.8 ms p95 4.4 ms; 429 + `X-Sentry-Rate-Limits` + `Retry-After` passed through the container; unreachable upstream aborts the connection; outage run: SDK retried, flushed on recovery, ouo recorded each event once; `reports/sentry-bridge-verification.html`]
+- [x] S2 Telemetry to LGTM [2026-10-14: golden tests on 54 captured requests; `verify-bridge.py` on two live runs: 6 sessions with status and end reason matching the SDK's updates, 8/8 errors in Loki (fatal ones fatal), 11/11 transactions in Tempo with `session.id` on every span; real-traffic fixes: stale replay id window, platform detection, crash end time, touch moves]
+- [x] S3 Replay to rum-api [2026-10-14: 26/26 segments of 6 replays stored under the session they were recorded in, sha256 equal to the SDK's mp4, all decoded by AVFoundation at 402x874; rum-api tests incl. Range 206 and cross-kind 409]
+- [x] S4 Plugin player + report [2026-10-14: plugin 0.4.0 video player, 97 Jest tests; live in Grafana 13.2.1 on real bridged sessions, Range/206 through the plugin proxy, timeline seek lands in the right segment; `reports/sentry-bridge-verification.html`, `agents/grafana-plugin/reports/s4-video-player.html`]
+- [ ] S5 Android (deferred)
+
+### Sentry bridge follow-ups (founder, 2026-10-14)
+
+- [x] F1 Sentry `log` items to Loki [2026-10-14: `event.name = log` (console capture: `console`), typed attributes, session by `sentry.replay_id`, trace id (new rule 4) or `user.id`, held up to `log_hold` 1 min; live 30/30 logger entries in Loki, 51/51 log and console records with a session; golden `ios-rn-8.30.0/shop` (`TestGoldenShop`); spec section 7a]
+- [x] F2 Richer timeline [2026-10-14: replay breadcrumbs become `http.request` (answered requests; failures stay `http.request.failed` from spans), `console`, `app.lifecycle`, `ui.tap`, `breadcrumb`; console lines de-duplicated against console log entries; plugin titles for them; live 45/45 requests, 21 console lines from 38 copies, 127 timeline events in the main session (20 of the previous types); spec section 9a. Successful `http.client` spans are not turned into events: the breadcrumbs cover them without duplicates]
+- [x] F3 [2026-10-14: `propagateTraceparent: true`, app built with `BACKEND_URL=http://localhost:8084`, four manually instrumented flows each in its own trace (`startNewTrace`); live 27/27 backend-calling transactions are one Tempo trace with the backend server span under the app's `http.client` span; "Open in Explore" opens it (screenshot in the report)] Traces into the backend, "Open in Explore" end to end: the app must call the `ouo-sb` demo backend (localhost:8084, not 8082) with `tracePropagationTargets` for it and W3C `traceparent` propagation enabled in the Sentry SDK (`propagateTraceparent: true`, present in the bundled @sentry/core 10.76.0; `enableLogs` and the three mask options also exist in @sentry/react-native 8.30.0). More screens and actions with manual `Sentry.startSpan` around each so many traces reach the backend. Verify that the Tempo trace holds mobile and backend spans and that the plugin's Explore links open it.
+- [x] F4 [2026-10-14: masking off in the demo, chunks carry `masked: false` from the recording's `options` event; 25/25 segments byte-identical and decoded; ready for the founder's review in Grafana http://localhost:3003] Unmasked recordings for review: `mobileReplayIntegration({ maskAllText: false, maskAllImages: false, maskAllVectors: false })` in the demo app (demo only), rebuild, rerun the journey; the founder reviews the recordings in Grafana.
+
+- [x] Founder review 2026-10-14 [taps: real touches recorded (24 in a tapped session) and `ui.tap` events named by component; marker made visible (white + halo, 1.5 s on video); timeline list fills its panel; Logs section (rum-api `GET /v1/sessions/{id}/logs`: session lines + lines sharing its traces, 119 on the main session incl. 68 backend lines); plugin 0.5.0]
+
+- [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
+
+State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
 
 ## Phase 13 Native SDKs
 

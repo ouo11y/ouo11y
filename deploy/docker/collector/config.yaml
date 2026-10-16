@@ -4,6 +4,7 @@
 # file and projects.htpasswd into /etc/otelcol/. Ports:
 #   4318 OTLP/HTTP  public  Basic auth (project id : project token), CORS
 #   4319 replay     public  Basic auth, CORS, POST /v1/replay/chunks
+#   4320 Sentry     public  Sentry SDK envelopes (ADR-0008), Sentry DSN key auth, forwarded to Sentry
 #   4317 OTLP/gRPC  loopback in compose, same Basic auth (send the Authorization metadata)
 #   13133 health    loopback
 #   8888 self-metrics (Prometheus pull, not published; they are also pushed to Mimir)
@@ -13,6 +14,9 @@
 #   OUO_ALLOWED_ORIGINS  optional comma-separated CORS origin list, no spaces
 #                        (default http://localhost:*,http://127.0.0.1:*)
 #   OUO_RATELIMIT_CLIENT_KEY  address (default) or x_forwarded_for behind a reverse proxy
+#   OUO_SENTRY_UPSTREAM  Sentry ingest base URL the bridge forwards to (https://oNNN.ingest.sentry.io),
+#                        or "none" to answer locally (default none: no data leaves the laptop)
+#   OUO_SENTRY_PROJECT_ID, OUO_SENTRY_PUBLIC_KEY  the DSN's project id and public key
 #
 # Every receiver uses include_metadata: true so the resource processor and ouoratelimit
 # can read the authenticated project (auth.username) and request headers from the
@@ -56,6 +60,29 @@ receivers:
       allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
       exposed_headers: [Retry-After]
       max_age: 7200
+  # Sentry SDK bridge (ADR-0008, docs/specs/sentry-bridge.md): apps change only their DSN host.
+  # Every envelope is forwarded byte for byte to the project's upstream Sentry and Sentry's
+  # answer goes back unchanged; accepted envelopes are translated into sessions, errors,
+  # traces (logs/traces pipelines) and video replay chunks (routed to logs/replay).
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    upstream_timeout: 30s
+    projects:
+      - sentry_project_id: "${env:OUO_SENTRY_PROJECT_ID:-1}"
+        public_keys: ["${env:OUO_SENTRY_PUBLIC_KEY:-publickey0000000000000000000000}"]
+        upstream: ${env:OUO_SENTRY_UPSTREAM:-none}
+        ouo_project_id: demo
+        service_name: ${env:OUO_SENTRY_SERVICE_NAME:-sentry-demo}
+
+connectors:
+  # The Sentry bridge emits replay chunks on its logs output; send them to the replay
+  # pipeline (ouoreplay exporter -> rum-api) and everything else to Loki.
+  routing/sentry:
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: log.attributes["ouo.replay.chunk"] == true
+        pipelines: [logs/replay]
 
 processors:
   memory_limiter:
@@ -154,11 +181,11 @@ service:
                 port: 8888
   pipelines:
     traces:
-      receivers: [otlp]
+      receivers: [otlp, ouosentry]
       processors: [memory_limiter, ouoratelimit, resource/project, batch]
       exporters: [otlp_grpc/tempo]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, routing/sentry]
       processors: [memory_limiter, ouoratelimit, resource/project, transform/events, batch]
       exporters: [otlp_http/loki]
     metrics:
@@ -168,6 +195,12 @@ service:
     # Replay chunks: one log record per chunk, project stamped by the receiver. No batch:
     # the receiver waits for the queue hand-off and answers 202, 429 or 503 per chunk.
     logs/replay:
-      receivers: [ouoreplay]
+      receivers: [ouoreplay, routing/sentry]
       processors: [memory_limiter, ouoratelimit]
       exporters: [ouoreplay]
+    # Sentry bridge output before routing; the project is in the client context
+    # (auth.username), so resource/project and ouoratelimit work downstream.
+    logs/sentry:
+      receivers: [ouosentry]
+      processors: [memory_limiter]
+      exporters: [routing/sentry]

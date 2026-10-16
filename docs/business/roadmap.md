@@ -103,6 +103,7 @@ What it buys: the "run LGTM next to your ELK or Datadog for 90 days" offer from 
 - Comparison dashboards: same service, same window, both stacks; coverage report of what each stack sees.
 - Cost model: ingest volume to monthly cost on both sides, from real volumes after two weeks.
 - Cutover runbook with rollback.
+- **Sentry SDK bridge** (ADR-0008, `docs/specs/sentry-bridge.md`): apps on the Sentry mobile SDKs change only their DSN; the `ouosentry` receiver forwards every envelope to Sentry unchanged and translates accepted ones into ouo sessions, errors, traces and `video` replays. Sentry stays the system of record until cutover (`upstream: none`).
 
 **Exit criterion:** one demo backend reporting to both stacks with matching trace counts and a generated cost comparison.
 
@@ -157,6 +158,7 @@ What the warm buyer's security, platform and legal teams will ask, where it is a
 |---|---|
 | Warm buyer on ELK, Datadog or New Relic | Phase 12 fan-out configs move into Phase 8; comparison dashboards follow in Phase 9 |
 | Warm buyer on VMs, not Kubernetes | Phase 8a ships the Docker path first and Helm second; HA story becomes "two VMs plus object storage" |
+| Buyer's mobile apps already ship the Sentry SDKs | The Sentry SDK bridge (ADR-0008) moves ahead of Phase 10: it covers iOS and Android at once, with no app release beyond a DSN change |
 | Warm buyer's mobile app is native Swift | Phase 13.0 and 13a move ahead of Phase 10; Android via Expo waits |
 | Startups ask for hosting before any enterprise signs | Phase 11 multi-project moves ahead of Phase 9; a minimal managed offer on Hetzner with one shared LGTM per customer |
 | Nobody asks about device performance | Phase 9 benchmark site shrinks to ouo's own numbers; release health stays |

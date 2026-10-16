@@ -1,0 +1,349 @@
+package ouosentryreceiver
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
+	"testing"
+	"time"
+)
+
+// goldenRequest is one request captured by tools/sentrytap from a real SDK.
+type goldenRequest struct {
+	Seq    int64               `json:"seq"`
+	Time   time.Time           `json:"time"`
+	Header map[string][]string `json:"header"`
+	body   []byte
+}
+
+func loadGolden(t *testing.T, dir string) []goldenRequest {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []goldenRequest
+	for _, e := range entries {
+		var g goldenRequest
+		b, err := os.ReadFile(filepath.Join(dir, e.Name(), "request.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(b, &g); err != nil {
+			t.Fatal(err)
+		}
+		if g.body, err = os.ReadFile(filepath.Join(dir, e.Name(), "body.bin")); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, g)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
+	return out
+}
+
+// replayGolden translates captured requests in order, as the worker would.
+func replayGolden(t *testing.T, x *tx, reqs []goldenRequest) {
+	t.Helper()
+	for _, g := range reqs {
+		enc := ""
+		if v := g.Header["Content-Encoding"]; len(v) > 0 {
+			enc = v[0]
+		}
+		plain, err := Decompress(g.body, enc, DefaultMaxTranslateBytes)
+		if err != nil {
+			t.Fatalf("request %d: %v", g.Seq, err)
+		}
+		env, err := ParseEnvelope(plain)
+		if err != nil {
+			t.Fatalf("request %d: %v", g.Seq, err)
+		}
+		x.r.translate(context.Background(), job{project: x.p, encoding: enc, body: g.body, receivedAt: g.Time, clientAddr: "127.0.0.1"}, env)
+	}
+}
+
+func TestGoldenDump(t *testing.T) {
+	if os.Getenv("GOLDEN_DUMP") == "" {
+		t.Skip("set GOLDEN_DUMP=journey|touch to print the translation of a capture")
+	}
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, filepath.Join("testdata/golden/ios-rn-8.30.0", os.Getenv("GOLDEN_DUMP"))))
+	for _, r := range x.records() {
+		a := r.attrs
+		if a["ouo.replay.chunk"] == true {
+			var c videoChunk
+			_ = json.Unmarshal(r.body.([]byte), &c)
+			t.Logf("%s REPLAY sid=%v seq=%d start=%d dur=%d vp=%v platform=%q touches=%d replay=%s", r.ts.Format("15:04:05.000"), c.SessionID, c.Seq, c.StartedAt, c.Video.DurationMS, c.Viewport, c.Platform, len(c.Touches), c.Source.ReplayID[:8])
+			continue
+		}
+		t.Logf("%s %-20s sid=%v match=%v %v %v %v %v %v level=%v msg=%v", r.ts.Format("15:04:05.000"), r.name, a["session.id"], a["ouo.sentry.session_match"], a["exception.type"], a["ouo.exception.fatal"], a["ouo.session.end_reason"], a["url.path"], a["http.response.status_code"], a["ouo.sentry.level"], a["exception.message"])
+	}
+	for _, s := range x.spans() {
+		v, _ := s.Attributes().Get("session.id")
+		m, _ := s.Attributes().Get("ouo.sentry.session_match")
+		t.Logf("SPAN %s %-30s sid=%s match=%s", s.StartTimestamp().AsTime().Format("15:04:05.000"), s.Name(), v.Str(), m.Str())
+	}
+}
+
+// goldenSummary is what the assertions below check on a real capture.
+type goldenSummary struct {
+	starts, ends map[string]rec // by session id
+	exceptions   []rec
+	failed       []rec
+	navigations  []rec
+	chunks       []videoChunk
+	spans        int
+}
+
+func summarize(t *testing.T, x *tx) goldenSummary {
+	t.Helper()
+	g := goldenSummary{starts: map[string]rec{}, ends: map[string]rec{}}
+	for _, r := range x.records() {
+		sid, _ := r.attrs["session.id"].(string)
+		switch r.name {
+		case "session.start":
+			g.starts[sid] = r
+		case "session.end":
+			g.ends[sid] = r
+		case "exception":
+			g.exceptions = append(g.exceptions, r)
+		case "http.request.failed":
+			g.failed = append(g.failed, r)
+		case "navigation":
+			g.navigations = append(g.navigations, r)
+		}
+	}
+	g.chunks = x.chunks(t)
+	g.spans = len(x.spans())
+	return g
+}
+
+// checkInvariants holds for every capture: every translated record and span
+// has a session, and nothing lands in a session that had ended more than the
+// grace period before it (the stale replay id bug), or before it started.
+func checkInvariants(t *testing.T, x *tx, g goldenSummary) {
+	t.Helper()
+	ended := map[string]time.Time{}
+	for sid, r := range g.ends {
+		ended[sid] = r.ts
+	}
+	check := func(what, sid string, ts time.Time) {
+		if sid == "" {
+			t.Errorf("%s at %s has no session", what, ts.Format(time.TimeOnly))
+			return
+		}
+		if end, ok := ended[sid]; ok && ts.After(end.Add(endedGrace)) {
+			t.Errorf("%s at %s assigned to session %s that ended at %s", what, ts.Format(time.TimeOnly), sid, end.Format(time.TimeOnly))
+		}
+		if st, ok := g.starts[sid]; ok && ts.Before(st.ts.Add(-startSkew)) {
+			t.Errorf("%s at %s assigned to session %s that started at %s", what, ts.Format(time.TimeOnly), sid, st.ts.Format(time.TimeOnly))
+		}
+	}
+	for _, r := range x.records() {
+		if r.attrs["ouo.replay.chunk"] == true || r.name == "session.start" || r.name == "session.end" {
+			continue
+		}
+		sid, _ := r.attrs["session.id"].(string)
+		check(r.name, sid, r.ts)
+	}
+	for _, s := range x.spans() {
+		v, _ := s.Attributes().Get("session.id")
+		check("span "+s.Name(), v.Str(), s.StartTimestamp().AsTime())
+	}
+	// One replay id per session and one session per replay id; seq contiguous from 0.
+	bySID := map[string]string{}
+	seqs := map[string][]int{}
+	for _, c := range g.chunks {
+		if prev, ok := bySID[c.SessionID]; ok && prev != c.Source.ReplayID {
+			t.Errorf("session %s got replays %s and %s", c.SessionID, prev, c.Source.ReplayID)
+		}
+		bySID[c.SessionID] = c.Source.ReplayID
+		seqs[c.SessionID] = append(seqs[c.SessionID], c.Seq)
+		if c.Platform != "ios" || c.Viewport.Width == 0 || c.Video.DurationMS <= 0 {
+			t.Errorf("chunk %s/%d: platform %q viewport %v duration %d", c.SessionID, c.Seq, c.Platform, c.Viewport, c.Video.DurationMS)
+		}
+		if mp4, err := base64.StdEncoding.DecodeString(c.Video.MP4); err != nil || len(mp4) < 12 || string(mp4[4:8]) != "ftyp" {
+			t.Errorf("chunk %s/%d: mp4 not an ISO BMFF file", c.SessionID, c.Seq)
+		}
+		if _, ok := g.starts[c.SessionID]; !ok {
+			t.Errorf("chunk %s/%d belongs to a session the capture never started", c.SessionID, c.Seq)
+		}
+	}
+	for sid, s := range seqs {
+		sort.Ints(s)
+		for i, v := range s {
+			if v != i {
+				t.Errorf("session %s replay seqs %v not contiguous from 0", sid, s)
+				break
+			}
+		}
+	}
+}
+
+// TestGoldenJourney replays a real @sentry/react-native 8.30.0 (sentry-cocoa
+// 9.30.1) journey: cold start, three screens, fetch ok/500/slow, handled
+// error, message, unhandled rejection, 40 s background, native crash,
+// relaunch (examples/sentry-mobile/scripts/journey.sh).
+func TestGoldenJourney(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/journey"))
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+
+	const first, second, third = "FE4D8E30-67B0-4A1A-8DD7-6DAEC314F893", "35BC7F65-B953-4BE0-8EF2-3A4276E72B61", "6537D56A-15CF-4A2E-BF17-DFAA0CC721CD"
+	for _, sid := range []string{first, second, third} {
+		if _, ok := g.starts[sid]; !ok {
+			t.Errorf("no session.start for %s", sid)
+		}
+	}
+	if r := g.ends[first]; r.attrs["ouo.session.end_reason"] != "background" {
+		t.Errorf("first session end: %+v", r.attrs)
+	}
+	crash := g.ends[second]
+	if crash.attrs["ouo.session.end_reason"] != "crash" {
+		t.Errorf("second session end: %+v", crash.attrs)
+	}
+	var fatal []rec
+	for _, e := range g.exceptions {
+		if e.attrs["ouo.exception.fatal"] == true {
+			fatal = append(fatal, e)
+		}
+	}
+	if len(g.exceptions) != 4 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
+		t.Errorf("exceptions: %d total, fatal %+v", len(g.exceptions), fatal)
+	}
+	if !crash.ts.Equal(fatal[0].ts) {
+		t.Errorf("crash session ends at %s, the crash happened at %s", crash.ts, fatal[0].ts)
+	}
+	if len(g.failed) != 1 || g.failed[0].attrs["http.response.status_code"] != int64(500) || g.failed[0].attrs["session.id"] != first {
+		t.Errorf("http.request.failed: %+v", g.failed)
+	}
+	// Navigations after the background rotation carry the stale replay id of
+	// the first session; they must land in the second one.
+	var late int
+	for _, n := range g.navigations {
+		if n.ts.After(g.starts[second].ts) && n.ts.Before(crash.ts) {
+			late++
+			if n.attrs["session.id"] != second {
+				t.Errorf("navigation %s at %s in %v, want %s", n.attrs["url.path"], n.ts.Format(time.TimeOnly), n.attrs["session.id"], second)
+			}
+		}
+	}
+	if late != 2 {
+		t.Errorf("navigations in the second session: %d, want 2", late)
+	}
+	if len(g.chunks) != 16 {
+		t.Errorf("replay chunks: %d, want 16 (one per replay_video item)", len(g.chunks))
+	}
+	if g.spans == 0 {
+		t.Error("no spans")
+	}
+	for _, c := range g.chunks {
+		if !c.Masked {
+			t.Errorf("chunk %s/%d not masked: the capture ran with the default masking options", c.SessionID, c.Seq)
+		}
+	}
+	// Breadcrumbs of the recordings: 9 answered fetches (the 500 comes from its
+	// span), 8 console lines, 6 demo.action + 1 demo breadcrumbs, inactive and
+	// background before the 40 s background phase.
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	for _, r := range x.byName("http.request") {
+		if r.attrs["http.response.status_code"] != int64(200) || r.attrs["url.full"] == nil {
+			t.Errorf("http.request: %+v", r.attrs)
+		}
+	}
+}
+
+// TestGoldenTouch replays a capture with real taps and drags, and a JS fatal.
+func TestGoldenTouch(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/touch"))
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+	phases := map[string]int{}
+	for _, c := range g.chunks {
+		for _, tc := range c.Touches {
+			phases[tc.Phase]++
+			if tc.X < 0 || tc.Y < 0 || tc.X > float64(c.Viewport.Width) || tc.Y > float64(c.Viewport.Height) {
+				t.Errorf("touch outside the %dx%d video: %+v", c.Viewport.Width, c.Viewport.Height, tc)
+			}
+			if tc.TS < c.StartedAt-1000 || tc.TS > c.EndedAt+1000 {
+				t.Errorf("touch at %d outside its segment %d..%d", tc.TS, c.StartedAt, c.EndedAt)
+			}
+		}
+	}
+	if phases["began"] == 0 || phases["moved"] == 0 || phases["ended"] == 0 {
+		t.Errorf("touch phases: %v, want began, moved and ended", phases)
+	}
+	var jsFatal bool
+	for _, e := range g.exceptions {
+		if e.attrs["ouo.exception.fatal"] == true && e.attrs["ouo.exception.handled"] == false {
+			jsFatal = true
+			if end := g.ends[e.attrs["session.id"].(string)]; end.attrs["ouo.session.end_reason"] != "crash" {
+				t.Errorf("JS fatal session end: %+v", end.attrs)
+			}
+		}
+	}
+	if !jsFatal {
+		t.Error("no fatal unhandled JS exception")
+	}
+	// Real taps: the touch boundary's breadcrumbs, labelled by the touched component.
+	taps := x.byName("ui.tap")
+	if len(taps) != 2 || taps[0].attrs["ouo.ui.target"] != "action-fetch-ok" || taps[1].attrs["ouo.ui.target"] != "HeaderHeightContext" {
+		t.Errorf("ui.tap: %+v", taps)
+	}
+}
+
+// TestGoldenShop replays a run with Sentry logs (enableLogs, which also
+// captures console output), manual spans in new traces per flow, W3C
+// traceparent to the backend and unmasked replay (journey.sh --shop-rounds 3).
+func TestGoldenShop(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/shop"))
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+
+	// 50 log entries: 30 Sentry.logger calls and 20 console lines; the replays
+	// hold 18 console breadcrumbs, 17 of them duplicates of console log entries.
+	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 4}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	for _, name := range []string{"log", "console"} {
+		for _, r := range x.byName(name) {
+			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" {
+				t.Errorf("%s %q matched by %v", name, r.body, m)
+			}
+		}
+	}
+	levels := map[any]int{}
+	for _, r := range x.byName("log") {
+		levels[r.attrs["ouo.sentry.level"]]++
+	}
+	if levels["error"] != 3 || levels["warn"] != 1 || levels["debug"] != 3 {
+		t.Errorf("log levels: %v", levels)
+	}
+	if n := len(x.r.pendingLogs.entries); n != 0 {
+		t.Errorf("%d logs never found their session", n)
+	}
+	if len(g.chunks) != 25 {
+		t.Errorf("replay chunks: %d, want 25", len(g.chunks))
+	}
+	for _, c := range g.chunks {
+		if c.Masked {
+			t.Errorf("chunk %s/%d masked: the app ran with masking off", c.SessionID, c.Seq)
+		}
+	}
+	if x.r.pending.n != 0 {
+		t.Errorf("replay segments still held: %d", x.r.pending.n)
+	}
+}

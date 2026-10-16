@@ -86,6 +86,13 @@ describe('replaySummary', () => {
     });
   });
 
+  it('keeps the video kind of a Sentry replay', () => {
+    expect(replaySummary({ has_replay: true, replay_kind: 'video', replay_duration_ms: 17_000 })).toEqual({
+      kind: 'video',
+      duration: '17.0s',
+    });
+  });
+
   it('reports an unknown length until rum-api ships replay_duration_ms', () => {
     expect(replaySummary({ has_replay: true, replay_kind: 'rrweb' })).toEqual({ kind: 'rrweb', duration: null });
     expect(replaySummary({ has_replay: true, replay_kind: null, replay_duration_ms: null })).toEqual({

@@ -6,6 +6,7 @@
 | [VISION.md](VISION.md) | long-term product vision (not MVP scope) |
 | [specs/session-lifecycle.md](specs/session-lifecycle.md) | normative session spec |
 | [specs/mobile-replay.md](specs/mobile-replay.md) | frame-chunk contract and iOS capture rules |
+| [specs/sentry-bridge.md](specs/sentry-bridge.md) | Sentry envelope to ouo mapping, forwarding rules, session resolution, `video` replay chunk and rum-api video API (proposed, ADR-0008) |
 | [adr/](adr/README.md) | architecture decision records |
 | [business/product-plan.md](business/product-plan.md) | product thesis, offers, pricing, checklist (proposal) |
 | [business/roadmap.md](business/roadmap.md) | sequenced build roadmap from MVP to product: interview decisions, phases 8 to 14 with exit criteria, enterprise readiness matrix, hiring tie-in (proposal) |

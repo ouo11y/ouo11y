@@ -197,13 +197,14 @@ func (s *Server) decorateReplay(r *http.Request, rec *session.Record) {
 // replaySummary derives the session record's replay_duration_ms and
 // replay_frame_count from a replay meta: the duration is ended_at - started_at
 // (null unless both are set and ordered), the frame count is set for frames
-// replays only (rrweb has events, not frames).
+// and video replays only (rrweb has events, not frames; for video it is the
+// sum of the segments' video.frame_count).
 func replaySummary(m replay.Meta) (durationMs *int64, frameCount *int) {
 	if m.StartedAt > 0 && m.EndedAt >= m.StartedAt {
 		d := m.EndedAt - m.StartedAt
 		durationMs = &d
 	}
-	if m.Kind == replay.KindFrames {
+	if m.Kind == replay.KindFrames || m.Kind == replay.KindVideo {
 		n := m.FrameCount
 		frameCount = &n
 	}
