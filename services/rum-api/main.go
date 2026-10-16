@@ -30,21 +30,72 @@ import (
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/tempo"
 )
 
+// version is set at build time: -ldflags "-X main.version=<semver>" (Dockerfile ARG VERSION).
+var version = "dev"
+
 func main() {
+	configFile := flag.String("config.file", "", "YAML configuration file (config.example.yaml); environment variables override it")
+	expandEnv := flag.Bool("config.expand-env", false, "expand ${VAR} and ${VAR:-default} references in the configuration file")
+	verify := flag.Bool("config.verify", false, "load and validate the configuration, print it with secrets redacted and exit (0 valid, 2 invalid)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	check := flag.Bool("check", false, "probe GET /healthz on the configured address and exit (container health check)")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("rum-api", version)
+		return
+	}
 
-	cfg, err := config.FromEnv()
+	cfg, err := config.Load(*configFile, *expandEnv, os.LookupEnv)
+	if *check {
+		// The probe only needs the listen address: a config the server would
+		// refuse (or one the HEALTHCHECK cannot see) must not hide that.
+		os.Exit(healthCheck(cfg.Server.HTTPListenAddress))
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "config:", err)
 		os.Exit(2)
 	}
-	if *check {
-		os.Exit(healthCheck(cfg.Addr))
+	if *verify {
+		out, err := cfg.Redacted().YAML()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "config:", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(out)
+		fmt.Fprintln(os.Stderr, "config: valid")
+		return
 	}
 	if err := run(cfg); err != nil {
 		slog.Error("rum-api exited", "error", err)
 		os.Exit(1)
+	}
+}
+
+// newStore opens the replay store selected by storage.backend.
+func newStore(ctx context.Context, cfg config.Config) (replay.Store, error) {
+	switch cfg.Storage.Backend {
+	case config.BackendS3:
+		o := cfg.Storage.S3
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		st, err := replay.NewS3(ctx, replay.S3Options{
+			Endpoint: o.Endpoint, Bucket: o.Bucket, Region: o.Region,
+			AccessKeyID: o.AccessKeyID, SecretAccessKey: o.SecretAccessKey, SessionToken: o.SessionToken,
+			Insecure: o.Insecure, InsecureSkipVerify: o.InsecureSkipVerify, ForcePathStyle: o.ForcePathStyle,
+			Prefix: o.Prefix,
+		})
+		if err != nil {
+			return nil, err
+		}
+		st.MaxVideoBytes = cfg.Limits.MaxVideoChunkBytes
+		return st, nil
+	default:
+		st, err := replay.NewFS(cfg.Storage.Filesystem.Dir)
+		if err != nil {
+			return nil, err
+		}
+		st.MaxVideoBytes = cfg.Limits.MaxVideoChunkBytes
+		return st, nil
 	}
 }
 
@@ -64,28 +115,27 @@ func run(cfg config.Config) error {
 		}
 	}()
 
-	store, err := replay.NewFS(cfg.DataDir)
+	store, err := newStore(ctx, cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("replay store: %w", err)
 	}
-	store.MaxVideoBytes = cfg.MaxVideoChunkBytes
 	// Outbound calls to Loki / Tempo are traced too.
 	httpClient := &http.Client{Timeout: 60 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
-	lokiClient := loki.New(cfg.LokiURL, httpClient)
-	tempoClient := tempo.New(cfg.TempoURL, httpClient, cfg.TempoConcurrency, cfg.TempoCacheTTL)
-	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.TempoDatasourceUID}
-	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.LokiDatasourceUID}
+	lokiClient := loki.New(cfg.Loki.URL, httpClient)
+	tempoClient := tempo.New(cfg.Tempo.URL, httpClient, cfg.Tempo.Concurrency, cfg.Tempo.CacheTTL)
+	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Tempo.DatasourceUID}
+	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Loki.DatasourceUID}
 
 	api := httpapi.New(lokiClient, tempoClient, store, httpapi.Options{
-		SessionOptions:     session.Options{Inactivity: cfg.SessionInactivity, MaxDuration: cfg.SessionMaxDuration},
-		ListLookback:       cfg.SessionMaxDuration,
-		DetailLookback:     cfg.DetailLookback,
-		MaxChunkBytes:      cfg.MaxChunkBytes,
-		MaxFrameChunkBytes: cfg.MaxFrameChunkBytes,
-		MaxVideoChunkBytes: cfg.MaxVideoChunkBytes,
-		IngestToken:        cfg.IngestToken,
-		ReadToken:          cfg.ReadToken,
-		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		SessionOptions:     session.Options{Inactivity: cfg.Session.Inactivity, MaxDuration: cfg.Session.MaxDuration},
+		ListLookback:       cfg.Session.MaxDuration,
+		DetailLookback:     cfg.Session.DetailLookback,
+		MaxChunkBytes:      cfg.Limits.MaxChunkBytes,
+		MaxFrameChunkBytes: cfg.Limits.MaxFrameChunkBytes,
+		MaxVideoChunkBytes: cfg.Limits.MaxVideoChunkBytes,
+		IngestToken:        cfg.Auth.IngestToken,
+		ReadToken:          cfg.Auth.ReadToken,
+		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 		TraceLinks:         tempoClient.Links,
 		LokiLinks:          lokiLinks,
 	})
@@ -97,7 +147,7 @@ func run(cfg config.Config) error {
 	)
 
 	srv := &http.Server{
-		Addr:              cfg.Addr,
+		Addr:              cfg.Server.HTTPListenAddress,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
@@ -107,11 +157,12 @@ func run(cfg config.Config) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("rum-api listening",
+			"version", version,
 			"addr", srv.Addr,
-			"loki", cfg.LokiURL, "tempo", cfg.TempoURL, "grafana", cfg.GrafanaURL,
-			"data_dir", cfg.DataDir,
-			"ingest_token", cfg.IngestToken != "",
-			"read_token", cfg.ReadToken != "",
+			"loki", cfg.Loki.URL, "tempo", cfg.Tempo.URL, "grafana", cfg.Grafana.URL,
+			"storage", storageDesc(cfg),
+			"ingest_token", cfg.Auth.IngestToken != "",
+			"read_token", cfg.Auth.ReadToken != "",
 			"otlp.endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -151,4 +202,13 @@ func healthCheck(addr string) int {
 		return 1
 	}
 	return 0
+}
+
+// storageDesc names the replay store for the startup log (no secrets).
+func storageDesc(cfg config.Config) string {
+	if cfg.Storage.Backend == config.BackendS3 {
+		o := cfg.Storage.S3
+		return fmt.Sprintf("s3://%s/%s (endpoint %q)", o.Bucket, o.Prefix, o.Endpoint)
+	}
+	return "filesystem " + cfg.Storage.Filesystem.Dir
 }

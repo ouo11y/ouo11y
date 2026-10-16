@@ -1,127 +1,367 @@
-// Package config reads rum-api settings from the environment.
+// Package config builds the rum-api settings, operated like Loki and Tempo:
+// defaults, then an optional YAML file (-config.file, with ${VAR} expansion
+// under -config.expand-env), then the environment variables rum-api has always
+// read, which override the file so existing deployments keep working.
+// config.example.yaml documents every key.
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 )
 
-// Config is the runtime configuration.
+// Storage backends.
+const (
+	BackendFilesystem = "filesystem"
+	BackendS3         = "s3"
+)
+
+// Config is the runtime configuration. The comment after each field names
+// the environment variable that overrides it.
 type Config struct {
-	Addr               string        // RUM_API_ADDR, default :8080
-	LokiURL            string        // LOKI_URL, default http://loki:3100
-	TempoURL           string        // TEMPO_URL, default http://tempo:3200
-	GrafanaURL         string        // GRAFANA_URL, default http://localhost:3000 (deep links, browser-facing)
-	TempoDatasourceUID string        // GRAFANA_TEMPO_DATASOURCE_UID, default tempo
-	LokiDatasourceUID  string        // GRAFANA_LOKI_DATASOURCE_UID, default loki
-	DataDir            string        // DATA_DIR, default /data
-	CORSAllowedOrigins []string      // CORS_ALLOWED_ORIGINS, comma separated extra origins
-	SessionInactivity  time.Duration // SESSION_INACTIVITY, default 30m
-	SessionMaxDuration time.Duration // SESSION_MAX_DURATION, default 4h (also the Loki lookback for the list)
-	TempoConcurrency   int           // TEMPO_CONCURRENCY, default 8
-	TempoCacheTTL      time.Duration // TEMPO_CACHE_TTL, default 60s
-	MaxChunkBytes      int64         // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
-	MaxFrameChunkBytes int64         // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
-	MaxVideoChunkBytes int64         // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
-	DetailLookback     time.Duration // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
-
-	// ADR-0007 5: rum-api is internal. The collector's replay exporter is the
-	// only writer, the Grafana plugin proxy the only reader.
-	IngestToken string // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
-	ReadToken   string // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	Server  Server  `yaml:"server"`
+	Auth    Auth    `yaml:"auth"`
+	Loki    Backend `yaml:"loki"`
+	Tempo   Tempo   `yaml:"tempo"`
+	Grafana Grafana `yaml:"grafana"`
+	Session Session `yaml:"session"`
+	Limits  Limits  `yaml:"limits"`
+	Storage Storage `yaml:"storage"`
 }
 
-// FromEnv builds the config from environment variables with defaults.
-func FromEnv() (Config, error) {
-	c := Config{
-		Addr:               env("RUM_API_ADDR", ":8080"),
-		LokiURL:            env("LOKI_URL", "http://loki:3100"),
-		TempoURL:           env("TEMPO_URL", "http://tempo:3200"),
-		GrafanaURL:         env("GRAFANA_URL", "http://localhost:3000"),
-		TempoDatasourceUID: env("GRAFANA_TEMPO_DATASOURCE_UID", "tempo"),
-		LokiDatasourceUID:  env("GRAFANA_LOKI_DATASOURCE_UID", "loki"),
-		DataDir:            env("DATA_DIR", "/data"),
-		CORSAllowedOrigins: envList("CORS_ALLOWED_ORIGINS"),
-		IngestToken:        os.Getenv("OUO_INGEST_TOKEN"),
-		ReadToken:          os.Getenv("OUO_READ_TOKEN"),
-	}
-	var err error
-	if c.SessionInactivity, err = envDuration("SESSION_INACTIVITY", 30*time.Minute); err != nil {
-		return c, err
-	}
-	if c.SessionMaxDuration, err = envDuration("SESSION_MAX_DURATION", 4*time.Hour); err != nil {
-		return c, err
-	}
-	if c.TempoCacheTTL, err = envDuration("TEMPO_CACHE_TTL", 60*time.Second); err != nil {
-		return c, err
-	}
-	if c.DetailLookback, err = envDuration("SESSION_DETAIL_LOOKBACK", 168*time.Hour); err != nil {
-		return c, err
-	}
-	if c.TempoConcurrency, err = envInt("TEMPO_CONCURRENCY", 8); err != nil {
-		return c, err
-	}
-	mcb, err := envInt("MAX_CHUNK_BYTES", 4<<20)
-	if err != nil {
-		return c, err
-	}
-	c.MaxChunkBytes = int64(mcb)
-	mfb, err := envInt("MAX_FRAME_CHUNK_BYTES", 8<<20)
-	if err != nil {
-		return c, err
-	}
-	c.MaxFrameChunkBytes = int64(mfb)
-	mvb, err := envInt("MAX_VIDEO_CHUNK_BYTES", 8<<20)
-	if err != nil {
-		return c, err
-	}
-	// Like the frames limit, never below the rrweb limit.
-	c.MaxVideoChunkBytes = max(int64(mvb), c.MaxChunkBytes)
-	return c, nil
+// Server is the HTTP listener.
+type Server struct {
+	HTTPListenAddress  string   `yaml:"http_listen_address"`  // RUM_API_ADDR, default :8080
+	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"` // CORS_ALLOWED_ORIGINS, comma separated extra origins
 }
 
-// envList splits a comma separated variable, trimming spaces and trailing
-// slashes and dropping empty items.
-func envList(key string) []string {
-	var out []string
-	for o := range strings.SplitSeq(os.Getenv(key), ",") {
-		if o = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(o), "/")); o != "" {
-			out = append(out, o)
+// Auth holds the two shared secrets of ADR-0007 5. rum-api is internal: the
+// collector's replay exporter is the only writer, the Grafana plugin proxy
+// the only reader.
+type Auth struct {
+	IngestToken string `yaml:"ingest_token"` // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken   string `yaml:"read_token"`   // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+}
+
+// Backend is a query backend and its Grafana datasource (deep links).
+type Backend struct {
+	URL           string `yaml:"url"`            // LOKI_URL / TEMPO_URL
+	DatasourceUID string `yaml:"datasource_uid"` // GRAFANA_LOKI_DATASOURCE_UID / GRAFANA_TEMPO_DATASOURCE_UID
+}
+
+// Tempo adds the search fan-out settings.
+type Tempo struct {
+	Backend     `yaml:",inline"`
+	Concurrency int           `yaml:"concurrency"` // TEMPO_CONCURRENCY, default 8
+	CacheTTL    time.Duration `yaml:"cache_ttl"`   // TEMPO_CACHE_TTL, default 60s
+}
+
+// Grafana is the browser-facing Grafana used in deep links.
+type Grafana struct {
+	URL string `yaml:"url"` // GRAFANA_URL, default http://localhost:3000
+}
+
+// Session is the server-side session model (docs/specs/session-lifecycle.md).
+type Session struct {
+	Inactivity     time.Duration `yaml:"inactivity"`      // SESSION_INACTIVITY, default 30m
+	MaxDuration    time.Duration `yaml:"max_duration"`    // SESSION_MAX_DURATION, default 4h (also the Loki lookback for the list)
+	DetailLookback time.Duration `yaml:"detail_lookback"` // SESSION_DETAIL_LOOKBACK, default 168h: how far back GET /v1/sessions/{id} searches Loki
+}
+
+// Limits are the replay chunk size limits in bytes.
+type Limits struct {
+	MaxChunkBytes      int64 `yaml:"max_chunk_bytes"`       // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
+	MaxFrameChunkBytes int64 `yaml:"max_frame_chunk_bytes"` // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
+	MaxVideoChunkBytes int64 `yaml:"max_video_chunk_bytes"` // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
+}
+
+// Storage selects the replay store.
+type Storage struct {
+	Backend    string     `yaml:"backend"` // STORAGE_BACKEND: filesystem (default) or s3
+	Filesystem Filesystem `yaml:"filesystem"`
+	S3         S3         `yaml:"s3"`
+}
+
+// Filesystem is the local replay store: <dir>/replays/<session>/...
+type Filesystem struct {
+	Dir string `yaml:"dir"` // DATA_DIR, default /data
+}
+
+// S3 is an S3 compatible bucket (AWS S3, MinIO, ...). Keys are
+// <prefix>/replays/<session>/..., the filesystem layout.
+type S3 struct {
+	Endpoint string `yaml:"endpoint"` // S3_ENDPOINT: host[:port], no scheme; default s3.<region>.amazonaws.com
+	Bucket   string `yaml:"bucket"`   // S3_BUCKET (required)
+	Region   string `yaml:"region"`   // S3_REGION, default us-east-1
+	// Static credentials. Both empty: the AWS environment, shared files and
+	// instance / pod role (IRSA) chain.
+	AccessKeyID     string `yaml:"access_key_id"`     // S3_ACCESS_KEY_ID
+	SecretAccessKey string `yaml:"secret_access_key"` // S3_SECRET_ACCESS_KEY
+	SessionToken    string `yaml:"session_token"`     // S3_SESSION_TOKEN
+	// Insecure talks plain HTTP (local MinIO); InsecureSkipVerify keeps TLS
+	// but trusts any certificate.
+	Insecure           bool   `yaml:"insecure"`             // S3_INSECURE
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // S3_INSECURE_SKIP_VERIFY
+	ForcePathStyle     bool   `yaml:"force_path_style"`     // S3_FORCE_PATH_STYLE: bucket in the path (MinIO) instead of the host name
+	Prefix             string `yaml:"prefix"`               // S3_PREFIX: optional key prefix, e.g. a tenant or environment
+}
+
+// Defaults returns the configuration used when neither a file nor an
+// environment variable sets a key.
+func Defaults() Config {
+	return Config{
+		Server:  Server{HTTPListenAddress: ":8080"},
+		Loki:    Backend{URL: "http://loki:3100", DatasourceUID: "loki"},
+		Tempo:   Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
+		Grafana: Grafana{URL: "http://localhost:3000"},
+		Session: Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
+		Limits:  Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20},
+		Storage: Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
+	}
+}
+
+// FromEnv builds the config from defaults and environment variables only.
+func FromEnv() (Config, error) { return Load("", false, os.LookupEnv) }
+
+// Load builds the config: defaults, then the YAML file at path (skipped when
+// empty; ${VAR} references expanded when expandEnv), then the environment
+// variables, then validation. lookup reads the environment (os.LookupEnv).
+func Load(path string, expandEnv bool, lookup func(string) (string, bool)) (Config, error) {
+	c := Defaults()
+	if path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return c, fmt.Errorf("read config file: %w", err)
+		}
+		if err := c.parseYAML(raw, expandEnv, lookup); err != nil {
+			return c, fmt.Errorf("%s: %w", path, err)
 		}
 	}
-	return out
+	if err := c.applyEnv(lookup); err != nil {
+		return c, err
+	}
+	c.normalize()
+	return c, c.Validate()
 }
 
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+func (c *Config) parseYAML(raw []byte, expandEnv bool, lookup func(string) (string, bool)) error {
+	if expandEnv {
+		raw = ExpandEnv(raw, lookup)
 	}
-	return def
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true) // a typo is an error, not a silently ignored key
+	if err := dec.Decode(c); err != nil && !errors.Is(err, io.EOF) /* empty file */ {
+		return err
+	}
+	return nil
 }
 
-func envDuration(key string, def time.Duration) (time.Duration, error) {
-	v := os.Getenv(key)
-	if v == "" {
-		return def, nil
+// envRef matches ${VAR} and ${VAR:-default}; $${ escapes a literal ${.
+var envRef = regexp.MustCompile(`\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
+
+// ExpandEnv replaces ${VAR} with the variable's value and ${VAR:-default}
+// with the value or, when unset or empty, default (Loki's
+// -config.expand-env syntax). A bare $VAR and a lone $ stay as they are, so
+// secrets containing $ survive; $${ is a literal ${. An unset variable
+// without a default expands to the empty string.
+func ExpandEnv(raw []byte, lookup func(string) (string, bool)) []byte {
+	if lookup == nil {
+		lookup = os.LookupEnv
 	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", key, err)
-	}
-	return d, nil
+	return envRef.ReplaceAllFunc(raw, func(m []byte) []byte {
+		if string(m) == "$${" {
+			return []byte("${")
+		}
+		sub := envRef.FindSubmatch(m)
+		v, _ := lookup(string(sub[1]))
+		if v == "" && sub[2] != nil {
+			v = string(sub[3])
+		}
+		return []byte(v)
+	})
 }
 
-func envInt(key string, def int) (int, error) {
-	v := os.Getenv(key)
-	if v == "" {
-		return def, nil
+// applyEnv overrides the file with the environment variables rum-api reads
+// since Phase 3 (and the storage ones added with the S3 store). A variable
+// set to the empty string is treated as unset, as before.
+func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
+	get := func(k string) (string, bool) {
+		v, ok := lookup(k)
+		return v, ok && v != ""
 	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", key, err)
+	str := func(k string, dst *string) {
+		if v, ok := get(k); ok {
+			*dst = v
+		}
 	}
-	return n, nil
+	var errs []error
+	dur := func(k string, dst *time.Duration) {
+		if v, ok := get(k); ok {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", k, err))
+				return
+			}
+			*dst = d
+		}
+	}
+	i64 := func(k string, dst *int64) {
+		if v, ok := get(k); ok {
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", k, err))
+				return
+			}
+			*dst = n
+		}
+	}
+	boolean := func(k string, dst *bool) {
+		if v, ok := get(k); ok {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", k, err))
+				return
+			}
+			*dst = b
+		}
+	}
+
+	str("RUM_API_ADDR", &c.Server.HTTPListenAddress)
+	if v, ok := get("CORS_ALLOWED_ORIGINS"); ok {
+		c.Server.CORSAllowedOrigins = strings.Split(v, ",")
+	}
+	str("OUO_INGEST_TOKEN", &c.Auth.IngestToken)
+	str("OUO_READ_TOKEN", &c.Auth.ReadToken)
+	str("LOKI_URL", &c.Loki.URL)
+	str("GRAFANA_LOKI_DATASOURCE_UID", &c.Loki.DatasourceUID)
+	str("TEMPO_URL", &c.Tempo.URL)
+	str("GRAFANA_TEMPO_DATASOURCE_UID", &c.Tempo.DatasourceUID)
+	if v, ok := get("TEMPO_CONCURRENCY"); ok {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("TEMPO_CONCURRENCY: %w", err))
+		} else {
+			c.Tempo.Concurrency = n
+		}
+	}
+	dur("TEMPO_CACHE_TTL", &c.Tempo.CacheTTL)
+	str("GRAFANA_URL", &c.Grafana.URL)
+	dur("SESSION_INACTIVITY", &c.Session.Inactivity)
+	dur("SESSION_MAX_DURATION", &c.Session.MaxDuration)
+	dur("SESSION_DETAIL_LOOKBACK", &c.Session.DetailLookback)
+	i64("MAX_CHUNK_BYTES", &c.Limits.MaxChunkBytes)
+	i64("MAX_FRAME_CHUNK_BYTES", &c.Limits.MaxFrameChunkBytes)
+	i64("MAX_VIDEO_CHUNK_BYTES", &c.Limits.MaxVideoChunkBytes)
+
+	str("STORAGE_BACKEND", &c.Storage.Backend)
+	str("DATA_DIR", &c.Storage.Filesystem.Dir)
+	s3 := &c.Storage.S3
+	str("S3_ENDPOINT", &s3.Endpoint)
+	str("S3_BUCKET", &s3.Bucket)
+	str("S3_REGION", &s3.Region)
+	str("S3_ACCESS_KEY_ID", &s3.AccessKeyID)
+	str("S3_SECRET_ACCESS_KEY", &s3.SecretAccessKey)
+	str("S3_SESSION_TOKEN", &s3.SessionToken)
+	boolean("S3_INSECURE", &s3.Insecure)
+	boolean("S3_INSECURE_SKIP_VERIFY", &s3.InsecureSkipVerify)
+	boolean("S3_FORCE_PATH_STYLE", &s3.ForcePathStyle)
+	str("S3_PREFIX", &s3.Prefix)
+	return errors.Join(errs...)
+}
+
+// normalize trims list entries and derives dependent limits.
+func (c *Config) normalize() {
+	var origins []string
+	for _, o := range c.Server.CORSAllowedOrigins {
+		if o = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(o), "/")); o != "" {
+			origins = append(origins, o)
+		}
+	}
+	c.Server.CORSAllowedOrigins = origins
+	c.Storage.Backend = strings.ToLower(strings.TrimSpace(c.Storage.Backend))
+	c.Storage.S3.Prefix = strings.Trim(c.Storage.S3.Prefix, "/")
+	// The frames and video limits are never below the rrweb limit.
+	c.Limits.MaxFrameChunkBytes = max(c.Limits.MaxFrameChunkBytes, c.Limits.MaxChunkBytes)
+	c.Limits.MaxVideoChunkBytes = max(c.Limits.MaxVideoChunkBytes, c.Limits.MaxChunkBytes)
+}
+
+// Validate reports every invalid setting at once.
+func (c Config) Validate() error {
+	var errs []error
+	bad := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
+	if c.Server.HTTPListenAddress == "" {
+		bad("server.http_listen_address is empty")
+	}
+	for name, u := range map[string]string{"loki.url": c.Loki.URL, "tempo.url": c.Tempo.URL, "grafana.url": c.Grafana.URL} {
+		if p, err := url.Parse(u); err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
+			bad("%s %q is not an http(s) URL", name, u)
+		}
+	}
+	if c.Tempo.Concurrency < 1 {
+		bad("tempo.concurrency must be at least 1")
+	}
+	for name, d := range map[string]time.Duration{"tempo.cache_ttl": c.Tempo.CacheTTL, "session.inactivity": c.Session.Inactivity,
+		"session.max_duration": c.Session.MaxDuration, "session.detail_lookback": c.Session.DetailLookback} {
+		if d < 0 || (d == 0 && name != "tempo.cache_ttl") {
+			bad("%s must be positive", name)
+		}
+	}
+	if c.Limits.MaxChunkBytes <= 0 {
+		bad("limits.max_chunk_bytes must be positive")
+	}
+	switch c.Storage.Backend {
+	case BackendFilesystem:
+		if c.Storage.Filesystem.Dir == "" {
+			bad("storage.filesystem.dir is empty")
+		}
+	case BackendS3:
+		s3 := c.Storage.S3
+		if s3.Bucket == "" {
+			bad("storage.s3.bucket is required with storage.backend s3")
+		}
+		if strings.Contains(s3.Endpoint, "://") || strings.Contains(s3.Endpoint, "/") {
+			bad("storage.s3.endpoint %q must be host[:port] without scheme or path (TLS is storage.s3.insecure)", s3.Endpoint)
+		}
+		if (s3.AccessKeyID == "") != (s3.SecretAccessKey == "") {
+			bad("storage.s3.access_key_id and storage.s3.secret_access_key must be set together")
+		}
+	default:
+		bad("storage.backend %q must be %s or %s", c.Storage.Backend, BackendFilesystem, BackendS3)
+	}
+	return errors.Join(errs...)
+}
+
+// Redacted returns a copy with secrets replaced, for -config.verify and logs.
+func (c Config) Redacted() Config {
+	mask := func(s *string) {
+		if *s != "" {
+			*s = "<redacted>"
+		}
+	}
+	mask(&c.Auth.IngestToken)
+	mask(&c.Auth.ReadToken)
+	mask(&c.Storage.S3.SecretAccessKey)
+	mask(&c.Storage.S3.SessionToken)
+	return c
+}
+
+// YAML renders the config in the file format.
+func (c Config) YAML() ([]byte, error) {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(c); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), enc.Close()
 }

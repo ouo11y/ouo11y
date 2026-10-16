@@ -12,8 +12,8 @@ or the customer's **external** LGTM stack. Design: ADR-0007
 browser / mobile SDK --POST /v1/{traces,logs,metrics} + Authorization: Basic id:token--> collector:4318 (Ingress)
 browser / mobile SDK --POST /v1/replay/chunks        + Authorization: Basic id:token--> collector:4319 (Ingress, /v1/replay/*)
 collector --OTLP--> Loki / Tempo / Mimir (bundled or external)          [ouo.project.id stamped from the credential]
-collector --POST /v1/replay/chunks + X-Ouo-Project-Id + Bearer ingest token--> rum-api (ClusterIP) --> replay PVC
-Grafana (Ingress) --plugin route proxy + Bearer read token--> rum-api --> Loki, Tempo, replay PVC
+collector --POST /v1/replay/chunks + X-Ouo-Project-Id + Bearer ingest token--> rum-api (ClusterIP) --> replay PVC or S3 bucket
+Grafana (Ingress) --plugin route proxy + Bearer read token--> rum-api --> Loki, Tempo, replay store
 in-cluster services --OTLP + Basic credential--> collector:4318 (HTTP) / collector-internal:4317 (gRPC)
 ```
 
@@ -199,9 +199,15 @@ helm upgrade ouo deploy/helm/ouo -n ouo --reuse-values --set collector.image.tag
 
 - Deployments carry checksums of their ConfigMaps and Secrets, so a config, project or token
   change rolls the pods.
-- rum-api and Grafana use the `Recreate` strategy (ReadWriteOnce volumes): a few seconds of
-  downtime per upgrade with one replica. Replay chunks are gzip files under `/data/replays`
-  and are read by any rum-api version with the same schema (ADR-0003). The collector rolls
+- rum-api on the filesystem store and Grafana use the `Recreate` strategy (ReadWriteOnce
+  volumes): a few seconds of downtime per upgrade with one replica. rum-api on the s3 store
+  rolls with a RollingUpdate (no volume). Replay chunks are gzip files under
+  `/data/replays` (or `[<prefix>/]replays/` in the bucket) and are read by any rum-api
+  version with the same schema (ADR-0003).
+- rum-api is started with `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`
+  from the `<release>-rum-api-config` ConfigMap, so the chart needs a rum-api image that
+  knows those flags: 0.2.0, the first rum-api release (RELEASING.md), or later. A build
+  from before the config file exits with "flag provided but not defined". The collector rolls
   with a RollingUpdate; its replay exporter retries chunks while rum-api restarts.
 - The Grafana init container re-copies the plugin from the image onto the data volume on
   every start, so a new `grafana.image.tag` upgrades the plugin.
@@ -220,7 +226,7 @@ Data survives an uninstall on purpose:
 
 | Data | Claim | Why it stays |
 |---|---|---|
-| replay chunks | `ouo-rum-api-replays` | `helm.sh/resource-policy: keep` |
+| replay chunks (filesystem store) | `ouo-rum-api-replays` | `helm.sh/resource-policy: keep` (with the s3 store they live in the bucket, which the chart never touches) |
 | Grafana database (users, dashboards) | `ouo-grafana` | `helm.sh/resource-policy: keep` |
 | Loki / Tempo / Mimir blocks | `data-ouo-loki-0`, `data-ouo-tempo-0`, `data-ouo-mimir-0` | StatefulSet volumeClaimTemplates are never deleted by Helm |
 
@@ -234,10 +240,26 @@ labels through the StatefulSet template; check with `get pvc` first). Retention 
 `values-ha-example.yaml` documents the path (example only, not verified): the LGTM backends
 from the upstream `grafana/loki`, `grafana/tempo-distributed` and `grafana/mimir-distributed`
 charts in replicated mode on object storage, this chart in `lgtm.mode=external` with two
-collectors behind one Ingress, two rum-api replicas on a ReadWriteMany replay volume, and
-Grafana on an external database. rum-api's replay store is a filesystem until the
-object-storage store lands, which is why replicas > 1 need RWX; the collector's rate-limit
-buckets are per pod until shared state lands.
+collectors behind one Ingress, two rum-api replicas on an S3 bucket
+(`rumApi.storage.backend=s3`), and Grafana on an external database. The collector's
+rate-limit buckets are per pod until shared state lands.
+
+### rum-api replay store on S3 / MinIO
+
+```bash
+kubectl -n ouo create secret generic ouo-rum-api-s3 \
+  --from-literal=access-key-id=... --from-literal=secret-access-key=...
+helm upgrade --install ouo deploy/helm/ouo -n ouo --reuse-values \
+  --set rumApi.storage.backend=s3 --set rumApi.storage.s3.bucket=ouo-replays \
+  --set rumApi.storage.s3.endpoint=minio.storage.svc:9000 --set rumApi.storage.s3.forcePathStyle=true \
+  --set rumApi.storage.s3.insecure=true --set rumApi.storage.s3.existingSecret=ouo-rum-api-s3
+```
+
+On AWS leave `endpoint` empty, set `region`, and either use the Secret or pod identity
+(`rumApi.serviceAccountName` with an IRSA role, no keys). The bucket must exist. The
+pod's `/readyz` reports `storage` next to `loki` and `tempo`. Moving existing replays off
+the PVC: `mc mirror <pod>:/data/replays <alias>/<bucket>/[<prefix>/]replays` (same layout,
+deploy/README.md).
 
 ## Values reference
 
@@ -260,12 +282,19 @@ buckets are per pod until shared state lands.
 | `collector.ingress.{enabled,className,annotations,host,pathType,tls.enabled,tls.secretName}` | disabled | `/v1/replay` to 4319, `/` to 4318 |
 | `collector.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
 | `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ziadmansourm/ouo/rum-api`, `0.2.0` | rum-api image |
-| `rumApi.replicas` | `1` | > 1 needs a ReadWriteMany replay volume |
+| `rumApi.replicas` | `1` | > 1 needs `rumApi.storage.backend=s3` (or a ReadWriteMany replay volume) |
 | `rumApi.existingSecret` | `""` | Secret with `ingest-token`, `read-token` and optionally `otlp-headers` |
 | `rumApi.config.grafanaUrl` | derived | browser-facing Grafana URL in trace deep links (`GRAFANA_URL`) |
-| `rumApi.config.{tempoDatasourceUid,sessionInactivity,sessionMaxDuration}` | `tempo`, `30m`, `4h` | deep links, session end inference |
+| `rumApi.config.{tempoDatasourceUid,lokiDatasourceUid,sessionInactivity,sessionMaxDuration}` | `tempo`, `loki`, `30m`, `4h` | deep links, session end inference |
+| `rumApi.structuredConfig` | `{}` | merged over the rendered rum-api `config.yaml` (any key of `services/rum-api/config.example.yaml`) |
+| `rumApi.storage.backend` | `filesystem` | `filesystem` (PVC at `/data`) or `s3` |
+| `rumApi.storage.s3.{endpoint,bucket,region,prefix}` | `""`, `""`, `us-east-1`, `""` | bucket (required for s3); empty endpoint is AWS `s3.<region>.amazonaws.com` |
+| `rumApi.storage.s3.{insecure,insecureSkipVerify,forcePathStyle}` | `false` | plain HTTP, TLS without verification, path-style (MinIO) |
+| `rumApi.storage.s3.{accessKeyId,secretAccessKey}` | `""` | static keys rendered into the rum-api Secret; empty plus no `existingSecret` = AWS credential chain / pod identity |
+| `rumApi.storage.s3.existingSecret` | `""` | Secret with `access-key-id` and `secret-access-key` |
+| `rumApi.serviceAccountName` | `""` | pod ServiceAccount (IRSA / workload identity) |
 | `rumApi.otel.{enabled,environment,project,endpoint}` | `true`, `production`, first project, `<release>-collector:4318` | rum-api's own telemetry with that project's Basic credential |
-| `rumApi.extraEnv` | `[]` | extra `EnvVar`s (for example `MAX_FRAME_CHUNK_BYTES`) |
+| `rumApi.extraEnv` | `[]` | extra `EnvVar`s; they override the config file (for example `MAX_FRAME_CHUNK_BYTES`) |
 | `rumApi.persistence.{enabled,size,storageClass,accessModes,existingClaim}` | `true`, `20Gi` | replay PVC |
 | `rumApi.service.{port,annotations}` | `8080` | always ClusterIP, no Ingress |
 | `rumApi.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,priorityClassName,livenessProbe,readinessProbe,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |

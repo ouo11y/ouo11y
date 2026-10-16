@@ -236,7 +236,12 @@ func (s *Server) getReplayVideoSegment(w http.ResponseWriter, r *http.Request) {
 	// Last-Modified has one-second resolution, so the ETag (size and mtime in
 	// ns, checked first by ServeContent) catches a replace within a second.
 	h.Set("Cache-Control", "private, no-cache")
-	h.Set("ETag", fmt.Sprintf(`"%x-%x"`, v.Size, v.ModTime.UnixNano()))
+	// S3 has its own ETag (and only one-second mtimes).
+	if v.ETag != "" {
+		h.Set("ETag", `"`+strings.Trim(v.ETag, `"`)+`"`)
+	} else {
+		h.Set("ETag", fmt.Sprintf(`"%x-%x"`, v.Size, v.ModTime.UnixNano()))
+	}
 	h.Set("X-Ouo-Replay-Kind", replay.KindVideo)
 	http.ServeContent(w, r, fmt.Sprintf("%06d.mp4", seq), v.ModTime, v.Content)
 }

@@ -1,0 +1,75 @@
+# rum-api configuration, operated like Loki and Tempo:
+#
+#   rum-api -config.file=/etc/rum-api/config.yaml -config.expand-env=true
+#   rum-api -config.file=/etc/rum-api/config.yaml -config.expand-env=true -config.verify
+#
+# Order: built-in defaults < this file < environment variables. Every key below
+# shows its default and, in brackets, the environment variable that overrides it
+# (the variables rum-api has always read, so env-only deployments keep working).
+# An environment variable set to the empty string counts as unset.
+#
+# -config.expand-env=true replaces ${VAR} and ${VAR:-default} with environment
+# values before the YAML is parsed, so secrets stay out of the file. A bare $VAR
+# is left alone; write $${ for a literal ${. Quote expanded values that may contain
+# YAML syntax (": ", "#", leading "*" ...).
+#
+# Unknown keys are errors. -config.verify loads and validates the file, prints the
+# effective configuration with secrets redacted and exits 0 (2 when invalid).
+
+server:
+  http_listen_address: ":8080"            # [RUM_API_ADDR]
+  # Exact browser origins allowed besides http://localhost:* and http://127.0.0.1:*
+  # (local tooling only; browsers never call rum-api in a deployment).
+  cors_allowed_origins: []                # [CORS_ALLOWED_ORIGINS] comma separated
+
+# ADR-0007 5. Both are secrets: keep them in the environment.
+auth:
+  # Bearer the collector's replay exporter sends on POST /v1/replay/chunks. Empty: no check.
+  ingest_token: "${OUO_INGEST_TOKEN}"     # [OUO_INGEST_TOKEN]
+  # Bearer Grafana's plugin proxy sends on GET / DELETE /v1/*. Empty: no check.
+  read_token: "${OUO_READ_TOKEN}"         # [OUO_READ_TOKEN]
+
+loki:
+  url: http://loki:3100                   # [LOKI_URL]
+  datasource_uid: loki                    # [GRAFANA_LOKI_DATASOURCE_UID] Explore links
+
+tempo:
+  url: http://tempo:3200                  # [TEMPO_URL]
+  datasource_uid: tempo                   # [GRAFANA_TEMPO_DATASOURCE_UID] trace links
+  concurrency: 8                          # [TEMPO_CONCURRENCY] parallel searches
+  cache_ttl: 60s                          # [TEMPO_CACHE_TTL] per session + range
+
+grafana:
+  url: http://localhost:3000              # [GRAFANA_URL] browser-facing, for deep links
+
+session:
+  inactivity: 30m                         # [SESSION_INACTIVITY]
+  max_duration: 4h                        # [SESSION_MAX_DURATION] also the list lookback
+  detail_lookback: 168h                   # [SESSION_DETAIL_LOOKBACK]
+
+limits:
+  max_chunk_bytes: 4194304                # [MAX_CHUNK_BYTES] rrweb chunk
+  max_frame_chunk_bytes: 8388608          # [MAX_FRAME_CHUNK_BYTES] never below max_chunk_bytes
+  max_video_chunk_bytes: 8388608          # [MAX_VIDEO_CHUNK_BYTES] decoded mp4; never below max_chunk_bytes
+
+storage:
+  # filesystem (default) or s3. Both keep the same layout:
+  #   [<prefix>/]replays/<session_id>/<seq>.json.gz, <seq>.mp4, meta.json
+  backend: filesystem                     # [STORAGE_BACKEND]
+  filesystem:
+    dir: /data                            # [DATA_DIR] replays live in <dir>/replays
+  s3:
+    # host[:port] without scheme. Empty: s3.<region>.amazonaws.com (AWS).
+    endpoint: ""                          # [S3_ENDPOINT] e.g. minio:9000
+    bucket: ""                            # [S3_BUCKET] required for backend s3; never created by rum-api
+    region: us-east-1                     # [S3_REGION]
+    # Static keys. Leave both empty to use the AWS chain (AWS_ACCESS_KEY_ID /
+    # AWS_SECRET_ACCESS_KEY, MINIO_ACCESS_KEY / MINIO_SECRET_KEY, ~/.aws/credentials,
+    # instance or pod role such as EKS IRSA).
+    access_key_id: "${S3_ACCESS_KEY_ID}"          # [S3_ACCESS_KEY_ID]
+    secret_access_key: "${S3_SECRET_ACCESS_KEY}"  # [S3_SECRET_ACCESS_KEY]
+    session_token: ""                     # [S3_SESSION_TOKEN] temporary credentials only
+    insecure: false                       # [S3_INSECURE] true: plain HTTP (local MinIO)
+    insecure_skip_verify: false           # [S3_INSECURE_SKIP_VERIFY] TLS without certificate checks
+    force_path_style: false               # [S3_FORCE_PATH_STYLE] true for MinIO and most S3 compatibles
+    prefix: ""                            # [S3_PREFIX] optional, e.g. an environment or tenant
