@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "header": {
+    "Content-Length": [
+      "42"
+    ],
+    "Content-Type": [
+      "application/json"
+    ],
+    "Date": [
+      "Fri, 16 Oct 2026 14:22:47 GMT"
+    ]
+  },
+  "body": "{\"id\":\"4e8a53f2ea7f40f19fec2e34bc5f0045\"}\n",
+  "duration_ms": 1.753
+}

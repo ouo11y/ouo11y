@@ -52,3 +52,5 @@ Can the plugin play rum-api's mp4 segments (`kind: "video"`) with a plain `<vide
   jsdom prototype at all; set it on the element with `Object.defineProperty` before `fireEvent.error`.
 - `IconButton`'s `aria-label` is its tooltip text (`Play (space)`), not the `aria-label` prop.
 - `@grafana/data` 13 has no `video`/`film` icon; `presentation-play` is used for the Replay column.
+- Taps (plugin 0.6.0) are drawn by `TapOverlay` from the merged touches and `ui.tap` breadcrumbs, not by the plain
+  touch overlay: `kb/sentry-replay-taps.md`.
