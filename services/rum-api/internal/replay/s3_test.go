@@ -62,7 +62,9 @@ func setupMinio() {
 		return
 	}
 	e.ak, e.sk = "minioadmin", "minioadmin"
-	out, err := exec.Command("docker", "run", "-d", "--rm", "-p", "127.0.0.1::9000",
+	// No --rm: when MinIO exits at once, its state and logs are what the
+	// failure must show.
+	out, err := exec.Command("docker", "run", "-d", "-p", "127.0.0.1::9000",
 		"-e", "MINIO_ROOT_USER="+e.ak, "-e", "MINIO_ROOT_PASSWORD="+e.sk,
 		envOr("OUO_TEST_MINIO_IMAGE", testMinioImage), "server", "/data").CombinedOutput()
 	if err != nil {
@@ -70,14 +72,31 @@ func setupMinio() {
 		return
 	}
 	e.container = strings.TrimSpace(string(out))
-	port, err := exec.Command("docker", "port", e.container, "9000/tcp").Output()
-	if err != nil {
-		e.err = fmt.Errorf("docker port: %v", err)
-		return
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		port, err := exec.Command("docker", "port", e.container, "9000/tcp").CombinedOutput()
+		if err == nil {
+			// "127.0.0.1:55012" (first line; IPv6 lines may follow)
+			e.endpoint = strings.TrimSpace(strings.SplitN(string(port), "\n", 2)[0])
+			break
+		}
+		if time.Now().After(deadline) {
+			e.err = fmt.Errorf("docker port: %v: %s%s", err, port, containerDiag(e.container))
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
 	}
-	// "127.0.0.1:55012" (first line; IPv6 lines may follow)
-	e.endpoint = strings.TrimSpace(strings.SplitN(string(port), "\n", 2)[0])
-	e.err = waitMinio(e.endpoint, 60*time.Second)
+	if e.err = waitMinio(e.endpoint, 60*time.Second); e.err != nil {
+		e.err = fmt.Errorf("%w%s", e.err, containerDiag(e.container))
+	}
+}
+
+// containerDiag is the container's state and last log lines, for failures.
+func containerDiag(id string) string {
+	state, _ := exec.Command("docker", "inspect", "-f",
+		"status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}} platform={{.Platform}} image={{.Config.Image}}", id).CombinedOutput()
+	logs, _ := exec.Command("docker", "logs", "--tail", "40", id).CombinedOutput()
+	return fmt.Sprintf("\ncontainer %s\n%s\nlogs:\n%s", id, strings.TrimSpace(string(state)), logs)
 }
 
 func waitMinio(endpoint string, d time.Duration) error {
