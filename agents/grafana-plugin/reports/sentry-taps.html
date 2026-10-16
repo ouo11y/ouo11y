@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taps in Sentry replays</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --warn: #b26a00; --bad: #c62828; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --warn: #f0b252; --bad: #ff7b7b; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); margin: 0 auto; }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 13px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Taps in Sentry-sourced replays</h1>
+<p class="lead">grafana-plugin, 2026-10-16. Plugin <code>ouo-rum-app</code> 0.6.0 in the isolated stack <code>ouo-taps</code>
+(Grafana 13.2.1 on :3005, rum-api :8093, Sentry bridge :4360). App <code>examples/sentry-mobile</code>
+(<code>@sentry/react-native</code> 8.30.0, sentry-cocoa 9.30.1) on the iPhone 18 Pro simulator (iOS 27), driven with
+real simulator taps, no deep links. Session <code>F3A44DE4-8970-4685-B8F8-39E82C56F946</code>.</p>
+
+<h2>Root cause, layer by layer</h2>
+<div class="scroll"><table>
+<tr><th>Layer</th><th>Check</th><th>Result</th></tr>
+<tr><td>Sentry SDK</td><td>Real taps produce rrweb touch events and <code>ui.tap</code> breadcrumbs?</td><td class="ok">yes: 7 gestures, 6 breadcrumbs, each breadcrumb 80 to 150 ms after its touch start</td></tr>
+<tr><td>Receiver</td><td>Touches in the chunk, breadcrumbs as <code>ui.tap</code>?</td><td class="ok">yes, golden <code>realtap</code> / <code>TestGoldenRealTap</code>; no change</td></tr>
+<tr><td>Journey script</td><td>Does the scripted journey create touches?</td><td class="bad">no: mailbox / deep links only, so 144 of 145 stored chunks in <code>ouo-sb</code> had no touches</td></tr>
+<tr><td>Plugin overlay</td><td>Scaling and timing of the drawn touch</td><td class="ok">correct</td></tr>
+<tr><td>Plugin overlay</td><td>Visible enough at 1 fps?</td><td class="bad">weak: a plain dot fading from 0 ms, two dots per tap, no label</td></tr>
+<tr><td>Plugin scrubber</td><td><code>ui.tap</code> markers?</td><td class="bad">no: <code>ui.tap</code> is <code>type: custom</code>, not a marker kind</td></tr>
+<tr><td>Plugin layout</td><td>List of taps next to the player?</td><td class="bad">no: only the Timeline panel on the left</td></tr>
+</table></div>
+
+<h2>Stored data of the real-tap session</h2>
+<pre>rum-api /v1/sessions/F3A44DE4.../replay/video: 11 segments (15 by the end), 14 touches
+ +11228 ms (201,418) began / +11231 ended        ui.tap 14:22:57.651 action-browse-catalog
+ +14297 ms (201,629) began / ended               ui.tap 14:23:00.695 action-fetch-ok
+ +17366 ms (300,700) began, moved to (300,400)   ui.tap 14:23:03.740 HeaderShownContext   (swipe)
+ +35004 ms (201,404) began / ended               ui.tap 14:23:21.393 action-fetch-500
+ +38062 ms (201,660) began / ended               ui.tap 14:23:24.468 action-message
+ +41127 ms (330,852) began / ended               ui.tap 14:23:27.517 HeaderShownContext   (empty space)</pre>
+
+<h2>Plugin after the fix</h2>
+<figure><img src="taps-01-detail-tap-seek.jpg" alt="Session page with the video, the tap indicator on Fetch products and the activity list filtered to taps">
+<figcaption>Clicking "Tap action-fetch-ok" in the activity list seeks to +14.3 s: the indicator sits on the Fetch
+products button with its target as a label. The tap filter shows the six taps, each with component path and
+position.</figcaption></figure>
+<div class="row">
+<figure><img src="taps-02-indicator-and-list.png" alt="Close-up of the tap indicator and the list">
+<figcaption>Close-up. Measured in the page: indicator at left 50 %, top 71.968 % of a 289.8x630 stage
+(629 / 874 = 71.97 %).</figcaption></figure>
+<figure><img src="taps-03-scrubber-tap-markers.jpg" alt="Scrubber with orange tap markers">
+<figcaption>Scrubber: six orange tap ticks (13.2, 16.8, 20.4, 41.2, 44.8, 48.4 %) under the navigation,
+failed request and error markers; legend has "tap".</figcaption></figure>
+</div>
+
+<h2>Playback timing (sampled every 250 ms while playing from +11.2 s)</h2>
+<pre>+11.2s action-browse-catalog 1.00   +12.2s 1.00   +12.5s 0.50   +12.7s 0.01   +13.0s none
++14.5s action-fetch-ok 1.00   +15.2s 1.00   +15.5s 0.65   +15.7s 0.14</pre>
+<p>Each tap is fully visible for 1 s, then fades out by 1.5 s, so at Sentry's ~1 fps at least one frame shows it fully.</p>
+
+<h2>Tests</h2>
+<ul>
+<li>Plugin: 17 Jest suites, 119 tests green (97 before plus 22 new) (<code>npm test</code>), typecheck and lint clean (3 old <code>Select</code> warnings), build green.</li>
+<li>Receiver: <code>go test ./...</code> and <code>go vet</code> green in <code>collector/receiver/ouosentryreceiver</code>, new <code>TestGoldenRealTap</code>.</li>
+</ul>
+<figure><img src="taps-00-simulator-home.png" alt="Simulator home screen" style="max-width:280px">
+<figcaption>The app as tapped (simulator screenshot before the first tap).</figcaption></figure>
+</body>
+</html>
