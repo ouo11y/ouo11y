@@ -62,13 +62,22 @@ func setupMinio() {
 		return
 	}
 	e.ak, e.sk = "minioadmin", "minioadmin"
+	image := envOr("OUO_TEST_MINIO_IMAGE", testMinioImage)
+	// Pull first: on a fresh runner `docker run` would print the pull
+	// progress, and only stdout may be read as the container id.
+	if out, err := exec.Command("docker", "pull", "-q", image).CombinedOutput(); err != nil {
+		e.err = fmt.Errorf("docker pull %s: %v: %s", image, err, out)
+		return
+	}
 	// No --rm: when MinIO exits at once, its state and logs are what the
-	// failure must show.
-	out, err := exec.Command("docker", "run", "-d", "-p", "127.0.0.1::9000",
-		"-e", "MINIO_ROOT_USER="+e.ak, "-e", "MINIO_ROOT_PASSWORD="+e.sk,
-		envOr("OUO_TEST_MINIO_IMAGE", testMinioImage), "server", "/data").CombinedOutput()
+	// failure must show (TestMain removes the container).
+	cmd := exec.Command("docker", "run", "-d", "-p", "127.0.0.1::9000",
+		"-e", "MINIO_ROOT_USER="+e.ak, "-e", "MINIO_ROOT_PASSWORD="+e.sk, image, "server", "/data")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		e.err = fmt.Errorf("docker run minio: %v: %s", err, out)
+		e.err = fmt.Errorf("docker run minio: %v: %s", err, stderr.String())
 		return
 	}
 	e.container = strings.TrimSpace(string(out))

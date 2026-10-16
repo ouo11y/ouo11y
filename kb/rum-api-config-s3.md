@@ -88,6 +88,12 @@ store's guarantees (range reads, de-duplicated retries, several replicas)?
   test starts one with `docker run -p 127.0.0.1::9000` and removes it in `TestMain`. Without
   either it skips locally but **fails when `CI` is set**, so CI cannot pass by skipping.
   GitHub's `ubuntu-latest` has Docker, so the existing `go test ./...` CI step runs them.
+- Trap (first CI run, all S3 tests red with `docker port: exit status 1`): on a runner
+  without the image, `docker run -d` prints the pull progress to stderr; reading
+  `CombinedOutput()` as the container id passed the pull log to `docker port` ("page not
+  found"). Locally the image was cached, so it never showed. The harness now runs
+  `docker pull -q` first, reads only stdout of `docker run`, keeps the container (no
+  `--rm`, removed in `TestMain`) and puts its state and logs into any failure.
 - `contract_test.go` runs the same behaviour list against FS and S3 (rrweb ordering and gzip
   pass-through, retries, kind / project conflicts, frames, video limits, slim JSON, ranged
   reads, manifest, delete, 20 concurrent puts, validation).
