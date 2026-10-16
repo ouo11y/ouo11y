@@ -48,14 +48,25 @@ Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 
 The `ouosentry` receiver ships in the released ouo collector image
 (`ghcr.io/ziadmansourm/ouo/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
-`deploy/docker/.env.example`). Start the main stack with the released images:
+`deploy/docker/.env.example`). The ouo images are **private for now**, so log in to ghcr.io
+once first. You need read access to the ouo packages (ask the ouo founder) and a classic
+personal access token with only the `read:packages` scope, kept in your shell and never in the
+repo (details: `examples/fast-tracked/00-stack.md`, Step 3, "Pull access"):
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+Then start the main stack with the released images:
 
 ```bash
 docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
 ```
 
-To test collector or plugin changes from this checkout, build from source instead by leaving
-`-f deploy/docker/compose.images.yaml` out (`examples/fast-tracked/00-stack.md`, Step 3).
+Without a login the pull fails with `denied` (HTTP 403). No access yet, or testing collector or
+plugin changes from this checkout: build from source instead by leaving
+`-f deploy/docker/compose.images.yaml` out; that needs no login
+(`examples/fast-tracked/00-stack.md`, Step 3).
 
 ## Configuration (build time, `app.config.ts`)
 
