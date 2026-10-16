@@ -3,6 +3,20 @@
 Every user-visible change bumps `version` in `package.json` (it becomes `plugin.json`'s version and the
 `module.js?_cache=<version>` query string, so browsers drop the cached bundle).
 
+## 0.6.0 (taps in Sentry replays, 2026-10-16)
+
+- Taps in video (Sentry) replays are merged from the recording's touches and the `ui.tap` breadcrumbs: one tap has
+  the touched component and the position; a breadcrumb without a recorded touch and a touch without a breadcrumb
+  are taps too. A gesture that moved is a swipe.
+- Tap indicator on the video: orange ring with a ripple and the touched component as a label, fully visible for 1 s
+  and fading out by 1.5 s (Sentry records about 1 frame per second); a tap without a position shows as a label at
+  the top of the stage. The moves of a swipe are still drawn as a trail.
+- Scrubber: `tap` markers (thin orange ticks under the other kinds) and a "tap" legend entry, also for `ui.tap`
+  timeline events of other replays.
+- Activity list beside the video and frame players, like Sentry's breadcrumb panel: taps, navigations, requests,
+  errors and logs in time order, filters with counts, search, the row at the cursor highlighted and kept in view,
+  click to seek. The Replay panel takes two thirds of the row when the list is shown.
+
 ## 0.5.0 (Sentry bridge follow-ups, 2026-10-14)
 
 - Logs section on the session page, from rum-api `GET /v1/sessions/{id}/logs`: the session's own log lines

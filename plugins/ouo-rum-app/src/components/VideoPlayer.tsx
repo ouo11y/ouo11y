@@ -3,9 +3,10 @@ import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { Badge, IconButton, RadioButtonGroup, useStyles2 } from '@grafana/ui';
 import { videoSegmentUrl } from '../api/client';
-import type { VideoManifest, VideoSegment } from '../api/types';
+import type { ReplayTouch, VideoManifest, VideoSegment } from '../api/types';
 import { usePlaybackClock, type PlaybackSpeed } from '../hooks/usePlaybackClock';
 import { formatDuration, formatRelative } from '../utils/format';
+import { buildTaps, type ReplayTap } from '../utils/taps';
 import {
   frameStepMs,
   locateSegment,
@@ -19,6 +20,7 @@ import {
 } from '../utils/video';
 import { SPEEDS, STAGE_MAX_HEIGHT } from './FramePlayer';
 import type { ReplayHandle } from './ReplayPlayer';
+import { TapOverlay } from './TapOverlay';
 import { TouchOverlay } from './TouchOverlay';
 
 interface Props {
@@ -31,6 +33,11 @@ interface Props {
   onTime?: (offsetMs: number) => void;
   /** Browser URL of a segment; defaults to the plugin proxy route (tests override it). */
   segmentUrl?: (segment: VideoSegment) => string;
+  /**
+   * Taps to draw (`buildTaps` of the manifest's touches and the session's `ui.tap` events); defaults
+   * to the manifest's touches alone.
+   */
+  taps?: readonly ReplayTap[];
 }
 
 const VENDOR_LABEL: Record<string, string> = { sentry: 'Sentry replay' };
@@ -44,17 +51,22 @@ const VENDOR_LABEL: Record<string, string> = { sentry: 'Sentry replay' };
  */
 /**
  * Sentry mobile replay records about 1 frame per second, so a 500 ms touch could appear and vanish
- * between two frames: video replays keep a touch on screen for 1.5 s.
+ * between two frames: video replays keep the trail of a drag on screen for 1.5 s (taps themselves
+ * are drawn by `TapOverlay`, see `TAP_WINDOW_MS`).
  */
 export const VIDEO_TOUCH_WINDOW_MS = 1500;
 
+const isMove = (t: ReplayTouch) => t.phase === 'moved';
+
 export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
-  { manifest, startTs, durationMs, onTime, segmentUrl },
+  { manifest, startTs, durationMs, onTime, segmentUrl, taps: tapsProp },
   ref
 ) {
   const styles = useStyles2(getStyles);
   const segments = useMemo(() => orderSegments(manifest.segments), [manifest.segments]);
   const touches = useMemo(() => manifest.touches ?? [], [manifest.touches]);
+  const moves = useMemo(() => touches.filter(isMove), [touches]);
+  const taps = useMemo(() => tapsProp ?? buildTaps(touches, []), [tapsProp, touches]);
   const urlFor = useCallback(
     (seg: VideoSegment) => (segmentUrl ? segmentUrl(seg) : videoSegmentUrl(manifest.session_id, seg)),
     [segmentUrl, manifest.session_id]
@@ -268,7 +280,7 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
         })}
         {activeSeg && activeError && (
           <div className={styles.notice} data-testid="video-error">
-            Segment {activeSeg.seq} could not be played: {activeError}. Touches and the timeline still follow the clock.
+            Segment {activeSeg.seq} could not be played: {activeError}. Taps and the timeline still follow the clock.
           </div>
         )}
         {activeSeg && !activeError && !ready[activeSeg.seq] && (
@@ -281,8 +293,9 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
             no video here · showing the {beforeFirst ? 'first' : 'last'} frame
           </div>
         )}
+        <TapOverlay taps={taps} viewport={viewport} cursorTs={cursorTs} />
         <TouchOverlay
-          touches={touches}
+          touches={moves}
           viewport={viewport}
           cursorTs={cursorTs}
           testId="video-touch"
