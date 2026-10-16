@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ouo Roadmap Timeline</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb; --surface-2: #f0efec; --border: #d9d8d3;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7975;
+  --platform: #2a78d6; --product: #eb6834; --sdk: #1baf7a;
+  --platform-soft: #cde2fb; --product-soft: #fbd9cb; --sdk-soft: #c9efe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #262624; --border: #3a3a37;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e88;
+    --platform: #3987e5; --product: #d95926; --sdk: #199e70;
+    --platform-soft: #184f95; --product-soft: #6b2a10; --sdk-soft: #0f4f38;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19; --surface-2: #262624; --border: #3a3a37;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e88;
+  --platform: #3987e5; --product: #d95926; --sdk: #199e70;
+  --platform-soft: #184f95; --product-soft: #6b2a10; --sdk-soft: #0f4f38;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-1); color: var(--text-primary);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 18px; margin: 40px 0 12px; }
+p.lead { color: var(--text-secondary); margin: 0 0 24px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 12px; color: var(--text-secondary); font-size: 13px; }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+.legend .platform::before { background: var(--platform); }
+.legend .product::before { background: var(--product); }
+.legend .sdk::before { background: var(--sdk); }
+.legend .cond::before { background: repeating-linear-gradient(135deg, var(--text-muted) 0 2px, transparent 2px 5px); }
+.chart { position: relative; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+.grid { position: relative; min-width: 900px; padding: 8px 0 12px; }
+.axis { display: grid; grid-template-columns: 170px repeat(36, 1fr); font-size: 11px; color: var(--text-muted); padding: 0 12px; }
+.axis div { text-align: left; border-left: 1px solid var(--border); padding-left: 4px; }
+.axis div:first-child { border: 0; }
+.row { display: grid; grid-template-columns: 170px repeat(36, 1fr); align-items: center; min-height: 44px; padding: 0 12px; }
+.row + .row { border-top: 1px solid var(--surface-2); }
+.row .label { font-size: 13px; color: var(--text-secondary); padding-right: 12px; }
+.bar { position: relative; height: 26px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px;
+  font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: visible; cursor: default;
+  border: 1px solid transparent; margin: 0 1px; }
+.bar.platform { background: var(--platform-soft); border-color: var(--platform); }
+.bar.product { background: var(--product-soft); border-color: var(--product); }
+.bar.sdk { background: var(--sdk-soft); border-color: var(--sdk); }
+.bar.cond { background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.12) 0 2px, transparent 2px 6px); }
+.bar.dashed { border-style: dashed; background: transparent; }
+.bar:hover, .bar:focus { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+.tip { position: absolute; z-index: 5; max-width: 340px; background: var(--surface-2); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 13px; pointer-events: none; display: none; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+.tip b { display: block; margin-bottom: 4px; }
+.tip small { color: var(--text-secondary); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 13px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.dot.platform { background: var(--platform); } .dot.product { background: var(--product); } .dot.sdk { background: var(--sdk); }
+.note { color: var(--text-muted); font-size: 13px; margin-top: 8px; }
+@media (max-width: 640px) { .label { font-size: 12px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>ouo roadmap timeline</h1>
+  <p class="lead">Phases 8 to 14 from <code>docs/business/roadmap.md</code>, on a week axis counted from the start of Phase 8. One full-time engineer with agents is assumed; hover or focus a bar for its exit criterion. Decisions behind the order were recorded in the 2026-10-10 founder interview.</p>
+
+  <div class="legend">
+    <span class="platform">Platform and operations</span>
+    <span class="product">Product features</span>
+    <span class="sdk">SDK breadth</span>
+    <span class="cond">Conditional timing: may be pulled forward</span>
+  </div>
+
+  <div class="chart" id="chart">
+    <div class="grid" id="grid"></div>
+    <div class="tip" id="tip" role="tooltip"></div>
+  </div>
+  <p class="note">Phase 14 (standalone UI) is a year-two decision after the tenth customer and is not drawn. The AI investigation experiment runs alongside Phases 9 to 13 and never gates a phase.</p>
+
+  <h2>Phases</h2>
+  <table id="table">
+    <thead><tr><th>Phase</th><th>Track</th><th>Weeks</th><th>What it buys in a sales call</th><th>Exit criterion</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Enterprise readiness matrix</h2>
+  <table>
+    <thead><tr><th>Requirement</th><th>Phase</th><th>Artifact handed to the buyer</th></tr></thead>
+    <tbody>
+      <tr><td>Runs on our Kubernetes, HA</td><td>8a</td><td>Helm chart, replicated values, install recording</td></tr>
+      <tr><td>TLS everywhere, no open ingest</td><td>8a</td><td>Project token design, TLS defaults, threat model page</td></tr>
+      <tr><td>Retention and deletion, GDPR</td><td>8b</td><td>Retention values, delete-by-user API, DPA template, masking proof</td></tr>
+      <tr><td>Backup, restore, upgrade</td><td>8c</td><td>Rehearsed runbook with timings</td></tr>
+      <tr><td>Security questionnaire</td><td>8d</td><td>Answered questionnaire, SBOM, signed releases</td></tr>
+      <tr><td>SSO and RBAC</td><td>8a, 11</td><td>Grafana SSO docs, per-project organisation or folder mapping</td></tr>
+      <tr><td>End-user device impact</td><td>9</td><td>Public benchmark site</td></tr>
+      <tr><td>Release health</td><td>9</td><td>Plugin release comparison, alert template</td></tr>
+      <tr><td>Scale proof</td><td>11</td><td>Published load test, cost per million sessions</td></tr>
+      <tr><td>Audit log</td><td>11</td><td>Configuration and deletion audit log</td></tr>
+      <tr><td>Both mobile platforms</td><td>10, 13</td><td>Android replay, native SDKs</td></tr>
+      <tr><td>Migration without cutover</td><td>12</td><td>Fan-out configs, comparison dashboard, cost model</td></tr>
+    </tbody>
+  </table>
+</main>
+<script>
+const WEEKS = 36;
+const phases = [
+  { id: '8', name: 'Pilot-ready platform', track: 'platform', start: 1, end: 8,
+    buys: 'Install on your cluster in an afternoon; data never leaves; retention, deletion, backup and upgrade documented.',
+    exit: 'A non-founder engineer installs on a fresh cluster and VM from the docs, resolves a staged incident, verifies retention and deletion, restores from backup. Timed and recorded.' },
+  { id: '9', name: 'Release health, benchmarks', track: 'product', start: 9, end: 13,
+    buys: 'The headline mobile feature and the device-impact numbers competitors do not publish.',
+    exit: 'Two demo versions compared in the plugin; public benchmark site live with web results for five products and iOS for three.' },
+  { id: '10', name: 'Android replay (Expo)', track: 'sdk', start: 14, end: 16,
+    buys: '"Mobile" means both platforms.',
+    exit: 'Android session with masked replay and a crash in the plugin; health by version includes Android.' },
+  { id: '11', name: 'Scale, multi-project', track: 'platform', start: 17, end: 24,
+    buys: 'A scale answer with numbers; isolation for a second project or a managed customer.',
+    exit: 'Load test at one million sessions per day published; two projects isolated; p95 rum-api latency under one second.' },
+  { id: '12', name: 'Migration kit', track: 'platform', start: 25, end: 28, cond: true,
+    buys: 'Run LGTM next to your ELK or Datadog for 90 days, compare, decide. Pulled into Phase 8 if the first buyer is on ELK or Datadog.',
+    exit: 'Demo backend reporting to both stacks with matching trace counts and a generated cost comparison.' },
+  { id: '13', name: 'Native SDKs', track: 'sdk', start: 29, end: 36, open: true,
+    buys: 'Customers whose apps are not React Native. First hire\'s workstream.',
+    exit: 'Per SDK: conformance suite green, demo app instrumented, benchmark page extended.' },
+  { id: 'AI', name: 'Investigation experiment', track: 'product', start: 9, end: 36, dashed: true,
+    buys: 'Evidence-backed "why did this regress" answers. Never promised in a pitch.',
+    exit: 'Precision measured on twenty historical incidents before any customer sees it.' },
+];
+const trackName = { platform: 'Platform and operations', product: 'Product features', sdk: 'SDK breadth' };
+const grid = document.getElementById('grid');
+const axis = document.createElement('div'); axis.className = 'axis';
+axis.appendChild(document.createElement('div'));
+for (let w = 1; w <= WEEKS; w++) { const d = document.createElement('div'); d.textContent = (w === 1 || w % 4 === 0) ? 'w' + w : ''; axis.appendChild(d); }
+grid.appendChild(axis);
+const tip = document.getElementById('tip'); const chart = document.getElementById('chart');
+for (const p of phases) {
+  const row = document.createElement('div'); row.className = 'row';
+  const label = document.createElement('div'); label.className = 'label'; label.textContent = 'Phase ' + p.id + (p.id === 'AI' ? ' (continuous)' : ''); row.appendChild(label);
+  const bar = document.createElement('div'); bar.className = 'bar ' + p.track + (p.cond ? ' cond' : '') + (p.dashed ? ' dashed' : '');
+  bar.style.gridColumn = (p.start + 1) + ' / ' + (p.end + 2);
+  bar.textContent = p.name + (p.open ? ' →' : ''); bar.tabIndex = 0;
+  bar.setAttribute('aria-label', 'Phase ' + p.id + ' ' + p.name + ', weeks ' + p.start + ' to ' + p.end + '. ' + p.exit);
+  const show = (e) => {
+    tip.innerHTML = '<b>Phase ' + p.id + ': ' + p.name + '</b>' + '<small>' + trackName[p.track] + ', weeks ' + p.start + ' to ' + p.end + (p.open ? ' and onward' : '') + '</small><br>' + p.exit;
+    tip.style.display = 'block';
+    const r = chart.getBoundingClientRect(); const b = bar.getBoundingClientRect();
+    let left = b.left - r.left + chart.scrollLeft; const maxLeft = chart.clientWidth - 350; if (left > maxLeft) left = Math.max(8, maxLeft);
+    tip.style.left = left + 'px'; tip.style.top = (b.bottom - r.top + 6) + 'px';
+  };
+  const hide = () => { tip.style.display = 'none'; };
+  bar.addEventListener('mouseenter', show); bar.addEventListener('focus', show);
+  bar.addEventListener('mouseleave', hide); bar.addEventListener('blur', hide);
+  row.appendChild(bar); grid.appendChild(row);
+}
+const tbody = document.querySelector('#table tbody');
+for (const p of phases) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + (p.id === 'AI' ? 'Continuous' : 'Phase ' + p.id) + ': ' + p.name + '</td>' +
+    '<td><span class="dot ' + p.track + '"></span>' + trackName[p.track] + '</td>' +
+    '<td>' + p.start + ' to ' + p.end + (p.open ? '+' : '') + (p.cond ? ' (conditional)' : '') + '</td>' +
+    '<td>' + p.buys + '</td><td>' + p.exit + '</td>';
+  tbody.appendChild(tr);
+}
+</script>
+</body>
+</html>
