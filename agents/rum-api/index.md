@@ -10,3 +10,4 @@ JSON API for the Grafana plugin.
 - `summaries/2026-10-10-phase-8a.md` Phase 8a ingest gateway (project tokens, per-project CORS and limits, read token, ingest metrics)
 - `summaries/2026-10-10-phase-8a-rev2.md` Phase 8a rev 2: rum-api internal, replay sink for the collector, read token kept
 - `summaries/2026-10-14-video-kind.md` Sentry bridge: `kind: "video"` chunks (mp4 segments), manifest and ranged segment endpoints, `MAX_VIDEO_CHUNK_BYTES`
+- `summaries/2026-10-16-config-file-s3.md` YAML config file (`-config.file`, `-config.expand-env`, `-config.verify`), S3 / MinIO replay store, compose opt-in MinIO, Helm `rumApi.storage`

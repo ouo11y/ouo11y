@@ -1,0 +1,11 @@
+# rum-api config file (-config.file), rendered from rumApi.config, rumApi.storage and
+# rumApi.structuredConfig. Environment variables in the Deployment override it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.rumApi.fullname" . }}-config
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "rum-api") | nindent 4 }}
+data:
+  config.yaml: |
+    {{- include "ouo.rumApi.config" . | nindent 4 }}

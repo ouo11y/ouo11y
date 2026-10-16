@@ -53,8 +53,43 @@ rumApi:
     # grafana.ingress when enabled, otherwise http://localhost:3000 (port-forward).
     grafanaUrl: ""
     tempoDatasourceUid: tempo
+    lokiDatasourceUid: loki
     sessionInactivity: 30m
     sessionMaxDuration: 4h
+  # rum-api reads a YAML config file like Loki and Tempo: the chart renders it into a
+  # ConfigMap (<release>-rum-api-config, mounted at /etc/rum-api/config.yaml) from
+  # rumApi.config and rumApi.storage. structuredConfig is merged over it last: any key
+  # of services/rum-api/config.example.yaml, e.g.
+  #   structuredConfig: { limits: { max_video_chunk_bytes: 16777216 }, tempo: { concurrency: 16 } }
+  # Secrets never go here: tokens and S3 keys reach the pod as environment variables
+  # from Secrets (they override the file).
+  structuredConfig: {}
+  # Replay store (storage.backend). filesystem: the PVC below at /data. s3: an S3
+  # compatible bucket (AWS S3, MinIO, Ceph RGW, ...); no PVC, any number of replicas.
+  # The bucket must exist; rum-api never creates it.
+  storage:
+    backend: filesystem
+    s3:
+      # host[:port] without scheme. Empty: s3.<region>.amazonaws.com.
+      endpoint: ""
+      bucket: ""
+      region: us-east-1
+      # Optional key prefix inside the bucket (environment or tenant).
+      prefix: ""
+      # true: plain HTTP (in-cluster MinIO without TLS).
+      insecure: false
+      insecureSkipVerify: false
+      # true for MinIO and most S3 compatibles (bucket in the path).
+      forcePathStyle: false
+      # Static keys, rendered into the rum-api Secret (s3-access-key-id,
+      # s3-secret-access-key). Leave both empty and set existingSecret, or use pod
+      # identity (EKS IRSA via serviceAccountName) and the AWS credential chain.
+      accessKeyId: ""
+      secretAccessKey: ""
+      # Pre-created Secret with keys `access-key-id` and `secret-access-key`.
+      existingSecret: ""
+  # ServiceAccount for the pod (pod identity / IRSA for the s3 backend). Empty: default.
+  serviceAccountName: ""
   otel:
     # rum-api's own telemetry goes to the chart's collector through its internal,
     # unauthenticated OTLP/HTTP receiver (OTEL_SDK_DISABLED when false).
@@ -68,10 +103,11 @@ rumApi:
     # Override when collector.enabled=false (another OTLP/HTTP endpoint).
     endpoint: ""
   # Extra environment variables (list of core/v1 EnvVar), e.g. MAX_FRAME_CHUNK_BYTES.
+  # They override the config file.
   extraEnv: []
   persistence:
-    # Replay chunks (DATA_DIR=/data). With more than one replica the volume must be
-    # ReadWriteMany; see values-ha-example.yaml.
+    # Replay chunks with storage.backend filesystem (/data); ignored with s3. With more
+    # than one replica the volume must be ReadWriteMany; prefer the s3 backend instead.
     enabled: true
     existingClaim: ""
     storageClass: ""

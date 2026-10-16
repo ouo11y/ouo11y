@@ -58,6 +58,7 @@ Builder, which takes a few minutes. Data lives in named volumes (`ouo_grafana-da
 | loki | `0.0.0.0:3100` | 3100 | Loki API (`/loki/api/v1/...`, OTLP at `/otlp/v1/logs`) |
 | tempo | `0.0.0.0:3200` | 3200 | Tempo API (`/api/search`, `/api/traces/{id}`) |
 | mimir | `0.0.0.0:9009` | 9009 | Mimir (`/prometheus/api/v1/...`, OTLP at `/otlp/v1/metrics`) |
+| minio (profile `s3`, opt-in) | `127.0.0.1:9000`, `127.0.0.1:9001` | 9000, 9001 | S3 API and web console for rum-api's s3 replay store (`minioadmin` / `minioadmin`, laptop only) |
 
 On a server (`deploy/vm`) Caddy owns 80/443 and every port above is re-bound to loopback;
 the collector is reached as `https://otel.<domain>`. Host ports can be changed without
@@ -177,6 +178,8 @@ deploy/docker/compose.yaml                      the stack (collector built from 
 deploy/docker/.env.example                      ports, ingest/read tokens, script project, VM variables (dev values, loud warning)
 deploy/docker/collector/config.yaml             ouo-collector config: basicauth, CORS, ouoreplay, ouoratelimit, project stamp -> tempo / loki / mimir, rum-api
 deploy/docker/collector/projects.htpasswd       development project registry (demo); one `{SHA}` line per project token
+deploy/docker/compose.s3.yaml                   opt-in override: MinIO + bucket init, rum-api on storage.backend s3
+deploy/docker/rum-api/config.yaml               rum-api config file (-config.file, ${VAR} expansion for the tokens / S3 keys)
 deploy/docker/loki/config.yaml                  single binary, tsdb v13, OTLP label promotion
 deploy/docker/tempo/config.yaml                 single binary, local blocks, metrics generator
 deploy/docker/mimir/config.yaml                 monolithic, filesystem blocks
@@ -202,7 +205,10 @@ It needs `OUO_INGEST_TOKEN` in its environment for the replay exporter. Config d
 
 ## rum-api
 
-`services/rum-api` (Go) is built from `../../services/rum-api` and listens on host port
+`services/rum-api` (Go) is built from `../../services/rum-api`, configured like Loki and
+Tempo by a mounted YAML file (`deploy/docker/rum-api/config.yaml`, started with
+`-config.file=/etc/rum-api/config.yaml -config.expand-env=true`; every key is in
+`services/rum-api/config.example.yaml`) and listens on host port
 `${OUO_RUM_API_PORT:-8080}` (laptop only). It is internal: the collector's replay exporter
 posts chunks to `POST /v1/replay/chunks` with `X-Ouo-Project-Id` and `Authorization:
 Bearer <OUO_INGEST_TOKEN>`; Grafana's plugin proxy reads `GET /v1/*` with
@@ -211,7 +217,39 @@ Bearer <OUO_INGEST_TOKEN>`; Grafana's plugin proxy reads `GET /v1/*` with
 and sends its own traces, logs and metrics to the collector as `service.name=rum-api`
 (including `ouo.replay.chunks` / `ouo.replay.bytes`). `GRAFANA_URL` is set from
 `OUO_GRAFANA_PORT` because the trace deep links it builds are opened by the browser, not
-by the container. Full API and curl examples: `services/rum-api/README.md`.
+by the container. Environment variables override the file, so the tokens and
+`GRAFANA_URL` stay in compose's `environment:`; `docker compose exec rum-api /rum-api
+-config.file=/etc/rum-api/config.yaml -config.expand-env=true -config.verify` prints the
+effective config with secrets redacted. Full API and curl examples:
+`services/rum-api/README.md`.
+
+### Replays in MinIO (opt-in)
+
+Loki, Tempo and Mimir keep local filesystem storage in this stack, so rum-api does too by
+default (`storage.backend: filesystem`, `deploy/data/rum-api`). Object storage is opt-in:
+
+```bash
+docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.s3.yaml up -d
+curl localhost:8080/readyz          # {"checks":{"loki":"ok","storage":"ok","tempo":"ok"},"ready":true}
+open http://localhost:9001          # MinIO console, minioadmin / minioadmin, bucket ouo-replays
+```
+
+`compose.s3.yaml` activates the `minio` and `minio-init` services of `compose.yaml`
+(profile `s3`) and sets `STORAGE_BACKEND=s3` plus the S3 keys on rum-api. `minio-init`
+creates the bucket (`OUO_RUM_API_S3_BUCKET`, default `ouo-replays`) and a `rum-api` user
+whose policy only reaches that bucket (`OUO_RUM_API_S3_ACCESS_KEY` /
+`OUO_RUM_API_S3_SECRET_KEY`); rum-api never runs with the root credentials and never
+creates buckets. Objects use the filesystem layout, `replays/<session_id>/<seq>.json.gz`,
+`<seq>.mp4`, `meta.json`; existing replays move over with
+`mc mirror deploy/data/rum-api/replays local/ouo-replays/replays`.
+`docker compose -f deploy/docker/compose.yaml --profile s3 up -d minio minio-init` starts
+MinIO alone, e.g. for the rum-api S3 tests (`OUO_TEST_S3_ENDPOINT=localhost:9000
+go test ./internal/replay/`; without it the tests start their own MinIO container).
+
+The official `minio/minio` and `minio/mc` images are no longer published; the stack pins
+the community-maintained builds `pgsty/minio` and `pgsty/mc` (same server and client,
+override with `OUO_MINIO_IMAGE` / `OUO_MC_IMAGE`). Any S3 compatible store works for
+rum-api; see `kb/rum-api-config-s3.md`.
 
 ```bash
 curl localhost:8080/readyz                                                                     # {"ready":true,"checks":{"loki":"ok","tempo":"ok"}}

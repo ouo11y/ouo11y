@@ -155,6 +155,31 @@ headers:
 {{- if .Values.grafana.plugin.rumApiUrl -}}{{ .Values.grafana.plugin.rumApiUrl }}{{- else -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
 {{- end -}}
 
+{{/* rum-api replay store on the filesystem (PVC at /data) */}}
+{{- define "ouo.rumApi.fsStore" -}}{{- if eq .Values.rumApi.storage.backend "filesystem" -}}true{{- end -}}{{- end -}}
+
+{{/*
+rum-api config.yaml (services/rum-api/config.example.yaml) from rumApi.config and
+rumApi.storage, with rumApi.structuredConfig merged over it. No secrets: tokens and
+S3 keys are environment variables from Secrets.
+*/}}
+{{- define "ouo.rumApi.config" -}}
+{{- $s3 := .Values.rumApi.storage.s3 -}}
+{{- $cfg := dict
+  "server" (dict "http_listen_address" ":8080")
+  "loki" (dict "url" (include "ouo.lokiUrl" .) "datasource_uid" .Values.rumApi.config.lokiDatasourceUid)
+  "tempo" (dict "url" (include "ouo.tempoUrl" .) "datasource_uid" .Values.rumApi.config.tempoDatasourceUid)
+  "grafana" (dict "url" (include "ouo.grafanaPublicUrl" .))
+  "session" (dict "inactivity" (toString .Values.rumApi.config.sessionInactivity) "max_duration" (toString .Values.rumApi.config.sessionMaxDuration))
+  "storage" (dict
+    "backend" .Values.rumApi.storage.backend
+    "filesystem" (dict "dir" "/data")
+    "s3" (dict "endpoint" $s3.endpoint "bucket" $s3.bucket "region" $s3.region "prefix" $s3.prefix
+               "insecure" $s3.insecure "insecure_skip_verify" $s3.insecureSkipVerify "force_path_style" $s3.forcePathStyle))
+-}}
+{{- toYaml (mergeOverwrite $cfg (deepCopy .Values.rumApi.structuredConfig)) -}}
+{{- end -}}
+
 {{/* Browser-facing Grafana URL for rum-api deep links */}}
 {{- define "ouo.grafanaPublicUrl" -}}
 {{- if .Values.rumApi.config.grafanaUrl -}}{{ .Values.rumApi.config.grafanaUrl | trimSuffix "/" }}
@@ -186,6 +211,15 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- end -}}
 {{- if and .Values.grafana.enabled (not .Values.grafana.adminPassword) (not .Values.grafana.existingSecret) -}}
 {{- fail "ouo: set grafana.adminPassword or grafana.existingSecret" -}}
+{{- end -}}
+{{- if not (has .Values.rumApi.storage.backend (list "filesystem" "s3")) -}}
+{{- fail (printf "ouo: rumApi.storage.backend must be filesystem or s3, got %q" .Values.rumApi.storage.backend) -}}
+{{- end -}}
+{{- if and (eq .Values.rumApi.storage.backend "s3") (not .Values.rumApi.storage.s3.bucket) -}}
+{{- fail "ouo: rumApi.storage.s3.bucket is required with rumApi.storage.backend s3 (rum-api never creates the bucket)" -}}
+{{- end -}}
+{{- if and .Values.rumApi.storage.s3.existingSecret (or .Values.rumApi.storage.s3.accessKeyId .Values.rumApi.storage.s3.secretAccessKey) -}}
+{{- fail "ouo: set rumApi.storage.s3.existingSecret or accessKeyId/secretAccessKey, not both" -}}
 {{- end -}}
 {{- if not (has .Values.lgtm.mode (list "bundled" "external")) -}}
 {{- fail (printf "ouo: lgtm.mode must be bundled or external, got %q" .Values.lgtm.mode) -}}
