@@ -64,14 +64,18 @@ Branch `claude/rum-api-release-1026d3`, stacked on `claude/sentry-bridge-design`
 ## Left / next agent must know
 
 - **No tag was pushed.** Ask the founder first, with the exact tags (see the PR). Suggested:
-  `collector-v0.2.0` and `grafana-v0.2.0` after this PR and #16 merge; `rum-api-v0.2.0` after the
-  YAML config + S3 PR (optionally `rum-api-v0.2.0-rc.1` now). Run the dry run of each tag first.
+  `collector-v0.2.0` and `grafana-v0.2.0` after this PR and #16 merge; `rum-api-v0.2.0-rc.1` / `0.2.0`
+  only after the YAML config + S3 PR (#19) merges. Run the dry run of each tag first.
 - After the first push of each image the package is private: the founder sets it public and
   links it to the repo (GitHub > Packages > Package settings).
 - Until those images exist, `compose.images.yaml` fails to pull; the docs say to build from
   source in that case.
-- rum-api: the Dockerfile cross-compile + `ARG VERSION` / `-X main.version` change, and the
-  final config/S3 key names for the placeholder, come from the rum-api-config-s3 session.
+- rum-api: the Dockerfile cross-compile + `ARG VERSION` / `-X main.version` change is in PR #19
+  (commit aaa73bc, no baked ENV on purpose). After #19, compose.yaml and the chart pass
+  `-config.file`, so the override needs no rum-api keys (placeholder replaced with a pointer to
+  compose.yaml's mounted config and `compose.s3.yaml`), and any rum-api image older than #19
+  exits on that flag: no `rum-api-v0.2.0-rc.1` from pre-#19 code. Final keys:
+  shared notes `rum-api-config-s3-to-release.md`.
 - `deploy/vm/install.sh` still builds from source; an `--images` mode is a follow-up.
 - The root `CHANGELOG.md` says plugin 0.3.0 but `plugins/ouo-rum-app/package.json` is 0.5.0
   (grafana-plugin agent).

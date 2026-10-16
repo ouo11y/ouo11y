@@ -42,8 +42,10 @@ and the examples (`deploy/docker/.env.example`).
 - They publish `:<version>-rc.N` only. They never move `:latest` or `:<major>.<minor>`,
   and the GitHub release is marked pre-release.
 - An rc may be cut before every planned feature has landed when a client needs something
-  runnable now; say what is missing in its release notes. Example: `rum-api-v0.2.0-rc.1`
-  from today's code (no YAML config / S3 yet), `-rc.2` after that PR, then `0.2.0`.
+  runnable now; say what is missing in its release notes. Check it still runs with the
+  compose file and chart on `main`: rum-api without the YAML config PR (#19) exits on the
+  `-config.file` flag that compose.yaml and the chart pass after #19, so the first rum-api
+  rc is cut after #19 merges (`rum-api-v0.2.0-rc.1`), then `0.2.0`.
 - The final is tagged on the same commit as the last rc whenever possible (no new code
   between "verified" and "released").
 - Examples and docs pin finals. Point an example at an rc only on a branch.
