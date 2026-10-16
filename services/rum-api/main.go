@@ -1,5 +1,6 @@
 // Command rum-api is the ouo session and replay service: it stores replay
-// chunks (rrweb events from the web SDK, JPEG frames from mobile), folds Loki session events into session records with a
+// chunks (rrweb events from the web SDK, JPEG frames from mobile, mp4 segments
+// from the Sentry bridge), folds Loki session events into session records with a
 // health status, lists traces per session from Tempo and serves the JSON API
 // used by the Grafana app plugin. See README.md for the API.
 package main
@@ -67,11 +68,13 @@ func run(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	store.MaxVideoBytes = cfg.MaxVideoChunkBytes
 	// Outbound calls to Loki / Tempo are traced too.
 	httpClient := &http.Client{Timeout: 60 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	lokiClient := loki.New(cfg.LokiURL, httpClient)
 	tempoClient := tempo.New(cfg.TempoURL, httpClient, cfg.TempoConcurrency, cfg.TempoCacheTTL)
 	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.TempoDatasourceUID}
+	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.GrafanaURL, DatasourceUID: cfg.LokiDatasourceUID}
 
 	api := httpapi.New(lokiClient, tempoClient, store, httpapi.Options{
 		SessionOptions:     session.Options{Inactivity: cfg.SessionInactivity, MaxDuration: cfg.SessionMaxDuration},
@@ -79,9 +82,12 @@ func run(cfg config.Config) error {
 		DetailLookback:     cfg.DetailLookback,
 		MaxChunkBytes:      cfg.MaxChunkBytes,
 		MaxFrameChunkBytes: cfg.MaxFrameChunkBytes,
+		MaxVideoChunkBytes: cfg.MaxVideoChunkBytes,
 		IngestToken:        cfg.IngestToken,
 		ReadToken:          cfg.ReadToken,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		TraceLinks:         tempoClient.Links,
+		LokiLinks:          lokiLinks,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",
 		otelhttp.WithFilter(func(r *http.Request) bool {

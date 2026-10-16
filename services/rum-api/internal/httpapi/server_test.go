@@ -40,6 +40,8 @@ type fakeEvents struct {
 	mu      sync.Mutex
 	filters []loki.Filters
 	ranges  [][2]time.Time
+	extra   []session.Event // returned by EventsQuery only (lines without event names, e.g. backend logs)
+	queries []string
 }
 
 func (f *fakeEvents) Events(ctx context.Context, fl loki.Filters, start, end time.Time) ([]session.Event, error) {
@@ -63,6 +65,18 @@ func (f *fakeEvents) Events(ctx context.Context, fl loki.Filters, start, end tim
 	return out, nil
 }
 func (f *fakeEvents) Ready(context.Context) error { return nil }
+
+// EventsQuery records the LogQL and returns every event plus extra: the
+// handler must do its own filtering.
+func (f *fakeEvents) EventsQuery(ctx context.Context, query string, start, end time.Time) ([]session.Event, error) {
+	f.mu.Lock()
+	f.queries = append(f.queries, query)
+	f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
+	return append(append([]session.Event{}, f.events...), f.extra...), nil
+}
 
 type fakeTraces struct {
 	traces map[string][]tempo.Trace
@@ -113,6 +127,8 @@ func newTestServerWith(t *testing.T, mod func(*Options)) (*httptest.Server, *fak
 	if mod != nil {
 		mod(&opts)
 	}
+	// main.go hands the same limit to the store and the API.
+	store.MaxVideoBytes = opts.MaxVideoChunkBytes
 	srv := New(fe, ft, store, opts)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

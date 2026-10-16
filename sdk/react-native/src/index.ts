@@ -18,7 +18,7 @@ import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
-import { installFetchInstrumentation } from "./network";
+import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
 import { createReplayController } from "./replay";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
@@ -175,20 +175,24 @@ export function initRUM(options: RUMOptions): RUM {
     new RegExp(`^${escapeRegExp(endpoints.replayChunks)}(?:[/?#]|$)`),
     ...(options.tracing?.ignoreUrls ?? []),
   ];
-  const uninstallFetch = installFetchInstrumentation({
+  const networkOptions = {
     tracer,
     events,
     logger,
     propagateTo: options.tracing?.propagateTo ?? [],
     ignoreUrls,
     onActivity,
-  });
+  };
+  const uninstallFetch = installFetchInstrumentation(networkOptions);
+  // axios and other XHR clients; fetch's own XHR is skipped (traced by the fetch wrapper).
+  const uninstallXhr = installXhrInstrumentation(networkOptions);
 
   const fatalFlushTimeoutMs = options.errors?.fatalFlushTimeoutMs ?? 2000;
   const uninstallErrors = installErrorCapture({
     events,
     logger,
     ...(options.errors?.consoleErrors !== undefined ? { consoleErrors: options.errors.consoleErrors } : {}),
+    ...(options.errors?.onUnhandledRejection ? { onUnhandledRejection: options.errors.onUnhandledRejection } : {}),
     onFatal: async (error) => {
       const s = serializeError(error);
       logger.warn("fatal error, writing crash marker and flushing", s.type, s.message);
@@ -251,6 +255,7 @@ export function initRUM(options: RUMOptions): RUM {
     flush,
     async _uninstall(): Promise<void> {
       uninstallFetch();
+      uninstallXhr();
       uninstallErrors();
       uninstallAppState();
       replay.stop();

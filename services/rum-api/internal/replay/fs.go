@@ -16,11 +16,15 @@ import (
 	"time"
 )
 
-// FS is the filesystem Store: <root>/replays/<session_id>/<seq %06d>.json.gz.
+// FS is the filesystem Store: <root>/replays/<session_id>/<seq %06d>.json.gz,
+// plus <seq %06d>.mp4 for video chunks.
 type FS struct {
 	Root string
 	// Now is injected for tests.
 	Now func() time.Time
+	// MaxVideoBytes limits one decoded video segment (MAX_VIDEO_CHUNK_BYTES);
+	// 0 means DefaultMaxVideoBytes. Set it before the first Put.
+	MaxVideoBytes int64
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -55,23 +59,40 @@ func (s *FS) dir(sessionID string) string { return filepath.Join(s.Root, session
 
 func chunkName(seq int) string { return fmt.Sprintf("%06d.json.gz", seq) }
 
+func videoName(seq int) string { return fmt.Sprintf("%06d.mp4", seq) }
+
+func gzipBytes(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	if _, err := gw.Write(b); err != nil {
+		return nil, err
+	}
+	if err := gw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 // Put implements Store.
 func (s *FS) Put(ctx context.Context, projectID string, body []byte, gzipBody []byte) (Chunk, error) {
-	c, err := parseChunk(body)
+	maxVideo := s.MaxVideoBytes
+	if maxVideo <= 0 {
+		maxVideo = DefaultMaxVideoBytes
+	}
+	c, err := parseChunk(body, maxVideo)
 	if err != nil {
 		return c, err
 	}
 	data := gzipBody
+	if c.Kind == KindVideo {
+		// The uploaded gzip holds the base64 mp4; store the slim JSON.
+		data = nil
+		body = c.stored
+	}
 	if data == nil {
-		var buf bytes.Buffer
-		gw := gzip.NewWriter(&buf)
-		if _, err := gw.Write(body); err != nil {
+		if data, err = gzipBytes(body); err != nil {
 			return c, err
 		}
-		if err := gw.Close(); err != nil {
-			return c, err
-		}
-		data = buf.Bytes()
 	}
 
 	unlock := s.lock(c.SessionID)
@@ -92,6 +113,12 @@ func (s *FS) Put(ctx context.Context, projectID string, body []byte, gzipBody []
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return c, err
 	}
+	// mp4 first: a chunk file always has its video next to it.
+	if c.Kind == KindVideo {
+		if err := writeAtomic(filepath.Join(dir, videoName(c.Seq)), c.mp4); err != nil {
+			return c, err
+		}
+	}
 	if err := writeAtomic(filepath.Join(dir, chunkName(c.Seq)), data); err != nil {
 		return c, err
 	}
@@ -101,13 +128,22 @@ func (s *FS) Put(ctx context.Context, projectID string, body []byte, gzipBody []
 		meta.ProjectID = projectID
 	}
 	meta.Kind = c.Kind
-	if c.Kind == KindFrames {
+	if c.Kind == KindFrames || c.Kind == KindVideo {
 		// Viewport and platform follow the latest chunk (a device does not
 		// change viewport mid-session; orientation changes are out of scope).
 		meta.Viewport, meta.Platform = c.Viewport, c.Platform
 	}
+	if meta.Source == nil && c.Source != nil {
+		// A session keeps the first replay id it sees (sentry-bridge.md 9).
+		meta.Source = c.Source
+	}
 	info := ChunkInfo{Seq: c.Seq, StartedAt: c.StartedAt, EndedAt: c.EndedAt, Bytes: int64(len(data)),
 		EventCount: c.EventCount, FrameCount: c.FrameCount, TouchCount: c.TouchCount}
+	if c.Kind == KindVideo {
+		d := c.DurationMs
+		info.DurationMs, info.VideoBytes = &d, c.VideoBytes
+		info.Bytes += c.VideoBytes
+	}
 	replaced := false
 	for i := range meta.Chunks {
 		if meta.Chunks[i].Seq == c.Seq {
@@ -277,6 +313,26 @@ func (s *FS) OpenChunk(ctx context.Context, sessionID string, seq int) (io.ReadC
 		return nil, fmt.Errorf("chunk %s/%d: %w", sessionID, seq, err)
 	}
 	return gzReadCloser{Reader: gr, f: f}, nil
+}
+
+// OpenVideo implements Store.
+func (s *FS) OpenVideo(ctx context.Context, sessionID string, seq int) (VideoFile, error) {
+	if !ValidSessionID(sessionID) || seq < 0 {
+		return VideoFile{}, ErrNotFound
+	}
+	f, err := os.Open(filepath.Join(s.dir(sessionID), videoName(seq)))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return VideoFile{}, ErrNotFound
+		}
+		return VideoFile{}, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return VideoFile{}, err
+	}
+	return VideoFile{Content: f, Size: fi.Size(), ModTime: fi.ModTime()}, nil
 }
 
 // Delete implements Store.

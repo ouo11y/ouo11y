@@ -103,6 +103,7 @@ services:
       - "127.0.0.1:${OUO_OTLP_GRPC_PORT:-4317}:4317"           # OTLP gRPC (loopback only)
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"                     # OTLP/HTTP, Basic auth, CORS (public)
       - "${OUO_REPLAY_PORT:-4319}:4319"                        # replay receiver, Basic auth, CORS (public)
+      - "${OUO_SENTRY_PORT:-4320}:4320"                        # Sentry SDK bridge, DSN key auth (public, ADR-0008)
       - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"  # health_check extension (loopback only)
     environment:
       # Shared secret the ouoreplay exporter sends to rum-api as
@@ -112,6 +113,12 @@ services:
       OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
       # Per-client rate-limit key: address, or x_forwarded_for behind a reverse proxy.
       OUO_RATELIMIT_CLIENT_KEY: ${OUO_RATELIMIT_CLIENT_KEY:-address}
+      # Sentry SDK bridge (ADR-0008). Upstream "none" answers locally; set it to your
+      # Sentry ingest URL (https://oNNN.ingest.sentry.io) to run next to Sentry.
+      OUO_SENTRY_UPSTREAM: ${OUO_SENTRY_UPSTREAM:-none}
+      OUO_SENTRY_PROJECT_ID: ${OUO_SENTRY_PROJECT_ID:-1}
+      OUO_SENTRY_PUBLIC_KEY: ${OUO_SENTRY_PUBLIC_KEY:-publickey0000000000000000000000}
+      OUO_SENTRY_SERVICE_NAME: ${OUO_SENTRY_SERVICE_NAME:-sentry-demo}
     volumes:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - ./collector/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
@@ -159,6 +166,7 @@ services:
       # Browser-facing Grafana URL used in trace deep links.
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}
       GRAFANA_TEMPO_DATASOURCE_UID: tempo
+      GRAFANA_LOKI_DATASOURCE_UID: loki
       DATA_DIR: /data
       SESSION_INACTIVITY: 30m
       SESSION_MAX_DURATION: 4h

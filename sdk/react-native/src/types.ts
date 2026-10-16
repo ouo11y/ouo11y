@@ -83,6 +83,13 @@ export interface ErrorOptions {
   consoleErrors?: boolean;
   /** How long a fatal error waits for the crash marker and the flush before the previous handler runs. Default 2000. */
   fatalFlushTimeoutMs?: number;
+  /**
+   * Called with every unhandled promise rejection after ouo recorded it. Hermes keeps a single
+   * rejection tracker and the SDK initialised last owns it; next to Sentry (initialised before
+   * ouo) forward the rejection so Sentry still reports it:
+   * `onUnhandledRejection: (e) => Sentry.captureException(e, { mechanism: { type: "onunhandledrejection", handled: true } })`.
+   */
+  onUnhandledRejection?: (error: unknown) => void;
 }
 
 export interface RUMOptions {

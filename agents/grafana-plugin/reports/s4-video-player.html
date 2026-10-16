@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video replay player</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --warn: #b26a00; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --warn: #f0b252; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Video replay player (Sentry bridge S4, part 1)</h1>
+<p class="lead">grafana-plugin, 2026-10-14. Plugin <code>ouo-rum-app</code> 0.4.0 loaded into the isolated <code>ouo-sb</code> Grafana 13.2.1 (http://localhost:3003), rum-api on :8091. Verified in the desktop app's built-in Chromium browser.</p>
+
+<h2>Results</h2>
+<div class="scroll">
+<table>
+  <tr><th>Check</th><th>Result</th><th>How</th></tr>
+  <tr><td>Player mounts for <code>replay_kind: "video"</code></td><td class="ok">pass</td><td>Session <code>BD134401…</code> (sentry-demo, 5 real iOS segments, 25 s) and stub <code>e61027fe…</code> (1 segment)</td></tr>
+  <tr><td>Segments load through the plugin proxy</td><td class="ok">pass</td><td><code>&lt;video src="/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/&lt;id&gt;/replay/video/&lt;seq&gt;"&gt;</code>; network log: manifest 200, seq 0 and seq 1 (preloaded) 206</td></tr>
+  <tr><td><code>Range</code> / 206 through Grafana's proxy</td><td class="ok">passes through</td><td>Browser media requests answered 206; <code>curl -r 100-199</code> gives <code>206</code>, <code>Content-Range: bytes 100-199/7728</code>. No blob fallback needed.</td></tr>
+  <tr><td>Real Sentry segments decode</td><td class="ok">pass</td><td><code>readyState 4</code>, 402×874, <code>duration 5</code> for each mounted segment</td></tr>
+  <tr><td>Scrubber maps global time to (segment, offset)</td><td class="ok">pass</td><td>Click at 70%: 17.7 s → seq 3, <code>currentTime 2.712</code>; click at 50%: 12.5 s → seq 2</td></tr>
+  <tr><td>Continuous playback across segments</td><td class="ok">pass</td><td>Play from 17.7 s: 19.2 s = seq 3 @ 4.23; 21.2 s = seq 4 @ 1.23 (preloaded element took over); stops at 25.0 s, seq 4 paused at 5.00</td></tr>
+  <tr><td>Marker click seeks</td><td class="ok">pass</td><td>Navigation marker (−1.9 s, clamped) → 0 s; stub: "Failed request at +0.2s" → +0.2 s and the timeline highlights the failed request</td></tr>
+  <tr><td>Timeline entry click seeks</td><td class="ok">pass</td><td>"Session start" from 12.5 s → seq 0 @ 0.000</td></tr>
+  <tr><td>Keyboard</td><td class="ok">pass</td><td>Two ArrowRight on the focused player: +0.2 s → +2.2 s (one 1 fps frame each)</td></tr>
+  <tr><td>Touch overlay</td><td class="ok">pass</td><td>Stub touch (100, 200) in 390×844 at +2.2 s: dot at 25.641% / 23.697%, centre 64.2, 127.9 px on a 248×538 stage (expected 63.7, 127.4), opacity 0.6 (200 ms into the 500 ms fade)</td></tr>
+  <tr><td>Undecodable segment</td><td class="ok">handled</td><td>Stub mp4 → <code>MediaError</code> 4, notice "Segment 0 could not be played…", clock, touches and markers keep working</td></tr>
+  <tr><td>"Sentry replay" badge</td><td class="ok">pass</td><td>Shown from <code>source.vendor === "sentry"</code>; tooltip carries <code>replay_id</code></td></tr>
+  <tr><td>Sessions table</td><td class="ok">pass</td><td>Replay column shows "25.0s video" and "5.0s video"</td></tr>
+  <tr><td>Console errors</td><td class="ok">none</td><td><code>read_console_messages(onlyErrors)</code></td></tr>
+  <tr><td>Gap between segments (last frame)</td><td class="warn">unit tests only</td><td>The live sessions have contiguous segments; gaps are covered by <code>VideoPlayer.test.tsx</code> and <code>video.test.ts</code></td></tr>
+</table>
+</div>
+
+<h2>Real Sentry iOS replay</h2>
+<figure>
+  <img src="s4-01-detail-video-top.jpg" alt="Session detail with the video player showing a masked Sentry replay frame">
+  <figcaption>Session detail, sentry-demo, replay kind video: the first segment decoded and painted (text and images masked by the Sentry SDK on the device). 70vh stage, pinned Replay panel.</figcaption>
+</figure>
+<figure>
+  <img src="s4-02-scrub-seq2.jpg" alt="Player controls after a scrubber seek to 12.5 seconds, segment 3 of 5">
+  <figcaption>Scrubber at 12.5 s: "segment 3/5 (seq 2)", the "Sentry replay" badge, marker bar cursor and legend time in sync.</figcaption>
+</figure>
+<figure>
+  <img src="s4-03-loading-unmounted-segment.jpg" alt="Loading segment 2 notice during a far seek">
+  <figcaption>A seek to a segment that was not mounted shows "Loading segment 2…" for a moment (only the current and the next segment are mounted).</figcaption>
+</figure>
+
+<h2>Stub replay: touches, markers, error path</h2>
+<figure>
+  <img src="s4-04-stub-touch-error.jpg" alt="Touch indicator over the stage and an error notice for the undecodable stub segment">
+  <figcaption>The 32-byte stub mp4 cannot be decoded (MediaError 4): the notice says so, while the touch at (100, 200) still renders, scaled to the stage, fading. The timeline highlights the failed request (latest event at or before the cursor).</figcaption>
+</figure>
+<figure>
+  <img src="s4-05-stub-marker-keyboard-seek.jpg" alt="Controls after a marker click and two arrow-key steps">
+  <figcaption>After clicking the failed-request marker (+0.2 s) and pressing ArrowRight twice: +2.2 s / 5.0 s.</figcaption>
+</figure>
+
+<h2>Sessions list</h2>
+<figure>
+  <img src="s4-06-sessions-video-kind.jpg" alt="Sessions table with the Replay column showing video">
+  <figcaption>Replay column (scrolled right): replay length and the new <code>video</code> kind.</figcaption>
+</figure>
+
+<h2>Proxy headers seen</h2>
+<pre>HTTP/1.1 206 Partial Content
+Accept-Ranges: bytes
+Cache-Control: no-store            (Grafana replaces rum-api's "private, no-cache")
+Content-Length: 100
+Content-Range: bytes 100-199/7728
+Content-Security-Policy: sandbox   (added by Grafana; does not affect media playback)
+Content-Type: video/mp4
+Etag: "..."
+Via: 1.1 grafana
+X-Ouo-Replay-Kind: video</pre>
+
+<h2>Build and tests</h2>
+<p><code>npm run -w plugins/ouo-rum-app typecheck</code> clean; <code>lint</code> 0 errors (3 pre-existing <code>Select</code> deprecation warnings); <code>test</code> 12 suites, 97 tests pass (new: <code>video.test.ts</code>, <code>VideoPlayer.test.tsx</code>, video cases in renderer, summary and sessions table tests); <code>build</code> webpack compiled successfully, <code>dist/plugin.json</code> version 0.4.0.</p>
+</body>
+</html>
