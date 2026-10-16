@@ -1,16 +1,26 @@
-# Builds and pushes multi-arch container images to GHCR when an image tag is pushed.
-#   rum-api-v0.2.0  -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0 (+ 0.2, latest)
-#   grafana-v0.2.0  -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0 (+ 0.2, latest)
-#   collector-v0.2.0 -> ghcr.io/ziadmansourm/ouo/collector:0.2.0 (+ 0.2, latest)
-#     (ouo-collector, the ocb distribution in collector/; the Dockerfile cross-compiles,
-#     so the arm64 build does not run the Go compiler under QEMU)
-# The grafana image is Grafana with the ouo-rum-app plugin baked in; it needs
-# deploy/images/grafana/Dockerfile (owned by the platform-infra / helm agents) with the
-# repo root as build context and plugins/ouo-rum-app/dist already built.
+# Builds and pushes multi-arch container images to GHCR when an image tag is pushed, then
+# creates a GitHub release for the tag. Policy: RELEASING.md and docs/releasing.md;
+# mechanics and quirks: kb/release-packaging.md.
+#
+#   rum-api-v0.2.0         -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0 (+ 0.2, latest)
+#   collector-v0.2.0       -> ghcr.io/ziadmansourm/ouo/collector:0.2.0 (+ 0.2, latest)
+#                             ouo-collector, the ocb distribution in collector/ (otlp,
+#                             ouoreplay and ouosentry receivers); the tag must equal
+#                             dist.version in collector/builder.yaml
+#   grafana-v0.2.0         -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0 (+ 0.2, latest)
+#                             Grafana with plugins/ouo-rum-app baked in
+#   <image>-v0.2.0-rc.1    -> :0.2.0-rc.1 only, GitHub release marked pre-release
+#
+# Every image is linux/amd64 + linux/arm64 with an SBOM and max-mode provenance
+# attestation, OCI labels/annotations (version, revision, source) and the build args
+# VERSION / REVISION (a Dockerfile that declares them can stamp the binary).
+#
+# Dry run: Actions > release-images > Run workflow, enter the tag you intend to push.
+# It resolves, checks and builds both platforms exactly like a tag push, prints the
+# release notes into the run summary, and pushes / releases nothing.
 #
 # No extra secret: GITHUB_TOKEN with packages: write is enough. The first push creates the
-# package as private; make it public once in the GitHub package settings
-# (see kb/release-packaging.md).
+# package as private; make it public once in the GitHub package settings.
 name: release-images
 
 on:
@@ -19,48 +29,80 @@ on:
       - 'rum-api-v*'
       - 'grafana-v*'
       - 'collector-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rehearse, e.g. rum-api-v0.2.0-rc.1 (dry run: builds, pushes nothing)'
+        required: true
+        type: string
 
 permissions:
-  contents: read
-  packages: write
+  contents: write   # gh release create
+  packages: write   # push to ghcr.io
+
+concurrency:
+  group: release-images-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 env:
   REGISTRY_IMAGE_PREFIX: ghcr.io/ziadmansourm/ouo
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+  # Put the OCI annotations on the multi-arch index too, where ghcr.io reads them.
+  DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
 jobs:
   build-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # release notes list the commits since the previous tag
 
       - name: Resolve image from tag
         id: target
         run: |
-          tag="$GITHUB_REF_NAME"
-          case "$tag" in
+          case "$TAG" in
             rum-api-v*)
               image=rum-api
               context=services/rum-api
               dockerfile=services/rum-api/Dockerfile
-              version="${tag#rum-api-v}"
-              ;;
-            grafana-v*)
-              image=grafana
-              context=.
-              dockerfile=deploy/images/grafana/Dockerfile
-              version="${tag#grafana-v}"
+              changelog=services/rum-api/CHANGELOG.md
+              paths="services/rum-api"
               ;;
             collector-v*)
               image=collector
               context=collector
               dockerfile=collector/Dockerfile
-              version="${tag#collector-v}"
+              changelog=collector/CHANGELOG.md
+              paths="collector"
               ;;
-            *) echo "::error::unexpected tag $tag"; exit 1 ;;
+            grafana-v*)
+              image=grafana
+              context=.
+              dockerfile=deploy/images/grafana/Dockerfile
+              changelog=deploy/images/grafana/CHANGELOG.md
+              paths="deploy/images/grafana plugins/ouo-rum-app"
+              ;;
+            *) echo "::error::unexpected tag $TAG"; exit 1 ;;
           esac
-          if [ ! -f "$dockerfile" ]; then
-            echo "::error::$dockerfile does not exist; nothing to build for $tag"
+          prefix="$image-v"
+          version="${TAG#"$prefix"}"
+          if ! printf '%s' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::$TAG: '$version' is not a semantic version (expected $prefix<major>.<minor>.<patch>[-rc.N])"
             exit 1
+          fi
+          if [ ! -f "$dockerfile" ]; then
+            echo "::error::$dockerfile does not exist; nothing to build for $TAG"
+            exit 1
+          fi
+          if [ "$image" = collector ]; then
+            # ocb bakes dist.version into the binary (ouo-collector --version); keep them equal.
+            built=$(awk '/^dist:/{d=1;next} d&&/^[^ ]/{d=0} d&&$1=="version:"{print $2}' collector/builder.yaml)
+            if [ "$built" != "$version" ]; then
+              echo "::error::$TAG says $version but collector/builder.yaml dist.version is $built"
+              exit 1
+            fi
           fi
           prerelease=false
           case "$version" in *-*) prerelease=true ;; esac
@@ -68,33 +110,41 @@ jobs:
             echo "image=$image"
             echo "context=$context"
             echo "dockerfile=$dockerfile"
+            echo "changelog=$changelog"
+            echo "paths=$paths"
+            echo "prefix=$prefix"
             echo "version=$version"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
-      # The grafana image copies the built plugin; build it first.
+      # The grafana image copies the built plugin; build and test it first.
       - uses: actions/setup-node@v4
         if: steps.target.outputs.image == 'grafana'
         with:
           node-version: 24
           cache: npm
       - name: Build the Grafana plugin
+        id: plugin
         if: steps.target.outputs.image == 'grafana'
         run: |
           npm ci
           npm run build -w plugins/ouo-rum-app
+          npm run test -w plugins/ouo-rum-app
           test -f plugins/ouo-rum-app/dist/plugin.json
+          echo "version=$(node -p "require('./plugins/ouo-rum-app/dist/plugin.json').info.version")" >> "$GITHUB_OUTPUT"
+          echo "base=$(awk '/^FROM /{print $2; exit}' deploy/images/grafana/Dockerfile)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
+        if: env.DRY_RUN != 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image tags and labels
+      - name: Image tags, labels and annotations
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -107,27 +157,114 @@ jobs:
             org.opencontainers.image.title=ouo ${{ steps.target.outputs.image }}
             org.opencontainers.image.version=${{ steps.target.outputs.version }}
             org.opencontainers.image.licenses=${{ steps.target.outputs.image == 'rum-api' && 'AGPL-3.0-only' || 'Apache-2.0' }}
+            ${{ steps.plugin.outputs.version && format('io.ouo.plugin.version={0}', steps.plugin.outputs.version) || '' }}
+          annotations: |
+            org.opencontainers.image.title=ouo ${{ steps.target.outputs.image }}
+            org.opencontainers.image.version=${{ steps.target.outputs.version }}
+            org.opencontainers.image.licenses=${{ steps.target.outputs.image == 'rum-api' && 'AGPL-3.0-only' || 'Apache-2.0' }}
 
       - name: Build and push (linux/amd64, linux/arm64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ steps.target.outputs.context }}
           file: ${{ steps.target.outputs.dockerfile }}
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ env.DRY_RUN != 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            VERSION=${{ steps.target.outputs.version }}
+            REVISION=${{ github.sha }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha,scope=${{ steps.target.outputs.image }}
           cache-to: type=gha,mode=max,scope=${{ steps.target.outputs.image }}
 
-      - name: Summary
+      - name: Release notes
+        env:
+          IMAGE: ${{ steps.target.outputs.image }}
+          VERSION: ${{ steps.target.outputs.version }}
+          PREFIX: ${{ steps.target.outputs.prefix }}
+          PRERELEASE: ${{ steps.target.outputs.prerelease }}
+          CHANGELOG: ${{ steps.target.outputs.changelog }}
+          PATHS: ${{ steps.target.outputs.paths }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLUGIN_VERSION: ${{ steps.plugin.outputs.version }}
+          GRAFANA_BASE: ${{ steps.plugin.outputs.base }}
         run: |
+          ref="$REGISTRY_IMAGE_PREFIX/$IMAGE"
+          # Previous tag of the same image (rc sorts before its final: versionsort.suffix).
+          # A final release is compared with the previous final, skipping its own rcs.
+          tags() {
+            git -c versionsort.suffix=- tag --list "$PREFIX*" --sort=-v:refname \
+              | { if [ "$PRERELEASE" = true ]; then cat; else grep -v -- "^${PREFIX}[0-9.]*-" || true; fi; }
+          }
+          prev=$(tags | awk -v t="$TAG" 'found { print; exit } $0 == t { found = 1 }')
+          if [ -z "$prev" ] && ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            # Dry run of a tag that does not exist yet: the newest existing one is the previous.
+            prev=$(tags | head -1)
+          fi
           {
-            echo "Pushed:"
+            echo "Container image \`$ref:$VERSION\` (linux/amd64, linux/arm64)."
+            echo
+            echo '```sh'
+            echo "docker pull $ref:$VERSION"
+            echo '```'
+            echo
+            if [ -n "$DIGEST" ]; then echo "Digest: \`$DIGEST\`"; echo; fi
+            if [ "$IMAGE" = grafana ]; then
+              echo "Base \`$GRAFANA_BASE\` with the \`ouo-rum-app\` plugin $PLUGIN_VERSION (unsigned, loaded via \`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS\`)."
+              echo
+            fi
+            echo "SBOM and provenance attestations: \`docker buildx imagetools inspect $ref:$VERSION --format '{{ json .Provenance }}'\`."
+            echo
+            echo "## Changes"
+            echo
+            section=""
+            if [ -f "$CHANGELOG" ]; then
+              section=$(awk -v v="$VERSION" '
+                /^## / { show = ($2 == v); next }
+                show { print }
+              ' "$CHANGELOG")
+            fi
+            if [ -n "$section" ]; then
+              echo "$section"
+            else
+              echo "_No \`## $VERSION\` section in \`$CHANGELOG\`._"
+            fi
+            echo
+            if [ -n "$prev" ]; then
+              echo "## Commits since $prev"
+              echo
+              # shellcheck disable=SC2086 # PATHS is a space separated list on purpose
+              git log --no-merges --format='- %h %s' "$prev..HEAD" -- $PATHS
+            else
+              echo "First release of this image."
+            fi
+          } > release-notes.md
+          cat release-notes.md
+          {
+            if [ "$DRY_RUN" = true ]; then echo "## Dry run of $TAG: nothing was pushed"; else echo "## Pushed $TAG"; fi
             echo
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
+            echo
+            cat release-notes.md
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease=""
+          latest="--latest=false"   # several packages share the repo; no image release is "the" latest
+          [ "${{ steps.target.outputs.prerelease }}" = true ] && prerelease="--prerelease"
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "${{ steps.target.outputs.image }} ${{ steps.target.outputs.version }}" \
+            --notes-file release-notes.md \
+            $prerelease $latest
