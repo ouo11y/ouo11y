@@ -64,7 +64,9 @@ versions in `deploy/docker/.env.example`:
 
 They come in through the override file `deploy/docker/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
-source" in Step 3). Release notes for every version are on the repository's GitHub
+source" in Step 3). The images are **private for now**: pulling them needs a `docker login
+ghcr.io` with a token you get access for first ("Pull access" in Step 3); building from
+source needs no login. Release notes for every version are on the repository's GitHub
 Releases page (`rum-api-v0.2.0`, `collector-v0.2.0`, `grafana-v0.2.0`).
 
 If you would rather vendor the stack into your own repo, copy these paths **keeping
@@ -206,6 +208,31 @@ In-cluster addresses are fixed and independent of `.env`: `otel-collector:4318` 
 `:4319`, `loki:3100`, `tempo:3200`, `mimir:9009`, `rum-api:8080`.
 
 ## Step 3. Start
+
+### Pull access (the ouo images are private for now)
+
+The three `ghcr.io/ziadmansourm/ouo/*` images stay **private until ouo reaches a stable
+version**. Without a login the first `up -d` stops with `denied` (HTTP 403) on the
+collector, rum-api or Grafana pull. Before the first start, once per machine:
+
+1. Ask the ouo founder for **read access to the ouo packages on ghcr.io** for your GitHub
+   user (`collector`, `rum-api`, `grafana`). Read is all you need.
+2. Create a **classic** personal access token (GitHub > Settings > Developer settings >
+   Personal access tokens > Tokens (classic)) with only the **`read:packages`** scope. Fine
+   grained tokens do not work with ghcr.io.
+3. Log in with it; Docker keeps the credential in its credential store:
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+`GHCR_TOKEN` is the token in your shell (`export GHCR_TOKEN=...`, or read it from your
+password manager); never put it in `.env` or any file in the repo. Check it with
+`docker pull ghcr.io/ziadmansourm/ouo/rum-api:0.2.0`.
+
+No access yet? Use **Build from source** below: it needs no login, only the full checkout.
+
+### Start the stack
 
 From the repo root:
 

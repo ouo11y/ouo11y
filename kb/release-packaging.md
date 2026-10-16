@@ -42,8 +42,21 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 - Image names must be lowercase: `ghcr.io/ziadmansourm/ouo/rum-api`, not `ZiadMansourM`.
 - `GITHUB_TOKEN` with `packages: write` can push. The first push creates the package
   **private** and unlinked; in the GitHub UI (Packages > package > Package settings) link it
-  to the repository and set visibility public, once per package, or `docker pull` needs a
-  login.
+  to the repository, once per package. ouo keeps them private until stable (below).
+- **Pulling private GHCR packages.** Anonymous pulls fail with `denied` (HTTP 403); in
+  Kubernetes the pod sits in `ImagePullBackOff` with `403 Forbidden` in its events.
+  - The owner grants each user access per package: Package settings > Manage access > add
+    the GitHub user, role **Read**. Linking the package to the repo can inherit repo access,
+    but outside collaborators (clients) still need the per-package grant.
+  - The puller uses a **classic** PAT with only `read:packages`; fine grained PATs are not
+    supported by the container registry. Log in with
+    `echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin`. Inside
+    Actions, `GITHUB_TOKEN` of a linked repo can pull without a PAT.
+  - Helm: `kubectl create secret docker-registry ghcr --docker-server=ghcr.io
+    --docker-username=<github-user> --docker-password="$GHCR_TOKEN" -n <ns>` and
+    `imagePullSecrets: [{name: ghcr}]`; the ouo chart applies the list to every pod.
+  - No-login alternative: build from source (compose without `compose.images.yaml`; for
+    Helm build, push or `kind load`, and override `<component>.image.repository`).
 - Multi-arch: `docker/setup-qemu-action` + `docker/setup-buildx-action` +
   `docker/build-push-action` with `platforms: linux/amd64,linux/arm64`. The Go build is
   `CGO_ENABLED=0` on `golang:1.26` and the runtime is `distroless/static-debian12:nonroot`,
