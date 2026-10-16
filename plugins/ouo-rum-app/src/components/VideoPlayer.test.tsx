@@ -150,22 +150,64 @@ describe('VideoPlayer', () => {
     expect(onTime).toHaveBeenLastCalledWith(500);
   });
 
-  it('draws touches scaled to the stage, fading over 1.5 s (about one video frame per second)', () => {
+  it('draws taps scaled to the stage, fully visible for 1 s then fading until 1.5 s', () => {
     const { ref } = renderPlayer();
     act(() => ref.current!.goto(2000));
-    let dots = screen.getAllByTestId('video-touch');
-    expect(dots).toHaveLength(1);
-    expect(dots[0].style.left).toBe('50%');
-    expect(dots[0].style.top).toBe('50%');
-    expect(Number(dots[0].style.opacity)).toBeCloseTo(1);
-    act(() => ref.current!.goto(2600));
-    expect(Number(screen.getByTestId('video-touch').style.opacity)).toBeCloseTo(0.6);
+    let taps = screen.getAllByTestId('video-tap');
+    expect(taps).toHaveLength(1);
+    expect(taps[0].style.left).toBe('50%');
+    expect(taps[0].style.top).toBe('50%');
+    expect(Number(taps[0].style.opacity)).toBeCloseTo(1);
+    // About one video frame later the tap is still fully visible.
+    act(() => ref.current!.goto(2900));
+    expect(Number(screen.getByTestId('video-tap').style.opacity)).toBeCloseTo(1);
+    act(() => ref.current!.goto(3250));
+    expect(Number(screen.getByTestId('video-tap').style.opacity)).toBeCloseTo(0.5);
     act(() => ref.current!.goto(3501));
-    expect(screen.queryByTestId('video-touch')).toBeNull();
+    expect(screen.queryByTestId('video-tap')).toBeNull();
+    // A touch with only an `ended` phase is still a tap.
     act(() => ref.current!.goto(6500));
-    dots = screen.getAllByTestId('video-touch');
-    expect(dots[0].style.left).toBe('25%');
-    expect(dots[0]).toHaveAttribute('data-phase', 'ended');
+    taps = screen.getAllByTestId('video-tap');
+    expect(taps[0].style.left).toBe('25%');
+  });
+
+  it('labels a tap with its component and shows a breadcrumb-only tap without a position', () => {
+    const ref = React.createRef<ReplayHandle>();
+    render(
+      <VideoPlayer
+        ref={ref}
+        manifest={videoManifest}
+        startTs={VIDEO_START}
+        durationMs={durationMs}
+        segmentUrl={(s) => `/proxy/seg/${s.seq}`}
+        taps={[
+          { ts: VIDEO_START + 2000, x: 144, y: 312, target: 'btn-Add to cart' },
+          { ts: VIDEO_START + 8000, target: 'action-fetch-ok' },
+        ]}
+      />
+    );
+    act(() => ref.current!.goto(2100));
+    expect(screen.getByTestId('video-tap')).toHaveAttribute('data-target', 'btn-Add to cart');
+    expect(screen.getByTestId('video-tap')).toHaveTextContent('btn-Add to cart');
+    expect(screen.queryByTestId('video-tap-unplaced')).toBeNull();
+    act(() => ref.current!.goto(8200));
+    expect(screen.queryByTestId('video-tap')).toBeNull();
+    expect(screen.getByTestId('video-tap-unplaced')).toHaveTextContent('action-fetch-ok');
+  });
+
+  it('draws the moves of a drag as a trail', () => {
+    const { ref } = renderPlayer(jest.fn(), {
+      ...videoManifest,
+      touches: [
+        { ts: VIDEO_START + 1000, x: 100, y: 500, phase: 'began' },
+        { ts: VIDEO_START + 1100, x: 100, y: 400, phase: 'moved' },
+        { ts: VIDEO_START + 1200, x: 100, y: 300, phase: 'ended' },
+      ],
+    });
+    act(() => ref.current!.goto(1300));
+    expect(screen.getAllByTestId('video-tap')).toHaveLength(1);
+    expect(screen.getAllByTestId('video-touch')).toHaveLength(1);
+    expect(screen.getByTestId('video-touch')).toHaveAttribute('data-phase', 'moved');
   });
 
   it('shows the Sentry source badge with the replay id', () => {
@@ -180,14 +222,14 @@ describe('VideoPlayer', () => {
     expect(screen.queryByTestId('video-source')).toBeNull();
   });
 
-  it('reports an undecodable segment and keeps the clock and touches running', () => {
+  it('reports an undecodable segment and keeps the clock and taps running', () => {
     const { ref } = renderPlayer();
     // jsdom's media elements have no `error`; set what a browser reports for a non-mp4 body.
     Object.defineProperty(activeVideo(), 'error', { configurable: true, value: { code: 4 } });
     fireEvent.error(activeVideo());
     expect(screen.getByTestId('video-error')).toHaveTextContent('Segment 0 could not be played');
     act(() => ref.current!.goto(2000));
-    expect(screen.getAllByTestId('video-touch')).toHaveLength(1);
+    expect(screen.getAllByTestId('video-tap')).toHaveLength(1);
   });
 
   it('marks a segment loaded once it has data', () => {

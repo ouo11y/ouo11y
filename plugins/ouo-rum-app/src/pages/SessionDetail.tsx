@@ -10,6 +10,7 @@ import { ApiErrorAlert } from '../components/ApiErrorAlert';
 import { FramePlayer } from '../components/FramePlayer';
 import { LogsPanel } from '../components/LogsPanel';
 import { PlatformIcon } from '../components/PlatformIcon';
+import { ReplayActivity } from '../components/ReplayActivity';
 import { ReplayMarkers } from '../components/ReplayMarkers';
 import { ReplayPlayer, type ReplayHandle } from '../components/ReplayPlayer';
 import { StateBadge, StatusBadge } from '../components/StatusBadge';
@@ -23,6 +24,8 @@ import { formatDateTime, formatDuration, formatTraceCount, parseTs, sessionDurat
 import { framesBounds, replayRenderer } from '../utils/frames';
 import { totalFrames, videoBounds } from '../utils/video';
 import { buildMarkers, latestEventIndex, replayBounds, seekOffset } from '../utils/markers';
+import { buildActivity } from '../utils/activity';
+import { buildTaps } from '../utils/taps';
 
 export default function SessionDetail() {
   const styles = useStyles2(getStyles);
@@ -75,9 +78,20 @@ export default function SessionDetail() {
   const replayError = replay.error ?? frames.error ?? video.error ?? meta.error;
   const replayLoading =
     wantsReplay && !hasReplay && !replayError && (meta.loading || replay.loading || frames.loading || video.loading);
+  // Video (Sentry) replays: taps merged from the recording's touches and the `ui.tap` breadcrumbs.
+  const taps = useMemo(
+    () => (hasVideo && video.data ? buildTaps(video.data.touches ?? [], timeline) : undefined),
+    [hasVideo, video.data, timeline]
+  );
   const markers = useMemo(
-    () => (hasReplay ? buildMarkers(timeline, bounds.start, bounds.durationMs) : []),
-    [hasReplay, timeline, bounds]
+    () => (hasReplay ? buildMarkers(timeline, bounds.start, bounds.durationMs, taps) : []),
+    [hasReplay, timeline, bounds, taps]
+  );
+  // The activity list beside the phone-shaped (video and frames) players.
+  const showActivity = hasVideo || hasFrames;
+  const activity = useMemo(
+    () => (showActivity ? buildActivity(timeline, bounds.start, taps) : []),
+    [showActivity, timeline, bounds.start, taps]
   );
   // While a replay plays, highlight the latest event at or before the cursor; otherwise nothing.
   const activeIndex = hasReplay ? latestEventIndex(timeline, bounds.start, currentMs) : -1;
@@ -163,7 +177,7 @@ export default function SessionDetail() {
             </dl>
           </header>
 
-          <div className={styles.grid}>
+          <div className={cx(styles.grid, showActivity && styles.gridWide)}>
             <section className={cx(styles.panel, styles.timelinePanel)} data-testid="panel-timeline">
               <h4 className={styles.h4}>
                 <Icon name="history" /> Timeline <span className={styles.muted}>({timeline.length} events)</span>
@@ -207,25 +221,40 @@ export default function SessionDetail() {
                 />
               )}
               {hasRrweb && replay.data && <ReplayPlayer ref={playerRef} events={replay.data} onTime={setCurrentMs} />}
-              {hasFrames && frames.data && (
-                <FramePlayer
-                  ref={playerRef}
-                  frames={frames.data.frames}
-                  touches={frames.data.touches ?? []}
-                  viewport={frames.data.viewport}
-                  startTs={bounds.start}
-                  durationMs={bounds.durationMs}
-                  onTime={setCurrentMs}
-                />
-              )}
-              {hasVideo && video.data && (
-                <VideoPlayer
-                  ref={playerRef}
-                  manifest={video.data}
-                  startTs={bounds.start}
-                  durationMs={bounds.durationMs}
-                  onTime={setCurrentMs}
-                />
+              {showActivity && (
+                <div className={styles.replayRow}>
+                  <div className={styles.playerCol}>
+                    {hasFrames && frames.data && (
+                      <FramePlayer
+                        ref={playerRef}
+                        frames={frames.data.frames}
+                        touches={frames.data.touches ?? []}
+                        viewport={frames.data.viewport}
+                        startTs={bounds.start}
+                        durationMs={bounds.durationMs}
+                        onTime={setCurrentMs}
+                      />
+                    )}
+                    {hasVideo && video.data && (
+                      <VideoPlayer
+                        ref={playerRef}
+                        manifest={video.data}
+                        taps={taps}
+                        startTs={bounds.start}
+                        durationMs={bounds.durationMs}
+                        onTime={setCurrentMs}
+                      />
+                    )}
+                  </div>
+                  <div className={styles.activityCol}>
+                    <ReplayActivity
+                      items={activity}
+                      durationMs={bounds.durationMs}
+                      currentMs={currentMs}
+                      onSeek={(ms) => seekTo(ms)}
+                    />
+                  </div>
+                </div>
               )}
               {hasReplay && (
                 <ReplayMarkers
@@ -251,9 +280,9 @@ export default function SessionDetail() {
               {hasVideo && video.data && (
                 <div className={styles.replayInfo}>
                   {video.data.segments.length} video segments · {totalFrames(video.data.segments)} frames ·{' '}
-                  {(video.data.touches ?? []).length} touches · {formatDuration(bounds.durationMs)} ·{' '}
-                  {video.data.platform} {video.data.viewport.width}×{video.data.viewport.height} px · masking is applied
-                  on the device by the recording SDK · segments stream through the plugin proxy
+                  {taps?.length ?? 0} taps · {formatDuration(bounds.durationMs)} · {video.data.platform}{' '}
+                  {video.data.viewport.width}×{video.data.viewport.height} px · masking is applied on the device by the
+                  recording SDK · segments stream through the plugin proxy
                 </div>
               )}
               {renderer === 'rrweb' && replay.data && replay.data.length === 0 && (
@@ -333,6 +362,11 @@ const getStyles = (theme: GrafanaTheme2) => ({
     marginBottom: theme.spacing(2),
     [STACKED]: { gridTemplateColumns: '1fr' },
   }),
+  // With the activity list inside the Replay panel, the panel needs the larger share.
+  gridWide: css({
+    gridTemplateColumns: 'minmax(280px, 1fr) minmax(560px, 2fr)',
+    [STACKED]: { gridTemplateColumns: '1fr' },
+  }),
   // Stretches to the row (the Replay panel's height when that is taller); the list inside scrolls.
   timelinePanel: css({ display: 'flex', flexDirection: 'column', minHeight: 0 }),
   replayPanel: css({
@@ -350,6 +384,17 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   h4: css({ margin: theme.spacing(0, 0, 1.5), fontSize: theme.typography.h4.fontSize }),
   muted: css({ color: theme.colors.text.secondary }),
+  // Player and activity list side by side; the list wraps under the player in a narrow panel.
+  replayRow: css({ display: 'flex', flexWrap: 'wrap', gap: theme.spacing(1.5), alignItems: 'stretch' }),
+  playerCol: css({ flex: '1 1 300px', minWidth: 0 }),
+  // The list takes the player's height (it scrolls inside) instead of growing the row.
+  activityCol: css({
+    flex: '1 1 260px',
+    maxWidth: 440,
+    minHeight: 320,
+    position: 'relative',
+    '& > *': { position: 'absolute', inset: 0 },
+  }),
   replayInfo: css({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.bodySmall.fontSize,
