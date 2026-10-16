@@ -85,3 +85,32 @@ describe('replayBounds', () => {
     expect(replayBounds([])).toEqual({ start: NaN, durationMs: 0 });
   });
 });
+
+describe('tap markers', () => {
+  const tap = (offsetMs: number, target: string): TimelineEvent => ({
+    ts: new Date(start + offsetMs).toISOString(),
+    type: 'custom',
+    name: 'ui.tap',
+    attrs: { ouo_ui_target: target },
+  });
+
+  it('marks ui.tap events, under the other kinds', () => {
+    const markers = buildMarkers([ev(1_000, 'navigation'), tap(2_000, 'btn-Pay')], start, 10_000);
+    expect(markers.map((m) => [m.kind, m.leftPct, m.label])).toEqual([
+      ['tap', 20, 'Tap btn-Pay'],
+      ['navigation', 10, 'Navigation'],
+    ]);
+  });
+
+  it('takes taps from the merged list when one is given, including touches without a breadcrumb', () => {
+    const markers = buildMarkers([tap(2_000, 'btn-Pay')], start, 10_000, [
+      { ts: start + 1_950, x: 1, y: 1, target: 'btn-Pay', timelineIndex: 0 },
+      { ts: start + 5_000, x: 10, y: 20 },
+    ]);
+    expect(markers.map((m) => [m.kind, m.index, m.offsetMs, m.label])).toEqual([
+      ['tap', 0, 1_950, 'Tap btn-Pay'],
+      ['tap', -1, 5_000, 'Tap at 10, 20'],
+    ]);
+    expect(new Set(markers.map((m) => m.key)).size).toBe(2);
+  });
+});

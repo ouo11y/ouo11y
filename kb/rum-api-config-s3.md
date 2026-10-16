@@ -107,7 +107,8 @@ store's guarantees (range reads, de-duplicated retries, several replicas)?
 - Helm: `rumApi.storage.backend: s3` renders no PVC, switches the Deployment to
   RollingUpdate, takes keys from `rumApi.storage.s3.existingSecret` (`access-key-id`,
   `secret-access-key`), static values, or pod identity (`rumApi.serviceAccountName`).
-  The chart now passes `-config.file`, so it needs a rum-api image newer than 0.2.0.
+  The chart now passes `-config.file`, so it needs a rum-api image that has it: 0.2.0
+  (the first release, cut after this change) or later.
 
 ## Verified (2026-10-16)
 

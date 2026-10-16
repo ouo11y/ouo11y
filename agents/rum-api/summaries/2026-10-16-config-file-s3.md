@@ -72,8 +72,10 @@ plus object storage in MinIO / S3. Details and traps: `kb/rum-api-config-s3.md`.
 
 - The chart and `deploy/docker/compose.yaml` now start rum-api with
   `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`: they need a rum-api
-  image **newer than 0.2.0** (0.2.0 exits with "flag provided but not defined").
-  `rumApi.image.tag` in `values.yaml` is still `0.2.0`; bump it with the release.
+  image that has those flags. After merging main (PR #18), 0.2.0 is the first rum-api
+  release and is cut after this PR, so `rumApi.image.tag: "0.2.0"` and
+  `OUO_RUM_API_VERSION=0.2.0` are right once that tag is built; an older build exits with
+  "flag provided but not defined".
 - An example compose file that uses the published image can stay env-only (no file):
   set `OUO_INGEST_TOKEN`, `OUO_READ_TOKEN`, `LOKI_URL`, `TEMPO_URL`, `GRAFANA_URL`
   (browser-facing), `DATA_DIR` or the volume at `/data`, plus OTel `OTEL_*`. For S3 add

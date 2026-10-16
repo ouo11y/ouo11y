@@ -301,6 +301,59 @@ func TestGoldenTouch(t *testing.T) {
 	}
 }
 
+// TestGoldenRealTap replays a session driven with real simulator taps (no deep
+// links): five taps, one swipe and a tap on empty space (2026-10-16). Every
+// tap is in the replay twice, as a touch with a position (video points) and
+// as a `ui.tap` breadcrumb with the touched component, the breadcrumb 80 to
+// 150 ms after the touch start. The plugin pairs them (src/utils/taps.ts).
+func TestGoldenRealTap(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/realtap"))
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+	var starts []touch
+	for _, c := range g.chunks {
+		for _, tc := range c.Touches {
+			if tc.Phase == "began" {
+				starts = append(starts, tc)
+			}
+		}
+	}
+	taps := x.byName("ui.tap")
+	wantTargets := []string{"action-browse-catalog", "action-fetch-ok", "HeaderShownContext", "action-fetch-500", "action-message", "HeaderShownContext"}
+	if len(taps) < len(wantTargets) {
+		t.Fatalf("ui.tap: %d, want at least %d", len(taps), len(wantTargets))
+	}
+	for i, want := range wantTargets {
+		tap := taps[i]
+		if tap.attrs["ouo.ui.target"] != want {
+			t.Errorf("tap %d target %v, want %s", i, tap.attrs["ouo.ui.target"], want)
+		}
+		at := tap.ts.UnixMilli()
+		var paired bool
+		for _, s := range starts {
+			if d := at - s.TS; d >= 0 && d <= 300 {
+				paired = true
+			}
+		}
+		if !paired {
+			t.Errorf("tap %d (%s) at %d has no touch start up to 300 ms before it", i, want, at)
+		}
+	}
+	// The tapped points (simulator tool, points) are the recorded positions.
+	for _, p := range [][2]float64{{201, 418}, {201, 629}, {300, 700}, {201, 404}, {201, 660}, {330, 852}} {
+		var found bool
+		for _, s := range starts {
+			if s.X == p[0] && s.Y == p[1] {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no touch start at %v", p)
+		}
+	}
+}
+
 // TestGoldenShop replays a run with Sentry logs (enableLogs, which also
 // captures console output), manual spans in new traces per flow, W3C
 // traceparent to the backend and unmasked replay (journey.sh --shop-rounds 3).
