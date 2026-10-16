@@ -1,6 +1,8 @@
 # Releasing
 
 How ouo is versioned, tagged and published. Owner: the release agent (`agents/release/`).
+The image release checklist and the pre-release rules are in the root
+[`RELEASING.md`](../RELEASING.md).
 Packaging details and tool quirks live in `kb/release-packaging.md`; the operator-side upgrade
 procedure in `docs/operations/upgrade.md`.
 
@@ -18,6 +20,7 @@ is only an index.
 | `ouo-rum-app` (Grafana app plugin) | `plugins/ouo-rum-app` | `package.json` (copied into `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `rum-api` image | `services/rum-api` | the tag | `rum-api-v<semver>` | `ghcr.io/ziadmansourm/ouo/rum-api:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
 | `grafana` image (Grafana + plugin baked in) | `deploy/images/grafana` | the tag | `grafana-v<semver>` | `ghcr.io/ziadmansourm/ouo/grafana:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
+| `collector` image (ouo-collector, ocb distribution) | `collector` | `collector/builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ziadmansourm/ouo/collector:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
 | Helm chart `ouo` | `deploy/helm/ouo` | `Chart.yaml` `version` (`appVersion` = rum-api version it defaults to) | `chart-v<semver>` | not published yet (`helm package` by hand, OCI push is Phase 8c) | none yet |
 
 Tag format is always `<package>-v<major>.<minor>.<patch>[-<pre>]`. The `<package>` prefix is
@@ -68,6 +71,10 @@ git tag ios-v0.2.0                 release-ios.yml       -> subtree split sdk/io
 git tag plugin-v0.3.0              release-plugin.yml    -> GitHub release plugin-v0.3.0 with ouo-rum-app-0.3.0.zip (+ .sha1, .md5)
 git tag rum-api-v0.2.0             release-images.yml    -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0, :0.2, :latest (amd64 + arm64)
 git tag grafana-v0.2.0             release-images.yml    -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0, :0.2, :latest
+git tag collector-v0.2.0           release-images.yml    -> ghcr.io/ziadmansourm/ouo/collector:0.2.0, :0.2, :latest
+  (every image tag also creates a GitHub release with notes: changelog section + commits)
+Actions > release-images > Run      dry run of a given tag: builds both platforms, prints notes, pushes nothing
+pull request                       ci.yml `images` job: builds the three images (amd64, no push) and smoke-runs them
 git tag chart-v0.1.0               nothing automated yet; see deploy/helm/ouo/README.md
 ```
 
@@ -100,6 +107,8 @@ dist-tags for pre-releases are not automated: publish with `npm dist-tag` by han
 | `OuoReplay` | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
 | plugin | `npm run build -w plugins/ouo-rum-app && npm run test -w plugins/ouo-rum-app && npm run lint -w plugins/ouo-rum-app` |
 | rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` and `docker build -t ouo/rum-api:release-check services/rum-api` |
+| collector | `docker buildx build --platform linux/amd64,linux/arm64 collector` and `docker run --rm <image> --version` (prints `dist.version`) |
+| grafana image | `npm run build -w plugins/ouo-rum-app && docker buildx build --platform linux/amd64,linux/arm64 -f deploy/images/grafana/Dockerfile .` |
 | chart | `helm lint deploy/helm/ouo` and the kind check in `agents/helm/` |
 | workflows | `actionlint` (Homebrew `brew install actionlint`) |
 

@@ -37,7 +37,7 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
   - The plugin (`private: true`, no `files`) packs its whole source tree; irrelevant because
     the plugin is never published to npm, only zipped from `dist/`.
 
-## GHCR multi-arch images (`rum-api`, `grafana`)
+## GHCR multi-arch images (`rum-api`, `collector`, `grafana`)
 
 - Image names must be lowercase: `ghcr.io/ziadmansourm/ouo/rum-api`, not `ZiadMansourM`.
 - `GITHUB_TOKEN` with `packages: write` can push. The first push creates the package
@@ -66,6 +66,51 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 - Verified locally: `docker build -t ouo/rum-api:release-check services/rum-api` succeeds
   (6.7 MB compressed, distroless). Multi-arch push was **not** exercised locally (no
   registry); the first tag push is the test.
+
+## Image release pipeline: what was verified on 2026-10-16
+
+Workflow: `release-images.yml` (tag push or `workflow_dispatch` dry run) and the `images`
+job of `ci.yml` (every PR). Policy and checklist: `RELEASING.md`.
+
+- **Cross-compile, do not emulate.** On Docker Desktop without amd64 emulation (Apple
+  silicon with Rosetta/QEMU off) any `RUN` in an amd64 stage fails with
+  `exec /bin/sh: exec format error`. `collector/Dockerfile` avoids it with
+  `FROM --platform=$BUILDPLATFORM golang:1.26` + `GOOS=$TARGETOS GOARCH=$TARGETARCH`
+  (amd64+arm64 in ~25 s warm). `services/rum-api/Dockerfile` still builds under emulation;
+  a cross-compiling variant built both platforms in ~10 s (handed to the rum-api owner).
+  On GitHub runners `setup-qemu-action` makes the emulated build work, only slower.
+- **The grafana image needs no emulation** (only `COPY` on top of `grafana/grafana`), but a
+  cold multi-arch build pulls the ~300 MB base twice (6 min locally).
+- **Version stamping.** The workflow passes `--build-arg VERSION=<semver>` and
+  `REVISION=<sha>`; unused build args are ignored, so a Dockerfile opts in by declaring
+  `ARG VERSION`. ocb bakes `dist.version` from `builder.yaml` into ouo-collector
+  (`ouo-collector --version` printed `0.2.0`), so the workflow checks the tag against
+  `builder.yaml` instead of passing ldflags.
+- **Annotations.** `docker/metadata-action` emits OCI annotations; set
+  `DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index` so they land on the multi-arch
+  index, which is what the GHCR package page reads (labels live only in each image config).
+- **Previous tag for release notes.** `git -c versionsort.suffix=- tag --sort=-v:refname`
+  sorts `0.2.0-rc.2` before `0.2.0`; without the suffix setting git sorts the rc after the
+  final. Final releases skip rcs so their notes cover everything since the last final.
+  Needs `actions/checkout` with `fetch-depth: 0`.
+- **GitHub releases in a multi-package repo.** `gh release create --latest=false` so an
+  image patch does not become the repository's "Latest release" over an SDK release.
+  `--verify-tag` refuses to create a tag implicitly.
+- **`if: env.X` sees only workflow/job env.** A step's own `env:` is not visible to its
+  `if:`. `release-plugin.yml` checked `env.GRAFANA_ACCESS_POLICY_TOKEN` with the secret set
+  nowhere, so signing could never run; the secret is now in the workflow `env`.
+- **Compose override to swap builds for images.** `deploy/docker/compose.images.yaml` uses
+  `build: !reset null` and `volumes: !override [...]` (Compose >= 2.24; checked with v5.1.1).
+  `docker compose ... config` shows only the demo backend still has a `build:`. Verified by
+  running the stack on an isolated project (`-p ouo-rel`, shifted ports) from locally built
+  images via `OUO_IMAGE_REGISTRY=ouo-local OUO_*_VERSION=check`: `wait-ready.sh` all ready,
+  plugin enabled from inside the image, plugin proxy 200, authenticated OTLP 200.
+- **Docker inside the agent sandbox.** `docker buildx build` hung at "resolve image config
+  for docker/dockerfile:1" when run in the Bash sandbox (registry reachable with curl);
+  the same command outside the sandbox worked. Docker Hub also returned an occasional
+  `DeadlineExceeded` for the same frontend; a retry fixed it.
+- `act` is not installed; `actionlint` (shellcheck included) plus a local run of the
+  release-notes shell against a scratch repo with rc and final tags covered the logic.
 
 ## Grafana plugin signature levels
 
