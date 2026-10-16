@@ -41,7 +41,7 @@ readToken: ""
 # -----------------------------------------------------------------------------
 rumApi:
   image:
-    repository: ouo/rum-api
+    repository: ghcr.io/ziadmansourm/ouo/rum-api
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -127,7 +127,7 @@ rumApi:
 collector:
   enabled: true
   image:
-    repository: ouo/collector
+    repository: ghcr.io/ziadmansourm/ouo/collector
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -212,7 +212,7 @@ collector:
 grafana:
   enabled: true
   image:
-    repository: ouo/grafana
+    repository: ghcr.io/ziadmansourm/ouo/grafana
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1

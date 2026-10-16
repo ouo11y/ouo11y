@@ -124,10 +124,11 @@ brew install watchman
 
 ### 2.4 The ouo stack
 
-From the ouo checkout (full steps in `00-stack.md`):
+From the ouo checkout (full steps in `00-stack.md`; this pulls the pinned released images,
+leave the second `-f` out to build from source):
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d
+docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
 ```
 
 An empty OTLP logs request with the development credential must answer `200`; the same request

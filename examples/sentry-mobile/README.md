@@ -44,6 +44,19 @@ screen logs `viewed product` and `added ... to cart` with `Sentry.logger.info`.
 Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 `sentrydemo://screen/cart`, `sentrydemo://screen/back`.
 
+## The stack it talks to
+
+The `ouosentry` receiver ships in the released ouo collector image
+(`ghcr.io/ziadmansourm/ouo/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
+`deploy/docker/.env.example`). Start the main stack with the released images:
+
+```bash
+docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+```
+
+To test collector or plugin changes from this checkout, build from source instead by leaving
+`-f deploy/docker/compose.images.yaml` out (`examples/fast-tracked/00-stack.md`, Step 3).
+
 ## Configuration (build time, `app.config.ts`)
 
 | Variable | Default |
