@@ -28,8 +28,8 @@ Branch `claude/rum-api-release-1026d3`, stacked on `claude/sentry-bridge-design`
   checklist with the founder approval step. `docs/releasing.md`: collector row, dry run, PR
   builds, local checks. First versions: rum-api, collector and grafana images all `0.2.0`
   (matches the Helm chart defaults); `collector/builder.yaml` bumped 0.1.0 -> 0.2.0.
-  rum-api 0.2.0 must include the YAML config + S3/MinIO PR; an `rum-api-v0.2.0-rc.1` of today's
-  code is possible if the founder wants one earlier. New `collector/CHANGELOG.md` and
+  rum-api 0.2.0 must include the YAML config + S3/MinIO PR; its first rc also waits for that PR (pre-#19 images fail on
+  the `-config.file` flag compose.yaml passes after #19). New `collector/CHANGELOG.md` and
   `deploy/images/grafana/CHANGELOG.md`, root `CHANGELOG.md` index updated.
 - **Examples**: new `deploy/docker/compose.images.yaml` override swaps the collector and rum-api
   builds and the plugin bind mount for `${OUO_IMAGE_REGISTRY}/<image>:${OUO_<IMAGE>_VERSION}`
