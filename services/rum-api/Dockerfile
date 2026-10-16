@@ -1,11 +1,18 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.26 AS build
+# The build stage runs on the build platform and cross-compiles for the target, so
+# multi-arch builds (release-images.yml) do not compile under QEMU. VERSION is stamped
+# into the binary (`rum-api -version`, start-up log); release-images.yml passes it.
+FROM --platform=$BUILDPLATFORM golang:1.26 AS build
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rum-api .
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/rum-api .
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/rum-api /rum-api

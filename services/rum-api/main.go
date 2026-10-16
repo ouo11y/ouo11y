@@ -30,12 +30,20 @@ import (
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/tempo"
 )
 
+// version is set at build time: -ldflags "-X main.version=<semver>" (Dockerfile ARG VERSION).
+var version = "dev"
+
 func main() {
 	configFile := flag.String("config.file", "", "YAML configuration file (config.example.yaml); environment variables override it")
 	expandEnv := flag.Bool("config.expand-env", false, "expand ${VAR} and ${VAR:-default} references in the configuration file")
 	verify := flag.Bool("config.verify", false, "load and validate the configuration, print it with secrets redacted and exit (0 valid, 2 invalid)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	check := flag.Bool("check", false, "probe GET /healthz on the configured address and exit (container health check)")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("rum-api", version)
+		return
+	}
 
 	cfg, err := config.Load(*configFile, *expandEnv, os.LookupEnv)
 	if *check {
@@ -149,6 +157,7 @@ func run(cfg config.Config) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("rum-api listening",
+			"version", version,
 			"addr", srv.Addr,
 			"loki", cfg.Loki.URL, "tempo", cfg.Tempo.URL, "grafana", cfg.Grafana.URL,
 			"storage", storageDesc(cfg),

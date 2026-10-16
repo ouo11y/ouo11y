@@ -23,7 +23,10 @@ plus object storage in MinIO / S3. Details and traps: `kb/rum-api-config-s3.md`.
   lazy `minio.Object` (ranged GETs under `http.ServeContent`); `VideoFile.ETag` (API uses it
   when set); bucket check at start and `/readyz` `storage` check (`replay.Pinger`).
 - **Dockerfile**: removed `ENV RUM_API_ADDR DATA_DIR` (they would override a mounted file;
-  defaults are identical).
+  defaults are identical). At the rum-api-release session's request: the build stage
+  cross-compiles (`FROM --platform=$BUILDPLATFORM`, `GOOS/GOARCH` from `TARGETOS/TARGETARCH`;
+  `docker buildx --platform linux/amd64,linux/arm64` builds here without QEMU) and
+  `ARG VERSION=dev` is stamped as `main.version` (`rum-api -version`, start-up log).
 - **Compose**: rum-api reads `deploy/docker/rum-api/config.yaml` (`command:` with both
   flags); non-secret env moved into the file, tokens / OTEL / `GRAFANA_URL` stay in env.
   `minio` + `minio-init` (bucket + bucket-scoped `rum-api` user) under profile `s3`;
