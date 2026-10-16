@@ -17,6 +17,7 @@ const KIND_LABEL: Record<MarkerKind, string> = {
   error: 'Error',
   failed_request: 'Failed request',
   navigation: 'Navigation',
+  tap: 'Tap',
 };
 
 export function ReplayMarkers({ markers, durationMs, currentMs, onSeek }: Props) {
@@ -27,10 +28,10 @@ export function ReplayMarkers({ markers, durationMs, currentMs, onSeek }: Props)
       <div className={styles.bar}>
         <div className={styles.cursor} style={{ left: `${cursorPct}%` }} />
         {markers.map((m) => (
-          <Tooltip key={`${m.index}`} content={`${KIND_LABEL[m.kind]} ${formatRelative(m.offsetMs)} — ${m.label}`}>
+          <Tooltip key={m.key} content={`${KIND_LABEL[m.kind]} ${formatRelative(m.offsetMs)} — ${m.label}`}>
             <button
               type="button"
-              className={cx(styles.tick, styles[m.kind])}
+              className={cx(styles.tick, m.kind === 'tap' && styles.tapTick, styles[m.kind])}
               style={{ left: `${m.leftPct}%` }}
               onClick={() => onSeek(Math.max(0, Math.min(durationMs, m.offsetMs)), m)}
               aria-label={`${KIND_LABEL[m.kind]} at ${formatRelative(m.offsetMs)}`}
@@ -41,6 +42,9 @@ export function ReplayMarkers({ markers, durationMs, currentMs, onSeek }: Props)
         ))}
       </div>
       <div className={styles.legend}>
+        <span>
+          <i className={cx(styles.dot, styles.tap)} /> tap
+        </span>
         <span>
           <i className={cx(styles.dot, styles.crash)} /> fatal
         </span>
@@ -95,6 +99,9 @@ const getStyles = (theme: GrafanaTheme2) => ({
   error: css({ background: theme.colors.warning.main }),
   failed_request: css({ background: theme.colors.warning.shade }),
   navigation: css({ background: theme.colors.primary.main }),
+  // Taps are frequent: a thin, round-topped tick in the tap indicator's orange, under the other kinds.
+  tap: css({ background: '#ff7a1a' }),
+  tapTick: css({ width: 6, marginLeft: -3, borderRadius: 3 }),
   legend: css({
     display: 'flex',
     gap: theme.spacing(2),

@@ -1,11 +1,14 @@
 import type { TimelineEvent, TimelineType } from '../api/types';
 import { parseTs } from './format';
+import { isTapEvent, tapLabel, type ReplayTap } from './taps';
 
-export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation';
+export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap';
 
 export interface ReplayMarker {
-  /** Index into the timeline array. */
+  /** Index into the timeline array; -1 for a tap known only from a recorded touch. */
   index: number;
+  /** Unique key among the markers. */
+  key: string;
   kind: MarkerKind;
   /** Milliseconds from replay start (may be negative when the event precedes the first rrweb event). */
   offsetMs: number;
@@ -42,6 +45,8 @@ export function markerKind(ev: TimelineEvent): MarkerKind | null {
       return 'failed_request';
     case 'navigation':
       return 'navigation';
+    case 'custom':
+      return isTapEvent(ev) ? 'tap' : null;
     default:
       return null;
   }
@@ -56,32 +61,60 @@ export function markerLabel(ev: TimelineEvent): string {
       return `${a.http_request_method ?? ''} ${a.url_full ?? a.url_path ?? ''} → ${a.http_response_status_code ?? 'failed'}`.trim();
     case 'navigation':
       return `Navigation ${a.url_path ?? a.url_full ?? ''}`.trim();
+    case 'custom':
+      if (isTapEvent(ev)) {
+        return `Tap ${a.ouo_ui_target ?? ''}`.trim();
+      }
+      return ev.name;
     default:
       return ev.name;
   }
 }
 
-/** Builds replay markers (errors, failed requests, navigations) from a timeline. */
-export function buildMarkers(timeline: TimelineEvent[], replayStart: number, durationMs: number): ReplayMarker[] {
+/**
+ * Builds replay markers (errors, failed requests, navigations, taps) from a timeline. With `taps`
+ * (`buildTaps` of a video replay's touches and the timeline), taps come from that list instead of
+ * the timeline's `ui.tap` events, so a touch without a breadcrumb gets a marker too. Taps are
+ * listed first so the other kinds are drawn on top of them.
+ */
+export function buildMarkers(
+  timeline: TimelineEvent[],
+  replayStart: number,
+  durationMs: number,
+  taps?: readonly ReplayTap[]
+): ReplayMarker[] {
   const out: ReplayMarker[] = [];
+  taps?.forEach((tap, i) => {
+    out.push({
+      index: tap.timelineIndex ?? -1,
+      key: `tap-${i}`,
+      kind: 'tap',
+      offsetMs: tap.ts - replayStart,
+      leftPct: markerPosition(tap.ts, replayStart, durationMs),
+      label: tap.target ? `Tap ${tap.target}` : tapLabel(tap),
+    });
+  });
+  const tapEvents: ReplayMarker[] = [];
   timeline.forEach((ev, index) => {
     const kind = markerKind(ev);
-    if (!kind) {
+    if (!kind || (kind === 'tap' && taps)) {
       return;
     }
     const ts = parseTs(ev.ts);
     if (Number.isNaN(ts)) {
       return;
     }
-    out.push({
+    const marker = {
       index,
+      key: `ev-${index}`,
       kind,
       offsetMs: ts - replayStart,
       leftPct: markerPosition(ts, replayStart, durationMs),
       label: markerLabel(ev),
-    });
+    };
+    (kind === 'tap' ? tapEvents : out).push(marker);
   });
-  return out;
+  return [...tapEvents, ...out];
 }
 
 /**

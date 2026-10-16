@@ -23,9 +23,9 @@ Verified on kind (Phase 8a): `agents/helm/summaries/2026-10-10-phase-8a-rev2.md`
 
 | Component | Image | Built from |
 |---|---|---|
-| collector | `ouo/collector` | `collector/Dockerfile` (`docker build -t ouo/collector:<tag> collector`) |
-| rum-api | `ouo/rum-api` | `services/rum-api/Dockerfile` (`docker build -t ouo/rum-api:<tag> services/rum-api`) |
-| Grafana + plugin | `ouo/grafana` | `deploy/images/grafana/Dockerfile`, after `npm run -w plugins/ouo-rum-app build`: `docker build -t ouo/grafana:<tag> -f deploy/images/grafana/Dockerfile .` |
+| collector | `ghcr.io/ziadmansourm/ouo/collector` (released by `collector-v*` tags) | `collector/Dockerfile` (`docker build -t ouo/collector:<tag> collector`) |
+| rum-api | `ghcr.io/ziadmansourm/ouo/rum-api` (released by `rum-api-v*` tags) | `services/rum-api/Dockerfile` (`docker build -t ouo/rum-api:<tag> services/rum-api`) |
+| Grafana + plugin | `ghcr.io/ziadmansourm/ouo/grafana` (released by `grafana-v*` tags) | `deploy/images/grafana/Dockerfile`, after `npm run -w plugins/ouo-rum-app build`: `docker build -t ouo/grafana:<tag> -f deploy/images/grafana/Dockerfile .` |
 | Loki / Tempo / Mimir (bundled) | `grafana/loki:3.7.7`, `grafana/tempo:3.0.3`, `grafana/mimir:3.2.1` | upstream |
 
 Every tag is a value: `--set collector.image.tag=0.2.0 --set rumApi.image.tag=0.2.0 --set grafana.image.tag=0.2.0 --set lgtm.bundled.loki.image.tag=...`.
@@ -206,8 +206,8 @@ helm upgrade ouo deploy/helm/ouo -n ouo --reuse-values --set collector.image.tag
   version with the same schema (ADR-0003).
 - rum-api is started with `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`
   from the `<release>-rum-api-config` ConfigMap, so the chart needs a rum-api image that
-  knows those flags (the release after 0.2.0; 0.2.0 exits with "flag provided but not
-  defined"). Bump `rumApi.image.tag` together with the chart. The collector rolls
+  knows those flags: 0.2.0, the first rum-api release (RELEASING.md), or later. A build
+  from before the config file exits with "flag provided but not defined". The collector rolls
   with a RollingUpdate; its replay exporter retries chunks while rum-api restarts.
 - The Grafana init container re-copies the plugin from the image onto the data volume on
   every start, so a new `grafana.image.tag` upgrades the plugin.
@@ -269,7 +269,7 @@ deploy/README.md).
 | `ingestToken` | `""` | `OUO_INGEST_TOKEN` on the collector (bearer on replay forwards) and rum-api (check) |
 | `readToken` | `""` | `OUO_READ_TOKEN` for `GET`/`DELETE /v1/*`; also provisioned into the Grafana plugin |
 | `collector.enabled` | `true` | `false` only with another collector reachable at `rumApi.otel.endpoint` |
-| `collector.image.{repository,tag,pullPolicy}` | `ouo/collector`, `0.2.0` | the custom distribution |
+| `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ziadmansourm/ouo/collector`, `0.2.0` | the custom distribution |
 | `collector.replicas` | `1` | |
 | `collector.existingProjectsSecret` | `""` | Secret with key `projects.htpasswd` |
 | `collector.allowedOrigins` | `[]` | CORS origins on 4318 and 4319 (browser SDKs) |
@@ -281,7 +281,7 @@ deploy/README.md).
 | `collector.service.{type,annotations}` | `ClusterIP` | public Service (4318, 4319) |
 | `collector.ingress.{enabled,className,annotations,host,pathType,tls.enabled,tls.secretName}` | disabled | `/v1/replay` to 4319, `/` to 4318 |
 | `collector.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
-| `rumApi.image.{repository,tag,pullPolicy}` | `ouo/rum-api`, `0.2.0` | rum-api image |
+| `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ziadmansourm/ouo/rum-api`, `0.2.0` | rum-api image |
 | `rumApi.replicas` | `1` | > 1 needs `rumApi.storage.backend=s3` (or a ReadWriteMany replay volume) |
 | `rumApi.existingSecret` | `""` | Secret with `ingest-token`, `read-token` and optionally `otlp-headers` |
 | `rumApi.config.grafanaUrl` | derived | browser-facing Grafana URL in trace deep links (`GRAFANA_URL`) |
@@ -299,7 +299,7 @@ deploy/README.md).
 | `rumApi.service.{port,annotations}` | `8080` | always ClusterIP, no Ingress |
 | `rumApi.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,priorityClassName,livenessProbe,readinessProbe,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
 | `grafana.enabled` | `true` | `false` when the customer runs Grafana |
-| `grafana.image.*` | `ouo/grafana`, `0.2.0` | image with the plugin |
+| `grafana.image.*` | `ghcr.io/ziadmansourm/ouo/grafana`, `0.2.0` | image with the plugin |
 | `grafana.adminUser` / `grafana.adminPassword` / `grafana.existingSecret` | `admin` / `""` / `""` | password required unless the Secret is given |
 | `grafana.rootUrl` | derived from the Ingress | `GF_SERVER_ROOT_URL` |
 | `grafana.defaultTheme`, `grafana.anonymousEnabled` | `dark`, `false` | |
