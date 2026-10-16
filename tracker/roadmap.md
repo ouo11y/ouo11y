@@ -31,6 +31,7 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 ### 8b Data lifecycle
 
 - [ ] Retention per signal from one values entry (Loki, Tempo, Mimir TTLs)
+- [x] rum-api replay store on object storage and a YAML config file like Loki / Tempo [rum-api 2026-10-16: `storage.backend: s3` (AWS S3 / MinIO, conditional meta writes for replicas, ranged mp4 reads), `-config.file` / `-config.expand-env` / `-config.verify`, compose MinIO opt-in, Helm `rumApi.storage`; verified with real MinIO and in the plugin, `agents/rum-api/summaries/2026-10-16-config-file-s3.md`]
 - [ ] Replay chunk lifecycle in object storage (lifecycle rules plus rum-api sweeper) matching retention
 - [ ] Delete-by-user and delete-by-project, propagated to replay storage, recorded in an audit log
 - [ ] Sampling in both SDKs: session rate, replay rate, error-triggered replay, server-side per-project override

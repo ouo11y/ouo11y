@@ -1,4 +1,4 @@
-{{- if and .Values.rumApi.persistence.enabled (not .Values.rumApi.persistence.existingClaim) }}
+{{- if and (include "ouo.rumApi.fsStore" .) .Values.rumApi.persistence.enabled (not .Values.rumApi.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
