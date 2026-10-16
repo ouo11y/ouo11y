@@ -17,7 +17,7 @@ export interface TracingOptions {
    * headers on outbound fetch requests. Requests to other hosts still get a client span.
    */
   propagateTo?: Array<RegExp | string>;
-  /** URLs (RegExp or exact strings) never traced. The OTLP endpoint is always ignored. */
+  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` / `replayEndpoint` are always ignored. */
   ignoreUrls?: Array<RegExp | string>;
 }
 
@@ -86,13 +86,30 @@ export interface ErrorOptions {
 }
 
 export interface RUMOptions {
-  /** OTLP/HTTP base URL. The SDK appends `/v1/traces` and `/v1/logs`. */
+  /**
+   * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
+   * `http://localhost:4318` (ADR-0007). The SDK posts traces to `${endpoint}/v1/traces` and
+   * events to `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced.
+   */
   endpoint: string;
   /**
-   * rum-api base URL; the native recorder posts replay chunks to `${replayEndpoint}/v1/replay/chunks`.
-   * Defaults to the OTLP endpoint's scheme and host on port 8080.
+   * Base URL of the collector's replay receiver; chunks go to `${replayEndpoint}/v1/replay/chunks`.
+   * Optional: defaults to `endpoint` with port 4318 replaced by 4319 (the collector's default
+   * replay port), or to `endpoint` itself when it uses any other port (a proxy such as
+   * `https://otel.example.com` routes `/v1/replay/*` to the receiver itself).
    */
   replayEndpoint?: string;
+  /**
+   * Project id, the user name of the HTTP Basic credential (`Authorization: Basic
+   * base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload.
+   * Required; `initRUM` throws without it.
+   */
+  projectId: string;
+  /**
+   * Project token, the password of the Basic credential. Public by nature (it only grants the
+   * right to write telemetry into one project); required, `initRUM` throws without it.
+   */
+  projectToken: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;

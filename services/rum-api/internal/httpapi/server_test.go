@@ -16,13 +16,23 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/tempo"
 )
 
-const realSession = "a4d47dfa-db30-4856-9bfe-3a657ccc9471"
+const (
+	realSession  = "a4d47dfa-db30-4856-9bfe-3a657ccc9471"
+	testProject  = "demo"
+	otherProject = "other"
+	ingestToken  = "it_dev_0000000000000000"
+	readToken    = "rt_dev_0000000000000000"
+)
 
 type fakeEvents struct {
 	events  []session.Event
@@ -84,6 +94,10 @@ func fixtureEvents(t *testing.T) []session.Event {
 }
 
 func newTestServer(t *testing.T) (*httptest.Server, *fakeEvents, *replay.FS) {
+	return newTestServerWith(t, nil)
+}
+
+func newTestServerWith(t *testing.T, mod func(*Options)) (*httptest.Server, *fakeEvents, *replay.FS) {
 	t.Helper()
 	evs := fixtureEvents(t)
 	fe := &fakeEvents{events: evs}
@@ -95,10 +109,31 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeEvents, *replay.FS) {
 		t.Fatal(err)
 	}
 	now := evs[len(evs)-1].TS.Add(time.Minute)
-	srv := New(fe, ft, store, Options{Now: func() time.Time { return now }})
+	opts := Options{Now: func() time.Time { return now }}
+	if mod != nil {
+		mod(&opts)
+	}
+	srv := New(fe, ft, store, opts)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts, fe, store
+}
+
+// postChunk posts a chunk body as the collector's replay exporter does
+// (project id header) plus optional extra headers.
+func postChunk(t *testing.T, url string, body io.Reader, headers ...string) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(ProjectIDHeader, testProject)
+	for i := 0; i+1 < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
 }
 
 func getJSON(t *testing.T, url string, v any) int {
@@ -116,33 +151,249 @@ func getJSON(t *testing.T, url string, v any) int {
 	return resp.StatusCode
 }
 
-func TestCORSPreflight(t *testing.T) {
-	ts, _, _ := newTestServer(t)
-	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/v1/replay/chunks", nil)
-	req.Header.Set("Origin", "http://localhost:5173")
-	req.Header.Set("Access-Control-Request-Method", "POST")
-	req.Header.Set("Access-Control-Request-Headers", "content-type,content-encoding,x-ouo-session-id,x-ouo-seq")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
+func TestCORSReflect(t *testing.T) {
+	ts, _, _ := newTestServerWith(t, func(o *Options) { o.CORSAllowedOrigins = []string{"https://tooling.example"} })
+	preflight := func(origin, path string) *http.Response {
+		req, _ := http.NewRequest(http.MethodOptions, ts.URL+path, nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", "GET")
+		req.Header.Set("Access-Control-Request-Headers", "authorization")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
 	}
-	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
-		t.Fatalf("preflight: %d %v", resp.StatusCode, resp.Header)
-	}
-	for _, h := range []string{"content-type", "content-encoding", "x-ouo-session-id", "x-ouo-seq"} {
-		if !strings.Contains(resp.Header.Get("Access-Control-Allow-Headers"), h) {
-			t.Errorf("allow-headers missing %s: %s", h, resp.Header.Get("Access-Control-Allow-Headers"))
+	// Local origins are reflected whatever the port, plus the configured extras.
+	for _, o := range []string{"http://localhost:5173", "http://localhost", "http://127.0.0.1:3000", "https://tooling.example"} {
+		resp := preflight(o, "/v1/sessions")
+		if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Origin") != o {
+			t.Fatalf("preflight %s: %d %v", o, resp.StatusCode, resp.Header)
+		}
+		for _, h := range []string{"Authorization", "Content-Type", "Content-Encoding", "X-Ouo-Project-Id", "X-Ouo-Session-Id", "X-Ouo-Seq", "Accept", "Accept-Encoding"} {
+			if !strings.Contains(resp.Header.Get("Access-Control-Allow-Headers"), h) {
+				t.Errorf("allow-headers missing %s: %s", h, resp.Header.Get("Access-Control-Allow-Headers"))
+			}
+		}
+		if !strings.Contains(resp.Header.Get("Access-Control-Allow-Methods"), "DELETE") || !strings.Contains(resp.Header.Get("Vary"), "Origin") ||
+			!strings.Contains(resp.Header.Get("Access-Control-Expose-Headers"), "X-Ouo-Replay-Kind") {
+			t.Errorf("allow-methods / vary / expose: %v", resp.Header)
 		}
 	}
-	if !strings.Contains(resp.Header.Get("Access-Control-Allow-Methods"), "DELETE") {
-		t.Errorf("allow-methods: %s", resp.Header.Get("Access-Control-Allow-Methods"))
+	// Anything else gets no CORS headers; a preflight falls through to the mux.
+	for _, o := range []string{"http://evil.example", "https://localhost:5173", "http://localhost.evil:5173", "http://localhost:5173x", "https://tooling.example.evil"} {
+		if resp := preflight(o, "/v1/sessions"); resp.StatusCode == http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Origin") != "" {
+			t.Fatalf("preflight %s: %d %v", o, resp.StatusCode, resp.Header)
+		}
 	}
-	// Foreign origin: no CORS headers, request still served.
-	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/healthz", nil)
+	// Foreign origin on a plain request: no CORS headers, request still served.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/healthz", nil)
 	req.Header.Set("Origin", "http://evil.example")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, _ := http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 || resp.Header.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("foreign origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	// Local origin on a plain request: headers set.
+	req.Header.Set("Origin", "http://127.0.0.1:3000")
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.Header.Get("Access-Control-Allow-Origin") != "http://127.0.0.1:3000" {
+		t.Fatalf("local origin: %v", resp.Header)
+	}
+}
+
+func TestReadToken(t *testing.T) {
+	ts, _, store := newTestServerWith(t, func(o *Options) { o.ReadToken = readToken })
+	store.Put(context.Background(), testProject, []byte(`{"session_id":"rt-1","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`), nil)
+	do := func(method, path, auth string) *http.Response {
+		req, _ := http.NewRequest(method, ts.URL+path, nil)
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	// Every GET and DELETE under /v1 needs the bearer token.
+	for _, path := range []string{"/v1/sessions", "/v1/sessions/rt-1", "/v1/sessions/rt-1/traces", "/v1/sessions/rt-1/replay", "/v1/sessions/rt-1/replay/events", "/v1/stats/health"} {
+		if resp := do(http.MethodGet, path, ""); resp.StatusCode != http.StatusUnauthorized || resp.Header.Get("WWW-Authenticate") == "" {
+			t.Fatalf("GET %s without token: %d %v", path, resp.StatusCode, resp.Header)
+		}
+		if resp := do(http.MethodGet, path, "Bearer wrong"); resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("GET %s wrong token: %d", path, resp.StatusCode)
+		}
+		if resp := do(http.MethodGet, path, "Basic "+readToken); resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("GET %s wrong scheme: %d", path, resp.StatusCode)
+		}
+		if resp := do(http.MethodGet, path, "Bearer "+readToken); resp.StatusCode == http.StatusUnauthorized {
+			t.Fatalf("GET %s with token: %d", path, resp.StatusCode)
+		}
+	}
+	if resp := do(http.MethodDelete, "/v1/sessions/rt-1/replay", ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("DELETE without token: %d", resp.StatusCode)
+	}
+	if resp := do(http.MethodDelete, "/v1/sessions/rt-1/replay", "bearer "+readToken); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE with token: %d", resp.StatusCode)
+	}
+	// Probes and the sink stay open (the sink has its own token).
+	for _, path := range []string{"/healthz", "/readyz"} {
+		if resp := do(http.MethodGet, path, ""); resp.StatusCode == http.StatusUnauthorized {
+			t.Fatalf("GET %s: %d", path, resp.StatusCode)
+		}
+	}
+	chunk := `{"session_id":"rt-2","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`
+	if resp := postChunk(t, ts.URL+"/v1/replay/chunks", strings.NewReader(chunk)); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST chunk without read token: %d", resp.StatusCode)
+	}
+	// Preflights are not behind it either.
+	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/v1/sessions", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	if resp, _ := http.DefaultClient.Do(req); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight behind read token: %d", resp.StatusCode)
+	}
+}
+
+// TestReplaySink covers the collector-facing contract of POST /v1/replay/chunks
+// (ADR-0007 5): project id required and recorded, bearer when configured.
+func TestReplaySink(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	ts, _, store := newTestServerWith(t, func(o *Options) {
+		o.MeterProvider = sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	})
+	url := ts.URL + "/v1/replay/chunks"
+	chunk := func(id string, seq int) io.Reader {
+		return strings.NewReader(`{"session_id":"` + id + `","seq":` + string(rune('0'+seq)) + `,"started_at":1,"ended_at":2,"events":[{"type":4}]}`)
+	}
+	raw := func(body io.Reader, headers ...string) (*http.Response, map[string]any) {
+		req, _ := http.NewRequest(http.MethodPost, url, body)
+		req.Header.Set("Content-Type", "application/json")
+		for i := 0; i+1 < len(headers); i += 2 {
+			req.Header.Set(headers[i], headers[i+1])
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		json.NewDecoder(resp.Body).Decode(&out)
+		return resp, out
+	}
+	// No project id: 400, nothing stored.
+	if resp, out := raw(chunk("sink-1", 0)); resp.StatusCode != http.StatusBadRequest || !strings.Contains(out["error"].(string), ProjectIDHeader) {
+		t.Fatalf("missing project id: %d %v", resp.StatusCode, out)
+	}
+	for _, bad := range []string{"Demo", "-demo", "demo/x", "demo x", strings.Repeat("a", 65), ".demo", "dé"} {
+		if resp, _ := raw(chunk("sink-1", 0), ProjectIDHeader, bad); resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("project id %q: %d", bad, resp.StatusCode)
+		}
+	}
+	if code := getJSON(t, ts.URL+"/v1/sessions/sink-1/replay", nil); code != 404 {
+		t.Fatalf("rejected chunk stored: %d", code)
+	}
+	// Accepted: project_id in the response, the meta and meta.json. No bearer needed without OUO_INGEST_TOKEN.
+	resp, out := raw(chunk("sink-1", 0), ProjectIDHeader, " web-store.v2_1 ", "X-Ouo-Session-Id", "sink-1", "X-Ouo-Seq", "0")
+	if resp.StatusCode != http.StatusAccepted || out["project_id"] != "web-store.v2_1" || out["session_id"] != "sink-1" {
+		t.Fatalf("ok: %d %v", resp.StatusCode, out)
+	}
+	var m replay.Meta
+	getJSON(t, ts.URL+"/v1/sessions/sink-1/replay", &m)
+	if m.ProjectID != "web-store.v2_1" || m.ChunkCount != 1 {
+		t.Fatalf("meta project: %+v", m)
+	}
+	b, _ := os.ReadFile(filepath.Join(store.Root, "sink-1", "meta.json"))
+	if !strings.Contains(string(b), `"project_id": "web-store.v2_1"`) {
+		t.Fatalf("meta.json: %s", b)
+	}
+	// Another project id cannot append to that session.
+	if resp, _ := raw(chunk("sink-1", 1), ProjectIDHeader, otherProject); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross project: %d", resp.StatusCode)
+	}
+	// A pre-8a replay (no project_id) still reads and adopts the first project that writes to it.
+	legacy := filepath.Join(store.Root, "legacy-1")
+	os.MkdirAll(legacy, 0o755)
+	os.WriteFile(filepath.Join(legacy, "meta.json"), []byte(`{"session_id":"legacy-1","chunk_count":0,"chunks":[]}`), 0o644)
+	m = replay.Meta{}
+	getJSON(t, ts.URL+"/v1/sessions/legacy-1/replay", &m)
+	if m.ProjectID != "" || m.Kind != "rrweb" {
+		t.Fatalf("legacy meta before write: %+v", m)
+	}
+	if resp, _ := raw(chunk("legacy-1", 1), ProjectIDHeader, otherProject); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("legacy adopt: %d", resp.StatusCode)
+	}
+	getJSON(t, ts.URL+"/v1/sessions/legacy-1/replay", &m)
+	if m.ProjectID != otherProject || m.Kind != "rrweb" {
+		t.Fatalf("legacy meta: %+v", m)
+	}
+	// Metrics: one chunk per project id so far, bytes = decompressed body.
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, mt := range sm.Metrics {
+			sum, ok := mt.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			got[mt.Name] = map[string]int64{}
+			for _, dp := range sum.DataPoints {
+				v, _ := dp.Attributes.Value(attribute.Key(projectIDAttribute))
+				got[mt.Name][v.AsString()] = dp.Value
+			}
+		}
+	}
+	if got["ouo.replay.chunks"]["web-store.v2_1"] != 1 || got["ouo.replay.chunks"][otherProject] != 1 || got["ouo.replay.bytes"][otherProject] <= 0 || len(got["ouo.replay.chunks"]) != 2 {
+		t.Fatalf("metrics: %v", got)
+	}
+	for name := range got {
+		if strings.HasPrefix(name, "ouo.ingest.") {
+			t.Fatalf("gateway metric still exported: %s", name)
+		}
+	}
+}
+
+func TestReplaySinkIngestToken(t *testing.T) {
+	ts, _, _ := newTestServerWith(t, func(o *Options) { o.IngestToken = ingestToken })
+	url := ts.URL + "/v1/replay/chunks"
+	chunk := `{"session_id":"tok-1","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`
+	cases := []struct {
+		name string
+		hdrs []string
+		want int
+	}{
+		{"no auth", nil, http.StatusUnauthorized},
+		{"wrong token", []string{"Authorization", "Bearer nope"}, http.StatusUnauthorized},
+		{"wrong scheme", []string{"Authorization", "Basic " + ingestToken}, http.StatusUnauthorized},
+		{"token but no project id", []string{"Authorization", "Bearer " + ingestToken}, http.StatusBadRequest},
+		{"token and project id", []string{"Authorization", "bearer " + ingestToken, ProjectIDHeader, testProject}, http.StatusAccepted},
+	}
+	for _, tc := range cases {
+		req, _ := http.NewRequest(http.MethodPost, url, strings.NewReader(chunk))
+		req.Header.Set("Content-Type", "application/json")
+		for i := 0; i+1 < len(tc.hdrs); i += 2 {
+			req.Header.Set(tc.hdrs[i], tc.hdrs[i+1])
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != tc.want {
+			t.Fatalf("%s: got %d want %d", tc.name, resp.StatusCode, tc.want)
+		}
+		if tc.want == http.StatusUnauthorized && resp.Header.Get("WWW-Authenticate") == "" {
+			t.Fatalf("%s: no WWW-Authenticate", tc.name)
+		}
+	}
+	// Rejected posts stored nothing; the ingest token is not a read token.
+	if code := getJSON(t, ts.URL+"/v1/sessions/tok-1/replay", nil); code != 200 {
+		t.Fatalf("accepted chunk missing: %d", code)
 	}
 }
 
@@ -162,44 +413,34 @@ func TestReplayRoundTrip(t *testing.T) {
 	gw := gzip.NewWriter(&gz)
 	gw.Write(chunk(0, meta, full))
 	gw.Close()
-	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/replay/chunks", &gz)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", "gzip")
-	req.Header.Set("X-Ouo-Session-Id", id)
-	req.Header.Set("X-Ouo-Seq", "0")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := postChunk(t, ts.URL+"/v1/replay/chunks", &gz, "Content-Encoding", "gzip", "X-Ouo-Session-Id", id, "X-Ouo-Seq", "0")
 	var ack map[string]any
 	json.NewDecoder(resp.Body).Decode(&ack)
 	if resp.StatusCode != http.StatusAccepted || ack["accepted"] != true || ack["seq"].(float64) != 0 {
 		t.Fatalf("gzip post: %d %v", resp.StatusCode, ack)
 	}
 	// plain upload (seq 1, keepalive path)
-	resp, err = http.Post(ts.URL+"/v1/replay/chunks", "application/json", bytes.NewReader(chunk(1, inc)))
-	if err != nil || resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("plain post: %v %d", err, resp.StatusCode)
+	resp = postChunk(t, ts.URL+"/v1/replay/chunks", bytes.NewReader(chunk(1, inc)))
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("plain post: %d", resp.StatusCode)
 	}
 	// invalid
-	resp, _ = http.Post(ts.URL+"/v1/replay/chunks", "application/json", strings.NewReader(`{"session_id":"../x","seq":0,"events":[]}`))
+	resp = postChunk(t, ts.URL+"/v1/replay/chunks", strings.NewReader(`{"session_id":"../x","seq":0,"events":[]}`))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("invalid chunk: %d", resp.StatusCode)
 	}
-	resp, _ = http.Post(ts.URL+"/v1/replay/chunks", "application/json", strings.NewReader(`not json`))
+	resp = postChunk(t, ts.URL+"/v1/replay/chunks", strings.NewReader(`not json`))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("not json: %d", resp.StatusCode)
 	}
 	// too large
 	big := bytes.Repeat([]byte("x"), 5<<20)
-	resp, _ = http.Post(ts.URL+"/v1/replay/chunks", "application/json", bytes.NewReader(big))
+	resp = postChunk(t, ts.URL+"/v1/replay/chunks", bytes.NewReader(big))
 	if resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("too large: %d", resp.StatusCode)
 	}
 	// bad gzip
-	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/v1/replay/chunks", strings.NewReader("nope"))
-	req.Header.Set("Content-Encoding", "gzip")
-	resp, _ = http.DefaultClient.Do(req)
+	resp = postChunk(t, ts.URL+"/v1/replay/chunks", strings.NewReader("nope"), "Content-Encoding", "gzip")
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad gzip: %d", resp.StatusCode)
 	}
@@ -208,15 +449,15 @@ func TestReplayRoundTrip(t *testing.T) {
 	if code := getJSON(t, ts.URL+"/v1/sessions/"+id+"/replay", &m); code != 200 {
 		t.Fatalf("meta: %d", code)
 	}
-	if m.ChunkCount != 2 || m.StartedAt != 1000 || m.EndedAt != 10000 || len(m.Chunks) != 2 || m.Chunks[1].Seq != 1 {
+	if m.ChunkCount != 2 || m.StartedAt != 1000 || m.EndedAt != 10000 || len(m.Chunks) != 2 || m.Chunks[1].Seq != 1 || m.ProjectID != testProject {
 		t.Fatalf("meta: %+v", m)
 	}
 
 	// events, gzip negotiated
-	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/v1/sessions/"+id+"/replay/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/sessions/"+id+"/replay/events", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
 	tr := &http.Transport{DisableCompression: true}
-	resp, err = (&http.Client{Transport: tr}).Do(req)
+	resp, err := (&http.Client{Transport: tr}).Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +503,7 @@ func TestReplayRoundTrip(t *testing.T) {
 func TestListSessions(t *testing.T) {
 	ts, fe, store := newTestServer(t)
 	// give the real session a replay
-	store.Put(context.Background(), []byte(`{"session_id":"`+realSession+`","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`), nil)
+	store.Put(context.Background(), testProject, []byte(`{"session_id":"`+realSession+`","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4}]}`), nil)
 
 	var list listResponse
 	if code := getJSON(t, ts.URL+"/v1/sessions?from=now-2h", &list); code != 200 {

@@ -3,11 +3,15 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
@@ -34,16 +38,20 @@ type Options struct {
 	DetailLookback     time.Duration // how far back a single-session lookup searches
 	MaxChunkBytes      int64         // rrweb chunks (decompressed); default 4 MiB
 	MaxFrameChunkBytes int64         // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
-	CORSAllowedOrigins []string
+	IngestToken        string        // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken          string        // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	CORSAllowedOrigins []string      // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
+	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
 
 // Server holds the dependencies of the handlers.
 type Server struct {
-	events EventSource
-	traces TraceSource
-	store  replay.Store
-	opts   Options
+	events  EventSource
+	traces  TraceSource
+	store   replay.Store
+	opts    Options
+	metrics replayMetrics
 }
 
 // New wires the handlers onto a ServeMux and returns the root handler.
@@ -64,10 +72,10 @@ func New(events EventSource, traces TraceSource, store replay.Store, opts Option
 		opts.MaxFrameChunkBytes = 8 << 20
 	}
 	opts.MaxFrameChunkBytes = max(opts.MaxFrameChunkBytes, opts.MaxChunkBytes)
-	return &Server{events: events, traces: traces, store: store, opts: opts}
+	return &Server{events: events, traces: traces, store: store, opts: opts, metrics: newReplayMetrics(opts.MeterProvider)}
 }
 
-// Handler returns the routed handler with CORS applied.
+// Handler returns the routed handler with CORS and the read token applied.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
@@ -84,7 +92,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})
-	return cors(s.opts.CORSAllowedOrigins, mux)
+	return cors(s.opts.CORSAllowedOrigins, readAuth(s.opts.ReadToken, mux))
+}
+
+// bearerMatches compares `Authorization: Bearer <token>` in constant time.
+func bearerMatches(header, token string) bool {
+	scheme, cred, ok := strings.Cut(strings.TrimSpace(header), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return false
+	}
+	cred = strings.TrimSpace(cred)
+	return subtle.ConstantTimeCompare([]byte(cred), []byte(token)) == 1
 }
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {

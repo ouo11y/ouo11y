@@ -3,8 +3,12 @@ import { initRUM } from "../dist/index.js";
 const params = new URLSearchParams(location.search);
 const backend = params.get("backend") ?? "http://localhost:8082";
 const rum = initRUM({
-  endpoint: params.get("otlp") ?? "http://localhost:4328",
-  replayEndpoint: params.get("replay") ?? "http://localhost:8090",
+  // Collector OTLP/HTTP base (or the stub in server.mjs). ?otlp=http://localhost:4318 for the real stack:
+  // replay then derives to :4319; the :8090 stub serves both on one port (the "same host" case).
+  endpoint: params.get("otlp") ?? "http://localhost:8090",
+  ...(params.get("replay") ? { replayEndpoint: params.get("replay") } : {}),
+  projectId: params.get("project") ?? "demo",
+  projectToken: params.get("token") ?? "pt_dev_demo_0000000000000000",
   service: { name: "web-store", version: "1.4.2", environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + backend.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))] },
   replay: { enabled: params.get("noreplay") === null, maskAllInputs: true },

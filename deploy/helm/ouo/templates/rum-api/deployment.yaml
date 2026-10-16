@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ouo.rumApi.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "rum-api") | nindent 4 }}
+spec:
+  replicas: {{ .Values.rumApi.replicas }}
+  {{- if gt (int .Values.rumApi.replicas) 1 }}
+  strategy:
+    type: RollingUpdate
+  {{- else }}
+  # One replica on a ReadWriteOnce volume: the new pod cannot mount until the old one is gone.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ouo.selectorLabels" (dict "root" . "component" "rum-api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ouo.selectorLabels" (dict "root" . "component" "rum-api") | nindent 8 }}
+        {{- with .Values.rumApi.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if not .Values.rumApi.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/rum-api/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.rumApi.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rumApi.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.rumApi.podSecurityContext | nindent 8 }}
+      containers:
+        - name: rum-api
+          image: {{ include "ouo.image" .Values.rumApi.image }}
+          imagePullPolicy: {{ .Values.rumApi.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.rumApi.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RUM_API_ADDR
+              value: ":8080"
+            - name: DATA_DIR
+              value: /data
+            - name: LOKI_URL
+              value: {{ include "ouo.lokiUrl" . | quote }}
+            - name: TEMPO_URL
+              value: {{ include "ouo.tempoUrl" . | quote }}
+            - name: GRAFANA_URL
+              value: {{ include "ouo.grafanaPublicUrl" . | quote }}
+            - name: GRAFANA_TEMPO_DATASOURCE_UID
+              value: {{ .Values.rumApi.config.tempoDatasourceUid | quote }}
+            - name: SESSION_INACTIVITY
+              value: {{ .Values.rumApi.config.sessionInactivity | quote }}
+            - name: SESSION_MAX_DURATION
+              value: {{ .Values.rumApi.config.sessionMaxDuration | quote }}
+            # --- ADR-0007 section 5: internal replay sink and read API ---------------
+            # The collector's replay exporter must send X-Ouo-Project-Id and, when this is
+            # set, Authorization: Bearer <OUO_INGEST_TOKEN>. No project registry, no OTLP
+            # endpoints, no CORS for untrusted origins in rum-api any more.
+            - name: OUO_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: ingest-token
+                  optional: true
+            - name: OUO_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: read-token
+                  optional: true
+            # --- own telemetry ------------------------------------------------------
+            {{- if .Values.rumApi.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "ouo.rumApiOtlpEndpoint" . | quote }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: otlp-headers
+                  optional: true
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_SERVICE_NAME
+              value: rum-api
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ printf "deployment.environment.name=%s,service.version=%s" .Values.rumApi.otel.environment (toString .Values.rumApi.image.tag) | quote }}
+            {{- else }}
+            - name: OTEL_SDK_DISABLED
+              value: "true"
+            {{- end }}
+            {{- with .Values.rumApi.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: replays
+              mountPath: /data
+          {{- with .Values.rumApi.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.rumApi.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.rumApi.resources | nindent 12 }}
+      volumes:
+        - name: replays
+          {{- if .Values.rumApi.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.rumApi.persistence.existingClaim | default (printf "%s-replays" (include "ouo.rumApi.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.rumApi.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rumApi.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rumApi.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,57 @@
+Phase 8a rev 2, iOS simulator walk (iPhone 18 Pro, iOS 27, dev client dev.ouo.mobilestore built by sdk-react-native on 2026-10-10)
+Metro 8091 (8081 belongs to another session's Metro), simulator default RCT_jsLocation=localhost:8091 (deleted afterwards).
+
+Blocker found and worked around: the installed dev client has expo.extra baked at build time
+(EXConstants.bundle/app.config: otlpEndpoint http://localhost:4318, backendUrl http://localhost:8081), so
+EXPO_PUBLIC_OTLP_ENDPOINT / BACKEND_URL given to Metro do not reach the app, and examples/mobile exposes no replay
+endpoint. Temporary override in examples/mobile/src/rum.ts (reverted): process.env.EXPO_PUBLIC_OTLP_ENDPOINT,
+EXPO_PUBLIC_BACKEND_URL (Metro-inlined) and replayEndpoint from EXPO_PUBLIC_OUO_REPLAY_ENDPOINT.
+Metro env: EXPO_PUBLIC_OTLP_ENDPOINT=http://localhost:4330 EXPO_PUBLIC_OUO_REPLAY_ENDPOINT=http://localhost:4331
+  EXPO_PUBLIC_OUO_PROJECT_ID=demo EXPO_PUBLIC_OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 EXPO_PUBLIC_BACKEND_URL=http://localhost:8083
+
+Metro log (excerpt):
+ LOG  [ouo] session started 3d4ea94f-52da-4b73-81b6-0bb194ad8920 
+ LOG  [ouo] replay: started {"debug": true, "endpoint": "http://localhost:4331", "frameInterval": 1, "maskImages": true, "maskInputs": true, "maskText": false, "maskWebViews": true, "projectId": "demo", "projectToken": "pt_dev_d…", "sessionId": "3d4ea94f-52da-4b73-81b6-0bb194ad8920"}
+ LOG  [ouo] @ouo/react-native@0.2.0 initialised {"endpoint": "http://localhost:4330", "logs": "http://localhost:4330/v1/logs", "projectId": "demo", "projectToken": "pt_dev_d…", "replayChunks": "http://localhost:4331/v1/replay/chunks", "replayEndpointDerived": false, "session": "3d4ea94f-52da-4b73-81b6-0bb194ad8920", "traces": "http://localhost:4330/v1/traces", "user": "d2171610-28bc-4555-80ff-8b22ca8994ba"}
+ LOG  [ouo] session ended 1da85981-2fa0-4192-b35c-58015e19c768 terminated
+ WARN  [ouo] fatal error, writing crash marker and flushing Error Fatal error from the Chaos screen (setTimeout)
+ LOG  [ouo] session started 47283318-6e7c-466c-b0ef-43b67dd7e54a 
+ LOG  [ouo] replay: started {"debug": true, "endpoint": "http://localhost:4331", "frameInterval": 1, "maskImages": true, "maskInputs": true, "maskText": false, "maskWebViews": true, "projectId": "demo", "projectToken": "pt_dev_d…", "sessionId": "47283318-6e7c-466c-b0ef-43b67dd7e54a"}
+ LOG  [ouo] @ouo/react-native@0.2.0 initialised {"endpoint": "http://localhost:4330", "logs": "http://localhost:4330/v1/logs", "projectId": "demo", "projectToken": "pt_dev_d…", "replayChunks": "http://localhost:4331/v1/replay/chunks", "replayEndpointDerived": false, "session": "47283318-6e7c-466c-b0ef-43b67dd7e54a", "traces": "http://localhost:4330/v1/traces", "user": "c34c71e2-3950-4ecd-af13-4fa070382f49"}
+ LOG  [ouo] session ended 3d4ea94f-52da-4b73-81b6-0bb194ad8920 crash
+
+export response failures (401) in the Metro log: 0
+
+Native log (xcrun simctl spawn booted log show, [ouo replay]):
+2026-10-13 18:02:41.151226 [ouo replay] started endpoint=http://localhost:4331 project=demo interval=1.0s
+2026-10-13 18:02:46.220553 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=0 2 frames 0 touches 19601 bytes gzip
+2026-10-13 18:02:46.235294 [ouo replay] uploaded seq=0
+2026-10-13 18:02:55.219924 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=1 2 frames 2 touches 22193 bytes gzip
+2026-10-13 18:02:55.224296 [ouo replay] uploaded seq=1
+2026-10-13 18:03:05.595927 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=2 6 frames 5 touches 65530 bytes gzip
+2026-10-13 18:03:05.603106 [ouo replay] uploaded seq=2
+2026-10-13 18:03:11.207136 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=3 1 frames 3 touches 9739 bytes gzip
+2026-10-13 18:03:11.209329 [ouo replay] uploaded seq=3
+2026-10-13 18:03:26.221942 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=4 4 frames 4 touches 84420 bytes gzip
+2026-10-13 18:03:26.230683 [ouo replay] uploaded seq=4
+2026-10-13 18:03:37.218306 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=5 1 frames 2 touches 34732 bytes gzip
+2026-10-13 18:03:37.224507 [ouo replay] uploaded seq=5
+2026-10-13 18:03:43.729090 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=6 0 frames 2 touches 248 bytes gzip
+2026-10-13 18:03:43.732000 [ouo replay] uploaded seq=6
+2026-10-13 18:03:50.218612 [ouo replay] queued session=3d4ea94f-52da-4b73-81b6-0bb194ad8920 seq=7 1 frames 0 touches 21303 bytes gzip
+2026-10-13 18:03:50.221760 [ouo replay] uploaded seq=7
+2026-10-13 18:04:02.974260 [ouo replay] started endpoint=http://localhost:4331 project=demo interval=1.0s
+2026-10-13 18:04:08.039074 [ouo replay] queued session=47283318-6e7c-466c-b0ef-43b67dd7e54a seq=0 2 frames 0 touches 19647 bytes gzip
+2026-10-13 18:04:08.044688 [ouo replay] uploaded seq=0
+
+rum-api (read token) GET /v1/sessions/3d4ea94f-52da-4b73-81b6-0bb194ad8920:
+  status crashed, state ended, end_reason crash, platform mobile, mobile-store 2.3.0, user-10, trace_count 8,
+  error_count 1, crash_count 1, has_replay true, replay_kind frames, replay_frame_count 17
+  timeline: session.start, navigation x2, cart.added, navigation x5, http.request.failed, exception, session.end, exception
+  traces: checkout HTTP POST 6fe0d350824d2eb8a440857b6c41f431 (6 spans with demo-backend), 500 GET 9f5fc7af36e9f8b48543a0d30f5a95eb has_error,
+          2 x 1-span HTTP POST at crash time (Metro symbolicate, dev only)
+GET .../replay: project_id demo, kind frames, 8 chunks seq 0..7, 17 frames, 18 touches, viewport 402x874, platform ios
+Tempo 6fe0d350...: demo-backend ouo.project.id=demo (POST /api/checkout, inventory.lookup, payment.charge, 2 x db.query),
+                   mobile-store ouo.project.id=demo (HTTP POST)
+Mimir ouo_replay_chunks_total{ouo_replay_kind="frames",outcome="accepted"} 9 (8 chunks of this session + seq 0 of the
+  relaunch session 47283318); no rejected/throttled outcome series. Order ord-000002.

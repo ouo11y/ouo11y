@@ -1,13 +1,15 @@
 # ouo RUM (Grafana app plugin)
 
-Plugin id `ouo-rum-app`. Frontend-only Grafana app plugin that is the ouo MVP user
-interface: **Overview** (healthy / errored / crashed percentages per platform and version),
-**Sessions** (filterable list) and **Session detail** (timeline, traces with Grafana Explore
-links, rrweb replay synced to the timeline). All data comes from `services/rum-api` through
-the plugin route proxy; the browser never talks to rum-api directly.
+Plugin id `ouo-rum-app`, version in `package.json` (see `CHANGELOG.md`). Frontend-only Grafana app
+plugin that is the ouo user interface: **Overview** (healthy / errored / crashed percentages per
+platform and version), **Sessions** (filterable list) and **Session detail** (timeline, traces with
+Grafana Explore links, rrweb or frame replay synced to the timeline). All data comes from
+`services/rum-api` through the plugin route proxy; the browser never talks to rum-api directly and
+never sees the read token.
 
 ```
-browser --/api/plugin-proxy/ouo-rum-app/rum/v1/...--> Grafana --(routes[0].url = jsonData.rumApiUrl)--> rum-api
+browser --/api/plugin-proxy/ouo-rum-app/rum/v1/...--> Grafana --(routes[0].url = jsonData.rumApiUrl,
+                                                                  + Authorization: Bearer <secureJsonData.readToken>)--> rum-api
 ```
 
 ## Pages
@@ -16,35 +18,102 @@ browser --/api/plugin-proxy/ouo-rum-app/rum/v1/...--> Grafana --(routes[0].url =
 |---|---|
 | `/a/ouo-rum-app/overview?from=now-24h&to=now` | stat tiles + version table per platform, Grafana time range picker (state in the URL) |
 | `/a/ouo-rum-app/sessions?from&to&platform&status&service&version&user&limit` | sessions table; row click opens the detail |
-| `/a/ouo-rum-app/sessions/<session_id>?from&to` | header, timeline, replay (web sessions with `has_replay`), traces |
-| `/plugins/ouo-rum-app` | configuration: `rumApiUrl` (default `http://rum-api:8080`) |
+| `/a/ouo-rum-app/sessions/<session_id>?from&to` | header, timeline, replay (web `rrweb` or native `frames`), traces |
+| `/plugins/ouo-rum-app` | configuration: `rumApiUrl`, `readToken` (write-only), "Test connection" |
+
+## Configuration
+
+Administration > Plugins and data > Plugins > ouo RUM > Configuration (`/plugins/ouo-rum-app`, Admin role).
+
+| Setting | Stored as | Meaning |
+|---|---|---|
+| rum-api URL | `jsonData.rumApiUrl` | rum-api base URL as reachable **from the Grafana server**. Empty means `http://rum-api:8080` (the compose service). |
+| Read token | `secureJsonData.readToken` | The value of rum-api's `OUO_READ_TOKEN` (ADR-0007 section 6). Grafana stores it encrypted and only reports `secureJsonFields.readToken: true` back, so the field shows "configured" with a Reset button. Leave it empty when rum-api runs without `OUO_READ_TOKEN`. |
+
+Both are saved with `POST /api/plugins/ouo-rum-app/settings` (`{ enabled, pinned, jsonData, secureJsonData }`).
+`secureJsonData` is only sent when a new token was typed (or a stored one was reset), because Grafana
+keeps every stored secret whose key is absent from the body. The page reloads after a save so Grafana
+re-reads the plugin meta.
+
+**Test connection** runs two requests through the proxy with the *saved* settings:
+
+1. `GET /api/plugin-proxy/ouo-rum-app/rum/healthz` (open in rum-api): 200 proves Grafana reaches `rumApiUrl`.
+2. `GET /api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-1h` (needs the token): 200 means the
+   token is accepted; 401 is reported as "read token rejected by rum-api".
+
+When rum-api answers 401 to any call, the Overview, Sessions and Session detail pages replace their
+content with one banner ("rum-api rejected the read token") linking to the configuration page.
+
+### How the token reaches rum-api
+
+`src/plugin.json`:
+
+```json
+"routes": [
+  {
+    "path": "rum/*",
+    "method": "*",
+    "reqRole": "Viewer",
+    "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}",
+    "headers": [{ "name": "Authorization", "content": "Bearer {{ .SecureJsonData.readToken }}" }]
+  }
+]
+```
+
+Grafana evaluates `url` and `headers[].content` as Go templates per request against the app settings
+(`.JsonData`, decrypted `.SecureJsonData`) and adds the header before forwarding. A change to
+`plugin.json` needs a Grafana restart; settings changes do not.
+
+### Provisioning
+
+`deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` (compose) or the Helm chart's plugin
+provisioning. `$VAR` / `${VAR}` are expanded from Grafana's environment, so the token lives in `.env`
+(`OUO_READ_TOKEN`, shared with rum-api; compose defaults to the development value
+`rt_dev_0000000000000000`), not in the YAML:
+
+```yaml
+apiVersion: 1
+apps:
+  - type: ouo-rum-app
+    org_id: 1
+    disabled: false
+    jsonData:
+      rumApiUrl: http://rum-api:8080
+    secureJsonData:
+      readToken: ${OUO_READ_TOKEN}
+```
+
+Provisioning is applied on every Grafana start and overwrites settings saved from the configuration
+page, so in a provisioned install the token is rotated in `.env` and Grafana is restarted.
 
 ## Build, test, run
 
 ```bash
 npm install                                   # repo root (npm workspaces)
-npm run -w plugins/ouo-rum-app build          # -> plugins/ouo-rum-app/dist
-npm run -w plugins/ouo-rum-app test           # jest: formatting + marker math
+npm run -w plugins/ouo-rum-app build          # -> plugins/ouo-rum-app/dist (plugin.json gets the version)
+npm run -w plugins/ouo-rum-app test           # jest: formatting, marker math, tables, config page, 401 banner
 npm run -w plugins/ouo-rum-app typecheck
 npm run -w plugins/ouo-rum-app lint
 docker compose -f deploy/docker/compose.yaml up -d grafana   # mounts dist/ into Grafana
 ```
 
-`deploy/docker/compose.yaml` bind-mounts `dist/` at `/var/lib/grafana/plugins/ouo-rum-app`
-and `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` enables the app with
-`jsonData.rumApiUrl=http://rum-api:8080`. Grafana must allow the unsigned plugin
-(`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`). After a rebuild, restart Grafana
-only if `plugin.json` changed; for JS-only changes a hard reload of the browser is enough
-(Grafana caches `module.js?_cache=<version>`).
+`deploy/docker/compose.yaml` bind-mounts `dist/` at `/var/lib/grafana/plugins/ouo-rum-app` and the
+provisioning file above enables the app. Grafana must allow the unsigned plugin
+(`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`). After a rebuild, restart Grafana if
+`plugin.json` changed or a new chunk file appeared; for JS-only changes bump `version` in
+`package.json` (every user-visible change does, see `CHANGELOG.md`) so browsers drop the cached
+`module.js?_cache=<version>`.
 
 ## Layout
 
 ```
-src/plugin.json              id, includes (nav pages), routes (rum/* -> rumApiUrl)
+src/plugin.json              id, includes (nav pages), routes (rum/* -> rumApiUrl + Authorization header)
 src/module.tsx               AppPlugin root + config page
-src/api/                     rum-api types and fetch client (getBackendSrv through the proxy)
+src/api/                     rum-api types and fetch client (getBackendSrv through the proxy; 401 -> unauthorized)
+src/components/AppConfig     configuration page (rumApiUrl, readToken SecretInput, Test connection)
+src/components/ApiErrorAlert one banner per failed call; dedicated wording + settings link on 401
 src/components/              TimeRangeBar, HealthTiles, VersionTable, SessionsTable, Timeline,
-                             TracesTable, ReplayPlayer (rrweb-player), ReplayMarkers, StatusBadge, ...
+                             TracesTable, ReplayPlayer (rrweb-player), FramePlayer, ReplayMarkers, ...
 src/pages/                   Overview, Sessions, SessionDetail
 src/utils/format.ts          percentages, durations, relative times (tested)
 src/utils/markers.ts         replay marker positioning / seek / active-event math (tested)
@@ -52,5 +121,5 @@ src/utils/timerange.ts       URL <-> Grafana TimeRange
 .config/                     webpack, jest, tsconfig, eslint from @grafana/create-plugin 7.12.1
 ```
 
-See `kb/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, rrweb-player float,
-browser cache after rebuild, sandbox).
+See `kb/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, secureJsonData handling,
+rrweb-player float, browser cache after rebuild, sandbox).

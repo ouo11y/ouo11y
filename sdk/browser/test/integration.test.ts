@@ -51,7 +51,7 @@ function attrs(list: Attr[] | undefined): Record<string, unknown> {
 
 function logRecords() {
   const out: Array<{ eventName: string; attributes: Record<string, unknown>; resource: Record<string, unknown> }> = [];
-  for (const c of captured.filter((c) => c.url.endsWith("/v1/logs"))) {
+  for (const c of captured.filter((c) => c.url === "http://localhost:8090/v1/logs")) {
     const body = c.body as { resourceLogs: Array<{ resource: { attributes: Attr[] }; scopeLogs: Array<{ logRecords: Array<{ eventName: string; attributes: Attr[] }> }> }> };
     for (const rl of body.resourceLogs) {
       for (const sl of rl.scopeLogs) {
@@ -64,7 +64,7 @@ function logRecords() {
 
 function spans() {
   const out: Array<{ name: string; attributes: Record<string, unknown>; traceId: string; spanId: string }> = [];
-  for (const c of captured.filter((c) => c.url.endsWith("/v1/traces"))) {
+  for (const c of captured.filter((c) => c.url === "http://localhost:8090/v1/traces")) {
     const body = c.body as { resourceSpans: Array<{ scopeSpans: Array<{ spans: Array<{ name: string; attributes: Attr[]; traceId: string; spanId: string }> }> }> };
     for (const rs of body.resourceSpans) for (const ss of rs.scopeSpans) for (const s of ss.spans) out.push({ ...s, attributes: attrs(s.attributes) });
   }
@@ -72,6 +72,9 @@ function spans() {
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const PROJECT_ID = "web-store";
+const PROJECT_TOKEN = "pt_test_integration_0000";
+const BASIC = "Basic " + Buffer.from(`${PROJECT_ID}:${PROJECT_TOKEN}`).toString("base64");
 
 let rum: RUM & { _uninstall?: () => Promise<void> };
 
@@ -87,8 +90,9 @@ beforeAll(() => {
   }) as unknown as typeof fetch;
 
   rum = initRUM({
-    endpoint: "http://localhost:4328",
-    replayEndpoint: "http://localhost:8090",
+    endpoint: "http://localhost:8090/", // not :4318, so replay derives to the same base (ADR-0007 section 6)
+    projectId: PROJECT_ID,
+    projectToken: PROJECT_TOKEN,
     service: { name: "web-store", version: "1.4.2", environment: "test" },
     tracing: { propagateTo: [/^http:\/\/localhost:8082/] },
     replay: { enabled: true, maskAllInputs: true, flushIntervalMs: 200 },
@@ -230,6 +234,24 @@ describe("initRUM end to end (jsdom, stubbed fetch)", () => {
     expect(rum.session.userId()).toBe("user-42");
   });
 
+  it("every OTLP export goes to the collector /v1/{traces,logs} with the Basic credential, and ingest requests are not traced (ADR-0007)", async () => {
+    await rum.flush();
+    const traces = captured.filter((c) => c.url === "http://localhost:8090/v1/traces");
+    const logs = captured.filter((c) => c.url === "http://localhost:8090/v1/logs");
+    expect(traces.length).toBeGreaterThan(0);
+    expect(logs.length).toBeGreaterThan(0);
+    for (const c of [...traces, ...logs]) {
+      expect(c.headers["authorization"], c.url).toBe(BASIC);
+      expect(c.headers["x-ouo-project-token"]).toBeUndefined();
+      expect(c.headers["content-type"]).toBe("application/json");
+      expect(c.url).not.toContain(PROJECT_TOKEN);
+    }
+    // Nothing went to the revision-1 rum-api gateway paths.
+    expect(captured.some((c) => c.url.includes("/ingest/otlp/"))).toBe(false);
+    // The export requests themselves never become spans (ignoreUrls + fetch.__original).
+    for (const s of spans()) expect(String(s.attributes["url.full"] ?? "")).not.toContain("localhost:8090");
+  });
+
   it("every log record and span carries session.id (case 7)", () => {
     const id = rum.session.id();
     const records = logRecords();
@@ -248,6 +270,8 @@ describe("initRUM end to end (jsdom, stubbed fetch)", () => {
     expect(chunks[0]!.headers["x-ouo-session-id"]).toBe(rum.session.id());
     expect(chunks[0]!.headers["x-ouo-seq"]).toBe("0");
     expect(chunks[0]!.headers["content-encoding"]).toBe("gzip");
+    expect(chunks[0]!.headers["authorization"]).toBe(BASIC);
+    expect(chunks[0]!.headers["x-ouo-project-token"]).toBeUndefined();
     expect(rum.replay.isRecording()).toBe(true);
     rum.replay.pause();
     expect(rum.replay.isRecording()).toBe(false);

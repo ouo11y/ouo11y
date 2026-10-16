@@ -9,12 +9,29 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
 )
 
-// postChunk accepts one SDK chunk (rrweb or frames), gzip or plain JSON.
+// ProjectIDHeader carries the project the collector authenticated (ADR-0007
+// 2 and 5): the replay exporter sets it from the chunk's `ouo.project.id`.
+const ProjectIDHeader = "X-Ouo-Project-Id"
+
+// projectIDRe matches a project id: lower-case letters, digits, `.`, `_`
+// and `-`, at most 64 chars, not starting with punctuation. It is recorded
+// in meta.json and used as a metric attribute, so it is kept simple.
+var projectIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+
+// ValidProjectID reports whether id is acceptable in X-Ouo-Project-Id.
+func ValidProjectID(id string) bool { return projectIDRe.MatchString(id) }
+
+// postChunk is the internal replay sink (ADR-0007 5): the collector's
+// `ouoreplay` exporter posts one chunk (rrweb or frames), gzip or plain
+// JSON, with X-Ouo-Project-Id and, when OUO_INGEST_TOKEN is set, the bearer.
+// Checks in order: Content-Length against the frames limit (413), bearer
+// (401), project id (400), then the body.
 //
 // Size limits: the body is read up to the frames limit (8 MiB by default)
 // because the kind is only known after decompression. A chunk above the
@@ -22,6 +39,25 @@ import (
 // kind peek runs only for those oversized bodies.
 func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 	limit := s.opts.MaxFrameChunkBytes
+	if r.ContentLength > limit {
+		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("chunk larger than %d bytes", limit))
+		return
+	}
+	if s.opts.IngestToken != "" && !bearerMatches(r.Header.Get("Authorization"), s.opts.IngestToken) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="ouo-rum-api"`)
+		writeError(w, http.StatusUnauthorized, "ingest token required")
+		return
+	}
+	projectID := strings.TrimSpace(r.Header.Get(ProjectIDHeader))
+	switch {
+	case projectID == "":
+		writeError(w, http.StatusBadRequest, "missing "+ProjectIDHeader+" header")
+		return
+	case !ValidProjectID(projectID):
+		writeError(w, http.StatusBadRequest, "invalid "+ProjectIDHeader+" header")
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -63,24 +99,31 @@ func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chunk, err := s.store.Put(r.Context(), body, gzBody)
+	chunk, err := s.store.Put(r.Context(), projectID, body, gzBody)
 	if err != nil {
 		switch {
 		case errors.Is(err, replay.ErrInvalid):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, replay.ErrWrongKind):
 			writeError(w, http.StatusConflict, err.Error())
+		case errors.Is(err, replay.ErrWrongProject):
+			writeError(w, http.StatusForbidden, err.Error())
 		default:
 			slog.Error("store chunk", "error", err)
 			writeError(w, http.StatusInternalServerError, "store chunk")
 		}
 		return
 	}
+	s.metrics.stored(r.Context(), projectID, int64(len(body)))
 	if h := r.Header.Get("X-Ouo-Session-Id"); h != "" && h != chunk.SessionID {
 		slog.Warn("x-ouo-session-id header differs from body", "header", h, "body", chunk.SessionID)
 	}
+	if h := r.Header.Get("X-Ouo-Seq"); h != "" && h != fmt.Sprint(chunk.Seq) {
+		slog.Warn("x-ouo-seq header differs from body", "header", h, "body", chunk.Seq)
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"accepted":   true,
+		"project_id": projectID,
 		"session_id": chunk.SessionID,
 		"kind":       chunk.Kind,
 		"seq":        chunk.Seq,

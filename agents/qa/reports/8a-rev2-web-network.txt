@@ -1,0 +1,32 @@
+Phase 8a rev 2, examples/web network log (Claude browser pane, CDP), session b652aad5-3a16-43e5-9cfe-5b738f3464b5
+Vite :5174 with VITE_OTLP_ENDPOINT=http://localhost:4330, VITE_OUO_REPLAY_ENDPOINT=http://localhost:4331 (temporary
+override, see bug list), VITE_OUO_PROJECT_ID=demo, VITE_OUO_PROJECT_TOKEN=pt_dev_demo_..., VITE_BACKEND_URL=http://localhost:8083.
+
+Init line (console): [ouo] @ouo/browser@0.2.0 initialised {endpoint: http://localhost:4330, replayEndpoint: http://localhost:4331,
+  traces: http://localhost:4330/v1/traces, logs: http://localhost:4330/v1/logs, replay: http://localhost:4331/v1/replay/chunks, ...}
+
+Ingest requests over the whole walk (storefront, product, add to cart, full reload /cart, checkout ord-000001,
+chaos 500, uncaught error, custom event, flush x2, navigation to Grafana):
+  OPTIONS http://localhost:4330/v1/logs           1 x 204   (cached by Access-Control-Max-Age 7200 afterwards, also across reloads)
+  OPTIONS http://localhost:4330/v1/traces         1 x 204
+  OPTIONS http://localhost:4331/v1/replay/chunks  1 x 204
+  POST    http://localhost:4330/v1/logs|traces    20 x 200
+  POST    http://localhost:4331/v1/replay/chunks  10 x 202 (+ keepalive unload chunks, see 8a-rev2-unload-keepalive.txt)
+  any non-2xx on 4330/4331: 0
+  requests to :8090 (rum-api): 0 (urlPattern "8090" -> "No requests matching")
+  requests to /ingest/* or with X-Ouo-Project-Token: 0
+
+Headers (fetch wrapped in the page for inspection; the pane's network log does not expose request headers):
+  POST http://localhost:4330/v1/logs           Authorization: Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
+  POST http://localhost:4330/v1/traces         Authorization: Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
+  POST http://localhost:4331/v1/replay/chunks  Authorization: Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw, content-encoding gzip, x-ouo-seq
+  (the collector answers 401 without that header, so every 200/202 above also proves it)
+
+Grafana (same tab, later): every plugin read went to http://localhost:3002/api/plugin-proxy/ouo-rum-app/rum/v1/...
+  stats/health 200, sessions?status=crashed&service=web-store 200, sessions/b652aad5... 200, sessions/b652aad5.../replay/events 200.
+
+rum-api (read token): status crashed, crash_count 2 (React dev double report, known), trace_count 24-27, has_replay true,
+  replay_kind rrweb, 14 chunks seq 0..13, meta.json project_id demo; timeline has add_to_cart, checkout_submitted,
+  http.request.failed, 2 x exception. Tempo trace c5a500dd033764d9b08c2e6d3dd95806 (checkout POST): web-store resource
+  ouo.project.id=demo, demo-backend resource ouo.project.id=demo (5 spans: POST /api/checkout, inventory.lookup,
+  db.query, payment.charge, db.query). Failed trace ca86e66df436ee50928668f306bab4c4 (POST ?fail=500) has_error.

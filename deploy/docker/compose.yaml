@@ -1,9 +1,23 @@
-# ouo local observability stack (Phase 1).
+# ouo local observability stack.
 # Start:  docker compose -f deploy/docker/compose.yaml up -d
 # Stop:   docker compose -f deploy/docker/compose.yaml down
 # Reset:  docker compose -f deploy/docker/compose.yaml down -v
 # See deploy/README.md for ports and verification. Host ports can be overridden
 # with OUO_*_PORT variables (deploy/docker/.env, see .env.example).
+#
+# Phase 8a (ADR-0007, revised): the custom OpenTelemetry Collector distribution
+# (ouo-collector, built from ../../collector) is the ONLY internet-facing ingest.
+# Browsers, phones and any OTel SDK post OTLP to :4318 and replay chunks to :4319
+# with HTTP Basic credentials `<project id>:<project token>` checked against
+# collector/projects.htpasswd. The collector stamps ouo.project.id, rate-limits,
+# forwards telemetry to Tempo / Loki / Mimir and replay chunks to rum-api.
+# rum-api, Loki, Tempo, Mimir and the demo backend are internal services; their
+# host ports below exist for the laptop only (deploy/vm/compose.tls.yaml re-binds
+# them to 127.0.0.1, Kubernetes gives them ClusterIP Services).
+#
+# Development tokens: the OUO_INGEST_TOKEN / OUO_READ_TOKEN defaults below and the
+# demo project line in collector/projects.htpasswd are public and only acceptable
+# on a laptop. deploy/vm/install.sh generates random ones for a server install.
 
 name: ouo
 
@@ -19,6 +33,10 @@ services:
       GF_USERS_DEFAULT_THEME: dark
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo-rum-app
       GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo-rum-app
+      # Read by grafana/provisioning/plugins/ouo-rum-app.yaml (secureJsonData.readToken):
+      # the plugin's route proxy adds `Authorization: Bearer <token>` to every rum-api
+      # call, so the token never reaches the browser. Must equal rum-api's OUO_READ_TOKEN.
+      OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
@@ -66,15 +84,37 @@ services:
       - ./mimir/config.yaml:/etc/mimir/config.yaml:ro
       - mimir-data:/data
 
+  # ouo-collector (ADR-0007): the edge. Custom distribution built with ocb from
+  # ../../collector (upstream otlp receiver + basicauth + our ouoreplay receiver /
+  # exporter and ouoratelimit processor). Config and the htpasswd project registry
+  # are bind-mounted from ./collector (owned by the collector agent):
+  #   projects.htpasswd  one line per project: `<project id>:{SHA}<base64 sha1(token)>`
+  #                      (htpasswd -nbs <id> <token>; cheap hash on purpose, the token
+  #                      is public). Add a line per project, two lines to rotate.
+  # Ports: 4318 (OTLP/HTTP) and 4319 (replay receiver, POST /v1/replay/chunks) are
+  # published on all interfaces: they ARE the public ingest. 4317 gRPC and the
+  # health port stay on loopback for backend development on this host.
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.160.0
+    build:
+      context: ../../collector
+    image: ouo/collector
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
-      - "${OUO_OTLP_GRPC_PORT:-4317}:4317"   # OTLP gRPC
-      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"   # OTLP HTTP (CORS enabled for browsers)
-      - "${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133" # health_check extension
+      - "127.0.0.1:${OUO_OTLP_GRPC_PORT:-4317}:4317"           # OTLP gRPC (loopback only)
+      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"                     # OTLP/HTTP, Basic auth, CORS (public)
+      - "${OUO_REPLAY_PORT:-4319}:4319"                        # replay receiver, Basic auth, CORS (public)
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"  # health_check extension (loopback only)
+    environment:
+      # Shared secret the ouoreplay exporter sends to rum-api as
+      # `Authorization: Bearer ...`; must equal rum-api's OUO_INGEST_TOKEN.
+      OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
+      # Browser origins allowed by CORS on 4318 and 4319 (comma separated, no spaces).
+      OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+      # Per-client rate-limit key: address, or x_forwarded_for behind a reverse proxy.
+      OUO_RATELIMIT_CLIENT_KEY: ${OUO_RATELIMIT_CLIENT_KEY:-address}
     volumes:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./collector/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
     depends_on:
       - loki
       - tempo
@@ -87,19 +127,29 @@ services:
       - "${OUO_BACKEND_PORT:-8081}:8081"
     environment:
       PORT: "8081"
+      # In-network OTLP to the collector with the demo project's Basic credential
+      # (base64 of "demo:pt_dev_demo_0000000000000000"). Every OTLP client needs it,
+      # trusted or not; `%20` is the OTLP env-var encoding of the space.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: demo-backend
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
+      # The demo API is called by the browser directly, so it keeps its own CORS.
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     depends_on:
       - otel-collector
 
-  # rum-api (Phase 3): replay chunk storage, session folding over Loki,
-  # trace search over Tempo, JSON API for the Grafana plugin.
+  # rum-api (Phase 3 + 8a): INTERNAL service. Replay chunk sink for the collector's
+  # ouoreplay exporter (POST /v1/replay/chunks with X-Ouo-Project-Id + bearer),
+  # session folding over Loki, trace search over Tempo, JSON API for the Grafana
+  # plugin (read token). It has no OTLP endpoints and no project registry.
   rum-api:
     build:
       context: ../../services/rum-api
+    # Laptop convenience only (curl the read API, e2e assertions). Production never
+    # exposes rum-api: deploy/vm/compose.tls.yaml re-binds this to 127.0.0.1 and the
+    # Helm chart gives it a ClusterIP Service. SDKs never talk to it.
     ports:
       - "${OUO_RUM_API_PORT:-8080}:8080"
     environment:
@@ -112,8 +162,14 @@ services:
       DATA_DIR: /data
       SESSION_INACTIVITY: 30m
       SESSION_MAX_DURATION: 4h
-      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      # --- ADR-0007 secrets (both are SECRET, unlike the public project token) ---------
+      # Bearer the collector's replay exporter must present on POST /v1/replay/chunks.
+      OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
+      # Bearer that unlocks GET/DELETE /v1/* (Grafana's plugin proxy injects it).
+      OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+      # rum-api's own telemetry, through the collector like everybody else (demo credential).
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: rum-api
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local

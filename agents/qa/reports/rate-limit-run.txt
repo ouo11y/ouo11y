@@ -1,0 +1,2 @@
+{"url":"http://localhost:4330/v1/logs","n":400,"elapsed_ms":158,"counts":{"200":307,"429":93},"retry_after_values":["1"],"first429":{"s":429,"ra":"1","body":"{\"code\":8, \"message\":\"rate limit exceeded for client \\\"192.168.65.1\\\", retry after 1s\", \"details\":[{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\", \"retryDelay\":\"1s\"}]}"}}
+{"recovery":[{"after_s":1,"status":200,"retry_after":null},{"after_s":2,"status":200,"retry_after":null},{"after_s":3,"status":200,"retry_after":null},{"after_s":4,"status":200,"retry_after":null}]}

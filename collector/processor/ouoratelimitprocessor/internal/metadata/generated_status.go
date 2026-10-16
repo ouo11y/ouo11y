@@ -1,0 +1,18 @@
+// Package metadata holds the component type and stability (hand-written in
+// the mdatagen shape, see ../../metadata.yaml).
+package metadata
+
+import "go.opentelemetry.io/collector/component"
+
+var (
+	// Type is the component type used in collector configs: processors.ouoratelimit.
+	Type = component.MustNewType("ouoratelimit")
+	// ScopeName is the instrumentation scope of the processor's own telemetry.
+	ScopeName = "github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor"
+)
+
+const (
+	TracesStability  = component.StabilityLevelAlpha
+	MetricsStability = component.StabilityLevelAlpha
+	LogsStability    = component.StabilityLevelAlpha
+)

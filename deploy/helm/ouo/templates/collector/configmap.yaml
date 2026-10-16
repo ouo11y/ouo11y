@@ -1,0 +1,174 @@
+{{- if .Values.collector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ouo.collector.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "collector") | nindent 4 }}
+data:
+  config.yaml: |
+    {{- if .Values.collector.configOverride }}
+    {{- .Values.collector.configOverride | nindent 4 }}
+    {{- else }}
+    # Mirrors deploy/docker/collector/config.yaml (reference config of the ouo collector
+    # distribution, collector/) with the backend URLs, limits and the rum-api sink taken
+    # from values (ADR-0007). Ports:
+    #   4318 OTLP/HTTP  public  Basic auth (project id : project token), CORS
+    #   4319 replay     public  Basic auth, CORS, POST /v1/replay/chunks
+    #   4317 OTLP/gRPC  cluster-internal Service only, same Basic auth
+    #   13133 health, 8888 self-metrics: cluster-internal Service only
+    # Environment (set by the Deployment):
+    #   OUO_INGEST_TOKEN          bearer the ouoreplay exporter sends to rum-api
+    #   OUO_ALLOWED_ORIGINS       comma-separated CORS origins (collector.allowedOrigins)
+    #   OUO_RATELIMIT_CLIENT_KEY  address, or x_forwarded_for behind the Ingress
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      # htpasswd rendered from `projects` into the Secret {{ include "ouo.collector.projectsSecretName" . }}.
+      basicauth/server:
+        htpasswd:
+          file: /etc/otelcol/projects.htpasswd
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+            include_metadata: true
+            auth:
+              authenticator: basicauth/server
+          http:
+            endpoint: 0.0.0.0:4318
+            include_metadata: true
+            max_request_body_size: {{ .Values.collector.limits.otlpMaxBodyBytes | int64 }}
+            auth:
+              authenticator: basicauth/server
+            cors:
+              allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+              allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
+              exposed_headers: [Retry-After]
+              max_age: 7200
+      ouoreplay:
+        endpoint: 0.0.0.0:4319
+        include_metadata: true
+        max_request_body_size: {{ .Values.collector.limits.replayMaxBodyBytes | int64 }}
+        auth:
+          authenticator: basicauth/server
+        cors:
+          allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+          allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
+          exposed_headers: [Retry-After]
+          max_age: 7200
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: {{ .Values.collector.memoryLimiter.limitMib }}
+        spike_limit_mib: {{ .Values.collector.memoryLimiter.spikeLimitMib }}
+      # Token buckets per project (auth.username) and per client; over the limit the
+      # receivers answer 429 + Retry-After. Buckets are per pod.
+      ouoratelimit:
+        project:
+          rate: {{ .Values.collector.rateLimit.project.requestsPerSecond | int64 }}
+          burst: {{ .Values.collector.rateLimit.project.burst | int64 }}
+        client:
+          rate: {{ .Values.collector.rateLimit.client.requestsPerSecond | int64 }}
+          burst: {{ .Values.collector.rateLimit.client.burst | int64 }}
+          key_from: ${env:OUO_RATELIMIT_CLIENT_KEY:-address}
+        idle_timeout: 10m
+      # ouo.project.id = authenticated username, overwriting whatever the client sent.
+      resource/project:
+        attributes:
+          - key: ouo.project.id
+            action: delete
+          - key: ouo.project.id
+            from_context: auth.username
+            action: upsert
+      batch:
+        timeout: {{ .Values.collector.batch.timeout }}
+        send_batch_size: {{ .Values.collector.batch.sendBatchSize }}
+        send_batch_max_size: {{ .Values.collector.batch.sendBatchMaxSize }}
+      transform/events:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+              - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+
+    exporters:
+      otlp_grpc/tempo:
+        endpoint: {{ include "ouo.tempoOtlpGrpcEndpoint" . }}
+        tls:
+          insecure: true
+        {{- include "ouo.tenantHeaders" . | nindent 8 }}
+      otlp_http/loki:
+        endpoint: {{ include "ouo.lokiOtlpUrl" . }}
+        tls:
+          insecure: true
+        {{- include "ouo.tenantHeaders" . | nindent 8 }}
+      otlp_http/mimir:
+        endpoint: {{ include "ouo.mimirOtlpUrl" . }}
+        tls:
+          insecure: true
+        {{- include "ouo.tenantHeaders" . | nindent 8 }}
+      # Replay chunks -> rum-api's internal sink (X-Ouo-Project-Id, X-Ouo-Session-Id,
+      # X-Ouo-Seq and the ingest bearer).
+      ouoreplay:
+        endpoint: {{ include "ouo.rumApiInternalUrl" . }}
+        ingest_token: ${env:OUO_INGEST_TOKEN}
+        timeout: 30s
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 5m
+      debug:
+        verbosity: basic
+
+    service:
+      extensions: [health_check, basicauth/server]
+      telemetry:
+        logs:
+          level: info
+        # Self-metrics (otelcol_*, ouo_ratelimit_rejected_total, ouo_replay_chunks_total):
+        # pushed to Mimir every 15 s and pullable on :8888 through the internal Service.
+        metrics:
+          level: normal
+          readers:
+            - periodic:
+                interval: 15000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: {{ include "ouo.mimirOtlpUrl" . }}/v1/metrics
+                    {{- if and (eq .Values.lgtm.mode "external") .Values.lgtm.external.tenantId }}
+                    headers:
+                      - name: X-Scope-OrgID
+                        value: {{ .Values.lgtm.external.tenantId | quote }}
+                    {{- end }}
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, ouoratelimit, resource/project, batch]
+          exporters: [otlp_grpc/tempo]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, ouoratelimit, resource/project, transform/events, batch]
+          exporters: [otlp_http/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, ouoratelimit, resource/project, batch]
+          exporters: [otlp_http/mimir]
+        logs/replay:
+          receivers: [ouoreplay]
+          processors: [memory_limiter, ouoratelimit]
+          exporters: [ouoreplay]
+    {{- end }}
+{{- end }}

@@ -1,0 +1,154 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ouo.grafana.fullname" . }}
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "grafana") | nindent 4 }}
+spec:
+  replicas: {{ .Values.grafana.replicas }}
+  strategy:
+    # SQLite on a ReadWriteOnce volume: never two Grafana pods on the same database.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ouo.selectorLabels" (dict "root" . "component" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ouo.selectorLabels" (dict "root" . "component" "grafana") | nindent 8 }}
+        {{- with .Values.grafana.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/datasources: {{ include (print $.Template.BasePath "/grafana/configmap-datasources.yaml") . | sha256sum }}
+        checksum/plugins: {{ include (print $.Template.BasePath "/grafana/configmap-plugins.yaml") . | sha256sum }}
+        {{- if not .Values.grafana.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/grafana/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.grafana.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.grafana.podSecurityContext | nindent 8 }}
+      initContainers:
+        # The data volume is mounted over /var/lib/grafana and would hide the plugin the
+        # image ships in /var/lib/grafana/plugins. Copy it onto the volume on every start
+        # so an image upgrade also upgrades the plugin.
+        - name: install-plugin
+          image: {{ include "ouo.image" .Values.grafana.image }}
+          imagePullPolicy: {{ .Values.grafana.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /pvc/plugins
+              rm -rf /pvc/plugins/ouo-rum-app
+              cp -a /var/lib/grafana/plugins/ouo-rum-app /pvc/plugins/ouo-rum-app
+              echo "ouo-rum-app $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /pvc/plugins/ouo-rum-app/plugin.json | head -1) installed"
+          volumeMounts:
+            - name: data
+              mountPath: /pvc
+      containers:
+        - name: grafana
+          image: {{ include "ouo.image" .Values.grafana.image }}
+          imagePullPolicy: {{ .Values.grafana.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.grafana.secretName" . }}
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.grafana.secretName" . }}
+                  key: admin-password
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: {{ .Values.grafana.anonymousEnabled | quote }}
+            - name: GF_USERS_DEFAULT_THEME
+              value: {{ .Values.grafana.defaultTheme | quote }}
+            - name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS
+              value: ouo-rum-app
+            - name: GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS
+              value: ouo-rum-app
+            {{- $rootUrl := "" }}
+            {{- if .Values.grafana.rootUrl }}{{ $rootUrl = .Values.grafana.rootUrl }}
+            {{- else if .Values.grafana.ingress.enabled }}{{ $rootUrl = printf "%s://%s" (ternary "https" "http" .Values.grafana.ingress.tls.enabled) .Values.grafana.ingress.host }}{{ end }}
+            {{- with $rootUrl }}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ . | quote }}
+            {{- end }}
+            # Expanded by the plugin provisioning file (secureJsonData.readToken).
+            - name: OUO_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: read-token
+                  optional: true
+            {{- range $k, $v := .Values.grafana.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- with .Values.grafana.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            {{- if .Values.grafana.datasources.enabled }}
+            - name: provisioning-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            {{- end }}
+            - name: provisioning-plugins
+              mountPath: /etc/grafana/provisioning/plugins
+              readOnly: true
+          {{- with .Values.grafana.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.grafana.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.grafana.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.grafana.persistence.existingClaim | default (include "ouo.grafana.fullname" .) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.grafana.datasources.enabled }}
+        - name: provisioning-datasources
+          configMap:
+            name: {{ include "ouo.grafana.fullname" . }}-datasources
+        {{- end }}
+        - name: provisioning-plugins
+          configMap:
+            name: {{ include "ouo.grafana.fullname" . }}-plugins
+      {{- with .Values.grafana.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.grafana.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.grafana.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

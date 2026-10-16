@@ -5,6 +5,10 @@ import OuoReplay
 /// Options passed by `initRUM({ replay })` through `start(endpoint, options)`.
 struct StartOptions: Record {
   @Field var sessionId: String = ""
+  /// Project credential (ADR-0007): the uploader sends `Authorization: Basic base64(projectId:projectToken)`
+  /// on every chunk request. JS validates both first.
+  @Field var projectId: String = ""
+  @Field var projectToken: String = ""
   @Field var frameInterval: Double = 1.0
   @Field var maskText: Bool = true
   @Field var maskInputs: Bool = true
@@ -34,12 +38,19 @@ public class OuoReplayModule: Module {
       guard let url = URL(string: endpoint) else {
         throw Exception(name: "ERR_OUO_REPLAY_ENDPOINT", description: "invalid replay endpoint: \(endpoint)")
       }
+      let projectId = options.projectId.trimmingCharacters(in: .whitespacesAndNewlines)
+      let token = options.projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !projectId.isEmpty, !token.isEmpty else {
+        throw Exception(name: "ERR_OUO_REPLAY_CREDENTIAL", description: "projectId and projectToken are required (ADR-0007); the collector rejects uploads without Authorization: Basic base64(projectId:projectToken)")
+      }
       if !options.sessionId.isEmpty {
         self.sessionId.set(options.sessionId)
       }
       let box = self.sessionId
       OuoReplay.start(OuoReplayConfig(
         endpoint: url,
+        projectId: projectId,
+        projectToken: token,
         sessionId: { box.get() },
         frameInterval: options.frameInterval,
         maskText: options.maskText,
