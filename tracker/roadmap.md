@@ -120,6 +120,8 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 - [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
 
+- [x] Runtime rollout Sentry → ouo per device (2026-10-17) [OpenFeature flag `ouo.rum.mode` (`sentry` via the bridge, `parallel` Sentry direct + ouo replay off, `ouo` only), decided per cold start, sticky device bucket, resource attribute `ouo.rum.mode` (SDK `resource` option, bridge stamps `sentry`); flagd over OFREP; three cohorts verified on the simulator (`examples/sentry-mobile/ROLLOUT.md`, `kb/openfeature-rum-mode.md`). Open: rum-api filter by cohort]
+
 ### Bridge parity gaps (sentry-demo, 2026-10-17)
 
 From the bridge vs ouo SDK comparison (`agents/sentry-demo/reports/bridge-vs-sdk.html`, `kb/sentry-bridge-vs-ouo-sdk.md`): each item is data Sentry already sends that the bridge drops or misreads. Not started. Effort in engineer-days including tests and a golden capture.

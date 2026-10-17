@@ -169,6 +169,7 @@ const rum: RUM = initRUM({
   session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
   user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional
+  resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
   errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000 },
   storage: AsyncStorageLike,       // optional, defaults to @react-native-async-storage/async-storage
   debug: false,
@@ -242,7 +243,7 @@ has none yet (XHR would join two into one invalid header); `baggage` is merged.
 
 The SDK runs in an app that keeps `@sentry/react-native`, the way an APM agent and an
 OpenTelemetry SDK can run side by side while a team moves over. Verified on the iOS Simulator
-with `examples/sentry-mobile` built with `OUO_SDK=1` (@sentry/react-native 8.30.0, Hermes).
+with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-native 8.30.0, Hermes).
 
 1. **Initialise ouo after Sentry** and forward unhandled rejections to it:
 
@@ -277,6 +278,9 @@ with `examples/sentry-mobile` built with `OUO_SDK=1` (@sentry/react-native 8.30.
 5. Two independent sessions (ouo's rules and Sentry's), two replays when both record (about twice
    the capture cost), two uploads. Do not also point Sentry's DSN at the ouo collector's Sentry
    bridge while both SDKs run: ouo would get every session twice.
+6. **Rolling out per device**: `examples/sentry-mobile/ROLLOUT.md` picks Sentry, both, or ouo
+   with an OpenFeature flag at each cold start (never mid-session) and tags each cohort with
+   `resource: { "ouo.rum.mode": ... }`.
 
 ## Events (OTel log records, `event.name`)
 
@@ -288,7 +292,8 @@ with `examples/sentry-mobile` built with `OUO_SDK=1` (@sentry/react-native 8.30.
 and `service.version`. Resource: `service.name`, `service.version`,
 `deployment.environment.name`, `ouo.platform`, `os.name`, `os.version`,
 `device.model.identifier`, `device.model.name`, `device.manufacturer`, `ouo.sdk.name`,
-`ouo.sdk.version`.
+`ouo.sdk.version`, plus the app's `resource` attributes (for example the rollout cohort
+`ouo.rum.mode`, `examples/sentry-mobile/ROLLOUT.md`).
 
 ## Development
 

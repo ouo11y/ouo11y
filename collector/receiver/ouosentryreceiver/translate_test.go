@@ -264,7 +264,8 @@ func TestTranslateJourney(t *testing.T) {
 	ld := x.logs.AllLogs()[1]
 	res := ld.ResourceLogs().At(0).Resource().Attributes().AsRaw()
 	if res["service.name"] != "mobile-store-ios" || res["service.version"] != "2.3.0" || res["ouo.app.build"] != "45" || res["ouo.platform"] != "mobile" ||
-		res["os.name"] != "iOS" || res["device.model.identifier"] != "iPhone18,1" || res["deployment.environment.name"] != "production" || res["telemetry.sdk.name"] != "sentry.cocoa" {
+		res["os.name"] != "iOS" || res["device.model.identifier"] != "iPhone18,1" || res["deployment.environment.name"] != "production" || res["telemetry.sdk.name"] != "sentry.cocoa" ||
+		res["ouo.rum.mode"] != "sentry" {
 		t.Errorf("resource: %+v", res)
 	}
 	for _, p := range x.logs.projects {

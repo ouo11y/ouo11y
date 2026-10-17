@@ -70,7 +70,11 @@ spans and logs. The ouo SDK itself misses:
 
 ## How to rerun
 
-- `examples/sentry-mobile` build flags: `OUO_SDK=1`, `OUO_REPLAY=0|1`, `SENTRY_DSN`, `BACKEND_URL`,
+- `examples/sentry-mobile` build flags (since PR #23 the rollout flag replaced `OUO_SDK` and `OUO_REPLAY`):
+  `OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=parallel`, and `SENTRY_DIRECT_DSN` set to the **bridge** DSN:
+  `parallel` normally sends Sentry straight to Sentry, and this comparison deliberately sends both SDKs into
+  ouo. ouo replay on (runs 1 and 3) is an `OUO_PERF=1` build with `Documents/perf-mode.json`
+  `{"mode":"parallel","ouoReplay":true}` (`examples/sentry-mobile/README.md`). Also `BACKEND_URL`,
   `OUO_OTLP_ENDPOINT`, `OUO_REPLAY_ENDPOINT`.
 - Use your own simulator (`xcrun simctl create`) and your own DSN port, so parallel sessions do not collide.
 - Tap points for the 402x874 Home screen are in the report's "Reproduce" section. The status line grows to two

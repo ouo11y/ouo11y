@@ -8,12 +8,19 @@
 // can compare them with the process start time from the kernel. A no-op in other builds.
 import { File, Paths } from "expo-file-system";
 import { config } from "./config";
+import { usesOuo, usesSentry, type Launch } from "./rollout";
 
 const jsStartMs = Date.now();
 let firstFrameMs: number | null = null;
 let frames = 0;
 let last = 0;
 let maxDt = 0;
+let launchMode: { mode: string; sentry: boolean; ouo: boolean; ouoReplay: boolean } | null = null;
+
+/** The SDK mix this launch runs (index.ts), recorded in perf.json. */
+export function setPerfLaunch(l: Launch): void {
+  launchMode = { mode: l.mode, sentry: usesSentry(l.mode), ouo: usesOuo(l.mode), ouoReplay: usesOuo(l.mode) && l.ouoReplay };
+}
 const hist: Record<number, number> = {};
 
 function tick(now: number): void {
@@ -34,7 +41,7 @@ function write(): void {
     if (!f.exists) f.create();
     f.write(
       JSON.stringify({
-        mode: { sentry: config.sentry, ouo: config.ouoSdk, ouoReplay: config.ouoReplay },
+        mode: launchMode,
         jsStartMs,
         firstFrameMs,
         writtenMs: Date.now(),
