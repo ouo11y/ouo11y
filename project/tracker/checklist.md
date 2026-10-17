@@ -10,13 +10,13 @@ Blockers marked **[founder]** need an answer or an account from the founder.
 
 ## 0. In flight
 
-- [ ] PR #23 OpenFeature rollout (`ouo.rum.mode`): being rebased onto main with #24's navigation wiring and #25's perf harness; merge when green.
+- [x] PR #23 OpenFeature rollout (`ouo.rum.mode`): rebased onto main with #24's navigation wiring and #25's perf harness; merged 2026-10-17.
 
 ## 1. Before parallel work resumes (do while nothing else is running)
 
 - [x] B5 Repo organisation: ADR, then one mechanical move (product code by component, user docs under `docs/`, agent/process material under one folder, link checker in CI). Layout approved by the founder 2026-10-17; done in batch 0 ([ADR-0010](../../docs/adr/0010-repository-layout.md)): process material under `project/`, `deploy/docker` is `deploy/compose`, one `docs/releasing.md`, CI job `links`.
 - [ ] B2 Named local environments (`ouo-env`, `<service>.<env>.ouo.localhost`, `gc` on merge, login admin / testing567). Every task below starts a stack. **Built 2026-10-17** (`deploy/envs/ouo-env`, [README](../../deploy/envs/README.md), [kb](../kb/ouo-env.md)): proxy, `up/down/ls/gc/url/env`, tests, AGENTS.md rule, verified on `sbx` (smoke + e2e) and a gc run. Open: migrate the founder's `ouo` stack into `main` (needs the founder's OK to stop it), and the stopped projects whose volumes remain (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): delete their volumes only on the founder's word.
-- [ ] N1 Tracker hygiene left after this consolidation: roadmap 8a row (PR #14 merged, VM / publish / upgrade items still open), the Phase 12 line duplicating S1 to S4, the Sentry bridge section's PR status (#16, #17), the release summary "no tag pushed" (0.2.0 tags exist), stale "blocked: Xcode" and "review" rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers, and root `CHANGELOG.md` listing the plugin at 0.3.0 while it is 0.6.0. Done after #23 merges, since #23 also edits `roadmap.md`.
+- [x] N1 Tracker hygiene [done 2026-10-17 in batch 0: roadmap 8a row (#14, open items named), Phase 12 bridge line points at the bridge section, bridge section PR status (#16, #17, #23), release summary and changelogs record the 0.2.0 tags, stale Xcode / review rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers resolved with their PRs, root `CHANGELOG.md` plugin 0.6.0 and image versions]. Was: Tracker hygiene left after this consolidation: roadmap 8a row (PR #14 merged, VM / publish / upgrade items still open), the Phase 12 line duplicating S1 to S4, the Sentry bridge section's PR status (#16, #17), the release summary "no tag pushed" (0.2.0 tags exist), stale "blocked: Xcode" and "review" rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers, and root `CHANGELOG.md` listing the plugin at 0.3.0 while it is 0.6.0. Done after #23 merges, since #23 also edits `roadmap.md`.
 
 ## 2. Sentry path: client-ready bridge (P0)
 
@@ -41,12 +41,12 @@ Correctness first, then context, then UI. Effort from the gap report.
 - [ ] C7 Logs panel renders the ouo exception line as `session_previous_id=…`
 - [ ] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it
 - [ ] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel`
-- [ ] N2 Real sentry.io upstream run: the bridge has only forwarded to a fake Sentry so far. **[founder]** DSN of a throwaway sentry.io project.
-- [ ] N3 Supported Sentry SDK range: capture `@sentry/react-native` ~7.11 (Expo default, cocoa 8.58) next to 8.30, plus a native-only iOS app; golden tests per version. **[founder]** which versions the prospects run.
-- [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **[founder]** do the prospects ship Android?
+- [ ] N2 Real Sentry upstream run: the bridge has only forwarded to a fake Sentry so far. **Changed by the founder 2026-10-17:** not a sentry.io run. Self-host Sentry in its own named environment, with a Sentry MCP pointing at it, then point the bridge's upstream at it. Another session is doing this now (outside the repo, running the released images).
+- [ ] N3 Supported Sentry SDK range. **Founder 2026-10-17:** the prospects' platforms are unknown for now; assume React Native on iOS, Android later. Now: test the bridge against the current major `@sentry/react-native` (8.x; 8.30 captured) with golden tests per captured version. Medium term: native `sentry-cocoa` and `sentry-java` apps. Older majors (~7.11, the Expo default with cocoa 8.58) only if a prospect turns out to run one.
+- [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **Founder 2026-10-17:** assume the prospects add Android later; medium term, after the iOS React Native path (with N3's native sentry-java work).
 - [ ] N4 Receiver state is in memory, so the bridge runs as one replica only. Document it for pilots now; shared state later (Phase 11).
 - [ ] N5 Client setup notes: `propagateTraceparent: true` + `tracePropagationTargets` for backend correlation (needs an app release on their side); a `beforeBreadcrumb` filter if ouo runs alongside; never demo the bridge in parallel mode (ouo owns `traceparent`). C9 (~30 s duration difference) goes in the same notes.
-- [ ] B8 Pitch kit: "point your DSN at ouo" one-pager, hosted demo env, one-page comparison built from the gap report and the device-cost numbers. **[founder]** where the hosted demo lives.
+- [ ] B8 Pitch kit: "point your DSN at ouo" one-pager, hosted demo env, one-page comparison built from the gap report and the device-cost numbers. **[founder]** where the hosted demo lives: still open (2026-10-17).
 
 ## 3. ouo SDK: earn the path-1 upgrade (P1)
 
@@ -58,7 +58,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] G4 Timeline parity: tap targets with component names, app lifecycle, successful requests
 - [ ] G5 Device model without app code; trace id on errors; in-app frames and stable stack paths (no per-install container paths)
 - [ ] G6 Forward `Sentry.captureException` errors when both SDKs run (parallel mode)
-- [ ] N6 iOS replay capture holds the main thread for ~49 ms (Sentry ~18.5 ms): move scaling and encoding off the main thread in `sdk/ios`. This is the main risk before anyone runs ouo replay in production.
+- [ ] N6 iOS replay capture holds the main thread for ~49 ms (Sentry ~18.5 ms, both on the simulator): move scaling and encoding off the main thread in `sdk/ios`. This is the main risk before anyone runs ouo replay in production. Measure before and after on the founder's iPhone 16 Pro Max (founder 2026-10-17: prefer it over the simulator for every performance number).
 - [ ] N7 Rerun parallel replays: once, Sentry's replay stopped after 41 s while ouo's ran (not reproduced)
 - [ ] N8 rum-api and plugin filter sessions and health by `ouo.rum.mode` cohort (needed to compare cohorts from #23)
 - [ ] N9 Rollout edge from #23: a device that moves to `ouo` never sends sentry-cocoa's cached session end or a pending native crash; document it or flush before switching
@@ -68,7 +68,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 
 ## 4. Benchmark and releases (P1)
 
-- [ ] B3 Fair, repeatable device-cost benchmark ouo vs latest stable Sentry, per major SDK release, regression blocks the release. Builds on the PR #25 harness. Needs a real iPhone run (xctrace Activity Monitor, LAN proxy, CADisplayLink hitch monitor). **[founder]** a physical device.
+- [ ] B3 Fair, repeatable device-cost benchmark ouo vs latest stable Sentry, per major SDK release, regression blocks the release. Builds on the PR #25 harness. Real-device run on the founder's iPhone 16 Pro Max, available since 2026-10-17 and preferred over the simulator for every performance number (xctrace Activity Monitor, LAN proxy, CADisplayLink hitch monitor; LAN-IP ingest ports from `ouo-env url <env> --lan`).
 - [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** npm org, `ouo-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
 - [ ] B7 Supply chain: Renovate, govulncheck / npm audit / Trivy, SECURITY.md, provenance
 - [ ] N11 rum-api CI: use a `services: minio` block instead of pulling `pgsty/minio` in the test
@@ -82,7 +82,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] 8c Self-observability dashboards, alert rules, backup / restore drill, runbook
 - [ ] 8d Five-minute demo recording, security questionnaire answers and data-flow diagram, pilot contract templates
 - [ ] N13 Collector: auth-failure counter (401s invisible in Mimir, R2-3); empty OTLP requests bypass `ouoratelimit`; an `internal` project for rum-api's own telemetry; tag component modules (now `v0.0.0` + replace)
-- [ ] N14 Token rotation: basicauth 0.160 cannot overlap tokens, but ADR-0007 promises an overlap. **[founder]** build a multi-token authenticator, or change the ADR to cut-over only.
+- [ ] N14 Token rotation: basicauth 0.160 cannot overlap tokens, but ADR-0007 promises an overlap. **Deferred by the founder 2026-10-17:** keep it as is and address it later (multi-token authenticator or a cut-over-only ADR change, decided then).
 - [ ] N15 QA not exercised live: per-project bucket and quota, `key_from: x_forwarded_for`, foreign-origin CORS from a real browser, a stock OTel SDK with `OTEL_EXPORTER_OTLP_HEADERS`, plugin Viewer role, `background` end reason
 - [ ] N16 Docs drift: `examples/fast-tracked/00-stack.md`, `project/kb/rrweb-chunking.md`, `project/kb/ios-replay.md` may still describe rum-api as the ingest gateway or replay sink; fast-tracked guides never run end to end by a fresh reader
 - [ ] 8a exit criterion: a non-founder installs from docs on fresh Kubernetes and a fresh VM, resolves a staged incident, verifies retention and deletion, restores from backup
@@ -94,15 +94,24 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] rum-api: Tempo paging beyond 1000, read-side project scoping, cache `meta.json` per session in `decorateReplay`
 - [ ] Phase 9 release health (version comparison, regression alerts) and public benchmark site with the other competitors (Datadog, Faro, OpenReplay)
 - [ ] Phase 10 Android replay, Phase 11 scale and multi-project, Phase 12 migration kit, Phase 13 native SDKs, AI investigation experiment
+- [ ] N17 Platform coverage (founder 2026-10-17): compare Sentry's SDK platform list with ouo's (browser, React Native, iOS replay today) and add each missing platform as a later phase. Long term: one ouo SDK spec with a conformance suite (Phase 13.0), implemented per platform in roadmap order.
+
+## Founder decisions
+
+Recorded 2026-10-17:
+
+- (a) **ADR-0008 accepted** (2026-10-17). It was implemented and merged in #16 and #17; only the status line lagged.
+- (b) **Prospect platforms unknown for now.** Assume React Native on iOS, Android later. Bridge tested against the current major `@sentry/react-native` now, native `sentry-cocoa` and `sentry-java` medium term (N3, B6). Long term one ouo SDK spec with a conformance suite, implemented in roadmap order; compare Sentry's platform list with ouo's and add what is missing as later phases (N17).
+- (c) **N2 changed:** self-hosted Sentry in its own named environment with a Sentry MCP pointing at it, not sentry.io. Another session is doing it now.
+- (d) **Token rotation (N14) deferred:** kept as is, addressed later.
+- (e) **The founder's iPhone 16 Pro Max is available:** preferred over the simulator for every performance number (B3, N6).
+- (f) **Hosted demo (B8):** still open.
+- (g) **F4 verdict pending:** the demo is being re-run.
+- Repo layout for B5 approved (ADR-0010).
 
 ## Decisions waiting on the founder
 
-1. Prospects: React Native or native, which `@sentry/*` versions, Android or not (N3, B6).
-2. A throwaway sentry.io DSN for the real-upstream run (N2).
-3. Accept ADR-0008 (Sentry bridge; still "proposed" although merged).
-4. ~~Approve the repo layout for B5.~~ Approved 2026-10-17 (ADR-0010).
-5. Package publishing: npm org, `ouo-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
-6. A physical iPhone for B3 and N6.
-7. Where the hosted demo for B8 lives.
-8. Token rotation: multi-token authenticator or cut-over only (N14).
-9. Verdict on the F4 unmasked Sentry recordings (marked ready for review on 2026-10-14; no verdict recorded).
+1. Package publishing: npm org, `ouo-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
+2. Where the hosted demo for B8 lives.
+3. Verdict on the F4 unmasked Sentry recordings (pending; the demo is being re-run).
+4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).
