@@ -9,6 +9,7 @@ interface Extra {
   backendUrl: string;
   sentryDebug: boolean;
   ouoSdk: boolean;
+  ouoReplay: boolean;
   ouoOtlpEndpoint: string;
   ouoReplayEndpoint: string;
   ouoProjectId: string;
@@ -17,8 +18,6 @@ interface Extra {
   perfModes: boolean;
   /** Sentry.init runs (false only in a perf-mode launch "ouo only"). */
   sentry: boolean;
-  /** ouo session replay (only read when ouoSdk). */
-  ouoReplay: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -31,13 +30,13 @@ export const config: Extra = {
   backendUrl: extra.backendUrl ?? "http://localhost:8082",
   sentryDebug: extra.sentryDebug ?? false,
   ouoSdk: extra.ouoSdk ?? false,
+  ouoReplay: extra.ouoReplay ?? true,
   ouoOtlpEndpoint: extra.ouoOtlpEndpoint ?? "http://localhost:4338",
   ouoReplayEndpoint: extra.ouoReplayEndpoint ?? "http://localhost:4339",
   ouoProjectId: extra.ouoProjectId ?? "demo",
   ouoProjectToken: extra.ouoProjectToken ?? "pt_dev_demo_0000000000000000",
   perfModes: extra.perfModes ?? false,
   sentry: true,
-  ouoReplay: extra.ouoReplay ?? true,
 };
 
 // Overhead measurement (scripts/perf/run.sh): one binary, the SDK mix chosen per launch by
