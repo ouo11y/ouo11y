@@ -20,14 +20,19 @@ import (
 
 // Attribute names (docs/specs/session-lifecycle.md, docs/specs/sentry-bridge.md).
 const (
-	attrEventName      = "event.name"
-	attrSessionID      = "session.id"
-	attrUserID         = "user.id"
-	attrPlatform       = "ouo.platform"
-	attrProjectID      = "ouo.project.id"
-	attrSessionMatch   = "ouo.sentry.session_match"
-	attrSentrySDK      = "ouo.sentry.sdk"
-	platformMobile     = "mobile"
+	attrEventName    = "event.name"
+	attrSessionID    = "session.id"
+	attrUserID       = "user.id"
+	attrPlatform     = "ouo.platform"
+	attrProjectID    = "ouo.project.id"
+	attrSessionMatch = "ouo.sentry.session_match"
+	attrSentrySDK    = "ouo.sentry.sdk"
+	platformMobile   = "mobile"
+	// attrRUMMode is the rollout cohort (examples/sentry-mobile/ROLLOUT.md): everything the
+	// bridge translates was recorded by the Sentry SDK, so it is always "sentry". The ouo SDK
+	// sets "parallel" or "ouo" itself.
+	attrRUMMode        = "ouo.rum.mode"
+	rumModeSentry      = "sentry"
 	scopeName          = "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
 	maxSyntheticErrors = 100
 )
@@ -285,6 +290,7 @@ func (t *translation) buildResource(items []decodedItem) {
 	}
 	res.PutStr(attrPlatform, platformMobile)
 	res.PutStr(attrProjectID, p.OuoProjectID)
+	res.PutStr(attrRUMMode, rumModeSentry)
 	if osName != "" {
 		res.PutStr("os.name", osName)
 	} else if t.os != "" {

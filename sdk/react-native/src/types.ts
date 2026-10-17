@@ -123,6 +123,12 @@ export interface RUMOptions {
   session?: SessionOptions;
   user?: UserOptions;
   device?: DeviceOptions;
+  /**
+   * Extra resource attributes on every span and log record, for example the rollout cohort
+   * `{ "ouo.rum.mode": "parallel" }`. Prefix your own keys with `ouo.`. The SDK's attributes
+   * (`service.*`, `ouo.platform`, `ouo.sdk.*`, `os.*`, `device.*`) win on a clash.
+   */
+  resource?: Attrs;
   errors?: ErrorOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;

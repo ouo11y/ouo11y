@@ -51,6 +51,7 @@ func (r *sentryReceiver) emitBreadcrumbs(ctx context.Context, j job, seg *replay
 		resource.PutStr("service.name", j.project.ServiceName)
 		resource.PutStr(attrPlatform, platformMobile)
 		resource.PutStr(attrProjectID, j.project.OuoProjectID)
+		resource.PutStr(attrRUMMode, rumModeSentry)
 	}
 	t := &translation{r: r, j: j, resource: resource, sdkName: seg.sdkName}
 	did := ""

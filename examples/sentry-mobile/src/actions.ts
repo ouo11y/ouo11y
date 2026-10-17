@@ -2,6 +2,7 @@
 // (`sentrydemo://action/<name>`, see src/deeplinks.ts). Names are the deep-link path.
 import { startNewTrace } from "@sentry/core";
 import * as Sentry from "@sentry/react-native";
+import * as monitoring from "./monitoring";
 import { addToCart, type Cart, checkout, getCart, getProduct, getProducts, searchProducts, xhrGet } from "./api";
 import { setStatus } from "./status";
 
@@ -127,15 +128,16 @@ export const actions: Record<ActionName, { title: string; run: () => void | Prom
       try {
         throw new Error("sentry-demo handled error: coupon service unavailable");
       } catch (e) {
-        const id = Sentry.captureException(e, { tags: { "demo.action": "handled-error" } });
-        setStatus(`handled-error: event ${id.slice(0, 8)}`);
+        const id = monitoring.captureException(e, { "demo.action": "handled-error" });
+        setStatus(`handled-error: ${id ? `event ${id.slice(0, 8)}` : "reported"}`);
       }
     },
   },
   "unhandled-rejection": {
     title: "Unhandled rejection",
     run: () => {
-      // Non-fatal: RN's promise rejection tracking hands it to Sentry, the app keeps running.
+      // Non-fatal: Hermes' rejection tracker hands it to the SDK initialised last (ouo, which
+      // forwards it to Sentry, or Sentry alone), the app keeps running.
       void Promise.reject(new Error("sentry-demo unhandled promise rejection"));
       setStatus("unhandled-rejection: rejected a promise");
     },
@@ -163,8 +165,8 @@ export const actions: Record<ActionName, { title: string; run: () => void | Prom
     title: "Breadcrumb + message",
     run: () => {
       Sentry.addBreadcrumb({ category: "demo", message: "user opened the promo sheet", level: "info", data: { promo: "AUTUMN" } });
-      const id = Sentry.captureMessage("sentry-demo custom message: promo sheet opened", "info");
-      setStatus(`message: event ${id.slice(0, 8)}`);
+      const id = monitoring.captureMessage("sentry-demo custom message: promo sheet opened", { promo: "AUTUMN" });
+      setStatus(`message: ${id ? `event ${id.slice(0, 8)}` : "reported"}`);
     },
   },
   "browse-catalog": { title: "Browse catalog (5 requests)", run: browseCatalog },
@@ -183,7 +185,7 @@ export const actions: Record<ActionName, { title: string; run: () => void | Prom
   flush: {
     title: "Flush",
     run: async () => {
-      const ok = await Sentry.flush();
+      const ok = await monitoring.flush();
       setStatus(`flush: ${ok ? "done" : "timed out"}`);
     },
   },

@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 /**
  * sentry-demo: an Expo app instrumented ONLY with @sentry/react-native, used to generate real Sentry
  * SDK traffic (sentry-cocoa + RN JS layer, mobile Session Replay) for the ouo Sentry bridge
- * (ADR-0008, docs/specs/sentry-bridge.md). No ouo SDK here.
+ * (ADR-0008, docs/specs/sentry-bridge.md), and to show the runtime rollout from Sentry to ouo.
  *
  * Build-time environment:
  *   SENTRY_DSN   DSN the SDK sends to. Default points at a local recorder / ouosentry receiver on
@@ -11,11 +11,25 @@ import type { ExpoConfig } from "expo/config";
  *   BACKEND_URL  demo backend (examples/backend). Default: the main compose stack on :8082.
  *   APP_VERSION  release version, BUILD_NUMBER the build: release = sentry-demo@<version>+<build>.
  *   SENTRY_DEBUG=1 turns on the SDK debug logger (JS and native).
- *   OUO_SDK=1    parallel mode: @ouo/react-native runs next to Sentry (initialised after it, see
- *                index.ts and src/ouo.ts), exporting to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT
- *                (default the isolated ouo-sb collector: 4338 and 4339).
+ *   Rollout (ROLLOUT.md, src/rollout.ts): the OpenFeature flag `ouo.rum.mode` picks, per device and
+ *   per cold start, `sentry` (Sentry through the bridge DSN SENTRY_DSN), `parallel` (Sentry straight
+ *   to SENTRY_DIRECT_DSN + ouo, ouo replay off) or `ouo` (ouo only).
+ *     OUO_FLAG_PROVIDER  `ofrep` (default; flagd's OFREP API at OUO_FLAG_URL, default :8016) or
+ *                        `memory` (no server; the variant is OUO_RUM_MODE).
+ *     OUO_FLAG_TIMEOUT_MS  first-launch wait for the flag (default 1500), then OUO_DEFAULT_MODE
+ *                        (default `sentry`).
+ *   ouo exports to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT (default the isolated ouo-sb
+ *   collector: 4338 and 4339).
  * Values are baked into the JS bundle (Release build), so rebuild after changing them.
  */
+const modes = ["sentry", "parallel", "ouo"];
+const mode = (v: string | undefined, fallback: string): string => {
+  if (v === undefined || v === "") return fallback;
+  if (!modes.includes(v)) throw new Error(`rum mode must be one of ${modes.join(", ")}, got ${v}`);
+  return v;
+};
+if (process.env.OUO_SDK) throw new Error("OUO_SDK was replaced by the runtime rollout: see ROLLOUT.md (OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=parallel)");
+
 const version = process.env.APP_VERSION ?? "1.0.0";
 const buildNumber = process.env.BUILD_NUMBER ?? "1";
 
@@ -50,7 +64,12 @@ const config: ExpoConfig = {
     environment: process.env.SENTRY_ENVIRONMENT ?? "development",
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8082",
     sentryDebug: process.env.SENTRY_DEBUG === "1",
-    ouoSdk: process.env.OUO_SDK === "1",
+    sentryDirectDsn: process.env.SENTRY_DIRECT_DSN ?? "http://publickey0000000000000000000000@localhost:4401/1",
+    defaultMode: mode(process.env.OUO_DEFAULT_MODE, "sentry"),
+    flagProvider: process.env.OUO_FLAG_PROVIDER === "memory" ? "memory" : "ofrep",
+    flagUrl: process.env.OUO_FLAG_URL ?? "http://localhost:8016",
+    flagTimeoutMs: Number(process.env.OUO_FLAG_TIMEOUT_MS ?? 1500),
+    flagMemoryMode: mode(process.env.OUO_RUM_MODE, "sentry"),
     ouoOtlpEndpoint: process.env.OUO_OTLP_ENDPOINT ?? "http://localhost:4338",
     ouoReplayEndpoint: process.env.OUO_REPLAY_ENDPOINT ?? "http://localhost:4339",
     ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",

@@ -53,6 +53,7 @@ Every record and span produced from one envelope gets:
 | `ouo.sentry.release` | the raw release |
 | `deployment.environment.name` (resource) | `environment` |
 | `ouo.platform` | `mobile` |
+| `ouo.rum.mode` (resource) | always `sentry`: the rollout cohort recorded by the Sentry SDK (`examples/sentry-mobile/ROLLOUT.md`); the ouo SDK sets `parallel` or `ouo` |
 | `os.name`, `os.version` (resource) | `contexts.os.name`, `contexts.os.version` |
 | `device.model.identifier` (resource) | `contexts.device.model` |
 | `telemetry.sdk.name`, `telemetry.sdk.version` (resource) | envelope `sdk.name`, `sdk.version`, else event `sdk` |

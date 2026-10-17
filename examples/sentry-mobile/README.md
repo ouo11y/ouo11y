@@ -1,7 +1,8 @@
 # sentry-demo (examples/sentry-mobile)
 
-Expo (React Native) iOS app instrumented **only** with `@sentry/react-native` (no ouo SDK). It
-exists to generate real Sentry mobile SDK traffic (sentry-cocoa native layer plus the RN JS
+Expo (React Native) iOS app instrumented with `@sentry/react-native` and, depending on the
+rollout flag, `@ouo/react-native` ("Rollout modes" below). It exists to generate real Sentry
+mobile SDK traffic (sentry-cocoa native layer plus the RN JS
 layer, including mobile Session Replay) for the ouo Sentry bridge (ADR-0008,
 `docs/specs/sentry-bridge.md`). Knowledge and gotchas: `kb/sentry-react-native-demo.md`.
 
@@ -77,6 +78,7 @@ plugin changes from this checkout: build from source instead by leaving
 | `APP_VERSION`, `BUILD_NUMBER` | `1.0.0`, `1`: release `sentry-demo@1.0.0+1`, dist `1` |
 | `SENTRY_ENVIRONMENT` | `development` |
 | `SENTRY_DEBUG=1` | SDK debug logging (JS and native), off by default |
+| rollout variables | see "Rollout modes" below |
 
 The values are baked into the embedded JS bundle, so rebuild after a change.
 
@@ -94,21 +96,45 @@ and CocoaPods. `ios/` is generated and gitignored. `pod install` downloads the p
 `Sentry.xcframework` from the sentry-cocoa GitHub release (cached in
 `~/Library/Caches/sentry-react-native/`).
 
-## Parallel mode: ouo SDK next to Sentry (`OUO_SDK=1`)
+## Rollout modes: Sentry, both, or ouo, picked at runtime
 
-Built with `OUO_SDK=1`, the app also runs `@ouo/react-native` (`file:` link to
-`../../sdk/react-native`, Metro rules in `metro.config.js`), the way an app on Sentry adopts
-ouo: `src/ouo.ts` is imported after `src/sentry.ts` (index.ts), forwards unhandled rejections to
-Sentry, and exports to the isolated `ouo-sb` collector (`OUO_OTLP_ENDPOINT`, default :4338;
-`OUO_REPLAY_ENDPOINT`, default :4339) as service `sentry-demo-ouo`. Sentry's tracing skips the
-ouo uploads (`shouldCreateSpanForRequest`). The action `xhr-cart` calls the backend through a
-raw `XMLHttpRequest` (axios' transport in React Native). Without the flag the ouo SDK is linked
-but never started. Findings: `kb/ouo-next-to-sentry.md`.
+The OpenFeature flag `ouo.rum.mode` decides at each cold start which SDK records
+(`src/rollout.ts`, `index.ts`; the client-facing guide is [ROLLOUT.md](ROLLOUT.md)):
+
+| Mode | What runs |
+|---|---|
+| `sentry` | Sentry only, DSN `SENTRY_DSN` (the ouo bridge) |
+| `parallel` | Sentry with DSN `SENTRY_DIRECT_DSN` (straight to Sentry, never the bridge) + `@ouo/react-native` with replay off, initialised after Sentry, forwarding unhandled rejections to Sentry |
+| `ouo` | `@ouo/react-native` only, replay on; `Sentry.init` is never called |
+
+A new flag value applies at the next launch (each launch stores the flag's answer for the
+next one); only the first launch after install waits for the flag (`OUO_FLAG_TIMEOUT_MS`,
+default 1500), then falls back to `OUO_DEFAULT_MODE` (`sentry`). The decision and the device's
+bucketing id live in `Documents/ouo-rum-mode.json`; the status line shows
+`rum mode <mode> (<stored|flag|default>)`. ouo records carry the resource attribute
+`ouo.rum.mode`, Sentry events the tag `ouo.rum.mode`; the bridge stamps `ouo.rum.mode = sentry`.
+ouo exports as service `sentry-demo-ouo` to `OUO_OTLP_ENDPOINT` / `OUO_REPLAY_ENDPOINT`.
+`src/monitoring.ts` sends the app's own `captureException`, `captureMessage` and `flush` calls to
+whichever SDKs run. Findings: `kb/openfeature-rum-mode.md`, `kb/ouo-next-to-sentry.md`.
+
+| Variable | Default |
+|---|---|
+| `OUO_FLAG_PROVIDER` | `ofrep` (flagd or any OFREP server at `OUO_FLAG_URL`, default `http://localhost:8016`); `memory` pins `OUO_RUM_MODE` without a server |
+| `SENTRY_DIRECT_DSN` | `http://publickey0000000000000000000000@localhost:4401/1` (stands in for sentry.io) |
 
 ```bash
-OUO_SDK=1 BACKEND_URL=http://localhost:8084 scripts/build-ios.sh
-scripts/journey.sh --no-background --no-crash --shop-rounds 1
+docker compose -p ouo-flagd -f flags/compose.yaml up -d      # flagd with flags/ouo-rum-mode.flagd.json
+SENTRY_DSN=http://publickey0000000000000000000000@localhost:4340/1 BACKEND_URL=http://localhost:8084 scripts/build-ios.sh
+# one cohort: pin the mode in a copy of the flag file flagd reads, two launches, short journey
+scripts/rollout-journey.sh --mode parallel --flags-file <flagd json> [--fresh]
+scripts/verify-rollout.py --mode parallel --start <start> --end <end> --sentry-capture <sentrytap dir>
 ```
+
+`verify-rollout.py` expects the Sentry upstream of the bridge and `SENTRY_DIRECT_DSN` to be the
+same sentrytap capture (what sentry.io would receive), and checks Sentry, Loki, Tempo and rum-api
+for the cohort. Quick local test without flagd: `OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=ouo
+scripts/build-ios.sh`. The former build flag `OUO_SDK=1` is gone (the build fails with a pointer
+here); `parallel` is what it did.
 
 ## Capture and journey
 

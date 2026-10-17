@@ -1,6 +1,6 @@
 import { defaultResource, resourceFromAttributes, type Resource } from "@opentelemetry/resources";
 import { Platform } from "react-native";
-import type { DeviceOptions, ServiceOptions } from "../types";
+import type { Attrs, DeviceOptions, ServiceOptions } from "../types";
 import { SDK_NAME, SDK_VERSION } from "../version";
 import { PLATFORM } from "./correlation";
 
@@ -32,8 +32,9 @@ export function deviceAttributes(device: DeviceOptions = {}): Record<string, str
   return attrs;
 }
 
-export function buildResource(service: ServiceOptions, device: DeviceOptions = {}): Resource {
+export function buildResource(service: ServiceOptions, device: DeviceOptions = {}, extra: Attrs = {}): Resource {
   const attrs: Record<string, string | number | boolean> = {
+    ...extra,
     "service.name": service.name,
     "service.version": service.version,
     "deployment.environment.name": service.environment,
@@ -42,6 +43,6 @@ export function buildResource(service: ServiceOptions, device: DeviceOptions = {
     "ouo.sdk.version": SDK_VERSION,
     ...deviceAttributes(device),
   };
-  // Order: telemetry.sdk.* defaults < our explicit attributes.
+  // Order: telemetry.sdk.* defaults < app attributes (`resource`) < the SDK's own attributes.
   return defaultResource().merge(resourceFromAttributes(attrs));
 }
