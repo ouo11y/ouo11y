@@ -467,7 +467,7 @@ span under the browser span; both carry `session.id` and `user.id` attributes.
 
 ### Grafana
 
-Open http://localhost:3000 (admin / admin). The ouo RUM app plugin is at:
+Open http://localhost:3000 (admin / testing567). The ouo RUM app plugin is at:
 
 - Overview, `http://localhost:3000/a/ouo-rum-app/overview`: healthy / errored / crashed
   percentages per platform and app version, from `GET /v1/stats/health`.
