@@ -28,6 +28,15 @@ git filter-repo --force --path docs/business/ --path reports/roadmap.html --path
 
 List every path the files ever had (`git log --follow --name-only --format= -- <file> | sort -u`) and pass each with `--path`, or the history before a move is lost. Relative links into the old repo become URLs. Removing the files from the product repo afterwards does not remove them from its history (checklist N20).
 
+## History purge (purging material from every commit, 2026-10-18)
+
+1. Scan every blob and commit message on all refs of a `git clone --mirror`, not just `main`: a Python loop over `git rev-list --all --objects` into `git cat-file --batch`, regexes for names, amounts and business words. Skip false positives by hand: base64 images match short names (a client name hit inside a PNG data URL), the demo storefront has prices, shell scripts have `$1`.
+2. Delete `refs/pull/*` in the mirror first (GitHub rejects pushes to them; they are read-only).
+3. `git filter-repo --invert-paths --paths-from-file paths.txt --replace-text replacements.txt --replace-message messages.txt`. Use literals that cannot occur in base64 (the hyphenated app name, not the bare client name). `regex:(?s)...(?=<h2 id="next">)==>` removes a whole HTML section; `regex:(?m)^- \[ \] line\n==>` removes a whole line. A commit that only touched removed paths is dropped; one that also touched other files survives, so check its message.
+4. Verify before pushing: no removed path in `git log --all --name-only`, no string in any blob or message, every tag present, `main`'s path list identical to before and content changed only in the redacted files.
+5. Push with `--force-with-lease=<ref>:<old sha>` for main and each tag, then delete merged branches instead of force-pushing them. Free private repos have no branch protection to lift.
+6. What stays: `refs/pull/*/head` on GitHub (only Support purges them), PR descriptions, image `revision` labels, every local clone and worktree until `reflog expire` + `gc --prune=now`. Branches with unpushed work: `git rebase --onto origin/main "$(git merge-base HEAD <old main>)"`.
+
 ## Verifying
 
 `go test ./...` per module (rum-api's S3 tests need MinIO: run `pgsty/minio` yourself and set `OUO_TEST_S3_ENDPOINT` when Docker Hub pulls time out), `npm run build/test --workspaces`, `node --test deploy/envs/*.test.mjs`, `npm pack --dry-run` for both SDKs, the ocb build plus `validate`, `swift build` and `sdk/ios/test.sh`, `helm lint`, lychee offline, then `ouo-env up`, `deploy/scripts/smoke.sh`, and the plugin's settings, proxy and `/a/<id>/overview` page under the new ID.

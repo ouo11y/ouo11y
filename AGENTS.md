@@ -11,7 +11,7 @@ ouo11y ("ouo" for short) is an OpenTelemetry-native Real User Monitoring platfor
 - Published identifiers say `ouo11y`, lowercase: `@ouo11y/browser`, `@ouo11y/react-native`, plugin ID `ouo11y-rum-app`, images `ghcr.io/ouo11y/{collector,grafana,rum-api}`, Go modules `github.com/ouo11y/ouo11y/...`, SwiftPM package `ouo11y-ios`.
 - Code keeps the short name `ouo`: the `ouo.` attribute prefix, the `ouosentry` / `ouoreplay` / `ouoratelimit` components, the Swift modules `OuoReplay` / `OuoReplayCore`, `OUO_*` variables, `ouo-env`, the Helm chart `ouo`. Do not rename these.
 - Three repos: `ouo11y/ouo11y` (this one, the product), `ouo11y/ouo11y-ios` (read-only mirror of `sdk/ios`, written only by `release-ios.yml`), `ouo11y/company` (always private).
-- Business material (pricing, product plan, go-to-market, prospects, pitch kit, contracts, client notes) goes to `ouo11y/company`, never here: this repo may be open-sourced. An engineering file states a business reason in one line and does not link to `company`.
+- Business material (pricing, product plan, go-to-market, prospects, pitch kit, contracts, client notes) goes to `ouo11y/company` only, never here, not even in a summary, report or commit message: this repo may be open-sourced, and its history was purged of business material on 2026-10-18 (checklist N21). An engineering file states a business reason in one line and does not link to `company`.
 
 ## Read first, every time
 
