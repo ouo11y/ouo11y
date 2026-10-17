@@ -35,6 +35,16 @@ Agents and the founder run stacks as named envs behind one proxy instead of raw
 published. See [envs/README.md](envs/README.md). The commands below are the plain compose path
 (single stack, host ports from `.env`), still used by CI, the VM install and the fast-tracked guides.
 
+## Self-hosted Sentry as the bridge's upstream (testing)
+
+The Sentry bridge (`ouosentry`, ADR-0008) can forward to a real Sentry on this Mac instead of a
+fake one: getsentry/self-hosted in `~/Desktop/personal/sentry-self-hosted`, compose project
+`sentry-sbx`, at https://sentry.ouo.localhost through the ouo-env proxy (http://localhost:9000
+direct; login `admin@ouo.localhost` / testing567). It needs about 14 GiB of Docker memory (Docker
+Desktop at 20 GB + swap). Point an env's bridge at it with `OUO_SENTRY_UPSTREAM=http://host.docker.internal:9000`,
+`OUO_SENTRY_PROJECT_ID` and `OUO_SENTRY_PUBLIC_KEY` of the Sentry project. Install, memory, the
+read-only Sentry MCP server and what the first run showed: [project/kb/sentry-self-hosted.md](../project/kb/sentry-self-hosted.md).
+
 ## Start, stop, reset
 
 ```bash

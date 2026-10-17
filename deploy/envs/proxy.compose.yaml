@@ -3,6 +3,11 @@
 # http://<service>.<env>.ouo.localhost (main: <service>.ouo.localhost) to the container.
 # *.localhost resolves to the loopback address in browsers, curl and Node without any
 # /etc/hosts edit. Dashboard: http://traefik.ouo.localhost.
+#
+# https on 443 for the external hosts (https://sentry.ouo.localhost, the self-hosted
+# Sentry; env routes stay http): ouo-env writes a local CA, the certificate and the file-provider
+# config to $OUO_ENV_STATE/proxy (default ~/.local/state/ouo-env/proxy) before it starts
+# this file, so start it through `ouo-env proxy up`, not plain `docker compose`.
 name: ouo-proxy
 
 services:
@@ -11,16 +16,23 @@ services:
     restart: unless-stopped
     command:
       - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=ouo-proxy
+      - --providers.file.filename=/etc/ouo-proxy/dynamic.yaml
+      - --providers.file.watch=true
       - --api.dashboard=true
       - --ping=true
       - --log.level=WARN
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${OUO_PROXY_DIR:?start the proxy with deploy/envs/ouo-env proxy up}:/etc/ouo-proxy:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # external hosts (lib.mjs EXTERNAL) on Linux too
     networks:
       - ouo-proxy
     labels:
