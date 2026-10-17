@@ -140,7 +140,7 @@ dist-tags for pre-releases are not automated: publish with `npm dist-tag` by han
 5. For a rum-api or chart release, run the upgrade procedure from the previous release on the
    compose path and record it in `project/agents/qa/`.
 
-### Next image release after the rename (proposed 2026-10-18, needs the founder's yes)
+### First release after the rename: 0.3.0 (prepared 2026-10-18)
 
 The 0.2.0 images exist only as `ghcr.io/ziadmansourm/ouo/{rum-api,collector,grafana}:0.2.0`, and
 grafana 0.2.0 carries the plugin as `ouo-rum-app`. Every pin in the repo now names
@@ -153,8 +153,10 @@ nothing until the next tags exist. Proposed:
 | `collector-v0.3.0` | the Unreleased `ouo.rum.mode = sentry` attribute (a feature) plus the rename; needs `builder.yaml` `dist.version: 0.3.0` first | `ghcr.io/ouo11y/collector:0.3.0`, `:0.3`, `:latest` |
 | `grafana-v0.3.0` | plugin 0.7.0 inside, whose ID change is breaking | `ghcr.io/ouo11y/grafana:0.3.0`, `:0.3`, `:latest` |
 
-Order: a release PR (move each Unreleased section under its version, `dist.version: 0.3.0`),
-then the three tags, then the pin bump in step 10 of section 6. Before the first push, the
+The release PR (2026-10-18) dated the 0.3.0 sections, set `dist.version: 0.3.0` and, unlike
+step 10 of section 6, already bumped the pins (compose, Helm 0.1.1, fast-tracked guide): the old
+pins named images that never existed under `ghcr.io/ouo11y`, so nothing works until the tags exist
+either way. Before the first push, the
 `ouo11y` org must allow `GITHUB_TOKEN` to create packages (Organization settings > Packages),
 and after it each new package needs its Read grants again (section 8): grants on the old
 `ziadmansourm/ouo/*` packages do not carry over. The old packages stay where they are; delete

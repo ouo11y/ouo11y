@@ -34,7 +34,7 @@ readToken: ""        # --set readToken=rt_...     (secret: Grafana -> rum-api)
 collector:
   image:
     repository: ghcr.io/ouo11y/collector
-    tag: "0.2.0"
+    tag: "0.3.0"
   # Union of every project's browser origins.
   allowedOrigins:
     - https://shop.example.com
@@ -53,7 +53,7 @@ collector:
 rumApi:
   image:
     repository: ghcr.io/ouo11y/rum-api
-    tag: "0.2.0"
+    tag: "0.3.0"
   persistence:
     size: 50Gi
     storageClass: ""           # cluster default
@@ -61,7 +61,7 @@ rumApi:
 grafana:
   image:
     repository: ghcr.io/ouo11y/grafana
-    tag: "0.2.0"
+    tag: "0.3.0"
   adminPassword: ""  # --set grafana.adminPassword=...  or grafana.existingSecret
   ingress:
     enabled: true

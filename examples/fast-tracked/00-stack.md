@@ -58,9 +58,9 @@ versions in `deploy/compose/.env.example`:
 
 | Image | Default version | Variable |
 |---|---|---|
-| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.2.0` | `OUO_COLLECTOR_VERSION` |
-| `ghcr.io/ouo11y/rum-api` | `0.2.0` | `OUO_RUM_API_VERSION` |
-| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in) | `0.2.0` | `OUO_GRAFANA_VERSION` |
+| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.3.0` | `OUO_COLLECTOR_VERSION` |
+| `ghcr.io/ouo11y/rum-api` | `0.3.0` | `OUO_RUM_API_VERSION` |
+| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in) | `0.3.0` | `OUO_GRAFANA_VERSION` |
 
 They come in through the override file `deploy/compose/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
@@ -152,9 +152,9 @@ OUO_RUM_API_PORT=8080
 # Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
 # everything is built from source.
 OUO_IMAGE_REGISTRY=ghcr.io/ouo11y
-OUO_RUM_API_VERSION=0.2.0
-OUO_COLLECTOR_VERSION=0.2.0
-OUO_GRAFANA_VERSION=0.2.0
+OUO_RUM_API_VERSION=0.3.0
+OUO_COLLECTOR_VERSION=0.3.0
+OUO_GRAFANA_VERSION=0.3.0
 # rum-api 0.2.0 reads deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
 # MinIO storage is the opt-in override compose.s3.yaml (both from the rum-api config PR #19).
 
@@ -228,7 +228,7 @@ echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 
 `GHCR_TOKEN` is the token in your shell (`export GHCR_TOKEN=...`, or read it from your
 password manager); never put it in `.env` or any file in the repo. Check it with
-`docker pull ghcr.io/ouo11y/rum-api:0.2.0`.
+`docker pull ghcr.io/ouo11y/rum-api:0.3.0`.
 
 No access yet? Use **Build from source** below: it needs no login, only the full checkout.
 

@@ -6,10 +6,21 @@ and the plugin version inside. Policy: `docs/releasing.md`.
 
 ## Unreleased
 
+## 0.3.0 (2026-10-18)
+
+First release under `ghcr.io/ouo11y/grafana` (ADR-0009). Base `grafana/grafana:13.2.1`, plugin
+`ouo11y-rum-app` 0.7.0 inside.
+
 ### Changed
 
 - Image `ghcr.io/ouo11y/grafana`; the plugin inside is `ouo11y-rum-app` (was `ouo-rum-app`), and
   `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`. Upgrading an existing Grafana: see the plugin changelog.
+
+### Compatibility
+
+- rum-api >= 0.2.0. Provisioning must enable `ouo11y-rum-app` (the repo's `deploy/compose/grafana/provisioning`
+  and the Helm chart do from 2026-10-18 on); a provisioning file that still names `ouo-rum-app` leaves the app
+  missing.
 
 ## 0.2.0 (2026-10-17)
 

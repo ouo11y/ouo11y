@@ -17,11 +17,9 @@
 # and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
-# Rename gap (ADR-0009, 2026-10-18): the 0.2.0 images were published only under the old path
-# ghcr.io/ziadmansourm/ouo/*, and grafana 0.2.0 carries the plugin under its old ID ouo-rum-app,
-# which ./grafana/provisioning no longer enables. So this file works again only once the next
-# tags (rum-api-v0.3.0, collector-v0.3.0, grafana-v0.3.0, proposed in docs/releasing.md) are
-# released and the pins below are bumped. Until then build from source (compose.yaml alone).
+# Pinned to 0.3.0, the first release under ghcr.io/ouo11y (ADR-0009). The 0.2.0 images exist only
+# under the old path ghcr.io/ziadmansourm/ouo/* and carry the plugin as ouo-rum-app, which
+# ./grafana/provisioning no longer enables; do not pin them here.
 #
 # Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
 # docs/releasing.md.
@@ -29,12 +27,12 @@
 services:
   otel-collector:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.3.0}
     pull_policy: missing
 
   rum-api:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.3.0}
     pull_policy: missing
     # rum-api 0.2.0 is the first release and includes the YAML config file + S3 / MinIO
     # replay storage (PR #19). Nothing rum-api specific is needed here: once #19 is merged,
@@ -47,7 +45,7 @@ services:
     # no baked ENV, so a mounted file is never overridden by image defaults.
 
   grafana:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.3.0}
     pull_policy: missing
     # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo11y-rum-app/dist.
     volumes: !override

@@ -50,7 +50,7 @@ readToken: ""
 rumApi:
   image:
     repository: ghcr.io/ouo11y/rum-api
-    tag: "0.2.0"
+    tag: "0.3.0"
     pullPolicy: IfNotPresent
   replicas: 1
   # Name of a pre-created Secret with keys `ingest-token` and `read-token`.
@@ -172,7 +172,7 @@ collector:
   enabled: true
   image:
     repository: ghcr.io/ouo11y/collector
-    tag: "0.2.0"
+    tag: "0.3.0"
     pullPolicy: IfNotPresent
   replicas: 1
   # Pre-created Secret with key `projects.htpasswd` (htpasswd lines, {SHA} or apr1,
@@ -257,7 +257,7 @@ grafana:
   enabled: true
   image:
     repository: ghcr.io/ouo11y/grafana
-    tag: "0.2.0"
+    tag: "0.3.0"
     pullPolicy: IfNotPresent
   replicas: 1
   adminUser: admin

@@ -78,7 +78,7 @@ npm install /absolute/path/to/ouo/sdk/browser
 ```
 
 Option B, install from a tarball. Verified with `npm pack --dry-run` in `sdk/browser`:
-the tarball is named `ouo-browser-0.2.0.tgz` and contains `dist/index.js`,
+the tarball is named `ouo11y-browser-0.2.0.tgz` and contains `dist/index.js`,
 `dist/index.d.ts`, the lazily loaded `dist/rrweb-*.js` chunk (plus source maps),
 `package.json`, `README.md`, `CHANGELOG.md` and `LICENSE` (614 kB packed, 9 files). Build the tarball inside the ouo repository:
 
@@ -89,7 +89,7 @@ npm pack -w sdk/browser --pack-destination /tmp
 Then install it in your app:
 
 ```bash
-npm install /tmp/ouo-browser-0.2.0.tgz
+npm install /tmp/ouo11y-browser-0.2.0.tgz
 ```
 
 Both methods also pull the `@opentelemetry/*`, `rrweb` and `web-vitals` packages listed in

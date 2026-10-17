@@ -118,13 +118,14 @@ contract between components. Versions are those of Phase 8a; nothing is tagged y
 
 | Component | Version | Needs rum-api | Needs Grafana | Notes |
 |---|---|---|---|---|
-| rum-api | 0.2.0 | n/a | 13.x for the plugin proxy; any for ingest | ADR-0007: project token on ingest, read token for the plugin; max replay `schema_version` 1 |
+| rum-api | 0.3.0 (same contract as 0.2.0) | n/a | 13.x for the plugin proxy; any for ingest | ADR-0007: project token on ingest, read token for the plugin; max replay `schema_version` 1 |
 | `@ouo11y/browser` | 0.2.0 | >= 0.2.0 | n/a | posts OTLP to rum-api `/ingest/otlp` with `X-Ouo-Project-Token`; 0.1.x posted to the collector directly and does not work behind the gateway |
 | `@ouo11y/react-native` | 0.2.0 | >= 0.2.0 | n/a | same gateway change; frames replay `schema_version` 1 |
 | `OuoReplay` (iOS) | 0.2.0 | >= 0.2.0 | n/a | project token on `POST /v1/replay/chunks` |
-| `ouo11y-rum-app` plugin | 0.3.0 | >= 0.2.0 | >= 13.0.0 (`grafanaDependency`) | read token in the plugin route; 0.2.x called rum-api unauthenticated and gets `401` from rum-api 0.2.0 |
-| grafana image | 0.2.0 | n/a | ships Grafana 13.2.1 + plugin 0.3.0 | |
-| Helm chart | 0.1.0 | `appVersion` 0.2.0 | | Kubernetes >= 1.25 |
+| `ouo11y-rum-app` plugin | 0.7.0 | >= 0.2.0 | >= 13.0.0 (`grafanaDependency`) | ID was `ouo-rum-app` up to 0.6.0: provisioning and the unsigned allow-list must name `ouo11y-rum-app` (plugin CHANGELOG 0.7.0). Read token in the plugin route since 0.3.0 |
+| grafana image | 0.3.0 | n/a | ships Grafana 13.2.1 + plugin 0.7.0 | 0.2.0 shipped plugin 0.6.0 as `ouo-rum-app`, under `ghcr.io/ziadmansourm/ouo/grafana` |
+| collector image | 0.3.0 | >= 0.2.0 (replay exporter) | n/a | `ouo.rum.mode = sentry` on bridged data; component names unchanged |
+| Helm chart | 0.1.1 | `appVersion` 0.3.0 | | Kubernetes >= 1.25 |
 
 Rule of thumb: same minor across rum-api, both SDKs and OuoReplay is always supported; an
 SDK one minor **behind** rum-api is supported; an SDK **ahead** of rum-api is not.

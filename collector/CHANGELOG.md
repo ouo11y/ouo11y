@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.3.0 (2026-10-18)
+
+First release under `ghcr.io/ouo11y/collector` (ADR-0009).
+
 ### Changed
 
 - Renamed for ADR-0009: image `ghcr.io/ouo11y/collector`, Go modules `github.com/ouo11y/ouo11y/collector/...`

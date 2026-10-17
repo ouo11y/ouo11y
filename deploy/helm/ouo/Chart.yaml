@@ -5,8 +5,8 @@ description: >-
   project tokens, replay stream), rum-api (sessions, replay store, internal), Grafana with the ouo11y RUM app plugin, and optionally a bundled
   single-binary Loki, Tempo and Mimir.
 type: application
-version: 0.1.0
-appVersion: "0.2.0"
+version: 0.1.1
+appVersion: "0.3.0"
 kubeVersion: ">=1.25.0-0"
 home: https://github.com/ouo11y/ouo11y
 sources:
