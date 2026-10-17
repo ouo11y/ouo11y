@@ -149,7 +149,7 @@ nothing until the next tags exist. Proposed:
 
 | Tag | Why this version | Publishes |
 |---|---|---|
-| `rum-api-v0.2.1` | no API or behaviour change since 0.2.0, only the module path and the registry | `ghcr.io/ouo11y/rum-api:0.2.1`, `:0.2`, `:latest` |
+| `rum-api-v0.3.0` | no API change since 0.2.0, but the three images move registry together and are verified together as the first `ouo11y` set; a minor bump keeps them aligned | `ghcr.io/ouo11y/rum-api:0.3.0`, `:0.3`, `:latest` |
 | `collector-v0.3.0` | the Unreleased `ouo.rum.mode = sentry` attribute (a feature) plus the rename; needs `builder.yaml` `dist.version: 0.3.0` first | `ghcr.io/ouo11y/collector:0.3.0`, `:0.3`, `:latest` |
 | `grafana-v0.3.0` | plugin 0.7.0 inside, whose ID change is breaking | `ghcr.io/ouo11y/grafana:0.3.0`, `:0.3`, `:latest` |
 
