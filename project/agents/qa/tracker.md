@@ -13,7 +13,8 @@ Phase 6, branch `phase-6-qa`. Allowed paths: `tests/e2e/**`, `deploy/scripts/**`
 - [x] `docs/MVP.md` ticks with methods, `project/tracker/mvp.md` Phase 6 boxes
 - [x] `project/kb/e2e-scenario.md` + index line
 - [x] Bug report `project/agents/qa/reports/phase-6-bugs.html` (1 bug, 3 minor observations)
-- [ ] Not done: iOS Simulator run (Phase 5 box, needs Xcode); `background` end reason only unit-tested
+- [x] iOS Simulator run: done after Xcode was installed (Phase 7 native verification, #9; Phase 8a rev 2 iOS session, `project/reports/phase-8a-verification.html`) (N1 2026-10-17)
+- [ ] `background` end reason only unit-tested (checklist N15)
 
 ## Phase 8a, branch `phase-8a-install-secure` (2026-10-10)
 

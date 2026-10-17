@@ -63,6 +63,11 @@ Branch `claude/rum-api-release-1026d3`, stacked on `claude/sentry-bridge-design`
 
 ## Left / next agent must know
 
+> **Update 2026-10-17 (N1 tracker cleanup):** the founder pushed `collector-v0.2.0`, `grafana-v0.2.0`
+> and `rum-api-v0.2.0` (on the #19 merge commit) on 2026-10-17 after the three dry runs; all three
+> `release-images` runs are green and each created a GitHub release. The grafana image carries plugin
+> 0.6.0. Packages stay private (founder decision). The first bullet below is history.
+
 - **No tag was pushed.** Ask the founder first, with the exact tags (see the PR). Suggested:
   `collector-v0.2.0` and `grafana-v0.2.0` after this PR and #16 merge; `rum-api-v0.2.0-rc.1` / `0.2.0`
   only after the YAML config + S3 PR (#19) merges. Run the dry run of each tag first.
