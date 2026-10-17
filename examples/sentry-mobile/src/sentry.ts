@@ -7,7 +7,8 @@ export const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: true,
 });
 
-Sentry.init({
+// Perf-mode launch "ouo only" (config.sentry false): Sentry is linked but never started.
+if (config.sentry) Sentry.init({
   dsn: config.sentryDsn,
   release: config.release,
   dist: config.dist,
