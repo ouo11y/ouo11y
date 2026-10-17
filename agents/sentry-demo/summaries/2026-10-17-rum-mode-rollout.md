@@ -48,9 +48,27 @@
   pending native crash report.
 - Android not built (no Android SDK on this Mac).
 
+## Merge with main (#21, #22, #24, #25), same day
+
+- Merged main into the branch (not rebased). Resolved `examples/sentry-mobile`: #24's `RUMProvider`,
+  `navigationStateListener` and `onReady` (`markFirstFrame()`, `trackNavigation("/Home")`) kept, `ouo`
+  read at render time because index.ts starts ouo after App is imported. #25's perf build: 
+  `Documents/perf-mode.json` is now `{"mode": none|sentry|parallel|ouo, "ouoReplay"?}` and overrides
+  the flag for that launch (src/rollout.ts, no evaluation, nothing stored); `scripts/perf/run.sh` maps
+  its five modes onto it; src/perf.ts records the launch's mix. `OUO_REPLAY` replaced like `OUO_SDK`
+  (build fails with a pointer): ouo replay follows the mode. kb/sdk-overhead-ios.md and
+  kb/sentry-bridge-vs-ouo-sdk.md rerun instructions updated.
+- Re-verified on the same isolated setup: rollout cohorts 12/12, 12/12, 10/10 (ouo cohorts now record
+  4 navigation events, `/Home` included); one perf round of all five modes, 95 s each, 19/19 steps,
+  `perf.json` mix as intended, deltas in line with the 30-run result.
+
 ## Local stacks
 
 - Compose projects started: `ouo-flags` (deploy/docker/compose.yaml) and `ouo-flags-flagd`
   (examples/sentry-mobile/flags/compose.yaml). Both stopped after the PR was opened:
   `ouo-flags` with `down -v` (volumes removed, so its Loki/Tempo data is gone), `ouo-flags-flagd`
   with `down`. sentrytap on :4621 stopped; simulator `ouo-flags` (E87E9B42-...) shut down, not deleted.
+- For the re-verification after the merge both projects were started again (Grafana :3011, login
+  admin / testing567) and stopped with `docker compose -p ouo-flags down` and
+  `docker compose -p ouo-flags-flagd down` (no `-v`, volumes kept). Perf proxy (:4728-4730, :4791)
+  and sentrytap stopped, simulator shut down.
