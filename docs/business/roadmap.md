@@ -1,6 +1,6 @@
 # ouo roadmap: from MVP to a product companies can run
 
-Status: proposal, 2026-10-10. Companion to [product-plan.md](product-plan.md) (why and what to sell). This document is the **what to build, in which order, and what each step buys in a sales conversation**. Phases are tracked in [tracker/roadmap.md](../../tracker/roadmap.md).
+Status: proposal, 2026-10-10. Companion to [product-plan.md](product-plan.md) (why and what to sell). This document is the **what to build, in which order, and what each step buys in a sales conversation**. Phases are tracked in [project/tracker/roadmap.md](../../project/tracker/roadmap.md).
 
 ## 1. Decisions this roadmap is built on
 

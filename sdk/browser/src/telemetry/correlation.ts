@@ -45,7 +45,7 @@ export class SessionSpanProcessor implements SpanProcessor {
  * A `session.start` / `session.end` record names its own session: it must neither inherit
  * the active session's ids nor, by asking for the active id, create a session (a
  * `session.end` is emitted at the moment there is no active session, so `session.id()`
- * would start one; see agents/qa/reports/phase-6-bugs.html bug 1).
+ * would start one; see project/agents/qa/reports/phase-6-bugs.html bug 1).
  */
 export class SessionLogProcessor implements LogRecordProcessor {
   constructor(

@@ -11,7 +11,7 @@ data:
     {{- .Values.lgtm.bundled.loki.configOverride | nindent 4 }}
     {{- else }}
     # Loki 3.x single-binary, filesystem storage, native OTLP ingestion
-    # (mirrors deploy/docker/loki/config.yaml; label promotion per ADR-0001).
+    # (mirrors deploy/compose/loki/config.yaml; label promotion per ADR-0001).
     auth_enabled: false
 
     server:

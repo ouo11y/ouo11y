@@ -26,14 +26,23 @@ read token is also provisioned into the Grafana plugin's `secureJsonData`, and n
 ever reaches a browser. rum-api, Loki, Tempo and Mimir are internal: SDKs only ever talk
 to the collector.
 
+## Named environments (`ouo-env`, the default for agents)
+
+Agents and the founder run stacks as named envs behind one proxy instead of raw
+`docker compose` on numbered ports: `deploy/envs/ouo-env up <env>` gives
+`http://grafana.<env>.ouo.localhost` (main: `http://grafana.ouo.localhost`, admin / testing567),
+`ls`, `gc` and `down` keep the laptop clean, and only the SDK ingest ports a device needs are
+published. See [envs/README.md](envs/README.md). The commands below are the plain compose path
+(single stack, host ports from `.env`), still used by CI, the VM install and the fast-tracked guides.
+
 ## Start, stop, reset
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d          # start (builds collector/, examples/backend and services/rum-api)
-docker compose -f deploy/docker/compose.yaml ps             # status
-docker compose -f deploy/docker/compose.yaml logs -f otel-collector rum-api
-docker compose -f deploy/docker/compose.yaml down           # stop, keep data
-docker compose -f deploy/docker/compose.yaml down -v        # stop and wipe all data
+docker compose -f deploy/compose/compose.yaml up -d          # start (builds collector/, examples/backend and services/rum-api)
+docker compose -f deploy/compose/compose.yaml ps             # status
+docker compose -f deploy/compose/compose.yaml logs -f otel-collector rum-api
+docker compose -f deploy/compose/compose.yaml down           # stop, keep data
+docker compose -f deploy/compose/compose.yaml down -v        # stop and wipe all data
 ```
 
 A fresh clone works with no `.env`: every variable has the same default inside
@@ -44,7 +53,7 @@ Builder, which takes a few minutes. Data lives in named volumes (`ouo_grafana-da
 `deploy/data/rum-api` (gitignored, created by compose on first start) so they survive
 `down -v` and can be inspected.
 
-**Released images instead of builds:** add `-f deploy/docker/compose.images.yaml` to pull
+**Released images instead of builds:** add `-f deploy/compose/compose.images.yaml` to pull
 the pinned `ghcr.io/ziadmansourm/ouo/{collector,rum-api,grafana}` images. They are
 **private until ouo reaches a stable version**, so log in once first with a classic
 personal access token that has only `read:packages` (ask the ouo founder for read access
@@ -75,12 +84,12 @@ from source and needs no login. Full steps: `examples/fast-tracked/00-stack.md`,
 
 On a server (`deploy/vm`) Caddy owns 80/443 and every port above is re-bound to loopback;
 the collector is reached as `https://otel.<domain>`. Host ports can be changed without
-touching the compose file: copy `deploy/docker/.env.example` to `deploy/docker/.env` and
+touching the compose file: copy `deploy/compose/.env.example` to `deploy/compose/.env` and
 edit the `OUO_*_PORT` values; compose and the scripts in `deploy/scripts/` read that file.
 In-cluster addresses never change (`otel-collector:4318` / `4319`, `loki:3100`,
 `tempo:3200`, `mimir:9009`, `rum-api:8080`).
 
-## Environment (`deploy/docker/.env`, see `.env.example`)
+## Environment (`deploy/compose/.env`, see `.env.example`)
 
 | Variable | Default (compose) | Used by | Meaning |
 |---|---|---|---|
@@ -90,7 +99,7 @@ In-cluster addresses never change (`otel-collector:4318` / `4319`, `loki:3100`,
 | `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN` | `demo`, `pt_dev_demo_0000000000000000` | scripts only | which project `smoke.sh` / `e2e.sh` send as; must match a line in `collector/projects.htpasswd`. Compose does not read them |
 | `OUO_*_PORT` | see table above | compose, scripts | host ports (`OUO_REPLAY_PORT` is new in 8a) |
 
-Projects are not environment: they are lines in `deploy/docker/collector/projects.htpasswd`
+Projects are not environment: they are lines in `deploy/compose/collector/projects.htpasswd`
 (`<project id>:{SHA}<base64 sha1(token)>`, exactly what `htpasswd -nbs <id> <token>`
 prints; cheap on purpose, the token is public). One line per project id: `basicauth` keeps
 only the last line for an id, so rotation is a cut-over (replace the line, restart, ship the
@@ -98,9 +107,9 @@ new token; ADR-0007 section 2). After editing, `docker compose ... restart otel-
 
 ```bash
 echo "pt_$(openssl rand -hex 16)"                                   # new token
-htpasswd -nbs web-store pt_live_...  >> deploy/docker/collector/projects.htpasswd
+htpasswd -nbs web-store pt_live_...  >> deploy/compose/collector/projects.htpasswd
 # without apache2-utils:
-printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_... | openssl dgst -binary -sha1 | openssl base64)" >> deploy/docker/collector/projects.htpasswd
+printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_... | openssl dgst -binary -sha1 | openssl base64)" >> deploy/compose/collector/projects.htpasswd
 ```
 
 **The defaults are development values and are committed to a public repo** (`demo` /
@@ -187,19 +196,20 @@ service map.
 ## Layout
 
 ```
-deploy/docker/compose.yaml                      the stack (collector built from ../../collector, public 4318/4319; rum-api internal)
-deploy/docker/.env.example                      ports, ingest/read tokens, script project, VM variables (dev values, loud warning)
-deploy/docker/collector/config.yaml             ouo-collector config: basicauth, CORS, ouoreplay, ouoratelimit, project stamp -> tempo / loki / mimir, rum-api
-deploy/docker/collector/projects.htpasswd       development project registry (demo); one `{SHA}` line per project token
-deploy/docker/compose.s3.yaml                   opt-in override: MinIO + bucket init, rum-api on storage.backend s3
-deploy/docker/rum-api/config.yaml               rum-api config file (-config.file, ${VAR} expansion for the tokens / S3 keys)
-deploy/docker/loki/config.yaml                  single binary, tsdb v13, OTLP label promotion
-deploy/docker/tempo/config.yaml                 single binary, local blocks, metrics generator
-deploy/docker/mimir/config.yaml                 monolithic, filesystem blocks
-deploy/docker/grafana/provisioning/datasources  loki / tempo / mimir with fixed uids
-deploy/docker/grafana/provisioning/plugins      ouo-rum-app enabled, rumApiUrl + secureJsonData.readToken
+deploy/compose/compose.yaml                      the stack (collector built from ../../collector, public 4318/4319; rum-api internal)
+deploy/compose/.env.example                      ports, ingest/read tokens, script project, VM variables (dev values, loud warning)
+deploy/compose/collector/config.yaml             ouo-collector config: basicauth, CORS, ouoreplay, ouoratelimit, project stamp -> tempo / loki / mimir, rum-api
+deploy/compose/collector/projects.htpasswd       development project registry (demo); one `{SHA}` line per project token
+deploy/compose/compose.s3.yaml                   opt-in override: MinIO + bucket init, rum-api on storage.backend s3
+deploy/compose/rum-api/config.yaml               rum-api config file (-config.file, ${VAR} expansion for the tokens / S3 keys)
+deploy/compose/loki/config.yaml                  single binary, tsdb v13, OTLP label promotion
+deploy/compose/tempo/config.yaml                 single binary, local blocks, metrics generator
+deploy/compose/mimir/config.yaml                 monolithic, filesystem blocks
+deploy/compose/grafana/provisioning/datasources  loki / tempo / mimir with fixed uids
+deploy/compose/grafana/provisioning/plugins      ouo-rum-app enabled, rumApiUrl + secureJsonData.readToken
 deploy/data/rum-api/                            replay chunks written by rum-api (gitignored)
-deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner
+deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner (OUO_*_URL overrides; `ouo-env env <env>` prints them)
+deploy/envs/                                    ouo-env: named local envs behind one Traefik proxy (README)
 deploy/vm/                                      Caddy TLS override, install.sh, systemd unit, README
 deploy/helm/                                    Kubernetes chart (helm agent)
 collector/                                      ocb manifest, Dockerfile, ouoreplay receiver/exporter, ouoratelimit processor (collector agent)
@@ -211,15 +221,15 @@ collector/                                      ocb manifest, Dockerfile, ouorep
 `otlp` receiver, `basicauth`, `resource`/`attributes`/`transform`, `batch`,
 `memory_limiter`, the OTLP exporters, `health_check`, plus ouo's `ouoreplay` receiver and
 exporter and `ouoratelimit` processor. Compose builds it as `ouo/collector` from
-`../../collector` and mounts `deploy/docker/collector/config.yaml` at
+`../../collector` and mounts `deploy/compose/collector/config.yaml` at
 `/etc/otelcol/config.yaml` and `projects.htpasswd` at `/etc/otelcol/projects.htpasswd`.
 It needs `OUO_INGEST_TOKEN` in its environment for the replay exporter. Config details:
-`kb/collector-lgtm.md` and the collector agent's notes.
+`project/kb/collector-lgtm.md` and the collector agent's notes.
 
 ## rum-api
 
 `services/rum-api` (Go) is built from `../../services/rum-api`, configured like Loki and
-Tempo by a mounted YAML file (`deploy/docker/rum-api/config.yaml`, started with
+Tempo by a mounted YAML file (`deploy/compose/rum-api/config.yaml`, started with
 `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`; every key is in
 `services/rum-api/config.example.yaml`) and listens on host port
 `${OUO_RUM_API_PORT:-8080}` (laptop only). It is internal: the collector's replay exporter
@@ -242,7 +252,7 @@ Loki, Tempo and Mimir keep local filesystem storage in this stack, so rum-api do
 default (`storage.backend: filesystem`, `deploy/data/rum-api`). Object storage is opt-in:
 
 ```bash
-docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.s3.yaml up -d
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.s3.yaml up -d
 curl localhost:8080/readyz          # {"checks":{"loki":"ok","storage":"ok","tempo":"ok"},"ready":true}
 open http://localhost:9001          # MinIO console, minioadmin / minioadmin, bucket ouo-replays
 ```
@@ -255,14 +265,14 @@ whose policy only reaches that bucket (`OUO_RUM_API_S3_ACCESS_KEY` /
 creates buckets. Objects use the filesystem layout, `replays/<session_id>/<seq>.json.gz`,
 `<seq>.mp4`, `meta.json`; existing replays move over with
 `mc mirror deploy/data/rum-api/replays local/ouo-replays/replays`.
-`docker compose -f deploy/docker/compose.yaml --profile s3 up -d minio minio-init` starts
+`docker compose -f deploy/compose/compose.yaml --profile s3 up -d minio minio-init` starts
 MinIO alone, e.g. for the rum-api S3 tests (`OUO_TEST_S3_ENDPOINT=localhost:9000
 go test ./internal/replay/`; without it the tests start their own MinIO container).
 
 The official `minio/minio` and `minio/mc` images are no longer published; the stack pins
 the community-maintained builds `pgsty/minio` and `pgsty/mc` (same server and client,
 override with `OUO_MINIO_IMAGE` / `OUO_MC_IMAGE`). Any S3 compatible store works for
-rum-api; see `kb/rum-api-config-s3.md`.
+rum-api; see `project/kb/rum-api-config-s3.md`.
 
 ```bash
 curl localhost:8080/readyz                                                                     # {"ready":true,"checks":{"loki":"ok","tempo":"ok"}}
@@ -287,7 +297,7 @@ not exist Docker creates an empty directory and Grafana starts without the plugi
 
 ```bash
 npm install && npm run -w plugins/ouo-rum-app build       # repo root
-docker compose -f deploy/docker/compose.yaml up -d grafana  # (re)create so the mount is picked up
+docker compose -f deploy/compose/compose.yaml up -d grafana  # (re)create so the mount is picked up
 open http://localhost:${OUO_GRAFANA_PORT:-3000}/a/ouo-rum-app/overview
 ```
 
@@ -332,5 +342,5 @@ Kubernetes: `deploy/helm/README.md`.
 - Loki, Tempo, Mimir and rum-api are still published on `0.0.0.0` in the laptop stack so
   Explore-style curls work from other devices on your LAN; the VM override binds them to
   loopback.
-- Pinned images: see `compose.yaml` and `kb/collector-lgtm.md`; collector component
+- Pinned images: see `compose.yaml` and `project/kb/collector-lgtm.md`; collector component
   versions in `collector/builder.yaml`.

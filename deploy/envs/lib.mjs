@@ -1,0 +1,237 @@
+// Pure logic of ouo-env (no I/O): names, hosts, port blocks, the compose overlay, and the
+// ls / gc decisions. Everything that touches Docker, git or gh lives in ./ouo-env and
+// passes plain data in here, so lib.test.mjs can cover it without a daemon.
+
+export const DOMAIN = "ouo.localhost";
+export const PROTECTED = new Set(["main", "sbx"]);
+export const GRAFANA_PASSWORD = "testing567"; // every env, founder 2026-10-17
+
+// Services reachable through the proxy: <name>.<env host> -> container:port.
+export const ROUTES = [
+  { name: "grafana", service: "grafana", port: 3000 },
+  { name: "rum-api", service: "rum-api", port: 8080 },
+  { name: "otlp", service: "otel-collector", port: 4318 },
+  { name: "replay", service: "otel-collector", port: 4319 },
+  { name: "sentry", service: "otel-collector", port: 4320 },
+  { name: "collector", service: "otel-collector", port: 13133 },
+  { name: "backend", service: "backend", port: 8081 },
+  { name: "loki", service: "loki", port: 3100 },
+  { name: "tempo", service: "tempo", port: 3200 },
+  { name: "mimir", service: "mimir", port: 9009 },
+];
+
+// Host ports published on every interface, for SDKs on a simulator or a phone (which
+// cannot use the proxy: a physical device does not resolve *.localhost).
+export const INGEST = [
+  { name: "otlp", service: "otel-collector", port: 4318, offset: 0 },
+  { name: "replay", service: "otel-collector", port: 4319, offset: 1 },
+  { name: "sentry", service: "otel-collector", port: 4320, offset: 2 },
+  { name: "backend", service: "backend", port: 8081, offset: 3 },
+];
+
+// Services whose base-file host ports are dropped (UIs and APIs go through the proxy).
+export const UNPUBLISHED = ["grafana", "loki", "tempo", "mimir", "rum-api"];
+
+const NAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+
+export function validName(env) {
+  return NAME_RE.test(env) && env !== "proxy";
+}
+
+// Branch name -> env name: lowercase, [a-z0-9-], at most 32 chars, a DNS label.
+// The common `claude/` and `feat/`-style prefixes are dropped so hostnames stay short.
+export function slugify(branch) {
+  let s = String(branch).toLowerCase().replace(/^(claude|feat|feature|fix|chore)\//, "");
+  s = s.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (s.length > 32) s = s.slice(0, 32).replace(/-+$/, "");
+  return s || "env";
+}
+
+export function kindOf(env) {
+  return PROTECTED.has(env) ? env : "ephemeral";
+}
+
+export function project(env) {
+  return `ouo-${env}`;
+}
+
+export function hostOf(env) {
+  return env === "main" ? DOMAIN : `${env}.${DOMAIN}`;
+}
+
+export function urlOf(env, name) {
+  return `http://${name}.${hostOf(env)}`;
+}
+
+// Port block per env. main keeps the well-known ingest ports (4318-4320) so SDK defaults
+// work; its backend is 8082 because 8081 is Metro's default (the Expo dev server).
+// Every other env gets block n >= 1: 20000 + 10n + offset (sbx is always block 1).
+export function portsOf(block) {
+  if (block === 0) return { otlp: 4318, replay: 4319, sentry: 4320, backend: 8082 };
+  const base = 20000 + 10 * block;
+  return Object.fromEntries(INGEST.map((p) => [p.name, base + p.offset]));
+}
+
+export function allocateBlock(env, usedBlocks) {
+  if (env === "main") return 0;
+  if (env === "sbx") return 1;
+  const used = new Set(usedBlocks);
+  for (let n = 2; n < 100; n++) if (!used.has(n)) return n;
+  throw new Error("no free port block (98 envs exist; run ouo-env gc)");
+}
+
+// What `gc` does with one env. pr: { number, state: OPEN|MERGED|CLOSED } or null when the
+// branch has no PR; prUnknown: gh could not answer; branchExists: local or remote ref.
+export function gcDecision({ env, pr, prUnknown, branchExists }) {
+  if (PROTECTED.has(env)) return { remove: false, reason: "protected" };
+  if (prUnknown) return { remove: false, reason: "PR state unknown (gh failed)" };
+  if (pr && (pr.state === "MERGED" || pr.state === "CLOSED")) {
+    return { remove: true, reason: `PR #${pr.number} ${pr.state.toLowerCase()}` };
+  }
+  if (pr) return { remove: false, reason: `PR #${pr.number} open` };
+  if (!branchExists) return { remove: true, reason: "branch gone" };
+  return { remove: false, reason: "branch exists, no PR yet" };
+}
+
+export function formatAge(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "-";
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+export function prLabel(pr, prUnknown) {
+  if (prUnknown) return "?";
+  if (!pr) return "-";
+  return `#${pr.number} ${pr.state.toLowerCase()}`;
+}
+
+// Merge state files with running compose projects into one row per env.
+// states: [{ env, kind, branch, created, block }], running: { [env]: { up, total } }.
+export function lsRows({ states, running, prs = {}, now = Date.now() }) {
+  const names = new Set([...states.map((s) => s.env), ...Object.keys(running)]);
+  const byEnv = Object.fromEntries(states.map((s) => [s.env, s]));
+  const order = (e) => (e === "main" ? "0" : e === "sbx" ? "1" : `2${e}`);
+  return [...names].sort((a, b) => order(a).localeCompare(order(b))).map((env) => {
+    const s = byEnv[env] ?? { env, kind: kindOf(env), branch: "?", created: null, block: null };
+    const r = running[env];
+    const status = !r ? "down" : r.up === r.total ? "up" : `${r.up}/${r.total} up`;
+    const p = prs[env] ?? {};
+    return {
+      env,
+      kind: s.kind ?? kindOf(env),
+      branch: s.branch ?? "?",
+      pr: prLabel(p.pr, p.prUnknown),
+      status,
+      age: formatAge(s.created ? now - Date.parse(s.created) : NaN),
+      grafana: urlOf(env, "grafana"),
+      ingest: s.block == null ? "-" : `:${portsOf(s.block).otlp}`,
+    };
+  });
+}
+
+export function table(rows, cols) {
+  const w = cols.map((c) => Math.max(c.length, ...rows.map((r) => String(r[c]).length)));
+  const line = (vals) => vals.map((v, i) => String(v).padEnd(w[i])).join("  ").trimEnd();
+  return [line(cols.map((c) => c.toUpperCase())), ...rows.map((r) => line(cols.map((c) => r[c])))].join("\n");
+}
+
+// The compose overlay for one env, applied after the source checkout's
+// deploy/compose/compose.yaml. YAML text because `!reset` / `!override` tags have no
+// JSON form. Paths are absolute: compose resolves an overlay's relative paths against
+// the first file's directory, which is easy to get wrong.
+export function renderOverlay(s) {
+  const proj = project(s.env);
+  const host = hostOf(s.env);
+  const ports = portsOf(s.block);
+  const q = (v) => JSON.stringify(String(v ?? ""));
+  const labels = [
+    `ouo.env=${s.env}`,
+    `ouo.kind=${s.kind}`,
+    `ouo.branch=${s.branch ?? ""}`,
+    `ouo.pr=${s.pr ?? ""}`,
+    `ouo.session=${s.session ?? ""}`,
+    `ouo.created=${s.created}`,
+    `ouo.block=${s.block}`,
+  ];
+  const services = {};
+  const add = (svc, lines) => (services[svc] ??= []).push(...lines);
+  for (const svc of ["grafana", "loki", "tempo", "mimir", "rum-api", "otel-collector", "backend"]) {
+    add(svc, ["    labels:", ...labels.map((l) => `      - ${q(l)}`)]);
+  }
+  const bySvc = {};
+  for (const r of ROUTES) (bySvc[r.service] ??= []).push(r);
+  for (const [svc, routes] of Object.entries(bySvc)) {
+    const tl = ["traefik.enable=true", "traefik.docker.network=ouo-proxy"];
+    for (const r of routes) {
+      const id = `${proj}-${r.name}`;
+      tl.push(`traefik.http.routers.${id}.rule=Host(\`${r.name}.${host}\`)`);
+      tl.push(`traefik.http.routers.${id}.entrypoints=web`);
+      tl.push(`traefik.http.routers.${id}.service=${id}`);
+      tl.push(`traefik.http.services.${id}.loadbalancer.server.port=${r.port}`);
+    }
+    add(svc, tl.map((l) => `      - ${q(l)}`));
+    add(svc, ["    networks:", "      - default", "      - ouo-proxy"]);
+  }
+  for (const svc of UNPUBLISHED) add(svc, ["    ports: !reset []"]);
+  for (const svc of ["otel-collector", "backend"]) {
+    const pub = INGEST.filter((p) => p.service === svc).map((p) => `      - ${q(`${ports[p.name]}:${p.port}`)}`);
+    add(svc, ["    ports: !override", ...pub]);
+  }
+  add("grafana", [
+    "    environment:",
+    `      GF_SERVER_ROOT_URL: ${q(`${urlOf(s.env, "grafana")}/`)}`,
+    `      GF_SECURITY_ADMIN_PASSWORD: ${q(GRAFANA_PASSWORD)}`,
+  ]);
+  add("rum-api", [
+    "    environment:",
+    `      GRAFANA_URL: ${q(urlOf(s.env, "grafana"))}`,
+    "    volumes: !override",
+    `      - ${q(`${s.src}/deploy/compose/rum-api/config.yaml:/etc/rum-api/config.yaml:ro`)}`,
+    "      - rum-api-data:/data",
+  ]);
+  add("otel-collector", [
+    "    environment:",
+    `      OUO_ALLOWED_ORIGINS: ${q(`http://localhost:*,http://127.0.0.1:*,http://*.${DOMAIN}`)}`,
+  ]);
+  const out = [
+    `# Generated by deploy/envs/ouo-env for env ${s.env}; do not edit (rewritten on every up).`,
+    "services:",
+  ];
+  for (const [svc, lines] of Object.entries(services)) out.push(`  ${svc}:`, ...lines);
+  out.push("networks:", "  ouo-proxy:", "    external: true", "volumes:", "  rum-api-data: {}", "");
+  return out.join("\n");
+}
+
+// Shell exports that point deploy/scripts/{wait-ready,smoke,e2e}.sh at an env.
+export function exportsOf(env, block) {
+  const p = portsOf(block);
+  const u = (n) => urlOf(env, n);
+  return [
+    ["OUO_GRAFANA_URL", u("grafana")],
+    ["OUO_RUM_API_URL", u("rum-api")],
+    ["OUO_OTLP_URL", `http://localhost:${p.otlp}`],
+    ["OUO_REPLAY_URL", `http://localhost:${p.replay}`],
+    ["OUO_LOKI_URL", u("loki")],
+    ["OUO_TEMPO_URL", u("tempo")],
+    ["OUO_MIMIR_URL", u("mimir")],
+    ["OUO_COLLECTOR_HEALTH_URL", u("collector")],
+    ["OUO_GRAFANA_AUTH", `admin:${GRAFANA_PASSWORD}`],
+  ].map(([k, v]) => `export ${k}=${v}`).join("\n");
+}
+
+export function parseArgs(argv) {
+  const out = { _: [], flags: {} };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--")) {
+      const [k, v] = a.slice(2).split("=", 2);
+      if (v !== undefined) out.flags[k] = v;
+      else if (["ref", "src", "branch", "session", "copy-from", "copy-rum-api-data"].includes(k)) out.flags[k] = argv[++i];
+      else out.flags[k] = true;
+    } else out._.push(a);
+  }
+  return out;
+}

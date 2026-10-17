@@ -8,7 +8,7 @@ native code and runs in Expo Go; session replay (iOS) is an Expo native module a
 development build.
 
 Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004, ingest and
-project tokens: ADR-0007. Runtime notes and gotchas: `kb/otel-react-native.md`. Changes: `CHANGELOG.md`.
+project tokens: ADR-0007. Runtime notes and gotchas: `project/kb/otel-react-native.md`. Changes: `CHANGELOG.md`.
 
 ## Install
 

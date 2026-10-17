@@ -1,6 +1,6 @@
 // Sentry's Metro wrapper adds debug ids to the bundle (what a real Sentry Expo app ships).
 // @ouo/react-native is consumed through a `file:` link (../../sdk/react-native) for the
-// `parallel` and `ouo` rollout modes (ROLLOUT.md): the same resolver rules as examples/mobile, see kb/otel-react-native.md.
+// `parallel` and `ouo` rollout modes (ROLLOUT.md): the same resolver rules as examples/mobile, see project/kb/otel-react-native.md.
 const path = require("node:path");
 const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 

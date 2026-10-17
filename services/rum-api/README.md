@@ -27,18 +27,18 @@ Design references: `docs/adr/0007-ingest-gateway-project-tokens.md` (the collect
 edge, replay sink contract, read token), `docs/specs/session-lifecycle.md` (server-side
 record, end inference), ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed),
 ADR-0006 and `docs/specs/mobile-replay.md` (frame chunks), ADR-0008 and
-`docs/specs/sentry-bridge.md` section 11 (video chunks), `kb/ingest-gateway.md` (sink
-contract notes), `kb/loki-session-queries.md`, `kb/tempo-session-search.md`.
+`docs/specs/sentry-bridge.md` section 11 (video chunks), `project/kb/ingest-gateway.md` (sink
+contract notes), `project/kb/loki-session-queries.md`, `project/kb/tempo-session-search.md`.
 
 ## Run
 
 ```bash
 go vet ./... && go test ./...
-docker compose -f deploy/docker/compose.yaml up -d --build rum-api   # from the repo root
+docker compose -f deploy/compose/compose.yaml up -d --build rum-api   # from the repo root
 curl localhost:8080/readyz
 ```
 
-Local binary against a running stack (ports from `deploy/docker/.env`). No project
+Local binary against a running stack (ports from `deploy/compose/.env`). No project
 configuration is needed; both tokens are optional and default to off:
 
 ```bash
@@ -401,7 +401,7 @@ Buckets are sorted by platform, service, version; percentages are rounded to two
 
 ## curl examples
 
-Development values (`deploy/docker/.env.example`): ingest token `it_dev_0000000000000000`,
+Development values (`deploy/compose/.env.example`): ingest token `it_dev_0000000000000000`,
 read token `rt_dev_0000000000000000`. The sink calls below imitate the collector's
 exporter; in a deployment only the collector reaches this port.
 

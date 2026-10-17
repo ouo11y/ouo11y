@@ -11,7 +11,7 @@ data:
     {{- .Values.lgtm.bundled.mimir.configOverride | nindent 4 }}
     {{- else }}
     # Mimir monolithic mode, filesystem storage, OTLP push at /otlp/v1/metrics
-    # (mirrors deploy/docker/mimir/config.yaml).
+    # (mirrors deploy/compose/mimir/config.yaml).
     target: all
     multitenancy_enabled: false
 
@@ -82,7 +82,7 @@ data:
 
     # Mimir defaults several paths to its working directory (./metrics-activity.log,
     # ./data-ruler/, ./data-alertmanager/), which is read-only when the pod runs as uid
-    # 10001; put them all on the data volume (kb/helm-kind.md).
+    # 10001; put them all on the data volume (project/kb/helm-kind.md).
     activity_tracker:
       filepath: /data/metrics-activity.log
 

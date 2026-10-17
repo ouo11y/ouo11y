@@ -1,10 +1,14 @@
 # Releasing
 
-How ouo is versioned, tagged and published. Owner: the release agent (`agents/release/`).
-The image release checklist and the pre-release rules are in the root
-[`RELEASING.md`](../RELEASING.md).
-Packaging details and tool quirks live in `kb/release-packaging.md`; the operator-side upgrade
-procedure in `docs/operations/upgrade.md`.
+How ouo is versioned, tagged and published, and the checklists for cutting a release. Owner:
+the release agent (`project/agents/release/`). Packaging details and tool quirks live in
+[`project/kb/release-packaging.md`](../project/kb/release-packaging.md); the operator-side
+upgrade procedure in [`operations/upgrade.md`](operations/upgrade.md). This is the only
+releasing document: the former root `RELEASING.md` was merged into it on 2026-10-17
+([ADR-0010](adr/0010-repository-layout.md)).
+
+**Nobody pushes a release tag without the founder's explicit yes**, with the exact tag
+names and what they publish written down first. Tags and published images are permanent.
 
 ## 1. Packages and independent versions
 
@@ -29,6 +33,28 @@ version differs from the manifest version of the package.
 
 ## 2. Semantic versioning rules
 
+Quick reference while the major version is 0:
+
+| Change since the last release | Bump | Example |
+|---|---|---|
+| anything a user or operator can see: new config key, env var, API route, attribute, changed default, dropped support, a stored-data schema change | minor | `0.2.0` -> `0.3.0` |
+| a breaking change (also minor while 0.x, listed under **Breaking** in the changelog) | minor | `0.3.0` -> `0.4.0` |
+| fixes and internal changes, no visible behaviour change | patch | `0.3.0` -> `0.3.1` |
+
+Image-specific rules:
+
+- **rum-api**: version = the tag. The first release is `0.2.0` and **must contain the YAML
+  config file and S3 / MinIO replay storage** (the rum-api-config-s3 work); do not tag
+  `rum-api-v0.2.0` before that PR is merged.
+- **collector**: version = `dist.version` in `collector/builder.yaml`; the workflow refuses a
+  tag that differs. Bump it in the PR that changes the collector. First release `0.2.0`.
+- **grafana**: its own series; the release notes name the Grafana base image and the
+  `ouo-rum-app` plugin version baked in. Any plugin release that should reach image users
+  needs a grafana image release too. First release `0.2.0`.
+
+The `0.2.0` starting point matches the Helm chart defaults (`deploy/helm/ouo/values.yaml`)
+and the examples (`deploy/compose/.env.example`).
+
 All packages are `0.y.z` until the first pilot is live. While the major is 0:
 
 - `0.y+1.0` for anything a user can see or that changes a contract: new API, new config key,
@@ -43,7 +69,7 @@ Package-specific rules:
 
 - **Plugin:** every user-visible change bumps the plugin version, even in a development
   branch, because Grafana caches `module.js?_cache=<version>` (see
-  `kb/grafana-app-plugin.md`). A plugin tag is cut from a version that was already bumped
+  `project/kb/grafana-app-plugin.md`). A plugin tag is cut from a version that was already bumped
   in the PR that made the change.
 - **rum-api:** the replay chunk `schema_version` (`docs/specs/mobile-replay.md`) is an
   independent integer. Bumping it is a breaking change for stored data: the rum-api minor
@@ -61,7 +87,23 @@ Package-specific rules:
   version is its own series; its changelog line names the Grafana base version and the
   plugin version baked in.
 
-## 3. What triggers what
+## 3. Pre-releases (`-rc.N`)
+
+- `<version>-rc.1`, `-rc.2`, ... are candidates for `<version>`. Tag them from any commit
+  on `main` (or a release branch) that should be tried by someone outside the repo, e.g. a
+  pilot client, before the final.
+- They publish `:<version>-rc.N` only. They never move `:latest` or `:<major>.<minor>`,
+  and the GitHub release is marked pre-release.
+- An rc may be cut before every planned feature has landed when a client needs something
+  runnable now; say what is missing in its release notes. Check it still runs with the
+  compose file and chart on `main`: rum-api without the YAML config PR (#19) exits on the
+  `-config.file` flag that compose.yaml and the chart pass after #19, so the first rum-api
+  rc is cut after #19 merges (`rum-api-v0.2.0-rc.1`), then `0.2.0`.
+- The final is tagged on the same commit as the last rc whenever possible (no new code
+  between "verified" and "released").
+- Examples and docs pin finals. Point an example at an rc only on a branch.
+
+## 4. What triggers what
 
 ```
 PR merged with a version bump      nothing is published; CI (ci.yml) ran on the PR
@@ -83,22 +125,77 @@ Pre-release versions (`-rc.1`, `-beta.2`) are published the same way; images ski
 dist-tags for pre-releases are not automated: publish with `npm dist-tag` by hand if a
 `next` tag is wanted.
 
-## 4. Release procedure (per package)
+## 5. Release procedure (per package)
 
 1. On a branch, bump the version in the package manifest and move the "Unreleased" section
    of the package `CHANGELOG.md` under the new version with today's date. Add the
    compatibility line (minimum rum-api, minimum SDK) when it changed. Update the row in the
    root `CHANGELOG.md` index.
-2. Run the package checks locally (table in section 5) and open the PR. CI must be green.
+2. Run the package checks locally (table in section 7) and open the PR. CI must be green.
 3. Merge. On the merge commit: `git tag <package>-v<semver> && git push origin <package>-v<semver>`.
    Tags are annotated by the person cutting the release (`git tag -a`), never by CI.
 4. Watch the workflow run; its summary lists what was published. A failed publish is fixed
    by a new patch version, never by moving or deleting the tag (npm and GHCR versions are
    immutable; a deleted tag leaves a published artifact without source).
 5. For a rum-api or chart release, run the upgrade procedure from the previous release on the
-   compose path and record it in `agents/qa/`.
+   compose path and record it in `project/agents/qa/`.
 
-## 5. Local checks before tagging
+## 6. Checklist: container image release
+
+Before the tag:
+
+1. [ ] The change is merged to `main`, CI green, including the `image (<name>)` jobs.
+2. [ ] Changelog: move `## Unreleased` to `## <version> (<date>)` in
+   `services/rum-api/CHANGELOG.md`, `collector/CHANGELOG.md` or
+   `deploy/images/grafana/CHANGELOG.md`; update the row in the root `CHANGELOG.md`.
+   (rcs may skip this; the notes then list the commits only.)
+3. [ ] collector only: `collector/builder.yaml` `dist.version` equals the version.
+4. [ ] Local checks (section 7) and `actionlint`.
+5. [ ] Dry run: GitHub > Actions > `release-images` > Run workflow on `main` with the exact
+   tag, e.g. `rum-api-v0.2.0`. It builds amd64 + arm64, checks the version and prints the
+   release notes in the run summary; nothing is pushed.
+6. [ ] Ask the founder in chat: exact tag names, the image refs they create
+   (`ghcr.io/ziadmansourm/ouo/<image>:<version>` plus `:<major>.<minor>` and `:latest` for
+   a final). Packages stay private (see "Pull access"); making one public is a separate
+   founder decision. Wait for yes.
+
+Tag:
+
+```bash
+git switch main && git pull --ff-only
+```
+
+```bash
+git tag -a rum-api-v0.2.0 -m "rum-api 0.2.0"
+```
+
+```bash
+git push origin rum-api-v0.2.0
+```
+
+After the tag:
+
+7. [ ] The `release-images` run is green; its summary lists the pushed tags and digest.
+8. [ ] First release of an image only: GitHub > Packages > the package > Package settings:
+   connect it to the repository and leave visibility **private** (founder decision until ouo
+   is stable); grant Read under Manage access to everyone who already has access to the other
+   ouo packages. Pulls need a `docker login ghcr.io` ("Pull access").
+9. [ ] `docker buildx imagetools inspect ghcr.io/ziadmansourm/ouo/<image>:<version>` shows
+   `linux/amd64` and `linux/arm64` (plus `unknown/unknown` attestation entries).
+10. [ ] Bump the pins that should follow: `deploy/compose/.env.example` and the defaults in
+    `deploy/compose/compose.images.yaml`, `deploy/helm/ouo/values.yaml` (chart patch bump),
+    the version table in `examples/fast-tracked/00-stack.md`.
+11. [ ] Run the stack from the released images and record it (release trains table in
+    `CHANGELOG.md`):
+
+    ```bash
+    docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
+    ```
+
+A broken release is fixed by a new patch version (or the next rc). Never move or delete a
+pushed tag and never overwrite a published image tag.
+
+## 7. Local checks before tagging
 
 | Package | Commands |
 |---|---|
@@ -109,10 +206,32 @@ dist-tags for pre-releases are not automated: publish with `npm dist-tag` by han
 | rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` and `docker build -t ouo/rum-api:release-check services/rum-api` |
 | collector | `docker buildx build --platform linux/amd64,linux/arm64 collector` and `docker run --rm <image> --version` (prints `dist.version`) |
 | grafana image | `npm run build -w plugins/ouo-rum-app && docker buildx build --platform linux/amd64,linux/arm64 -f deploy/images/grafana/Dockerfile .` |
-| chart | `helm lint deploy/helm/ouo` and the kind check in `agents/helm/` |
+| chart | `helm lint deploy/helm/ouo` and the kind check in `project/agents/helm/` |
 | workflows | `actionlint` (Homebrew `brew install actionlint`) |
 
-## 6. Secrets, variables and external accounts
+## 8. Pull access (packages are private until ouo is stable)
+
+Founder decision (2026-10-17): the `ghcr.io/ziadmansourm/ouo/*` packages stay **private**
+until ouo reaches a stable version. Anyone pulling them (examples, verification, clients)
+logs in first:
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+- The token is a **classic** personal access token with only **`read:packages`** (fine
+  grained tokens do not work with ghcr.io). It lives in the puller's shell or password
+  manager, never in the repo.
+- Access is granted by the founder per package: GitHub > Packages > the package > Package
+  settings > Manage access > add the GitHub user with the **Read** role. Do it for all three
+  (`collector`, `rum-api`, `grafana`); that read access is what a new user asks the founder for.
+- Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`,
+  "Pull access").
+- No access: build from source (`docker compose -f deploy/compose/compose.yaml up -d` without
+  `compose.images.yaml`), no login needed.
+- Without a login a pull fails with `denied` (HTTP 403).
+
+## 9. Secrets, variables and external accounts
 
 Nothing publishes until these exist. Set them in the GitHub repository settings
 (`Settings > Secrets and variables > Actions`).
@@ -120,7 +239,7 @@ Nothing publishes until these exist. Set them in the GitHub repository settings
 | Name | Kind | Used by | How to create |
 |---|---|---|---|
 | `NPM_TOKEN` | secret | `release-npm.yml` | npm granular access token, packages and scopes: `@ouo` read and write, bypass 2FA for automation, expiry at most 1 year. The `ouo` npm organisation (or scope) must exist and the publishing user must be an owner. |
-| `GITHUB_TOKEN` | automatic | `release-images.yml`, `release-plugin.yml` | nothing to create. After the first image push, open the package on GitHub and link it to the repository. Visibility stays private until ouo is stable (founder decision 2026-10-17), so every pull needs `docker login ghcr.io` with a classic `read:packages` token; see "Pull access" in `RELEASING.md`. |
+| `GITHUB_TOKEN` | automatic | `release-images.yml`, `release-plugin.yml` | nothing to create. After the first image push, open the package on GitHub and link it to the repository. Visibility stays private until ouo is stable (founder decision 2026-10-17), so every pull needs `docker login ghcr.io` with a classic `read:packages` token; see section 8, "Pull access". |
 | `GRAFANA_ACCESS_POLICY_TOKEN` | secret, optional | `release-plugin.yml` | grafana.com account, "My account > Security > Access policies", scope `plugins:write`, realm the publishing org. Without it the plugin is released unsigned. |
 | `GRAFANA_ROOT_URLS` | variable, optional | `release-plugin.yml` | comma separated Grafana root URLs the private signature is valid for (e.g. `https://grafana.pilot.example.com`). Required when the token is set. |
 | `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ZiadMansourM/ouo-ios`; paste the private file as the secret; delete the local copies. The repository `ZiadMansourM/ouo-ios` must exist (empty is fine). Without it the workflow tests and exits with a notice. |
@@ -128,7 +247,7 @@ Nothing publishes until these exist. Set them in the GitHub repository settings
 Provenance (`npm publish --provenance`) additionally requires the repository to be public
 and the `repository.url` in each SDK `package.json` to point at it; both are in place.
 
-## 7. Changelogs
+## 10. Changelogs
 
 - One `CHANGELOG.md` per package, Keep-a-Changelog style: an `## Unreleased` section at the
   top, then `## <version> (<date>)` sections with `Added`, `Changed`, `Fixed`, `Breaking`,
@@ -139,7 +258,7 @@ and the `repository.url` in each SDK `package.json` to point at it; both are in 
 - The plugin release workflow extracts the matching version section from
   `plugins/ouo-rum-app/CHANGELOG.md` for the GitHub release notes.
 
-## 8. Not automated (yet)
+## 11. Not automated (yet)
 
 - Helm chart publishing to an OCI registry (`helm push` to `oci://ghcr.io/ziadmansourm/ouo/charts`): Phase 8c, once the chart has been through a kind upgrade test.
 - Signed git tags and SBOM attestations for npm packages: product-plan checklist "before the first paid subscription".
