@@ -65,7 +65,11 @@ mode -> file: `none` -> `{"mode":"none"}` (neither SDK started, the baseline), `
 `{"mode":"parallel","ouoReplay":true}`, `ouo-replay` -> `{"mode":"ouo"}` (Sentry linked but
 `Sentry.init` never called: nothing native starts, zero Sentry requests verified). The numbers above
 were measured on 2026-10-17 with the earlier `{"sentry","ouo","ouoReplay"}` file and the
-`OUO_SDK=1` build flag; the SDK mixes are the same (since PR #23). Same native
+`OUO_SDK=1` build flag; the SDK mixes are the same (since PR #23). Check after that change, one
+round of the five modes on another simulator and stack (`ouo-flags`): every `perf.json` recorded the
+intended mix, 19/19 steps per run, and the paired deltas fell where the 30-run medians are (both -
+sentry CPU +0.3 pp, both-replay - both +4.2 pp, sentry - none +7.7 pp, ouo-replay - none +5.7 pp; one
+round, so no spread). Same native
 code, same JS bundle, same masking settings as the demo (masking **off** in both SDKs).
 
 **Build** (proxy ports baked in; the isolated compose project `ouo-perf` behind them):
