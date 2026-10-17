@@ -140,6 +140,8 @@ jobs:
         run: npm run build --workspaces --if-present
       - name: test all workspaces
         run: npm run test --workspaces --if-present
+      - name: ouo-env logic (deploy/envs, node:test, no dependencies)
+        run: node --test deploy/envs/*.test.mjs
       - name: npm pack dry run (what a release would ship)
         run: |
           npm pack --dry-run -w sdk/browser

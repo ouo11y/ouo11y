@@ -26,6 +26,15 @@ read token is also provisioned into the Grafana plugin's `secureJsonData`, and n
 ever reaches a browser. rum-api, Loki, Tempo and Mimir are internal: SDKs only ever talk
 to the collector.
 
+## Named environments (`ouo-env`, the default for agents)
+
+Agents and the founder run stacks as named envs behind one proxy instead of raw
+`docker compose` on numbered ports: `deploy/envs/ouo-env up <env>` gives
+`http://grafana.<env>.ouo.localhost` (main: `http://grafana.ouo.localhost`, admin / testing567),
+`ls`, `gc` and `down` keep the laptop clean, and only the SDK ingest ports a device needs are
+published. See [envs/README.md](envs/README.md). The commands below are the plain compose path
+(single stack, host ports from `.env`), still used by CI, the VM install and the fast-tracked guides.
+
 ## Start, stop, reset
 
 ```bash
@@ -199,7 +208,8 @@ deploy/compose/mimir/config.yaml                 monolithic, filesystem blocks
 deploy/compose/grafana/provisioning/datasources  loki / tempo / mimir with fixed uids
 deploy/compose/grafana/provisioning/plugins      ouo-rum-app enabled, rumApiUrl + secureJsonData.readToken
 deploy/data/rum-api/                            replay chunks written by rum-api (gitignored)
-deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner
+deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner (OUO_*_URL overrides; `ouo-env env <env>` prints them)
+deploy/envs/                                    ouo-env: named local envs behind one Traefik proxy (README)
 deploy/vm/                                      Caddy TLS override, install.sh, systemd unit, README
 deploy/helm/                                    Kubernetes chart (helm agent)
 collector/                                      ocb manifest, Dockerfile, ouoreplay receiver/exporter, ouoratelimit processor (collector agent)

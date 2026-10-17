@@ -20,9 +20,9 @@ if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 OTLP="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"       # collector OTLP/HTTP (public)
 REPLAY="${OUO_REPLAY_URL:-http://localhost:${OUO_REPLAY_PORT:-4319}}"      # collector replay receiver (public)
 RUM="${OUO_RUM_API_URL:-${OUO_RUM_API:-http://localhost:${OUO_RUM_API_PORT:-8080}}}"  # internal, read side
-LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"
-TEMPO="http://localhost:${OUO_TEMPO_PORT:-3200}"
-MIMIR="http://localhost:${OUO_MIMIR_PORT:-9009}"
+LOKI="${OUO_LOKI_URL:-http://localhost:${OUO_LOKI_PORT:-3100}}"
+TEMPO="${OUO_TEMPO_URL:-http://localhost:${OUO_TEMPO_PORT:-3200}}"
+MIMIR="${OUO_MIMIR_URL:-http://localhost:${OUO_MIMIR_PORT:-9009}}"
 PROJECT_ID="${OUO_PROJECT_ID:-demo}"
 TOKEN="${OUO_PROJECT_TOKEN:-pt_dev_demo_0000000000000000}"
 READ_TOKEN="${OUO_READ_TOKEN:-rt_dev_0000000000000000}"
