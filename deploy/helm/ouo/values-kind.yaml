@@ -50,7 +50,7 @@ grafana:
     repository: ouo/grafana
     tag: dev
     pullPolicy: IfNotPresent
-  adminPassword: admin
+  adminPassword: testing567
   persistence:
     size: 1Gi
   resources:
