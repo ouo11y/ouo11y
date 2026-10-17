@@ -13,7 +13,9 @@ import type { ExpoConfig } from "expo/config";
  *   SENTRY_DEBUG=1 turns on the SDK debug logger (JS and native).
  *   OUO_SDK=1    parallel mode: @ouo/react-native runs next to Sentry (initialised after it, see
  *                index.ts and src/ouo.ts), exporting to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT
- *                (default the isolated ouo-sb collector: 4338 and 4339).
+ *                (default the isolated ouo-sb collector: 4338 and 4339). OUO_REPLAY=0 turns ouo replay off.
+ *   OUO_PERF=1   overhead measurement build (scripts/perf): a JS frame monitor writes
+ *                Documents/perf.json, and Documents/perf-mode.json picks the SDK mix per launch.
  * Values are baked into the JS bundle (Release build), so rebuild after changing them.
  */
 const version = process.env.APP_VERSION ?? "1.0.0";
@@ -55,6 +57,8 @@ const config: ExpoConfig = {
     ouoReplayEndpoint: process.env.OUO_REPLAY_ENDPOINT ?? "http://localhost:4339",
     ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",
     ouoProjectToken: process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
+    ouoReplay: process.env.OUO_REPLAY !== "0",
+    perfModes: process.env.OUO_PERF === "1",
   },
 };
 
