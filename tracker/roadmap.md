@@ -120,6 +120,8 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 - [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
 
+- [x] Runtime rollout Sentry → ouo per device (2026-10-17) [OpenFeature flag `ouo.rum.mode` (`sentry` via the bridge, `parallel` Sentry direct + ouo replay off, `ouo` only), decided per cold start, sticky device bucket, resource attribute `ouo.rum.mode` (SDK `resource` option, bridge stamps `sentry`); flagd over OFREP; three cohorts verified on the simulator (`examples/sentry-mobile/ROLLOUT.md`, `kb/openfeature-rum-mode.md`). Open: rum-api filter by cohort]
+
 State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
 
 ## Phase 13 Native SDKs

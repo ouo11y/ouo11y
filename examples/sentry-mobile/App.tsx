@@ -8,6 +8,8 @@ import { navigationRef, type RootStackParamList } from "./src/navigation";
 import { CartScreen } from "./src/screens/CartScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { ProductScreen } from "./src/screens/ProductScreen";
+import { navigationStateListener } from "@ouo/react-native";
+import { ouo } from "./src/ouo";
 import { navigationIntegration } from "./src/sentry";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -20,6 +22,9 @@ export default function App() {
     <>
       <NavigationContainer
         ref={navigationRef}
+        // ouo `navigation` events (parallel and ouo modes). Sentry's integration below is a
+        // no-op when Sentry was not initialised.
+        onStateChange={ouo ? navigationStateListener(ouo) : undefined}
         onReady={() => {
           // React Navigation integration: one `navigation` transaction per screen change.
           navigationIntegration.registerNavigationContainer(navigationRef);

@@ -1,7 +1,8 @@
 # ouo React Native SDK next to the Sentry SDK (verified 2026-10-14)
 
 Running `@ouo/react-native` in an app that keeps `@sentry/react-native` (8.30.0, Hermes, iOS
-Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`). How-to: SDK README "Next to Sentry".
+Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` rollout mode,
+`kb/openfeature-rum-mode.md`). How-to: SDK README "Next to Sentry".
 
 ## Hermes has one promise rejection tracker, and it cannot be shared
 

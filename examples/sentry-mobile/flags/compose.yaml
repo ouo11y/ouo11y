@@ -1,0 +1,17 @@
+# flagd serving the `ouo.rum.mode` flag for examples/sentry-mobile (ROLLOUT.md).
+# The app reads it over OFREP (OpenFeature Remote Evaluation Protocol) on :8016.
+# flagd re-reads the file when it changes: edit the percentages and relaunch the app twice
+# (the first launch fetches the new value, the second applies it).
+#
+#   docker compose -p ouo-flagd -f examples/sentry-mobile/flags/compose.yaml up -d
+#   curl -s -X POST localhost:8016/ofrep/v1/evaluate/flags/ouo.rum.mode \
+#     -H 'content-type: application/json' -d '{"context":{"targetingKey":"device-1","appVersion":"1.0.0"}}'
+services:
+  flagd:
+    image: ghcr.io/open-feature/flagd:v0.17.0
+    command: ["start", "--uri", "file:/flags/ouo-rum-mode.flagd.json"]
+    ports:
+      - "${OUO_FLAGD_PORT:-8013}:8013"   # flagd gRPC evaluation
+      - "${OUO_FLAGD_OFREP_PORT:-8016}:8016"   # OFREP (HTTP), what the app uses
+    volumes:
+      - ${OUO_FLAGS_DIR:-.}:/flags:ro
