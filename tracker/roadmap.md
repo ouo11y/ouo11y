@@ -123,6 +123,19 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
 
+## Backlog (founder, 2026-10-17)
+
+Not scheduled into a phase yet. Each item gets its own PR to main.
+
+- [ ] B1 Session page shows only the activity list beside the player (plugin 0.6.0, right side). The `Timeline` panel on the left is hidden by default and comes back only behind a feature toggle, the way Grafana does it (`GF_FEATURE_TOGGLES_ENABLE`). Proposed shape: an env var `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel` (comma-separated, more toggles later), mapped into the app plugin's `jsonData.featureToggles` by the provisioning file (Grafana expands `${ENV}` in provisioning) and by the Helm values. The plugin reads it from `jsonData`, since a frontend cannot read env vars. Keep the toggle list documented in one place (README of the plugin). Done: toggle off by default, on brings back today's layout, Jest tests for both, screenshot of both in the PR.
+- [ ] B2 Named local environments instead of ad-hoc stacks on numbered ports. On 2026-10-17, 8 compose projects were running (`ouo`, `ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-perf`, `ouo-flags`, `ouo-flags-flagd`), some days after their PRs merged, each on its own set of ports. Target:
+  - One shared reverse proxy (Traefik, reading Docker labels) on port 80. Stacks publish no host ports for UIs and APIs; only the SDK ingest ports a simulator needs stay published, from a per-env block.
+  - Hostnames `<service>.<env>.ouo.localhost` (`*.localhost` resolves to 127.0.0.1 in browsers and curl with no `/etc/hosts` edits; `.local` is mDNS on macOS and resolves slowly). Envs: `main` (`grafana.ouo.localhost`, always the latest `main`), `sbx` (long-lived sandbox), and one ephemeral env per branch or PR (`grafana.<slug>.ouo.localhost`).
+  - One script, `deploy/envs/ouo-env up|down|ls|gc|url <env>`: compose project `ouo-<env>`, Docker labels `ouo.env`, `ouo.branch`, `ouo.pr`, `ouo.session`, `ouo.created`. `ls` prints env, branch, PR state, age and URLs. `gc` takes down every ephemeral env whose PR is merged or closed or whose branch is gone (volumes kept unless `--purge`).
+  - `main` is refreshed by `ouo-env up main` after each merge: pull the released images or build from `origin/main`.
+  - AGENTS.md rule: agents use `ouo-env` only, give the founder the URL, and run `ouo-env down <env>` when their PR merges; never leave a stack running without saying so in the summary.
+  Done: script plus tests of `ls`/`gc` logic, kb entry, AGENTS.md and deploy/README.md updated, the existing stacks migrated or removed.
+
 ## Phase 13 Native SDKs
 
 - [ ] 13.0 Conformance suite driving any SDK through session spec cases, error classification, baggage, replay contract; browser and React Native SDKs pass it
