@@ -1,6 +1,6 @@
 # Sentry bridge specification
 
-Status: implemented (`collector/receiver/ouosentryreceiver`, rum-api video kind, plugin 0.4.0) and verified on real `@sentry/react-native` 8.30.0 / `sentry-cocoa` 9.30.1 traffic on 2026-10-14 (`reports/sentry-bridge-verification.html`). Becomes normative when ADR-0008 is accepted. The former **(verify)** items are resolved below from the captures in `collector/receiver/ouosentryreceiver/testdata/golden/`; Android payloads are still unverified.
+Status: implemented (`collector/receiver/ouosentryreceiver`, rum-api video kind, plugin 0.4.0) and verified on real `@sentry/react-native` 8.30.0 / `sentry-cocoa` 9.30.1 traffic on 2026-10-14 (`project/reports/sentry-bridge-verification.html`). Becomes normative when ADR-0008 is accepted. The former **(verify)** items are resolved below from the captures in `collector/receiver/ouosentryreceiver/testdata/golden/`; Android payloads are still unverified.
 
 Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). The supported SDK version range is pinned when the golden envelopes are captured and listed here.
 
@@ -241,7 +241,7 @@ Requests that failed (status 500 and above, or no status) are not taken from bre
 
 ## 10. Collector wiring
 
-Checked against the Phase 8a rev 2 components in `collector/` and `deploy/docker/collector/config.yaml`.
+Checked against the Phase 8a rev 2 components in `collector/` and `deploy/compose/collector/config.yaml`.
 
 **Project context.** On the OTLP and replay paths, `basicauth` puts the project id in `client.Info.Auth` as `username`. `resource/project` stamps `ouo.project.id` from it, and `ouoratelimit` keys its project bucket on it. The Sentry path has no Basic credential. After the project table lookup, the receiver therefore puts an auth value with `username = <ouo_project_id>` into `client.Info` on the context it hands to its consumers. Both processors then work unchanged. The receiver also sets `client.Info.Addr` to the client address.
 
@@ -352,9 +352,9 @@ Only the attributes named in sections 4 to 9a are produced. In particular these 
 
 ## 14. Verification
 
-Done on 2026-10-14 for iOS; results in `reports/sentry-bridge-verification.html`.
+Done on 2026-10-14 for iOS; results in `project/reports/sentry-bridge-verification.html`.
 
-1. **Capture.** `examples/sentry-mobile` (Expo app on `@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1) drives an unattended journey on the iOS Simulator (`scripts/journey.sh`). `collector/tools/sentrytap` records every request in front of the bridge (A) and at a fake Sentry behind it (B). Two captures are committed as golden fixtures in `collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/`; findings in `kb/sentry-react-native-demo.md` and `kb/sentry-envelope-format.md`.
+1. **Capture.** `examples/sentry-mobile` (Expo app on `@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1) drives an unattended journey on the iOS Simulator (`scripts/journey.sh`). `collector/tools/sentrytap` records every request in front of the bridge (A) and at a fake Sentry behind it (B). Two captures are committed as golden fixtures in `collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/`; findings in `project/kb/sentry-react-native-demo.md` and `project/kb/sentry-envelope-format.md`.
 2. **Unit tests**: envelope parser, msgpack decoder (both fuzzed), forwarding against a fake upstream (body and headers byte-identical, status and rate-limit headers echoed, unknown key `403` and not forwarded, upstream non-2xx not translated, unreachable upstream aborts the connection), translation of a synthetic journey, restart baseline, replay resolution and hold queue, and golden tests on the real captures with an invariant that nothing lands outside its session's window.
 3. **rum-api tests**: video chunk validation, storage, manifest, range request, cross-kind `409`.
 4. **End to end**: `sentrytap compare A B` must report every request byte-identical with identical responses; `examples/sentry-mobile/scripts/verify-bridge.py` derives sessions, errors, transactions and replays from the raw envelopes and checks rum-api, Loki, Tempo and every mp4 (sha256 and AVFoundation decode). A run with the fake Sentry stopped checks that the SDK retries and that ouo records each event once.

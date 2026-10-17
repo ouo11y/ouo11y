@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bridge vs ouo SDK</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--ok:#1e8e3e;--warn:#b7791f;--bad:#c0392b;--acc:#2f6fed;--a:#2f6fed;--b:#7c3aed;--c:#6b7280;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--a:#5b8cff;--b:#a78bfa;--c:#9aa3ad}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--a:#5b8cff;--b:#a78bfa;--c:#9aa3ad}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
+h1{font-size:1.7rem;margin:0 0 4px}h2{font-size:1.2rem;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:4px}h3{font-size:1rem;margin:18px 0 6px}
+.sub{color:var(--muted);margin:0 0 18px}
+nav{margin:8px 0 20px;font-size:.92rem;display:flex;flex-wrap:wrap;gap:4px 14px}nav a{color:var(--acc);text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card b{display:block;font-size:1.45rem;line-height:1.2}.card span{color:var(--muted);font-size:.84rem}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem;margin:8px 0}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+td code,li code,p code{overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}.na{background:var(--muted)}
+.ca{background:var(--a)}.cb{background:var(--b)}.cc{background:var(--c)}
+.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;margin:12px 0}
+.key{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:10px 14px;margin:12px 0}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.filters button{font:inherit;font-size:.85rem;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.filters button[aria-pressed="true"]{border-color:var(--acc);color:var(--acc);font-weight:600}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>What the Sentry bridge shows vs the ouo SDK</h1>
+<p class="sub">sentry-demo agent, 2026-10-17. One journey with real simulator taps in <code>examples/sentry-mobile</code> parallel mode (<code>OUO_SDK=1</code>): <code>@sentry/react-native</code> 8.30.0 goes through the ouosentry bridge, and <code>@ouo/react-native</code> 0.2.0 runs in the same app. The two data sets are compared field by field in Loki, Tempo, Mimir, rum-api and the Grafana plugin. Every gap is classified and the (a) gaps have an effort estimate. Nothing was fixed.</p>
+
+<nav>
+<a href="#tldr">Summary</a><a href="#setup">Setup</a><a href="#runs">Runs</a><a href="#compare">Field by field</a><a href="#gaps">Gap register</a><a href="#ahead">Where the bridge is ahead</a><a href="#parallel">Parallel-mode findings</a><a href="#repro">Reproduce</a>
+</nav>
+
+<h2 id="tldr">Summary</h2>
+<div class="cards">
+<div class="card"><b>11</b><span>(a) gaps: the bridge can fix them from data Sentry already sends; about 11 engineer-days for ten of them, source maps (A10) are roadmap work</span></div>
+<div class="card"><b>4</b><span>(b) gaps: Sentry never sends the data, so only the ouo SDK can provide it</span></div>
+<div class="card"><b>9</b><span>(c) cosmetic or plugin issues (most affect both producers)</span></div>
+<div class="card"><b>93 vs 9</b><span>timeline events for the same 81 s of use: bridge session vs ouo-SDK session (run 2)</span></div>
+<div class="card"><b>9 vs 22</b><span>traces: bridge (one per Sentry transaction) vs ouo SDK (one per HTTP request)</span></div>
+<div class="card"><b>3 vs 2</b><span>errors in the bridged session vs Sentry's own session counter, an (a) bug</span></div>
+</div>
+<div class="key">
+<p><b>The founder's remark "not all information shows" mostly comes from the bridge, not from Sentry.</b> On this journey the bridge already gives a richer timeline than the ouo SDK:</p>
+<ul>
+<li>taps with component names</li>
+<li>every request</li>
+<li>console output and Sentry logs</li>
+<li>app lifecycle</li>
+<li>native crashes</li>
+<li>custom spans and app-start spans</li>
+</ul>
+<p>The data it loses is data Sentry does send. It falls into seven groups, all listed as (a) items below:</p>
+<ul>
+<li>mobile vitals (app start, time to initial display, slow and frozen frames)</li>
+<li>error context (locale, network, memory, current screen, tags)</li>
+<li>native crash addresses</li>
+<li>back navigation</li>
+<li>release, environment and device fields on some records</li>
+<li>the timeline for sessions without a replay</li>
+<li>one counting bug</li>
+</ul>
+<p>What only the ouo SDK can add (b):</p>
+<ul>
+<li>a span for every request, including requests outside a Sentry transaction</li>
+<li>the session id on backend spans and logs</li>
+<li>backend correlation without changing Sentry's config</li>
+<li>replay and masking that ouo controls</li>
+</ul>
+<p>In the other direction, the ouo SDK has real gaps today. It does not capture native crashes, errors sent through <code>Sentry.captureException</code>, app start or vitals, custom spans, logs, or tap targets. So the upsell is not "more data" yet: <a href="#ahead">see below</a>.</p>
+</div>
+
+<h2 id="setup">Setup</h2>
+<ul>
+<li><b>Stack:</b> isolated compose project <code>ouo-cmp</code> on released images collector, grafana and rum-api <code>0.2.0</code> (GHCR). Ports: Grafana 3009, rum-api 8097, Loki 3109, Tempo 3209, Mimir 9019, OTLP 4378, replay 4379, bridge 4380, backend 8089. The <code>ouo</code>, <code>ouo-8a</code>, <code>ouo-sb</code> and <code>ouo-taps</code> stacks were not touched. The demo backend reused the image built for <code>ouo-sb</code>, because a Docker Hub pull of <code>golang:1.26</code> timed out; <code>examples/backend</code> has not changed since 2026-10-06.</li>
+<li><b>App:</b> Release build for a dedicated simulator, "ouo-cmp iPhone 18 Pro" (iOS 27), with these settings:
+<ul>
+<li>Sentry DSN on <code>localhost:4410</code>, where <code>sentrytap</code> records every request and forwards it to the bridge (<code>upstream: none</code>).</li>
+<li>ouo SDK exporting to the same collector as service <code>sentry-demo-ouo</code>.</li>
+<li>Bridge service name <code>sentry-demo</code>.</li>
+<li>Sentry: <code>tracesSampleRate 1</code>, <code>replaysSessionSampleRate 1</code>, masking off, <code>enableLogs</code>, <code>propagateTraceparent: true</code>.</li>
+</ul></li>
+<li><b>Journey (real UIKit taps through the simulator tool):</b>
+<ol>
+<li>Browse catalog, fetch products, fetch 500, XHR cart, checkout, failed checkout.</li>
+<li>Product screen, add to cart, cart, back to Home.</li>
+<li>Scroll; handled error, unhandled rejection, breadcrumb + message, flush.</li>
+<li>Home button for 40 s, then relaunch (new session on both sides).</li>
+<li>Search, fetch, JS fatal; relaunch; fetch, native crash; relaunch; background 40 s; relaunch.</li>
+</ol></li>
+<li><b>Demo app changes made for a fair test</b> (no product change):
+<ul>
+<li>Parallel mode never wired ouo's <code>navigationStateListener</code> or <code>RUMProvider</code>, so run 1's ouo sessions have no screens at all. <code>App.tsx</code> now wires both, as the SDK README says.</li>
+<li>New build flag <code>OUO_REPLAY=0</code> turns off the ouo replay.</li>
+</ul></li>
+</ul>
+
+<h2 id="runs">Runs and session pairs</h2>
+<p>Each row pairs the bridge session (Sentry <code>sid</code>) with the ouo-SDK session that ran at the same time. Health, end reason and counts are rum-api's (<code>GET /v1/sessions</code>).</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Run</th><th>Session</th><th>Bridge (sentry-demo)</th><th>ouo SDK (sentry-demo-ouo)</th></tr></thead>
+<tbody>
+<tr><td>1<br><span class="muted">ouo replay on, ouo navigation not wired</span></td><td>main journey</td><td>errored, 3 errors, 2 failed requests, 46 events, 9 traces, video 41 s, <b>0 touches</b></td><td>errored, 1 error, 2 failed requests, 5 events, 22 traces, frames 111 s, 47 touches</td></tr>
+<tr><td>1</td><td>JS fatal</td><td>crashed (<code>onerror</code>)</td><td>crashed (<code>uncaught</code>)</td></tr>
+<tr><td>1</td><td>native crash</td><td>crashed, <code>EXC_BAD_ACCESS</code> (mach)</td><td><span class="tag bad">terminated, healthy</span> no exception at all</td></tr>
+<tr><td>2<br><span class="muted">ouo replay off, navigation wired</span></td><td>main journey</td><td>errored, <b>3 errors (Sentry counted 2)</b>, 2 failed requests, <b>93 events</b>, 9 traces, video 82 s / 82 frames, 32 touches, 15 taps</td><td>errored, 1 error, 2 failed requests, <b>9 events</b>, 22 traces, no replay</td></tr>
+<tr><td>2</td><td>JS fatal</td><td>crashed</td><td>crashed</td></tr>
+<tr><td>2</td><td>native crash</td><td>crashed</td><td><span class="tag bad">terminated, healthy</span></td></tr>
+<tr><td>2</td><td>after background</td><td>healthy, ended at the moment of backgrounding (36.6 s)</td><td>healthy, ended 30 s after backgrounding (67.3 s)</td></tr>
+<tr><td>3<br><span class="muted">ouo replay on, navigation wired</span></td><td>main journey</td><td>errored, 3 errors, 87 events, video 90 s / 90 frames / 28 touches / 12 taps, 483 KB</td><td>errored, 1 error, 9 events, frames 76.6 s / 15 frames / 45 touches, 436 KB</td></tr>
+</tbody></table></div>
+<p class="muted">Totals in Loki for run 2 (5 sessions each): bridge 150 records of 11 event types; ouo SDK 19 records of 5 types. Tempo for run 2: bridge 15 traces / 73 spans, 0 backend spans (parallel mode, see below); ouo 28 traces / 28 client spans + 91 backend spans.</p>
+
+<h2 id="compare">Field by field</h2>
+<p>Verdict: <span class="tag ok">bridge ok</span> the bridge gives the same or more than the ouo SDK; <span class="tag warn">partial</span> the bridge has it but loses fields; <span class="tag bad">missing</span> the ouo SDK has it and the bridge does not.</p>
+<div class="filters" role="group" aria-label="Filter rows"><button aria-pressed="true" data-f="all">All</button><button aria-pressed="false" data-f="bad">Missing</button><button aria-pressed="false" data-f="warn">Partial</button><button aria-pressed="false" data-f="ok">Bridge ok</button></div>
+<div class="tablewrap"><table id="cmp">
+<thead><tr><th>Area</th><th>Bridge (Sentry SDK through ouosentry)</th><th>ouo SDK</th><th>Verdict</th><th>Gap</th></tr></thead>
+<tbody>
+<tr data-v="warn"><td><b>Session lifecycle</b></td><td><code>session.start</code> / <code>session.end</code> from Sentry <code>session</code> items; end reasons background / crash / terminated; <code>ouo.sentry.session.status</code>, <code>.errors</code>. Ends at the moment the app went to the background. No <code>session.previous_id</code>, no <code>ouo.session.ended_at</code>.</td><td>Start / end with inactivity (30 min), max duration (4 h), background (30 s), crash, terminated; <code>session.previous_id</code>, <code>ouo.session.ended_at</code>. Ends 30 s after backgrounding, so durations read 30 s longer.</td><td><span class="tag warn">partial</span></td><td>A9, C9</td></tr>
+<tr data-v="warn"><td><b>Session health</b></td><td>Same rule (ADR-0004). JS fatal and native crash both <code>crashed</code>. But <code>captureMessage(info)</code> becomes an <code>exception</code>: 3 errors where Sentry's own counter says 2.</td><td>JS fatal <code>crashed</code>; <b>native crash shows "terminated, healthy"</b>; errors sent with <code>Sentry.captureException</code> are invisible.</td><td><span class="tag warn">partial</span></td><td>A1</td></tr>
+<tr data-v="warn"><td><b>Crash / error detail</b></td><td><code>exception.type</code>, <code>.message</code>, Java-style stack with <code>[in app]</code>, normalised <code>app:///main.jsbundle</code> paths, <code>ouo.sentry.mechanism</code>, <code>event_id</code>, <b>trace / span id</b> on the record. Native crash frames are <code>at ? (binary path)</code>: instruction and image addresses and the 15 debug images are dropped. Dropped context Sentry sent: locale, connection type, free memory, low power, thermal state, foreground, <code>view_names</code> (current screen), app start time, app-set tags (<code>demo.action</code>), the 85 to 100 breadcrumbs per error, threads.</td><td>Type, message, raw Hermes stack with absolute device paths (container UUIDs, so stacks differ per install), <code>ouo.exception.kind</code>, fatal / handled. No trace id, no in-app flag, no device context.</td><td><span class="tag warn">partial</span></td><td>A6, A7, A8, C1</td></tr>
+<tr data-v="warn"><td><b>Network spans</b></td><td>CLIENT spans only inside Sentry transactions, named <code>GET http://localhost:8089/api/products/p-1001</code>. Attributes <code>http.request.method</code>, <code>url.full</code>, <code>http.response.status_code</code>, <code>sentry.op</code>. No <code>server.address</code>, <code>server.port</code>, <code>url.path</code>, <code>url.scheme</code>.</td><td>A CLIENT span for every fetch and XHR, named <code>HTTP GET</code>, with the full HTTP semconv set and <code>ouo.http.failed</code>.</td><td><span class="tag warn">partial</span></td><td>A5, B1</td></tr>
+<tr data-v="bad"><td><b>traceparent / backend join</b></td><td>Works only if the app sets <code>propagateTraceparent: true</code> (Sentry RN default is false). Verified earlier in <code>ouo-sb</code>: 27/27 traces joined. In parallel mode ouo owns the header, so 0 backend spans join bridge traces here. Sentry's baggage carries no session id, so backend logs join the session only through trace ids.</td><td><code>traceparent</code> + <code>baggage</code> with <code>session.id</code>. 28/28 traces with backend spans; backend logs carry the session id (25 lines in the plugin's Logs).</td><td><span class="tag bad">missing</span></td><td>B2</td></tr>
+<tr data-v="warn"><td><b>Failed requests</b></td><td><code>http.request.failed</code> (WARN) from transaction spans: 2/2 here.</td><td><code>http.request.failed</code> (ERROR) for every failing request: 2/2.</td><td><span class="tag warn">partial</span></td><td>B1, C5</td></tr>
+<tr data-v="warn"><td><b>Screens / navigation</b></td><td><code>navigation</code> from <code>ui.load</code> / <code>navigation</code> transactions with <code>ouo.navigation.from</code>. Home, Product, Cart = 3: <b>back navigation Cart to Home is missing</b> (the SDK drops that transaction), although the <code>navigation</code> breadcrumb <code>{from: Cart, to: Home}</code> arrives. The first screen shows at -2.7 s (before <code>session.start</code>).</td><td>4 events (<code>/Home</code>, <code>/Product</code>, <code>/Cart</code>, <code>/Home</code>), only when the app wires <code>navigationStateListener</code>.</td><td><span class="tag warn">partial</span></td><td>A11, C4</td></tr>
+<tr data-v="warn"><td><b>App start, TTID, frames (vitals)</b></td><td>Sentry sends <code>app_start_cold</code> (4674 ms) / <code>warm</code>, <code>time_to_initial_display</code> per screen (Home 4816 ms, Product 702 ms, Cart 598 ms), <code>frames_total/slow/frozen</code> and stalls. The bridge stores them only as span attributes <code>ouo.sentry.measurement.*</code>; rum-api and the plugin never read them.</td><td>Nothing (no metrics, no app start).</td><td><span class="tag warn">partial</span></td><td>A4</td></tr>
+<tr data-v="warn"><td><b>Resource / device</b></td><td><code>service.version</code>, <code>ouo.app.build</code>, release, environment, <code>os.*</code>, <code>device.model.identifier</code> (iPhone19,2). Missing on records from session-only and log envelopes: Sentry <code>log</code> records have no <code>service.version</code>, environment or <code>os.*</code> (Sentry sends <code>sentry.release</code>, <code>device.model</code>, <code>os.version</code> on each entry). <code>session.start</code>, <code>ui.tap</code>, breadcrumbs: no <code>os.version</code> or device model.</td><td><code>os.*</code>, <code>device.manufacturer</code>; device model only when the app passes <code>expo-device</code> values; no build number.</td><td><span class="tag warn">partial</span></td><td>A2, A3, C2</td></tr>
+<tr data-v="ok"><td><b>User</b></td><td><code>user.id</code> = Sentry user or install id (<code>did</code>).</td><td>Anonymous persisted UUID or <code>setUser</code>; <code>ouo.user.anonymous</code>.</td><td><span class="tag ok">bridge ok</span></td><td></td></tr>
+<tr data-v="warn"><td><b>Timeline events</b></td><td>93 events in the main session: <code>ui.tap</code> with component path (15), <code>http.request</code> (33), <code>console</code>, <code>log</code>, <code>breadcrumb</code> (custom), <code>app.lifecycle</code>, navigation, errors. <b>Only for sessions with a replay</b>: they come from the replay recording. With a production <code>replaysSessionSampleRate</code> of 0.1, 9 sessions in 10 get only navigation, errors, failed requests and logs, although every error event carries the last 100 breadcrumbs.</td><td>9 events: start, 4 navigation, 2 failed requests, 1 error, end. No taps, successful requests, lifecycle or logs.</td><td><span class="tag warn">partial</span></td><td>A8</td></tr>
+<tr data-v="ok"><td><b>Replay</b></td><td>Sentry video, 1 fps H.264, 402x874, every second while in the foreground; touches and taps paired with component names. Run 3: 90 s, 90 frames, 28 touches, 483 KB. Masking per Sentry options (<code>masked</code> from the <code>options</code> event).</td><td>JPEG frames only on change (timer / touch / navigation), 402x874 @ 1.14 scale. Run 3: 76.6 s, 15 frames, 45 touches, 436 KB. ouo masking. Taps are drawn as touches, but the activity list shows "Taps 0".</td><td><span class="tag ok">bridge ok</span></td><td>B4, C3</td></tr>
+<tr data-v="ok"><td><b>Logs</b></td><td>Sentry structured logs and console as <code>log</code> / <code>console</code> with app attributes (<code>cart_total</code>, <code>order_id</code>, <code>search_query</code> and so on): 25 lines in the plugin's Logs for the main session.</td><td>None of its own (the app logs through Sentry). Backend lines by session id: 25.</td><td><span class="tag ok">bridge ok</span></td><td>A2</td></tr>
+<tr data-v="ok"><td><b>Custom spans</b></td><td>Transactions and child spans (browse catalog, checkout, submit order, app start phases, initial display): 73 spans in run 2.</td><td>None (the SDK has no span API; HTTP spans only).</td><td><span class="tag ok">bridge ok</span></td><td></td></tr>
+<tr data-v="warn"><td><b>Mimir</b></td><td>Tempo's metrics generator makes <code>traces_spanmetrics_*</code> per span name: one series per product id from the URL-named HTTP spans; no service-graph edge to the backend in parallel mode. No RUM metrics.</td><td>Spanmetrics with <code>HTTP GET</code> / <code>HTTP POST</code>; service-graph edge <code>sentry-demo-ouo -&gt; demo-backend</code> (28). No RUM metrics.</td><td><span class="tag warn">partial</span></td><td>A5</td></tr>
+<tr data-v="ok"><td><b>Plugin</b></td><td>Session header, counts, 93-event timeline, video player with taps, activity list (Taps 15, Network 35, Errors 6, Logs 33), 9 traces named by transaction, 25 logs. The <code>captureMessage</code> shows as "Error". ouo's own OTLP uploads show as requests (parallel mode only).</td><td>Header, 9-event timeline, frames player, 22 traces all named <code>HTTP GET/POST</code>, 25 backend logs plus one exception line rendered as <code>session_previous_id=…</code>.</td><td><span class="tag ok">bridge ok</span></td><td>C1 to C8</td></tr>
+</tbody></table></div>
+
+<h2 id="gaps">Gap register</h2>
+<p><span class="tag ca">(a)</span> the bridge can fix it from data Sentry already sends. <span class="tag cb">(b)</span> Sentry never sends it, so only the ouo SDK can provide it. <span class="tag cc">(c)</span> cosmetic or plugin. Effort: engineer-days including tests and a golden capture; S up to 1 day, M 2 to 3 days. Every (a) item has a tracker line in <code>project/tracker/roadmap.md</code> ("Bridge parity gaps").</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Id</th><th>Class</th><th>Gap</th><th>Evidence</th><th>Fix (not done)</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>A1</td><td><span class="tag ca">(a)</span></td><td><code>Sentry.captureMessage</code> (level info) becomes an <code>exception</code> with an empty type, counts as an error and shows as "Error" in the plugin</td><td>Run 2: bridge 3 errors, Sentry <code>session.errors</code> = 2. The event has <code>exception.values[0].mechanism.synthetic: true</code> and <code>level: info</code></td><td>Treat a level below error whose only exception value is synthetic as <code>sentry.message</code> (custom), as section 6 already intends</td><td>S, 0.5 d</td></tr>
+<tr><td>A2</td><td><span class="tag ca">(a)</span></td><td>Sentry <code>log</code> records have no <code>service.version</code>, <code>deployment.environment.name</code>, <code>os.*</code> or device model</td><td>Loki keys for <code>event_name=log</code>; Sentry sends <code>sentry.release</code>, <code>sentry.environment</code>, <code>os.name/version</code>, <code>device.model</code> on every entry</td><td>Build the log resource from these attributes, as for events</td><td>S, 0.5 d</td></tr>
+<tr><td>A3</td><td><span class="tag ca">(a)</span></td><td><code>session.start</code>, <code>ui.tap</code>, <code>app.lifecycle</code>, <code>breadcrumb</code> and <code>console</code> records lack <code>os.version</code> and <code>device.model.identifier</code></td><td>Loki keys; their envelopes (session-only, replay) have no device context</td><td>Keep the last device and OS context per <code>sid</code> / <code>did</code> in receiver state and apply it</td><td>S, 1 d</td></tr>
+<tr><td>A4</td><td><span class="tag ca">(a)</span></td><td>Mobile vitals are invisible: cold / warm app start, TTID per screen, slow / frozen frames, stalls</td><td>Transaction <code>measurements</code>; only <code>ouo.sentry.measurement.*</code> span attributes in Tempo</td><td>Emit timeline records (for example <code>app.start</code> with type and duration, <code>screen.load</code> with TTID and frame counts); a rum-api type; plugin rows and tiles. Optional metrics later</td><td>M, 3 d (bridge 1, rum-api 0.5, plugin 1.5)</td></tr>
+<tr><td>A5</td><td><span class="tag ca">(a)</span></td><td>HTTP spans named by full URL (high-cardinality spanmetrics, inconsistent with OTel); no <code>server.address</code>, <code>server.port</code>, <code>url.path</code>, <code>url.scheme</code></td><td>Tempo span names; Mimir has one series per <code>/api/products/p-100N</code></td><td>Name <code>{method}</code> (semconv), parse <code>url.full</code> into the missing attributes</td><td>S, 0.5 d</td></tr>
+<tr><td>A6</td><td><span class="tag ca">(a)</span></td><td>Error context dropped: locale, connection type, free memory, low power, thermal, in foreground, current screen (<code>view_names</code>), app start time, app tags</td><td>Raw events vs the Loki exception record</td><td>Copy an allowlist to <code>device.*</code> / <code>app.*</code> / <code>ouo.sentry.*</code> attributes; tags behind a per-project option (app-chosen content, like log attributes); update spec section 12</td><td>S, 1 d</td></tr>
+<tr><td>A7</td><td><span class="tag ca">(a)</span></td><td>Native crash stacks are unusable: frames render as <code>at ? (path)</code>; <code>instruction_addr</code>, <code>image_addr</code> and the 15 <code>debug_meta</code> images (with UUIDs) are dropped</td><td><code>EXC_BAD_ACCESS</code> event vs the Loki record</td><td>Render <code>image+offset</code> and keep image name and UUID, so the stack can be symbolicated (offline now, server-side later). Symbolication itself (dSYM upload) is separate L work</td><td>S, 1 d</td></tr>
+<tr><td>A8</td><td><span class="tag ca">(a)</span></td><td>Taps, successful requests, console, lifecycle and custom breadcrumbs exist only for sessions with a replay</td><td>Section 9a; every error event carries 85 to 100 breadcrumbs (12 <code>touch</code>, 37 <code>fetch</code>, 5 <code>ui.lifecycle</code> in run 2)</td><td>For sessions without a replay, translate error-event breadcrumbs (de-duplicated by time and content) and successful <code>http.client</code> spans as <code>http.request</code></td><td>M, 2 d</td></tr>
+<tr><td>A9</td><td><span class="tag ca">(a)</span></td><td>No <code>session.previous_id</code> link between consecutive sessions of a device</td><td>ouo SDK sets it; Sentry sends <code>did</code> on every update</td><td>Emit the previous <code>sid</code> of the same <code>did</code> from state on <code>session.start</code></td><td>S, 0.5 d</td></tr>
+<tr><td>A10</td><td><span class="tag ca">(a)</span></td><td>Unsymbolicated JS frames on both sides; Sentry sends <code>debug_meta</code> and <code>dist</code> for source maps</td><td>Both stacks show <code>main.jsbundle:1:1391274</code></td><td>Out of the quick list: needs source-map upload and storage (shared with the ouo SDK). Listed so it is not forgotten</td><td>L (roadmap)</td></tr>
+<tr><td>A11</td><td><span class="tag ca">(a)</span></td><td>Back navigation is missing (Cart to Home): the RN SDK drops a back-navigation transaction without spans</td><td>3 vs 4 navigation events; breadcrumb <code>navigation {from: Cart, to: Home}</code> present</td><td>Use <code>navigation</code> breadcrumbs (replay recording and error events) for screen changes no transaction covered</td><td>S, 1 d</td></tr>
+<tr><td>B1</td><td><span class="tag cb">(b)</span></td><td>Requests outside a Sentry transaction have no span, and production <code>tracesSampleRate</code> thins the rest, so the trace count and failed-request detection drop</td><td>ouo 22 traces vs 9; earlier 27 vs 26 (<code>project/kb/ouo-next-to-sentry.md</code>)</td><td>ouo SDK</td><td></td></tr>
+<tr><td>B2</td><td><span class="tag cb">(b)</span></td><td>Session id on backend spans and logs (baggage); backend join without a Sentry config change</td><td>ouo: 28/28 traces joined, backend logs by session id. Bridge: needs <code>propagateTraceparent: true</code> (one line in <code>Sentry.init</code>, so an app release) and then joins by trace id only</td><td>ouo SDK, or the app sets <code>propagateTraceparent</code></td><td></td></tr>
+<tr><td>B3</td><td><span class="tag cb">(b)</span></td><td>ouo session rules: inactivity / max duration end reasons, end time, <code>ouo.session.ended_at</code></td><td>Sentry sends only its own statuses</td><td>ouo SDK (expected difference, ADR-0008 section 13)</td><td></td></tr>
+<tr><td>B4</td><td><span class="tag cb">(b)</span></td><td>Replay that ouo controls: its own masking rules, change-driven frames with a reason, no 1 fps cap, no Sentry quota</td><td>Run 3 replays</td><td>ouo SDK</td><td></td></tr>
+<tr><td>C1</td><td><span class="tag cc">(c)</span></td><td>The plugin never shows <code>exception.stacktrace</code> (both producers)</td><td>Timeline shows type and message only</td><td>Expandable stack in the timeline</td><td>S</td></tr>
+<tr><td>C2</td><td><span class="tag cc">(c)</span></td><td>No device, OS, build or environment in the session header (both)</td><td>Header fields</td><td>Header row from resource attributes</td><td>S</td></tr>
+<tr><td>C3</td><td><span class="tag cc">(c)</span></td><td>Frames replays: "Taps 0" in the activity list although 45 touches are drawn</td><td>Run 3 ouo session</td><td>Run <code>buildTaps</code> on frame touches too</td><td>S</td></tr>
+<tr><td>C4</td><td><span class="tag cc">(c)</span></td><td>The first screen of a bridged session shows at -2.7 s, before "Session start"</td><td>Transaction start precedes the session <code>init</code></td><td>Clamp to the session start in the plugin, or sort start first</td><td>S</td></tr>
+<tr><td>C5</td><td><span class="tag cc">(c)</span></td><td><code>http.request.failed</code> is WARN from the bridge and ERROR from the SDK</td><td>Loki severity</td><td>Align (one line in the receiver)</td><td>S</td></tr>
+<tr><td>C6</td><td><span class="tag cc">(c)</span></td><td>ouo-SDK traces all read <code>HTTP GET</code> in the traces table</td><td>Plugin traces table</td><td>Show <code>url.path</code> or the route next to the root name</td><td>S</td></tr>
+<tr><td>C7</td><td><span class="tag cc">(c)</span></td><td>The Logs panel renders the ouo exception line as <code>exception session_previous_id=…</code></td><td>Plugin Logs</td><td>Use type and message for exception lines</td><td>S</td></tr>
+<tr><td>C8</td><td><span class="tag cc">(c)</span></td><td>The replay masking note is hard-coded; the chunk's <code>masked</code> is not parsed by rum-api</td><td><code>SessionDetail.tsx</code>, <code>replay/parse.go</code></td><td>Parse and show the real flag</td><td>S</td></tr>
+<tr><td>C9</td><td><span class="tag cc">(c)</span></td><td>Session durations differ by about 30 s for the same use (Sentry ends at backgrounding, ouo 30 s later)</td><td>Run 2: 36.6 s vs 67.3 s</td><td>Document in the pilot comparison; no code change</td><td>doc</td></tr>
+</tbody></table></div>
+<p>(a) total: A1 to A9 and A11 come to about 11 engineer-days (A4 is the largest at 3); A10 is roadmap work.</p>
+
+<h2 id="ahead">Where the bridge is ahead of the ouo SDK today</h2>
+<p>The upsell pitch ("move to the ouo SDK for more") is not true yet on this journey. These are ouo SDK gaps, not bridge gaps, listed so nobody promises them:</p>
+<ul>
+<li><b>Native crashes:</b> the ouo SDK records the session as "terminated, healthy" (no exception, no crash count). The bridge has <code>EXC_BAD_ACCESS</code> with mechanism and frames.</li>
+<li><b>Errors reported through <code>Sentry.captureException</code></b> never reach the ouo SDK. An app moving to ouo must call <code>captureError</code> instead (a code change).</li>
+<li><b>App start, TTID, slow and frozen frames:</b> Sentry measures them. The ouo SDK has nothing (and the bridge does not show them yet, A4).</li>
+<li><b>Custom spans</b> (checkout, submit order, app-start phases): the ouo SDK has no span API.</li>
+<li><b>Logs and console:</b> the ouo SDK has no log API.</li>
+<li><b>Tap targets</b> ("action-checkout", the component path), <b>app lifecycle</b>, <b>successful requests on the timeline</b>.</li>
+<li><b>Device model</b> without extra app code, <b>trace id on errors</b>, <b>in-app frames and stable paths</b> (the ouo stack has per-install container paths, so the same error looks different on every device).</li>
+</ul>
+<p>What the ouo SDK really adds today:</p>
+<ul>
+<li>every request traced (B1)</li>
+<li>session-scoped backend logs and traces (B2)</li>
+<li>ouo session rules (B3)</li>
+<li>replay that ouo controls, independent of Sentry quotas (B4)</li>
+<li>no Sentry dependency</li>
+</ul>
+
+<h2 id="parallel">Parallel-mode findings (only when both SDKs run)</h2>
+<ul>
+<li><b>Trace ownership:</b> ouo, initialised last, sets <code>traceparent</code>, so backend spans join ouo traces and the bridged traces have 0 backend spans (Tempo run 2: 15 bridge traces, none with backend spans). The pitch demo must use Sentry alone, or the bridge looks worse than it is (F3 verified 27/27 joined without ouo).</li>
+<li><b>Two identities:</b> Sentry install id <code>ECD79EDB…</code> vs ouo anonymous id <code>d2b05f50…</code>, and two session ids with the same start time. Pair them by time or by a shared <code>setUser</code>.</li>
+<li><b>Sentry breadcrumbs include ouo's uploads</b> (<code>POST :4378/v1/traces</code>, <code>/v1/logs</code>) as timeline requests. <code>shouldCreateSpanForRequest</code> filters spans, not breadcrumbs; a <code>beforeBreadcrumb</code> filter in the demo would hide them.</li>
+<li><b>Run 1 Sentry replay cut short:</b> 41 s of a 128 s session, 6 segments then nothing, 0 touches, only 2 taps. Run 2 (ouo replay off) and run 3 (ouo replay on, same journey) were complete: 82 s / 32 touches and 90 s / 28 touches. Not reproduced, so not attributed to the ouo replay. Run 1 was the first launch after a fresh install on a new simulator. Kept open: rerun a few times before claiming the replays are compatible.</li>
+<li><b>The demo did not wire ouo navigation or <code>RUMProvider</code></b>, so earlier parallel runs had no ouo screens and no touch activity. Fixed in <code>examples/sentry-mobile/App.tsx</code>.</li>
+</ul>
+
+<h2 id="repro">Reproduce</h2>
+<pre>docker compose -p ouo-cmp --env-file &lt;cmp.env with the ports above&gt; \
+  -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
+sentrytap -listen 127.0.0.1:4410 -dir cap-run -forward http://127.0.0.1:4380
+cd examples/sentry-mobile
+OUO_SDK=1 OUO_REPLAY=1 SENTRY_DSN=http://publickey0000000000000000000000@localhost:4410/1 \
+  BACKEND_URL=http://localhost:8089 OUO_OTLP_ENDPOINT=http://localhost:4378 \
+  OUO_REPLAY_ENDPOINT=http://localhost:4379 scripts/build-ios.sh --device &lt;udid&gt;
+# real taps (simulator tool), points on a 402x874 iPhone 18 Pro, Home at top:
+#   browse 201,418  fetch 201,636  fetch-500 201,681  xhr 201,771  checkout 201,515
+#   checkout-fail 201,560  product 150,232  add 201,251  go-to-cart 201,300  back 201,297
+#   swipe 300,750 -&gt; 300,250, then handled 201,570  rejection 201,615  message 201,660
+#   flush 201,803; HOME 40 s; relaunch; search 201,192; fetch 201,359; js-fatal 201,713;
+#   relaunch; native-crash 201,758 (after scrolling)
+curl -H 'Authorization: Bearer rt_dev_0000000000000000' 'localhost:8097/v1/sessions?from=now-1h&amp;to=now'</pre>
+<p class="muted">Raw data (captures, Loki and Tempo dumps per run) stayed in the session scratchpad; the figures above are copied from it. Knowledge: <code>project/kb/sentry-bridge-vs-ouo-sdk.md</code>.</p>
+</main>
+<script>
+document.querySelectorAll('.filters button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.filters button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+  const f=b.dataset.f;
+  document.querySelectorAll('#cmp tbody tr').forEach(r=>{r.style.display=(f==='all'||r.dataset.v===f)?'':'none';});
+}));
+</script>
+</body>
+</html>

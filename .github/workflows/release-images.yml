@@ -1,6 +1,6 @@
 # Builds and pushes multi-arch container images to GHCR when an image tag is pushed, then
-# creates a GitHub release for the tag. Policy: RELEASING.md and docs/releasing.md;
-# mechanics and quirks: kb/release-packaging.md.
+# creates a GitHub release for the tag. Policy: docs/releasing.md;
+# mechanics and quirks: project/kb/release-packaging.md.
 #
 #   rum-api-v0.2.0         -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0 (+ 0.2, latest)
 #   collector-v0.2.0       -> ghcr.io/ziadmansourm/ouo/collector:0.2.0 (+ 0.2, latest)

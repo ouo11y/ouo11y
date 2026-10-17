@@ -17,7 +17,7 @@ Grafana (Ingress) --plugin route proxy + Bearer read token--> rum-api --> Loki, 
 in-cluster services --OTLP + Basic credential--> collector:4318 (HTTP) / collector-internal:4317 (gRPC)
 ```
 
-Verified on kind (Phase 8a): `agents/helm/summaries/2026-10-10-phase-8a-rev2.md`, `kb/helm-kind.md`.
+Verified on kind (Phase 8a): `project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md`, `project/kb/helm-kind.md`.
 
 ## Images
 
@@ -80,7 +80,7 @@ helm install ouo deploy/helm/ouo -n ouo --create-namespace \
 ```
 
 Requirements on the external stack: Loki with `allow_structured_metadata: true` and the ouo
-OTLP label promotion (`kb/collector-lgtm.md`), Tempo with `stream_over_http_enabled: true`
+OTLP label promotion (`project/kb/collector-lgtm.md`), Tempo with `stream_over_http_enabled: true`
 and an OTLP gRPC receiver, Mimir with OTLP ingestion. Multi-tenant stacks: set
 `lgtm.external.tenantId`; the collector and the Grafana datasources then send
 `X-Scope-OrgID`. Separate read and write paths: `lgtm.external.lokiOtlpUrl`,
@@ -94,7 +94,7 @@ and provision the app with `jsonData.rumApiUrl=http://ouo-rum-api.ouo.svc:8080` 
 ## Install B: bundled LGTM (`lgtm.mode=bundled`, the default)
 
 Single-binary Loki, Tempo and Mimir as StatefulSets with the configs from
-`deploy/docker/{loki,tempo,mimir}/config.yaml` on PersistentVolumeClaims. For kind,
+`deploy/compose/{loki,tempo,mimir}/config.yaml` on PersistentVolumeClaims. For kind,
 development and small installs; not replicated.
 
 ```bash
@@ -183,7 +183,7 @@ CORS on both public receivers, the union of all projects; wildcards like
 `http://localhost:*,http://127.0.0.1:*`). Mobile and server clients send no `Origin` and are
 unaffected. Hand-written `curl` preflights must list `Access-Control-Request-Headers`
 lowercase and sorted (`authorization,content-type`), as browsers do, or the collector answers
-without `Access-Control-Allow-Origin` (`kb/collector-components.md`).
+without `Access-Control-Allow-Origin` (`project/kb/collector-components.md`).
 
 Project ids must match `^[a-z0-9][a-z0-9._-]{0,63}$` (the chart refuses others). basicauth
 reads the htpasswd once at start; the checksum annotation makes `helm upgrade` roll the
@@ -234,14 +234,14 @@ helm upgrade ouo deploy/helm/ouo -n ouo --reuse-values --set collector.image.tag
   version with the same schema (ADR-0003).
 - rum-api is started with `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`
   from the `<release>-rum-api-config` ConfigMap, so the chart needs a rum-api image that
-  knows those flags: 0.2.0, the first rum-api release (RELEASING.md), or later. A build
+  knows those flags: 0.2.0, the first rum-api release (docs/releasing.md), or later. A build
   from before the config file exits with "flag provided but not defined". The collector rolls
   with a RollingUpdate; its replay exporter retries chunks while rum-api restarts.
 - The Grafana init container re-copies the plugin from the image onto the data volume on
   every start, so a new `grafana.image.tag` upgrades the plugin.
 - Bundled LGTM StatefulSets roll one pod each. A StatefulSet whose pod is crash-looping does
   **not** roll to a new revision on its own; delete the pod (`kubectl delete pod ouo-mimir-0`)
-  after the upgrade (`kb/helm-kind.md`).
+  after the upgrade (`project/kb/helm-kind.md`).
 
 ## Uninstall and data retention
 
@@ -340,7 +340,7 @@ deploy/README.md).
 | `lgtm.external.{lokiOtlpUrl,mimirOtlpUrl,mimirPrometheusUrl}` | derived (`<url>/otlp`, `<url>/prometheus`) | split read / write paths |
 | `lgtm.external.tenantId` | `""` | `X-Scope-OrgID` on the collector exporters and the datasources |
 | `lgtm.bundled.{loki,tempo,mimir}.image.*` | `3.7.7`, `3.0.3`, `3.2.1` | |
-| `lgtm.bundled.<x>.configOverride` | `""` | full config, replaces the one mirrored from `deploy/docker` |
+| `lgtm.bundled.<x>.configOverride` | `""` | full config, replaces the one mirrored from `deploy/compose` |
 | `lgtm.bundled.<x>.persistence.{enabled,size,storageClass,accessModes}` | `true`, `20Gi` | StatefulSet volumeClaimTemplates |
 | `lgtm.bundled.<x>.{resources,podSecurityContext,podAnnotations,nodeSelector,tolerations,affinity}` | uid 10001, small requests | |
 | `nameOverride`, `fullnameOverride`, `imagePullSecrets`, `commonLabels` | | naming and registry access; `imagePullSecrets: [{name: ghcr}]` while the ouo images are private ("Pull access") |

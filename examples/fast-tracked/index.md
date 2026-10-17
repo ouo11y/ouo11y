@@ -19,7 +19,7 @@ Four guides, in order. Each one is copy-and-paste: commands you run yourself, fi
 
 ## Ports used in the guides
 
-The guides use the default host ports from `deploy/docker/.env.example`. If any port is taken on your machine, copy that file to `deploy/docker/.env` and change the values. Nothing else needs to change.
+The guides use the default host ports from `deploy/compose/.env.example`. If any port is taken on your machine, copy that file to `deploy/compose/.env` and change the values. Nothing else needs to change.
 
 | Service | Default |
 |---|---|
@@ -37,4 +37,4 @@ The guides use the default host ports from `deploy/docker/.env.example`. If any 
 - `docs/specs/session-lifecycle.md` for what a session is and when it rotates.
 - `docs/specs/mobile-replay.md` for the screenshot replay chunk format.
 - `docs/adr/` for the decisions behind the choices in these guides.
-- `kb/` for the quirks the team hit while building this (Xcode, Metro symlinks, Loki labels, Tempo search).
+- `project/kb/` for the quirks the team hit while building this (Xcode, Metro symlinks, Loki labels, Tempo search).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the end-to-end scenario (tests/e2e/scenario.mjs) against the local stack.
-# Reads the OUO_* overrides from deploy/docker/.env (same defaults as compose.yaml),
+# Reads the OUO_* overrides from deploy/compose/.env (same defaults as compose.yaml),
 # waits for the stack, then generates the synthetic session matrix and asserts rum-api.
 # Usage: deploy/scripts/e2e.sh [--out <result.json>]
 #
@@ -23,7 +23,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 export OUO_OTLP_URL="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"

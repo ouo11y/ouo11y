@@ -78,7 +78,7 @@ Grafana evaluates `url` and `headers[].content` as Go templates per request agai
 
 ### Provisioning
 
-`deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` (compose) or the Helm chart's plugin
+`deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml` (compose) or the Helm chart's plugin
 provisioning. `$VAR` / `${VAR}` are expanded from Grafana's environment, so the token lives in `.env`
 (`OUO_READ_TOKEN`, shared with rum-api; compose defaults to the development value
 `rt_dev_0000000000000000`), not in the YAML:
@@ -106,10 +106,10 @@ npm run -w plugins/ouo-rum-app build          # -> plugins/ouo-rum-app/dist (plu
 npm run -w plugins/ouo-rum-app test           # jest: formatting, marker math, tables, config page, 401 banner
 npm run -w plugins/ouo-rum-app typecheck
 npm run -w plugins/ouo-rum-app lint
-docker compose -f deploy/docker/compose.yaml up -d grafana   # mounts dist/ into Grafana
+docker compose -f deploy/compose/compose.yaml up -d grafana   # mounts dist/ into Grafana
 ```
 
-`deploy/docker/compose.yaml` bind-mounts `dist/` at `/var/lib/grafana/plugins/ouo-rum-app` and the
+`deploy/compose/compose.yaml` bind-mounts `dist/` at `/var/lib/grafana/plugins/ouo-rum-app` and the
 provisioning file above enables the app. Grafana must allow the unsigned plugin
 (`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`). After a rebuild, restart Grafana if
 `plugin.json` changed or a new chunk file appeared; for JS-only changes bump `version` in
@@ -133,5 +133,5 @@ src/utils/timerange.ts       URL <-> Grafana TimeRange
 .config/                     webpack, jest, tsconfig, eslint from @grafana/create-plugin 7.12.1
 ```
 
-See `kb/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, secureJsonData handling,
+See `project/kb/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, secureJsonData handling,
 rrweb-player float, browser cache after rebuild, sandbox).
