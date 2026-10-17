@@ -39,5 +39,8 @@
 ## Next agent must know
 - Do not demo the bridge in parallel mode: ouo owns `traceparent`, so bridged traces lose their backend spans.
 - Sentry RN `propagateTraceparent` defaults to false. Backend correlation through the bridge needs that one line.
-- The `ouo-cmp` stack and simulator are still up. Tear them down with
-  `docker compose -p ouo-cmp down -v` and `xcrun simctl delete 99B29D52-F88B-44D2-82AC-C8F83F9BBA85`.
+- Compose project `ouo-cmp` was stopped with `docker compose -p ouo-cmp down` (no `-v`, so the volumes and data are
+  kept). The sentrytap on 4410 was stopped, and the simulator "ouo-cmp iPhone 18 Pro" (99B29D52-F88B-44D2-82AC-C8F83F9BBA85)
+  was shut down but not deleted. Bring the stack back with the same `-p ouo-cmp` and port env. Its Grafana predates
+  the admin / testing567 rule (PR #22): reset the password with `grafana cli admin reset-admin-password testing567`
+  before handing out a URL.
