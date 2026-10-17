@@ -24,13 +24,18 @@ export const FLAG_KEY = "ouo.rum.mode";
 export const RUM_MODES = ["sentry", "parallel", "ouo"] as const;
 export type RumMode = (typeof RUM_MODES)[number];
 
-/** Where this launch's mode came from. */
-export type ModeSource = "stored" | "flag" | "default";
+/** `none` (no SDK at all) exists only in the overhead measurement build (scripts/perf). */
+export type LaunchMode = RumMode | "none";
+
+/** Where this launch's mode came from. `perf`: Documents/perf-mode.json in an OUO_PERF=1 build. */
+export type ModeSource = "stored" | "flag" | "default" | "perf";
 
 export interface Launch {
-  mode: RumMode;
+  mode: LaunchMode;
   source: ModeSource;
   deviceId: string;
+  /** ouo replay: on in `ouo`, off in `parallel` (Sentry's replay already records); perf runs may force it. */
+  ouoReplay: boolean;
   /** The flag's answer for the next launch, once the background evaluation finished. */
   next: Promise<RumMode | undefined>;
 }
@@ -121,6 +126,23 @@ async function evaluate(deviceId: string): Promise<{ mode: RumMode; variant?: st
   return Promise.race([run, timeout]);
 }
 
+// Overhead measurement (OUO_PERF=1, scripts/perf/run.sh): the harness writes
+// Documents/perf-mode.json ({"mode": "none" | "sentry" | "parallel" | "ouo", "ouoReplay"?: bool})
+// before each launch. It replaces the flag for that launch: nothing is evaluated or stored, so
+// the measurement has no flag traffic and the stored rollout decision is left alone.
+function perfOverride(): { mode: LaunchMode; ouoReplay?: boolean } | undefined {
+  if (!config.perfModes) return undefined;
+  try {
+    const f = new File(Paths.document, "perf-mode.json");
+    if (!f.exists) return undefined;
+    const m = JSON.parse(f.textSync()) as { mode?: unknown; ouoReplay?: unknown };
+    if (m.mode !== "none" && !isMode(m.mode)) return undefined;
+    return { mode: m.mode, ouoReplay: typeof m.ouoReplay === "boolean" ? m.ouoReplay : undefined };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Decides this launch's mode. Resolves synchronously-fast (a microtask) when a previous launch
  * stored a decision; only the very first launch waits for the flag.
@@ -128,6 +150,10 @@ async function evaluate(deviceId: string): Promise<{ mode: RumMode; variant?: st
 export function decideLaunch(): Launch | Promise<Launch> {
   const stored = readStored();
   const deviceId = stored?.deviceId ?? newDeviceId();
+  const perf = perfOverride();
+  if (perf) {
+    return { mode: perf.mode, source: "perf", deviceId, ouoReplay: perf.ouoReplay ?? perf.mode === "ouo", next: Promise.resolve(undefined) };
+  }
   const refresh = (current: Stored): Promise<RumMode | undefined> =>
     evaluate(deviceId).then((r) => {
       if (r) writeStored({ deviceId, nextMode: r.mode, evaluatedAt: new Date().toISOString(), variant: r.variant, reason: r.reason });
@@ -138,16 +164,16 @@ export function decideLaunch(): Launch | Promise<Launch> {
 
   if (stored?.nextMode) {
     const mode = stored.nextMode;
-    return { mode, source: "stored", deviceId, next: refresh(stored) };
+    return { mode, source: "stored", deviceId, ouoReplay: mode === "ouo", next: refresh(stored) };
   }
   // First launch (or the file was lost): wait for the flag, bounded by flagTimeoutMs.
   return evaluate(deviceId).then((r) => {
     const mode = r?.mode ?? config.defaultMode;
     const s: Stored = { deviceId, nextMode: mode, evaluatedAt: new Date().toISOString(), variant: r?.variant, reason: r?.reason };
     writeStored(s);
-    return { mode, source: r ? "flag" : "default", deviceId, next: Promise.resolve(r?.mode) };
+    return { mode, source: r ? "flag" : "default", deviceId, ouoReplay: mode === "ouo", next: Promise.resolve(r?.mode) };
   });
 }
 
-export const usesSentry = (m: RumMode): boolean => m !== "ouo";
-export const usesOuo = (m: RumMode): boolean => m !== "sentry";
+export const usesSentry = (m: LaunchMode): boolean => m === "sentry" || m === "parallel";
+export const usesOuo = (m: LaunchMode): boolean => m === "parallel" || m === "ouo";

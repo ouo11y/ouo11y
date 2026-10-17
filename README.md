@@ -34,7 +34,7 @@ docker compose -f deploy/docker/compose.yaml restart grafana
 npm run -w examples/web dev                          # http://localhost:5173
 ```
 
-Open Grafana at `http://localhost:${OUO_GRAFANA_PORT:-3000}` (admin / admin) and go to
+Open Grafana at `http://localhost:${OUO_GRAFANA_PORT:-3000}` (admin / testing567) and go to
 **More apps -> ouo RUM** (`/a/ouo-rum-app`): Overview (health by platform and version),
 Sessions (filters, status, user, traces, replay), Session detail (timeline, traces with
 Explore links, rrweb replay). Use the web demo's Chaos page to produce errored and crashed

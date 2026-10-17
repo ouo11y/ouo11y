@@ -2,22 +2,26 @@
 // uses, Sentry before ouo, and only then render. Nothing monitors the app before the decision:
 // with a decision stored by the previous launch that is one file read; only the very first
 // launch waits for the flag (at most flagTimeoutMs).
+// Overhead measurement build (OUO_PERF=1) only: JS frame monitor, first so it sees JS start.
+import { setPerfLaunch } from "./src/perf";
 import { registerRootComponent } from "expo";
 import { createElement, useEffect, useState, type ComponentType } from "react";
 import App from "./App";
 import { setMode } from "./src/monitoring";
 import { initOuo } from "./src/ouo";
-import { decideLaunch, usesOuo, usesSentry, type Launch } from "./src/rollout";
+import { decideLaunch, usesSentry, type Launch } from "./src/rollout";
 import { initSentry, Sentry } from "./src/sentry";
 import { setStatus } from "./src/status";
 
 let Root: ComponentType = App;
 
 function start(launch: Launch): void {
-  setMode(launch.mode);
-  if (usesSentry(launch.mode)) initSentry(launch.mode);
-  if (usesOuo(launch.mode)) initOuo(launch.mode);
-  if (usesSentry(launch.mode)) Root = Sentry.wrap(App);
+  const { mode } = launch;
+  setMode(mode);
+  setPerfLaunch(launch);
+  if (mode === "sentry" || mode === "parallel") initSentry(mode);
+  if (mode === "parallel" || mode === "ouo") initOuo(mode, launch.ouoReplay);
+  if (usesSentry(mode)) Root = Sentry.wrap(App);
   setStatus(`rum mode ${launch.mode} (${launch.source}), device ${launch.deviceId.slice(0, 8)}`);
   void launch.next.then((next) => next && next !== launch.mode && setStatus(`rum mode ${next} from the next launch`));
 }

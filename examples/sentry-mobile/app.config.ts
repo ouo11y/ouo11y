@@ -20,6 +20,9 @@ import type { ExpoConfig } from "expo/config";
  *                        (default `sentry`).
  *   ouo exports to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT (default the isolated ouo-sb
  *   collector: 4338 and 4339).
+ *   OUO_PERF=1   overhead measurement build (scripts/perf): a JS frame monitor writes
+ *                Documents/perf.json, and Documents/perf-mode.json overrides the rollout mode per
+ *                launch (the flag is then not evaluated).
  * Values are baked into the JS bundle (Release build), so rebuild after changing them.
  */
 const modes = ["sentry", "parallel", "ouo"];
@@ -29,6 +32,8 @@ const mode = (v: string | undefined, fallback: string): string => {
   return v;
 };
 if (process.env.OUO_SDK) throw new Error("OUO_SDK was replaced by the runtime rollout: see ROLLOUT.md (OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=parallel)");
+// ouo replay follows the mode (off in `parallel`, on in `ouo`); the perf harness can force it per launch.
+if (process.env.OUO_REPLAY) throw new Error("OUO_REPLAY was replaced by the runtime rollout: `parallel` has ouo replay off, `ouo` on (ROLLOUT.md); scripts/perf sets it per launch");
 
 const version = process.env.APP_VERSION ?? "1.0.0";
 const buildNumber = process.env.BUILD_NUMBER ?? "1";
@@ -74,6 +79,7 @@ const config: ExpoConfig = {
     ouoReplayEndpoint: process.env.OUO_REPLAY_ENDPOINT ?? "http://localhost:4339",
     ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",
     ouoProjectToken: process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
+    perfModes: process.env.OUO_PERF === "1",
   },
 };
 

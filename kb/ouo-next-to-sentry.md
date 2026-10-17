@@ -42,3 +42,10 @@ Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` r
 - Two replays record side by side (Sentry video, ouo frames), two sessions with different rules.
 - Never send both into ouo (Sentry through the collector's Sentry bridge plus the ouo SDK):
   every session would arrive twice.
+
+## Device cost (measured 2026-10-17)
+
+With ouo replay off, ouo next to Sentry costs no CPU, memory, start time or JS frames that can be told
+apart from noise, and about 15 requests / 60 KB of upload per 95 s of use; ouo replay on as well adds
+~6.6 pp CPU, ~1 MB upload per 95 s and a ~49 ms main-thread stall per frame on the simulator.
+Method and numbers: `kb/sdk-overhead-ios.md`.

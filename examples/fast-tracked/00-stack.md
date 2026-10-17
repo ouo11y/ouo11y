@@ -464,7 +464,7 @@ docker compose -f deploy/docker/compose.yaml restart grafana
 Check the plugin is enabled and points at rum-api in-network:
 
 ```bash
-curl -s -u admin:admin http://localhost:3000/api/plugins/ouo-rum-app/settings
+curl -s -u admin:testing567 http://localhost:3000/api/plugins/ouo-rum-app/settings
 ```
 
 Expect `"enabled":true`, `"jsonData":{"rumApiUrl":"http://rum-api:8080"}` and
@@ -475,7 +475,7 @@ browser never calls rum-api directly: the plugin requests
 succeeds without a token because Grafana adds it):
 
 ```bash
-curl -s -u admin:admin 'http://localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
+curl -s -u admin:testing567 'http://localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
 ```
 
 After a JS-only rebuild a hard reload in the browser is enough (Grafana caches
