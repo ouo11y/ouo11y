@@ -140,6 +140,26 @@ dist-tags for pre-releases are not automated: publish with `npm dist-tag` by han
 5. For a rum-api or chart release, run the upgrade procedure from the previous release on the
    compose path and record it in `project/agents/qa/`.
 
+### Next image release after the rename (proposed 2026-10-18, needs the founder's yes)
+
+The 0.2.0 images exist only as `ghcr.io/ziadmansourm/ouo/{rum-api,collector,grafana}:0.2.0`, and
+grafana 0.2.0 carries the plugin as `ouo-rum-app`. Every pin in the repo now names
+`ghcr.io/ouo11y/*`, so `compose.images.yaml`, the Helm defaults and the VM `--images` mode pull
+nothing until the next tags exist. Proposed:
+
+| Tag | Why this version | Publishes |
+|---|---|---|
+| `rum-api-v0.2.1` | no API or behaviour change since 0.2.0, only the module path and the registry | `ghcr.io/ouo11y/rum-api:0.2.1`, `:0.2`, `:latest` |
+| `collector-v0.3.0` | the Unreleased `ouo.rum.mode = sentry` attribute (a feature) plus the rename; needs `builder.yaml` `dist.version: 0.3.0` first | `ghcr.io/ouo11y/collector:0.3.0`, `:0.3`, `:latest` |
+| `grafana-v0.3.0` | plugin 0.7.0 inside, whose ID change is breaking | `ghcr.io/ouo11y/grafana:0.3.0`, `:0.3`, `:latest` |
+
+Order: a release PR (move each Unreleased section under its version, `dist.version: 0.3.0`),
+then the three tags, then the pin bump in step 10 of section 6. Before the first push, the
+`ouo11y` org must allow `GITHUB_TOKEN` to create packages (Organization settings > Packages),
+and after it each new package needs its Read grants again (section 8): grants on the old
+`ziadmansourm/ouo/*` packages do not carry over. The old packages stay where they are; delete
+them only on the founder's word once nothing pulls them.
+
 ## 6. Checklist: container image release
 
 Before the tag:
@@ -242,7 +262,7 @@ Nothing publishes until these exist. Set them in the GitHub repository settings
 | `GITHUB_TOKEN` | automatic | `release-images.yml`, `release-plugin.yml` | nothing to create. After the first image push, open the package on GitHub and link it to the repository. Visibility stays private until ouo is stable (founder decision 2026-10-17), so every pull needs `docker login ghcr.io` with a classic `read:packages` token; see section 8, "Pull access". |
 | `GRAFANA_ACCESS_POLICY_TOKEN` | secret, optional | `release-plugin.yml` | grafana.com account, "My account > Security > Access policies", scope `plugins:write`, realm the publishing org. Without it the plugin is released unsigned. |
 | `GRAFANA_ROOT_URLS` | variable, optional | `release-plugin.yml` | comma separated Grafana root URLs the private signature is valid for (e.g. `https://grafana.pilot.example.com`). Required when the token is set. |
-| `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ouo11y/ouo11y-ios`; paste the private file as the secret; delete the local copies. The repository `ouo11y/ouo11y-ios` must exist (empty is fine). Without it the workflow tests and exits with a notice. |
+| `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ouo11y/ouo11y-ios`; paste the private file as the secret; delete the local copies. The repository `ouo11y/ouo11y-ios` exists (private, created 2026-10-18) with only a README on its default branch `about`, so `main` is created by the first push and fast-forwards; after that push, make `main` the default branch and delete `about`. Without it the workflow tests and exits with a notice. |
 
 Provenance (`npm publish --provenance`) additionally requires the repository to be public
 and the `repository.url` in each SDK `package.json` to point at it; both are in place.
