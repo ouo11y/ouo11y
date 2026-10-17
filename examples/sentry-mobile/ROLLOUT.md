@@ -205,6 +205,9 @@ the direct DSN (`scripts/rollout-journey.sh`, then `scripts/verify-rollout.py`):
 | `parallel` (switched from `sentry`) | 23 envelopes direct, tagged `parallel`, replay; the rejection forwarded by ouo (`onunhandledrejection`) | 8 records, all `sentry-demo-ouo` / `parallel`, no bridge copy; 7 traces; no ouo replay | 12/12 |
 | `ouo` (switched from `parallel`) | nothing | 8 records, all `sentry-demo-ouo` / `ouo`; 7 traces; frames replay | 10/10 |
 
+Re-run after merging main (#24 navigation wiring, #25 perf harness) on the same setup: 12/12,
+12/12, 10/10; the ouo cohorts now also record the `/Home` navigation from `onReady`.
+
 Also: flagd stopped on a later launch keeps the stored mode; flagd stopped on a first launch
 starts `sentry (default)` after the 1.5 s timeout; flagd's 80 / 15 / 5 split over 2,000 ids gave
 79.1 / 15.9 / 5.1 % and the same answer for every id asked twice. Details:
