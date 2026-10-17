@@ -72,11 +72,46 @@ function runningEnvs() {
   return r;
 }
 
+// The proxy's local CA and wildcard certificate (openssl, no other tool), created once
+// and kept: re-creating the CA would undo a trust the founder granted. The CA key never
+// leaves the state dir.
+const PROXY_DIR = path.join(STATE, "proxy");
+function ensureTls() {
+  const dir = path.join(PROXY_DIR, "tls");
+  const f = (n) => path.join(dir, n);
+  if (fs.existsSync(f("server.pem")) && fs.existsSync(f("ca.pem"))) return;
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const ssl = (...a) => run("openssl", a, { capture: true });
+  if (!fs.existsSync(f("ca.pem"))) {
+    ssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650", "-subj", "/CN=ouo-env local CA",
+      "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+      "-keyout", f("ca.key"), "-out", f("ca.pem"));
+  }
+  fs.writeFileSync(f("server.ext"), lib.tlsExtFile());
+  ssl("req", "-newkey", "rsa:2048", "-nodes", "-subj", `/CN=*.${lib.DOMAIN}`, "-keyout", f("server.key"), "-out", f("server.csr"));
+  // 825 days: the longest validity Apple platforms accept for a TLS server certificate.
+  ssl("x509", "-req", "-in", f("server.csr"), "-CA", f("ca.pem"), "-CAkey", f("ca.key"), "-CAcreateserial",
+    "-days", "825", "-extfile", f("server.ext"), "-out", f("server.pem"));
+  fs.chmodSync(f("ca.key"), 0o600);
+  // server.key stays readable: Traefik reads it through a read-only bind mount, and it is
+  // only good for *.ouo.localhost on this Mac.
+  fs.chmodSync(f("server.key"), 0o644);
+  log(`created the proxy CA ${f("ca.pem")}. Browsers trust https://*.${lib.DOMAIN} only after you trust it (asks for your password):`);
+  log(`  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${f("ca.pem")}`);
+  log(`Node tools (the Sentry MCP server) use NODE_EXTRA_CA_CERTS=${f("ca.pem")} instead.`);
+}
+
+function proxyCompose(args) {
+  return run("docker", ["compose", "-f", PROXY_FILE, ...args], { env: { OUO_PROXY_DIR: PROXY_DIR } });
+}
+
 function ensureProxy() {
   if (!capture("docker", ["network", "ls", "-q", "--filter", "name=^ouo-proxy$"])) {
     run("docker", ["network", "create", "ouo-proxy"]);
   }
-  run("docker", ["compose", "-f", PROXY_FILE, "up", "-d", "--wait"]);
+  ensureTls();
+  fs.writeFileSync(path.join(PROXY_DIR, "dynamic.yaml"), lib.renderProxyDynamic());
+  proxyCompose(["up", "-d", "--wait"]);
 }
 
 function compose(s, args, extraFiles = []) {
@@ -168,7 +203,7 @@ function printUrls(s, lan) {
   const p = lib.portsOf(s.block);
   console.log(`env ${s.env} (${s.kind}, branch ${s.branch || "-"})`);
   console.log(`  grafana   ${lib.urlOf(s.env, "grafana")}  (admin / ${lib.GRAFANA_PASSWORD})`);
-  for (const n of ["rum-api", "otlp", "replay", "sentry", "backend", "loki", "tempo", "mimir"]) console.log(`  ${n.padEnd(9)} ${lib.urlOf(s.env, n)}`);
+  for (const n of ["rum-api", "otlp", "replay", "sentry-bridge", "backend", "loki", "tempo", "mimir"]) console.log(`  ${n.padEnd(13)} ${lib.urlOf(s.env, n)}`);
   const ip = lan ? lanIP() : "localhost";
   console.log(`  devices (${lan ? "phone on the same Wi-Fi" : "simulator; --lan for a phone"}):`);
   console.log(`    OTLP     http://${ip}:${p.otlp}   replay http://${ip}:${p.replay}   Sentry DSN host ${ip}:${p.sentry}   backend http://${ip}:${p.backend}`);
@@ -285,7 +320,7 @@ async function main() {
       return console.log(lib.exportsOf(s.env, s.block));
     }
     case "proxy":
-      if (a1 === "down") return run("docker", ["compose", "-f", PROXY_FILE, "down"]);
+      if (a1 === "down") return proxyCompose(["down"]);
       return ensureProxy();
     case "slug": return console.log(lib.slugify(a1 ?? currentBranch(REPO)));
     default:

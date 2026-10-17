@@ -110,3 +110,21 @@ test("env exports point the scripts at the env", () => {
 test("parseArgs", () => {
   assert.deepEqual(lib.parseArgs(["up", "main", "--ref", "origin/x", "--purge", "--src=/a"]), { _: ["up", "main"], flags: { ref: "origin/x", purge: true, src: "/a" } });
 });
+
+test("the collector's Sentry bridge is sentry-bridge; sentry is the external self-hosted Sentry", () => {
+  const y = lib.renderOverlay({ env: "main", kind: "main", branch: "main", pr: "", session: "", created: "2026-10-18T00:00:00Z", block: 0, src: "/src" });
+  assert.match(y, /Host\(`sentry-bridge\.ouo\.localhost`\)/);
+  assert.doesNotMatch(y, /Host\(`sentry\.ouo\.localhost`\)/);
+  const d = lib.renderProxyDynamic();
+  assert.match(d, /rule: Host\(`sentry\.ouo\.localhost`\)/);
+  assert.match(d, /entryPoints: \[websecure\]\n {6}service: ext-sentry\n {6}tls: \{\}/);
+  assert.match(d, /url: "http:\/\/host\.docker\.internal:9000"/);
+  assert.match(d, /certFile: \/etc\/ouo-proxy\/tls\/server\.pem/);
+});
+
+test("the proxy certificate covers ouo.localhost and one label below it", () => {
+  const e = lib.tlsExtFile();
+  assert.match(e, /^subjectAltName=DNS:ouo\.localhost,DNS:\*\.ouo\.localhost,DNS:localhost,IP:127\.0\.0\.1$/m);
+  assert.match(e, /extendedKeyUsage=serverAuth/);
+  assert.match(e, /CA:FALSE/);
+});

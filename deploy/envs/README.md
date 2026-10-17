@@ -32,9 +32,28 @@ deploy/envs/ouo-env proxy up|down        # the shared proxy (up is implicit in `
 
 ## Hostnames
 
-Through the proxy on port 80: `grafana`, `rum-api`, `otlp` (4318), `replay` (4319), `sentry` (4320),
-`collector` (health), `backend`, `loki`, `tempo`, `mimir`, each as `http://<name>.<env>.ouo.localhost`
-(main: `http://<name>.ouo.localhost`). Traefik's dashboard is http://traefik.ouo.localhost.
+Through the proxy on port 80: `grafana`, `rum-api`, `otlp` (4318), `replay` (4319), `sentry-bridge`
+(4320, the collector's Sentry bridge), `collector` (health), `backend`, `loki`, `tempo`, `mimir`, each as
+`http://<name>.<env>.ouo.localhost` (main: `http://<name>.ouo.localhost`). Traefik's dashboard is
+http://traefik.ouo.localhost.
+
+Hosts outside any env (`EXTERNAL` in `lib.mjs`, Traefik file provider):
+
+| Host | Target | What |
+|---|---|---|
+| `http://sentry.ouo.localhost`, `https://sentry.ouo.localhost` | `host.docker.internal:9000` | self-hosted Sentry, compose project `sentry-sbx`, the bridge's real upstream for testing (`project/kb/sentry-self-hosted.md`); 502 while it is down |
+
+**https.** Port 443 serves the external hosts with a `*.ouo.localhost` certificate from a local CA
+that `proxy up` creates once in `~/.local/state/ouo-env/proxy/tls/` (openssl; the CA key stays
+there). Env routes stay http only. Browsers warn until the founder trusts the CA once (asks for the
+Mac password):
+
+```bash
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.local/state/ouo-env/proxy/tls/ca.pem
+```
+
+Node tools trust it with `NODE_EXTRA_CA_CERTS=~/.local/state/ouo-env/proxy/tls/ca.pem` (the Sentry MCP
+server needs https: it refuses an `http://` organization URL).
 `*.localhost` resolves to the loopback address in Chrome, Firefox, curl and Node with no `/etc/hosts`
 edit (`.local` would be mDNS on macOS and slow). The collector's CORS allows `http://*.ouo.localhost`.
 
@@ -71,5 +90,8 @@ env works, remove the old stack with `docker compose -p <project> down` (no `-v`
 - `ouo-env`: the CLI (Node 24, no dependencies); `lib.mjs`: its pure logic (names, hosts, port
   blocks, the compose overlay it writes to `~/.local/state/ouo-env/<env>/compose.env.yaml`, ls / gc
   decisions); `lib.test.mjs`: `node --test deploy/envs/*.test.mjs` (CI `node` job).
-- `proxy.compose.yaml`: Traefik v3.7, Docker provider, network `ouo-proxy`, port 80.
+- `proxy.compose.yaml`: Traefik v3.7, Docker provider (env routes) and file provider
+  (`~/.local/state/ouo-env/proxy/dynamic.yaml`, rendered from `lib.mjs` on every `proxy up`: TLS
+  certificate and the external hosts), network `ouo-proxy`, ports 80 and 443. Start it with
+  `ouo-env proxy up`; plain `docker compose` fails on the unset `OUO_PROXY_DIR`.
 - Knowledge and quirks: `project/kb/ouo-env.md`.

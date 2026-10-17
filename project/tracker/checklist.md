@@ -43,7 +43,7 @@ Correctness first, then context, then UI. Effort from the gap report.
 - [ ] C7 Logs panel renders the ouo exception line as `session_previous_id=…`
 - [ ] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it
 - [ ] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel`
-- [ ] N2 Real Sentry upstream run: the bridge has only forwarded to a fake Sentry so far. **Changed by the founder 2026-10-17:** not a sentry.io run. Self-host Sentry in its own named environment, with a Sentry MCP pointing at it, then point the bridge's upstream at it. Another session is doing this now (outside the repo, running the released images).
+- [x] N2 Real Sentry upstream run [2026-10-18: self-hosted Sentry 26.10 (`sentry-sbx`, https://sentry.ouo.localhost), real-tap journey: 49/49 envelopes byte-identical, all 200, no rate-limit / 413 / auth issues; Sentry stored everything; ouo 19/21, the 2 misses are startup console lines without a session (not upstream-related); Sentry MCP `sentry-sbx` (user-level, read-only) reads replays; `project/kb/sentry-self-hosted.md`, `project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`]. **Changed by the founder 2026-10-17:** not a sentry.io run; self-hosted Sentry with a Sentry MCP. Still untested: a quota-limited Sentry (real 429 / `X-Sentry-Rate-Limits`).
 - [ ] N3 Supported Sentry SDK range. **Founder 2026-10-17:** the prospects' platforms are unknown for now; assume React Native on iOS, Android later. Now: test the bridge against the current major `@sentry/react-native` (8.x; 8.30 captured) with golden tests per captured version. Medium term: native `sentry-cocoa` and `sentry-java` apps. Older majors (~7.11, the Expo default with cocoa 8.58) only if a prospect turns out to run one.
 - [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **Founder 2026-10-17:** assume the prospects add Android later; medium term, after the iOS React Native path (with N3's native sentry-java work).
 - [ ] N4 Receiver state is in memory, so the bridge runs as one replica only. Document it for pilots now; shared state later (Phase 11).
@@ -109,11 +109,11 @@ Recorded 2026-10-17:
 
 - (a) **ADR-0008 accepted** (2026-10-17). It was implemented and merged in #16 and #17; only the status line lagged.
 - (b) **Prospect platforms unknown for now.** Assume React Native on iOS, Android later. Bridge tested against the current major `@sentry/react-native` now, native `sentry-cocoa` and `sentry-java` medium term (N3, B6). Long term one ouo SDK spec with a conformance suite, implemented in roadmap order; compare Sentry's platform list with ouo's and add what is missing as later phases (N17).
-- (c) **N2 changed:** self-hosted Sentry in its own named environment with a Sentry MCP pointing at it, not sentry.io. Another session is doing it now.
+- (c) **N2 changed:** self-hosted Sentry with a Sentry MCP pointing at it, not sentry.io. Done 2026-10-18 (see N2).
 - (d) **Token rotation (N14) deferred:** kept as is, addressed later.
 - (e) **The founder's iPhone 16 Pro Max is available:** preferred over the simulator for every performance number (B3, N6).
 - (f) **Hosted demo (B8):** still open.
-- (g) **F4 verdict pending:** the demo is being re-run.
+- (g) **F4 verdict pending:** re-run done 2026-10-18 next to Sentry's own player (`project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`): plays unmasked in both; ouo's taps are clearer; ouo is worse on seek (black frame), counts an info message as an error, and has startup console lines without a session.
 - Repo layout for B5 approved (ADR-0010).
 
 Recorded 2026-10-18 (ADR-0009, accepted):
@@ -125,6 +125,6 @@ Recorded 2026-10-18 (ADR-0009, accepted):
 
 1. Package publishing: npm org, deploy key for the `ouo11y-ios` mirror (repo created 2026-10-18), plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
 2. Where the hosted demo for B8 lives.
-3. Verdict on the F4 unmasked Sentry recordings (pending; the demo is being re-run).
+3. Verdict on the F4 unmasked Sentry recordings (re-run 2026-10-18 side by side with Sentry's player; see the report). Trust the ouo-env proxy CA once so https://sentry.ouo.localhost opens without a warning (`deploy/envs/README.md`).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).
 5. Push the post-rename image tags (N19).

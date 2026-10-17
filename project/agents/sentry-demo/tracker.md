@@ -6,6 +6,7 @@
 | 2026-10-17 | Device cost of `@ouo11y/react-native` next to Sentry measured (simulator, 30 runs, real taps): replay off = noise on CPU/memory/start, +15 requests / +59 KB per 95 s; replay on = +6.6 pp CPU. [summary](summaries/2026-10-17-sdk-overhead.md), [report](reports/sdk-overhead-ios.html) |
 | 2026-10-17 | Bridge vs ouo SDK comparison on one real-tap journey in parallel mode (3 runs, isolated `ouo-cmp`): 11 (a) gaps tracked as A1 to A11 in `project/tracker/roadmap.md`; demo wires ouo navigation and `RUMProvider`, `OUO_REPLAY` flag. [summary](summaries/2026-10-17-bridge-vs-sdk.md), [report](reports/bridge-vs-sdk.html) |
 | 2026-10-17 | Runtime rollout switch `ouo.rum.mode` (OpenFeature, flagd over OFREP), `ROLLOUT.md` client guide, three cohorts verified on the simulator; #24's navigation wiring and #25's perf harness folded into the modes. [summary](summaries/2026-10-17-rum-mode-rollout.md) |
+| 2026-10-18 | Self-hosted Sentry 26.10 (`sentry-sbx`, 14 GiB) as the bridge's real upstream: 49/49 envelopes byte-identical, all 200, ouo 19/21 (startup console lines without a session); Sentry MCP (user-level `sentry-sbx`, needs https → `sentry.ouo.localhost` on the ouo-env proxy); F4 unmasked replay compared with Sentry's player. [summary](summaries/2026-10-18-sentry-self-hosted.md), [report](reports/sentry-self-hosted-n2-f4.html) |
 
 ## Open
 
@@ -13,4 +14,5 @@
 - Capture with a newer/older `@sentry/react-native` (for example Expo's pinned `~7.11.0`, sentry-cocoa 8.58) to pin the supported range in the spec.
 - rum-api: filter sessions and health stats by `ouo.rum.mode` (today only by service).
 - Repeat the overhead measurement on a real iPhone (none available on 2026-10-17).
+- Bridge: startup `log` items without a session (attach to the next session, de-duplicate with breadcrumbs); info `captureMessage` filed as an exception. Plugin: black frame on seek.
 - Run-1 Sentry replay stopped after 41 s while the ouo replay ran; not reproduced in run 3. Rerun parallel sessions to confirm the two replays coexist.
