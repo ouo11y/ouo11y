@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor/internal/metadata"
 )
 
 type auth struct{ user string }

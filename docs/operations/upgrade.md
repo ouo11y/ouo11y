@@ -34,7 +34,7 @@ cd <checkout>
 git fetch --tags
 git checkout rum-api-v<new>            # the release tag of the component you upgrade; for a
                                        # full upgrade use the release-train commit from CHANGELOG.md
-npm ci && npm run -w plugins/ouo-rum-app build   # plugin dist that Grafana mounts
+npm ci && npm run -w plugins/ouo11y-rum-app build   # plugin dist that Grafana mounts
 docker compose -f deploy/compose/compose.yaml pull     # Grafana, Loki, Tempo, Mimir, collector tags
 docker compose -f deploy/compose/compose.yaml build rum-api backend
 docker compose -f deploy/compose/compose.yaml up -d    # recreates only changed containers
@@ -52,7 +52,7 @@ new variables have defaults, but a variable that was **renamed** is listed under
 
 With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.2.0 and later) the
 procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
-`ghcr.io/ziadmansourm/ouo/*` packages are private until ouo is stable, so the host needs a
+`ghcr.io/ouo11y/*` packages are private until ouo is stable, so the host needs a
 `docker login ghcr.io` with a classic `read:packages` token first ("Pull access" in
 `docs/releasing.md`).
 
@@ -119,10 +119,10 @@ contract between components. Versions are those of Phase 8a; nothing is tagged y
 | Component | Version | Needs rum-api | Needs Grafana | Notes |
 |---|---|---|---|---|
 | rum-api | 0.2.0 | n/a | 13.x for the plugin proxy; any for ingest | ADR-0007: project token on ingest, read token for the plugin; max replay `schema_version` 1 |
-| `@ouo/browser` | 0.2.0 | >= 0.2.0 | n/a | posts OTLP to rum-api `/ingest/otlp` with `X-Ouo-Project-Token`; 0.1.x posted to the collector directly and does not work behind the gateway |
-| `@ouo/react-native` | 0.2.0 | >= 0.2.0 | n/a | same gateway change; frames replay `schema_version` 1 |
+| `@ouo11y/browser` | 0.2.0 | >= 0.2.0 | n/a | posts OTLP to rum-api `/ingest/otlp` with `X-Ouo-Project-Token`; 0.1.x posted to the collector directly and does not work behind the gateway |
+| `@ouo11y/react-native` | 0.2.0 | >= 0.2.0 | n/a | same gateway change; frames replay `schema_version` 1 |
 | `OuoReplay` (iOS) | 0.2.0 | >= 0.2.0 | n/a | project token on `POST /v1/replay/chunks` |
-| `ouo-rum-app` plugin | 0.3.0 | >= 0.2.0 | >= 13.0.0 (`grafanaDependency`) | read token in the plugin route; 0.2.x called rum-api unauthenticated and gets `401` from rum-api 0.2.0 |
+| `ouo11y-rum-app` plugin | 0.3.0 | >= 0.2.0 | >= 13.0.0 (`grafanaDependency`) | read token in the plugin route; 0.2.x called rum-api unauthenticated and gets `401` from rum-api 0.2.0 |
 | grafana image | 0.2.0 | n/a | ships Grafana 13.2.1 + plugin 0.3.0 | |
 | Helm chart | 0.1.0 | `appVersion` 0.2.0 | | Kubernetes >= 1.25 |
 

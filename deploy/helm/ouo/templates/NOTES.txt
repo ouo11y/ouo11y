@@ -34,9 +34,9 @@ Grafana: {{ ternary "https" "http" .Values.grafana.ingress.tls.enabled }}://{{ .
 Grafana has no Ingress; reach it with a port-forward:
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.grafana.fullname" . }} 3000:{{ .Values.grafana.service.port }}
-  open http://localhost:3000/a/ouo-rum-app/overview      (user {{ .Values.grafana.adminUser }})
+  open http://localhost:3000/a/ouo11y-rum-app/overview      (user {{ .Values.grafana.adminUser }})
 {{- end }}
-  Plugin settings: /api/plugins/ouo-rum-app/settings  (rumApiUrl = {{ include "ouo.rumApiUrl" . }})
+  Plugin settings: /api/plugins/ouo11y-rum-app/settings  (rumApiUrl = {{ include "ouo.rumApiUrl" . }})
 {{- end }}
 
 Projects (ADR-0007): every SDK and every OTLP exporter authenticates with HTTP Basic

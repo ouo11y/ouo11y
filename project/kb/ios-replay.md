@@ -201,6 +201,6 @@ What is true now:
   collector's replay receiver with `401`-on-wrong-token is the QA pass.
 - **SwiftPM by URL.** `.package(url:)` needs `Package.swift` at the root of the fetched
   repository; `sdk/ios` is nested in the monorepo, so remote consumers cannot add it yet. A
-  tagged mirror (for example `ouo-ios`, pushed from `sdk/ios` by the release workflow) is the
+  tagged mirror (for example `ouo11y-ios`, pushed from `sdk/ios` by the release workflow) is the
   usual fix; the release agent decides. Local-path consumption and CocoaPods vendoring are
   unaffected.

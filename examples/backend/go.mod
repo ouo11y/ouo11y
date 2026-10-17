@@ -1,4 +1,4 @@
-module github.com/ZiadMansourM/ouo/examples/backend
+module github.com/ouo11y/ouo11y/examples/backend
 
 go 1.26.0
 

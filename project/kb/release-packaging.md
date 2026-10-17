@@ -3,14 +3,14 @@
 What each publishing channel needs and what was checked locally in Phase 8a. Policy
 (versions, tags, who bumps what) is in `docs/releasing.md`; this file is the mechanics.
 
-## npm with provenance (`@ouo/browser`, `@ouo/react-native`)
+## npm with provenance (`@ouo11y/browser`, `@ouo11y/react-native`)
 
 - `npm publish --provenance` attaches a Sigstore attestation that links the tarball to the
   GitHub Actions run that built it. Requirements, all checked by npm at publish time:
   - runs inside GitHub Actions (or GitLab CI) with `permissions: id-token: write`;
   - the repository is **public** (private repos need npm Pro/Teams and an explicit flag);
   - `repository.url` in `package.json` matches the repo the workflow runs in
-    (`git+https://github.com/ZiadMansourM/ouo.git`, with `"directory"` for monorepos). Both
+    (`git+https://github.com/ouo11y/ouo11y.git`, with `"directory"` for monorepos). Both
     SDK manifests have it since 0.2.0;
   - npm CLI >= 9.5 (Node 24 ships npm 11).
 - Scoped packages are private by default; `--access public` (or `publishConfig.access`)
@@ -23,11 +23,11 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
   package to exist first, so the first release uses `NPM_TOKEN`.
 - `npm pack --dry-run -w <workspace>` prints exactly the files that will be published.
   Phase 8a observations:
-  - `@ouo/browser` 0.2.0 ships `dist/index.js` (136 kB), `dist/index.d.ts` **and a 922 kB
-    `dist/index.js.map`** (`files: ["dist", ...]`); `@ouo/react-native` likewise ships a
+  - `@ouo11y/browser` 0.2.0 ships `dist/index.js` (136 kB), `dist/index.d.ts` **and a 922 kB
+    `dist/index.js.map`** (`files: ["dist", ...]`); `@ouo11y/react-native` likewise ships a
     698 kB map. Fine for debugging; drop `*.map` via `files` negation or tsup `sourcemap`
     if tarball size matters (614 kB and 235 kB packed today).
-  - `@ouo/react-native` 0.2.0 ships `dist/`, `ios/` (podspecs, Expo module Swift), `android/`
+  - `@ouo11y/react-native` 0.2.0 ships `dist/`, `ios/` (podspecs, Expo module Swift), `android/`
     (stub), `expo-module.config.json`. The iOS sources are synced from `sdk/ios` by
     `scripts/sync-ios.mjs` during `build`, so the tarball never depends on the SwiftPM mirror.
   - `LICENSE*`, `README*`, `CHANGELOG*` and `package.json` are always included by npm
@@ -39,7 +39,7 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 
 ## GHCR multi-arch images (`rum-api`, `collector`, `grafana`)
 
-- Image names must be lowercase: `ghcr.io/ziadmansourm/ouo/rum-api`, not `ZiadMansourM`.
+- Image names must be lowercase: a GitHub owner like `ZiadMansourM` became `ghcr.io/ziadmansourm/...`; the org `ouo11y` is lowercase already (`ghcr.io/ouo11y/rum-api`).
 - `GITHUB_TOKEN` with `packages: write` can push. The first push creates the package
   **private** and unlinked; in the GitHub UI (Packages > package > Package settings) link it
   to the repository, once per package. ouo keeps them private until stable (below).
@@ -71,10 +71,10 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 - `docker/metadata-action` with `type=semver,...,value=<version>` derives `0.2` from `0.2.0`
   and skips `major.minor` for prereleases (`0.2.0-rc.1`). `:latest` is gated on the version
   having no `-`.
-- The grafana image (`deploy/images/grafana/Dockerfile`) copies `plugins/ouo-rum-app/dist`
+- The grafana image (`deploy/images/grafana/Dockerfile`) copies `plugins/ouo11y-rum-app/dist`
   from the repo-root build context; its `Dockerfile.dockerignore` keeps everything else
-  out. The workflow builds the plugin first (`npm ci && npm run build -w plugins/ouo-rum-app`).
-  It sets `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`, which is harmless once the
+  out. The workflow builds the plugin first (`npm ci && npm run build -w plugins/ouo11y-rum-app`).
+  It sets `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`, which is harmless once the
   plugin is signed.
 - Verified locally: `docker build -t ouo/rum-api:release-check services/rum-api` succeeds
   (6.7 MB compressed, distroless). Multi-arch push was **not** exercised locally (no
@@ -138,7 +138,7 @@ produced by `npx @grafana/sign-plugin` with a `GRAFANA_ACCESS_POLICY_TOKEN`:
 
 - Unsigned plugins load only with `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=<id>`; Grafana
   logs a warning on every start and the UI shows "unsigned". This is the documented
-  fallback for the pilot (`plugins/ouo-rum-app/README.md`).
+  fallback for the pilot (`plugins/ouo11y-rum-app/README.md`).
 - `@grafana/sign-plugin` 3.3.3 checked locally (`npx --yes @grafana/sign-plugin`): it has no
   `--help`; running it from the plugin directory looks for `dist/` (override with
   `--distDir`), then aborts with "Missing GRAFANA_ACCESS_POLICY_TOKEN" before touching
@@ -148,7 +148,7 @@ produced by `npx @grafana/sign-plugin` with a `GRAFANA_ACCESS_POLICY_TOKEN`:
   re-releasing. For a multi-tenant pilot keep the list of root URLs in the
   `GRAFANA_ROOT_URLS` repository variable so a re-run of the release workflow re-signs.
 - The signed zip layout Grafana expects is `<plugin-id>/plugin.json` at the top level of the
-  archive, i.e. `ouo-rum-app/...`, which is what `release-plugin.yml` produces from `dist/`.
+  archive, i.e. `ouo11y-rum-app/...`, which is what `release-plugin.yml` produces from `dist/`.
 - `plugin.json` `info.version` is `%VERSION%` in source and is replaced from `package.json`
   at build time; the release workflow checks `dist/plugin.json` carries the tag version.
 
@@ -158,11 +158,11 @@ produced by `npx @grafana/sign-plugin` with a `GRAFANA_ACCESS_POLICY_TOKEN`:
   of that clone. There is no sub-path option in `.package(url:)`, so `sdk/ios` cannot be
   consumed from the monorepo URL; local `.package(path: "../../sdk/ios")` works only inside
   the checkout.
-- Approach chosen: a mirror repository `ZiadMansourM/ouo-ios` whose `main` is
+- Approach chosen: a mirror repository `ouo11y/ouo11y-ios` whose `main` is
   `git subtree split --prefix=sdk/ios` of this repo, with plain semver tags (`0.2.0`;
   SwiftPM accepts both `0.2.0` and `v0.2.0`). `release-ios.yml` does the split on
   `ios-v*` tags and pushes over SSH with a deploy key. Consumers write
-  `.package(url: "https://github.com/ZiadMansourM/ouo-ios.git", from: "0.2.0")`.
+  `.package(url: "https://github.com/ouo11y/ouo11y-ios.git", from: "0.2.0")`.
 - `git subtree split` needs the full history (`fetch-depth: 0`) and is deterministic for the
   same history, so successive splits fast-forward each other. Never commit directly on the
   mirror; if someone did, the push is rejected (intentionally not forced) and the fix is to

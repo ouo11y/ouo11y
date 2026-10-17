@@ -21,7 +21,7 @@ Product at the top, process material under `project/` ([ADR-0010](docs/adr/0010-
 sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
 collector/           ouo-collector (ocb distribution) and its components (Go)
 services/rum-api/    platform service (Go)
-plugins/ouo-rum-app/ Grafana app plugin
+plugins/ouo11y-rum-app/ Grafana app plugin
 deploy/              compose/ (local + VM stack), helm/, vm/, envs/ (ouo-env), images/, scripts/
 examples/            demo web, mobile, sentry-mobile and backend apps; fast-tracked guides
 tests/               end-to-end scenario

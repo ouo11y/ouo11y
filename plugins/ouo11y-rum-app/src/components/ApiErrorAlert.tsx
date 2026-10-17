@@ -14,7 +14,7 @@ export function ApiErrorAlert({ error, onRetry }: { error: RumApiError; onRetry?
         <div>
           Grafana forwards every request to rum-api with the read token stored in the plugin settings. rum-api answered{' '}
           <code>401</code>, so the token is missing or does not match the <code>OUO_READ_TOKEN</code> rum-api was
-          started with. Configure it in the plugin settings (Administration &gt; Plugins &gt; ouo RUM &gt;
+          started with. Configure it in the plugin settings (Administration &gt; Plugins &gt; ouo11y RUM &gt;
           Configuration) and use &quot;Test connection&quot; there.
         </div>
         <div style={{ marginTop: 4, opacity: 0.8, wordBreak: 'break-all' }}>

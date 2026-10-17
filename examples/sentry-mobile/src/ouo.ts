@@ -2,7 +2,7 @@
 // (src/rollout.ts), always AFTER Sentry when both run: ouo then owns Hermes' single promise
 // rejection tracker (and forwards rejections to Sentry) and its fetch / XHR wrappers run first,
 // so ouo's traceparent is the one the backend gets (project/kb/ouo-next-to-sentry.md).
-import { initRUM, type RUM } from "@ouo/react-native";
+import { initRUM, type RUM } from "@ouo11y/react-native";
 import * as Sentry from "@sentry/react-native";
 import { config } from "./config";
 import { FLAG_KEY, usesSentry, type RumMode } from "./rollout";

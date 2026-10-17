@@ -3,7 +3,7 @@
 #   kind create cluster --name ouo-8a
 #   docker build -t ouo/collector:dev collector
 #   docker build -t ouo/rum-api:dev services/rum-api
-#   npm run -w plugins/ouo-rum-app build
+#   npm run -w plugins/ouo11y-rum-app build
 #   docker build -t ouo/grafana:dev -f deploy/images/grafana/Dockerfile .
 #   kind load docker-image ouo/collector:dev ouo/rum-api:dev ouo/grafana:dev --name ouo-8a
 #   helm install ouo deploy/helm/ouo -f deploy/helm/ouo/values-kind.yaml

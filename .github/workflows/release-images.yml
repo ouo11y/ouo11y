@@ -2,13 +2,13 @@
 # creates a GitHub release for the tag. Policy: docs/releasing.md;
 # mechanics and quirks: project/kb/release-packaging.md.
 #
-#   rum-api-v0.2.0         -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0 (+ 0.2, latest)
-#   collector-v0.2.0       -> ghcr.io/ziadmansourm/ouo/collector:0.2.0 (+ 0.2, latest)
+#   rum-api-v0.2.0         -> ghcr.io/ouo11y/rum-api:0.2.0 (+ 0.2, latest)
+#   collector-v0.2.0       -> ghcr.io/ouo11y/collector:0.2.0 (+ 0.2, latest)
 #                             ouo-collector, the ocb distribution in collector/ (otlp,
 #                             ouoreplay and ouosentry receivers); the tag must equal
 #                             dist.version in collector/builder.yaml
-#   grafana-v0.2.0         -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0 (+ 0.2, latest)
-#                             Grafana with plugins/ouo-rum-app baked in
+#   grafana-v0.2.0         -> ghcr.io/ouo11y/grafana:0.2.0 (+ 0.2, latest)
+#                             Grafana with plugins/ouo11y-rum-app baked in
 #   <image>-v0.2.0-rc.1    -> :0.2.0-rc.1 only, GitHub release marked pre-release
 #
 # Every image is linux/amd64 + linux/arm64 with an SBOM and max-mode provenance
@@ -45,7 +45,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGISTRY_IMAGE_PREFIX: ghcr.io/ziadmansourm/ouo
+  REGISTRY_IMAGE_PREFIX: ghcr.io/ouo11y
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
   # Put the OCI annotations on the multi-arch index too, where ghcr.io reads them.
@@ -82,7 +82,7 @@ jobs:
               context=.
               dockerfile=deploy/images/grafana/Dockerfile
               changelog=deploy/images/grafana/CHANGELOG.md
-              paths="deploy/images/grafana plugins/ouo-rum-app"
+              paths="deploy/images/grafana plugins/ouo11y-rum-app"
               ;;
             *) echo "::error::unexpected tag $TAG"; exit 1 ;;
           esac
@@ -128,10 +128,10 @@ jobs:
         if: steps.target.outputs.image == 'grafana'
         run: |
           npm ci
-          npm run build -w plugins/ouo-rum-app
-          npm run test -w plugins/ouo-rum-app
-          test -f plugins/ouo-rum-app/dist/plugin.json
-          echo "version=$(node -p "require('./plugins/ouo-rum-app/dist/plugin.json').info.version")" >> "$GITHUB_OUTPUT"
+          npm run build -w plugins/ouo11y-rum-app
+          npm run test -w plugins/ouo11y-rum-app
+          test -f plugins/ouo11y-rum-app/dist/plugin.json
+          echo "version=$(node -p "require('./plugins/ouo11y-rum-app/dist/plugin.json').info.version")" >> "$GITHUB_OUTPUT"
           echo "base=$(awk '/^FROM /{print $2; exit}' deploy/images/grafana/Dockerfile)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
@@ -215,7 +215,7 @@ jobs:
             echo
             if [ -n "$DIGEST" ]; then echo "Digest: \`$DIGEST\`"; echo; fi
             if [ "$IMAGE" = grafana ]; then
-              echo "Base \`$GRAFANA_BASE\` with the \`ouo-rum-app\` plugin $PLUGIN_VERSION (unsigned, loaded via \`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS\`)."
+              echo "Base \`$GRAFANA_BASE\` with the \`ouo11y-rum-app\` plugin $PLUGIN_VERSION (unsigned, loaded via \`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS\`)."
               echo
             fi
             echo "SBOM and provenance attestations: \`docker buildx imagetools inspect $ref:$VERSION --format '{{ json .Provenance }}'\`."

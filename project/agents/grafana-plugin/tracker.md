@@ -2,7 +2,7 @@
 
 | Date | Item | Status |
 |---|---|---|
-| 2026-10-07 | Scaffold `plugins/ouo-rum-app` (create-plugin 7.12.1, frontend only), workspace install | done |
+| 2026-10-07 | Scaffold `plugins/ouo11y-rum-app` (create-plugin 7.12.1, frontend only), workspace install | done |
 | 2026-10-07 | Route proxy `rum/*` -> `jsonData.rumApiUrl`, provisioning yaml, compose volume, config page | done, verified with curl |
 | 2026-10-07 | Overview page (tiles + version tables, time range in URL) | done, numbers match rum-api |
 | 2026-10-07 | Sessions page (filters in URL, table, row click) | done, verified in browser |

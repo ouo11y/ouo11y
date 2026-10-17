@@ -23,7 +23,7 @@ Two DNS names pointing at the VM (`ouo.example.com` for Grafana, `otel.ouo.examp
 for the collector), ports 22, 80 and 443 open, 4 GB RAM, 20 GB disk to start.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ZiadMansourM/ouo/main/deploy/vm/install.sh \
+curl -fsSL https://raw.githubusercontent.com/ouo11y/ouo11y/main/deploy/vm/install.sh \
   | sudo bash -s -- --domain ouo.example.com --email you@example.com
 ```
 
@@ -198,5 +198,5 @@ Phase 8c replaces this with object storage, a rehearsed restore and a runbook.
 - Replays missing while traces arrive: `docker compose ... logs otel-collector | grep -i
   replay` and `logs rum-api`. The exporter needs `OUO_INGEST_TOKEN` to be identical on the
   collector and on rum-api (both come from `.env`); a mismatch is a `401` in rum-api's log.
-- Plugin missing in Grafana: `ls /opt/ouo/plugins/ouo-rum-app/dist` must contain
+- Plugin missing in Grafana: `ls /opt/ouo/plugins/ouo11y-rum-app/dist` must contain
   `module.js`; re-run the installer or `docker compose ... restart grafana` after a build.

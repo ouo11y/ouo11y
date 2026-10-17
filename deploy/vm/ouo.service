@@ -9,7 +9,7 @@
 # the directory of the first -f file.
 [Unit]
 Description=ouo observability stack (docker compose)
-Documentation=https://github.com/ZiadMansourM/ouo/blob/main/deploy/vm/README.md
+Documentation=https://github.com/ouo11y/ouo11y/blob/main/deploy/vm/README.md
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target

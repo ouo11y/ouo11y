@@ -1,4 +1,4 @@
-module github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter
+module github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter
 
 go 1.26.0
 

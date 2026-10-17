@@ -1,5 +1,5 @@
-// All @ouo/browser usage lives here. Pages import { rum } and never the SDK.
-import { initRUM, type RUM } from "@ouo/browser";
+// All @ouo11y/browser usage lives here. Pages import { rum } and never the SDK.
+import { initRUM, type RUM } from "@ouo11y/browser";
 
 declare const __OUO_RUM_STUB__: boolean;
 

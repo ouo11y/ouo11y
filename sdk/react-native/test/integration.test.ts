@@ -200,7 +200,7 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     expect(attr(captured.resource, "os.version")).toBe("17.5");
     expect(attr(captured.resource, "device.model.identifier")).toBe("iPhone15,2");
     expect(attr(captured.resource, "device.manufacturer")).toBe("Apple");
-    expect(attr(captured.resource, "ouo.sdk.name")).toBe("@ouo/react-native");
+    expect(attr(captured.resource, "ouo.sdk.name")).toBe("@ouo11y/react-native");
 
     // ---- logs ----
     const logs = captured.logs;

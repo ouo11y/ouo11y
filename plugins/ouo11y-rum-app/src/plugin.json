@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "app",
-  "name": "ouo RUM",
-  "id": "ouo-rum-app",
+  "name": "ouo11y RUM",
+  "id": "ouo11y-rum-app",
   "info": {
     "keywords": ["app", "rum", "opentelemetry", "session replay", "ouo"],
     "description": "Real User Monitoring on OpenTelemetry: session health, sessions, timeline, traces and rrweb replay served by rum-api.",
     "author": {
-      "name": "ouo"
+      "name": "ouo11y"
     },
     "logos": {
       "small": "img/logo.svg",

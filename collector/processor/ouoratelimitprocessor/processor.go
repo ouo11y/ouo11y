@@ -1,4 +1,4 @@
-package ouoratelimitprocessor // import "github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor"
+package ouoratelimitprocessor // import "github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor"
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor/internal/metadata"
 )
 
 const (

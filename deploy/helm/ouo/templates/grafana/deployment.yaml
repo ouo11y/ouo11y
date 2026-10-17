@@ -48,9 +48,9 @@ spec:
             - -ec
             - |
               mkdir -p /pvc/plugins
-              rm -rf /pvc/plugins/ouo-rum-app
-              cp -a /var/lib/grafana/plugins/ouo-rum-app /pvc/plugins/ouo-rum-app
-              echo "ouo-rum-app $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /pvc/plugins/ouo-rum-app/plugin.json | head -1) installed"
+              rm -rf /pvc/plugins/ouo11y-rum-app
+              cp -a /var/lib/grafana/plugins/ouo11y-rum-app /pvc/plugins/ouo11y-rum-app
+              echo "ouo11y-rum-app $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /pvc/plugins/ouo11y-rum-app/plugin.json | head -1) installed"
           volumeMounts:
             - name: data
               mountPath: /pvc
@@ -78,9 +78,9 @@ spec:
             - name: GF_USERS_DEFAULT_THEME
               value: {{ .Values.grafana.defaultTheme | quote }}
             - name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS
-              value: ouo-rum-app
+              value: ouo11y-rum-app
             - name: GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS
-              value: ouo-rum-app
+              value: ouo11y-rum-app
             {{- $rootUrl := "" }}
             {{- if .Values.grafana.rootUrl }}{{ $rootUrl = .Values.grafana.rootUrl }}
             {{- else if .Values.grafana.ingress.enabled }}{{ $rootUrl = printf "%s://%s" (ternary "https" "http" .Values.grafana.ingress.tls.enabled) .Values.grafana.ingress.host }}{{ end }}

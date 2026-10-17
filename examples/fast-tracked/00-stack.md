@@ -46,7 +46,7 @@ apps all need the same two things: the collector's URL and the project credentia
 (`projectId` + `projectToken`).
 
 ```bash
-git clone https://github.com/ZiadMansourM/ouo.git
+git clone https://github.com/ouo11y/ouo11y.git
 ```
 
 ```bash
@@ -58,9 +58,9 @@ versions in `deploy/compose/.env.example`:
 
 | Image | Default version | Variable |
 |---|---|---|
-| `ghcr.io/ziadmansourm/ouo/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.2.0` | `OUO_COLLECTOR_VERSION` |
-| `ghcr.io/ziadmansourm/ouo/rum-api` | `0.2.0` | `OUO_RUM_API_VERSION` |
-| `ghcr.io/ziadmansourm/ouo/grafana` (Grafana with the ouo app plugin baked in) | `0.2.0` | `OUO_GRAFANA_VERSION` |
+| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.2.0` | `OUO_COLLECTOR_VERSION` |
+| `ghcr.io/ouo11y/rum-api` | `0.2.0` | `OUO_RUM_API_VERSION` |
+| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in) | `0.2.0` | `OUO_GRAFANA_VERSION` |
 
 They come in through the override file `deploy/compose/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
@@ -72,12 +72,12 @@ Releases page (`rum-api-v0.2.0`, `collector-v0.2.0`, `grafana-v0.2.0`).
 If you would rather vendor the stack into your own repo, copy these paths **keeping
 the same relative layout**. With the released images you only need `deploy/`; the rows
 marked *source only* are needed only to build from source (the compose file then reaches
-`../../collector`, `../../services/rum-api` and `../../plugins/ouo-rum-app/dist`):
+`../../collector`, `../../services/rum-api` and `../../plugins/ouo11y-rum-app/dist`):
 
 | Ref file (copy as is) | What to change |
 |---|---|
 | `deploy/compose/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else on a laptop; anywhere else set real tokens in `.env` and a real `projects.htpasswd` |
-| `deploy/compose/compose.images.yaml` | nothing; it swaps the three builds for the pinned `ghcr.io/ziadmansourm/ouo/*` images |
+| `deploy/compose/compose.images.yaml` | nothing; it swaps the three builds for the pinned `ghcr.io/ouo11y/*` images |
 | `deploy/compose/.env.example` | copy to `deploy/compose/.env` to change an image version, if a default host port collides or to replace the development ingest / read tokens |
 | `collector/` (whole Go module: ocb manifest, Dockerfile, ouo components) | *source only*; compose builds the image |
 | `deploy/compose/collector/config.yaml` | the collector config: `cors.allowed_origins` if your dev server origin is not `http://localhost:*` / `http://127.0.0.1:*`; otherwise nothing |
@@ -86,9 +86,9 @@ marked *source only* are needed only to build from source (the compose file then
 | `deploy/compose/tempo/config.yaml` | nothing |
 | `deploy/compose/mimir/config.yaml` | nothing |
 | `deploy/compose/grafana/provisioning/datasources/datasources.yaml` | nothing |
-| `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
+| `deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
 | `services/rum-api/` (whole Go module) | *source only*; compose builds it |
-| `plugins/ouo-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | *source only*; you build `dist/` once |
+| `plugins/ouo11y-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | *source only*; you build `dist/` once |
 | `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/compose/.env` (ports and tokens) |
 
 The full content of each config file is at the end of this page under "The ref files,
@@ -151,7 +151,7 @@ OUO_RUM_API_PORT=8080
 # build. Each image has its own version (docs/releasing.md); pin exact versions, never latest.
 # Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
 # everything is built from source.
-OUO_IMAGE_REGISTRY=ghcr.io/ziadmansourm/ouo
+OUO_IMAGE_REGISTRY=ghcr.io/ouo11y
 OUO_RUM_API_VERSION=0.2.0
 OUO_COLLECTOR_VERSION=0.2.0
 OUO_GRAFANA_VERSION=0.2.0
@@ -211,7 +211,7 @@ In-cluster addresses are fixed and independent of `.env`: `otel-collector:4318` 
 
 ### Pull access (the ouo images are private for now)
 
-The three `ghcr.io/ziadmansourm/ouo/*` images stay **private until ouo reaches a stable
+The three `ghcr.io/ouo11y/*` images stay **private until ouo reaches a stable
 version**. Without a login the first `up -d` stops with `denied` (HTTP 403) on the
 collector, rum-api or Grafana pull. Before the first start, once per machine:
 
@@ -228,7 +228,7 @@ echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 
 `GHCR_TOKEN` is the token in your shell (`export GHCR_TOKEN=...`, or read it from your
 password manager); never put it in `.env` or any file in the repo. Check it with
-`docker pull ghcr.io/ziadmansourm/ouo/rum-api:0.2.0`.
+`docker pull ghcr.io/ouo11y/rum-api:0.2.0`.
 
 No access yet? Use **Build from source** below: it needs no login, only the full checkout.
 
@@ -260,7 +260,7 @@ docker compose -f deploy/compose/compose.yaml up -d
 
 That builds the ouo collector distribution (the OpenTelemetry Collector Builder compiles
 it from `collector/`; this is the slow step) and `rum-api`, and bind-mounts the plugin
-build from `plugins/ouo-rum-app/dist` (build it once, Step 5). Allow several minutes.
+build from `plugins/ouo11y-rum-app/dist` (build it once, Step 5). Allow several minutes.
 
 Useful variants:
 
@@ -433,11 +433,11 @@ Expected: `{"ready":true,"checks":{"loki":"ok","tempo":"ok"}}` (503 while Loki o
 Tempo are still starting). Full API in `services/rum-api/README.md`.
 
 The Grafana plugin is the Overview / Sessions / Session detail UI. With the released
-images it is already inside `ghcr.io/ziadmansourm/ouo/grafana` (loaded unsigned); skip to
+images it is already inside `ghcr.io/ouo11y/grafana` (loaded unsigned); skip to
 the settings check below.
 
 Build from source only: Grafana loads the plugin unsigned from a bind mount of
-`plugins/ouo-rum-app/dist`. When `dist/` does not exist Docker mounts an empty directory
+`plugins/ouo11y-rum-app/dist`. When `dist/` does not exist Docker mounts an empty directory
 and Grafana starts without the plugin, so you build it once and then re-create the
 Grafana container so the mount is picked up.
 
@@ -448,7 +448,7 @@ npm install
 ```
 
 ```bash
-npm run -w plugins/ouo-rum-app build
+npm run -w plugins/ouo11y-rum-app build
 ```
 
 ```bash
@@ -464,18 +464,18 @@ docker compose -f deploy/compose/compose.yaml restart grafana
 Check the plugin is enabled and points at rum-api in-network:
 
 ```bash
-curl -s -u admin:testing567 http://localhost:3000/api/plugins/ouo-rum-app/settings
+curl -s -u admin:testing567 http://localhost:3000/api/plugins/ouo11y-rum-app/settings
 ```
 
 Expect `"enabled":true`, `"jsonData":{"rumApiUrl":"http://rum-api:8080"}` and
 `"secureJsonFields":{"readToken":true}` (the token itself is never returned). The
 browser never calls rum-api directly: the plugin requests
-`/api/plugin-proxy/ouo-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl`, adding
+`/api/plugin-proxy/ouo11y-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl`, adding
 `Authorization: Bearer <read token>` on the way. Prove the proxy works (this curl
 succeeds without a token because Grafana adds it):
 
 ```bash
-curl -s -u admin:testing567 'http://localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
+curl -s -u admin:testing567 'http://localhost:3000/api/plugin-proxy/ouo11y-rum-app/rum/v1/stats/health?from=now-24h'
 ```
 
 After a JS-only rebuild a hard reload in the browser is enough (Grafana caches
@@ -491,7 +491,7 @@ via `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`; anonymous access is
 - Explore -> Loki -> `{event_name="session.start"}` once an SDK has sent a session.
 - Explore -> Mimir -> `traces_spanmetrics_calls_total` (written by Tempo's metrics
   generator) once traces flow.
-- http://localhost:3000/a/ouo-rum-app/overview is the plugin Overview page.
+- http://localhost:3000/a/ouo11y-rum-app/overview is the plugin Overview page.
 
 Datasources are provisioned with fixed uids `loki`, `tempo`, `mimir` and are not
 editable from the UI. Trace to logs is a custom query on `service_name` plus
@@ -601,9 +601,9 @@ Dockerfile. The environment it receives is exactly what your own service needs.
 ```
 
 The `grafana` service mounts `./grafana/provisioning` read-only and the plugin build
-output `../../plugins/ouo-rum-app/dist` at `/var/lib/grafana/plugins/ouo-rum-app`,
-with `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`,
-`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app` and
+output `../../plugins/ouo11y-rum-app/dist` at `/var/lib/grafana/plugins/ouo11y-rum-app`,
+with `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`,
+`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app` and
 `OUO_READ_TOKEN=${OUO_READ_TOKEN:-rt_dev_0000000000000000}` for the plugin provisioning
 file. The `rum-api` service builds `../../services/rum-api`, gets `LOKI_URL=http://loki:3100`,
 `TEMPO_URL=http://tempo:3200`, `GRAFANA_URL=http://localhost:${OUO_GRAFANA_PORT:-3000}`
@@ -956,13 +956,13 @@ datasources:
           datasourceUid: tempo
 ```
 
-### `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml`
+### `deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml`
 
 ```yaml
-# Enables the ouo RUM app plugin (plugins/ouo-rum-app, loaded unsigned from
-# /var/lib/grafana/plugins/ouo-rum-app) and points its "rum" route at the
+# Enables the ouo11y RUM app plugin (plugins/ouo11y-rum-app, loaded unsigned from
+# /var/lib/grafana/plugins/ouo11y-rum-app) and points its "rum" route at the
 # in-network rum-api. The browser never talks to rum-api directly: the plugin
-# calls /api/plugin-proxy/ouo-rum-app/rum/v1/... and Grafana forwards to rumApiUrl,
+# calls /api/plugin-proxy/ouo11y-rum-app/rum/v1/... and Grafana forwards to rumApiUrl,
 # adding `Authorization: Bearer <readToken>` from secureJsonData (ADR-0007 section 6).
 #
 # ${OUO_READ_TOKEN} is expanded by the Grafana provisioner from the container's
@@ -972,7 +972,7 @@ datasources:
 apiVersion: 1
 
 apps:
-  - type: ouo-rum-app
+  - type: ouo11y-rum-app
     org_id: 1
     disabled: false
     jsonData:
@@ -1052,7 +1052,7 @@ wait_for rum-api "$RUM_API/readyz"
 - `curl http://localhost:8080/readyz` returns `{"ready":true,...}`.
 - `deploy/scripts/smoke.sh` ends with `SMOKE OK: trace_id=... session.id=smoke-session replay_session=smoke-replay-... service=smoke project=demo ...`.
 - Grafana at http://localhost:3000 logs you in as `admin`, Connections -> Data sources
-  lists Loki, Tempo and Mimir, and http://localhost:3000/a/ouo-rum-app/overview renders
+  lists Loki, Tempo and Mimir, and http://localhost:3000/a/ouo11y-rum-app/overview renders
   the plugin (empty until an SDK sends sessions).
 - `docker compose -f deploy/compose/compose.yaml logs otel-collector` shows no
   `Exporting failed` lines once the backends are ready. Tempo logging `no jobs found`

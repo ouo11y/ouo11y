@@ -8,4 +8,4 @@
 // upstream accepted are then translated, off the request path, into ouo
 // telemetry: logs and traces for the normal pipelines, replay chunks for the
 // replay pipeline.
-package ouosentryreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"

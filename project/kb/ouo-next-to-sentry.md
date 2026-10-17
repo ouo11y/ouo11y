@@ -1,6 +1,6 @@
 # ouo React Native SDK next to the Sentry SDK (verified 2026-10-14)
 
-Running `@ouo/react-native` in an app that keeps `@sentry/react-native` (8.30.0, Hermes, iOS
+Running `@ouo11y/react-native` in an app that keeps `@sentry/react-native` (8.30.0, Hermes, iOS
 Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` rollout mode,
 `project/kb/openfeature-rum-mode.md`). How-to: SDK README "Next to Sentry".
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-command install / upgrade of ouo on a VM (Ubuntu 24.04; any Linux with Docker works).
 #
-#   curl -fsSL https://raw.githubusercontent.com/ZiadMansourM/ouo/main/deploy/vm/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/ouo11y/ouo11y/main/deploy/vm/install.sh \
 #     | sudo bash -s -- --domain ouo.example.com --email you@example.com
 #
 # Idempotent: re-running with the same --dir updates the checkout to --ref, keeps the
@@ -27,7 +27,7 @@
 #   --tls-internal         self-signed certificates from Caddy's own CA (LAN, IP addresses); default when --email is absent
 #   --project <id>         project id of the first project (default `default`; lower-case letters, digits, . _ -)
 #   --ref <git ref>        branch, tag or sha to install (default main)
-#   --repo <url>           git remote (default https://github.com/ZiadMansourM/ouo.git)
+#   --repo <url>           git remote (default https://github.com/ouo11y/ouo11y.git)
 #   --dir <path>           install directory (default /opt/ouo)
 #   --no-install-docker    fail instead of apt-installing Docker when it is missing
 #   --skip-plugin          do not (re)build the Grafana plugin
@@ -35,7 +35,7 @@
 #   --no-wait              do not wait for readiness
 set -euo pipefail
 
-REPO="https://github.com/ZiadMansourM/ouo.git"
+REPO="https://github.com/ouo11y/ouo11y.git"
 REF="main"
 DIR="/opt/ouo"
 DOMAIN="" OTEL_DOMAIN="" EMAIL="" PROJECT=""
@@ -183,10 +183,10 @@ fi
 
 # --- 4. build ----------------------------------------------------------------------------
 if [[ "$BUILD_PLUGIN" == "1" ]]; then
-  log "building the Grafana plugin in a node:24 container (plugins/ouo-rum-app/dist)"
+  log "building the Grafana plugin in a node:24 container (plugins/ouo11y-rum-app/dist)"
   docker run --rm -v "$DIR:/src" -w /src node:24 \
-    sh -c 'npm ci --no-audit --no-fund --loglevel=error && npm run -w plugins/ouo-rum-app build'
-  chmod -R a+rX plugins/ouo-rum-app/dist
+    sh -c 'npm ci --no-audit --no-fund --loglevel=error && npm run -w plugins/ouo11y-rum-app build'
+  chmod -R a+rX plugins/ouo11y-rum-app/dist
 fi
 log "building the ouo collector distribution (ocb), rum-api and the demo backend"
 "${COMPOSE[@]}" build --quiet
@@ -212,7 +212,7 @@ cat <<SUMMARY
 ouo is up.
 
   Grafana        https://$DOMAIN            login admin / $(get_env OUO_GRAFANA_ADMIN_PASSWORD)
-  Plugin         https://$DOMAIN/a/ouo-rum-app/overview
+  Plugin         https://$DOMAIN/a/ouo11y-rum-app/overview
   Collector      https://$OTEL_DOMAIN       OTLP/HTTP (/v1/traces, /v1/logs, /v1/metrics) and replay (/v1/replay/chunks)
   Project id     $PROJECT_ID
   Project token  $PT        (public: it goes into your SDK config)

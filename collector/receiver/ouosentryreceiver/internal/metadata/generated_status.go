@@ -11,7 +11,7 @@ var (
 	// Type is the component type used in collector configs: receivers.ouosentry.
 	Type = component.MustNewType("ouosentry")
 	// ScopeName is the instrumentation scope of the receiver's own telemetry.
-	ScopeName = "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+	ScopeName = "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"
 )
 
 const (

@@ -1,4 +1,4 @@
-package ouosentryreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
-	"github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
 
 // envelopePathRe is the only route: POST /api/{sentry project id}/envelope/.

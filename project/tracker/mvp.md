@@ -1,16 +1,16 @@
 # MVP tracker
 
-Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
+Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | done | orchestrator |
-| 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | done | platform-infra, backend-demo |
-| 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | done | sdk-browser, web-demo |
-| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ZiadMansourM/ouo/pull/4) | done | rum-api |
-| 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | done | grafana-plugin |
-| 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | done | sdk-react-native |
-| 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | done | qa |
+| 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ouo11y/ouo11y/pull/1) | done | orchestrator |
+| 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ouo11y/ouo11y/pull/2) | done | platform-infra, backend-demo |
+| 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ouo11y/ouo11y/pull/3) | done | sdk-browser, web-demo |
+| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ouo11y/ouo11y/pull/4) | done | rum-api |
+| 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ouo11y/ouo11y/pull/5) | done | grafana-plugin |
+| 5 React Native | `phase-5-mobile` | [#6](https://github.com/ouo11y/ouo11y/pull/6) | done | sdk-react-native |
+| 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ouo11y/ouo11y/pull/7) | done | qa |
 
 ## Phase 0 Foundation
 
@@ -47,7 +47,7 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 ## Phase 4 Grafana plugin
 
-- [x] `plugins/ouo-rum-app` scaffold, route proxy to rum-api, loaded unsigned in compose Grafana (create-plugin 7.12.1 toolchain, `routes: rum/* -> jsonData.rumApiUrl`, provisioned via `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml`; verified: `/api/plugins/ouo-rum-app/settings` enabled, `/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health` returns rum-api JSON; see `project/agents/grafana-plugin/summaries/2026-10-07-phase-4.md`)
+- [x] `plugins/ouo11y-rum-app` scaffold, route proxy to rum-api, loaded unsigned in compose Grafana (create-plugin 7.12.1 toolchain, `routes: rum/* -> jsonData.rumApiUrl`, provisioned via `deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml`; verified: `/api/plugins/ouo11y-rum-app/settings` enabled, `/api/plugin-proxy/ouo11y-rum-app/rum/v1/stats/health` returns rum-api JSON; see `project/agents/grafana-plugin/summaries/2026-10-07-phase-4.md`)
 - [x] Overview page: health percentages web and mobile by version, time range picker (verified in Grafana 13.2.1: tiles and version rows equal `GET /v1/stats/health?from=now-24h`)
 - [x] Sessions page: table with filters, status, user, version, trace count (verified: crashed web session with user and 19 traces, filters pre-set from Overview links)
 - [x] Session detail: timeline, trace list with Explore links, rrweb player synced to timeline markers (verified: Explore opens the Tempo trace view, marker and timeline clicks seek the player, inputs masked, sandboxed iframe; `project/agents/grafana-plugin/reports/phase-4-verification.html`)
@@ -73,7 +73,7 @@ All MVP phases are merged (statuses corrected 2026-10-17). Bug 1 of `project/age
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 7 iOS replay | `phase-7-ios-replay` | [#9](https://github.com/ZiadMansourM/ouo/pull/9) | done | ios-replay, rum-api, grafana-plugin |
+| 7 iOS replay | `phase-7-ios-replay` | [#9](https://github.com/ouo11y/ouo11y/pull/9) | done | ios-replay, rum-api, grafana-plugin |
 
 - [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
 - [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
@@ -87,7 +87,7 @@ All MVP phases are merged (statuses corrected 2026-10-17). Bug 1 of `project/age
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 7b UX and masking | `phase-7b-ux-masking` | [#10](https://github.com/ZiadMansourM/ouo/pull/10) | done | ios-replay, grafana-plugin |
+| 7b UX and masking | `phase-7b-ux-masking` | [#10](https://github.com/ouo11y/ouo11y/pull/10) | done | ios-replay, grafana-plugin |
 
 - [x] Masking opt-out is correct: `maskInputs` (default true) governs text inputs separately from `maskText` (labels); `maskText: false` keeps inputs black. Swift 38 tests, RN 57 tests; verified on the iOS 27 simulator (`project/agents/ios-replay/reports/12-frame-masktext-false.jpg`)
 - [x] Masking documented with opt-out options and per-view overrides in `sdk/react-native/README.md` and `sdk/ios/README.md`; demo uses `replay: { enabled: true, maskText: false }`

@@ -9,4 +9,4 @@
 //
 // All instances with the same component ID (one per pipeline) share one set
 // of buckets, so the rates are per request across signals.
-package ouoratelimitprocessor // import "github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor"
+package ouoratelimitprocessor // import "github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor"

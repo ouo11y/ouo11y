@@ -54,7 +54,7 @@ Builder, which takes a few minutes. Data lives in named volumes (`ouo_grafana-da
 `down -v` and can be inspected.
 
 **Released images instead of builds:** add `-f deploy/compose/compose.images.yaml` to pull
-the pinned `ghcr.io/ziadmansourm/ouo/{collector,rum-api,grafana}` images. They are
+the pinned `ghcr.io/ouo11y/{collector,rum-api,grafana}` images. They are
 **private until ouo reaches a stable version**, so log in once first with a classic
 personal access token that has only `read:packages` (ask the ouo founder for read access
 to the packages; keep the token in your shell, never in the repo):
@@ -206,7 +206,7 @@ deploy/compose/loki/config.yaml                  single binary, tsdb v13, OTLP l
 deploy/compose/tempo/config.yaml                 single binary, local blocks, metrics generator
 deploy/compose/mimir/config.yaml                 monolithic, filesystem blocks
 deploy/compose/grafana/provisioning/datasources  loki / tempo / mimir with fixed uids
-deploy/compose/grafana/provisioning/plugins      ouo-rum-app enabled, rumApiUrl + secureJsonData.readToken
+deploy/compose/grafana/provisioning/plugins      ouo11y-rum-app enabled, rumApiUrl + secureJsonData.readToken
 deploy/data/rum-api/                            replay chunks written by rum-api (gitignored)
 deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner (OUO_*_URL overrides; `ouo-env env <env>` prints them)
 deploy/envs/                                    ouo-env: named local envs behind one Traefik proxy (README)
@@ -289,36 +289,36 @@ needs rum-api's URL.
 
 ## Grafana app plugin
 
-`plugins/ouo-rum-app` is the MVP UI (Overview, Sessions, Session detail with replay). It is
-loaded **unsigned** (`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`,
-`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app`) from the bind mount
-`../../plugins/ouo-rum-app/dist -> /var/lib/grafana/plugins/ouo-rum-app`. When `dist/` does
+`plugins/ouo11y-rum-app` is the MVP UI (Overview, Sessions, Session detail with replay). It is
+loaded **unsigned** (`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`,
+`GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app`) from the bind mount
+`../../plugins/ouo11y-rum-app/dist -> /var/lib/grafana/plugins/ouo11y-rum-app`. When `dist/` does
 not exist Docker creates an empty directory and Grafana starts without the plugin.
 
 ```bash
-npm install && npm run -w plugins/ouo-rum-app build       # repo root
+npm install && npm run -w plugins/ouo11y-rum-app build       # repo root
 docker compose -f deploy/compose/compose.yaml up -d grafana  # (re)create so the mount is picked up
-open http://localhost:${OUO_GRAFANA_PORT:-3000}/a/ouo-rum-app/overview
+open http://localhost:${OUO_GRAFANA_PORT:-3000}/a/ouo11y-rum-app/overview
 ```
 
-`grafana/provisioning/plugins/ouo-rum-app.yaml` enables the app for org 1 with
+`grafana/provisioning/plugins/ouo11y-rum-app.yaml` enables the app for org 1 with
 `jsonData.rumApiUrl: http://rum-api:8080` and `secureJsonData.readToken: ${OUO_READ_TOKEN}`.
 The provisioner expands `${OUO_READ_TOKEN}` from the Grafana container's environment
 (compose passes it through). The plugin never calls rum-api from the browser: it requests
-`/api/plugin-proxy/ouo-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl` adding
+`/api/plugin-proxy/ouo11y-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl` adding
 `Authorization: Bearer <readToken>` (route `rum/*` in `plugin.json`). The URL and token can
-be changed at `/plugins/ouo-rum-app` (Configuration) without restarting Grafana. Restart
+be changed at `/plugins/ouo11y-rum-app` (Configuration) without restarting Grafana. Restart
 Grafana after changing `src/plugin.json`; for JS-only rebuilds a hard browser reload is enough.
 
 ```bash
-curl -u admin:testing567 localhost:3000/api/plugins/ouo-rum-app/settings | jq '{enabled, jsonData, secureJsonFields}'   # secureJsonFields.readToken: true
-curl -u admin:testing567 'localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
+curl -u admin:testing567 localhost:3000/api/plugins/ouo11y-rum-app/settings | jq '{enabled, jsonData, secureJsonFields}'   # secureJsonFields.readToken: true
+curl -u admin:testing567 'localhost:3000/api/plugin-proxy/ouo11y-rum-app/rum/v1/stats/health?from=now-24h'
 ```
 
 ## Server install (`deploy/vm`)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ZiadMansourM/ouo/main/deploy/vm/install.sh \
+curl -fsSL https://raw.githubusercontent.com/ouo11y/ouo11y/main/deploy/vm/install.sh \
   | sudo bash -s -- --domain ouo.example.com --email you@example.com
 ```
 

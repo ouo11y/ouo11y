@@ -1,6 +1,6 @@
 # grafana-plugin
 
-Owns `plugins/ouo-rum-app` (Grafana app plugin: Overview, Sessions, Session detail with replay).
+Owns `plugins/ouo11y-rum-app` (Grafana app plugin: Overview, Sessions, Session detail with replay).
 
 - [tracker.md](tracker.md)
 - `summaries/`

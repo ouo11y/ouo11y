@@ -1,4 +1,4 @@
-# @ouo/react-native
+# @ouo11y/react-native
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
 sessions, errors and JS crashes, app version, outbound `fetch` tracing with W3C Trace
@@ -13,8 +13,8 @@ project tokens: ADR-0007. Runtime notes and gotchas: `project/kb/otel-react-nati
 ## Install
 
 ```bash
-npm install @ouo/react-native @react-native-async-storage/async-storage   # expo-modules-core comes with expo
-# in this repository: "@ouo/react-native": "file:../../sdk/react-native" plus the Metro config below
+npm install @ouo11y/react-native @react-native-async-storage/async-storage   # expo-modules-core comes with expo
+# in this repository: "@ouo11y/react-native": "file:../../sdk/react-native" plus the Metro config below
 ```
 
 Peer dependencies: `react`, `react-native` (>= 0.74), `@react-native-async-storage/async-storage`.
@@ -36,7 +36,7 @@ to resolve their `browser` field remaps.
 
    ```ts
    // src/rum.ts
-   import { initRUM } from "@ouo/react-native";
+   import { initRUM } from "@ouo11y/react-native";
    import Constants from "expo-constants";
    import * as Device from "expo-device";
 
@@ -55,7 +55,7 @@ to resolve their `browser` field remaps.
    react-navigation state changes to the SDK for `navigation` events:
 
    ```tsx
-   import { RUMProvider, navigationStateListener } from "@ouo/react-native";
+   import { RUMProvider, navigationStateListener } from "@ouo11y/react-native";
 
    <RUMProvider rum={rum}>
      <NavigationContainer onReady={() => rum.trackNavigation("/Products")} onStateChange={navigationStateListener(rum)}>
@@ -157,7 +157,7 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 ## API
 
 ```ts
-import { initRUM, type RUM } from "@ouo/react-native";
+import { initRUM, type RUM } from "@ouo11y/react-native";
 
 const rum: RUM = initRUM({
   endpoint: "http://localhost:4318",              // collector OTLP/HTTP base URL, required

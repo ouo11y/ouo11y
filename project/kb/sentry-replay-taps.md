@@ -2,7 +2,7 @@
 
 Status: verified 2026-10-16 by grafana-plugin (plugin 0.6.0, Grafana 13.2.1, isolated stack `ouo-taps`,
 `@sentry/react-native` 8.30.0 / sentry-cocoa 9.30.1, iOS 27 simulator).
-Code: `plugins/ouo-rum-app/src/utils/taps.ts`, `components/TapOverlay.tsx`, `components/ReplayActivity.tsx`,
+Code: `plugins/ouo11y-rum-app/src/utils/taps.ts`, `components/TapOverlay.tsx`, `components/ReplayActivity.tsx`,
 `utils/activity.ts`, `utils/markers.ts`. Golden: `collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/realtap`
 (`TestGoldenRealTap`).
 

@@ -1,4 +1,4 @@
-package ouoratelimitprocessor // import "github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor"
+package ouoratelimitprocessor // import "github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor"
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
-	"github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor/internal/metadata"
 )
 
 var capabilities = consumer.Capabilities{MutatesData: false}

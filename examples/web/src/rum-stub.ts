@@ -1,4 +1,4 @@
-// Local stand-in for @ouo/browser, used only when VITE_RUM_STUB=1.
+// Local stand-in for @ouo11y/browser, used only when VITE_RUM_STUB=1.
 // It implements the Phase 2 SDK contract and logs every call to the console
 // so the storefront can be developed and demoed before the real package builds.
 

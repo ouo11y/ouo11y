@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
 )
 
 // fakeMP4 returns n bytes that pass the mp4 check: a 24-byte ftyp box

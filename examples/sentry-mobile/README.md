@@ -1,7 +1,7 @@
 # sentry-demo (examples/sentry-mobile)
 
 Expo (React Native) iOS app instrumented with `@sentry/react-native` and, depending on the
-rollout flag, `@ouo/react-native` ("Rollout modes" below). It exists to generate real Sentry
+rollout flag, `@ouo11y/react-native` ("Rollout modes" below). It exists to generate real Sentry
 mobile SDK traffic (sentry-cocoa native layer plus the RN JS
 layer, including mobile Session Replay) for the ouo Sentry bridge (ADR-0008,
 `docs/specs/sentry-bridge.md`). Knowledge and gotchas: `project/kb/sentry-react-native-demo.md`.
@@ -49,7 +49,7 @@ Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 ## The stack it talks to
 
 The `ouosentry` receiver ships in the released ouo collector image
-(`ghcr.io/ziadmansourm/ouo/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
+(`ghcr.io/ouo11y/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
 `deploy/compose/.env.example`). The ouo images are **private for now**, so log in to ghcr.io
 once first. You need read access to the ouo packages (ask the ouo founder) and a classic
 personal access token with only the `read:packages` scope, kept in your shell and never in the
@@ -105,8 +105,8 @@ The OpenFeature flag `ouo.rum.mode` decides at each cold start which SDK records
 | Mode | What runs |
 |---|---|
 | `sentry` | Sentry only, DSN `SENTRY_DSN` (the ouo bridge) |
-| `parallel` | Sentry with DSN `SENTRY_DIRECT_DSN` (straight to Sentry, never the bridge) + `@ouo/react-native` with replay off, initialised after Sentry, forwarding unhandled rejections to Sentry |
-| `ouo` | `@ouo/react-native` only, replay on; `Sentry.init` is never called |
+| `parallel` | Sentry with DSN `SENTRY_DIRECT_DSN` (straight to Sentry, never the bridge) + `@ouo11y/react-native` with replay off, initialised after Sentry, forwarding unhandled rejections to Sentry |
+| `ouo` | `@ouo11y/react-native` only, replay on; `Sentry.init` is never called |
 
 A new flag value applies at the next launch (each launch stores the flag's answer for the
 next one); only the first launch after install waits for the flag (`OUO_FLAG_TIMEOUT_MS`,

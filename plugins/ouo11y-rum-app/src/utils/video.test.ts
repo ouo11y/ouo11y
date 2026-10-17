@@ -100,13 +100,13 @@ describe('segment helpers', () => {
 
   it('maps manifest paths onto the plugin proxy route', () => {
     expect(videoSegmentUrl('sess-video', segs[1])).toBe(
-      '/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/sess-video/replay/video/1'
+      '/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/sess-video/replay/video/1'
     );
     expect(videoSegmentUrl('a b', { seq: 4, path: '' })).toBe(
-      '/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/a%20b/replay/video/4'
+      '/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/a%20b/replay/video/4'
     );
     expect(videoSegmentUrl('x', { seq: 0, path: 'http://evil.example/x' })).toBe(
-      '/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/x/replay/video/0'
+      '/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/x/replay/video/0'
     );
   });
 });

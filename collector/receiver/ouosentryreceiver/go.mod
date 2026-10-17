@@ -1,4 +1,4 @@
-module github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver
+module github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver
 
 go 1.26.0
 
