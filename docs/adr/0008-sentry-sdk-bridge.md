@@ -1,6 +1,6 @@
 # ADR-0008 Sentry SDK bridge: a Sentry receiver in ouo-collector, dual delivery, video replay kind
 
-Status: proposed (2026-10-13). Implemented and verified on iOS on 2026-10-14 (`project/reports/sentry-bridge-verification.html`); acceptance is the founder's call.
+Status: accepted (2026-10-17, by the founder). Proposed 2026-10-13; implemented and verified on iOS on 2026-10-14 (`project/reports/sentry-bridge-verification.html`); merged in #16 and #17 (2026-10-16).
 
 ## Context
 
