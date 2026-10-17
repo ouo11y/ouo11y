@@ -1,3 +1,5 @@
+// Overhead measurement build (OUO_PERF=1) only: JS frame monitor, first so it sees JS start.
+import "./src/perf";
 // Sentry must initialise before the first render so its error handlers, fetch tracing and
 // replay are in place for everything the app does.
 import "./src/sentry";
