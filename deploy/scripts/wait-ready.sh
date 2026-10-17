@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wait until Loki, Tempo, Mimir, the collector, Grafana and rum-api answer their readiness endpoints.
-# Honors the OUO_*_PORT overrides from deploy/docker/.env (same defaults as compose.yaml).
+# Honors the OUO_*_PORT overrides from deploy/compose/.env (same defaults as compose.yaml).
 # The collector (ADR-0007, the public ingest) is probed three times: the health_check
 # extension on loopback (127.0.0.1:13133), then the two published ports 4318 (OTLP/HTTP)
 # and 4319 (replay) must answer HTTP at all (any status; without credentials the
@@ -8,16 +8,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
-LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"
-TEMPO="http://localhost:${OUO_TEMPO_PORT:-3200}"
-MIMIR="http://localhost:${OUO_MIMIR_PORT:-9009}"
-COLLECTOR_HEALTH="http://127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}"
+LOKI="${OUO_LOKI_URL:-http://localhost:${OUO_LOKI_PORT:-3100}}"
+TEMPO="${OUO_TEMPO_URL:-http://localhost:${OUO_TEMPO_PORT:-3200}}"
+MIMIR="${OUO_MIMIR_URL:-http://localhost:${OUO_MIMIR_PORT:-9009}}"
+COLLECTOR_HEALTH="${OUO_COLLECTOR_HEALTH_URL:-http://127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}}"
 OTLP="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"
 REPLAY="${OUO_REPLAY_URL:-http://localhost:${OUO_REPLAY_PORT:-4319}}"
-GRAFANA="http://localhost:${OUO_GRAFANA_PORT:-3000}"
+GRAFANA="${OUO_GRAFANA_URL:-http://localhost:${OUO_GRAFANA_PORT:-3000}}"
 RUM_API="${OUO_RUM_API_URL:-${OUO_RUM_API:-http://localhost:${OUO_RUM_API_PORT:-8080}}}"
 TIMEOUT="${OUO_READY_TIMEOUT:-120}"
 

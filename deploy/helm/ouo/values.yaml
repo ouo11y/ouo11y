@@ -328,7 +328,7 @@ grafana:
 # -----------------------------------------------------------------------------
 # LGTM backends.
 #   bundled : single-binary Loki, Tempo and Mimir StatefulSets with the configs
-#             from deploy/docker (kind, development, small installs).
+#             from deploy/compose (kind, development, small installs).
 #   external: nothing is deployed; the URLs below point at the customer's stack
 #             (upstream grafana/loki, grafana/tempo-distributed, grafana/mimir-distributed
 #             charts, Grafana Cloud, ...). See values-external-lgtm.yaml and

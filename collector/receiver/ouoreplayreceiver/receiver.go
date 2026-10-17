@@ -52,7 +52,7 @@ const (
 )
 
 // projectIDRe is the project id format rum-api's sink accepts in
-// X-Ouo-Project-Id (services/rum-api, kb/ingest-gateway.md).
+// X-Ouo-Project-Id (services/rum-api, project/kb/ingest-gateway.md).
 var projectIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 type replayReceiver struct {

@@ -11,8 +11,8 @@
 # What it does, in order:
 #   1. checks Docker + the compose plugin (installs them with apt on Ubuntu/Debian unless --no-install-docker)
 #   2. clones the repo into --dir (default /opt/ouo) or fetches and checks out --ref in an existing clone
-#   3. writes deploy/docker/.env with random tokens (openssl rand -hex 16, prefixed pt_ / it_ / rt_)
-#      and a random Grafana admin password, and deploy/docker/projects.htpasswd with the
+#   3. writes deploy/compose/.env with random tokens (openssl rand -hex 16, prefixed pt_ / it_ / rt_)
+#      and a random Grafana admin password, and deploy/compose/projects.htpasswd with the
 #      project's `{SHA}` line (ADR-0007: the collector authenticates SDKs with HTTP Basic);
 #      existing values are never overwritten
 #   4. builds the Grafana plugin inside a node:24 container (no Node on the host), the ouo
@@ -68,9 +68,9 @@ need() { command -v "$1" >/dev/null 2>&1; }
 if [[ -n "$PROJECT" ]] && ! [[ "$PROJECT" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]]; then
   die "--project must match ^[a-z0-9][a-z0-9._-]{0,63}$"
 fi
-ENV_FILE="$DIR/deploy/docker/.env"
-HTPASSWD_FILE="$DIR/deploy/docker/projects.htpasswd"
-COMPOSE=(docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml)
+ENV_FILE="$DIR/deploy/compose/.env"
+HTPASSWD_FILE="$DIR/deploy/compose/projects.htpasswd"
+COMPOSE=(docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml)
 
 # --- 1. Docker -------------------------------------------------------------------------
 log "checking Docker"
@@ -134,11 +134,11 @@ basic_b64() { printf '%s:%s' "$1" "$2" | openssl base64 -A; }
 log "writing $ENV_FILE"
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'HDR'
-# Written by deploy/vm/install.sh. Read by docker compose (deploy/docker/compose.yaml +
+# Written by deploy/vm/install.sh. Read by docker compose (deploy/compose/compose.yaml +
 # deploy/vm/compose.tls.yaml) and by deploy/scripts/*.sh. Keep this file private:
 # OUO_INGEST_TOKEN, OUO_READ_TOKEN and OUO_GRAFANA_ADMIN_PASSWORD are secrets.
 # OUO_PROJECT_ID / OUO_PROJECT_TOKEN are the PUBLIC credential SDKs send (HTTP Basic);
-# the collector checks them against deploy/docker/projects.htpasswd. To rotate (cut-over,
+# the collector checks them against deploy/compose/projects.htpasswd. To rotate (cut-over,
 # one line per project id is honoured): replace the project's line, `systemctl restart ouo`,
 # ship the new token to the apps.
 HDR
@@ -223,11 +223,11 @@ ouo is up.
 
   Secrets stay in $ENV_FILE (ingest token, read token, Grafana password). Firewall: allow 22, 80, 443 only.
   Another project:  echo "<id>:{SHA}\$(printf '%s' '<token>' | openssl dgst -binary -sha1 | openssl base64)" >> $HTPASSWD_FILE && systemctl restart ouo
-  Upgrade:  re-run this script with --ref <tag>.   Logs: docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml logs -f
+  Upgrade:  re-run this script with --ref <tag>.   Logs: docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml logs -f
 SUMMARY
 if [[ "$(get_env OUO_TLS)" == "internal" ]]; then
   cat <<NOTE
   TLS is Caddy's internal CA (self-signed). Trust its root on your machine, or use --email for Let's Encrypt:
-    docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt ./ouo-root.crt
+    docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt ./ouo-root.crt
 NOTE
 fi

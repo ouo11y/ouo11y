@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 6 QA bugs</title>
+<style>
+  :root { --bg:#fcfcfb; --surface:#fff; --ink:#1a1a19; --ink-2:#4b4b48; --line:#e4e4e0; --crit:#d03b3b; --warn:#9a6b00; --mono: ui-monospace, Menlo, Consolas, monospace; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#1a1a19; --surface:#232322; --ink:#f2f2ef; --ink-2:#c9c9c4; --line:#3a3a37; --warn:#fab219; } }
+  :root[data-theme="dark"] { --bg:#1a1a19; --surface:#232322; --ink:#f2f2ef; --ink-2:#c9c9c4; --line:#3a3a37; --warn:#fab219; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 6px; } h2 { font-size: 19px; margin: 32px 0 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  code, pre { font-family: var(--mono); font-size: 13px; } pre { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; }
+  .sev { font-weight: 700; } .bug { color: var(--crit); } .minor { color: var(--warn); }
+  table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  dt { font-weight: 600; margin-top: 10px; } dd { margin: 2px 0 0 0; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Phase 6 QA: bugs and observations</h1>
+  <p>Found on 2026-10-08 while verifying the MVP end to end. Nothing here was fixed by the qa agent
+  (outside its allowed paths); the orchestrator routes each item to the owning agent.</p>
+
+  <table>
+    <thead><tr><th>#</th><th>Severity</th><th>Owner</th><th>Summary</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="sev bug">bug</td><td>sdk-browser (check sdk-react-native too)</td><td>Rotating an expired session emits two <code>session.start</code> events with different ids; a phantom one-event session appears in rum-api. <strong>Fixed 2026-10-08</strong> by sdk-browser (atomic rotation + ensure-free log processor, regression test <code>sdk/browser/test/rotation.test.ts</code>; react-native not affected, guarded by <code>sdk/react-native/test/rotation.test.ts</code>).</td></tr>
+      <tr><td>2</td><td class="sev minor">minor</td><td>rum-api / grafana-plugin</td><td>Trace ids from Tempo search lose leading zeros (31 chars); passed through to the API and the plugin.</td></tr>
+      <tr><td>3</td><td class="sev minor">minor</td><td>rum-api</td><td>Timeline tie-break: initial <code>navigation (load)</code> sorts before <code>session.start</code> at the same millisecond.</td></tr>
+      <tr><td>4</td><td class="sev minor">minor</td><td>rum-api</td><td><code>ended_at</code> uses the <code>session.end</code> record timestamp (detection time) instead of <code>ouo.session.ended_at</code> (actual expiry).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>1. Duplicate <code>session.start</code> on expired-session rotation (bug)</h2>
+  <dl>
+    <dt>Where</dt><dd><code>sdk/browser/src/session/manager.ts</code> (<code>start()</code>, <code>ensure()</code>, <code>end()</code>, <code>create()</code>) and <code>sdk/browser/src/telemetry/correlation.ts</code> (log processor calls <code>session.id()</code> for every record).</dd>
+    <dt>Observed</dt><dd>Two <code>session.start</code> log records with different <code>session.id</code>, identical timestamp and the same <code>session.previous_id</code>, each time an expired session is found at init. One id is persisted to <code>localStorage</code> and used by the page; the other never gets another event. rum-api lists it as a separate healthy session with <code>event_count=1</code>, no traces, no replay, which inflates the healthy count and the totals on the Overview page.</dd>
+    <dt>Reproduced</dt><dd>2 of 2 attempts in the web demo (real <code>@ouo/browser</code>, Vite dev server):
+      rotation of <code>52f6ac9e-...</code> produced <code>4a9c76df-...</code> (kept) and <code>fb2fe879-...</code> (phantom) at 21:35:15.765Z;
+      rotation of <code>4a9c76df-...</code> produced <code>071a0ed0-...</code> (kept) and <code>add731c5-...</code> (phantom) at 21:39:41.904Z.
+      Exactly one <code>session.end</code> (reason <code>inactivity</code>) was emitted for the old session each time, so the end path is fine.</dd>
+    <dt>Cause (from reading the code)</dt><dd><code>end()</code> sets <code>this.current = null</code> and then emits <code>session.end</code> through <code>onEvent</code>. The event goes through the OTel log pipeline, where <code>SessionLogProcessor</code> computes <code>sessionAttributes(session)</code> and calls <code>session.id()</code> -&gt; <code>ensure()</code> -&gt; <code>current</code> is null -&gt; <code>create(now)</code>: first <code>session.start</code> (phantom, but persisted for a moment). Control returns to <code>start()</code> (or to <code>ensure()</code> after its own <code>end()</code> call), which calls <code>create(now)</code> again: second <code>session.start</code>, which is the one that wins because it is persisted last. The record already carries <code>session.id</code> so the processor keeps the old id on the <code>session.end</code> record, which is why the end looks correct. The same re-entrancy exists for the same-tab inactivity timer and for the lazy restart after a max-duration end (<code>ensure()</code> path).</dd>
+    <dt>Repro steps</dt><dd>
+<pre>
+# web demo running at http://localhost:5173 with the real SDK
+# in devtools on the page:
+const o = Storage.prototype.setItem;
+const rec = JSON.parse(localStorage.getItem('ouo.session'));
+rec.lastActivity = Date.now() - 31 * 60 * 1000;
+Storage.prototype.setItem = (k, v) =&gt; { if (k === 'ouo.session') return; return o.call(localStorage, k, v); };
+o.call(localStorage, 'ouo.session', JSON.stringify(rec));
+location.reload();
+# then (ports from deploy/compose/.env)
+curl -sG localhost:3101/loki/api/v1/query_range \
+  --data-urlencode 'query={service_name="web-store", event_name="session.start"} | session_previous_id="&lt;old id&gt;"' \
+  --data-urlencode "start=$(( $(date +%s) - 600 ))000000000" --data-urlencode "end=$(date +%s)000000000" \
+  | jq '.data.result[] | [.values[0][0], .stream.session_id]'        # two rows instead of one
+</pre></dd>
+    <dt>Status</dt><dd><strong>Fixed 2026-10-08</strong> (sdk-browser, see <code>project/agents/sdk-browser/summaries/2026-10-08-bugfix.md</code>): the manager now installs the replacement session before emitting <code>session.end</code> / <code>session.start</code> (<code>rotate()</code>), and <code>SessionLogProcessor</code> no longer calls <code>session.id()</code> for records that already carry <code>session.id</code>. Live re-check: rotation of <code>071a0ed0-...</code> produced only <code>98143ee0-...</code>; Loki shows one <code>session.start</code> with that <code>previous_id</code> and one <code>session.end</code> (<code>end_reason=inactivity</code>). sdk/react-native was not affected (its processor already used <code>peek()</code>).</dd>
+    <dt>Suggested fix</dt><dd>Make <code>create()</code> / <code>ensure()</code> re-entrancy safe: for example set <code>this.current</code> to the new record (or a "creating" guard) before emitting <code>session.end</code>, or have the log processor skip <code>ensure()</code> when the record already carries <code>session.id</code> (compute <code>sessionAttributes</code> lazily). Add a unit test asserting exactly one <code>session.start</code> per rotation with the real processor chain (the jsdom integration test only covers a fresh init). Check <code>sdk/react-native</code>'s manager for the same pattern (cold start with an expired persisted session, background rotation).</dd>
+  </dl>
+
+  <h2>2. Trace ids without leading zeros (minor)</h2>
+  <dl>
+    <dt>Observed</dt><dd>Tempo 3.0.3 <code>/api/search</code> returns <code>traceID</code> with leading zeros stripped (e.g. <code>0a092857191aec6d753aba594dae8cbd</code> comes back as <code>a092857191aec6d753aba594dae8cbd</code>). rum-api copies it into <code>traces[].trace_id</code> and the <code>grafana_url</code>; the plugin shows the short id and copies it to the clipboard. Grafana Explore shows the full id in the trace header, so the link works. Not an error, but the displayed id is not the W3C 32-hex form and would not match a value copied from a client log.</dd>
+    <dt>Repro</dt><dd><code>deploy/scripts/e2e.sh</code> prints <code>short_trace_ids</code> in its <code>--out</code> JSON whenever one of the checked sessions has such a trace (about 1 in 16 ids start with 0). Suggested: left-pad to 32 in <code>services/rum-api/internal/tempo</code>.</dd>
+  </dl>
+
+  <h2>3. Timeline tie-break (minor)</h2>
+  <dl>
+    <dt>Observed</dt><dd>In every web session the first two timeline rows are <code>navigation (load)</code> then <code>session.start</code>, both at the same millisecond (the SDK emits both at init). Suggested: when timestamps tie, order <code>session.start</code> first and <code>session.end</code> last in <code>services/rum-api/internal/session</code>.</dd>
+  </dl>
+
+  <h2>4. <code>ended_at</code> vs <code>ouo.session.ended_at</code> (minor)</h2>
+  <dl>
+    <dt>Observed</dt><dd>Session <code>52f6ac9e</code>: the SDK's <code>session.end</code> record carries <code>ouo_session_ended_at=1791408855722</code> (21:34:15Z, lastActivity + 30 min) and <code>ouo_session_duration_ms=93252</code>, but rum-api reports <code>ended_at=2026-10-07T21:35:15.765Z</code> (the record's timestamp, i.e. when the next page load detected the expiry) and the plugin shows "Ended 00:35:15, Duration 2m 33s", which do not agree with each other. Suggested: prefer the <code>ouo.session.ended_at</code> attribute when present.</dd>
+  </dl>
+
+  <h2>Not bugs, recorded for context</h2>
+  <ul>
+    <li>React 18 dev builds report an uncaught click-handler error twice (<code>crash_count=2</code>); known since Phase 2 (<code>project/kb/web-demo-storefront.md</code>).</li>
+    <li>Trace counts lag by up to about a minute after ingestion (Tempo ingester + rum-api 60 s cache); documented in <code>project/kb/tempo-session-search.md</code>.</li>
+    <li>The accessibility-ref clicks on the chaos buttons that failed for the Phase 3 agent in the Chrome extension worked in the Claude browser pane.</li>
+  </ul>
+</main>
+</body>
+</html>

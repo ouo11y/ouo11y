@@ -199,7 +199,7 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- $seen := dict -}}
 {{- range .Values.projects -}}
 {{- if hasKey $seen (toString .id) -}}
-{{- fail (printf "ouo: project id %q appears twice in projects. The collector's basicauth (htpasswd) keeps only the LAST line per username, so the earlier token would silently stop working (verified on kind, see kb/helm-kind.md). Rotate by replacing the token in place" (toString .id)) -}}
+{{- fail (printf "ouo: project id %q appears twice in projects. The collector's basicauth (htpasswd) keeps only the LAST line per username, so the earlier token would silently stop working (verified on kind, see project/kb/helm-kind.md). Rotate by replacing the token in place" (toString .id)) -}}
 {{- end -}}
 {{- $_ := set $seen (toString .id) true -}}
 {{- if or (not .id) (not .token) -}}

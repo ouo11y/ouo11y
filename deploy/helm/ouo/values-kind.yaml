@@ -1,4 +1,4 @@
-# Values for a local kind cluster (verified in agents/helm/summaries/2026-10-10-phase-8a-rev2.md).
+# Values for a local kind cluster (verified in project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md).
 #
 #   kind create cluster --name ouo-8a
 #   docker build -t ouo/collector:dev collector
@@ -11,8 +11,8 @@
 #   kubectl port-forward svc/ouo-collector 4319:4319 &   # replay
 #   kubectl port-forward svc/ouo-grafana 13000:3000 &
 #
-# Development tokens shared by the whole Phase 8a stack (deploy/docker/.env.example,
-# deploy/docker/collector/projects.htpasswd). They are public knowledge; never use them
+# Development tokens shared by the whole Phase 8a stack (deploy/compose/.env.example,
+# deploy/compose/collector/projects.htpasswd). They are public knowledge; never use them
 # outside a laptop.
 projects:
   - id: demo

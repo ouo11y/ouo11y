@@ -6,7 +6,7 @@
 #
 # Environment (baked in at build time, see app.config.ts): SENTRY_DSN, BACKEND_URL, APP_VERSION,
 # BUILD_NUMBER, SENTRY_DEBUG=1. Needs full Xcode (DEVELOPER_DIR) and CocoaPods; see
-# kb/sentry-react-native-demo.md and kb/xcode-setup.md.
+# project/kb/sentry-react-native-demo.md and project/kb/xcode-setup.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

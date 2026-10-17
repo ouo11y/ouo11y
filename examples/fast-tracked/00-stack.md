@@ -54,7 +54,7 @@ cd ouo
 ```
 
 The stack runs the **released images** of the three ouo components, pinned to exact
-versions in `deploy/docker/.env.example`:
+versions in `deploy/compose/.env.example`:
 
 | Image | Default version | Variable |
 |---|---|---|
@@ -62,7 +62,7 @@ versions in `deploy/docker/.env.example`:
 | `ghcr.io/ziadmansourm/ouo/rum-api` | `0.2.0` | `OUO_RUM_API_VERSION` |
 | `ghcr.io/ziadmansourm/ouo/grafana` (Grafana with the ouo app plugin baked in) | `0.2.0` | `OUO_GRAFANA_VERSION` |
 
-They come in through the override file `deploy/docker/compose.images.yaml`; without it,
+They come in through the override file `deploy/compose/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
 source" in Step 3). The images are **private for now**: pulling them needs a `docker login
 ghcr.io` with a token you get access for first ("Pull access" in Step 3); building from
@@ -76,20 +76,20 @@ marked *source only* are needed only to build from source (the compose file then
 
 | Ref file (copy as is) | What to change |
 |---|---|
-| `deploy/docker/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else on a laptop; anywhere else set real tokens in `.env` and a real `projects.htpasswd` |
-| `deploy/docker/compose.images.yaml` | nothing; it swaps the three builds for the pinned `ghcr.io/ziadmansourm/ouo/*` images |
-| `deploy/docker/.env.example` | copy to `deploy/docker/.env` to change an image version, if a default host port collides or to replace the development ingest / read tokens |
+| `deploy/compose/compose.yaml` | delete the `backend` service block (it builds the ouo demo API) or point its `build.context` at your own Dockerfile. Nothing else on a laptop; anywhere else set real tokens in `.env` and a real `projects.htpasswd` |
+| `deploy/compose/compose.images.yaml` | nothing; it swaps the three builds for the pinned `ghcr.io/ziadmansourm/ouo/*` images |
+| `deploy/compose/.env.example` | copy to `deploy/compose/.env` to change an image version, if a default host port collides or to replace the development ingest / read tokens |
 | `collector/` (whole Go module: ocb manifest, Dockerfile, ouo components) | *source only*; compose builds the image |
-| `deploy/docker/collector/config.yaml` | the collector config: `cors.allowed_origins` if your dev server origin is not `http://localhost:*` / `http://127.0.0.1:*`; otherwise nothing |
-| `deploy/docker/collector/projects.htpasswd` | one `<project id>:{SHA}<hash>` line per project (`htpasswd -nbs <id> <token>`); ships with `demo` / `pt_dev_demo_0000000000000000`. Add your project here |
-| `deploy/docker/loki/config.yaml` | nothing |
-| `deploy/docker/tempo/config.yaml` | nothing |
-| `deploy/docker/mimir/config.yaml` | nothing |
-| `deploy/docker/grafana/provisioning/datasources/datasources.yaml` | nothing |
-| `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
+| `deploy/compose/collector/config.yaml` | the collector config: `cors.allowed_origins` if your dev server origin is not `http://localhost:*` / `http://127.0.0.1:*`; otherwise nothing |
+| `deploy/compose/collector/projects.htpasswd` | one `<project id>:{SHA}<hash>` line per project (`htpasswd -nbs <id> <token>`); ships with `demo` / `pt_dev_demo_0000000000000000`. Add your project here |
+| `deploy/compose/loki/config.yaml` | nothing |
+| `deploy/compose/tempo/config.yaml` | nothing |
+| `deploy/compose/mimir/config.yaml` | nothing |
+| `deploy/compose/grafana/provisioning/datasources/datasources.yaml` | nothing |
+| `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml` | nothing; it reads `${OUO_READ_TOKEN}` from the Grafana container's environment |
 | `services/rum-api/` (whole Go module) | *source only*; compose builds it |
 | `plugins/ouo-rum-app/` (whole npm workspace) plus the root `package.json` workspaces entry | *source only*; you build `dist/` once |
-| `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/docker/.env` (ports and tokens) |
+| `deploy/scripts/wait-ready.sh`, `deploy/scripts/smoke.sh` | nothing; both read `deploy/compose/.env` (ports and tokens) |
 
 The full content of each config file is at the end of this page under "The ref files,
 inlined".
@@ -112,18 +112,18 @@ Default host ports (container ports never change):
 | rum-api | 8080 | **internal**: replay sink for the collector (ingest token) and the session API behind the Grafana plugin (read token). Published on a laptop for curl; never in production |
 
 To change any host port or the secret tokens, copy the example file and edit it. Compose
-reads `deploy/docker/.env` automatically and so do the scripts. Without a `.env` the stack
+reads `deploy/compose/.env` automatically and so do the scripts. Without a `.env` the stack
 runs with the development values shown below, which is fine as long as nobody but you
 can reach ports 4318 and 4319.
 
 ```bash
-cp deploy/docker/.env.example deploy/docker/.env
+cp deploy/compose/.env.example deploy/compose/.env
 ```
 
-`deploy/docker/.env.example` (ref file, inline):
+`deploy/compose/.env.example` (ref file, inline):
 
 ```dotenv
-# Overrides for deploy/docker/compose.yaml. Copy to deploy/docker/.env (gitignored).
+# Overrides for deploy/compose/compose.yaml. Copy to deploy/compose/.env (gitignored).
 # Compose reads this file for ${VAR:-default} interpolation; deploy/scripts/*.sh source it.
 # Every value here has the same default inside compose.yaml, so a fresh clone works
 # without copying anything.
@@ -146,16 +146,16 @@ OUO_BACKEND_PORT=8081
 OUO_RUM_API_PORT=8080
 
 # --- Released images (only read with -f compose.images.yaml) -----------------------
-# `docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d`
+# `docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d`
 # pulls these instead of building collector/ and services/rum-api and mounting the plugin
-# build. Each image has its own version (RELEASING.md); pin exact versions, never latest.
+# build. Each image has its own version (docs/releasing.md); pin exact versions, never latest.
 # Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
 # everything is built from source.
 OUO_IMAGE_REGISTRY=ghcr.io/ziadmansourm/ouo
 OUO_RUM_API_VERSION=0.2.0
 OUO_COLLECTOR_VERSION=0.2.0
 OUO_GRAFANA_VERSION=0.2.0
-# rum-api 0.2.0 reads deploy/docker/rum-api/config.yaml (mounted by compose.yaml); S3 /
+# rum-api 0.2.0 reads deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
 # MinIO storage is the opt-in override compose.s3.yaml (both from the rum-api config PR #19).
 
 # --- Tokens (ADR-0007) --------------------------------------------------------------
@@ -183,7 +183,7 @@ OUO_READ_TOKEN=rt_dev_0000000000000000
 # OUO_BACKEND_OTLP_HEADERS=Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
 
 # --- Scripts only (deploy/scripts/smoke.sh, e2e.sh): which project they send as -------
-# Must match a line in collector/projects.htpasswd (or deploy/docker/projects.htpasswd
+# Must match a line in collector/projects.htpasswd (or deploy/compose/projects.htpasswd
 # on a server install, see deploy/vm/README.md). Not read by compose.
 OUO_PROJECT_ID=demo
 OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000
@@ -237,17 +237,17 @@ No access yet? Use **Build from source** below: it needs no login, only the full
 From the repo root:
 
 ```bash
-docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 ```
 
 The first run pulls the Loki, Tempo and Mimir images plus the pinned ouo collector,
 rum-api and Grafana images, and builds the demo backend if you kept it. To save typing,
-put `COMPOSE_FILE=deploy/docker/compose.yaml:deploy/docker/compose.images.yaml` in your
+put `COMPOSE_FILE=deploy/compose/compose.yaml:deploy/compose/compose.images.yaml` in your
 shell (`export`) and drop the `-f` flags; the commands below show `compose.yaml` alone,
 add the second `-f` (or keep `COMPOSE_FILE` set) for every one of them.
 
 To try another version, set `OUO_RUM_API_VERSION` / `OUO_COLLECTOR_VERSION` /
-`OUO_GRAFANA_VERSION` in `deploy/docker/.env` (pre-releases look like `0.2.0-rc.1`) and
+`OUO_GRAFANA_VERSION` in `deploy/compose/.env` (pre-releases look like `0.2.0-rc.1`) and
 run the same `up -d`. Pin exact versions; the images also carry `latest` and
 `<major>.<minor>` tags, but a pinned stack is the one you can reproduce.
 
@@ -255,7 +255,7 @@ run the same `up -d`. Pin exact versions; the images also carry `latest` and
 image is not published yet): leave `compose.images.yaml` out.
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d
+docker compose -f deploy/compose/compose.yaml up -d
 ```
 
 That builds the ouo collector distribution (the OpenTelemetry Collector Builder compiles
@@ -265,19 +265,19 @@ build from `plugins/ouo-rum-app/dist` (build it once, Step 5). Allow several min
 Useful variants:
 
 ```bash
-docker compose -f deploy/docker/compose.yaml ps
+docker compose -f deploy/compose/compose.yaml ps
 ```
 
 ```bash
-docker compose -f deploy/docker/compose.yaml logs -f otel-collector
+docker compose -f deploy/compose/compose.yaml logs -f otel-collector
 ```
 
 ```bash
-docker compose -f deploy/docker/compose.yaml down
+docker compose -f deploy/compose/compose.yaml down
 ```
 
 ```bash
-docker compose -f deploy/docker/compose.yaml down -v
+docker compose -f deploy/compose/compose.yaml down -v
 ```
 
 `down` keeps the data (named volumes `ouo_grafana-data`, `ouo_loki-data`,
@@ -348,7 +348,7 @@ BASIC=$(printf '%s' 'demo:pt_dev_demo_0000000000000000' | base64)
 
 (`ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw`.) The project id is the Basic username
 and becomes `ouo.project.id`; the token is checked against
-`deploy/docker/collector/projects.htpasswd`.
+`deploy/compose/collector/projects.htpasswd`.
 
 ### Send one trace by hand and find it in Tempo
 
@@ -452,13 +452,13 @@ npm run -w plugins/ouo-rum-app build
 ```
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d grafana
+docker compose -f deploy/compose/compose.yaml up -d grafana
 ```
 
 If Grafana was already running with an empty mount, force a restart:
 
 ```bash
-docker compose -f deploy/docker/compose.yaml restart grafana
+docker compose -f deploy/compose/compose.yaml restart grafana
 ```
 
 Check the plugin is enabled and points at rum-api in-network:
@@ -499,7 +499,7 @@ editable from the UI. Trace to logs is a custom query on `service_name` plus
 
 ## What each collector pipeline does
 
-`deploy/docker/collector/config.yaml` configures the ouo collector distribution, the
+`deploy/compose/collector/config.yaml` configures the ouo collector distribution, the
 single ingress for browsers, phones and backends alike. The `basicauth` extension
 (htpasswd file `/etc/otelcol/projects.htpasswd`) guards the `otlp` receiver (gRPC 4317
 on loopback, HTTP 4318 public, with CORS) and the `ouoreplay` receiver (4319, public,
@@ -543,7 +543,7 @@ Tempo 3.0.3, Mimir 3.2.1; the collector's upstream component versions are pinned
 
 Copy each one byte for byte to the same relative path in your project.
 
-### `deploy/docker/compose.yaml` (excerpt: the parts you may touch)
+### `deploy/compose/compose.yaml` (excerpt: the parts you may touch)
 
 The whole file is about 170 lines; here are the three blocks that matter when you
 adapt it. The `backend` block is the ouo demo API, delete it or point it at your
@@ -610,7 +610,7 @@ file. The `rum-api` service builds `../../services/rum-api`, gets `LOKI_URL=http
 (browser-facing, used in deep links), the two tokens above and mounts `../data/rum-api`
 at `/data`.
 
-### `deploy/docker/collector/config.yaml` and `projects.htpasswd`
+### `deploy/compose/collector/config.yaml` and `projects.htpasswd`
 
 Copy both files as they are from the repo (the config is maintained by the collector
 agent together with the components in `collector/`, so it is not inlined here). What is
@@ -636,12 +636,12 @@ in it, so you know what to tweak:
 demo:{SHA}IUpHBAUPHvXoJmvv4inmF4cN96I=
 ```
 
-Add yours with `htpasswd -nbs <id> <token> >> deploy/docker/collector/projects.htpasswd`
+Add yours with `htpasswd -nbs <id> <token> >> deploy/compose/collector/projects.htpasswd`
 (or `printf '%s:{SHA}%s\n' <id> "$(printf '%s' <token> | openssl dgst -binary -sha1 | openssl base64)"`),
-then `docker compose -f deploy/docker/compose.yaml restart otel-collector`.
+then `docker compose -f deploy/compose/compose.yaml restart otel-collector`.
 
 
-### `deploy/docker/loki/config.yaml`
+### `deploy/compose/loki/config.yaml`
 
 The part that matters for ouo is `limits_config.otlp_config`: only `service.name`,
 `service.namespace`, `deployment.environment.name`, `ouo.platform` (resource) and
@@ -733,7 +733,7 @@ analytics:
   reporting_enabled: false
 ```
 
-### `deploy/docker/tempo/config.yaml`
+### `deploy/compose/tempo/config.yaml`
 
 Single binary, local blocks, OTLP receiver on 4317/4318 (in-network only), and a
 metrics generator that remote-writes `traces_spanmetrics_*` and
@@ -741,7 +741,7 @@ metrics generator that remote-writes `traces_spanmetrics_*` and
 
 ```yaml
 # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir.
-# Only keys that exist in 3.0.x are used; see kb/collector-lgtm.md.
+# Only keys that exist in 3.0.x are used; see project/kb/collector-lgtm.md.
 # Grafana >= 11 streams search/trace results over gRPC on the HTTP port (h2c).
 stream_over_http_enabled: true
 
@@ -796,7 +796,7 @@ overrides:
       processors: [service-graphs, span-metrics]
 ```
 
-### `deploy/docker/mimir/config.yaml`
+### `deploy/compose/mimir/config.yaml`
 
 ```yaml
 # Mimir monolithic mode, filesystem storage, OTLP push at /otlp/v1/metrics.
@@ -870,7 +870,7 @@ usage_stats:
   enabled: false
 ```
 
-### `deploy/docker/grafana/provisioning/datasources/datasources.yaml`
+### `deploy/compose/grafana/provisioning/datasources/datasources.yaml`
 
 Fixed uids (`loki`, `tempo`, `mimir`) so that rum-api deep links and the plugin
 always resolve. `$$` escapes the provisioner's own `${ENV}` expansion.
@@ -956,7 +956,7 @@ datasources:
           datasourceUid: tempo
 ```
 
-### `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml`
+### `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml`
 
 ```yaml
 # Enables the ouo RUM app plugin (plugins/ouo-rum-app, loaded unsigned from
@@ -983,7 +983,7 @@ apps:
 
 ### `deploy/scripts/wait-ready.sh`
 
-Reference for the readiness loop. It sources `deploy/docker/.env`, then polls
+Reference for the readiness loop. It sources `deploy/compose/.env`, then polls
 `/ready` on Loki, Tempo and Mimir, `/` on the collector health port (loopback), the
 collector's two public ports (any HTTP answer; `401` without a credential is the
 expected one), `/api/health` on Grafana and `/readyz` on rum-api until each passes or
@@ -992,7 +992,7 @@ expected one), `/api/health` on Grafana and `/readyz` on rum-api until each pass
 ```bash
 #!/usr/bin/env bash
 # Wait until Loki, Tempo, Mimir, the collector, Grafana and rum-api answer their readiness endpoints.
-# Honors the OUO_*_PORT overrides from deploy/docker/.env (same defaults as compose.yaml).
+# Honors the OUO_*_PORT overrides from deploy/compose/.env (same defaults as compose.yaml).
 # The collector (ADR-0007, the public ingest) is probed three times: the health_check
 # extension on loopback (127.0.0.1:13133), then the two published ports 4318 (OTLP/HTTP)
 # and 4319 (replay) must answer HTTP at all (any status; without credentials the
@@ -1000,7 +1000,7 @@ expected one), `/api/health` on Grafana and `/readyz` on rum-api until each pass
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"
@@ -1039,7 +1039,7 @@ wait_for rum-api "$RUM_API/readyz"
 
 ## What you should see
 
-- `docker compose -f deploy/docker/compose.yaml ps` lists `grafana`, `loki`, `tempo`,
+- `docker compose -f deploy/compose/compose.yaml ps` lists `grafana`, `loki`, `tempo`,
   `mimir`, `otel-collector`, `rum-api` (and `backend` if kept) as `running`; `grafana`
   shows `(healthy)`.
 - The five readiness curls print `200`. `deploy/scripts/wait-ready.sh` prints eight
@@ -1054,7 +1054,7 @@ wait_for rum-api "$RUM_API/readyz"
 - Grafana at http://localhost:3000 logs you in as `admin`, Connections -> Data sources
   lists Loki, Tempo and Mimir, and http://localhost:3000/a/ouo-rum-app/overview renders
   the plugin (empty until an SDK sends sessions).
-- `docker compose -f deploy/docker/compose.yaml logs otel-collector` shows no
+- `docker compose -f deploy/compose/compose.yaml logs otel-collector` shows no
   `Exporting failed` lines once the backends are ready. Tempo logging `no jobs found`
   every few seconds is harmless in single-binary mode.
 

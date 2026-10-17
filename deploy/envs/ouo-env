@@ -1,0 +1,297 @@
+#!/usr/bin/env node
+// ouo-env: named local environments behind one Traefik proxy (roadmap B2).
+//
+//   deploy/envs/ouo-env up    <env> [--ref <git ref>] [--src <checkout>] [--images] [--no-build]
+//   deploy/envs/ouo-env down  <env> [--purge]
+//   deploy/envs/ouo-env ls
+//   deploy/envs/ouo-env gc    [--purge] [--dry-run]
+//   deploy/envs/ouo-env url   <env> [service] [--lan]
+//   deploy/envs/ouo-env env   <env>          shell exports for deploy/scripts/*.sh
+//   deploy/envs/ouo-env proxy up|down
+//
+// Envs: `main` (always origin/main, built in its own worktree), `sbx` (long-lived
+// sandbox) and one ephemeral env per branch or PR (name = slug of the branch by default).
+// Each env is the compose project ouo-<env>: UIs and APIs at http://<service>.<env>.ouo.localhost
+// (main: http://<service>.ouo.localhost), ingest ports for devices published per env.
+// Details: deploy/envs/README.md.
+
+import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import * as lib from "./lib.mjs";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(HERE, "../..");
+const STATE = process.env.OUO_ENV_STATE ?? path.join(process.env.XDG_STATE_HOME ?? path.join(os.homedir(), ".local/state"), "ouo-env");
+const PROXY_FILE = path.join(HERE, "proxy.compose.yaml");
+
+function run(cmd, args, opts = {}) {
+  const r = spawnSync(cmd, args, { stdio: opts.capture ? ["ignore", "pipe", "pipe"] : "inherit", encoding: "utf8", cwd: opts.cwd, env: { ...process.env, ...opts.env } });
+  if (r.status !== 0 && !opts.allowFail) {
+    if (opts.capture) process.stderr.write(r.stderr ?? "");
+    throw new Error(`${cmd} ${args.join(" ")} exited ${r.status}`);
+  }
+  return opts.capture ? (r.stdout ?? "").trim() : r.status;
+}
+const capture = (cmd, args, opts = {}) => run(cmd, args, { ...opts, capture: true, allowFail: true });
+const log = (...a) => console.error("ouo-env:", ...a);
+// Docker Hub lookups (base images, the dockerfile:1 frontend) time out now and then.
+function retry(fn, tries = 3) {
+  for (let i = 1; ; i++) {
+    try { return fn(); } catch (e) { if (i >= tries) throw e; log(`${e.message}; retry ${i}/${tries - 1}`); }
+  }
+}
+
+// --- state (one JSON file per env, outside the repo) ----------------------------------
+const stateFile = (env) => path.join(STATE, `${env}.json`);
+function readState(env) {
+  try { return JSON.parse(fs.readFileSync(stateFile(env), "utf8")); } catch { return null; }
+}
+function allStates() {
+  if (!fs.existsSync(STATE)) return [];
+  return fs.readdirSync(STATE).filter((f) => f.endsWith(".json")).map((f) => readState(f.slice(0, -5))).filter(Boolean);
+}
+function writeState(s) {
+  fs.mkdirSync(STATE, { recursive: true });
+  fs.writeFileSync(stateFile(s.env), JSON.stringify(s, null, 2) + "\n");
+}
+
+// --- docker ---------------------------------------------------------------------------
+function runningEnvs() {
+  const out = capture("docker", ["ps", "-a", "--filter", "label=ouo.env", "--format", '{{.Label "ouo.env"}}\t{{.State}}']);
+  const r = {};
+  for (const line of out.split("\n").filter(Boolean)) {
+    const [env, st] = line.split("\t");
+    r[env] ??= { up: 0, total: 0 };
+    r[env].total++;
+    if (st === "running") r[env].up++;
+  }
+  return r;
+}
+
+function ensureProxy() {
+  if (!capture("docker", ["network", "ls", "-q", "--filter", "name=^ouo-proxy$"])) {
+    run("docker", ["network", "create", "ouo-proxy"]);
+  }
+  run("docker", ["compose", "-f", PROXY_FILE, "up", "-d", "--wait"]);
+}
+
+function compose(s, args, extraFiles = []) {
+  const files = [path.join(s.src, "deploy/compose/compose.yaml"), ...extraFiles, path.join(STATE, s.env, "compose.env.yaml")];
+  return run("docker", ["compose", "-p", lib.project(s.env), ...files.flatMap((f) => ["-f", f]), ...args], { cwd: s.src });
+}
+
+// --- git / gh -------------------------------------------------------------------------
+const git = (cwd, ...a) => capture("git", ["-C", cwd, ...a]);
+function currentBranch(cwd) {
+  return git(cwd, "rev-parse", "--abbrev-ref", "HEAD");
+}
+function branchExists(branch) {
+  if (!branch || branch === "HEAD") return false;
+  if (spawnSync("git", ["-C", REPO, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).status === 0) return true;
+  return spawnSync("git", ["-C", REPO, "ls-remote", "--exit-code", "--heads", "origin", branch], { stdio: "ignore" }).status === 0;
+}
+function prOf(branch) {
+  if (!branch || branch === "HEAD") return { pr: null, prUnknown: false };
+  const r = spawnSync("gh", ["pr", "list", "--head", branch, "--state", "all", "--json", "number,state", "--limit", "1"], { cwd: REPO, encoding: "utf8" });
+  if (r.status !== 0) return { pr: null, prUnknown: true };
+  try {
+    const [pr] = JSON.parse(r.stdout || "[]");
+    return { pr: pr ?? null, prUnknown: false };
+  } catch {
+    return { pr: null, prUnknown: true };
+  }
+}
+
+// main is built from its own worktree at origin/main, so it never runs a branch's code.
+function mainSource(ref) {
+  const dir = path.join(STATE, "src", "main");
+  run("git", ["-C", REPO, "fetch", "--quiet", "origin"]);
+  if (!fs.existsSync(path.join(dir, ".git"))) {
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    run("git", ["-C", REPO, "worktree", "add", "--detach", dir, ref]);
+  } else {
+    run("git", ["-C", dir, "checkout", "--quiet", "--detach", ref]);
+  }
+  return dir;
+}
+
+function buildPlugin(src) {
+  const marker = path.join(src, "plugins/ouo-rum-app/dist/.ouo-env-built");
+  const head = git(src, "rev-parse", "HEAD");
+  const dirty = git(src, "status", "--porcelain", "--", "plugins/ouo-rum-app");
+  if (fs.existsSync(marker) && fs.readFileSync(marker, "utf8").trim() === head && !dirty) return;
+  log(`building plugins/ouo-rum-app in ${src}`);
+  if (!fs.existsSync(path.join(src, "node_modules"))) run("npm", ["ci", "--no-audit", "--no-fund"], { cwd: src });
+  run("npm", ["run", "build", "-w", "plugins/ouo-rum-app"], { cwd: src });
+  fs.writeFileSync(marker, head + "\n");
+}
+
+// --- readiness ------------------------------------------------------------------------
+function probe(url) {
+  return new Promise((resolve) => {
+    const req = http.get(url, { timeout: 3000 }, (res) => { res.resume(); resolve(res.statusCode); });
+    req.on("error", () => resolve(0));
+    req.on("timeout", () => { req.destroy(); resolve(0); });
+  });
+}
+async function waitReady(s, seconds = 180) {
+  const p = lib.portsOf(s.block);
+  const checks = [
+    ["grafana", `${lib.urlOf(s.env, "grafana")}/api/health`, (c) => c === 200],
+    ["rum-api", `${lib.urlOf(s.env, "rum-api")}/readyz`, (c) => c === 200],
+    ["collector", `${lib.urlOf(s.env, "collector")}/`, (c) => c === 200],
+    ["otlp", `http://localhost:${p.otlp}/v1/traces`, (c) => c > 0],
+  ];
+  const deadline = Date.now() + seconds * 1000;
+  for (const [name, url, ok] of checks) {
+    let code = 0;
+    while (!ok((code = await probe(url)))) {
+      if (Date.now() > deadline) throw new Error(`${name} not ready: ${url} -> ${code}`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    log(`ready: ${name} (${url} -> ${code})`);
+  }
+}
+
+function lanIP() {
+  for (const ifs of Object.values(os.networkInterfaces())) {
+    for (const i of ifs ?? []) if (i.family === "IPv4" && !i.internal && !i.address.startsWith("169.254.")) return i.address;
+  }
+  return "<lan-ip>";
+}
+
+function printUrls(s, lan) {
+  const p = lib.portsOf(s.block);
+  console.log(`env ${s.env} (${s.kind}, branch ${s.branch || "-"})`);
+  console.log(`  grafana   ${lib.urlOf(s.env, "grafana")}  (admin / ${lib.GRAFANA_PASSWORD})`);
+  for (const n of ["rum-api", "otlp", "replay", "sentry", "backend", "loki", "tempo", "mimir"]) console.log(`  ${n.padEnd(9)} ${lib.urlOf(s.env, n)}`);
+  const ip = lan ? lanIP() : "localhost";
+  console.log(`  devices (${lan ? "phone on the same Wi-Fi" : "simulator; --lan for a phone"}):`);
+  console.log(`    OTLP     http://${ip}:${p.otlp}   replay http://${ip}:${p.replay}   Sentry DSN host ${ip}:${p.sentry}   backend http://${ip}:${p.backend}`);
+}
+
+// --- commands -------------------------------------------------------------------------
+async function up(env, flags) {
+  const kind = lib.kindOf(env);
+  const prev = readState(env);
+  if (flags["copy-from"] && prev) throw new Error(`--copy-from only seeds a new env; ${env} already exists (down --purge first)`);
+  let src;
+  if (flags.src) src = path.resolve(flags.src);
+  else if (env === "main") src = mainSource(flags.ref ?? "origin/main");
+  else src = REPO;
+  const branch = env === "main" ? (flags.ref ?? "origin/main").replace(/^origin\//, "") : flags.branch ?? (kind === "ephemeral" ? prev?.branch : null) ?? currentBranch(src);
+  const block = prev?.block ?? lib.allocateBlock(env, allStates().filter((x) => x.env !== env).map((x) => x.block));
+  const { pr } = kind === "ephemeral" ? prOf(branch) : { pr: null };
+  const s = {
+    env, kind, branch, src, block,
+    pr: pr?.number ?? prev?.pr ?? "",
+    session: flags.session ?? process.env.OUO_SESSION ?? prev?.session ?? "",
+    created: prev?.created ?? new Date().toISOString(),
+    commit: git(src, "rev-parse", "--short", "HEAD"),
+  };
+  fs.mkdirSync(path.join(STATE, env), { recursive: true });
+  fs.writeFileSync(path.join(STATE, env, "compose.env.yaml"), lib.renderOverlay(s));
+  writeState(s);
+  ensureProxy();
+  const extra = flags.images ? [path.join(src, "deploy/compose/compose.images.yaml")] : [];
+  if (!flags.images && !flags["no-build"]) buildPlugin(src);
+  if (flags["copy-from"]) copyVolumes(flags["copy-from"], s, flags["copy-rum-api-data"]);
+  retry(() => compose(s, ["up", "-d", ...(flags.images || flags["no-build"] ? [] : ["--build"]), "--remove-orphans"], extra));
+  await waitReady(s);
+  // Every env logs in with admin / testing567, also when grafana-data came from an older stack.
+  compose(s, ["exec", "-T", "grafana", "grafana", "cli", "admin", "reset-admin-password", lib.GRAFANA_PASSWORD], extra);
+  printUrls(s, false);
+}
+
+// One-off migration: copy the named volumes of an existing compose project (and the
+// bind-mounted rum-api data directory) into the env's volumes. The source stack should
+// be stopped first so Loki, Tempo, Mimir and Grafana's SQLite are consistent.
+function copyVolumes(from, s, rumApiDir) {
+  const to = lib.project(s.env);
+  retry(() => compose(s, ["create", "--no-recreate"])); // creates the env's volumes
+  for (const v of ["grafana-data", "loki-data", "tempo-data", "mimir-data"]) {
+    const src = `${from}_${v}`;
+    if (!capture("docker", ["volume", "ls", "-q", "--filter", `name=^${src}$`])) { log(`skip ${src} (absent)`); continue; }
+    log(`copy volume ${src} -> ${to}_${v}`);
+    retry(() => run("docker", ["run", "--rm", "-v", `${src}:/from:ro`, "-v", `${to}_${v}:/to`, "alpine:3.22", "sh", "-c", "cp -a /from/. /to/"]));
+  }
+  if (rumApiDir) {
+    log(`copy ${rumApiDir} -> ${to}_rum-api-data`);
+    retry(() => run("docker", ["run", "--rm", "-v", `${path.resolve(rumApiDir)}:/from:ro`, "-v", `${to}_rum-api-data:/to`, "alpine:3.22", "sh", "-c", "cp -a /from/. /to/ && chown -R 65532:65532 /to"])); // rum-api runs as nonroot
+  }
+}
+
+function down(env, flags) {
+  const proj = lib.project(env);
+  run("docker", ["compose", "-p", proj, "down", "--remove-orphans"]);
+  if (flags.purge) {
+    const vols = capture("docker", ["volume", "ls", "-q", "--filter", `label=com.docker.compose.project=${proj}`]).split("\n").filter(Boolean);
+    if (vols.length) run("docker", ["volume", "rm", ...vols]);
+    fs.rmSync(stateFile(env), { force: true });
+    fs.rmSync(path.join(STATE, env), { recursive: true, force: true });
+    log(`${env}: down, volumes removed`);
+  } else {
+    log(`${env}: down (volumes kept; --purge removes them)`);
+  }
+}
+
+function ls() {
+  const states = allStates();
+  const running = runningEnvs();
+  const prs = {};
+  for (const s of states) if (s.kind === "ephemeral") prs[s.env] = prOf(s.branch);
+  const rows = lib.lsRows({ states, running, prs });
+  if (!rows.length) return console.log("no envs (deploy/envs/ouo-env up <env>)");
+  console.log(lib.table(rows, ["env", "kind", "branch", "pr", "status", "age", "grafana", "ingest"]));
+}
+
+function gc(flags) {
+  const running = runningEnvs();
+  for (const s of allStates()) {
+    const d = lib.gcDecision({ env: s.env, ...(s.kind === "ephemeral" ? prOf(s.branch) : { pr: null, prUnknown: false }), branchExists: branchExists(s.branch) });
+    const isUp = Boolean(running[s.env]);
+    if (!d.remove) { console.log(`keep    ${s.env}: ${d.reason}`); continue; }
+    if (!isUp && !flags.purge) { console.log(`down    ${s.env}: ${d.reason} (already down, volumes kept)`); continue; }
+    console.log(`${flags["dry-run"] ? "would remove" : "remove"}  ${s.env}: ${d.reason}${flags.purge ? " (purge volumes)" : ""}`);
+    if (!flags["dry-run"]) down(s.env, flags);
+  }
+}
+
+function need(env) {
+  if (!env) throw new Error("env name required");
+  if (!lib.validName(env)) throw new Error(`invalid env name "${env}" (a-z, 0-9, -, at most 32 chars)`);
+  return env;
+}
+
+async function main() {
+  const { _: [cmd, a1, a2], flags } = lib.parseArgs(process.argv.slice(2));
+  switch (cmd) {
+    case "up": return up(need(a1 ?? lib.slugify(currentBranch(REPO))), flags);
+    case "down": return down(need(a1), flags);
+    case "ls": return ls();
+    case "gc": return gc(flags);
+    case "url": {
+      const s = readState(need(a1)) ?? { env: a1, kind: lib.kindOf(a1), block: lib.allocateBlock(a1, []), branch: "" };
+      if (a2) return console.log(lib.urlOf(a1, a2));
+      return printUrls(s, flags.lan);
+    }
+    case "env": {
+      const s = readState(need(a1));
+      if (!s) throw new Error(`no env ${a1}`);
+      return console.log(lib.exportsOf(s.env, s.block));
+    }
+    case "proxy":
+      if (a1 === "down") return run("docker", ["compose", "-f", PROXY_FILE, "down"]);
+      return ensureProxy();
+    case "slug": return console.log(lib.slugify(a1 ?? currentBranch(REPO)));
+    default:
+      console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 17).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+      process.exitCode = cmd ? 2 : 0;
+  }
+}
+
+main().catch((e) => { log(e.message); process.exit(1); });

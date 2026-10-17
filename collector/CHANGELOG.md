@@ -1,7 +1,7 @@
 # Changelog: ouo-collector image
 
 `ghcr.io/ziadmansourm/ouo/collector`, tag `collector-v<version>`. The version is
-`dist.version` in `builder.yaml` (`ouo-collector --version`). Policy: `RELEASING.md`.
+`dist.version` in `builder.yaml` (`ouo-collector --version`). Policy: `docs/releasing.md`.
 
 ## Unreleased
 
@@ -10,7 +10,7 @@
 - `ouosentry` receiver: resource attribute `ouo.rum.mode = sentry` on everything it translates,
   so dashboards can split a Sentry-to-ouo rollout by cohort (`examples/sentry-mobile/ROLLOUT.md`).
 
-## 0.2.0 (not tagged yet)
+## 0.2.0 (2026-10-17)
 
 First released image. OpenTelemetry Collector components pinned to 0.160.0.
 

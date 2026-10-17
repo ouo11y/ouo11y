@@ -10,19 +10,19 @@
 #      plus one replay chunk to POST /v1/replay/chunks on 4319 (202)
 #   4. the trace is found in Tempo (stamped ouo.project.id), the log in Loki, the metric
 #      in Mimir, and the replay chunk is readable from rum-api with the read token
-# Exits non-zero on the first failure. Honors OUO_* from deploy/docker/.env.
+# Exits non-zero on the first failure. Honors OUO_* from deploy/compose/.env.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 OTLP="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"       # collector OTLP/HTTP (public)
 REPLAY="${OUO_REPLAY_URL:-http://localhost:${OUO_REPLAY_PORT:-4319}}"      # collector replay receiver (public)
 RUM="${OUO_RUM_API_URL:-${OUO_RUM_API:-http://localhost:${OUO_RUM_API_PORT:-8080}}}"  # internal, read side
-LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"
-TEMPO="http://localhost:${OUO_TEMPO_PORT:-3200}"
-MIMIR="http://localhost:${OUO_MIMIR_PORT:-9009}"
+LOKI="${OUO_LOKI_URL:-http://localhost:${OUO_LOKI_PORT:-3100}}"
+TEMPO="${OUO_TEMPO_URL:-http://localhost:${OUO_TEMPO_PORT:-3200}}"
+MIMIR="${OUO_MIMIR_URL:-http://localhost:${OUO_MIMIR_PORT:-9009}}"
 PROJECT_ID="${OUO_PROJECT_ID:-demo}"
 TOKEN="${OUO_PROJECT_TOKEN:-pt_dev_demo_0000000000000000}"
 READ_TOKEN="${OUO_READ_TOKEN:-rt_dev_0000000000000000}"
@@ -43,7 +43,7 @@ pass() { echo "ok: $*"; }
 warn() { echo "warn: $*" >&2; }
 
 # Requested headers are listed the way browsers send them: lowercase and sorted
-# (the collector's CORS handler rejects unsorted lists, see kb/collector-components.md).
+# (the collector's CORS handler rejects unsorted lists, see project/kb/collector-components.md).
 # The OTLP SDK exporters send trace context headers; the replay uploaders do not.
 OTLP_PREFLIGHT_HEADERS="authorization,baggage,content-encoding,content-type,traceparent"
 REPLAY_PREFLIGHT_HEADERS="authorization,content-encoding,content-type"

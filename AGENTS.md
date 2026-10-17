@@ -8,34 +8,41 @@ ouo is an OpenTelemetry-native Real User Monitoring platform. The MVP is defined
 
 ## Read first, every time
 
-1. `tracker/index.md` — which phase is active and what is open.
-2. `agents/index.md` — which agents exist and what each owns.
-3. `kb/index.md` — knowledge already gathered. Do not re-research something that has a kb entry.
+1. `project/tracker/checklist.md` — the single sorted work list; `project/tracker/index.md` lists the phase trackers.
+2. `project/agents/index.md` — which agents exist and what each owns.
+3. `project/kb/index.md` — knowledge already gathered. Do not re-research something that has a kb entry.
 4. `docs/adr/` — decisions already made. Do not relitigate them; propose a new ADR if one is wrong.
 
 ## Repository layout
 
+Product at the top, process material under `project/` ([ADR-0010](docs/adr/0010-repository-layout.md)).
+
 ```
-docs/            vision, MVP scope, specs, ADRs
-  adr/           architecture decision records (numbered)
-  specs/         normative specs (session lifecycle, event schema, replay format)
-kb/              knowledge base, one file per topic, indexed by kb/index.md
-agents/          one folder per agent or team, indexed by agents/index.md
-  <agent>/       index.md, tracker.md, summaries/, reports/ (HTML)
-tracker/         phase trackers, indexed by tracker/index.md
-reports/         cross-cutting HTML reports, indexed by reports/index.md
-deploy/          docker compose, collector, grafana provisioning
-services/        platform services (Go): rum-api
-sdk/             browser and react-native SDKs (TypeScript)
-plugins/         Grafana app plugin
-examples/        demo web app, demo mobile app, demo backend
+sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
+collector/           ouo-collector (ocb distribution) and its components (Go)
+services/rum-api/    platform service (Go)
+plugins/ouo-rum-app/ Grafana app plugin
+deploy/              compose/ (local + VM stack), helm/, vm/, envs/ (ouo-env), images/, scripts/
+examples/            demo web, mobile, sentry-mobile and backend apps; fast-tracked guides
+tests/               end-to-end scenario
+docs/                user-facing docs: vision, MVP scope, specs, ADRs, operations, releasing
+  adr/               architecture decision records (numbered)
+  specs/             normative specs (session lifecycle, replay format, Sentry bridge)
+project/             agent and process material (not shipped)
+  agents/            one folder per agent or team, indexed by project/agents/index.md
+    <agent>/         index.md, tracker.md, summaries/, reports/ (HTML)
+  kb/                knowledge base, one file per topic, indexed by project/kb/index.md
+  tracker/           checklist and phase trackers, indexed by project/tracker/index.md
+  reports/           cross-cutting HTML reports, indexed by project/reports/index.md
 ```
+
+The root holds only `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` and the npm workspace files. Do not add new top-level folders or files without an ADR. Links between files are checked in CI (job `links`, lychee in offline mode); when you move or link files, run `lychee --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'` before you push.
 
 ## Agent protocol
 
-- Each agent owns a folder under `agents/<name>/` containing at minimum `index.md`, `tracker.md`, and a `summaries/` folder. Write a dated summary there at the end of every run: what was done, what was verified and how, what is left, what the next agent must know.
-- Each agent is given an explicit list of **allowed paths**. Do not write outside them except your own `agents/<name>/`, `kb/`, and the index files that list what you added.
-- When you learn something reusable (a library quirk, a config that works, a benchmark), write a `kb/<topic>.md` entry and add it to `kb/index.md`. Keep chat-only knowledge out of chat.
+- Each agent owns a folder under `project/agents/<name>/` containing at minimum `index.md`, `tracker.md`, and a `summaries/` folder. Write a dated summary there at the end of every run: what was done, what was verified and how, what is left, what the next agent must know.
+- Each agent is given an explicit list of **allowed paths**. Do not write outside them except your own `project/agents/<name>/`, `project/kb/`, and the index files that list what you added.
+- When you learn something reusable (a library quirk, a config that works, a benchmark), write a `project/kb/<topic>.md` entry and add it to `project/kb/index.md`. Keep chat-only knowledge out of chat.
 - Every folder that holds documents has an `index.md` listing its contents with one line each. Update the index whenever you add a file.
 - Reports and graphs are HTML/CSS/JS files (self-contained, no external network needed to render). Never markdown tables or image files for reports.
 - Hand-off to the orchestrator is your summary file plus a short final message. The orchestrator does not read your full transcript.
@@ -53,15 +60,22 @@ examples/        demo web app, demo mobile app, demo backend
 ## Definition of done for a phase
 
 - Code builds and tests pass locally with the commands listed in the phase tracker.
-- The acceptance checks listed in `tracker/mvp.md` for the phase are verified and the verification method is recorded.
+- The acceptance checks listed in `project/tracker/mvp.md` for the phase are verified and the verification method is recorded.
 - kb entries written for anything non-obvious.
 - Agent summary written, indexes updated, phase tracker updated.
 - One pull request per phase, stacked on the previous phase branch.
 
-## Running the local stack
+## Running the local stack: `ouo-env` only
+
+Every session runs its stack as a named env (roadmap B2, `deploy/envs/README.md`); no raw `docker compose up` of `deploy/compose` on ad-hoc ports or project names.
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d
+deploy/envs/ouo-env up <env>      # <env>: the branch slug (`deploy/envs/ouo-env slug`), `sbx`, or `main`
+deploy/envs/ouo-env ls
+deploy/envs/ouo-env down <env>    # no --purge unless asked: volumes are kept
 ```
 
-Grafana: http://localhost:3000 (admin / testing567). Collector OTLP/HTTP: http://localhost:4318. rum-api: http://localhost:8080. Details and overrides in `deploy/README.md` once Phase 1 lands.
+- Use the branch slug for your own env (the default when `<env>` is omitted). `main` always runs `origin/main` and is refreshed with `deploy/envs/ouo-env up main` after a merge; `sbx` is the long-lived sandbox. Set `OUO_SESSION` to your session name so `ls` shows who owns an env.
+- Give the founder the URL `ouo-env up` prints (`http://grafana.<env>.ouo.localhost`, admin / testing567 in every env), and for device runs the LAN URLs from `ouo-env url <env> --lan` (a phone cannot resolve `*.localhost`).
+- Tear your env down with `ouo-env down <env>` when the work is done or the PR merges (`ouo-env gc` catches the rest). Never leave an env running without saying so, with its name and URL, in your summary.
+- Smoke-test an env with `eval "$(deploy/envs/ouo-env env <env>)" && deploy/scripts/smoke.sh`.

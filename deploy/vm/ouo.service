@@ -5,7 +5,7 @@
 #   systemctl restart ouo     # re-runs `up -d` (picks up .env and image changes)
 #   systemctl stop ouo        # `compose down`, data volumes are kept
 #
-# Compose reads deploy/docker/.env automatically because the project directory is
+# Compose reads deploy/compose/.env automatically because the project directory is
 # the directory of the first -f file.
 [Unit]
 Description=ouo observability stack (docker compose)
@@ -18,8 +18,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=__OUO_DIR__
-ExecStart=/usr/bin/docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml up -d --remove-orphans
-ExecStop=/usr/bin/docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml down
+ExecStart=/usr/bin/docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml down
 TimeoutStartSec=0
 
 [Install]
