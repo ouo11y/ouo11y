@@ -32,6 +32,34 @@ Every tag is a value: `--set collector.image.tag=0.2.0 --set rumApi.image.tag=0.
 Use `<component>.image.repository` for a registry (`ghcr.io/ziadmansourm/ouo/collector`,
 `.../rum-api`, `.../grafana`) and `imagePullSecrets` for a private one.
 
+### Pull access (the ouo images are private for now)
+
+The three `ghcr.io/ziadmansourm/ouo/*` packages stay **private until ouo reaches a stable
+version**. Without a pull secret the collector, rum-api and Grafana pods sit in
+`ImagePullBackOff` and `kubectl describe pod` shows `403 Forbidden` from ghcr.io. Ask the
+ouo founder for read access to the packages for a GitHub user, create a **classic** personal
+access token for that user with only the **`read:packages`** scope, and store it as a
+`docker-registry` Secret named `ghcr` in the release namespace (the token comes from your
+shell; never put it in a values file or the repo):
+
+```bash
+kubectl create namespace ouo
+```
+
+```bash
+kubectl create secret docker-registry ghcr -n ouo --docker-server=ghcr.io --docker-username=<github-user> --docker-password="$GHCR_TOKEN"
+```
+
+Then add `--set 'imagePullSecrets[0].name=ghcr'` to the `helm install` / `helm upgrade`
+commands below (or `imagePullSecrets: [{name: ghcr}]` in your values file). The chart puts
+it on every pod it runs, bundled LGTM included (harmless for the public upstream images).
+To check the credential from a workstation first:
+`echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin`.
+
+No access: build the three images from source (table above), push them to a registry the
+cluster can reach (kind: `kind load docker-image`) and set `<component>.image.repository` /
+`.tag`; no ghcr.io login is involved.
+
 ## Install A: existing cluster, the customer's LGTM stack (`lgtm.mode=external`)
 
 Nothing LGTM is deployed. The collector, rum-api and Grafana point at the URLs you give.
@@ -315,7 +343,7 @@ deploy/README.md).
 | `lgtm.bundled.<x>.configOverride` | `""` | full config, replaces the one mirrored from `deploy/docker` |
 | `lgtm.bundled.<x>.persistence.{enabled,size,storageClass,accessModes}` | `true`, `20Gi` | StatefulSet volumeClaimTemplates |
 | `lgtm.bundled.<x>.{resources,podSecurityContext,podAnnotations,nodeSelector,tolerations,affinity}` | uid 10001, small requests | |
-| `nameOverride`, `fullnameOverride`, `imagePullSecrets`, `commonLabels` | | naming and registry access |
+| `nameOverride`, `fullnameOverride`, `imagePullSecrets`, `commonLabels` | | naming and registry access; `imagePullSecrets: [{name: ghcr}]` while the ouo images are private ("Pull access") |
 
 Lint and render without a cluster: `helm lint deploy/helm/ouo -f deploy/helm/ouo/values-kind.yaml`,
 `helm template ouo deploy/helm/ouo -f deploy/helm/ouo/values-kind.yaml`.

@@ -50,9 +50,11 @@ after the build, then verify through the public URL
 new variables have defaults, but a variable that was **renamed** is listed under
 `Breaking` in the rum-api changelog and must be updated before `up -d`.
 
-If the compose file of the new release uses published images instead of `build:` (planned
-once `ghcr.io/ziadmansourm/ouo/rum-api` exists), the procedure shrinks to editing the tag,
-`pull`, `up -d`.
+With the released images (`-f deploy/docker/compose.images.yaml`, ouo 0.2.0 and later) the
+procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
+`ghcr.io/ziadmansourm/ouo/*` packages are private until ouo is stable, so the host needs a
+`docker login ghcr.io` with a classic `read:packages` token first ("Pull access" in
+`RELEASING.md`).
 
 ## 3. Helm path
 

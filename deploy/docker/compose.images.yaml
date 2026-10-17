@@ -8,7 +8,12 @@
 # absent. The demo backend is still built from examples/backend (it is example code, not a
 # released image); delete that service when you do not need it.
 #
-# Build from source instead: leave this file out (compose.yaml alone builds the collector
+# The ghcr.io/ziadmansourm/ouo packages are private until ouo reaches a stable version:
+# log in first (`echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin`,
+# classic PAT with read:packages; examples/fast-tracked/00-stack.md, Step 3, "Pull
+# access"), or the pulls fail with `denied`.
+#
+# Build from source instead (no login needed): leave this file out (compose.yaml alone builds the collector
 # and rum-api and bind-mounts plugins/ouo-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
