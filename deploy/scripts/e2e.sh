@@ -35,7 +35,7 @@ export OUO_RUM_API_URL="${OUO_RUM_API_URL:-${OUO_RUM_API:-http://localhost:${OUO
 export OUO_RUM_API="${OUO_RUM_API:-$OUO_RUM_API_URL}"
 export OUO_READ_TOKEN="${OUO_READ_TOKEN:-rt_dev_0000000000000000}"
 export OUO_GRAFANA_URL="${OUO_GRAFANA_URL:-http://localhost:${OUO_GRAFANA_PORT:-3000}}"
-export OUO_GRAFANA_AUTH="${OUO_GRAFANA_AUTH:-admin:admin}"
+export OUO_GRAFANA_AUTH="${OUO_GRAFANA_AUTH:-admin:testing567}"
 
 "$SCRIPT_DIR/wait-ready.sh"   # collector health + public ports, rum-api /readyz
 

@@ -36,7 +36,7 @@
 //   OUO_READ_TOKEN      default rt_dev_0000000000000000, sent as Authorization: Bearer on reads
 //                       (set it empty to run against a rum-api without a read token)
 //   OUO_GRAFANA_URL     default http://localhost:${OUO_GRAFANA_PORT:-3000}
-//   OUO_GRAFANA_AUTH    default admin:admin
+//   OUO_GRAFANA_AUTH    default admin:testing567
 //   OUO_TEMPO_DS_UID    Grafana datasource uid used for the trace-by-id lookups (default tempo)
 //   OUO_E2E_ORIGIN      origin used for the CORS preflights (default http://localhost:5173)
 //   OUO_E2E_TIMEOUT     seconds to wait for ingestion (default 120)
@@ -62,7 +62,7 @@ const ORIGIN = env.OUO_E2E_ORIGIN ?? "http://localhost:5173";
 const OTLP_PREFLIGHT_HEADERS = "authorization,content-type";
 const REPLAY_PREFLIGHT_HEADERS = "authorization,content-encoding,content-type,x-ouo-seq,x-ouo-session-id";
 const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");
-const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:admin";
+const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:testing567";
 const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 120);
 // Range: absolute run start so that two runs inside 15 minutes never count each other.
 // (`from=now-15m` works too but is not idempotent.) rum-api accepts epoch ms.

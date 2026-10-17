@@ -126,7 +126,7 @@ all), and all inputs are masked anyway because the SDK is initialised with
 
 ## What to look for in Grafana
 
-Grafana: `http://localhost:3001` (admin / admin) on this machine, `3000` by
+Grafana: `http://localhost:3001` (admin / testing567) on this machine, `3000` by
 default. Open Explore.
 
 Tempo (traces of one session, browser and backend spans in one trace):

@@ -120,7 +120,56 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 - [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
 
+### Bridge parity gaps (sentry-demo, 2026-10-17)
+
+From the bridge vs ouo SDK comparison (`agents/sentry-demo/reports/bridge-vs-sdk.html`, `kb/sentry-bridge-vs-ouo-sdk.md`): each item is data Sentry already sends that the bridge drops or misreads. Not started. Effort in engineer-days including tests and a golden capture.
+
+- [ ] A1 `captureMessage` (level below error, only a synthetic exception value) becomes `sentry.message`, not an `exception` (today 3 errors where Sentry counts 2) [0.5 d]
+- [ ] A2 Sentry `log` records get `service.version`, `deployment.environment.name`, `os.*`, device model from the entry attributes (`sentry.release`, `sentry.environment`, `os.*`, `device.model`) [0.5 d]
+- [ ] A3 Device and OS context kept per `sid` / `did` and applied to `session.start`, `ui.tap`, `app.lifecycle`, `breadcrumb`, `console` records [1 d]
+- [ ] A4 Mobile vitals: cold / warm app start, TTID per screen, slow / frozen frames, stalls from transaction `measurements` as timeline records, a rum-api type and plugin display (today only `ouo.sentry.measurement.*` span attributes) [3 d: bridge 1, rum-api 0.5, plugin 1.5]
+- [ ] A5 HTTP client spans named `{method}` instead of the full URL (spanmetrics cardinality), with `server.address`, `server.port`, `url.path`, `url.scheme` parsed from `url.full` [0.5 d]
+- [ ] A6 Error context allowlist: device locale, connection type, free memory, low power, thermal state, in foreground, current screen (`view_names`), app start time; app tags behind a per-project option; spec section 12 updated [1 d]
+- [ ] A7 Native crash frames keep `instruction_addr` / `image_addr` (`image+offset`) and the `debug_meta` image names and UUIDs, so stacks can be symbolicated later [1 d; symbolication itself is separate]
+- [ ] A8 Timeline for sessions without a replay: translate error-event breadcrumbs (de-duplicated) and successful `http.client` spans as `http.request` [2 d]
+- [ ] A9 `session.previous_id` on `session.start` from the previous `sid` of the same `did` [0.5 d]
+- [ ] A10 JS source maps (Sentry sends `dist` and `debug_meta`): upload and storage shared with the ouo SDK [L, roadmap]
+- [ ] A11 Back navigation from `navigation` breadcrumbs (`{from, to}`) for screen changes no transaction covered [1 d]
+
 State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
+
+## Backlog (founder, 2026-10-17)
+
+Not scheduled into a phase yet. Each item gets its own PR to main.
+
+- [ ] B1 Session page shows only the activity list beside the player (plugin 0.6.0, right side). The `Timeline` panel on the left is hidden by default and comes back only behind a feature toggle, the way Grafana does it (`GF_FEATURE_TOGGLES_ENABLE`). Proposed shape: an env var `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel` (comma-separated, more toggles later), mapped into the app plugin's `jsonData.featureToggles` by the provisioning file (Grafana expands `${ENV}` in provisioning) and by the Helm values. The plugin reads it from `jsonData`, since a frontend cannot read env vars. Keep the toggle list documented in one place (README of the plugin). Done: toggle off by default, on brings back today's layout, Jest tests for both, screenshot of both in the PR.
+- [ ] B2 Named local environments instead of ad-hoc stacks on numbered ports. On 2026-10-17, 8 compose projects were running (`ouo`, `ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-perf`, `ouo-flags`, `ouo-flags-flagd`), some days after their PRs merged, each on its own set of ports. Target:
+  - One shared reverse proxy (Traefik, reading Docker labels) on port 80. Stacks publish no host ports for UIs and APIs; only the SDK ingest ports a simulator needs stay published, from a per-env block.
+  - Hostnames `<service>.<env>.ouo.localhost` (`*.localhost` resolves to 127.0.0.1 in browsers and curl with no `/etc/hosts` edits; `.local` is mDNS on macOS and resolves slowly). Envs: `main` (`grafana.ouo.localhost`, always the latest `main`), `sbx` (long-lived sandbox), and one ephemeral env per branch or PR (`grafana.<slug>.ouo.localhost`).
+  - One script, `deploy/envs/ouo-env up|down|ls|gc|url <env>`: compose project `ouo-<env>`, Docker labels `ouo.env`, `ouo.branch`, `ouo.pr`, `ouo.session`, `ouo.created`. `ls` prints env, branch, PR state, age and URLs. `gc` takes down every ephemeral env whose PR is merged or closed or whose branch is gone (volumes kept unless `--purge`).
+  - `main` is refreshed by `ouo-env up main` after each merge: pull the released images or build from `origin/main`.
+  - AGENTS.md rule: agents use `ouo-env` only, give the founder the URL, and run `ouo-env down <env>` when their PR merges; never leave a stack running without saying so in the summary.
+  - Every env's Grafana login is admin / testing567 (founder, 2026-10-17; PR #22).
+  Done: script plus tests of `ls`/`gc` logic, kb entry, AGENTS.md and deploy/README.md updated, the existing stacks migrated or removed.
+- [ ] B3 Device-cost benchmark, ouo SDK vs Sentry SDK, repeatable and fair. This pulls forward the iOS part of Phase 9's benchmark harness; the one-off measurement in session "Measure device cost of ouo SDK next to Sentry" (2026-10-17) is its starting point, not its replacement.
+  - **What is measured, on the end device:** network (bytes up compressed and uncompressed, request count, bytes per minute of replay), CPU (average and p95 during the journey, idle overhead), memory (peak and steady, growth over a 30 min soak), disk (app binary and JS bundle size added, on-disk queue/cache size, max offline buffer), startup time added, frame drops / JS thread stalls, energy impact (Xcode energy gauge or `xctrace` power profile on a real device).
+  - **Fairness rules, written down before the first run:** same app, same scripted journey with real taps, release builds, same sampling (100% sessions in the benchmark), feature parity tiers compared separately (T1 errors only; T2 + tracing/network; T3 + session replay at each SDK's default settings; T4 + replay with matched quality), a baseline with no SDK, N ≥ 10 runs per cell with medians and IQR, the same device model and OS on a cold boot, and pinned versions recorded in the result. Sentry is configured per its own docs, and the config files are published with the results. Report losses as plainly as wins.
+  - **Platforms:** iOS real device + simulator first (React Native, Expo), web (bundle size, main-thread blocking, memory, bytes), Android once Phase 10 lands.
+  - **Cadence:** a workflow runs it for every major (and opt-in minor) release of `@ouo/react-native` / `@ouo/browser` against the **latest stable** Sentry SDK, resolved at run time and recorded. Results are stored as JSON with an HTML report per run in `reports/benchmarks/<date>-<ouo version>-vs-sentry-<version>/`, and a trend page across runs. A regression above an agreed threshold blocks the release.
+  - Done: harness, method doc (kb), first published run, release checklist step in RELEASING.md.
+- [ ] B4 Release every ouo artefact, not only the images. Today: images (`rum-api`, `collector`, `grafana`) are tagged and released by CI (0.2.0 on 2026-10-17, GHCR private until stable). The 8a item "Publish `@ouo/browser` and `@ouo/react-native` to npm, `OuoReplay` via SwiftPM, plugin signed..." is still open, and so are its blockers (npm org, `ouo-ios` mirror repo, signing token). Scope:
+  - Components and channels: `@ouo/browser` and `@ouo/react-native` (npm, with provenance), `OuoReplay` (SwiftPM via mirror repo), `ouo-rum-app` plugin (zip on GitHub releases, then signed private/community), `ouo-collector` and `rum-api` (GHCR), Helm chart (OCI on GHCR).
+  - One versioning policy: independent semver per component with tag prefixes, managed by release-please (manifest mode) from conventional commits, which opens a release PR per component with its CHANGELOG. Merging it tags and publishes. A "Release" `workflow_dispatch` button is kept for manual cuts. The founder approves every release PR or tag.
+  - A compatibility matrix in docs (which SDK versions work with which collector / rum-api / plugin, and the replay `schema_version`), checked by the e2e suite on every release.
+  - Done: one release of each component published from CI with nothing built locally, docs/releasing.md and RELEASING.md merged into one document.
+- [ ] B5 Repo organisation (ADR first, then one mechanical PR, done when no session is running). The repo mixes product code with process material at the top level: `agents/` (173 files), `kb/`, `tracker/`, `reports/` sit next to `sdk/`, `services/`, `collector/`, `plugins/`. Release docs are split across `RELEASING.md`, `docs/releasing.md` and `kb/release-packaging.md`, and verification reports live in both `reports/` and `agents/*/reports/`. Proposal for the ADR:
+  - Product code by component, each with its own README, CHANGELOG and owner: `sdk/{browser,react-native,ios}`, `collector/`, `services/rum-api/`, `plugins/ouo-rum-app/`, `deploy/{compose,helm,vm,envs}`, `examples/`, `tests/`.
+  - All user-facing docs under `docs/` (getting started, guides, operations, specs, ADRs, releasing, compatibility matrix), and a short README map at the root.
+  - All agent and process material under one folder (for example `project/` holding `agents/`, `kb/`, `tracker/`, `reports/`), so the root shows the product.
+  - Update every path in AGENTS.md, indexes, CI path filters, Dockerfiles, workflows and links in one PR, with a link checker in CI so nothing breaks.
+- [ ] B6 Sentry bridge on Android (S5, deferred on 2026-10-14). Pull forward before a client demo if either prospect ships Android: neither sentry-java envelopes nor its replay have ever been captured.
+- [ ] B7 Supply chain and security basics that client security questionnaires (8d) ask for: Renovate for dependencies, `govulncheck` / `npm audit` / Trivy image scan in CI, SECURITY.md with a disclosure address, signed tags or provenance on every release.
+- [ ] B8 Pitch kit for the Sentry path: a one-page "point your DSN at ouo" guide per platform, a hosted demo env with the broken-shop app (admin login kept private), and the results of the gap report (session "Gap report: Sentry bridge vs ouo SDK") and B3 turned into a one-page comparison for clients.
 
 ## Phase 13 Native SDKs
 

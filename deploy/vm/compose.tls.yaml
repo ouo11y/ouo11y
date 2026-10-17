@@ -51,7 +51,7 @@ services:
       - "127.0.0.1:${OUO_GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SERVER_ROOT_URL: https://${OUO_DOMAIN:-localhost}
-      GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-testing567}
       GF_SECURITY_COOKIE_SECURE: "true"
 
   otel-collector:
