@@ -1,0 +1,28 @@
+{
+  "$schema": "https://flagd.dev/schema/v0/flags.json",
+  "flags": {
+    "ouo.rum.mode": {
+      "state": "ENABLED",
+      "variants": {
+        "sentry": "sentry",
+        "parallel": "parallel",
+        "ouo": "ouo"
+      },
+      "defaultVariant": "sentry",
+      "targeting": {
+        "if": [
+          { "sem_ver": [{ "var": "appVersion" }, "<", "1.0.0"] },
+          "sentry",
+          {
+            "fractional": [
+              { "cat": [{ "var": "$flagd.flagKey" }, { "var": "targetingKey" }] },
+              ["sentry", 80],
+              ["parallel", 15],
+              ["ouo", 5]
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

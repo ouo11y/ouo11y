@@ -4,10 +4,11 @@
 #   scripts/perf/run.sh --out <dir> [--runs 5] [--seconds 95] [--modes "none sentry both both-replay ouo-replay"]
 #                       [--device <udid>]
 #
-# Needs: the app built with OUO_PERF=1 OUO_SDK=1 and the proxy ports baked in (see the kb entry),
+# Needs: the app built with OUO_PERF=1 and the proxy ports baked in (see the kb entry),
 # installed on --device; scripts/perf/proxy.py running and logging to <dir>/requests.jsonl; the
 # stack behind the proxy. Each run: terminate the app, wipe its Library (SDK queues, sessions,
-# AsyncStorage: every run starts as a fresh install would), write Documents/perf-mode.json, start
+# AsyncStorage: every run starts as a fresh install would), write Documents/perf-mode.json (the
+# launch's `ouo.rum.mode`, overriding the flag: src/rollout.ts), start
 # the sampler, run the XCUITest journey (real taps, fixed schedule), collect perf.json. Modes are
 # interleaved (round-robin, rotated each round) so slow drift on the host spreads over all of them.
 set -euo pipefail
@@ -39,11 +40,12 @@ log() { printf '%s [perf] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 mode_json() {
   case "$1" in
-    none)        echo '{"sentry":false,"ouo":false,"ouoReplay":false}' ;;
-    sentry)      echo '{"sentry":true,"ouo":false,"ouoReplay":false}' ;;
-    both)        echo '{"sentry":true,"ouo":true,"ouoReplay":false}' ;;
-    both-replay) echo '{"sentry":true,"ouo":true,"ouoReplay":true}' ;;
-    ouo-replay)  echo '{"sentry":false,"ouo":true,"ouoReplay":true}' ;;
+    # Harness mode -> rollout mode (ouo.rum.mode); `none` and the forced replay are perf-only.
+    none)        echo '{"mode":"none"}' ;;
+    sentry)      echo '{"mode":"sentry"}' ;;
+    both)        echo '{"mode":"parallel"}' ;;
+    both-replay) echo '{"mode":"parallel","ouoReplay":true}' ;;
+    ouo-replay)  echo '{"mode":"ouo"}' ;;
     *) echo "unknown mode $1" >&2; exit 2 ;;
   esac
 }

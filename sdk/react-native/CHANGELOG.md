@@ -39,6 +39,8 @@ its `ouoreplay` receiver for replay chunks. rum-api is internal and never addres
 
 ### Added
 
+- `initRUM({ resource })`: extra resource attributes on every span and log record, for example
+  the rollout cohort `{ "ouo.rum.mode": "parallel" }`. The SDK's own attributes win on a clash.
 - `XMLHttpRequest` instrumentation: axios and other XHR clients get the same `CLIENT` spans,
   propagation and `http.request.failed` as `fetch`. The XHR that React Native's `fetch` opens is
   skipped (one span per fetch), and `traceparent` is never added twice.

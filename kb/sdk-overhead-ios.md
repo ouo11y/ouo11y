@@ -56,21 +56,33 @@ python3 -I scripts/perf/profile.py tps.xml
 
 ## Method (repeatable)
 
-**One binary, five modes.** `examples/sentry-mobile` built once with `OUO_PERF=1 OUO_SDK=1`. At start
-`src/config.ts` reads `Documents/perf-mode.json` synchronously (expo-file-system `File.textSync`)
-before `Sentry.init`, so the SDK mix changes per launch without a rebuild: `none` (neither SDK
-started, the baseline), `sentry`, `both` (ouo replay off), `both-replay`, `ouo-replay` (Sentry linked
-but `Sentry.init` never called: nothing native starts, zero Sentry requests verified). Same native
+**One binary, five modes.** `examples/sentry-mobile` built once with `OUO_PERF=1`. At start
+`src/rollout.ts` reads `Documents/perf-mode.json` synchronously (expo-file-system `File.textSync`)
+before `Sentry.init` and uses it instead of the `ouo.rum.mode` flag (nothing evaluated or stored,
+so no flag request in the measurement), so the SDK mix changes per launch without a rebuild. Harness
+mode -> file: `none` -> `{"mode":"none"}` (neither SDK started, the baseline), `sentry` ->
+`{"mode":"sentry"}`, `both` -> `{"mode":"parallel"}` (ouo replay off), `both-replay` ->
+`{"mode":"parallel","ouoReplay":true}`, `ouo-replay` -> `{"mode":"ouo"}` (Sentry linked but
+`Sentry.init` never called: nothing native starts, zero Sentry requests verified). The numbers above
+were measured on 2026-10-17 with the earlier `{"sentry","ouo","ouoReplay"}` file and the
+`OUO_SDK=1` build flag; the SDK mixes are the same (since PR #23). Check after that change, one
+round of the five modes on another simulator and stack (`ouo-flags`): every `perf.json` recorded the
+intended mix, 19/19 steps per run, and the paired deltas fell where the 30-run medians are (both -
+sentry CPU +0.3 pp, both-replay - both +4.2 pp, sentry - none +7.7 pp, ouo-replay - none +5.7 pp; one
+round, so no spread). Same native
 code, same JS bundle, same masking settings as the demo (masking **off** in both SDKs).
 
 **Build** (proxy ports baked in; the isolated compose project `ouo-perf` behind them):
 
 ```bash
 cd examples/sentry-mobile
-OUO_PERF=1 OUO_SDK=1 SENTRY_DSN=http://publickey0000000000000000000000@localhost:4720/1 \
-  BACKEND_URL=http://localhost:4781 OUO_OTLP_ENDPOINT=http://localhost:4718 OUO_REPLAY_ENDPOINT=http://localhost:4719 \
+OUO_PERF=1 SENTRY_DSN=http://publickey0000000000000000000000@localhost:4720/1 \
+  SENTRY_DIRECT_DSN=http://publickey0000000000000000000000@localhost:4720/1 BACKEND_URL=http://localhost:4781 OUO_OTLP_ENDPOINT=http://localhost:4718 OUO_REPLAY_ENDPOINT=http://localhost:4719 \
   SIM_UDID=<udid> scripts/build-ios.sh
 ```
+
+`SENTRY_DIRECT_DSN` is the DSN of `parallel` mode (`both`, `both-replay`); set it to the same proxy
+port as `SENTRY_DSN` so every mode's Sentry traffic takes the same path, as in the measured runs.
 
 **Stack**: `docker compose -p ouo-perf -f compose.yaml -f compose.images.yaml up -d --no-build` with
 every `OUO_*_PORT` shifted (Grafana 3500, OTLP 4518, replay 4519, Sentry 4520, backend 8581, ...). The

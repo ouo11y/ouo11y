@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
-import { File, Paths } from "expo-file-system";
+
+type RumMode = "sentry" | "parallel" | "ouo";
 
 interface Extra {
   sentryDsn: string;
@@ -8,16 +9,21 @@ interface Extra {
   environment: string;
   backendUrl: string;
   sentryDebug: boolean;
-  ouoSdk: boolean;
-  ouoReplay: boolean;
+  sentryDirectDsn: string;
+  defaultMode: RumMode;
+  flagProvider: "ofrep" | "memory";
+  flagUrl: string;
+  flagTimeoutMs: number;
+  flagMemoryMode: RumMode;
   ouoOtlpEndpoint: string;
   ouoReplayEndpoint: string;
   ouoProjectId: string;
   ouoProjectToken: string;
-  /** Built with OUO_PERF=1: Documents/perf-mode.json may switch the SDKs per launch (scripts/perf). */
+  /**
+   * Built with OUO_PERF=1: Documents/perf-mode.json overrides the rollout mode per launch
+   * (scripts/perf, src/rollout.ts) and src/perf.ts records JS frames.
+   */
   perfModes: boolean;
-  /** Sentry.init runs (false only in a perf-mode launch "ouo only"). */
-  sentry: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -29,29 +35,15 @@ export const config: Extra = {
   environment: extra.environment ?? "development",
   backendUrl: extra.backendUrl ?? "http://localhost:8082",
   sentryDebug: extra.sentryDebug ?? false,
-  ouoSdk: extra.ouoSdk ?? false,
-  ouoReplay: extra.ouoReplay ?? true,
+  sentryDirectDsn: extra.sentryDirectDsn ?? "http://publickey0000000000000000000000@localhost:4401/1",
+  defaultMode: extra.defaultMode ?? "sentry",
+  flagProvider: extra.flagProvider ?? "ofrep",
+  flagUrl: extra.flagUrl ?? "http://localhost:8016",
+  flagTimeoutMs: extra.flagTimeoutMs ?? 1500,
+  flagMemoryMode: extra.flagMemoryMode ?? "sentry",
   ouoOtlpEndpoint: extra.ouoOtlpEndpoint ?? "http://localhost:4338",
   ouoReplayEndpoint: extra.ouoReplayEndpoint ?? "http://localhost:4339",
   ouoProjectId: extra.ouoProjectId ?? "demo",
   ouoProjectToken: extra.ouoProjectToken ?? "pt_dev_demo_0000000000000000",
   perfModes: extra.perfModes ?? false,
-  sentry: true,
 };
-
-// Overhead measurement (scripts/perf/run.sh): one binary, the SDK mix chosen per launch by
-// Documents/perf-mode.json ({"sentry": bool, "ouo": bool, "ouoReplay": bool}), written by the
-// harness before it launches the app. Read synchronously so it is known before Sentry.init.
-if (config.perfModes) {
-  try {
-    const f = new File(Paths.document, "perf-mode.json");
-    if (f.exists) {
-      const m = JSON.parse(f.textSync()) as { sentry?: boolean; ouo?: boolean; ouoReplay?: boolean };
-      config.sentry = m.sentry ?? config.sentry;
-      config.ouoSdk = m.ouo ?? config.ouoSdk;
-      config.ouoReplay = m.ouoReplay ?? config.ouoReplay;
-    }
-  } catch {
-    // no or unreadable mode file: build defaults
-  }
-}

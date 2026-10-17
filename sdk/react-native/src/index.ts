@@ -104,7 +104,7 @@ export function initRUM(options: RUMOptions): RUM {
     onRotate: (next) => replay.sessionDidRotate(next.id),
   });
 
-  const resource = buildResource(options.service, options.device);
+  const resource = buildResource(options.service, options.device, options.resource);
 
   // ---- logs (events) ----
   const logExporter = new OTLPLogExporter({ url: endpoints.logs, headers: ingestHeaders(authorization) });
