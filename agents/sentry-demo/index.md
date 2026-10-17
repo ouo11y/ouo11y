@@ -5,3 +5,6 @@ Owns `examples/sentry-mobile`: an Expo (React Native) iOS app instrumented only 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries
   - [2026-10-14-sentry-demo.md](summaries/2026-10-14-sentry-demo.md) app, build, journey, first real capture (item counts, sdk names, replay_video layout)
+  - [2026-10-17-bridge-vs-sdk.md](summaries/2026-10-17-bridge-vs-sdk.md) bridge vs ouo SDK comparison on one journey, parallel-mode demo fixes
+- `reports/` HTML reports
+  - [bridge-vs-sdk.html](reports/bridge-vs-sdk.html) field-by-field comparison of what the Sentry bridge and the ouo RN SDK deliver, gap register (a/b/c) with effort, pitch guidance
