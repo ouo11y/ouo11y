@@ -4,7 +4,7 @@ Expo (React Native) iOS app instrumented with `@sentry/react-native` and, depend
 rollout flag, `@ouo/react-native` ("Rollout modes" below). It exists to generate real Sentry
 mobile SDK traffic (sentry-cocoa native layer plus the RN JS
 layer, including mobile Session Replay) for the ouo Sentry bridge (ADR-0008,
-`docs/specs/sentry-bridge.md`). Knowledge and gotchas: `kb/sentry-react-native-demo.md`.
+`docs/specs/sentry-bridge.md`). Knowledge and gotchas: `project/kb/sentry-react-native-demo.md`.
 
 The DSN must point at a local host: a recorder (`scripts/recorder.py`) or the `ouosentry`
 receiver. Never point it at sentry.io from this repo.
@@ -50,7 +50,7 @@ Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 
 The `ouosentry` receiver ships in the released ouo collector image
 (`ghcr.io/ziadmansourm/ouo/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
-`deploy/docker/.env.example`). The ouo images are **private for now**, so log in to ghcr.io
+`deploy/compose/.env.example`). The ouo images are **private for now**, so log in to ghcr.io
 once first. You need read access to the ouo packages (ask the ouo founder) and a classic
 personal access token with only the `read:packages` scope, kept in your shell and never in the
 repo (details: `examples/fast-tracked/00-stack.md`, Step 3, "Pull access"):
@@ -62,12 +62,12 @@ echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 Then start the main stack with the released images:
 
 ```bash
-docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 ```
 
 Without a login the pull fails with `denied` (HTTP 403). No access yet, or testing collector or
 plugin changes from this checkout: build from source instead by leaving
-`-f deploy/docker/compose.images.yaml` out; that needs no login
+`-f deploy/compose/compose.images.yaml` out; that needs no login
 (`examples/fast-tracked/00-stack.md`, Step 3).
 
 ## Configuration (build time, `app.config.ts`)
@@ -117,7 +117,7 @@ bucketing id live in `Documents/ouo-rum-mode.json`; the status line shows
 ouo exports as service `sentry-demo-ouo` to `OUO_OTLP_ENDPOINT` / `OUO_REPLAY_ENDPOINT`.
 `src/monitoring.ts` sends the app's own `captureException`, `captureMessage` and `flush` calls to
 whichever SDKs run. `App.tsx` wraps the app in `RUMProvider` and feeds navigation to ouo when ouo
-runs, as the SDK README says. Findings: `kb/openfeature-rum-mode.md`, `kb/ouo-next-to-sentry.md`.
+runs, as the SDK README says. Findings: `project/kb/openfeature-rum-mode.md`, `project/kb/ouo-next-to-sentry.md`.
 
 | Variable | Default |
 |---|---|
@@ -155,8 +155,8 @@ ouo replay forced on) and `ouo-replay` (`ouo`). Without `OUO_PERF=1` both are no
 | `scripts/perf/run.sh` | the loop: per run, wipe the app's Library, write the mode, sample, drive, collect; modes interleaved |
 | `scripts/perf/analyze.py`, `report.py` | medians and spread per mode; the HTML report |
 
-Method, numbers and caveats: `kb/sdk-overhead-ios.md`; last report:
-`agents/sentry-demo/reports/sdk-overhead-ios.html`.
+Method, numbers and caveats: `project/kb/sdk-overhead-ios.md`; last report:
+`project/agents/sentry-demo/reports/sdk-overhead-ios.html`.
 
 ## Capture and journey
 

@@ -13,7 +13,7 @@ credential, stamps `ouo.project.id`, stores traces searchable by `session.id`, s
 session events in Loki with `service_name`, `event_name`, `ouo_platform` as the only
 promoted labels, and stores metrics in Mimir, all on one laptop with Docker Compose?
 
-## Exact image tags (pinned in deploy/docker/compose.yaml)
+## Exact image tags (pinned in deploy/compose/compose.yaml)
 
 | Image | Tag | Notes |
 |---|---|---|
@@ -51,7 +51,7 @@ promoted labels, and stores metrics in Mimir, all on one laptop with Docker Comp
 
 ## What works
 
-### Collector (`deploy/docker/collector/config.yaml`)
+### Collector (`deploy/compose/collector/config.yaml`)
 
 - `receivers.otlp.protocols.http` on `0.0.0.0:4318` with `auth.authenticator:
   basicauth/projects` (htpasswd file), `include_metadata: true` and a `cors:` block
@@ -84,7 +84,7 @@ promoted labels, and stores metrics in Mimir, all on one laptop with Docker Comp
 Loki 3.x maps OTLP attributes to labels through its own config, not through collector
 hints (`loki.resource.labels` / `loki.attribute.labels` only applied to the removed
 `loki` exporter; with the native OTLP endpoint they are ignored). In
-`deploy/docker/loki/config.yaml`:
+`deploy/compose/loki/config.yaml`:
 
 ```yaml
 limits_config:
@@ -132,7 +132,7 @@ filesystem`, memberlist rings bound to `127.0.0.1`. OTLP push is
 `service.name` becomes the `job` label; other resource attributes are kept in
 `target_info`, data point attributes become labels (`ouo_platform`, `run_id`).
 
-### Grafana provisioning (`deploy/docker/grafana/provisioning/datasources/datasources.yaml`)
+### Grafana provisioning (`deploy/compose/grafana/provisioning/datasources/datasources.yaml`)
 
 - uids `loki`, `tempo`, `mimir` (type `prometheus`, url `http://mimir:9009/prometheus`).
 - Loki `derivedFields`: `matcherType: label`, `matcherRegex: trace_id` -> Tempo
@@ -152,7 +152,7 @@ filesystem`, memberlist rings bound to `127.0.0.1`. OTLP push is
 - Bind-mounting a directory that does not exist makes `docker compose up` fail, so the
   Phase 4 plugin volume is a commented line, not an optional mount.
 - Host ports 3000/3100/3200/4317/4318 are popular; compose exposes them as
-  `${OUO_*_PORT:-default}` so a `deploy/docker/.env` can move them. Container-side ports
+  `${OUO_*_PORT:-default}` so a `deploy/compose/.env` can move them. Container-side ports
   and in-network hostnames never change.
 - A compose port of the form `127.0.0.1:${VAR:-4318}:4318` interpolates fine
   (`host_ip: 127.0.0.1` in `docker compose config`). Docker binds IPv4 loopback only, so
@@ -190,7 +190,7 @@ internal as Loki. What `deploy/` looks like after the revision:
   `basicauth`, the `ouoreplay` receiver + exporter and the `ouoratelimit` processor) and
   publishes `${OUO_OTLP_HTTP_PORT:-4318}:4318` and `${OUO_REPLAY_PORT:-4319}:4319` on all
   interfaces. `4317` (gRPC) and `13133` (health) stay on `127.0.0.1`. Config and
-  `projects.htpasswd` are bind-mounted from `deploy/docker/collector/` (collector agent's
+  `projects.htpasswd` are bind-mounted from `deploy/compose/collector/` (collector agent's
   files). The collector gets `OUO_INGEST_TOKEN`, the bearer its replay exporter presents
   to rum-api.
 - Every ingest request carries `Authorization: Basic base64("<project id>:<project
@@ -222,7 +222,7 @@ internal as Loki. What `deploy/` looks like after the revision:
   bare `handle` to `otel-collector:4318`, `<domain>` to Grafana, `tls {$OUO_TLS:internal}`.
   Every other port, the collector's included, is re-bound to loopback with `ports:
   !override`, and `volumes: !override` swaps the dev `projects.htpasswd` for the
-  server-side `deploy/docker/projects.htpasswd` (gitignored) that `install.sh` writes.
+  server-side `deploy/compose/projects.htpasswd` (gitignored) that `install.sh` writes.
   Verified with `caddy validate` (internal, ACME email, unset) and a throwaway Caddy with
   fake `grafana` / `otel-collector` upstreams: `/v1/traces` and `/v1/logs` hit 4318,
   `/v1/replay/chunks` hit 4319 (`202` passed through), Grafana host served, unknown SNI

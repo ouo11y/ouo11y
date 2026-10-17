@@ -2,7 +2,7 @@
 
 Running `@ouo/react-native` in an app that keeps `@sentry/react-native` (8.30.0, Hermes, iOS
 Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` rollout mode,
-`kb/openfeature-rum-mode.md`). How-to: SDK README "Next to Sentry".
+`project/kb/openfeature-rum-mode.md`). How-to: SDK README "Next to Sentry".
 
 ## Hermes has one promise rejection tracker, and it cannot be shared
 
@@ -48,4 +48,4 @@ Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` r
 With ouo replay off, ouo next to Sentry costs no CPU, memory, start time or JS frames that can be told
 apart from noise, and about 15 requests / 60 KB of upload per 95 s of use; ouo replay on as well adds
 ~6.6 pp CPU, ~1 MB upload per 95 s and a ~49 ms main-thread stall per frame on the simulator.
-Method and numbers: `kb/sdk-overhead-ios.md`.
+Method and numbers: `project/kb/sdk-overhead-ios.md`.

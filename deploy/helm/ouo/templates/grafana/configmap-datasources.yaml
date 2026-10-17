@@ -7,9 +7,9 @@ metadata:
     {{- include "ouo.labels" (dict "root" . "component" "grafana") | nindent 4 }}
 data:
   datasources.yaml: |
-    # Mirrors deploy/docker/grafana/provisioning/datasources/datasources.yaml with the
+    # Mirrors deploy/compose/grafana/provisioning/datasources/datasources.yaml with the
     # URLs taken from lgtm.mode / lgtm.external. `$$` escapes the provisioner's own
-    # ${...} expansion (kb/collector-lgtm.md).
+    # ${...} expansion (project/kb/collector-lgtm.md).
     apiVersion: 1
 
     deleteDatasources:

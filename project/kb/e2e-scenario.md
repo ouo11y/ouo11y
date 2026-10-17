@@ -40,7 +40,7 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
 
 - `deploy/scripts/e2e.sh` exports `OUO_OTLP_URL` (collector 4318), `OUO_REPLAY_URL` (4319),
   `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN`, `OUO_PROJECT_BASIC`, `OUO_RUM_API_URL` (read side only),
-  `OUO_READ_TOKEN`, `OUO_GRAFANA_URL` from `deploy/docker/.env` (`OUO_ENV_FILE=...` when the ports
+  `OUO_READ_TOKEN`, `OUO_GRAFANA_URL` from `deploy/compose/.env` (`OUO_ENV_FILE=...` when the ports
   are not the stock ones; the `ouo-8a` stack uses 4330 / 4331 / 8090). An empty `OUO_READ_TOKEN`
   skips the read-auth checks.
 - Edge checks cost nothing and run before ingestion: OTLP without credential, wrong token and
@@ -110,5 +110,5 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
   `Storage.prototype.setItem` to ignore the `ouo.session` key, then remove (or rewrite with an
   old `lastActivity`) and reload. The next page load has a clean prototype.
 - The web SDK's inactivity rotation currently emits two `session.start` records (see
-  `agents/qa/reports/phase-6-bugs.html`); health totals for `web-store` include phantom sessions
+  `project/agents/qa/reports/phase-6-bugs.html`); health totals for `web-store` include phantom sessions
   until that is fixed.

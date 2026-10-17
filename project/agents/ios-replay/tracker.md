@@ -9,7 +9,7 @@
 | 2026-10-08 | JS bridge `src/replay.ts`, `rum.replay`, `initRUM({ replay, replayEndpoint })`, rotation hook, tests | done, 56 RN tests pass |
 | 2026-10-08 | `examples/mobile`: replay enabled, `ouo-mask` / `ouo-unmask` demo, Chaos button, Metro peer redirect, prebuild, README | done (prebuild `--no-install` ran; `run:ios` pending Xcode) |
 | 2026-10-08 | kb entries, tracker boxes, summary | done |
-| open | Simulator verification (masked fields black, pause stops chunks, Grafana playback) | blocked: Xcode not installed (`kb/xcode-setup.md`) |
+| open | Simulator verification (masked fields black, pause stops chunks, Grafana playback) | blocked: Xcode not installed (`project/kb/xcode-setup.md`) |
 | open | `xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build` | blocked: Xcode |
 | 2026-10-08 | Native verification on iOS 27 simulator: replay captured, masked, stored, played in Grafana; 3 fixes landed | review |
 | 2026-10-08 | Tap-driven checks done on the simulator panel: checkout masking, ouo-unmask, header masking (3 planner/rule fixes), crash flow | review |

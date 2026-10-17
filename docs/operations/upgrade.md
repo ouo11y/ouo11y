@@ -21,7 +21,7 @@ Status: procedure written in Phase 8a. The schema-version guard in section 4 is 
    and the project registry file if you use `OUO_PROJECTS_FILE`. Loki, Tempo and Mimir data
    are telemetry; back them up according to your retention needs (Phase 8c drill).
 4. Note the running versions so you can roll back:
-   - compose: `docker compose -f deploy/docker/compose.yaml images`
+   - compose: `docker compose -f deploy/compose/compose.yaml images`
    - Helm: `helm history ouo -n <namespace>` and `helm get values ouo -n <namespace>`
 
 ## 2. Compose path (laptop, VM install)
@@ -35,9 +35,9 @@ git fetch --tags
 git checkout rum-api-v<new>            # the release tag of the component you upgrade; for a
                                        # full upgrade use the release-train commit from CHANGELOG.md
 npm ci && npm run -w plugins/ouo-rum-app build   # plugin dist that Grafana mounts
-docker compose -f deploy/docker/compose.yaml pull     # Grafana, Loki, Tempo, Mimir, collector tags
-docker compose -f deploy/docker/compose.yaml build rum-api backend
-docker compose -f deploy/docker/compose.yaml up -d    # recreates only changed containers
+docker compose -f deploy/compose/compose.yaml pull     # Grafana, Loki, Tempo, Mimir, collector tags
+docker compose -f deploy/compose/compose.yaml build rum-api backend
+docker compose -f deploy/compose/compose.yaml up -d    # recreates only changed containers
 deploy/scripts/wait-ready.sh
 deploy/scripts/smoke.sh
 ```
@@ -46,15 +46,15 @@ VM install (`deploy/vm/install.sh`, systemd unit `ouo.service`, Caddy TLS): run 
 `git checkout`, `build` and `up -d` steps as the service user, or `systemctl restart ouo`
 after the build, then verify through the public URL
 (`curl -fsS https://<host>/healthz` on rum-api and a login to Grafana). Compare the
-`.env` next to the compose file against `deploy/docker/.env.example` of the new release;
+`.env` next to the compose file against `deploy/compose/.env.example` of the new release;
 new variables have defaults, but a variable that was **renamed** is listed under
 `Breaking` in the rum-api changelog and must be updated before `up -d`.
 
-With the released images (`-f deploy/docker/compose.images.yaml`, ouo 0.2.0 and later) the
+With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.2.0 and later) the
 procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
 `ghcr.io/ziadmansourm/ouo/*` packages are private until ouo is stable, so the host needs a
 `docker login ghcr.io` with a classic `read:packages` token first ("Pull access" in
-`RELEASING.md`).
+`docs/releasing.md`).
 
 ## 3. Helm path
 
@@ -152,4 +152,4 @@ SDK one minor **behind** rum-api is supported; an SDK **ahead** of rum-api is no
 - Open the plugin, check the Overview tiles fill for the last hour and that an older session
   with replay still plays.
 - Record the upgrade (from, to, date, who, anything unexpected) in your operations log; the
-  qa agent records rehearsals in `agents/qa/`.
+  qa agent records rehearsals in `project/agents/qa/`.

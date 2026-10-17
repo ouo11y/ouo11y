@@ -9,7 +9,7 @@ Owns `plugins/ouo-rum-app` (Grafana app plugin: Overview, Sessions, Session deta
   - [2026-10-10-phase-8a.md](summaries/2026-10-10-phase-8a.md) Phase 8a: read token (secureJsonData + route header), config page with Test connection, 401 banner, plugin 0.3.0
   - [2026-10-14-video-player.md](summaries/2026-10-14-video-player.md) Sentry bridge S4 part 1: video replay player (mp4 segments via the plugin proxy, Range passes through), plugin 0.4.0
   - [2026-10-16-sentry-taps.md](summaries/2026-10-16-sentry-taps.md) taps in Sentry replays: root cause, tap indicator, tap markers, activity list beside the player, plugin 0.6.0
-- `reports/`
+- `project/reports/`
   - [phase-4-verification.html](reports/phase-4-verification.html) browser verification with screenshots (overview numbers, sessions, detail, replay seek and masking, Explore link, error and empty states)
   - [phase-7b-ux.html](reports/phase-7b-ux.html) Phase 7b browser verification: sticky replay, timeline scroll, stacked layout, sortable headers, Replay column (`7b-*.jpg`)
   - [s4-video-player.html](reports/s4-video-player.html) S4 video player browser verification in `ouo-sb`: real Sentry iOS segments, seek/markers/timeline, touches, error path, Range/206 (`s4-*.jpg`)

@@ -40,7 +40,7 @@ kind delete cluster --name ouo-8a
   `docker run --rm -e OUO_INGEST_TOKEN=x -v $PWD/col.yaml:/etc/otelcol/config.yaml:ro -v $PWD/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro ouo/collector:dev validate --config=/etc/otelcol/config.yaml`
   (exit 0 for the kind and the external renders).
 - The config is the chart ConfigMap (`templates/collector/configmap.yaml`), a mirror of
-  `deploy/docker/collector/config.yaml` with the backend URLs, body limits, rate-limit
+  `deploy/compose/collector/config.yaml` with the backend URLs, body limits, rate-limit
   numbers, the rum-api sink and (external mode) `X-Scope-OrgID` headers from values. Keep
   the two in sync when the collector agent changes the reference; `collector.configOverride`
   replaces the whole file.
@@ -191,7 +191,7 @@ touches rum-api rolls it in about 6 s (`Recreate` strategy, one replica on a RWO
     200 forty times against a 5/s burst 10 bucket; the same test with one real span gave
     10 x 200 and 30 x 429 (`Retry-After: 1`, gRPC status JSON with `RetryInfo`). Test limits
     with non-empty payloads.
-12. **CORS preflights must list headers lowercase and sorted** (rs/cors, `kb/collector-components.md`):
+12. **CORS preflights must list headers lowercase and sorted** (rs/cors, `project/kb/collector-components.md`):
     `authorization,content-type` got `Access-Control-Allow-Origin`, `content-type,authorization`
     got a bare 204, exactly like a disallowed origin.
 13. **`kubectl apply --dry-run=server` into the namespace of a live release** tries to resize
@@ -212,7 +212,7 @@ Grafana plugin proxy with the provisioned token (`secureJsonFields.readToken=tru
 objects, every Service ClusterIP (`ouo-rum-api` 8080 only). Revision 2 (project added, duplicate
 id, client bucket 5/s burst 10): see rotation and rate-limit notes above; replay also gave
 10 x 202 and 10 x 429. Revision 3 restored `values-kind.yaml`. Details in
-`agents/helm/summaries/2026-10-10-phase-8a-rev2.md`.
+`project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md`.
 
 ## Verification that passed (2026-10-10, first draft: rum-api gateway, superseded)
 
@@ -223,4 +223,4 @@ id, client bucket 5/s burst 10): see rotation and rate-limit notes above; replay
 Tempo by `{ span.session.id = "<id>" }` after 31 s with resource attribute
 `ouo.project.id=demo` overwriting the spoofed value the client sent; `POST /v1/replay/chunks`
 202 and `GET /v1/sessions/<id>/replay` 200 with the bearer token (401 without). Details in
-`agents/helm/summaries/2026-10-10-phase-8a.md`.
+`project/agents/helm/summaries/2026-10-10-phase-8a.md`.

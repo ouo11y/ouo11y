@@ -8,13 +8,13 @@ backend spans join into one trace (W3C `traceparent`), and so that the
 
 ## Run
 
-In the local stack (built from this directory by `deploy/docker/compose.yaml`):
+In the local stack (built from this directory by `deploy/compose/compose.yaml`):
 
 ```bash
-docker compose -f deploy/docker/compose.yaml up -d backend
+docker compose -f deploy/compose/compose.yaml up -d backend
 ```
 
-Locally, against a collector on `localhost:4318` (check `deploy/docker/.env`
+Locally, against a collector on `localhost:4318` (check `deploy/compose/.env`
 for the host port actually used on your machine):
 
 ```bash

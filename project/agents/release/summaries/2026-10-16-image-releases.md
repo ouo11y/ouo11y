@@ -24,17 +24,17 @@ Branch `claude/rum-api-release-1026d3`, stacked on `claude/sentry-bridge-design`
   plugin's `plugin.json`).
 - **`release-plugin.yml`**: the signing step's `if: env.GRAFANA_ACCESS_POLICY_TOKEN != ''`
   could never be true (the secret was not in any env); moved to the workflow `env`.
-- **Versioning**: `RELEASING.md` (new, root): how to choose a version, rc rules, image release
+- **Versioning**: `docs/releasing.md` (new, root): how to choose a version, rc rules, image release
   checklist with the founder approval step. `docs/releasing.md`: collector row, dry run, PR
   builds, local checks. First versions: rum-api, collector and grafana images all `0.2.0`
   (matches the Helm chart defaults); `collector/builder.yaml` bumped 0.1.0 -> 0.2.0.
   rum-api 0.2.0 must include the YAML config + S3/MinIO PR; its first rc also waits for that PR (pre-#19 images fail on
   the `-config.file` flag compose.yaml passes after #19). New `collector/CHANGELOG.md` and
   `deploy/images/grafana/CHANGELOG.md`, root `CHANGELOG.md` index updated.
-- **Examples**: new `deploy/docker/compose.images.yaml` override swaps the collector and rum-api
+- **Examples**: new `deploy/compose/compose.images.yaml` override swaps the collector and rum-api
   builds and the plugin bind mount for `${OUO_IMAGE_REGISTRY}/<image>:${OUO_<IMAGE>_VERSION}`
   (defaults `ghcr.io/ziadmansourm/ouo`, `0.2.0`); keys documented in
-  `deploy/docker/.env.example` (and its inline copy in `examples/fast-tracked/00-stack.md`).
+  `deploy/compose/.env.example` (and its inline copy in `examples/fast-tracked/00-stack.md`).
   Build from source = leave the override out; documented in `00-stack.md` Step 3 and Step 5,
   `30-mobile-ios.md` 2.4 and `examples/sentry-mobile/README.md`. Commented placeholder for
   rum-api's `-config.file`, `STORAGE_BACKEND` and `S3_*` keys (taken from the

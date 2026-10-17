@@ -15,15 +15,15 @@ the examples (two prospective clients included) hit a bare `denied` / 403 on the
 - `examples/fast-tracked/30-mobile-ios.md`, `examples/sentry-mobile/README.md`: the login
   command before the `compose.images.yaml` start, with a pointer to 00-stack.
 - `deploy/README.md`: "Released images instead of builds" paragraph with the login.
-- `deploy/docker/compose.images.yaml`, `deploy/docker/.env.example`: header comments.
+- `deploy/compose/compose.images.yaml`, `deploy/compose/.env.example`: header comments.
 - `deploy/helm/ouo/values.yaml`: comment above `imagePullSecrets` (Secret `ghcr`);
   `deploy/helm/ouo/README.md`: "Pull access" subsection (create the `docker-registry` Secret,
   `--set 'imagePullSecrets[0].name=ghcr'`, no-access alternative) and the values table row.
-- `RELEASING.md`: "Pull access" section (how the founder grants Read per package, what a new
+- `docs/releasing.md`: "Pull access" section (how the founder grants Read per package, what a new
   user asks for, Helm, build from source); checklist steps 6 and 8 no longer say to make the
   package public. `docs/releasing.md` secrets table and `docs/operations/upgrade.md` updated
   the same way.
-- `kb/release-packaging.md` + `kb/index.md`: private-package pull quirks.
+- `project/kb/release-packaging.md` + `project/kb/index.md`: private-package pull quirks.
 
 No token or real credential anywhere; every example uses `$GHCR_TOKEN` and `<github-user>`.
 

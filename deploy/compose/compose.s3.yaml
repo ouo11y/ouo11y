@@ -1,11 +1,11 @@
 # Opt-in: rum-api stores replays in MinIO (storage.backend s3) instead of
 # deploy/data/rum-api. Loki, Tempo and Mimir keep their filesystem storage.
 #
-#   docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.s3.yaml up -d
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.s3.yaml up -d
 #
 # This file activates the minio / minio-init services of compose.yaml (profile s3)
 # and switches rum-api over with environment overrides of its config file
-# (deploy/docker/rum-api/config.yaml has the storage.s3 block for this MinIO).
+# (deploy/compose/rum-api/config.yaml has the storage.s3 block for this MinIO).
 # Replays already on the filesystem are not moved; deploy/README.md shows the
 # one-line `mc mirror` that copies them into the bucket.
 

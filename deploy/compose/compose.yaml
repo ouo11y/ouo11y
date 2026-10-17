@@ -1,9 +1,9 @@
 # ouo local observability stack.
-# Start:  docker compose -f deploy/docker/compose.yaml up -d
-# Stop:   docker compose -f deploy/docker/compose.yaml down
-# Reset:  docker compose -f deploy/docker/compose.yaml down -v
+# Start:  docker compose -f deploy/compose/compose.yaml up -d
+# Stop:   docker compose -f deploy/compose/compose.yaml down
+# Reset:  docker compose -f deploy/compose/compose.yaml down -v
 # See deploy/README.md for ports and verification. Host ports can be overridden
-# with OUO_*_PORT variables (deploy/docker/.env, see .env.example).
+# with OUO_*_PORT variables (deploy/compose/.env, see .env.example).
 #
 # Phase 8a (ADR-0007, revised): the custom OpenTelemetry Collector distribution
 # (ouo-collector, built from ../../collector) is the ONLY internet-facing ingest.
@@ -193,7 +193,7 @@ services:
   # so rum-api does too by default. `--profile s3` starts MinIO alone (e.g. for the
   # rum-api S3 tests, OUO_TEST_S3_ENDPOINT=localhost:9000); compose.s3.yaml also points
   # rum-api at it. The official minio/minio images are no longer published; pgsty/minio
-  # is the community-maintained build of the same server (kb/rum-api-config-s3.md).
+  # is the community-maintained build of the same server (project/kb/rum-api-config-s3.md).
   minio:
     image: ${OUO_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     profiles: [s3]

@@ -1,6 +1,6 @@
 // Phase 8a rev 2: ouoratelimit at the collector edge. 400 tiny authenticated OTLP/HTTP log posts
 // fired at once from the Mac, then one post per second to watch the bucket refill.
-// Usage: OUO_OTLP_URL=http://localhost:4330 node agents/qa/reports/rate-limit.mjs
+// Usage: OUO_OTLP_URL=http://localhost:4330 node project/agents/qa/reports/rate-limit.mjs
 const OTLP = (process.env.OUO_OTLP_URL ?? "http://localhost:4318").replace(/\/$/, "");
 const URL = `${OTLP}/v1/logs`;
 const BASIC = "Basic " + Buffer.from(`${process.env.OUO_PROJECT_ID ?? "demo"}:${process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000"}`).toString("base64");

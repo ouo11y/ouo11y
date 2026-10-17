@@ -2,7 +2,7 @@
 
 Status: written 2026-10-16 by rum-api. Code: `services/rum-api/internal/config`,
 `services/rum-api/internal/replay/s3.go`, `services/rum-api/config.example.yaml`,
-`deploy/docker/compose.s3.yaml`, `deploy/helm/ouo` (`rumApi.storage`, `rumApi.structuredConfig`).
+`deploy/compose/compose.s3.yaml`, `deploy/helm/ouo` (`rumApi.storage`, `rumApi.structuredConfig`).
 
 ## Question
 

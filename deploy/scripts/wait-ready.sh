@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wait until Loki, Tempo, Mimir, the collector, Grafana and rum-api answer their readiness endpoints.
-# Honors the OUO_*_PORT overrides from deploy/docker/.env (same defaults as compose.yaml).
+# Honors the OUO_*_PORT overrides from deploy/compose/.env (same defaults as compose.yaml).
 # The collector (ADR-0007, the public ingest) is probed three times: the health_check
 # extension on loopback (127.0.0.1:13133), then the two published ports 4318 (OTLP/HTTP)
 # and 4319 (replay) must answer HTTP at all (any status; without credentials the
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 LOKI="http://localhost:${OUO_LOKI_PORT:-3100}"

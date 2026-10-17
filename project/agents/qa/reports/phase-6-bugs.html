@@ -53,13 +53,13 @@ rec.lastActivity = Date.now() - 31 * 60 * 1000;
 Storage.prototype.setItem = (k, v) =&gt; { if (k === 'ouo.session') return; return o.call(localStorage, k, v); };
 o.call(localStorage, 'ouo.session', JSON.stringify(rec));
 location.reload();
-# then (ports from deploy/docker/.env)
+# then (ports from deploy/compose/.env)
 curl -sG localhost:3101/loki/api/v1/query_range \
   --data-urlencode 'query={service_name="web-store", event_name="session.start"} | session_previous_id="&lt;old id&gt;"' \
   --data-urlencode "start=$(( $(date +%s) - 600 ))000000000" --data-urlencode "end=$(date +%s)000000000" \
   | jq '.data.result[] | [.values[0][0], .stream.session_id]'        # two rows instead of one
 </pre></dd>
-    <dt>Status</dt><dd><strong>Fixed 2026-10-08</strong> (sdk-browser, see <code>agents/sdk-browser/summaries/2026-10-08-bugfix.md</code>): the manager now installs the replacement session before emitting <code>session.end</code> / <code>session.start</code> (<code>rotate()</code>), and <code>SessionLogProcessor</code> no longer calls <code>session.id()</code> for records that already carry <code>session.id</code>. Live re-check: rotation of <code>071a0ed0-...</code> produced only <code>98143ee0-...</code>; Loki shows one <code>session.start</code> with that <code>previous_id</code> and one <code>session.end</code> (<code>end_reason=inactivity</code>). sdk/react-native was not affected (its processor already used <code>peek()</code>).</dd>
+    <dt>Status</dt><dd><strong>Fixed 2026-10-08</strong> (sdk-browser, see <code>project/agents/sdk-browser/summaries/2026-10-08-bugfix.md</code>): the manager now installs the replacement session before emitting <code>session.end</code> / <code>session.start</code> (<code>rotate()</code>), and <code>SessionLogProcessor</code> no longer calls <code>session.id()</code> for records that already carry <code>session.id</code>. Live re-check: rotation of <code>071a0ed0-...</code> produced only <code>98143ee0-...</code>; Loki shows one <code>session.start</code> with that <code>previous_id</code> and one <code>session.end</code> (<code>end_reason=inactivity</code>). sdk/react-native was not affected (its processor already used <code>peek()</code>).</dd>
     <dt>Suggested fix</dt><dd>Make <code>create()</code> / <code>ensure()</code> re-entrancy safe: for example set <code>this.current</code> to the new record (or a "creating" guard) before emitting <code>session.end</code>, or have the log processor skip <code>ensure()</code> when the record already carries <code>session.id</code> (compute <code>sessionAttributes</code> lazily). Add a unit test asserting exactly one <code>session.start</code> per rotation with the real processor chain (the jsdom integration test only covers a fresh init). Check <code>sdk/react-native</code>'s manager for the same pattern (cold start with an expired persisted session, background rotation).</dd>
   </dl>
 
@@ -81,8 +81,8 @@ curl -sG localhost:3101/loki/api/v1/query_range \
 
   <h2>Not bugs, recorded for context</h2>
   <ul>
-    <li>React 18 dev builds report an uncaught click-handler error twice (<code>crash_count=2</code>); known since Phase 2 (<code>kb/web-demo-storefront.md</code>).</li>
-    <li>Trace counts lag by up to about a minute after ingestion (Tempo ingester + rum-api 60 s cache); documented in <code>kb/tempo-session-search.md</code>.</li>
+    <li>React 18 dev builds report an uncaught click-handler error twice (<code>crash_count=2</code>); known since Phase 2 (<code>project/kb/web-demo-storefront.md</code>).</li>
+    <li>Trace counts lag by up to about a minute after ingestion (Tempo ingester + rum-api 60 s cache); documented in <code>project/kb/tempo-session-search.md</code>.</li>
     <li>The accessibility-ref clicks on the chaos buttons that failed for the Phase 3 agent in the Chrome extension worked in the Claude browser pane.</li>
   </ul>
 </main>

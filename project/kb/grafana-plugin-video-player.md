@@ -2,7 +2,7 @@
 
 Status: verified 2026-10-14 by grafana-plugin (plugin 0.4.0, Grafana 13.2.1, isolated stack `ouo-sb`).
 Code: `plugins/ouo-rum-app/src/components/VideoPlayer.tsx`, `src/utils/video.ts`,
-`src/hooks/usePlaybackClock.ts`. Server side: `kb/video-replay-serving.md`, ADR-0008, `docs/specs/sentry-bridge.md` section 11.
+`src/hooks/usePlaybackClock.ts`. Server side: `project/kb/video-replay-serving.md`, ADR-0008, `docs/specs/sentry-bridge.md` section 11.
 
 ## Question
 
@@ -53,4 +53,4 @@ Can the plugin play rum-api's mp4 segments (`kind: "video"`) with a plain `<vide
 - `IconButton`'s `aria-label` is its tooltip text (`Play (space)`), not the `aria-label` prop.
 - `@grafana/data` 13 has no `video`/`film` icon; `presentation-play` is used for the Replay column.
 - Taps (plugin 0.6.0) are drawn by `TapOverlay` from the merged touches and `ui.tap` breadcrumbs, not by the plain
-  touch overlay: `kb/sentry-replay-taps.md`.
+  touch overlay: `project/kb/sentry-replay-taps.md`.

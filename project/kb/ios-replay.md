@@ -124,7 +124,7 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 | `npm run -w sdk/react-native build` + `test` | this Mac | 7 files, 56 tests (17 new replay tests) |
 | `npx expo prebuild --platform ios --no-install`, `expo-modules-autolinking resolve -p apple/android` | examples/mobile | three ouo pods + `OuoReplayModule` resolved; Android project resolved |
 | `npx expo export --platform ios` | examples/mobile | Hermes bundle with the replay code builds |
-| Compiling the UIKit target, `pod install`, simulator run, masked-fields-are-black, Grafana playback | needs Xcode | **not done** (`kb/xcode-setup.md`) |
+| Compiling the UIKit target, `pod install`, simulator run, masked-fields-are-black, Grafana playback | needs Xcode | **not done** (`project/kb/xcode-setup.md`) |
 
 ## Gotchas
 
@@ -158,7 +158,7 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
   `StartOptions` record, `ReplayOptions.maskInputs` and `NativeStartOptions` in JS.
 - Verified on the iOS 27 simulator with the demo's `replay: { enabled: true, maskText: false }`:
   labels, bar titles and the header badge readable, promo input black with text typed in
-  (`agents/ios-replay/reports/12-frame-masktext-false.jpg`). The back chevron is a
+  (`project/agents/ios-replay/reports/12-frame-masktext-false.jpg`). The back chevron is a
   `UIImageView` and stays black while `maskImages` is on; hosts that want it visible can set
   `maskImages: false` or mark the bar `ouo-unmask`.
 - Driving the simulator panel: screenshots lag one action behind taps; sleep ~1 to 2 s between a

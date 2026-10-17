@@ -1,6 +1,6 @@
 # Sentry React Native demo app and what it really sends (iOS)
 
-Question: how do we build an Expo app with only `@sentry/react-native` for the iOS Simulator, drive it unattended, and what does the SDK actually put on the wire? This answers the capture step of the Sentry bridge (ADR-0008, `docs/specs/sentry-bridge.md`) for iOS / React Native and corrects several guesses in `kb/sentry-envelope-format.md`.
+Question: how do we build an Expo app with only `@sentry/react-native` for the iOS Simulator, drive it unattended, and what does the SDK actually put on the wire? This answers the capture step of the Sentry bridge (ADR-0008, `docs/specs/sentry-bridge.md`) for iOS / React Native and corrects several guesses in `project/kb/sentry-envelope-format.md`.
 
 Written 2026-10-14 by `sentry-demo`. App: `examples/sentry-mobile`. Captures (gitignored): `examples/sentry-mobile/captures/2026-10-14-journey/` (full journey) and `captures/2026-10-14-touch/` (taps plus a JS fatal).
 
@@ -19,7 +19,7 @@ Why 8.30.0: it is the newest release (2026-10-08). Its peer ranges accept Expo 5
 
 - **Never upload to sentry.io.** The Sentry Expo plugin adds sentry-cli calls to the "Bundle React Native code and images" phase and an "Upload Debug Symbols to Sentry" phase. Use the plugin option `["@sentry/react-native", { disableAutoUpload: true }]`. It writes `export SENTRY_DISABLE_AUTO_UPLOAD=true` into both phases. The build script also exports it. The log then shows `SENTRY_DISABLE_AUTO_UPLOAD=true, skipping sourcemaps upload`. The generated `ios/sentry.properties` holds `defaults.url=https://sentry.io/`, but it is never used while uploads are off.
 - `pod install` downloads `Sentry.xcframework` 9.30.1 from the sentry-cocoa GitHub release (SHA-256 checked) into `~/Library/Caches/sentry-react-native/xcframeworks/`. sentry-cocoa ≥ 9.20 is no longer on CocoaPods trunk, so `SENTRY_USE_XCFRAMEWORK=0` fails on purpose.
-- iOS 27 needs the UIScene plugin (`plugins/withUIScene.js`, copied from `examples/mobile`, see `kb/xcode-setup.md`).
+- iOS 27 needs the UIScene plugin (`plugins/withUIScene.js`, copied from `examples/mobile`, see `project/kb/xcode-setup.md`).
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` and `LANG=en_US.UTF-8` (CocoaPods) are enough. No `sudo xcode-select` is needed.
 - A Release `xcodebuild -configuration Release -sdk iphonesimulator -destination id=<udid> CODE_SIGNING_ALLOWED=NO` embeds `main.jsbundle`, so Metro is not needed. First build about 1.5 min on this Mac, then about 1 min.
 - ATS: `ios.infoPlist.NSAppTransportSecurity = { NSAllowsArbitraryLoads, NSAllowsLocalNetworking }` for the plain-http DSN and backend (demo only).

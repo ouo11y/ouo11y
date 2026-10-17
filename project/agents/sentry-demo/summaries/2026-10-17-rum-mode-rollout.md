@@ -17,7 +17,7 @@
   unit test `test/resource.test.ts`, README.
 - `ouosentryreceiver`: stamps resource `ouo.rum.mode = sentry` (translate.go, breadcrumbs.go),
   test assertion; spec section 4 row.
-- Client guide `examples/sentry-mobile/ROLLOUT.md`, kb `kb/openfeature-rum-mode.md`.
+- Client guide `examples/sentry-mobile/ROLLOUT.md`, kb `project/kb/openfeature-rum-mode.md`.
 
 ## Dependencies added (examples/sentry-mobile)
 
@@ -56,15 +56,15 @@
   `Documents/perf-mode.json` is now `{"mode": none|sentry|parallel|ouo, "ouoReplay"?}` and overrides
   the flag for that launch (src/rollout.ts, no evaluation, nothing stored); `scripts/perf/run.sh` maps
   its five modes onto it; src/perf.ts records the launch's mix. `OUO_REPLAY` replaced like `OUO_SDK`
-  (build fails with a pointer): ouo replay follows the mode. kb/sdk-overhead-ios.md and
-  kb/sentry-bridge-vs-ouo-sdk.md rerun instructions updated.
+  (build fails with a pointer): ouo replay follows the mode. project/kb/sdk-overhead-ios.md and
+  project/kb/sentry-bridge-vs-ouo-sdk.md rerun instructions updated.
 - Re-verified on the same isolated setup: rollout cohorts 12/12, 12/12, 10/10 (ouo cohorts now record
   4 navigation events, `/Home` included); one perf round of all five modes, 95 s each, 19/19 steps,
   `perf.json` mix as intended, deltas in line with the 30-run result.
 
 ## Local stacks
 
-- Compose projects started: `ouo-flags` (deploy/docker/compose.yaml) and `ouo-flags-flagd`
+- Compose projects started: `ouo-flags` (deploy/compose/compose.yaml) and `ouo-flags-flagd`
   (examples/sentry-mobile/flags/compose.yaml). Both stopped after the PR was opened:
   `ouo-flags` with `down -v` (volumes removed, so its Loki/Tempo data is gone), `ouo-flags-flagd`
   with `down`. sentrytap on :4621 stopped; simulator `ouo-flags` (E87E9B42-...) shut down, not deleted.

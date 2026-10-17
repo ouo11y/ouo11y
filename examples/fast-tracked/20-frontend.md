@@ -70,7 +70,7 @@ Then, in **your** app, pick one of the two install methods.
 
 Option A, install from the folder. npm links the folder into `node_modules/@ouo/browser`.
 This is the same mechanism the demo app `examples/web` uses (an npm workspace link, see
-`kb/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
+`project/kb/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
 without reinstalling:
 
 ```bash
@@ -135,14 +135,14 @@ anyone can read it, exactly like every RUM vendor's "public key" or DSN. It only
 project that telemetry is written into, under the collector's origin, size and rate limits
 (ADR-0007). A stock OpenTelemetry SDK can use the same credential with
 `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64(id:token)>`. The local stack is
-provisioned with the development values above (`deploy/docker/.env.example`,
+provisioned with the development values above (`deploy/compose/.env.example`,
 `OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN`, hashed into the collector's htpasswd file); for
 anything other than the local stack, use the values from your project's configuration. Do not
 put a rum-api **read** token in the browser; that one is secret and only Grafana uses it.
 
-Default host ports are in `deploy/docker/.env.example`: Grafana 3000, collector 4318 (OTLP)
+Default host ports are in `deploy/compose/.env.example`: Grafana 3000, collector 4318 (OTLP)
 and 4319 (replay), demo backend 8081, Loki 3100, Tempo 3200. rum-api is internal: nothing in
-the browser needs its port. If you created `deploy/docker/.env` to move ports, use those
+the browser needs its port. If you created `deploy/compose/.env` to move ports, use those
 values instead everywhere below: for the demo app, copy `examples/web/.env.example` to
 `examples/web/.env` (gitignored) and change `VITE_OTLP_ENDPOINT` and `VITE_BACKEND_URL`.
 
@@ -489,7 +489,7 @@ To see the other two statuses, from the demo's `/chaos` page: "Handled error"
 "Unhandled rejection" turns it `crashed`. In your own app: `throw new Error("boom")` in a
 click handler, then re-run the sessions curl and check `status`. Note that React 18
 development builds re-throw handler errors once more, so `vite dev` reports an uncaught
-error twice; the production build reports it once (`kb/web-demo-storefront.md`).
+error twice; the production build reports it once (`project/kb/web-demo-storefront.md`).
 
 ## 7. Quick walk through the demo code (`examples/web/src`)
 
@@ -569,4 +569,4 @@ Where to look when you want to know what a signal contains.
   headers on both paths).
 - `logger.ts`, `version.ts`: the `[ouo]` debug logger and the SDK version string.
 
-More detail: `sdk/browser/README.md`, `kb/otel-browser-sdk.md`, `kb/rrweb-chunking.md`.
+More detail: `sdk/browser/README.md`, `project/kb/otel-browser-sdk.md`, `project/kb/rrweb-chunking.md`.

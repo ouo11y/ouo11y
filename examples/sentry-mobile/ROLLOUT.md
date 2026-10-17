@@ -39,7 +39,7 @@ The working example is this app: `src/rollout.ts` (the decision), `index.ts` (la
    the bridge DSN for `sentry`, the original Sentry DSN for `parallel`.
 5. **ouo initialises after Sentry** when both run, and forwards unhandled promise rejections to
    Sentry (Hermes keeps one tracker; the SDK initialised last owns it). Details:
-   `kb/ouo-next-to-sentry.md`.
+   `project/kb/ouo-next-to-sentry.md`.
 6. **ouo replay is off in `parallel`.** Sentry's replay keeps recording; two recorders double
    the capture cost on the device.
 
@@ -211,4 +211,4 @@ Re-run after merging main (#24 navigation wiring, #25 perf harness) on the same 
 Also: flagd stopped on a later launch keeps the stored mode; flagd stopped on a first launch
 starts `sentry (default)` after the 1.5 s timeout; flagd's 80 / 15 / 5 split over 2,000 ids gave
 79.1 / 15.9 / 5.1 % and the same answer for every id asked twice. Details:
-`agents/sentry-demo/summaries/2026-10-17-rum-mode-rollout.md`, `kb/openfeature-rum-mode.md`.
+`project/agents/sentry-demo/summaries/2026-10-17-rum-mode-rollout.md`, `project/kb/openfeature-rum-mode.md`.

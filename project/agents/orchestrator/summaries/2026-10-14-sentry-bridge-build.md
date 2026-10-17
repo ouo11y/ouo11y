@@ -15,13 +15,13 @@ The work is on branch `claude/sentry-bridge-design`, which is PR #16, stacked on
 - **Collector (done directly):** `collector/receiver/ouosentryreceiver`.
   - Forwarding: DSN key auth, raw-byte forwarding, verbatim response, connection abort when Sentry is unreachable, and `upstream: none`.
   - Translation: envelope parser, sessions, errors, transactions, derived records, session correlation state, and replay to `kind: "video"` chunks with a hold queue.
-  - Also `collector/tools/sentrytap`, the `routing` connector in `builder.yaml`, and the receiver, port and pipelines in `deploy/docker/collector/config.yaml` and compose.
+  - Also `collector/tools/sentrytap`, the `routing` connector in `builder.yaml`, and the receiver, port and pipelines in `deploy/compose/collector/config.yaml` and compose.
 - **rum-api agent:** `kind: "video"`: storage, manifest, and mp4 segments with Range support.
 - **grafana-plugin agent:** plugin 0.4.0 video player.
 - **sentry-demo agent:** `examples/sentry-mobile`, an Expo iOS app on `@sentry/react-native` 8.30.0, with an unattended journey.
 - **Golden fixtures:** two real captures, 54 requests, in `collector/receiver/ouosentryreceiver/testdata/golden/`.
 - **Verifier:** `examples/sentry-mobile/scripts/verify-bridge.py`, which checks rum-api, Loki, Tempo and the mp4s against the raw envelopes.
-- **Docs:** spec, ADR status, kb, tracker and `reports/sentry-bridge-verification.html`.
+- **Docs:** spec, ADR status, kb, tracker and `project/reports/sentry-bridge-verification.html`.
 
 ## Verified, and how
 
@@ -69,4 +69,4 @@ Everything ran in the isolated compose project `ouo-sb`. The ports are in the re
   - Only one SDK version was tested.
   - Sentry `log` items are not translated.
 - **Deployment:** the receiver state is in memory, so run it as a single replica.
-- **Builder version:** the build machine's `builder` is v0.162. Use v0.160.0, installed into a scratch GOBIN in this run, as `kb/collector-components.md` says.
+- **Builder version:** the build machine's `builder` is v0.162. Use v0.160.0, installed into a scratch GOBIN in this run, as `project/kb/collector-components.md` says.

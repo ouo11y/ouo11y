@@ -173,7 +173,7 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
 - Session manager (`src/session/manager.ts`): pure, injectable clock and storage, covers
   spec cases 1 to 4 and 7, cross-tab sync through the `storage` event, replay seq and
   sampling persisted with the session.
-- Verified end to end (see `agents/sdk-browser/summaries/2026-10-06-phase-2.md`): Tempo
+- Verified end to end (see `project/agents/sdk-browser/summaries/2026-10-06-phase-2.md`): Tempo
   search `{ span.session.id = "<id>" }` returns the browser traces with demo-backend child
   spans; Loki `{service_name="web-store"} | session_id="<id>"` returns `session.start`,
   `navigation`, `exception` (fatal true and false), `http.request.failed`, `web_vital`,

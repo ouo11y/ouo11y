@@ -5,8 +5,8 @@ traces and (web) rrweb replay through an OpenTelemetry Collector into Loki, Temp
 `rum-api` folds the signals into session records and a Grafana app plugin shows health
 percentages, a sessions list and a session detail with timeline, traces and replay.
 
-Status: MVP, all phases implemented, Phase 6 verification done. See `tracker/mvp.md` for the
-phase table, open boxes and pull requests, and `reports/mvp-verification.html` for the
+Status: MVP, all phases implemented, Phase 6 verification done. See `project/tracker/mvp.md` for the
+phase table, open boxes and pull requests, and `project/reports/mvp-verification.html` for the
 end-to-end verification report.
 
 ## Prerequisites
@@ -19,8 +19,8 @@ end-to-end verification report.
 
 ```bash
 # 1. the platform: Grafana, Loki, Tempo, Mimir, OTel Collector, demo backend, rum-api
-cp deploy/docker/.env.example deploy/docker/.env    # edit the OUO_*_PORT values if ports collide
-docker compose -f deploy/docker/compose.yaml up -d --build
+cp deploy/compose/.env.example deploy/compose/.env    # edit the OUO_*_PORT values if ports collide
+docker compose -f deploy/compose/compose.yaml up -d --build
 deploy/scripts/wait-ready.sh
 
 # 2. the SDKs and the Grafana plugin
@@ -28,7 +28,7 @@ npm install
 npm run -w sdk/browser build
 npm run -w sdk/react-native build
 npm run -w plugins/ouo-rum-app build                 # dist/ is bind-mounted into Grafana
-docker compose -f deploy/docker/compose.yaml restart grafana
+docker compose -f deploy/compose/compose.yaml restart grafana
 
 # 3. the web demo (storefront instrumented with @ouo/browser)
 npm run -w examples/web dev                          # http://localhost:5173
@@ -56,18 +56,15 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 
 | Path | What |
 |---|---|
-| `docs/MVP.md`, `docs/VISION.md` | scope, acceptance checks (ticked with the method), long-term vision |
-| `docs/specs/`, `docs/adr/` | session lifecycle spec, architecture decision records |
-| `tracker/` | phase trackers and status (`tracker/mvp.md`) |
-| `agents/` | one folder per agent: what it did, verified and left (`agents/index.md`) |
-| `kb/` | knowledge base, one file per topic (`kb/index.md`) |
-| `reports/` | cross-cutting HTML reports (`reports/index.md`) |
-| `deploy/` | compose stack, collector / Loki / Tempo / Mimir / Grafana config, scripts |
+| `sdk/browser`, `sdk/react-native`, `sdk/ios` | the SDKs (`@ouo/browser`, `@ouo/react-native`, `OuoReplay`) |
+| `collector/` | `ouo-collector`, the OpenTelemetry Collector distribution that is the only ingest (replay, Sentry bridge, rate limit) |
 | `services/rum-api` | Go service: session aggregation, replay storage, JSON API |
-| `sdk/browser`, `sdk/react-native` | the SDKs (`@ouo/browser`, `@ouo/react-native`) |
 | `plugins/ouo-rum-app` | the Grafana app plugin |
-| `examples/web`, `examples/mobile`, `examples/backend` | demo apps |
+| `deploy/` | `compose/` local stack and configs, `helm/` chart, `vm/` single-VM install, `images/`, `scripts/` |
+| `examples/web`, `examples/mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
 | `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |
 | `tests/e2e` | the end-to-end scenario script |
+| `docs/` | user-facing docs: [MVP](docs/MVP.md), [vision](docs/VISION.md), [specs](docs/specs/), [ADRs](docs/adr/README.md), [operations](docs/operations/index.md), [releasing](docs/releasing.md) ([index](docs/index.md)) |
+| `project/` | how the project is run, not shipped: `agents/` (one folder per agent), `kb/` (knowledge base), `tracker/` ([checklist](project/tracker/checklist.md) and phase trackers), `reports/` (HTML verification reports) |
 
 Working in this repository: read `AGENTS.md` first.

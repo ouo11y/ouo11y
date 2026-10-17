@@ -83,7 +83,7 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 ## Image release pipeline: what was verified on 2026-10-16
 
 Workflow: `release-images.yml` (tag push or `workflow_dispatch` dry run) and the `images`
-job of `ci.yml` (every PR). Policy and checklist: `RELEASING.md`.
+job of `ci.yml` (every PR). Policy and checklist: `docs/releasing.md`.
 
 - **Cross-compile, do not emulate.** On Docker Desktop without amd64 emulation (Apple
   silicon with Rosetta/QEMU off) any `RUN` in an amd64 stage fails with
@@ -112,7 +112,7 @@ job of `ci.yml` (every PR). Policy and checklist: `RELEASING.md`.
 - **`if: env.X` sees only workflow/job env.** A step's own `env:` is not visible to its
   `if:`. `release-plugin.yml` checked `env.GRAFANA_ACCESS_POLICY_TOKEN` with the secret set
   nowhere, so signing could never run; the secret is now in the workflow `env`.
-- **Compose override to swap builds for images.** `deploy/docker/compose.images.yaml` uses
+- **Compose override to swap builds for images.** `deploy/compose/compose.images.yaml` uses
   `build: !reset null` and `volumes: !override [...]` (Compose >= 2.24; checked with v5.1.1).
   `docker compose ... config` shows only the demo backend still has a `build:`. Verified by
   running the stack on an isolated project (`-p ouo-rel`, shifted ports) from locally built

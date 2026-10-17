@@ -12,12 +12,12 @@ The founder's iOS and Android apps run the Sentry SDKs. Can ouo consume what tho
   - resolves the session in the receiver;
   - introduces a `video` replay kind in rum-api.
 - `docs/specs/sentry-bridge.md`: the field-level mapping for sessions, errors, transactions and replay, the session resolution rules, the video chunk contract, the rum-api video API, the collector wiring, an attribute allowlist, the expected Sentry vs ouo differences and a verification plan.
-- `kb/sentry-envelope-format.md`: protocol facts from develop.sentry.dev and the MIT `sentry-java` sources, with links and open questions.
+- `project/kb/sentry-envelope-format.md`: protocol facts from develop.sentry.dev and the MIT `sentry-java` sources, with links and open questions.
 - Index and tracker updates:
   - the ADR index, which also fixes the stale ADR-0007 title left over from rev 1;
-  - `docs/index.md` and `kb/index.md`;
+  - `docs/index.md` and `project/kb/index.md`;
   - the roadmap Phase 12 item and a new conditional trigger;
-  - `tracker/roadmap.md`, and the collector and orchestrator trackers.
+  - `project/tracker/roadmap.md`, and the collector and orchestrator trackers.
 
 ## Verified, and how
 

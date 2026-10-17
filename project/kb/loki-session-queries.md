@@ -2,7 +2,7 @@
 
 Status: filled in Phase 3 by rum-api (2026-10-06). Code: `services/rum-api/internal/loki`,
 `services/rum-api/internal/session`. Verified against Loki 3.7.7 with the Phase 1 label
-config (`kb/collector-lgtm.md`).
+config (`project/kb/collector-lgtm.md`).
 
 ## Question
 
@@ -63,7 +63,7 @@ session lasted >= 4 h; otherwise `active`. Status: crashed (fatal exception or
 healthy. Fixtures: `services/rum-api/internal/session/testdata/*.json` (one is a real
 Loki response).
 
-Handy manual queries (ports from `deploy/docker/.env`):
+Handy manual queries (ports from `deploy/compose/.env`):
 
 ```bash
 curl -sG localhost:3101/loki/api/v1/query_range \

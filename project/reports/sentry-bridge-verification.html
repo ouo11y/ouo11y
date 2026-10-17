@@ -66,7 +66,7 @@ svg .box{fill:var(--card);stroke:var(--line)}svg .edge{stroke:var(--edge);fill:n
 <tr><td>S1 Transparent forward</td><td>every request byte-identical at Sentry; status, rate-limit headers and body back unchanged; Sentry down looks like Sentry down</td><td><span class="tag ok">pass</span></td><td>Go tests (fake upstream, 7 response cases, auth, limits); live: 39/39 real requests, 429 with <code>X-Sentry-Rate-Limits</code> + <code>Retry-After</code> unchanged through the container, unreachable upstream aborts the connection (curl exit 52), outage run below</td></tr>
 <tr><td>S2 Telemetry to LGTM</td><td>sessions with the right status and end in rum-api, every error in Loki, every transaction in Tempo with <code>session.id</code></td><td><span class="tag ok">pass</span></td><td><code>verify-bridge.py</code>: 6 sessions, 8 errors, 11 transactions across both runs; golden tests on 54 captured requests</td></tr>
 <tr><td>S3 Replay to rum-api</td><td>every segment stored in the right session, byte-identical, playable</td><td><span class="tag ok">pass</span></td><td>26 segments, 6 replays: sha256 equal to the SDK's mp4, AVFoundation decodes all at 402x874; Range 206</td></tr>
-<tr><td>S4 Plugin player</td><td>bridged session plays in Grafana with timeline seek</td><td><span class="tag ok">pass</span></td><td>screenshots below; plugin agent report <code>agents/grafana-plugin/reports/s4-video-player.html</code></td></tr>
+<tr><td>S4 Plugin player</td><td>bridged session plays in Grafana with timeline seek</td><td><span class="tag ok">pass</span></td><td>screenshots below; plugin agent report <code>project/agents/grafana-plugin/reports/s4-video-player.html</code></td></tr>
 <tr><td>S5 Android</td><td></td><td><span class="tag na">deferred</span></td><td>founder decision; no Android tooling on the build Mac</td></tr>
 </table></div>
 
@@ -178,7 +178,7 @@ PASS every served mp4 is byte-identical to the mp4 the SDK sent (sha256)  (25 se
 
 <h2 id="repro">Reproduce</h2>
 <pre># stack (isolated project, ports in an env file; collector with OUO_SENTRY_UPSTREAM pointing at tap B)
-docker compose -p ouo-sb --env-file sb.env -f deploy/docker/compose.yaml -f override.yaml up -d --build
+docker compose -p ouo-sb --env-file sb.env -f deploy/compose/compose.yaml -f override.yaml up -d --build
 
 # taps
 go run ./collector/tools/sentrytap -listen 127.0.0.1:4411 -dir caps/B -sink

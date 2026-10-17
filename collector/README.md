@@ -36,8 +36,8 @@ collector/
   processor/ouoratelimitprocessor/      token buckets per project and per client
 ```
 
-The reference configuration is `deploy/docker/collector/config.yaml`; the development
-project registry is `deploy/docker/collector/projects.htpasswd` (`demo` /
+The reference configuration is `deploy/compose/collector/config.yaml`; the development
+project registry is `deploy/compose/collector/projects.htpasswd` (`demo` /
 `pt_dev_demo_0000000000000000`, local use only).
 
 ## Build
@@ -47,7 +47,7 @@ project registry is `deploy/docker/collector/projects.htpasswd` (`demo` /
 go install go.opentelemetry.io/collector/cmd/builder@v0.160.0
 cd collector && builder --config builder.yaml          # -> collector/dist/ouo-collector (about 1 minute)
 ./dist/ouo-collector components                        # lists the components above
-./dist/ouo-collector validate --config=../deploy/docker/collector/config.yaml
+./dist/ouo-collector validate --config=../deploy/compose/collector/config.yaml
 
 # Image (from the repository root, collector/ is the build context)
 docker build -t ouo/collector:dev collector
@@ -184,7 +184,7 @@ aborts the connection, so the SDK keeps the envelope and retries exactly as if S
 Envelopes Sentry accepted are translated off the request path into session events, exceptions
 and spans (logs and traces pipelines) and `kind: "video"` replay chunks (routed to the replay
 pipeline). `upstream: none` answers locally instead (cutover). Mapping:
-`docs/specs/sentry-bridge.md`; protocol notes: `kb/sentry-envelope-format.md`.
+`docs/specs/sentry-bridge.md`; protocol notes: `project/kb/sentry-envelope-format.md`.
 
 ```yaml
 receivers:

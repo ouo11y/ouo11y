@@ -1,6 +1,6 @@
 # ouo on a VM (Ubuntu 24.04)
 
-One Docker host, Caddy for TLS, the compose stack from `deploy/docker` plus the
+One Docker host, Caddy for TLS, the compose stack from `deploy/compose` plus the
 override in this folder. Suitable for a pilot; the Kubernetes path is `deploy/helm`.
 
 ```
@@ -32,9 +32,9 @@ Or from a clone: `sudo deploy/vm/install.sh --domain ... --email ...`. The scrip
 1. installs `docker.io`, `docker-compose-v2`, `git`, `curl`, `openssl` with apt when Docker is
    missing (`--no-install-docker` to refuse),
 2. clones the repo to `/opt/ouo` (`--dir`) at `main` (`--ref <tag>` to pin a release),
-3. writes `/opt/ouo/deploy/docker/.env` (mode 600) with a random project token
+3. writes `/opt/ouo/deploy/compose/.env` (mode 600) with a random project token
    (`pt_` + `openssl rand -hex 16`), ingest token (`it_` + 32 hex), read token (`rt_` +
-   32 hex) and Grafana admin password, and `/opt/ouo/deploy/docker/projects.htpasswd`
+   32 hex) and Grafana admin password, and `/opt/ouo/deploy/compose/projects.htpasswd`
    with the project's `{SHA}` line; existing values are kept on re-runs,
 4. builds the Grafana plugin inside a `node:24` container (no Node on the host), the ouo
    collector distribution (`collector/Dockerfile`, ocb; the slow step), `rum-api` and the
@@ -50,7 +50,7 @@ warning. The project credential still works, the SDK just needs a browser that t
 ## Projects and tokens
 
 The collector authenticates every ingest request with HTTP Basic: username = project id,
-password = project token, checked against `deploy/docker/projects.htpasswd` (ADR-0007).
+password = project token, checked against `deploy/compose/projects.htpasswd` (ADR-0007).
 The hash is `{SHA}` (base64 of the raw SHA-1), the same thing `htpasswd -nbs <id> <token>`
 produces; it is deliberately cheap because it runs on every request and the token is
 public by design. `install.sh` writes it with `openssl` so the VM needs no `apache2-utils`:
@@ -61,7 +61,7 @@ printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_9f3c... | openssl dgst -b
 ```
 
 - **Add a project**: `echo "pt_$(openssl rand -hex 16)"` for the token, append the line
-  above to `deploy/docker/projects.htpasswd`, `sudo systemctl restart ouo` (the
+  above to `deploy/compose/projects.htpasswd`, `sudo systemctl restart ouo` (the
   `basicauth` extension reads the file at start). Give the app `projectId` + `projectToken`.
 - **Rotate** (cut-over): replace the project's line with one for the new token, restart,
   ship the new token to the apps. The collector's `basicauth` keeps only one line per
@@ -71,7 +71,7 @@ printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_9f3c... | openssl dgst -b
   `OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN` in `.env`; compose itself never reads them.
 
 Browser origins allowed to post are the collector's `cors.allowed_origins` list in
-`deploy/docker/collector/config.yaml` (global for all projects in this phase). Edit it in
+`deploy/compose/collector/config.yaml` (global for all projects in this phase). Edit it in
 the checkout and `sudo systemctl restart ouo`; note that a local edit to a tracked file
 has to be stashed or committed before `install.sh --ref` can move the checkout.
 
@@ -84,7 +84,7 @@ has to be stashed or committed before `install.sh --ref` can move the checkout.
 | `Caddyfile` | two sites, `tls {$OUO_TLS:internal}` (ACME email or `internal`); `OUO_DOMAIN` -> `grafana:3000`; `OUO_OTEL_DOMAIN` -> `/v1/replay/*` to `otel-collector:4319`, everything else to `otel-collector:4318` |
 | `ouo.service` | systemd oneshot that runs `compose up -d` on boot and `compose down` on stop; `__OUO_DIR__` is replaced by the installer |
 
-Everything is driven by `/opt/ouo/deploy/docker/.env` and `/opt/ouo/deploy/docker/projects.htpasswd`:
+Everything is driven by `/opt/ouo/deploy/compose/.env` and `/opt/ouo/deploy/compose/projects.htpasswd`:
 
 | Variable | Set by | Meaning |
 |---|---|---|
@@ -123,7 +123,7 @@ is reachable and asks for the credential).
 | Grafana state (users, settings) | `ouo_grafana-data` | dashboards and datasources are provisioned from the repo |
 | replay chunks | bind mount `/opt/ouo/deploy/data/rum-api/replays/<session_id>/` | gitignored; one `meta.json` per session records `project_id` |
 | certificates, ACME account, internal CA | `ouo_caddy-data` | losing it only means re-issuing certificates |
-| configuration and secrets | `/opt/ouo/deploy/docker/.env`, `/opt/ouo/deploy/docker/projects.htpasswd` | back these up with the data; neither is in git |
+| configuration and secrets | `/opt/ouo/deploy/compose/.env`, `/opt/ouo/deploy/compose/projects.htpasswd` | back these up with the data; neither is in git |
 
 Retention is not configured in Phase 8a (Phase 8b): disk grows with ingest. Watch
 `df -h /var/lib/docker` and `du -sh /opt/ouo/deploy/data`.
@@ -132,8 +132,8 @@ Retention is not configured in Phase 8a (Phase 8b): disk grows with ingest. Watc
 
 ```bash
 sudo systemctl status ouo                                                             # active (exited) = up -d succeeded
-cd /opt/ouo && sudo docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml ps
-cd /opt/ouo && sudo docker compose -f deploy/docker/compose.yaml -f deploy/vm/compose.tls.yaml logs -f caddy otel-collector rum-api
+cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml ps
+cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml logs -f caddy otel-collector rum-api
 cd /opt/ouo && sudo deploy/scripts/wait-ready.sh                                     # loopback readiness: collector health + 4318/4319, rum-api /readyz
 cd /opt/ouo && sudo deploy/scripts/smoke.sh                                          # round trip on the loopback ports
 cd /opt/ouo && sudo OUO_OTLP_URL=https://otel.ouo.example.com OUO_REPLAY_URL=https://otel.ouo.example.com deploy/scripts/smoke.sh   # through Caddy, as an SDK would
@@ -172,8 +172,8 @@ for v in grafana-data loki-data tempo-data mimir-data caddy-data; do
   sudo docker run --rm -v ouo_$v:/v -v /backup:/b alpine tar czf /b/ouo_$v.tgz -C /v .
 done
 sudo tar czf /backup/ouo_replays.tgz -C /opt/ouo/deploy/data rum-api
-sudo cp /opt/ouo/deploy/docker/.env /backup/ouo.env
-sudo cp /opt/ouo/deploy/docker/projects.htpasswd /backup/ouo.projects.htpasswd
+sudo cp /opt/ouo/deploy/compose/.env /backup/ouo.env
+sudo cp /opt/ouo/deploy/compose/projects.htpasswd /backup/ouo.projects.htpasswd
 sudo systemctl start ouo
 ```
 
@@ -194,7 +194,7 @@ Phase 8c replaces this with object storage, a rehearsed restore and a runbook.
   address) or `memory_limiter`. Behind Caddy every request arrives from Caddy's address,
   so the per-client limit must key on `X-Forwarded-For` (which Caddy appends) rather than
   on the TCP peer; if it does not in your version, raise or disable the per-client limit in
-  `deploy/docker/collector/config.yaml`.
+  `deploy/compose/collector/config.yaml`.
 - Replays missing while traces arrive: `docker compose ... logs otel-collector | grep -i
   replay` and `logs rum-api`. The exporter needs `OUO_INGEST_TOKEN` to be identical on the
   collector and on rum-api (both come from `.env`); a mismatch is a `401` in rum-api's log.

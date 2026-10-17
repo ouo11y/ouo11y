@@ -139,4 +139,4 @@ xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build
 ```
 
 What needs Xcode: compiling the `OuoReplay` UIKit target for iOS, the simulator, and the
-CocoaPods build of the Expo module (`kb/xcode-setup.md`).
+CocoaPods build of the Expo module (`project/kb/xcode-setup.md`).

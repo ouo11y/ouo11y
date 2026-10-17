@@ -37,15 +37,15 @@ no `$` prompts, one command per fence.
 
 ## What was verified by reading
 
-- `deploy/README.md`, `deploy/docker/compose.yaml`, `deploy/docker/collector/config.yaml`,
-  `deploy/docker/{loki,tempo,mimir}/config.yaml`, both Grafana provisioning files,
-  `deploy/docker/.env.example` and the local `.env`, `deploy/scripts/{wait-ready,smoke,e2e}.sh`,
+- `deploy/README.md`, `deploy/compose/compose.yaml`, `deploy/compose/collector/config.yaml`,
+  `deploy/compose/{loki,tempo,mimir}/config.yaml`, both Grafana provisioning files,
+  `deploy/compose/.env.example` and the local `.env`, `deploy/scripts/{wait-ready,smoke,e2e}.sh`,
   `services/rum-api/README.md` and `main.go` (the `otelhttp.NewTransport` reference),
   `plugins/ouo-rum-app/README.md` and `package.json`, root `package.json` workspaces.
 - `examples/backend/main.go`, `internal/telemetry/{telemetry,baggage}.go`,
   `internal/api/{cors,faults,handlers,store}.go`, `go.mod`, `README.md`, `Dockerfile`,
   test function names in `baggage_test.go` and `api_test.go`.
-- `kb/otel-go-baggage.md`, `docs/specs/session-lifecycle.md`, ADR-0001 (Correlation),
+- `project/kb/otel-go-baggage.md`, `docs/specs/session-lifecycle.md`, ADR-0001 (Correlation),
   ADR-0002, ADR-0004, `sdk/browser/src/telemetry/propagator.ts` and `types.ts`
   (`propagateTo`) for what the browser actually sends in `baggage`.
 - Every env var, port, image tag, function name, import path, header list, metric name
@@ -65,6 +65,6 @@ no `$` prompts, one command per fence.
 
 ## Not done on purpose
 
-- No `index.md` for `examples/fast-tracked/` or `agents/fast-tracked/` (instructions
+- No `index.md` for `examples/fast-tracked/` or `project/agents/fast-tracked/` (instructions
   said to write only the three files). The orchestrator should add both index entries
-  and a `kb/index.md` line if a kb entry is extracted later.
+  and a `project/kb/index.md` line if a kb entry is extracted later.

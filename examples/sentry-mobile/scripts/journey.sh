@@ -12,7 +12,7 @@
 # No UIKit touch happens, so the replays this journey produces have no touches and no `ui.tap`
 # breadcrumbs: do not use them to check tap rendering. For taps, drive the app with real simulator
 # taps (the Claude simulator tool's tap/swipe, or Simulator.app by hand); see
-# kb/sentry-replay-taps.md for the sequence used to verify the plugin.
+# project/kb/sentry-replay-taps.md for the sequence used to verify the plugin.
 #
 # Phases, in order:
 #   launch      terminate + launch the app (session init, app start, first replay segment)
