@@ -60,7 +60,7 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 | `collector/` | `ouo-collector`, the OpenTelemetry Collector distribution that is the only ingest (replay, Sentry bridge, rate limit) |
 | `services/rum-api` | Go service: session aggregation, replay storage, JSON API |
 | `plugins/ouo-rum-app` | the Grafana app plugin |
-| `deploy/` | `compose/` local stack and configs, `helm/` chart, `vm/` single-VM install, `images/`, `scripts/` |
+| `deploy/` | `compose/` local stack and configs, `helm/` chart, `vm/` single-VM install, `envs/` named local environments (`ouo-env`), `images/`, `scripts/` |
 | `examples/web`, `examples/mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
 | `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |
 | `tests/e2e` | the end-to-end scenario script |

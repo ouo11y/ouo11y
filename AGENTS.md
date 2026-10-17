@@ -22,7 +22,7 @@ sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
 collector/           ouo-collector (ocb distribution) and its components (Go)
 services/rum-api/    platform service (Go)
 plugins/ouo-rum-app/ Grafana app plugin
-deploy/              compose/ (local + VM stack), helm/, vm/, images/, scripts/
+deploy/              compose/ (local + VM stack), helm/, vm/, envs/ (ouo-env), images/, scripts/
 examples/            demo web, mobile, sentry-mobile and backend apps; fast-tracked guides
 tests/               end-to-end scenario
 docs/                user-facing docs: vision, MVP scope, specs, ADRs, operations, releasing
@@ -65,10 +65,17 @@ The root holds only `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` and the 
 - Agent summary written, indexes updated, phase tracker updated.
 - One pull request per phase, stacked on the previous phase branch.
 
-## Running the local stack
+## Running the local stack: `ouo-env` only
+
+Every session runs its stack as a named env (roadmap B2, `deploy/envs/README.md`); no raw `docker compose up` of `deploy/compose` on ad-hoc ports or project names.
 
 ```bash
-docker compose -f deploy/compose/compose.yaml up -d
+deploy/envs/ouo-env up <env>      # <env>: the branch slug (`deploy/envs/ouo-env slug`), `sbx`, or `main`
+deploy/envs/ouo-env ls
+deploy/envs/ouo-env down <env>    # no --purge unless asked: volumes are kept
 ```
 
-Grafana: http://localhost:3000 (admin / testing567). Collector OTLP/HTTP: http://localhost:4318. rum-api: http://localhost:8080. Details and overrides in `deploy/README.md` once Phase 1 lands.
+- Use the branch slug for your own env (the default when `<env>` is omitted). `main` always runs `origin/main` and is refreshed with `deploy/envs/ouo-env up main` after a merge; `sbx` is the long-lived sandbox. Set `OUO_SESSION` to your session name so `ls` shows who owns an env.
+- Give the founder the URL `ouo-env up` prints (`http://grafana.<env>.ouo.localhost`, admin / testing567 in every env), and for device runs the LAN URLs from `ouo-env url <env> --lan` (a phone cannot resolve `*.localhost`).
+- Tear your env down with `ouo-env down <env>` when the work is done or the PR merges (`ouo-env gc` catches the rest). Never leave an env running without saying so, with its name and URL, in your summary.
+- Smoke-test an env with `eval "$(deploy/envs/ouo-env env <env>)" && deploy/scripts/smoke.sh`.
