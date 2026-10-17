@@ -13,9 +13,13 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/rum-api .
+# An empty /data owned by nonroot: Docker copies it into a new named volume mounted there,
+# so rum-api can write replays without a chown step (deploy/envs uses a named volume).
+RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/rum-api /rum-api
+COPY --from=build --chown=nonroot:nonroot /out/data /data
 # No ENV defaults: environment variables override -config.file, so baking
 # RUM_API_ADDR / DATA_DIR here would silently win over a mounted config file.
 # The built-in defaults are already :8080 and /data.
