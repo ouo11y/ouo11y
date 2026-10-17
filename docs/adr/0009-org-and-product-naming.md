@@ -24,7 +24,7 @@ The repo also held business material (product plan, go-to-market, prospects) nex
 
    | Product | Identifier |
    |---|---|
-   | Browser SDK | `@ouo11y/browser` (renamed from `@ouo/browser`; matches its folder `sdk/browser` and how Sentry and Datadog name theirs. OTel JS itself says "web", as in `@opentelemetry/sdk-trace-web`) |
+   | Browser SDK | `@ouo11y/browser` (renamed from `@ouo/browser`; matches its folder `sdk/browser`, how Sentry and Datadog name theirs, and OpenTelemetry's own "OpenTelemetry Browser SDK" (`github.com/open-telemetry/opentelemetry-browser`, created 2025-09). The older `@opentelemetry/sdk-trace-web` package name is the exception, not the direction) |
    | React Native SDK | `@ouo11y/react-native` (renamed from `@ouo/react-native`) |
    | iOS SDK | SwiftPM package `ouo11y-ios`, served from the mirror repo `github.com/ouo11y/ouo11y-ios`; library products and modules stay `OuoReplay` and `OuoReplayCore` (see point 5) |
    | Sentry bridge | ouo11y bridge (the `ouosentry` receiver in the collector) |
