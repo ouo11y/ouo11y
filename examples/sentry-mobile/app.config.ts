@@ -14,6 +14,7 @@ import type { ExpoConfig } from "expo/config";
  *   OUO_SDK=1    parallel mode: @ouo/react-native runs next to Sentry (initialised after it, see
  *                index.ts and src/ouo.ts), exporting to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT
  *                (default the isolated ouo-sb collector: 4338 and 4339).
+ *   OUO_REPLAY=0 parallel mode without the ouo replay (default on).
  * Values are baked into the JS bundle (Release build), so rebuild after changing them.
  */
 const version = process.env.APP_VERSION ?? "1.0.0";
@@ -51,6 +52,7 @@ const config: ExpoConfig = {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8082",
     sentryDebug: process.env.SENTRY_DEBUG === "1",
     ouoSdk: process.env.OUO_SDK === "1",
+    ouoReplay: process.env.OUO_REPLAY !== "0",
     ouoOtlpEndpoint: process.env.OUO_OTLP_ENDPOINT ?? "http://localhost:4338",
     ouoReplayEndpoint: process.env.OUO_REPLAY_ENDPOINT ?? "http://localhost:4339",
     ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",

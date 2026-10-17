@@ -103,7 +103,8 @@ Sentry, and exports to the isolated `ouo-sb` collector (`OUO_OTLP_ENDPOINT`, def
 `OUO_REPLAY_ENDPOINT`, default :4339) as service `sentry-demo-ouo`. Sentry's tracing skips the
 ouo uploads (`shouldCreateSpanForRequest`). The action `xhr-cart` calls the backend through a
 raw `XMLHttpRequest` (axios' transport in React Native). Without the flag the ouo SDK is linked
-but never started. Findings: `kb/ouo-next-to-sentry.md`.
+but never started. `App.tsx` wraps the app in `RUMProvider` and feeds navigation to ouo, as the SDK README says;
+`OUO_REPLAY=0` builds parallel mode without the ouo replay. Findings: `kb/ouo-next-to-sentry.md`.
 
 ```bash
 OUO_SDK=1 BACKEND_URL=http://localhost:8084 scripts/build-ios.sh

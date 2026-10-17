@@ -8,6 +8,7 @@ interface Extra {
   backendUrl: string;
   sentryDebug: boolean;
   ouoSdk: boolean;
+  ouoReplay: boolean;
   ouoOtlpEndpoint: string;
   ouoReplayEndpoint: string;
   ouoProjectId: string;
@@ -24,6 +25,7 @@ export const config: Extra = {
   backendUrl: extra.backendUrl ?? "http://localhost:8082",
   sentryDebug: extra.sentryDebug ?? false,
   ouoSdk: extra.ouoSdk ?? false,
+  ouoReplay: extra.ouoReplay ?? true,
   ouoOtlpEndpoint: extra.ouoOtlpEndpoint ?? "http://localhost:4338",
   ouoReplayEndpoint: extra.ouoReplayEndpoint ?? "http://localhost:4339",
   ouoProjectId: extra.ouoProjectId ?? "demo",
