@@ -27,7 +27,7 @@ ADR-0008 / `docs/specs/sentry-bridge.md` section 11. Plugin `ouo-rum-app` 0.3.0 
   `presentation-play` icon (`@grafana/data` 13 has no video icon).
 - Version 0.4.0 (minor: new user-visible replay kind, per `docs/releasing.md`), `CHANGELOG.md`, `README.md`
   (Replay players section).
-- kb: `kb/grafana-plugin-video-player.md` + index line.
+- kb: `project/kb/grafana-plugin-video-player.md` + index line.
 
 ## Verified, and how
 
@@ -39,7 +39,7 @@ ADR-0008 / `docs/specs/sentry-bridge.md` section 11. Plugin `ouo-rum-app` 0.3.0 
   player uses the proxy URL as `<video src>` directly (cookie auth); no blob fallback. Grafana rewrites
   `Cache-Control` to `no-store` and adds `Content-Security-Policy: sandbox` (no effect on media).
 - Live in the `ouo-sb` stack (built-in browser, plugin rebuilt, only `ouo-sb-grafana-1` restarted): see
-  `agents/grafana-plugin/reports/s4-video-player.html` (`s4-0*.jpg`).
+  `project/agents/grafana-plugin/reports/s4-video-player.html` (`s4-0*.jpg`).
   - Real iOS Sentry session `BD134401-A1B3-4B1E-BB8B-E0477AC9B035` (sentry-demo, 5 segments, 25 s, 402x874):
     segments decode (`readyState 4`), scrubber 17.7 s -> seq 3 @ 2.712 s, playback crossed seq 3 -> seq 4 with the
     preloaded element (21.2 s = seq 4 @ 1.23 s) and stopped at 25.0 s; marker and timeline clicks seek.
@@ -53,8 +53,8 @@ ADR-0008 / `docs/specs/sentry-bridge.md` section 11. Plugin `ouo-rum-app` 0.3.0 
   bump it to `0.4.0` (or run `npm install`) when committing, as was done for 0.3.0.
 - Gaps between segments are verified by unit tests only; the live sessions had contiguous segments, and the
   real session had no touches (touches were verified on the stub).
-- `kb/video-replay-serving.md` (rum-api agent) lists "Range through the Grafana proxy" as open: it is answered in
-  `kb/grafana-plugin-video-player.md` (passes through).
+- `project/kb/video-replay-serving.md` (rum-api agent) lists "Range through the Grafana proxy" as open: it is answered in
+  `project/kb/grafana-plugin-video-player.md` (passes through).
 - The manifest of the real session has `platform: ""`; the info line just omits it. rum-api/bridge may want to
   fill `ios`.
 - Prettier reformatted two pre-existing blocks in files I touched (`SessionsTable.tsx`, `frames.ts`); two

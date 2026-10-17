@@ -28,6 +28,6 @@ run the upgrade procedure (`docs/operations/upgrade.md`) for that combination.
 
 ## Before tags existed
 
-Phases 1 to 7 (MVP) shipped on `main` without tags; their history is in `tracker/mvp.md`
-and the per-agent summaries under `agents/`. The first tagged versions are the Phase 8a
+Phases 1 to 7 (MVP) shipped on `main` without tags; their history is in `project/tracker/mvp.md`
+and the per-agent summaries under `project/agents/`. The first tagged versions are the Phase 8a
 ones above.

@@ -9,7 +9,7 @@ why did the Phase 8a gateway leave rum-api? Written while revising ADR-0007 in
 The first 8a draft made rum-api the internet-facing edge: `/ingest/otlp/v1/*` with a project
 token header, a YAML project registry, per-project CORS and origin patterns, a token-bucket
 rate limiter, OTLP decode / stamp / re-encode and a forward to the collector. It worked
-(see the first summary in `agents/rum-api/summaries/2026-10-10-phase-8a.md`) but it put a
+(see the first summary in `project/agents/rum-api/summaries/2026-10-10-phase-8a.md`) but it put a
 second ingress next to the standard one, and it meant re-implementing in Go what the
 OpenTelemetry Collector already has: receivers with auth, CORS, body limits, batching and
 back-pressure. The founder's review restated the principle: the collector is the only

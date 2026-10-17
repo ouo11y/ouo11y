@@ -42,8 +42,8 @@ development client and check the replay in the simulator and in Grafana?
    npx expo prebuild --platform ios             # ios/ (gitignored) + pod install
    npx expo run:ios                             # builds, boots a simulator, starts Metro
    ```
-   The stack must be up (`docker compose -f deploy/docker/compose.yaml up -d`); the simulator
-   reaches the Mac as `localhost` (rum-api on 8080, OTLP on the port in `deploy/docker/.env`).
+   The stack must be up (`docker compose -f deploy/compose/compose.yaml up -d`); the simulator
+   reaches the Mac as `localhost` (rum-api on 8080, OTLP on the port in `deploy/compose/.env`).
 
 ## Manual replay check list
 

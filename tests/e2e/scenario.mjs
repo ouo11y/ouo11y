@@ -40,7 +40,7 @@
 //   OUO_TEMPO_DS_UID    Grafana datasource uid used for the trace-by-id lookups (default tempo)
 //   OUO_E2E_ORIGIN      origin used for the CORS preflights (default http://localhost:5173)
 //   OUO_E2E_TIMEOUT     seconds to wait for ingestion (default 120)
-// Flags: --out <file> writes the full result as JSON (used by reports/*-verification.html).
+// Flags: --out <file> writes the full result as JSON (used by project/reports/*-verification.html).
 
 import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -58,7 +58,7 @@ const BASIC = "Basic " + (env.OUO_PROJECT_BASIC || Buffer.from(`${PROJECT_ID}:${
 const READ_TOKEN = env.OUO_READ_TOKEN ?? "rt_dev_0000000000000000";
 const TEMPO_DS_UID = env.OUO_TEMPO_DS_UID ?? "tempo";
 const ORIGIN = env.OUO_E2E_ORIGIN ?? "http://localhost:5173";
-// Browser-style Access-Control-Request-Headers: lowercase and sorted (kb/collector-components.md).
+// Browser-style Access-Control-Request-Headers: lowercase and sorted (project/kb/collector-components.md).
 const OTLP_PREFLIGHT_HEADERS = "authorization,content-type";
 const REPLAY_PREFLIGHT_HEADERS = "authorization,content-encoding,content-type,x-ouo-seq,x-ouo-session-id";
 const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");

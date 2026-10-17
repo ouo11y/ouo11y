@@ -10,7 +10,7 @@ data:
     {{- if .Values.collector.configOverride }}
     {{- .Values.collector.configOverride | nindent 4 }}
     {{- else }}
-    # Mirrors deploy/docker/collector/config.yaml (reference config of the ouo collector
+    # Mirrors deploy/compose/collector/config.yaml (reference config of the ouo collector
     # distribution, collector/) with the backend URLs, limits and the rum-api sink taken
     # from values (ADR-0007). Ports:
     #   4318 OTLP/HTTP  public  Basic auth (project id : project token), CORS

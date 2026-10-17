@@ -7,8 +7,8 @@ Stack: released 0.2.0 images, isolated compose project `ouo-cmp`. Three runs:
 2. ouo replay off, navigation wired.
 3. ouo replay on, navigation wired.
 
-Report with every number and the gap register: `agents/sentry-demo/reports/bridge-vs-sdk.html`. Tracker:
-`tracker/roadmap.md`, "Bridge parity gaps".
+Report with every number and the gap register: `project/agents/sentry-demo/reports/bridge-vs-sdk.html`. Tracker:
+`project/tracker/roadmap.md`, "Bridge parity gaps".
 
 ## Answer in one paragraph
 

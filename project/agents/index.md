@@ -1,6 +1,6 @@
 # Agents
 
-One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summaries/`. Reports are HTML under `reports/` inside the folder.
+One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summaries/`. Reports are HTML under `reports/` inside the folder. All of it lives under `project/` (ADR-0010).
 
 | Agent | Owns | Phase |
 |---|---|---|
@@ -12,10 +12,10 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [rum-api](rum-api/) | `services/rum-api` | 3 |
 | [grafana-plugin](grafana-plugin/) | `plugins/ouo-rum-app` | 4 |
 | [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/mobile` | 5 |
-| [qa](qa/) | end-to-end verification, `reports/` | 6 |
+| [qa](qa/) | end-to-end verification, `project/reports/` | 6 |
 | [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/mobile` | 7 |
 | [fast-tracked](fast-tracked/) | `examples/fast-tracked` onboarding guides (stack, Go backend, React, Expo iOS) | docs |
-| [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/docker/collector/` config and htpasswd | 8a |
+| [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/compose/collector/` config and htpasswd | 8a |
 | [helm](helm/) | `deploy/helm` Kubernetes chart and kind verification | 8a |
 | [release](release/) | versioning, changelogs, package publishing workflows, upgrade procedure (`.github/`, `CHANGELOG.md`, package manifests) | 8a |
 | [sentry-demo](sentry-demo/) | `examples/sentry-mobile` (Expo iOS app with `@sentry/react-native`, `ouo.rum.mode` rollout switch to `@ouo/react-native`, journey driver, envelope capture for the Sentry bridge) | ADR-0008 |

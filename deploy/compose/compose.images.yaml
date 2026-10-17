@@ -1,9 +1,9 @@
-# Released images instead of local builds. Override for deploy/docker/compose.yaml:
+# Released images instead of local builds. Override for deploy/compose/compose.yaml:
 #
-#   docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 #
 # rum-api, the ouo collector and Grafana (with the ouo-rum-app plugin baked in) are pulled
-# from ghcr.io at the versions pinned in deploy/docker/.env (see .env.example), so no Go
+# from ghcr.io at the versions pinned in deploy/compose/.env (see .env.example), so no Go
 # toolchain, ocb or Node build is needed and services/, collector/ and plugins/ can be
 # absent. The demo backend is still built from examples/backend (it is example code, not a
 # released image); delete that service when you do not need it.
@@ -18,7 +18,7 @@
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
 # Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
-# RELEASING.md.
+# docs/releasing.md.
 
 services:
   otel-collector:
@@ -36,7 +36,7 @@ services:
     # -config.expand-env=true` and mounts ./rum-api/config.yaml, and that command and
     # mount apply to this image too (an image older than 0.2.0 exits with "flag provided
     # but not defined"). S3 / MinIO instead of the local disk: add
-    # `-f deploy/docker/compose.s3.yaml` after this file (keys: STORAGE_BACKEND=s3, S3_*,
+    # `-f deploy/compose/compose.s3.yaml` after this file (keys: STORAGE_BACKEND=s3, S3_*,
     # services/rum-api/config.example.yaml). The image ships no config.yaml of its own and
     # no baked ENV, so a mounted file is never overridden by image defaults.
 

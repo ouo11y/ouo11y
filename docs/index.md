@@ -11,5 +11,5 @@
 | [business/product-plan.md](business/product-plan.md) | product thesis, offers, pricing, checklist (proposal) |
 | [business/roadmap.md](business/roadmap.md) | sequenced build roadmap from MVP to product: interview decisions, phases 8 to 14 with exit criteria, enterprise readiness matrix, hiring tie-in (proposal) |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
-| [releasing.md](releasing.md) | versioning policy per package, tag formats, release workflows, required secrets, changelog layout |
+| [releasing.md](releasing.md) | the one releasing document: versioning policy per package, tag formats, pre-releases, image release checklist, pull access, release workflows, required secrets, changelog layout |
 | [operations/upgrade.md](operations/upgrade.md) | operator upgrade procedure (compose and Helm), replay schema-version rule, compatibility table, rollback (index: [operations/index.md](operations/index.md)) |

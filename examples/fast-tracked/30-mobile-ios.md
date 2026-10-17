@@ -63,7 +63,7 @@ Point the command line tools at the full Xcode. Either the system-wide way:
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
-or, without `sudo`, per shell (verified in `kb/xcode-setup.md`: `xcodebuild`, `xcrun` and
+or, without `sudo`, per shell (verified in `project/kb/xcode-setup.md`: `xcodebuild`, `xcrun` and
 `swift test` all pick up the full Xcode with this variable):
 
 ```bash
@@ -134,7 +134,7 @@ echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 ```
 
 ```bash
-docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.images.yaml up -d
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 ```
 
 An empty OTLP logs request with the development credential must answer `200`; the same request
@@ -144,19 +144,19 @@ without `-u` answers `401` (that is the collector's `basicauth` extension):
 curl -s -o /dev/null -w '%{http_code}\n' -u demo:pt_dev_demo_0000000000000000 -X POST -H 'content-type: application/json' -d '{}' localhost:4318/v1/logs
 ```
 
-Port and project note. The ports in `deploy/docker/.env.example` are the defaults (`4318` the
+Port and project note. The ports in `deploy/compose/.env.example` are the defaults (`4318` the
 collector's OTLP/HTTP, `4319` its replay receiver, both published on all interfaces because they
 are the public ingest; `8081` demo backend, `3000` Grafana; rum-api's `8080` is on loopback for
 the `curl` checks in section 7.1 and never for apps) and the stack ships a development project:
 id `demo`, token `pt_dev_demo_0000000000000000` (a line in the collector's htpasswd).
 `examples/mobile/app.config.ts` falls back to the same values, so with a stock stack you do not
 need to pass anything. If you moved ports or changed the project in a gitignored
-`deploy/docker/.env`, copy `examples/mobile/.env.example` to `examples/mobile/.env` and set
+`deploy/compose/.env`, copy `examples/mobile/.env.example` to `examples/mobile/.env` and set
 `EXPO_PUBLIC_OTLP_ENDPOINT`, `EXPO_PUBLIC_OUO_PROJECT_ID`, `EXPO_PUBLIC_OUO_PROJECT_TOKEN` and
 `BACKEND_URL` there; Expo CLI loads that file into `process.env` before it evaluates
 `app.config.ts`. The commands below pass the values explicitly anyway so it is obvious where
 they go. For your own deployment, the id and token come from the project's line in the
-collector's htpasswd (`deploy/docker/collector/projects.htpasswd` locally, a Secret in
+collector's htpasswd (`deploy/compose/collector/projects.htpasswd` locally, a Secret in
 Kubernetes); the token is public by design, so putting it in the app bundle is expected.
 
 ---
@@ -244,7 +244,7 @@ path. Full file:
 
 ```js
 // Metro config for consuming @ouo/react-native through a `file:` link (a symlink into
-// ../../sdk/react-native). See kb/otel-react-native.md.
+// ../../sdk/react-native). See project/kb/otel-react-native.md.
 const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 
@@ -405,7 +405,7 @@ registers it in the Xcode project, and makes the generated `AppDelegate` conform
 //   2. writes SceneDelegate.swift (subclass of ExpoAppSceneDelegate) and adds it to the target,
 //   3. makes AppDelegate conform to ExpoReactNativeFactoryProvider and stops it from creating the
 //      window itself (the scene delegate does that and starts React Native into it).
-// Remove this plugin once the Expo template adopts scenes. See kb/xcode-setup.md.
+// Remove this plugin once the Expo template adopts scenes. See project/kb/xcode-setup.md.
 const { withInfoPlist, withAppDelegate, withXcodeProject, withDangerousMod, IOSConfig } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
@@ -798,7 +798,7 @@ list of registered native modules.
 
 Native side: the Swift logger (`sdk/ios/Sources/OuoReplayCore/Clock.swift`, `ReplayLogger`)
 uses `NSLog` with the prefix `[ouo replay]`, enabled when `debug` is true. Swift `print` does
-not reach the unified log, `NSLog` does. Verified in `kb/ios-replay.md`:
+not reach the unified log, `NSLog` does. Verified in `project/kb/ios-replay.md`:
 
 ```bash
 xcrun simctl spawn booted log show --last 2m --predicate 'process == "mobilestore"' | grep "ouo replay"
@@ -830,7 +830,7 @@ chunks enter through the `ouoreplay` receiver on its own port (4319) and leave t
 published for apps; Grafana is the only other public service.
 
 ```
- iOS Simulator (same network namespace as the Mac)              Docker (deploy/docker/compose.yaml)
+ iOS Simulator (same network namespace as the Mac)              Docker (deploy/compose/compose.yaml)
  +-----------------------------------------------+     +------------------------------------------------------+
  |  your app                                     |     |  ouo-collector (public ingest, ADR-0007)             |
  |  @ouo/react-native (JS, Hermes)               |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
@@ -874,13 +874,13 @@ Verified how: the 0.2.0 SDK was driven in Vitest against a Node stub of the coll
 (`demo:pt_dev_demo_0000000000000000`) and are accepted, a wrong token is rejected with `401`. The
 Swift uploader test asserts the same header value on every chunk request including retries. The
 live run against the Phase 8a collector on the simulator is the QA pass
-(`agents/sdk-react-native/summaries/2026-10-10-phase-8a-rev2.md`).
+(`project/agents/sdk-react-native/summaries/2026-10-10-phase-8a-rev2.md`).
 
 ### 7.1 Verify from the terminal
 
 rum-api is internal; the local stack publishes its `8080` on loopback so these checks work from
 the Mac. When rum-api runs with `OUO_READ_TOKEN` set (the compose stack does, see
-`deploy/docker/.env`), every `GET /v1/*` below needs `-H "Authorization: Bearer $OUO_READ_TOKEN"`;
+`deploy/compose/.env`), every `GET /v1/*` below needs `-H "Authorization: Bearer $OUO_READ_TOKEN"`;
 add it to the `curl` commands. The app never uses these routes: its uploads go to the collector
 with the project credential.
 
@@ -1152,7 +1152,7 @@ the real `device.model.identifier` (for example `iPhone17,1`) and `replay_kind: 
 - After tapping, wait about 7 s (5 s chunk flush plus upload) before expecting the frame in
   rum-api.
 - `401` on every export: `EXPO_PUBLIC_OUO_PROJECT_ID` / `EXPO_PUBLIC_OUO_PROJECT_TOKEN` do not
-  match a line in the collector's htpasswd (`deploy/docker/collector/projects.htpasswd`; the
+  match a line in the collector's htpasswd (`deploy/compose/collector/projects.htpasswd`; the
   user name is the project id). The SDK never retries a `401`; fix the values and restart Metro
   (they are baked into `extra` when the config is evaluated). Check the pair from the Mac with
   the `curl -u` line in section 2.4.

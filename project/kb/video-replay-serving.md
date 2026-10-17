@@ -50,4 +50,4 @@ Verified on 2026-10-14 (Grafana 13.2.1, `ouo-sb` stack): the plugin route proxy 
 through and returns the 206 unchanged (`curl -r 100-199` gave `Content-Range: bytes 100-199/7728`,
 and Chrome's own `<video>` requests got 206). Grafana adds `Cache-Control: no-store` and
 `Content-Security-Policy: sandbox` to proxied responses; playback still works. The player uses
-the proxy URL as `<video src>` directly. Details: `kb/grafana-plugin-video-player.md`.
+the proxy URL as `<video src>` directly. Details: `project/kb/grafana-plugin-video-player.md`.

@@ -2,7 +2,7 @@
 
 ## Done
 - Spawned three writers in parallel: backend+stack (`00-stack.md`, `10-backend.md`), frontend (`20-frontend.md`), mobile iOS (`30-mobile-ios.md`). Each wrote its own summary in this folder.
-- Wrote the router `examples/fast-tracked/index.md`, this agent folder, and linked the track from `README.md`, `docs/index.md`, `agents/index.md`.
+- Wrote the router `examples/fast-tracked/index.md`, this agent folder, and linked the track from `README.md`, `docs/index.md`, `project/agents/index.md`.
 - Found while reviewing: the demo apps' fallback endpoints (`examples/web/src/rum.ts`, `examples/mobile/src/rum.ts`, `examples/mobile/app.config.ts`, `examples/web/.env.example`) were this Mac's override ports (4328, 8082), which would break a fresh clone. Switched them to the stock ports (4318, 8081), added `examples/mobile/.env.example`, moved the machine-specific values into gitignored `examples/web/.env` and `examples/mobile/.env`, and updated the two demo READMEs, the kb note and the guides' inlined copies.
 
 ## Verified

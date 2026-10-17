@@ -2,8 +2,8 @@
 # Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
 # ocb build (collector/), npm build + test
 # across the workspaces (Node 24), the Swift core tests of sdk/ios on macOS, helm lint
-# when the chart exists, and a build (no push) of every released container image.
-# See RELEASING.md and docs/releasing.md.
+# when the chart exists, an offline link check of the docs, and a build (no push) of every released container image.
+# See docs/releasing.md.
 name: ci
 
 on:
@@ -68,7 +68,7 @@ jobs:
         working-directory: collector
         env:
           OUO_INGEST_TOKEN: it_ci
-        run: ./dist/ouo-collector validate --config=../deploy/docker/collector/config.yaml
+        run: ./dist/ouo-collector validate --config=../deploy/compose/collector/config.yaml
 
   # Builds each image release-images.yml publishes, from the same Dockerfile and context,
   # for linux/amd64 only (the arm64 leg runs in the release and in its dry run), loads it
@@ -156,6 +156,21 @@ jobs:
         run: swift build
       - name: OuoReplayCore tests
         run: sh sdk/ios/test.sh
+
+  # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
+  # external URLs are not fetched, so the job is fast and never flaky.
+  links:
+    name: links (lychee, offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: lychee --offline
+        uses: lycheeverse/lychee-action@v2.9.0
+        with:
+          lycheeVersion: v0.24.2
+          args: --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'
+          fail: true
+          jobSummary: true
 
   helm:
     name: helm lint

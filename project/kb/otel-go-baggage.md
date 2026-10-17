@@ -82,5 +82,5 @@ Code: `examples/backend/internal/telemetry`, `examples/backend/internal/api`.
 - The machine already runs unrelated stacks on 4317/4318 (`otel-downstream`),
   3200 (`otel-browser-tempo-1`) and 3100 (`otel-browser-loki-1`). The ouo stack
   therefore maps to 4328 (OTLP/HTTP), 3201 (Tempo), 3101 (Loki), 3001
-  (Grafana) via `deploy/docker/.env`. Pointing the backend at 4318 silently
+  (Grafana) via `deploy/compose/.env`. Pointing the backend at 4318 silently
   sends telemetry to the wrong collector.

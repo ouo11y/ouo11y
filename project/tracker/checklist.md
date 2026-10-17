@@ -1,6 +1,6 @@
 # Work checklist (single sorted list)
 
-Consolidated on 2026-10-17 from `tracker/mvp.md`, `tracker/roadmap.md`, the 15 `agents/*/tracker.md` files, the latest agent summaries, `agents/sentry-demo/reports/bridge-vs-sdk.html` (gap report, PR #24) and `agents/sentry-demo/reports/sdk-overhead-ios.html` (device cost, PR #25).
+Consolidated on 2026-10-17 from `project/tracker/mvp.md`, `project/tracker/roadmap.md`, the 15 `project/agents/*/tracker.md` files, the latest agent summaries, `project/agents/sentry-demo/reports/bridge-vs-sdk.html` (gap report, PR #24) and `project/agents/sentry-demo/reports/sdk-overhead-ios.html` (device cost, PR #25).
 
 **This file is the one place to pick work from.** `roadmap.md` keeps phase scope and verification notes, and agent trackers stay as run logs. Ids are kept from their source (A = bridge parity gap, B = founder backlog, C = cosmetic/plugin gap from the gap report, G = ouo SDK gap vs the bridge, Q = QA finding). Items new here have an N id.
 
@@ -14,7 +14,7 @@ Blockers marked **[founder]** need an answer or an account from the founder.
 
 ## 1. Before parallel work resumes (do while nothing else is running)
 
-- [ ] B5 Repo organisation: ADR, then one mechanical move (product code by component, user docs under `docs/`, agent/process material under one folder, link checker in CI). It moves every path, so it goes first or it conflicts with every PR below. **[founder]** approve the layout.
+- [x] B5 Repo organisation: ADR, then one mechanical move (product code by component, user docs under `docs/`, agent/process material under one folder, link checker in CI). Layout approved by the founder 2026-10-17; done in batch 0 ([ADR-0010](../../docs/adr/0010-repository-layout.md)): process material under `project/`, `deploy/docker` is `deploy/compose`, one `docs/releasing.md`, CI job `links`.
 - [ ] B2 Named local environments (`ouo-env`, `<service>.<env>.ouo.localhost`, `gc` on merge, login admin / testing567). Every task below starts a stack.
 - [ ] N1 Tracker hygiene left after this consolidation: roadmap 8a row (PR #14 merged, VM / publish / upgrade items still open), the Phase 12 line duplicating S1 to S4, the Sentry bridge section's PR status (#16, #17), the release summary "no tag pushed" (0.2.0 tags exist), stale "blocked: Xcode" and "review" rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers, and root `CHANGELOG.md` listing the plugin at 0.3.0 while it is 0.6.0. Done after #23 merges, since #23 also edits `roadmap.md`.
 
@@ -84,7 +84,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] N13 Collector: auth-failure counter (401s invisible in Mimir, R2-3); empty OTLP requests bypass `ouoratelimit`; an `internal` project for rum-api's own telemetry; tag component modules (now `v0.0.0` + replace)
 - [ ] N14 Token rotation: basicauth 0.160 cannot overlap tokens, but ADR-0007 promises an overlap. **[founder]** build a multi-token authenticator, or change the ADR to cut-over only.
 - [ ] N15 QA not exercised live: per-project bucket and quota, `key_from: x_forwarded_for`, foreign-origin CORS from a real browser, a stock OTel SDK with `OTEL_EXPORTER_OTLP_HEADERS`, plugin Viewer role, `background` end reason
-- [ ] N16 Docs drift: `examples/fast-tracked/00-stack.md`, `kb/rrweb-chunking.md`, `kb/ios-replay.md` may still describe rum-api as the ingest gateway or replay sink; fast-tracked guides never run end to end by a fresh reader
+- [ ] N16 Docs drift: `examples/fast-tracked/00-stack.md`, `project/kb/rrweb-chunking.md`, `project/kb/ios-replay.md` may still describe rum-api as the ingest gateway or replay sink; fast-tracked guides never run end to end by a fresh reader
 - [ ] 8a exit criterion: a non-founder installs from docs on fresh Kubernetes and a fresh VM, resolves a staged incident, verifies retention and deletion, restores from backup
 
 ## 6. Later (roadmap phases, unchanged)
@@ -100,7 +100,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 1. Prospects: React Native or native, which `@sentry/*` versions, Android or not (N3, B6).
 2. A throwaway sentry.io DSN for the real-upstream run (N2).
 3. Accept ADR-0008 (Sentry bridge; still "proposed" although merged).
-4. Approve the repo layout for B5.
+4. ~~Approve the repo layout for B5.~~ Approved 2026-10-17 (ADR-0010).
 5. Package publishing: npm org, `ouo-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
 6. A physical iPhone for B3 and N6.
 7. Where the hosted demo for B8 lives.

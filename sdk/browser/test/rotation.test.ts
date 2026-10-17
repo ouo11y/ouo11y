@@ -1,5 +1,5 @@
 /**
- * Regression for agents/qa/reports/phase-6-bugs.html bug 1: rotating an expired session
+ * Regression for project/agents/qa/reports/phase-6-bugs.html bug 1: rotating an expired session
  * emitted two `session.start` records (the OTel log processor asked for the active session
  * id while `session.end` was being emitted, which lazily created a session before the
  * caller created its own). Drives the real processor chain used by `initRUM()`:

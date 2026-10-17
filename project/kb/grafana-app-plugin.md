@@ -30,7 +30,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   `Permitting unsigned plugin` and registers it. `dist/` is bind-mounted at
   `/var/lib/grafana/plugins/ouo-rum-app` (short volume syntax: Docker Desktop creates an
   empty host dir when `dist/` is missing, so Grafana still starts without a build).
-- **Provisioning**: `deploy/docker/grafana/provisioning/plugins/ouo-rum-app.yaml`
+- **Provisioning**: `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml`
   (`apiVersion: 1`, `apps: [{type: ouo-rum-app, org_id: 1, disabled: false, jsonData: {rumApiUrl: http://rum-api:8080}}]`).
   `GET /api/plugins/ouo-rum-app/settings` then shows `enabled: true, pinned: true, jsonData`.
 - **Route proxy**: `plugin.json` `routes: [{ "path": "rum/*", "method": "*", "reqRole": "Viewer",
@@ -99,7 +99,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   the plugin loads; a webpack build that produces a chunk name that did not exist before (e.g.
   `865.js` after a code split) is on disk in the mounted `dist/` but Grafana answers 404
   (`Content-Type: application/json`), the browser logs `ChunkLoadError` and the page shows "Plugin
-  failed to load". `docker compose -f deploy/docker/compose.yaml restart grafana` fixes it; a hard
+  failed to load". `docker compose -f deploy/compose/compose.yaml restart grafana` fixes it; a hard
   reload (`fetch(url, { cache: 'reload' })` on every `/public/plugins/ouo-rum-app/*` URL) is enough
   when only the contents of existing files changed.
 - **Pinned replay next to a long timeline.** `position: sticky` on a grid item only moves inside

@@ -10,7 +10,7 @@ in the data? Written 2026-10-17 by sentry-demo. Code: `examples/sentry-mobile/sr
 
 - **Per cold start, never mid-session.** The SDKs install hooks that cannot be removed:
   `ErrorUtils` handler chain (each keeps the previous one), Hermes' single promise rejection
-  tracker (frozen `HermesInternal`, `kb/ouo-next-to-sentry.md`), `fetch` / XHR wrappers,
+  tracker (frozen `HermesInternal`, `project/kb/ouo-next-to-sentry.md`), `fetch` / XHR wrappers,
   sentry-cocoa's native crash handler and replay. A flag change applies at the next launch.
   Both SDKs start a new session at every cold start anyway (ouo: "a cold start never resumes",
   `sdk/react-native/src/session/manager.ts`; Sentry: a new `init` session), so a mode change

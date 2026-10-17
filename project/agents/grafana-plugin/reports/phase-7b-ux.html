@@ -56,7 +56,7 @@
 <h2>Notes</h2>
 <ul>
   <li>The Replay panel is sticky within the Timeline/Replay grid row only; once the Traces section scrolls up past it, it leaves the viewport with the row (Traces stays below the grid, as before).</li>
-  <li>Grafana returned 404 for a new webpack chunk (<code>865.js</code>) that existed in the mounted <code>dist/</code>: the plugin's static file list is built when the plugin loads, so a build that adds chunk files needs <code>docker compose restart grafana</code>, not just a hard reload. Recorded in <code>kb/grafana-app-plugin.md</code>.</li>
+  <li>Grafana returned 404 for a new webpack chunk (<code>865.js</code>) that existed in the mounted <code>dist/</code>: the plugin's static file list is built when the plugin loads, so a build that adds chunk files needs <code>docker compose restart grafana</code>, not just a hard reload. Recorded in <code>project/kb/grafana-app-plugin.md</code>.</li>
   <li><code>formatDuration</code> printed "4m 60s" for 299.6s (seen on the marker bar); it now carries into the minute ("5m 00s").</li>
 </ul>
 </body>

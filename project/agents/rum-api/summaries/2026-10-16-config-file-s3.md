@@ -2,7 +2,7 @@
 
 Branch `claude/rum-api-yaml-s3-80440c`, stacked on `claude/sentry-bridge-design`. Goal
 (founder, two prospective clients): operate rum-api like Loki and Tempo, a YAML config file
-plus object storage in MinIO / S3. Details and traps: `kb/rum-api-config-s3.md`.
+plus object storage in MinIO / S3. Details and traps: `project/kb/rum-api-config-s3.md`.
 
 ## Done
 
@@ -27,7 +27,7 @@ plus object storage in MinIO / S3. Details and traps: `kb/rum-api-config-s3.md`.
   cross-compiles (`FROM --platform=$BUILDPLATFORM`, `GOOS/GOARCH` from `TARGETOS/TARGETARCH`;
   `docker buildx --platform linux/amd64,linux/arm64` builds here without QEMU) and
   `ARG VERSION=dev` is stamped as `main.version` (`rum-api -version`, start-up log).
-- **Compose**: rum-api reads `deploy/docker/rum-api/config.yaml` (`command:` with both
+- **Compose**: rum-api reads `deploy/compose/rum-api/config.yaml` (`command:` with both
   flags); non-secret env moved into the file, tokens / OTEL / `GRAFANA_URL` stay in env.
   `minio` + `minio-init` (bucket + bucket-scoped `rum-api` user) under profile `s3`;
   `compose.s3.yaml` activates them and sets `STORAGE_BACKEND=s3` + keys. **Choice: opt-in**,
@@ -70,7 +70,7 @@ plus object storage in MinIO / S3. Details and traps: `kb/rum-api-config-s3.md`.
 
 ## For the releases session and example compose files
 
-- The chart and `deploy/docker/compose.yaml` now start rum-api with
+- The chart and `deploy/compose/compose.yaml` now start rum-api with
   `-config.file=/etc/rum-api/config.yaml -config.expand-env=true`: they need a rum-api
   image that has those flags. After merging main (PR #18), 0.2.0 is the first rum-api
   release and is cut after this PR, so `rumApi.image.tag: "0.2.0"` and

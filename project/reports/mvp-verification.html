@@ -77,7 +77,7 @@
   <h1>ouo MVP verification</h1>
   <p class="lead">Phase 6 QA, 2026-10-08. Every check below was run against the local Compose stack
   (Grafana 13.2.1, Loki 3.7.7, Tempo 3.0.3, Mimir 3.2.1, otel-collector-contrib 0.160.0, rum-api and
-  demo backend built from this tree) with the host ports from <code>deploy/docker/.env</code>
+  demo backend built from this tree) with the host ports from <code>deploy/compose/.env</code>
   (Grafana 3001, OTLP/HTTP 4328, rum-api 8080, backend 8082). Self-contained page: no external resources.</p>
 
   <div class="grid">
@@ -129,7 +129,7 @@
     <thead><tr><th>Check</th><th>Result</th><th>Method and evidence</th></tr></thead>
     <tbody>
       <tr><td><code>docker compose up</code> brings up Grafana, Loki, Tempo, Mimir, Collector, rum-api, demo backend</td><td><span class="badge pass">pass</span></td>
-        <td><code>docker compose -f deploy/docker/compose.yaml ps</code>: 7 services Up (grafana, backend, rum-api healthy); <code>deploy/scripts/wait-ready.sh</code> ready: loki, tempo, mimir, otel-collector, grafana; <code>GET rum-api /readyz</code> -&gt; <code>{"checks":{"loki":"ok","tempo":"ok"},"ready":true}</code>.</td></tr>
+        <td><code>docker compose -f deploy/compose/compose.yaml ps</code>: 7 services Up (grafana, backend, rum-api healthy); <code>deploy/scripts/wait-ready.sh</code> ready: loki, tempo, mimir, otel-collector, grafana; <code>GET rum-api /readyz</code> -&gt; <code>{"checks":{"loki":"ok","tempo":"ok"},"ready":true}</code>.</td></tr>
       <tr><td>Web demo produces sessions, errors, traces that reach Tempo and Loki with <code>session.id</code> attached</td><td><span class="badge pass">pass</span></td>
         <td>Verified live, session <code>fdbf8d10</code> (healthy flow): Loki <code>{service_name="web-store"} | session_id="fdbf8d10-..."</code> -&gt; 11 records, 0 without <code>session_id</code> (session.start, navigation, add_to_cart, checkout_submitted, web_vital). Tempo <code>{ span.session.id = "fdbf8d10-..." }</code> -&gt; 13 traces. Errored session <code>20f37404</code>: exception (fatal=false) + http.request.failed 500; crashed session <code>52f6ac9e</code>: exception fatal=true. All three classified as expected by rum-api (section 4).</td></tr>
       <tr><td>Mobile demo produces sessions with <code>service.version</code>, errors, and a crash that is classified as crashed</td><td><span class="badge pass">pass</span> <span class="badge nv">simulator not run</span></td>
@@ -202,7 +202,7 @@
 
   <h2 id="gaps">5. Known gaps and bugs</h2>
   <p>Nothing was fixed by QA (outside the allowed paths); reproduction steps are in
-  <code>agents/qa/reports/phase-6-bugs.html</code>.</p>
+  <code>project/agents/qa/reports/phase-6-bugs.html</code>.</p>
   <table>
     <thead><tr><th>#</th><th>Severity</th><th>Where</th><th>What</th></tr></thead>
     <tbody>
@@ -223,8 +223,8 @@
 
   <h2 id="repro">6. How to reproduce</h2>
 <pre>
-# stack (ports from deploy/docker/.env; defaults 3000 / 4318 / 8080 / 8081)
-docker compose -f deploy/docker/compose.yaml up -d --build
+# stack (ports from deploy/compose/.env; defaults 3000 / 4318 / 8080 / 8081)
+docker compose -f deploy/compose/compose.yaml up -d --build
 deploy/scripts/wait-ready.sh && deploy/scripts/smoke.sh
 
 # unit tests
@@ -235,7 +235,7 @@ npm run -w plugins/ouo-rum-app test    # 2 suites, 14 tests
 (cd examples/backend && go vet ./... && go test ./...)
 
 # scripted scenario (exit 0 on success, 1 with a diff on a mismatch, 2 on an error)
-deploy/scripts/e2e.sh --out agents/qa/reports/e2e-last-run.json
+deploy/scripts/e2e.sh --out project/agents/qa/reports/e2e-last-run.json
 
 # real sessions: web demo
 npm run -w sdk/browser build && npm run -w examples/web dev     # http://localhost:5173

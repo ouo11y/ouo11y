@@ -2,7 +2,7 @@
 
 Question: how much does an app on `@sentry/react-native` pay on the device when it adds
 `@ouo/react-native`, with ouo replay off (the default, ADR-0006) and on? Report with charts:
-`agents/sentry-demo/reports/sdk-overhead-ios.html`. Scripts: `examples/sentry-mobile/scripts/perf/`.
+`project/agents/sentry-demo/reports/sdk-overhead-ios.html`. Scripts: `examples/sentry-mobile/scripts/perf/`.
 
 ## Result (30 runs: 5 modes x 6 interleaved rounds, 95 s each, iOS 27 simulator on an M5 Mac)
 
@@ -109,7 +109,7 @@ Fetch 500, XHR cart, Handled error, Message, two scrolls), then idle to 95 s.
   every tap lands by its backend request (`?fail=500` status 500, `GET /api/cart`, ...).
 - `xcodebuild test-without-building -xctestrun ... -only-testing:PerfJourney/PerfJourneyUITests/testJourney`;
   `TEST_RUNNER_PERF_SECONDS=96` reaches the test as `PERF_SECONDS`.
-- Real taps produce `ui.tap` breadcrumbs and replay touch events in Sentry (kb/sentry-replay-taps.md),
+- Real taps produce `ui.tap` breadcrumbs and replay touch events in Sentry (project/kb/sentry-replay-taps.md),
   which the deep-link journey (`journey.sh`) does not.
 
 **Sampler** (`sample.py`): simulator apps are macOS processes, so the host reads the app's kernel

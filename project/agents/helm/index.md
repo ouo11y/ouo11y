@@ -1,6 +1,6 @@
 # helm
 
-Owns `deploy/helm/**` (the ouo Helm chart), `deploy/images/**` (Grafana-with-plugin image, pointer to the rum-api Dockerfile) and the kind verification (`kb/helm-kind.md`).
+Owns `deploy/helm/**` (the ouo Helm chart), `deploy/images/**` (Grafana-with-plugin image, pointer to the rum-api Dockerfile) and the kind verification (`project/kb/helm-kind.md`).
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries

@@ -144,7 +144,7 @@ svg text{font-family:inherit}
 </div>
 
 <h2 id="e2e">e2e numbers (run <code>mv6swsxe</code>, 2026-10-13 14:53 UTC, ingestion wait 65 s)</h2>
-<p><code>OUO_ENV_FILE=deploy/docker/.env bash deploy/scripts/e2e.sh --out agents/qa/reports/e2e-phase-8a-rev2-run.json</code>: OTLP to <code>http://localhost:4330</code>, replay to <code>http://localhost:4331</code>, both with <code>Authorization: Basic</code>; reads to rum-api <code>:8090</code> with the read token.</p>
+<p><code>OUO_ENV_FILE=deploy/compose/.env bash deploy/scripts/e2e.sh --out project/agents/qa/reports/e2e-phase-8a-rev2-run.json</code>: OTLP to <code>http://localhost:4330</code>, replay to <code>http://localhost:4331</code>, both with <code>Authorization: Basic</code>; reads to rum-api <code>:8090</code> with the read token.</p>
 <div class="tablewrap">
 <table>
 <thead><tr><th>Platform</th><th>Service</th><th>Version</th><th>Sent h/e/c</th><th>rum-api h/e/c</th><th>%</th><th>Split</th></tr></thead>
@@ -195,7 +195,7 @@ svg text{font-family:inherit}
 </div>
 
 <h2 id="unload">Unload path</h2>
-<p>A fetch wrapper in the page recorded every ingest request into <code>localStorage</code> (the pane's network log cannot show request headers), then the tab went from a product page to Grafana (cross-origin) right after two clicks. Recorded at <code>pagehide</code>: <code>POST :4331/v1/replay/chunks</code>, <code>keepalive: true</code>, no <code>Content-Encoding</code> (plain JSON), <code>x-ouo-seq: 12</code>, <code>Authorization: Basic …</code>, followed by a final <code>POST :4330/v1/logs</code>. rum-api stored seq 12 (13 events) 3 ms later. Closing the tab with the pane's own close delivered seq 13 as well, so revision 1's finding 4 (a lost chunk on tab close) did not reproduce. Detail: <code>agents/qa/reports/8a-rev2-unload-keepalive.txt</code>.</p>
+<p>A fetch wrapper in the page recorded every ingest request into <code>localStorage</code> (the pane's network log cannot show request headers), then the tab went from a product page to Grafana (cross-origin) right after two clicks. Recorded at <code>pagehide</code>: <code>POST :4331/v1/replay/chunks</code>, <code>keepalive: true</code>, no <code>Content-Encoding</code> (plain JSON), <code>x-ouo-seq: 12</code>, <code>Authorization: Basic …</code>, followed by a final <code>POST :4330/v1/logs</code>. rum-api stored seq 12 (13 events) 3 ms later. Closing the tab with the pane's own close delivered seq 13 as well, so revision 1's finding 4 (a lost chunk on tab close) did not reproduce. Detail: <code>project/agents/qa/reports/8a-rev2-unload-keepalive.txt</code>.</p>
 
 <h2 id="ios">iOS simulator (examples/mobile, <code>@ouo/react-native</code> 0.2.0, iPhone 18 Pro, iOS 27)</h2>
 <p>The installed dev client (built 2026-10-10 by sdk-react-native) carries <code>expo.extra</code> from its build: <code>otlpEndpoint http://localhost:4318</code>, <code>backendUrl http://localhost:8081</code>. On this Mac those are the other compose project and another session's Metro, and Metro's <code>EXPO_PUBLIC_*</code> cannot change them; the example also has no replay endpoint option (R2-2). A temporary override in <code>src/rum.ts</code> read Metro-inlined <code>EXPO_PUBLIC_OTLP_ENDPOINT=http://localhost:4330</code>, <code>EXPO_PUBLIC_OUO_REPLAY_ENDPOINT=http://localhost:4331</code>, <code>EXPO_PUBLIC_BACKEND_URL=http://localhost:8083</code> (reverted). Metro on 8091 via <code>RCT_jsLocation</code> (deleted afterwards).</p>
@@ -212,7 +212,7 @@ export response failures (401) in the Metro log: 0</pre>
 </div>
 
 <h2 id="limits">Rate limit, body limits and collector metrics</h2>
-<pre>OUO_OTLP_URL=http://localhost:4330 node agents/qa/reports/rate-limit.mjs
+<pre>OUO_OTLP_URL=http://localhost:4330 node project/agents/qa/reports/rate-limit.mjs
 {"n":400,"elapsed_ms":158,"counts":{"200":307,"429":93},"retry_after_values":["1"],
  "first429":{"s":429,"ra":"1","body":"{\"code\":8, \"message\":\"rate limit exceeded for client \\\"192.168.65.1\\\", retry after 1s\", \"details\":[{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\", \"retryDelay\":\"1s\"}]}"}}
 {"recovery":[{"after_s":1,"status":200},{"after_s":2,"status":200},{"after_s":3,"status":200},{"after_s":4,"status":200}]}
@@ -243,7 +243,7 @@ GET  :8090/v1/stats/health without token                     -> 401</pre>
 </div>
 
 <h2 id="bugs">Findings</h2>
-<p>Full text with reproduction in <a href="../agents/qa/reports/phase-8a-bugs.html"><code>agents/qa/reports/phase-8a-bugs.html</code></a>. Nothing blocks the collector edge itself.</p>
+<p>Full text with reproduction in <a href="../agents/qa/reports/phase-8a-bugs.html"><code>project/agents/qa/reports/phase-8a-bugs.html</code></a>. Nothing blocks the collector edge itself.</p>
 <div class="tablewrap">
 <table>
 <tr><th>#</th><th>Severity</th><th>Owner</th><th>Finding</th></tr>
@@ -255,12 +255,12 @@ GET  :8090/v1/stats/health without token                     -> 401</pre>
 </div>
 
 <h2 id="repro">How to reproduce every check</h2>
-<pre># stack (this worktree, compose project ouo-8a, ports in deploy/docker/.env)
-docker compose -p ouo-8a -f deploy/docker/compose.yaml --env-file deploy/docker/.env up -d --build
-OUO_ENV_FILE=deploy/docker/.env bash deploy/scripts/smoke.sh
+<pre># stack (this worktree, compose project ouo-8a, ports in deploy/compose/.env)
+docker compose -p ouo-8a -f deploy/compose/compose.yaml --env-file deploy/compose/.env up -d --build
+OUO_ENV_FILE=deploy/compose/.env bash deploy/scripts/smoke.sh
 
 # 1. synthetic matrix + edge checks + project stamping + replay through the collector
-OUO_ENV_FILE=deploy/docker/.env bash deploy/scripts/e2e.sh --out agents/qa/reports/e2e-phase-8a-rev2-run.json
+OUO_ENV_FILE=deploy/compose/.env bash deploy/scripts/e2e.sh --out project/agents/qa/reports/e2e-phase-8a-rev2-run.json
 
 # 2. web demo (add `replayEndpoint: import.meta.env.VITE_OUO_REPLAY_ENDPOINT` to examples/web/src/rum.ts first, R2-1;
 #    not needed on a stock stack where OTLP is 4318 and replay 4319)
@@ -286,7 +286,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl spawn boot
 curl -s -H "$RT" 'localhost:8090/v1/sessions?from=now-1h&amp;platform=mobile&amp;status=crashed'
 
 # 5. rate limit, body limits, self-metrics
-OUO_OTLP_URL=http://localhost:4330 node agents/qa/reports/rate-limit.mjs
+OUO_OTLP_URL=http://localhost:4330 node project/agents/qa/reports/rate-limit.mjs
 curl -s localhost:9010/prometheus/api/v1/query --data-urlencode 'query=ouo_ratelimit_rejected_total'
 curl -s localhost:9010/prometheus/api/v1/query --data-urlencode 'query=ouo_replay_chunks_total'
 

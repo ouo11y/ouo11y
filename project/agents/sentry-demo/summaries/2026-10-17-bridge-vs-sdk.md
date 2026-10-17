@@ -12,12 +12,12 @@
 - Compared field by field: rum-api sessions, detail, logs and replay; Loki records and keys per event name; Tempo
   traces, span names and attributes; Mimir series; the raw Sentry envelopes (sentrytap); the plugin pages (Grafana
   13.2.1, browser pane).
-- Report `reports/bridge-vs-sdk.html` lists the gaps:
+- Report `project/reports/bridge-vs-sdk.html` lists the gaps:
   - 11 (a): fixable in the bridge from data Sentry sends; ~11 d for ten of them, plus source maps on the roadmap
   - 4 (b): only the ouo SDK
   - 9 (c): cosmetic or plugin
   It also lists where the bridge is ahead of the ouo SDK, the parallel-mode traps and pitch guidance.
-- kb `kb/sentry-bridge-vs-ouo-sdk.md`. Tracker items A1 to A11 in `tracker/roadmap.md` ("Bridge parity gaps").
+- kb `project/kb/sentry-bridge-vs-ouo-sdk.md`. Tracker items A1 to A11 in `project/tracker/roadmap.md` ("Bridge parity gaps").
 - Demo app (`examples/sentry-mobile`, owned by this agent), changed so the comparison is fair. No product code
   changed:
   - `App.tsx` wires `RUMProvider` and `navigationStateListener` in parallel mode, as the SDK README says.

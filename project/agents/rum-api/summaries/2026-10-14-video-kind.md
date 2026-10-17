@@ -51,7 +51,7 @@ orchestrator commits). No new dependencies (standard library only).
   optional `video` fields and the duration fallback; 202 counters; meta `duration_ms`,
   `video_bytes`, `source`; segment `ETag`, cache header, 400 / 416, manifest `path` relative
   to the rum-api root, `source: null`. Nothing in the spec was contradicted.
-- `kb/video-replay-serving.md` (+ index line).
+- `project/kb/video-replay-serving.md` (+ index line).
 
 ## Shapes as implemented
 

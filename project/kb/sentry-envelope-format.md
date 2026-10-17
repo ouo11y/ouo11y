@@ -2,7 +2,7 @@
 
 Question: what exactly do the Sentry mobile SDKs send, so `ouosentry` can forward it untouched and translate it into ouo telemetry?
 
-Researched 2026-10-13 from develop.sentry.dev and the MIT `sentry-java` sources; checked against real iOS traffic on 2026-10-14 (`@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1; captures in `collector/receiver/ouosentryreceiver/testdata/golden/`). Details of the capture setup: `kb/sentry-react-native-demo.md`.
+Researched 2026-10-13 from develop.sentry.dev and the MIT `sentry-java` sources; checked against real iOS traffic on 2026-10-14 (`@sentry/react-native` 8.30.0, sentry-cocoa 9.30.1; captures in `collector/receiver/ouosentryreceiver/testdata/golden/`). Details of the capture setup: `project/kb/sentry-react-native-demo.md`.
 
 ## Transport
 

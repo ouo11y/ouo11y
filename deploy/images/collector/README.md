@@ -14,6 +14,6 @@ docker build -t ouo/collector:dev collector
 The Helm chart (`deploy/helm/ouo`) references it as `collector.image.repository` /
 `collector.image.tag` (`ghcr.io/ziadmansourm/ouo/collector` in releases) and runs it with
 `--config=/etc/otelcol/config.yaml`; the config is the chart's ConfigMap mirroring
-`deploy/docker/collector/config.yaml`, the htpasswd next to it comes from a Secret. The
+`deploy/compose/collector/config.yaml`, the htpasswd next to it comes from a Secret. The
 collector agent owns the build; this folder only documents where it lives so
 `deploy/images/` lists every image the chart runs.
