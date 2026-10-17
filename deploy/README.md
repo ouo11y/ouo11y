@@ -177,7 +177,7 @@ curl -H 'baggage: session.id=s1,user.id=u1,ouo.platform=web' localhost:8081/api/
 curl -G localhost:3200/api/search --data-urlencode 'q={ resource.service.name = "demo-backend" && span.session.id = "s1" }'
 ```
 
-In Grafana (http://localhost:3000, admin/admin): Explore -> Tempo -> search
+In Grafana (http://localhost:3000, admin/testing567): Explore -> Tempo -> search
 `{ span.session.id = "smoke-session" }`; open a span and use "Logs for this span"
 (trace to logs is a custom query on `service_name` + `session_id`). Explore -> Loki ->
 `{event_name="session.start"}`. The Tempo metrics generator writes
@@ -301,8 +301,8 @@ be changed at `/plugins/ouo-rum-app` (Configuration) without restarting Grafana.
 Grafana after changing `src/plugin.json`; for JS-only rebuilds a hard browser reload is enough.
 
 ```bash
-curl -u admin:admin localhost:3000/api/plugins/ouo-rum-app/settings | jq '{enabled, jsonData, secureJsonFields}'   # secureJsonFields.readToken: true
-curl -u admin:admin 'localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
+curl -u admin:testing567 localhost:3000/api/plugins/ouo-rum-app/settings | jq '{enabled, jsonData, secureJsonFields}'   # secureJsonFields.readToken: true
+curl -u admin:testing567 'localhost:3000/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-24h'
 ```
 
 ## Server install (`deploy/vm`)

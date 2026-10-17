@@ -926,7 +926,7 @@ after the first spans arrive. Wait, then re-query.
 
 ### 7.2 Verify in Grafana
 
-Open `http://localhost:3000/a/ouo-rum-app/sessions` (admin / admin), filter platform
+Open `http://localhost:3000/a/ouo-rum-app/sessions` (admin / testing567), filter platform
 `mobile`, open your session: the timeline shows `session.start`, `navigation`, `exception`,
 `http.request.failed` and custom events, the traces panel links into Tempo, and the replay panel
 mounts the frame player (`replay_kind: "frames"`) with play / pause, a scrubber and touch
