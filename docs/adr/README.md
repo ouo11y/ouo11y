@@ -10,6 +10,7 @@
 | [0006](0006-mobile-replay-native-screenshots.md) | Mobile replay: native screenshot capture with view-hierarchy masking, iOS first | accepted |
 | [0007](0007-ingest-gateway-project-tokens.md) | The collector is the edge: project tokens as Basic auth, replay receiver and exporter, rum-api internal (rev 2) | accepted |
 | [0008](0008-sentry-sdk-bridge.md) | Sentry SDK bridge: `ouosentry` receiver in ouo-collector, forward to Sentry and translate to ouo, `video` replay kind | accepted |
+| [0009](0009-org-and-product-naming.md) | Org and product naming: `ouo11y` everywhere, plain product names, `ouo` as the short internal namespace, three repos | accepted |
 | [0010](0010-repository-layout.md) | Repository layout: product by component at the top, process material under `project/` | accepted |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.

@@ -45,5 +45,5 @@ Roadmap backlog item B5 proposed a layout; the founder approved it on 2026-10-17
 - Links inside `project/` between `agents/`, `kb/`, `tracker/` and `reports/` did not change, because the four folders moved together.
 - The compose project name is set by `name:` in the compose file, not by its folder, so running stacks keep their project names and volumes across the rename.
 - Open branches written against the old layout conflict on every moved file. This is why the move runs alone (batch 0); branches still open afterwards are rebased with `git rebase` (rename detection carries their edits to the new paths).
-- Folder names contain no product or org name besides `plugins/ouo-rum-app`, so the org rename proposed in ADR-0009 stays a mechanical search and replace on package names, image refs and that one folder.
+- Folder names contain no product or org name besides `plugins/ouo-rum-app`, so the org rename decided in ADR-0009 stays a mechanical search and replace on package names, image refs and that one folder.
 - `git log --follow` works for every moved file.
