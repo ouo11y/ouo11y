@@ -1,0 +1,39 @@
+# The one reverse proxy for every local env (roadmap B2). Started by `ouo-env up` (or
+# `ouo-env proxy up`); it reads Docker labels written by ouo-env's overlay and routes
+# http://<service>.<env>.ouo.localhost (main: <service>.ouo.localhost) to the container.
+# *.localhost resolves to the loopback address in browsers, curl and Node without any
+# /etc/hosts edit. Dashboard: http://traefik.ouo.localhost.
+name: ouo-proxy
+
+services:
+  traefik:
+    image: traefik:v3.7.13
+    restart: unless-stopped
+    command:
+      - --entrypoints.web.address=:80
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=ouo-proxy
+      - --api.dashboard=true
+      - --ping=true
+      - --log.level=WARN
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ouo-proxy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.ouo-proxy-dashboard.rule: Host(`traefik.ouo.localhost`)
+      traefik.http.routers.ouo-proxy-dashboard.entrypoints: web
+      traefik.http.routers.ouo-proxy-dashboard.service: api@internal
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+networks:
+  ouo-proxy:
+    external: true
