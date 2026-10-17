@@ -19,7 +19,9 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
     name `ouo11y-rum-app`, or Grafana refuses to load the unsigned plugin;
   - the old `ouo-rum-app` row stays in Grafana's database as a disabled, missing plugin; it is harmless.
     Delete `/var/lib/grafana/plugins/ouo-rum-app` if the plugin was copied in by hand rather than baked
-    into the image or bind-mounted.
+    into the image or bind-mounted. On Helm, the init container copies the plugin to
+    `/pvc/plugins/ouo11y-rum-app` and leaves an older `/pvc/plugins/ouo-rum-app` on the PVC; Grafana refuses
+    to load it (unsigned and no longer allow-listed) and logs a warning. Delete it when convenient.
 
 ## 0.6.0 (taps in Sentry replays, 2026-10-16)
 

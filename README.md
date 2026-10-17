@@ -1,4 +1,7 @@
-# ouo
+# ouo11y
+
+*Open Unified Observability.* Say "oh-you-oh-eleven-why", or **"ouo"** for short; always written
+lowercase ([ADR-0009](docs/adr/0009-org-and-product-naming.md)).
 
 OpenTelemetry-native Real User Monitoring. Browser and React Native SDKs emit sessions, errors,
 traces and (web) rrweb replay through an OpenTelemetry Collector into Loki, Tempo and Mimir;

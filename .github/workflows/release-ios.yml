@@ -6,7 +6,7 @@
 #   ios-v0.2.0 (this repo) -> ouo11y/ouo11y-ios main + tag 0.2.0
 #
 # Required before this can run (see docs/releasing.md):
-#   repository  github.com/ouo11y/ouo11y-ios   exists (private until made public), no default branch needed
+#   repository  github.com/ouo11y/ouo11y-ios   exists (private, created 2026-10-18); README on branch `about`, main created by this workflow
 #   secret      OUO_IOS_DEPLOY_KEY                 private half of an ed25519 deploy key added to
 #                                                  ouo11y-ios with "Allow write access"
 # Without the secret the workflow runs the tests and exits cleanly with a notice; nothing

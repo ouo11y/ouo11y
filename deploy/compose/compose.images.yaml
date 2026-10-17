@@ -17,6 +17,12 @@
 # and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
+# Rename gap (ADR-0009, 2026-10-18): the 0.2.0 images were published only under the old path
+# ghcr.io/ziadmansourm/ouo/*, and grafana 0.2.0 carries the plugin under its old ID ouo-rum-app,
+# which ./grafana/provisioning no longer enables. So this file works again only once the next
+# tags (rum-api-v0.2.1, collector-v0.3.0, grafana-v0.3.0, proposed in docs/releasing.md) are
+# released and the pins below are bumped. Until then build from source (compose.yaml alone).
+#
 # Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
 # docs/releasing.md.
 

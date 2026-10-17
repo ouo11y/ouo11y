@@ -16,6 +16,8 @@ Blockers marked **[founder]** need an answer or an account from the founder.
 
 - [x] B5 Repo organisation: ADR, then one mechanical move (product code by component, user docs under `docs/`, agent/process material under one folder, link checker in CI). Layout approved by the founder 2026-10-17; done in batch 0 ([ADR-0010](../../docs/adr/0010-repository-layout.md)): process material under `project/`, `deploy/docker` is `deploy/compose`, one `docs/releasing.md`, CI job `links`.
 - [ ] B2 Named local environments (`ouo-env`, `<service>.<env>.ouo.localhost`, `gc` on merge, login admin / testing567). Every task below starts a stack. **Built 2026-10-17** (`deploy/envs/ouo-env`, [README](../../deploy/envs/README.md), [kb](../kb/ouo-env.md)): proxy, `up/down/ls/gc/url/env`, tests, AGENTS.md rule, verified on `sbx` (smoke + e2e) and a gc run. Open: migrate the founder's `ouo` stack into `main` (needs the founder's OK to stop it), and the stopped projects whose volumes remain (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): delete their volumes only on the founder's word.
+- [x] N18 Org rename to `ouo11y` ([ADR-0009](../../docs/adr/0009-org-and-product-naming.md), accepted 2026-10-18, PR #27): repo transferred to `ouo11y/ouo11y` 2026-10-18; mechanical rename (Go modules, `@ouo11y/browser`, `@ouo11y/react-native`, plugin ID `ouo11y-rum-app` 0.7.0, `ghcr.io/ouo11y/*`, links, SwiftPM package `ouo11y-ios`) in the rename PR; `docs/business/` and the roadmap timeline moved with history to the private `ouo11y/company`; `ouo11y/ouo11y-ios` created private with a README on branch `about`. Summary: `project/agents/orchestrator/summaries/2026-10-18-ouo11y-rename.md`.
+- [ ] N19 Image release after the rename. **[founder]** push `rum-api-v0.2.1`, `collector-v0.3.0`, `grafana-v0.3.0` after a release PR (`docs/releasing.md`, "Next image release after the rename"). Until then `compose.images.yaml`, the Helm defaults and the VM `--images` mode point at `ghcr.io/ouo11y/*:0.2.0`, which does not exist; build from source. Then bump the pins and re-grant Read on the new packages.
 - [x] N1 Tracker hygiene [done 2026-10-17 in batch 0: roadmap 8a row (#14, open items named), Phase 12 bridge line points at the bridge section, bridge section PR status (#16, #17, #23), release summary and changelogs record the 0.2.0 tags, stale Xcode / review rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers resolved with their PRs, root `CHANGELOG.md` plugin 0.6.0 and image versions]. Was: Tracker hygiene left after this consolidation: roadmap 8a row (PR #14 merged, VM / publish / upgrade items still open), the Phase 12 line duplicating S1 to S4, the Sentry bridge section's PR status (#16, #17), the release summary "no tag pushed" (0.2.0 tags exist), stale "blocked: Xcode" and "review" rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers, and root `CHANGELOG.md` listing the plugin at 0.3.0 while it is 0.6.0. Done after #23 merges, since #23 also edits `roadmap.md`.
 
 ## 2. Sentry path: client-ready bridge (P0)
@@ -46,7 +48,7 @@ Correctness first, then context, then UI. Effort from the gap report.
 - [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **Founder 2026-10-17:** assume the prospects add Android later; medium term, after the iOS React Native path (with N3's native sentry-java work).
 - [ ] N4 Receiver state is in memory, so the bridge runs as one replica only. Document it for pilots now; shared state later (Phase 11).
 - [ ] N5 Client setup notes: `propagateTraceparent: true` + `tracePropagationTargets` for backend correlation (needs an app release on their side); a `beforeBreadcrumb` filter if ouo runs alongside; never demo the bridge in parallel mode (ouo owns `traceparent`). C9 (~30 s duration difference) goes in the same notes.
-- [ ] B8 Pitch kit: "point your DSN at ouo" one-pager, hosted demo env, one-page comparison built from the gap report and the device-cost numbers. **[founder]** where the hosted demo lives: still open (2026-10-17).
+- [ ] B8 Pitch kit (the material itself goes to the private `ouo11y/company` repo, ADR-0009): "point your DSN at ouo" one-pager, hosted demo env, one-page comparison built from the gap report and the device-cost numbers. **[founder]** where the hosted demo lives: still open (2026-10-17).
 
 ## 3. ouo SDK: earn the path-1 upgrade (P1)
 
@@ -87,7 +89,11 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] N16 Docs drift: `examples/fast-tracked/00-stack.md`, `project/kb/rrweb-chunking.md`, `project/kb/ios-replay.md` may still describe rum-api as the ingest gateway or replay sink; fast-tracked guides never run end to end by a fresh reader
 - [ ] 8a exit criterion: a non-founder installs from docs on fresh Kubernetes and a fresh VM, resolves a staged incident, verifies retention and deletion, restores from backup
 
-## 6. Later (roadmap phases, unchanged)
+## 6. Gate: before this repo goes public
+
+- [ ] N20 **Git history still holds the business material.** Removing `docs/business/` (and anything else moved to `ouo11y/company`) deletes it from `main`, not from history: every old commit, tag and fork still has it. Before making `ouo11y/ouo11y` public, do one of: (a) **recommended:** publish a fresh repository whose first commit is a squashed snapshot of `main` (simple, nothing to audit in old commits, the private repo stays as the full-history archive); or (b) run `git filter-repo --invert-paths --path docs/business/ --path project/reports/roadmap.html --path reports/roadmap.html` (plus anything found by the scrub below) on a fresh mirror clone, check it, and force-push it to a new public repo, never to this one (it rewrites every SHA, breaks PR links, and every clone and worktree would have to be replaced). Also scrub what is still in the tree before either: the business-model sections of `docs/VISION.md` (revenue, sales metrics), "What to tell the two clients" in `project/agents/sentry-demo/reports/bridge-vs-sdk.html`, the prospect lines in this checklist and `project/tracker/roadmap.md`, and client names anywhere in summaries. Also needed for public: the lookalike claims and npm / grafana.com orgs (ADR-0009 points 7 and 8).
+
+## 7. Later (roadmap phases, unchanged)
 
 - [ ] Plugin: deprecated `Select` to `Combobox`; Playwright e2e
 - [ ] Native symbolication (A7 keeps the addresses; symbolication itself is unscheduled); JS source maps for both paths (A10)
@@ -109,9 +115,15 @@ Recorded 2026-10-17:
 - (g) **F4 verdict pending:** the demo is being re-run.
 - Repo layout for B5 approved (ADR-0010).
 
+Recorded 2026-10-18 (ADR-0009, accepted):
+
+- (h) **Names:** org and repo `ouo11y/ouo11y`; browser SDK `@ouo11y/browser` (not `@ouo11y/web`); `ouo` stays the short name in code (`ouo.` attributes, `ouo*` collector components).
+- (i) **Three repos:** `ouo11y/ouo11y` product, `ouo11y/ouo11y-ios` CI-published mirror, `ouo11y/company` always private for business material. The product may be open-sourced later (gate N20).
+
 ## Decisions waiting on the founder
 
-1. Package publishing: npm org, `ouo11y-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
+1. Package publishing: npm org, deploy key for the `ouo11y-ios` mirror (repo created 2026-10-18), plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
 2. Where the hosted demo for B8 lives.
 3. Verdict on the F4 unmasked Sentry recordings (pending; the demo is being re-run).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).
+5. Push the post-rename image tags (N19); pick N20's option before going public (recommended: fresh history).
