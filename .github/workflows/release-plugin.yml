@@ -1,5 +1,5 @@
-# Builds the Grafana app plugin, zips it as ouo-rum-app-<version>.zip and attaches it to a
-# GitHub release when a plugin tag is pushed (plugin-v0.3.0 -> plugins/ouo-rum-app 0.3.0).
+# Builds the Grafana app plugin, zips it as ouo11y-rum-app-<version>.zip and attaches it to a
+# GitHub release when a plugin tag is pushed (plugin-v0.3.0 -> plugins/ouo11y-rum-app 0.3.0).
 #
 # Signing is optional and off until the secret exists:
 #   GRAFANA_ACCESS_POLICY_TOKEN  (secret)  access policy token with the plugins:write scope,
@@ -7,7 +7,7 @@
 #   GRAFANA_ROOT_URLS            (variable) comma separated Grafana root URLs allowed to load
 #                                           the private signature, e.g. https://grafana.example.com
 # Without the token the zip is unsigned and Grafana needs
-# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app. See project/kb/release-packaging.md.
+# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app. See project/kb/release-packaging.md.
 name: release-plugin
 
 on:
@@ -19,8 +19,8 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_ID: ouo-rum-app
-  PLUGIN_DIR: plugins/ouo-rum-app
+  PLUGIN_ID: ouo11y-rum-app
+  PLUGIN_DIR: plugins/ouo11y-rum-app
   # Exposed at workflow level so the `if: env.GRAFANA_ACCESS_POLICY_TOKEN` checks below
   # see it (a step-level env is not visible to that step's own `if`).
   GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
@@ -109,7 +109,7 @@ jobs:
             echo
             echo "## Changes"
             echo
-            # Section of plugins/ouo-rum-app/CHANGELOG.md for this version, if present.
+            # Section of plugins/ouo11y-rum-app/CHANGELOG.md for this version, if present.
             awk -v v="$version" '
               /^## / { show = index($0, v) > 0 ; if (show) { next } }
               show { print }

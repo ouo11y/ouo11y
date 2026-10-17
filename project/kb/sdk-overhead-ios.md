@@ -1,7 +1,7 @@
-# Device cost of @ouo/react-native next to @sentry/react-native on iOS (measured 2026-10-17)
+# Device cost of @ouo11y/react-native next to @sentry/react-native on iOS (measured 2026-10-17)
 
 Question: how much does an app on `@sentry/react-native` pay on the device when it adds
-`@ouo/react-native`, with ouo replay off (the default, ADR-0006) and on? Report with charts:
+`@ouo11y/react-native`, with ouo replay off (the default, ADR-0006) and on? Report with charts:
 `project/agents/sentry-demo/reports/sdk-overhead-ios.html`. Scripts: `examples/sentry-mobile/scripts/perf/`.
 
 ## Result (30 runs: 5 modes x 6 interleaved rounds, 95 s each, iOS 27 simulator on an M5 Mac)

@@ -120,13 +120,13 @@ function mainSource(ref) {
 }
 
 function buildPlugin(src) {
-  const marker = path.join(src, "plugins/ouo-rum-app/dist/.ouo-env-built");
+  const marker = path.join(src, "plugins/ouo11y-rum-app/dist/.ouo-env-built");
   const head = git(src, "rev-parse", "HEAD");
-  const dirty = git(src, "status", "--porcelain", "--", "plugins/ouo-rum-app");
+  const dirty = git(src, "status", "--porcelain", "--", "plugins/ouo11y-rum-app");
   if (fs.existsSync(marker) && fs.readFileSync(marker, "utf8").trim() === head && !dirty) return;
-  log(`building plugins/ouo-rum-app in ${src}`);
+  log(`building plugins/ouo11y-rum-app in ${src}`);
   if (!fs.existsSync(path.join(src, "node_modules"))) run("npm", ["ci", "--no-audit", "--no-fund"], { cwd: src });
-  run("npm", ["run", "build", "-w", "plugins/ouo-rum-app"], { cwd: src });
+  run("npm", ["run", "build", "-w", "plugins/ouo11y-rum-app"], { cwd: src });
   fs.writeFileSync(marker, head + "\n");
 }
 

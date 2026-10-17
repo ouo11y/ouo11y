@@ -1,4 +1,4 @@
-# 20. Add ouo RUM to your React web app
+# 20. Add ouo11y RUM to your React web app
 
 Goal: your own React app sends sessions, errors, traced `fetch` calls, Web Vitals and
 rrweb replay to the local ouo stack, and you can see one session end to end in Grafana.
@@ -54,7 +54,7 @@ You still have to do these yourself:
 
 ## 1. Install the packages
 
-`@ouo/browser` is an npm workspace package inside this repository. It is not published
+`@ouo11y/browser` is an npm workspace package inside this repository. It is not published
 to a registry yet, so you install it from the repository. Build it first (output goes to
 `sdk/browser/dist`, which is what the package exposes):
 
@@ -68,7 +68,7 @@ npm run -w sdk/browser build
 
 Then, in **your** app, pick one of the two install methods.
 
-Option A, install from the folder. npm links the folder into `node_modules/@ouo/browser`.
+Option A, install from the folder. npm links the folder into `node_modules/@ouo11y/browser`.
 This is the same mechanism the demo app `examples/web` uses (an npm workspace link, see
 `project/kb/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
 without reinstalling:
@@ -115,7 +115,7 @@ npm install -D vite @vitejs/plugin-react typescript @types/react @types/react-do
   the demo passes endpoints in.
 - `typescript`, `@types/react`, `@types/react-dom`: the SDK ships `.d.ts`, so you get typed options.
 
-Requirements: `@ouo/browser` is ESM only and needs Node `>=24` for the build tooling
+Requirements: `@ouo11y/browser` is ESM only and needs Node `>=24` for the build tooling
 (`engines` in `sdk/browser/package.json`).
 
 ## 2. Endpoint, project credentials and environment
@@ -184,8 +184,8 @@ Create `src/rum.ts`. This is the demo's file, copy it as is (ref:
 stub mechanism, drop the two `__OUO_RUM_STUB__` lines:
 
 ```ts
-// All @ouo/browser usage lives here. Pages import { rum } and never the SDK.
-import { initRUM, type RUM } from "@ouo/browser";
+// All @ouo11y/browser usage lives here. Pages import { rum } and never the SDK.
+import { initRUM, type RUM } from "@ouo11y/browser";
 
 declare const __OUO_RUM_STUB__: boolean;
 
@@ -370,7 +370,7 @@ SID=paste-your-session-id-here
 ```
 
 What you should see in the browser before touching the stack: with `VITE_RUM_DEBUG=1` the
-console shows `[ouo] @ouo/browser@0.2.0 initialised` with `endpoint`, `replayEndpoint`, the
+console shows `[ouo] @ouo11y/browser@0.2.0 initialised` with `endpoint`, `replayEndpoint`, the
 derived `traces`, `logs` and `replay` URLs, `projectId`, session and user (the token is never
 logged). The network tab shows `POST http://localhost:4318/v1/logs` and
 `POST http://localhost:4318/v1/traces` (status 200, request header
@@ -467,14 +467,14 @@ span under the browser span; both carry `session.id` and `user.id` attributes.
 
 ### Grafana
 
-Open http://localhost:3000 (admin / testing567). The ouo RUM app plugin is at:
+Open http://localhost:3000 (admin / testing567). The ouo11y RUM app plugin is at:
 
-- Overview, `http://localhost:3000/a/ouo-rum-app/overview`: healthy / errored / crashed
+- Overview, `http://localhost:3000/a/ouo11y-rum-app/overview`: healthy / errored / crashed
   percentages per platform and app version, from `GET /v1/stats/health`.
-- Sessions, `http://localhost:3000/a/ouo-rum-app/sessions`: the session list with status,
+- Sessions, `http://localhost:3000/a/ouo11y-rum-app/sessions`: the session list with status,
   user, event and trace counts, replay duration; filters for platform, status, version,
   user. Click your session.
-- Session detail, `http://localhost:3000/a/ouo-rum-app/sessions/<id>`: the timeline, the
+- Session detail, `http://localhost:3000/a/ouo11y-rum-app/sessions/<id>`: the timeline, the
   traces with "open in Explore" links, and the rrweb player pinned at the top playing the
   chunks you just uploaded with inputs masked.
 
@@ -498,7 +498,7 @@ Read in this order.
 - `examples/web/index.html`: the Vite entry, loads `/src/main.tsx` as a module.
 - `src/main.tsx`: imports `./rum` first, then mounts `App` inside `BrowserRouter` and
   `CartProvider`. The order of the imports is the whole trick.
-- `src/rum.ts`: the only module that imports `@ouo/browser`. Reads the `VITE_*` variables,
+- `src/rum.ts`: the only module that imports `@ouo11y/browser`. Reads the `VITE_*` variables,
   calls `initRUM`, exports `rum`, `config`, `storedUserId` and `setUser`.
 - `src/api.ts`: typed `fetch` wrapper for the backend (`getProducts`, `addToCart`,
   `checkout`, fault flags `delay` / `fail`, `ApiError` with status). Sets `x-user-id` only;
@@ -521,7 +521,7 @@ Read in this order.
   when you want to test a path in your own app.
 - `src/components/ProductCard.tsx`: presentational only.
 - `src/rum-stub.ts` and `vite.config.ts`: with `VITE_RUM_STUB=1` the alias maps
-  `@ouo/browser` to a console-logging stub with the same interface, so the app builds
+  `@ouo11y/browser` to a console-logging stub with the same interface, so the app builds
   before the SDK is built. Optional for you.
 
 ## 8. Quick walk through the SDK (`sdk/browser/src`)

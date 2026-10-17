@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ZiadMansourM/ouo/examples/backend/internal/telemetry"
+	"github.com/ouo11y/ouo11y/examples/backend/internal/telemetry"
 )
 
 func newTestServer(t *testing.T) (http.Handler, *tracetest.InMemoryExporter) {

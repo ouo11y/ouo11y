@@ -1,6 +1,6 @@
-# Publishes @ouo/browser or @ouo/react-native to npm when a package tag is pushed.
-#   browser-v0.2.0        -> sdk/browser        -> @ouo/browser@0.2.0
-#   react-native-v0.2.0   -> sdk/react-native   -> @ouo/react-native@0.2.0
+# Publishes @ouo11y/browser or @ouo11y/react-native to npm when a package tag is pushed.
+#   browser-v0.2.0        -> sdk/browser        -> @ouo11y/browser@0.2.0
+#   react-native-v0.2.0   -> sdk/react-native   -> @ouo11y/react-native@0.2.0
 # The tag version must equal the version in the workspace package.json (bump it in the
 # release PR first, see docs/releasing.md).
 #

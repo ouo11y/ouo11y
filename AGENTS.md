@@ -4,7 +4,14 @@ Operating manual for every coding agent (and human) working in this repository.
 
 ## What this project is
 
-ouo is an OpenTelemetry-native Real User Monitoring platform. The MVP is defined in `docs/MVP.md`. The long-term vision is in `docs/VISION.md` and is **not** in scope until the MVP is done.
+ouo11y ("ouo" for short) is an OpenTelemetry-native Real User Monitoring platform. This repo is `github.com/ouo11y/ouo11y`. The MVP is defined in `docs/MVP.md`. The long-term vision is in `docs/VISION.md` and is **not** in scope until the MVP is done.
+
+## Names and repos ([ADR-0009](docs/adr/0009-org-and-product-naming.md))
+
+- Published identifiers say `ouo11y`, lowercase: `@ouo11y/browser`, `@ouo11y/react-native`, plugin ID `ouo11y-rum-app`, images `ghcr.io/ouo11y/{collector,grafana,rum-api}`, Go modules `github.com/ouo11y/ouo11y/...`, SwiftPM package `ouo11y-ios`.
+- Code keeps the short name `ouo`: the `ouo.` attribute prefix, the `ouosentry` / `ouoreplay` / `ouoratelimit` components, the Swift modules `OuoReplay` / `OuoReplayCore`, `OUO_*` variables, `ouo-env`, the Helm chart `ouo`. Do not rename these.
+- Three repos: `ouo11y/ouo11y` (this one, the product), `ouo11y/ouo11y-ios` (read-only mirror of `sdk/ios`, written only by `release-ios.yml`), `ouo11y/company` (always private).
+- Business material (pricing, product plan, go-to-market, prospects, pitch kit, contracts, client notes) goes to `ouo11y/company`, never here: this repo may be open-sourced. An engineering file states a business reason in one line and does not link to `company`.
 
 ## Read first, every time
 
@@ -21,7 +28,7 @@ Product at the top, process material under `project/` ([ADR-0010](docs/adr/0010-
 sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
 collector/           ouo-collector (ocb distribution) and its components (Go)
 services/rum-api/    platform service (Go)
-plugins/ouo-rum-app/ Grafana app plugin
+plugins/ouo11y-rum-app/ Grafana app plugin
 deploy/              compose/ (local + VM stack), helm/, vm/, envs/ (ouo-env), images/, scripts/
 examples/            demo web, mobile, sentry-mobile and backend apps; fast-tracked guides
 tests/               end-to-end scenario

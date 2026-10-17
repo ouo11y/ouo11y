@@ -13,11 +13,11 @@ jest.mock('@grafana/runtime', () => ({
 
 function meta(over: Partial<AppPluginMeta<AppSettings>> = {}): AppPluginMeta<AppSettings> {
   return {
-    id: 'ouo-rum-app',
-    name: 'ouo RUM',
+    id: 'ouo11y-rum-app',
+    name: 'ouo11y RUM',
     type: 'app',
-    module: 'plugins/ouo-rum-app/module',
-    baseUrl: 'public/plugins/ouo-rum-app',
+    module: 'plugins/ouo11y-rum-app/module',
+    baseUrl: 'public/plugins/ouo11y-rum-app',
     info: {
       author: { name: 'ouo' },
       description: '',
@@ -67,7 +67,7 @@ describe('AppConfig', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(postedBody()).toMatchObject({
-      url: '/api/plugins/ouo-rum-app/settings',
+      url: '/api/plugins/ouo11y-rum-app/settings',
       method: 'POST',
       data: {
         enabled: true,
@@ -116,10 +116,10 @@ describe('AppConfig', () => {
     expect(screen.getByTestId('probe-healthz')).toHaveTextContent('HTTP 200');
     expect(screen.getByTestId('probe-stats')).toHaveTextContent('HTTP 401');
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ url: '/api/plugin-proxy/ouo-rum-app/rum/healthz' })
+      expect.objectContaining({ url: '/api/plugin-proxy/ouo11y-rum-app/rum/healthz' })
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ url: '/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health?from=now-1h' })
+      expect.objectContaining({ url: '/api/plugin-proxy/ouo11y-rum-app/rum/v1/stats/health?from=now-1h' })
     );
   });
 

@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ZiadMansourM/ouo/examples/backend/internal/api"
-	"github.com/ZiadMansourM/ouo/examples/backend/internal/telemetry"
+	"github.com/ouo11y/ouo11y/examples/backend/internal/api"
+	"github.com/ouo11y/ouo11y/examples/backend/internal/telemetry"
 )
 
 const defaultPort = "8081"

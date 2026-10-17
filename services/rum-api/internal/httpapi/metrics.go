@@ -26,7 +26,7 @@ func newReplayMetrics(mp metric.MeterProvider) replayMetrics {
 	if mp == nil {
 		mp = otel.GetMeterProvider()
 	}
-	m := mp.Meter("github.com/ZiadMansourM/ouo/services/rum-api/internal/httpapi")
+	m := mp.Meter("github.com/ouo11y/ouo11y/services/rum-api/internal/httpapi")
 	chunks, _ := m.Int64Counter("ouo.replay.chunks", metric.WithDescription("Replay chunks stored by project"), metric.WithUnit("{chunk}"))
 	bytes, _ := m.Int64Counter("ouo.replay.bytes", metric.WithDescription("Decompressed replay bytes stored by project"), metric.WithUnit("By"))
 	return replayMetrics{chunks: chunks, bytes: bytes}

@@ -1,16 +1,16 @@
 {
-  "name": "@ouo/browser",
+  "name": "@ouo11y/browser",
   "version": "0.2.0",
   "description": "ouo Real User Monitoring SDK for browsers: OpenTelemetry sessions, errors, fetch tracing, Web Vitals and rrweb replay.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ZiadMansourM/ouo.git",
+    "url": "git+https://github.com/ouo11y/ouo11y.git",
     "directory": "sdk/browser"
   },
-  "homepage": "https://github.com/ZiadMansourM/ouo/tree/main/sdk/browser#readme",
+  "homepage": "https://github.com/ouo11y/ouo11y/tree/main/sdk/browser#readme",
   "bugs": {
-    "url": "https://github.com/ZiadMansourM/ouo/issues"
+    "url": "https://github.com/ouo11y/ouo11y/issues"
   },
   "keywords": [
     "opentelemetry",

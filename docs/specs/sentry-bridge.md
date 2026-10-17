@@ -331,7 +331,7 @@ Clarifications from the implementation (rum-api, 2026-10-14):
 - Meta: `chunks[]` of a video replay carry `duration_ms` and `video_bytes` (mp4 size); `source` is `{vendor, replay_id}` of the first chunk that had one. `segment_id` and `replay_type` stay in the chunk file.
 - Segment endpoint: also `ETag` (size and mtime, so a `seq` replaced within the same second is not served from cache), `Cache-Control: private, no-cache`, `400` for a `seq` outside `0..999999`, `416` for an unsatisfiable range. The manifest's `path` is relative to the rum-api root; the plugin maps it onto its proxy route. Its `source` is `null` when no chunk had one.
 
-Plugin (`plugins/ouo-rum-app`): a video player mounted when `replay_kind` is `video`. One `<video>` element per segment in sequence (preload the next), global time to `(segment, offset)` mapping for the scrubber and timeline markers, touch overlay fading over 500 ms as in the frame player, gaps between segments shown as a still of the last frame.
+Plugin (`plugins/ouo11y-rum-app`): a video player mounted when `replay_kind` is `video`. One `<video>` element per segment in sequence (preload the next), global time to `(segment, offset)` mapping for the scrubber and timeline markers, touch overlay fading over 500 ms as in the frame player, gaps between segments shown as a still of the last frame.
 
 ## 12. Attribute allowlist
 

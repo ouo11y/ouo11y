@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver/internal/metadata"
 )
 
 const (

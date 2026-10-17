@@ -16,7 +16,7 @@ describe('rumGet', () => {
 
   it('builds proxied urls and drops empty params', () => {
     expect(buildUrl('/v1/sessions', { from: 'now-1h', platform: '', limit: 10 })).toBe(
-      '/api/plugin-proxy/ouo-rum-app/rum/v1/sessions?from=now-1h&limit=10'
+      '/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions?from=now-1h&limit=10'
     );
   });
 
@@ -29,7 +29,7 @@ describe('rumGet', () => {
     expect(apiErr.unauthorized).toBe(true);
     expect(apiErr.message).toContain(READ_TOKEN_REJECTED);
     expect(apiErr.message).toContain('OUO_READ_TOKEN');
-    expect(apiErr.url).toBe('/api/plugin-proxy/ouo-rum-app/rum/v1/sessions');
+    expect(apiErr.url).toBe('/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions');
   });
 
   it('keeps the reachability hint for 502 and is not unauthorized', async () => {

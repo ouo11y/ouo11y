@@ -3,12 +3,12 @@
 # SwiftPM needs Package.swift at the root of the repository it clones, so sdk/ios is
 # mirrored with `git subtree split` into a dedicated repository and the version tag is
 # created there:
-#   ios-v0.2.0 (this repo) -> ZiadMansourM/ouo-ios main + tag 0.2.0
+#   ios-v0.2.0 (this repo) -> ouo11y/ouo11y-ios main + tag 0.2.0
 #
 # Required before this can run (see docs/releasing.md):
-#   repository  github.com/ZiadMansourM/ouo-ios   empty, public, no default branch needed
+#   repository  github.com/ouo11y/ouo11y-ios   exists (private, created 2026-10-18); README on branch `about`, main created by this workflow
 #   secret      OUO_IOS_DEPLOY_KEY                 private half of an ed25519 deploy key added to
-#                                                  ouo-ios with "Allow write access"
+#                                                  ouo11y-ios with "Allow write access"
 # Without the secret the workflow runs the tests and exits cleanly with a notice; nothing
 # is pushed anywhere.
 name: release-ios
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  MIRROR_REPO: ZiadMansourM/ouo-ios
+  MIRROR_REPO: ouo11y/ouo11y-ios
   SUBTREE_PREFIX: sdk/ios
 
 jobs:

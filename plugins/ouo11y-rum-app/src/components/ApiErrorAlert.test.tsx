@@ -13,7 +13,7 @@ describe('ApiErrorAlert', () => {
     render(<ApiErrorAlert error={new RumApiError('HTTP 401: rum-api rejected the read token', '/api/x', 401)} />);
     expect(screen.getByTestId('read-token-alert')).toBeInTheDocument();
     expect(screen.getByText('rum-api rejected the read token')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open plugin settings/i })).toHaveAttribute('href', '/plugins/ouo-rum-app');
+    expect(screen.getByRole('link', { name: /open plugin settings/i })).toHaveAttribute('href', '/plugins/ouo11y-rum-app');
     expect(screen.queryByText('rum-api request failed')).not.toBeInTheDocument();
   });
 

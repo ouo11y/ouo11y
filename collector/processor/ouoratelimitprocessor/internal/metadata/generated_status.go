@@ -8,7 +8,7 @@ var (
 	// Type is the component type used in collector configs: processors.ouoratelimit.
 	Type = component.MustNewType("ouoratelimit")
 	// ScopeName is the instrumentation scope of the processor's own telemetry.
-	ScopeName = "github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor"
+	ScopeName = "github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor"
 )
 
 const (

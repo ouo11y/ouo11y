@@ -1,4 +1,4 @@
-package ouoreplayexporter // import "github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter"
+package ouoreplayexporter // import "github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter"
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
-	"github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter/internal/metadata"
 )
 
 // NewFactory returns the factory for the ouoreplay exporter.

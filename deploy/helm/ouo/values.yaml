@@ -5,7 +5,7 @@
 
 nameOverride: ""
 fullnameOverride: ""
-# The ghcr.io/ziadmansourm/ouo images are private until ouo reaches a stable version, so
+# The ghcr.io/ouo11y images are private until ouo reaches a stable version, so
 # the pods need a docker-registry Secret for ghcr.io (README.md, "Pull access"):
 #   kubectl create secret docker-registry ghcr -n ouo --docker-server=ghcr.io \
 #     --docker-username=<github-user> --docker-password="$GHCR_TOKEN"
@@ -49,7 +49,7 @@ readToken: ""
 # -----------------------------------------------------------------------------
 rumApi:
   image:
-    repository: ghcr.io/ziadmansourm/ouo/rum-api
+    repository: ghcr.io/ouo11y/rum-api
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -171,7 +171,7 @@ rumApi:
 collector:
   enabled: true
   image:
-    repository: ghcr.io/ziadmansourm/ouo/collector
+    repository: ghcr.io/ouo11y/collector
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -250,13 +250,13 @@ collector:
   affinity: {}
 
 # -----------------------------------------------------------------------------
-# Grafana with the ouo RUM app plugin baked into the image
+# Grafana with the ouo11y RUM app plugin baked into the image
 # (deploy/images/grafana/Dockerfile).
 # -----------------------------------------------------------------------------
 grafana:
   enabled: true
   image:
-    repository: ghcr.io/ziadmansourm/ouo/grafana
+    repository: ghcr.io/ouo11y/grafana
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1

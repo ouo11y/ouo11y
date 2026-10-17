@@ -1,4 +1,4 @@
-module github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor
+module github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor
 
 go 1.26.0
 

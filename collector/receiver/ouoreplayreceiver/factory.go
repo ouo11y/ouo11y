@@ -1,4 +1,4 @@
-package ouoreplayreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver"
+package ouoreplayreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver"
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver/internal/metadata"
 )
 
 // NewFactory returns the factory for the ouoreplay receiver.

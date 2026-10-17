@@ -17,7 +17,7 @@ long does it take to come up, and what breaks on the way?
 kind create cluster --name ouo-8a                                   # ~60 s incl. node image pull
 docker build -t ouo/collector:dev collector                         # ocb build of the custom distribution
 docker build -t ouo/rum-api:dev services/rum-api                    # ~40 s warm cache
-npm install && npm run -w plugins/ouo-rum-app build                 # dist/ is gitignored, build it first
+npm install && npm run -w plugins/ouo11y-rum-app build                 # dist/ is gitignored, build it first
 docker build -t ouo/grafana:dev -f deploy/images/grafana/Dockerfile .
 kind load docker-image ouo/collector:dev ouo/rum-api:dev ouo/grafana:dev --name ouo-8a
 helm install ouo deploy/helm/ouo -f deploy/helm/ouo/values-kind.yaml
@@ -121,7 +121,7 @@ kind delete cluster --name ouo-8a
   silently ships the old `plugin.json` (this happened once in Phase 8a: the image lacked the
   `Authorization` route header the grafana-plugin agent had just added, and every plugin
   proxy call got 401 from rum-api until the image was rebuilt).
-- The plugin inside the image sits at `/var/lib/grafana/plugins/ouo-rum-app`, which the data
+- The plugin inside the image sits at `/var/lib/grafana/plugins/ouo11y-rum-app`, which the data
   PVC mounted at `/var/lib/grafana` would hide. The chart's `install-plugin` init container
   copies it from the image onto the volume on every start (`cp -a`), so an image upgrade
   upgrades the plugin and user-installed plugins keep persisting.
@@ -169,7 +169,7 @@ touches rum-api rolls it in about 6 s (`Recreate` strategy, one replica on a RWO
 6. **Grafana app provisioning does expand `${ENV}`**: `secureJsonData.readToken: ${OUO_READ_TOKEN}`
    in the provisioning ConfigMap plus `OUO_READ_TOKEN` injected from the rum-api Secret
    gives `secureJsonFields: {readToken: true}` and a working `Authorization: Bearer`
-   on the plugin route proxy (verified: `/api/plugin-proxy/ouo-rum-app/rum/v1/stats/health`
+   on the plugin route proxy (verified: `/api/plugin-proxy/ouo11y-rum-app/rum/v1/stats/health`
    200 with the provisioned value, 401 without the route header).
 7. **Distroless images have no shell**: `kubectl exec` into rum-api, Loki, Tempo, Mimir or
    the collector fails; use `kubectl logs`, the Grafana pod (Alpine, has `sh`, `wget`) or a
@@ -217,7 +217,7 @@ id, client bucket 5/s burst 10): see rotation and rate-limit notes above; replay
 ## Verification that passed (2026-10-10, first draft: rum-api gateway, superseded)
 
 `GET /readyz` -> `{"checks":{"loki":"ok","tempo":"ok"},"ready":true}`; Grafana `/api/health`
-13.2.1 ok; `/api/plugins/ouo-rum-app/settings` enabled, `rumApiUrl=http://ouo-rum-api:8080`,
+13.2.1 ok; `/api/plugins/ouo11y-rum-app/settings` enabled, `rumApiUrl=http://ouo-rum-api:8080`,
 `secureJsonFields.readToken=true`; `POST /ingest/otlp/v1/traces` 401 without token, 403 with
 `Origin: https://evil.example`, 200 `{"partialSuccess":{}}` with the token; the trace found in
 Tempo by `{ span.session.id = "<id>" }` after 31 s with resource attribute

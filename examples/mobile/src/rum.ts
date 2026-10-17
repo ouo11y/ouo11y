@@ -1,4 +1,4 @@
-import { initRUM, type RUM } from "@ouo/react-native";
+import { initRUM, type RUM } from "@ouo11y/react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 

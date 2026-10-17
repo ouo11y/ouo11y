@@ -1,4 +1,4 @@
-// Android side of @ouo/react-native: a no-op OuoReplayModule so Expo autolinking and the
+// Android side of @ouo11y/react-native: a no-op OuoReplayModule so Expo autolinking and the
 // Android build do not break. Replay capture on Android is a later phase (ADR-0006).
 plugins {
   id 'com.android.library'

@@ -1,4 +1,7 @@
-# ouo
+# ouo11y
+
+*Open Unified Observability.* Say "oh-you-oh-eleven-why", or **"ouo"** for short; always written
+lowercase ([ADR-0009](docs/adr/0009-org-and-product-naming.md)).
 
 OpenTelemetry-native Real User Monitoring. Browser and React Native SDKs emit sessions, errors,
 traces and (web) rrweb replay through an OpenTelemetry Collector into Loki, Tempo and Mimir;
@@ -27,15 +30,15 @@ deploy/scripts/wait-ready.sh
 npm install
 npm run -w sdk/browser build
 npm run -w sdk/react-native build
-npm run -w plugins/ouo-rum-app build                 # dist/ is bind-mounted into Grafana
+npm run -w plugins/ouo11y-rum-app build                 # dist/ is bind-mounted into Grafana
 docker compose -f deploy/compose/compose.yaml restart grafana
 
-# 3. the web demo (storefront instrumented with @ouo/browser)
+# 3. the web demo (storefront instrumented with @ouo11y/browser)
 npm run -w examples/web dev                          # http://localhost:5173
 ```
 
 Open Grafana at `http://localhost:${OUO_GRAFANA_PORT:-3000}` (admin / testing567) and go to
-**More apps -> ouo RUM** (`/a/ouo-rum-app`): Overview (health by platform and version),
+**More apps -> ouo11y RUM** (`/a/ouo11y-rum-app`): Overview (health by platform and version),
 Sessions (filters, status, user, traces, replay), Session detail (timeline, traces with
 Explore links, rrweb replay). Use the web demo's Chaos page to produce errored and crashed
 sessions. The mobile demo is in `examples/mobile` (Expo; see its README).
@@ -49,17 +52,17 @@ deploy/scripts/smoke.sh                              # 1 trace, 1 log, 1 metric 
 ```
 
 Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
-`npm run -w plugins/ouo-rum-app test`, `cd services/rum-api && go test ./...`,
+`npm run -w plugins/ouo11y-rum-app test`, `cd services/rum-api && go test ./...`,
 `cd examples/backend && go test ./...`.
 
 ## Where things live
 
 | Path | What |
 |---|---|
-| `sdk/browser`, `sdk/react-native`, `sdk/ios` | the SDKs (`@ouo/browser`, `@ouo/react-native`, `OuoReplay`) |
+| `sdk/browser`, `sdk/react-native`, `sdk/ios` | the SDKs (`@ouo11y/browser`, `@ouo11y/react-native`, `OuoReplay`) |
 | `collector/` | `ouo-collector`, the OpenTelemetry Collector distribution that is the only ingest (replay, Sentry bridge, rate limit) |
 | `services/rum-api` | Go service: session aggregation, replay storage, JSON API |
-| `plugins/ouo-rum-app` | the Grafana app plugin |
+| `plugins/ouo11y-rum-app` | the Grafana app plugin |
 | `deploy/` | `compose/` local stack and configs, `helm/` chart, `vm/` single-VM install, `envs/` named local environments (`ouo-env`), `images/`, `scripts/` |
 | `examples/web`, `examples/mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
 | `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |

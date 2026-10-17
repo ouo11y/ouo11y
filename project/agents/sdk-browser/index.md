@@ -1,6 +1,6 @@
 # sdk-browser
 
-Owns `sdk/browser` (`@ouo/browser`).
+Owns `sdk/browser` (`@ouo11y/browser`).
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries

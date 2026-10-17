@@ -1,4 +1,4 @@
-package ouoreplayreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver"
+package ouoreplayreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver"
 
 import (
 	"errors"

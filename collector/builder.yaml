@@ -8,7 +8,7 @@
 # use builder v0.160.0 to match, a newer builder rejects older component versions under
 # its strict versioning check. Bump all of them together.
 dist:
-  module: github.com/ZiadMansourM/ouo/collector/dist
+  module: github.com/ouo11y/ouo11y/collector/dist
   name: ouo-collector
   description: ouo OpenTelemetry Collector distribution (OTLP, replay and Sentry SDK ingest edge)
   version: 0.2.0
@@ -20,8 +20,8 @@ extensions:
 
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
-  - gomod: github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver v0.0.0
-  - gomod: github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver v0.0.0
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.160.0
@@ -29,13 +29,13 @@ processors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.160.0
-  - gomod: github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor v0.0.0
 
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
-  - gomod: github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter v0.0.0
 
 # routing: sends the Sentry bridge's replay chunk records (ouo.replay.chunk=true) to the
 # replay pipeline and everything else to the logs pipeline (ADR-0008).
@@ -50,7 +50,7 @@ providers:
 # Our components live in this repository; the generated go.mod is in
 # output_path, so the paths are relative to collector/dist.
 replaces:
-  - github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver => ../receiver/ouoreplayreceiver
-  - github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver => ../receiver/ouosentryreceiver
-  - github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter => ../exporter/ouoreplayexporter
-  - github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor => ../processor/ouoratelimitprocessor
+  - github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver => ../receiver/ouoreplayreceiver
+  - github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver => ../receiver/ouosentryreceiver
+  - github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter => ../exporter/ouoreplayexporter
+  - github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor => ../processor/ouoratelimitprocessor

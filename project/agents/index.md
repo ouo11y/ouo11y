@@ -10,7 +10,7 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [sdk-browser](sdk-browser/) | `sdk/browser` | 2 |
 | [web-demo](web-demo/) | `examples/web` | 2 |
 | [rum-api](rum-api/) | `services/rum-api` | 3 |
-| [grafana-plugin](grafana-plugin/) | `plugins/ouo-rum-app` | 4 |
+| [grafana-plugin](grafana-plugin/) | `plugins/ouo11y-rum-app` | 4 |
 | [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/mobile` | 5 |
 | [qa](qa/) | end-to-end verification, `project/reports/` | 6 |
 | [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/mobile` | 7 |
@@ -18,6 +18,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/compose/collector/` config and htpasswd | 8a |
 | [helm](helm/) | `deploy/helm` Kubernetes chart and kind verification | 8a |
 | [release](release/) | versioning, changelogs, package publishing workflows, upgrade procedure (`.github/`, `CHANGELOG.md`, package manifests) | 8a |
-| [sentry-demo](sentry-demo/) | `examples/sentry-mobile` (Expo iOS app with `@sentry/react-native`, `ouo.rum.mode` rollout switch to `@ouo/react-native`, journey driver, envelope capture for the Sentry bridge) | ADR-0008 |
+| [sentry-demo](sentry-demo/) | `examples/sentry-mobile` (Expo iOS app with `@sentry/react-native`, `ouo.rum.mode` rollout switch to `@ouo11y/react-native`, journey driver, envelope capture for the Sentry bridge) | ADR-0008 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

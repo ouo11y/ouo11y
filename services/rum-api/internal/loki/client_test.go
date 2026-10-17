@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
 )
 
 func TestFiltersQuery(t *testing.T) {

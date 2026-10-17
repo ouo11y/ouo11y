@@ -6,15 +6,15 @@ metadata:
   labels:
     {{- include "ouo.labels" (dict "root" . "component" "grafana") | nindent 4 }}
 data:
-  ouo-rum-app.yaml: |
-    # Enables the ouo RUM app plugin baked into the image and points its "rum" route at
+  ouo11y-rum-app.yaml: |
+    # Enables the ouo11y RUM app plugin baked into the image and points its "rum" route at
     # rum-api. ${OUO_READ_TOKEN} is expanded by the Grafana provisioner from the
     # container environment (injected from the rum-api Secret), so the read token is
     # never written into this ConfigMap (ADR-0007 section 6).
     apiVersion: 1
 
     apps:
-      - type: ouo-rum-app
+      - type: ouo11y-rum-app
         org_id: 1
         disabled: false
         jsonData:

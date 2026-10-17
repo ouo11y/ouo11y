@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@ouo/browser`. The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
+All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
 ## 0.2.0 - unreleased
 
@@ -8,6 +8,7 @@ The OpenTelemetry Collector is the only edge (ADR-0007). The SDK posts OTLP stra
 
 ### Breaking
 
+- Package renamed `@ouo/browser` -> `@ouo11y/browser` (ADR-0009; never published under the old name). `ouo.sdk.name` and the OTel instrumentation scope name are `@ouo11y/browser`; data stored before the rename keeps `@ouo/browser`.
 - `projectId: string` and `projectToken: string` are **required**. Every ingest request (OTLP and replay) carries `Authorization: Basic base64(projectId + ":" + projectToken)`. `initRUM` throws `[ouo] initRUM: \`projectId\` is required ...` / `\`projectToken\` is required ...` when either is missing or empty (and when the id contains `:`), before any provider, listener or storage write happens. The token is a public project identifier, not a secret.
 - `endpoint` is the **collector OTLP/HTTP base** (for example `https://otel.example.com` or `http://localhost:4318`); OTLP goes to `${endpoint}/v1/traces` and `/v1/logs`. In 0.1.x it was the same URL without authentication.
 - `replayEndpoint` is now **optional** and points at the collector's replay receiver, not rum-api. Default: when `endpoint` uses port `4318`, the same scheme and host on port `4319`; otherwise `endpoint` itself (a reverse proxy routing `/v1/replay/*`). Chunks go to `${replayEndpoint}/v1/replay/chunks`. Replay is on unless `replay.enabled: false` (in 0.1.x it was silently disabled when `replayEndpoint` was absent).

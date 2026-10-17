@@ -1,4 +1,4 @@
-# 30. Add ouo RUM and screenshot replay to your React Native (Expo) app, iOS
+# 30. Add ouo11y RUM and screenshot replay to your React Native (Expo) app, iOS
 
 This guide is for an engineer who has their own Expo app and wants sessions, errors, crashes,
 fetch traces and screenshot replay from it in the ouo stack, running on a Mac with the latest
@@ -9,7 +9,7 @@ macOS (27.x) and Xcode 27. It assumes the local stack from `00-stack.md` is up: 
 
 Everything below was checked against this repository on 2026-10-10 (macOS 27.0.1, Xcode 27.0,
 iOS 27.0 simulator runtime, CocoaPods 1.17, Node 24.15, Expo SDK 57, React Native 0.86,
-`@ouo/react-native` 0.2.0). Anything that could not be checked in the repo is marked
+`@ouo11y/react-native` 0.2.0). Anything that could not be checked in the repo is marked
 **not verified in this repo**. The 0.2.0 init shape (`endpoint` = collector, `projectId` +
 `projectToken` as HTTP Basic) is verified with unit tests and a local stub; the live run against
 the Phase 8a collector is owed to the QA pass (see the note in section 7).
@@ -36,7 +36,7 @@ Every request above carries `Authorization: Basic base64("<project id>:<project 
 limits apply, a `resource` processor stamps `ouo.project.id` from the authenticated user name, and
 the pipelines export to Tempo and Loki; replay chunks take the `ouoreplay` receiver and exporter to
 rum-api's internal chunk sink. rum-api folds the Loki events into session records (`healthy` /
-`errored` / `crashed`), and the Grafana app plugin (`ouo-rum-app`) lists them and plays the frames.
+`errored` / `crashed`), and the Grafana app plugin (`ouo11y-rum-app`) lists them and plays the frames.
 
 ---
 
@@ -163,7 +163,7 @@ Kubernetes); the token is public by design, so putting it in the app bundle is e
 
 ## 3. Get the SDK into your app
 
-`@ouo/react-native` 0.2.0 is packaged for npm (`npm pack --dry-run -w sdk/react-native` lists
+`@ouo11y/react-native` 0.2.0 is packaged for npm (`npm pack --dry-run -w sdk/react-native` lists
 `dist/`, `ios/` with the vendored Swift sources, `android/`, `expo-module.config.json`) but not
 published yet. Until it is, you consume it from a local checkout of this repository through an
 npm `file:` link, exactly like `examples/mobile` does.
@@ -197,8 +197,8 @@ app uses).
 npm install ../path/to/ouo/sdk/react-native
 ```
 
-That writes `"@ouo/react-native": "file:../path/to/ouo/sdk/react-native"` into your
-`package.json` and creates the symlink `node_modules/@ouo/react-native`. The SDK: OTel
+That writes `"@ouo11y/react-native": "file:../path/to/ouo/sdk/react-native"` into your
+`package.json` and creates the symlink `node_modules/@ouo11y/react-native`. The SDK: OTel
 sessions, errors, fetch tracing, and the Expo native module for replay.
 
 ```bash
@@ -243,7 +243,7 @@ Metro has to be told how to serve a package that lives outside the app. Copy
 path. Full file:
 
 ```js
-// Metro config for consuming @ouo/react-native through a `file:` link (a symlink into
+// Metro config for consuming @ouo11y/react-native through a `file:` link (a symlink into
 // ../../sdk/react-native). See project/kb/otel-react-native.md.
 const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
@@ -486,7 +486,7 @@ module.exports = function withUIScene(config) {
 This is the file you edit. Full reference version:
 
 ```ts
-import { initRUM, type RUM } from "@ouo/react-native";
+import { initRUM, type RUM } from "@ouo11y/react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 
@@ -634,7 +634,7 @@ rectangles are clipped to the window and merged when they overlap.
 `examples/mobile/App.tsx`, trimmed to the SDK-related lines:
 
 ```tsx
-import { RUMProvider, navigationStateListener } from "@ouo/react-native";
+import { RUMProvider, navigationStateListener } from "@ouo11y/react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { LogBox } from "react-native";
 import { rum } from "./src/rum";
@@ -788,7 +788,7 @@ The simulator shares the Mac's network namespace, so `localhost` inside the app 
 ### 6.4 Read the logs
 
 JS side (`debug: __DEV__`): Metro's terminal prints `[ouo] ...` lines:
-`[ouo] shims {...}`, `[ouo] @ouo/react-native@0.2.0 initialised {endpoint, traces, logs,
+`[ouo] shims {...}`, `[ouo] @ouo11y/react-native@0.2.0 initialised {endpoint, traces, logs,
 replayChunks, replayEndpointDerived, projectId, projectToken: "pt_dev_d…", ...}`, `[ouo] session
 ready <id>`, `[ouo] replay: started {endpoint, ...}`, `[ouo] event navigation {...}`. A `401`
 from the collector shows up as `[ouo:otel] export response failure (status: 401)`: wrong project
@@ -833,7 +833,7 @@ published for apps; Grafana is the only other public service.
  iOS Simulator (same network namespace as the Mac)              Docker (deploy/compose/compose.yaml)
  +-----------------------------------------------+     +------------------------------------------------------+
  |  your app                                     |     |  ouo-collector (public ingest, ADR-0007)             |
- |  @ouo/react-native (JS, Hermes)               |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
+ |  @ouo11y/react-native (JS, Hermes)               |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
  |    POST {endpoint}/v1/traces ---------------------->|     ouoratelimit -> resource: ouo.project.id=<user>  |
  |    POST {endpoint}/v1/logs   ---------------------->|       -> tempo :4317 (spans)                         |
  |    Authorization: Basic b64(projectId:token)  |     |       -> loki  :3100 (events)                        |
@@ -845,7 +845,7 @@ published for apps; Grafana is the only other public service.
  |    replayEndpoint = http://localhost:4319     |     |                                                      |
  |                                               |     |  rum-api :8080 (loopback only on the host)           |
  |  fetch("http://localhost:8081/api/...") ----------->|  demo backend :8081 (traceparent, baggage)           |
- +-----------------------------------------------+     |  grafana :3000  ouo-rum-app --> rum-api (read token) |
+ +-----------------------------------------------+     |  grafana :3000  ouo11y-rum-app --> rum-api (read token) |
                                                        +------------------------------------------------------+
 ```
 
@@ -926,7 +926,7 @@ after the first spans arrive. Wait, then re-query.
 
 ### 7.2 Verify in Grafana
 
-Open `http://localhost:3000/a/ouo-rum-app/sessions` (admin / testing567), filter platform
+Open `http://localhost:3000/a/ouo11y-rum-app/sessions` (admin / testing567), filter platform
 `mobile`, open your session: the timeline shows `session.start`, `navigation`, `exception`,
 `http.request.failed` and custom events, the traces panel links into Tempo, and the replay panel
 mounts the frame player (`replay_kind: "frames"`) with play / pause, a scrubber and touch

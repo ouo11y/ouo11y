@@ -13,10 +13,10 @@ Pod::Spec.new do |s|
   s.description    = 'Pure Swift core of the OuoReplay package. Vendored from sdk/ios by the SDK build.'
   s.license        = package['license']
   s.author         = 'ouo'
-  s.homepage       = 'https://github.com/ZiadMansourM/ouo'
+  s.homepage       = 'https://github.com/ouo11y/ouo11y'
   s.platforms      = { :ios => '15.0' }
   s.swift_version  = '5.9'
-  s.source         = { git: 'https://github.com/ZiadMansourM/ouo.git' }
+  s.source         = { git: 'https://github.com/ouo11y/ouo11y.git' }
   s.static_framework = true
   s.libraries      = 'z'
 

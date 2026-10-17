@@ -8,6 +8,10 @@ its `ouoreplay` receiver for replay chunks. rum-api is internal and never addres
 
 ### Breaking changes
 
+- Package renamed `@ouo/react-native` -> `@ouo11y/react-native` (ADR-0009; never published under the old
+  name). `ouo.sdk.name` and the OTel instrumentation scope name are `@ouo11y/react-native`; data stored
+  before the rename keeps `@ouo/react-native`. The CocoaPods specs (`OuoReactNative`, `OuoReplay`,
+  `OuoReplayCore`) keep their names and point at `github.com/ouo11y/ouo11y`.
 - `initRUM({ endpoint })` is the **collector OTLP/HTTP base URL** (for example
   `https://otel.example.com` or `http://localhost:4318`). The SDK posts to `${endpoint}/v1/traces`
   and `${endpoint}/v1/logs`.

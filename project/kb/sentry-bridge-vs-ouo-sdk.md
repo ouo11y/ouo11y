@@ -1,7 +1,7 @@
 # What the Sentry bridge shows vs the ouo React Native SDK (measured 2026-10-17)
 
 The same journey with real simulator taps in `examples/sentry-mobile` parallel mode (`OUO_SDK=1`):
-`@sentry/react-native` 8.30.0 through the ouosentry bridge, and `@ouo/react-native` 0.2.0 in the same app.
+`@sentry/react-native` 8.30.0 through the ouosentry bridge, and `@ouo11y/react-native` 0.2.0 in the same app.
 Stack: released 0.2.0 images, isolated compose project `ouo-cmp`. Three runs:
 1. ouo replay on, ouo navigation not wired.
 2. ouo replay off, navigation wired.

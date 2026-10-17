@@ -1,7 +1,7 @@
 # grafana plugin: video replay through the plugin proxy
 
 Status: verified 2026-10-14 by grafana-plugin (plugin 0.4.0, Grafana 13.2.1, isolated stack `ouo-sb`).
-Code: `plugins/ouo-rum-app/src/components/VideoPlayer.tsx`, `src/utils/video.ts`,
+Code: `plugins/ouo11y-rum-app/src/components/VideoPlayer.tsx`, `src/utils/video.ts`,
 `src/hooks/usePlaybackClock.ts`. Server side: `project/kb/video-replay-serving.md`, ADR-0008, `docs/specs/sentry-bridge.md` section 11.
 
 ## Question
@@ -11,7 +11,7 @@ Can the plugin play rum-api's mp4 segments (`kind: "video"`) with a plain `<vide
 
 ## What works
 
-- **`<video src="/api/plugin-proxy/ouo-rum-app/rum/v1/sessions/<id>/replay/video/<seq>">`.** Same origin as
+- **`<video src="/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay/video/<seq>">`.** Same origin as
   Grafana, so the browser sends the Grafana session cookie; the `rum/*` route adds the read token server-side
   (ADR-0007). No blob/object-URL fallback is needed. The manifest's `path` is relative to the rum-api root and is
   prefixed with the proxy base (`videoSegmentUrl`, which ignores anything that is not a `/v1/` path).

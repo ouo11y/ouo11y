@@ -18,13 +18,13 @@ is only an index.
 
 | Package | Source | Version lives in | Tag | Published as | Workflow |
 |---|---|---|---|---|---|
-| `@ouo/browser` | `sdk/browser` | `package.json` | `browser-v<semver>` | npm, `@ouo/browser` | `release-npm.yml` |
-| `@ouo/react-native` | `sdk/react-native` | `package.json` | `react-native-v<semver>` | npm, `@ouo/react-native` | `release-npm.yml` |
-| `OuoReplay` (Swift package) | `sdk/ios` | git tag only (SwiftPM has no manifest version) | `ios-v<semver>` | mirror repo `ZiadMansourM/ouo-ios`, tag `<semver>` | `release-ios.yml` |
-| `ouo-rum-app` (Grafana app plugin) | `plugins/ouo-rum-app` | `package.json` (copied into `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo-rum-app-<semver>.zip` | `release-plugin.yml` |
-| `rum-api` image | `services/rum-api` | the tag | `rum-api-v<semver>` | `ghcr.io/ziadmansourm/ouo/rum-api:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
-| `grafana` image (Grafana + plugin baked in) | `deploy/images/grafana` | the tag | `grafana-v<semver>` | `ghcr.io/ziadmansourm/ouo/grafana:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
-| `collector` image (ouo-collector, ocb distribution) | `collector` | `collector/builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ziadmansourm/ouo/collector:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
+| `@ouo11y/browser` | `sdk/browser` | `package.json` | `browser-v<semver>` | npm, `@ouo11y/browser` | `release-npm.yml` |
+| `@ouo11y/react-native` | `sdk/react-native` | `package.json` | `react-native-v<semver>` | npm, `@ouo11y/react-native` | `release-npm.yml` |
+| `OuoReplay` (Swift package) | `sdk/ios` | git tag only (SwiftPM has no manifest version) | `ios-v<semver>` | mirror repo `ouo11y/ouo11y-ios`, tag `<semver>` | `release-ios.yml` |
+| `ouo11y-rum-app` (Grafana app plugin) | `plugins/ouo11y-rum-app` | `package.json` (copied into `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
+| `rum-api` image | `services/rum-api` | the tag | `rum-api-v<semver>` | `ghcr.io/ouo11y/rum-api:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
+| `grafana` image (Grafana + plugin baked in) | `deploy/images/grafana` | the tag | `grafana-v<semver>` | `ghcr.io/ouo11y/grafana:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
+| `collector` image (ouo-collector, ocb distribution) | `collector` | `collector/builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
 | Helm chart `ouo` | `deploy/helm/ouo` | `Chart.yaml` `version` (`appVersion` = rum-api version it defaults to) | `chart-v<semver>` | not published yet (`helm package` by hand, OCI push is Phase 8c) | none yet |
 
 Tag format is always `<package>-v<major>.<minor>.<patch>[-<pre>]`. The `<package>` prefix is
@@ -49,7 +49,7 @@ Image-specific rules:
 - **collector**: version = `dist.version` in `collector/builder.yaml`; the workflow refuses a
   tag that differs. Bump it in the PR that changes the collector. First release `0.2.0`.
 - **grafana**: its own series; the release notes name the Grafana base image and the
-  `ouo-rum-app` plugin version baked in. Any plugin release that should reach image users
+  `ouo11y-rum-app` plugin version baked in. Any plugin release that should reach image users
   needs a grafana image release too. First release `0.2.0`.
 
 The `0.2.0` starting point matches the Helm chart defaults (`deploy/helm/ouo/values.yaml`)
@@ -107,13 +107,13 @@ Package-specific rules:
 
 ```
 PR merged with a version bump      nothing is published; CI (ci.yml) ran on the PR
-git tag browser-v0.2.0             release-npm.yml       -> npm publish @ouo/browser@0.2.0 (provenance)
-git tag react-native-v0.2.0        release-npm.yml       -> npm publish @ouo/react-native@0.2.0
-git tag ios-v0.2.0                 release-ios.yml       -> subtree split sdk/ios -> ouo-ios main + tag 0.2.0
-git tag plugin-v0.3.0              release-plugin.yml    -> GitHub release plugin-v0.3.0 with ouo-rum-app-0.3.0.zip (+ .sha1, .md5)
-git tag rum-api-v0.2.0             release-images.yml    -> ghcr.io/ziadmansourm/ouo/rum-api:0.2.0, :0.2, :latest (amd64 + arm64)
-git tag grafana-v0.2.0             release-images.yml    -> ghcr.io/ziadmansourm/ouo/grafana:0.2.0, :0.2, :latest
-git tag collector-v0.2.0           release-images.yml    -> ghcr.io/ziadmansourm/ouo/collector:0.2.0, :0.2, :latest
+git tag browser-v0.2.0             release-npm.yml       -> npm publish @ouo11y/browser@0.2.0 (provenance)
+git tag react-native-v0.2.0        release-npm.yml       -> npm publish @ouo11y/react-native@0.2.0
+git tag ios-v0.2.0                 release-ios.yml       -> subtree split sdk/ios -> ouo11y-ios main + tag 0.2.0
+git tag plugin-v0.3.0              release-plugin.yml    -> GitHub release plugin-v0.3.0 with ouo11y-rum-app-0.3.0.zip (+ .sha1, .md5)
+git tag rum-api-v0.2.0             release-images.yml    -> ghcr.io/ouo11y/rum-api:0.2.0, :0.2, :latest (amd64 + arm64)
+git tag grafana-v0.2.0             release-images.yml    -> ghcr.io/ouo11y/grafana:0.2.0, :0.2, :latest
+git tag collector-v0.2.0           release-images.yml    -> ghcr.io/ouo11y/collector:0.2.0, :0.2, :latest
   (every image tag also creates a GitHub release with notes: changelog section + commits)
 Actions > release-images > Run      dry run of a given tag: builds both platforms, prints notes, pushes nothing
 pull request                       ci.yml `images` job: builds the three images (amd64, no push) and smoke-runs them
@@ -140,6 +140,26 @@ dist-tags for pre-releases are not automated: publish with `npm dist-tag` by han
 5. For a rum-api or chart release, run the upgrade procedure from the previous release on the
    compose path and record it in `project/agents/qa/`.
 
+### Next image release after the rename (proposed 2026-10-18, needs the founder's yes)
+
+The 0.2.0 images exist only as `ghcr.io/ziadmansourm/ouo/{rum-api,collector,grafana}:0.2.0`, and
+grafana 0.2.0 carries the plugin as `ouo-rum-app`. Every pin in the repo now names
+`ghcr.io/ouo11y/*`, so `compose.images.yaml`, the Helm defaults and the VM `--images` mode pull
+nothing until the next tags exist. Proposed:
+
+| Tag | Why this version | Publishes |
+|---|---|---|
+| `rum-api-v0.3.0` | no API change since 0.2.0, but the three images move registry together and are verified together as the first `ouo11y` set; a minor bump keeps them aligned | `ghcr.io/ouo11y/rum-api:0.3.0`, `:0.3`, `:latest` |
+| `collector-v0.3.0` | the Unreleased `ouo.rum.mode = sentry` attribute (a feature) plus the rename; needs `builder.yaml` `dist.version: 0.3.0` first | `ghcr.io/ouo11y/collector:0.3.0`, `:0.3`, `:latest` |
+| `grafana-v0.3.0` | plugin 0.7.0 inside, whose ID change is breaking | `ghcr.io/ouo11y/grafana:0.3.0`, `:0.3`, `:latest` |
+
+Order: a release PR (move each Unreleased section under its version, `dist.version: 0.3.0`),
+then the three tags, then the pin bump in step 10 of section 6. Before the first push, the
+`ouo11y` org must allow `GITHUB_TOKEN` to create packages (Organization settings > Packages),
+and after it each new package needs its Read grants again (section 8): grants on the old
+`ziadmansourm/ouo/*` packages do not carry over. The old packages stay where they are; delete
+them only on the founder's word once nothing pulls them.
+
 ## 6. Checklist: container image release
 
 Before the tag:
@@ -155,7 +175,7 @@ Before the tag:
    tag, e.g. `rum-api-v0.2.0`. It builds amd64 + arm64, checks the version and prints the
    release notes in the run summary; nothing is pushed.
 6. [ ] Ask the founder in chat: exact tag names, the image refs they create
-   (`ghcr.io/ziadmansourm/ouo/<image>:<version>` plus `:<major>.<minor>` and `:latest` for
+   (`ghcr.io/ouo11y/<image>:<version>` plus `:<major>.<minor>` and `:latest` for
    a final). Packages stay private (see "Pull access"); making one public is a separate
    founder decision. Wait for yes.
 
@@ -180,7 +200,7 @@ After the tag:
    connect it to the repository and leave visibility **private** (founder decision until ouo
    is stable); grant Read under Manage access to everyone who already has access to the other
    ouo packages. Pulls need a `docker login ghcr.io` ("Pull access").
-9. [ ] `docker buildx imagetools inspect ghcr.io/ziadmansourm/ouo/<image>:<version>` shows
+9. [ ] `docker buildx imagetools inspect ghcr.io/ouo11y/<image>:<version>` shows
    `linux/amd64` and `linux/arm64` (plus `unknown/unknown` attestation entries).
 10. [ ] Bump the pins that should follow: `deploy/compose/.env.example` and the defaults in
     `deploy/compose/compose.images.yaml`, `deploy/helm/ouo/values.yaml` (chart patch bump),
@@ -199,19 +219,19 @@ pushed tag and never overwrite a published image tag.
 
 | Package | Commands |
 |---|---|
-| `@ouo/browser` | `npm run build -w sdk/browser && npm run test -w sdk/browser && npm pack --dry-run -w sdk/browser` |
-| `@ouo/react-native` | `npm run build -w sdk/react-native && npm run test -w sdk/react-native && npm pack --dry-run -w sdk/react-native` |
+| `@ouo11y/browser` | `npm run build -w sdk/browser && npm run test -w sdk/browser && npm pack --dry-run -w sdk/browser` |
+| `@ouo11y/react-native` | `npm run build -w sdk/react-native && npm run test -w sdk/react-native && npm pack --dry-run -w sdk/react-native` |
 | `OuoReplay` | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
-| plugin | `npm run build -w plugins/ouo-rum-app && npm run test -w plugins/ouo-rum-app && npm run lint -w plugins/ouo-rum-app` |
+| plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
 | rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` and `docker build -t ouo/rum-api:release-check services/rum-api` |
 | collector | `docker buildx build --platform linux/amd64,linux/arm64 collector` and `docker run --rm <image> --version` (prints `dist.version`) |
-| grafana image | `npm run build -w plugins/ouo-rum-app && docker buildx build --platform linux/amd64,linux/arm64 -f deploy/images/grafana/Dockerfile .` |
+| grafana image | `npm run build -w plugins/ouo11y-rum-app && docker buildx build --platform linux/amd64,linux/arm64 -f deploy/images/grafana/Dockerfile .` |
 | chart | `helm lint deploy/helm/ouo` and the kind check in `project/agents/helm/` |
 | workflows | `actionlint` (Homebrew `brew install actionlint`) |
 
 ## 8. Pull access (packages are private until ouo is stable)
 
-Founder decision (2026-10-17): the `ghcr.io/ziadmansourm/ouo/*` packages stay **private**
+Founder decision (2026-10-17): the `ghcr.io/ouo11y/*` packages stay **private**
 until ouo reaches a stable version. Anyone pulling them (examples, verification, clients)
 logs in first:
 
@@ -242,7 +262,7 @@ Nothing publishes until these exist. Set them in the GitHub repository settings
 | `GITHUB_TOKEN` | automatic | `release-images.yml`, `release-plugin.yml` | nothing to create. After the first image push, open the package on GitHub and link it to the repository. Visibility stays private until ouo is stable (founder decision 2026-10-17), so every pull needs `docker login ghcr.io` with a classic `read:packages` token; see section 8, "Pull access". |
 | `GRAFANA_ACCESS_POLICY_TOKEN` | secret, optional | `release-plugin.yml` | grafana.com account, "My account > Security > Access policies", scope `plugins:write`, realm the publishing org. Without it the plugin is released unsigned. |
 | `GRAFANA_ROOT_URLS` | variable, optional | `release-plugin.yml` | comma separated Grafana root URLs the private signature is valid for (e.g. `https://grafana.pilot.example.com`). Required when the token is set. |
-| `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ZiadMansourM/ouo-ios`; paste the private file as the secret; delete the local copies. The repository `ZiadMansourM/ouo-ios` must exist (empty is fine). Without it the workflow tests and exits with a notice. |
+| `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ouo11y/ouo11y-ios`; paste the private file as the secret; delete the local copies. The repository `ouo11y/ouo11y-ios` exists (private, created 2026-10-18) with only a README on its default branch `about`, so `main` is created by the first push and fast-forwards; after that push, make `main` the default branch and delete `about`. Without it the workflow tests and exits with a notice. |
 
 Provenance (`npm publish --provenance`) additionally requires the repository to be public
 and the `repository.url` in each SDK `package.json` to point at it; both are in place.
@@ -256,11 +276,11 @@ and the `repository.url` in each SDK `package.json` to point at it; both are in 
   latest version, plus a "release trains" table recording which versions were released and
   verified together. It never repeats per-package entries.
 - The plugin release workflow extracts the matching version section from
-  `plugins/ouo-rum-app/CHANGELOG.md` for the GitHub release notes.
+  `plugins/ouo11y-rum-app/CHANGELOG.md` for the GitHub release notes.
 
 ## 11. Not automated (yet)
 
-- Helm chart publishing to an OCI registry (`helm push` to `oci://ghcr.io/ziadmansourm/ouo/charts`): Phase 8c, once the chart has been through a kind upgrade test.
+- Helm chart publishing to an OCI registry (`helm push` to `oci://ghcr.io/ouo11y/charts`): Phase 8c, once the chart has been through a kind upgrade test.
 - Signed git tags and SBOM attestations for npm packages: product-plan checklist "before the first paid subscription".
 - Grafana catalog (community or commercial signature) submission: needs the trademark and name check from the product plan first.
 - Android package: Phase 10.
