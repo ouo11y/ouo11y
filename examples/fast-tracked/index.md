@@ -23,7 +23,7 @@ The guides use the default host ports from `deploy/docker/.env.example`. If any 
 
 | Service | Default |
 |---|---|
-| Grafana | http://localhost:3000 (admin / admin) |
+| Grafana | http://localhost:3000 (admin / testing567) |
 | OTel Collector OTLP/HTTP | http://localhost:4318 |
 | OTel Collector OTLP/gRPC | localhost:4317 |
 | rum-api | http://localhost:8080 |

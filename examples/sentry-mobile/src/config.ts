@@ -19,6 +19,11 @@ interface Extra {
   ouoReplayEndpoint: string;
   ouoProjectId: string;
   ouoProjectToken: string;
+  /**
+   * Built with OUO_PERF=1: Documents/perf-mode.json overrides the rollout mode per launch
+   * (scripts/perf, src/rollout.ts) and src/perf.ts records JS frames.
+   */
+  perfModes: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -40,4 +45,5 @@ export const config: Extra = {
   ouoReplayEndpoint: extra.ouoReplayEndpoint ?? "http://localhost:4339",
   ouoProjectId: extra.ouoProjectId ?? "demo",
   ouoProjectToken: extra.ouoProjectToken ?? "pt_dev_demo_0000000000000000",
+  perfModes: extra.perfModes ?? false,
 };

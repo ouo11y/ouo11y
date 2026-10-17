@@ -34,6 +34,7 @@ receiver. Never point it at sentry.io from this repo.
 | `browse-catalog` | new trace (`startNewTrace`), `ui.action` transaction `browse catalog` with manual spans `load catalog`, `load product details` (4 parallel `GET /api/products/{id}`), `rank products`; one `Sentry.logger.info` |
 | `search` | new trace, `search products`: `query backend` (`GET /api/products?delay=600`, the backend sleeps in a `db.query` span), `filter results`; `logger.debug` + `logger.info` |
 | `checkout` | new trace, `checkout`: `pick products`, two `add <id> to cart` (`POST /api/cart`), `review cart`, `submit order` (`POST /api/checkout`); `logger.info` with cart and order attributes |
+| `xhr-cart` | `GET /api/cart` through a raw `XMLHttpRequest` (axios' transport in React Native) in a `ui.action` transaction |
 | `checkout-fail` | same with `paymentMethod: broken-card`: the backend answers 500, root span status `internal_error`, `logger.error` |
 | `flush` | `Sentry.flush()` |
 
@@ -115,7 +116,8 @@ bucketing id live in `Documents/ouo-rum-mode.json`; the status line shows
 `ouo.rum.mode`, Sentry events the tag `ouo.rum.mode`; the bridge stamps `ouo.rum.mode = sentry`.
 ouo exports as service `sentry-demo-ouo` to `OUO_OTLP_ENDPOINT` / `OUO_REPLAY_ENDPOINT`.
 `src/monitoring.ts` sends the app's own `captureException`, `captureMessage` and `flush` calls to
-whichever SDKs run. Findings: `kb/openfeature-rum-mode.md`, `kb/ouo-next-to-sentry.md`.
+whichever SDKs run. `App.tsx` wraps the app in `RUMProvider` and feeds navigation to ouo when ouo
+runs, as the SDK README says. Findings: `kb/openfeature-rum-mode.md`, `kb/ouo-next-to-sentry.md`.
 
 | Variable | Default |
 |---|---|
@@ -135,6 +137,26 @@ same sentrytap capture (what sentry.io would receive), and checks Sentry, Loki, 
 for the cohort. Quick local test without flagd: `OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=ouo
 scripts/build-ios.sh`. The former build flag `OUO_SDK=1` is gone (the build fails with a pointer
 here); `parallel` is what it did.
+
+## Overhead measurement (`OUO_PERF=1`, `scripts/perf/`)
+
+What the SDKs cost on the device, per SDK mix, from one binary. Built with `OUO_PERF=1`, the app
+reads `Documents/perf-mode.json` at start (`{"mode": "none" | "sentry" | "parallel" | "ouo",
+"ouoReplay"?: bool}`) instead of the flag (`src/rollout.ts`; nothing is evaluated or stored for
+that launch) and runs a JS frame monitor (`src/perf.ts`) that writes `Documents/perf.json`. The
+harness modes are `none` (no SDK), `sentry`, `both` (`parallel`), `both-replay` (`parallel` with
+ouo replay forced on) and `ouo-replay` (`ouo`). Without `OUO_PERF=1` both are no-ops.
+
+| Script | Does |
+|---|---|
+| `scripts/perf/proxy.py` | counting HTTP forwarder between the app and the stack: one JSON line per request (destination, bytes up and down, status) |
+| `scripts/perf/sample.py` | samples the app process from the host every 0.5 s: CPU time, phys_footprint, lifetime peak, energy (`proc_pid_rusage`), process start time |
+| `scripts/perf/driver/` | XCUITest bundle (`make-driver.rb` generates the Xcode project with the CocoaPods xcodeproj gem): real taps on a fixed 95 s schedule |
+| `scripts/perf/run.sh` | the loop: per run, wipe the app's Library, write the mode, sample, drive, collect; modes interleaved |
+| `scripts/perf/analyze.py`, `report.py` | medians and spread per mode; the HTML report |
+
+Method, numbers and caveats: `kb/sdk-overhead-ios.md`; last report:
+`agents/sentry-demo/reports/sdk-overhead-ios.html`.
 
 ## Capture and journey
 

@@ -64,4 +64,4 @@ examples/        demo web app, demo mobile app, demo backend
 docker compose -f deploy/docker/compose.yaml up -d
 ```
 
-Grafana: http://localhost:3000 (admin / admin). Collector OTLP/HTTP: http://localhost:4318. rum-api: http://localhost:8080. Details and overrides in `deploy/README.md` once Phase 1 lands.
+Grafana: http://localhost:3000 (admin / testing567). Collector OTLP/HTTP: http://localhost:4318. rum-api: http://localhost:8080. Details and overrides in `deploy/README.md` once Phase 1 lands.

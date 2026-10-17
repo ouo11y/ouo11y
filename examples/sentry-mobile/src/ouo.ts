@@ -11,7 +11,7 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\
 
 export let ouo: RUM | undefined;
 
-export function initOuo(mode: RumMode): RUM {
+export function initOuo(mode: RumMode, replay: boolean): RUM {
   ouo = initRUM({
     endpoint: config.ouoOtlpEndpoint,
     replayEndpoint: config.ouoReplayEndpoint,
@@ -34,8 +34,9 @@ export function initOuo(mode: RumMode): RUM {
         }
       : {},
     // `parallel`: Sentry's replay keeps recording; a second recorder doubles the capture cost
-    // on the device, so ouo replay is off. `ouo`: ouo is the only recorder.
-    replay: { enabled: mode === "ouo", maskText: false },
+    // on the device (kb/sdk-overhead-ios.md), so ouo replay is off. `ouo`: ouo is the only
+    // recorder. `replay` is that rule, except in a perf run that forces it (src/rollout.ts).
+    replay: { enabled: replay, maskText: false },
     debug: config.sentryDebug,
   });
   return ouo;

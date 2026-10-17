@@ -3,31 +3,31 @@
 // through here. Automatic capture (errors, fetch, sessions, replay) needs nothing.
 import { ouo } from "./ouo";
 import { Sentry } from "./sentry";
-import type { RumMode } from "./rollout";
+import type { LaunchMode } from "./rollout";
 
-let mode: RumMode = "sentry";
+let mode: LaunchMode = "sentry";
 
-export function setMode(m: RumMode): void {
+export function setMode(m: LaunchMode): void {
   mode = m;
 }
 
-export function currentMode(): RumMode {
+export function currentMode(): LaunchMode {
   return mode;
 }
 
 /** Handled exception: a Sentry event and an ouo `exception` record. Returns the Sentry event id, if any. */
 export function captureException(error: unknown, tags: Record<string, string> = {}): string | undefined {
   ouo?.captureError(error, tags);
-  return mode === "ouo" ? undefined : Sentry.captureException(error, { tags });
+  return mode === "sentry" || mode === "parallel" ? Sentry.captureException(error, { tags }) : undefined;
 }
 
 /** Informational message: a Sentry `info` event and an ouo custom event. */
 export function captureMessage(message: string, attrs: Record<string, string> = {}): string | undefined {
   ouo?.addEvent("app.message", { message, ...attrs });
-  return mode === "ouo" ? undefined : Sentry.captureMessage(message, "info");
+  return mode === "sentry" || mode === "parallel" ? Sentry.captureMessage(message, "info") : undefined;
 }
 
 export async function flush(): Promise<boolean> {
-  const [s] = await Promise.all([mode === "ouo" ? Promise.resolve(true) : Sentry.flush(), ouo?.flush()]);
+  const [s] = await Promise.all([mode === "sentry" || mode === "parallel" ? Sentry.flush() : Promise.resolve(true), ouo?.flush()]);
   return s;
 }
