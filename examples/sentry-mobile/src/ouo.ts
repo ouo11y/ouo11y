@@ -21,7 +21,7 @@ export const ouo: RUM | undefined = config.ouoSdk
         onUnhandledRejection: (error) =>
           Sentry.captureException(error, { mechanism: { type: "onunhandledrejection", handled: true } }),
       },
-      replay: { enabled: true, maskText: false },
+      replay: { enabled: config.ouoReplay, maskText: false },
       debug: config.sentryDebug,
     })
   : undefined;

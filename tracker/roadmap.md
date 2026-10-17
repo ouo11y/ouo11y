@@ -120,6 +120,22 @@ Founder ask: Sentry SDKs point at the collector; the collector forwards everythi
 
 - [x] ouo RN SDK next to Sentry (founder, 2026-10-14) [XHR instrumentation (axios), fetch-over-XHR de-duplication, `errors.onUnhandledRejection` for Hermes' single rejection tracker; verified in `examples/sentry-mobile` with `OUO_SDK=1`: 1 rejection in each SDK, 27/27 backend spans parented to ouo, both replays stored, 42/42 forwarded byte-identical; `kb/ouo-next-to-sentry.md`]
 
+### Bridge parity gaps (sentry-demo, 2026-10-17)
+
+From the bridge vs ouo SDK comparison (`agents/sentry-demo/reports/bridge-vs-sdk.html`, `kb/sentry-bridge-vs-ouo-sdk.md`): each item is data Sentry already sends that the bridge drops or misreads. Not started. Effort in engineer-days including tests and a golden capture.
+
+- [ ] A1 `captureMessage` (level below error, only a synthetic exception value) becomes `sentry.message`, not an `exception` (today 3 errors where Sentry counts 2) [0.5 d]
+- [ ] A2 Sentry `log` records get `service.version`, `deployment.environment.name`, `os.*`, device model from the entry attributes (`sentry.release`, `sentry.environment`, `os.*`, `device.model`) [0.5 d]
+- [ ] A3 Device and OS context kept per `sid` / `did` and applied to `session.start`, `ui.tap`, `app.lifecycle`, `breadcrumb`, `console` records [1 d]
+- [ ] A4 Mobile vitals: cold / warm app start, TTID per screen, slow / frozen frames, stalls from transaction `measurements` as timeline records, a rum-api type and plugin display (today only `ouo.sentry.measurement.*` span attributes) [3 d: bridge 1, rum-api 0.5, plugin 1.5]
+- [ ] A5 HTTP client spans named `{method}` instead of the full URL (spanmetrics cardinality), with `server.address`, `server.port`, `url.path`, `url.scheme` parsed from `url.full` [0.5 d]
+- [ ] A6 Error context allowlist: device locale, connection type, free memory, low power, thermal state, in foreground, current screen (`view_names`), app start time; app tags behind a per-project option; spec section 12 updated [1 d]
+- [ ] A7 Native crash frames keep `instruction_addr` / `image_addr` (`image+offset`) and the `debug_meta` image names and UUIDs, so stacks can be symbolicated later [1 d; symbolication itself is separate]
+- [ ] A8 Timeline for sessions without a replay: translate error-event breadcrumbs (de-duplicated) and successful `http.client` spans as `http.request` [2 d]
+- [ ] A9 `session.previous_id` on `session.start` from the previous `sid` of the same `did` [0.5 d]
+- [ ] A10 JS source maps (Sentry sends `dist` and `debug_meta`): upload and storage shared with the ouo SDK [L, roadmap]
+- [ ] A11 Back navigation from `navigation` breadcrumbs (`{from, to}`) for screen changes no transaction covered [1 d]
+
 State to resume from: isolated stack `ouo-sb` (Grafana 3003, rum-api 8091, Loki 3103, Tempo 3203, collector OTLP 4338, Sentry bridge 4340, backend 8084; env file and override in the session scratchpad `sb/`), collector upstream `http://host.docker.internal:4411`; taps: `sentrytap -listen 127.0.0.1:4411 -dir B -sink` and `-listen 127.0.0.1:4400 -dir A -forward http://127.0.0.1:4340`; app DSN `http://publickey0000000000000000000000@localhost:4400/1`, build `examples/sentry-mobile/scripts/build-ios.sh`, journey `scripts/journey.sh`, checks `sentrytap compare` and `scripts/verify-bridge.py`. ocb must be v0.160.0.
 
 ## Backlog (founder, 2026-10-17)
