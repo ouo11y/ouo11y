@@ -6,6 +6,7 @@ import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import { listenForLinks } from "./src/deeplinks";
 import { startMailbox } from "./src/mailbox";
 import { navigationRef, type RootStackParamList } from "./src/navigation";
+import { markFirstFrame } from "./src/perf";
 import { CartScreen } from "./src/screens/CartScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { ProductScreen } from "./src/screens/ProductScreen";
@@ -29,6 +30,7 @@ export default function App() {
         ref={navigationRef}
         onStateChange={onOuoStateChange}
         onReady={() => {
+          markFirstFrame();
           ouo?.trackNavigation("/Home");
           // React Navigation integration: one `navigation` transaction per screen change.
           navigationIntegration.registerNavigationContainer(navigationRef);

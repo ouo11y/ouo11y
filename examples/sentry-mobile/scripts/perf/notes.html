@@ -1,0 +1,63 @@
+<h2>What the founder can say</h2>
+<div class="claim">
+<p><b>Claim (safe to say, with the caveats):</b> "We measured a React Native demo app that already runs Sentry
+with tracing, logs and Session Replay. Adding the ouo SDK with ouo replay off (the default) made no
+difference to CPU or memory that we could tell apart from run-to-run noise: CPU changed by +0.1 percentage
+points of one core (from 15 %; the range over six paired runs was -0.7 to +0.8), memory by +0.6 MB (on about
+60 MB), app start by +2.5 ms (noise is about 50 ms either way), and JavaScript frame drops did not change.
+What ouo does add is network traffic: about 15 more requests and about 60 KB more upload per 95 seconds of
+active use (about 2 MB an hour), next to about 650 KB from Sentry. Only one SDK should record the screen:
+turning ouo replay on as well added about 7 points of CPU, about 1 MB of upload per 95 seconds and about
+0.1 s to app start. These numbers come from the iOS simulator on a Mac, one demo app, release build;
+a phone will show different absolute values, so we quote the differences."</p>
+</div>
+
+<h2>Findings</h2>
+<ul>
+<li><b>ouo next to Sentry, replay off, costs nothing measurable on the device, except network.</b> Paired by round
+(each round runs every mode back to back), Sentry + ouo minus Sentry only: CPU <b>+0.1 pp</b> (range -0.7 to +0.8),
+idle CPU <b>0.0 pp</b> (-0.5 to +0.6), steady memory <b>+0.6 MB</b>, start <b>+2.5 ms</b> (-50 to +26), JS frames dropped
+<b>+1</b> (-5 to +3), long frames -1. All inside the spread of Sentry-only runs against each other.</li>
+<li><b>Network is the cost of ouo with replay off:</b> 15 more requests per run (ouo's OTLP exports, batched:
+78 instead of 63), <b>+59 KB</b> uploaded per run (median; ouo's OTLP traces and logs are 53 KB of it, the rest
+is the extra <code>traceparent</code> / <code>baggage</code> headers on every API call: 21.4 KB of backend requests
+instead of 18.7 KB), +1.5 KB received. Per hour of foreground use: about 570 more requests and 2.2 MB.</li>
+<li><b>For scale, Sentry itself</b> (tracing, logs, Session Replay at 100 %) against the same app with no SDK:
+CPU <b>+9.6 pp</b>, idle CPU +7.4 pp, steady memory <b>+8 MB</b>, peak memory <b>+56 MB</b> (its replay video pipeline),
+start <b>+141 ms</b>, 38 requests and 651 KB uploaded per run.</li>
+<li><b>Two screen recorders is the expensive case.</b> ouo replay on next to Sentry's: CPU <b>+6.6 pp</b> (+4.4 to +7.5),
+idle CPU <b>+5.0 pp</b> (replay keeps capturing with nobody touching the app), start <b>+93 ms</b>, upload
+<b>+1.08 MB per run</b> (11 replay chunks, about 40 MB per hour with masking off), memory +1 MB. ouo replay alone
+(no Sentry) costs about the same against no SDK: +7.2 pp CPU, +10 MB peak, +99 ms start, 1.2 MB per run.</li>
+<li><b>Main-thread stalls (one Instruments Time Profiler run, Sentry + ouo with ouo replay on, symbolicated with the
+dSYM).</b> Native Sentry code was 33 % of the app's sampled CPU (mostly <code>SentryGraphicsImageRenderer</code>,
+<code>SentryFileManager.write</code>, redaction) and ouo's <code>ReplayRecorder.captureFrame</code> 27 %; both run
+on the main thread. Each ouo frame capture held the main thread for <b>about 49 ms</b> (median of 89 captures,
+p95 52 ms, max 58 ms), about three 60 Hz frames once a second; Sentry's captures held it 18.5 ms (median of 150,
+p95 41 ms). The JS frame monitor does not see this (it watches the JS thread). The simulator renders on the CPU,
+so a phone will be faster, but this is the first thing to check on a device before turning ouo replay on in an app
+that already records with Sentry, and a lead for ouo replay itself (move scaling and encoding off the main thread).</li>
+<li><b>Simulator-only effects</b> kept out of the numbers above: 2 to 5 s at about 100 % of a core before
+<code>main()</code> (dyld_sim, same for every mode, so CPU and start are counted from JS start), Sentry's replay
+video encoded by the simulator's software H.264 codec (<code>H264SW.videocodec</code>; a phone has a hardware
+encoder, so Sentry's own replay CPU is overstated here), and XCUITest's accessibility work inside the app
+(<code>XCTAutomationSupport</code>, <code>UIAccessibility</code>: about 8 % of sampled CPU, the same in every mode).</li>
+</ul>
+
+<h2>Caveats</h2>
+<ul>
+<li><b>No real device was available</b> (<code>xcrun devicectl list devices</code> lists simulators only). iOS 27
+simulator, iPhone 18 Pro profile, Apple M5 Mac, 10 cores, 32 GB. Absolute CPU %, memory and start times will differ
+on a phone; the differences between modes are the result.</li>
+<li>One app: <code>examples/sentry-mobile</code> (3 screens, about 25 API calls per run). An app with more requests
+or more log lines sends proportionally more OTLP data through ouo.</li>
+<li>Masking is <b>off</b> in both SDKs (demo setting). Masking adds a view-tree walk per frame to each recorder.</li>
+<li>Sentry is configured at 100 % sampling for traces and replay (the demo). With lower sample rates Sentry costs less
+and the "two recorders" case happens less often.</li>
+<li>95 s runs, 6 per mode, interleaved. Rounds 5 and 6 ran on a quieter host (every mode cheaper; process start to
+JS start 1.8 s instead of 3.4 s). Medians per mode are shown with the full range; the deltas above are paired within
+a round, which cancels that drift.</li>
+<li>Network bytes are HTTP level on plain HTTP to localhost; TLS and TCP/IP overhead come on top in real use (the
+same for every mode). Energy is the host kernel's estimate for a Mac process, not a phone battery reading.</li>
+<li>Main-thread stall numbers come from one Time Profiler run; the other metrics from all 30 runs.</li>
+</ul>

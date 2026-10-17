@@ -111,6 +111,25 @@ OUO_SDK=1 BACKEND_URL=http://localhost:8084 scripts/build-ios.sh
 scripts/journey.sh --no-background --no-crash --shop-rounds 1
 ```
 
+## Overhead measurement (`OUO_PERF=1`, `scripts/perf/`)
+
+What the SDKs cost on the device, per SDK mix, from one binary. Built with `OUO_PERF=1` (and
+`OUO_SDK=1`), the app reads `Documents/perf-mode.json` at start (`{"sentry", "ouo", "ouoReplay"}`:
+Sentry only, Sentry + ouo with or without ouo replay, ouo only, neither) and runs a JS frame monitor
+(`src/perf.ts`) that writes `Documents/perf.json`. Without the flag both are no-ops. `OUO_REPLAY=0`
+turns ouo replay off in a normal parallel build.
+
+| Script | Does |
+|---|---|
+| `scripts/perf/proxy.py` | counting HTTP forwarder between the app and the stack: one JSON line per request (destination, bytes up and down, status) |
+| `scripts/perf/sample.py` | samples the app process from the host every 0.5 s: CPU time, phys_footprint, lifetime peak, energy (`proc_pid_rusage`), process start time |
+| `scripts/perf/driver/` | XCUITest bundle (`make-driver.rb` generates the Xcode project with the CocoaPods xcodeproj gem): real taps on a fixed 95 s schedule |
+| `scripts/perf/run.sh` | the loop: per run, wipe the app's Library, write the mode, sample, drive, collect; modes interleaved |
+| `scripts/perf/analyze.py`, `report.py` | medians and spread per mode; the HTML report |
+
+Method, numbers and caveats: `kb/sdk-overhead-ios.md`; last report:
+`agents/sentry-demo/reports/sdk-overhead-ios.html`.
+
 ## Capture and journey
 
 Preferred recorder: `collector/tools/sentrytap` (same capture format the bridge tests use).
