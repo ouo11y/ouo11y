@@ -47,3 +47,10 @@
 - A device moving from Sentry to `ouo` never sends sentry-cocoa's cached last-session end or a
   pending native crash report.
 - Android not built (no Android SDK on this Mac).
+
+## Local stacks
+
+- Compose projects started: `ouo-flags` (deploy/docker/compose.yaml) and `ouo-flags-flagd`
+  (examples/sentry-mobile/flags/compose.yaml). Both stopped after the PR was opened:
+  `ouo-flags` with `down -v` (volumes removed, so its Loki/Tempo data is gone), `ouo-flags-flagd`
+  with `down`. sentrytap on :4621 stopped; simulator `ouo-flags` (E87E9B42-...) shut down, not deleted.
