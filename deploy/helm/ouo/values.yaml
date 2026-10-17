@@ -5,6 +5,14 @@
 
 nameOverride: ""
 fullnameOverride: ""
+# The ghcr.io/ziadmansourm/ouo images are private until ouo reaches a stable version, so
+# the pods need a docker-registry Secret for ghcr.io (README.md, "Pull access"):
+#   kubectl create secret docker-registry ghcr -n ouo --docker-server=ghcr.io \
+#     --docker-username=<github-user> --docker-password="$GHCR_TOKEN"
+# (classic PAT with read:packages; never commit it), then:
+# imagePullSecrets:
+#   - name: ghcr
+# Applied to every pod the chart runs (collector, rum-api, Grafana, bundled LGTM).
 imagePullSecrets: []
 commonLabels: {}
 

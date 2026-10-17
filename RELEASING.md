@@ -9,6 +9,28 @@ every package (npm SDKs, Swift package, plugin zip, Helm chart) is
 **Nobody pushes a release tag without the founder's explicit yes**, with the exact tag
 names and what they publish written down first. Tags and published images are permanent.
 
+## Pull access (packages are private until ouo is stable)
+
+Founder decision (2026-10-17): the `ghcr.io/ziadmansourm/ouo/*` packages stay **private**
+until ouo reaches a stable version. Anyone pulling them (examples, verification, clients)
+logs in first:
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+- The token is a **classic** personal access token with only **`read:packages`** (fine
+  grained tokens do not work with ghcr.io). It lives in the puller's shell or password
+  manager, never in the repo.
+- Access is granted by the founder per package: GitHub > Packages > the package > Package
+  settings > Manage access > add the GitHub user with the **Read** role. Do it for all three
+  (`collector`, `rum-api`, `grafana`); that read access is what a new user asks the founder for.
+- Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`,
+  "Pull access").
+- No access: build from source (`docker compose -f deploy/docker/compose.yaml up -d` without
+  `compose.images.yaml`), no login needed.
+- Without a login a pull fails with `denied` (HTTP 403).
+
 ## Choosing a version
 
 Every package has its own [semantic version](https://semver.org); the tag is
@@ -66,7 +88,8 @@ Before the tag:
    release notes in the run summary; nothing is pushed.
 6. [ ] Ask the founder in chat: exact tag names, the image refs they create
    (`ghcr.io/ziadmansourm/ouo/<image>:<version>` plus `:<major>.<minor>` and `:latest` for
-   a final), and whether a package becomes public. Wait for yes.
+   a final). Packages stay private (see "Pull access"); making one public is a separate
+   founder decision. Wait for yes.
 
 Tag:
 
@@ -86,8 +109,9 @@ After the tag:
 
 7. [ ] The `release-images` run is green; its summary lists the pushed tags and digest.
 8. [ ] First release of an image only: GitHub > Packages > the package > Package settings:
-   connect it to the repository and set visibility **public** (founder decision), or every
-   `docker pull` needs a login.
+   connect it to the repository and leave visibility **private** (founder decision until ouo
+   is stable); grant Read under Manage access to everyone who already has access to the other
+   ouo packages. Pulls need a `docker login ghcr.io` ("Pull access").
 9. [ ] `docker buildx imagetools inspect ghcr.io/ziadmansourm/ouo/<image>:<version>` shows
    `linux/amd64` and `linux/arm64` (plus `unknown/unknown` attestation entries).
 10. [ ] Bump the pins that should follow: `deploy/docker/.env.example` and the defaults in
