@@ -1,9 +1,15 @@
 # Changelog: ouo-collector image
 
-`ghcr.io/ziadmansourm/ouo/collector`, tag `collector-v<version>`. The version is
+`ghcr.io/ouo11y/collector` (until 0.2.0: `ghcr.io/ziadmansourm/ouo/collector`), tag `collector-v<version>`. The version is
 `dist.version` in `builder.yaml` (`ouo-collector --version`). Policy: `docs/releasing.md`.
 
 ## Unreleased
+
+### Changed
+
+- Renamed for ADR-0009: image `ghcr.io/ouo11y/collector`, Go modules `github.com/ouo11y/ouo11y/collector/...`
+  (`builder.yaml` and its replace directives). Component type names (`ouosentry`, `ouoreplay`,
+  `ouoratelimit`) and the binary `ouo-collector` are unchanged, so collector configs keep working.
 
 ### Added
 

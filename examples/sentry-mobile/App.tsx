@@ -1,7 +1,7 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { navigationStateListener, RUMProvider } from "@ouo/react-native";
+import { navigationStateListener, RUMProvider } from "@ouo11y/react-native";
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { listenForLinks } from "./src/deeplinks";
 import { startMailbox } from "./src/mailbox";

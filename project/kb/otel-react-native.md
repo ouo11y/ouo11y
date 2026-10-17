@@ -45,8 +45,8 @@ else was needed: `fetch`, `Headers`, `setTimeout`, `Promise`, `crypto.getRandomV
 
 ### Linking the SDK into `examples/mobile` (not an npm workspace)
 
-`"@ouo/react-native": "file:../../sdk/react-native"` gives a symlink in
-`examples/mobile/node_modules/@ouo/react-native`. Metro needs three things (`metro.config.js`):
+`"@ouo11y/react-native": "file:../../sdk/react-native"` gives a symlink in
+`examples/mobile/node_modules/@ouo11y/react-native`. Metro needs three things (`metro.config.js`):
 
 1. `watchFolders` += the SDK folder (Metro only serves files under its watch folders).
 2. `resolver.blockList` += `sdk/react-native/node_modules/.*` so Metro never crawls the SDK's

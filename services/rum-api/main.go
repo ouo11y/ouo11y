@@ -21,13 +21,13 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/config"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/httpapi"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/telemetry"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/tempo"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/config"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/httpapi"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/loki"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/telemetry"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/tempo"
 )
 
 // version is set at build time: -ldflags "-X main.version=<semver>" (Dockerfile ARG VERSION).

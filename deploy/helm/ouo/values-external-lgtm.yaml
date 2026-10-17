@@ -33,7 +33,7 @@ readToken: ""        # --set readToken=rt_...     (secret: Grafana -> rum-api)
 
 collector:
   image:
-    repository: ghcr.io/ziadmansourm/ouo/collector
+    repository: ghcr.io/ouo11y/collector
     tag: "0.2.0"
   # Union of every project's browser origins.
   allowedOrigins:
@@ -52,7 +52,7 @@ collector:
 
 rumApi:
   image:
-    repository: ghcr.io/ziadmansourm/ouo/rum-api
+    repository: ghcr.io/ouo11y/rum-api
     tag: "0.2.0"
   persistence:
     size: 50Gi
@@ -60,7 +60,7 @@ rumApi:
 
 grafana:
   image:
-    repository: ghcr.io/ziadmansourm/ouo/grafana
+    repository: ghcr.io/ouo11y/grafana
     tag: "0.2.0"
   adminPassword: ""  # --set grafana.adminPassword=...  or grafana.existingSecret
   ingress:
@@ -73,5 +73,5 @@ grafana:
       enabled: true
       secretName: ouo-grafana-tls
   # Already running Grafana? Set grafana.enabled=false, build deploy/images/grafana or
-  # copy plugins/ouo-rum-app/dist into your Grafana, and provision the app with
+  # copy plugins/ouo11y-rum-app/dist into your Grafana, and provision the app with
   # jsonData.rumApiUrl=http://<release>-rum-api.<ns>.svc:8080 and secureJsonData.readToken.

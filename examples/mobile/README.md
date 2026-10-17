@@ -1,6 +1,6 @@
 # mobile-store (examples/mobile)
 
-Expo managed app that exercises `@ouo/react-native` against the demo backend: the same
+Expo managed app that exercises `@ouo11y/react-native` against the demo backend: the same
 storefront flows as `examples/web` plus a Chaos screen with one button per row of the
 session spec / ADR-0004 classification.
 
@@ -55,7 +55,7 @@ Typecheck: `npx tsc --noEmit` in this folder (after `npm install`).
 ## Run
 
 This app is **not** an npm workspace: it has its own `package.json` and lockfile and links
-the SDK with `"@ouo/react-native": "file:../../sdk/react-native"` plus `metro.config.js`
+the SDK with `"@ouo11y/react-native": "file:../../sdk/react-native"` plus `metro.config.js`
 (watch folder, block list for the SDK's `node_modules`, peer redirection). See
 `project/kb/otel-react-native.md`.
 
@@ -104,7 +104,7 @@ curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .bucke
 curl -s "localhost:8080/v1/sessions/<session id>/replay" | jq        # kind: frames, chunk_count, frame_count
 ```
 
-In Grafana (ouo RUM app) the session's replay plays as frames with touch markers. The demo sets
+In Grafana (ouo11y RUM app) the session's replay plays as frames with touch markers. The demo sets
 `replay: { enabled: true, maskText: false }` (`src/rum.ts`) so labels are readable in replays;
 text inputs, images and web views keep the default masking, so the promo field is black.
 

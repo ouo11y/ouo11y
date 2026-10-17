@@ -3,6 +3,24 @@
 Every user-visible change bumps `version` in `package.json` (it becomes `plugin.json`'s version and the
 `module.js?_cache=<version>` query string, so browsers drop the cached bundle).
 
+## 0.7.0 (plugin ID `ouo11y-rum-app`, 2026-10-18)
+
+- **Breaking: the plugin ID is `ouo11y-rum-app`** (was `ouo-rum-app`, ADR-0009); the folder is
+  `plugins/ouo11y-rum-app` and the display name is "ouo11y RUM". Grafana keys everything on the ID, so to
+  Grafana this is a different plugin:
+  - pages move from `/a/ouo-rum-app/...` to `/a/ouo11y-rum-app/...`; old bookmarks and dashboard links
+    return "plugin not found";
+  - the proxy route moves to `/api/plugin-proxy/ouo11y-rum-app/rum/...`;
+  - app settings (`rumApiUrl`, `readToken`) are stored per plugin ID and are **not carried over**. Stacks
+    that provision the app (compose `grafana/provisioning/plugins/ouo11y-rum-app.yaml`, the Helm chart's
+    plugins configmap, the VM install) get them from provisioning on the next start. A Grafana configured
+    by hand needs both values entered again at `/plugins/ouo11y-rum-app`;
+  - `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` and `GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS` must
+    name `ouo11y-rum-app`, or Grafana refuses to load the unsigned plugin;
+  - the old `ouo-rum-app` row stays in Grafana's database as a disabled, missing plugin; it is harmless.
+    Delete `/var/lib/grafana/plugins/ouo-rum-app` if the plugin was copied in by hand rather than baked
+    into the image or bind-mounted.
+
 ## 0.6.0 (taps in Sentry replays, 2026-10-16)
 
 - Taps in video (Sentry) replays are merged from the recording's touches and the `ui.tap` breadcrumbs: one tap has

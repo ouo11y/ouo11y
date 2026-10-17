@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/loki"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/tempo"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/timerange"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/loki"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/tempo"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/timerange"
 )
 
 const (

@@ -1,6 +1,6 @@
 # sentry-demo
 
-Owns `examples/sentry-mobile`: an Expo (React Native) iOS app instrumented with `@sentry/react-native` (and `@ouo/react-native` per the `ouo.rum.mode` rollout flag), used to generate real Sentry mobile SDK traffic (sentry-cocoa + RN JS layer, mobile Session Replay) for the Sentry bridge (ADR-0008), plus its Release simulator build script, unattended journey driver, recorder and capture analyser.
+Owns `examples/sentry-mobile`: an Expo (React Native) iOS app instrumented with `@sentry/react-native` (and `@ouo11y/react-native` per the `ouo.rum.mode` rollout flag), used to generate real Sentry mobile SDK traffic (sentry-cocoa + RN JS layer, mobile Session Replay) for the Sentry bridge (ADR-0008), plus its Release simulator build script, unattended journey driver, recorder and capture analyser.
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries

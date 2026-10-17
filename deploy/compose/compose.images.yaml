@@ -2,19 +2,19 @@
 #
 #   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 #
-# rum-api, the ouo collector and Grafana (with the ouo-rum-app plugin baked in) are pulled
+# rum-api, the ouo collector and Grafana (with the ouo11y-rum-app plugin baked in) are pulled
 # from ghcr.io at the versions pinned in deploy/compose/.env (see .env.example), so no Go
 # toolchain, ocb or Node build is needed and services/, collector/ and plugins/ can be
 # absent. The demo backend is still built from examples/backend (it is example code, not a
 # released image); delete that service when you do not need it.
 #
-# The ghcr.io/ziadmansourm/ouo packages are private until ouo reaches a stable version:
+# The ghcr.io/ouo11y packages are private until ouo reaches a stable version:
 # log in first (`echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin`,
 # classic PAT with read:packages; examples/fast-tracked/00-stack.md, Step 3, "Pull
 # access"), or the pulls fail with `denied`.
 #
 # Build from source instead (no login needed): leave this file out (compose.yaml alone builds the collector
-# and rum-api and bind-mounts plugins/ouo-rum-app/dist). That is the contributor path and
+# and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
 # Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
@@ -23,12 +23,12 @@
 services:
   otel-collector:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/collector:${OUO_COLLECTOR_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.2.0}
     pull_policy: missing
 
   rum-api:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/rum-api:${OUO_RUM_API_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.2.0}
     pull_policy: missing
     # rum-api 0.2.0 is the first release and includes the YAML config file + S3 / MinIO
     # replay storage (PR #19). Nothing rum-api specific is needed here: once #19 is merged,
@@ -41,9 +41,9 @@ services:
     # no baked ENV, so a mounted file is never overridden by image defaults.
 
   grafana:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ziadmansourm/ouo}/grafana:${OUO_GRAFANA_VERSION:-0.2.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.2.0}
     pull_policy: missing
-    # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo-rum-app/dist.
+    # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo11y-rum-app/dist.
     volumes: !override
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana

@@ -8,7 +8,7 @@ var (
 	// Type is the component type used in collector configs: exporters.ouoreplay.
 	Type = component.MustNewType("ouoreplay")
 	// ScopeName is the instrumentation scope of the exporter's own telemetry.
-	ScopeName = "github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter"
+	ScopeName = "github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter"
 )
 
 const (

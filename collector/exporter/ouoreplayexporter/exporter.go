@@ -1,4 +1,4 @@
-package ouoreplayexporter // import "github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter"
+package ouoreplayexporter // import "github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter"
 
 import (
 	"bytes"

@@ -21,11 +21,11 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ZiadMansourM/ouo/examples/backend/internal/telemetry"
+	"github.com/ouo11y/ouo11y/examples/backend/internal/telemetry"
 )
 
 const (
-	instrumentationName = "github.com/ZiadMansourM/ouo/examples/backend"
+	instrumentationName = "github.com/ouo11y/ouo11y/examples/backend"
 	anonymousUser       = "anonymous"
 	brokenCard          = "broken-card"
 	healthPath          = "/healthz"

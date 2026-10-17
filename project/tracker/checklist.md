@@ -69,7 +69,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 ## 4. Benchmark and releases (P1)
 
 - [ ] B3 Fair, repeatable device-cost benchmark ouo vs latest stable Sentry, per major SDK release, regression blocks the release. Builds on the PR #25 harness. Real-device run on the founder's iPhone 16 Pro Max, available since 2026-10-17 and preferred over the simulator for every performance number (xctrace Activity Monitor, LAN proxy, CADisplayLink hitch monitor; LAN-IP ingest ports from `ouo-env url <env> --lan`).
-- [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** npm org, `ouo-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
+- [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** npm org, `ouo11y-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
 - [ ] B7 Supply chain: Renovate, govulncheck / npm audit / Trivy, SECURITY.md, provenance
 - [ ] N11 rum-api CI: use a `services: minio` block instead of pulling `pgsty/minio` in the test
 
@@ -111,7 +111,7 @@ Recorded 2026-10-17:
 
 ## Decisions waiting on the founder
 
-1. Package publishing: npm org, `ouo-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
+1. Package publishing: npm org, `ouo11y-ios` mirror, plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
 2. Where the hosted demo for B8 lives.
 3. Verdict on the F4 unmasked Sentry recordings (pending; the demo is being re-run).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).

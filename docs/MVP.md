@@ -14,7 +14,7 @@ This is the full MVP. Nothing else ships before every check below is green. The 
 
 - OpenTelemetry SDKs in every app, OTLP to an OpenTelemetry Collector, exported to Loki (logs/events), Tempo (traces), Mimir (metrics). Grafana on top.
 - `services/rum-api` (Go): replay chunk ingestion and storage, session aggregation over Loki and Tempo, JSON API for the plugin.
-- `plugins/ouo-rum-app` (Grafana app plugin): one unified experience with pages Overview, Sessions, Session detail (timeline, traces, replay).
+- `plugins/ouo11y-rum-app` (Grafana app plugin): one unified experience with pages Overview, Sessions, Session detail (timeline, traces, replay).
 
 ## Questions the MVP must answer
 

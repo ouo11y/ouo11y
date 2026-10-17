@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 
-	"github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter/internal/metadata"
 )
 
 func TestConfigValidate(t *testing.T) {

@@ -4,7 +4,7 @@ Go service that turns the telemetry the ouo SDKs send through the OpenTelemetry
 Collector into **session records**, stores **replay chunks** (rrweb events from the web
 SDK, JPEG frames from the iOS SDK, mp4 video segments from Sentry mobile Session Replay
 through the collector's Sentry bridge), and exposes the JSON API used by the Grafana app
-plugin (`plugins/ouo-rum-app`).
+plugin (`plugins/ouo11y-rum-app`).
 
 rum-api is **internal** (ADR-0007 5). It is never exposed to the internet: the only
 public services are the `ouo-collector` and Grafana. Replay chunks reach it from the

@@ -1,10 +1,15 @@
 # Changelog: grafana image
 
-`ghcr.io/ziadmansourm/ouo/grafana`, tag `grafana-v<version>`: Grafana with the `ouo-rum-app`
+`ghcr.io/ouo11y/grafana` (until 0.2.0: `ghcr.io/ziadmansourm/ouo/grafana`), tag `grafana-v<version>`: Grafana with the `ouo11y-rum-app`
 plugin baked in (unsigned). Its own version series; every entry names the Grafana base image
 and the plugin version inside. Policy: `docs/releasing.md`.
 
 ## Unreleased
+
+### Changed
+
+- Image `ghcr.io/ouo11y/grafana`; the plugin inside is `ouo11y-rum-app` (was `ouo-rum-app`), and
+  `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`. Upgrading an existing Grafana: see the plugin changelog.
 
 ## 0.2.0 (2026-10-17)
 

@@ -1,7 +1,7 @@
-# Enables the ouo RUM app plugin (plugins/ouo-rum-app, loaded unsigned from
-# /var/lib/grafana/plugins/ouo-rum-app) and points its "rum" route at the
+# Enables the ouo11y RUM app plugin (plugins/ouo11y-rum-app, loaded unsigned from
+# /var/lib/grafana/plugins/ouo11y-rum-app) and points its "rum" route at the
 # in-network rum-api. The browser never talks to rum-api directly: the plugin
-# calls /api/plugin-proxy/ouo-rum-app/rum/v1/... and Grafana forwards to rumApiUrl,
+# calls /api/plugin-proxy/ouo11y-rum-app/rum/v1/... and Grafana forwards to rumApiUrl,
 # adding `Authorization: Bearer <readToken>` from secureJsonData (ADR-0007 section 6).
 #
 # ${OUO_READ_TOKEN} is expanded by the Grafana provisioner from the container's
@@ -11,7 +11,7 @@
 apiVersion: 1
 
 apps:
-  - type: ouo-rum-app
+  - type: ouo11y-rum-app
     org_id: 1
     disabled: false
     jsonData:

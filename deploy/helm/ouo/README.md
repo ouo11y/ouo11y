@@ -3,7 +3,7 @@
 Installs ouo on Kubernetes: the **ouo collector** (the custom OpenTelemetry Collector
 distribution from `collector/`, the only public ingest: project tokens as HTTP Basic
 credentials, OTLP/HTTP on 4318, the replay stream on 4319, rate and size limits),
-**rum-api** (session API, replay store; ClusterIP only), **Grafana** with the ouo RUM app
+**rum-api** (session API, replay store; ClusterIP only), **Grafana** with the ouo11y RUM app
 plugin baked into the image, and either a **bundled** single-binary Loki, Tempo and Mimir
 or the customer's **external** LGTM stack. Design: ADR-0007
 (`docs/adr/0007-ingest-gateway-project-tokens.md`).
@@ -23,18 +23,18 @@ Verified on kind (Phase 8a): `project/agents/helm/summaries/2026-10-10-phase-8a-
 
 | Component | Image | Built from |
 |---|---|---|
-| collector | `ghcr.io/ziadmansourm/ouo/collector` (released by `collector-v*` tags) | `collector/Dockerfile` (`docker build -t ouo/collector:<tag> collector`) |
-| rum-api | `ghcr.io/ziadmansourm/ouo/rum-api` (released by `rum-api-v*` tags) | `services/rum-api/Dockerfile` (`docker build -t ouo/rum-api:<tag> services/rum-api`) |
-| Grafana + plugin | `ghcr.io/ziadmansourm/ouo/grafana` (released by `grafana-v*` tags) | `deploy/images/grafana/Dockerfile`, after `npm run -w plugins/ouo-rum-app build`: `docker build -t ouo/grafana:<tag> -f deploy/images/grafana/Dockerfile .` |
+| collector | `ghcr.io/ouo11y/collector` (released by `collector-v*` tags) | `collector/Dockerfile` (`docker build -t ouo/collector:<tag> collector`) |
+| rum-api | `ghcr.io/ouo11y/rum-api` (released by `rum-api-v*` tags) | `services/rum-api/Dockerfile` (`docker build -t ouo/rum-api:<tag> services/rum-api`) |
+| Grafana + plugin | `ghcr.io/ouo11y/grafana` (released by `grafana-v*` tags) | `deploy/images/grafana/Dockerfile`, after `npm run -w plugins/ouo11y-rum-app build`: `docker build -t ouo/grafana:<tag> -f deploy/images/grafana/Dockerfile .` |
 | Loki / Tempo / Mimir (bundled) | `grafana/loki:3.7.7`, `grafana/tempo:3.0.3`, `grafana/mimir:3.2.1` | upstream |
 
 Every tag is a value: `--set collector.image.tag=0.2.0 --set rumApi.image.tag=0.2.0 --set grafana.image.tag=0.2.0 --set lgtm.bundled.loki.image.tag=...`.
-Use `<component>.image.repository` for a registry (`ghcr.io/ziadmansourm/ouo/collector`,
+Use `<component>.image.repository` for a registry (`ghcr.io/ouo11y/collector`,
 `.../rum-api`, `.../grafana`) and `imagePullSecrets` for a private one.
 
 ### Pull access (the ouo images are private for now)
 
-The three `ghcr.io/ziadmansourm/ouo/*` packages stay **private until ouo reaches a stable
+The three `ghcr.io/ouo11y/*` packages stay **private until ouo reaches a stable
 version**. Without a pull secret the collector, rum-api and Grafana pods sit in
 `ImagePullBackOff` and `kubectl describe pod` shows `403 Forbidden` from ghcr.io. Ask the
 ouo founder for read access to the packages for a GitHub user, create a **classic** personal
@@ -87,7 +87,7 @@ and an OTLP gRPC receiver, Mimir with OTLP ingestion. Multi-tenant stacks: set
 `mimirOtlpUrl`, `mimirPrometheusUrl`.
 
 Already running Grafana? `--set grafana.enabled=false`, install the plugin from
-`plugins/ouo-rum-app/dist` (unsigned: `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app`)
+`plugins/ouo11y-rum-app/dist` (unsigned: `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`)
 and provision the app with `jsonData.rumApiUrl=http://ouo-rum-api.ouo.svc:8080` and
 `secureJsonData.readToken=<readToken>` (see `templates/grafana/configmap-plugins.yaml`).
 
@@ -124,8 +124,8 @@ kubectl -n ouo port-forward svc/ouo-grafana 3000:3000 &
 CRED=$(printf 'web-store:pt_...' | base64)
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:4318/v1/traces -H 'Content-Type: application/json' -d '{"resourceSpans":[]}'                                   # 401
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:4318/v1/traces -H "Authorization: Basic $CRED" -H 'Content-Type: application/json' -d '{"resourceSpans":[]}'  # 200
-curl -s -u admin:<password> localhost:3000/api/plugins/ouo-rum-app/settings
-open http://localhost:3000/a/ouo-rum-app/overview
+curl -s -u admin:<password> localhost:3000/api/plugins/ouo11y-rum-app/settings
+open http://localhost:3000/a/ouo11y-rum-app/overview
 ```
 
 SDK configuration (SDKs 0.2.0):
@@ -297,7 +297,7 @@ deploy/README.md).
 | `ingestToken` | `""` | `OUO_INGEST_TOKEN` on the collector (bearer on replay forwards) and rum-api (check) |
 | `readToken` | `""` | `OUO_READ_TOKEN` for `GET`/`DELETE /v1/*`; also provisioned into the Grafana plugin |
 | `collector.enabled` | `true` | `false` only with another collector reachable at `rumApi.otel.endpoint` |
-| `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ziadmansourm/ouo/collector`, `0.2.0` | the custom distribution |
+| `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/collector`, `0.2.0` | the custom distribution |
 | `collector.replicas` | `1` | |
 | `collector.existingProjectsSecret` | `""` | Secret with key `projects.htpasswd` |
 | `collector.allowedOrigins` | `[]` | CORS origins on 4318 and 4319 (browser SDKs) |
@@ -309,7 +309,7 @@ deploy/README.md).
 | `collector.service.{type,annotations}` | `ClusterIP` | public Service (4318, 4319) |
 | `collector.ingress.{enabled,className,annotations,host,pathType,tls.enabled,tls.secretName}` | disabled | `/v1/replay` to 4319, `/` to 4318 |
 | `collector.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
-| `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ziadmansourm/ouo/rum-api`, `0.2.0` | rum-api image |
+| `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/rum-api`, `0.2.0` | rum-api image |
 | `rumApi.replicas` | `1` | > 1 needs `rumApi.storage.backend=s3` (or a ReadWriteMany replay volume) |
 | `rumApi.existingSecret` | `""` | Secret with `ingest-token`, `read-token` and optionally `otlp-headers` |
 | `rumApi.config.grafanaUrl` | derived | browser-facing Grafana URL in trace deep links (`GRAFANA_URL`) |
@@ -327,7 +327,7 @@ deploy/README.md).
 | `rumApi.service.{port,annotations}` | `8080` | always ClusterIP, no Ingress |
 | `rumApi.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,priorityClassName,livenessProbe,readinessProbe,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
 | `grafana.enabled` | `true` | `false` when the customer runs Grafana |
-| `grafana.image.*` | `ghcr.io/ziadmansourm/ouo/grafana`, `0.2.0` | image with the plugin |
+| `grafana.image.*` | `ghcr.io/ouo11y/grafana`, `0.2.0` | image with the plugin |
 | `grafana.adminUser` / `grafana.adminPassword` / `grafana.existingSecret` | `admin` / `""` / `""` | password required unless the Secret is given |
 | `grafana.rootUrl` | derived from the Ingress | `GF_SERVER_ROOT_URL` |
 | `grafana.defaultTheme`, `grafana.anonymousEnabled` | `dark`, `false` | |

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/replay"
-	"github.com/ZiadMansourM/ouo/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
 )
 
 const (

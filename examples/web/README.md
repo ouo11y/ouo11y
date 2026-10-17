@@ -1,6 +1,6 @@
 # web-store (ouo web demo)
 
-React 18 + Vite + TypeScript storefront instrumented with the `@ouo/browser`
+React 18 + Vite + TypeScript storefront instrumented with the `@ouo11y/browser`
 RUM SDK. It exists to produce every kind of signal the MVP needs: sessions,
 custom events, handled and uncaught errors, traced `fetch` calls that join
 backend spans, Web Vitals and rrweb replay chunks.
@@ -14,7 +14,7 @@ every other page.
 From the repository root (npm workspaces; Node 24):
 
 ```bash
-npm install                                 # links sdk/browser as @ouo/browser
+npm install                                 # links sdk/browser as @ouo11y/browser
 npm run -w sdk/browser build                # the SDK is consumed from its dist/
 npm run -w examples/web dev                 # http://localhost:5173
 ```
@@ -52,7 +52,7 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_OUO_PROJECT_TOKEN` | `pt_dev_demo_0000000000000000` | public project token, the HTTP Basic password; the development value the whole local stack agrees on |
 | `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `tracing.propagateTo` is derived from it |
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
-| `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo/browser` |
+| `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo11y/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and

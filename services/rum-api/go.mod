@@ -1,4 +1,4 @@
-module github.com/ZiadMansourM/ouo/services/rum-api
+module github.com/ouo11y/ouo11y/services/rum-api
 
 go 1.26.0
 

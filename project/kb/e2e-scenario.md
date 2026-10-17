@@ -74,7 +74,7 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
 - Body limits: OTLP over 4 MiB is **400** (`http: request body too large`), not 413; an rrweb
   chunk over 4 MiB on the replay port is 413; a big body without credential is 401 (auth first).
 - Manual QA of the Grafana plugin read token: change it with
-  `POST /api/plugins/ouo-rum-app/settings {"enabled":true,"pinned":true,"jsonData":{...},"secureJsonData":{"readToken":"..."}}`
+  `POST /api/plugins/ouo11y-rum-app/settings {"enabled":true,"pinned":true,"jsonData":{...},"secureJsonData":{"readToken":"..."}}`
   (admin basic auth) and restore the same way; a Grafana restart re-applies provisioning. On
   Grafana 13.2.1 Reset + empty save deletes the key (`secureJsonFields: {}`).
 - Demo apps on remapped ports: the SDKs derive the replay URL as port 4319 only from 4318. With

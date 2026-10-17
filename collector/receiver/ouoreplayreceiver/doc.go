@@ -3,4 +3,4 @@
 // the authenticator, CORS, TLS, decompression and body-size options of the
 // OTLP receiver. Every accepted chunk becomes one log record whose body is
 // the decompressed chunk JSON, stamped with the authenticated project id.
-package ouoreplayreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver"
+package ouoreplayreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver"

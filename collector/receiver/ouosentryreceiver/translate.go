@@ -1,4 +1,4 @@
-package ouosentryreceiver // import "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"
 
 import (
 	"context"
@@ -33,7 +33,7 @@ const (
 	// sets "parallel" or "ouo" itself.
 	attrRUMMode        = "ouo.rum.mode"
 	rumModeSentry      = "sentry"
-	scopeName          = "github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver"
+	scopeName          = "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"
 	maxSyntheticErrors = 100
 )
 

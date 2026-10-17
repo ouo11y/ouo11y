@@ -4,13 +4,13 @@ Status: filled in Phase 2 by web-demo.
 
 ## Question
 
-How is the demo React storefront wired to the demo backend and to `@ouo/browser`, and what tripped us up?
+How is the demo React storefront wired to the demo backend and to `@ouo11y/browser`, and what tripped us up?
 
 ## What was tried
 
 - Vite 7 + React 18 + react-router 6, TypeScript strict with `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
-- All SDK calls go through `src/rum.ts`; pages import `rum` from there. The SDK package is a workspace link (`node_modules/@ouo/browser -> sdk/browser`) consumed from its `dist/`, so `npm run -w sdk/browser build` must run before `npm run -w examples/web build`.
-- Before the SDK existed the app was built against `src/rum-stub.ts`, selected with `VITE_RUM_STUB=1` via a Vite `resolve.alias` plus a second tsconfig (`tsconfig.stub.json` with `paths`). Two tsconfigs rather than an ambient `declare module "@ouo/browser"` because TypeScript resolves ambient module declarations before real packages, so a stub `.d.ts` would shadow the real types once the package appears.
+- All SDK calls go through `src/rum.ts`; pages import `rum` from there. The SDK package is a workspace link (`node_modules/@ouo11y/browser -> sdk/browser`) consumed from its `dist/`, so `npm run -w sdk/browser build` must run before `npm run -w examples/web build`.
+- Before the SDK existed the app was built against `src/rum-stub.ts`, selected with `VITE_RUM_STUB=1` via a Vite `resolve.alias` plus a second tsconfig (`tsconfig.stub.json` with `paths`). Two tsconfigs rather than an ambient `declare module "@ouo11y/browser"` because TypeScript resolves ambient module declarations before real packages, so a stub `.d.ts` would shadow the real types once the package appears.
 
 ## What works
 
@@ -25,4 +25,4 @@ How is the demo React storefront wired to the demo backend and to `@ouo/browser`
 - React 18 development builds re-throw errors thrown in event handlers through `invokeGuardedCallback`, so an uncaught error from a click handler reaches `window.onerror` twice in `vite dev` and once in the production build. Count exception events in Loki with that in mind.
 - Vite HMR of a module that creates a React context (`cart.tsx`) throws `useCart must be used inside CartProvider` once until the page reloads; harmless, dev only.
 - The `.env.example` and `src/rum.ts` defaults are the stock ports (backend 8081, rum-api 8080) since 2026-10-10; the dev Mac's alternate ports (8082 and friends) live only in the gitignored `examples/web/.env` and `examples/mobile/.env`.
-- Since Phase 8a (SDK 0.2.0, ADR-0007 revised: the collector is the edge) the app talks only to the collector: `VITE_OTLP_ENDPOINT` (default `http://localhost:4318`) is the OTLP/HTTP base and the SDK derives the replay receiver on `:4319`; `VITE_OUO_PROJECT_ID` (`demo`) and `VITE_OUO_PROJECT_TOKEN` (`pt_dev_demo_0000000000000000`, public) become the Basic credential. `VITE_RUM_API` (revision 1) is gone; rum-api is never reached from the browser. `src/rum-stub.ts` mirrors the new `RUMConfig` (`projectId` + `projectToken` required, `replayEndpoint` optional) so `build:stub` keeps typechecking the same call site. Bumping `@ouo/browser` to `0.2.0` also required bumping the dependency in `examples/web/package.json` and re-running `npm install` at the root, otherwise the workspace link breaks and `package-lock.json` is out of sync for `npm ci`.
+- Since Phase 8a (SDK 0.2.0, ADR-0007 revised: the collector is the edge) the app talks only to the collector: `VITE_OTLP_ENDPOINT` (default `http://localhost:4318`) is the OTLP/HTTP base and the SDK derives the replay receiver on `:4319`; `VITE_OUO_PROJECT_ID` (`demo`) and `VITE_OUO_PROJECT_TOKEN` (`pt_dev_demo_0000000000000000`, public) become the Basic credential. `VITE_RUM_API` (revision 1) is gone; rum-api is never reached from the browser. `src/rum-stub.ts` mirrors the new `RUMConfig` (`projectId` + `projectToken` required, `replayEndpoint` optional) so `build:stub` keeps typechecking the same call site. Bumping `@ouo11y/browser` to `0.2.0` also required bumping the dependency in `examples/web/package.json` and re-running `npm install` at the root, otherwise the workspace link breaks and `package-lock.json` is out of sync for `npm ci`.

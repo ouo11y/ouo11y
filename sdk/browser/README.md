@@ -1,4 +1,4 @@
-# @ouo/browser
+# @ouo11y/browser
 
 OpenTelemetry-native Real User Monitoring for the browser: sessions, errors, fetch/XHR
 tracing with W3C Trace Context and Baggage, Web Vitals, navigation events and rrweb session
@@ -10,7 +10,7 @@ Basic project credentials (ADR-0007). rum-api is internal and never reached from
 ## Install
 
 ```bash
-npm install @ouo/browser
+npm install @ouo11y/browser
 ```
 
 ESM only, TypeScript types included. The main entry is about 40 KB gzipped; rrweb is a
@@ -20,7 +20,7 @@ session is sampled.
 ## Init
 
 ```ts
-import { initRUM, type RUM } from "@ouo/browser";
+import { initRUM, type RUM } from "@ouo11y/browser";
 
 const rum: RUM = initRUM({
   endpoint: "http://localhost:4318",            // collector OTLP/HTTP base: /v1/traces, /v1/logs
@@ -119,7 +119,7 @@ Spans: `documentLoad` (and its resource fetches), one `CLIENT` span per fetch/XH
 With `debug: true` the SDK logs one init line with the URLs it derived and the project id, never the token:
 
 ```
-[ouo] @ouo/browser@0.2.0 initialised { endpoint: "http://localhost:4318", replayEndpoint: "http://localhost:4319", traces: "http://localhost:4318/v1/traces", logs: "http://localhost:4318/v1/logs", replay: "http://localhost:4319/v1/replay/chunks", projectId: "demo", session: "...", user: "..." }
+[ouo] @ouo11y/browser@0.2.0 initialised { endpoint: "http://localhost:4318", replayEndpoint: "http://localhost:4319", traces: "http://localhost:4318/v1/traces", logs: "http://localhost:4318/v1/logs", replay: "http://localhost:4319/v1/replay/chunks", projectId: "demo", session: "...", user: "..." }
 ```
 
 Common collector answers: `401` wrong or missing credential (basicauth), `429` or `503` rate limited (`ouoratelimit`, retried by the exporters), `413` payload too large, a CORS error with no POST at all when the page origin is not in the collector's `allowed_origins` or `Authorization` is missing from its allowed headers. Exporter responses are visible with the OTel diag logger (`debug: true` wires it to `console.warn`).

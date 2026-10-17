@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
-	"github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
 
 const (

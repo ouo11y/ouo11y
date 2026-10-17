@@ -1,16 +1,16 @@
 {
-  "name": "@ouo/react-native",
+  "name": "@ouo11y/react-native",
   "version": "0.2.0",
   "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS).",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ZiadMansourM/ouo.git",
+    "url": "git+https://github.com/ouo11y/ouo11y.git",
     "directory": "sdk/react-native"
   },
-  "homepage": "https://github.com/ZiadMansourM/ouo/tree/main/sdk/react-native#readme",
+  "homepage": "https://github.com/ouo11y/ouo11y/tree/main/sdk/react-native#readme",
   "bugs": {
-    "url": "https://github.com/ZiadMansourM/ouo/issues"
+    "url": "https://github.com/ouo11y/ouo11y/issues"
   },
   "keywords": [
     "opentelemetry",

@@ -26,7 +26,7 @@ The components in bold are ours, one Go module each:
 ```
 collector/
   builder.yaml                          ocb manifest (dist name ouo-collector, output ./dist)
-  Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ziadmansourm/ouo/collector)
+  Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ouo11y/collector)
   receiver/ouoreplayreceiver/           POST /v1/replay/chunks -> one log record per chunk
   receiver/ouosentryreceiver/           POST /api/{id}/envelope/ -> forward to Sentry unchanged, then
                                         sessions, errors, spans, logs, replay breadcrumbs and video
@@ -68,16 +68,16 @@ Each component is an ordinary collector module. In your own ocb manifest:
 
 ```yaml
 receivers:
-  - gomod: github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver v0.0.0
 processors:
-  - gomod: github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor v0.0.0
 exporters:
-  - gomod: github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter v0.0.0
 replaces:
   # until the modules are tagged, point at a checkout (paths relative to output_path)
-  - github.com/ZiadMansourM/ouo/collector/receiver/ouoreplayreceiver => /path/to/ouo/collector/receiver/ouoreplayreceiver
-  - github.com/ZiadMansourM/ouo/collector/processor/ouoratelimitprocessor => /path/to/ouo/collector/processor/ouoratelimitprocessor
-  - github.com/ZiadMansourM/ouo/collector/exporter/ouoreplayexporter => /path/to/ouo/collector/exporter/ouoreplayexporter
+  - github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver => /path/to/ouo/collector/receiver/ouoreplayreceiver
+  - github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor => /path/to/ouo/collector/processor/ouoratelimitprocessor
+  - github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter => /path/to/ouo/collector/exporter/ouoreplayexporter
 ```
 
 They are built against collector 0.160.0 / 1.66.0; a distribution on another collector

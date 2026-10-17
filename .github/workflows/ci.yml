@@ -95,7 +95,7 @@ jobs:
             dockerfile: deploy/images/grafana/Dockerfile
             smoke: >-
               docker run --rm --entrypoint cat ouo-ci/grafana
-              /var/lib/grafana/plugins/ouo-rum-app/plugin.json | grep -q '"id": *"ouo-rum-app"'
+              /var/lib/grafana/plugins/ouo11y-rum-app/plugin.json | grep -q '"id": *"ouo11y-rum-app"'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +107,7 @@ jobs:
         if: matrix.image == 'grafana'
         run: |
           npm ci
-          npm run build -w plugins/ouo-rum-app
+          npm run build -w plugins/ouo11y-rum-app
       - uses: docker/setup-buildx-action@v3
       - name: docker build (linux/amd64, no push)
         uses: docker/build-push-action@v6

@@ -1,4 +1,4 @@
-// Metro config for consuming @ouo/react-native through a `file:` link (a symlink into
+// Metro config for consuming @ouo11y/react-native through a `file:` link (a symlink into
 // ../../sdk/react-native). See project/kb/otel-react-native.md.
 const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");

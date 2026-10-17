@@ -31,19 +31,19 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-testing567}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_DEFAULT_THEME: dark
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo-rum-app
-      GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo-rum-app
-      # Read by grafana/provisioning/plugins/ouo-rum-app.yaml (secureJsonData.readToken):
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app
+      GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo11y-rum-app
+      # Read by grafana/provisioning/plugins/ouo11y-rum-app.yaml (secureJsonData.readToken):
       # the plugin's route proxy adds `Authorization: Bearer <token>` to every rum-api
       # call, so the token never reaches the browser. Must equal rum-api's OUO_READ_TOKEN.
       OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
-      # Phase 4: the unsigned app plugin build output (npm run -w plugins/ouo-rum-app build).
+      # Phase 4: the unsigned app plugin build output (npm run -w plugins/ouo11y-rum-app build).
       # Short bind syntax: Docker creates an empty host dir when dist is missing, so
       # Grafana still starts (the plugin is simply absent until it is built).
-      - ../../plugins/ouo-rum-app/dist:/var/lib/grafana/plugins/ouo-rum-app:ro
+      - ../../plugins/ouo11y-rum-app/dist:/var/lib/grafana/plugins/ouo11y-rum-app:ro
     depends_on:
       - loki
       - tempo

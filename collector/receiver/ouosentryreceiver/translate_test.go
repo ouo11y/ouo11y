@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
-	"github.com/ZiadMansourM/ouo/collector/receiver/ouosentryreceiver/internal/metadata"
+	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
 
 // authCheckingLogs records the project the pipeline would stamp.

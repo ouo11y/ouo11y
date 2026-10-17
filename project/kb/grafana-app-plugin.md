@@ -1,6 +1,6 @@
 # grafana app plugin
 
-Status: filled in Phase 4 by grafana-plugin (2026-10-07). Code: `plugins/ouo-rum-app`.
+Status: filled in Phase 4 by grafana-plugin (2026-10-07). Code: `plugins/ouo11y-rum-app`.
 Verified against Grafana 13.2.1 (compose), `@grafana/create-plugin` 7.12.1,
 `@grafana/{data,ui,runtime}` 13.2.2, `rrweb-player` 2.1.7 (same major as the SDK's `rrweb` 2.1.7).
 
@@ -12,7 +12,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
 ## What works
 
 - **Scaffold**: `npx @grafana/create-plugin@7.12.1 --plugin-name=rum --org-name=ouo --plugin-type=app --backend=false`
-  generated `ouo-rum-app` (id = `<org>-<name>-<type>`). The `--backend=false` flag was ignored
+  generated `ouo11y-rum-app` (id = `<org>-<name>-<type>`). The `--backend=false` flag was ignored
   (it still generated `pkg/`, `go.mod`, `Magefile.go`, `backend: true`) and the process hung
   after generating (probably `go mod tidy` / a prompt), so: run it in a scratch dir, kill it,
   copy only the frontend parts (`.config/`, `src/`, `jest*.js`, `tsconfig.json`,
@@ -20,22 +20,22 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   `plugin.json`. The build toolchain in `.config/` (webpack 5 + swc, jest + swc, tsconfig,
   eslint 9) is untouched.
 - **Monorepo**: the plugin is an npm workspace (`plugins/*`). Its React 19 / `@grafana/*`
-  deps are nested in `plugins/ouo-rum-app/node_modules` because `examples/web` uses React 18.
+  deps are nested in `plugins/ouo11y-rum-app/node_modules` because `examples/web` uses React 18.
   The scaffold's `.config/tsconfig.json` sets `typeRoots: ["../node_modules/@types"]`, which
   misses hoisted `@types/jest`; the root `tsconfig.json` overrides
   `typeRoots: ["./node_modules/@types", "../../node_modules/@types"]`. Scripts: `test` is
   `jest --passWithNoTests` (the scaffold default is `--watch`).
-- **Unsigned loading**: `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app` (+
-  `GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo-rum-app`). Grafana logs
+- **Unsigned loading**: `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app` (+
+  `GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app`). Grafana logs
   `Permitting unsigned plugin` and registers it. `dist/` is bind-mounted at
-  `/var/lib/grafana/plugins/ouo-rum-app` (short volume syntax: Docker Desktop creates an
+  `/var/lib/grafana/plugins/ouo11y-rum-app` (short volume syntax: Docker Desktop creates an
   empty host dir when `dist/` is missing, so Grafana still starts without a build).
-- **Provisioning**: `deploy/compose/grafana/provisioning/plugins/ouo-rum-app.yaml`
-  (`apiVersion: 1`, `apps: [{type: ouo-rum-app, org_id: 1, disabled: false, jsonData: {rumApiUrl: http://rum-api:8080}}]`).
-  `GET /api/plugins/ouo-rum-app/settings` then shows `enabled: true, pinned: true, jsonData`.
+- **Provisioning**: `deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml`
+  (`apiVersion: 1`, `apps: [{type: ouo11y-rum-app, org_id: 1, disabled: false, jsonData: {rumApiUrl: http://rum-api:8080}}]`).
+  `GET /api/plugins/ouo11y-rum-app/settings` then shows `enabled: true, pinned: true, jsonData`.
 - **Route proxy**: `plugin.json` `routes: [{ "path": "rum/*", "method": "*", "reqRole": "Viewer",
   "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}" }]`.
-  The browser calls `/api/plugin-proxy/ouo-rum-app/rum/v1/...` (NOT
+  The browser calls `/api/plugin-proxy/ouo11y-rum-app/rum/v1/...` (NOT
   `/api/plugins/<id>/resources/...`, which is the backend-plugin CallResource endpoint and
   returns 500 for a frontend-only app). The URL is a Go `text/template` evaluated per request
   against the app settings, so `if/else` works and the config page can change it without a
@@ -47,7 +47,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   (`now-24h`) and ISO strings, so the raw strings are forwarded untouched.
 - **Navigation**: `includes` with `addToNav: true` for Overview and Sessions
   (`defaultNav: true` on Overview) show under "More apps > ouo RUM"; the detail include
-  (`/a/ouo-rum-app/sessions/:id`, `addToNav: false`) keeps the breadcrumb. Routing inside the
+  (`/a/ouo11y-rum-app/sessions/:id`, `addToNav: false`) keeps the breadcrumb. Routing inside the
   plugin is `react-router-dom` v6 `Routes` (bundled; `react-router` is an external).
 - **rrweb-player embedding**: `import rrwebPlayer from 'rrweb-player'; import 'rrweb-player/dist/style.css'`
   (style-loader from the scaffold handles the CSS). `new rrwebPlayer({ target, props: { events,
@@ -69,7 +69,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   (`web.NewTree().Add(route.Path)`), so a bare `rum` only matches `/rum` exactly and every
   sub-path answered `{"message":"plugin route match not found"}`. `rum/*` is required and the
   `*` remainder is appended to `url`.
-- `/api/plugins/ouo-rum-app/resources/rum/...`: 500 `plugin.requestFailureError` (no backend).
+- `/api/plugins/ouo11y-rum-app/resources/rum/...`: 500 `plugin.requestFailureError` (no backend).
 - `InteractiveTable` from `@grafana/ui` for sessions: no row click handler, so the tables are
   plain `<table>` elements styled with `useStyles2` (row `onClick` + keyboard `Enter`).
 - Browser cache: Grafana loads `module.js?_cache=<plugin version>` and chunks with content
@@ -100,7 +100,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   `865.js` after a code split) is on disk in the mounted `dist/` but Grafana answers 404
   (`Content-Type: application/json`), the browser logs `ChunkLoadError` and the page shows "Plugin
   failed to load". `docker compose -f deploy/compose/compose.yaml restart grafana` fixes it; a hard
-  reload (`fetch(url, { cache: 'reload' })` on every `/public/plugins/ouo-rum-app/*` URL) is enough
+  reload (`fetch(url, { cache: 'reload' })` on every `/public/plugins/ouo11y-rum-app/*` URL) is enough
   when only the contents of existing files changed.
 - **Pinned replay next to a long timeline.** `position: sticky` on a grid item only moves inside
   its own grid area, so the sticky panel must be shorter than the row: give it `align-self: start`,
@@ -119,7 +119,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
 
 ## Stale plugin after a rebuild (2026-10-08)
 
-Grafana loads `module.js?_cache=<plugin version>` and the scaffold's webpack config names lazy chunks `<id>.js?_cache=<contenthash>`. After a rebuild with the **same** plugin version the browser keeps the old `module.js`, which still points at the old chunk hashes, so nothing appears to change even after `docker compose restart grafana`. Fix: bump `version` in `plugins/ouo-rum-app/package.json` (it becomes `plugin.json`'s version) for every user-visible change, or hard-reload (Cmd+Shift+R). Bumped to 0.2.0 for the Phase 7b changes.
+Grafana loads `module.js?_cache=<plugin version>` and the scaffold's webpack config names lazy chunks `<id>.js?_cache=<contenthash>`. After a rebuild with the **same** plugin version the browser keeps the old `module.js`, which still points at the old chunk hashes, so nothing appears to change even after `docker compose restart grafana`. Fix: bump `version` in `plugins/ouo11y-rum-app/package.json` (it becomes `plugin.json`'s version) for every user-visible change, or hard-reload (Cmd+Shift+R). Bumped to 0.2.0 for the Phase 7b changes.
 
 ## Phase 8a additions: read token, secureJsonData, route headers (grafana-plugin, 2026-10-10)
 
@@ -129,7 +129,7 @@ when the variable is set; the plugin must add it without exposing it to the brow
 - **Route headers are templates too.** `routes[].headers[].content` is evaluated like `url`, as a Go
   `text/template` against the app settings: `.JsonData.<key>` and the *decrypted* `.SecureJsonData.<key>`.
   `{"name": "Authorization", "content": "Bearer {{ .SecureJsonData.readToken }}"}` is enough; the
-  browser request to `/api/plugin-proxy/ouo-rum-app/rum/...` carries only the Grafana session. Any
+  browser request to `/api/plugin-proxy/ouo11y-rum-app/rum/...` carries only the Grafana session. Any
   `plugin.json` edit (routes, headers) needs a Grafana restart; changing the stored settings does not.
   With no token stored the header is literally `Bearer ` (empty), which rum-api without
   `OUO_READ_TOKEN` ignores.
@@ -161,5 +161,5 @@ when the variable is set; the plugin must add it without exposing it to the brow
   and skip the reload. Grafana only passes `PluginConfigPageProps`, so the extra prop is inert in
   production.
 - **Versioning rule**: every user-visible change bumps `package.json` `version` and gets a line in
-  `plugins/ouo-rum-app/CHANGELOG.md`; the version ends up in `dist/plugin.json` through the
+  `plugins/ouo11y-rum-app/CHANGELOG.md`; the version ends up in `dist/plugin.json` through the
   `%VERSION%` replacement in `.config/webpack/webpack.config.ts`.

@@ -25,15 +25,15 @@ Swift Package Manager, local path in this repository:
 ```swift
 .package(path: "../../sdk/ios"),
 // ...
-.product(name: "OuoReplay", package: "OuoReplay")
+.product(name: "OuoReplay", package: "ios")   // identity = last path component; "ouo11y-ios" from the mirror
 ```
 
 Minimum iOS 15. The package has no third-party dependencies (zlib is linked from the system).
 
 Not yet consumable by URL: SwiftPM resolves a remote package only when `Package.swift` sits at
 the root of the repository (or of a tagged mirror repository). `sdk/ios` is a subdirectory of
-the monorepo, so `.package(url: "https://github.com/ZiadMansourM/ouo", ...)` does not work; a
-`ouo-ios` mirror with its own tags is the usual answer (release process, not decided here).
+the monorepo, so `.package(url: "https://github.com/ouo11y/ouo11y", ...)` does not work; a
+`ouo11y-ios` mirror with its own tags is the usual answer (release process, not decided here).
 
 ## Usage
 
