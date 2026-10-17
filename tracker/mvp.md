@@ -4,13 +4,13 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | review | orchestrator |
-| 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | review | platform-infra, backend-demo |
-| 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | review | sdk-browser, web-demo |
-| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ZiadMansourM/ouo/pull/4) | review | rum-api |
-| 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | review | grafana-plugin |
-| 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | review | sdk-react-native |
-| 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | review | qa |
+| 0 Foundation | `phase-0-foundation` | [#1](https://github.com/ZiadMansourM/ouo/pull/1) | done | orchestrator |
+| 1 Platform + backend | `phase-1-platform` | [#2](https://github.com/ZiadMansourM/ouo/pull/2) | done | platform-infra, backend-demo |
+| 2 Browser SDK + web demo | `phase-2-web` | [#3](https://github.com/ZiadMansourM/ouo/pull/3) | done | sdk-browser, web-demo |
+| 3 rum-api | `phase-3-rum-api` | [#4](https://github.com/ZiadMansourM/ouo/pull/4) | done | rum-api |
+| 4 Grafana plugin | `phase-4-plugin` | [#5](https://github.com/ZiadMansourM/ouo/pull/5) | done | grafana-plugin |
+| 5 React Native | `phase-5-mobile` | [#6](https://github.com/ZiadMansourM/ouo/pull/6) | done | sdk-react-native |
+| 6 End-to-end QA + reports | `phase-6-qa` | [#7](https://github.com/ZiadMansourM/ouo/pull/7) | done | qa |
 
 ## Phase 0 Foundation
 
@@ -67,13 +67,13 @@ Phases are stacked pull requests on github.com/ZiadMansourM/ouo. Merge in order.
 - [x] HTML report in `reports/` with health charts, session to trace table, and a screenshot-free description of the replay flow (`reports/mvp-verification.html`; the replay flow is described in the acceptance table and additionally illustrated with screenshots under `agents/qa/reports/`)
 - [x] README quickstart (root `README.md`)
 
-Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser emits a second `session.start` when rotating an expired session) must be routed to sdk-browser; the Phase 5 simulator box stays open.
+All MVP phases are merged (statuses corrected 2026-10-17). Bug 1 of `agents/qa/reports/phase-6-bugs.html` was fixed on 2026-10-08; the Phase 5 simulator check was done once Xcode was installed (Phase 7). Open work lives in [checklist.md](checklist.md).
 
 ## Phase 7 iOS replay (post-MVP, ADR-0006)
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 7 iOS replay | `phase-7-ios-replay` | [#8](https://github.com/ZiadMansourM/ouo/pull/9) | in-progress | ios-replay, rum-api, grafana-plugin |
+| 7 iOS replay | `phase-7-ios-replay` | [#9](https://github.com/ZiadMansourM/ouo/pull/9) | done | ios-replay, rum-api, grafana-plugin |
 
 - [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
 - [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
@@ -87,13 +87,11 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 
 | Phase | Branch | PR | Status | Owner agents |
 |---|---|---|---|---|
-| 7b UX and masking | `phase-7b-ux-masking` | - | in-progress | ios-replay, grafana-plugin |
+| 7b UX and masking | `phase-7b-ux-masking` | [#10](https://github.com/ZiadMansourM/ouo/pull/10) | done | ios-replay, grafana-plugin |
 
 - [x] Masking opt-out is correct: `maskInputs` (default true) governs text inputs separately from `maskText` (labels); `maskText: false` keeps inputs black. Swift 38 tests, RN 57 tests; verified on the iOS 27 simulator (`agents/ios-replay/reports/12-frame-masktext-false.jpg`)
 - [x] Masking documented with opt-out options and per-view overrides in `sdk/react-native/README.md` and `sdk/ios/README.md`; demo uses `replay: { enabled: true, maskText: false }`
 - [x] rum-api session records carry `replay_duration_ms` and `replay_frame_count` (list and detail), unit-tested, `go vet` / `go test` green, compose service rebuilt and checked with curl
-
-## Phase 7b UX and masking fixes
 
 - [x] Session detail keeps the Replay panel pinned while the Timeline scrolls in its own container; current event auto-scrolls into view during playback; panels stack below 900px (verified in Grafana 13.2.1 at 1400x900 and 800x900 on sessions `6843eaa9` and `e2a746a8`; `agents/grafana-plugin/reports/phase-7b-ux.html`)
 - [x] Sessions list shows the replay duration and kind in a Replay column (`replay_duration_ms` / `replay_kind` from rum-api, play icon while the duration is unknown, "–" without replay; verified against the live list)
@@ -101,4 +99,4 @@ Open after Phase 6: bug 1 in `agents/qa/reports/phase-6-bugs.html` (sdk/browser 
 
 ## Docs: fast-tracked onboarding (2026-10-10)
 
-PR #12 (`fast-tracked`, stacked on #11). `examples/fast-tracked/` holds four copy-and-paste guides (stack, Go backend, React, Expo iOS) routed by `index.md`. Also fixed the demo apps' port fallbacks to the stock values. Status: review. Agent folder: `agents/fast-tracked/`.
+PR #12 (`fast-tracked`, stacked on #11). `examples/fast-tracked/` holds four copy-and-paste guides (stack, Go backend, React, Expo iOS) routed by `index.md`. Also fixed the demo apps' port fallbacks to the stock values. Status: done (merged). Agent folder: `agents/fast-tracked/`.
