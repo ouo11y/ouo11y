@@ -20,8 +20,8 @@ npm run -w examples/web dev                 # http://localhost:5173
 ```
 
 The demo backend and the LGTM stack must be running (`docker compose -f
-deploy/docker/compose.yaml up -d`). The defaults below are the stock host ports
-from `deploy/docker/.env.example`. If you moved ports in `deploy/docker/.env`,
+deploy/compose/compose.yaml up -d`). The defaults below are the stock host ports
+from `deploy/compose/.env.example`. If you moved ports in `deploy/compose/.env`,
 copy `.env.example` to `.env` here and change the URLs.
 
 Build and preview:

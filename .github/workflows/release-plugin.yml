@@ -7,7 +7,7 @@
 #   GRAFANA_ROOT_URLS            (variable) comma separated Grafana root URLs allowed to load
 #                                           the private signature, e.g. https://grafana.example.com
 # Without the token the zip is unsigned and Grafana needs
-# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app. See kb/release-packaging.md.
+# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo-rum-app. See project/kb/release-packaging.md.
 name: release-plugin
 
 on:

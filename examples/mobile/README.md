@@ -40,9 +40,9 @@ Since ADR-0007 the app talks only to the collector (`ouo-collector`): OTLP goes 
 4319 (`http://localhost:4319/v1/replay/chunks`, derived by the SDK from port 4318), every request
 with `Authorization: Basic base64("<projectId>:<projectToken>")`. rum-api is internal and the app
 never addresses it. The defaults are the development project of the stock compose stack
-(`deploy/docker/.env.example`, user `demo` in the collector's htpasswd).
+(`deploy/compose/.env.example`, user `demo` in the collector's htpasswd).
 
-If you moved ports or changed the project in `deploy/docker/.env`, copy `.env.example` to `.env`
+If you moved ports or changed the project in `deploy/compose/.env`, copy `.env.example` to `.env`
 here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`. When the collector
 sits behind a proxy on one host (`https://otel.example.com`), set `EXPO_PUBLIC_OTLP_ENDPOINT` to it
 and the SDK uses the same host for replay; pass `replayEndpoint` in `src/rum.ts` only if the
@@ -57,7 +57,7 @@ Typecheck: `npx tsc --noEmit` in this folder (after `npm install`).
 This app is **not** an npm workspace: it has its own `package.json` and lockfile and links
 the SDK with `"@ouo/react-native": "file:../../sdk/react-native"` plus `metro.config.js`
 (watch folder, block list for the SDK's `node_modules`, peer redirection). See
-`kb/otel-react-native.md`.
+`project/kb/otel-react-native.md`.
 
 ```bash
 # from the repo root: build the SDK first (Metro consumes dist/index.js, CocoaPods the vendored Swift sources)
@@ -74,7 +74,7 @@ npx expo export --platform ios            # bundle check without a simulator
 ### Development build (replay)
 
 The `OuoReplay` Expo module is native code, so the app must be built with Xcode once
-(`kb/xcode-setup.md` has the full machine setup):
+(`project/kb/xcode-setup.md` has the full machine setup):
 
 ```bash
 cd examples/mobile
@@ -87,14 +87,14 @@ APP_VERSION=2.4.0 npx expo run:ios
 gitignored: re-run `prebuild` after changing `app.config.ts` or the SDK's native sources
 (`--clean` to start over). Without Xcode, `npx expo prebuild --platform ios --no-install` still
 generates the project and `npx expo-modules-autolinking resolve -p apple` lists the three ouo
-pods, which is as far as this machine got (see `agents/ios-replay/`).
+pods, which is as far as this machine got (see `project/agents/ios-replay/`).
 
 Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 
 ## Verify
 
 rum-api stays internal (ADR-0007); in the local stack its port 8080 is published on loopback for
-these checks. When `OUO_READ_TOKEN` is set (the compose stack sets it in `deploy/docker/.env`), the
+these checks. When `OUO_READ_TOKEN` is set (the compose stack sets it in `deploy/compose/.env`), the
 read endpoints need `-H "Authorization: Bearer $OUO_READ_TOKEN"`. The app itself never talks to
 rum-api: its OTLP and replay uploads carry the project credential to the collector.
 

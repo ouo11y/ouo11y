@@ -10,11 +10,11 @@
 #      plus one replay chunk to POST /v1/replay/chunks on 4319 (202)
 #   4. the trace is found in Tempo (stamped ouo.project.id), the log in Loki, the metric
 #      in Mimir, and the replay chunk is readable from rum-api with the read token
-# Exits non-zero on the first failure. Honors OUO_* from deploy/docker/.env.
+# Exits non-zero on the first failure. Honors OUO_* from deploy/compose/.env.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../docker/.env}"
+ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 OTLP="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"       # collector OTLP/HTTP (public)
@@ -43,7 +43,7 @@ pass() { echo "ok: $*"; }
 warn() { echo "warn: $*" >&2; }
 
 # Requested headers are listed the way browsers send them: lowercase and sorted
-# (the collector's CORS handler rejects unsorted lists, see kb/collector-components.md).
+# (the collector's CORS handler rejects unsorted lists, see project/kb/collector-components.md).
 # The OTLP SDK exporters send trace context headers; the replay uploaders do not.
 OTLP_PREFLIGHT_HEADERS="authorization,baggage,content-encoding,content-type,traceparent"
 REPLAY_PREFLIGHT_HEADERS="authorization,content-encoding,content-type"

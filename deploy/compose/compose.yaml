@@ -1,0 +1,247 @@
+# ouo local observability stack.
+# Start:  docker compose -f deploy/compose/compose.yaml up -d
+# Stop:   docker compose -f deploy/compose/compose.yaml down
+# Reset:  docker compose -f deploy/compose/compose.yaml down -v
+# See deploy/README.md for ports and verification. Host ports can be overridden
+# with OUO_*_PORT variables (deploy/compose/.env, see .env.example).
+#
+# Phase 8a (ADR-0007, revised): the custom OpenTelemetry Collector distribution
+# (ouo-collector, built from ../../collector) is the ONLY internet-facing ingest.
+# Browsers, phones and any OTel SDK post OTLP to :4318 and replay chunks to :4319
+# with HTTP Basic credentials `<project id>:<project token>` checked against
+# collector/projects.htpasswd. The collector stamps ouo.project.id, rate-limits,
+# forwards telemetry to Tempo / Loki / Mimir and replay chunks to rum-api.
+# rum-api, Loki, Tempo, Mimir and the demo backend are internal services; their
+# host ports below exist for the laptop only (deploy/vm/compose.tls.yaml re-binds
+# them to 127.0.0.1, Kubernetes gives them ClusterIP Services).
+#
+# Development tokens: the OUO_INGEST_TOKEN / OUO_READ_TOKEN defaults below and the
+# demo project line in collector/projects.htpasswd are public and only acceptable
+# on a laptop. deploy/vm/install.sh generates random ones for a server install.
+
+name: ouo
+
+services:
+  grafana:
+    image: grafana/grafana:13.2.1
+    ports:
+      - "${OUO_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-testing567}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_DEFAULT_THEME: dark
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo-rum-app
+      GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo-rum-app
+      # Read by grafana/provisioning/plugins/ouo-rum-app.yaml (secureJsonData.readToken):
+      # the plugin's route proxy adds `Authorization: Bearer <token>` to every rum-api
+      # call, so the token never reaches the browser. Must equal rum-api's OUO_READ_TOKEN.
+      OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+      # Phase 4: the unsigned app plugin build output (npm run -w plugins/ouo-rum-app build).
+      # Short bind syntax: Docker creates an empty host dir when dist is missing, so
+      # Grafana still starts (the plugin is simply absent until it is built).
+      - ../../plugins/ouo-rum-app/dist:/var/lib/grafana/plugins/ouo-rum-app:ro
+    depends_on:
+      - loki
+      - tempo
+      - mimir
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Loki, Tempo, Mimir and the collector ship distroless images (no shell, no wget),
+  # so they have no container healthcheck; readiness is probed over HTTP from the
+  # host (deploy/scripts/smoke.sh, deploy/scripts/wait-ready.sh).
+  loki:
+    image: grafana/loki:3.7.7
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "${OUO_LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+
+  tempo:
+    image: grafana/tempo:3.0.3
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    ports:
+      - "${OUO_TEMPO_PORT:-3200}:3200"
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+
+  mimir:
+    image: grafana/mimir:3.2.1
+    command: ["-config.file=/etc/mimir/config.yaml"]
+    ports:
+      - "${OUO_MIMIR_PORT:-9009}:9009"
+    volumes:
+      - ./mimir/config.yaml:/etc/mimir/config.yaml:ro
+      - mimir-data:/data
+
+  # ouo-collector (ADR-0007): the edge. Custom distribution built with ocb from
+  # ../../collector (upstream otlp receiver + basicauth + our ouoreplay receiver /
+  # exporter and ouoratelimit processor). Config and the htpasswd project registry
+  # are bind-mounted from ./collector (owned by the collector agent):
+  #   projects.htpasswd  one line per project: `<project id>:{SHA}<base64 sha1(token)>`
+  #                      (htpasswd -nbs <id> <token>; cheap hash on purpose, the token
+  #                      is public). Add a line per project, two lines to rotate.
+  # Ports: 4318 (OTLP/HTTP) and 4319 (replay receiver, POST /v1/replay/chunks) are
+  # published on all interfaces: they ARE the public ingest. 4317 gRPC and the
+  # health port stay on loopback for backend development on this host.
+  otel-collector:
+    build:
+      context: ../../collector
+    image: ouo/collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "127.0.0.1:${OUO_OTLP_GRPC_PORT:-4317}:4317"           # OTLP gRPC (loopback only)
+      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"                     # OTLP/HTTP, Basic auth, CORS (public)
+      - "${OUO_REPLAY_PORT:-4319}:4319"                        # replay receiver, Basic auth, CORS (public)
+      - "${OUO_SENTRY_PORT:-4320}:4320"                        # Sentry SDK bridge, DSN key auth (public, ADR-0008)
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"  # health_check extension (loopback only)
+    environment:
+      # Shared secret the ouoreplay exporter sends to rum-api as
+      # `Authorization: Bearer ...`; must equal rum-api's OUO_INGEST_TOKEN.
+      OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
+      # Browser origins allowed by CORS on 4318 and 4319 (comma separated, no spaces).
+      OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+      # Per-client rate-limit key: address, or x_forwarded_for behind a reverse proxy.
+      OUO_RATELIMIT_CLIENT_KEY: ${OUO_RATELIMIT_CLIENT_KEY:-address}
+      # Sentry SDK bridge (ADR-0008). Upstream "none" answers locally; set it to your
+      # Sentry ingest URL (https://oNNN.ingest.sentry.io) to run next to Sentry.
+      OUO_SENTRY_UPSTREAM: ${OUO_SENTRY_UPSTREAM:-none}
+      OUO_SENTRY_PROJECT_ID: ${OUO_SENTRY_PROJECT_ID:-1}
+      OUO_SENTRY_PUBLIC_KEY: ${OUO_SENTRY_PUBLIC_KEY:-publickey0000000000000000000000}
+      OUO_SENTRY_SERVICE_NAME: ${OUO_SENTRY_SERVICE_NAME:-sentry-demo}
+    volumes:
+      - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./collector/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
+    depends_on:
+      - loki
+      - tempo
+      - mimir
+
+  backend:
+    build:
+      context: ../../examples/backend
+    ports:
+      - "${OUO_BACKEND_PORT:-8081}:8081"
+    environment:
+      PORT: "8081"
+      # In-network OTLP to the collector with the demo project's Basic credential
+      # (base64 of "demo:pt_dev_demo_0000000000000000"). Every OTLP client needs it,
+      # trusted or not; `%20` is the OTLP env-var encoding of the space.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: demo-backend
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
+      # The demo API is called by the browser directly, so it keeps its own CORS.
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    depends_on:
+      - otel-collector
+
+  # rum-api (Phase 3 + 8a): INTERNAL service. Replay chunk sink for the collector's
+  # ouoreplay exporter (POST /v1/replay/chunks with X-Ouo-Project-Id + bearer),
+  # session folding over Loki, trace search over Tempo, JSON API for the Grafana
+  # plugin (read token). It has no OTLP endpoints and no project registry.
+  rum-api:
+    build:
+      context: ../../services/rum-api
+    # Configured like Loki and Tempo: a YAML file (./rum-api/config.yaml, every key in
+    # services/rum-api/config.example.yaml) with ${VAR} expansion for the secrets.
+    # Environment variables override the file.
+    command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
+    # Laptop convenience only (curl the read API, e2e assertions). Production never
+    # exposes rum-api: deploy/vm/compose.tls.yaml re-binds this to 127.0.0.1 and the
+    # Helm chart gives it a ClusterIP Service. SDKs never talk to it.
+    ports:
+      - "${OUO_RUM_API_PORT:-8080}:8080"
+    environment:
+      # Browser-facing Grafana URL used in trace deep links (overrides the file).
+      GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}
+      # --- ADR-0007 secrets (both are SECRET, unlike the public project token) ---------
+      # Read by the config file as ${OUO_INGEST_TOKEN} / ${OUO_READ_TOKEN}.
+      # Bearer the collector's replay exporter must present on POST /v1/replay/chunks.
+      OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
+      # Bearer that unlocks GET/DELETE /v1/* (Grafana's plugin proxy injects it).
+      OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+      # rum-api's own telemetry, through the collector like everybody else (demo credential).
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: rum-api
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
+    volumes:
+      - ./rum-api/config.yaml:/etc/rum-api/config.yaml:ro
+      # Replay chunks (storage.backend filesystem, the default):
+      # deploy/data/rum-api/replays/<session_id>/<seq>.json.gz (gitignored).
+      - ../data/rum-api:/data
+    depends_on:
+      - loki
+      - tempo
+      - otel-collector
+
+  # MinIO (S3 compatible object storage) for rum-api's s3 replay store. Opt-in, like the
+  # s3 store itself: Loki, Tempo and Mimir keep local filesystem storage in this stack,
+  # so rum-api does too by default. `--profile s3` starts MinIO alone (e.g. for the
+  # rum-api S3 tests, OUO_TEST_S3_ENDPOINT=localhost:9000); compose.s3.yaml also points
+  # rum-api at it. The official minio/minio images are no longer published; pgsty/minio
+  # is the community-maintained build of the same server (project/kb/rum-api-config-s3.md).
+  minio:
+    image: ${OUO_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    profiles: [s3]
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "127.0.0.1:${OUO_MINIO_PORT:-9000}:9000"          # S3 API (loopback only)
+      - "127.0.0.1:${OUO_MINIO_CONSOLE_PORT:-9001}:9001"  # web console (loopback only)
+    environment:
+      # Development root credentials (public, laptop only).
+      MINIO_ROOT_USER: ${OUO_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${OUO_MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+
+  # One-shot: creates the replay bucket and a rum-api user whose policy only reaches
+  # that bucket (rum-api never runs with the root credentials). Idempotent.
+  minio-init:
+    image: ${OUO_MC_IMAGE:-pgsty/mc:RELEASE.2026-09-16T00-00-00Z}
+    profiles: [s3]
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${OUO_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${OUO_MINIO_ROOT_PASSWORD:-minioadmin}
+      BUCKET: ${OUO_RUM_API_S3_BUCKET:-ouo-replays}
+      RUM_API_KEY: ${OUO_RUM_API_S3_ACCESS_KEY:-rum-api}
+      RUM_API_SECRET: ${OUO_RUM_API_S3_SECRET_KEY:-rum-api-dev-secret-0000}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        # Wait for MinIO (no image-specific healthcheck tooling needed).
+        i=0; until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+          i=$$((i+1)); [ $$i -lt 60 ] || { echo "minio not reachable"; exit 1; }; sleep 1; done
+        mc ready local
+        mc mb --ignore-existing "local/$$BUCKET"
+        cat > /tmp/rum-api-policy.json <<POLICY
+        {"Version":"2012-10-17","Statement":[
+          {"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$$BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$$BUCKET/*"]}]}
+        POLICY
+        mc admin policy create local rum-api /tmp/rum-api-policy.json
+        mc admin user add local "$$RUM_API_KEY" "$$RUM_API_SECRET"
+        mc admin policy attach local rum-api --user "$$RUM_API_KEY" || true
+        echo "bucket $$BUCKET and user $$RUM_API_KEY ready"
+
+volumes:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  mimir-data:
+  minio-data:

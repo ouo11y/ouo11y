@@ -1,3 +1,0 @@
-# deploy/docker/.gitignore ignores projects.htpasswd (the server-side registry
-# written by install.sh). This one is the committed development registry.
-!projects.htpasswd

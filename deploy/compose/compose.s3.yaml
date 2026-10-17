@@ -1,0 +1,30 @@
+# Opt-in: rum-api stores replays in MinIO (storage.backend s3) instead of
+# deploy/data/rum-api. Loki, Tempo and Mimir keep their filesystem storage.
+#
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.s3.yaml up -d
+#
+# This file activates the minio / minio-init services of compose.yaml (profile s3)
+# and switches rum-api over with environment overrides of its config file
+# (deploy/compose/rum-api/config.yaml has the storage.s3 block for this MinIO).
+# Replays already on the filesystem are not moved; deploy/README.md shows the
+# one-line `mc mirror` that copies them into the bucket.
+
+services:
+  minio:
+    profiles: !reset []
+
+  minio-init:
+    profiles: !reset []
+
+  rum-api:
+    environment:
+      STORAGE_BACKEND: s3
+      # The bucket-scoped user minio-init creates; read by the config file as
+      # ${S3_ACCESS_KEY_ID} / ${S3_SECRET_ACCESS_KEY}. Secret: set real values in .env
+      # for anything but a laptop.
+      S3_ACCESS_KEY_ID: ${OUO_RUM_API_S3_ACCESS_KEY:-rum-api}
+      S3_SECRET_ACCESS_KEY: ${OUO_RUM_API_S3_SECRET_KEY:-rum-api-dev-secret-0000}
+      OUO_RUM_API_S3_BUCKET: ${OUO_RUM_API_S3_BUCKET:-ouo-replays}
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully

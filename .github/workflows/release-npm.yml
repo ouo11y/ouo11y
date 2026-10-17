@@ -6,7 +6,7 @@
 #
 # Required secret: NPM_TOKEN, an npm granular access token with publish rights on the
 # @ouo scope (Read and write, "Bypass 2FA" allowed for automation). Provenance needs
-# id-token: write and a public repository; see kb/release-packaging.md.
+# id-token: write and a public repository; see project/kb/release-packaging.md.
 name: release-npm
 
 on:

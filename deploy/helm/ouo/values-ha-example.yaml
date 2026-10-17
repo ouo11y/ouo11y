@@ -20,7 +20,7 @@
 #        storage: { type: s3, bucketNames: { chunks: ouo-loki, ruler: ouo-loki, admin: ouo-loki }, s3: { region: eu-central-1 } }
 #        limits_config:
 #          allow_structured_metadata: true
-#          otlp_config:                          # the ouo label promotion (kb/collector-lgtm.md)
+#          otlp_config:                          # the ouo label promotion (project/kb/collector-lgtm.md)
 #            resource_attributes:
 #              ignore_defaults: true
 #              attributes_config: [{ action: index_label, attributes: [service.name, service.namespace, deployment.environment.name, ouo.platform] }]
@@ -76,7 +76,7 @@ lgtm:
 
 # rum-api: replays in object storage (storage.backend s3), so any number of replicas share
 # one bucket without a ReadWriteMany volume (meta.json is written with conditional PUTs,
-# kb/rum-api-config-s3.md). Create the bucket first; rum-api never creates it. Credentials:
+# project/kb/rum-api-config-s3.md). Create the bucket first; rum-api never creates it. Credentials:
 # pod identity (EKS IRSA: serviceAccountName with the role annotation, keys left empty) or
 # a pre-created Secret with access-key-id / secret-access-key (storage.s3.existingSecret).
 # For MinIO set endpoint (host:port), forcePathStyle: true and, without TLS, insecure: true.
