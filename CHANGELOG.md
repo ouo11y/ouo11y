@@ -11,10 +11,10 @@ add per-package entries here.
 | `@ouo/browser` | 0.2.0 | [sdk/browser/CHANGELOG.md](sdk/browser/CHANGELOG.md) | `browser-v` |
 | `@ouo/react-native` | 0.2.0 | [sdk/react-native/CHANGELOG.md](sdk/react-native/CHANGELOG.md) | `react-native-v` |
 | `OuoReplay` (Swift) | unreleased | `sdk/ios/CHANGELOG.md` (to be created by the ios-replay agent at the first `ios-v` tag) | `ios-v` |
-| `ouo-rum-app` (Grafana plugin) | 0.3.0 | [plugins/ouo-rum-app/CHANGELOG.md](plugins/ouo-rum-app/CHANGELOG.md) | `plugin-v` |
-| `rum-api` | unreleased (first: 0.2.0, after the YAML config + S3 work) | `services/rum-api/CHANGELOG.md` (to be created by the rum-api agent at the first `rum-api-v` tag) | `rum-api-v` |
-| `grafana` image | unreleased (first: 0.2.0) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
-| `collector` image (ouo-collector) | unreleased (first: 0.2.0) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
+| `ouo-rum-app` (Grafana plugin) | 0.6.0 (not tagged; baked into the grafana 0.2.0 image) | [plugins/ouo-rum-app/CHANGELOG.md](plugins/ouo-rum-app/CHANGELOG.md) | `plugin-v` |
+| `rum-api` | 0.2.0 (tagged 2026-10-17) | `services/rum-api/CHANGELOG.md` (not written yet; checklist B4) | `rum-api-v` |
+| `grafana` image | 0.2.0 (tagged 2026-10-17, plugin 0.6.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
+| `collector` image (ouo-collector) | 0.2.0 (tagged 2026-10-17) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
 | Helm chart `ouo` | unreleased | `deploy/helm/ouo/CHANGELOG.md` (helm agent) | `chart-v` |
 
 ## Release trains
