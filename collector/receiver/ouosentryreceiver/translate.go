@@ -45,6 +45,7 @@ const (
 	matchReplay   = "replay"
 	matchDevice   = "device"
 	matchTrace    = "trace"
+	matchStart    = "start"
 	matchNone     = "none"
 )
 
@@ -127,6 +128,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 			x, created := st.upsert(project, s.SID, s.DID, firstTime(s.Started.Time, s.Timestamp.Time, j.receivedAt))
 			if created && s.Init {
 				x.seenInit = true
+				st.setOrigin(x, j.originKey())
 			}
 		}
 
@@ -155,7 +157,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 		for _, it := range items {
 			for i := range it.logs {
 				l := &it.logs[i]
-				if x, match := resolveLog(st, project, l); x != nil {
+				if x, match := resolveLog(st, project, j.originKey(), l); x != nil {
 					st.touch(x, l.Timestamp.Time)
 					x.dev.merge(t.dev)
 					t.emitLog(l, x, match)

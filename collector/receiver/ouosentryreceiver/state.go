@@ -20,6 +20,52 @@ const endedGrace = 30 * time.Second
 // start transaction begins before the SDK opens the session).
 const startSkew = time.Minute
 
+// Startup logs (spec section 8, rule 5): console output printed while the
+// app starts, before the SDK opened its session, carries no replay id, user
+// id or known trace id. It belongs to the session the same client starts
+// within this window around it (observed: 60 ms before to 0.7 s after).
+const (
+	startLogBefore = 10 * time.Second // a log at most this long before the session start
+	startLogAfter  = 5 * time.Second  // or at most this long after it
+	maxPerOrigin   = 16
+)
+
+// setOrigin indexes a new session by the network origin it came from. Must
+// hold the lock.
+func (s *sessionState) setOrigin(x *sess, origin string) {
+	if origin == "" || x.origin != "" {
+		return
+	}
+	x.origin = origin
+	k := x.project + "/" + origin
+	l := append(s.byOrigin[k], x)
+	if len(l) > maxPerOrigin {
+		l = l[len(l)-maxPerOrigin:]
+	}
+	s.byOrigin[k] = l
+}
+
+// byStart resolves the startup rule: the one session created from the same
+// origin that started within the window around at. Several candidates
+// (clients behind one address starting together) match none. Must hold the
+// lock.
+func (s *sessionState) byStart(project, origin string, at time.Time) *sess {
+	if origin == "" || at.IsZero() {
+		return nil
+	}
+	var found *sess
+	for _, x := range s.byOrigin[project+"/"+origin] {
+		if at.Before(x.started.Add(-startLogBefore)) || at.After(x.started.Add(startLogAfter)) {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = x
+	}
+	return found
+}
+
 // covers reports whether an item at `at` can belong to the session.
 func (x *sess) covers(at time.Time) bool {
 	if at.IsZero() {
@@ -55,6 +101,7 @@ type sess struct {
 	fatalAt           time.Time     // time of the first fatal exception
 	lastScreen        string
 	previousID        string        // the device's session that started before this one (A9)
+	origin            string        // network origin of the envelope that created the session
 	navs              []navEntry    // recent navigations, to pair transactions with breadcrumbs (A11)
 	crumbs            []crumbSeen   // event breadcrumbs emitted, to skip their copies on later events (A8)
 	httpSpans         []string      // span ids emitted as http.request, oldest first (A8)
@@ -107,6 +154,7 @@ type sessionState struct {
 	byDevice map[string]map[*sess]struct{} // project/did
 	byReplay map[string]*sess              // project/replay_id
 	byTrace  map[string][]*sess            // project/trace_id
+	byOrigin map[string][]*sess            // project/origin, latest sessions created from it
 	now      func() time.Time
 }
 
@@ -121,7 +169,7 @@ func newSessionState(cfg StateConfig) *sessionState {
 	}
 	return &sessionState{
 		max: maxSessions, ttl: ttl, order: list.New(),
-		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{},
+		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{}, byOrigin: map[string][]*sess{},
 		now: time.Now,
 	}
 }
@@ -458,6 +506,21 @@ func (s *sessionState) remove(x *sess) {
 	}
 	for _, id := range x.traceIDs {
 		s.forgetTrace(x, id)
+	}
+	if x.origin != "" {
+		k := x.project + "/" + x.origin
+		l := s.byOrigin[k]
+		for i, c := range l {
+			if c == x {
+				l = append(l[:i:i], l[i+1:]...)
+				break
+			}
+		}
+		if len(l) == 0 {
+			delete(s.byOrigin, k)
+		} else {
+			s.byOrigin[k] = l
+		}
 	}
 }
 

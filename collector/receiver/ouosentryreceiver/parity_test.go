@@ -3,6 +3,7 @@ package ouosentryreceiver
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/plog"
 )
@@ -353,5 +354,50 @@ func TestNativeFrames(t *testing.T) {
 		`{"type":"macho","code_file":"dyld","debug_id":"D341DDCB-7969-3A9C-8E03-0CF4751398A9","image_addr":"0x00000001036b4000","image_size":786432}]`
 	if a["ouo.sentry.debug_images"] != wantImages {
 		t.Errorf("debug images:\n%s\nwant:\n%s", a["ouo.sentry.debug_images"], wantImages)
+	}
+}
+
+func (x *tx) sendFrom(t *testing.T, origin, header string, items ...string) {
+	t.Helper()
+	body := header + "\n" + strings.Join(items, "\n") + "\n"
+	env, err := ParseEnvelope([]byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.r.translate(t.Context(), job{project: x.p, body: []byte(body), receivedAt: time.Date(2026, 10, 14, 10, 30, 0, 0, time.UTC), clientAddr: "10.0.0.1", origin: origin}, env)
+}
+
+// N2: console lines printed while the app starts carry nothing to resolve
+// them by; they join the session the same client starts around them.
+func TestStartupLogs(t *testing.T) {
+	console := map[string]any{"sentry.origin": map[string]any{"value": "auto.log.console", "type": "string"}}
+	startup := func(ts float64, body string) map[string]any {
+		e := sentryLogEntry(ts, "info", body, "efaa8d784a8b4594bad48c385b0fef44", console)
+		delete(e["attributes"].(map[string]any), "device.model") // as observed: no user, replay or device attributes yet
+		return e
+	}
+	x := newTx(t)
+	x.sendFrom(t, "203.0.113.5,10.0.0.1", hdr("sentry.cocoa"), item("session", session(sid1, true, "ok", 0, "2026-10-14T10:00:00Z")))
+	other := session(sid2, true, "ok", 0, "2026-10-14T10:00:01Z")
+	other["did"], other["started"] = "other-device", "2026-10-14T10:00:01Z"
+	x.sendFrom(t, "198.51.100.9,10.0.0.1", hdr("sentry.cocoa"), item("session", other))
+	x.sendFrom(t, "203.0.113.5,10.0.0.1", `{}`, logItem(startup(t0-0.06, "rum mode sentry"), startup(t0+0.03, `Running "main"`), startup(t0-60, "long before")))
+	x.r.flushPendingLogs(t.Context(), true)
+	got := map[any]any{}
+	for _, r := range x.byName("console") {
+		got[r.body] = r.attrs["session.id"]
+	}
+	if got["rum mode sentry"] != sid1 || got[`Running "main"`] != sid1 || got["long before"] != nil {
+		t.Errorf("startup logs: %v", got)
+	}
+
+	// Two clients behind one address starting together: no guess.
+	y := newTx(t)
+	y.sendFrom(t, "10.9.9.9", hdr("sentry.cocoa"), item("session", session(sid1, true, "ok", 0, "2026-10-14T10:00:00Z")))
+	y.sendFrom(t, "10.9.9.9", hdr("sentry.cocoa"), item("session", other))
+	y.sendFrom(t, "10.9.9.9", `{}`, logItem(startup(t0+0.5, "ambiguous")))
+	y.r.flushPendingLogs(t.Context(), true)
+	if c := y.byName("console"); len(c) != 1 || c[0].attrs["session.id"] != nil || c[0].attrs["ouo.sentry.session_match"] != "none" {
+		t.Errorf("ambiguous startup log: %+v", c)
 	}
 }

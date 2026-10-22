@@ -85,9 +85,9 @@ func (l *sentryLog) attr(k string) string {
 }
 
 // resolveLog finds the session of a log entry (spec section 8): the replay id
-// attribute (rule 2), the trace id (rule 4), the user id (rule 3). Must hold
-// the state lock.
-func resolveLog(st *sessionState, project string, l *sentryLog) (*sess, string) {
+// attribute (rule 2), the trace id (rule 4), the user id (rule 3), the
+// session its client started around it (rule 5). Must hold the state lock.
+func resolveLog(st *sessionState, project, origin string, l *sentryLog) (*sess, string) {
 	at := l.Timestamp.Time
 	if c := st.byReplayID(project, l.attr(sentryAttrReplayID)); c != nil && c.covers(at) {
 		return c, matchReplay
@@ -97,6 +97,9 @@ func resolveLog(st *sessionState, project string, l *sentryLog) (*sess, string) 
 	}
 	if c := st.byDeviceAt(project, l.attr(sentryAttrUserID), at); c != nil {
 		return c, matchDevice
+	}
+	if c := st.byStart(project, origin, at); c != nil {
+		return c, matchStart
 	}
 	return nil, matchNone
 }
@@ -282,7 +285,7 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 	r.state.withLock(func() {
 		for i := range p.entries {
 			pl := &p.entries[i]
-			x, match := resolveLog(r.state, pl.group.j.project.OuoProjectID, &pl.log)
+			x, match := resolveLog(r.state, pl.group.j.project.OuoProjectID, pl.group.j.originKey(), &pl.log)
 			switch {
 			case x != nil:
 				r.state.touch(x, pl.log.Timestamp.Time)

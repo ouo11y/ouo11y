@@ -481,7 +481,7 @@ func TestGoldenShop(t *testing.T) {
 	}
 	for _, name := range []string{"log", "console"} {
 		for _, r := range x.byName(name) {
-			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" {
+			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" && m != "start" {
 				t.Errorf("%s %q matched by %v", name, r.body, m)
 			}
 		}
@@ -506,5 +506,77 @@ func TestGoldenShop(t *testing.T) {
 	}
 	if x.r.pending.n != 0 {
 		t.Errorf("replay segments still held: %d", x.r.pending.n)
+	}
+}
+
+// TestGoldenSelfHosted replays the N2 run against self-hosted Sentry 26.10
+// (2026-10-17, project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html):
+// real taps, Sentry logs, a native crash and a relaunch. Sentry's own counts
+// for it: 2 sessions (1 crashed), 3 errors and 1 info message, 10 transactions.
+func TestGoldenSelfHosted(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/selfhosted"))
+	x.r.flushPendingLogs(context.Background(), true)
+	g := summarize(t, x)
+	checkInvariants(t, x, g) // also: no record without a session
+
+	const first, second = "3C8B84B4-8E96-4A06-85D4-9E81A6ED2F77", "5E1BD07A-272D-4264-87BD-AB60D28FB709"
+	if len(g.starts) != 2 || g.ends[first].attrs["ouo.session.end_reason"] != "crash" {
+		t.Errorf("sessions: starts %d, first end %+v", len(g.starts), g.ends[first].attrs)
+	}
+	if len(g.exceptions) != 3 || len(x.byName("sentry.message")) != 1 {
+		t.Errorf("exceptions %d, messages %d; Sentry: 3 errors and 1 info message", len(g.exceptions), len(x.byName("sentry.message")))
+	}
+	// A9.
+	if p := g.starts[second].attrs["session.previous_id"]; p != first {
+		t.Errorf("second session previous_id %v", p)
+	}
+	// N2: startup console lines (before sentry-cocoa's session init) land in
+	// the session that starts next, and Running "main" is stored once per launch.
+	running := map[any]int{}
+	for _, r := range x.byName("console") {
+		if r.body == `Running "main"` {
+			running[r.attrs["session.id"]]++
+		}
+		if r.attrs["ouo.sentry.session_match"] == "start" && !strings.Contains(fmt.Sprint(r.body), "rum mode") && !strings.Contains(fmt.Sprint(r.body), "rollout") && r.body != `Running "main"` {
+			t.Errorf("startup rule claimed %q", r.body)
+		}
+	}
+	if running[first] != 1 || running[second] != 1 {
+		t.Errorf(`Running "main" per session: %v`, running)
+	}
+	// A11: the back navigation Cart -> Home has no transaction, only its breadcrumb.
+	var back bool
+	for _, n := range g.navigations {
+		if n.attrs["url.path"] == "Home" && n.attrs["ouo.navigation.from"] == "Cart" && n.attrs["ouo.navigation.source"] == "breadcrumb" && n.attrs["session.id"] == first {
+			back = true
+		}
+	}
+	if !back || len(g.navigations) != 5 {
+		t.Errorf("navigations %d, back navigation %v", len(g.navigations), back)
+	}
+	// A2: log records carry release, environment, OS and device; A3: so does
+	// the second session's start (a session-only envelope).
+	for _, name := range []string{"log", "session.start"} {
+		var res map[string]any
+		for _, ld := range x.logs.AllLogs() {
+			rl := ld.ResourceLogs().At(0)
+			lrs := rl.ScopeLogs().At(0).LogRecords()
+			for i := 0; i < lrs.Len(); i++ {
+				if lrs.At(i).EventName() == name && lrs.At(i).Attributes().AsRaw()["session.id"] == second {
+					res = rl.Resource().Attributes().AsRaw()
+				}
+			}
+		}
+		if res["service.version"] != "1.0.0" || res["deployment.environment.name"] == nil || res["os.name"] != "iOS" || res["os.version"] == nil || res["device.model.identifier"] == nil {
+			t.Errorf("%s resource in the second session: %+v", name, res)
+		}
+	}
+	// A6: errors carry the screen and device state.
+	for _, e := range g.exceptions {
+		// sentry-cocoa's crash report has no connection type; JS errors do.
+		if e.attrs["ouo.device.locale"] == nil || (e.attrs["ouo.exception.fatal"] == false && (e.attrs["network.connection.type"] == nil || e.attrs["ouo.app.screen"] == nil)) {
+			t.Errorf("exception %v without device context: %+v", e.attrs["exception.type"], e.attrs)
+		}
 	}
 }
