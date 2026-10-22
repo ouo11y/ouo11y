@@ -77,7 +77,7 @@ v4.6.2 (dry-run artefacts), govulncheck v1.9.0 and the Trivy image (scanners).
 | release-please CLI `release-pr --dry-run` against the PR branch | would open exactly `release collector 0.3.1` (from the `fix(deps)` commit), updating `collector/CHANGELOG.md`, `builder.yaml`, the manifest |
 | release-please updaters run locally on the real files | changelog section lands under `## Unreleased`; `builder.yaml`, `Chart.yaml`, each lockfile entry: one line each |
 | `compat-check.mjs` on the repo, then on a scratch copy with browser 0.3.0, iOS schema 2, chart defaults 0.4.0 | OK; then 6 precise failures |
-| PR #37 runs (pull_request) | release-npm (browser), release-plugin, release-ios, release-chart, security, release-check compat: green; ci and e2e: see the PR |
+| PR #37 runs (pull_request), final round on `74efd3d` | all green: ci (changes, pr-title, go x2, collector ocb, images x3 with Trivy, node, swift, links, helm), security (govulncheck, npm-audit), release-check (compat + e2e scenario, [run](https://github.com/ouo11y/ouo11y/actions/runs/39865731907)), release-npm (browser), release-plugin, release-ios, release-chart |
 | Dispatch dry runs on the branch | release-chart chart-v0.1.1 ([run](https://github.com/ouo11y/ouo11y/actions/runs/39863952451)), release-ios ios-v0.2.0 with tests skipped ([run](https://github.com/ouo11y/ouo11y/actions/runs/39863956936), notice "OUO_IOS_DEPLOY_KEY secret is not set"), release-plugin plugin-v0.7.0 ([run](https://github.com/ouo11y/ouo11y/actions/runs/39863966388)), release-images grafana-v0.3.0 ([run](https://github.com/ouo11y/ouo11y/actions/runs/39863961473)), release-npm react-native-v0.2.0 ([run](https://github.com/ouo11y/ouo11y/actions/runs/39864268962)), security ([run](https://github.com/ouo11y/ouo11y/actions/runs/39863984778)) |
 | govulncheck locally with `GOTOOLCHAIN=go1.26.10` after the bumps | every module clean |
 | `npm audit --omit=dev --audit-level=high` after the bump | passes (5 moderate left) |
@@ -89,7 +89,7 @@ v4.6.2 (dry-run artefacts), govulncheck v1.9.0 and the Trivy image (scanners).
 Bugs the dry runs caught and that are fixed: `npm publish out/x.tgz` is read as a GitHub repo
 (needs `./`); react-native's `prepack` output breaks `npm pack --json`; Helm's release-please
 updater rewrites `Chart.yaml` (switched to a line marker); `helm template` needs credentials
-(uses `values-kind.yaml`).
+(uses `values-kind.yaml`); the e2e stack starved Loki of disk on a stock runner (the job now frees ~22 GB first, see the kb).
 
 ## Read-only checks of external accounts (2026-10-23)
 
