@@ -3,7 +3,10 @@
 # unchanged) with Instruments' Time Profiler attached, then capture_stalls.py on the export.
 #
 #   profile-runs.sh --out <dir> --app <sentrydemo.app dir with its .dSYM next to it> [--rounds 3]
-#                   [--mode both-replay] [--device <udid>]
+#                   [--mode both-replay] [--device <udid>] [--signposts]
+#
+# --signposts also records os_signpost and exports the intervals to signposts.xml: ouo's
+# "snapshot" (main thread) and "compose" (capture queue) intervals, subsystem dev.ouo.replay.
 #
 # Installs the given build first, so a before/after pair runs on the same simulator and stack.
 set -euo pipefail
@@ -14,6 +17,7 @@ ROUNDS=3
 MODE=both-replay
 OUT=""
 APP=""
+SIGNPOSTS=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift ;;
@@ -21,6 +25,7 @@ while [[ $# -gt 0 ]]; do
     --rounds) ROUNDS="$2"; shift ;;
     --mode) MODE="$2"; shift ;;
     --device) DEVICE="$2"; shift ;;
+    --signposts) SIGNPOSTS=1 ;;
     *) echo "unknown flag $1" >&2; exit 2 ;;
   esac
   shift
@@ -51,13 +56,19 @@ for ((r = 1; r <= ROUNDS; r++)); do
     sleep 0.5
   done
   if [[ -z "$pid" ]]; then log "  app never started"; wait "$runner" || true; continue; fi
-  xcrun xctrace record --template 'Time Profiler' --device "$DEVICE" --attach "$pid" --time-limit 80s \
+  extra=()
+  [[ $SIGNPOSTS == 1 ]] && extra=(--instrument os_signpost)
+  xcrun xctrace record --template 'Time Profiler' "${extra[@]}" --device "$DEVICE" --attach "$pid" --time-limit 80s \
     --output "$dir/tp.trace" >"$dir/xctrace.log" 2>&1 || log "  xctrace exit $?"
   wait "$runner" || log "  run.sh exit $?"
   xcrun xctrace symbolicate --input "$dir/tp.trace" --dsym "$APP/sentrydemo.app.dSYM" --output "$dir/tps.trace" >/dev/null 2>&1 \
     || cp -R "$dir/tp.trace" "$dir/tps.trace"
   xcrun xctrace export --input "$dir/tps.trace" \
     --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' >"$dir/tps.xml"
+  if [[ $SIGNPOSTS == 1 ]]; then
+    xcrun xctrace export --input "$dir/tps.trace" \
+      --xpath '/trace-toc/run[@number="1"]/data/table[@schema="os-signpost-interval"]' >"$dir/signposts.xml" || true
+  fi
   sampled=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["pid"])' "$dir/$MODE/run1/samples.json")
   [[ "$sampled" == "$pid" ]] || log "  WARNING: profiled pid $pid, sampler measured pid $sampled"
   python3 -I "$HERE/capture_stalls.py" "$dir/tps.xml" --process "pid: $pid" --json "$dir/stalls.json" | tee "$dir/stalls.txt"

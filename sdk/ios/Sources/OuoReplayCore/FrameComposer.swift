@@ -35,6 +35,19 @@ public struct FrameComposer: Sendable {
         )
     }
 
+    /// Pixels per point for a frame: the largest `screenScale / n` (n = 1, 2, 3, ...) that keeps the
+    /// longest side within `maxLongestSide` pixels. An integer downscale from the screen's own
+    /// resolution is much cheaper inside drawHierarchy than an arbitrary one (3 -> 1 instead of
+    /// 3 -> 1.14 halved the main-thread render on the iOS 27 simulator), and stays sharp. An iPhone
+    /// at 3x with a 402 x 874 pt screen and the default 1000 px gets 1.0: 402 x 874 px frames.
+    public static func renderScale(longestSidePoints: Double, screenScale: Double, maxLongestSide: Double) -> Double {
+        guard longestSidePoints > 0, screenScale > 0, maxLongestSide > 0 else { return 1 }
+        let fit = maxLongestSide / longestSidePoints
+        if screenScale <= fit { return screenScale }
+        let n = (screenScale / fit).rounded(.up)
+        return screenScale / n
+    }
+
     /// The snapshot with every rectangle filled black. `rects` are in points with a top-left origin
     /// (window coordinates, as `RedactionPlanner` returns them); `scale` is pixels per point.
     public func redact(_ image: CGImage, rects: [CGRect], scale: CGFloat) -> CGImage? {

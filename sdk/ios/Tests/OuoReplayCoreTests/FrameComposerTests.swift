@@ -86,6 +86,26 @@ import Testing
         #expect(isWhite(pixel(masked, Int(rect.midX * scale), Int((rect.minY - 3) * scale))))
     }
 
+    @Test func RenderScaleIsAnIntegerDivisorOfTheScreenScaleThatFits() {
+        // iPhone 16 Pro Max (440 x 956 pt @3x), iPhone 18 Pro sim (402 x 874 @3x): 1.0.
+        #expect(FrameComposer.renderScale(longestSidePoints: 956, screenScale: 3, maxLongestSide: 1000) == 1)
+        #expect(FrameComposer.renderScale(longestSidePoints: 874, screenScale: 3, maxLongestSide: 1000) == 1)
+        // A 2x phone (375 x 667 pt) also lands on 1.0; a 2x iPad (1366 pt) gets 2/3 (911 px).
+        #expect(FrameComposer.renderScale(longestSidePoints: 667, screenScale: 2, maxLongestSide: 1000) == 1)
+        #expect(FrameComposer.renderScale(longestSidePoints: 1366, screenScale: 2, maxLongestSide: 1000) == 2.0 / 3.0)
+        // Fits at the native scale: unchanged.
+        #expect(FrameComposer.renderScale(longestSidePoints: 300, screenScale: 3, maxLongestSide: 1000) == 3)
+        // A larger cap lets 3x screens keep 1.5x.
+        #expect(FrameComposer.renderScale(longestSidePoints: 874, screenScale: 3, maxLongestSide: 1400) == 1.5)
+        for longest in stride(from: 300.0, through: 1400, by: 37) {
+            for screen in [1.0, 2.0, 3.0] {
+                let s = FrameComposer.renderScale(longestSidePoints: longest, screenScale: screen, maxLongestSide: 1000)
+                #expect(longest * s <= 1000 + 1e-9, "spec: longest side at most 1000 px")
+                #expect((screen / s).rounded() == screen / s || s == screen, "integer downscale")
+            }
+        }
+    }
+
     @Test func NoRectanglesReturnsTheSnapshotUnchanged() {
         let raw = snapshot(w: 10, h: 10, scale: 1)
         #expect(FrameComposer(jpegQuality: 0.5).redact(raw, rects: [], scale: 1) === raw)

@@ -47,11 +47,14 @@ final class ScreenCapturer {
         return scenes.first?.windows.first
     }
 
-    /// Pixels per point for the frame: the screen scale, lowered until the longest side fits.
+    /// Pixels per point for the frame: the screen scale divided by the smallest integer that makes
+    /// the longest side fit (`FrameComposer.renderScale`).
     func renderScale(for bounds: CGRect, screenScale: CGFloat) -> CGFloat {
-        let longest = max(bounds.width, bounds.height)
-        guard longest > 0 else { return 1 }
-        return min(screenScale, maxLongestSide / longest)
+        CGFloat(FrameComposer.renderScale(
+            longestSidePoints: Double(max(bounds.width, bounds.height)),
+            screenScale: Double(screenScale),
+            maxLongestSide: Double(maxLongestSide)
+        ))
     }
 
     /// Main thread only (`drawHierarchy` and the view walk require it).
