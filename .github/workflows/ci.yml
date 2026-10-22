@@ -1,9 +1,12 @@
 # Continuous integration for every pull request and for pushes to main.
 # Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
-# ocb build (collector/), npm build + test
-# across the workspaces (Node 24), the Swift core tests of sdk/ios on macOS, helm lint
-# when the chart exists, an offline link check of the docs, and a build (no push) of every released container image.
-# See docs/releasing.md.
+# ocb build (collector/), npm build + test across the workspaces (Node 24), the Swift core
+# tests of sdk/ios on macOS, helm lint, an offline link check of the docs, and a build (no
+# push) plus a Trivy scan of every released container image. See docs/releasing.md.
+#
+# Actions minutes (free org plan): the `changes` job lists the files a pull request touches
+# and every other job runs only when its paths changed (macOS bills 10x, so `swift` runs only
+# for sdk/ios). A push to main runs everything. A change to this file runs everything.
 name: ci
 
 on:
@@ -19,9 +22,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      go: ${{ steps.paths.outputs.go }}
+      collector: ${{ steps.paths.outputs.collector }}
+      node: ${{ steps.paths.outputs.node }}
+      swift: ${{ steps.paths.outputs.swift }}
+      helm: ${{ steps.paths.outputs.helm }}
+      images: ${{ steps.paths.outputs.images }}
+    steps:
+      - name: Match changed files against each job's paths
+        id: paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          all=false
+          files=""
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            all=true
+          else
+            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+            printf '%s\n' "$files" | grep -qx '.github/workflows/ci.yml' && all=true
+          fi
+          match() { [ "$all" = true ] || printf '%s\n' "$files" | grep -Eq "$1"; }
+          flag() { if match "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
+          flag go        '^(services/rum-api|examples/backend)/'
+          flag collector '^(collector|deploy/compose/collector)/'
+          flag node      '^(sdk|plugins|examples/web|deploy/envs)/|^package(-lock)?\.json$'
+          flag swift     '^sdk/ios/'
+          flag helm      '^deploy/helm/'
+          images=""
+          match '^services/rum-api/'                                        && images="$images\"rum-api\","
+          match '^collector/'                                               && images="$images\"collector\","
+          match '^(deploy/images/grafana|plugins/ouo11y-rum-app)/|^package-lock\.json$' && images="$images\"grafana\","
+          echo "images=[${images%,}]" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  # Conventional commit titles feed release-please (docs/releasing.md, "Commit and PR titles").
+  pr-title:
+    name: PR title (conventional commit)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          re='^(feat|fix|perf|revert|deps|docs|chore|refactor|test|build|ci)(\([a-z0-9./-]+\))?!?: .+'
+          if printf '%s' "$TITLE" | grep -Eq "$re"; then
+            echo "ok: $TITLE"
+          else
+            echo "::error::PR title '$TITLE' is not a conventional commit: <type>(<scope>)!: <summary>, type one of feat fix perf revert deps docs chore refactor test build ci; scope = component (browser, react-native, ios, plugin, collector, rum-api, grafana, chart) when it should land in that changelog. See docs/releasing.md."
+            exit 1
+          fi
+
   go:
     name: go (${{ matrix.module }})
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -30,8 +97,10 @@ jobs:
       run:
         working-directory: ${{ matrix.module }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: ${{ matrix.module }}/go.sum
@@ -44,10 +113,15 @@ jobs:
 
   collector:
     name: collector (ocb distribution)
+    needs: changes
+    if: needs.changes.outputs.collector == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: collector/receiver/ouoreplayreceiver/go.mod
           cache-dependency-path: collector/**/go.sum
@@ -71,34 +145,38 @@ jobs:
         run: ./dist/ouo-collector validate --config=../deploy/compose/collector/config.yaml
 
   # Builds each image release-images.yml publishes, from the same Dockerfile and context,
-  # for linux/amd64 only (the arm64 leg runs in the release and in its dry run), loads it
-  # and runs a smoke command. Nothing is pushed; the GHA cache is shared with the release.
+  # for linux/amd64 only (the arm64 leg runs in the release and in its dry run), loads it,
+  # runs a smoke command and scans it with Trivy: fixable CRITICAL findings fail the job,
+  # HIGH ones are listed. Nothing is pushed; the GHA cache is shared with the release.
   images:
     name: image (${{ matrix.image }})
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - image: rum-api
-            context: services/rum-api
-            dockerfile: services/rum-api/Dockerfile
-            smoke: docker run --rm --entrypoint /rum-api ouo-ci/rum-api -h 2>&1 | grep -q -- -check
-          - image: collector
-            context: collector
-            dockerfile: collector/Dockerfile
-            smoke: >-
-              docker run --rm ouo-ci/collector components | grep -E 'ouoreplay|ouosentry'
-              && docker run --rm ouo-ci/collector --version
-          - image: grafana
-            context: .
-            dockerfile: deploy/images/grafana/Dockerfile
-            smoke: >-
-              docker run --rm --entrypoint cat ouo-ci/grafana
-              /var/lib/grafana/plugins/ouo11y-rum-app/plugin.json | grep -q '"id": *"ouo11y-rum-app"'
+        image: ${{ fromJSON(needs.changes.outputs.images) }}
+    env:
+      # Trivy from its own image pinned by digest: no third-party action in the scan path.
+      TRIVY: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Image parameters
+        id: img
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          case "$IMAGE" in
+            rum-api)   echo "context=services/rum-api" >> "$GITHUB_OUTPUT"; echo "dockerfile=services/rum-api/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            collector) echo "context=collector" >> "$GITHUB_OUTPUT"; echo "dockerfile=collector/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            grafana)   echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=deploy/images/grafana/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::unknown image $IMAGE"; exit 1 ;;
+          esac
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: matrix.image == 'grafana'
         with:
           node-version: 24
@@ -108,12 +186,12 @@ jobs:
         run: |
           npm ci
           npm run build -w plugins/ouo11y-rum-app
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: docker build (linux/amd64, no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: ${{ steps.img.outputs.context }}
+          file: ${{ steps.img.outputs.dockerfile }}
           platforms: linux/amd64
           push: false
           load: true
@@ -124,14 +202,42 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Smoke
-        run: ${{ matrix.smoke }}
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          case "$IMAGE" in
+            rum-api)
+              docker run --rm --entrypoint /rum-api ouo-ci/rum-api -h 2>&1 | grep -q -- -check ;;
+            collector)
+              docker run --rm ouo-ci/collector components | grep -E 'ouoreplay|ouosentry'
+              docker run --rm ouo-ci/collector --version ;;
+            grafana)
+              docker run --rm --entrypoint cat ouo-ci/grafana \
+                /var/lib/grafana/plugins/ouo11y-rum-app/plugin.json | grep -q '"id": *"ouo11y-rum-app"' ;;
+          esac
+      - name: Trivy (fail on fixable CRITICAL)
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          trivy() {
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$RUNNER_TEMP/trivy:/root/.cache/" "$TRIVY" image --no-progress --scanners vuln "$@"
+          }
+          echo "::group::HIGH and CRITICAL (informational)"
+          trivy --severity HIGH,CRITICAL --format table "ouo-ci/$IMAGE"
+          echo "::endgroup::"
+          trivy --skip-db-update --severity CRITICAL --ignore-unfixed --exit-code 1 --format table "ouo-ci/$IMAGE"
 
   node:
     name: node (workspaces)
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
@@ -149,9 +255,14 @@ jobs:
 
   swift:
     name: swift (OuoReplayCore)
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - run: swift --version
       - name: swift build (both targets, macOS stub for UIKit)
         working-directory: sdk/ios
@@ -160,14 +271,17 @@ jobs:
         run: sh sdk/ios/test.sh
 
   # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
-  # external URLs are not fetched, so the job is fast and never flaky.
+  # external URLs are not fetched, so the job is fast and never flaky. Always runs.
   links:
     name: links (lychee, offline)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: lychee --offline
-        uses: lycheeverse/lychee-action@v2.9.0
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
           args: --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'
@@ -176,22 +290,16 @@ jobs:
 
   helm:
     name: helm lint
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Detect chart
-        id: chart
-        run: |
-          if [ -f deploy/helm/ouo/Chart.yaml ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "deploy/helm/ouo/Chart.yaml not found; helm lint skipped"
-          fi
-      - uses: azure/setup-helm@v4
-        if: steps.chart.outputs.present == 'true'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v4.3.0
       - name: helm lint
-        if: steps.chart.outputs.present == 'true'
-        run: |
-          helm dependency update deploy/helm/ouo || true
-          helm lint deploy/helm/ouo
+        run: helm lint deploy/helm/ouo

@@ -9,5 +9,6 @@
 | [specs/sentry-bridge.md](specs/sentry-bridge.md) | Sentry envelope to ouo mapping, forwarding rules, session resolution, `video` replay chunk and rum-api video API (ADR-0008, accepted 2026-10-17) |
 | [adr/](adr/README.md) | architecture decision records |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
-| [releasing.md](releasing.md) | the one releasing document: versioning policy per package, tag formats, pre-releases, image release checklist, pull access, release workflows, required secrets, changelog layout |
-| [operations/upgrade.md](operations/upgrade.md) | operator upgrade procedure (compose and Helm), replay schema-version rule, compatibility table, rollback (index: [operations/index.md](operations/index.md)) |
+| [releasing.md](releasing.md) | the one releasing document: components and tags, versioning, conventional commits, release-please flow, the founder's release checklist, dry runs, pull access, accounts and secrets, supply chain |
+| [compatibility.md](compatibility.md) | compatibility matrix: which SDK, collector, rum-api, plugin and chart lines work together, replay `schema_version`; checked on every release PR |
+| [operations/upgrade.md](operations/upgrade.md) | operator upgrade procedure (compose and Helm), replay schema-version rule, rollback (index: [operations/index.md](operations/index.md)) |

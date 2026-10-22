@@ -20,7 +20,9 @@
 # release notes into the run summary, and pushes / releases nothing.
 #
 # No extra secret: GITHUB_TOKEN with packages: write is enough. The first push creates the
-# package as private; make it public once in the GitHub package settings.
+# package as private; it stays private until ouo is stable (docs/releasing.md, "Pull access").
+# The ci.yml `images` job builds the same Dockerfiles on every PR that touches them and fails
+# on fixable critical CVEs (Trivy).
 name: release-images
 
 on:
@@ -36,9 +38,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write   # gh release create
-  packages: write   # push to ghcr.io
+permissions: {}
 
 concurrency:
   group: release-images-${{ github.event.inputs.tag || github.ref_name }}
@@ -54,10 +54,15 @@ env:
 jobs:
   build-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write   # gh release create
+      packages: write   # push to ghcr.io
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0   # release notes list the commits since the previous tag
+          persist-credentials: false
 
       - name: Resolve image from tag
         id: target
@@ -104,6 +109,14 @@ jobs:
               exit 1
             fi
           fi
+          if [ "$image" = grafana ]; then
+            # release-please bumps version.txt in the grafana release PR; rcs are cut by hand from it.
+            built=$(cat deploy/images/grafana/version.txt)
+            if [ "$built" != "${version%%-*}" ]; then
+              echo "::error::$TAG says $version but deploy/images/grafana/version.txt is $built"
+              exit 1
+            fi
+          fi
           prerelease=false
           case "$version" in *-*) prerelease=true ;; esac
           {
@@ -118,7 +131,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # The grafana image copies the built plugin; build and test it first.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.target.outputs.image == 'grafana'
         with:
           node-version: 24
@@ -134,10 +147,10 @@ jobs:
           echo "version=$(node -p "require('./plugins/ouo11y-rum-app/dist/plugin.json').info.version")" >> "$GITHUB_OUTPUT"
           echo "base=$(awk '/^FROM /{print $2; exit}' deploy/images/grafana/Dockerfile)" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         if: env.DRY_RUN != 'true'
         with:
           registry: ghcr.io
@@ -146,7 +159,7 @@ jobs:
 
       - name: Image tags, labels and annotations
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.REGISTRY_IMAGE_PREFIX }}/${{ steps.target.outputs.image }}
           tags: |
@@ -165,7 +178,7 @@ jobs:
 
       - name: Build and push (linux/amd64, linux/arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ${{ steps.target.outputs.context }}
           file: ${{ steps.target.outputs.dockerfile }}
@@ -222,13 +235,7 @@ jobs:
             echo
             echo "## Changes"
             echo
-            section=""
-            if [ -f "$CHANGELOG" ]; then
-              section=$(awk -v v="$VERSION" '
-                /^## / { show = ($2 == v); next }
-                show { print }
-              ' "$CHANGELOG")
-            fi
+            section=$(.github/scripts/changelog-section.sh "$CHANGELOG" "$VERSION")
             if [ -n "$section" ]; then
               echo "$section"
             else

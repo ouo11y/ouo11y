@@ -5,4 +5,4 @@ Operator-facing procedures. Install guides live next to the deployment files
 
 | File | Content |
 |---|---|
-| [upgrade.md](upgrade.md) | upgrade procedure for the compose and Helm paths, replay `schema_version` compatibility rule, component compatibility table, rollback |
+| [upgrade.md](upgrade.md) | upgrade procedure for the compose and Helm paths, replay `schema_version` compatibility rule, rollback (the component matrix is `../compatibility.md`) |

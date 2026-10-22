@@ -12,7 +12,7 @@ Status: procedure written in Phase 8a. The schema-version guard in section 4 is 
 
 1. Read the per-package changelogs for every version you are skipping over, especially the
    `Breaking` and `Compatibility` headings (`CHANGELOG.md` at the root links them all).
-2. Check the compatibility table in section 5. Upgrade in this order when more than one
+2. Check the compatibility matrix ([`../compatibility.md`](../compatibility.md)). Upgrade in this order when more than one
    component changes: **rum-api first, then Grafana image / plugin, then SDKs**. rum-api is
    backwards compatible with the previous SDK minor; SDKs are not forwards compatible with
    an older rum-api.
@@ -113,22 +113,13 @@ clear message and exit code 1).
 
 ## 5. Compatibility table
 
-Minimum versions that work together. Update this table with every release that changes a
-contract between components. Versions are those of Phase 8a; nothing is tagged yet.
+Moved to [`../compatibility.md`](../compatibility.md): one line per release line of every
+component with the minimum collector, rum-api, plugin and Grafana versions it needs, and the
+replay `schema_version` each side reads or emits. A release PR fails its `release-check` until
+that file covers the new version.
 
-| Component | Version | Needs rum-api | Needs Grafana | Notes |
-|---|---|---|---|---|
-| rum-api | 0.3.0 (same contract as 0.2.0) | n/a | 13.x for the plugin proxy; any for ingest | ADR-0007: project token on ingest, read token for the plugin; max replay `schema_version` 1 |
-| `@ouo11y/browser` | 0.2.0 | >= 0.2.0 | n/a | posts OTLP to rum-api `/ingest/otlp` with `X-Ouo-Project-Token`; 0.1.x posted to the collector directly and does not work behind the gateway |
-| `@ouo11y/react-native` | 0.2.0 | >= 0.2.0 | n/a | same gateway change; frames replay `schema_version` 1 |
-| `OuoReplay` (iOS) | 0.2.0 | >= 0.2.0 | n/a | project token on `POST /v1/replay/chunks` |
-| `ouo11y-rum-app` plugin | 0.7.0 | >= 0.2.0 | >= 13.0.0 (`grafanaDependency`) | ID was `ouo-rum-app` up to 0.6.0: provisioning and the unsigned allow-list must name `ouo11y-rum-app` (plugin CHANGELOG 0.7.0). Read token in the plugin route since 0.3.0 |
-| grafana image | 0.3.0 | n/a | ships Grafana 13.2.1 + plugin 0.7.0 | 0.2.0 shipped plugin 0.6.0 as `ouo-rum-app`, under `ghcr.io/ziadmansourm/ouo/grafana` |
-| collector image | 0.3.0 | >= 0.2.0 (replay exporter) | n/a | `ouo.rum.mode = sentry` on bridged data; component names unchanged |
-| Helm chart | 0.1.1 | `appVersion` 0.3.0 | | Kubernetes >= 1.25 |
-
-Rule of thumb: same minor across rum-api, both SDKs and OuoReplay is always supported; an
-SDK one minor **behind** rum-api is supported; an SDK **ahead** of rum-api is not.
+Rule of thumb: upgrade the collector and rum-api before the SDKs; an SDK one minor **behind**
+the collector is supported, an SDK **ahead** of it is not.
 
 ## 6. Rollback
 
