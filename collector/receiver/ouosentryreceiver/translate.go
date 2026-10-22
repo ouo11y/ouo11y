@@ -501,6 +501,10 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 		if st := renderStacktrace(e.Exception); st != "" {
 			a.PutStr("exception.stacktrace", st)
 		}
+		if imgs := usedDebugImages(e); len(imgs) > 0 {
+			b, _ := json.Marshal(imgs)
+			a.PutStr("ouo.sentry.debug_images", string(b))
+		}
 	}
 	a.PutStr("exception.type", excType)
 	a.PutStr("exception.message", excMsg)

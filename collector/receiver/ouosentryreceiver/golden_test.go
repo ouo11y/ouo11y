@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,6 +268,20 @@ func TestGoldenJourney(t *testing.T) {
 	// (synthetic exception) is a sentry.message, as Sentry's errors counter says (A1).
 	if len(g.exceptions) != 3 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
 		t.Errorf("exceptions: %d total, fatal %+v", len(g.exceptions), fatal)
+	}
+	// A7: native frames keep image, address and load address; the record
+	// names the images (with UUIDs) the frames point into.
+	if st, _ := fatal[0].attrs["exception.stacktrace"].(string); !strings.Contains(st, "at ? (sentrydemo 0x0000000102c7c9ec 0x102ac8000 + 1788396) [in app]") || strings.Contains(st, "at ? (/") {
+		t.Errorf("native stack:\n%s", st)
+	}
+	var images []debugImage
+	if err := json.Unmarshal([]byte(fmt.Sprint(fatal[0].attrs["ouo.sentry.debug_images"])), &images); err != nil || len(images) < 2 || len(images) >= 16 {
+		t.Errorf("debug images (%v): %+v", err, images)
+	}
+	for _, img := range images {
+		if img.DebugID == "" || strings.Contains(img.CodeFile, "/") {
+			t.Errorf("debug image %+v", img)
+		}
 	}
 	if !crash.ts.Equal(fatal[0].ts) {
 		t.Errorf("crash session ends at %s, the crash happened at %s", crash.ts, fatal[0].ts)

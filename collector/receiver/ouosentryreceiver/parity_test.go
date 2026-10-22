@@ -327,3 +327,31 @@ func TestErrorContext(t *testing.T) {
 		}
 	}
 }
+
+// A7: unsymbolicated native frames keep their addresses, and the record names
+// the debug images (with their UUIDs) the frames point into.
+func TestNativeFrames(t *testing.T) {
+	x := newTx(t)
+	x.send(t, hdr("sentry.cocoa"), item("event", map[string]any{"event_id": "c1", "timestamp": t0, "level": "fatal",
+		"exception": map[string]any{"values": []any{map[string]any{"type": "EXC_BAD_ACCESS", "mechanism": map[string]any{"type": "mach", "handled": false, "synthetic": true},
+			"stacktrace": map[string]any{"frames": []any{
+				map[string]any{"package": "/usr/lib/dyld", "instruction_addr": "0x00000001036e5e80", "image_addr": "0x00000001036b4000"},
+				map[string]any{"instruction_addr": "0x000000010343c350", "image_addr": "0x0000000000000000"},
+				map[string]any{"package": "/Users/me/sentrydemo.app/sentrydemo", "instruction_addr": "0x0000000102c7c9ec", "image_addr": "0x0000000102ac8000", "in_app": true},
+			}}}}},
+		"debug_meta": map[string]any{"images": []any{
+			map[string]any{"type": "macho", "code_file": "/Users/me/sentrydemo.app/sentrydemo", "debug_id": "D6614443-A6DC-38CA-8CA6-8E62EA329489", "image_addr": "0x0000000102ac8000", "image_vmaddr": "0x0000000100000000", "image_size": 3522560},
+			map[string]any{"type": "macho", "code_file": "dyld", "debug_id": "D341DDCB-7969-3A9C-8E03-0CF4751398A9", "image_addr": "0x00000001036b4000", "image_size": 786432},
+			map[string]any{"type": "macho", "code_file": "/usr/lib/libunused.dylib", "debug_id": "11111111-0000-0000-0000-000000000000", "image_addr": "0x0000000190000000"},
+		}}}))
+	a := x.byName("exception")[0].attrs
+	wantStack := "EXC_BAD_ACCESS\n  at ? (sentrydemo 0x0000000102c7c9ec 0x102ac8000 + 1788396) [in app]\n  at ? (? 0x000000010343c350)\n  at ? (dyld 0x00000001036e5e80 0x1036b4000 + 204416)"
+	if a["exception.stacktrace"] != wantStack {
+		t.Errorf("stacktrace:\n%s\nwant:\n%s", a["exception.stacktrace"], wantStack)
+	}
+	wantImages := `[{"type":"macho","code_file":"sentrydemo","debug_id":"D6614443-A6DC-38CA-8CA6-8E62EA329489","image_addr":"0x0000000102ac8000","image_vmaddr":"0x0000000100000000","image_size":3522560},` +
+		`{"type":"macho","code_file":"dyld","debug_id":"D341DDCB-7969-3A9C-8E03-0CF4751398A9","image_addr":"0x00000001036b4000","image_size":786432}]`
+	if a["ouo.sentry.debug_images"] != wantImages {
+		t.Errorf("debug images:\n%s\nwant:\n%s", a["ouo.sentry.debug_images"], wantImages)
+	}
+}

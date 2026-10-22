@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -84,13 +85,16 @@ type sentryEvent struct {
 		Formatted string `json:"formatted"`
 		Message   string `json:"message"`
 	} `json:"logentry"`
-	Exception    exceptionList `json:"exception"`
-	Tags         tagMap        `json:"tags"`
-	Breadcrumbs  crumbList     `json:"breadcrumbs"`
-	User         *sentryUser   `json:"user"`
-	Contexts     contexts      `json:"contexts"`
-	SDK          *SDKInfo      `json:"sdk"`
-	Spans        []sentrySpan  `json:"spans"`
+	Exception exceptionList `json:"exception"`
+	Tags      tagMap        `json:"tags"`
+	DebugMeta *struct {
+		Images []debugImage `json:"images"`
+	} `json:"debug_meta"`
+	Breadcrumbs  crumbList    `json:"breadcrumbs"`
+	User         *sentryUser  `json:"user"`
+	Contexts     contexts     `json:"contexts"`
+	SDK          *SDKInfo     `json:"sdk"`
+	Spans        []sentrySpan `json:"spans"`
 	Measurements map[string]struct {
 		Value float64 `json:"value"`
 		Unit  string  `json:"unit"`
@@ -209,6 +213,7 @@ type sentryFrame struct {
 	AbsPath         string `json:"abs_path"`
 	Package         string `json:"package"`
 	InstructionAddr string `json:"instruction_addr"`
+	ImageAddr       string `json:"image_addr"`
 	Lineno          int    `json:"lineno"`
 	Colno           int    `json:"colno"`
 	InApp           *bool  `json:"in_app"`
@@ -348,11 +353,11 @@ func renderStacktrace(values []sentryException) string {
 				if loc == "" {
 					loc = f.Module
 				}
-				if loc == "" {
-					loc = f.Package
+				if loc == "" && f.InstructionAddr != "" {
+					loc = nativeLocation(f)
 				}
 				if loc == "" {
-					loc = f.InstructionAddr
+					loc = f.Package
 				}
 				b.WriteString("  at ")
 				b.WriteString(fn)
@@ -386,6 +391,73 @@ func renderStacktrace(values []sentryException) string {
 }
 
 const maxStacktraceBytes = 32 << 10
+
+// nativeLocation renders an unsymbolicated native frame as Apple crash
+// reports do, `<image> <address> <load address> + <offset>`, which is what
+// atos needs with the image's dSYM (found by its debug id, A7).
+func nativeLocation(f sentryFrame) string {
+	name := path.Base(f.Package)
+	if f.Package == "" {
+		name = "?"
+	}
+	instr, err1 := strconv.ParseUint(strings.TrimPrefix(f.InstructionAddr, "0x"), 16, 64)
+	image, err2 := strconv.ParseUint(strings.TrimPrefix(f.ImageAddr, "0x"), 16, 64)
+	if err1 != nil || err2 != nil || image == 0 || instr < image {
+		return name + " " + f.InstructionAddr
+	}
+	return name + " " + f.InstructionAddr + " 0x" + strconv.FormatUint(image, 16) + " + " + strconv.FormatUint(instr-image, 10)
+}
+
+// debugImage is one entry of an event's debug_meta.images: a loaded native
+// image (macho, elf, pe) or a JavaScript source map.
+type debugImage struct {
+	Type        string `json:"type"`
+	CodeFile    string `json:"code_file"`
+	DebugID     string `json:"debug_id"`
+	ImageAddr   string `json:"image_addr"`
+	ImageVMAddr string `json:"image_vmaddr,omitempty"`
+	ImageSize   int64  `json:"image_size,omitempty"`
+	Arch        string `json:"arch,omitempty"`
+}
+
+const maxDebugImages = 64
+
+// usedDebugImages returns the debug images the stack frames point into
+// (native frames by image_addr, JavaScript frames by source file), with the
+// image name instead of its path: enough to find the dSYM or source map.
+func usedDebugImages(e *sentryEvent) []debugImage {
+	if e.DebugMeta == nil || len(e.DebugMeta.Images) == 0 {
+		return nil
+	}
+	addrs, files := map[string]bool{}, map[string]bool{}
+	for _, v := range e.Exception {
+		if v.Stacktrace == nil {
+			continue
+		}
+		for _, f := range v.Stacktrace.Frames {
+			if f.ImageAddr != "" {
+				addrs[strings.ToLower(f.ImageAddr)] = true
+			}
+			if f.Filename != "" {
+				files[f.Filename] = true
+			}
+		}
+	}
+	var out []debugImage
+	for _, img := range e.DebugMeta.Images {
+		if !addrs[strings.ToLower(img.ImageAddr)] && !files[img.CodeFile] {
+			continue
+		}
+		if img.Type != "sourcemap" {
+			img.CodeFile = path.Base(img.CodeFile)
+		}
+		out = append(out, img)
+		if len(out) == maxDebugImages {
+			break
+		}
+	}
+	return out
+}
 
 // splitRelease splits `<package>@<version>+<build>` into version and build.
 func splitRelease(release string) (version, build string) {
