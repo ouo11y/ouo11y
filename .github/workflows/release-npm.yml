@@ -113,7 +113,10 @@ jobs:
           VERSION: ${{ steps.pkg.outputs.version }}
         run: |
           mkdir -p out
-          tarball=$(npm pack -w "$WS" --pack-destination out --json | node -p 'JSON.parse(require("fs").readFileSync(0))[0].filename')
+          # Not `npm pack --json`: prepack scripts (react-native's sync-ios) print to stdout too.
+          npm pack -w "$WS" --pack-destination out
+          tarball=$(cd out && ls ./*.tgz)
+          tarball="${tarball#./}"
           base="${tarball%.tgz}"
           # npm sbom names the root after the monorepo; point it at the package instead.
           # shellcheck disable=SC2016 # the single-quoted part is a node script
