@@ -10,6 +10,8 @@ Stack: released 0.2.0 images, isolated compose project `ouo-cmp`. Three runs:
 Report with every number and the gap register: `project/agents/sentry-demo/reports/bridge-vs-sdk.html`. Tracker:
 `project/tracker/roadmap.md`, "Bridge parity gaps".
 
+**Update 2026-10-23:** the bridge items A1, A2, A3, A5 to A9, A11 and C5 are fixed in the receiver (`project/kb/sentry-bridge-parity.md`, spec sections 6 to 9b): `captureMessage` is a `sentry.message`, log and session-only records get release, environment, OS and device, error-event breadcrumbs feed the timeline of sessions without a replay, back navigation comes from `navigation` breadcrumbs, native frames keep their addresses and debug images. A4 (vitals) and the plugin items (C1 to C4, C6 to C8) are still open. The numbers below are from before the fixes.
+
 ## Answer in one paragraph
 
 The bridge already gives a richer session than the ouo SDK on this journey: 93 timeline events against 9. It has:

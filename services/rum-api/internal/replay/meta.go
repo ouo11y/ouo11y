@@ -90,7 +90,7 @@ func applyChunk(meta *Meta, c Chunk, projectID string, dataLen int64, now time.T
 		meta.Source = c.Source
 	}
 	info := ChunkInfo{Seq: c.Seq, StartedAt: c.StartedAt, EndedAt: c.EndedAt, Bytes: dataLen,
-		EventCount: c.EventCount, FrameCount: c.FrameCount, TouchCount: c.TouchCount}
+		EventCount: c.EventCount, FrameCount: c.FrameCount, TouchCount: c.TouchCount, Masked: c.Masked}
 	if c.Kind == KindVideo {
 		d := c.DurationMs
 		info.DurationMs, info.VideoBytes = &d, c.VideoBytes
@@ -115,7 +115,12 @@ func (m *Meta) recompute(now time.Time) {
 	m.Bytes = 0
 	m.FrameCount, m.TouchCount = 0, 0
 	m.StartedAt, m.EndedAt = 0, 0
+	m.Masked = nil
 	for i, ch := range m.Chunks {
+		if ch.Masked != nil && (m.Masked == nil || *m.Masked) {
+			v := *ch.Masked
+			m.Masked = &v
+		}
 		m.Bytes += ch.Bytes
 		m.FrameCount += ch.FrameCount
 		m.TouchCount += ch.TouchCount

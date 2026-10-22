@@ -5,10 +5,16 @@ import { getBackendSrv } from '@grafana/runtime';
 import { Alert, Button, Field, FieldSet, Input, SecretInput, Stack } from '@grafana/ui';
 import { rumApi, RumApiError } from '../api/client';
 import { DEFAULT_RUM_API_URL, RUM_PROXY_BASE } from '../constants';
+import { enabledToggles, FEATURE_TOGGLES, parseFeatureToggles } from '../featureToggles';
 
 export type AppSettings = {
   /** rum-api base URL as reachable from the Grafana server (not the browser). */
   rumApiUrl?: string;
+  /**
+   * Feature toggles that are on (`featureToggles.ts`): a comma separated string as provisioned from
+   * `OUO_FEATURE_TOGGLES_ENABLE`, or a list of names. Kept as is when the page saves.
+   */
+  featureToggles?: string | string[];
 };
 
 /** Write-only secrets; Grafana returns only `secureJsonFields.<key> = true` once stored. */
@@ -67,11 +73,14 @@ export default function AppConfig({ plugin, onSaved = reloadPage }: AppConfigPro
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<ConnectionTest | null>(null);
 
+  const toggleOn = enabledToggles(parseFeatureToggles(jsonData?.featureToggles));
+
   const tokenDirty = !tokenConfigured && (readToken !== '' || tokenReset);
   const dirty = rumApiUrl !== savedUrl || tokenDirty;
 
   const settingsBody = (over: Partial<PluginSettingsBody> = {}): PluginSettingsBody => {
-    const body: PluginSettingsBody = { enabled, pinned, jsonData: { rumApiUrl }, ...over };
+    // Keep every other jsonData key (featureToggles, provisioned keys this page does not edit).
+    const body: PluginSettingsBody = { enabled, pinned, jsonData: { ...jsonData, rumApiUrl }, ...over };
     if (tokenDirty) {
       // Only send the secret when the user typed one (or reset a stored one); Grafana keeps the
       // stored value for every key that is absent from secureJsonData.
@@ -166,6 +175,20 @@ export default function AppConfig({ plugin, onSaved = reloadPage }: AppConfigPro
             Test connection
           </Button>
         </Stack>
+      </FieldSet>
+      <FieldSet label="Feature toggles">
+        <p>
+          Set with <code>OUO_FEATURE_TOGGLES_ENABLE</code> (comma separated) in provisioning, or{' '}
+          <code>grafana.plugin.featureToggles</code> in the Helm chart; stored as <code>jsonData.featureToggles</code>.
+        </p>
+        <ul data-testid="feature-toggles">
+          {Object.entries(FEATURE_TOGGLES).map(([name, description]) => (
+            <li key={name}>
+              <code>{name}</code>: {toggleOn.includes(name as keyof typeof FEATURE_TOGGLES) ? 'on' : 'off'}.{' '}
+              {description}
+            </li>
+          ))}
+        </ul>
       </FieldSet>
       <FieldSet label="Connection test">
         <p>

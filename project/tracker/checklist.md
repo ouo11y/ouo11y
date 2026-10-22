@@ -24,26 +24,26 @@ Blockers marked **[founder]** need an answer or an account from the founder.
 
 Correctness first, then context, then UI. Effort from the gap report.
 
-- [ ] A1 `captureMessage` below error becomes `sentry.message`, not an exception (3 errors shown where Sentry shows 2) [0.5 d]
-- [ ] A5 HTTP client spans named `{method}` with `server.address`, `url.path` parsed (cardinality) [0.5 d]
-- [ ] A2 Release, environment, OS and device on Sentry `log` records [0.5 d]
-- [ ] A3 Device and OS context per `sid` / `did` on session and timeline records [1 d]
-- [ ] A9 `session.previous_id` from the previous `sid` of the same `did` [0.5 d]
-- [ ] A11 Back navigation from `navigation` breadcrumbs [1 d]
-- [ ] A8 Timeline for sessions without a replay (error-event breadcrumbs, successful `http.client` spans) [2 d]
-- [ ] A6 Error context allowlist (locale, connection, memory, thermal, foreground, current screen, app start) [~1 d]
-- [ ] A7 Native crash frames keep `instruction_addr` / `image_addr` and `debug_meta` images [1 d]
+- [x] A1 `captureMessage` below error becomes `sentry.message`, not an exception (3 errors shown where Sentry shows 2) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`]
+- [x] A5 HTTP client spans named `{method}` with `server.address`, `server.port`, `url.scheme`, `url.path` parsed (cardinality) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`]
+- [x] A2 Release, environment, OS and device on Sentry `log` records [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`]
+- [x] A3 Device and OS context per `sid` / `did` on session and timeline records [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; the first `session.start` of a device the bridge has never seen still has none: Sentry sends the init before any event]
+- [x] A9 `session.previous_id` from the previous `sid` of the same `did` [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; on `session.start` and `session.end`]
+- [x] A11 Back navigation from `navigation` breadcrumbs [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; from error-event breadcrumbs and recordings, paired with transactions]
+- [x] A8 Timeline for sessions without a replay (error-event breadcrumbs, successful `http.client` spans) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; a session without a replay and without any error still gets only navigations, failed requests and logs]
+- [x] A6 Error context allowlist (locale, connection, memory, thermal, foreground, current screen, app start) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; tags behind the per-project `copy_tags` option]
+- [x] A7 Native crash frames keep `instruction_addr` / `image_addr` and `debug_meta` images [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; symbolication itself is still separate work]
 - [ ] A4 Mobile vitals: cold / warm start, TTID, slow / frozen frames, stalls as timeline records with plugin display [~2 d]
-- [ ] C5 `http.request.failed` severity: WARN from the bridge vs ERROR from the SDK; align (receiver)
-- [ ] C1 Stack trace shown in the plugin for errors
-- [ ] C2 Session header shows device, OS, build, environment
-- [ ] C3 Frames replays show "Taps 0" although touches are drawn
-- [ ] C4 First screen shown at −2.7 s, before session start
-- [ ] C6 Traces table names every ouo trace `HTTP GET`
-- [ ] C7 Logs panel renders the ouo exception line as `session_previous_id=…`
-- [ ] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it
-- [ ] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel`
-- [x] N2 Real Sentry upstream run [2026-10-18: self-hosted Sentry 26.10 (`sentry-sbx`, https://sentry.ouo.localhost), real-tap journey: 49/49 envelopes byte-identical, all 200, no rate-limit / 413 / auth issues; Sentry stored everything; ouo 19/21, the 2 misses are startup console lines without a session (not upstream-related); Sentry MCP `sentry-sbx` (user-level, read-only) reads replays; `project/kb/sentry-self-hosted.md`, `project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`]. **Changed by the founder 2026-10-17:** not a sentry.io run; self-hosted Sentry with a Sentry MCP. Still untested: a quota-limited Sentry (real 429 / `X-Sentry-Rate-Limits`).
+- [x] C5 `http.request.failed` severity: WARN from the bridge vs ERROR from the SDK; align (receiver) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`: ERROR]
+- [x] C1 Stack trace shown in the plugin for errors [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C2 Session header shows device, OS, build, environment [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C3 Frames replays show "Taps 0" although touches are drawn [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C4 First screen shown at −2.7 s, before session start [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C6 Traces table names every ouo trace `HTTP GET` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C7 Logs panel renders the ouo exception line as `session_previous_id=…` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] N2 Real Sentry upstream run [2026-10-18: self-hosted Sentry 26.10 (`sentry-sbx`, https://sentry.ouo.localhost), real-tap journey: 49/49 envelopes byte-identical, all 200, no rate-limit / 413 / auth issues; Sentry stored everything; ouo 19/21, the 2 misses are startup console lines without a session (not upstream-related); Sentry MCP `sentry-sbx` (user-level, read-only) reads replays; `project/kb/sentry-self-hosted.md`, `project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`]. **Changed by the founder 2026-10-17:** not a sentry.io run; self-hosted Sentry with a Sentry MCP. Still untested: a quota-limited Sentry (real 429 / `X-Sentry-Rate-Limits`). **Follow-ups done 2026-10-23** (bridge parity batch): startup console lines join the session their client starts next (rule 5 `start`), `Running "main"` is stored once, the spec says every Sentry response header passes through.
 - [ ] N3 Supported Sentry SDK range. **Founder 2026-10-17:** the prospects' platforms are unknown for now; assume React Native on iOS, Android later. Now: test the bridge against the current major `@sentry/react-native` (8.x; 8.30 captured) with golden tests per captured version. Medium term: native `sentry-cocoa` and `sentry-java` apps. Older majors (~7.11, the Expo default with cocoa 8.58) only if a prospect turns out to run one.
 - [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **Founder 2026-10-17:** assume the prospects add Android later; medium term, after the iOS React Native path (with N3's native sentry-java work).
 - [ ] N4 Receiver state is in memory, so the bridge runs as one replica only. Document it for pilots now; shared state later (Phase 11).
@@ -72,7 +72,9 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 
 - [ ] B3 Fair, repeatable device-cost benchmark ouo vs latest stable Sentry, per major SDK release, regression blocks the release. Builds on the PR #25 harness. Real-device run on the founder's iPhone 16 Pro Max, available since 2026-10-17 and preferred over the simulator for every performance number (xctrace Activity Monitor, LAN proxy, CADisplayLink hitch monitor; LAN-IP ingest ports from `ouo-env url <env> --lan`).
 - [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** npm org, `ouo11y-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
+  - 2026-10-23, PR #37: release-please (8 components, tags left to the founder), publish workflows with dry runs for npm, iOS mirror, plugin, chart (OCI) and images, `docs/compatibility.md` checked by `release-check.yml` (matrix + e2e on release PRs), `docs/releasing.md` rewritten with the founder checklist, CHANGELOGs for `sdk/ios` and the chart. Open: **[founder]** the items in `docs/releasing.md` section 8 (npm org `ouo11y` not claimed, `NPM_TOKEN`, `RELEASE_PLEASE_TOKEN` or the Actions PR setting, `OUO_IOS_DEPLOY_KEY`, grafana.com org `ouo11y` not found, signing token), then the first hand tags; source maps in tarballs still undecided.
 - [ ] B7 Supply chain: Renovate, govulncheck / npm audit / Trivy, SECURITY.md, provenance
+  - 2026-10-23, PR #37: `.github/renovate.json5`, `security.yml` (govulncheck every module, npm audit runtime high+), Trivy in `ci.yml` images, `.github/SECURITY.md`, SBOM on npm and plugin releases, provenance switched on automatically once the repo is public, all actions pinned by digest, path-filtered CI. Fixed the findings it raised (x/net 0.60.0, dompurify 3.4.17). Open: **[founder]** install the Renovate app, the disclosure address for SECURITY.md.
 - [ ] N11 rum-api CI: use a `services: minio` block instead of pulling `pgsty/minio` in the test
 
 ## 5. Platform: pilot-ready (P2, roadmap 8a to 8d)
@@ -113,7 +115,7 @@ Recorded 2026-10-17:
 - (d) **Token rotation (N14) deferred:** kept as is, addressed later.
 - (e) **The founder's iPhone 16 Pro Max is available:** preferred over the simulator for every performance number (B3, N6).
 - (f) **Hosted demo (B8):** still open.
-- (g) **F4 verdict pending:** re-run done 2026-10-18 next to Sentry's own player (`project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`): plays unmasked in both; ouo's taps are clearer; ouo is worse on seek (black frame), counts an info message as an error, and has startup console lines without a session.
+- (g) **F4 verdict pending:** re-run done 2026-10-18 next to Sentry's own player (`project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`): plays unmasked in both; ouo's taps are clearer; ouo is worse on seek (black frame), counts an info message as an error, and has startup console lines without a session. The black frame on seek and the two clocks are fixed in plugin 0.8.0 (2026-10-23, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`).
 - Repo layout for B5 approved (ADR-0010).
 
 Recorded 2026-10-18 (ADR-0009, accepted):
@@ -123,7 +125,7 @@ Recorded 2026-10-18 (ADR-0009, accepted):
 
 ## Decisions waiting on the founder
 
-1. Package publishing: npm org, deploy key for the `ouo11y-ios` mirror (repo created 2026-10-18), plugin signing, source maps in tarballs (B4). GHCR stays private until stable.
+1. Package publishing (B4, B7): the exact list is `docs/releasing.md` section 8 (npm org and token, release-please token or setting, mirror deploy key, grafana.com org and token, Renovate app, security address), plus source maps in tarballs. GHCR stays private until stable.
 2. Where the hosted demo for B8 lives.
 3. Verdict on the F4 unmasked Sentry recordings (re-run 2026-10-18 side by side with Sentry's player; see the report). Trust the ouo-env proxy CA once so https://sentry.ouo.localhost opens without a warning (`deploy/envs/README.md`).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).

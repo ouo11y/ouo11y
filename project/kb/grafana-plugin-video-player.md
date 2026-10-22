@@ -38,7 +38,11 @@ Can the plugin play rum-api's mp4 segments (`kind: "video"`) with a plain `<vide
 - Only the current and the next segment are mounted (`key = seq`, next one `visibility: hidden`, `preload="auto"`),
   so the hand-over at a segment boundary is instant (verified live: seq 3 to seq 4 while playing, media time
   followed the global clock to within one rAF). A seek to a far segment mounts a new element and shows
-  "Loading segment N..." for a moment.
+  "Loading segment N..." for a moment. **Changed in 0.8.0 (F4):** that moment was a black stage for about 1 s
+  on every seek (Sentry's player shows the frame at once). Now both neighbours are mounted, and the element on
+  screen is tracked separately from the one under the cursor (`paintedSegmentIndex`): the old element stays
+  visible (and mounted) until the new one fired `loadeddata` while not `seeking`, or `seeked`, and only a small
+  "loading segment N..." tag shows. A remounted element starts unpaintable again (its ref callback clears it).
 - The clock holds (up to 4 s) while the active segment has `readyState < HAVE_CURRENT_DATA` and no error, so a
   slow segment does not get skipped.
 - Touch x/y are in the video's pixel space (= manifest `viewport`); the stage has the viewport's aspect ratio and

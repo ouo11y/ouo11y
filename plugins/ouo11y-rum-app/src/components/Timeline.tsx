@@ -5,15 +5,21 @@ import { Icon, useStyles2, useTheme2 } from '@grafana/ui';
 import type { TimelineEvent } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
 import { scrollRowIntoView } from '../utils/scroll';
+import { StackTrace } from './StackTrace';
 
 interface Props {
   timeline: TimelineEvent[];
-  /** Session start in ms; relative times are computed from it. */
+  /** Session start in ms: the session's one clock (times here, in the activity list and the players). */
   sessionStart: number;
   /** Index of the event to highlight (latest event at or before the replay cursor), -1 for none. */
   activeIndex: number;
   /** Called with the event's absolute timestamp (ms) when it is clicked. */
   onSeek?: (tsMs: number, event: TimelineEvent) => void;
+  /**
+   * Time (epoch ms) of the merged tap of a `ui.tap` event, by timeline index: the touch start, which is
+   * what the activity list and the player show (the breadcrumb is written when the touch ends).
+   */
+  tapTimes?: ReadonlyMap<number, number>;
 }
 
 interface Look {
@@ -160,7 +166,7 @@ export function eventLook(ev: TimelineEvent): Look {
   return look;
 }
 
-export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props) {
+export function Timeline({ timeline, sessionStart, activeIndex, onSeek, tapTimes }: Props) {
   const styles = useStyles2(getStyles);
   const theme = useTheme2();
   const listRef = useRef<HTMLOListElement | null>(null);
@@ -187,16 +193,22 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props)
       <ol ref={listRef} className={styles.list} data-testid="timeline">
         {timeline.map((ev, i) => {
           const look = eventLook(ev);
-          const ts = parseTs(ev.ts);
+          const ts = tapTimes?.get(i) ?? parseTs(ev.ts);
           const active = i === activeIndex;
+          const recorded = ev.clampedFrom ? parseTs(ev.clampedFrom) : NaN;
           return (
             <li
               key={`${ev.ts}-${i}`}
               ref={active ? activeRef : undefined}
               className={cx(styles.item, active && styles.active, onSeek && styles.clickable)}
               onClick={onSeek ? () => onSeek(ts, ev) : undefined}
-              title={formatDateTime(ts)}
+              title={
+                Number.isFinite(recorded)
+                  ? `${formatDateTime(recorded)}, ${formatRelative(recorded - sessionStart)}: recorded before the session start`
+                  : formatDateTime(ts)
+              }
               data-active={active ? 'true' : undefined}
+              data-clamped={ev.clampedFrom ? 'true' : undefined}
             >
               <span className={styles.time}>{Number.isNaN(ts) ? '' : formatRelative(ts - sessionStart)}</span>
               <span className={styles.icon} style={{ color: look.color(theme) }}>
@@ -205,6 +217,7 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek }: Props)
               <span className={styles.body}>
                 <span className={styles.title}>{look.title(ev)}</span>
                 {look.detail(ev) && <span className={styles.detail}>{look.detail(ev)}</span>}
+                {ev.type === 'exception' && <StackTrace stack={ev.attrs.exception_stacktrace} />}
               </span>
             </li>
           );

@@ -5,6 +5,16 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+### Added
+
+- Replay chunks keep their optional `masked` flag (frames and video); `GET /v1/sessions/{id}/replay`
+  serves it per chunk and as the replay's `masked` (`false` as soon as one chunk is unmasked). Chunks
+  stored before this version have none. A `masked` that is not a boolean is a 400.
+- `GET /v1/sessions/{id}` has `context`: the session's device, OS, app build and deployment
+  environment (latest value of each over its records), for the Grafana plugin's header.
+- Traces whose root span is a generic `HTTP GET` get `root_url_path` (the root's `url.path`) from a
+  second, best-effort Tempo search, so the plugin can name them `GET /path`.
+
 ## 0.3.0 (2026-10-18)
 
 First release under `ghcr.io/ouo11y/rum-api` (ADR-0009).

@@ -4,6 +4,8 @@ import { type GrafanaTheme2 } from '@grafana/data';
 import { IconButton, Input, LinkButton, RadioButtonGroup, useStyles2, useTheme2 } from '@grafana/ui';
 import type { LogLine, LogsResponse } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
+import { isExceptionLine, logLineText } from '../utils/session';
+import { StackTrace } from './StackTrace';
 
 type Scope = 'all' | 'session' | 'trace';
 
@@ -21,11 +23,13 @@ export function filterLogs(logs: LogLine[], scope: Scope, text: string): LogLine
   return logs.filter(
     (l) =>
       (scope === 'all' || l.source === scope) &&
-      (!needle || `${l.body} ${l.service} ${l.level}`.toLowerCase().includes(needle))
+      (!needle || `${logLineText(l)} ${l.service} ${l.level}`.toLowerCase().includes(needle))
   );
 }
 
-const HIDDEN_PREFIXES = ['ouo_', 'exception_', 'device_', 'telemetry_', 'os_'];
+// Record metadata, not the app's or backend's own attributes (the ouo SDKs put session_previous_id
+// on every record, the Sentry bridge network_connection_type).
+const HIDDEN_PREFIXES = ['ouo_', 'exception_', 'device_', 'telemetry_', 'os_', 'session_', 'network_'];
 const HIDDEN_KEYS = new Set([
   'flags',
   'observed_timestamp',
@@ -131,13 +135,14 @@ export function LogsPanel({ data, sessionStart, onSeek }: Props) {
                   {(l.level || 'info').toUpperCase()}
                 </span>
                 <span className={cx(styles.service, l.source === 'trace' && styles.otherService)}>{l.service}</span>
-                <span className={styles.body}>
-                  {l.body}
+                <span className={styles.body} data-testid="log-body">
+                  {logLineText(l)}
                   {visibleAttrs(l.attrs).map((a) => (
                     <span key={a} className={styles.attr}>
                       {a}
                     </span>
                   ))}
+                  {isExceptionLine(l) && <StackTrace stack={l.attrs.exception_stacktrace} />}
                 </span>
                 <span className={styles.actions}>
                   {l.trace_url && (

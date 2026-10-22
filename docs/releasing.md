@@ -1,288 +1,276 @@
 # Releasing
 
-How ouo is versioned, tagged and published, and the checklists for cutting a release. Owner:
-the release agent (`project/agents/release/`). Packaging details and tool quirks live in
-[`project/kb/release-packaging.md`](../project/kb/release-packaging.md); the operator-side
-upgrade procedure in [`operations/upgrade.md`](operations/upgrade.md). This is the only
-releasing document: the former root `RELEASING.md` was merged into it on 2026-10-17
-([ADR-0010](adr/0010-repository-layout.md)).
+How ouo is versioned, tagged and published, and the checklist the founder follows to cut a
+release. This is the only releasing document. Owner: the release agent
+(`project/agents/release/`). Tool quirks live in
+[`project/kb/release-packaging.md`](../project/kb/release-packaging.md); which versions work
+together in [`compatibility.md`](compatibility.md); the operator-side upgrade procedure in
+[`operations/upgrade.md`](operations/upgrade.md).
 
-**Nobody pushes a release tag without the founder's explicit yes**, with the exact tag
-names and what they publish written down first. Tags and published images are permanent.
+Three rules from the founder hold for everything below:
 
-## 1. Packages and independent versions
+- **Only the founder pushes release tags.** CI never creates a tag; release-please is configured
+  so that merging a release PR does not tag either. Agents prepare, dry-run and ask; they never
+  push a tag, publish a package or change a visibility.
+- **Everything published stays private until a stable version**: GHCR images and charts, the
+  npm packages (`restricted`), the `ouo11y-ios` mirror. Going public is a separate founder
+  decision per channel.
+- Tags and published versions are permanent. A broken release is fixed by the next patch, never
+  by moving or deleting a tag.
 
-Every deliverable has its own semantic version. Nothing is versioned "as ouo"; a release of
-the browser SDK does not imply a release of rum-api and vice versa. The root `CHANGELOG.md`
-is only an index.
+## 1. Components, tags and where they are published
 
-| Package | Source | Version lives in | Tag | Published as | Workflow |
+Every component has its own semantic version. release-please tracks them in
+[`.github/release-please/manifest.json`](../.github/release-please/manifest.json) (the version
+last released) with the settings in
+[`.github/release-please/config.json`](../.github/release-please/config.json).
+
+| Component | Source | Version field the release PR bumps | Tag | Published as | Workflow |
 |---|---|---|---|---|---|
-| `@ouo11y/browser` | `sdk/browser` | `package.json` | `browser-v<semver>` | npm, `@ouo11y/browser` | `release-npm.yml` |
-| `@ouo11y/react-native` | `sdk/react-native` | `package.json` | `react-native-v<semver>` | npm, `@ouo11y/react-native` | `release-npm.yml` |
-| `OuoReplay` (Swift package) | `sdk/ios` | git tag only (SwiftPM has no manifest version) | `ios-v<semver>` | mirror repo `ouo11y/ouo11y-ios`, tag `<semver>` | `release-ios.yml` |
-| `ouo11y-rum-app` (Grafana app plugin) | `plugins/ouo11y-rum-app` | `package.json` (copied into `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
-| `rum-api` image | `services/rum-api` | the tag | `rum-api-v<semver>` | `ghcr.io/ouo11y/rum-api:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
-| `grafana` image (Grafana + plugin baked in) | `deploy/images/grafana` | the tag | `grafana-v<semver>` | `ghcr.io/ouo11y/grafana:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
-| `collector` image (ouo-collector, ocb distribution) | `collector` | `collector/builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector:<semver>`, `:<major.minor>`, `:latest` | `release-images.yml` |
-| Helm chart `ouo` | `deploy/helm/ouo` | `Chart.yaml` `version` (`appVersion` = rum-api version it defaults to) | `chart-v<semver>` | not published yet (`helm package` by hand, OCI push is Phase 8c) | none yet |
+| `browser` | `sdk/browser` | `package.json` (+ root lockfile) | `browser-v<semver>` | npm `@ouo11y/browser` | `release-npm.yml` |
+| `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` | `release-npm.yml` |
+| `ios` | `sdk/ios` | `version.txt` | `ios-v<semver>` | mirror `ouo11y/ouo11y-ios`, tag `<semver>` (SwiftPM `ouo11y-ios`) | `release-ios.yml` |
+| `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
+| `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
+| `rum-api` | `services/rum-api` | none: the tag is the version | `rum-api-v<semver>` | `ghcr.io/ouo11y/rum-api` | `release-images.yml` |
+| `grafana` | `deploy/images/grafana` | `version.txt` | `grafana-v<semver>` | `ghcr.io/ouo11y/grafana` | `release-images.yml` |
+| `chart` | `deploy/helm/ouo` | `Chart.yaml` `version` | `chart-v<semver>` | `oci://ghcr.io/ouo11y/charts/ouo` | `release-chart.yml` |
 
-Tag format is always `<package>-v<major>.<minor>.<patch>[-<pre>]`. The `<package>` prefix is
-exactly the first column of the workflow trigger list; the workflows refuse a tag whose
-version differs from the manifest version of the package.
+Every publish workflow refuses a tag whose version differs from the version field, and every
+one can be rehearsed (section 6). Each creates a GitHub release for its tag, marked
+pre-release for `-rc.N` and never "latest" (several components share the repo).
 
-## 2. Semantic versioning rules
+## 2. Versioning rules
 
-Quick reference while the major version is 0:
+All components are `0.y.z` until the first pilot is live.
 
-| Change since the last release | Bump | Example |
+| Change since the last release | Commit type | Bump while 0.x |
 |---|---|---|
-| anything a user or operator can see: new config key, env var, API route, attribute, changed default, dropped support, a stored-data schema change | minor | `0.2.0` -> `0.3.0` |
-| a breaking change (also minor while 0.x, listed under **Breaking** in the changelog) | minor | `0.3.0` -> `0.4.0` |
-| fixes and internal changes, no visible behaviour change | patch | `0.3.0` -> `0.3.1` |
+| user- or operator-visible: new API, config key, env var, attribute, changed default, dropped support, stored-data schema change | `feat` | minor `0.3.0` -> `0.4.0` |
+| breaking (also listed under **Breaking** in the changelog) | `feat!` or a `BREAKING CHANGE:` footer | minor (`bump-minor-pre-major`) |
+| fix, performance, internal change with no visible effect | `fix`, `perf` | patch `0.3.0` -> `0.3.1` |
+| docs, tests, CI, chores | `docs`, `test`, `ci`, `chore`, `refactor`, `build` | no release |
 
-Image-specific rules:
+After `1.0.0` the usual rules apply (major for breaking). Component-specific rules:
 
-- **rum-api**: version = the tag. The first release is `0.2.0` and **must contain the YAML
-  config file and S3 / MinIO replay storage** (the rum-api-config-s3 work); do not tag
-  `rum-api-v0.2.0` before that PR is merged.
-- **collector**: version = `dist.version` in `collector/builder.yaml`; the workflow refuses a
-  tag that differs. Bump it in the PR that changes the collector. First release `0.2.0`.
-- **grafana**: its own series; the release notes name the Grafana base image and the
-  `ouo11y-rum-app` plugin version baked in. Any plugin release that should reach image users
-  needs a grafana image release too. First release `0.2.0`.
+- **plugin:** every user-visible change is a release, because Grafana caches
+  `module.js?_cache=<version>` (`project/kb/grafana-app-plugin.md`).
+- **grafana image:** its own series. A plugin release reaches image users only through a grafana
+  image release: after the plugin tag, merge a `feat(grafana): ship plugin <version>` commit that
+  touches `deploy/images/grafana` (its `CHANGELOG.md` `Unreleased` note is enough). Its notes
+  name the Grafana base and the plugin version inside.
+- **rum-api:** the replay chunk `schema_version` (`specs/mobile-replay.md`) is an independent
+  integer. Raising it is a breaking change for stored data: rum-api minor bump, the
+  [`compatibility.md`](compatibility.md) schema table, and the upgrade note in
+  [`operations/upgrade.md`](operations/upgrade.md) section 4.
+- **SDKs:** an SDK release that needs a newer collector or rum-api bumps the SDK minor and adds
+  its line to [`compatibility.md`](compatibility.md) with the minimum versions.
+- **chart:** `version` bumps on any change under `deploy/helm/ouo`; `appVersion` follows the
+  rum-api image the chart defaults to. The chart never defaults to an image that is not tagged
+  (checked by `compat-check.mjs`).
 
-The `0.2.0` starting point matches the Helm chart defaults (`deploy/helm/ouo/values.yaml`)
-and the examples (`deploy/compose/.env.example`).
+## 3. Commit and PR titles (conventional commits)
 
-All packages are `0.y.z` until the first pilot is live. While the major is 0:
-
-- `0.y+1.0` for anything a user can see or that changes a contract: new API, new config key,
-  new event or attribute, changed default, dropped support. Breaking changes are allowed in
-  a minor bump while major is 0 **and must be listed under a "Breaking" heading** in the
-  package changelog.
-- `0.y.z+1` for fixes and internal changes with no visible behaviour change.
-
-After `1.0.0` the usual rules apply: major for breaking, minor for additive, patch for fixes.
-
-Package-specific rules:
-
-- **Plugin:** every user-visible change bumps the plugin version, even in a development
-  branch, because Grafana caches `module.js?_cache=<version>` (see
-  `project/kb/grafana-app-plugin.md`). A plugin tag is cut from a version that was already bumped
-  in the PR that made the change.
-- **rum-api:** the replay chunk `schema_version` (`docs/specs/mobile-replay.md`) is an
-  independent integer. Bumping it is a breaking change for stored data: the rum-api minor
-  bumps, and the upgrade note in `docs/operations/upgrade.md` must say which rum-api version
-  first reads the new schema. rum-api must refuse to start on a data directory whose highest
-  `schema_version` is newer than it knows (requirement recorded in the upgrade doc; the qa
-  agent tests it once implemented).
-- **SDKs vs rum-api:** an SDK release that needs a new rum-api route or header bumps the SDK
-  minor and states the minimum rum-api version in its changelog and in the compatibility
-  table of `docs/operations/upgrade.md`.
-- **Helm chart:** `version` bumps whenever anything under `deploy/helm/ouo` changes;
-  `appVersion` follows the rum-api image the chart defaults to. Changing `appVersion` alone
-  is a chart patch bump.
-- **Images:** the rum-api image version equals the rum-api version. The grafana image
-  version is its own series; its changelog line names the Grafana base version and the
-  plugin version baked in.
-
-## 3. Pre-releases (`-rc.N`)
-
-- `<version>-rc.1`, `-rc.2`, ... are candidates for `<version>`. Tag them from any commit
-  on `main` (or a release branch) that should be tried by someone outside the repo, e.g. a
-  pilot client, before the final.
-- They publish `:<version>-rc.N` only. They never move `:latest` or `:<major>.<minor>`,
-  and the GitHub release is marked pre-release.
-- An rc may be cut before every planned feature has landed when a client needs something
-  runnable now; say what is missing in its release notes. Check it still runs with the
-  compose file and chart on `main`: rum-api without the YAML config PR (#19) exits on the
-  `-config.file` flag that compose.yaml and the chart pass after #19, so the first rum-api
-  rc is cut after #19 merges (`rum-api-v0.2.0-rc.1`), then `0.2.0`.
-- The final is tagged on the same commit as the last rc whenever possible (no new code
-  between "verified" and "released").
-- Examples and docs pin finals. Point an example at an rc only on a branch.
-
-## 4. What triggers what
+release-please reads the commits on `main` that touch a component's folder and turns
+`feat` / `fix` / `perf` into that component's next version and changelog. A commit counts for
+every component whose folder it touches; the scope is for readers.
 
 ```
-PR merged with a version bump      nothing is published; CI (ci.yml) ran on the PR
-git tag browser-v0.2.0             release-npm.yml       -> npm publish @ouo11y/browser@0.2.0 (provenance)
-git tag react-native-v0.2.0        release-npm.yml       -> npm publish @ouo11y/react-native@0.2.0
-git tag ios-v0.2.0                 release-ios.yml       -> subtree split sdk/ios -> ouo11y-ios main + tag 0.2.0
-git tag plugin-v0.3.0              release-plugin.yml    -> GitHub release plugin-v0.3.0 with ouo11y-rum-app-0.3.0.zip (+ .sha1, .md5)
-git tag rum-api-v0.2.0             release-images.yml    -> ghcr.io/ouo11y/rum-api:0.2.0, :0.2, :latest (amd64 + arm64)
-git tag grafana-v0.2.0             release-images.yml    -> ghcr.io/ouo11y/grafana:0.2.0, :0.2, :latest
-git tag collector-v0.2.0           release-images.yml    -> ghcr.io/ouo11y/collector:0.2.0, :0.2, :latest
-  (every image tag also creates a GitHub release with notes: changelog section + commits)
-Actions > release-images > Run      dry run of a given tag: builds both platforms, prints notes, pushes nothing
-pull request                       ci.yml `images` job: builds the three images (amd64, no push) and smoke-runs them
-git tag chart-v0.1.0               nothing automated yet; see deploy/helm/ouo/README.md
+feat(collector): rate limit per project
+fix(browser)!: drop the 0.1 endpoint option
 ```
 
-Pre-release versions (`-rc.1`, `-beta.2`) are published the same way; images skip the
-`:latest` and `:<major.minor>` tags and the plugin release is marked pre-release. npm
-dist-tags for pre-releases are not automated: publish with `npm dist-tag` by hand if a
-`next` tag is wanted.
+- The `pr-title` job in `ci.yml` checks every PR title.
+- **Merge PRs with "Squash and merge"** so that the PR title becomes the one commit on `main`.
+  With "Create a merge commit" release-please reads the branch's own commits, which must then be
+  conventional too (the `Merge pull request ...` commit itself is ignored).
+- Commits before `bootstrap-sha` in `config.json` (the `main` commit release-please was added
+  on) are not read: the existing hand-written changelogs cover them.
 
-## 5. Release procedure (per package)
+## 4. How a release happens
 
-1. On a branch, bump the version in the package manifest and move the "Unreleased" section
-   of the package `CHANGELOG.md` under the new version with today's date. Add the
-   compatibility line (minimum rum-api, minimum SDK) when it changed. Update the row in the
-   root `CHANGELOG.md` index.
-2. Run the package checks locally (table in section 7) and open the PR. CI must be green.
-3. Merge. On the merge commit: `git tag <package>-v<semver> && git push origin <package>-v<semver>`.
-   Tags are annotated by the person cutting the release (`git tag -a`), never by CI.
-4. Watch the workflow run; its summary lists what was published. A failed publish is fixed
-   by a new patch version, never by moving or deleting the tag (npm and GHCR versions are
-   immutable; a deleted tag leaves a published artifact without source).
-5. For a rum-api or chart release, run the upgrade procedure from the previous release on the
-   compose path and record it in `project/agents/qa/`.
+```
+merge to main          release-please.yml   opens or updates one PR per component with pending
+                                            changes: "chore(main): release <component> <version>",
+                                            label "autorelease: pending", bumping the version field,
+                                            the CHANGELOG and the manifest
+release PR opened      release-check.yml    compatibility matrix + e2e scenario on the PR head
+                       ci.yml               the usual checks for the touched paths
+founder merges it      (nothing)            no tag, no publish (skip-github-release)
+founder pushes tag     release-<x>.yml      publishes (table in section 1), creates the GitHub release
+                       release-please.yml   relabels the merged PR "autorelease: tagged"
+```
 
-### First release after the rename: 0.3.0 (prepared 2026-10-18)
+While a merged release PR is still `autorelease: pending`, release-please opens no further
+release PRs for any component. Pushing its tag (or relabelling it by hand) unblocks it.
 
-The 0.2.0 images exist only as `ghcr.io/ziadmansourm/ouo/{rum-api,collector,grafana}:0.2.0`, and
-grafana 0.2.0 carries the plugin as `ouo-rum-app`. Every pin in the repo now names
-`ghcr.io/ouo11y/*`, so `compose.images.yaml`, the Helm defaults and the VM `--images` mode pull
-nothing until the next tags exist. Proposed:
+Hand edits on an open release PR (rewording the generated changelog, adding a **Breaking** or
+**Compatibility** note) are overwritten when the next commit lands on `main`: make them last,
+right before merging. Notes written by hand under `## Unreleased` in a component changelog stay
+where they are; move them into the generated section in that last edit.
 
-| Tag | Why this version | Publishes |
-|---|---|---|
-| `rum-api-v0.3.0` | no API change since 0.2.0, but the three images move registry together and are verified together as the first `ouo11y` set; a minor bump keeps them aligned | `ghcr.io/ouo11y/rum-api:0.3.0`, `:0.3`, `:latest` |
-| `collector-v0.3.0` | the Unreleased `ouo.rum.mode = sentry` attribute (a feature) plus the rename; needs `builder.yaml` `dist.version: 0.3.0` first | `ghcr.io/ouo11y/collector:0.3.0`, `:0.3`, `:latest` |
-| `grafana-v0.3.0` | plugin 0.7.0 inside, whose ID change is breaking | `ghcr.io/ouo11y/grafana:0.3.0`, `:0.3`, `:latest` |
+## 5. Checklist: cutting a release (founder)
 
-The release PR (2026-10-18) dated the 0.3.0 sections, set `dist.version: 0.3.0` and, unlike
-step 10 of section 6, already bumped the pins (compose, Helm 0.1.1, fast-tracked guide): the old
-pins named images that never existed under `ghcr.io/ouo11y`, so nothing works until the tags exist
-either way. Before the first push, the
-`ouo11y` org must allow `GITHUB_TOKEN` to create packages (Organization settings > Packages),
-and after it each new package needs its Read grants again (section 8): grants on the old
-`ziadmansourm/ouo/*` packages do not carry over. The old packages stay where they are; delete
-them only on the founder's word once nothing pulls them.
+Before merging the release PR:
 
-## 6. Checklist: container image release
+1. [ ] The release PR's checks are green, including `release-check` (compatibility + e2e). If
+   the PR was opened with `GITHUB_TOKEN`, no checks ran: Actions > `release-check` > Run
+   workflow on the PR branch (and `ci`), or set `RELEASE_PLEASE_TOKEN` once (section 8).
+2. [ ] The changelog section reads well; **Breaking** and **Compatibility** notes are there when
+   needed, and [`compatibility.md`](compatibility.md) has the component's line.
+3. [ ] Rehearse the publish: Actions > `release-<x>` > Run workflow on the release PR branch,
+   tag = the tag you will push (e.g. `browser-v0.3.0`). Green means it builds, the versions
+   match, and (npm) `npm publish --dry-run` or (ios) `git push --dry-run` to the mirror pass.
+4. [ ] Merge the release PR (squash).
 
-Before the tag:
-
-1. [ ] The change is merged to `main`, CI green, including the `image (<name>)` jobs.
-2. [ ] Changelog: move `## Unreleased` to `## <version> (<date>)` in
-   `services/rum-api/CHANGELOG.md`, `collector/CHANGELOG.md` or
-   `deploy/images/grafana/CHANGELOG.md`; update the row in the root `CHANGELOG.md`.
-   (rcs may skip this; the notes then list the commits only.)
-3. [ ] collector only: `collector/builder.yaml` `dist.version` equals the version.
-4. [ ] Local checks (section 7) and `actionlint`.
-5. [ ] Dry run: GitHub > Actions > `release-images` > Run workflow on `main` with the exact
-   tag, e.g. `rum-api-v0.2.0`. It builds amd64 + arm64, checks the version and prints the
-   release notes in the run summary; nothing is pushed.
-6. [ ] Ask the founder in chat: exact tag names, the image refs they create
-   (`ghcr.io/ouo11y/<image>:<version>` plus `:<major>.<minor>` and `:latest` for
-   a final). Packages stay private (see "Pull access"); making one public is a separate
-   founder decision. Wait for yes.
-
-Tag:
+Tag (on the merge commit, from an up-to-date clone):
 
 ```bash
-git switch main && git pull --ff-only
+git fetch origin --tags && git switch --detach origin/main
 ```
 
 ```bash
-git tag -a rum-api-v0.2.0 -m "rum-api 0.2.0"
+git tag -a browser-v0.3.0 -m "browser 0.3.0"
 ```
 
 ```bash
-git push origin rum-api-v0.2.0
+git push origin browser-v0.3.0
 ```
 
 After the tag:
 
-7. [ ] The `release-images` run is green; its summary lists the pushed tags and digest.
-8. [ ] First release of an image only: GitHub > Packages > the package > Package settings:
-   connect it to the repository and leave visibility **private** (founder decision until ouo
-   is stable); grant Read under Manage access to everyone who already has access to the other
-   ouo packages. Pulls need a `docker login ghcr.io` ("Pull access").
-9. [ ] `docker buildx imagetools inspect ghcr.io/ouo11y/<image>:<version>` shows
-   `linux/amd64` and `linux/arm64` (plus `unknown/unknown` attestation entries).
-10. [ ] Bump the pins that should follow: `deploy/compose/.env.example` and the defaults in
-    `deploy/compose/compose.images.yaml`, `deploy/helm/ouo/values.yaml` (chart patch bump),
-    the version table in `examples/fast-tracked/00-stack.md`.
-11. [ ] Run the stack from the released images and record it (release trains table in
-    `CHANGELOG.md`):
+5. [ ] The `release-<x>` run is green; its summary lists what was published, checksums and digest.
+6. [ ] The `release-please` run relabelled the release PR `autorelease: tagged`.
+7. [ ] First publish of an image or chart package only: GitHub > Packages > the package >
+   Package settings: link it to `ouo11y/ouo11y`, leave it **private**, grant Read to whoever
+   already has access to the other packages (section 7).
+8. [ ] Images: `docker buildx imagetools inspect ghcr.io/ouo11y/<image>:<version>` shows
+   `linux/amd64` and `linux/arm64`.
+9. [ ] Pins that should follow the new version (chart defaults, `deploy/compose/.env.example`,
+   `deploy/compose/compose.images.yaml`, `examples/fast-tracked/00-stack.md`) are bumped in a
+   follow-up PR; for the chart that is a `fix(chart)` and gives the next chart release.
+10. [ ] Released together and verified: add a row to the release trains table in
+    [`CHANGELOG.md`](../CHANGELOG.md).
 
-    ```bash
-    docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
-    ```
+**Release candidates** (`<version>-rc.N`) need no release PR: tag the commit to try, with the
+version field already at the target version (`collector` needs `dist.version` equal to the full
+rc version). They publish `:<version>-rc.N` only (npm dist-tag `next`), never move `:latest` or
+`:<major>.<minor>`, and the GitHub release is a pre-release. Tag the final on the same commit as
+the last rc when possible.
 
-A broken release is fixed by a new patch version (or the next rc). Never move or delete a
-pushed tag and never overwrite a published image tag.
+**The first SDK, iOS, plugin and chart releases** are hand tags of the versions already in the
+manifest (no release PR is needed, the version fields and changelogs are in place):
+`browser-v0.2.0`, `react-native-v0.2.0`, `ios-v0.2.0`, `plugin-v0.7.0`, `chart-v0.1.1`. Each needs
+its accounts from section 8 first, and its changelog section dated in a small PR.
 
-## 7. Local checks before tagging
+## 6. Dry runs
 
-| Package | Commands |
-|---|---|
-| `@ouo11y/browser` | `npm run build -w sdk/browser && npm run test -w sdk/browser && npm pack --dry-run -w sdk/browser` |
-| `@ouo11y/react-native` | `npm run build -w sdk/react-native && npm run test -w sdk/react-native && npm pack --dry-run -w sdk/react-native` |
-| `OuoReplay` | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
-| plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
-| rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` and `docker build -t ouo/rum-api:release-check services/rum-api` |
-| collector | `docker buildx build --platform linux/amd64,linux/arm64 collector` and `docker run --rm <image> --version` (prints `dist.version`) |
-| grafana image | `npm run build -w plugins/ouo11y-rum-app && docker buildx build --platform linux/amd64,linux/arm64 -f deploy/images/grafana/Dockerfile .` |
-| chart | `helm lint deploy/helm/ouo` and the kind check in `project/agents/helm/` |
-| workflows | `actionlint` (Homebrew `brew install actionlint`) |
+Every publish workflow has a `workflow_dispatch` dry run with a `tag` input and also rehearses
+itself on any PR that changes the workflow file. A dry run never pushes, publishes or creates a
+release; artefacts are kept on the run for 7 days.
 
-## 8. Pull access (packages are private until ouo is stable)
+| Workflow | Dry run does | Real run adds |
+|---|---|---|
+| `release-npm` | build, test, `npm pack`, CycloneDX SBOM, SHA256SUMS, `npm publish --dry-run` | `npm publish` of that tarball, provenance when public, GitHub release with tarball + SBOM + sums |
+| `release-ios` | `version.txt` check, macOS tests (skippable), `git subtree split`, `git push --dry-run` to the mirror when the key exists | push `main` and tag `<semver>` to `ouo11y/ouo11y-ios` |
+| `release-plugin` | build, test, sign (when configured), zip, SBOM, sums | GitHub release with zip + SBOM + sums (+ `.sha1`, `.md5`), provenance when public |
+| `release-chart` | compat check, `helm lint`, `helm template`, `helm package`, sums | `helm push` to `oci://ghcr.io/ouo11y/charts`, GitHub release |
+| `release-images` | resolve, version checks, amd64 + arm64 build with SBOM and provenance, notes | push to `ghcr.io/ouo11y/<image>`, GitHub release |
 
-Founder decision (2026-10-17): the `ghcr.io/ouo11y/*` packages stay **private**
-until ouo reaches a stable version. Anyone pulling them (examples, verification, clients)
-logs in first:
+A tag pushed before the accounts exist degrades to a dry run with a notice (npm without
+`NPM_TOKEN`, iOS without `OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token).
+
+## 7. Pull access (private until stable)
+
+Founder decision (2026-10-17): `ghcr.io/ouo11y/*` images and charts stay **private** until ouo
+reaches a stable version. Anyone pulling them logs in first:
 
 ```bash
 echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 ```
 
-- The token is a **classic** personal access token with only **`read:packages`** (fine
-  grained tokens do not work with ghcr.io). It lives in the puller's shell or password
-  manager, never in the repo.
-- Access is granted by the founder per package: GitHub > Packages > the package > Package
-  settings > Manage access > add the GitHub user with the **Read** role. Do it for all three
-  (`collector`, `rum-api`, `grafana`); that read access is what a new user asks the founder for.
-- Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`,
-  "Pull access").
-- No access: build from source (`docker compose -f deploy/compose/compose.yaml up -d` without
-  `compose.images.yaml`), no login needed.
-- Without a login a pull fails with `denied` (HTTP 403).
+```bash
+echo $GHCR_TOKEN | helm registry login ghcr.io -u <github-user> --password-stdin
+```
 
-## 9. Secrets, variables and external accounts
+- The token is a **classic** personal access token with only **`read:packages`** (fine-grained
+  tokens do not work with ghcr.io). It lives in the puller's shell or password manager.
+- Access is granted per package by the founder: Package settings > Manage access > add the
+  GitHub user with **Read**, for `collector`, `rum-api`, `grafana` and `charts/ouo`.
+- Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`).
+- No access: build from source (`deploy/envs/ouo-env up <env>`), no login needed.
+- npm packages published `restricted` are visible only to members of the `ouo11y` npm org.
 
-Nothing publishes until these exist. Set them in the GitHub repository settings
-(`Settings > Secrets and variables > Actions`).
+## 8. Accounts, secrets and settings (founder)
 
-| Name | Kind | Used by | How to create |
-|---|---|---|---|
-| `NPM_TOKEN` | secret | `release-npm.yml` | npm granular access token, packages and scopes: `@ouo` read and write, bypass 2FA for automation, expiry at most 1 year. The `ouo` npm organisation (or scope) must exist and the publishing user must be an owner. |
-| `GITHUB_TOKEN` | automatic | `release-images.yml`, `release-plugin.yml` | nothing to create. After the first image push, open the package on GitHub and link it to the repository. Visibility stays private until ouo is stable (founder decision 2026-10-17), so every pull needs `docker login ghcr.io` with a classic `read:packages` token; see section 8, "Pull access". |
-| `GRAFANA_ACCESS_POLICY_TOKEN` | secret, optional | `release-plugin.yml` | grafana.com account, "My account > Security > Access policies", scope `plugins:write`, realm the publishing org. Without it the plugin is released unsigned. |
-| `GRAFANA_ROOT_URLS` | variable, optional | `release-plugin.yml` | comma separated Grafana root URLs the private signature is valid for (e.g. `https://grafana.pilot.example.com`). Required when the token is set. |
-| `OUO_IOS_DEPLOY_KEY` | secret, optional | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy` locally; add `ouo_ios_deploy.pub` as a deploy key with write access on `github.com/ouo11y/ouo11y-ios`; paste the private file as the secret; delete the local copies. The repository `ouo11y/ouo11y-ios` exists (private, created 2026-10-18) with only a README on its default branch `about`, so `main` is created by the first push and fast-forwards; after that push, make `main` the default branch and delete `about`. Without it the workflow tests and exits with a notice. |
+Nothing below is created by an agent. Settings > Secrets and variables > Actions for secrets
+and variables.
 
-Provenance (`npm publish --provenance`) additionally requires the repository to be public
-and the `repository.url` in each SDK `package.json` to point at it; both are in place.
+| What | Needed for | How |
+|---|---|---|
+| Repository setting "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General) | release-please with `GITHUB_TOKEN` | Currently **off**. Turn it on, or set `RELEASE_PLEASE_TOKEN` instead. |
+| `RELEASE_PLEASE_TOKEN` secret (recommended) | release PRs that trigger `ci` and `release-check` | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
+| npm organisation `ouo11y` | `release-npm.yml` | Not claimed (registry answers "Scope not found", 2026-10-23). Create it at npmjs.com > Add organization > `ouo11y`. Free orgs publish only **public** packages; keeping the SDKs `restricted` (private) needs the paid Teams plan, otherwise keep them unpublished (dry runs) until stable, or set the variable `NPM_ACCESS=public` when going public. |
+| `NPM_TOKEN` secret | `release-npm.yml` | npm granular access token: packages and scopes `@ouo11y` read and write, organisation `ouo11y`, expiry at most 1 year, publishing user an org owner with 2FA. Later: npm trusted publishing (OIDC, no token) once the packages exist. |
+| `NPM_ACCESS` variable, optional | `release-npm.yml` | `restricted` (default) or `public`. Provenance needs `public` and a public repository. |
+| `OUO_IOS_DEPLOY_KEY` secret | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy -N ""`; add `ouo_ios_deploy.pub` as a deploy key **with write access** on `github.com/ouo11y/ouo11y-ios` (Settings > Deploy keys); paste the private file as the secret; delete both local files. The mirror exists (private) with a README on branch `about`; the first push creates `main`; then make `main` the default branch and delete `about`. |
+| grafana.com organisation `ouo11y` | plugin signing | Not found (2026-10-23). Create it at grafana.com (sign up, organisation name `ouo11y`). |
+| `GRAFANA_ACCESS_POLICY_TOKEN` secret | `release-plugin.yml` signing | grafana.com > My account > Security > Access policies: realm the `ouo11y` org, scope `plugins:write`; create a token. Without it the zip is unsigned. |
+| `GRAFANA_ROOT_URLS` variable | `release-plugin.yml` signing | Comma separated Grafana root URLs allowed to load the private signature, e.g. `https://grafana.pilot.example.com`. Required when the token is set. |
+| Organization settings > Packages: allow members / Actions to create packages | first image or chart push | Already done for the 0.3.0 images; the first `chart-v*` push creates `charts/ouo` the same way. |
+| Renovate GitHub App | `.github/renovate.json5` | Install "Renovate" (Mend) from the GitHub Marketplace on the `ouo11y` org, repository `ouo11y/ouo11y` only. The config already exists, so there is no onboarding PR; expect the "Dependency Dashboard" issue and, on the first Monday, the digest-pinning PRs. |
+| Security contact | `.github/SECURITY.md` | Replace `SECURITY_CONTACT_TBD` with the disclosure address. |
 
-## 10. Changelogs
+Provenance and attestations: npm `--provenance`, `actions/attest-build-provenance` for the npm
+tarball, the plugin zip and the chart need a **public** repository on the free plan; the
+workflows switch them on by themselves when the repository becomes public. Images already carry
+BuildKit SBOM and max-mode provenance attestations, private or not.
 
-- One `CHANGELOG.md` per package, Keep-a-Changelog style: an `## Unreleased` section at the
-  top, then `## <version> (<date>)` sections with `Added`, `Changed`, `Fixed`, `Breaking`,
-  `Compatibility` headings as needed. Written by the agent that owns the package.
-- The root `CHANGELOG.md` is an index: one row per package pointing at its changelog and
-  latest version, plus a "release trains" table recording which versions were released and
-  verified together. It never repeats per-package entries.
-- The plugin release workflow extracts the matching version section from
-  `plugins/ouo11y-rum-app/CHANGELOG.md` for the GitHub release notes.
+## 9. Supply chain
 
-## 11. Not automated (yet)
+| Control | Where | Gate |
+|---|---|---|
+| Renovate: weekly grouped PRs, Actions and Docker pinned by digest, 3-day release age, advisories immediately | `.github/renovate.json5` | review |
+| `govulncheck` on every Go module with the newest Go 1.26 patch | `security.yml` (Go/npm PRs, Mondays, on demand) | any reachable finding (each has a fixed-in version) |
+| `npm audit` | `security.yml` | runtime dependencies at high and above; dev tooling informational |
+| Trivy on every built image | `ci.yml` `images` job | fixable CRITICAL; HIGH listed |
+| SBOM | images: BuildKit attestation; npm and plugin: CycloneDX asset on the GitHub release | every release |
+| Provenance | images: BuildKit; npm, plugin, chart: GitHub attestations when public | every release |
+| Disclosure policy | `.github/SECURITY.md` | |
 
-- Helm chart publishing to an OCI registry (`helm push` to `oci://ghcr.io/ouo11y/charts`): Phase 8c, once the chart has been through a kind upgrade test.
-- Signed git tags and SBOM attestations for npm packages: product-plan checklist "before the first paid subscription".
-- Grafana catalog (community or commercial signature) submission: needs the trademark and name check from the product plan first.
+Actions minutes (free plan, 2,000 per month for private repos, macOS counts 10x): `ci.yml` runs
+each job only for the paths it covers, the macOS jobs only for `sdk/ios` (and the iOS release),
+every workflow has a concurrency group, and release dry runs only run when their own workflow
+file changes. If minutes run out, a self-hosted runner can take `runs-on` labels later; no job
+depends on GitHub-hosted extras beyond Docker, Node, Go and Helm.
+
+## 10. Local checks
+
+| Component | Commands |
+|---|---|
+| browser / react-native | `npm run build -w sdk/<x> && npm run test -w sdk/<x> && npm pack --dry-run -w sdk/<x>` |
+| ios | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
+| plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
+| rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` |
+| collector | `(cd collector && builder --config builder.yaml && ./dist/ouo-collector --version)` |
+| chart | `helm lint deploy/helm/ouo` |
+| matrix | `node .github/scripts/compat-check.mjs` |
+| workflows | `actionlint` (`brew install actionlint`) |
+| vulnerabilities | `govulncheck ./...` per module, `npm audit --omit=dev --audit-level=high` |
+
+## 11. Changelogs
+
+- One `CHANGELOG.md` per component, next to its version field. release-please writes a section
+  per release from the commits (`Added` = feat, `Fixed` = fix, `Changed` = perf); hand-written
+  `Breaking` / `Compatibility` notes are added in the release PR (section 4).
+- The root [`CHANGELOG.md`](../CHANGELOG.md) is an index plus the release trains table; it never
+  repeats component entries.
+- Release notes on GitHub are the component's section, extracted by
+  `.github/scripts/changelog-section.sh` (understands both heading styles).
+
+## 12. Not automated
+
+- Grafana catalog submission (community or commercial signature): needs the name and trademark
+  check first.
+- Signed git tags: the founder may use `git tag -s` instead of `-a`; nothing checks it yet.
 - Android package: Phase 10.

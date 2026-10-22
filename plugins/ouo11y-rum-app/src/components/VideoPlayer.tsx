@@ -14,6 +14,7 @@ import {
   mediaPending,
   mountedSegmentIndices,
   orderSegments,
+  paintedSegmentIndex,
   segmentStartOffset,
   syncMediaElement,
   totalFrames,
@@ -31,6 +32,11 @@ interface Props {
   durationMs: number;
   /** Called with the current replay offset in ms, throttled while playing, immediately on seeks. */
   onTime?: (offsetMs: number) => void;
+  /**
+   * Replay start minus session start (ms): the time label reads the session clock, like the Timeline
+   * and the activity list. 0 (the default) shows replay offsets.
+   */
+  clockOffsetMs?: number;
   /** Browser URL of a segment; defaults to the plugin proxy route (tests override it). */
   segmentUrl?: (segment: VideoSegment) => string;
   /**
@@ -45,8 +51,10 @@ const VENDOR_LABEL: Record<string, string> = { sentry: 'Sentry replay' };
 /**
  * Video replay (ADR-0008, kind `video`): mp4 segments played in seq order as one timeline from the
  * manifest's `started_at` to `ended_at`. The replay clock (shared with the frame player) is the
- * master; the `<video>` of the segment under the cursor follows it, the next segment is mounted
- * hidden so it preloads, and a gap between segments keeps the previous segment's last frame.
+ * master; the `<video>` of the segment under the cursor follows it, its neighbours are mounted
+ * hidden so they preload, a gap between segments keeps the previous segment's last frame, and a
+ * seek to a segment that is not decoded yet keeps the frame on screen until the new one can paint
+ * (no black stage while it loads).
  * Exposes the same `goto`/`play`/`pause` handle as the other players for markers and the timeline.
  */
 /**
@@ -59,7 +67,7 @@ export const VIDEO_TOUCH_WINDOW_MS = 1500;
 const isMove = (t: ReplayTouch) => t.phase === 'moved';
 
 export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
-  { manifest, startTs, durationMs, onTime, segmentUrl, taps: tapsProp },
+  { manifest, startTs, durationMs, onTime, segmentUrl, taps: tapsProp, clockOffsetMs = 0 },
   ref
 ) {
   const styles = useStyles2(getStyles);
@@ -75,7 +83,10 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
   const videosRef = useRef(new Map<number, HTMLVideoElement>());
   const playingRef = useRef(false);
   const speedRef = useRef<PlaybackSpeed>(1);
-  const [ready, setReady] = useState<Record<number, boolean>>({});
+  /** Segments whose `<video>` can paint the frame at its currentTime (loaded, not mid-seek). */
+  const [paintable, setPaintable] = useState<Record<number, boolean>>({});
+  /** Seq of the segment on screen (see paintedSegmentIndex); -1 before the first one painted. */
+  const [paintedSeq, setPaintedSeq] = useState(-1);
   const [failed, setFailed] = useState<Record<number, string>>({});
 
   /** Points the segment under `offsetMs` at the cursor and pauses every other mounted segment. */
@@ -139,6 +150,8 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
             syncRef.current(offsetRef.current);
           } else {
             videosRef.current.delete(seq);
+            // A remounted element starts empty.
+            setPaintable((p) => (p[seq] ? { ...p, [seq]: false } : p));
           }
         };
         refCache.current.set(seq, cb);
@@ -149,12 +162,18 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
   );
 
   const onLoaded = useCallback(
-    (seq: number) => {
-      setReady((r) => (r[seq] ? r : { ...r, [seq]: true }));
+    (seq: number, el: HTMLVideoElement) => {
       syncMedia(offsetRef.current);
+      // syncMedia may have started a seek to the cursor: paint once it lands (onSeeked).
+      if (!el.seeking) {
+        setPaintable((p) => (p[seq] ? p : { ...p, [seq]: true }));
+      }
     },
     [syncMedia, offsetRef]
   );
+  const onSeeked = useCallback((seq: number) => {
+    setPaintable((p) => (p[seq] ? p : { ...p, [seq]: true }));
+  }, []);
   const onFailed = useCallback((seq: number, el: HTMLVideoElement) => {
     const text = mediaErrorText(el.error);
     setFailed((f) => (f[seq] === text ? f : { ...f, [seq]: text }));
@@ -163,7 +182,19 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
   const cursorTs = startTs + offsetMs;
   const pos = locateSegment(segments, cursorTs);
   const activeSeg = pos.index >= 0 ? segments[pos.index] : undefined;
-  const mounted = mountedSegmentIndices(segments.length, pos.index);
+  const activeCanPaint = Boolean(activeSeg && paintable[activeSeg.seq]);
+  const shownIndex = paintedSegmentIndex(
+    pos.index,
+    activeCanPaint,
+    segments.findIndex((s) => s.seq === paintedSeq),
+    segments.length
+  );
+  const shownSeq = shownIndex >= 0 ? segments[shownIndex].seq : -1;
+  useEffect(() => {
+    setPaintedSeq(shownSeq);
+  }, [shownSeq]);
+  const mounted = mountedSegmentIndices(segments.length, pos.index, shownIndex);
+  const holding = shownIndex >= 0 && shownIndex !== pos.index;
 
   const stepFrame = useCallback(
     (delta: -1 | 1) => {
@@ -259,21 +290,24 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
         {mounted.map((i) => {
           const seg = segments[i];
           const isActive = i === pos.index;
+          const isShown = i === shownIndex;
           return (
             <video
               key={seg.seq}
               ref={videoRef(seg.seq)}
-              className={cx(styles.video, !isActive && styles.preloading)}
+              className={cx(styles.video, !isShown && styles.preloading)}
               src={urlFor(seg)}
               preload="auto"
               muted
               playsInline
               disablePictureInPicture
-              aria-hidden={!isActive}
+              aria-hidden={!isShown}
               data-testid="video-segment"
               data-seq={seg.seq}
               data-active={isActive}
-              onLoadedData={() => onLoaded(seg.seq)}
+              data-shown={isShown}
+              onLoadedData={(e) => onLoaded(seg.seq, e.currentTarget)}
+              onSeeked={() => onSeeked(seg.seq)}
               onError={(e) => onFailed(seg.seq, e.currentTarget)}
             />
           );
@@ -283,9 +317,14 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
             Segment {activeSeg.seq} could not be played: {activeError}. Taps and the timeline still follow the clock.
           </div>
         )}
-        {activeSeg && !activeError && !ready[activeSeg.seq] && (
+        {activeSeg && !activeError && !activeCanPaint && !holding && (
           <div className={styles.notice} data-testid="video-loading">
             Loading segment {activeSeg.seq}…
+          </div>
+        )}
+        {activeSeg && !activeError && holding && (
+          <div className={styles.loadingTag} data-testid="video-holding">
+            loading segment {activeSeg.seq}…
           </div>
         )}
         {pos.inGap && !activeError && (
@@ -324,7 +363,7 @@ export const VideoPlayer = forwardRef<ReplayHandle, Props>(function VideoPlayer(
           data-testid="video-scrubber"
         />
         <span className={styles.time} data-testid="video-time">
-          {formatRelative(offsetMs)} / {formatDuration(durationMs)}
+          {formatRelative(clockOffsetMs + offsetMs)} / {formatDuration(clockOffsetMs + durationMs)}
         </span>
         <RadioButtonGroup options={SPEEDS} value={speed} onChange={(v) => setSpeed(v)} size="sm" />
       </div>
@@ -407,6 +446,19 @@ const getStyles = (theme: GrafanaTheme2) => ({
     borderRadius: theme.shape.radius.default,
     fontSize: theme.typography.bodySmall.fontSize,
     opacity: 0.9,
+  }),
+  // Small and in a corner: the previous frame stays visible while the next segment loads.
+  loadingTag: css({
+    position: 'absolute',
+    zIndex: 1,
+    right: theme.spacing(1),
+    bottom: theme.spacing(1),
+    padding: theme.spacing(0.25, 0.75),
+    color: theme.colors.text.secondary,
+    background: theme.colors.background.primary,
+    borderRadius: theme.shape.radius.default,
+    fontSize: theme.typography.bodySmall.fontSize,
+    opacity: 0.85,
   }),
   controls: css({
     display: 'flex',

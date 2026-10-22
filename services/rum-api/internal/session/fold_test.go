@@ -256,3 +256,30 @@ func deref(s *string) string {
 	}
 	return *s
 }
+
+func TestSessionContext(t *testing.T) {
+	evs := EventsFromStreams([]LokiStream{
+		{Stream: map[string]string{"event_name": "session.start", "session_id": "s1", "os_name": "iOS", "os_version": "26.0",
+			"device_model_identifier": "iPhone18,1", "deployment_environment_name": "staging"}, Values: [][2]string{{"1000000000", ""}}},
+		{Stream: map[string]string{"event_name": "ui.tap", "session_id": "s1", "os_version": "27.0", "ouo_app_build": "42"},
+			Values: [][2]string{{"2000000000", ""}}},
+		{Stream: map[string]string{"event_name": "log", "session_id": "s1", "message": "no context"}, Values: [][2]string{{"3000000000", ""}}},
+	})
+	got := SessionContext(evs)
+	want := map[string]string{"os_name": "iOS", "os_version": "27.0", "device_model_identifier": "iPhone18,1",
+		"deployment_environment_name": "staging", "ouo_app_build": "42"}
+	if len(got) != len(want) {
+		t.Fatalf("context: %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q (latest event wins)", k, got[k], v)
+		}
+	}
+	if _, ok := evs[0].Attrs["os_name"]; ok {
+		t.Error("os_name must stay out of Attrs")
+	}
+	if SessionContext(evs[2:]) != nil {
+		t.Error("no context keys: want nil")
+	}
+}

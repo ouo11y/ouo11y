@@ -2,7 +2,10 @@
 
 ouo packages are versioned independently (see `docs/releasing.md`). This file only points
 at the per-package changelogs and records which versions were released together. Do not
-add per-package entries here.
+add per-package entries here. Since 2026-10-23 release-please proposes each package's next
+version and changelog section in a release PR; the versions it starts from are in
+`.github/release-please/manifest.json`, which versions work together in
+[docs/compatibility.md](docs/compatibility.md).
 
 ## Rename to ouo11y (2026-10-18, ADR-0009)
 
@@ -29,12 +32,12 @@ Each package's own changelog has the details under Unreleased.
 |---|---|---|---|
 | `@ouo11y/browser` (was `@ouo/browser`) | 0.2.0 | [sdk/browser/CHANGELOG.md](sdk/browser/CHANGELOG.md) | `browser-v` |
 | `@ouo11y/react-native` (was `@ouo/react-native`) | 0.2.0 | [sdk/react-native/CHANGELOG.md](sdk/react-native/CHANGELOG.md) | `react-native-v` |
-| `OuoReplay` (Swift) | unreleased | `sdk/ios/CHANGELOG.md` (to be created by the ios-replay agent at the first `ios-v` tag) | `ios-v` |
+| `OuoReplay` (Swift, package `ouo11y-ios`) | 0.2.0 (not tagged) | [sdk/ios/CHANGELOG.md](sdk/ios/CHANGELOG.md) | `ios-v` |
 | `ouo11y-rum-app` (Grafana plugin, was `ouo-rum-app`) | 0.7.0 (not tagged; baked into the grafana 0.3.0 image) | [plugins/ouo11y-rum-app/CHANGELOG.md](plugins/ouo11y-rum-app/CHANGELOG.md) | `plugin-v` |
-| `rum-api` | 0.3.0 (prepared 2026-10-18, tag pending) | [services/rum-api/CHANGELOG.md](services/rum-api/CHANGELOG.md) | `rum-api-v` |
-| `grafana` image | 0.3.0 (prepared 2026-10-18, tag pending, plugin 0.7.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
-| `collector` image (ouo-collector) | 0.3.0 (prepared 2026-10-18, tag pending) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
-| Helm chart `ouo` | unreleased | `deploy/helm/ouo/CHANGELOG.md` (helm agent) | `chart-v` |
+| `rum-api` | 0.3.0 (released 2026-10-22) | [services/rum-api/CHANGELOG.md](services/rum-api/CHANGELOG.md) | `rum-api-v` |
+| `grafana` image | 0.3.0 (released 2026-10-22, plugin 0.7.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
+| `collector` image (ouo-collector) | 0.3.0 (released 2026-10-22) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
+| Helm chart `ouo` | 0.1.1 (not tagged) | [deploy/helm/ouo/CHANGELOG.md](deploy/helm/ouo/CHANGELOG.md) | `chart-v` |
 
 ## Release trains
 

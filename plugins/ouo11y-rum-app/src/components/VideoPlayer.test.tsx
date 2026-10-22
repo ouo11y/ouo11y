@@ -6,7 +6,11 @@ import { VideoPlayer } from './VideoPlayer';
 
 const durationMs = videoManifest.ended_at - videoManifest.started_at;
 
-function renderPlayer(onTime = jest.fn(), manifest = videoManifest) {
+function renderPlayer(
+  onTime = jest.fn(),
+  manifest = videoManifest,
+  extra: Partial<React.ComponentProps<typeof VideoPlayer>> = {}
+) {
   const ref = React.createRef<ReplayHandle>();
   const utils = render(
     <VideoPlayer
@@ -16,6 +20,7 @@ function renderPlayer(onTime = jest.fn(), manifest = videoManifest) {
       durationMs={durationMs}
       onTime={onTime}
       segmentUrl={(s) => `/proxy/seg/${s.seq}`}
+      {...extra}
     />
   );
   return { ref, onTime, ...utils };
@@ -94,7 +99,7 @@ describe('VideoPlayer', () => {
     expect(segmentIndex()).toBe(1);
     expect(activeVideo().getAttribute('data-seq')).toBe('1');
     expect(activeVideo().currentTime).toBeCloseTo(2.25);
-    expect(videos().map((v) => v.getAttribute('data-seq'))).toEqual(['1', '2']);
+    expect(videos().map((v) => v.getAttribute('data-seq'))).toEqual(['0', '1', '2']);
     expect(onTime).toHaveBeenLastCalledWith(7250);
     act(() => ref.current!.goto(999_999));
     expect(segmentIndex()).toBe(2);
@@ -230,6 +235,45 @@ describe('VideoPlayer', () => {
     expect(screen.getByTestId('video-error')).toHaveTextContent('Segment 0 could not be played');
     act(() => ref.current!.goto(2000));
     expect(screen.getAllByTestId('video-tap')).toHaveLength(1);
+  });
+
+  it('keeps the last frame on screen while a seek target segment loads, no black stage (F4)', () => {
+    const { ref } = renderPlayer();
+    fireEvent.loadedData(videos()[0]);
+    const shown = () => videos().find((v) => v.getAttribute('data-shown') === 'true')!;
+    expect(shown().getAttribute('data-seq')).toBe('0');
+    // Seek into segment 2: it is mounted now but has no data yet.
+    act(() => ref.current!.goto(13_000));
+    expect(activeVideo().getAttribute('data-seq')).toBe('2');
+    expect(shown().getAttribute('data-seq')).toBe('0');
+    expect(videos().map((v) => v.getAttribute('data-seq'))).toEqual(['0', '1', '2']);
+    expect(screen.queryByTestId('video-loading')).toBeNull();
+    expect(screen.getByTestId('video-holding')).toHaveTextContent('loading segment 2');
+    // Data arrives: segment 2 is painted, segment 0 is no longer needed.
+    fireEvent.loadedData(activeVideo());
+    expect(shown().getAttribute('data-seq')).toBe('2');
+    expect(screen.queryByTestId('video-holding')).toBeNull();
+    expect(videos().map((v) => v.getAttribute('data-seq'))).toEqual(['1', '2']);
+  });
+
+  it('waits for the seek to land before painting a newly loaded segment', () => {
+    const { ref } = renderPlayer();
+    fireEvent.loadedData(videos()[0]);
+    act(() => ref.current!.goto(13_000));
+    const seeking = jest.spyOn(HTMLMediaElement.prototype, 'seeking', 'get').mockReturnValue(true);
+    fireEvent.loadedData(activeVideo());
+    expect(screen.getByTestId('video-holding')).toBeInTheDocument();
+    seeking.mockReturnValue(false);
+    fireEvent.seeked(activeVideo());
+    expect(screen.queryByTestId('video-holding')).toBeNull();
+    expect(activeVideo()).toHaveAttribute('data-shown', 'true');
+  });
+
+  it('labels the time on the session clock when given the replay offset from the session start', () => {
+    const { ref } = renderPlayer(undefined, undefined, { clockOffsetMs: 300 });
+    expect(screen.getByTestId('video-time')).toHaveTextContent('+0.3s / 17.3s');
+    act(() => ref.current!.goto(7250));
+    expect(screen.getByTestId('video-time')).toHaveTextContent('+7.5s / 17.3s');
   });
 
   it('marks a segment loaded once it has data', () => {

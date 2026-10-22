@@ -93,3 +93,60 @@ func TestSessionTracesError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+// C6: traces whose root span is a generic "HTTP GET" get the root's url.path
+// (or the path of url.full) from a second search that selects them.
+func TestSessionTracesRootURLPath(t *testing.T) {
+	const traces = `{"traces":[
+ {"traceID":"t1","rootServiceName":"app","rootTraceName":"HTTP GET","startTimeUnixNano":"1791263200000000000","durationMs":5},
+ {"traceID":"t2","rootServiceName":"app","rootTraceName":"HTTP POST","startTimeUnixNano":"1791263100000000000","durationMs":5},
+ {"traceID":"t3","rootServiceName":"app","rootTraceName":"GET /api/cart","startTimeUnixNano":"1791263000000000000","durationMs":5},
+ {"traceID":"t4","rootServiceName":"app","rootTraceName":"HTTP GET","startTimeUnixNano":"1791262900000000000","durationMs":5}
+]}`
+	const roots = `{"traces":[
+ {"traceID":"t1","spanSet":{"matched":1,"spans":[{"attributes":[{"key":"url.path","value":{"stringValue":"/api/products/p-1001"}},{"key":"nestedSetParent","value":{"intValue":"-1"}}]}]}},
+ {"traceID":"t2","spanSet":{"matched":1,"spans":[{"attributes":[{"key":"url.path","value":{"stringValue":"nil"}},{"key":"url.full","value":{"stringValue":"http://localhost:8082/api/checkout?x=1"}}]}]}},
+ {"traceID":"t3","spanSet":{"matched":1,"spans":[{"attributes":[{"key":"url.path","value":{"stringValue":"/ignored"}}]}]}}
+]}`
+	var rootQ string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		switch {
+		case strings.Contains(q, "nestedSetParent"):
+			rootQ = q
+			w.Write([]byte(roots))
+		case strings.Contains(q, "status = error"):
+			w.Write([]byte(`{"traces":[]}`))
+		default:
+			w.Write([]byte(traces))
+		}
+	}))
+	defer srv.Close()
+	c := New(srv.URL, srv.Client(), 2, 0)
+	got, err := c.SessionTraces(context.Background(), "s1", time.Unix(1791262000, 0), time.Unix(1791264000, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rootQ, `span.session.id = "s1"`) || !strings.Contains(rootQ, "select(span.url.path, span.url.full)") {
+		t.Fatalf("root query: %q", rootQ)
+	}
+	want := map[string]string{"t1": "/api/products/p-1001", "t2": "/api/checkout", "t3": "", "t4": ""}
+	for _, tr := range got {
+		if tr.RootURLPath != want[tr.TraceID] {
+			t.Errorf("%s: root_url_path %q, want %q", tr.TraceID, tr.RootURLPath, want[tr.TraceID])
+		}
+	}
+
+	// No generic root name: no extra search.
+	rootQ = ""
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("q"), "nestedSetParent") {
+			rootQ = "called"
+		}
+		w.Write([]byte(`{"traces":[{"traceID":"t3","rootServiceName":"app","rootTraceName":"GET /api/cart","startTimeUnixNano":"1791263000000000000"}]}`))
+	}))
+	defer srv2.Close()
+	if _, err := New(srv2.URL, srv2.Client(), 2, 0).SessionTraces(context.Background(), "s1", time.Unix(1, 0), time.Unix(2, 0)); err != nil || rootQ != "" {
+		t.Fatalf("named roots must not trigger the path search: %v %q", err, rootQ)
+	}
+}

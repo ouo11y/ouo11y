@@ -1,25 +1,47 @@
-# Publishes the OuoReplay Swift package when an ios-v* tag is pushed.
+# Publishes the OuoReplay Swift package (`ouo11y-ios`) when the founder pushes an ios-v* tag.
 #
 # SwiftPM needs Package.swift at the root of the repository it clones, so sdk/ios is
-# mirrored with `git subtree split` into a dedicated repository and the version tag is
-# created there:
+# mirrored with `git subtree split` into a dedicated read-only repository and the version
+# tag is created there:
 #   ios-v0.2.0 (this repo) -> ouo11y/ouo11y-ios main + tag 0.2.0
+# The tag must equal sdk/ios/version.txt (the release PR bumps it).
 #
-# Required before this can run (see docs/releasing.md):
-#   repository  github.com/ouo11y/ouo11y-ios   exists (private, created 2026-10-18); README on branch `about`, main created by this workflow
-#   secret      OUO_IOS_DEPLOY_KEY                 private half of an ed25519 deploy key added to
-#                                                  ouo11y-ios with "Allow write access"
-# Without the secret the workflow runs the tests and exits cleanly with a notice; nothing
-# is pushed anywhere.
+# Required before a real run (docs/releasing.md, "Accounts and secrets"):
+#   repository  github.com/ouo11y/ouo11y-ios   exists (private); README on branch `about`, main created by the first push
+#   secret      OUO_IOS_DEPLOY_KEY              private half of an ed25519 deploy key added to
+#                                               ouo11y-ios with "Allow write access"
+# Without the secret the workflow tests, splits and exits with a notice; nothing is pushed.
+#
+# Dry run: Actions > release-ios > Run workflow with the tag to rehearse, or any pull request
+# that changes this file. It splits and, when the key exists, runs `git push --dry-run` against
+# the mirror (checks the key and that main fast-forwards); nothing is pushed. The macOS test
+# job (10x Actions minutes) is skipped on pull requests and when `skip_tests` is ticked; ci.yml
+# runs the same tests on every change under sdk/ios.
 name: release-ios
 
 on:
   push:
     tags:
       - 'ios-v*'
+  pull_request:
+    paths:
+      - .github/workflows/release-ios.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rehearse, e.g. ios-v0.2.0 (dry run: split + push --dry-run, pushes nothing)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip the macOS swift tests (they cost 10x Actions minutes)'
+        type: boolean
+        default: false
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: release-ios-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 env:
   MIRROR_REPO: ouo11y/ouo11y-ios
@@ -28,9 +50,15 @@ env:
 jobs:
   test:
     name: swift tests
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.skip_tests)
     runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - run: swift --version
       - working-directory: sdk/ios
         run: swift build
@@ -39,34 +67,59 @@ jobs:
   mirror:
     name: subtree split and push
     needs: test
+    # Runs after the tests, or alone when they were skipped (never after a failure).
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DRY_RUN: ${{ github.event_name != 'push' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0   # subtree split needs the full history
+          persist-credentials: false
+
+      - name: Resolve version
+        id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            push)              tag="$GITHUB_REF_NAME" ;;
+            workflow_dispatch) tag="$INPUT_TAG" ;;
+            *)                 tag="ios-v$(cat "$SUBTREE_PREFIX/version.txt")" ;;
+          esac
+          version="${tag#ios-v}"
+          if ! printf '%s' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::$tag is not ios-v<major>.<minor>.<patch>[-rc.N]"; exit 1
+          fi
+          actual=$(cat "$SUBTREE_PREFIX/version.txt")
+          if [ "$actual" != "$version" ]; then
+            echo "::error::tag $tag says $version but $SUBTREE_PREFIX/version.txt says $actual"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Check deploy key
         id: key
         env:
-          OUO_IOS_DEPLOY_KEY: ${{ secrets.OUO_IOS_DEPLOY_KEY }}
+          HAS_KEY: ${{ secrets.OUO_IOS_DEPLOY_KEY != '' }}
         run: |
-          if [ -z "$OUO_IOS_DEPLOY_KEY" ]; then
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::OUO_IOS_DEPLOY_KEY secret is not set. Nothing was pushed to $MIRROR_REPO. Create the mirror repository and the deploy key as described in docs/releasing.md, then re-run this workflow."
-          else
-            echo "present=true" >> "$GITHUB_OUTPUT"
+          echo "present=$HAS_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != true ]; then
+            echo "::notice::OUO_IOS_DEPLOY_KEY secret is not set. Nothing was pushed to $MIRROR_REPO. Create the deploy key as described in docs/releasing.md, then re-run this workflow."
           fi
 
-      - name: Resolve version
-        if: steps.key.outputs.present == 'true'
-        id: ver
+      - name: Split sdk/ios
+        id: split
         run: |
-          version="${GITHUB_REF_NAME#ios-v}"
-          case "$version" in
-            [0-9]*.[0-9]*.[0-9]*) ;;
-            *) echo "::error::$GITHUB_REF_NAME is not ios-v<major>.<minor>.<patch>"; exit 1 ;;
-          esac
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          split=$(git subtree split --prefix="$SUBTREE_PREFIX" HEAD)
+          echo "split commit: $split"
+          git ls-tree --name-only "$split"
+          echo "sha=$split" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH for the mirror
         if: steps.key.outputs.present == 'true'
@@ -79,25 +132,40 @@ jobs:
           # GitHub's published host key (https://api.github.com/meta, ssh_keys, ed25519).
           echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
           echo "GIT_SSH_COMMAND=ssh -i ~/.ssh/ouo_ios_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
-
-      - name: Split sdk/ios and push to the mirror
-        if: steps.key.outputs.present == 'true'
-        run: |
-          version="${{ steps.ver.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          split=$(git subtree split --prefix="$SUBTREE_PREFIX" "$GITHUB_SHA")
-          echo "split commit: $split"
           git remote add mirror "git@github.com:$MIRROR_REPO.git"
+
+      - name: Push to the mirror
+        if: steps.key.outputs.present == 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SPLIT: ${{ steps.split.outputs.sha }}
+        run: |
+          dry=""
+          [ "$DRY_RUN" = true ] && dry="--dry-run"
           # main must fast-forward: the split is deterministic over the same history, so a
           # rejected push means the mirror was edited by hand. Fix it there, do not force.
-          git push mirror "$split:refs/heads/main"
-          git tag -a "$version" "$split" -m "OuoReplay $version (ouo $GITHUB_REF_NAME, $GITHUB_SHA)"
-          git push mirror "refs/tags/$version"
+          git push $dry mirror "$SPLIT:refs/heads/main"
+          git tag -a "$VERSION" "$SPLIT" -m "OuoReplay $VERSION (ouo11y ios-v$VERSION, $GITHUB_SHA)"
+          git push $dry mirror "refs/tags/$VERSION"
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SPLIT: ${{ steps.split.outputs.sha }}
+          HAS_KEY: ${{ steps.key.outputs.present }}
+        run: |
           {
-            echo "Mirrored \`$SUBTREE_PREFIX\` at \`$GITHUB_SHA\` to \`$MIRROR_REPO\` as tag \`$version\`."
+            if [ "$DRY_RUN" = true ] || [ "$HAS_KEY" != true ]; then
+              echo "## Dry run of ios-v$VERSION: nothing pushed (deploy key present: $HAS_KEY)"
+            else
+              echo "## Mirrored ios-v$VERSION"
+            fi
+            echo
+            echo "\`$SUBTREE_PREFIX\` at \`$GITHUB_SHA\` splits to \`$SPLIT\` -> \`$MIRROR_REPO\` main + tag \`$VERSION\`."
             echo
             echo '```swift'
-            echo ".package(url: \"https://github.com/$MIRROR_REPO.git\", from: \"$version\")"
+            echo ".package(url: \"https://github.com/$MIRROR_REPO.git\", from: \"$VERSION\")"
             echo '```'
+            echo
+            .github/scripts/changelog-section.sh "$SUBTREE_PREFIX/CHANGELOG.md" "$VERSION"
           } >> "$GITHUB_STEP_SUMMARY"

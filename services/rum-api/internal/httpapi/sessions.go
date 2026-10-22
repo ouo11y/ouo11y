@@ -44,8 +44,11 @@ type timelineItem struct {
 // detailResponse is GET /v1/sessions/{id}.
 type detailResponse struct {
 	session.Record
-	Timeline []timelineItem `json:"timeline"`
-	Traces   []tempo.Trace  `json:"traces"`
+	// Context is the session's device, OS, build and environment
+	// (session.ContextKeys); omitted when no event carries any.
+	Context  map[string]string `json:"context,omitempty"`
+	Timeline []timelineItem    `json:"timeline"`
+	Traces   []tempo.Trace     `json:"traces"`
 }
 
 type tracesResponse struct {
@@ -279,7 +282,7 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	if traces == nil {
 		traces = []tempo.Trace{}
 	}
-	writeJSON(w, http.StatusOK, detailResponse{Record: *rec, Timeline: timeline, Traces: traces})
+	writeJSON(w, http.StatusOK, detailResponse{Record: *rec, Context: session.SessionContext(rec.Events), Timeline: timeline, Traces: traces})
 }
 
 func (s *Server) getSessionTraces(w http.ResponseWriter, r *http.Request) {

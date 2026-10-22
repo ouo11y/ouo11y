@@ -4,11 +4,16 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // goldenRequest is one request captured by tools/sentrytap from a real SDK.
@@ -47,6 +52,35 @@ func loadGolden(t *testing.T, dir string) []goldenRequest {
 // replayGolden translates captured requests in order, as the worker would.
 func replayGolden(t *testing.T, x *tx, reqs []goldenRequest) {
 	t.Helper()
+	replayGoldenEdited(t, x, reqs, nil)
+}
+
+// withoutReplay turns a capture into one of an app whose sessions were not
+// sampled for replay: no replay_video items, no replay ids on events and in
+// trace headers.
+func withoutReplay(env *Envelope) {
+	var items []Item
+	for _, it := range env.Items {
+		switch it.Type {
+		case "replay_video":
+			continue
+		case "event", "transaction":
+			var m map[string]any
+			if json.Unmarshal(it.Payload, &m) == nil {
+				if c, ok := m["contexts"].(map[string]any); ok {
+					delete(c, "replay")
+				}
+				it.Payload, _ = json.Marshal(m)
+			}
+		}
+		items = append(items, it)
+	}
+	env.Items = items
+	env.Header.Trace = nil
+}
+
+func replayGoldenEdited(t *testing.T, x *tx, reqs []goldenRequest, edit func(*Envelope)) {
+	t.Helper()
 	for _, g := range reqs {
 		enc := ""
 		if v := g.Header["Content-Encoding"]; len(v) > 0 {
@@ -59,6 +93,9 @@ func replayGolden(t *testing.T, x *tx, reqs []goldenRequest) {
 		env, err := ParseEnvelope(plain)
 		if err != nil {
 			t.Fatalf("request %d: %v", g.Seq, err)
+		}
+		if edit != nil {
+			edit(env)
 		}
 		x.r.translate(context.Background(), job{project: x.p, encoding: enc, body: g.body, receivedAt: g.Time, clientAddr: "127.0.0.1"}, env)
 	}
@@ -151,6 +188,22 @@ func checkInvariants(t *testing.T, x *tx, g goldenSummary) {
 	for _, s := range x.spans() {
 		v, _ := s.Attributes().Get("session.id")
 		check("span "+s.Name(), v.Str(), s.StartTimestamp().AsTime())
+		// A5: client spans are named by method and carry the URL parts.
+		if s.Kind() == ptrace.SpanKindClient {
+			a := s.Attributes().AsRaw()
+			if s.Name() != a["http.request.method"] || a["server.address"] == nil || a["server.port"] == nil || a["url.path"] == nil || a["url.scheme"] == nil {
+				t.Errorf("client span %q: %+v", s.Name(), a)
+			}
+		}
+	}
+	// C5: failed requests at ERROR, as the ouo SDKs emit them.
+	for _, ld := range x.logs.AllLogs() {
+		lrs := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
+		for i := 0; i < lrs.Len(); i++ {
+			if r := lrs.At(i); r.EventName() == "http.request.failed" && r.SeverityNumber() != plog.SeverityNumberError {
+				t.Errorf("http.request.failed at %v", r.SeverityNumber())
+			}
+		}
 	}
 	// One replay id per session and one session per replay id; seq contiguous from 0.
 	bySID := map[string]string{}
@@ -211,8 +264,24 @@ func TestGoldenJourney(t *testing.T) {
 			fatal = append(fatal, e)
 		}
 	}
-	if len(g.exceptions) != 4 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
+	// handled error, unhandled rejection, native crash; the info captureMessage
+	// (synthetic exception) is a sentry.message, as Sentry's errors counter says (A1).
+	if len(g.exceptions) != 3 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
 		t.Errorf("exceptions: %d total, fatal %+v", len(g.exceptions), fatal)
+	}
+	// A7: native frames keep image, address and load address; the record
+	// names the images (with UUIDs) the frames point into.
+	if st, _ := fatal[0].attrs["exception.stacktrace"].(string); !strings.Contains(st, "at ? (sentrydemo 0x0000000102c7c9ec 0x102ac8000 + 1788396) [in app]") || strings.Contains(st, "at ? (/") {
+		t.Errorf("native stack:\n%s", st)
+	}
+	var images []debugImage
+	if err := json.Unmarshal([]byte(fmt.Sprint(fatal[0].attrs["ouo.sentry.debug_images"])), &images); err != nil || len(images) < 2 || len(images) >= 16 {
+		t.Errorf("debug images (%v): %+v", err, images)
+	}
+	for _, img := range images {
+		if img.DebugID == "" || strings.Contains(img.CodeFile, "/") {
+			t.Errorf("debug image %+v", img)
+		}
 	}
 	if !crash.ts.Equal(fatal[0].ts) {
 		t.Errorf("crash session ends at %s, the crash happened at %s", crash.ts, fatal[0].ts)
@@ -248,7 +317,7 @@ func TestGoldenJourney(t *testing.T) {
 	// Breadcrumbs of the recordings: 9 answered fetches (the 500 comes from its
 	// span), 8 console lines, 6 demo.action + 1 demo breadcrumbs, inactive and
 	// background before the 40 s background phase.
-	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2}
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2, "sentry.message": 1}
 	for name, n := range want {
 		if got := len(x.byName(name)); got != n {
 			t.Errorf("%s records: %d, want %d", name, got, n)
@@ -258,6 +327,45 @@ func TestGoldenJourney(t *testing.T) {
 		if r.attrs["http.response.status_code"] != int64(200) || r.attrs["url.full"] == nil {
 			t.Errorf("http.request: %+v", r.attrs)
 		}
+	}
+}
+
+// TestGoldenJourneyWithoutReplay replays the journey as if no session had been
+// sampled for replay (replaysSessionSampleRate below 1 in production): the
+// timeline comes from the error events' breadcrumbs and the http.client
+// spans (A8), with the same content the recordings gave.
+func TestGoldenJourneyWithoutReplay(t *testing.T) {
+	x := newTx(t)
+	replayGoldenEdited(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/journey"), withoutReplay)
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+	if len(g.chunks) != 0 {
+		t.Fatalf("replay chunks: %d", len(g.chunks))
+	}
+	// 9 answered requests (spans and fetch breadcrumbs, one record each, as
+	// the recordings gave); 8 console lines; 7 demo.action and
+	// 1 demo breadcrumbs; foreground and active before the second session;
+	// the 8 navigations as with a replay.
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 8, "app.lifecycle": 2, "navigation": 8, "exception": 3, "sentry.message": 1}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	seen := map[string]bool{}
+	for _, r := range x.records() {
+		k := r.name + "|" + r.ts.String() + "|" + fmt.Sprint(r.body)
+		if seen[k] {
+			t.Errorf("duplicate %s at %s: %v", r.name, r.ts.Format(time.TimeOnly), r.body)
+		}
+		seen[k] = true
+	}
+	urls := map[any]bool{}
+	for _, r := range x.byName("http.request") {
+		urls[r.attrs["url.full"]] = true
+	}
+	if !urls["http://localhost:8082/api/cart"] || !urls["http://localhost:8082/api/products/p-1003"] {
+		t.Errorf("http.request URLs: %v", urls)
 	}
 }
 
@@ -365,7 +473,7 @@ func TestGoldenShop(t *testing.T) {
 
 	// 50 log entries: 30 Sentry.logger calls and 20 console lines; the replays
 	// hold 18 console breadcrumbs, 17 of them duplicates of console log entries.
-	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 4}
+	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 3, "sentry.message": 1}
 	for name, n := range want {
 		if got := len(x.byName(name)); got != n {
 			t.Errorf("%s records: %d, want %d", name, got, n)
@@ -373,7 +481,7 @@ func TestGoldenShop(t *testing.T) {
 	}
 	for _, name := range []string{"log", "console"} {
 		for _, r := range x.byName(name) {
-			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" {
+			if m := r.attrs["ouo.sentry.session_match"]; m != "replay" && m != "trace" && m != "start" {
 				t.Errorf("%s %q matched by %v", name, r.body, m)
 			}
 		}
@@ -398,5 +506,77 @@ func TestGoldenShop(t *testing.T) {
 	}
 	if x.r.pending.n != 0 {
 		t.Errorf("replay segments still held: %d", x.r.pending.n)
+	}
+}
+
+// TestGoldenSelfHosted replays the N2 run against self-hosted Sentry 26.10
+// (2026-10-17, project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html):
+// real taps, Sentry logs, a native crash and a relaunch. Sentry's own counts
+// for it: 2 sessions (1 crashed), 3 errors and 1 info message, 10 transactions.
+func TestGoldenSelfHosted(t *testing.T) {
+	x := newTx(t)
+	replayGolden(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/selfhosted"))
+	x.r.flushPendingLogs(context.Background(), true)
+	g := summarize(t, x)
+	checkInvariants(t, x, g) // also: no record without a session
+
+	const first, second = "3C8B84B4-8E96-4A06-85D4-9E81A6ED2F77", "5E1BD07A-272D-4264-87BD-AB60D28FB709"
+	if len(g.starts) != 2 || g.ends[first].attrs["ouo.session.end_reason"] != "crash" {
+		t.Errorf("sessions: starts %d, first end %+v", len(g.starts), g.ends[first].attrs)
+	}
+	if len(g.exceptions) != 3 || len(x.byName("sentry.message")) != 1 {
+		t.Errorf("exceptions %d, messages %d; Sentry: 3 errors and 1 info message", len(g.exceptions), len(x.byName("sentry.message")))
+	}
+	// A9.
+	if p := g.starts[second].attrs["session.previous_id"]; p != first {
+		t.Errorf("second session previous_id %v", p)
+	}
+	// N2: startup console lines (before sentry-cocoa's session init) land in
+	// the session that starts next, and Running "main" is stored once per launch.
+	running := map[any]int{}
+	for _, r := range x.byName("console") {
+		if r.body == `Running "main"` {
+			running[r.attrs["session.id"]]++
+		}
+		if r.attrs["ouo.sentry.session_match"] == "start" && !strings.Contains(fmt.Sprint(r.body), "rum mode") && !strings.Contains(fmt.Sprint(r.body), "rollout") && r.body != `Running "main"` {
+			t.Errorf("startup rule claimed %q", r.body)
+		}
+	}
+	if running[first] != 1 || running[second] != 1 {
+		t.Errorf(`Running "main" per session: %v`, running)
+	}
+	// A11: the back navigation Cart -> Home has no transaction, only its breadcrumb.
+	var back bool
+	for _, n := range g.navigations {
+		if n.attrs["url.path"] == "Home" && n.attrs["ouo.navigation.from"] == "Cart" && n.attrs["ouo.navigation.source"] == "breadcrumb" && n.attrs["session.id"] == first {
+			back = true
+		}
+	}
+	if !back || len(g.navigations) != 5 {
+		t.Errorf("navigations %d, back navigation %v", len(g.navigations), back)
+	}
+	// A2: log records carry release, environment, OS and device; A3: so does
+	// the second session's start (a session-only envelope).
+	for _, name := range []string{"log", "session.start"} {
+		var res map[string]any
+		for _, ld := range x.logs.AllLogs() {
+			rl := ld.ResourceLogs().At(0)
+			lrs := rl.ScopeLogs().At(0).LogRecords()
+			for i := 0; i < lrs.Len(); i++ {
+				if lrs.At(i).EventName() == name && lrs.At(i).Attributes().AsRaw()["session.id"] == second {
+					res = rl.Resource().Attributes().AsRaw()
+				}
+			}
+		}
+		if res["service.version"] != "1.0.0" || res["deployment.environment.name"] == nil || res["os.name"] != "iOS" || res["os.version"] == nil || res["device.model.identifier"] == nil {
+			t.Errorf("%s resource in the second session: %+v", name, res)
+		}
+	}
+	// A6: errors carry the screen and device state.
+	for _, e := range g.exceptions {
+		// sentry-cocoa's crash report has no connection type; JS errors do.
+		if e.attrs["ouo.device.locale"] == nil || (e.attrs["ouo.exception.fatal"] == false && (e.attrs["network.connection.type"] == nil || e.attrs["ouo.app.screen"] == nil)) {
+			t.Errorf("exception %v without device context: %+v", e.attrs["exception.type"], e.attrs)
+		}
 	}
 }

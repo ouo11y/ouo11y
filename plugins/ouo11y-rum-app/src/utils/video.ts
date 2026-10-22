@@ -76,15 +76,39 @@ export function mediaTimeSec(offsetMs: number, mediaDurationSec: number): number
 }
 
 /**
- * Segment indices to keep mounted as `<video>` elements: the one on screen and the next one, so
- * the next segment is fetched and decoded before the cursor reaches it.
+ * Segment indices to keep mounted as `<video>` elements: the one under the cursor and both
+ * neighbours, so playing on into the next segment or stepping back has a decoded frame ready, plus
+ * `hold` (the segment still on screen while the one under the cursor loads, see
+ * {@link paintedSegmentIndex}). Sorted, without duplicates.
  */
-export function mountedSegmentIndices(count: number, index: number): number[] {
+export function mountedSegmentIndices(count: number, index: number, hold = -1): number[] {
   if (count <= 0 || index < 0) {
     return [];
   }
   const current = Math.min(index, count - 1);
-  return current + 1 < count ? [current, current + 1] : [current];
+  const out = new Set<number>();
+  for (const i of [current - 1, current, current + 1, hold]) {
+    if (i >= 0 && i < count) {
+      out.add(i);
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/**
+ * The segment whose `<video>` is painted (F4): the one under the cursor once it can show the
+ * cursor's frame; until then the one painted before (`previous`), so a seek to a segment that is
+ * not loaded yet keeps the last frame instead of a black stage. With nothing painted before, the
+ * segment under the cursor (its loading notice shows).
+ */
+export function paintedSegmentIndex(active: number, activeCanPaint: boolean, previous: number, count: number): number {
+  if (active < 0) {
+    return -1;
+  }
+  if (activeCanPaint || previous < 0 || previous >= count) {
+    return active;
+  }
+  return previous;
 }
 
 /**

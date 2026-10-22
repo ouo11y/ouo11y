@@ -20,6 +20,52 @@ const endedGrace = 30 * time.Second
 // start transaction begins before the SDK opens the session).
 const startSkew = time.Minute
 
+// Startup logs (spec section 8, rule 5): console output printed while the
+// app starts, before the SDK opened its session, carries no replay id, user
+// id or known trace id. It belongs to the session the same client starts
+// within this window around it (observed: 60 ms before to 0.7 s after).
+const (
+	startLogBefore = 10 * time.Second // a log at most this long before the session start
+	startLogAfter  = 5 * time.Second  // or at most this long after it
+	maxPerOrigin   = 16
+)
+
+// setOrigin indexes a new session by the network origin it came from. Must
+// hold the lock.
+func (s *sessionState) setOrigin(x *sess, origin string) {
+	if origin == "" || x.origin != "" {
+		return
+	}
+	x.origin = origin
+	k := x.project + "/" + origin
+	l := append(s.byOrigin[k], x)
+	if len(l) > maxPerOrigin {
+		l = l[len(l)-maxPerOrigin:]
+	}
+	s.byOrigin[k] = l
+}
+
+// byStart resolves the startup rule: the one session created from the same
+// origin that started within the window around at. Several candidates
+// (clients behind one address starting together) match none. Must hold the
+// lock.
+func (s *sessionState) byStart(project, origin string, at time.Time) *sess {
+	if origin == "" || at.IsZero() {
+		return nil
+	}
+	var found *sess
+	for _, x := range s.byOrigin[project+"/"+origin] {
+		if at.Before(x.started.Add(-startLogBefore)) || at.After(x.started.Add(startLogAfter)) {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = x
+	}
+	return found
+}
+
 // covers reports whether an item at `at` can belong to the session.
 func (x *sess) covers(at time.Time) bool {
 	if at.IsZero() {
@@ -54,7 +100,47 @@ type sess struct {
 	console           []consoleLine // recent console lines, to de-duplicate logs and breadcrumbs
 	fatalAt           time.Time     // time of the first fatal exception
 	lastScreen        string
+	previousID        string        // the device's session that started before this one (A9)
+	origin            string        // network origin of the envelope that created the session
+	navs              []navEntry    // recent navigations, to pair transactions with breadcrumbs (A11)
+	crumbs            []crumbSeen   // event breadcrumbs emitted, to skip their copies on later events (A8)
+	httpSpans         []string      // span ids emitted as http.request, oldest first (A8)
+	dev               deviceContext // OS and device from the session's events, transactions and logs
 	elem              *list.Element
+}
+
+// deviceContext is the OS and device context Sentry sends on events,
+// transactions and log entries, but not on session updates or replays.
+type deviceContext struct {
+	osName, osVersion, model string
+}
+
+func (d deviceContext) empty() bool { return d == deviceContext{} }
+
+// merge takes every field d2 has.
+func (d *deviceContext) merge(d2 deviceContext) {
+	d.osName = firstString(d2.osName, d.osName)
+	d.osVersion = firstString(d2.osVersion, d.osVersion)
+	d.model = firstString(d2.model, d.model)
+}
+
+// deviceOf returns the device context of a session, else the one of the
+// device's latest started session that has one (a new session's first
+// updates come before any event). Must hold the lock.
+func (s *sessionState) deviceOf(x *sess) deviceContext {
+	if !x.dev.empty() || x.did == "" {
+		return x.dev
+	}
+	var best *sess
+	for c := range s.byDevice[x.project+"/"+x.did] {
+		if !c.dev.empty() && (best == nil || c.started.After(best.started)) {
+			best = c
+		}
+	}
+	if best == nil {
+		return x.dev
+	}
+	return best.dev
 }
 
 // sessionState is a bounded LRU of sessions with lookups by device and by
@@ -68,6 +154,7 @@ type sessionState struct {
 	byDevice map[string]map[*sess]struct{} // project/did
 	byReplay map[string]*sess              // project/replay_id
 	byTrace  map[string][]*sess            // project/trace_id
+	byOrigin map[string][]*sess            // project/origin, latest sessions created from it
 	now      func() time.Time
 }
 
@@ -82,7 +169,7 @@ func newSessionState(cfg StateConfig) *sessionState {
 	}
 	return &sessionState{
 		max: maxSessions, ttl: ttl, order: list.New(),
-		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{},
+		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{}, byOrigin: map[string][]*sess{},
 		now: time.Now,
 	}
 }
@@ -102,11 +189,13 @@ func (s *sessionState) upsert(project, sid, did string, started time.Time) (*ses
 	if x, ok := s.bySID[key]; ok {
 		if did != "" && x.did == "" {
 			x.did = did
+			x.previousID = s.previousOf(x)
 			s.indexDevice(x)
 		}
 		return x, false
 	}
 	x := &sess{key: key, sid: sid, did: did, project: project, started: started, lastEvent: started, lastSeen: s.now()}
+	x.previousID = s.previousOf(x)
 	x.elem = s.order.PushFront(x)
 	s.bySID[key] = x
 	s.indexDevice(x)
@@ -114,6 +203,24 @@ func (s *sessionState) upsert(project, sid, did string, started time.Time) (*ses
 		s.remove(s.order.Back().Value.(*sess))
 	}
 	return x, true
+}
+
+// previousOf returns the sid of the device's latest session that started
+// before x, for session.previous_id. Must hold the lock.
+func (s *sessionState) previousOf(x *sess) string {
+	if x.did == "" {
+		return ""
+	}
+	var best *sess
+	for c := range s.byDevice[x.project+"/"+x.did] {
+		if c != x && c.started.Before(x.started) && (best == nil || c.started.After(best.started)) {
+			best = c
+		}
+	}
+	if best == nil {
+		return ""
+	}
+	return best.sid
 }
 
 func (s *sessionState) indexDevice(x *sess) {
@@ -221,6 +328,96 @@ func (s *sessionState) byTraceAt(project, traceID string, at time.Time) *sess {
 	return best
 }
 
+// navEntry is one navigation seen for a session, from a transaction or a
+// `navigation` breadcrumb.
+type navEntry struct {
+	screen     string
+	at         time.Time
+	breadcrumb bool
+	paired     bool
+}
+
+const (
+	maxNavs = 64
+	// navPairWindow: a React Navigation transaction starts 10 to 20 ms before
+	// its breadcrumb; the app-start ui.load transaction up to 3 s before
+	// (observed on iOS).
+	navPairWindow = 5 * time.Second
+	// crumbCopyWindow: the same breadcrumb repeats on every error event, and
+	// the native SDK's copy is stamped up to about 60 ms later (observed).
+	crumbCopyWindow = time.Second
+)
+
+// navSeen pairs a navigation with one from the other source (a transaction
+// and its breadcrumb) or with a copy of the same breadcrumb, and records it
+// otherwise. It returns true when the navigation is already on the timeline.
+// Must hold the lock.
+func (x *sess) navSeen(screen string, at time.Time, breadcrumb bool) bool {
+	paired := false
+	for i := range x.navs {
+		n := &x.navs[i]
+		if n.screen != screen {
+			continue
+		}
+		dt := n.at.Sub(at).Abs()
+		if breadcrumb && n.breadcrumb && dt <= crumbCopyWindow {
+			return true
+		}
+		if !paired && n.breadcrumb != breadcrumb && !n.paired && dt <= navPairWindow {
+			n.paired, paired = true, true
+		}
+	}
+	// Recorded even when paired, so later copies of a breadcrumb find it.
+	x.navs = append(x.navs, navEntry{screen: screen, at: at, breadcrumb: breadcrumb, paired: paired})
+	if len(x.navs) > maxNavs {
+		x.navs = x.navs[len(x.navs)-maxNavs:]
+	}
+	return paired
+}
+
+// crumbSeen is one event breadcrumb emitted for a session.
+type crumbSeen struct {
+	key   uint64
+	at    time.Time
+	event string
+}
+
+const maxCrumbs = 512
+
+// eventCrumbSeen reports whether an event breadcrumb is a copy of one an
+// earlier event already brought (every error carries the scope's last 100;
+// the native SDK's copies are stamped up to about 60 ms later), and records
+// it otherwise. Copies within one event are not duplicates (two taps on the
+// same button). Must hold the lock.
+func (x *sess) eventCrumbSeen(key uint64, at time.Time, event string) bool {
+	for _, c := range x.crumbs {
+		if c.key == key && c.event != event && c.at.Sub(at).Abs() <= crumbCopyWindow {
+			return true
+		}
+	}
+	x.crumbs = append(x.crumbs, crumbSeen{key: key, at: at, event: event})
+	if len(x.crumbs) > maxCrumbs {
+		x.crumbs = x.crumbs[len(x.crumbs)-maxCrumbs:]
+	}
+	return false
+}
+
+// httpSeen reports whether a request (by span id) is on the timeline
+// already, from a fetch breadcrumb or its http.client span, and records it
+// otherwise. Must hold the lock.
+func (x *sess) httpSeen(spanID string) bool {
+	for _, s := range x.httpSpans {
+		if s == spanID {
+			return true
+		}
+	}
+	x.httpSpans = append(x.httpSpans, spanID)
+	if len(x.httpSpans) > maxCrumbs {
+		x.httpSpans = x.httpSpans[len(x.httpSpans)-maxCrumbs:]
+	}
+	return false
+}
+
 // consoleLine is one console message emitted for a session.
 type consoleLine struct {
 	msg string
@@ -309,6 +506,21 @@ func (s *sessionState) remove(x *sess) {
 	}
 	for _, id := range x.traceIDs {
 		s.forgetTrace(x, id)
+	}
+	if x.origin != "" {
+		k := x.project + "/" + x.origin
+		l := s.byOrigin[k]
+		for i, c := range l {
+			if c == x {
+				l = append(l[:i:i], l[i+1:]...)
+				break
+			}
+		}
+		if len(l) == 0 {
+			delete(s.byOrigin, k)
+		} else {
+			s.byOrigin[k] = l
+		}
 	}
 }
 

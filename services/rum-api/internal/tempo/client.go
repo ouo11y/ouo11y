@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,7 +27,14 @@ type Trace struct {
 	SpanCount   int       `json:"span_count"`
 	HasError    bool      `json:"has_error"`
 	GrafanaURL  string    `json:"grafana_url"`
+	// RootURLPath is the root span's url.path when the root has a generic
+	// HTTP client name ("HTTP GET", the ouo SDKs); empty otherwise.
+	RootURLPath string `json:"root_url_path,omitempty"`
 }
+
+// genericHTTPName matches root span names that carry no route: the HTTP
+// semantic conventions' fallback "HTTP {method}" (and a bare method).
+var genericHTTPName = regexp.MustCompile(`^(HTTP )?[A-Z]+$`)
 
 // Client queries one Tempo instance.
 type Client struct {
@@ -99,6 +107,14 @@ type searchResponse struct {
 		} `json:"serviceStats"`
 		SpanSet *struct {
 			Matched int `json:"matched"`
+			Spans   []struct {
+				Attributes []struct {
+					Key   string `json:"key"`
+					Value struct {
+						StringValue string `json:"stringValue"`
+					} `json:"value"`
+				} `json:"attributes"`
+			} `json:"spans"`
 		} `json:"spanSet"`
 	} `json:"traces"`
 }
@@ -145,6 +161,7 @@ func (c *Client) SessionTraces(ctx context.Context, sessionID string, start, end
 			}
 		}
 	}
+	c.addRootPaths(ctx, sessionID, start, end, traces)
 	if c.Links != nil {
 		for i := range traces {
 			traces[i].GrafanaURL = c.Links.TraceURL(traces[i].TraceID, traces[i].Start, traces[i].DurationMs)
@@ -165,7 +182,72 @@ func (c *Client) SessionTraces(ctx context.Context, sessionID string, start, end
 	return traces, nil
 }
 
+// addRootPaths fills RootURLPath of the traces whose root span name is a
+// generic "HTTP {method}", from a search that selects url.path / url.full of
+// the session's root spans. Best effort: a failed search leaves them empty.
+func (c *Client) addRootPaths(ctx context.Context, sessionID string, start, end time.Time, traces []Trace) {
+	generic := false
+	for _, t := range traces {
+		if genericHTTPName.MatchString(t.RootName) {
+			generic = true
+			break
+		}
+	}
+	if !generic {
+		return
+	}
+	q := fmt.Sprintf(`{ span.session.id = %s && nestedSetParent < 0 } | select(span.url.path, span.url.full)`, strconv.Quote(sessionID))
+	sr, err := c.searchRaw(ctx, q, start, end)
+	if err != nil {
+		slog.Warn("tempo root path search failed", "session_id", sessionID, "error", err)
+		return
+	}
+	paths := map[string]string{}
+	for _, t := range sr.Traces {
+		if t.SpanSet == nil {
+			continue
+		}
+		var path, full string
+		for _, sp := range t.SpanSet.Spans {
+			for _, a := range sp.Attributes {
+				v := a.Value.StringValue
+				if v == "" || v == "nil" { // Tempo answers "nil" for a selected attribute the span lacks
+					continue
+				}
+				switch a.Key {
+				case "url.path":
+					path = v
+				case "url.full":
+					full = v
+				}
+			}
+		}
+		if path == "" && full != "" {
+			if u, err := url.Parse(full); err == nil {
+				path = u.Path
+			}
+		}
+		if path != "" {
+			paths[t.TraceID] = path
+		}
+	}
+	for i := range traces {
+		if genericHTTPName.MatchString(traces[i].RootName) {
+			traces[i].RootURLPath = paths[traces[i].TraceID]
+		}
+	}
+}
+
 func (c *Client) search(ctx context.Context, q string, start, end time.Time) ([]Trace, error) {
+	sr, err := c.searchRaw(ctx, q, start, end)
+	if err != nil {
+		return nil, err
+	}
+	return tracesOf(sr), nil
+}
+
+func (c *Client) searchRaw(ctx context.Context, q string, start, end time.Time) (searchResponse, error) {
+	var sr searchResponse
 	v := url.Values{}
 	v.Set("q", q)
 	v.Set("start", strconv.FormatInt(start.Unix(), 10))
@@ -174,24 +256,27 @@ func (c *Client) search(ctx context.Context, q string, start, end time.Time) ([]
 	v.Set("spss", "1") // spans per span set: we only need trace-level fields
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/search?"+v.Encode(), nil)
 	if err != nil {
-		return nil, err
+		return sr, err
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("tempo search: %w", err)
+		return sr, fmt.Errorf("tempo search: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return nil, fmt.Errorf("tempo read: %w", err)
+		return sr, fmt.Errorf("tempo read: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tempo search: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return sr, fmt.Errorf("tempo search: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
-	var sr searchResponse
 	if err := json.Unmarshal(body, &sr); err != nil {
-		return nil, fmt.Errorf("tempo decode: %w", err)
+		return sr, fmt.Errorf("tempo decode: %w", err)
 	}
+	return sr, nil
+}
+
+func tracesOf(sr searchResponse) []Trace {
 	out := make([]Trace, 0, len(sr.Traces))
 	for _, t := range sr.Traces {
 		ns, _ := strconv.ParseInt(t.StartTimeUnixNano, 10, 64)
@@ -219,7 +304,7 @@ func (c *Client) search(ctx context.Context, q string, start, end time.Time) ([]
 			out[j], out[j-1] = out[j-1], out[j]
 		}
 	}
-	return out, nil
+	return out
 }
 
 // LinkBuilder builds Grafana Explore deep links to a trace in the Tempo

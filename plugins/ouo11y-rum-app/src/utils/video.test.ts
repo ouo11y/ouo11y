@@ -11,6 +11,7 @@ import {
   mediaTimeSec,
   mountedSegmentIndices,
   orderSegments,
+  paintedSegmentIndex,
   segmentDurationMs,
   segmentStartOffset,
   syncMediaElement,
@@ -67,12 +68,29 @@ describe('segment helpers', () => {
     expect(segmentStartOffset(segs[0], S + 100)).toBe(0);
   });
 
-  it('mounts the active segment and preloads the next one', () => {
+  it('mounts the active segment and preloads both neighbours', () => {
     expect(mountedSegmentIndices(3, 0)).toEqual([0, 1]);
-    expect(mountedSegmentIndices(3, 1)).toEqual([1, 2]);
-    expect(mountedSegmentIndices(3, 2)).toEqual([2]);
+    expect(mountedSegmentIndices(3, 1)).toEqual([0, 1, 2]);
+    expect(mountedSegmentIndices(3, 2)).toEqual([1, 2]);
     expect(mountedSegmentIndices(0, 0)).toEqual([]);
     expect(mountedSegmentIndices(3, -1)).toEqual([]);
+  });
+
+  it('keeps the segment still on screen mounted while a far one loads (F4)', () => {
+    expect(mountedSegmentIndices(10, 7, 1)).toEqual([1, 6, 7, 8]);
+    expect(mountedSegmentIndices(10, 7, 7)).toEqual([6, 7, 8]);
+    expect(mountedSegmentIndices(10, 7, 42)).toEqual([6, 7, 8]);
+  });
+
+  it('paints the segment under the cursor once it can, else holds the previous one (F4)', () => {
+    // Loaded: the cursor's segment.
+    expect(paintedSegmentIndex(2, true, 0, 3)).toBe(2);
+    // Not loaded yet: the frame on screen stays.
+    expect(paintedSegmentIndex(2, false, 0, 3)).toBe(0);
+    // Nothing painted before (first load) or a stale index: the cursor's segment (its loading notice).
+    expect(paintedSegmentIndex(2, false, -1, 3)).toBe(2);
+    expect(paintedSegmentIndex(2, false, 5, 3)).toBe(2);
+    expect(paintedSegmentIndex(-1, true, 0, 0)).toBe(-1);
   });
 
   it('converts a segment offset to currentTime, clamped short of the decoded end', () => {
