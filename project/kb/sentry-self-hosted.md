@@ -70,6 +70,12 @@ Chain: app → `sentrytap` A (127.0.0.1:4420) → ouo collector `ouosentry` (`OU
 - Sentry stored everything: 4 error events (handled error and unhandled rejection grouped into one issue), 10 transactions, 2 replays (18 + 6 segments, every segment sent), sessions (1 crashed, 1 healthy), logs.
 - ouo: `verify-bridge.py` 19/21. The two failures do not depend on the upstream: console lines printed before Sentry's first session exists (`rum mode ...`, `Running "main"`, `[rollout] next launch`) get no session (`ouo.sentry.session_match = none`), and `Running "main"` is stored twice (log item without a session, replay breadcrumb with one).
 
+## Ingest stuck: taskbroker (2026-10-23)
+
+- Symptom: every envelope gets `200`, but nothing shows in Sentry (no issues, logs or sessions). Relay logs `error fetching project state <key>: deadline exceeded ... pending=275`; web logs no project config requests.
+- Cause: the `taskbroker` Kafka consumer logged `Actor shutdown signaled` after a rebalance and never rejoined, so no task (also the project config build Relay waits for) ran. `taskworker` was idle.
+- Fix: `docker compose --env-file .env.custom restart taskbroker`. Within 10 s the taskworker runs again, Relay stops timing out and delivers the envelopes it held. Check `docker logs --since 1m sentry-sbx-relay-1 | grep -c "deadline exceeded"` before a live run.
+
 ## Gotchas for the app
 
 - The demo app needs `npm run -w sdk/react-native build` before `scripts/build-ios.sh`, or the build fails with `no such module 'OuoReplay'` (the SDK build vendors the Swift sources into the pods).
