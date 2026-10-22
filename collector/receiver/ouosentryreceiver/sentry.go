@@ -85,6 +85,7 @@ type sentryEvent struct {
 		Message   string `json:"message"`
 	} `json:"logentry"`
 	Exception    exceptionList `json:"exception"`
+	Breadcrumbs  crumbList     `json:"breadcrumbs"`
 	User         *sentryUser   `json:"user"`
 	Contexts     contexts      `json:"contexts"`
 	SDK          *SDKInfo      `json:"sdk"`
@@ -180,6 +181,39 @@ func (l *exceptionList) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*l = v.Values
+	return nil
+}
+
+// eventCrumb is a breadcrumb attached to an event (the scope's last 100).
+type eventCrumb struct {
+	breadcrumb
+	Timestamp flexTime `json:"timestamp"`
+}
+
+// crumbList accepts {"values": [...]} and the bare array (both SDKs observed
+// with the array).
+type crumbList []eventCrumb
+
+func (l *crumbList) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	var v []eventCrumb
+	if len(b) > 0 && b[0] == '[' {
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+	} else {
+		var o struct {
+			Values []eventCrumb `json:"values"`
+		}
+		if err := json.Unmarshal(b, &o); err != nil {
+			return err
+		}
+		v = o.Values
+	}
+	for i := range v {
+		v[i].at = v[i].Timestamp.Time
+	}
+	*l = v
 	return nil
 }
 

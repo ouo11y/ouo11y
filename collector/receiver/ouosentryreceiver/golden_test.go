@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,6 +51,35 @@ func loadGolden(t *testing.T, dir string) []goldenRequest {
 // replayGolden translates captured requests in order, as the worker would.
 func replayGolden(t *testing.T, x *tx, reqs []goldenRequest) {
 	t.Helper()
+	replayGoldenEdited(t, x, reqs, nil)
+}
+
+// withoutReplay turns a capture into one of an app whose sessions were not
+// sampled for replay: no replay_video items, no replay ids on events and in
+// trace headers.
+func withoutReplay(env *Envelope) {
+	var items []Item
+	for _, it := range env.Items {
+		switch it.Type {
+		case "replay_video":
+			continue
+		case "event", "transaction":
+			var m map[string]any
+			if json.Unmarshal(it.Payload, &m) == nil {
+				if c, ok := m["contexts"].(map[string]any); ok {
+					delete(c, "replay")
+				}
+				it.Payload, _ = json.Marshal(m)
+			}
+		}
+		items = append(items, it)
+	}
+	env.Items = items
+	env.Header.Trace = nil
+}
+
+func replayGoldenEdited(t *testing.T, x *tx, reqs []goldenRequest, edit func(*Envelope)) {
+	t.Helper()
 	for _, g := range reqs {
 		enc := ""
 		if v := g.Header["Content-Encoding"]; len(v) > 0 {
@@ -62,6 +92,9 @@ func replayGolden(t *testing.T, x *tx, reqs []goldenRequest) {
 		env, err := ParseEnvelope(plain)
 		if err != nil {
 			t.Fatalf("request %d: %v", g.Seq, err)
+		}
+		if edit != nil {
+			edit(env)
 		}
 		x.r.translate(context.Background(), job{project: x.p, encoding: enc, body: g.body, receivedAt: g.Time, clientAddr: "127.0.0.1"}, env)
 	}
@@ -279,6 +312,45 @@ func TestGoldenJourney(t *testing.T) {
 		if r.attrs["http.response.status_code"] != int64(200) || r.attrs["url.full"] == nil {
 			t.Errorf("http.request: %+v", r.attrs)
 		}
+	}
+}
+
+// TestGoldenJourneyWithoutReplay replays the journey as if no session had been
+// sampled for replay (replaysSessionSampleRate below 1 in production): the
+// timeline comes from the error events' breadcrumbs and the http.client
+// spans (A8), with the same content the recordings gave.
+func TestGoldenJourneyWithoutReplay(t *testing.T) {
+	x := newTx(t)
+	replayGoldenEdited(t, x, loadGolden(t, "testdata/golden/ios-rn-8.30.0/journey"), withoutReplay)
+	g := summarize(t, x)
+	checkInvariants(t, x, g)
+	if len(g.chunks) != 0 {
+		t.Fatalf("replay chunks: %d", len(g.chunks))
+	}
+	// 9 answered requests (spans and fetch breadcrumbs, one record each, as
+	// the recordings gave); 8 console lines; 7 demo.action and
+	// 1 demo breadcrumbs; foreground and active before the second session;
+	// the 8 navigations as with a replay.
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 8, "app.lifecycle": 2, "navigation": 8, "exception": 3, "sentry.message": 1}
+	for name, n := range want {
+		if got := len(x.byName(name)); got != n {
+			t.Errorf("%s records: %d, want %d", name, got, n)
+		}
+	}
+	seen := map[string]bool{}
+	for _, r := range x.records() {
+		k := r.name + "|" + r.ts.String() + "|" + fmt.Sprint(r.body)
+		if seen[k] {
+			t.Errorf("duplicate %s at %s: %v", r.name, r.ts.Format(time.TimeOnly), r.body)
+		}
+		seen[k] = true
+	}
+	urls := map[any]bool{}
+	for _, r := range x.byName("http.request") {
+		urls[r.attrs["url.full"]] = true
+	}
+	if !urls["http://localhost:8082/api/cart"] || !urls["http://localhost:8082/api/products/p-1003"] {
+		t.Errorf("http.request URLs: %v", urls)
 	}
 }
 

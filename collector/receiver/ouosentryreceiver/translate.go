@@ -91,6 +91,12 @@ type translation struct {
 	hasSpans bool
 	sdkName  string
 	os       string // ios | android | ""
+	// dev is the device and OS context the envelope itself carries; fill is
+	// the one remembered for the session of its records (A3), applied to the
+	// resource of what this translation emits.
+	dev        deviceContext
+	fill       *deviceContext
+	osFallback bool // os.name on the resource comes from the SDK name, not the OS context
 }
 
 // translate turns one accepted envelope into ouo telemetry (spec sections 4 to 9).
@@ -137,7 +143,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 				continue
 			}
 			x, match := t.resolve(st, envSessions, sessionOrder, it.event, envReplayID, false)
-			t.emitTransaction(it.event, x, match)
+			t.emitTransaction(it.event, x, match, x != nil && t.hasReplay(st, x, envReplayID))
 		}
 		// Session updates last: the exceptions of this envelope are counted by now.
 		for _, s := range sessionOrder {
@@ -150,6 +156,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 				l := &it.logs[i]
 				if x, match := resolveLog(st, project, l); x != nil {
 					st.touch(x, l.Timestamp.Time)
+					x.dev.merge(t.dev)
 					t.emitLog(l, x, match)
 				} else {
 					heldLogs = append(heldLogs, *l)
@@ -271,8 +278,21 @@ func (t *translation) buildResource(items []decodedItem) {
 		if e := it.event; e != nil {
 			platformHint = firstString(platformHint, e.Platform)
 		}
+		// Sentry log entries carry release, environment, SDK, OS and device
+		// as attributes (A2); a log-only envelope has nothing else.
+		for i := range it.logs {
+			l := &it.logs[i]
+			release = firstString(release, l.attr("sentry.release"))
+			environment = firstString(environment, l.attr("sentry.environment"))
+			t.sdkName = firstString(t.sdkName, l.attr("sentry.sdk.name"))
+			sdkVersion = firstString(sdkVersion, l.attr("sentry.sdk.version"))
+			osName = firstString(osName, l.attr("os.name"))
+			osVersion = firstString(osVersion, l.attr("os.version"))
+			model = firstString(model, l.attr("device.model"))
+		}
 	}
 	t.os = detectOS(t.sdkName, osName, platformHint)
+	t.dev = deviceContext{osName: osName, osVersion: osVersion, model: model}
 
 	res := pcommon.NewMap()
 	res.PutStr("service.name", p.ServiceName)
@@ -296,6 +316,7 @@ func (t *translation) buildResource(items []decodedItem) {
 		res.PutStr("os.name", osName)
 	} else if t.os != "" {
 		res.PutStr("os.name", t.os)
+		t.osFallback = true
 	}
 	if osVersion != "" {
 		res.PutStr("os.version", osVersion)
@@ -363,6 +384,7 @@ func (t *translation) resolve(st *sessionState, envSessions map[string]*sentrySe
 	}
 	// Rule 4: later logs and transactions of this trace belong to this session.
 	st.learnTrace(x, tid)
+	x.dev.merge(t.dev)
 	st.touch(x, eventTime(e, t.j.receivedAt))
 	return x, match
 }
@@ -414,6 +436,7 @@ func (t *translation) newRecord(name string, ts time.Time, x *sess, match, userI
 		if userID == "" {
 			userID = x.did
 		}
+		t.noteSession(x)
 	}
 	if userID != "" {
 		a.PutStr(attrUserID, userID)
@@ -432,6 +455,13 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 		userID = e.User.ID
 	}
 	ts := eventTime(e, t.j.receivedAt)
+	if x != nil {
+		replayID := ""
+		if e.Contexts.Replay != nil {
+			replayID = e.Contexts.Replay.ReplayID
+		}
+		defer t.emitEventBreadcrumbs(e, x, match, x.replayID != "" || replayID != "")
+	}
 	if !e.isError() {
 		lr := t.newRecord("sentry.message", ts, x, match, userID, plog.SeverityNumberInfo)
 		lr.Attributes().PutBool("ouo.event.custom", true)
@@ -517,6 +547,9 @@ func (t *translation) emitSession(st *sessionState, s *sentrySession) {
 		started := firstTime(s.Started.Time, updatedAt)
 		lr := t.newRecord("session.start", started, x, matchEnvelope, s.DID, plog.SeverityNumberInfo)
 		lr.Attributes().PutInt("ouo.session.started_at", started.UnixMilli())
+		if x.previousID != "" {
+			lr.Attributes().PutStr("session.previous_id", x.previousID)
+		}
 		x.startEmitted = true
 	}
 
@@ -577,11 +610,14 @@ func (t *translation) emitSession(st *sessionState, s *sentrySession) {
 	if s.AbnormalMechanism != "" {
 		a.PutStr("ouo.sentry.abnormal_mechanism", s.AbnormalMechanism)
 	}
+	if x.previousID != "" {
+		a.PutStr("session.previous_id", x.previousID)
+	}
 	x.endEmitted = true
 }
 
 // emitTransaction maps a `transaction` item to spans plus derived records (spec section 7).
-func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string) {
+func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string, withReplay bool) {
 	tc := e.Contexts.Trace
 	if tc == nil {
 		return
@@ -624,13 +660,15 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string) {
 		}
 	}
 
-	// Screen loads and React Navigation transactions are navigations.
-	if tc.Op == "ui.load" || tc.Op == "navigation" {
+	// Screen loads and React Navigation transactions are navigations, unless
+	// the screen change is on the timeline already from its breadcrumb.
+	screen := firstString(e.Transaction, "unknown")
+	if (tc.Op == "ui.load" || tc.Op == "navigation") && (x == nil || !x.navSeen(screen, start, false)) {
 		lr := t.newRecord("navigation", start, x, match, userID, plog.SeverityNumberInfo)
 		a := lr.Attributes()
-		screen := firstString(e.Transaction, "unknown")
 		a.PutStr("url.path", screen)
 		a.PutStr("ouo.navigation.kind", "screen")
+		a.PutStr("ouo.navigation.source", "transaction")
 		if x != nil {
 			if x.lastScreen != "" && x.lastScreen != screen {
 				a.PutStr("ouo.navigation.from", x.lastScreen)
@@ -681,6 +719,22 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string) {
 		if code > 0 {
 			sa.PutInt("http.response.status_code", int64(code))
 		}
+		if code > 0 && code < 500 && !withReplay && x != nil && !x.httpSeen(sp.SpanID) {
+			// A session without a replay has no fetch breadcrumbs from the
+			// recording: answered requests come from their spans (A8).
+			lr := t.newRecord(eventHTTPRequest, firstTime(sp.Timestamp.Time, sp.StartTimestamp.Time), x, match, userID, plog.SeverityNumberInfo)
+			a := lr.Attributes()
+			if method != "" {
+				a.PutStr("http.request.method", method)
+			}
+			if fullURL != "" {
+				a.PutStr("url.full", truncate(fullURL, maxLogAttributeLen))
+			}
+			a.PutInt("http.response.status_code", int64(code))
+			lr.Body().SetStr(strings.TrimSpace(method + " " + fullURL))
+			lr.SetTraceID(tid)
+			lr.SetSpanID(span.SpanID())
+		}
 		if code >= 500 || (code == 0 && failedSpanStatuses[sp.Status]) {
 			// ERROR, as the ouo SDKs emit it (sdk/react-native/src/network.ts).
 			lr := t.newRecord("http.request.failed", firstTime(sp.Timestamp.Time, sp.StartTimestamp.Time), x, match, userID, plog.SeverityNumberError)
@@ -703,9 +757,25 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string) {
 	}
 }
 
+// hasReplay reports whether a transaction's session records a replay, whose
+// breadcrumbs then carry its requests. A replay id in the trace header that
+// another session owns is stale (kept across a background rotation); one not
+// resolved yet is taken as this session's. Must hold the lock.
+func (t *translation) hasReplay(st *sessionState, x *sess, replayID string) bool {
+	if x.replayID != "" {
+		return true
+	}
+	if replayID == "" {
+		return false
+	}
+	owner := st.byReplayID(t.j.project.OuoProjectID, replayID)
+	return owner == nil || owner == x
+}
+
 func (t *translation) sessionSpanAttrs(a pcommon.Map, x *sess, match, userID string) {
 	if x != nil {
 		a.PutStr(attrSessionID, x.sid)
+		t.noteSession(x)
 	}
 	if userID != "" {
 		a.PutStr(attrUserID, userID)
@@ -723,6 +793,12 @@ func (t *translation) consume(ctx context.Context) {
 		info.Addr = &net.IPAddr{IP: ip}
 	}
 	cctx := client.NewContext(ctx, info)
+	if t.hasLogs {
+		t.applyDevice(t.logs.ResourceLogs().At(0).Resource().Attributes())
+	}
+	if t.hasSpans {
+		t.applyDevice(t.traces.ResourceSpans().At(0).Resource().Attributes())
+	}
 	if t.hasLogs && logsNext != nil {
 		if err := logsNext.ConsumeLogs(cctx, t.logs); err != nil {
 			t.r.drop(ctx, t.j.project.OuoProjectID, "consumer_logs")
@@ -733,6 +809,34 @@ func (t *translation) consume(ctx context.Context) {
 		if err := tracesNext.ConsumeTraces(cctx, t.traces); err != nil {
 			t.r.drop(ctx, t.j.project.OuoProjectID, "consumer_traces")
 			t.r.set.Logger.Debug("translated traces rejected by the pipeline", zap.Error(err))
+		}
+	}
+}
+
+// noteSession remembers the device context of the first session this
+// translation emits a record for. Must hold the state lock.
+func (t *translation) noteSession(x *sess) {
+	if t.fill != nil {
+		return
+	}
+	if d := t.r.state.deviceOf(x); !d.empty() {
+		t.fill = &d
+	}
+}
+
+// applyDevice completes an emitted resource with the device and OS context
+// remembered for the session (A3): session-only, replay and log envelopes
+// carry none or part of it themselves.
+func (t *translation) applyDevice(res pcommon.Map) {
+	if t.fill == nil {
+		return
+	}
+	if _, ok := res.Get("os.name"); t.fill.osName != "" && (t.osFallback || !ok) {
+		res.PutStr("os.name", t.fill.osName)
+	}
+	for k, v := range map[string]string{"os.version": t.fill.osVersion, "device.model.identifier": t.fill.model} {
+		if _, ok := res.Get(k); !ok && v != "" {
+			res.PutStr(k, v)
 		}
 	}
 }

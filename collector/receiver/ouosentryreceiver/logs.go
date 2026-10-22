@@ -224,9 +224,11 @@ type pendingLog struct {
 
 // logGroup is what held logs of one envelope share.
 type logGroup struct {
-	j        job
-	resource pcommon.Map
-	sdkName  string
+	j          job
+	resource   pcommon.Map
+	sdkName    string
+	dev        deviceContext
+	osFallback bool
 }
 
 func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []sentryLog) {
@@ -239,7 +241,7 @@ func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []se
 	}
 	j := t.j
 	j.body = nil // the envelope is translated; do not keep its bytes while logs wait
-	g := &logGroup{j: j, resource: t.resource, sdkName: t.sdkName}
+	g := &logGroup{j: j, resource: t.resource, sdkName: t.sdkName, dev: t.dev, osFallback: t.osFallback}
 	until := time.Now().Add(hold)
 	p := &r.pendingLogs
 	p.mu.Lock()
@@ -270,7 +272,7 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 	emit := func(pl *pendingLog, x *sess, match string) {
 		t := byGroup[pl.group]
 		if t == nil {
-			t = &translation{r: r, j: pl.group.j, resource: pl.group.resource, sdkName: pl.group.sdkName}
+			t = &translation{r: r, j: pl.group.j, resource: pl.group.resource, sdkName: pl.group.sdkName, dev: pl.group.dev, osFallback: pl.group.osFallback}
 			byGroup[pl.group] = t
 			order = append(order, t)
 		}
@@ -284,6 +286,7 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 			switch {
 			case x != nil:
 				r.state.touch(x, pl.log.Timestamp.Time)
+				x.dev.merge(pl.group.dev)
 				emit(pl, x, match)
 			case force || now.After(pl.until):
 				emit(pl, nil, matchNone)
