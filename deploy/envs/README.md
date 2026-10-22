@@ -43,10 +43,12 @@ Hosts outside any env (`EXTERNAL` in `lib.mjs`, Traefik file provider):
 |---|---|---|
 | `http://sentry.ouo.localhost`, `https://sentry.ouo.localhost` | `host.docker.internal:9000` | self-hosted Sentry, compose project `sentry-sbx`, the bridge's real upstream for testing (`project/kb/sentry-self-hosted.md`); 502 while it is down |
 
-**https.** Port 443 serves the external hosts with a `*.ouo.localhost` certificate from a local CA
-that `proxy up` creates once in `~/.local/state/ouo-env/proxy/tls/` (openssl; the CA key stays
-there). Env routes stay http only. Browsers warn until the founder trusts the CA once (asks for the
-Mac password):
+**https.** Port 443 serves every env route and the external hosts, with a certificate from a local
+CA that `proxy up` creates once in `~/.local/state/ouo-env/proxy/tls/` (openssl; the CA key stays
+there). A wildcard covers one label only, so the certificate names `*.ouo.localhost` (main and the
+external hosts) plus `*.<env>.ouo.localhost` for every env in the state dir; `proxy up` and `up`
+re-issue it from the same CA when an env is added, and Traefik reloads it. http keeps working on
+port 80. Browsers warn until the founder trusts the CA once (asks for the Mac password):
 
 ```bash
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.local/state/ouo-env/proxy/tls/ca.pem
@@ -55,7 +57,7 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 Node tools trust it with `NODE_EXTRA_CA_CERTS=~/.local/state/ouo-env/proxy/tls/ca.pem` (the Sentry MCP
 server needs https: it refuses an `http://` organization URL).
 `*.localhost` resolves to the loopback address in Chrome, Firefox, curl and Node with no `/etc/hosts`
-edit (`.local` would be mDNS on macOS and slow). The collector's CORS allows `http://*.ouo.localhost`.
+edit (`.local` would be mDNS on macOS and slow). The collector's CORS allows `http://*.ouo.localhost` and `https://*.ouo.localhost`.
 
 ## Devices: published ingest ports
 

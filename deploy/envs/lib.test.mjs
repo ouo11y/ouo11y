@@ -128,3 +128,18 @@ test("the proxy certificate covers ouo.localhost and one label below it", () => 
   assert.match(e, /extendedKeyUsage=serverAuth/);
   assert.match(e, /CA:FALSE/);
 });
+
+test("every env route is also served on https by the websecure router", () => {
+  const y = lib.renderOverlay({ env: "sbx", kind: "sbx", branch: "x", pr: "", session: "", created: "2026-10-23T00:00:00Z", block: 1, src: "/src" });
+  assert.match(y, /traefik\.http\.routers\.ouo-sbx-grafana-tls\.rule=Host\(`grafana\.sbx\.ouo\.localhost`\)/);
+  assert.match(y, /ouo-sbx-grafana-tls\.entrypoints=websecure/);
+  assert.match(y, /ouo-sbx-grafana-tls\.tls=true/);
+  assert.match(y, /ouo-sbx-grafana-tls\.service=ouo-sbx-grafana"/);
+  assert.match(y, /https:\/\/\*\.ouo\.localhost/);
+});
+
+test("the certificate names cover every env one label below ouo.localhost", () => {
+  assert.deepEqual(lib.tlsNames(["main", "sbx", "pr-28", "sbx"]), ["ouo.localhost", "*.ouo.localhost", "*.pr-28.ouo.localhost", "*.sbx.ouo.localhost", "localhost"]);
+  assert.deepEqual(lib.tlsNames(), lib.TLS_NAMES);
+  assert.match(lib.renderProxyDynamic(lib.EXTERNAL, lib.tlsNames(["sbx"])), /^# certificate names: .*\*\.sbx\.ouo\.localhost/m);
+});

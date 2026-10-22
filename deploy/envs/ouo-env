@@ -76,18 +76,22 @@ function runningEnvs() {
 // and kept: re-creating the CA would undo a trust the founder granted. The CA key never
 // leaves the state dir.
 const PROXY_DIR = path.join(STATE, "proxy");
-function ensureTls() {
+function ensureTls(names) {
   const dir = path.join(PROXY_DIR, "tls");
   const f = (n) => path.join(dir, n);
-  if (fs.existsSync(f("server.pem")) && fs.existsSync(f("ca.pem"))) return;
+  const ext = lib.tlsExtFile(names);
+  // The CA is kept; the server certificate is re-issued when the env list needs new names.
+  if (fs.existsSync(f("server.pem")) && fs.existsSync(f("ca.pem")) && fs.existsSync(f("server.ext")) &&
+      fs.readFileSync(f("server.ext"), "utf8") === ext) return;
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const ssl = (...a) => run("openssl", a, { capture: true });
-  if (!fs.existsSync(f("ca.pem"))) {
+  const fresh = !fs.existsSync(f("ca.pem"));
+  if (fresh) {
     ssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650", "-subj", "/CN=ouo-env local CA",
       "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign",
       "-keyout", f("ca.key"), "-out", f("ca.pem"));
   }
-  fs.writeFileSync(f("server.ext"), lib.tlsExtFile());
+  fs.writeFileSync(f("server.ext"), ext);
   ssl("req", "-newkey", "rsa:2048", "-nodes", "-subj", `/CN=*.${lib.DOMAIN}`, "-keyout", f("server.key"), "-out", f("server.csr"));
   // 825 days: the longest validity Apple platforms accept for a TLS server certificate.
   ssl("x509", "-req", "-in", f("server.csr"), "-CA", f("ca.pem"), "-CAkey", f("ca.key"), "-CAcreateserial",
@@ -96,9 +100,11 @@ function ensureTls() {
   // server.key stays readable: Traefik reads it through a read-only bind mount, and it is
   // only good for *.ouo.localhost on this Mac.
   fs.chmodSync(f("server.key"), 0o644);
-  log(`created the proxy CA ${f("ca.pem")}. Browsers trust https://*.${lib.DOMAIN} only after you trust it (asks for your password):`);
-  log(`  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${f("ca.pem")}`);
-  log(`Node tools (the Sentry MCP server) use NODE_EXTRA_CA_CERTS=${f("ca.pem")} instead.`);
+  if (fresh) {
+    log(`created the proxy CA ${f("ca.pem")}. Browsers trust https://*.${lib.DOMAIN} only after you trust it (asks for your password):`);
+    log(`  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${f("ca.pem")}`);
+    log(`Node tools (the Sentry MCP server) use NODE_EXTRA_CA_CERTS=${f("ca.pem")} instead.`);
+  }
 }
 
 function proxyCompose(args) {
@@ -109,8 +115,9 @@ function ensureProxy() {
   if (!capture("docker", ["network", "ls", "-q", "--filter", "name=^ouo-proxy$"])) {
     run("docker", ["network", "create", "ouo-proxy"]);
   }
-  ensureTls();
-  fs.writeFileSync(path.join(PROXY_DIR, "dynamic.yaml"), lib.renderProxyDynamic());
+  const names = lib.tlsNames(allStates().map((x) => x.env));
+  ensureTls(names);
+  fs.writeFileSync(path.join(PROXY_DIR, "dynamic.yaml"), lib.renderProxyDynamic(lib.EXTERNAL, names));
   proxyCompose(["up", "-d", "--wait"]);
 }
 
