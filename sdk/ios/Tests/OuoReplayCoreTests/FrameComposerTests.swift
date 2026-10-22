@@ -9,8 +9,8 @@ import Testing
 @Suite struct FrameComposerTests {
     /// A `w` x `h` point frame at `scale`, white, with the top half of the left column red so a
     /// vertical flip would show.
-    func snapshot(w: Int, h: Int, scale: Int) -> CGImage {
-        let ctx = FrameComposer.makeContext(pixelWidth: w * scale, pixelHeight: h * scale)!
+    func snapshot(w: Int, h: Int, scale: Int, colorSpace: CGColorSpace = FrameComposer.sRGB) -> CGImage {
+        let ctx = FrameComposer.makeContext(pixelWidth: w * scale, pixelHeight: h * scale, colorSpace: colorSpace)!
         // Same transform the UIKit target applies before drawHierarchy: points, top-left origin.
         ctx.translateBy(x: 0, y: CGFloat(h * scale))
         ctx.scaleBy(x: CGFloat(scale), y: -CGFloat(scale))
@@ -56,6 +56,19 @@ import Testing
         let red = pixel(masked, 2, 10)
         #expect(red.0 > 200 && red.1 < 50)
         #expect(isWhite(pixel(masked, 2, 190)))
+    }
+
+    @Test func DisplayP3SnapshotIsRedactedInItsOwnColorSpace() {
+        // Wide-color screens render the snapshot in Display P3 (no conversion in drawHierarchy).
+        let raw = snapshot(w: 50, h: 100, scale: 2, colorSpace: FrameComposer.displayP3)
+        let masked = FrameComposer(jpegQuality: 0.5).redact(raw, rects: [CGRect(x: 10, y: 10, width: 20, height: 30)], scale: 2)!
+        #expect(masked.colorSpace?.name == CGColorSpace.displayP3)
+        #expect(isBlack(pixel(masked, 40, 50)))
+        #expect(isWhite(pixel(masked, 40, 150)))
+        let jpeg = FrameComposer(jpegQuality: 0.5).jpeg(masked)!
+        let decoded = CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithData(jpeg as CFData, nil)!, 0, nil)!
+        #expect(decoded.colorSpace?.name == CGColorSpace.displayP3, "the JPEG embeds the P3 profile, so viewers show the right colors")
+        #expect(isBlack(pixel(decoded, 40, 50)))
     }
 
     @Test func FractionalScaleCoversTheRectangle() {

@@ -13,12 +13,17 @@ public struct FrameComposer: Sendable {
         self.jpegQuality = jpegQuality
     }
 
-    /// 8-bit sRGB, native byte order: what the snapshot is rendered into and composed in.
-    public static let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
-    public static let bitmapInfo = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    public static let sRGB = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    /// Wide-color screens (every iPhone since the 7) composite in Display P3. Rendering the snapshot
+    /// into the screen's own color space skips a per-pixel color conversion inside drawHierarchy
+    /// (`vTransformTRCParametric`, most of its time on an sRGB target). The JPEG carries the profile.
+    public static let displayP3 = CGColorSpace(name: CGColorSpace.displayP3) ?? sRGB
+    /// 8 bits per channel, premultiplied BGRA in native byte order: Core Animation's own layout, so
+    /// no premultiply/unpremultiply or channel swizzle either.
+    public static let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
 
     /// Bitmap context of `pixelWidth` x `pixelHeight`, origin bottom-left (CoreGraphics).
-    public static func makeContext(pixelWidth: Int, pixelHeight: Int) -> CGContext? {
+    public static func makeContext(pixelWidth: Int, pixelHeight: Int, colorSpace: CGColorSpace = sRGB) -> CGContext? {
         CGContext(
             data: nil,
             width: pixelWidth,
@@ -34,7 +39,8 @@ public struct FrameComposer: Sendable {
     /// (window coordinates, as `RedactionPlanner` returns them); `scale` is pixels per point.
     public func redact(_ image: CGImage, rects: [CGRect], scale: CGFloat) -> CGImage? {
         if rects.isEmpty { return image }
-        guard let ctx = Self.makeContext(pixelWidth: image.width, pixelHeight: image.height) else { return nil }
+        // Same color space as the snapshot, so drawing it is a copy, not a conversion.
+        guard let ctx = Self.makeContext(pixelWidth: image.width, pixelHeight: image.height, colorSpace: image.colorSpace ?? Self.sRGB) else { return nil }
         let h = CGFloat(image.height)
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(image.width), height: h))
         // Window points (top-left origin) -> bitmap pixels (bottom-left origin).

@@ -62,9 +62,12 @@ final class ScreenCapturer {
         let scale = renderScale(for: bounds, screenScale: window.screen.scale)
         let pw = Int((bounds.width * scale).rounded(.up))
         let ph = Int((bounds.height * scale).rounded(.up))
-        // Rendered once, directly at the final size, 8 bits per channel: UIGraphicsImageRenderer
-        // would pick the extended-range 16-bit format on wide-color phones (twice the bytes).
-        guard let ctx = FrameComposer.makeContext(pixelWidth: pw, pixelHeight: ph) else { return nil }
+        // Rendered once, directly at the final size, 8 bits per channel in the screen's color space:
+        // UIGraphicsImageRenderer picks a 16-bit half-float format on wide-color screens (decode,
+        // resample and convert in half floats, then the JPEG encoder converts back), and an sRGB
+        // target makes drawHierarchy convert every pixel from Display P3.
+        let space = window.traitCollection.displayGamut == .P3 ? FrameComposer.displayP3 : FrameComposer.sRGB
+        guard let ctx = FrameComposer.makeContext(pixelWidth: pw, pixelHeight: ph, colorSpace: space) else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(ph))
         ctx.scaleBy(x: scale, y: -scale)
         UIGraphicsPushContext(ctx)
