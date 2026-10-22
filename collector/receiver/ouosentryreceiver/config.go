@@ -76,6 +76,9 @@ type ProjectConfig struct {
 	ServiceName string `mapstructure:"service_name"`
 	// SentryUIURL is the Sentry web UI base, for links (optional).
 	SentryUIURL string `mapstructure:"sentry_ui_url"`
+	// CopyTags copies the error events' tags as ouo.sentry.tag.<key>. Off by
+	// default: tags are app-chosen content (spec section 12).
+	CopyTags bool `mapstructure:"copy_tags"`
 }
 
 // StateConfig bounds the correlation state.

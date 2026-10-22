@@ -85,9 +85,9 @@ func (l *sentryLog) attr(k string) string {
 }
 
 // resolveLog finds the session of a log entry (spec section 8): the replay id
-// attribute (rule 2), the trace id (rule 4), the user id (rule 3). Must hold
-// the state lock.
-func resolveLog(st *sessionState, project string, l *sentryLog) (*sess, string) {
+// attribute (rule 2), the trace id (rule 4), the user id (rule 3), the
+// session its client started around it (rule 5). Must hold the state lock.
+func resolveLog(st *sessionState, project, origin string, l *sentryLog) (*sess, string) {
 	at := l.Timestamp.Time
 	if c := st.byReplayID(project, l.attr(sentryAttrReplayID)); c != nil && c.covers(at) {
 		return c, matchReplay
@@ -97,6 +97,9 @@ func resolveLog(st *sessionState, project string, l *sentryLog) (*sess, string) 
 	}
 	if c := st.byDeviceAt(project, l.attr(sentryAttrUserID), at); c != nil {
 		return c, matchDevice
+	}
+	if c := st.byStart(project, origin, at); c != nil {
+		return c, matchStart
 	}
 	return nil, matchNone
 }
@@ -224,9 +227,11 @@ type pendingLog struct {
 
 // logGroup is what held logs of one envelope share.
 type logGroup struct {
-	j        job
-	resource pcommon.Map
-	sdkName  string
+	j          job
+	resource   pcommon.Map
+	sdkName    string
+	dev        deviceContext
+	osFallback bool
 }
 
 func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []sentryLog) {
@@ -239,7 +244,7 @@ func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []se
 	}
 	j := t.j
 	j.body = nil // the envelope is translated; do not keep its bytes while logs wait
-	g := &logGroup{j: j, resource: t.resource, sdkName: t.sdkName}
+	g := &logGroup{j: j, resource: t.resource, sdkName: t.sdkName, dev: t.dev, osFallback: t.osFallback}
 	until := time.Now().Add(hold)
 	p := &r.pendingLogs
 	p.mu.Lock()
@@ -270,7 +275,7 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 	emit := func(pl *pendingLog, x *sess, match string) {
 		t := byGroup[pl.group]
 		if t == nil {
-			t = &translation{r: r, j: pl.group.j, resource: pl.group.resource, sdkName: pl.group.sdkName}
+			t = &translation{r: r, j: pl.group.j, resource: pl.group.resource, sdkName: pl.group.sdkName, dev: pl.group.dev, osFallback: pl.group.osFallback}
 			byGroup[pl.group] = t
 			order = append(order, t)
 		}
@@ -280,10 +285,11 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 	r.state.withLock(func() {
 		for i := range p.entries {
 			pl := &p.entries[i]
-			x, match := resolveLog(r.state, pl.group.j.project.OuoProjectID, &pl.log)
+			x, match := resolveLog(r.state, pl.group.j.project.OuoProjectID, pl.group.j.originKey(), &pl.log)
 			switch {
 			case x != nil:
 				r.state.touch(x, pl.log.Timestamp.Time)
+				x.dev.merge(pl.group.dev)
 				emit(pl, x, match)
 			case force || now.After(pl.until):
 				emit(pl, nil, matchNone)

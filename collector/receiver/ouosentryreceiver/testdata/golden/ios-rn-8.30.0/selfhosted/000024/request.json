@@ -1,0 +1,35 @@
+{
+  "seq": 24,
+  "time": "2026-10-17T21:47:06.423621Z",
+  "method": "POST",
+  "path": "/api/2/envelope/",
+  "raw_query": "",
+  "header": {
+    "Accept": [
+      "*/*"
+    ],
+    "Accept-Encoding": [
+      "gzip, deflate"
+    ],
+    "Accept-Language": [
+      "en-GB,en-US;q=0.9,en;q=0.8"
+    ],
+    "Content-Encoding": [
+      "gzip"
+    ],
+    "Content-Length": [
+      "4491"
+    ],
+    "Content-Type": [
+      "application/x-sentry-envelope"
+    ],
+    "User-Agent": [
+      "sentry.cocoa.react-native/9.30.1"
+    ],
+    "X-Sentry-Auth": [
+      "Sentry sentry_version=7,sentry_client=sentry.cocoa.react-native/9.30.1,sentry_key=3e4673aac8a1a176dca15f946653f185"
+    ]
+  },
+  "body_len": 4491,
+  "body_sha256": "39c0cc03ae7f8d316214343d367191339a463433422ac8038b3d776c130ec0eb"
+}

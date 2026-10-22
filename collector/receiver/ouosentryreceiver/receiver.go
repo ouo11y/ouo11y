@@ -51,6 +51,19 @@ type job struct {
 	body       []byte
 	receivedAt time.Time
 	clientAddr string
+	// origin identifies the sending device's network path (X-Forwarded-For
+	// chain and peer address) for the startup log rule; never trusted for
+	// anything else.
+	origin string
+}
+
+// originKey is the job's origin, or its client address without one.
+func (j job) originKey() string {
+	return firstString(j.origin, j.clientAddr)
+}
+
+func requestOrigin(req *http.Request) string {
+	return strings.Join(append(req.Header.Values("X-Forwarded-For"), clientIP(req.RemoteAddr)), ",")
 }
 
 type sentryReceiver struct {
@@ -431,7 +444,7 @@ func (r *sentryReceiver) enqueue(ctx context.Context, p *project, req *http.Requ
 		r.drop(ctx, p.OuoProjectID, "too_large")
 		return
 	}
-	j := job{project: p, encoding: req.Header.Get("Content-Encoding"), body: body, receivedAt: start, clientAddr: clientIP(req.RemoteAddr)}
+	j := job{project: p, encoding: req.Header.Get("Content-Encoding"), body: body, receivedAt: start, clientAddr: clientIP(req.RemoteAddr), origin: requestOrigin(req)}
 	select {
 	case r.queue <- j:
 	default:
