@@ -87,7 +87,9 @@ points into are listed. On the OTel record: `exception.stacktrace` is Apple cras
   Swift trap, an uncaught NSException (name/reason escaping, one report), no crash. A "previous"
   signal and exception handler installed before ouo (standing in for Sentry) still run.
 - JS: `test/crash.test.ts` (format, attributes, end-to-end relaunch against a stubbed OTLP endpoint).
-- Simulator and device: see the run notes below.
+- Simulator (2026-10-23, `project/agents/ios-replay/perf/crash-flow.sh`): native crash with Sentry + ouo,
+  ouo only, and a JS fatal; sessions `crashed` at the crash time in rum-api; the Grafana plugin (0.8.0)
+  shows the fatal error with "Show stack trace" and the native frames. Device: pending.
 
 ## Limits
 

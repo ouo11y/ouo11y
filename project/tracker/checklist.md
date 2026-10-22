@@ -54,7 +54,7 @@ Correctness first, then context, then UI. Effort from the gap report.
 
 The gap report found the ouo RN SDK behind the bridge on several points. Until these close, path 1 cannot be sold as "more data".
 
-- [ ] G1 Native crashes (today a crashed session reads "terminated, healthy") **[2026-10-23, b1-ios, branch `claude/b1-ios-replay-crashes`]** built and verified on the simulator: signals + uncaught NSExceptions written at crash time (`sdk/ios` `OuoCrashCore`/`OuoCrash`), sent next launch as a fatal `exception` of the crashed session, session `crashed` ending at the crash time, native stack in Loki/Grafana Explore, Sentry still reports the crash ([kb](../kb/ios-native-crashes.md), [report](../agents/ios-replay/reports/n6-g1-replay-crashes.html)). Open: the iPhone run; the stack shows in the plugin once PR #39 merges (in Explore until then).
+- [ ] G1 Native crashes (today a crashed session reads "terminated, healthy") **[2026-10-23, b1-ios, branch `claude/b1-ios-replay-crashes`]** built and verified on the simulator: signals + uncaught NSExceptions written at crash time (`sdk/ios` `OuoCrashCore`/`OuoCrash`), sent next launch as a fatal `exception` of the crashed session, session `crashed` ending at the crash time, native stack in Loki/Grafana Explore, Sentry still reports the crash ([kb](../kb/ios-native-crashes.md), [report](../agents/ios-replay/reports/n6-g1-replay-crashes.html)). The native stack shows in the plugin (0.8.0, PR #39). Open: the iPhone run.
 - [ ] G2 Vitals: app start, TTID, frames
 - [ ] G3 Public span API and log API
 - [ ] G4 Timeline parity: tap targets with component names, app lifecycle, successful requests
