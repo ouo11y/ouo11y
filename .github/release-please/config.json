@@ -63,8 +63,11 @@
       "component": "grafana"
     },
     "deploy/helm/ouo": {
-      "release-type": "helm",
-      "component": "chart"
+      "release-type": "go",
+      "component": "chart",
+      "extra-files": [
+        { "type": "generic", "path": "Chart.yaml" }
+      ]
     }
   }
 }

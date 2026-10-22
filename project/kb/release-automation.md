@@ -23,9 +23,11 @@ channel: [release-packaging.md](release-packaging.md).
 - **Release types used:** `node` (package.json; the root `package-lock.json` workspace entry via
   a `json` extra-file with jsonpath `$.packages['sdk/browser'].version` and a leading `/` path =
   repo root; one line changes), `go` (changelog only: rum-api, collector), `simple` (writes
-  `version.txt`: ios, grafana), `helm` (Chart.yaml `version`). The collector's `dist.version` is
-  bumped by a `generic` extra-file through the `# x-release-please-version` marker on that line
-  of `builder.yaml` (ocb ignores the comment).
+  `version.txt`: ios, grafana). The collector's `dist.version` and the chart's `version` are
+  bumped by a `generic` extra-file through a `# x-release-please-version` marker on that line
+  of `builder.yaml` / `Chart.yaml` (ocb and Helm ignore the comment), with release type `go`
+  (= changelog only). Not `helm`: its updater re-serialises the whole `Chart.yaml` with
+  js-yaml (re-wrapped the description, would drop comments).
 - **Changelog insertion:** the new section goes before the first `## <digit|[>` heading, i.e.
   below a hand-written `## Unreleased`, which is kept. Heading style `## [0.3.1](compare-url)
   (date)`; `.github/scripts/changelog-section.sh` extracts both that and `## 0.3.0 (date)`.
@@ -58,6 +60,9 @@ channel: [release-packaging.md](release-packaging.md).
 
 - **`npm publish out/pkg.tgz` fails** with `git ls-remote ssh://git@github.com/out/pkg.tgz.git`:
   npm parses `owner/repo` as a GitHub shorthand. Pass `./out/pkg.tgz`.
+- **`npm pack --json` is not machine-readable for `@ouo11y/react-native`**: its `prepack`
+  script (`sync-ios`, then a full tsup build) prints to stdout before the JSON. Pack with
+  `--pack-destination out` and take the file name from the directory.
 - `--access restricted` on the command line beats `publishConfig.access: public` in
   `package.json` (dry run printed "restricted access").
 - **Restricted (private) scoped packages need a paid npm org** (Teams); a free org publishes
