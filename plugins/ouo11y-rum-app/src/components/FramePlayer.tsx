@@ -21,6 +21,11 @@ interface Props {
   durationMs: number;
   /** Called with the current replay offset in ms, throttled while playing, immediately on seeks. */
   onTime?: (offsetMs: number) => void;
+  /**
+   * Replay start minus session start (ms): the time label reads the session clock, like the Timeline
+   * and the activity list. 0 (the default) shows replay offsets.
+   */
+  clockOffsetMs?: number;
 }
 
 export const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
@@ -34,7 +39,7 @@ export const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
  * handle as the rrweb wrapper so markers and timeline clicks seek it the same way.
  */
 export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
-  { frames, touches, viewport, startTs, durationMs, onTime },
+  { frames, touches, viewport, startTs, durationMs, onTime, clockOffsetMs = 0 },
   ref
 ) {
   const styles = useStyles2(getStyles);
@@ -154,7 +159,7 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
           data-testid="frame-scrubber"
         />
         <span className={styles.time} data-testid="frame-time">
-          {formatRelative(offsetMs)} / {formatDuration(durationMs)}
+          {formatRelative(clockOffsetMs + offsetMs)} / {formatDuration(clockOffsetMs + durationMs)}
         </span>
         <RadioButtonGroup options={SPEEDS} value={speed} onChange={(v) => setSpeed(v)} size="sm" />
       </div>

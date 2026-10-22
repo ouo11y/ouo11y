@@ -6,15 +6,22 @@ import { activeActivityIndex, matchesFilter, type ActivityFilter, type ActivityI
 import { formatDateTime, formatRelative } from '../utils/format';
 import { scrollRowIntoView } from '../utils/scroll';
 import { hasPosition, type ReplayTap } from '../utils/taps';
+import { StackTrace } from './StackTrace';
 import { eventLook } from './Timeline';
 
 interface Props {
   items: readonly ActivityItem[];
   /** Replay length; a click seeks to the item's offset clamped to `[0, durationMs]`. */
   durationMs: number;
-  /** Current replay offset (ms). */
+  /** Current replay offset (ms); -1 (or no replay) highlights nothing. */
   currentMs: number;
-  onSeek: (offsetMs: number, item: ActivityItem) => void;
+  /** Absent without a replay: rows are not clickable then. */
+  onSeek?: (offsetMs: number, item: ActivityItem) => void;
+  /**
+   * Origin of the times shown on the rows (epoch ms): the session start, so the list, the Timeline
+   * and the player read the same clock. Defaults to the replay start (the item offsets).
+   */
+  clockStart?: number;
 }
 
 const FILTERS: Array<{ value: ActivityFilter; label: string }> = [
@@ -51,7 +58,7 @@ function rowText(item: ActivityItem): { title: string; detail: string } {
  * taps, navigations, requests, errors and logs in time order, filterable, with the row at the
  * replay cursor highlighted and kept in view, and click-to-seek.
  */
-export function ReplayActivity({ items, durationMs, currentMs, onSeek }: Props) {
+export function ReplayActivity({ items, durationMs, currentMs, onSeek, clockStart }: Props) {
   const styles = useStyles2(getStyles);
   const theme = useTheme2();
   const [filter, setFilter] = useState<ActivityFilter>('all');
@@ -75,10 +82,13 @@ export function ReplayActivity({ items, durationMs, currentMs, onSeek }: Props) 
       .filter(({ text }) => !q || `${text.title} ${text.detail}`.toLowerCase().includes(q));
   }, [items, filter, query]);
 
-  const active = activeActivityIndex(
-    shown.map((s) => s.item),
-    currentMs
-  );
+  const active =
+    currentMs < 0
+      ? -1
+      : activeActivityIndex(
+          shown.map((s) => s.item),
+          currentMs
+        );
 
   useEffect(() => {
     const list = listRef.current;
@@ -129,9 +139,18 @@ export function ReplayActivity({ items, durationMs, currentMs, onSeek }: Props) 
               <li
                 key={item.key}
                 ref={isActive ? activeRef : undefined}
-                className={cx(styles.item, isActive && styles.active, item.offsetMs > currentMs && styles.future)}
-                onClick={() => onSeek(Math.max(0, Math.min(durationMs, item.offsetMs)), item)}
-                title={formatDateTime(item.ts)}
+                className={cx(
+                  styles.item,
+                  onSeek && styles.clickable,
+                  isActive && styles.active,
+                  currentMs >= 0 && item.offsetMs > currentMs && styles.future
+                )}
+                onClick={onSeek ? () => onSeek(Math.max(0, Math.min(durationMs, item.offsetMs)), item) : undefined}
+                title={
+                  item.event?.clampedFrom
+                    ? `${formatDateTime(item.event.clampedFrom)}: recorded before the session start`
+                    : formatDateTime(item.ts)
+                }
                 data-testid="activity-item"
                 data-category={item.category}
                 data-active={isActive ? 'true' : undefined}
@@ -142,8 +161,11 @@ export function ReplayActivity({ items, durationMs, currentMs, onSeek }: Props) 
                 <span className={styles.body}>
                   <span className={styles.title}>{text.title}</span>
                   {text.detail && <span className={styles.detail}>{text.detail}</span>}
+                  {item.event?.type === 'exception' && <StackTrace stack={item.event.attrs.exception_stacktrace} />}
                 </span>
-                <span className={styles.time}>{formatRelative(item.offsetMs)}</span>
+                <span className={styles.time}>
+                  {formatRelative(Number.isFinite(clockStart) ? item.ts - clockStart! : item.offsetMs)}
+                </span>
               </li>
             );
           })}
@@ -208,9 +230,8 @@ const getStyles = (theme: GrafanaTheme2) => ({
     padding: theme.spacing(0.5, 1),
     borderLeft: '3px solid transparent',
     borderBottom: `1px solid ${theme.colors.border.weak}`,
-    cursor: 'pointer',
-    '&:hover': { background: theme.colors.action.hover },
   }),
+  clickable: css({ cursor: 'pointer', '&:hover': { background: theme.colors.action.hover } }),
   active: css({ background: theme.colors.action.selected, borderLeftColor: theme.colors.primary.main }),
   // Rows after the cursor are dimmed, like Sentry's list.
   future: css({ opacity: 0.6 }),

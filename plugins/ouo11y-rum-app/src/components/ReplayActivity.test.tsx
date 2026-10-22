@@ -54,4 +54,30 @@ describe('ReplayActivity', () => {
     expect(screen.getAllByTestId('activity-item')).toHaveLength(1);
     expect(screen.getByTestId('activity-filter-network')).toBeDisabled();
   });
+
+  it('shows times on the session clock when given its start (F4), and is read-only without a replay', () => {
+    render(<ReplayActivity items={items} durationMs={0} currentMs={-1} clockStart={start - 300} />);
+    const rows = screen.getAllByTestId('activity-item');
+    expect(rows[0]).toHaveTextContent('+1.3s');
+    expect(rows[0]).not.toHaveAttribute('data-active');
+    fireEvent.click(rows[0]); // no onSeek: nothing to call, nothing thrown
+  });
+
+  it('expands the stack of an error row without seeking (C1)', () => {
+    const onSeek = jest.fn();
+    const withStack = buildActivity(
+      [
+        ev(4000, 'exception', 'exception', {
+          exception_type: 'TypeError',
+          exception_message: 'boom',
+          exception_stacktrace: 'TypeError: boom\n    at f (a.js:1:2)',
+        }),
+      ],
+      start
+    );
+    render(<ReplayActivity items={withStack} durationMs={10_000} currentMs={0} onSeek={onSeek} />);
+    fireEvent.click(screen.getByTestId('stack-toggle'));
+    expect(screen.getByTestId('stack-trace')).toHaveTextContent('at f (a.js:1:2)');
+    expect(onSeek).not.toHaveBeenCalled();
+  });
 });

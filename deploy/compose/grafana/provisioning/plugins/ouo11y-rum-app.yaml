@@ -8,6 +8,10 @@
 # environment (compose passes it through; default rt_dev_0000000000000000, a
 # development value). It must equal rum-api's OUO_READ_TOKEN. Secure fields are
 # write-only: the settings API reports `secureJsonFields: {readToken: true}`.
+#
+# ${OUO_FEATURE_TOGGLES_ENABLE} turns plugin feature toggles on, comma separated, like
+# Grafana's GF_FEATURE_TOGGLES_ENABLE (empty: all off). The list is in
+# plugins/ouo11y-rum-app/README.md, e.g. OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel.
 apiVersion: 1
 
 apps:
@@ -16,5 +20,6 @@ apps:
     disabled: false
     jsonData:
       rumApiUrl: http://rum-api:8080
+      featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"
     secureJsonData:
       readToken: ${OUO_READ_TOKEN}

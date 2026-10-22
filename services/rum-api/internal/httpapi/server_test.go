@@ -609,6 +609,13 @@ func TestSessionDetailAndTraces(t *testing.T) {
 	if len(d.Traces) != 2 || d.Traces[0].GrafanaURL == "" || !d.Traces[1].HasError {
 		t.Fatalf("traces: %+v", d.Traces)
 	}
+	// The header context keeps the keys the timeline drops as noise.
+	if d.Context["os_name"] != "macOS" || d.Context["os_version"] != "10.15.7" || d.Context["deployment_environment_name"] != "local" {
+		t.Fatalf("context: %v", d.Context)
+	}
+	if _, ok := d.Timeline[0].Attrs["os_name"]; ok {
+		t.Fatalf("timeline attrs still carry os_name: %v", d.Timeline[0].Attrs)
+	}
 	// JSON shape: record fields flattened at top level
 	resp, _ := http.Get(ts.URL + "/v1/sessions/" + realSession)
 	var raw map[string]any

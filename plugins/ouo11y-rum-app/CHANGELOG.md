@@ -3,6 +3,38 @@
 Every user-visible change bumps `version` in `package.json` (it becomes `plugin.json`'s version and the
 `module.js?_cache=<version>` query string, so browsers drop the cached bundle).
 
+## 0.8.0 (bridge parity C1 to C8, B1, F4; 2026-10-23)
+
+Needs rum-api after 0.3.0 for the masking state, the header's OS and environment and the trace paths; with an
+older rum-api those parts fall back as described below.
+
+- **Session page layout (B1):** only the activity list beside the player. The left Timeline panel is behind
+  the feature toggle `sessionTimelinePanel` (off by default), set with `OUO_FEATURE_TOGGLES_ENABLE` in
+  provisioning or `grafana.plugin.featureToggles` in the Helm chart (README, "Feature toggles"). Sessions
+  without a replay show the activity list on its own; rrweb replays get the list beside the player too.
+- **Stack traces (C1):** errors in the activity list, the Timeline and the Logs panel have an expandable
+  `exception.stacktrace` ("Show stack trace (n frames)"); expanding it never seeks the replay.
+- **Session header (C2):** Device, OS, Build and Environment rows from the session detail's new `context`
+  (falls back to the device and build attributes the timeline carries; rows without a value are left out).
+- **Taps in frames replays (C3):** touches of ouo SDK (`frames`) replays are taps like those of video replays:
+  the Taps filter, scrubber tap markers and the info line count them (was "Taps 0").
+- **Nothing before the session start (C4):** events recorded before `session.start` (the Sentry bridge's
+  first screen, about 3 s early) are shown at the start, after "Session start"; the tooltip keeps the
+  recorded time.
+- **Trace names (C6):** a generic `HTTP GET` root reads `GET /api/products/p-1001` (method plus the root's
+  `url.path` from rum-api), the name the Sentry bridge gives its http spans; the raw name is the tooltip.
+- **Exception log lines (C7):** the Logs panel shows `Type: message` for exception records instead of the
+  record body (`exception`) and hides `session_*` metadata attributes.
+- **Masking state (C8):** the replay info line shows the real masking state from the replay meta's
+  `masked` flag (masked, not masked, masking unknown) instead of a fixed sentence.
+- **No black frame on seek (F4):** the video player preloads both neighbouring segments and keeps the frame
+  on screen until the segment under the cursor can paint, with a small "loading segment n…" tag, instead of a
+  black stage with "Loading segment n…" for about a second.
+- **One clock (F4):** the activity list, the Timeline, the Logs panel and the players' time labels are all
+  relative to the session start (the list and the players were relative to the replay start, 0.3 s apart).
+- The configuration page lists the feature toggles and keeps every `jsonData` key it does not edit when it
+  saves (it used to drop all but `rumApiUrl`).
+
 ## 0.7.0 (plugin ID `ouo11y-rum-app`, 2026-10-18)
 
 - **Breaking: the plugin ID is `ouo11y-rum-app`** (was `ouo-rum-app`, ADR-0009); the folder is

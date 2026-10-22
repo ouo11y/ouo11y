@@ -95,6 +95,9 @@ spec:
                   name: {{ include "ouo.rumApi.secretName" . }}
                   key: read-token
                   optional: true
+            # Expanded by the plugin provisioning file (jsonData.featureToggles).
+            - name: OUO_FEATURE_TOGGLES_ENABLE
+              value: {{ join "," .Values.grafana.plugin.featureToggles | quote }}
             {{- range $k, $v := .Values.grafana.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}

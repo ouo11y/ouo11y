@@ -27,6 +27,9 @@ type Event struct {
 	ServiceVersion string
 	// Attrs holds every label / metadata key except the identifiers above.
 	Attrs map[string]string
+	// Context holds the event's device, OS, build and environment keys
+	// (ContextKeys), including those dropped from Attrs as noise.
+	Context map[string]string
 }
 
 // Type is the normalised timeline type of an event.
@@ -80,6 +83,28 @@ var noiseKeys = map[string]bool{
 	"user_agent_original": true, "browser_brands": true, "browser_language": true,
 	"browser_mobile": true, "browser_platform": true, "os_name": true, "os_version": true,
 	"severity_number": true, "ouo_user_anonymous": true,
+}
+
+// ContextKeys are the resource attributes (Loki names) the session detail
+// header shows: device, OS, app build and deployment environment.
+var ContextKeys = []string{
+	"device_model_identifier", "device_model_name", "device_manufacturer",
+	"os_name", "os_version", "ouo_app_build", "deployment_environment_name",
+}
+
+// SessionContext merges the Context of a session's events: the latest
+// non-empty value of each key wins. Nil when no event carries any.
+func SessionContext(evs []Event) map[string]string {
+	var out map[string]string
+	for _, ev := range evs {
+		for k, v := range ev.Context {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // LokiQueryResponse is the subset of Loki's /loki/api/v1/query_range response
@@ -159,6 +184,14 @@ func eventFromLabels(ts time.Time, labels map[string]string, line string) Event 
 			continue
 		}
 		ev.Attrs[k] = v
+	}
+	for _, k := range ContextKeys {
+		if v := labels[k]; v != "" {
+			if ev.Context == nil {
+				ev.Context = map[string]string{}
+			}
+			ev.Context[k] = v
+		}
 	}
 	return ev
 }

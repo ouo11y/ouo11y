@@ -11,6 +11,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -321,4 +322,69 @@ func mutate(m map[string]any, fn func(map[string]any)) map[string]any {
 	}
 	fn(c)
 	return c
+}
+
+// C8: the chunk's `masked` flag is kept per chunk and summed up in meta.json:
+// one unmasked chunk makes the replay unmasked; no flag at all leaves it unset.
+func TestMaskedFlag(t *testing.T) {
+	ctx := context.Background()
+	st, err := NewFS(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(id string, seq int, masked any) {
+		t.Helper()
+		ch := framesChunk(t, id, seq, int64(1000+seq*5000), 1, nil)
+		if masked == nil {
+			delete(ch, "masked")
+		} else {
+			ch["masked"] = masked
+		}
+		if _, err := st.Put(ctx, "demo", mustJSON(t, ch), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	meta := func(id string) Meta {
+		t.Helper()
+		m, err := st.Meta(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	flag := func(b *bool) string {
+		if b == nil {
+			return "unset"
+		}
+		return strconv.FormatBool(*b)
+	}
+
+	put("masked-all", 0, true)
+	put("masked-all", 1, true)
+	if m := meta("masked-all"); flag(m.Masked) != "true" || flag(m.Chunks[1].Masked) != "true" {
+		t.Fatalf("all masked: meta %s, chunk %s", flag(m.Masked), flag(m.Chunks[1].Masked))
+	}
+
+	put("masked-mixed", 0, true)
+	put("masked-mixed", 1, false)
+	put("masked-mixed", 2, nil)
+	m := meta("masked-mixed")
+	if flag(m.Masked) != "false" || flag(m.Chunks[0].Masked) != "true" || flag(m.Chunks[1].Masked) != "false" || flag(m.Chunks[2].Masked) != "unset" {
+		t.Fatalf("mixed: meta %s, chunks %s %s %s", flag(m.Masked), flag(m.Chunks[0].Masked), flag(m.Chunks[1].Masked), flag(m.Chunks[2].Masked))
+	}
+
+	put("masked-none", 0, nil)
+	if m := meta("masked-none"); m.Masked != nil {
+		t.Fatalf("no flag: meta %s", flag(m.Masked))
+	}
+	raw, _ := os.ReadFile(filepath.Join(st.Root, "masked-none", metaName))
+	if bytes.Contains(raw, []byte(`"masked"`)) {
+		t.Fatalf("meta.json without flags has a masked key: %s", raw)
+	}
+
+	ch := framesChunk(t, "masked-bad", 0, 1000, 1, nil)
+	ch["masked"] = "yes"
+	if _, err := st.Put(ctx, "demo", mustJSON(t, ch), nil); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("masked as a string: %v, want ErrInvalid", err)
+	}
 }

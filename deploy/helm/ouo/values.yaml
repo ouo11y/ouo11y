@@ -276,6 +276,10 @@ grafana:
   plugin:
     # rum-api URL the plugin route proxy calls. Empty: in-cluster rum-api Service.
     rumApiUrl: ""
+    # Plugin feature toggles to turn on (plugins/ouo11y-rum-app/README.md), e.g.
+    # [sessionTimelinePanel]. Passed to Grafana as OUO_FEATURE_TOGGLES_ENABLE and provisioned
+    # into the plugin's jsonData.featureToggles.
+    featureToggles: []
   datasources:
     # Provision Loki, Tempo and Mimir datasources (uids loki, tempo, mimir).
     enabled: true

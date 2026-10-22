@@ -110,3 +110,33 @@ describe('LogsPanel', () => {
     expect(screen.getByText(/Tempo could not be searched/)).toBeInTheDocument();
   });
 });
+
+describe('LogsPanel exception lines (C7)', () => {
+  it('shows type and message with an expandable stack, not the record metadata', () => {
+    const exc = line({
+      body: 'exception',
+      level: 'error',
+      service: 'sentry-demo-ouo',
+      event_name: 'exception',
+      attrs: {
+        exception_type: 'Error',
+        exception_message: 'sentry-demo handled error: coupon service unavailable',
+        exception_stacktrace: 'Error: coupon\n    at handledError (app:///main.jsbundle:1:10)',
+        session_previous_id: '4878b16e-e455-40d9-8b77-9a4d43a1b3d8',
+        demo_action: 'handled-error',
+      },
+    });
+    render(<LogsPanel data={{ ...data, logs: [exc], count: 1 }} sessionStart={start} />);
+    const body = screen.getByTestId('log-body');
+    expect(body).toHaveTextContent('Error: sentry-demo handled error: coupon service unavailable');
+    expect(body).toHaveTextContent('demo_action=handled-error');
+    expect(body).not.toHaveTextContent('session_previous_id');
+    fireEvent.click(within(body).getByTestId('stack-toggle'));
+    expect(screen.getByTestId('stack-trace')).toHaveTextContent('at handledError');
+  });
+
+  it('finds exception lines by their message', () => {
+    const exc = line({ body: 'exception', event_name: 'exception', attrs: { exception_message: 'coupon down' } });
+    expect(filterLogs([exc], 'all', 'coupon')).toHaveLength(1);
+  });
+});
