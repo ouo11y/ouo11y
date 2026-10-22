@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -431,8 +432,7 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 		userID = e.User.ID
 	}
 	ts := eventTime(e, t.j.receivedAt)
-	isError := len(e.Exception) > 0 || e.Level == "error" || e.Level == "fatal"
-	if !isError {
+	if !e.isError() {
 		lr := t.newRecord("sentry.message", ts, x, match, userID, plog.SeverityNumberInfo)
 		lr.Attributes().PutBool("ouo.event.custom", true)
 		lr.Attributes().PutStr("ouo.sentry.level", e.Level)
@@ -667,24 +667,29 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string) {
 			continue
 		}
 		span.SetKind(ptrace.SpanKindClient)
-		method, url, code := httpFields(sp)
+		method, fullURL, code := httpFields(sp)
+		// Semantic conventions: a client span is named by its method only, so
+		// span metrics do not get one series per URL.
+		span.SetName(firstString(method, "HTTP"))
 		if method != "" {
 			sa.PutStr("http.request.method", method)
 		}
-		if url != "" {
-			sa.PutStr("url.full", url)
+		if fullURL != "" {
+			sa.PutStr("url.full", fullURL)
+			putURLParts(sa, fullURL)
 		}
 		if code > 0 {
 			sa.PutInt("http.response.status_code", int64(code))
 		}
 		if code >= 500 || (code == 0 && failedSpanStatuses[sp.Status]) {
-			lr := t.newRecord("http.request.failed", firstTime(sp.Timestamp.Time, sp.StartTimestamp.Time), x, match, userID, plog.SeverityNumberWarn)
+			// ERROR, as the ouo SDKs emit it (sdk/react-native/src/network.ts).
+			lr := t.newRecord("http.request.failed", firstTime(sp.Timestamp.Time, sp.StartTimestamp.Time), x, match, userID, plog.SeverityNumberError)
 			a := lr.Attributes()
 			if method != "" {
 				a.PutStr("http.request.method", method)
 			}
-			if url != "" {
-				a.PutStr("url.full", url)
+			if fullURL != "" {
+				a.PutStr("url.full", fullURL)
 			}
 			if code > 0 {
 				a.PutInt("http.response.status_code", int64(code))
@@ -747,13 +752,13 @@ func setSpanStatus(s ptrace.Status, sentryStatus string) {
 // httpFields reads method, URL and status code from a Sentry http.client span
 // (cocoa: http.request.method / url / http.response.status_code; JS: http.method,
 // url, http.response.status_code, status_code; description "GET https://...").
-func httpFields(sp sentrySpan) (method, url string, code int) {
+func httpFields(sp sentrySpan) (method, fullURL string, code int) {
 	d := sp.Data
 	method = firstString(anyString(d["http.request.method"]), anyString(d["http.method"]), anyString(d["method"]))
-	url = firstString(anyString(d["url"]), anyString(d["url.full"]), anyString(d["http.url"]))
+	fullURL = firstString(anyString(d["fullURL"]), anyString(d["url.full"]), anyString(d["http.fullURL"]))
 	if desc := strings.Fields(sp.Description); len(desc) == 2 {
 		method = firstString(method, desc[0])
-		url = firstString(url, desc[1])
+		fullURL = firstString(fullURL, desc[1])
 	}
 	for _, k := range []string{"http.response.status_code", "status_code", "http.status_code"} {
 		if c, err := strconv.Atoi(anyString(d[k])); err == nil && c > 0 {
@@ -761,7 +766,27 @@ func httpFields(sp sentrySpan) (method, url string, code int) {
 			break
 		}
 	}
-	return method, url, code
+	return method, fullURL, code
+}
+
+// putURLParts adds server.address, server.port, url.scheme and url.path from
+// an absolute URL, as the ouo SDKs do (port defaults to 80 / 443 by scheme).
+func putURLParts(a pcommon.Map, raw string) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return
+	}
+	scheme := strings.ToLower(u.Scheme)
+	a.PutStr("server.address", u.Hostname())
+	port, _ := strconv.Atoi(u.Port())
+	if port == 0 {
+		port = map[string]int{"http": 80, "https": 443}[scheme]
+	}
+	if port > 0 {
+		a.PutInt("server.port", int64(port))
+	}
+	a.PutStr("url.scheme", scheme)
+	a.PutStr("url.path", firstString(u.EscapedPath(), "/"))
 }
 
 func traceID(s string) (pcommon.TraceID, bool) {

@@ -139,8 +139,9 @@ type sentryException struct {
 	Value     string `json:"value"`
 	Module    string `json:"module"`
 	Mechanism *struct {
-		Type    string `json:"type"`
-		Handled *bool  `json:"handled"`
+		Type      string `json:"type"`
+		Handled   *bool  `json:"handled"`
+		Synthetic bool   `json:"synthetic"`
 	} `json:"mechanism"`
 	Stacktrace *struct {
 		Frames []sentryFrame `json:"frames"`
@@ -211,6 +212,25 @@ func (e *sentryEvent) messageText() string {
 		return o.Message
 	}
 	return ""
+}
+
+// isError reports whether an event is an error (spec section 6): level error
+// or fatal, or an exception the SDK did not make up. captureMessage with
+// attachStacktrace (the React Native default) sends a synthetic exception
+// with level info; Sentry does not count it in the session's errors.
+func (e *sentryEvent) isError() bool {
+	switch e.Level {
+	case "error", "fatal":
+		return true
+	case "":
+		return len(e.Exception) > 0
+	}
+	for _, v := range e.Exception {
+		if v.Mechanism == nil || !v.Mechanism.Synthetic {
+			return true
+		}
+	}
+	return false
 }
 
 // renderStacktrace renders all exception values newest first, each with its

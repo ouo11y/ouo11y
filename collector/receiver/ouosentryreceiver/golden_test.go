@@ -9,6 +9,9 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // goldenRequest is one request captured by tools/sentrytap from a real SDK.
@@ -151,6 +154,22 @@ func checkInvariants(t *testing.T, x *tx, g goldenSummary) {
 	for _, s := range x.spans() {
 		v, _ := s.Attributes().Get("session.id")
 		check("span "+s.Name(), v.Str(), s.StartTimestamp().AsTime())
+		// A5: client spans are named by method and carry the URL parts.
+		if s.Kind() == ptrace.SpanKindClient {
+			a := s.Attributes().AsRaw()
+			if s.Name() != a["http.request.method"] || a["server.address"] == nil || a["server.port"] == nil || a["url.path"] == nil || a["url.scheme"] == nil {
+				t.Errorf("client span %q: %+v", s.Name(), a)
+			}
+		}
+	}
+	// C5: failed requests at ERROR, as the ouo SDKs emit them.
+	for _, ld := range x.logs.AllLogs() {
+		lrs := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
+		for i := 0; i < lrs.Len(); i++ {
+			if r := lrs.At(i); r.EventName() == "http.request.failed" && r.SeverityNumber() != plog.SeverityNumberError {
+				t.Errorf("http.request.failed at %v", r.SeverityNumber())
+			}
+		}
 	}
 	// One replay id per session and one session per replay id; seq contiguous from 0.
 	bySID := map[string]string{}
@@ -211,7 +230,9 @@ func TestGoldenJourney(t *testing.T) {
 			fatal = append(fatal, e)
 		}
 	}
-	if len(g.exceptions) != 4 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
+	// handled error, unhandled rejection, native crash; the info captureMessage
+	// (synthetic exception) is a sentry.message, as Sentry's errors counter says (A1).
+	if len(g.exceptions) != 3 || len(fatal) != 1 || fatal[0].attrs["exception.type"] != "EXC_BAD_ACCESS" || fatal[0].attrs["session.id"] != second {
 		t.Errorf("exceptions: %d total, fatal %+v", len(g.exceptions), fatal)
 	}
 	if !crash.ts.Equal(fatal[0].ts) {
@@ -248,7 +269,7 @@ func TestGoldenJourney(t *testing.T) {
 	// Breadcrumbs of the recordings: 9 answered fetches (the 500 comes from its
 	// span), 8 console lines, 6 demo.action + 1 demo breadcrumbs, inactive and
 	// background before the 40 s background phase.
-	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2}
+	want := map[string]int{"http.request": 9, "console": 8, "breadcrumb": 7, "app.lifecycle": 2, "sentry.message": 1}
 	for name, n := range want {
 		if got := len(x.byName(name)); got != n {
 			t.Errorf("%s records: %d, want %d", name, got, n)
@@ -365,7 +386,7 @@ func TestGoldenShop(t *testing.T) {
 
 	// 50 log entries: 30 Sentry.logger calls and 20 console lines; the replays
 	// hold 18 console breadcrumbs, 17 of them duplicates of console log entries.
-	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 4}
+	want := map[string]int{"log": 30, "console": 21, "http.request": 45, "exception": 3, "sentry.message": 1}
 	for name, n := range want {
 		if got := len(x.byName(name)); got != n {
 			t.Errorf("%s records: %d, want %d", name, got, n)
