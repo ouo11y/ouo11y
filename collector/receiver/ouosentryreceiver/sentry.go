@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -84,11 +85,16 @@ type sentryEvent struct {
 		Formatted string `json:"formatted"`
 		Message   string `json:"message"`
 	} `json:"logentry"`
-	Exception    exceptionList `json:"exception"`
-	User         *sentryUser   `json:"user"`
-	Contexts     contexts      `json:"contexts"`
-	SDK          *SDKInfo      `json:"sdk"`
-	Spans        []sentrySpan  `json:"spans"`
+	Exception exceptionList `json:"exception"`
+	Tags      tagMap        `json:"tags"`
+	DebugMeta *struct {
+		Images []debugImage `json:"images"`
+	} `json:"debug_meta"`
+	Breadcrumbs  crumbList    `json:"breadcrumbs"`
+	User         *sentryUser  `json:"user"`
+	Contexts     contexts     `json:"contexts"`
+	SDK          *SDKInfo     `json:"sdk"`
+	Spans        []sentrySpan `json:"spans"`
 	Measurements map[string]struct {
 		Value float64 `json:"value"`
 		Unit  string  `json:"unit"`
@@ -105,12 +111,64 @@ type contexts struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"os"`
-	Device *struct {
-		Model string `json:"model"`
-	} `json:"device"`
+	Device  *deviceCtx `json:"device"`
+	App     *appCtx    `json:"app"`
+	Culture *struct {
+		Locale string `json:"locale"`
+	} `json:"culture"`
 	Replay *struct {
 		ReplayID string `json:"replay_id"`
 	} `json:"replay"`
+}
+
+// deviceCtx is contexts.device. Numbers and booleans stay `any`: SDKs differ
+// in how they encode them.
+type deviceCtx struct {
+	Model          string `json:"model"`
+	Locale         string `json:"locale"`
+	ConnectionType string `json:"connection_type"`
+	ThermalState   string `json:"thermal_state"`
+	Orientation    string `json:"orientation"`
+	FreeMemory     any    `json:"free_memory"`
+	MemorySize     any    `json:"memory_size"`
+	LowPowerMode   any    `json:"low_power_mode"`
+	BatteryLevel   any    `json:"battery_level"`
+	Charging       any    `json:"charging"`
+	Simulator      any    `json:"simulator"`
+}
+
+// appCtx is contexts.app.
+type appCtx struct {
+	ViewNames    []string `json:"view_names"`
+	InForeground any      `json:"in_foreground"`
+	AppStartTime flexTime `json:"app_start_time"`
+	AppMemory    any      `json:"app_memory"`
+}
+
+// tagMap accepts tags as an object or as a list of [key, value] pairs.
+type tagMap map[string]string
+
+func (m *tagMap) UnmarshalJSON(b []byte) error {
+	out := tagMap{}
+	var o map[string]any
+	if json.Unmarshal(b, &o) == nil {
+		for k, v := range o {
+			out[k] = anyString(v)
+		}
+		*m = out
+		return nil
+	}
+	var pairs [][]any
+	if err := json.Unmarshal(b, &pairs); err != nil {
+		return nil // tags are optional; never fail the event on them
+	}
+	for _, p := range pairs {
+		if len(p) == 2 {
+			out[anyString(p[0])] = anyString(p[1])
+		}
+	}
+	*m = out
+	return nil
 }
 
 type traceContext struct {
@@ -139,8 +197,9 @@ type sentryException struct {
 	Value     string `json:"value"`
 	Module    string `json:"module"`
 	Mechanism *struct {
-		Type    string `json:"type"`
-		Handled *bool  `json:"handled"`
+		Type      string `json:"type"`
+		Handled   *bool  `json:"handled"`
+		Synthetic bool   `json:"synthetic"`
 	} `json:"mechanism"`
 	Stacktrace *struct {
 		Frames []sentryFrame `json:"frames"`
@@ -154,6 +213,7 @@ type sentryFrame struct {
 	AbsPath         string `json:"abs_path"`
 	Package         string `json:"package"`
 	InstructionAddr string `json:"instruction_addr"`
+	ImageAddr       string `json:"image_addr"`
 	Lineno          int    `json:"lineno"`
 	Colno           int    `json:"colno"`
 	InApp           *bool  `json:"in_app"`
@@ -179,6 +239,39 @@ func (l *exceptionList) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*l = v.Values
+	return nil
+}
+
+// eventCrumb is a breadcrumb attached to an event (the scope's last 100).
+type eventCrumb struct {
+	breadcrumb
+	Timestamp flexTime `json:"timestamp"`
+}
+
+// crumbList accepts {"values": [...]} and the bare array (both SDKs observed
+// with the array).
+type crumbList []eventCrumb
+
+func (l *crumbList) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	var v []eventCrumb
+	if len(b) > 0 && b[0] == '[' {
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+	} else {
+		var o struct {
+			Values []eventCrumb `json:"values"`
+		}
+		if err := json.Unmarshal(b, &o); err != nil {
+			return err
+		}
+		v = o.Values
+	}
+	for i := range v {
+		v[i].at = v[i].Timestamp.Time
+	}
+	*l = v
 	return nil
 }
 
@@ -213,6 +306,25 @@ func (e *sentryEvent) messageText() string {
 	return ""
 }
 
+// isError reports whether an event is an error (spec section 6): level error
+// or fatal, or an exception the SDK did not make up. captureMessage with
+// attachStacktrace (the React Native default) sends a synthetic exception
+// with level info; Sentry does not count it in the session's errors.
+func (e *sentryEvent) isError() bool {
+	switch e.Level {
+	case "error", "fatal":
+		return true
+	case "":
+		return len(e.Exception) > 0
+	}
+	for _, v := range e.Exception {
+		if v.Mechanism == nil || !v.Mechanism.Synthetic {
+			return true
+		}
+	}
+	return false
+}
+
 // renderStacktrace renders all exception values newest first, each with its
 // frames from the top of the stack (Sentry orders frames oldest call first),
 // capped at maxStacktraceBytes.
@@ -241,11 +353,11 @@ func renderStacktrace(values []sentryException) string {
 				if loc == "" {
 					loc = f.Module
 				}
-				if loc == "" {
-					loc = f.Package
+				if loc == "" && f.InstructionAddr != "" {
+					loc = nativeLocation(f)
 				}
 				if loc == "" {
-					loc = f.InstructionAddr
+					loc = f.Package
 				}
 				b.WriteString("  at ")
 				b.WriteString(fn)
@@ -279,6 +391,73 @@ func renderStacktrace(values []sentryException) string {
 }
 
 const maxStacktraceBytes = 32 << 10
+
+// nativeLocation renders an unsymbolicated native frame as Apple crash
+// reports do, `<image> <address> <load address> + <offset>`, which is what
+// atos needs with the image's dSYM (found by its debug id, A7).
+func nativeLocation(f sentryFrame) string {
+	name := path.Base(f.Package)
+	if f.Package == "" {
+		name = "?"
+	}
+	instr, err1 := strconv.ParseUint(strings.TrimPrefix(f.InstructionAddr, "0x"), 16, 64)
+	image, err2 := strconv.ParseUint(strings.TrimPrefix(f.ImageAddr, "0x"), 16, 64)
+	if err1 != nil || err2 != nil || image == 0 || instr < image {
+		return name + " " + f.InstructionAddr
+	}
+	return name + " " + f.InstructionAddr + " 0x" + strconv.FormatUint(image, 16) + " + " + strconv.FormatUint(instr-image, 10)
+}
+
+// debugImage is one entry of an event's debug_meta.images: a loaded native
+// image (macho, elf, pe) or a JavaScript source map.
+type debugImage struct {
+	Type        string `json:"type"`
+	CodeFile    string `json:"code_file"`
+	DebugID     string `json:"debug_id"`
+	ImageAddr   string `json:"image_addr"`
+	ImageVMAddr string `json:"image_vmaddr,omitempty"`
+	ImageSize   int64  `json:"image_size,omitempty"`
+	Arch        string `json:"arch,omitempty"`
+}
+
+const maxDebugImages = 64
+
+// usedDebugImages returns the debug images the stack frames point into
+// (native frames by image_addr, JavaScript frames by source file), with the
+// image name instead of its path: enough to find the dSYM or source map.
+func usedDebugImages(e *sentryEvent) []debugImage {
+	if e.DebugMeta == nil || len(e.DebugMeta.Images) == 0 {
+		return nil
+	}
+	addrs, files := map[string]bool{}, map[string]bool{}
+	for _, v := range e.Exception {
+		if v.Stacktrace == nil {
+			continue
+		}
+		for _, f := range v.Stacktrace.Frames {
+			if f.ImageAddr != "" {
+				addrs[strings.ToLower(f.ImageAddr)] = true
+			}
+			if f.Filename != "" {
+				files[f.Filename] = true
+			}
+		}
+	}
+	var out []debugImage
+	for _, img := range e.DebugMeta.Images {
+		if !addrs[strings.ToLower(img.ImageAddr)] && !files[img.CodeFile] {
+			continue
+		}
+		if img.Type != "sourcemap" {
+			img.CodeFile = path.Base(img.CodeFile)
+		}
+		out = append(out, img)
+		if len(out) == maxDebugImages {
+			break
+		}
+	}
+	return out
+}
 
 // splitRelease splits `<package>@<version>+<build>` into version and build.
 func splitRelease(release string) (version, build string) {

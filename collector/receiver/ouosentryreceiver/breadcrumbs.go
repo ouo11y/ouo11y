@@ -2,6 +2,8 @@ package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver
 
 import (
 	"context"
+	"encoding/json"
+	"hash/fnv"
 	"sort"
 	"strings"
 	"time"
@@ -35,10 +37,10 @@ type breadcrumb struct {
 	at       time.Time
 }
 
-// skippedBreadcrumbs duplicate what other items already produce: navigation
-// (transactions), the SDK's own transaction and event notes.
+// skippedBreadcrumbs duplicate what other items already produce: the SDK's
+// own transaction and event notes.
 var skippedBreadcrumbs = map[string]bool{
-	"navigation": true, "sentry.transaction": true, "sentry.event": true,
+	"sentry.transaction": true, "sentry.event": true,
 }
 
 func (r *sentryReceiver) emitBreadcrumbs(ctx context.Context, j job, seg *replaySegment, sid string) {
@@ -61,21 +63,89 @@ func (r *sentryReceiver) emitBreadcrumbs(ctx context.Context, j job, seg *replay
 	r.state.withLock(func() {
 		x := r.state.get(j.project.OuoProjectID, sid)
 		if x == nil {
-			x = &sess{sid: sid, did: did} // evicted meanwhile: no de-duplication
+			x = &sess{sid: sid, did: did, project: j.project.OuoProjectID} // evicted meanwhile: no de-duplication
 		}
 		for i := range seg.breadcrumbs {
-			t.emitBreadcrumb(&seg.breadcrumbs[i], x)
+			t.emitBreadcrumb(&seg.breadcrumbs[i], x, matchReplay)
 		}
 	})
 	t.consume(ctx)
 }
 
+// eventOnlySkipped are event breadcrumbs the replay recordings do not carry
+// and that add nothing to the timeline: React Navigation's dispatch notes (the
+// `navigation` breadcrumb follows), UIKit view controller events (native
+// containers such as RNSScreen in a React Native app) and the SDK start note.
+var eventOnlySkipped = map[string]bool{
+	"navigation.dispatch": true, "ui.lifecycle": true, "started": true,
+}
+
+// crumbSessionSkew: an event's breadcrumbs reach back into earlier sessions
+// (the scope keeps them across a background rotation); only those from the
+// session's start on belong to it. A new session starts at least 30 s after
+// the previous one went to the background.
+const crumbSessionSkew = 5 * time.Second
+
+// emitEventBreadcrumbs turns the breadcrumbs attached to an event into
+// session events (A8, spec section 9b). Sessions with a replay get them from
+// the recording, except navigation, which recordings rarely carry (A11).
+// Must hold the state lock.
+func (t *translation) emitEventBreadcrumbs(e *sentryEvent, x *sess, match string, withReplay bool) {
+	if x == nil || len(e.Breadcrumbs) == 0 {
+		return
+	}
+	from, until := x.started.Add(-crumbSessionSkew), eventTime(e, t.j.receivedAt).Add(crumbCopyWindow)
+	for i := range e.Breadcrumbs {
+		b := &e.Breadcrumbs[i].breadcrumb
+		if b.at.IsZero() || b.at.Before(from) || b.at.After(until) || eventOnlySkipped[b.Category] || skippedBreadcrumbs[b.Category] {
+			continue
+		}
+		if b.Category != "navigation" {
+			if withReplay || x.eventCrumbSeen(crumbKey(b), b.at, e.EventID) {
+				continue
+			}
+		}
+		t.emitBreadcrumb(b, x, match)
+	}
+}
+
+// crumbKey identifies a breadcrumb's content (category, message, data).
+func crumbKey(b *breadcrumb) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(b.Category))
+	h.Write([]byte{0})
+	h.Write([]byte(b.Message))
+	h.Write([]byte{0})
+	data, _ := json.Marshal(b.Data) // map keys sorted
+	h.Write(data)
+	return h.Sum64()
+}
+
 // emitBreadcrumb must run under the state lock (console de-duplication).
-func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
+func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess, match string) {
 	cat := b.Category
 	switch {
 	case skippedBreadcrumbs[cat]:
 		return
+	case cat == "navigation":
+		// React Navigation {from, to}. The RN SDK drops the transaction of a
+		// back navigation without spans, so this is the only trace of it (A11).
+		// sentry-cocoa's replay copy of a view controller event reads
+		// {to: <class>} with the class as message: native containers in a
+		// React Native app, covered by ui.load transactions in a native one.
+		screen := anyString(b.Data["to"])
+		if screen == "" || screen == b.Message || x.navSeen(screen, b.at, true) {
+			return
+		}
+		lr := t.newRecord("navigation", b.at, x, match, "", plog.SeverityNumberInfo)
+		a := lr.Attributes()
+		a.PutStr("url.path", screen)
+		a.PutStr("ouo.navigation.kind", "screen")
+		a.PutStr("ouo.navigation.source", "breadcrumb")
+		if from := firstString(anyString(b.Data["from"]), x.lastScreen); from != "" && from != screen {
+			a.PutStr("ouo.navigation.from", from)
+		}
+		x.lastScreen = screen
 	case cat == "fetch" || cat == "xhr" || cat == "http":
 		method := anyString(b.Data["method"])
 		url := firstString(anyString(b.Data["url"]), anyString(b.Data["url.full"]))
@@ -88,7 +158,11 @@ func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
 		if code == 0 || code >= 500 {
 			return
 		}
-		lr := t.newRecord(eventHTTPRequest, b.at, x, matchReplay, "", plog.SeverityNumberInfo)
+		span := anyString(b.Data["__span"])
+		if span != "" && x.httpSeen(span) {
+			return // from the http.client span or another event's copy
+		}
+		lr := t.newRecord(eventHTTPRequest, b.at, x, match, "", plog.SeverityNumberInfo)
 		a := lr.Attributes()
 		if method != "" {
 			a.PutStr("http.request.method", method)
@@ -98,14 +172,14 @@ func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
 		}
 		a.PutInt("http.response.status_code", int64(code))
 		lr.Body().SetStr(strings.TrimSpace(method + " " + url))
-		if sp, ok := spanID(anyString(b.Data["__span"])); ok {
+		if sp, ok := spanID(span); ok {
 			lr.SetSpanID(sp)
 		}
 	case cat == "console":
 		if x.consoleSeen(b.Message, b.at) {
 			return // already on the timeline from a console Sentry log
 		}
-		lr := t.newRecord(eventConsole, b.at, x, matchReplay, "", severityOfLevel(b.Level))
+		lr := t.newRecord(eventConsole, b.at, x, match, "", severityOfLevel(b.Level))
 		lr.Body().SetStr(b.Message)
 		a := lr.Attributes()
 		a.PutStr("message", truncate(b.Message, maxLogAttributeLen))
@@ -116,11 +190,11 @@ func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
 		if cat == "app.lifecycle" {
 			state = firstString(anyString(b.Data["state"]), b.Message)
 		}
-		lr := t.newRecord(eventAppLifecycle, b.at, x, matchReplay, "", plog.SeverityNumberInfo)
+		lr := t.newRecord(eventAppLifecycle, b.at, x, match, "", plog.SeverityNumberInfo)
 		lr.Body().SetStr("app " + state)
 		lr.Attributes().PutStr("ouo.app.state", state)
 	case cat == "ui.tap" || cat == "ui.click" || cat == "touch":
-		lr := t.newRecord(eventUITap, b.at, x, matchReplay, "", plog.SeverityNumberInfo)
+		lr := t.newRecord(eventUITap, b.at, x, match, "", plog.SeverityNumberInfo)
 		// React Native: the touched component path, innermost labelled component
 		// first ("action-fetch-ok > action-fetch-ok > Text"), sometimes prefixed.
 		path := strings.TrimPrefix(firstString(b.Message, anyString(b.Data["view.id"]), anyString(b.Data["target"])), "Touch event within element: ")
@@ -134,7 +208,7 @@ func (t *translation) emitBreadcrumb(b *breadcrumb, x *sess) {
 			a.PutStr("ouo.ui.path", truncate(path, maxLogAttributeLen))
 		}
 	default:
-		lr := t.newRecord(eventBreadcrumb, b.at, x, matchReplay, "", severityOfLevel(b.Level))
+		lr := t.newRecord(eventBreadcrumb, b.at, x, match, "", severityOfLevel(b.Level))
 		lr.Body().SetStr(firstString(b.Message, cat))
 		a := lr.Attributes()
 		a.PutStr(attrBreadcrumbCat, cat)
