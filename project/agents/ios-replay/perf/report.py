@@ -266,7 +266,7 @@ The JS fatal produced exactly one fatal exception (the JS one, with its JS stack
 (<code>atos -o App.dSYM/… -l &lt;image_addr&gt; &lt;instruction_addr&gt;</code>).</p>
 <div class="figs">
 <figure style="flex:2 1 420px">{img(env, 'grafana-crashed-session.jpg', 'Grafana ouo11y RUM session page: crashed, ended crash, fatal error SIGSEGV', 640)}
-<figcaption>Grafana, ouo11y RUM app: the session is crashed with the native fatal error on its timeline. The plugin does not render stack traces yet; the stack is on the exception record in Explore (follow-up for the plugin).</figcaption></figure>
+<figcaption>Grafana, ouo11y RUM app: the session is crashed with the native fatal error on its timeline. Plugin 0.8.0 on main here does not render stack traces; PR #39 adds a "Show stack trace" toggle on every exception. Until it merges, the stack is on the exception record in Explore.</figcaption></figure>
 <figure style="flex:1 1 200px">{img(env, 'frame-product-masked.jpg', 'Replay frame after the change: product screen, back chevron image masked black', 240)}
 <figcaption>A replay frame from the new capture path (402 × 874, Display P3): upright, the image view (back chevron) still masked black. sentry-mobile runs with text masking off.</figcaption></figure>
 </div>
@@ -277,7 +277,7 @@ The JS fatal produced exactly one fatal exception (the JS one, with its JS stack
 <li>Only the crashed thread's stack; no other threads. Crashes before <code>initRUM</code>, watchdog kills, OOM and SIGKILL are not caught in-process (MetricKit would be the next step).</li>
 <li>The last replay chunk before a crash is in memory and is lost (Sentry keeps its segment on disk).</li>
 <li>A crash within ~1 s of a new session can land before that session's <code>session.start</code> is exported; rum-api then reads the start from the first event.</li>
-<li>The plugin shows the crash but not <code>exception.stacktrace</code>.</li>
+<li>The plugin shows the crash; its stack trace toggle comes with PR #39 (plugin 0.8.0). <code>ouo.crash.frames</code> / <code>ouo.crash.images</code> wait for symbolication.</li>
 </ul>
 <h2>Method</h2>
 <p>Simulator: iOS 27 "iPhone 18 Pro" (dedicated <code>ouo-b1-ios</code>), Release builds of <code>examples/sentry-mobile</code> with <code>OUO_PERF=1</code>, stack = <code>ouo-env</code> env <code>b1-ios-replay-crashes</code>.
