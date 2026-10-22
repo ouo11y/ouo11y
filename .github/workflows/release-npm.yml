@@ -126,7 +126,8 @@ jobs:
           (cd out && sha256sum ./*.tgz ./*.cdx.json > SHA256SUMS)
           cat out/SHA256SUMS
           tar -tzf "out/$tarball"
-          echo "tarball=out/$tarball" >> "$GITHUB_OUTPUT"
+          # ./ matters: npm reads "out/x.tgz" as the GitHub shorthand owner/repo.
+          echo "tarball=./out/$tarball" >> "$GITHUB_OUTPUT"
 
       - name: Decide how to publish
         id: mode
