@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -467,6 +468,7 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 		lr.Attributes().PutBool("ouo.event.custom", true)
 		lr.Attributes().PutStr("ouo.sentry.level", e.Level)
 		lr.Attributes().PutStr("ouo.sentry.event_id", e.EventID)
+		t.putErrorContext(lr.Attributes(), e)
 		if msg := e.messageText(); msg != "" {
 			lr.Body().SetStr(msg)
 			lr.Attributes().PutStr("message", msg)
@@ -509,6 +511,7 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 	}
 	a.PutStr("ouo.sentry.event_id", e.EventID)
 	a.PutStr("ouo.sentry.level", e.Level)
+	t.putErrorContext(a, e)
 	if excMsg != "" {
 		lr.Body().SetStr(excType + ": " + excMsg)
 	} else {
@@ -521,6 +524,84 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 			x.fatalAt = ts
 		}
 	}
+}
+
+// Error context allowlist (spec section 6a, A6).
+const (
+	maxTags       = 32
+	attrTagPrefix = "ouo.sentry.tag."
+)
+
+// connectionTypes maps contexts.device.connection_type to the semantic
+// conventions' network.connection.type.
+var connectionTypes = map[string]string{"wifi": "wifi", "cellular": "cell", "cell": "cell", "wired": "wired", "ethernet": "wired", "none": "unavailable", "offline": "unavailable"}
+
+// putErrorContext copies the allowlisted device and app context of an error:
+// what the device and app were doing when it happened. Device model and OS
+// are on the resource.
+func (t *translation) putErrorContext(a pcommon.Map, e *sentryEvent) {
+	putStr := func(k, v string) {
+		if v != "" {
+			a.PutStr(k, truncate(v, maxLogAttributeLen))
+		}
+	}
+	putInt := func(k string, v any) {
+		if f, ok := v.(float64); ok {
+			a.PutInt(k, int64(f))
+		}
+	}
+	putBool := func(k string, v any) {
+		if b, ok := v.(bool); ok {
+			a.PutBool(k, b)
+		}
+	}
+	if d := e.Contexts.Device; d != nil {
+		putStr("ouo.device.locale", d.Locale)
+		if c := strings.ToLower(d.ConnectionType); c != "" {
+			putStr("network.connection.type", firstString(connectionTypes[c], c))
+		}
+		putStr("ouo.device.thermal_state", d.ThermalState)
+		putStr("ouo.device.orientation", d.Orientation)
+		putInt("ouo.device.free_memory", d.FreeMemory)
+		putInt("ouo.device.memory_size", d.MemorySize)
+		putBool("ouo.device.low_power_mode", d.LowPowerMode)
+		if f, ok := d.BatteryLevel.(float64); ok {
+			a.PutDouble("ouo.device.battery_level", f)
+		}
+		putBool("ouo.device.charging", d.Charging)
+		putBool("ouo.device.simulator", d.Simulator)
+	}
+	if c := e.Contexts.Culture; c != nil && !hasKey(a, "ouo.device.locale") {
+		putStr("ouo.device.locale", c.Locale)
+	}
+	if app := e.Contexts.App; app != nil {
+		if n := len(app.ViewNames); n > 0 {
+			putStr("ouo.app.screen", app.ViewNames[n-1])
+		}
+		putBool("ouo.app.in_foreground", app.InForeground)
+		if !app.AppStartTime.IsZero() {
+			a.PutInt("ouo.app.start_time", app.AppStartTime.UnixMilli())
+		}
+		putInt("ouo.app.memory", app.AppMemory)
+	}
+	if t.j.project != nil && t.j.project.CopyTags && len(e.Tags) > 0 {
+		keys := make([]string, 0, len(e.Tags))
+		for k := range e.Tags {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i, k := range keys {
+			if i >= maxTags {
+				break
+			}
+			putStr(attrTagPrefix+k, e.Tags[k])
+		}
+	}
+}
+
+func hasKey(m pcommon.Map, k string) bool {
+	_, ok := m.Get(k)
+	return ok
 }
 
 func (t *translation) setTraceContext(lr plog.LogRecord, tc *traceContext) {

@@ -85,6 +85,7 @@ type sentryEvent struct {
 		Message   string `json:"message"`
 	} `json:"logentry"`
 	Exception    exceptionList `json:"exception"`
+	Tags         tagMap        `json:"tags"`
 	Breadcrumbs  crumbList     `json:"breadcrumbs"`
 	User         *sentryUser   `json:"user"`
 	Contexts     contexts      `json:"contexts"`
@@ -106,12 +107,64 @@ type contexts struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"os"`
-	Device *struct {
-		Model string `json:"model"`
-	} `json:"device"`
+	Device  *deviceCtx `json:"device"`
+	App     *appCtx    `json:"app"`
+	Culture *struct {
+		Locale string `json:"locale"`
+	} `json:"culture"`
 	Replay *struct {
 		ReplayID string `json:"replay_id"`
 	} `json:"replay"`
+}
+
+// deviceCtx is contexts.device. Numbers and booleans stay `any`: SDKs differ
+// in how they encode them.
+type deviceCtx struct {
+	Model          string `json:"model"`
+	Locale         string `json:"locale"`
+	ConnectionType string `json:"connection_type"`
+	ThermalState   string `json:"thermal_state"`
+	Orientation    string `json:"orientation"`
+	FreeMemory     any    `json:"free_memory"`
+	MemorySize     any    `json:"memory_size"`
+	LowPowerMode   any    `json:"low_power_mode"`
+	BatteryLevel   any    `json:"battery_level"`
+	Charging       any    `json:"charging"`
+	Simulator      any    `json:"simulator"`
+}
+
+// appCtx is contexts.app.
+type appCtx struct {
+	ViewNames    []string `json:"view_names"`
+	InForeground any      `json:"in_foreground"`
+	AppStartTime flexTime `json:"app_start_time"`
+	AppMemory    any      `json:"app_memory"`
+}
+
+// tagMap accepts tags as an object or as a list of [key, value] pairs.
+type tagMap map[string]string
+
+func (m *tagMap) UnmarshalJSON(b []byte) error {
+	out := tagMap{}
+	var o map[string]any
+	if json.Unmarshal(b, &o) == nil {
+		for k, v := range o {
+			out[k] = anyString(v)
+		}
+		*m = out
+		return nil
+	}
+	var pairs [][]any
+	if err := json.Unmarshal(b, &pairs); err != nil {
+		return nil // tags are optional; never fail the event on them
+	}
+	for _, p := range pairs {
+		if len(p) == 2 {
+			out[anyString(p[0])] = anyString(p[1])
+		}
+	}
+	*m = out
+	return nil
 }
 
 type traceContext struct {

@@ -1,6 +1,7 @@
 package ouosentryreceiver
 
 import (
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -285,6 +286,44 @@ func TestTimelineWithoutReplay(t *testing.T) {
 	for _, name := range []string{"http.request", "ui.tap", "console", "breadcrumb"} {
 		if n := len(y.byName(name)); n != 0 {
 			t.Errorf("session with a replay: %d %s records from event breadcrumbs", n, name)
+		}
+	}
+}
+
+// A6: the allowlisted device and app context of an error; tags only when the project opts in.
+func TestErrorContext(t *testing.T) {
+	ev := map[string]any{"event_id": "e1", "timestamp": t0 + 5, "level": "error", "user": map[string]any{"id": device},
+		"tags": map[string]any{"demo.action": "checkout", "hermes": "True"},
+		"contexts": map[string]any{
+			"device": map[string]any{"model": "iPhone19,2", "locale": "en_EG", "connection_type": "wifi", "thermal_state": "nominal", "free_memory": 1016315904,
+				"memory_size": 34359738368, "low_power_mode": false, "simulator": true, "processor_count": 10, "screen_height_pixels": 874},
+			"app": map[string]any{"view_names": []any{"Home", "Cart"}, "in_foreground": true, "app_start_time": "2026-10-14T09:59:58Z", "app_memory": 54116352,
+				"device_app_hash": "7c9a2d0d", "app_identifier": "dev.ouo.sentrydemo"},
+		},
+		"request":   map[string]any{"url": "https://secret"},
+		"extra":     map[string]any{"card": "4242"},
+		"exception": map[string]any{"values": []any{map[string]any{"type": "Error", "value": "boom"}}}}
+	for _, copyTags := range []bool{false, true} {
+		x := newTx(t)
+		x.p.CopyTags = copyTags
+		x.send(t, hdr("sentry.javascript.react-native"), item("session", session(sid1, true, "ok", 0, "2026-10-14T10:00:00Z")))
+		x.send(t, hdr("sentry.javascript.react-native"), item("event", ev))
+		a := x.byName("exception")[0].attrs
+		want := map[string]any{"ouo.device.locale": "en_EG", "network.connection.type": "wifi", "ouo.device.thermal_state": "nominal", "ouo.device.free_memory": int64(1016315904),
+			"ouo.device.memory_size": int64(34359738368), "ouo.device.low_power_mode": false, "ouo.device.simulator": true, "ouo.app.screen": "Cart",
+			"ouo.app.in_foreground": true, "ouo.app.start_time": int64(1791971998000), "ouo.app.memory": int64(54116352)}
+		for k, v := range want {
+			if a[k] != v {
+				t.Errorf("%s = %v, want %v", k, a[k], v)
+			}
+		}
+		for k := range a {
+			if strings.Contains(k, "processor") || strings.Contains(k, "hash") || strings.Contains(k, "request") || strings.Contains(k, "extra") || strings.Contains(k, "card") {
+				t.Errorf("not allowlisted: %s", k)
+			}
+		}
+		if got := a["ouo.sentry.tag.demo.action"]; (got == "checkout") != copyTags {
+			t.Errorf("copy_tags %v: tag %v", copyTags, got)
 		}
 	}
 }
