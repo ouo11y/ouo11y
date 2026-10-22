@@ -124,6 +124,7 @@ describe('LogsPanel exception lines (C7)', () => {
         exception_stacktrace: 'Error: coupon\n    at handledError (app:///main.jsbundle:1:10)',
         session_previous_id: '4878b16e-e455-40d9-8b77-9a4d43a1b3d8',
         demo_action: 'handled-error',
+        network_connection_type: 'wifi',
       },
     });
     render(<LogsPanel data={{ ...data, logs: [exc], count: 1 }} sessionStart={start} />);
@@ -131,6 +132,7 @@ describe('LogsPanel exception lines (C7)', () => {
     expect(body).toHaveTextContent('Error: sentry-demo handled error: coupon service unavailable');
     expect(body).toHaveTextContent('demo_action=handled-error');
     expect(body).not.toHaveTextContent('session_previous_id');
+    expect(body).not.toHaveTextContent('network_connection_type');
     fireEvent.click(within(body).getByTestId('stack-toggle'));
     expect(screen.getByTestId('stack-trace')).toHaveTextContent('at handledError');
   });

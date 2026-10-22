@@ -28,8 +28,8 @@ export function filterLogs(logs: LogLine[], scope: Scope, text: string): LogLine
 }
 
 // Record metadata, not the app's or backend's own attributes (the ouo SDKs put session_previous_id
-// on every record).
-const HIDDEN_PREFIXES = ['ouo_', 'exception_', 'device_', 'telemetry_', 'os_', 'session_'];
+// on every record, the Sentry bridge network_connection_type).
+const HIDDEN_PREFIXES = ['ouo_', 'exception_', 'device_', 'telemetry_', 'os_', 'session_', 'network_'];
 const HIDDEN_KEYS = new Set([
   'flags',
   'observed_timestamp',

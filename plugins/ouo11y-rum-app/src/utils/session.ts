@@ -72,6 +72,20 @@ export function sessionContextFields(
   return fields.filter((f) => f.value);
 }
 
+/**
+ * The session this one follows on the same device (`session.previous_id` on `session.start`, from the
+ * ouo SDKs and the Sentry bridge), or undefined.
+ */
+export function previousSessionId(timeline: readonly TimelineEvent[]): string | undefined {
+  for (const ev of timeline) {
+    const id = ev.attrs?.session_previous_id;
+    if (id && ev.type === 'session.start') {
+      return id;
+    }
+  }
+  return timeline.find((ev) => ev.attrs?.session_previous_id)?.attrs.session_previous_id || undefined;
+}
+
 /** `HTTP GET`, `GET`: the HTTP semconv fallback name, with no route in it. */
 const GENERIC_HTTP = /^(?:HTTP )?([A-Z]+)$/;
 

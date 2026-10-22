@@ -32,6 +32,9 @@ older rum-api those parts fall back as described below.
   black stage with "Loading segment n…" for about a second.
 - **One clock (F4):** the activity list, the Timeline, the Logs panel and the players' time labels are all
   relative to the session start (the list and the players were relative to the replay start, 0.3 s apart).
+- Header: "Previous session" link from `session.previous_id` (the ouo SDKs and, since the bridge parity
+  fixes, the Sentry bridge). Log lines also hide `network_*` attributes (the bridge's
+  `network_connection_type`).
 - The configuration page lists the feature toggles and keeps every `jsonData` key it does not edit when it
   saves (it used to drop all but `rumApiUrl`).
 

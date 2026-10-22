@@ -28,7 +28,7 @@ import { buildActivity } from '../utils/activity';
 import { buildTaps } from '../utils/taps';
 import { useFeatureToggle } from '../featureToggles';
 import { maskingState, type MaskingState } from '../utils/masking';
-import { clampToSessionStart, sessionContextFields } from '../utils/session';
+import { clampToSessionStart, previousSessionId, sessionContextFields } from '../utils/session';
 
 export default function SessionDetail() {
   const styles = useStyles2(getStyles);
@@ -111,6 +111,7 @@ export default function SessionDetail() {
   const showActivity = hasReplay || (!showTimeline && !replayLoading);
   const masking = maskingState(meta.data);
   const contextFields = session ? sessionContextFields(session) : [];
+  const previousId = previousSessionId(session?.timeline ?? []);
   // While a replay plays, highlight the latest event at or before the cursor; otherwise nothing.
   const activeIndex = hasReplay ? latestEventIndex(timeline, bounds.start, currentMs) : -1;
 
@@ -174,6 +175,20 @@ export default function SessionDetail() {
               <dd>
                 <PlatformIcon platform={session.platform} />
               </dd>
+              {previousId && (
+                <>
+                  <dt>Previous session</dt>
+                  <dd>
+                    <a
+                      className={styles.link}
+                      href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}/${encodeURIComponent(previousId)}?from=${range.from}&to=${range.to}`}
+                      data-testid="session-previous"
+                    >
+                      <code>{previousId.slice(0, 8)}…</code>
+                    </a>
+                  </dd>
+                </>
+              )}
               {contextFields.map((f) => (
                 <React.Fragment key={f.label}>
                   <dt>{f.label}</dt>
@@ -448,6 +463,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   h4: css({ margin: theme.spacing(0, 0, 1.5), fontSize: theme.typography.h4.fontSize }),
   muted: css({ color: theme.colors.text.secondary }),
+  link: css({ color: theme.colors.text.link, '&:hover': { textDecoration: 'underline' } }),
   // Player and activity list side by side; the list wraps under the player in a narrow panel.
   replayRow: css({ display: 'flex', flexWrap: 'wrap', gap: theme.spacing(1.5), alignItems: 'stretch' }),
   playerCol: css({ flex: '1 1 300px', minWidth: 0 }),

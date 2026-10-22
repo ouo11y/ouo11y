@@ -77,7 +77,12 @@ const detail: Detail = {
   },
   timeline: [
     { ts: iso(sessionStart - 2000), type: 'navigation', name: 'navigation', attrs: { url_path: 'Home' } },
-    { ts: iso(sessionStart), type: 'session.start', name: 'session.start', attrs: {} },
+    {
+      ts: iso(sessionStart),
+      type: 'session.start',
+      name: 'session.start',
+      attrs: { session_previous_id: '9BAB4E51-ECE2-F22B-0B64-B66437AEE24B' },
+    },
     {
       ts: iso(frames.started_at + 4000),
       type: 'exception',
@@ -129,6 +134,10 @@ describe('SessionDetail', () => {
     expect(screen.getByTestId('session-device')).toHaveTextContent('iPhone19,2');
     expect(screen.getByTestId('session-os')).toHaveTextContent('iOS 27.0');
     expect(screen.getByTestId('session-environment')).toHaveTextContent('staging');
+    expect(screen.getByTestId('session-previous')).toHaveAttribute(
+      'href',
+      '/a/ouo11y-rum-app/sessions/9BAB4E51-ECE2-F22B-0B64-B66437AEE24B?from=now-7d&to=now'
+    );
   });
 
   it('shows the Timeline panel with the sessionTimelinePanel toggle on (B1)', async () => {

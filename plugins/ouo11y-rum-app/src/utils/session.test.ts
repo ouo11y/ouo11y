@@ -4,6 +4,7 @@ import {
   exceptionSummary,
   isExceptionLine,
   logLineText,
+  previousSessionId,
   sessionContextFields,
   traceDisplayName,
 } from './session';
@@ -115,5 +116,15 @@ describe('log lines (C7)', () => {
   it('keeps the body of other lines, and of exceptions without type or message', () => {
     expect(logLineText({ body: 'checkout ok', attrs: {} })).toBe('checkout ok');
     expect(logLineText({ body: 'boom', event_name: 'exception', attrs: {} })).toBe('boom');
+  });
+});
+
+describe('previousSessionId', () => {
+  it('reads session.previous_id from session.start, else from any record', () => {
+    expect(previousSessionId([ev(0, 'session.start', 'session.start', { session_previous_id: 'p1' })])).toBe('p1');
+    expect(previousSessionId([ev(0, 'session.start'), ev(5, 'custom', 'log', { session_previous_id: 'p2' })])).toBe(
+      'p2'
+    );
+    expect(previousSessionId([ev(0, 'session.start')])).toBeUndefined();
   });
 });

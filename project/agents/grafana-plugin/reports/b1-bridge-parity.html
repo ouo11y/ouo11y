@@ -105,6 +105,20 @@ chunks stored before this rum-api: no flag → "masking unknown"</pre>
 <p>Neighbouring segments (previous and next) are mounted and preloaded, so playing on and stepping back never wait; a far seek keeps the
 segment that is on screen mounted and visible until the new one has fired <code>loadeddata</code> (not seeking) or <code>seeked</code>.</p>
 
+<h2>After #38 (bridge parity in the receiver) merged</h2>
+<p>Main merged into this branch; env rebuilt with #38's receiver; #38's golden capture <code>selfhosted</code> (N2 run, 2026-10-17)
+re-sent with re-keyed ids. Crashed session <code>9BAB4E51…</code>: 2 errors (the info <code>captureMessage</code> is no longer one), 1 crash;
+the next session <code>B1699F86…</code> carries <code>session.previous_id</code>.</p>
+<ul>
+<li><b>Device / OS context</b> on the bridged records reaches the header: Device iPhone19,2, OS iOS 27.0, Build 1.0.0 (build 1), Environment development.</li>
+<li><b><code>sentry.message</code></b> is a "Message" row under Logs (INFO in the Logs panel), not under Errors; the Errors filter lists 2 failed requests, 1 error log, 2 errors and the fatal crash.</li>
+<li><b><code>session.previous_id</code></b>: new "Previous session" link in the header; <code>session_*</code> and #38's new <code>network_connection_type</code> are hidden from log lines.</li>
+<li><b>Span names:</b> #38 names http client spans by method only (<code>GET</code>, semconv) with <code>url.path</code> as an attribute; trace roots stay the transaction names (<code>action fetch-ok</code>), so the table shows those. A root named <code>GET</code> would read <code>GET /path</code> like <code>HTTP GET</code> (rum-api and plugin match both). Tempo search returns no traces for this 6-day-old capture, so the table itself is empty here; checked through <code>/api/v2/traces/&lt;id&gt;</code>.</li>
+</ul>
+<figure><img src="b1-s38-healthy-page.jpg" alt="After #38: header of the follow-up session with Previous session 9BAB4E51…, device, OS, build, environment." loading="lazy"><figcaption>After #38: header of the follow-up session with Previous session 9BAB4E51…, device, OS, build, environment.</figcaption></figure>
+<div class="row"><figure><img src="b1-s38-crashed-message.jpg" alt="sentry.message row: Message, under Logs." loading="lazy"><figcaption>sentry.message row: Message, under Logs.</figcaption></figure><figure><img src="b1-s38-crashed-crash.jpg" alt="The native crash with its 20 frames." loading="lazy"><figcaption>The native crash with its 20 frames.</figcaption></figure></div>
+<figure><img src="b1-s38-crashed-logs.jpg" alt="Logs: handled error, the info message (INFO) and the fatal crash, no metadata attributes." loading="lazy"><figcaption>Logs: handled error, the info message (INFO) and the fatal crash, no metadata attributes.</figcaption></figure>
+
 <h2>Notes</h2>
 <ul>
 <li>rum-api grew three additive fields: replay meta <code>masked</code> (C8), session detail <code>context</code> (C2: OS and environment are dropped from timeline attributes as noise, so the plugin could not read them), trace <code>root_url_path</code> (C6: Tempo search only returns the root name). With an older rum-api the plugin shows "masking unknown", the device and build rows from timeline attributes, and the raw trace names.</li>

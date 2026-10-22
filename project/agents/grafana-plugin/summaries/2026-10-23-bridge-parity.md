@@ -36,6 +36,13 @@ Batch 1 session `b1-plugin-bridge`. Branch `claude/b1-plugin-bridge`. Report:
   session (golden `realtap` re-sent) and an ouo frames session (perf XCUITest journey on my own simulator).
   Toggle on verified through compose provisioning (`jsonData.featureToggles: "sessionTimelinePanel"`).
 
+## After #38 merged
+
+Merged main (conflicts in `project/kb/index.md` and the checklist, both sides kept). Checked #38's receiver on
+its `selfhosted` golden capture: context in the header, `sentry.message` under Logs, crash stack. Added a
+"Previous session" link (`session.previous_id`) and hid `network_*` attrs in Logs. #38 names http client
+spans `GET` (method only); roots stay transaction names, and a bare `GET` root is handled like `HTTP GET`.
+
 ## Left / for the next agent
 
 - The `sentry` mode of the `OUO_PERF=1` demo build sent nothing to the bridge on the simulator (kb
