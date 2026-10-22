@@ -1,5 +1,5 @@
-// Copies the Swift sources of sdk/ios into sdk/react-native/ios so the CocoaPods specs
-// (OuoReplayCore.podspec, OuoReplay.podspec) can glob them: CocoaPods does not accept
+// Copies the Swift (and C) sources of sdk/ios into sdk/react-native/ios so the CocoaPods specs
+// (OuoReplayCore, OuoReplay, OuoCrashCore, OuoCrash .podspec) can glob them: CocoaPods does not accept
 // source_files outside the podspec directory. sdk/ios stays the source of truth; the copies
 // are gitignored and refreshed by `npm run build`.
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -16,12 +16,15 @@ if (!existsSync(source)) {
 }
 
 let files = 0;
-for (const module of ["OuoReplayCore", "OuoReplay"]) {
+const sourceFile = (p) => p.endsWith(".swift") || p.endsWith(".c") || p.endsWith(".h");
+const countFiles = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? countFiles(join(dir, e.name)) : sourceFile(e.name) ? 1 : 0), 0);
+for (const module of ["OuoReplayCore", "OuoReplay", "OuoCrashCore", "OuoCrash"]) {
   const from = join(source, module);
   const to = join(target, module);
   rmSync(to, { recursive: true, force: true });
   mkdirSync(to, { recursive: true });
-  cpSync(from, to, { recursive: true, filter: (p) => statSync(p).isDirectory() || p.endsWith(".swift") });
-  files += readdirSync(to).filter((f) => f.endsWith(".swift")).length;
+  cpSync(from, to, { recursive: true, filter: (p) => statSync(p).isDirectory() || sourceFile(p) });
+  files += countFiles(to);
 }
-console.log(`[ouo] sync-ios: ${files} Swift files copied into ${target}`);
+console.log(`[ouo] sync-ios: ${files} source files copied into ${target}`);

@@ -2,27 +2,36 @@
 import UIKit
 import OuoReplayCore
 
-/// Snapshots the key window, paints the redaction rectangles, downsamples for dedupe and encodes
-/// JPEG. Main thread only (`drawHierarchy` requires it).
+/// Captures the key window in two halves. `snapshot(window:)` runs on the main thread and does only
+/// what UIKit requires there: walk the view tree into value types and `drawHierarchy` into an 8-bit
+/// sRGB bitmap. `compose(_:)` runs on the recorder's capture queue: redaction planning, painting
+/// the rectangles, the dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO, thread-safe).
+/// The unredacted bitmap never leaves the capture queue; only the composed JPEG is uploaded.
 final class ScreenCapturer {
+    /// Main-thread result: the raw (unredacted) frame and everything needed to redact it later.
+    struct Snapshot {
+        let image: CGImage
+        let tree: ViewNode
+        let bounds: CGRect
+        let scale: CGFloat
+    }
+
     struct Capture {
         let jpeg: Data
         let viewport: Viewport
-        /// 16x16 grayscale bytes, the dedupe input.
-        let thumbnail: Data
         let redactedRects: Int
     }
 
     private let planner: RedactionPlanner
-    /// Last diagnostic set, so the debug log reports changes only (main thread).
-    nonisolated(unsafe) private static var lastUnmatched: [String] = []
-    private let jpegQuality: CGFloat
+    private let composer: FrameComposer
+    /// Last diagnostic set, so the debug log reports changes only (capture queue).
+    private var lastUnmatched: [String] = []
     private let maxLongestSide: CGFloat
     private let logger: ReplayLogger
 
     init(rules: RedactionRules, jpegQuality: Double, maxLongestSide: Double, logger: ReplayLogger) {
         self.planner = RedactionPlanner(rules: rules, mergeOverlapping: true)
-        self.jpegQuality = CGFloat(jpegQuality)
+        self.composer = FrameComposer(jpegQuality: jpegQuality)
         self.maxLongestSide = CGFloat(maxLongestSide)
         self.logger = logger
     }
@@ -45,63 +54,51 @@ final class ScreenCapturer {
         return min(screenScale, maxLongestSide / longest)
     }
 
-    func capture(window: UIWindow) -> Capture? {
+    /// Main thread only (`drawHierarchy` and the view walk require it).
+    func snapshot(window: UIWindow) -> Snapshot? {
         let bounds = window.bounds
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         let tree = ViewTreeBuilder.node(for: window)
-        let rects = planner.rects(for: tree, window: bounds)
+        let scale = renderScale(for: bounds, screenScale: window.screen.scale)
+        let pw = Int((bounds.width * scale).rounded(.up))
+        let ph = Int((bounds.height * scale).rounded(.up))
+        // Rendered once, directly at the final size, 8 bits per channel: UIGraphicsImageRenderer
+        // would pick the extended-range 16-bit format on wide-color phones (twice the bytes).
+        guard let ctx = FrameComposer.makeContext(pixelWidth: pw, pixelHeight: ph) else { return nil }
+        ctx.translateBy(x: 0, y: CGFloat(ph))
+        ctx.scaleBy(x: scale, y: -scale)
+        UIGraphicsPushContext(ctx)
+        // `afterScreenUpdates: false` reads the last committed frame without forcing a layout pass.
+        let drawn = window.drawHierarchy(in: bounds, afterScreenUpdates: false)
+        if !drawn {
+            // Fallback for windows that refuse drawHierarchy (rare): render the layer.
+            window.layer.render(in: ctx)
+        }
+        UIGraphicsPopContext()
+        guard let image = ctx.makeImage() else { return nil }
+        return Snapshot(image: image, tree: tree, bounds: bounds, scale: scale)
+    }
+
+    /// Any thread (the capture queue): redaction, thumbnail for dedupe, JPEG. Returns nil when the
+    /// frame equals the previous kept one (`deduper`) or encoding fails.
+    func compose(_ s: Snapshot, deduper: FrameDeduper) -> Capture? {
+        let rects = planner.rects(for: s.tree, window: s.bounds)
         if logger.enabled {
-            let unmatched = planner.unmatchedContentClasses(in: tree)
-            if !unmatched.isEmpty, unmatched != Self.lastUnmatched {
-                Self.lastUnmatched = unmatched
+            let unmatched = planner.unmatchedContentClasses(in: s.tree)
+            if !unmatched.isEmpty, unmatched != lastUnmatched {
+                lastUnmatched = unmatched
                 logger.log("redaction: unmatched content-like classes \(unmatched)")
             }
         }
-        let scale = renderScale(for: bounds, screenScale: window.screen.scale)
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(bounds: bounds, format: format)
-        let image = renderer.image { ctx in
-            // `afterScreenUpdates: false` reads the last committed frame without forcing a layout pass.
-            let drawn = window.drawHierarchy(in: bounds, afterScreenUpdates: false)
-            if !drawn {
-                // Fallback for windows that refuse drawHierarchy (rare): render the layer.
-                window.layer.render(in: ctx.cgContext)
-            }
-            UIColor.black.setFill()
-            for rect in rects {
-                ctx.fill(rect)
-            }
-        }
-        guard let jpeg = image.jpegData(compressionQuality: jpegQuality) else { return nil }
-        let thumb = ScreenCapturer.thumbnail(of: image) ?? Data()
+        guard let masked = composer.redact(s.image, rects: rects, scale: s.scale) else { return nil }
+        // Dedupe on the redacted frame (what would be uploaded), before paying for the JPEG.
+        guard deduper.shouldKeep(FrameComposer.thumbnail(of: masked) ?? Data()) else { return nil }
+        guard let jpeg = composer.jpeg(masked) else { return nil }
         return Capture(
             jpeg: jpeg,
-            viewport: Viewport(width: Double(bounds.width), height: Double(bounds.height), scale: Double(scale)),
-            thumbnail: thumb,
+            viewport: Viewport(width: Double(s.bounds.width), height: Double(s.bounds.height), scale: Double(s.scale)),
             redactedRects: rects.count
         )
-    }
-
-    /// 16x16 8-bit grayscale rendering of the image: small, and insensitive to JPEG noise.
-    static func thumbnail(of image: UIImage, side: Int = 16) -> Data? {
-        guard let cg = image.cgImage else { return nil }
-        let colorSpace = CGColorSpaceCreateDeviceGray()
-        guard let ctx = CGContext(
-            data: nil,
-            width: side,
-            height: side,
-            bitsPerComponent: 8,
-            bytesPerRow: side,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
-        ) else { return nil }
-        ctx.interpolationQuality = .low
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
-        guard let data = ctx.data else { return nil }
-        return Data(bytes: data, count: side * side)
     }
 }
 #endif

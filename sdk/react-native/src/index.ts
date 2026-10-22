@@ -12,6 +12,7 @@ import { BasicTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trac
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { installAppStateListener } from "./appstate";
+import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import { installErrorCapture } from "./errors/install";
 import { getRUM, setRUM } from "./instance";
@@ -92,6 +93,10 @@ export function initRUM(options: RUMOptions): RUM {
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
   const replay = createReplayController({ endpoint: endpoints.replayEndpoint, projectId, projectToken, options: options.replay, logger });
 
+  // ---- native crashes (signals, uncaught NSExceptions): the previous run's report, taken once ----
+  const nativeCrash = createNativeCrashCapture({ enabled: options.errors?.nativeCrashes !== false, logger });
+  const crashed = nativeCrash.pending;
+
   const session = new SessionManager({
     storage,
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
@@ -100,8 +105,12 @@ export function initRUM(options: RUMOptions): RUM {
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),
     serviceVersion,
     logger,
+    ...(crashed ? { nativeCrash: crashMarker(crashed) } : {}),
     onEvent: (event) => events.emit(event.name, event.attributes, "info", event.timestamp),
-    onRotate: (next) => replay.sessionDidRotate(next.id),
+    onRotate: (next) => {
+      replay.sessionDidRotate(next.id);
+      nativeCrash.setSessionId(next.id);
+    },
   });
 
   const resource = buildResource(options.service, options.device, options.resource);
@@ -162,10 +171,23 @@ export function initRUM(options: RUMOptions): RUM {
     });
 
   // ---- session ----
-  const ready = session.start().then(() => logger.log("session ready", session.id(), "previous", session.previousId() ?? null));
+  const ready = session.start().then(() => {
+    logger.log("session ready", session.id(), "previous", session.previousId() ?? null);
+    if (crashed && !isReactNativeFatal(crashed)) {
+      // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
+      // session.end (reason crash, same time) was emitted by the cold start just before.
+      const attrs = nativeCrashAttributes(crashed);
+      const ended = session.peekLastEnded();
+      if (ended && ended.id === crashed.session_id && ended.serviceVersion !== undefined) attrs["service.version"] = ended.serviceVersion;
+      events.emit("exception", attrs, "error", crashed.timestamp_ms);
+      logger.warn("native crash of the previous run reported", crashed.session_id, attrs["exception.message"]);
+    }
+  });
   const onActivity = (): void => session.touch();
   // The native recorder keys chunks by the session id it is told; rotations arrive through onRotate.
   replay.start(session.id());
+  // After Sentry.init when both run: ouo's handlers then run first and chain to Sentry's.
+  nativeCrash.install(session.id());
 
   // ---- instrumentation ----
   // The SDK's own uploads are never traced: the OTLP exports and the replay chunks.
