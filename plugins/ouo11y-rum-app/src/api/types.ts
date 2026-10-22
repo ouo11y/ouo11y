@@ -49,6 +49,8 @@ export interface TimelineEvent {
   type: TimelineType | string;
   name: string;
   attrs: Record<string, string>;
+  /** Set by the plugin when it moved an event recorded before the session start to the start: the recorded time. */
+  clampedFrom?: string;
 }
 
 export interface TraceSummary {
@@ -60,9 +62,17 @@ export interface TraceSummary {
   span_count: number;
   has_error: boolean;
   grafana_url: string;
+  /** rum-api after 0.3.0: the root span's url.path when the root has a generic `HTTP {method}` name. */
+  root_url_path?: string;
 }
 
 export interface SessionDetail extends SessionRecord {
+  /**
+   * rum-api after 0.3.0: the session's device, OS, build and environment (`device_model_identifier`,
+   * `device_model_name`, `device_manufacturer`, `os_name`, `os_version`, `ouo_app_build`,
+   * `deployment_environment_name`); absent on older versions or when no event carries them.
+   */
+  context?: Record<string, string>;
   timeline: TimelineEvent[];
   traces: TraceSummary[];
 }
@@ -125,6 +135,8 @@ export interface ReplayChunkMeta {
   ended_at: number;
   bytes: number;
   event_count: number;
+  /** rum-api after 0.3.0: the chunk's `masked` flag, when it had one. */
+  masked?: boolean;
 }
 
 export interface ReplayViewport {
@@ -151,6 +163,11 @@ export interface ReplayMeta {
   started_at: number;
   ended_at: number;
   bytes: number;
+  /**
+   * rum-api after 0.3.0: false when any chunk was recorded unmasked, true when every chunk that says so is
+   * masked; absent for rrweb, older rum-api versions and chunks without the flag.
+   */
+  masked?: boolean;
   updated_at: string;
   chunks: ReplayChunkMeta[];
 }

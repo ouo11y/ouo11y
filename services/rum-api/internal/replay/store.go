@@ -78,6 +78,9 @@ type Chunk struct {
 	DurationMs int64   `json:"-"`
 	VideoBytes int64   `json:"-"`
 	Source     *Source `json:"-"`
+	// Masked is the chunk's optional `masked` flag (frames and video): true
+	// when the recording SDK masked text and images; nil when absent.
+	Masked *bool `json:"-"`
 
 	// mp4 is the decoded video and stored the chunk JSON without video.mp4
 	// (with video.bytes), both set for video chunks only.
@@ -105,12 +108,16 @@ type ChunkInfo struct {
 	// DurationMs and VideoBytes (the mp4 size) are set for video chunks only.
 	DurationMs *int64 `json:"duration_ms,omitempty"`
 	VideoBytes int64  `json:"video_bytes,omitempty"`
+	// Masked is the chunk's `masked` flag; absent when the chunk had none.
+	Masked *bool `json:"masked,omitempty"`
 }
 
 // Meta is replays/<session>/meta.json. Kind is taken from the first chunk;
 // Viewport and Platform are set for frames and video replays, Source for
 // video replays whose chunks carry one (the first one seen is kept).
 // FrameCount and TouchCount are totals over all chunks (0 for rrweb).
+// Masked is false when any chunk was recorded unmasked, true when every chunk
+// that carries the flag is masked, absent when none carries it (rrweb).
 type Meta struct {
 	SessionID string `json:"session_id"`
 	// ProjectID is the project the collector authenticated for the upload
@@ -129,6 +136,7 @@ type Meta struct {
 	Viewport   *Viewport   `json:"viewport,omitempty"`
 	Platform   string      `json:"platform,omitempty"`
 	Source     *Source     `json:"source,omitempty"`
+	Masked     *bool       `json:"masked,omitempty"`
 	UpdatedAt  time.Time   `json:"updated_at"`
 	Chunks     []ChunkInfo `json:"chunks"`
 }

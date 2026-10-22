@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
-import { Alert, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
+import { Alert, Badge, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
 import { useParams } from 'react-router-dom';
 import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
@@ -26,6 +26,9 @@ import { totalFrames, videoBounds } from '../utils/video';
 import { buildMarkers, latestEventIndex, replayBounds, seekOffset } from '../utils/markers';
 import { buildActivity } from '../utils/activity';
 import { buildTaps } from '../utils/taps';
+import { useFeatureToggle } from '../featureToggles';
+import { maskingState, type MaskingState } from '../utils/masking';
+import { clampToSessionStart, previousSessionId, sessionContextFields } from '../utils/session';
 
 export default function SessionDetail() {
   const styles = useStyles2(getStyles);
@@ -45,13 +48,10 @@ export default function SessionDetail() {
     Boolean(session)
   );
   const wantsReplay = Boolean(session?.has_replay);
-  // The renderer comes from `replay_kind` on the record; older records need the replay meta.
-  const needsMeta =
-    wantsReplay &&
-    session?.replay_kind !== 'frames' &&
-    session?.replay_kind !== 'rrweb' &&
-    session?.replay_kind !== 'video';
-  const meta = useRumQuery(() => rumApi.replayMeta(id), `${id}|replay-meta`, needsMeta);
+  // The renderer comes from `replay_kind` on the record (older records need the replay meta); the
+  // meta is loaded for every replay anyway, for its `masked` flag.
+  const meta = useRumQuery(() => rumApi.replayMeta(id), `${id}|replay-meta`, wantsReplay);
+  const showTimeline = useFeatureToggle('sessionTimelinePanel');
   const renderer = replayRenderer(session, meta.data);
   const replay = useRumQuery(() => rumApi.replayEvents(id), `${id}|replay`, renderer === 'rrweb');
   const frames = useRumQuery(() => rumApi.replayFrames(id), `${id}|replay-frames`, renderer === 'frames');
@@ -60,8 +60,9 @@ export default function SessionDetail() {
   const playerRef = useRef<ReplayHandle | null>(null);
   const [currentMs, setCurrentMs] = useState(0);
 
-  const timeline = useMemo(() => session?.timeline ?? [], [session]);
   const sessionStart = parseTs(session?.started_at);
+  // Nothing before the session start (C4): early events are moved to it.
+  const timeline = useMemo(() => clampToSessionStart(session?.timeline ?? [], sessionStart), [session, sessionStart]);
   const bounds = useMemo(
     () =>
       renderer === 'frames'
@@ -75,24 +76,42 @@ export default function SessionDetail() {
   const hasFrames = renderer === 'frames' && Boolean(frames.data?.frames.length);
   const hasVideo = renderer === 'video' && Boolean(video.data?.segments?.length);
   const hasReplay = hasRrweb || hasFrames || hasVideo;
-  const replayError = replay.error ?? frames.error ?? video.error ?? meta.error;
+  // A failed meta request only matters when the renderer depended on it.
+  const metaError = renderer === undefined ? meta.error : undefined;
+  const replayError = replay.error ?? frames.error ?? video.error ?? metaError;
   const replayLoading =
     wantsReplay && !hasReplay && !replayError && (meta.loading || replay.loading || frames.loading || video.loading);
-  // Video (Sentry) replays: taps merged from the recording's touches and the `ui.tap` breadcrumbs.
-  const taps = useMemo(
-    () => (hasVideo && video.data ? buildTaps(video.data.touches ?? [], timeline) : undefined),
-    [hasVideo, video.data, timeline]
+  // Phone replays (frames, video): taps merged from the recording's touches and the `ui.tap`
+  // breadcrumbs (C3: frames replays count their touches as taps too).
+  const taps = useMemo(() => {
+    if (hasVideo && video.data) {
+      return buildTaps(video.data.touches ?? [], timeline);
+    }
+    if (hasFrames && frames.data) {
+      return buildTaps(frames.data.touches ?? [], timeline);
+    }
+    return undefined;
+  }, [hasVideo, video.data, hasFrames, frames.data, timeline]);
+  const tapTimes = useMemo(
+    () => new Map((taps ?? []).filter((t) => t.timelineIndex !== undefined).map((t) => [t.timelineIndex!, t.ts])),
+    [taps]
   );
+  // One clock (F4): every time on the page is relative to the session start; the players add the
+  // replay's offset from it to their labels.
+  const clockStart = Number.isFinite(sessionStart) ? sessionStart : bounds.start;
+  const clockOffsetMs = Number.isFinite(bounds.start) && Number.isFinite(clockStart) ? bounds.start - clockStart : 0;
   const markers = useMemo(
     () => (hasReplay ? buildMarkers(timeline, bounds.start, bounds.durationMs, taps) : []),
     [hasReplay, timeline, bounds, taps]
   );
-  // The activity list beside the phone-shaped (video and frames) players.
-  const showActivity = hasVideo || hasFrames;
-  const activity = useMemo(
-    () => (showActivity ? buildActivity(timeline, bounds.start, taps) : []),
-    [showActivity, timeline, bounds.start, taps]
-  );
+  // The activity list: beside every player, and on its own without a replay unless the Timeline
+  // panel (feature toggle sessionTimelinePanel) already lists the events.
+  const activityStart = hasReplay ? bounds.start : sessionStart;
+  const activity = useMemo(() => buildActivity(timeline, activityStart, taps), [timeline, activityStart, taps]);
+  const showActivity = hasReplay || (!showTimeline && !replayLoading);
+  const masking = maskingState(meta.data);
+  const contextFields = session ? sessionContextFields(session) : [];
+  const previousId = previousSessionId(session?.timeline ?? []);
   // While a replay plays, highlight the latest event at or before the cursor; otherwise nothing.
   const activeIndex = hasReplay ? latestEventIndex(timeline, bounds.start, currentMs) : -1;
 
@@ -156,6 +175,26 @@ export default function SessionDetail() {
               <dd>
                 <PlatformIcon platform={session.platform} />
               </dd>
+              {previousId && (
+                <>
+                  <dt>Previous session</dt>
+                  <dd>
+                    <a
+                      className={styles.link}
+                      href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}/${encodeURIComponent(previousId)}?from=${range.from}&to=${range.to}`}
+                      data-testid="session-previous"
+                    >
+                      <code>{previousId.slice(0, 8)}…</code>
+                    </a>
+                  </dd>
+                </>
+              )}
+              {contextFields.map((f) => (
+                <React.Fragment key={f.label}>
+                  <dt>{f.label}</dt>
+                  <dd data-testid={`session-${f.label.toLowerCase()}`}>{f.value}</dd>
+                </React.Fragment>
+              ))}
               <dt>Service</dt>
               <dd>
                 {session.service_name} <span className={styles.muted}>{session.service_version}</span>
@@ -177,18 +216,21 @@ export default function SessionDetail() {
             </dl>
           </header>
 
-          <div className={cx(styles.grid, showActivity && styles.gridWide)}>
-            <section className={cx(styles.panel, styles.timelinePanel)} data-testid="panel-timeline">
-              <h4 className={styles.h4}>
-                <Icon name="history" /> Timeline <span className={styles.muted}>({timeline.length} events)</span>
-              </h4>
-              <Timeline
-                timeline={timeline}
-                sessionStart={sessionStart}
-                activeIndex={activeIndex}
-                onSeek={hasReplay ? onTimelineSeek : undefined}
-              />
-            </section>
+          <div className={cx(styles.grid, !showTimeline ? styles.gridSingle : hasReplay && styles.gridWide)}>
+            {showTimeline && (
+              <section className={cx(styles.panel, styles.timelinePanel)} data-testid="panel-timeline">
+                <h4 className={styles.h4}>
+                  <Icon name="history" /> Timeline <span className={styles.muted}>({timeline.length} events)</span>
+                </h4>
+                <Timeline
+                  timeline={timeline}
+                  sessionStart={sessionStart}
+                  activeIndex={activeIndex}
+                  onSeek={hasReplay ? onTimelineSeek : undefined}
+                  tapTimes={tapTimes}
+                />
+              </section>
+            )}
 
             <section ref={replayPanelRef} className={cx(styles.panel, styles.replayPanel)} data-testid="panel-replay">
               <h4 className={styles.h4}>
@@ -205,7 +247,7 @@ export default function SessionDetail() {
                 <ApiErrorAlert
                   error={replayError}
                   onRetry={
-                    meta.error ? meta.reload : frames.error ? frames.reload : video.error ? video.reload : replay.reload
+                    metaError ? meta.reload : frames.error ? frames.reload : video.error ? video.reload : replay.reload
                   }
                 />
               )}
@@ -220,38 +262,45 @@ export default function SessionDetail() {
                   }
                 />
               )}
-              {hasRrweb && replay.data && <ReplayPlayer ref={playerRef} events={replay.data} onTime={setCurrentMs} />}
               {showActivity && (
                 <div className={styles.replayRow}>
-                  <div className={styles.playerCol}>
-                    {hasFrames && frames.data && (
-                      <FramePlayer
-                        ref={playerRef}
-                        frames={frames.data.frames}
-                        touches={frames.data.touches ?? []}
-                        viewport={frames.data.viewport}
-                        startTs={bounds.start}
-                        durationMs={bounds.durationMs}
-                        onTime={setCurrentMs}
-                      />
-                    )}
-                    {hasVideo && video.data && (
-                      <VideoPlayer
-                        ref={playerRef}
-                        manifest={video.data}
-                        taps={taps}
-                        startTs={bounds.start}
-                        durationMs={bounds.durationMs}
-                        onTime={setCurrentMs}
-                      />
-                    )}
-                  </div>
-                  <div className={styles.activityCol}>
+                  {hasReplay && (
+                    <div className={cx(styles.playerCol, hasRrweb && styles.playerColWide)}>
+                      {hasRrweb && replay.data && (
+                        <ReplayPlayer ref={playerRef} events={replay.data} onTime={setCurrentMs} />
+                      )}
+                      {hasFrames && frames.data && (
+                        <FramePlayer
+                          ref={playerRef}
+                          frames={frames.data.frames}
+                          touches={frames.data.touches ?? []}
+                          viewport={frames.data.viewport}
+                          startTs={bounds.start}
+                          durationMs={bounds.durationMs}
+                          onTime={setCurrentMs}
+                          clockOffsetMs={clockOffsetMs}
+                        />
+                      )}
+                      {hasVideo && video.data && (
+                        <VideoPlayer
+                          ref={playerRef}
+                          manifest={video.data}
+                          taps={taps}
+                          startTs={bounds.start}
+                          durationMs={bounds.durationMs}
+                          onTime={setCurrentMs}
+                          clockOffsetMs={clockOffsetMs}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <div className={cx(styles.activityCol, !hasReplay && styles.activityAlone)}>
                     <ReplayActivity
                       items={activity}
-                      durationMs={bounds.durationMs}
-                      currentMs={currentMs}
-                      onSeek={(ms) => seekTo(ms)}
+                      durationMs={hasReplay ? bounds.durationMs : 0}
+                      currentMs={hasReplay ? currentMs : -1}
+                      onSeek={hasReplay ? (ms) => seekTo(ms) : undefined}
+                      clockStart={clockStart}
                     />
                   </div>
                 </div>
@@ -273,16 +322,16 @@ export default function SessionDetail() {
               {hasFrames && frames.data && (
                 <div className={styles.replayInfo}>
                   {frames.data.frames.length} frames · {(frames.data.touches ?? []).length} touches ·{' '}
-                  {formatDuration(bounds.durationMs)} · {frames.data.platform} {frames.data.viewport.width}×
-                  {frames.data.viewport.height} pt · text, inputs and images are masked on the device before upload
+                  {taps?.length ?? 0} taps · {formatDuration(bounds.durationMs)} · {frames.data.platform}{' '}
+                  {frames.data.viewport.width}×{frames.data.viewport.height} pt · <MaskingBadge state={masking} />
                 </div>
               )}
               {hasVideo && video.data && (
                 <div className={styles.replayInfo}>
                   {video.data.segments.length} video segments · {totalFrames(video.data.segments)} frames ·{' '}
                   {taps?.length ?? 0} taps · {formatDuration(bounds.durationMs)} · {video.data.platform}{' '}
-                  {video.data.viewport.width}×{video.data.viewport.height} px · masking is applied on the device by the
-                  recording SDK · segments stream through the plugin proxy
+                  {video.data.viewport.width}×{video.data.viewport.height} px · <MaskingBadge state={masking} /> ·
+                  segments stream through the plugin proxy
                 </div>
               )}
               {renderer === 'rrweb' && replay.data && replay.data.length === 0 && (
@@ -330,6 +379,34 @@ export default function SessionDetail() {
   );
 }
 
+const MASKING_BADGE = {
+  masked: {
+    text: 'masked',
+    color: 'green',
+    tooltip: 'The recording SDK masked text, inputs and images on the device before upload.',
+  },
+  unmasked: {
+    text: 'not masked',
+    color: 'orange',
+    tooltip: 'The recording SDK reported masking off for at least one chunk: text and images are visible.',
+  },
+  unknown: {
+    text: 'masking unknown',
+    color: 'blue',
+    tooltip: 'The replay chunks carry no masking flag (older SDK, bridge or rum-api).',
+  },
+} as const;
+
+/** The replay's real masking state (C8), from the chunks' `masked` flag in the replay meta. */
+export function MaskingBadge({ state }: { state: MaskingState }) {
+  const b = MASKING_BADGE[state];
+  return (
+    <span data-testid="replay-masking" data-masking={state}>
+      <Badge text={b.text} color={b.color} tooltip={b.tooltip} icon={state === 'masked' ? 'lock' : 'unlock'} />
+    </span>
+  );
+}
+
 /** Viewports narrower than this stack the Timeline and Replay panels. */
 const STACKED = '@media (max-width: 899px)';
 
@@ -362,6 +439,8 @@ const getStyles = (theme: GrafanaTheme2) => ({
     marginBottom: theme.spacing(2),
     [STACKED]: { gridTemplateColumns: '1fr' },
   }),
+  // Feature toggle sessionTimelinePanel off: the Replay panel (player and activity list) alone.
+  gridSingle: css({ gridTemplateColumns: 'minmax(0, 1fr)' }),
   // With the activity list inside the Replay panel, the panel needs the larger share.
   gridWide: css({
     gridTemplateColumns: 'minmax(280px, 1fr) minmax(560px, 2fr)',
@@ -384,9 +463,12 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   h4: css({ margin: theme.spacing(0, 0, 1.5), fontSize: theme.typography.h4.fontSize }),
   muted: css({ color: theme.colors.text.secondary }),
+  link: css({ color: theme.colors.text.link, '&:hover': { textDecoration: 'underline' } }),
   // Player and activity list side by side; the list wraps under the player in a narrow panel.
   replayRow: css({ display: 'flex', flexWrap: 'wrap', gap: theme.spacing(1.5), alignItems: 'stretch' }),
   playerCol: css({ flex: '1 1 300px', minWidth: 0 }),
+  // rrweb replays are wide (desktop viewports): the list wraps under the player sooner.
+  playerColWide: css({ flex: '3 1 560px' }),
   // The list takes the player's height (it scrolls inside) instead of growing the row.
   activityCol: css({
     flex: '1 1 260px',
@@ -395,6 +477,8 @@ const getStyles = (theme: GrafanaTheme2) => ({
     position: 'relative',
     '& > *': { position: 'absolute', inset: 0 },
   }),
+  // Without a replay the list is the panel's content: full width, its own height.
+  activityAlone: css({ maxWidth: 'none', flexBasis: '100%', height: 'min(560px, calc(100vh - 220px))' }),
   replayInfo: css({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.bodySmall.fontSize,

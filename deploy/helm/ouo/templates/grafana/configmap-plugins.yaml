@@ -19,6 +19,8 @@ data:
         disabled: false
         jsonData:
           rumApiUrl: {{ include "ouo.rumApiUrl" . }}
+          # From OUO_FEATURE_TOGGLES_ENABLE (grafana.plugin.featureToggles, comma separated).
+          featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"
         secureJsonData:
           readToken: ${OUO_READ_TOKEN}
 {{- end }}

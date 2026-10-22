@@ -35,14 +35,14 @@ Correctness first, then context, then UI. Effort from the gap report.
 - [x] A7 Native crash frames keep `instruction_addr` / `image_addr` and `debug_meta` images [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`; symbolication itself is still separate work]
 - [ ] A4 Mobile vitals: cold / warm start, TTID, slow / frozen frames, stalls as timeline records with plugin display [~2 d]
 - [x] C5 `http.request.failed` severity: WARN from the bridge vs ERROR from the SDK; align (receiver) [done 2026-10-23, receiver + golden tests, live run against self-hosted Sentry; `project/kb/sentry-bridge-parity.md`: ERROR]
-- [ ] C1 Stack trace shown in the plugin for errors
-- [ ] C2 Session header shows device, OS, build, environment
-- [ ] C3 Frames replays show "Taps 0" although touches are drawn
-- [ ] C4 First screen shown at −2.7 s, before session start
-- [ ] C6 Traces table names every ouo trace `HTTP GET`
-- [ ] C7 Logs panel renders the ouo exception line as `session_previous_id=…`
-- [ ] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it
-- [ ] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel`
+- [x] C1 Stack trace shown in the plugin for errors [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C2 Session header shows device, OS, build, environment [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C3 Frames replays show "Taps 0" although touches are drawn [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C4 First screen shown at −2.7 s, before session start [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C6 Traces table names every ouo trace `HTTP GET` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C7 Logs panel renders the ouo exception line as `session_previous_id=…` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] C8 Masking note is hard-coded; rum-api should store the chunk's `masked` flag and the plugin should show it [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
+- [x] B1 Session page: activity list only, Timeline panel behind `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel` [done 2026-10-23, PR #39, plugin 0.8.0, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`]
 - [x] N2 Real Sentry upstream run [2026-10-18: self-hosted Sentry 26.10 (`sentry-sbx`, https://sentry.ouo.localhost), real-tap journey: 49/49 envelopes byte-identical, all 200, no rate-limit / 413 / auth issues; Sentry stored everything; ouo 19/21, the 2 misses are startup console lines without a session (not upstream-related); Sentry MCP `sentry-sbx` (user-level, read-only) reads replays; `project/kb/sentry-self-hosted.md`, `project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`]. **Changed by the founder 2026-10-17:** not a sentry.io run; self-hosted Sentry with a Sentry MCP. Still untested: a quota-limited Sentry (real 429 / `X-Sentry-Rate-Limits`). **Follow-ups done 2026-10-23** (bridge parity batch): startup console lines join the session their client starts next (rule 5 `start`), `Running "main"` is stored once, the spec says every Sentry response header passes through.
 - [ ] N3 Supported Sentry SDK range. **Founder 2026-10-17:** the prospects' platforms are unknown for now; assume React Native on iOS, Android later. Now: test the bridge against the current major `@sentry/react-native` (8.x; 8.30 captured) with golden tests per captured version. Medium term: native `sentry-cocoa` and `sentry-java` apps. Older majors (~7.11, the Expo default with cocoa 8.58) only if a prospect turns out to run one.
 - [ ] B6 Bridge on Android (sentry-java envelopes and replay never captured). **Founder 2026-10-17:** assume the prospects add Android later; medium term, after the iOS React Native path (with N3's native sentry-java work).
@@ -113,7 +113,7 @@ Recorded 2026-10-17:
 - (d) **Token rotation (N14) deferred:** kept as is, addressed later.
 - (e) **The founder's iPhone 16 Pro Max is available:** preferred over the simulator for every performance number (B3, N6).
 - (f) **Hosted demo (B8):** still open.
-- (g) **F4 verdict pending:** re-run done 2026-10-18 next to Sentry's own player (`project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`): plays unmasked in both; ouo's taps are clearer; ouo is worse on seek (black frame), counts an info message as an error, and has startup console lines without a session.
+- (g) **F4 verdict pending:** re-run done 2026-10-18 next to Sentry's own player (`project/agents/sentry-demo/reports/sentry-self-hosted-n2-f4.html`): plays unmasked in both; ouo's taps are clearer; ouo is worse on seek (black frame), counts an info message as an error, and has startup console lines without a session. The black frame on seek and the two clocks are fixed in plugin 0.8.0 (2026-10-23, `project/agents/grafana-plugin/reports/b1-bridge-parity.html`).
 - Repo layout for B5 approved (ADR-0010).
 
 Recorded 2026-10-18 (ADR-0009, accepted):

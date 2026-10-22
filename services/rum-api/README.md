@@ -234,7 +234,9 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
   `touch_count` are totals (0 for rrweb; for video `frame_count` sums `video.frame_count`);
   `source` (`{vendor, replay_id}` of the first chunk that had one) only for video. Video
   chunks add `duration_ms` and `video_bytes` (mp4 size) and their `bytes` counts the mp4
-  plus the gzip JSON:
+  plus the gzip JSON. `masked` (frames and video): each chunk keeps its optional `masked`
+  flag, and the meta's `masked` is `false` when any chunk was recorded unmasked, `true` when
+  every chunk that has the flag is masked, absent when none has it (rrweb, older chunks):
 
 ```json
 {"session_id":"<id>","project_id":"web-store","kind":"frames","chunk_count":2,"first_seq":0,"last_seq":1,
@@ -327,10 +329,17 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
 - `trace_count` is best effort: `-1` when Tempo failed for that session.
 - `user_id` is the latest non-empty `user.id` seen in the session (`setUser` can arrive late).
 
-`GET /v1/sessions/{id}[?from&to]` -> the record plus `timeline` and `traces`:
+`GET /v1/sessions/{id}[?from&to]` -> the record plus `context`, `timeline` and `traces`.
+`context` is the session's device, OS, build and environment: the latest non-empty value of
+`device_model_identifier`, `device_model_name`, `device_manufacturer`, `os_name`, `os_version`,
+`ouo_app_build` and `deployment_environment_name` over the session's records (the timeline
+`attrs` leave the OS and environment keys out as per-SDK noise); omitted when no record has
+any. A trace whose root span has a generic HTTP name (`HTTP GET`, `GET`) gets `root_url_path`,
+the root's `url.path` (or the path of `url.full`) from a second, best-effort Tempo search:
 
 ```json
 { ...record fields...,
+  "context":{"os_name":"iOS","os_version":"27.0","device_model_identifier":"iPhone19,2","ouo_app_build":"42","deployment_environment_name":"staging"},
   "timeline":[
     {"ts":"...","type":"session.start","name":"session.start","attrs":{"ouo_session_started_at":"1791263180896","severity_text":"INFO"}},
     {"ts":"...","type":"navigation","name":"navigation","attrs":{"url_path":"/","ouo_navigation_kind":"load"}},

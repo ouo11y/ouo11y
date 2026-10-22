@@ -123,6 +123,19 @@ describe('AppConfig', () => {
     );
   });
 
+  it('keeps the provisioned feature toggles in jsonData when it saves, and lists their state (B1)', async () => {
+    const onSaved = renderConfig(meta({ jsonData: { rumApiUrl: '', featureToggles: 'sessionTimelinePanel' } }));
+    expect(screen.getByTestId('feature-toggles')).toHaveTextContent('sessionTimelinePanel: on.');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(postedBody().data.jsonData).toEqual({ rumApiUrl: '', featureToggles: 'sessionTimelinePanel' });
+  });
+
+  it('lists every toggle as off when none is set', () => {
+    renderConfig(meta());
+    expect(screen.getByTestId('feature-toggles')).toHaveTextContent('sessionTimelinePanel: off.');
+  });
+
   it('reports success when both probes answer 200', async () => {
     renderConfig(meta());
     fireEvent.click(screen.getByRole('button', { name: /test connection/i }));

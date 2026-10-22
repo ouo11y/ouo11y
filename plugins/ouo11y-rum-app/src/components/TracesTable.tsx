@@ -4,6 +4,7 @@ import { type GrafanaTheme2 } from '@grafana/data';
 import { Badge, ClipboardButton, LinkButton, useStyles2 } from '@grafana/ui';
 import type { TraceSummary } from '../api/types';
 import { formatDateTime, formatDuration, shortId } from '../utils/format';
+import { traceDisplayName } from '../utils/session';
 
 export function TracesTable({ traces }: { traces: TraceSummary[] }) {
   const styles = useStyles2(getStyles);
@@ -32,7 +33,9 @@ export function TracesTable({ traces }: { traces: TraceSummary[] }) {
         <tbody>
           {traces.map((t) => (
             <tr key={t.trace_id}>
-              <td className={styles.name}>{t.root_name}</td>
+              <td className={styles.name} title={t.root_name} data-testid="trace-name">
+                {traceDisplayName(t)}
+              </td>
               <td>{t.root_service}</td>
               <td>{formatDateTime(t.start)}</td>
               <td className={styles.num}>{formatDuration(t.duration_ms)}</td>

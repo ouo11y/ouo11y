@@ -18,7 +18,7 @@ browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[0].ur
 |---|---|
 | `/a/ouo11y-rum-app/overview?from=now-24h&to=now` | stat tiles + version table per platform, Grafana time range picker (state in the URL) |
 | `/a/ouo11y-rum-app/sessions?from&to&platform&status&service&version&user&limit` | sessions table; row click opens the detail |
-| `/a/ouo11y-rum-app/sessions/<session_id>?from&to` | header, timeline, replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge), traces |
+| `/a/ouo11y-rum-app/sessions/<session_id>?from&to` | header (device, OS, build, environment), replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge) with the activity list beside it, traces, logs; the Timeline panel behind the `sessionTimelinePanel` toggle |
 | `/plugins/ouo11y-rum-app` | configuration: `rumApiUrl`, `readToken` (write-only), "Test connection" |
 
 ## Replay players
@@ -31,7 +31,7 @@ the same way.
 |---|---|---|
 | `rrweb` | `/replay/events` | `ReplayPlayer` (rrweb-player in a sandboxed iframe) |
 | `frames` | `/replay/frames` (base64 JPEG + touches) | `FramePlayer` |
-| `video` | `/replay/video` manifest + `/replay/video/{seq}` mp4 (ADR-0008) | `VideoPlayer`: one `<video>` per segment (current + next preloaded) whose `src` is the proxy URL (`/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay/video/<seq>`); the Grafana session cookie authenticates it and the proxy passes `Range`/206 through. The replay clock is the master, gaps keep the previous segment's last frame, touches fade over 500 ms, "Sentry replay" badge from `source.vendor`. Keys: space, arrows (one frame), shift+arrows (one segment). |
+| `video` | `/replay/video` manifest + `/replay/video/{seq}` mp4 (ADR-0008) | `VideoPlayer`: one `<video>` per segment (current and both neighbours preloaded; on a seek the frame on screen stays until the new segment can paint) whose `src` is the proxy URL (`/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay/video/<seq>`); the Grafana session cookie authenticates it and the proxy passes `Range`/206 through. The replay clock is the master, gaps keep the previous segment's last frame, touches fade over 500 ms, "Sentry replay" badge from `source.vendor`. Keys: space, arrows (one frame), shift+arrows (one segment). |
 
 ## Configuration
 
@@ -91,9 +91,26 @@ apps:
     disabled: false
     jsonData:
       rumApiUrl: http://rum-api:8080
+      featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"
     secureJsonData:
       readToken: ${OUO_READ_TOKEN}
 ```
+
+### Feature toggles
+
+Grafana-style toggles for plugin features that are not on by default. They are stored as
+`jsonData.featureToggles` (a comma separated string or a list of names) and provisioned from the environment
+variable `OUO_FEATURE_TOGGLES_ENABLE`, comma separated like Grafana's `GF_FEATURE_TOGGLES_ENABLE`:
+
+| Toggle | Default | What it does |
+|---|---|---|
+| `sessionTimelinePanel` | off | Shows the Timeline panel on the session page, left of the replay. Off: the page shows the replay with only its activity list beside the player (the activity list lists the same events). |
+
+- **Compose:** `OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel` in `.env` (or the shell) reaches Grafana, and
+  the provisioning file sets `featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"`; restart Grafana after a change.
+- **Helm:** `grafana.plugin.featureToggles: [sessionTimelinePanel]` in the values; the chart passes it to
+  Grafana as `OUO_FEATURE_TOGGLES_ENABLE` and provisions it the same way.
+- Unknown names are ignored. The configuration page lists every toggle and whether it is on.
 
 Provisioning is applied on every Grafana start and overwrites settings saved from the configuration
 page, so in a provisioned install the token is rotated in `.env` and Grafana is restarted.

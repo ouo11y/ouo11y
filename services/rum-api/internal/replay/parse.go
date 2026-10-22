@@ -113,6 +113,12 @@ func parseChunk(body []byte, maxVideoBytes int64) (Chunk, error) {
 				return c, fmt.Errorf("%w: video: %v", ErrInvalid, err)
 			}
 			videoValEnd = dec.InputOffset()
+		case "masked":
+			var m bool
+			if err := dec.Decode(&m); err != nil {
+				return c, fmt.Errorf("%w: masked: %v", ErrInvalid, err)
+			}
+			c.Masked = &m
 		case "source":
 			if err := dec.Decode(&sourceRaw); err != nil {
 				return c, fmt.Errorf("%w: source: %v", ErrInvalid, err)
@@ -149,7 +155,7 @@ func parseChunk(body []byte, maxVideoBytes int64) (Chunk, error) {
 			return c, fmt.Errorf("%w: events missing", ErrInvalid)
 		}
 		// rrweb chunks never carry frames metadata.
-		c.Viewport, c.Platform = nil, ""
+		c.Viewport, c.Platform, c.Masked = nil, "", nil
 		if c.EndedAt < c.StartedAt {
 			c.EndedAt = c.StartedAt
 		}

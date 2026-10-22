@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugin 0.8.0 bridge parity</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --warn: #b26a00; --bad: #c62828; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --warn: #f0b252; --bad: #ff7b7b; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); margin: 0 auto; }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 13px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 720px) { .row3 { grid-template-columns: 1fr; } }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Plugin 0.8.0: bridge parity C1 to C8, B1 and the F4 player fixes</h1>
+<p class="lead">grafana-plugin, 2026-10-23. Env <code>b1-plugin-bridge</code> (<code>ouo-env</code>, Grafana 13.2.1, admin / testing567),
+before = plugin 0.7.0 with rum-api from <code>main</code>, after = plugin 0.8.0 with this branch's rum-api. Two real sessions:
+a bridged Sentry session (golden capture <code>ios-rn-8.30.0/realtap</code>, @sentry/react-native 8.30.0, 6 real taps, re-sent to the env's bridge;
+before <code>F3A44DE4…</code>, after <code>53FBD4B3…</code>, the same envelopes with re-keyed ids) and an ouo SDK <code>frames</code> session
+from <code>examples/sentry-mobile</code> in <code>ouo</code> mode on my own iPhone 18 Pro simulator, driven by the perf XCUITest journey (19 real
+taps; before <code>374ab806…</code>, after <code>fd3ae381…</code>, the same journey run again so the new chunks carry <code>masked</code>).
+Screenshots: headless Chrome (Playwright), 1600 x 1000, dark theme; every mp4 segment request delayed 1.5 s in both runs so loading is visible.</p>
+
+<h2>Summary</h2>
+<div class="scroll"><table>
+<tr><th>Item</th><th>Before (0.7.0)</th><th>After (0.8.0)</th><th>Tests</th></tr>
+<tr><td>C1 stack trace</td><td class="bad">type and message only</td><td class="ok">"Show stack trace (13 frames)" on errors in the activity list, Timeline and Logs</td><td><code>StackTrace.test</code>, <code>ReplayActivity.test</code>, <code>LogsPanel.test</code></td></tr>
+<tr><td>C2 header</td><td class="bad">user, platform, service only</td><td class="ok">Device iPhone19,2 · OS iOS 27.0 · Build 1.0.0 (build 6) · Environment development (rum-api <code>context</code>)</td><td><code>session.test</code>, <code>SessionDetail.test</code>, Go <code>TestSessionContext</code></td></tr>
+<tr><td>C3 frames taps</td><td class="bad">"Taps 0" with 91 touches</td><td class="ok">"Taps 19" (19 taps scripted)</td><td><code>SessionDetail.test</code></td></tr>
+<tr><td>C4 first screen</td><td class="bad">Navigation Home at −3.6 s, above "Session start"</td><td class="ok">"Session start" first, Home at +0.0 s (tooltip keeps −3.6 s)</td><td><code>session.test</code>, <code>StackTrace.test</code> (Timeline), <code>SessionDetail.test</code></td></tr>
+<tr><td>C6 trace names</td><td class="bad">25 × <code>HTTP GET</code> / <code>HTTP POST</code></td><td class="ok"><code>GET /api/products/p-1002</code>, <code>POST /api/cart</code>, … (rum-api <code>root_url_path</code>)</td><td><code>TracesTable.test</code>, <code>session.test</code>, Go <code>TestSessionTracesRootURLPath</code></td></tr>
+<tr><td>C7 exception log line</td><td class="bad"><code>exception demo_action=handled-error</code> (or <code>session_previous_id=…</code>)</td><td class="ok"><code>Error: sentry-demo handled error: coupon service unavailable</code> + stack</td><td><code>LogsPanel.test</code>, <code>session.test</code></td></tr>
+<tr><td>C8 masking</td><td class="bad">"masking is applied on the device by the recording SDK" (the demo records unmasked)</td><td class="ok">badge "not masked" (Sentry, <code>maskAllText: false</code>) / "masked" (ouo SDK)</td><td><code>masking.test</code>, <code>SessionDetail.test</code>, Go <code>TestMaskedFlag</code></td></tr>
+<tr><td>B1 layout</td><td>Timeline panel + replay</td><td class="ok">toggle off: replay + activity list only; <code>OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel</code> brings the Timeline back (verified through compose provisioning)</td><td><code>featureToggles.test</code>, <code>SessionDetail.test</code>, <code>AppConfig.test</code>, <code>helm template</code></td></tr>
+<tr><td>F4 seek</td><td class="bad">black stage "Loading segment 6…"</td><td class="ok">previous frame stays, small "loading segment 6…" tag</td><td><code>VideoPlayer.test</code>, <code>video.test</code></td></tr>
+<tr><td>F4 one clock</td><td class="bad">same tap +11.5 s (Timeline) vs +11.2 s (list)</td><td class="ok">+11.4 s in both, player label on the same clock</td><td><code>SessionDetail.test</code>, <code>StackTrace.test</code>, <code>VideoPlayer.test</code>, <code>ReplayActivity.test</code></td></tr>
+</table></div>
+<p>Commands: <code>npm run -w plugins/ouo11y-rum-app test</code> (23 suites, 155 tests), <code>typecheck</code>, <code>lint</code> (0 errors, 3 old <code>Select</code> warnings), <code>build</code>;
+<code>cd services/rum-api &amp;&amp; go vet ./... &amp;&amp; go test ./...</code> (pass, including the MinIO S3 tests); <code>helm lint deploy/helm/ouo</code>.</p>
+
+<h2>B1: session page layout and the feature toggle</h2>
+<figure><img src="b1-before-video-page.jpg" alt="Before: Timeline panel left of the replay (bridged session)." loading="lazy"><figcaption>Before: Timeline panel left of the replay (bridged session).</figcaption></figure>
+<figure><img src="b1-after-off-video-page.jpg" alt="After, toggle off (default): header with device, OS, build and environment; the replay with only its activity list beside it." loading="lazy"><figcaption>After, toggle off (default): header with device, OS, build and environment; the replay with only its activity list beside it.</figcaption></figure>
+<figure><img src="b1-after-on-video-page.jpg" alt="After, OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel: the Timeline panel is back; it and the list start with Session start at +0.0s." loading="lazy"><figcaption>After, OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel: the Timeline panel is back; it and the list start with Session start at +0.0s.</figcaption></figure>
+<figure><img src="b1-after-on-config.jpg" alt="Configuration page lists the toggles and their state (here provisioned on). Saving the page keeps jsonData.featureToggles." loading="lazy"><figcaption>Configuration page lists the toggles and their state (here provisioned on). Saving the page keeps jsonData.featureToggles.</figcaption></figure>
+<pre>$ OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel deploy/envs/ouo-env up b1-plugin-bridge
+$ curl -u admin:… grafana.b1-plugin-bridge.ouo.localhost/api/plugins/ouo11y-rum-app/settings | jq .jsonData
+{"featureToggles": "sessionTimelinePanel", "rumApiUrl": "http://rum-api:8080"}      # without the variable: "featureToggles": ""
+$ helm template … --set 'grafana.plugin.featureToggles={sessionTimelinePanel}'  →  env OUO_FEATURE_TOGGLES_ENABLE="sessionTimelinePanel"</pre>
+<div class="row"><figure><img src="b1-before-frames-page.jpg" alt="Before: ouo frames session." loading="lazy"><figcaption>Before: ouo frames session.</figcaption></figure><figure><img src="b1-after-off-frames-page.jpg" alt="After, toggle off: ouo frames session." loading="lazy"><figcaption>After, toggle off: ouo frames session.</figcaption></figure></div>
+
+<h2>C1: stack traces</h2>
+<div class="row"><figure><img src="b1-before-frames-error-row.jpg" alt="Before: the handled error in the Timeline: type and message, no stack." loading="lazy"><figcaption>Before: the handled error in the Timeline: type and message, no stack.</figcaption></figure><figure><img src="b1-after-off-frames-error-row.jpg" alt="After: the same error in the activity list, stack expanded (13 frames)." loading="lazy"><figcaption>After: the same error in the activity list, stack expanded (13 frames).</figcaption></figure></div>
+<figure><img src="b1-after-off-video-error-row.jpg" alt="After: the bridged session's error (A1: a captureMessage the bridge files as an exception) with its in-app frames." loading="lazy"><figcaption>After: the bridged session's error (A1: a captureMessage the bridge files as an exception) with its in-app frames.</figcaption></figure>
+
+<h2>C2: session header</h2>
+<figure><img src="b1-before-video-header.jpg" alt="Before: no device, OS, build or environment." loading="lazy"><figcaption>Before: no device, OS, build or environment.</figcaption></figure>
+<figure><img src="b1-after-off-video-header.jpg" alt="After, bridged session: Device iPhone19,2, OS iOS 27.0, Build 1.0.0 (build 6), Environment development." loading="lazy"><figcaption>After, bridged session: Device iPhone19,2, OS iOS 27.0, Build 1.0.0 (build 6), Environment development.</figcaption></figure>
+<figure><img src="b1-after-off-frames-header.jpg" alt="After, ouo SDK session: Device Apple (the ouo SDK sends the manufacturer, not the model, unless the app passes expo-device values), OS iOS 27.0, Environment staging; no build row because the ouo SDK sends no build number." loading="lazy"><figcaption>After, ouo SDK session: Device Apple (the ouo SDK sends the manufacturer, not the model, unless the app passes expo-device values), OS iOS 27.0, Environment staging; no build row because the ouo SDK sends no build number.</figcaption></figure>
+
+<h2>C3: taps in frames replays</h2>
+<div class="row"><figure><img src="b1-before-frames-activity.jpg" alt="Before: Taps 0 although 91 touches are drawn." loading="lazy"><figcaption>Before: Taps 0 although 91 touches are drawn.</figcaption></figure><figure><img src="b1-after-off-frames-activity.jpg" alt="After: Taps 19, the 19 scripted taps and scrolls." loading="lazy"><figcaption>After: Taps 19, the 19 scripted taps and scrolls.</figcaption></figure></div>
+
+<h2>C4: nothing before the session start, and F4: one clock</h2>
+<div class="row"><figure><img src="b1-before-video-timeline.jpg" alt="Before: Timeline: Navigation Home at −3.6 s, before Session start; the first tap at +11.5 s." loading="lazy"><figcaption>Before: Timeline: Navigation Home at −3.6 s, before Session start; the first tap at +11.5 s.</figcaption></figure><figure><img src="b1-after-on-video-timeline.jpg" alt="After: Timeline: Session start first, Home at +0.0 s; the first tap at +11.4 s." loading="lazy"><figcaption>After: Timeline: Session start first, Home at +0.0 s; the first tap at +11.4 s.</figcaption></figure></div>
+<div class="row"><figure><img src="b1-before-video-activity.jpg" alt="Before: activity list (replay clock): Home −3.7 s, Session start −0.1 s, the same tap +11.2 s." loading="lazy"><figcaption>Before: activity list (replay clock): Home −3.7 s, Session start −0.1 s, the same tap +11.2 s.</figcaption></figure><figure><img src="b1-after-on-video-activity.jpg" alt="After: activity list (session clock): Session start +0.0 s, Home +0.0 s, the tap +11.4 s." loading="lazy"><figcaption>After: activity list (session clock): Session start +0.0 s, Home +0.0 s, the tap +11.4 s.</figcaption></figure></div>
+<p>The tap now reads the same in both lists: both use the session start as zero, and the Timeline shows a tap at its touch start
+(the time the list and the player use) instead of the <code>ui.tap</code> breadcrumb, which the SDK writes about 100 ms later when the
+touch ends. The players' time labels add the replay's offset from the session start (+0.3 s on the frames session).</p>
+
+<h2>C6: trace names</h2>
+<div class="row"><figure><img src="b1-before-traces.jpg" alt="Before: every ouo SDK trace is HTTP GET or HTTP POST." loading="lazy"><figcaption>Before: every ouo SDK trace is HTTP GET or HTTP POST.</figcaption></figure><figure><img src="b1-after-off-traces.jpg" alt="After: GET /api/products/p-1002, POST /api/cart, … (method + url.path), raw name as tooltip." loading="lazy"><figcaption>After: GET /api/products/p-1002, POST /api/cart, … (method + url.path), raw name as tooltip.</figcaption></figure></div>
+
+<h2>C7: exception line in Logs</h2>
+<figure><img src="b1-before-logs-exception.jpg" alt="Before: the exception record reads 'exception demo_action=handled-error' (a session with a previous session also shows session_previous_id=…)." loading="lazy"><figcaption>Before: the exception record reads 'exception demo_action=handled-error' (a session with a previous session also shows session_previous_id=…).</figcaption></figure>
+<figure><img src="b1-after-off-logs-exception.jpg" alt="After: Error: sentry-demo handled error: coupon service unavailable, the app attribute, and the stack; session_* metadata hidden." loading="lazy"><figcaption>After: Error: sentry-demo handled error: coupon service unavailable, the app attribute, and the stack; session_* metadata hidden.</figcaption></figure>
+
+<h2>C8: real masking state</h2>
+<p>Before, both info lines were fixed sentences: "masking is applied on the device by the recording SDK" (video) and "text, inputs and images are masked on the device before upload" (frames), although the demo's Sentry replay is recorded with masking off.</p>
+<div class="row"><figure><img src="b1-after-video-info.jpg" alt="After, bridged session: 'not masked' (every chunk masked: false, from the replay's options event)." loading="lazy"><figcaption>After, bridged session: 'not masked' (every chunk masked: false, from the replay's options event).</figcaption></figure><figure><img src="b1-after-frames-info.jpg" alt="After, ouo SDK session: 'masked' (chunks masked: true)." loading="lazy"><figcaption>After, ouo SDK session: 'masked' (chunks masked: true).</figcaption></figure></div>
+<pre>GET /v1/sessions/53FBD4B3…/replay  →  "masked": false, chunks[0..27].masked = false
+GET /v1/sessions/fd3ae381…/replay  →  "masked": true,  chunks[0..10].masked = true
+chunks stored before this rum-api: no flag → "masking unknown"</pre>
+
+<h2>F4: black frame on seek</h2>
+<p>Click on an activity row 6 segments ahead, every segment request delayed 1.5 s (same for both runs).</p>
+<div class="row3"><figure><img src="b1-before-seek-300ms.jpg" alt="Before, 300 ms after the seek: black stage, 'Loading segment 6…'." loading="lazy"><figcaption>Before, 300 ms after the seek: black stage, 'Loading segment 6…'.</figcaption></figure><figure><img src="b1-after-off-seek-300ms.jpg" alt="After, 300 ms: the previous frame stays, small 'loading segment 6…' tag." loading="lazy"><figcaption>After, 300 ms: the previous frame stays, small 'loading segment 6…' tag.</figcaption></figure><figure><img src="b1-after-off-seek-3s.jpg" alt="After, 3 s: segment 6 painted, tag gone." loading="lazy"><figcaption>After, 3 s: segment 6 painted, tag gone.</figcaption></figure></div>
+<p>Neighbouring segments (previous and next) are mounted and preloaded, so playing on and stepping back never wait; a far seek keeps the
+segment that is on screen mounted and visible until the new one has fired <code>loadeddata</code> (not seeking) or <code>seeked</code>.</p>
+
+<h2>After #38 (bridge parity in the receiver) merged</h2>
+<p>Main merged into this branch; env rebuilt with #38's receiver; #38's golden capture <code>selfhosted</code> (N2 run, 2026-10-17)
+re-sent with re-keyed ids. Crashed session <code>9BAB4E51…</code>: 2 errors (the info <code>captureMessage</code> is no longer one), 1 crash;
+the next session <code>B1699F86…</code> carries <code>session.previous_id</code>.</p>
+<ul>
+<li><b>Device / OS context</b> on the bridged records reaches the header: Device iPhone19,2, OS iOS 27.0, Build 1.0.0 (build 1), Environment development.</li>
+<li><b><code>sentry.message</code></b> is a "Message" row under Logs (INFO in the Logs panel), not under Errors; the Errors filter lists 2 failed requests, 1 error log, 2 errors and the fatal crash.</li>
+<li><b><code>session.previous_id</code></b>: new "Previous session" link in the header; <code>session_*</code> and #38's new <code>network_connection_type</code> are hidden from log lines.</li>
+<li><b>Span names:</b> #38 names http client spans by method only (<code>GET</code>, semconv) with <code>url.path</code> as an attribute; trace roots stay the transaction names (<code>action fetch-ok</code>), so the table shows those. A root named <code>GET</code> would read <code>GET /path</code> like <code>HTTP GET</code> (rum-api and plugin match both). Tempo search returns no traces for this 6-day-old capture, so the table itself is empty here; checked through <code>/api/v2/traces/&lt;id&gt;</code>.</li>
+</ul>
+<figure><img src="b1-s38-healthy-page.jpg" alt="After #38: header of the follow-up session with Previous session 9BAB4E51…, device, OS, build, environment." loading="lazy"><figcaption>After #38: header of the follow-up session with Previous session 9BAB4E51…, device, OS, build, environment.</figcaption></figure>
+<div class="row"><figure><img src="b1-s38-crashed-message.jpg" alt="sentry.message row: Message, under Logs." loading="lazy"><figcaption>sentry.message row: Message, under Logs.</figcaption></figure><figure><img src="b1-s38-crashed-crash.jpg" alt="The native crash with its 20 frames." loading="lazy"><figcaption>The native crash with its 20 frames.</figcaption></figure></div>
+<figure><img src="b1-s38-crashed-logs.jpg" alt="Logs: handled error, the info message (INFO) and the fatal crash, no metadata attributes." loading="lazy"><figcaption>Logs: handled error, the info message (INFO) and the fatal crash, no metadata attributes.</figcaption></figure>
+
+<h2>Notes</h2>
+<ul>
+<li>rum-api grew three additive fields: replay meta <code>masked</code> (C8), session detail <code>context</code> (C2: OS and environment are dropped from timeline attributes as noise, so the plugin could not read them), trace <code>root_url_path</code> (C6: Tempo search only returns the root name). With an older rum-api the plugin shows "masking unknown", the device and build rows from timeline attributes, and the raw trace names.</li>
+<li>The bridged session came from a golden capture, not a fresh simulator run: the app built in <code>sentry</code> mode sent nothing to the bridge (open, <code>project/kb/env-test-sessions.md</code>). The capture is a real SDK run with real taps; its timestamps are from 2026-10-16.</li>
+<li>Not changed: the receiver (another session owns A1 and the new context attributes; the plugin reads whichever attributes arrive).</li>
+</ul>
+</body>
+</html>
