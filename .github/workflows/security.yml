@@ -1,0 +1,86 @@
+# Dependency vulnerability checks (roadmap B7). Container images are scanned with Trivy in
+# ci.yml (`images` job) where they are built.
+#
+#   govulncheck  every Go module, with the newest Go 1.26 patch release (the standard library
+#                is part of the scan). Reports only vulnerabilities reachable from our code,
+#                which govulncheck lists with the version that fixes them: any finding fails.
+#   npm audit    runtime dependencies of the workspaces (what ships in the SDKs and the plugin)
+#                fail at high and above; dev tooling is listed in the summary, not gating.
+#
+# Runs on pull requests that touch Go or npm dependencies or code, every Monday (new advisories
+# appear without code changes), and on demand. Renovate (.github/renovate.json5) opens the
+# fixing PRs.
+name: security
+
+on:
+  pull_request:
+    paths:
+      - '**/go.mod'
+      - '**/go.sum'
+      - '**/*.go'
+      - 'package-lock.json'
+      - '**/package.json'
+      - .github/workflows/security.yml
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.26'
+          check-latest: true
+          cache-dependency-path: '**/go.sum'
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+      - name: govulncheck every module
+        run: |
+          failed=""
+          for mod in $(git ls-files '*go.mod' | xargs -n1 dirname | sort); do
+            echo "::group::$mod"
+            if ! (cd "$mod" && "$(go env GOPATH)/bin/govulncheck" ./...); then
+              failed="$failed $mod"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::reachable vulnerabilities in:$failed (open the groups above for the fixed-in versions)"
+            exit 1
+          fi
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      # npm audit reads package-lock.json; no install needed.
+      - name: All dependencies (informational)
+        run: |
+          {
+            echo "## npm audit, all dependencies (dev tooling included, not gating)"
+            echo
+            echo '```'
+            npm audit --audit-level=high 2>&1 | tail -6 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Runtime dependencies, high and above (gating)
+        run: npm audit --omit=dev --audit-level=high

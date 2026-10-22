@@ -1,61 +1,105 @@
 # Builds the Grafana app plugin, zips it as ouo11y-rum-app-<version>.zip and attaches it to a
-# GitHub release when a plugin tag is pushed (plugin-v0.3.0 -> plugins/ouo11y-rum-app 0.3.0).
+# GitHub release when the founder pushes a plugin tag (plugin-v0.7.0 -> plugins/ouo11y-rum-app 0.7.0).
+# Release assets: the zip, its CycloneDX SBOM (`npm sbom`, runtime dependencies) and SHA256SUMS.
+# Build provenance is attested when the repository is public (GitHub attestations are not
+# available to private repositories on the free plan).
 #
-# Signing is optional and off until the secret exists:
+# Signing is prepared and off until the grafana.com org and its token exist:
 #   GRAFANA_ACCESS_POLICY_TOKEN  (secret)  access policy token with the plugins:write scope,
-#                                           created at grafana.com for the publishing org
+#                                           created at grafana.com for the ouo11y org
 #   GRAFANA_ROOT_URLS            (variable) comma separated Grafana root URLs allowed to load
 #                                           the private signature, e.g. https://grafana.example.com
 # Without the token the zip is unsigned and Grafana needs
 # GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app. See project/kb/release-packaging.md.
+#
+# Dry run (no release, the zip is kept as a run artifact for 7 days):
+#   Actions > release-plugin > Run workflow with the tag to rehearse, or any pull request that
+#   changes this file (rehearses plugin-v<package.json version>).
 name: release-plugin
 
 on:
   push:
     tags:
       - 'plugin-v*'
+  pull_request:
+    paths:
+      - .github/workflows/release-plugin.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rehearse, e.g. plugin-v0.7.0 (dry run: builds, signs if configured, zips, releases nothing)'
+        required: true
+        type: string
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: release-plugin-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 env:
   PLUGIN_ID: ouo11y-rum-app
   PLUGIN_DIR: plugins/ouo11y-rum-app
-  # Exposed at workflow level so the `if: env.GRAFANA_ACCESS_POLICY_TOKEN` checks below
-  # see it (a step-level env is not visible to that step's own `if`).
-  GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write       # gh release create
+      id-token: write       # build attestation (public repo only)
+      attestations: write
+    env:
+      DRY_RUN: ${{ github.event_name != 'push' }}
+      REPO_PUBLIC: ${{ github.event.repository.private == false }}
+      # Job-level so the `if:` checks below can see it (a step's own env is not visible to its `if`).
+      GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
 
       - name: Check the tag matches package.json
         id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          version="${GITHUB_REF_NAME#plugin-v}"
+          case "$GITHUB_EVENT_NAME" in
+            push)              tag="$GITHUB_REF_NAME" ;;
+            workflow_dispatch) tag="$INPUT_TAG" ;;
+            *)                 tag="plugin-v$(node -p "require('./$PLUGIN_DIR/package.json').version")" ;;
+          esac
+          case "$tag" in plugin-v*) ;; *) echo "::error::$tag is not a plugin-v<version> tag"; exit 1 ;; esac
+          version="${tag#plugin-v}"
           actual=$(node -p "require('./$PLUGIN_DIR/package.json').version")
           if [ "$actual" != "$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME says $version but $PLUGIN_DIR/package.json says $actual"
+            echo "::error::tag $tag says $version but $PLUGIN_DIR/package.json says $actual"
             exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          prerelease=false
+          case "$version" in *-*) prerelease=true ;; esac
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
 
       - run: npm ci
-      - name: Build
-        run: npm run build -w "$PLUGIN_DIR"
-      - name: Test
-        run: npm run test -w "$PLUGIN_DIR"
+      - name: Build and test
+        run: |
+          npm run build -w "$PLUGIN_DIR"
+          npm run test -w "$PLUGIN_DIR"
       - name: Check plugin.json carries the version
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           built=$(node -p "require('./$PLUGIN_DIR/dist/plugin.json').info.version")
-          test "$built" = "${{ steps.ver.outputs.version }}" || { echo "::error::dist/plugin.json has $built"; exit 1; }
+          test "$built" = "$VERSION" || { echo "::error::dist/plugin.json has $built"; exit 1; }
 
       # Private signature: only runs when the secret is configured. Grafana rejects a private
       # signature from any root URL that is not in --rootUrls.
@@ -63,41 +107,58 @@ jobs:
         if: env.GRAFANA_ACCESS_POLICY_TOKEN != ''
         working-directory: ${{ env.PLUGIN_DIR }}
         env:
-          GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
           GRAFANA_ROOT_URLS: ${{ vars.GRAFANA_ROOT_URLS }}
         run: |
           if [ -z "$GRAFANA_ROOT_URLS" ]; then
             echo "::error::GRAFANA_ACCESS_POLICY_TOKEN is set but the GRAFANA_ROOT_URLS variable is empty"
             exit 1
           fi
-          npx --yes @grafana/sign-plugin@3 --rootUrls "$GRAFANA_ROOT_URLS"
+          npx --yes @grafana/sign-plugin@3.3.3 --rootUrls "$GRAFANA_ROOT_URLS"
           test -f dist/MANIFEST.txt
           echo "signed=true" >> "$GITHUB_ENV"
 
       - name: Unsigned notice
         if: env.GRAFANA_ACCESS_POLICY_TOKEN == ''
         run: |
-          echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN not set; publishing an UNSIGNED plugin. Grafana needs GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=$PLUGIN_ID"
+          echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN not set; the zip is UNSIGNED. Grafana needs GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=$PLUGIN_ID"
           echo "signed=false" >> "$GITHUB_ENV"
 
-      - name: Zip
+      - name: Zip, SBOM and checksums
         id: zip
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          version="${{ steps.ver.outputs.version }}"
-          out="$PLUGIN_ID-$version.zip"
-          rm -rf stage && mkdir stage
+          out="$PLUGIN_ID-$VERSION.zip"
+          rm -rf stage dist-release && mkdir -p stage dist-release
           cp -R "$PLUGIN_DIR/dist" "stage/$PLUGIN_ID"
-          (cd stage && zip -qr "../$out" "$PLUGIN_ID")
+          (cd stage && zip -qr "../dist-release/$out" "$PLUGIN_ID")
+          # shellcheck disable=SC2016 # the single-quoted part is a node script
+          npm sbom -w "$PLUGIN_DIR" --omit dev --sbom-format cyclonedx \
+            | node -e '
+                const s = JSON.parse(require("fs").readFileSync(0));
+                Object.assign(s.metadata.component, { name: process.argv[1], version: process.argv[2], type: "application", "bom-ref": `${process.argv[1]}@${process.argv[2]}` });
+                process.stdout.write(JSON.stringify(s, null, 2));
+              ' "$PLUGIN_ID" "$VERSION" > "dist-release/$PLUGIN_ID-$VERSION.cdx.json"
+          cd dist-release
+          sha256sum ./*.zip ./*.cdx.json > SHA256SUMS
+          # Grafana's catalog tooling still reads these two next to the zip.
           sha1sum "$out" > "$out.sha1"
           md5sum "$out" > "$out.md5"
-          echo "file=$out" >> "$GITHUB_OUTPUT"
+          cat SHA256SUMS
           unzip -l "$out" | head -20
 
+      - name: Build provenance attestation
+        if: env.DRY_RUN != 'true' && env.REPO_PUBLIC == 'true'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: dist-release/*.zip
+
       - name: Release notes from the plugin changelog
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          version="${{ steps.ver.outputs.version }}"
           {
-            echo "Grafana app plugin \`$PLUGIN_ID\` $version"
+            echo "Grafana app plugin \`$PLUGIN_ID\` $VERSION"
             echo
             if [ "$signed" = "true" ]; then
               echo "Signed (private signature) for the root URLs configured at release time."
@@ -106,27 +167,37 @@ jobs:
             fi
             echo
             echo "Install: unzip into the Grafana plugins directory so that \`<plugins>/$PLUGIN_ID/plugin.json\` exists, restart Grafana."
+            echo "Assets: the zip, its CycloneDX SBOM and SHA256SUMS. Compatibility: docs/compatibility.md."
             echo
             echo "## Changes"
             echo
-            # Section of plugins/ouo11y-rum-app/CHANGELOG.md for this version, if present.
-            awk -v v="$version" '
-              /^## / { show = index($0, v) > 0 ; if (show) { next } }
-              show { print }
-            ' "$PLUGIN_DIR/CHANGELOG.md"
+            .github/scripts/changelog-section.sh "$PLUGIN_DIR/CHANGELOG.md" "$VERSION"
           } > release-notes.md
-          cat release-notes.md
+          {
+            if [ "$DRY_RUN" = true ]; then echo "## Dry run of plugin $VERSION: nothing released"; else echo "## Released plugin $VERSION"; fi
+            echo
+            echo '```'
+            cat dist-release/SHA256SUMS
+            echo '```'
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub release and attach the zip
+        if: env.DRY_RUN != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          PRERELEASE: ${{ steps.ver.outputs.prerelease }}
         run: |
-          prerelease=""
-          case "${{ steps.ver.outputs.version }}" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$PLUGIN_ID ${{ steps.ver.outputs.version }}" \
-            --notes-file release-notes.md \
-            $prerelease \
-            "${{ steps.zip.outputs.file }}" \
-            "${{ steps.zip.outputs.file }}.sha1" \
-            "${{ steps.zip.outputs.file }}.md5"
+          set -- --verify-tag --latest=false --title "$PLUGIN_ID $VERSION" --notes-file release-notes.md
+          [ "$PRERELEASE" = true ] && set -- "$@" --prerelease
+          gh release create "$TAG" "$@" dist-release/*
+
+      - name: Keep the dry-run zip
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.PLUGIN_ID }}-${{ steps.ver.outputs.version }}
+          path: dist-release/
+          retention-days: 7

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.11.2/schemas/config.json",
+  "bootstrap-sha": "851692c30db75d768a7a49a7369ff636b9f4d25c",
+  "separate-pull-requests": true,
+  "skip-github-release": true,
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "tag-separator": "-",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "Added" },
+    { "type": "fix", "section": "Fixed" },
+    { "type": "perf", "section": "Changed" },
+    { "type": "revert", "section": "Reverted" },
+    { "type": "deps", "section": "Dependencies" },
+    { "type": "docs", "section": "Documentation", "hidden": true },
+    { "type": "chore", "section": "Miscellaneous", "hidden": true },
+    { "type": "refactor", "section": "Changed", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "build", "section": "Build", "hidden": true },
+    { "type": "ci", "section": "CI", "hidden": true }
+  ],
+  "packages": {
+    "sdk/browser": {
+      "release-type": "node",
+      "component": "browser",
+      "extra-files": [
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/browser'].version" }
+      ]
+    },
+    "sdk/react-native": {
+      "release-type": "node",
+      "component": "react-native",
+      "extra-files": [
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/react-native'].version" }
+      ]
+    },
+    "sdk/ios": {
+      "release-type": "simple",
+      "component": "ios"
+    },
+    "plugins/ouo11y-rum-app": {
+      "release-type": "node",
+      "component": "plugin",
+      "extra-files": [
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['plugins/ouo11y-rum-app'].version" }
+      ]
+    },
+    "collector": {
+      "release-type": "go",
+      "component": "collector",
+      "extra-files": [
+        { "type": "generic", "path": "builder.yaml" }
+      ]
+    },
+    "services/rum-api": {
+      "release-type": "go",
+      "component": "rum-api"
+    },
+    "deploy/images/grafana": {
+      "release-type": "simple",
+      "component": "grafana"
+    },
+    "deploy/helm/ouo": {
+      "release-type": "go",
+      "component": "chart",
+      "extra-files": [
+        { "type": "generic", "path": "Chart.yaml" }
+      ]
+    }
+  }
+}

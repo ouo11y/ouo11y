@@ -1,0 +1,80 @@
+# Release PRs, one per component, from conventional commits (release-please, manifest mode).
+# Config: .github/release-please/config.json; versions: .github/release-please/manifest.json.
+# Policy and the founder's checklist: docs/releasing.md.
+#
+#   push to main         -> opens or updates "chore(main): release <component> <version>" PRs
+#                           (version bump + CHANGELOG section). Merging one creates NO tag:
+#                           skip-github-release is on, tags stay with the founder.
+#   founder pushes a tag -> mark-tagged relabels the merged release PR "autorelease: tagged".
+#                           Until then release-please opens no new release PRs (it refuses to
+#                           while a merged PR is still "autorelease: pending").
+#
+# Token: RELEASE_PLEASE_TOKEN (fine-grained PAT, this repo only, Contents + Pull requests +
+# Issues read/write) when set, so the release PRs trigger release-check.yml and ci.yml; PRs
+# opened with GITHUB_TOKEN trigger no workflows, and GITHUB_TOKEN may only open PRs when
+# "Allow GitHub Actions to create and approve pull requests" is on (Settings > Actions > General).
+name: release-please
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'browser-v*'
+      - 'react-native-v*'
+      - 'ios-v*'
+      - 'plugin-v*'
+      - 'collector-v*'
+      - 'rum-api-v*'
+      - 'grafana-v*'
+      - 'chart-v*'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-prs:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
+          skip-github-release: true
+
+  mark-tagged:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Relabel the merged release PR for this tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          component="${TAG%-v*}"
+          version="${TAG##*-v}"
+          title="chore(main): release $component $version"
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --state merged --label "autorelease: pending" \
+                 --search "\"$title\" in:title" --json number,title \
+                 --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ -z "$pr" ]; then
+            echo "::notice::No merged release PR titled '$title' is pending (a hand-cut tag or an rc); nothing to relabel."
+            exit 0
+          fi
+          gh label create "autorelease: tagged" --repo "$GITHUB_REPOSITORY" --color ededed 2>/dev/null || true
+          gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "autorelease: pending" --add-label "autorelease: tagged"
+          echo "Release PR #$pr for $TAG marked autorelease: tagged" >> "$GITHUB_STEP_SUMMARY"

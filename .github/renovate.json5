@@ -1,0 +1,106 @@
+// Renovate (roadmap B7). Needs the Renovate GitHub App installed on ouo11y/ouo11y
+// (founder, docs/releasing.md "Accounts and secrets"). Policy:
+//  - one run a week (Monday early morning UTC), grouped PRs per ecosystem, majors separate;
+//  - GitHub Actions and Docker images pinned by digest (Go modules and npm packages are
+//    pinned by go.sum and package-lock.json integrity hashes already);
+//  - new releases wait 3 days before Renovate proposes them (lets the registries pull bad ones);
+//  - security advisories bypass the schedule;
+//  - commit titles are conventional (fix(deps) for runtime dependencies, chore(deps) for the
+//    rest), so release-please turns runtime dependency updates into patch releases.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':semanticCommits',
+    ':semanticPrefixFixDepsChoreOthers',
+    'helpers:pinGitHubActionDigests',
+    'docker:pinDigests',
+  ],
+  timezone: 'UTC',
+  schedule: ['before 6am on monday'],
+  minimumReleaseAge: '3 days',
+  internalChecksFilter: 'strict',
+  prConcurrentLimit: 6,
+  prHourlyLimit: 0,
+  labels: ['dependencies'],
+  dependencyDashboard: true,
+  postUpdateOptions: ['gomodTidy', 'gomodUpdateImportPaths'],
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['before 6am on monday'],
+  },
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ['security'],
+    schedule: ['at any time'],
+    minimumReleaseAge: null,
+  },
+  customManagers: [
+    {
+      // ocb manifest: every upstream collector module, pinned to one OTel release.
+      customType: 'regex',
+      managerFilePatterns: ['/^collector/builder\\.yaml$/'],
+      matchStrings: ['gomod: (?<depName>\\S+) (?<currentValue>v\\d+\\.\\d+\\.\\d+)'],
+      datasourceTemplate: 'go',
+    },
+    {
+      // `go install go.opentelemetry.io/collector/cmd/builder@vX` in CI must match builder.yaml.
+      customType: 'regex',
+      managerFilePatterns: ['/^\\.github/workflows/.+\\.ya?ml$/'],
+      matchStrings: ['go install (?<depName>[^@\\s]+)@(?<currentValue>v\\d+\\.\\d+\\.\\d+)'],
+      datasourceTemplate: 'go',
+    },
+  ],
+  packageRules: [
+    {
+      groupName: 'GitHub Actions',
+      matchManagers: ['github-actions'],
+    },
+    {
+      groupName: 'Docker images',
+      matchDatasources: ['docker'],
+    },
+    {
+      groupName: 'Go modules',
+      matchManagers: ['gomod'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
+    },
+    {
+      groupName: 'npm (non-major)',
+      matchManagers: ['npm'],
+      matchUpdateTypes: ['minor', 'patch'],
+    },
+    {
+      // Collector components must all sit on one OpenTelemetry Collector release, the same in
+      // builder.yaml, every component go.mod and the ocb `builder` CI installs. One PR, never automerged.
+      groupName: 'OpenTelemetry Collector',
+      matchPackageNames: [
+        'go.opentelemetry.io/collector{/,}**',
+        'github.com/open-telemetry/opentelemetry-collector-contrib{/,}**',
+        'otel/opentelemetry-collector{,-contrib}',
+      ],
+      schedule: ['before 6am on the first day of the month'],
+    },
+    {
+      groupName: 'Grafana plugin SDK',
+      matchPackageNames: ['@grafana/**'],
+    },
+    {
+      // Our own images: versions move with releases (docs/releasing.md), and the packages are
+      // private, so Renovate could not read them anyway.
+      matchPackageNames: ['ghcr.io/ouo11y/**'],
+      enabled: false,
+    },
+    {
+      // `go 1.26.0` in go.mod is the minimum language version, not the toolchain we build with.
+      matchDatasources: ['golang-version'],
+      matchDepTypes: ['golang'],
+      enabled: false,
+    },
+    {
+      // Node engines in package.json are a floor (Node 24), not a pin.
+      matchDepTypes: ['engines'],
+      enabled: false,
+    },
+  ],
+}

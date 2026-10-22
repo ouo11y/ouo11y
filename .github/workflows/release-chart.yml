@@ -1,0 +1,170 @@
+# Publishes the Helm chart `ouo` as an OCI artifact when the founder pushes a chart tag:
+#   chart-v0.1.1 -> oci://ghcr.io/ouo11y/charts/ouo:0.1.1
+#                   (helm install ouo oci://ghcr.io/ouo11y/charts/ouo --version 0.1.1)
+# The tag must equal `version` in deploy/helm/ouo/Chart.yaml (the release PR bumps it), and
+# every image the chart defaults to must already be tagged (compat-check.mjs).
+# Also creates a GitHub release with the packaged chart and SHA256SUMS. The package is created
+# private, like the images; pulls need `helm registry login ghcr.io` (docs/releasing.md).
+# Build provenance is attested in the registry when the repository is public.
+#
+# Dry run (lint, template, package; pushes nothing, keeps the .tgz as a run artifact):
+#   Actions > release-chart > Run workflow with the tag to rehearse, or any pull request that
+#   changes this file (rehearses chart-v<Chart.yaml version>).
+name: release-chart
+
+on:
+  push:
+    tags:
+      - 'chart-v*'
+  pull_request:
+    paths:
+      - .github/workflows/release-chart.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rehearse, e.g. chart-v0.1.1 (dry run: lint, package, pushes nothing)'
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-chart-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  CHART_DIR: deploy/helm/ouo
+  OCI_REPO: oci://ghcr.io/ouo11y/charts
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # gh release create
+      packages: write       # helm push to ghcr.io
+      id-token: write       # build attestation (public repo only)
+      attestations: write
+    env:
+      DRY_RUN: ${{ github.event_name != 'push' }}
+      REPO_PUBLIC: ${{ github.event.repository.private == false }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0   # compat-check looks up the image tags
+          persist-credentials: false
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v4.3.0
+
+      - name: Check the tag matches Chart.yaml
+        id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          chart_version=$(awk '$1 == "version:" { gsub(/"/, "", $2); print $2; exit }' "$CHART_DIR/Chart.yaml")
+          case "$GITHUB_EVENT_NAME" in
+            push)              tag="$GITHUB_REF_NAME" ;;
+            workflow_dispatch) tag="$INPUT_TAG" ;;
+            *)                 tag="chart-v$chart_version" ;;
+          esac
+          case "$tag" in chart-v*) ;; *) echo "::error::$tag is not a chart-v<version> tag"; exit 1 ;; esac
+          version="${tag#chart-v}"
+          if [ "$chart_version" != "$version" ]; then
+            echo "::error::tag $tag says $version but $CHART_DIR/Chart.yaml version is $chart_version"
+            exit 1
+          fi
+          prerelease=false
+          case "$version" in *-*) prerelease=true ;; esac
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Image defaults are released, matrix is consistent
+        run: node .github/scripts/compat-check.mjs
+
+      - name: Lint, template and package
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          helm lint "$CHART_DIR"
+          # Default values refuse to render without credentials; the kind values supply test ones.
+          helm template ouo "$CHART_DIR" -f "$CHART_DIR/values-kind.yaml" > /dev/null
+          mkdir -p out
+          helm package "$CHART_DIR" --destination out
+          test -f "out/ouo-$VERSION.tgz"
+          (cd out && sha256sum ./*.tgz > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Push to ghcr.io
+        id: push
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
+          helm push "out/ouo-$VERSION.tgz" "$OCI_REPO" 2>&1 | tee push.log
+          digest=$(awk '/^Digest:/ { print $2 }' push.log)
+          test -n "$digest" || { echo "::error::no digest in helm push output"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Build provenance attestation (registry)
+        if: env.DRY_RUN != 'true' && env.REPO_PUBLIC == 'true'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-name: ghcr.io/ouo11y/charts/ouo
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Release notes
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          app=$(awk '$1 == "appVersion:" { gsub(/"/, "", $2); print $2; exit }' "$CHART_DIR/Chart.yaml")
+          {
+            echo "Helm chart \`ouo\` $VERSION (appVersion $app)."
+            echo
+            echo '```sh'
+            echo "helm registry login ghcr.io"
+            echo "helm install ouo $OCI_REPO/ouo --version $VERSION"
+            echo '```'
+            echo
+            if [ -n "$DIGEST" ]; then echo "Digest: \`$DIGEST\`"; echo; fi
+            echo "Default images:"
+            echo
+            grep -A1 'repository: ghcr.io/ouo11y/' "$CHART_DIR/values.yaml" | awk '/repository:/ { r = $2 } /tag:/ { gsub(/"/, "", $2); print "- `" r ":" $2 "`" }'
+            echo
+            echo "## Changes"
+            echo
+            .github/scripts/changelog-section.sh "$CHART_DIR/CHANGELOG.md" "$VERSION"
+          } > release-notes.md
+          {
+            if [ "$DRY_RUN" = true ]; then echo "## Dry run of chart $VERSION: nothing pushed"; else echo "## Pushed $OCI_REPO/ouo:$VERSION"; fi
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: GitHub release with the packaged chart
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          PRERELEASE: ${{ steps.ver.outputs.prerelease }}
+        run: |
+          set -- --verify-tag --latest=false --title "chart ouo $VERSION" --notes-file release-notes.md
+          [ "$PRERELEASE" = true ] && set -- "$@" --prerelease
+          gh release create "$TAG" "$@" out/*.tgz out/SHA256SUMS
+
+      - name: Keep the dry-run package
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chart-ouo-${{ steps.ver.outputs.version }}
+          path: out/
+          retention-days: 7
