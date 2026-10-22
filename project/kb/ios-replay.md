@@ -204,3 +204,66 @@ What is true now:
   tagged mirror (for example `ouo11y-ios`, pushed from `sdk/ios` by the release workflow) is the
   usual fix; the release agent decides. Local-path consumption and CocoaPods vendoring are
   unaffected.
+
+## N6: capture off the main thread (2026-10-23)
+
+Problem (project/kb/sdk-overhead-ios.md): each capture held the main thread ~49 ms on the simulator.
+Time Profiler attribution of the old `captureFrame` (baseline, one journey, all on main): render
+80 % (`UIGraphicsImageRenderer imageWithActions`), `UIImage.jpegData` 16.5 %, 16x16 thumbnail 2.4 %,
+view walk 0.5 %. The render's leaf frames were `decode_data`, `resample_*<half>`,
+`RGBAf16_*`: on a wide-color screen `UIGraphicsImageRendererFormat` defaults to an
+**extended-range 16-bit half-float** bitmap, so the snapshot was decoded, resampled and converted in
+half floats, then the JPEG encoder converted it back to 8 bits.
+
+What changed (`ScreenCapturer.snapshot` / `compose`, `ReplayRecorder`, `FrameComposer` in Core):
+
+- **Main thread keeps only** the view walk (`ViewTreeBuilder`, class names now cached per class) and
+  `drawHierarchy(afterScreenUpdates: false)` into our own `CGContext`.
+- **Capture queue** (serial, `.utility`): redaction planning, painting the rectangles
+  (`FrameComposer.redact`, same color space as the snapshot), the dedupe thumbnail (taken from the
+  redacted frame, before encoding, so dropped frames cost no JPEG), JPEG through ImageIO
+  (`CGImageDestination`, thread-safe), `ChunkBuilder` and the uploader hand-off (JSON + gzip used to
+  run on main every flush). The queue alone touches `ChunkBuilder` and `FrameDeduper`; touches,
+  ticks, rotations and flushes are queued behind the captures already handed over. At most 2
+  captures in flight: a slow device skips a capture instead of queueing bitmaps.
+- **Bitmap format**: 8 bits per channel, `premultipliedFirst | byteOrder32Little` (Core Animation's
+  layout), in **Display P3 when `traitCollection.displayGamut == .P3`**, else sRGB. Measured per
+  variant in one run (signposts around drawHierarchy only, simulator): sRGB 41 ms, device RGB
+  49 ms, Display P3 36 ms; the sRGB target spent most of drawHierarchy in
+  `vTransformTRCParametric` (per-pixel color conversion). The JPEG carries the P3 profile
+  (browsers color-manage it).
+- **Integer downscale**: `FrameComposer.renderScale` picks `screenScale / n` that fits the
+  1000 px cap. On 3x phones with ~874-956 pt screens that is 1.0 (402 x 874 px frames instead of
+  460 x 1001 at 1.144): drawHierarchy at 1.0 took 21 ms vs 36 ms at 1.144 in the same run. The spec
+  ("longest side at most 1000 px, scale chosen by the SDK") is unchanged; `viewport.scale` reports
+  the scale as before.
+- Not taken: `layer.render(in:)` was 5 ms in the same run but does not draw backdrop/glass
+  materials (iOS 26+ bars), blurs or video. Sentry ships it only as an experimental option.
+- Signposts: `OSSignposter(subsystem: "dev.ouo.replay", category: "capture")`, intervals
+  `snapshot` (main) and `compose` (queue). Read with `xctrace record --instrument os_signpost` and
+  `project/agents/ios-replay/perf/signposts.py`.
+
+Measuring (scripts in `project/agents/ios-replay/perf/`, the sentry-mobile harness unchanged):
+
+- `profile-runs.sh` runs the harness journey (`both-replay`: Sentry replay + ouo replay) with Time
+  Profiler attached. Attach (not `--all-processes`): xctrace cannot symbolicate a process that
+  started after recording began, and the recording must end before the app exits (80 s inside the
+  95 s journey). XCUITest may launch the app twice: attach to the pid on *this* simulator once it
+  survived 3 s; another simulator (other sessions, a stale app from Oct 17 on `ouo-perf`) may run
+  `sentrydemo` too, and `pgrep` by name would pick it.
+- `capture_stalls.py` groups main-thread samples naming each recorder's capture code into captures
+  (samples < 50 ms apart; one capture shows 3-8 ms holes where the main thread is descheduled or
+  blocked in drawHierarchy, two captures are >= 250 ms apart) and reports per-capture CPU (sum of
+  1 ms samples) and wall span. Sentry's capture is `SentrySessionReplay.takeScreenshot` ->
+  `SentryViewPhotographer.timedImage` (redaction regions + `SentryGraphicsImageRenderer` ->
+  drawHierarchy, contiguous on main). With 4 ms grouping the same trace gives ~20 ms for Sentry
+  because its captures split into fragments: that is how a smaller figure (18.5 ms) can come out of
+  the same data. Compare SDKs only within one trace.
+- `ScreenCapturer.capture(window:)` was inlined into `captureFrame` in Release: match the caller.
+
+Simulator result (iOS 27, M5 Mac shared with other sessions; 3 interleaved rounds each; medians
+per round): ouo main-thread CPU per capture 36 / 37 / 50 ms -> 16 / 21 / 21.5 ms; wall 39 / 41 / 51
+-> 19 / 24 / 23.5 ms; Sentry in the same traces 32-45 ms. Main-thread total over the 80 s
+recording 2.9-3.7 s -> 2.1-2.4 s although more frames are captured (no longer skipped behind a
+busy main thread). Capture-queue `compose` 2.6 ms median. Device numbers: report
+`project/agents/ios-replay/reports/n6-g1-replay-crashes.html`.
