@@ -15,9 +15,10 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
   - npm CLI >= 9.5 (Node 24 ships npm 11).
 - Scoped packages are private by default; `--access public` (or `publishConfig.access`)
   is needed for the **first** publish of each name. Both are set.
-- The `@ouo` scope: an npm organisation named `ouo` must exist and the token owner must be a
-  member with publish rights. The scope is not reserved by the repo name.
-- Token: a granular access token with "Read and write" on packages, limited to the `@ouo`
+- The `@ouo11y` scope: an npm organisation named `ouo11y` must exist and the token owner must be a
+  member with publish rights. The scope is not reserved by the repo name (not claimed on
+  2026-10-23, see [release-automation.md](release-automation.md)).
+- Token: a granular access token with "Read and write" on packages, limited to the `@ouo11y`
   scope, "Bypass 2FA" enabled (otherwise CI publish is blocked by the 2FA requirement). npm
   trusted publishing (OIDC, no token at all) is the better long-term option; it needs the
   package to exist first, so the first release uses `NPM_TOKEN`.
