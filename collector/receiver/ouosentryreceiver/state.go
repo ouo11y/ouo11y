@@ -54,10 +54,10 @@ type sess struct {
 	console           []consoleLine // recent console lines, to de-duplicate logs and breadcrumbs
 	fatalAt           time.Time     // time of the first fatal exception
 	lastScreen        string
-	previousID        string     // the device's session that started before this one (A9)
-	navs              []navEntry // recent navigations, to pair transactions with breadcrumbs (A11)
-	crumbs            []crumbSeen // event breadcrumbs emitted, to skip their copies on later events (A8)
-	httpSpans         []string    // span ids emitted as http.request, oldest first (A8)
+	previousID        string        // the device's session that started before this one (A9)
+	navs              []navEntry    // recent navigations, to pair transactions with breadcrumbs (A11)
+	crumbs            []crumbSeen   // event breadcrumbs emitted, to skip their copies on later events (A8)
+	httpSpans         []string      // span ids emitted as http.request, oldest first (A8)
 	dev               deviceContext // OS and device from the session's events, transactions and logs
 	elem              *list.Element
 }
