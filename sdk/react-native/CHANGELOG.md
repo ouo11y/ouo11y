@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Native crashes on iOS** (checklist G1): signals and uncaught NSExceptions are written to disk at
+  crash time by the Expo module (new pods `OuoCrashCore`, `OuoCrash`) and sent on the next launch as a
+  fatal `exception` (`ouo.exception.kind = native`) of the crashed session, which ends with reason
+  `crash` at the crash time. Apple-style `exception.stacktrace` plus `ouo.crash.frames` /
+  `ouo.crash.images` for symbolication. Chains to previously installed handlers (Sentry). Opt out with
+  `errors: { nativeCrashes: false }`. Needs a rebuilt dev client (`pod install`).
+- **Replay capture off the main thread** (checklist N6): the main thread only walks the views and
+  draws the window; redaction, the dedupe thumbnail, JPEG encoding and chunking run on a background
+  queue. Frames are rendered in Display P3 on wide-color screens and at an integer fraction of the
+  screen scale (402 x 874 px on current 3x iPhones, was 460 x 1001).
+
 ## 0.2.0 (unreleased)
 
 Phase 8a, ADR-0007 (the collector is the edge, project tokens as HTTP Basic). The SDK talks to

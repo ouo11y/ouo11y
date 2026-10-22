@@ -54,13 +54,13 @@ Correctness first, then context, then UI. Effort from the gap report.
 
 The gap report found the ouo RN SDK behind the bridge on several points. Until these close, path 1 cannot be sold as "more data".
 
-- [ ] G1 Native crashes (today a crashed session reads "terminated, healthy")
+- [ ] G1 Native crashes (today a crashed session reads "terminated, healthy") **[2026-10-23, b1-ios, branch `claude/b1-ios-replay-crashes`]** built and verified on the simulator: signals + uncaught NSExceptions written at crash time (`sdk/ios` `OuoCrashCore`/`OuoCrash`), sent next launch as a fatal `exception` of the crashed session, session `crashed` ending at the crash time, native stack in Loki/Grafana Explore, Sentry still reports the crash ([kb](../kb/ios-native-crashes.md), [report](../agents/ios-replay/reports/n6-g1-replay-crashes.html)). Open: the iPhone run; the plugin does not render `exception.stacktrace`.
 - [ ] G2 Vitals: app start, TTID, frames
 - [ ] G3 Public span API and log API
 - [ ] G4 Timeline parity: tap targets with component names, app lifecycle, successful requests
 - [ ] G5 Device model without app code; trace id on errors; in-app frames and stable stack paths (no per-install container paths)
 - [ ] G6 Forward `Sentry.captureException` errors when both SDKs run (parallel mode)
-- [ ] N6 iOS replay capture holds the main thread for ~49 ms (Sentry ~18.5 ms, both on the simulator): move scaling and encoding off the main thread in `sdk/ios`. This is the main risk before anyone runs ouo replay in production. Measure before and after on the founder's iPhone 16 Pro Max (founder 2026-10-17: prefer it over the simulator for every performance number).
+- [ ] N6 iOS replay capture holds the main thread for ~49 ms (Sentry ~18.5 ms, both on the simulator): move scaling and encoding off the main thread in `sdk/ios`. This is the main risk before anyone runs ouo replay in production. Measure before and after on the founder's iPhone 16 Pro Max (founder 2026-10-17: prefer it over the simulator for every performance number). **[2026-10-23, b1-ios]** done in `sdk/ios` (main thread keeps the view walk + drawHierarchy; 8-bit Display P3 at an integer scale; compose, JPEG, chunking on a queue): simulator per-capture main-thread CPU 36-50 ms -> 16-21.5 ms, Sentry 39-45 ms in the same traces ([report](../agents/ios-replay/reports/n6-g1-replay-crashes.html)). Open: the iPhone numbers.
 - [ ] N7 Rerun parallel replays: once, Sentry's replay stopped after 41 s while ouo's ran (not reproduced)
 - [ ] N8 rum-api and plugin filter sessions and health by `ouo.rum.mode` cohort (needed to compare cohorts from #23)
 - [ ] N9 Rollout edge from #23: a device that moves to `ouo` never sends sentry-cocoa's cached session end or a pending native crash; document it or flush before switching

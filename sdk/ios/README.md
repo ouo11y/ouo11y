@@ -15,8 +15,10 @@ apps use it directly.
 
 | Target | Needs | Contents |
 |---|---|---|
-| `OuoReplayCore` | Foundation + zlib | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 10 frames / explicit flush, monotonic `seq` via `SeqStore`), `FrameDeduper`, `RedactionPlanner` (geometry over a `ViewNode` tree), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
-| `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (drawHierarchy + redaction fill + downscale + JPEG), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (timer, touch-triggered captures, background/foreground). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
+| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 10 frames / explicit flush, monotonic `seq` via `SeqStore`), `FrameDeduper`, `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, dedupe thumbnail, JPEG, render scale; thread-safe), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
+| `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (timer, touch-triggered captures, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
+| `OuoCrashCore` | C | Async-signal-safe native crash handlers: one JSON report written at crash time (frames, binary images, signal or exception), previous handlers chained |
+| `OuoCrash` | Foundation | `OuoCrash.install()`, the uncaught `NSException` handler, `setSessionId`, `takePendingReport()` (the host sends it on the next launch; the React Native SDK does). Tested on macOS by crashing `OuoCrashProbe` (`project/kb/ios-native-crashes.md`) |
 
 ## Install
 
