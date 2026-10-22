@@ -53,6 +53,14 @@ jobs:
     env:
       COMPOSE: docker compose -p ouo-release-check -f deploy/compose/compose.yaml
     steps:
+      # Loki stops accepting writes when its disk is over 90% full ("Ingester is shutting
+      # down"), which a stock runner reaches after npm ci and the image builds. Drop the
+      # preinstalled SDKs this job never uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
@@ -64,6 +72,7 @@ jobs:
         run: |
           npm ci
           npm run build -w plugins/ouo11y-rum-app
+          rm -rf node_modules plugins/*/node_modules sdk/*/node_modules examples/*/node_modules
       - name: Start the stack
         run: |
           # rum-api runs as nonroot; give it a writable replay directory.

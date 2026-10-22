@@ -113,6 +113,15 @@ channel: [release-packaging.md](release-packaging.md).
   validates it as a *global* config instead. Installing with `--ignore-scripts` leaves out
   `re2` (warning only).
 
+## e2e stack on a GitHub-hosted runner
+
+- The first `release-check` e2e run failed with rum-api health "total=0" after 120 s, while
+  every edge check passed. The cause: the runner disk was > 90% full after `npm ci` plus the
+  compose image builds, Loki's WAL logged "disk usage exceeded threshold, throttling writes" and
+  answered every push with 503 "Ingester is shutting down", so the collector kept retrying.
+  Removing the preinstalled .NET, Android, GHC and CodeQL toolchains (`sudo rm -rf ...`, tens of
+  GB) and `node_modules` after the plugin build fixes it.
+
 ## Actions minutes
 
 - Free org plan: 2,000 minutes a month for private repositories, macOS at 10x, every job billed
