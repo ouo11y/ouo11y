@@ -15,7 +15,10 @@ const common: Options = {
   dts: true,
   sourcemap: true,
   treeshake: true,
-  minify: true,
+  // terser, not esbuild's minifier: about 5 % smaller gzip (41.7 against 44.0 KB for the core
+  // entry), which pays for the page-safety guards within the size budget. Source maps unchanged.
+  minify: "terser",
+  terserOptions: { module: true, compress: { passes: 2 } },
   outDir: "dist",
 };
 
@@ -36,8 +39,10 @@ export default defineConfig([
     entry: { react: "src/react/index.ts" },
     splitting: false,
     clean: false,
-    // esbuild's tree shaking only: tsup's rollup pass drops module directives such as the banner.
+    // esbuild's tree shaking and minifier only: tsup's rollup pass and terser drop module
+    // directives such as the banner.
     treeshake: false,
+    minify: true,
     // React (a peer dependency) and the SDK itself stay external, so the entry shares the app's
     // React and the one `initRUM` instance.
     external: ["react", "@ouo11y/browser"],

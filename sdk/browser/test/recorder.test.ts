@@ -30,7 +30,7 @@ import { MemoryStorage } from "../src/session/storage";
 
 const logger = { enabled: false, log: () => undefined, warn: () => undefined };
 
-function setup(opts: { sampleRate: number; onErrorSampleRate: number; channel?: BroadcastChannel | null }) {
+function setup(opts: { sampleRate: number; onErrorSampleRate: number; channel?: BroadcastChannel | null; maxSnapshotBytes?: number; onSkip?: (r: string, b: number) => void }) {
   const session = new SessionManager({ storage: new MemoryStorage(), onEvent: () => undefined });
   session.start();
   const pushed: Array<{ type: number }> = [];
@@ -45,6 +45,8 @@ function setup(opts: { sampleRate: number; onErrorSampleRate: number; channel?: 
     chunker: chunker as never,
     logger,
     lease,
+    ...(opts.maxSnapshotBytes !== undefined ? { maxSnapshotBytes: opts.maxSnapshotBytes } : {}),
+    ...(opts.onSkip ? { onSkip: opts.onSkip } : {}),
   });
   return { session, pushed, chunker, recorder, lease };
 }
@@ -105,6 +107,21 @@ describe("ReplayRecorder modes", () => {
     session.triggerReplay();
     await recorder.start();
     expect(recorder.currentMode()).toBe("full");
+    recorder.shutdown();
+  });
+
+  it("a full snapshot too large to upload stops replay for the page view instead of sending mutations", async () => {
+    const skipped: Array<[string, number]> = [];
+    const { pushed, recorder } = setup({ sampleRate: 1, onErrorSampleRate: 0, maxSnapshotBytes: 10, onSkip: (r, b) => skipped.push([r, b]) });
+    await recorder.start();
+    expect(recorder.isRecording()).toBe(false);
+    expect(rr.stops).toBe(1);
+    expect(pushed.map((e) => e.type)).toEqual([4]);
+    expect(skipped).toEqual([["snapshot_too_large", expect.any(Number)]]);
+    // Not restarted by focus or resume.
+    recorder.resume();
+    await Promise.resolve();
+    expect(rr.starts).toBe(1);
     recorder.shutdown();
   });
 
