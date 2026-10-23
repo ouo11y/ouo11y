@@ -13,6 +13,18 @@
   root `README.md` Quickstart, `docs/releasing.md` step 9 (regenerate after a pin bump).
 - `project/kb/compose-quickstart.md`, checklist N29.
 
+## Second pass (same day, after #49 merged)
+
+- Merging `main` brought roadmap 8b, whose `rum-api/config.yaml` keys (`admin_token`, `retention`,
+  `projects`) the released `rum-api:0.3.0` rejects (exit 2). The generator now renders from the
+  release commit the pins are tagged on (`git archive`, tags `*-v0.3.0` -> `5939e41`), not from the
+  working tree, and `--check` also compares the hand-written service blocks with that release's
+  `compose.yaml + compose.images.yaml` (`docker compose config --no-interpolate`). CI job checks out
+  with `fetch-depth: 0` for the tags. Re-verified live: all 8 configs identical to the release
+  files inside the containers, rum-api healthy, `smoke.sh` OK, plugin proxy 200.
+- Found on the way, not fixed here (checklist N30): `main`'s own `compose.yaml + compose.images.yaml`
+  has the same break since #49 until a rum-api release ships the 8b config keys.
+
 ## How it was verified
 
 From an empty scratch folder with only the file (as `compose.yaml`) and a `.env` shifting every

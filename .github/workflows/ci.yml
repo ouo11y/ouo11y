@@ -94,8 +94,9 @@ jobs:
             exit 1
           fi
 
-  # deploy/compose/quickstart.yaml is generated from compose.yaml, compose.images.yaml and the
-  # config files they mount; fail when someone changed those and did not regenerate it.
+  # deploy/compose/quickstart.yaml is generated from deploy/compose at the release commit the
+  # image pins in compose.images.yaml were tagged on; fail when a pin bump was not regenerated
+  # or the hand-written service blocks drift from that release. Needs the tags: fetch-depth 0.
   quickstart:
     name: quickstart.yaml in sync
     needs: changes
@@ -106,6 +107,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: deploy/scripts/gen-quickstart.sh --check
         run: deploy/scripts/gen-quickstart.sh --check
       - name: docker compose config

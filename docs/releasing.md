@@ -149,7 +149,8 @@ After the tag:
 9. [ ] Pins that should follow the new version (chart defaults, `deploy/compose/.env.example`,
    `deploy/compose/compose.images.yaml`, `examples/fast-tracked/00-stack.md`) are bumped in a
    follow-up PR, and `deploy/scripts/gen-quickstart.sh` regenerates `deploy/compose/quickstart.yaml`
-   from the new pins (CI job `quickstart` fails until it does); for the chart that is a `fix(chart)` and gives the next chart release.
+   from the release commit the new tags point at (CI job `quickstart` fails until it does, and
+   when the script's service blocks no longer match that release's compose files); for the chart that is a `fix(chart)` and gives the next chart release.
 10. [ ] Released together and verified: add a row to the release trains table in
     [`CHANGELOG.md`](../CHANGELOG.md).
 
