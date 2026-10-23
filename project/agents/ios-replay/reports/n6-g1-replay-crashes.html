@@ -46,7 +46,7 @@ Frames are 402 × 874 px (was 460 × 1001), still within the spec's 1000 px.</p>
 <p>The Sentry-only control moved by less than the run-to-run spread, so the host did not drift between the two builds. ouo's replay costs about a fifth less CPU over the journey and when idle, with more frames captured (no capture is skipped behind a busy main thread); memory is unchanged.</p>
 
 <h2>N6 on the iPhone 16 Pro Max</h2>
-<p><b>Not measured yet.</b> The device run (iPhone 16 Pro Max, iOS 18.6.2) waits for the founder's go-ahead: the phone has to be plugged in and a development team added in Xcode (this Mac has no signing identity). Same scripts: <code>profile-runs.sh --device &lt;udid&gt; --signposts</code> against a device build; the simulator numbers below overstate rendering cost (the simulator renders on the CPU).</p>
+<p><b>Not measured yet (checklist N22).</b> The device run (iPhone 16 Pro Max, iOS 18.6.2) is a follow-up to PR #40, done once the founder hands over the phone: the phone has to be plugged in and a development team added in Xcode (this Mac has no signing identity). Same scripts: <code>profile-runs.sh --device &lt;udid&gt; --signposts</code> against a device build; the simulator numbers below overstate rendering cost (the simulator renders on the CPU).</p>
 
 <h2>G1: native crashes</h2>
 <p>Signals (SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE, SIGTRAP, SIGSYS) and uncaught NSExceptions are written to disk at crash time by async-signal-safe C (<code>OuoCrashCore</code>),

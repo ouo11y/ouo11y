@@ -183,7 +183,7 @@ def img(env, name, alt, width):
 
 def device_section():
     if not os.path.isdir(os.path.join(DATA, "device")):
-        return ("<p><b>Not measured yet.</b> The device run (iPhone 16 Pro Max, iOS 18.6.2) waits for the founder's go-ahead: "
+        return ("<p><b>Not measured yet (checklist N22).</b> The device run (iPhone 16 Pro Max, iOS 18.6.2) is a follow-up to PR #40, done once the founder hands over the phone: "
                 "the phone has to be plugged in and a development team added in Xcode (this Mac has no signing identity). "
                 "Same scripts: <code>profile-runs.sh --device &lt;udid&gt; --signposts</code> against a device build; "
                 "the simulator numbers below overstate rendering cost (the simulator renders on the CPU).</p>")
