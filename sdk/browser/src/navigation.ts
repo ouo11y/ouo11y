@@ -1,3 +1,4 @@
+import { attempt, guard } from "./guard";
 import type { EventEmitter } from "./telemetry/events";
 import type { InteractionTracker } from "./interactions/tracker";
 
@@ -10,12 +11,17 @@ export interface NavigationOptions {
   tracker?: InteractionTracker | undefined;
 }
 
-/** Patches history.pushState / replaceState and listens to popstate, emitting `navigation` events. */
+/**
+ * Patches history.pushState / replaceState and listens to popstate, emitting `navigation` events.
+ * The patched methods call the original first and return its result; an exception the original
+ * throws (a SecurityError for a cross-origin URL) reaches the caller unchanged, and nothing the
+ * SDK does afterwards can throw.
+ */
 export function installNavigation(opts: NavigationOptions): () => void {
   const { events, onActivity, tracker } = opts;
   let current = location.pathname;
 
-  const emit = (kind: string): void => {
+  const emit = guard((kind: string): void => {
     const next = location.pathname;
     if (next === current && kind !== "load") return;
     const attrs = {
@@ -31,20 +37,28 @@ export function installNavigation(opts: NavigationOptions): () => void {
     tracker?.begin("navigation", SOFT_NAVIGATION_SPAN, attrs, click && !click.detached ? { parent: click.context } : {});
     current = next;
     onActivity();
-  };
+  });
 
   const history = globalThis.history;
   const originalPush = history.pushState;
   const originalReplace = history.replaceState;
-  history.pushState = function ouoPushState(this: History, ...args: Parameters<History["pushState"]>): void {
-    originalPush.apply(this, args);
-    emit("push");
+  let active = true;
+  const patchedPush = function ouoPushState(this: History, ...args: Parameters<History["pushState"]>): void {
+    const r = originalPush.apply(this, args);
+    if (active) emit("push");
+    return r;
   };
-  history.replaceState = function ouoReplaceState(this: History, ...args: Parameters<History["replaceState"]>): void {
-    originalReplace.apply(this, args);
-    emit("replace");
+  const patchedReplace = function ouoReplaceState(this: History, ...args: Parameters<History["replaceState"]>): void {
+    const r = originalReplace.apply(this, args);
+    if (active) emit("replace");
+    return r;
   };
-  const onPop = (): void => emit("pop");
+  // A frozen or non-writable history (some sandboxes) is left alone: no soft navigations then.
+  attempt(() => {
+    history.pushState = patchedPush;
+    history.replaceState = patchedReplace;
+  });
+  const onPop = guard((): void => emit("pop"));
   globalThis.addEventListener("popstate", onPop);
 
   // Initial page view: `from` is the referrer path when it exists.
@@ -54,16 +68,23 @@ export function installNavigation(opts: NavigationOptions): () => void {
   } catch {
     from = "";
   }
-  events.emit("navigation", {
-    "url.path": current,
-    "url.full": location.href,
-    "ouo.navigation.from": from,
-    "ouo.navigation.kind": "load",
-  });
+  attempt(() =>
+    events.emit("navigation", {
+      "url.path": current,
+      "url.full": location.href,
+      "ouo.navigation.from": from,
+      "ouo.navigation.kind": "load",
+    }),
+  );
 
   return () => {
-    history.pushState = originalPush;
-    history.replaceState = originalReplace;
+    active = false;
+    // Restore only what is still ours: a router that wrapped history after the SDK keeps its
+    // wrapper, which calls ours, which is now a pass-through.
+    attempt(() => {
+      if (history.pushState === patchedPush) history.pushState = originalPush;
+      if (history.replaceState === patchedReplace) history.replaceState = originalReplace;
+    });
     globalThis.removeEventListener("popstate", onPop);
   };
 }

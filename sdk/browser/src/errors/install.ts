@@ -1,3 +1,4 @@
+import { attempt, guard } from "../guard";
 import type { EventEmitter } from "../telemetry/events";
 import type { DebugLogger } from "../logger";
 import { exceptionAttributes, serializeConsoleArgs } from "./classify";
@@ -17,12 +18,17 @@ export interface ErrorCaptureOptions {
   consoleErrors?: boolean;
 }
 
-/** Installs window error, unhandledrejection, resource error and console.error capture. Returns an uninstall function. */
+/**
+ * Installs window error, unhandledrejection, resource error and console.error capture. Returns an
+ * uninstall function. Listeners only (`addEventListener`), never `window.onerror` /
+ * `onunhandledrejection`: the page's own handlers, their return values and `preventDefault`
+ * keep working exactly as without the SDK.
+ */
 export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   const { events, logger } = opts;
   const win = globalThis as unknown as Window;
 
-  const onError = (event: Event): void => {
+  const onError = guard((event: Event): void => {
     const target = event.target;
     // Resource load failures bubble as plain `error` events on the element (capture phase only).
     if (target && target !== win && target !== (globalThis as unknown as { document?: unknown }).document && isElement(target)) {
@@ -47,47 +53,56 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
       }),
       "error",
     );
-  };
+  });
 
-  const onRejection = (event: PromiseRejectionEvent): void => {
+  const onRejection = guard((event: PromiseRejectionEvent): void => {
     events.emit("exception", exceptionAttributes(event.reason ?? "Unhandled rejection", "unhandledrejection"), "error");
-  };
+  });
 
   win.addEventListener("error", onError, true);
   win.addEventListener("unhandledrejection", onRejection);
 
   let restoreConsole: (() => void) | undefined;
-  if (opts.consoleErrors !== false && typeof console !== "undefined") {
+  if (opts.consoleErrors !== false && typeof console !== "undefined" && typeof console.error === "function") {
     const original = console.error;
     let reentrant = false;
-    console.error = function ouoConsoleError(this: unknown, ...args: unknown[]): void {
+    let active = true;
+    const patched = function ouoConsoleError(this: unknown, ...args: unknown[]): void {
+      // The original runs first and unguarded: what it does (and throws) is the page's business.
       original.apply(this === undefined ? console : this, args);
-      if (reentrant) return;
+      if (reentrant || !active) return;
       reentrant = true;
       try {
         const { error } = serializeConsoleArgs(args);
         // One microtask later: React logs an error its boundary caught with console.error right
         // before componentDidCatch, where OuoErrorBoundary reports the same object with
         // captureError; that one report wins.
-        queueMicrotask(() => {
-          if (args.some((a) => a !== null && typeof a === "object" && claimed.has(a))) return;
-          events.emit("exception", exceptionAttributes(error, "console"), "error");
-        });
+        queueMicrotask(
+          guard(() => {
+            if (args.some((a) => a !== null && typeof a === "object" && claimed.has(a))) return;
+            events.emit("exception", exceptionAttributes(error, "console"), "error");
+          }),
+        );
       } catch (e) {
         logger.warn("console.error capture failed", e);
       } finally {
         reentrant = false;
       }
     };
+    attempt(() => {
+      console.error = patched;
+    });
     restoreConsole = () => {
-      console.error = original;
+      active = false;
+      // Another tool that wrapped console.error after the SDK keeps its wrapper (ours is inert now).
+      if (console.error === patched) console.error = original;
     };
   }
 
   return () => {
     win.removeEventListener("error", onError, true);
     win.removeEventListener("unhandledrejection", onRejection);
-    restoreConsole?.();
+    attempt(() => restoreConsole?.());
   };
 }
 

@@ -1,4 +1,4 @@
-import { diag, DiagLogLevel, type DiagLogger } from "@opentelemetry/api";
+import { context, diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -15,6 +15,7 @@ import { installLongTasks } from "./longtasks";
 import { exceptionAttributes } from "./errors/classify";
 import { claimError, installErrorCapture } from "./errors/install";
 import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
+import { attempt, guard, quiet, setGuardReporter } from "./guard";
 import { createLogger } from "./logger";
 import { installNavigation } from "./navigation";
 import { createNetworkInstrumentations } from "./network";
@@ -38,7 +39,7 @@ export { SDK_VERSION } from "./version";
 export type { ReplayChunk } from "./replay/chunker";
 export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
 
-let instance: RUM | undefined;
+let instance: (RUM & { _uninstall(): Promise<void> }) | undefined;
 
 /** The instance `initRUM` returned, or undefined before it was called (framework integrations use it). */
 export function getRUM(): RUM | undefined {
@@ -49,9 +50,30 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** What `initRUM` returns where it cannot run (no `window`, server rendering) or failed to start. */
+function noopRUM(): RUM & { _uninstall(): Promise<void> } {
+  const done = (): Promise<void> => Promise.resolve();
+  return {
+    setUser: () => undefined,
+    captureError: () => undefined,
+    addEvent: () => undefined,
+    setRoute: () => undefined,
+    replay: { pause: () => undefined, resume: () => undefined, isRecording: () => false },
+    session: { id: () => "", userId: () => "" },
+    flush: done,
+    shutdown: done,
+    _uninstall: done,
+  };
+}
+
 /**
- * Initialise the ouo browser SDK. Call once, as early as possible. Returns the same
- * instance on repeated calls.
+ * Initialise the ouo browser SDK. Call once, as early as possible. A second call is a no-op
+ * that warns and returns the running instance; after `shutdown()` it starts a new one.
+ *
+ * Throws only for a configuration error (a missing endpoint, project id or token), so a
+ * misconfigured app fails at its first run. Everything else is contained: on the server (no
+ * `window`) it returns an inert instance, and if the browser lacks something the SDK needs it
+ * warns, removes what it had installed and returns an inert instance.
  */
 export function initRUM(options: RUMOptions): RUM {
   if (instance) {
@@ -66,8 +88,31 @@ export function initRUM(options: RUMOptions): RUM {
     projectToken: options.projectToken,
   });
   const authorization = basicAuthorization(options.projectId, options.projectToken);
+  // Server rendering (Next.js, Remix, Node): nothing to observe, nothing installed.
+  if (typeof window === "undefined" || typeof document === "undefined") return noopRUM();
+
+  const cleanup: Array<() => unknown> = [];
+  try {
+    instance = install(options, urls, authorization, cleanup);
+    return instance;
+  } catch (err) {
+    console.warn("[ouo] the SDK could not start on this page and is disabled", err);
+    for (const off of cleanup.reverse()) attempt(off);
+    setGuardReporter(undefined);
+    instance = undefined;
+    return noopRUM();
+  }
+}
+
+function install(
+  options: RUMOptions,
+  urls: ReturnType<typeof deriveIngestUrls>,
+  authorization: string,
+  cleanup: Array<() => unknown>,
+): RUM & { _uninstall(): Promise<void> } {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
+  setGuardReporter((err) => logger.warn("internal error contained", err));
   if (options.debug) {
     // Never console.error here: the SDK instruments console.error and would report its own diagnostics as exceptions.
     const otelDiag: DiagLogger = {
@@ -77,7 +122,7 @@ export function initRUM(options: RUMOptions): RUM {
       debug: (...args) => console.log("[ouo:otel]", ...args),
       verbose: (...args) => console.log("[ouo:otel]", ...args),
     };
-    diag.setLogger(otelDiag, DiagLogLevel.INFO);
+    if (diag.setLogger(otelDiag, DiagLogLevel.INFO)) cleanup.push(() => diag.disable());
   }
 
   const serviceVersion = options.service.version;
@@ -114,7 +159,8 @@ export function initRUM(options: RUMOptions): RUM {
     resource,
     processors: [new SessionLogProcessor(session, serviceVersion, route), new SampledLogProcessor(session, logBatch)],
   });
-  logs.setGlobalLoggerProvider(loggerProvider);
+  if (logs.setGlobalLoggerProvider(loggerProvider) === loggerProvider) cleanup.push(() => logs.disable());
+  cleanup.push(() => loggerProvider.shutdown());
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
@@ -141,18 +187,27 @@ export function initRUM(options: RUMOptions): RUM {
       ),
     ],
   });
+  cleanup.push(() => tracerProvider.shutdown());
+  // What WebTracerProvider.register does, keeping track of which globals are ours: an app that
+  // registered its own OpenTelemetry first keeps it, and shutdown only removes the SDK's.
   const contextManager = new FallbackContextManager();
-  tracerProvider.register({ propagator: new SessionPropagator(session), contextManager });
   contextManager.setFallback(() => tracker.activeContext());
+  if (trace.setGlobalTracerProvider(tracerProvider)) cleanup.push(() => trace.disable());
+  if (propagation.setGlobalPropagator(new SessionPropagator(session))) cleanup.push(() => propagation.disable());
+  contextManager.enable();
+  if (context.setGlobalContextManager(contextManager)) cleanup.push(() => context.disable());
+  else contextManager.disable();
 
   // ---- session ----
   session.start();
+  cleanup.push(() => session.stop());
   const onActivity = (): void => session.touch();
-  const uninstallActivity = installActivityListeners(onActivity);
-  const onStorage = (e: StorageEvent): void => {
+  cleanup.push(installActivityListeners(onActivity));
+  const onStorage = guard((e: StorageEvent): void => {
     if (e.key === SESSION_STORAGE_KEY) session.handleStorageEvent(e.newValue);
-  };
+  });
   globalThis.addEventListener("storage", onStorage);
+  cleanup.push(() => globalThis.removeEventListener("storage", onStorage));
 
   // ---- instrumentation ----
   // The exporters and the uploader already call the un-instrumented fetch; this keeps any
@@ -172,26 +227,29 @@ export function initRUM(options: RUMOptions): RUM {
   if (options.tracing?.documentLoad !== false) {
     instrumentations.push(new DocumentLoadInstrumentation({ ignoreNetworkEvents: true, ignorePerformancePaintEvents: true }));
   }
-  registerInstrumentations({ instrumentations, tracerProvider, loggerProvider });
+  cleanup.push(registerInstrumentations({ instrumentations, tracerProvider, loggerProvider }));
 
-  const uninstallErrors = installErrorCapture({ events, logger });
-  const uninstallNavigation = installNavigation({
+  cleanup.push(installErrorCapture({ events, logger }));
+  cleanup.push(
+    installNavigation({
     events,
     onActivity,
-    tracker: options.tracing?.softNavigations === false ? undefined : tracker,
-  });
-  const uninstallClicks = installClickTracking({
-    tracker,
-    events,
-    spans: options.tracing?.interactions !== false,
-    rageClicks: options.clicks?.rageClicks ?? {},
-    deadClicks: options.clicks?.deadClicks !== false,
-  });
-  let uninstallLongTasks = (): void => undefined;
-  let uninstallVitals = (): void => undefined;
+      tracker: options.tracing?.softNavigations === false ? undefined : tracker,
+    }),
+  );
+  cleanup.push(
+    installClickTracking({
+      tracker,
+      events,
+      spans: options.tracing?.interactions !== false,
+      rageClicks: options.clicks?.rageClicks ?? {},
+      deadClicks: options.clicks?.deadClicks !== false,
+    }),
+  );
+  // Optional platform features: a browser without them gets the rest of the SDK.
   if (options.longTasks !== false) {
     try {
-      uninstallLongTasks = installLongTasks(events, options.longTasks ?? {});
+      cleanup.push(installLongTasks(events, options.longTasks ?? {}));
     } catch (err) {
       logger.warn("long task observer unavailable", err);
     }
@@ -200,7 +258,7 @@ export function initRUM(options: RUMOptions): RUM {
     // A tab opened in the background (and every tab of an automation pane) is hidden from the
     // start: web-vitals then rightly reports no FCP, LCP, CLS or INP for this page view.
     if (document.visibilityState === "hidden") logger.log("page loaded hidden: only TTFB is reported for this page view");
-    uninstallVitals = installWebVitals(events);
+    cleanup.push(installWebVitals(events));
   } catch (err) {
     logger.warn("web-vitals unavailable", err);
   }
@@ -215,46 +273,57 @@ export function initRUM(options: RUMOptions): RUM {
     ...(options.replay?.maxChunkBytes !== undefined ? { maxChunkBytes: options.replay.maxChunkBytes } : {}),
     logger,
   });
+  cleanup.push(() => chunker.stop());
   recorder = new ReplayRecorder({
     enabled: replayEnabled,
     maskAllInputs: options.replay?.maskAllInputs !== false,
     sampleRate: options.replay?.sampleRate ?? 1,
     onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
+    blockSelector: options.replay?.blockSelector,
+    maskTextSelector: options.replay?.maskTextSelector,
     session,
     chunker,
     logger,
   });
-  void recorder.start();
+  const rec = recorder;
+  cleanup.push(() => rec.shutdown());
+  void quiet(recorder.start());
   // Error-triggered replay: the first error of a buffering session uploads its replay.
-  const unsubscribeErrors = events.subscribe((name, _attrs, severity) => {
-    if (name === "exception" && severity === "error") recorder?.onError();
-  });
+  cleanup.push(
+    events.subscribe((name, _attrs, severity) => {
+      if (name === "exception" && severity === "error") recorder?.onError();
+    }),
+  );
 
   // ---- lifecycle flushes ----
-  const flush = async (): Promise<void> => {
-    // Console errors are reported one microtask late (errors/install.ts): let them land first.
-    await Promise.resolve();
-    await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), chunker.flush()]);
-  };
+  const flush = (): Promise<void> =>
+    quiet(
+      // Console errors are reported one microtask late (errors/install.ts): let them land first.
+      Promise.resolve().then(() => Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), chunker.flush()])),
+    );
   // Registered after web-vitals so final vitals emitted on hide are included in the flush.
-  const onVisibility = (): void => {
+  const onVisibility = guard((): void => {
     if (document.visibilityState === "hidden") {
       tracker.endAll("hidden");
-      void loggerProvider.forceFlush();
-      void tracerProvider.forceFlush();
-      void chunker.flush();
+      void quiet(loggerProvider.forceFlush());
+      void quiet(tracerProvider.forceFlush());
+      void quiet(chunker.flush());
     }
-  };
-  const onPageHide = (): void => {
+  });
+  const onPageHide = guard((): void => {
     // Open click and soft-navigation spans end now so the flush below carries them.
     tracker.endAll("hidden");
-    void loggerProvider.forceFlush();
-    void tracerProvider.forceFlush();
-    void chunker.flush({ keepalive: true });
+    void quiet(loggerProvider.forceFlush());
+    void quiet(tracerProvider.forceFlush());
+    void quiet(chunker.flush({ keepalive: true }));
     session.stop();
-  };
+  });
   document.addEventListener("visibilitychange", onVisibility);
   globalThis.addEventListener("pagehide", onPageHide);
+  cleanup.push(() => {
+    document.removeEventListener("visibilitychange", onVisibility);
+    globalThis.removeEventListener("pagehide", onPageHide);
+  });
 
   // Self-diagnostics: the derived URLs and the project id once, never the token or the header value.
   logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
@@ -268,50 +337,56 @@ export function initRUM(options: RUMOptions): RUM {
     user: session.userId(),
   });
 
+  let stopped: Promise<void> | null = null;
+  const shutdown = (): Promise<void> => {
+    stopped ??= (async () => {
+      await flush();
+      // Reverse order of installation; the providers' shutdown (last pushed first) flushes again.
+      const pending: unknown[] = [];
+      for (const off of cleanup.reverse()) pending.push(attempt(off));
+      await quiet(Promise.all(pending));
+      setGuardReporter(undefined);
+      if (instance === rum) instance = undefined;
+      logger.log("shut down");
+    })();
+    return stopped;
+  };
+
   const rum: RUM & { _uninstall(): Promise<void> } = {
+    // Public methods are called by the app: they never throw into it.
     setUser(user: UserOptions): void {
-      session.setUser(user.id);
-      logger.log("user set", user.id);
+      attempt(() => {
+        session.setUser(user.id);
+        logger.log("user set", user.id);
+      });
     },
     captureError(err: unknown, context?: Attrs): void {
-      claimError(err);
-      events.emit("exception", exceptionAttributes(err, "captured", context), "error");
+      attempt(() => {
+        claimError(err);
+        events.emit("exception", exceptionAttributes(err, "captured", context), "error");
+      });
     },
     addEvent(name: string, attrs?: Attrs): void {
-      events.emit(name, { ...(attrs ?? {}), "ouo.event.custom": true });
+      attempt(() => events.emit(name, { ...(attrs ?? {}), "ouo.event.custom": true }));
     },
     setRoute(name: string): void {
-      route.name = name || undefined;
-      if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
+      attempt(() => {
+        route.name = name || undefined;
+        if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
+      });
     },
     replay: {
-      pause: () => recorder?.pause(),
-      resume: () => recorder?.resume(),
-      isRecording: () => recorder?.isRecording() ?? false,
+      pause: () => attempt(() => recorder?.pause()),
+      resume: () => attempt(() => recorder?.resume()),
+      isRecording: () => attempt(() => recorder?.isRecording() ?? false, false),
     },
     session: {
-      id: () => session.id(),
-      userId: () => session.userId(),
+      id: () => attempt(() => session.id(), ""),
+      userId: () => attempt(() => session.userId(), ""),
     },
     flush,
-    async _uninstall(): Promise<void> {
-      uninstallActivity();
-      uninstallErrors();
-      uninstallNavigation();
-      uninstallClicks();
-      uninstallLongTasks();
-      uninstallVitals();
-      unsubscribeErrors();
-      globalThis.removeEventListener("storage", onStorage);
-      document.removeEventListener("visibilitychange", onVisibility);
-      globalThis.removeEventListener("pagehide", onPageHide);
-      recorder?.shutdown();
-      chunker.stop();
-      session.stop();
-      await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
-      instance = undefined;
-    },
+    shutdown,
+    _uninstall: shutdown,
   };
-  instance = rum;
   return rum;
 }

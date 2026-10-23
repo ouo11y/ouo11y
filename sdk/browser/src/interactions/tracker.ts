@@ -1,5 +1,6 @@
 import { trace, ROOT_CONTEXT, type Attributes, type Context, type Span, type Tracer } from "@opentelemetry/api";
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { guard } from "../guard";
 import { systemClock, type Clock } from "../session/clock";
 
 export type IdleSpanKind = "click" | "navigation";
@@ -205,7 +206,7 @@ export class InteractionTracker implements SpanProcessor {
 
   private observe(): void {
     if (this.observer || !this.MO || typeof document === "undefined") return;
-    this.observer = new this.MO(() => this.noteMutation());
+    this.observer = new this.MO(guard(() => this.noteMutation()));
     this.observer.observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
   }
 
