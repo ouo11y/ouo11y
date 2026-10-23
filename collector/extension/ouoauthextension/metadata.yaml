@@ -1,0 +1,21 @@
+# Component metadata in the mdatagen shape (documentation only; internal/metadata is hand-written).
+type: ouoauth
+
+status:
+  class: extension
+  stability:
+    alpha: [extension]
+  distributions: [ouo-collector]
+  codeowners:
+    active: [ZiadMansourM]
+
+telemetry:
+  metrics:
+    ouo_auth_failures_total:
+      enabled: true
+      description: Requests the wrapped authenticator rejected (answered 401 / UNAUTHENTICATED), by reason.
+      unit: "{request}"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [reason, authenticator]   # reason: missing | malformed | invalid_credentials | other

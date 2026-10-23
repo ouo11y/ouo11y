@@ -125,7 +125,7 @@ Compatibility rule:
 
 - A rum-api release knows a **maximum schema version**. It accepts chunks with any
   `schema_version <= max` it can read and rejects newer ones with `400` (today: anything but
-  `1`, see `internal/replay/parse.go`).
+  `1`: the maximum is `SchemaVersion` in `internal/replay/schema.go`, `parse.go` enforces it).
 - **Start-up guard** (rum-api after 0.3.0, `internal/replay/schema.go`): every start reads the
   marker `replays/schema.json` (filesystem: `DATA_DIR/replays/schema.json`; S3:
   `[<prefix>/]replays/schema.json` in the bucket), `{"max_schema_version": N,

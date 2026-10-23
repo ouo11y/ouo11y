@@ -337,7 +337,7 @@ service:
 
 The `ouoreplay` receiver's chunk validation and the `ouoreplay` exporter must accept `kind: "video"`. The exporter copies the body through. The receiver's kind check rejects anything other than `rrweb` and `frames` today, which matters only for clients posting video chunks to port 4319 directly. Bridged chunks never pass through that receiver.
 
-Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment (or with client-address affinity) until correlation state moves to a shared store (Phase 11). It exports OTLP to the main collector or directly to the backends.
+Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment until correlation state moves to a shared store (Phase 11). It exports directly to the backends (the main collector requires a Basic project credential). Client-address affinity is not enough for phones that change networks. Operator guide with the failure modes and a Kubernetes manifest: [sentry-bridge-deployment.md](../sentry-bridge-deployment.md).
 
 Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`), `ouo_sentry_session_match_total{rule}`.
 

@@ -134,9 +134,9 @@ jobs:
         with:
           go-version-file: collector/receiver/ouoreplayreceiver/go.mod
           cache-dependency-path: collector/**/go.sum
-      - name: go vet + go test (ouoreplay + ouosentry receivers, ouoreplay exporter, ouoratelimit processor)
+      - name: go vet + go test (ouoreplay + ouosentry receivers, ouoreplay exporter, ouoratelimit processor, ouoauth extension)
         run: |
-          for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor; do
+          for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor extension/ouoauthextension; do
             echo "::group::$m"
             (cd "collector/$m" && go mod verify && go vet ./... && go test -race ./...)
             echo "::endgroup::"
