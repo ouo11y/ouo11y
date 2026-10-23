@@ -482,20 +482,25 @@ Open the `POST /api/checkout` trace: `POST /api/checkout` -> the Express middlew
 
 ## Step 6. Get access to the browser SDK
 
-`@ouo11y/browser` is published on GitHub Packages, next to the images, and private for now.
-The token from step 4b (classic, `read:packages`) installs it too. Tell npm where `@ouo11y`
-packages live, in the frontend folder:
+`@ouo11y/browser` is published on GitHub Packages, private for now, so npm needs to know
+where `@ouo11y` packages live and sign in there with your GitHub account. Once per machine,
+with the [GitHub CLI](https://cli.github.com) logged in (`gh auth login`):
 
 ```bash
-cd ~/Desktop/tiny-shop/frontend
+gh auth refresh -s read:packages
 ```
 
 ```bash
-printf '@ouo11y:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${GHCR_TOKEN}\n' > .npmrc
+npm config set @ouo11y:registry https://npm.pkg.github.com
 ```
 
-The file holds `${GHCR_TOKEN}`, not the token: npm reads the variable from your shell, so
-`.npmrc` is safe to commit. Run npm from a shell where `GHCR_TOKEN` is exported.
+```bash
+npm config set //npm.pkg.github.com/:_authToken "$(gh auth token)"
+```
+
+This writes your user `~/.npmrc`, nothing in the project. Your GitHub account needs read
+access to the package (org members and anyone the founder adds under Package settings >
+Manage access).
 
 ## Step 7. Instrument the web app
 
@@ -707,8 +712,8 @@ docker compose down -v
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
 | `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
 | Vite: `@ouo/browser ... could not be resolved` | the package is `@ouo11y/browser` |
-| `npm install @ouo11y/browser`: `404 Not Found` from `registry.npmjs.org` | no `.npmrc` in `frontend/`, so npm asked npmjs.org: step 6 |
-| `npm install @ouo11y/browser`: `401` or `403` from `npm.pkg.github.com` | `GHCR_TOKEN` not exported in this shell, not a classic token with `read:packages`, or no read access to the package yet |
+| `npm install @ouo11y/browser`: `404 Not Found` from `registry.npmjs.org` | npm does not know the `@ouo11y` registry yet: step 6 |
+| `npm install @ouo11y/browser`: `401` or `403` from `npm.pkg.github.com` | the token lacks `read:packages` or your account has no read access yet: rerun step 6 |
 | `Cannot read properties of undefined (reading 'export')` in the API | OpenTelemetry 2.x code: `new BatchSpanProcessor({ exporter })` from `@opentelemetry/sdk-trace` |
 | The backend trace starts at `POST /api/checkout`, without the browser span | `propagateTo` does not match the API URL (use the RegExp), or the page was not reloaded after editing `rum.js` |
 | No `OPTIONS` before the API calls | same as above: no trace headers are being added |
