@@ -43,12 +43,12 @@ dev_args=()
 [[ -n "$TEAM" ]] && dev_args+=(--team "$TEAM")
 
 log "build ($TARGET, ouo $OUO, sentry $SENTRY) -> $WORK/build"
-"$HERE/build.sh" --out "$WORK/build" --target "$TARGET" "${dev_args[@]}" --ouo "$OUO" --sentry "$SENTRY"
+"$HERE/build.sh" --out "$WORK/build" --target "$TARGET" ${dev_args[@]+"${dev_args[@]}"} --ouo "$OUO" --sentry "$SENTRY"
 python3 -I "$HERE/size.py" --build "$WORK/build" --json "$WORK/size.json"
 
 log "bench -> $WORK/runs"
 python3 -I "$HERE/bench.py" --env "$ENV_NAME" --app "$WORK/build/sentrydemo.app" --out "$WORK/runs" --target "$TARGET" \
-  "${dev_args[@]}" --runs "$RUNS" "${SINK[@]}" "${EXTRA[@]}"
+  ${dev_args[@]+"${dev_args[@]}"} --runs "$RUNS" ${SINK[@]+"${SINK[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}
 
 ouo_v=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["@ouo11y/react-native"])' "$WORK/build/versions.json")
 sentry_v=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["@sentry/react-native"])' "$WORK/build/versions.json")
@@ -63,7 +63,7 @@ python3 -I -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["c
 cp "$WORK/build/versions.json" "$WORK/build/Podfile.lock" "$DEST/configs/"
 NOTES=()
 [[ -f "$DEST/notes.html" ]] && NOTES=(--notes "$DEST/notes.html")
-python3 -I "$HERE/bench_report.py" --result "$DEST/result.json" --out "$DEST/report.html" "${NOTES[@]}"
+python3 -I "$HERE/bench_report.py" --result "$DEST/result.json" --out "$DEST/report.html" ${NOTES[@]+"${NOTES[@]}"}
 python3 -I "$HERE/bench_trend.py" --dir "$PUBLISH"
 log "published $DEST (raw runs in $WORK)"
 echo "$DEST"

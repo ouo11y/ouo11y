@@ -332,7 +332,8 @@ jobs:
           # compose.yaml bind-mounts the plugin's dist/ into Grafana (as release-check.yml does).
           npm run build -w plugins/ouo11y-rum-app
           if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
-          if [ "$OUO_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
+          # examples/sentry-mobile depends on @ouo11y/react-native too (file:../../sdk/react-native).
+          if [ "$OUO_MOBILE" = true ] || [ "$SENTRY_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
       - name: Stack URLs from this runner's ports
         run: .github/scripts/stack-env.sh | tee -a "$GITHUB_ENV"
       - name: Start the stack (built from this checkout)

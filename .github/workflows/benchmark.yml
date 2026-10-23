@@ -67,7 +67,6 @@ jobs:
       RUNS: ${{ github.event_name == 'pull_request' && '1' || inputs.runs || '10' }}
       SENTRY: ${{ inputs.sentry || 'latest' }}
       BACKEND_PORT: '8581'
-      WORK: ${{ github.workspace }}/../bench
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -82,8 +81,10 @@ jobs:
           go-version-file: examples/backend/go.mod
       - name: Simulator and tools
         run: |
+          echo "WORK=$RUNNER_TEMP/bench" >> "$GITHUB_ENV"   # upload-artifact refuses paths with ..
           xcodebuild -version
           pod --version
+          ruby -e 'require "xcodeproj"' 2>/dev/null || gem install --user-install xcodeproj   # the XCUITest driver project (make-driver.rb)
           udid=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone") and "Pro" in x["name"]))')
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
@@ -128,9 +129,9 @@ jobs:
         if: always()
         run: |
           [[ -f "$WORK/gate.md" ]] && cat "$WORK/gate.md" >> "$GITHUB_STEP_SUMMARY"
-          for f in "$WORK"/published/*/result.json; do
-            [[ -f $f ]] && python3 -I examples/sentry-mobile/scripts/perf/bench_result.py --out "$(dirname "$f")/../../new/runs" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
-          done
+          if [[ -f "$WORK/new/runs/meta.json" ]]; then
+            { echo '```'; python3 -I examples/sentry-mobile/scripts/perf/bench_result.py --out "$WORK/new/runs"; echo '```'; } >> "$GITHUB_STEP_SUMMARY" || true
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

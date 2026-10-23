@@ -313,15 +313,30 @@ class Device:
 # ---------------------------------------------------------------------------------------------
 
 
+def driver_ruby(a, env):
+    """A Ruby that can `require "xcodeproj"` (a CocoaPods dependency). Homebrew's CocoaPods keeps it in
+    its own GEM_HOME; elsewhere (GitHub's macOS runners) a plain `ruby` with the gem installed."""
+    import glob as _glob
+    homes = [a.gem_home] + sorted(_glob.glob("/opt/homebrew/Cellar/cocoapods/*/libexec"), reverse=True)
+    candidates = [("/opt/homebrew/opt/ruby/bin/ruby", h) for h in homes if os.path.isdir(h)] + [(shutil.which("ruby") or "ruby", None)]
+    for ruby, home in candidates:
+        e = dict(env, GEM_HOME=home) if home else env
+        if os.path.exists(ruby) and subprocess.run([ruby, "-e", 'require "xcodeproj"'], env=e, capture_output=True).returncode == 0:
+            if home:
+                env["GEM_HOME"] = home
+            return ruby
+    raise SystemExit("no Ruby with the xcodeproj gem: `gem install xcodeproj` (it ships with CocoaPods)")
+
+
 def build_driver(t, a):
     build = os.path.join(HERE, "driver", "build", t.kind)
     products = os.path.join(build, "dd", "Build", "Products")
     if not os.path.isdir(products):
         log("build the XCUITest driver")
-        env = dict(os.environ, GEM_HOME=a.gem_home)
+        env = dict(os.environ)
         if a.team:
             env["TEAM_ID"] = a.team
-        out = sh(["/opt/homebrew/opt/ruby/bin/ruby", os.path.join(HERE, "make-driver.rb")], env=env).stdout.strip()
+        out = sh([driver_ruby(a, env), os.path.join(HERE, "make-driver.rb")], env=env).stdout.strip()
         os.makedirs(build, exist_ok=True)
         cmd = ["xcodebuild", "build-for-testing", "-project", out, "-scheme", "PerfJourney", "-destination", t.dest,
                "-derivedDataPath", os.path.join(build, "dd")]
