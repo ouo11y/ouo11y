@@ -19,6 +19,7 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.dependency 'OuoReplay'
   s.dependency 'OuoCrash'
+  s.dependency 'OuoVitals'
 
   s.source_files = '*.swift'
   s.pod_target_xcconfig = {

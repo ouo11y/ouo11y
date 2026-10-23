@@ -5,17 +5,21 @@
  *   animation frame after it (the frame that shows the new screen), measured here;
  * - `ouo.app.start`: needs the native process start time (`getAppStartInfo`);
  * - `app.jank`: needs native frame counters (`getFrameStats`).
- * The last two are read from the Expo module when its native side has them; without them the SDK
- * emits nothing for that vital (spec rule 1: no record for a value that was not measured).
+ * The last two come from the Expo module's iOS side (`OuoVitals` in sdk/ios); without them (Expo
+ * Go, web, Android for now) the SDK emits nothing for that vital (spec rule 1: no record for a
+ * value that was not measured).
  */
 import type { DebugLogger } from "./logger";
 import type { EventEmitter } from "./telemetry/events";
 import type { Attrs, VitalsOptions } from "./types";
 
-/** Optional native functions of the `OuoReplay` Expo module (not in this module's native side yet; see the README). */
+/** Optional native functions of the `OuoReplay` Expo module (iOS: `sdk/react-native/ios/OuoReplayModule.swift`). */
 export interface NativeVitalsModule {
-  /** Process start (epoch ms) and whether this JS run is a relaunch in a live process. */
-  getAppStartInfo?(): { processStartMs?: number; type?: "cold" | "warm" } | null | undefined;
+  /**
+   * Start of this launch (epoch ms): the process start for `cold` (the app image load when iOS
+   * prewarmed the process, `prewarmed: true`), the JS runtime's start for `warm` (a reload in a live process).
+   */
+  getAppStartInfo?(): { processStartMs?: number; type?: "cold" | "warm"; prewarmed?: boolean } | null | undefined;
   /** Cumulative frame counters since the module started (CADisplayLink / FrameMetrics). */
   getFrameStats?(): NativeFrameStats | null | undefined;
 }

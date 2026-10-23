@@ -2,9 +2,8 @@
 
 ## Unreleased
 
-Bridge parity (checklist section 3: G2 to G6, Q1). Everything is in the JS SDK; the vitals that
-need native measurements read optional functions of the Expo module that its native side does
-not have yet.
+Bridge parity (checklist section 3: G2 to G6, Q1). Everything but the native vitals is in the JS
+SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrameStats()`.
 
 ### Added
 
@@ -23,8 +22,10 @@ not have yet.
   appLifecycle, requests }` (all default true).
 - **Vitals** (G2, `docs/specs/mobile-vitals.md`): `ouo.stall` (50 ms JS loop) and
   `ouo.screen.display` (TTID per screen) measured in JS; `ouo.app.start` and `app.jank` from the
-  Expo module's `getAppStartInfo()` / `getFrameStats()` when its native side has them. Option
-  `vitals: { enabled, stalls }`.
+  Expo module's `getAppStartInfo()` / `getFrameStats()` (iOS: the `OuoVitals` Swift target of
+  `sdk/ios`, process start from `sysctl`, cold/warm, `CADisplayLink` slow and frozen frames).
+  Option `vitals: { enabled, stalls }`. New pods `OuoVitals` and `OuoVitalsCore` (run
+  `pod install` after upgrading).
 - **Sentry forwarding** (G6, opt-in): `errors: { forwardSentryErrors: Sentry.getClient() }` turns
   every error event Sentry sends into an ouo `exception` (`ouo.exception.kind = sentry`,
   `ouo.sentry.event_id`, `ouo.sentry.mechanism`), skipping errors ouo captured itself and

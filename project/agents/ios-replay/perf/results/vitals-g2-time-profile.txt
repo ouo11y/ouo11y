@@ -1,0 +1,1 @@
+process samples 650 ms, main thread 608 ms, vitals frames on main 0.0 ms (0.000% of main), vitals anywhere 0.0 ms

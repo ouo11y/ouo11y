@@ -387,15 +387,17 @@ Per `docs/specs/mobile-vitals.md` (`ouo.vital.source = ouo`; turn off with `vita
 |---|---|---|
 | `ouo.stall` | a 50 ms JS timer; an iteration of 100 ms or more is a stall of its excess over 50 ms; one record per window with stalls (`vitals.stalls: false` turns the timer off) | nothing |
 | `ouo.screen.display` | TTID: from the navigation state change (`trackNavigation`) to the second animation frame after it; for the first screen, from the process start | the first screen: the native process start |
-| `ouo.app.start` | from the native process start to the frame after `<RUMProvider>` mounted (or the first screen's frame), once per run, not when the app was launched in the background (iOS prewarming) | `getAppStartInfo()` in the Expo module |
-| `app.jank` | native frame counters, diffed per window | `getFrameStats()` in the Expo module |
+| `ouo.app.start` | from the native process start (`cold`; the app image load when iOS prewarmed the process) or the JS runtime's start after a reload (`warm`) to the frame after `<RUMProvider>` mounted (or the first screen's frame), once per run, not when the app was launched in the background | `getAppStartInfo()` in the Expo module (iOS) |
+| `app.jank` | `CADisplayLink` frame counters (slow: longer than one frame at the refresh rate minus 1 fps, frozen: 700 ms or more, as sentry-cocoa), diffed per window | `getFrameStats()` in the Expo module (iOS) |
 
 Windows: `app_start` until the first screen, then one per screen visit (`ouo.vital.window =
 screen`, `app.screen.name` = the route name, the last segment of the navigation path), closed at
-the next navigation or when the app goes to the background. The Expo module's native side does
-not have `getAppStartInfo` / `getFrameStats` yet; until it does, the SDK emits no
-`ouo.app.start`, no `app.jank` and no first-screen TTID (spec rule 1: nothing that was not
-measured).
+the next navigation or when the app goes to the background. The native measurements are the
+`OuoVitals` Swift target of `sdk/ios`, which the Expo module starts when it is created: one
+`CADisplayLink` callback per frame that only updates counters (main-thread cost in
+`project/kb/ios-vitals.md`). Without the native module (Expo Go, web, Android for now) the SDK
+emits no `ouo.app.start`, no `app.jank` and no first-screen TTID (spec rule 1: nothing that was
+not measured).
 
 ## Device
 
