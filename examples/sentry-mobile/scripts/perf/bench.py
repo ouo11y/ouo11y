@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -107,8 +108,8 @@ class Sim:
         for rt, devs in r["devices"].items():
             for d in devs:
                 if d["udid"] == self.udid:
-                    return {"target": "simulator", "udid": self.udid, "name": d["name"], "model": d.get("deviceTypeIdentifier"),
-                            "os": rt.split(".")[-1], "host": platform.node(), "host_machine": platform.machine(),
+                    return {"target": "simulator", "udid": self.udid, "name": d["name"], "model": (d.get("deviceTypeIdentifier") or "").split(".")[-1].replace("-", " "),
+                            "os": rt.split(".")[-1].replace("iOS-", "iOS ").replace("-", "."), "host": platform.node(), "host_machine": platform.machine(),
                             "host_os": platform.mac_ver()[0]}
         return {"target": "simulator", "udid": self.udid}
 
@@ -348,10 +349,13 @@ def versions():
     lock = os.path.join(APP_DIR, "ios", "Podfile.lock")
     if os.path.exists(lock):
         for line in open(lock):
-            line = line.strip()
-            for pod in ("Sentry/HybridSDK", "Sentry (", "OuoReplay", "hermes-engine ("):
-                if line.startswith("- " + pod) and "(" in line and "=" not in line:
-                    v["pod " + line[2:].split(" (")[0]] = line.split("(")[1].split(")")[0]
+            m = re.match(r"^  - (RNSentry|OuoReplay|OuoReplayCore|hermes-engine) \(([\d.]+)\):?$", line.rstrip())
+            if m:
+                v["pod " + m.group(1)] = m.group(2)
+    # sentry-cocoa ships as a prebuilt xcframework, one folder per version.
+    xcf = os.path.join(APP_DIR, "ios", "Pods", "sentry-xcframeworks")
+    if os.path.isdir(xcf):
+        v["sentry-cocoa"] = " ".join(sorted(os.listdir(xcf)))
     v["xcode"] = sh(["xcodebuild", "-version"], check=False).stdout.split("\n")[0]
     v["git_sha"] = sh(["git", "-C", REPO, "rev-parse", "HEAD"], check=False).stdout.strip()
     v["git_dirty"] = bool(sh(["git", "-C", REPO, "status", "--porcelain", "--", "examples/sentry-mobile", "sdk"], check=False).stdout.strip())

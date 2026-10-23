@@ -240,7 +240,7 @@ def main():
     kv = {
         "Device": f"{dev.get('name')} ({dev.get('model')}), {dev.get('target')}, OS {dev.get('os')} {dev.get('os_build') or ''}",
         "@ouo11y/react-native": v.get("@ouo11y/react-native"),
-        "@sentry/react-native": f"{v.get('@sentry/react-native')} (sentry-cocoa {v.get('pod Sentry') or v.get('pod Sentry/HybridSDK') or '?'})",
+        "@sentry/react-native": f"{v.get('@sentry/react-native')} (sentry-cocoa {v.get('sentry-cocoa') or '?'})",
         "React Native / Expo": f"{v.get('react-native')} / {v.get('expo')}",
         "Xcode": v.get("xcode"), "Git": f"{v.get('git_sha', '')[:10]}{' (dirty)' if v.get('git_dirty') else ''}",
         "Runs": f"{m['runs']} rounds × {len(m['cells'])} cells, {m['seconds']:.0f} s each, interleaved and rotated",

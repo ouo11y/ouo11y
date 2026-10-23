@@ -356,7 +356,7 @@ def main():
     for sig, rs in sigs.items():
         if sig != expected:
             for r in rs:
-                r["problems"].append("backend requests differ from the usual run (a tap missed?)")
+                r["problems"].append("backend requests differ from the usual run (an extra or a missed request; listed, not excluded)")
     cells = {}
     for c in meta["cells"]:
         rs = [r for r in main_runs if r["cell"] == c]
