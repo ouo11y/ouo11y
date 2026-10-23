@@ -152,3 +152,54 @@ python3 -I scripts/perf/report.py --summary <dir>/summary.json --notes notes.htm
 - Use a dedicated simulator (`xcrun simctl create "ouo-perf iPhone 18 Pro" ...`): other sessions drive
   the shared one.
 - `xcrun simctl io <udid> screenshot` works headless for calibrating coordinates (1206x2622 px = 402x874 pt).
+
+## B3 benchmark harness (2026-10-23)
+
+The #25 harness grew into the per-release benchmark of [docs/benchmarks.md](../../docs/benchmarks.md)
+(tiers T1 to T4, rules, release gate). Entry point `scripts/perf/bench.sh` (build, size, bench,
+result, report, trend); the pieces:
+
+- `build.sh`: Release build for `--target sim|device` with every endpoint on the proxy ports
+  (4718 OTLP, 4719 replay, 4720 Sentry, 4781 backend; `localhost` or the Mac's LAN IP), a link map
+  and the Hermes source map. `--ouo` / `--sentry` pick SDK versions (`npm install --no-save`).
+- `bench.py`: cells = SDK + tier (`Documents/perf-mode.json` `{"mode","tier"}`), N rounds rotated,
+  then offline + recover runs and a 30 min soak. Simulator: container wipe + `sample.py`. Device:
+  `devicectl` reinstall per run, `devicectl device copy to/from` for the mode and `perf.json`,
+  `xctrace record --template 'Activity Monitor' --all-processes`.
+- `bench_result.py` (absolute times, paired deltas, tap check by backend requests),
+  `bench_report.py`, `bench_trend.py`, `gate.py` (section 5 thresholds), `size.py`.
+- `n22_device.py`: Time Profiler + os_signpost and the two crash flows on a real iPhone.
+
+Quirks found:
+
+- **Size attribution must classify by library name, not path**: the app lives in
+  `examples/sentry-mobile`, so a `sentry` match on the object path counts all of React Native as
+  Sentry. The prebuilt `Sentry.xcframework` is a static archive linked into the app binary (no
+  `Frameworks/Sentry.framework`).
+- `LD_GENERATE_MAP_FILE` + one `LD_MAP_FILE_PATH` fails a Release simulator build (two archs, one
+  output: "duplicate output file"). Use `ONLY_ACTIVE_ARCH=YES` and
+  `LD_MAP_FILE_PATH=$(TARGET_TEMP_DIR)/linkmap-$(CURRENT_ARCH).txt`.
+- The Hermes bundle's composed source map is one line whose columns are bytecode offsets: a
+  segment's length is the next segment's column minus its own. The header and shared string tables
+  map to no source (about 40 % of `main.jsbundle`), so per-SDK JS numbers are function bytecode.
+- `@ouo11y/react-native` bundles OpenTelemetry into `dist/index.js` (tsup `noExternal`), so ouo's
+  JS shows as one source; Sentry's spreads over `@sentry/core`, `@sentry/react-native`,
+  `@sentry/replay`, `@sentry/browser`, `@sentry/conventions`.
+- Wire formats: ouo sends OTLP/HTTP **JSON uncompressed** (no `Content-Encoding`); replay chunks
+  are gzip. sentry-cocoa's native transport gzips envelopes. The proxy records both the wire size
+  and the decoded size (`req_body_decoded`) and the envelope item types, so replay bytes are
+  counted apart for Sentry too.
+- ouo keeps no on-disk queue for spans and logs (the OTel batch processors hold up to 2048 log
+  records and 1024 spans in memory); only the crash report and session state are files.
+- xctrace `Activity Monitor` export: table `activity-monitor-process-live`, columns `start`
+  (ns from the recording start), `process` (`fmt` = name), `cpu-total` (ns on core),
+  `cpu-percent`, `memory-physical-footprint`. The recording's absolute start is `start-date` in
+  the TOC. On a simulator destination the recording fails and the table has no rows: simulator
+  runs keep `sample.py`.
+- Never edit a bash script while it runs (bash reads it as it goes; the build died with a syntax
+  error in a line that was fine).
+- **Upgrading `@sentry/react-native` alone duplicates Sentry's JS.** The app pins `@sentry/core`
+  as a direct dependency; `npm install @sentry/react-native@8.32.0` then nests a second
+  `@sentry/core` (10.76.2) and Metro bundles a second copy of `@sentry/browser`, `replay`,
+  `feedback`, `replay-canvas`...: +1.5 MB of Hermes bytecode (Sentry JS 822 KB -> 2,336 KB). With
+  `@sentry/core` at the version the SDK depends on, 8.32.0 is 831 KB. `build.sh` installs both.

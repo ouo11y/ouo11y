@@ -1,0 +1,142 @@
+# Device-cost benchmark, ouo vs Sentry (docs/benchmarks.md, roadmap B3), on the iOS simulator.
+#
+# Runs examples/sentry-mobile/scripts/perf/bench.sh twice on one macOS runner:
+#   new   the release being cut (its tag, or `ouo_ref`): every cell, against the latest stable
+#         @sentry/react-native resolved at run time (recorded in result.json);
+#   base  the previous react-native-v* release, ouo cells only;
+# then gate.py compares new with base (section 5 thresholds) and fails the job when a metric
+# regressed. Results (result.json, report.html) are uploaded as an artifact; a person commits
+# them under project/reports/benchmarks/ with the release.
+#
+# Simulator numbers only: CI has no phone, so they are a regression signal between ouo versions,
+# never published as device costs. The device run (the founder's iPhone) is manual:
+#   examples/sentry-mobile/scripts/perf/bench.sh --env <env> --target device --device <udid> --team <TEAM_ID>
+# CI has no Docker on macOS either: the proxy answers SDK requests itself (`--sink`) and the demo
+# backend runs natively.
+#
+# Triggers:
+#   - workflow_dispatch with ouo_ref = the release PR branch: the gate that blocks a major
+#     release, before the tag (docs/releasing.md section 5, step 3; a minor opts in the same way);
+#   - a react-native-v<major>.0.0 tag: the same run on the tagged commit, for the record;
+#   - pull requests that change the harness or this file: smoke run (1 round, 3 cells, no gate).
+name: benchmark
+
+on:
+  push:
+    tags:
+      - 'react-native-v*.0.0'
+  pull_request:
+    paths:
+      - .github/workflows/benchmark.yml
+      - examples/sentry-mobile/scripts/perf/**
+  workflow_dispatch:
+    inputs:
+      ouo_ref:
+        description: 'Git ref of the ouo release to benchmark (default: this ref)'
+        required: false
+        type: string
+      base_ref:
+        description: 'Previous release tag to gate against (default: the latest react-native-v* tag before ouo_ref)'
+        required: false
+        type: string
+      sentry:
+        description: '@sentry/react-native version (default: latest stable)'
+        required: false
+        default: latest
+        type: string
+      runs:
+        description: 'Rounds per cell (docs/benchmarks.md: at least 10)'
+        required: false
+        default: '10'
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    runs-on: macos-latest
+    timeout-minutes: 340
+    permissions:
+      contents: read
+    env:
+      SMOKE: ${{ github.event_name == 'pull_request' }}
+      RUNS: ${{ github.event_name == 'pull_request' && '1' || inputs.runs || '10' }}
+      SENTRY: ${{ inputs.sentry || 'latest' }}
+      BACKEND_PORT: '8581'
+      WORK: ${{ github.workspace }}/../bench
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ inputs.ouo_ref || github.ref }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: examples/backend/go.mod
+      - name: Simulator and tools
+        run: |
+          xcodebuild -version
+          pod --version
+          udid=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone") and "Pro" in x["name"]))')
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+      - name: Demo backend (native, no Docker)
+        run: |
+          (cd examples/backend && go build -o "$RUNNER_TEMP/backend" .)
+          PORT=$BACKEND_PORT nohup "$RUNNER_TEMP/backend" >"$RUNNER_TEMP/backend.log" 2>&1 &
+          for _ in $(seq 1 30); do curl -sf "http://127.0.0.1:$BACKEND_PORT/api/products" >/dev/null && break; sleep 1; done
+      - name: Build the SDKs
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build -w sdk/react-native
+      - name: Benchmark the new release
+        run: |
+          cells="none sentry-T1 sentry-T2 ouo-T2 sentry-T3 ouo-T3 sentry-T4 ouo-T4"
+          [[ $SMOKE == true ]] && cells="none sentry-T3 ouo-T3"
+          examples/sentry-mobile/scripts/perf/bench.sh --env none --sink --target sim --device "$SIM_UDID" --runs "$RUNS" \
+            --sentry "$SENTRY" --work "$WORK/new" --publish "$WORK/published" \
+            -- --backend-port "$BACKEND_PORT" --cells "$cells" --no-soak $([[ $SMOKE == true ]] && echo --no-offline)
+      - name: Benchmark the previous release (ouo cells)
+        if: env.SMOKE != 'true'
+        run: |
+          base="${{ inputs.base_ref }}"
+          if [[ -z $base ]]; then
+            base=$(git tag --list 'react-native-v*' --sort=-v:refname --merged HEAD | grep -vx "$(git describe --tags --exact-match 2>/dev/null || echo none)" | head -1)
+          fi
+          [[ -n $base ]] || { echo "no previous react-native-v* tag: nothing to gate against"; exit 0; }
+          echo "BASE_REF=$base" >> "$GITHUB_ENV"
+          git worktree add "$WORK/base-src" "$base"
+          (cd "$WORK/base-src" && npm ci --no-audit --no-fund && npm run build -w sdk/react-native)
+          examples/sentry-mobile/scripts/perf/bench.sh --env none --sink --target sim --device "$SIM_UDID" --runs "$RUNS" \
+            --ouo "$WORK/base-src/sdk/react-native" --sentry "$SENTRY" --work "$WORK/base" --publish "$WORK/published-base" \
+            -- --backend-port "$BACKEND_PORT" --cells "none ouo-T2 ouo-T3 ouo-T4" --no-soak --no-offline
+      - name: Gate
+        if: env.SMOKE != 'true' && env.BASE_REF != ''
+        run: |
+          new=$(ls -d "$WORK"/published/*/ | head -1)
+          base=$(ls -d "$WORK"/published-base/*/ | head -1)
+          python3 -I examples/sentry-mobile/scripts/perf/gate.py --new "$new/result.json" --base "$base/result.json" --md "$WORK/gate.md"
+      - name: Summary
+        if: always()
+        run: |
+          [[ -f "$WORK/gate.md" ]] && cat "$WORK/gate.md" >> "$GITHUB_STEP_SUMMARY"
+          for f in "$WORK"/published/*/result.json; do
+            [[ -f $f ]] && python3 -I examples/sentry-mobile/scripts/perf/bench_result.py --out "$(dirname "$f")/../../new/runs" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: benchmark-${{ github.run_id }}
+          path: |
+            ${{ env.WORK }}/published
+            ${{ env.WORK }}/published-base
+            ${{ env.WORK }}/gate.md
+          if-no-files-found: ignore

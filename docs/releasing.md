@@ -122,6 +122,13 @@ Before merging the release PR:
 3. [ ] Rehearse the publish: Actions > `release-<x>` > Run workflow on the release PR branch,
    tag = the tag you will push (e.g. `browser-v0.3.0`). Green means it builds, the versions
    match, and (npm) `npm publish --dry-run` or (ios) `git push --dry-run` to the mirror pass.
+   - [ ] **`react-native`, major release (a minor opts in): device-cost benchmark.** Actions >
+     `benchmark` > Run workflow with `ouo_ref` = the release PR branch. Green means no metric
+     regressed against the previous `react-native-v*` release beyond the thresholds in
+     [`benchmarks.md`](benchmarks.md) section 5 (simulator, latest stable Sentry). A red gate
+     blocks the release unless you override it with a written reason on the PR. Then run the
+     iPhone benchmark by hand (`benchmarks.md` section 4) and commit its result folder to
+     `project/reports/benchmarks/` with the release.
 4. [ ] Merge the release PR (squash).
 
 Tag (on the merge commit, from an up-to-date clone):

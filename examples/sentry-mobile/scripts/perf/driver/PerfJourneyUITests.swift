@@ -6,8 +6,17 @@
 // element queries: every XCUITest element query makes the app build an accessibility snapshot,
 // which would add app CPU that has nothing to do with the SDKs.
 //
-// Environment (xcodebuild passes TEST_RUNNER_<name> as <name>): PERF_SECONDS, the length of the run
-// from the launch (default 95). The harness writes Documents/perf-mode.json before this runs.
+// The coordinates were calibrated on the 402 pt wide iPhone 18 Pro simulator. Taps at x = 201 are row
+// centres and move with the screen's centre; header back buttons are left-aligned and keep their x.
+// PERF_DY shifts every y (points) for a device whose safe area or header differs; calibrate it from
+// a screenshot and check each tap's backend request (project/kb/sdk-overhead-ios.md).
+//
+// Environment (xcodebuild passes TEST_RUNNER_<name> as <name>):
+//   PERF_SECONDS   length of the run from the launch (default 95)
+//   PERF_JOURNEY   `taps` (default), `loop` (repeat the taps every PERF_LOOP_PERIOD seconds, default 80,
+//                  until PERF_SECONDS: the memory soak) or `idle` (launch, no taps)
+//   PERF_DY        vertical offset in points (default 0)
+// The harness writes Documents/perf-mode.json before this runs.
 import XCTest
 
 final class PerfJourneyUITests: XCTestCase {
@@ -46,17 +55,38 @@ final class PerfJourneyUITests: XCTestCase {
         continueAfterFailure = true
     }
 
+    private var dy = 0.0
+    private var centreX = 201.0
+
     private func point(_ x: Double, _ y: Double) -> XCUICoordinate {
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: x, dy: y))
+        let px = x == 201 ? centreX : x
+        return app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: px, dy: y + dy))
     }
 
     func testJourney() {
-        let seconds = Double(ProcessInfo.processInfo.environment["PERF_SECONDS"] ?? "") ?? 95
+        let env = ProcessInfo.processInfo.environment
+        let seconds = Double(env["PERF_SECONDS"] ?? "") ?? 95
+        let journey = env["PERF_JOURNEY"] ?? "taps"
+        let period = Double(env["PERF_LOOP_PERIOD"] ?? "") ?? 80
+        dy = Double(env["PERF_DY"] ?? "") ?? 0
         let t0 = Date()
         print("PERF launch_request_ms=\(Int(t0.timeIntervalSince1970 * 1000))")
         app.launch()
         print("PERF launch_returned_s=\(String(format: "%.3f", Date().timeIntervalSince(t0)))")
-        for (at, step, label) in schedule {
+        // One query after launch, before the first tap, for the screen width (the same in every cell).
+        centreX = Double(app.windows.firstMatch.frame.width) / 2
+        print("PERF screen_width=\(centreX * 2) dy=\(dy) journey=\(journey)")
+        var plan: [(Double, Step, String)] = []
+        if journey == "taps" {
+            plan = schedule
+        } else if journey == "loop" {
+            var cycle = 0.0
+            while cycle + 80 <= seconds {
+                plan += schedule.map { ($0.0 + cycle, $0.1, $0.2) }
+                cycle += period
+            }
+        }
+        for (at, step, label) in plan {
             let wait = at - Date().timeIntervalSince(t0)
             if wait > 0 { Thread.sleep(forTimeInterval: wait) }
             switch step {
