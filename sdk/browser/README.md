@@ -60,7 +60,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `projectId` | required | Project identifier, the Basic auth username. Throws when missing, empty or containing `:`. |
 | `projectToken` | required | Public project token, the Basic auth password. Throws when missing or empty. |
 | `service.name` / `service.version` / `service.environment` | required | Resource attributes `service.name`, `service.version`, `deployment.environment.name`. `service.version` is also put on every span and log record. |
-| `tracing.propagateTo` | `[]` | Origins (RegExp or exact string) that receive `traceparent` and `baggage` on fetch/XHR. Same-origin requests always do. |
+| `tracing.propagateTo` | `[]` | URLs that receive `traceparent` and `baggage` on fetch/XHR: a RegExp, or a string that must equal the whole request URL (OpenTelemetry compares strings with `===`, so `"http://localhost:8081"` matches no API call; use `/^http:\/\/localhost:8081\//`). Same-origin requests always do. |
 | `tracing.ignoreUrls` | `[]` | URLs never traced. The OTLP and replay endpoints are always ignored. |
 | `tracing.documentLoad` | `true` | Emit a `documentLoad` span from Navigation Timing; a child of the server span when the page has `<meta name="traceparent">` (see "Linking the page load"). |
 | `tracing.interactions` | `true` | A `click` span per click, parent of the requests and the soft navigation it causes (see "Interactions"). |

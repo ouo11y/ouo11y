@@ -61,7 +61,7 @@ jobs:
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           flag helm      '^deploy/helm/'
-          flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)'
+          flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
           # SDK or receiver it exercises, and the stack they run on.
           shared='examples/(backend|tools)/|^deploy/compose/'
@@ -101,7 +101,7 @@ jobs:
     name: quickstart.yaml in sync
     needs: changes
     if: needs.changes.outputs.quickstart == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -113,6 +113,8 @@ jobs:
       - name: docker compose config
         working-directory: deploy/compose
         run: docker compose -f quickstart.yaml config --quiet
+      - name: Files embedded in the quickstart guides match their source
+        run: node examples/quickstarts/check-embeds.mjs
 
   go:
     name: go (${{ matrix.module }})
