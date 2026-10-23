@@ -1,4 +1,5 @@
-# Publishes @ouo11y/browser or @ouo11y/react-native to npm when the founder pushes a tag.
+# Publishes @ouo11y/browser or @ouo11y/react-native to npmjs.org (public)
+# when the founder pushes a tag.
 #   browser-v0.2.0        -> sdk/browser        -> @ouo11y/browser@0.2.0
 #   react-native-v0.2.0   -> sdk/react-native   -> @ouo11y/react-native@0.2.0
 # The tag version must equal the workspace package.json version (the release PR bumps it).
@@ -7,17 +8,17 @@
 # SHA256SUMS. A real publish then uploads that exact tarball and attaches tarball, SBOM and
 # sums to a GitHub release for the tag.
 #
-# Access while ouo is private (founder rule): the repository variable NPM_ACCESS, default
-# `restricted`. Restricted scoped packages need a paid npm organisation; `public` is the
-# founder's call at the first stable version. Provenance (`--provenance` and a GitHub build
-# attestation) is only possible for a public package built in a public repository, so it is
-# switched on automatically when both are true and skipped with a notice otherwise.
+# Registry (founder 2026-10-24): public on npmjs.org (the SDKs are Apache-2.0), through npm
+# trusted publishing: npm trusts this workflow by OIDC, so there is no NPM_TOKEN to create or
+# renew. Each package lists `ouo11y/ouo11y` + `release-npm.yml` as its trusted publisher
+# (npmjs.com > package > Settings). Trusted publishing needs a GitHub-hosted runner, so this
+# job ignores the RUNNER variable. Provenance is added by npm once the repository is public.
 #
 # Dry run (publishes nothing, `npm publish --dry-run`):
 #   - Actions > release-npm > Run workflow with the tag to rehearse;
-#   - every pull request that changes this file (rehearses browser-v<package.json version>);
-#   - a tag push while the NPM_TOKEN secret is missing (the npm org is not claimed yet).
-# Setup (NPM_TOKEN, the @ouo11y org): docs/releasing.md, section "Accounts and secrets".
+#   - every pull request that changes this file (rehearses browser-v<package.json version>).
+# Both also check, with the same token, that the registry answers for @ouo11y and that the
+# version is not published yet.
 name: release-npm
 
 on:
@@ -43,16 +44,14 @@ concurrency:
 
 jobs:
   publish:
+    # GitHub-hosted on purpose: npm trusted publishing (OIDC) does not accept self-hosted runners.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write       # gh release create
-      id-token: write       # npm provenance and build attestation (public repo only)
-      attestations: write
+      id-token: write       # npm trusted publishing (OIDC)
     env:
       DRY_RUN: ${{ github.event_name != 'push' }}
-      NPM_ACCESS: ${{ vars.NPM_ACCESS || 'restricted' }}
-      REPO_PUBLIC: ${{ github.event.repository.private == false }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -94,7 +93,7 @@ jobs:
             echo "version=$version"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
-          echo "$name@$version from $ws (dry run: $DRY_RUN, access: $NPM_ACCESS, public repo: $REPO_PUBLIC)"
+          echo "$name@$version from $ws (dry run: $DRY_RUN, registry: registry.npmjs.org)"
 
       - run: npm ci
 
@@ -132,66 +131,58 @@ jobs:
           # ./ matters: npm reads "out/x.tgz" as the GitHub shorthand owner/repo.
           echo "tarball=./out/$tarball" >> "$GITHUB_OUTPUT"
 
-      - name: Decide how to publish
-        id: mode
+      - name: Check the registry and that the version is new
         env:
-          HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
         run: |
-          publish=true
-          if [ "$DRY_RUN" = true ]; then
-            publish=false
-          elif [ "$HAS_TOKEN" != true ]; then
-            publish=false
-            echo "::notice::NPM_TOKEN is not set (npm org @ouo11y not claimed yet?): dry run only, nothing published. See docs/releasing.md."
-          fi
-          provenance=false
-          if [ "$REPO_PUBLIC" = true ] && [ "$NPM_ACCESS" = public ]; then
-            provenance=true
+          # E404 = package or version not published yet (fine); a version echo = already
+          # published (versions are permanent); anything else (401/403) = token or access problem.
+          if out=$(npm view "$NAME@$VERSION" version 2>&1); then
+            if [ -n "$out" ]; then
+              msg="$NAME@$VERSION is already published on npmjs.org"
+              if [ "$DRY_RUN" = true ]; then echo "::warning::$msg (a real run would fail)"; else echo "::error::$msg"; exit 1; fi
+            else
+              echo "$NAME is published, $VERSION is not: ok"
+            fi
+          elif echo "$out" | grep -q E404; then
+            echo "$NAME@$VERSION not published yet: ok"
           else
-            echo "::notice::No provenance: it needs a public repository and NPM_ACCESS=public (repo public: $REPO_PUBLIC, access: $NPM_ACCESS)."
+            echo "$out"
+            echo "::error::registry.npmjs.org did not answer as expected for $NAME"
+            exit 1
           fi
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "provenance=$provenance" >> "$GITHUB_OUTPUT"
 
       - name: npm publish --dry-run
-        if: steps.mode.outputs.publish != 'true'
+        if: env.DRY_RUN == 'true'
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
           PRERELEASE: ${{ steps.pkg.outputs.prerelease }}
         run: |
           dist_tag=latest
           [ "$PRERELEASE" = true ] && dist_tag=next
-          npm publish "$TARBALL" --dry-run --access "$NPM_ACCESS" --tag "$dist_tag"
+          npm publish "$TARBALL" --dry-run --access public --tag "$dist_tag"
 
       - name: npm publish
-        if: steps.mode.outputs.publish == 'true'
+        if: env.DRY_RUN != 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
-          PROVENANCE: ${{ steps.mode.outputs.provenance }}
           PRERELEASE: ${{ steps.pkg.outputs.prerelease }}
         run: |
           dist_tag=latest
           [ "$PRERELEASE" = true ] && dist_tag=next
-          set -- --access "$NPM_ACCESS" --tag "$dist_tag"
-          [ "$PROVENANCE" = true ] && set -- "$@" --provenance
-          npm publish "$TARBALL" "$@"
-
-      - name: Build provenance attestation
-        if: steps.mode.outputs.publish == 'true' && steps.mode.outputs.provenance == 'true'
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
-        with:
-          subject-path: out/*.tgz
+          # Trusted publishing needs npm >= 11.5.1.
+          npm install -g npm@11
+          npm publish "$TARBALL" --access public --tag "$dist_tag"
 
       - name: Release notes
         env:
           WS: ${{ steps.pkg.outputs.workspace }}
           NAME: ${{ steps.pkg.outputs.name }}
           VERSION: ${{ steps.pkg.outputs.version }}
-          PUBLISH: ${{ steps.mode.outputs.publish }}
         run: |
           {
-            echo "npm package \`$NAME@$VERSION\` (access: $NPM_ACCESS)."
+            echo "npm package \`$NAME@$VERSION\` on npmjs.org."
             echo
             echo '```sh'
             echo "npm install $NAME@$VERSION"
@@ -204,7 +195,7 @@ jobs:
             .github/scripts/changelog-section.sh "$WS/CHANGELOG.md" "$VERSION"
           } > release-notes.md
           {
-            if [ "$PUBLISH" = true ]; then echo "## Published $NAME@$VERSION"; else echo "## Dry run of $NAME@$VERSION: nothing published"; fi
+            if [ "$DRY_RUN" != true ]; then echo "## Published $NAME@$VERSION"; else echo "## Dry run of $NAME@$VERSION: nothing published"; fi
             echo
             echo '```'
             cat out/SHA256SUMS
@@ -213,7 +204,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: GitHub release with tarball, SBOM and checksums
-        if: steps.mode.outputs.publish == 'true'
+        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.pkg.outputs.tag }}
@@ -226,7 +217,7 @@ jobs:
           gh release create "$TAG" "$@" out/*.tgz out/*.cdx.json out/SHA256SUMS
 
       - name: Keep the dry-run output
-        if: steps.mode.outputs.publish != 'true'
+        if: env.DRY_RUN == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: npm-${{ steps.pkg.outputs.tag }}

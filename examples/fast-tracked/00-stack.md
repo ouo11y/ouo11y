@@ -87,7 +87,7 @@ They come in through the override file `deploy/compose/compose.images.yaml`; wit
 source" in Step 3). The images are **private for now**: pulling them needs a `docker login
 ghcr.io` with a token you get access for first ("Pull access" in Step 3); building from
 source needs no login. Release notes for every version are on the repository's GitHub
-Releases page (`rum-api-v0.2.0`, `collector-v0.2.0`, `grafana-v0.2.0`).
+Releases page (`rum-api-v0.3.0`, `collector-v0.3.0`, `grafana-v0.3.0`, and the older `-v0.2.0`).
 
 If you would rather vendor the stack into your own repo, copy these paths **keeping
 the same relative layout**. With the released images you only need `deploy/`; the rows
@@ -175,7 +175,7 @@ OUO_IMAGE_REGISTRY=ghcr.io/ouo11y
 OUO_RUM_API_VERSION=0.3.0
 OUO_COLLECTOR_VERSION=0.3.0
 OUO_GRAFANA_VERSION=0.3.0
-# rum-api 0.2.0 reads deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
+# rum-api 0.2.0 and later read deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
 # MinIO storage is the opt-in override compose.s3.yaml (both from the rum-api config PR #19).
 
 # --- Tokens (ADR-0007) --------------------------------------------------------------
@@ -199,8 +199,9 @@ OUO_GRAFANA_VERSION=0.3.0
 OUO_INGEST_TOKEN=it_dev_0000000000000000
 OUO_READ_TOKEN=rt_dev_0000000000000000
 # Basic credential the in-compose demo backend and rum-api use for their own OTLP
-# (OTEL_EXPORTER_OTLP_HEADERS; `%20` encodes the space). Default: demo project.
-# OUO_BACKEND_OTLP_HEADERS=Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
+# (OTEL_EXPORTER_OTLP_HEADERS; `%20` encodes the space). Default: the `internal` project,
+# so the platform's own telemetry never spends a client project's rate-limit quota.
+# OUO_BACKEND_OTLP_HEADERS=Authorization=Basic%20aW50ZXJuYWw6cHRfZGV2X2ludGVybmFsXzAwMDAwMDAwMDAwMDAw
 
 # --- Scripts only (deploy/scripts/smoke.sh, e2e.sh): which project they send as -------
 # Must match a line in collector/projects.htpasswd (or deploy/compose/projects.htpasswd
@@ -442,7 +443,8 @@ It is internal: it receives replay chunks from the collector's `ouoreplay` expor
 (`POST /v1/replay/chunks` with `X-Ouo-Project-Id` and `Authorization: Bearer
 <OUO_INGEST_TOKEN>`, compose default `it_dev_0000000000000000`), stores them under
 `deploy/data/rum-api/replays`, reads Loki and Tempo in-network to fold sessions, and
-sends its own telemetry to the collector as `service.name=rum-api`. Its read side is
+sends its own telemetry to the collector as `service.name=rum-api` with the `internal`
+project's credential (its own rate-limit buckets, so it never spends your app's). Its read side is
 locked with `OUO_READ_TOKEN` (`rt_dev_0000000000000000`). Check it:
 
 ```bash
@@ -520,29 +522,37 @@ editable from the UI. Trace to logs is a custom query on `service_name` plus
 ## What each collector pipeline does
 
 `deploy/compose/collector/config.yaml` configures the ouo collector distribution, the
-single ingress for browsers, phones and backends alike. The `basicauth` extension
-(htpasswd file `/etc/otelcol/projects.htpasswd`) guards the `otlp` receiver (gRPC 4317
-on loopback, HTTP 4318 public, with CORS) and the `ouoreplay` receiver (4319, public,
-`POST /v1/replay/chunks`). A `resource` processor stamps `ouo.project.id` from the
-authenticated username on every signal (overwriting whatever the client sent), and the
-`ouoratelimit` processor limits per project and per client address. Four pipelines:
+single ingress for browsers, phones and backends alike. The `basicauth/server` extension
+(htpasswd file `/etc/otelcol/projects.htpasswd`), reached through `ouoauth` (which counts
+every rejected credential as `ouo_auth_failures_total{reason}`), guards the `otlp`
+receiver (gRPC 4317 on loopback, HTTP 4318 public, with CORS) and the `ouoreplay` receiver
+(4319, public, `POST /v1/replay/chunks`). The `ouosentry` receiver (4320) takes Sentry SDK
+envelopes and authenticates their DSN key itself. A `resource` processor stamps
+`ouo.project.id` from the authenticated username on every signal (overwriting whatever the
+client sent), and `ouoratelimit` limits per project and per client: the processor in each
+pipeline, plus the `ouoratelimit` extension as an `otlp` receiver middleware so that empty
+exports are charged too. Pipelines (each starts with `memory_limiter`, `ouoratelimit`,
+`resource/project`):
 
-- **traces**: `otlp` -> `memory_limiter`, `batch` -> `otlp_grpc/tempo` (Tempo's own
+- **traces**: `otlp`, `ouosentry` -> `batch` -> `otlp_grpc/tempo` (Tempo's own
   OTLP gRPC receiver on `tempo:4317`).
-- **logs**: `otlp` -> `memory_limiter`, `transform/events`, `batch` -> `otlp_http/loki`
+- **logs**: `otlp` and the Sentry bridge's records -> `transform/events`, `batch` -> `otlp_http/loki`
   (Loki native OTLP at `http://loki:3100/otlp`). The `transform/events` processor
   copies the OTLP top-level `event_name` field into the `event.name` log attribute
   when it is missing, and copies `ouo.platform` from the resource to the record when
   the SDK only set it on the resource. Both become Loki stream labels (see the Loki
   `otlp_config` below), which is what lets rum-api select `{event_name="session.start"}`
   without scanning everything.
-- **metrics**: `otlp` -> `memory_limiter`, `batch` -> `otlp_http/mimir` (Mimir OTLP
+- **metrics**: `otlp` -> `batch` -> `otlp_http/mimir` (Mimir OTLP
   at `http://mimir:9009/otlp`). Mimir runs with `otel_metric_suffixes_enabled: false`,
   so a counter named `ouo.demo.requests` is queried as `ouo_demo_requests`, not
   `ouo_demo_requests_total`.
-- **logs/replay**: `ouoreplay` receiver -> `ouoreplay` exporter, which posts each chunk
+- **logs/replay**: `ouoreplay` receiver and the Sentry bridge's video replay chunks ->
+  `memory_limiter`, `ouoratelimit` (no batch) -> `ouoreplay` exporter, which posts each chunk
   to the internal `rum-api:8080/v1/replay/chunks` with `X-Ouo-Project-Id` and the ingest
   token bearer. Replay chunks never reach Loki.
+- **logs/sentry**: `ouosentry` -> `routing/sentry` connector, which sends replay chunks to
+  `logs/replay` and everything else to `logs`.
 
 **Why everything goes through the collector**: it is the standard OTel ingress, so a
 stock SDK works with two environment variables, and there is one place to secure: Basic
@@ -598,8 +608,8 @@ Dockerfile. The environment it receives is exactly what your own service needs.
     environment:
       PORT: "8081"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      # base64("demo:pt_dev_demo_0000000000000000"); %20 encodes the space
-      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      # base64("internal:pt_dev_internal_00000000000000"), the platform's own project; %20 encodes the space
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20aW50ZXJuYWw6cHRfZGV2X2ludGVybmFsXzAwMDAwMDAwMDAwMDAw}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: demo-backend
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
@@ -617,7 +627,7 @@ Dockerfile. The environment it receives is exactly what your own service needs.
       OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}   # must equal the collector's
       OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318             # its own telemetry
-      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20aW50ZXJuYWw6cHRfZGV2X2ludGVybmFsXzAwMDAwMDAwMDAwMDAw}
 ```
 
 The `grafana` service mounts `./grafana/provisioning` read-only and the plugin build
@@ -636,24 +646,33 @@ Copy both files as they are from the repo (the config is maintained by the colle
 agent together with the components in `collector/`, so it is not inlined here). What is
 in it, so you know what to tweak:
 
-- `extensions.basicauth/projects.htpasswd.file: /etc/otelcol/projects.htpasswd` and
-  `health_check` on `0.0.0.0:13133`.
-- `receivers.otlp.protocols.http` on `0.0.0.0:4318` with `auth.authenticator:
-  basicauth/projects`, `include_metadata: true`, `max_request_body_size` (4 MiB) and a
-  `cors` block (`allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]`,
-  `allowed_headers: ["*"]`). **Add your dev server or production origin to
-  `allowed_origins`** if it is not a localhost one; the list is global for all projects.
+- `extensions`: `basicauth/server` (`htpasswd.file: /etc/otelcol/projects.htpasswd`),
+  `ouoauth` (`authenticator: basicauth/server`; the receivers authenticate through it so
+  401s are counted), `ouoratelimit` (`processor: ouoratelimit`, the receiver middleware)
+  and `health_check` on `0.0.0.0:13133`.
+- `receivers.otlp.protocols.http` on `0.0.0.0:4318` with `auth.authenticator: ouoauth`,
+  `middlewares: [{id: ouoratelimit}]`, `include_metadata: true`, `max_request_body_size`
+  (4 MiB) and a `cors` block (`allowed_origins` from `OUO_ALLOWED_ORIGINS`, default
+  `http://localhost:*,http://127.0.0.1:*`; `allowed_headers: [Authorization, Content-Type,
+  Content-Encoding, traceparent, baggage]`). **Add your dev server or production origin to
+  `OUO_ALLOWED_ORIGINS`** if it is not a localhost one; the list is global for all projects.
+  `grpc` on 4317 has the same authenticator and middleware.
 - `receivers.ouoreplay` on `0.0.0.0:4319`, same authenticator and CORS, 8 MiB body limit.
-- `processors`: `memory_limiter`, `ouoratelimit` (per project and per client address),
+- `receivers.ouosentry` on `0.0.0.0:4320` (Sentry SDK bridge, `docs/specs/sentry-bridge.md`).
+- `processors`: `memory_limiter`, `ouoratelimit` (per project and per client; sizes from
+  `OUO_RATELIMIT_{PROJECT,CLIENT}_{RATE,BURST}`, client key from `OUO_RATELIMIT_CLIENT_KEY`),
   `resource/project` (`ouo.project.id` from `auth.username`, `upsert`), `transform/events`
   (copies `event_name` into `event.name`, `ouo.platform` from the resource), `batch`.
 - `exporters`: `otlp_grpc/tempo`, `otlp_http/loki`, `otlp_http/mimir`,
-  `ouoreplay` (`endpoint: http://rum-api:8080`, `token: ${env:OUO_INGEST_TOKEN}`).
+  `ouoreplay` (`endpoint: http://rum-api:8080`, `ingest_token: ${env:OUO_INGEST_TOKEN}`).
 
-`projects.htpasswd` has one line per project token, `<project id>:{SHA}<base64 sha1>`:
+`projects.htpasswd` has one line per project token, `<project id>:{SHA}<base64 sha1>`.
+`demo` is for your apps, `internal` for the platform's own telemetry (rum-api and the demo
+backend), so it never spends an app project's rate-limit quota:
 
 ```
 demo:{SHA}IUpHBAUPHvXoJmvv4inmF4cN96I=
+internal:{SHA}wXBw3q7GMLhIo7ifP3a0fC2Z14M=
 ```
 
 Add yours with `htpasswd -nbs <id> <token> >> deploy/compose/collector/projects.htpasswd`

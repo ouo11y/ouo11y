@@ -15,4 +15,6 @@ const (
 	TracesStability  = component.StabilityLevelAlpha
 	MetricsStability = component.StabilityLevelAlpha
 	LogsStability    = component.StabilityLevelAlpha
+	// ExtensionStability is the stability of the ouoratelimit extension (the receiver middleware).
+	ExtensionStability = component.StabilityLevelAlpha
 )

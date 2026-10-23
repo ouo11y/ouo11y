@@ -13,7 +13,8 @@ Three rules from the founder hold for everything below:
   so that merging a release PR does not tag either. Agents prepare, dry-run and ask; they never
   push a tag, publish a package or change a visibility.
 - **Everything published stays private until a stable version**: GHCR images and charts, the
-  npm packages (`restricted`), the `ouo11y-ios` mirror. Going public is a separate founder
+  `ouo11y-ios` mirror. Exception (founder 2026-10-24): the SDK npm packages are public on
+  npmjs.org (Apache-2.0). Going public is a separate founder
   decision per channel.
 - Tags and published versions are permanent. A broken release is fixed by the next patch, never
   by moving or deleting a tag.
@@ -27,8 +28,8 @@ last released) with the settings in
 
 | Component | Source | Version field the release PR bumps | Tag | Published as | Workflow |
 |---|---|---|---|---|---|
-| `browser` | `sdk/browser` | `package.json` (+ root lockfile) | `browser-v<semver>` | npm `@ouo11y/browser` | `release-npm.yml` |
-| `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` | `release-npm.yml` |
+| `browser` | `sdk/browser` | `package.json` (+ root lockfile) | `browser-v<semver>` | npm `@ouo11y/browser` (public) | `release-npm.yml` |
+| `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` (public) | `release-npm.yml` |
 | `ios` | `sdk/ios` | `version.txt` | `ios-v<semver>` | mirror `ouo11y/ouo11y-ios`, tag `<semver>` (SwiftPM `ouo11y-ios`) | `release-ios.yml` |
 | `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
@@ -173,14 +174,15 @@ release; artefacts are kept on the run for 7 days.
 
 | Workflow | Dry run does | Real run adds |
 |---|---|---|
-| `release-npm` | build, test, `npm pack`, CycloneDX SBOM, SHA256SUMS, `npm publish --dry-run` | `npm publish` of that tarball, provenance when public, GitHub release with tarball + SBOM + sums |
+| `release-npm` | build, test, `npm pack`, CycloneDX SBOM, SHA256SUMS, registry check (`npm view`: answers, version not taken), `npm publish --dry-run` | `npm publish` of that tarball to npmjs.org by trusted publishing (OIDC), GitHub release with tarball + SBOM + sums |
 | `release-ios` | `version.txt` check, macOS tests (skippable), `git subtree split`, `git push --dry-run` to the mirror when the key exists | push `main` and tag `<semver>` to `ouo11y/ouo11y-ios` |
 | `release-plugin` | build, test, sign (when configured), zip, SBOM, sums | GitHub release with zip + SBOM + sums (+ `.sha1`, `.md5`), provenance when public |
 | `release-chart` | compat check, `helm lint`, `helm template`, `helm package`, sums | `helm push` to `oci://ghcr.io/ouo11y/charts`, GitHub release |
 | `release-images` | resolve, version checks, amd64 + arm64 build with SBOM and provenance, notes | push to `ghcr.io/ouo11y/<image>`, GitHub release |
 
-A tag pushed before the accounts exist degrades to a dry run with a notice (npm without
-`NPM_TOKEN`, iOS without `OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token).
+A tag pushed before the accounts exist degrades to a dry run with a notice (iOS without
+`OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token). npm needs no secret: it
+publishes by trusted publishing (OIDC) from a GitHub-hosted runner.
 
 ## 7. Pull access (private until stable)
 
@@ -201,7 +203,9 @@ echo $GHCR_TOKEN | helm registry login ghcr.io -u <github-user> --password-stdin
   GitHub user with **Read**, for `collector`, `rum-api`, `grafana` and `charts/ouo`.
 - Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`).
 - No access: build from source (`deploy/envs/ouo-env up <env>`), no login needed.
-- npm packages published `restricted` are visible only to members of the `ouo11y` npm org.
+- **SDK npm packages** are public on npmjs.org (founder decision 2026-10-24, Apache-2.0):
+  `npm install @ouo11y/browser` or `npm install @ouo11y/react-native`, no login. The 0.2.0
+  copies published to GitHub Packages on 2026-10-23 stay there, private, and get no new versions.
 
 ## 8. Accounts, secrets and settings (founder)
 
@@ -212,9 +216,7 @@ and variables.
 |---|---|---|
 | Repository setting "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General) | release-please with `GITHUB_TOKEN` | Currently **off**. Turn it on, or set `RELEASE_PLEASE_TOKEN` instead. |
 | `RELEASE_PLEASE_TOKEN` secret (recommended) | release PRs that trigger `ci` and `release-check` | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
-| npm organisation `ouo11y` | `release-npm.yml` | Not claimed (registry answers "Scope not found", 2026-10-23). Create it at npmjs.com > Add organization > `ouo11y`. Free orgs publish only **public** packages; keeping the SDKs `restricted` (private) needs the paid Teams plan, otherwise keep them unpublished (dry runs) until stable, or set the variable `NPM_ACCESS=public` when going public. |
-| `NPM_TOKEN` secret | `release-npm.yml` | npm granular access token: packages and scopes `@ouo11y` read and write, organisation `ouo11y`, expiry at most 1 year, publishing user an org owner with 2FA. Later: npm trusted publishing (OIDC, no token) once the packages exist. |
-| `NPM_ACCESS` variable, optional | `release-npm.yml` | `restricted` (default) or `public`. Provenance needs `public` and a public repository. |
+| npm org `ouo11y` + trusted publisher | `release-npm.yml` | Org claimed 2026-10-23; keep 2FA on for every member. No token: (1) the founder publishes each package's first version by hand once (npm only lets you set a trusted publisher on a package that exists); (2) on each package, npmjs.com > Settings > Trusted publisher > GitHub Actions: organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (3) then every tag publishes from a GitHub-hosted runner (not the self-hosted Mac: npm refuses those). Still to claim: the lookalike `ouolly` (ADR-0009). |
 | `OUO_IOS_DEPLOY_KEY` secret | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy -N ""`; add `ouo_ios_deploy.pub` as a deploy key **with write access** on `github.com/ouo11y/ouo11y-ios` (Settings > Deploy keys); paste the private file as the secret; delete both local files. The mirror exists (private) with a README on branch `about`; the first push creates `main`; then make `main` the default branch and delete `about`. |
 | grafana.com organisation `ouo11y` | plugin signing | Not found (2026-10-23). Create it at grafana.com (sign up, organisation name `ouo11y`). |
 | `GRAFANA_ACCESS_POLICY_TOKEN` secret | `release-plugin.yml` signing | grafana.com > My account > Security > Access policies: realm the `ouo11y` org, scope `plugins:write`; create a token. Without it the zip is unsigned. |
@@ -223,8 +225,8 @@ and variables.
 | Renovate GitHub App | `.github/renovate.json5` | Install "Renovate" (Mend) from the GitHub Marketplace on the `ouo11y` org, repository `ouo11y/ouo11y` only. The config already exists, so there is no onboarding PR; expect the "Dependency Dashboard" issue and, on the first Monday, the digest-pinning PRs. |
 | Security contact | `.github/SECURITY.md` | Replace `SECURITY_CONTACT_TBD` with the disclosure address. |
 
-Provenance and attestations: npm `--provenance`, `actions/attest-build-provenance` for the npm
-tarball, the plugin zip and the chart need a **public** repository on the free plan; the
+Provenance and attestations: npm `--provenance` (npmjs.org only, at the public release),
+`actions/attest-build-provenance` for the plugin zip and the chart need a **public** repository on the free plan; the
 workflows switch them on by themselves when the repository becomes public. Images already carry
 BuildKit SBOM and max-mode provenance attestations, private or not.
 

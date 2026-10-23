@@ -1,0 +1,114 @@
+{
+  "run": "mvl1knbj",
+  "profile": "limits",
+  "at": "2026-10-23T14:05:05.401Z",
+  "otlp": "http://localhost:20100",
+  "results": [
+    {
+      "check": "xff",
+      "profile": "limits",
+      "assertions": [
+        {
+          "name": "direct: 12 requests with X-Forwarded-For 203.0.113.10 -> the last ones 429 (client bucket 10)",
+          "ok": true,
+          "detail": {
+            "200": 10,
+            "429": 2
+          }
+        },
+        {
+          "name": "the rejection names the X-Forwarded-For client",
+          "ok": true,
+          "detail": "{\"code\":8, \"message\":\"rate limit exceeded for client \\\"203.0.113.10\\\", retry after 1s\", \"details\":[{\"@type\":\"type.google"
+        },
+        {
+          "name": "direct: the next request with X-Forwarded-For 203.0.113.11 is 200 (its own bucket)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "through the env proxy (http://otlp.n13-collector-qa.ouo.localhost), 12 requests each spoofing a different X-Forwarded-For still share one client bucket (429)",
+          "ok": true,
+          "detail": {
+            "200": 10,
+            "429": 2
+          }
+        },
+        {
+          "name": "the proxy's rejection names the address the proxy saw, not a spoofed one",
+          "ok": true,
+          "detail": "client \\\"172.21.0.1"
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "client_a": {
+          "200": 10,
+          "429": 2
+        },
+        "through_proxy": {
+          "200": 10,
+          "429": 2
+        },
+        "proxy_rejection": "{\"code\":8, \"message\":\"rate limit exceeded for client \\\"172.21.0.1\\\", retry after 1s\", \"details\":[{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\", \"retryDela"
+      },
+      "started": "2026-10-23T14:04:55.183Z",
+      "seconds": 0.1,
+      "ok": true
+    },
+    {
+      "check": "project_bucket",
+      "profile": "limits",
+      "assertions": [
+        {
+          "name": "50 requests of project demo from 50 clients (project burst 40): some 429",
+          "ok": true,
+          "detail": {
+            "200": 40,
+            "429": 10
+          }
+        },
+        {
+          "name": "the rejection names the project bucket (project \"demo\")",
+          "ok": true,
+          "detail": "{\"code\":8, \"message\":\"rate limit exceeded for project \\\"demo\\\", retry after 1s\", \"details\":[{\"@type\":\"type.googleapis.co"
+        },
+        {
+          "name": "project internal is still 200 while demo is limited (own bucket)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "a fresh client of demo is still 429 (the project bucket, not the client one)",
+          "ok": true,
+          "detail": 429
+        },
+        {
+          "name": "ouo_ratelimit_rejected_total{key_kind=project} grew in Mimir",
+          "ok": true,
+          "detail": {
+            "project": 11,
+            "client": 4
+          }
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "project_burst": {
+          "sent": 50,
+          "statuses": {
+            "200": 40,
+            "429": 10
+          }
+        },
+        "rejected_delta": {
+          "project": 11,
+          "client": 4
+        }
+      },
+      "started": "2026-10-23T14:04:55.266Z",
+      "seconds": 10.1,
+      "ok": true
+    }
+  ]
+}

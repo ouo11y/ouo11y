@@ -4,6 +4,11 @@ import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { SessionManager } from "../session/manager";
 import type { AttrValue } from "../types";
 
+/** The route template set with `rum.setRoute` (`app.screen.name`), shared by both processors. */
+export class RouteState {
+  name: string | undefined;
+}
+
 /** Attributes every span and log record must carry (spec: identifiers carried on every signal). */
 export function correlationAttributes(session: SessionManager, serviceVersion: string): Record<string, AttrValue> {
   const attrs: Record<string, AttrValue> = {
@@ -23,10 +28,12 @@ export class SessionSpanProcessor implements SpanProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly route: RouteState = new RouteState(),
   ) {}
 
   onStart(span: Span, _parentContext: Context): void {
     span.setAttributes(correlationAttributes(this.session, this.serviceVersion));
+    if (this.route.name) span.setAttribute("app.screen.name", this.route.name);
   }
 
   onEnd(_span: ReadableSpan): void {}
@@ -51,6 +58,7 @@ export class SessionLogProcessor implements LogRecordProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly route: RouteState = new RouteState(),
   ) {}
 
   onEmit(record: SdkLogRecord): void {
@@ -58,6 +66,9 @@ export class SessionLogProcessor implements LogRecordProcessor {
     const set = (key: string, value: AttrValue): void => {
       if (existing[key] === undefined) record.setAttribute(key, value);
     };
+    // A `navigation` record is written before the app renders the new route, so the route
+    // known at that moment is the previous page's: leave it off.
+    if (this.route.name && existing["event.name"] !== "navigation") set("app.screen.name", this.route.name);
     if (existing["session.id"] !== undefined) {
       // Record about a named session: fill the non-session fields only, without ensure().
       set("user.id", this.session.userId());

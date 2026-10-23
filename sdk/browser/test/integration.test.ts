@@ -263,10 +263,16 @@ describe("initRUM end to end (jsdom, stubbed fetch)", () => {
   });
 
   it("records a replay and uploads gzip chunks with the session id and seq", async () => {
-    await wait(600); // let the lazy rrweb chunk load and the 200 ms flush fire
-    await rum.flush();
-    const chunks = captured.filter((c) => c.url === "http://localhost:8090/v1/replay/chunks");
-    expect(chunks.length).toBeGreaterThan(0);
+    // The lazy rrweb chunk loads (slow under load), then the 200 ms flush fires.
+    const replayChunks = () => captured.filter((c) => c.url === "http://localhost:8090/v1/replay/chunks");
+    await vi.waitFor(
+      async () => {
+        await rum.flush();
+        expect(replayChunks().length).toBeGreaterThan(0);
+      },
+      { timeout: 5000, interval: 200 },
+    );
+    const chunks = replayChunks();
     expect(chunks[0]!.headers["x-ouo-session-id"]).toBe(rum.session.id());
     expect(chunks[0]!.headers["x-ouo-seq"]).toBe("0");
     expect(chunks[0]!.headers["content-encoding"]).toBe("gzip");

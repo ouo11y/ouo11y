@@ -17,6 +17,13 @@ dist:
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.160.0
+  # ouoauth wraps basicauth/server and counts rejected requests (ouo_auth_failures_total).
+  - gomod: github.com/ouo11y/ouo11y/collector/extension/ouoauthextension v0.0.0
+  # ouoratelimit (extension): receiver middleware that charges every request with the
+  # ouoratelimit processor's buckets, empty OTLP exports included. Same module as the
+  # processor; ocb calls NewFactory on the import path, hence the sub-package.
+  - gomod: github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor v0.0.0
+    import: github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor/ouoratelimitextension
 
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
@@ -50,6 +57,7 @@ providers:
 # Our components live in this repository; the generated go.mod is in
 # output_path, so the paths are relative to collector/dist.
 replaces:
+  - github.com/ouo11y/ouo11y/collector/extension/ouoauthextension => ../extension/ouoauthextension
   - github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver => ../receiver/ouoreplayreceiver
   - github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver => ../receiver/ouosentryreceiver
   - github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter => ../exporter/ouoreplayexporter

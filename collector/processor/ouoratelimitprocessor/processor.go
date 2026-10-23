@@ -49,6 +49,16 @@ var (
 	limiters = map[component.ID]*shared{}
 )
 
+// sharedLimiter returns the limiter of the started processor with this ID, or nil.
+func sharedLimiter(id component.ID) *limiter {
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
+	if s, ok := limiters[id]; ok {
+		return s.lim
+	}
+	return nil
+}
+
 type rateLimitProcessor struct {
 	id       component.ID
 	cfg      *Config
@@ -57,11 +67,14 @@ type rateLimitProcessor struct {
 	lim      *limiter
 }
 
-func newProcessor(id component.ID, cfg *Config, set component.TelemetrySettings) (*rateLimitProcessor, error) {
-	meter := set.MeterProvider.Meter(metadata.ScopeName)
-	rejected, err := meter.Int64Counter("ouo_ratelimit_rejected_total",
+func rejectedCounter(set component.TelemetrySettings) (metric.Int64Counter, error) {
+	return set.MeterProvider.Meter(metadata.ScopeName).Int64Counter("ouo_ratelimit_rejected_total",
 		metric.WithDescription("Requests rejected by the rate limiter, by the bucket that rejected them."),
 		metric.WithUnit("{request}"))
+}
+
+func newProcessor(id component.ID, cfg *Config, set component.TelemetrySettings) (*rateLimitProcessor, error) {
+	rejected, err := rejectedCounter(set)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +128,7 @@ func (p *rateLimitProcessor) shutdown(context.Context) error {
 }
 
 // keys returns the project key (authenticated username) and the client key.
-func (p *rateLimitProcessor) keys(ctx context.Context) (string, string) {
+func keys(ctx context.Context, keyFrom string) (string, string) {
 	ci := client.FromContext(ctx)
 	var project string
 	if ci.Auth != nil {
@@ -123,7 +136,7 @@ func (p *rateLimitProcessor) keys(ctx context.Context) (string, string) {
 			project = s
 		}
 	}
-	return project, clientKey(ci, p.cfg.Client.KeyFrom)
+	return project, clientKey(ci, keyFrom)
 }
 
 func clientKey(ci client.Info, keyFrom string) string {
@@ -152,17 +165,29 @@ func clientKey(ci client.Info, keyFrom string) string {
 	}
 }
 
-// check returns nil or the retryable rejection error.
-func (p *rateLimitProcessor) check(ctx context.Context) error {
-	if p.lim == nil {
-		return nil
-	}
-	project, clientK := p.keys(ctx)
-	kind, d := p.lim.allow(project, clientK)
+// chargedKey marks a request context whose tokens the ouoratelimit extension
+// (the receiver middleware) already took, so the processor does not take them
+// a second time.
+type chargedKey struct{}
+
+func withCharged(ctx context.Context) context.Context {
+	return context.WithValue(ctx, chargedKey{}, true)
+}
+
+func charged(ctx context.Context) bool {
+	v, _ := ctx.Value(chargedKey{}).(bool)
+	return v
+}
+
+// admit takes the request's tokens from lim. It returns nil, or the retryable
+// ResourceExhausted status (with RetryInfo) to answer the request with.
+func admit(ctx context.Context, lim *limiter, rejected metric.Int64Counter, logger *zap.Logger) *status.Status {
+	project, clientK := keys(ctx, lim.cfg.Client.KeyFrom)
+	kind, d := lim.allow(project, clientK)
 	if kind == "" {
 		return nil
 	}
-	p.rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("key_kind", kind)))
+	rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("key_kind", kind)))
 	secs := int64(math.Ceil(d.Seconds()))
 	if secs < 1 {
 		secs = 1
@@ -171,13 +196,25 @@ func (p *rateLimitProcessor) check(ctx context.Context) error {
 	if kind == keyKindClient {
 		key = clientK
 	}
-	p.logger.Debug("rate limited", zap.String("key_kind", kind), zap.String("key", key), zap.Int64("retry_after_s", secs))
+	logger.Debug("rate limited", zap.String("key_kind", kind), zap.String("key", key), zap.Int64("retry_after_s", secs))
 	st, err := status.New(codes.ResourceExhausted, fmt.Sprintf("rate limit exceeded for %s %q, retry after %ds", kind, key, secs)).
 		WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(time.Duration(secs) * time.Second)})
 	if err != nil {
-		return status.Error(codes.ResourceExhausted, "rate limit exceeded")
+		return status.New(codes.ResourceExhausted, "rate limit exceeded")
 	}
-	return st.Err()
+	return st
+}
+
+// check returns nil or the retryable rejection error. A request the
+// middleware already charged passes.
+func (p *rateLimitProcessor) check(ctx context.Context) error {
+	if p.lim == nil || charged(ctx) {
+		return nil
+	}
+	if st := admit(ctx, p.lim, p.rejected, p.logger); st != nil {
+		return st.Err()
+	}
+	return nil
 }
 
 func (p *rateLimitProcessor) processTraces(ctx context.Context, td ptrace.Traces) (ptrace.Traces, error) {

@@ -128,6 +128,11 @@ services:
       OUO_ALLOWED_ORIGINS: ${OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
       # Per-client rate-limit key: address, or x_forwarded_for behind a reverse proxy.
       OUO_RATELIMIT_CLIENT_KEY: ${OUO_RATELIMIT_CLIENT_KEY:-address}
+      # Token buckets (requests per second, burst) per project and per client.
+      OUO_RATELIMIT_PROJECT_RATE: ${OUO_RATELIMIT_PROJECT_RATE:-1000}
+      OUO_RATELIMIT_PROJECT_BURST: ${OUO_RATELIMIT_PROJECT_BURST:-5000}
+      OUO_RATELIMIT_CLIENT_RATE: ${OUO_RATELIMIT_CLIENT_RATE:-100}
+      OUO_RATELIMIT_CLIENT_BURST: ${OUO_RATELIMIT_CLIENT_BURST:-300}
       # Sentry SDK bridge (ADR-0008). Upstream "none" answers locally; set it to your
       # Sentry ingest URL (https://oNNN.ingest.sentry.io) to run next to Sentry.
       OUO_SENTRY_UPSTREAM: ${OUO_SENTRY_UPSTREAM:-none}
@@ -149,11 +154,13 @@ services:
       - "${OUO_BACKEND_PORT:-8081}:8081"
     environment:
       PORT: "8081"
-      # In-network OTLP to the collector with the demo project's Basic credential
-      # (base64 of "demo:pt_dev_demo_0000000000000000"). Every OTLP client needs it,
-      # trusted or not; `%20` is the OTLP env-var encoding of the space.
+      # In-network OTLP to the collector with the `internal` project's Basic credential
+      # (base64 of "internal:pt_dev_internal_00000000000000"): the platform's own
+      # telemetry has its own rate-limit buckets and never spends a client project's
+      # quota. Every OTLP client needs a credential, trusted or not; `%20` is the OTLP
+      # env-var encoding of the space.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20aW50ZXJuYWw6cHRfZGV2X2ludGVybmFsXzAwMDAwMDAwMDAwMDAw}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: demo-backend
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
@@ -193,9 +200,9 @@ services:
       REPLAY_RETENTION: ${OUO_RETENTION_REPLAYS:-720h}
       LOG_RETENTION: ${OUO_RETENTION_LOGS:-720h}
       REPLAY_SWEEP_INTERVAL: ${OUO_REPLAY_SWEEP_INTERVAL:-1h}
-      # rum-api's own telemetry, through the collector like everybody else (demo credential).
+      # rum-api's own telemetry, through the collector like everybody else (`internal` project).
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20aW50ZXJuYWw6cHRfZGV2X2ludGVybmFsXzAwMDAwMDAwMDAwMDAw}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: rum-api
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local

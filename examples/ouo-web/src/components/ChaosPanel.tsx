@@ -13,8 +13,15 @@ function describe(err: unknown): string {
   return String(err);
 }
 
+/** Throws while rendering when armed: the route's OuoErrorBoundary catches it. */
+function RenderBomb({ armed }: { armed: boolean }) {
+  if (armed) throw new Error("chaos: render error caught by the error boundary");
+  return null;
+}
+
 export function ChaosPanel({ compact = false }: { compact?: boolean }) {
   const [log, setLog] = useState<LogLine[]>([]);
+  const [bomb, setBomb] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [recording, setRecording] = useState(() => rum.replay.isRecording());
   // rrweb is loaded lazily by the SDK, so isRecording() can flip shortly after mount.
@@ -111,6 +118,30 @@ export function ChaosPanel({ compact = false }: { compact?: boolean }) {
       },
     },
     {
+      id: "render-error",
+      label: "Render error",
+      hint: "a component throws while rendering (OuoErrorBoundary, react.error_boundary)",
+      onClick: () => setBomb(true),
+    },
+    {
+      id: "long-task",
+      label: "Long task (300 ms)",
+      hint: "busy loop in the click handler (ouo.long_animation_frame in Chromium)",
+      onClick: () => {
+        const end = performance.now() + 300;
+        while (performance.now() < end) {
+          // block the main thread
+        }
+        push("long task: blocked the main thread for 300 ms", "ok");
+      },
+    },
+    {
+      id: "dead",
+      label: "Dead button",
+      hint: "does nothing at all (ouo.dead_click); click it fast for ouo.rage_click",
+      onClick: () => undefined,
+    },
+    {
       id: "event",
       label: "Custom event",
       hint: 'rum.addEvent("add_to_cart", { product_id, qty })',
@@ -157,6 +188,7 @@ export function ChaosPanel({ compact = false }: { compact?: boolean }) {
           </button>
         ))}
       </div>
+      <RenderBomb armed={bomb} />
       <p className="muted small">
         backend <code>{apiUrl("/api/products")}</code> · session <code>{rum.session.id()}</code>
       </p>

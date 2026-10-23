@@ -2,6 +2,14 @@ import type { EventEmitter } from "../telemetry/events";
 import type { DebugLogger } from "../logger";
 import { exceptionAttributes, serializeConsoleArgs } from "./classify";
 
+/** Error objects reported through `captureError`; a `console.error` of the same object is not reported again. */
+const claimed = new WeakSet<object>();
+
+/** Marks an error as reported (by `captureError`), so the console capture skips it. */
+export function claimError(err: unknown): void {
+  if (err && typeof err === "object") claimed.add(err);
+}
+
 export interface ErrorCaptureOptions {
   events: EventEmitter;
   logger: DebugLogger;
@@ -58,7 +66,13 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
       reentrant = true;
       try {
         const { error } = serializeConsoleArgs(args);
-        events.emit("exception", exceptionAttributes(error, "console"), "error");
+        // One microtask later: React logs an error its boundary caught with console.error right
+        // before componentDidCatch, where OuoErrorBoundary reports the same object with
+        // captureError; that one report wins.
+        queueMicrotask(() => {
+          if (args.some((a) => a !== null && typeof a === "object" && claimed.has(a))) return;
+          events.emit("exception", exceptionAttributes(error, "console"), "error");
+        });
       } catch (e) {
         logger.warn("console.error capture failed", e);
       } finally {

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ouo e2e</title>
+    <style>
+      body { font: 16px system-ui; margin: 24px; }
+      button { display: block; margin: 8px 0; padding: 8px 16px; }
+      .hero { font-size: 40px; margin: 16px 0; }
+    </style>
+  </head>
+  <body>
+    <h1 class="hero">ouo browser SDK end-to-end page</h1>
+    <p id="status">loading</p>
+    <button id="fetch">Fetch after await</button>
+    <button id="route">Open product 7</button>
+    <button id="dead">Does nothing</button>
+    <button id="rage">Rage target</button>
+    <button id="block">Block main thread</button>
+    <button id="mutate">Mutate</button>
+    <button id="fail">Report an error</button>
+    <div id="out"></div>
+    <script type="module">
+      import { initRUM } from "/dist/index.js";
+      const q = new URLSearchParams(location.search);
+      const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d);
+      // Server-rendered page stand-in: the meta tag the backend would write.
+      if (q.get("traceparent")) {
+        const m = document.createElement("meta");
+        m.name = "traceparent";
+        m.content = q.get("traceparent");
+        document.head.appendChild(m);
+      }
+      window.rum = initRUM({
+        endpoint: `http://localhost:${num("collector", 4181)}`,
+        projectId: "e2e",
+        projectToken: "pt_e2e",
+        service: { name: "e2e-page", version: "1.0.0", environment: "e2e" },
+        tracing: { idleTimeoutMs: num("idle", 300) },
+        session: { sampleRate: num("sample", 1) },
+        replay: { enabled: q.get("replay") !== "0", sampleRate: num("replayRate", 1), onErrorSampleRate: num("onError", 0), flushIntervalMs: 500 },
+        longTasks: { thresholdMs: 100 },
+        debug: q.get("debug") === "1",
+      });
+      const out = document.getElementById("out");
+      document.getElementById("fetch").addEventListener("click", async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        const res = await fetch("/api/checkout?delay=50", { method: "POST" });
+        out.textContent = JSON.stringify(await res.json());
+      });
+      document.getElementById("route").addEventListener("click", () => {
+        history.pushState({}, "", "/products/7");
+        window.rum.setRoute("/products/:id");
+        setTimeout(async () => {
+          const res = await fetch("/api/products/7");
+          out.textContent = JSON.stringify(await res.json());
+        }, 20);
+      });
+      document.getElementById("block").addEventListener("click", () => {
+        const end = performance.now() + 250;
+        while (performance.now() < end) {}
+        out.textContent = "blocked";
+      });
+      document.getElementById("mutate").addEventListener("click", () => (out.textContent = `mutated ${Date.now()}`));
+      document.getElementById("fail").addEventListener("click", () => window.rum.captureError(new Error("e2e failure")));
+      document.getElementById("status").textContent = "ready";
+    </script>
+  </body>
+</html>

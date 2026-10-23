@@ -14,7 +14,7 @@ versions as `otel/opentelemetry-collector-contrib:0.160.0`.
 
 | Kind | Components |
 |---|---|
-| Extensions | `basicauth`, `health_check` |
+| Extensions | `basicauth`, `health_check`, **`ouoauth`**, **`ouoratelimit`** |
 | Receivers | `otlp`, **`ouoreplay`**, **`ouosentry`** |
 | Processors | `memory_limiter`, `batch`, `attributes`, `resource`, `transform`, **`ouoratelimit`** |
 | Exporters | `otlp_grpc`, `otlp_http`, `debug`, **`ouoreplay`** |
@@ -33,12 +33,15 @@ collector/
                                         replay chunks (ADR-0008)
   tools/sentrytap/                      records Sentry SDK traffic, fakes Sentry, proves byte-identical forwarding
   exporter/ouoreplayexporter/           log record -> rum-api POST /v1/replay/chunks
-  processor/ouoratelimitprocessor/      token buckets per project and per client
+  processor/ouoratelimitprocessor/      token buckets per project and per client; its
+    ouoratelimitextension/              sub-package is the receiver middleware sharing them
+  extension/ouoauthextension/           wraps basicauth, counts rejected requests
 ```
 
 The reference configuration is `deploy/compose/collector/config.yaml`; the development
 project registry is `deploy/compose/collector/projects.htpasswd` (`demo` /
-`pt_dev_demo_0000000000000000`, local use only).
+`pt_dev_demo_0000000000000000` for apps, `internal` / `pt_dev_internal_00000000000000` for
+rum-api's and the demo backend's own telemetry; local use only).
 
 ## Build
 
@@ -53,7 +56,7 @@ cd collector && builder --config builder.yaml          # -> collector/dist/ouo-c
 docker build -t ouo/collector:dev collector
 
 # Component tests
-for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor tools/sentrytap; do
+for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor extension/ouoauthextension tools/sentrytap; do
   (cd collector/$m && go vet ./... && go test -race ./...)
 done
 ```
@@ -82,6 +85,24 @@ replaces:
 
 They are built against collector 0.160.0 / 1.66.0; a distribution on another collector
 version needs the modules' `go.mod` bumped to the same versions.
+
+### Why `v0.0.0` and `replaces`, not module tags
+
+ocb itself builds from tagged modules without `replaces` (verified 2026-10-23 with local
+tags `collector/<kind>/<name>/v0.4.0` and `GOPROXY=direct`, see
+`project/kb/collector-components.md`). This repository's own build keeps `v0.0.0` + `replaces`
+on purpose:
+
+- A commit must build from its own component sources. With tags, `builder.yaml` names a
+  version that only exists after the release is tagged, so a pull request that changes a
+  component would build and test the previous release instead, and the release commit
+  itself could not build before its own tag.
+- The repository is private: `proxy.golang.org` cannot fetch it, so a tag-based build needs
+  `GOPRIVATE` and a GitHub token inside the image build.
+
+Module tags only help other distributions that import our components. Once the repository is
+public (checklist N20), the release can push `collector/<kind>/<name>/vX.Y.Z` tags next to
+`collector-vX.Y.Z` at the same commit, and the manifest above can drop its `replaces`.
 
 ## Configuration reference
 
@@ -167,6 +188,59 @@ metrics and replay. Over the limit it returns gRPC `ResourceExhausted` with `Ret
 
 Place it after `memory_limiter` and before `batch` (batch drops the client context).
 
+The OTLP receiver answers an export with no spans, records or data points `200` without
+calling the pipeline, so the processor never sees empty requests. The `ouoratelimit`
+**extension** closes that gap: it is a receiver middleware (confighttp / configgrpc
+`middlewares`, which run after authentication) that takes the request's tokens from the
+processor's buckets before the receiver decodes it, answers 429 + `Retry-After` (OTLP
+`Status` body in the request's encoding; gRPC `RESOURCE_EXHAUSTED` + `RetryInfo`), and marks
+the request so the processor does not charge it again. Receivers without the middleware
+(`ouoreplay`, `ouosentry`) are still charged by the processor.
+
+```yaml
+extensions:
+  ouoratelimit:
+    processor: ouoratelimit       # default: the processor whose buckets it shares
+receivers:
+  otlp:
+    protocols:
+      http: { middlewares: [{ id: ouoratelimit }], ... }
+      grpc: { middlewares: [{ id: ouoratelimit }], ... }
+service:
+  extensions: [..., ouoratelimit]
+```
+
+### `ouoauth` extension
+
+basicauth rejects a bad credential with 401 before any receiver code runs, so no collector
+metric counted it. `ouoauth` is a server authenticator that delegates to another one and
+counts what it rejects:
+
+```yaml
+extensions:
+  basicauth/server: { htpasswd: { file: /etc/otelcol/projects.htpasswd } }
+  ouoauth:
+    authenticator: basicauth/server
+receivers:
+  otlp: { protocols: { http: { auth: { authenticator: ouoauth } } } }   # same for grpc, ouoreplay
+service:
+  extensions: [basicauth/server, ouoauth, ...]
+```
+
+Self-metric `ouo_auth_failures_total{reason, authenticator}`, `reason` one of `missing`
+(no `Authorization`), `malformed` (not `Basic`, or not `id:token`), `invalid_credentials`
+(wrong token or unknown project), `other`. No project label: on a failure the username is
+whatever the client sent. There is no self-observability dashboard folder yet; query it in
+Grafana Explore on the Mimir datasource:
+
+```promql
+sum by (reason) (rate(ouo_auth_failures_total[5m]))           # 401s per second, by reason
+sum by (key_kind) (rate(ouo_ratelimit_rejected_total[5m]))    # 429s per second, by bucket
+```
+
+The `ouosentry` receiver authenticates DSN keys itself (403 for unknown keys) and counts
+them in `ouo_sentry_envelopes_total`, not here.
+
 ## Sentry SDK bridge (`ouosentry`)
 
 Apps instrumented with the Sentry mobile SDKs change only the host of their DSN:
@@ -205,8 +279,11 @@ receivers:
 
 `compression_algorithms` is ignored on this receiver: it needs the raw bytes to forward them.
 Metrics: `ouo_sentry_envelopes_total`, `ouo_sentry_upstream_duration_seconds`,
-`ouo_sentry_items_total`, `ouo_sentry_translate_dropped_total`. Run it as a single replica
-(or with client-address affinity): session correlation state is in memory.
+`ouo_sentry_items_total`, `ouo_sentry_translate_dropped_total`. **Run it as exactly one
+replica**: session correlation state is in memory, and a second replica loses sessions,
+replay segments and error counts in ouo (Sentry itself still gets everything). Client-address
+affinity does not hold for phones that change networks. What breaks, restarts, and a
+one-replica Kubernetes Deployment next to the Helm chart: `docs/sentry-bridge-deployment.md`.
 
 `tools/sentrytap` checks the "as if the bridge were not there" claim on real traffic:
 

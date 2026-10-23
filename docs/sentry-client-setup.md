@@ -2,7 +2,7 @@
 
 For teams that keep `@sentry/react-native` and send its traffic through the ouo Sentry bridge (path 3, [ADR-0008](adr/0008-sentry-sdk-bridge.md), [spec](specs/sentry-bridge.md)). The bridge forwards every envelope to your Sentry unchanged and translates a copy into ouo, so most of this page is about the **traces between your app and your backend**, which only you can configure. The runnable reference is [`examples/sentry-mobile`](../examples/sentry-mobile/README.md); its `verify` checks every point below (checklist N24).
 
-Supported SDK versions: [compatibility.md](compatibility.md#sentry-sdks-through-the-bridge).
+Supported SDK versions: [compatibility.md](compatibility.md#sentry-sdks-through-the-bridge). Operators: the bridge runs as **one replica** (its session state is in memory), see [sentry-bridge-deployment.md](sentry-bridge-deployment.md).
 
 ## 1. Point the DSN at the bridge
 

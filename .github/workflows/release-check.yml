@@ -33,7 +33,7 @@ concurrency:
 jobs:
   compat:
     name: compatibility matrix
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -48,7 +48,7 @@ jobs:
   e2e:
     name: e2e scenario (stack from this commit)
     needs: compat
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 30
     env:
       COMPOSE: docker compose -p ouo-release-check -f deploy/compose/compose.yaml

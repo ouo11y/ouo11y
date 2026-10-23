@@ -120,7 +120,7 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 |---|---|---|
 | `swift build` (Core + macOS stub) | this Mac, CLT only | passes |
 | `sdk/ios/test.sh` (35 Swift Testing tests: chunk JSON vs spec fixture keys, flush triggers, seq persistence/reset, dedupe, planner cases, gzip + `gunzip`, uploader headers/order/retry/bound) | this Mac | 35 passed |
-| Real upload through `URLSession` (`OUO_REPLAY_STUB_URL=http://localhost:8080`) | rum-api in compose | 2 chunks accepted; `GET /v1/sessions/<id>/replay` reports `kind: frames`, `chunk_count 2`, `frame_count 5`; `/replay/frames` returns the 5 frames in seq order |
+| Real upload through `URLSession` (`OUO_REPLAY_STUB_URL=http://localhost:8080`; Phase 7, when rum-api still took uploads directly. Since 8a the endpoint is the collector's replay receiver, `:4319`, with Basic auth; rum-api's sink needs the ingest token) | rum-api in compose | 2 chunks accepted; `GET /v1/sessions/<id>/replay` reports `kind: frames`, `chunk_count 2`, `frame_count 5`; `/replay/frames` returns the 5 frames in seq order |
 | `npm run -w sdk/react-native build` + `test` | this Mac | 7 files, 56 tests (17 new replay tests) |
 | `npx expo prebuild --platform ios --no-install`, `expo-modules-autolinking resolve -p apple/android` | examples/ouo-mobile | three ouo pods + `OuoReplayModule` resolved; Android project resolved |
 | `npx expo export --platform ios` | examples/ouo-mobile | Hermes bundle with the replay code builds |
