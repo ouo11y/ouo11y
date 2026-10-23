@@ -38,7 +38,7 @@ env:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 10
     permissions:
       contents: write       # gh release create
