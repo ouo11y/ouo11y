@@ -20,6 +20,11 @@ end-to-end verification report.
 
 ## Quickstart
 
+Only want to run the stack, without the source? Copy
+[`deploy/compose/quickstart.yaml`](deploy/compose/quickstart.yaml) into an empty folder and
+`docker compose up -d` (released images, all config inlined; the images need a `docker login
+ghcr.io` for now, see `examples/fast-tracked/00-stack.md`). From a clone:
+
 ```bash
 # 1. the platform: Grafana, Loki, Tempo, Mimir, OTel Collector, demo backend, rum-api
 cp deploy/compose/.env.example deploy/compose/.env    # edit the OUO_*_PORT values if ports collide

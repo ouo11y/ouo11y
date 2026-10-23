@@ -40,7 +40,27 @@ the **read token** (Grafana -> rum-api).
 
 ## Step 1. Get the files
 
-The fastest route is to run the stack straight from a clone of this repo next to your
+### One file, no clone (quickstart)
+
+[`deploy/compose/quickstart.yaml`](../../deploy/compose/quickstart.yaml) is the whole stack
+in a single compose file: the released images, plus every config file below inlined as a
+compose `configs:` entry. Copy it into an empty folder as `compose.yaml`, log in to ghcr.io
+("Pull access" in Step 3), then:
+
+```bash
+docker compose up -d
+```
+
+That is all: Grafana on `:3000` (admin / testing567, plugin under **More apps -> ouo11y
+RUM**), OTLP on `:4318`, replay on `:4319`, the `demo` project credential. Port overrides go
+in a `.env` file next to it, with the `OUO_*_PORT` names from Step 2. It has no demo backend
+(that one is built from source), and it is generated from the files below by
+`deploy/scripts/gen-quickstart.sh`, so edit those and regenerate instead of editing it.
+Skip to Step 4 to verify; Step 4's `curl` checks work unchanged.
+
+### From a clone
+
+The other route is to run the stack straight from a clone of this repo next to your
 own project. Nothing in `deploy/` knows about your code; your backend, web and mobile
 apps all need the same two things: the collector's URL and the project credential
 (`projectId` + `projectToken`).

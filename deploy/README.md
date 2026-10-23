@@ -35,6 +35,12 @@ Agents and the founder run stacks as named envs behind one proxy instead of raw
 published. See [envs/README.md](envs/README.md). The commands below are the plain compose path
 (single stack, host ports from `.env`), still used by CI, the VM install and the fast-tracked guides.
 
+**No clone at all:** [compose/quickstart.yaml](compose/quickstart.yaml) is the same stack with
+the released images and every mounted config inlined (`configs.content`), minus the demo
+backend: copy it into an empty folder and `docker compose up -d` (project `ouo-quickstart`). It is
+generated: after changing `compose.yaml`, `compose.images.yaml` or any file under `compose/`, run
+`deploy/scripts/gen-quickstart.sh` (CI job `quickstart` runs it with `--check`).
+
 ## Self-hosted Sentry as the bridge's upstream (testing)
 
 The Sentry bridge (`ouosentry`, ADR-0008) can forward to a real Sentry on this Mac instead of a
