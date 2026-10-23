@@ -144,6 +144,7 @@ rumApi:
   #  web-store:
   #    sessionRate: 1
   #    replayRate: 0.25
+  #    replayOnErrorRate: 1   # error-triggered replays (absent: 1, no cap)
   # ServiceAccount for the pod (pod identity / IRSA for the s3 backend). Empty: default.
   serviceAccountName: ""
   otel:

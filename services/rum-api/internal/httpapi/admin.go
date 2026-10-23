@@ -161,18 +161,26 @@ func (s *Server) postSweep(w http.ResponseWriter, r *http.Request) {
 }
 
 // sampledOut applies the project's server-side sampling cap to a replay
-// chunk (config projects.<id>.sampling): false keeps it.
+// chunk (config projects.<id>.sampling): false keeps it. A chunk carries no
+// sign of why the SDK recorded it, so a session in the session sample is
+// kept when it passes either replay decision: the replay rate or the
+// on-error rate. The SDKs only record an on-error session after an error,
+// so the second test keeps their error-triggered replays and nothing else.
 func (s *Server) sampledOut(projectID, sessionID string) bool {
 	rates, ok := s.opts.Sampling[projectID]
 	if !ok {
 		return false
 	}
-	return !sampling.Sampled(sessionID, rates.SessionRate, sampling.Session) ||
-		!sampling.Sampled(sessionID, rates.ReplayRate, sampling.Replay)
+	if !sampling.Sampled(sessionID, rates.SessionRate, sampling.Session) {
+		return true
+	}
+	return !sampling.Sampled(sessionID, rates.ReplayRate, sampling.Replay) &&
+		!sampling.Sampled(sessionID, rates.ReplayOnErrorRate, sampling.ReplayOnError)
 }
 
 // SamplingRates is one project's server-side cap (1 keeps everything).
 type SamplingRates struct {
-	SessionRate float64
-	ReplayRate  float64
+	SessionRate       float64
+	ReplayRate        float64
+	ReplayOnErrorRate float64
 }

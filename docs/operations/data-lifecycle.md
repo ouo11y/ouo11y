@@ -222,16 +222,21 @@ FNV-1a 32 over the UTF-16 code units, then MurmurHash3's 32-bit finalizer. Salts
 | `replay.sampleRate` | 1 | sessions recorded from their start |
 | `replay.onErrorSampleRate` | 0 | of the sessions not recorded, these start recording at their first error (from the error on; the native recorder keeps no earlier frames) |
 
-The browser SDK's options are documented in `sdk/browser/README.md`.
+`@ouo11y/browser` (PR #50) uses the same rule, salts and option names; its on-error replay also
+uploads the 30 to 60 seconds before the error from memory. Options: `sdk/browser/README.md`.
 
 **Server-side per-project cap** (rum-api `projects.<id>.sampling`, Helm
-`rumApi.sampling.<id>`): `session_rate` and `replay_rate`, default 1. The replay sink answers
+`rumApi.sampling.<id>`): `session_rate`, `replay_rate` and `replay_on_error_rate`, default 1. The replay sink answers
 `202 {"accepted": false, "sampled_out": true}` and stores nothing for a chunk whose session
 falls outside either rate (counter `ouo.replay.chunks_sampled_out`). Because the rule is
 deterministic, a cap of 0.1 under an SDK rate of 0.5 keeps exactly the SDK-sampled sessions
-whose hash is below 0.1. The cap applies to replays only and also drops error-triggered
-replays of sessions above it. Spans and events are not capped server-side yet: that needs a
-collector processor reading the same table (follow-up for the collector).
+whose hash is below 0.1. A chunk does not say why the SDK recorded it, so a session (inside
+`session_rate`) keeps its replay when it passes `replay_rate` (salt `replay`) **or**
+`replay_on_error_rate` (salt `replay_on_error`): error-triggered replays survive a low
+`replay_rate`, and the SDKs record an on-error session only after an error, so the second test
+admits nothing else. The cap applies to replays only. Spans and events are not capped
+server-side yet: that needs a collector processor reading the same table (follow-up for the
+collector).
 
 ## 6. Metrics
 

@@ -133,10 +133,13 @@ type ProjectRetention struct {
 // Sampling is the server-side per-project cap on replays (absent: 1). The
 // replay sink drops chunks of sessions outside the sample with the SDKs'
 // deterministic rule (sampling.Sampled), so a cap below the SDK rate keeps a
-// subset of the SDK's sample.
+// subset of the SDK's sample. A session in the session sample keeps its
+// replay when it passes replay_rate (salt replay) or replay_on_error_rate
+// (salt replay_on_error, the SDKs' error-triggered replays).
 type Sampling struct {
-	SessionRate *float64 `yaml:"session_rate"`
-	ReplayRate  *float64 `yaml:"replay_rate"`
+	SessionRate       *float64 `yaml:"session_rate"`
+	ReplayRate        *float64 `yaml:"replay_rate"`
+	ReplayOnErrorRate *float64 `yaml:"replay_on_error_rate"`
 }
 
 // Storage selects the replay store.
@@ -401,7 +404,8 @@ func (c Config) Validate() error {
 		if p.Retention.Replays < 0 {
 			bad("projects.%s.retention.replays must not be negative", id)
 		}
-		for name, r := range map[string]*float64{"session_rate": p.Sampling.SessionRate, "replay_rate": p.Sampling.ReplayRate} {
+		for name, r := range map[string]*float64{"session_rate": p.Sampling.SessionRate, "replay_rate": p.Sampling.ReplayRate,
+			"replay_on_error_rate": p.Sampling.ReplayOnErrorRate} {
 			if r != nil && (*r < 0 || *r > 1) {
 				bad("projects.%s.sampling.%s must be between 0 and 1", id, name)
 			}

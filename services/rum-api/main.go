@@ -89,15 +89,18 @@ func retentionPolicy(cfg config.Config) lifecycle.Policy {
 func samplingCaps(cfg config.Config) map[string]httpapi.SamplingRates {
 	out := map[string]httpapi.SamplingRates{}
 	for id, pr := range cfg.Projects {
-		if pr.Sampling.SessionRate == nil && pr.Sampling.ReplayRate == nil {
+		if pr.Sampling.SessionRate == nil && pr.Sampling.ReplayRate == nil && pr.Sampling.ReplayOnErrorRate == nil {
 			continue
 		}
-		r := httpapi.SamplingRates{SessionRate: 1, ReplayRate: 1}
+		r := httpapi.SamplingRates{SessionRate: 1, ReplayRate: 1, ReplayOnErrorRate: 1}
 		if pr.Sampling.SessionRate != nil {
 			r.SessionRate = *pr.Sampling.SessionRate
 		}
 		if pr.Sampling.ReplayRate != nil {
 			r.ReplayRate = *pr.Sampling.ReplayRate
+		}
+		if pr.Sampling.ReplayOnErrorRate != nil {
+			r.ReplayOnErrorRate = *pr.Sampling.ReplayOnErrorRate
 		}
 		out[id] = r
 	}

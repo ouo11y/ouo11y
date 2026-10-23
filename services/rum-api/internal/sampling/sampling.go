@@ -15,8 +15,9 @@ import "unicode/utf16"
 
 // Decision salts.
 const (
-	Session = "session"
-	Replay  = "replay"
+	Session       = "session"
+	Replay        = "replay"
+	ReplayOnError = "replay_on_error"
 )
 
 // Hash is FNV-1a 32 over the UTF-16 code units of s, then MurmurHash3's

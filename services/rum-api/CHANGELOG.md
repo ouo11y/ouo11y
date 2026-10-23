@@ -18,8 +18,9 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
   - append-only deletion audit log (`<data dir>/audit/deletions.jsonl` with a SHA-256 chain, or
     create-only objects under `[<prefix>/]audit/` on S3); a deletion whose first entry cannot be
     written does not run;
-  - server-side per-project replay sampling cap (`projects.<id>.sampling`), the SDKs'
-    deterministic rule (`internal/sampling`).
+  - server-side per-project replay sampling cap (`projects.<id>.sampling`: `session_rate`,
+    `replay_rate`, `replay_on_error_rate`), the SDKs' deterministic rule (`internal/sampling`);
+    a session passing either replay decision keeps its replay, so error-triggered replays survive.
 
 - Replay chunks keep their optional `masked` flag (frames and video); `GET /v1/sessions/{id}/replay`
   serves it per chunk and as the replay's `masked` (`false` as soon as one chunk is unmasked). Chunks

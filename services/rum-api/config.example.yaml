@@ -102,3 +102,4 @@ projects: {}
 #    sampling:                            # server-side cap; the replay sink drops chunks of
 #      session_rate: 0.5                  # sessions outside it (same deterministic rule as
 #      replay_rate: 0.1                   # the SDKs, so it keeps a subset of their sample)
+#      replay_on_error_rate: 1            # error-triggered replays; a session passing either rate is kept

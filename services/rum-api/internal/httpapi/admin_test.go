@@ -44,8 +44,11 @@ func newAdminServer(t *testing.T, adminToken string) (*httptest.Server, *replay.
 	sw := lifecycle.NewSweeper(store, lifecycle.Policy{Default: time.Hour}, time.Hour, nil)
 	srv := New(&fakeEvents{}, &fakeTraces{}, store, Options{
 		ReadToken: "rt", IngestToken: "it", AdminToken: adminToken,
-		Admin:    &Admin{Deleter: d, Sweeper: sw, Audit: log},
-		Sampling: map[string]SamplingRates{"capped": {SessionRate: 1, ReplayRate: 0.5}},
+		Admin: &Admin{Deleter: d, Sweeper: sw, Audit: log},
+		Sampling: map[string]SamplingRates{
+			"capped":  {SessionRate: 1, ReplayRate: 0.5, ReplayOnErrorRate: 0},
+			"onerror": {SessionRate: 1, ReplayRate: 0, ReplayOnErrorRate: 0.5},
+		},
 	})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -174,5 +177,37 @@ func TestSinkSamplingCap(t *testing.T) {
 	other := out + "-other"
 	if v := post("demo", other); v["accepted"] != true {
 		t.Fatalf("uncapped project: %v", v)
+	}
+}
+
+// An error-triggered replay failed the client's replay decision; the cap must
+// keep it when it passes the on-error decision (salt replay_on_error).
+func TestSinkSamplingCapKeepsErrorTriggered(t *testing.T) {
+	ts, store, _ := newAdminServer(t, "at")
+	pick := func(want bool) string {
+		for i := 0; ; i++ {
+			id := "err-" + strings.Repeat("y", i%5) + string(rune('a'+i%26)) + strings.Repeat("z", i/26)
+			if sampling.Sampled(id, 0.5, sampling.ReplayOnError) == want {
+				return id
+			}
+		}
+	}
+	ctx := context.Background()
+	for _, c := range []struct {
+		id   string
+		kept bool
+	}{{pick(true), true}, {pick(false), false}} {
+		body := `{"session_id":"` + c.id + `","seq":0,"started_at":1,"ended_at":2,"events":[{"type":4,"timestamp":1}]}`
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/replay/chunks", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer it")
+		req.Header.Set(ProjectIDHeader, "onerror")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusAccepted || store.Has(ctx, c.id) != c.kept {
+			t.Fatalf("%s: status %d, stored %v, want stored %v", c.id, resp.StatusCode, store.Has(ctx, c.id), c.kept)
+		}
 	}
 }
