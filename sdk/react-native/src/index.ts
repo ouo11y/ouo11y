@@ -3,7 +3,7 @@ import { installShims } from "./shims";
 // but installing before anything else keeps the order obvious.
 const shims = installShims();
 
-import { diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
+import { context, diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -14,7 +14,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { installAppStateListener } from "./appstate";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
+import { ReportedErrors } from "./errors/dedupe";
 import { installErrorCapture } from "./errors/install";
+import { forwardSentryErrors } from "./errors/sentry";
 import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
@@ -23,10 +25,12 @@ import { installFetchInstrumentation, installXhrInstrumentation } from "./networ
 import { createReplayController } from "./replay";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
+import { StackContextManager } from "./telemetry/context";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
 import { SessionPropagator } from "./telemetry/propagator";
 import { buildResource } from "./telemetry/resource";
+import { createLogApi, createSpanApi, TraceLinker } from "./tracing";
 import type { Attrs, RUM, RUMOptions, UserOptions } from "./types";
 import { escapeRegExp } from "./url";
 import { SDK_NAME, SDK_VERSION } from "./version";
@@ -35,6 +39,8 @@ export type * from "./types";
 export { SDK_VERSION } from "./version";
 export { RUMProvider, type RUMProviderProps } from "./provider";
 export { activeRoutePath, type NavigationStateLike } from "./navigation";
+export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/stack";
+export { touchedComponent, type FiberLike, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
 export { type NativeReplayModule, type NativeStartOptions } from "./replay";
 export {
@@ -149,7 +155,28 @@ export function initRUM(options: RUMOptions): RUM {
   });
   trace.setGlobalTracerProvider(tracerProvider);
   propagation.setGlobalPropagator(new SessionPropagator(session));
+  // Synchronous context, so spans of withSpan parent the requests, logs and errors inside it.
+  context.setGlobalContextManager(new StackContextManager());
   const tracer = tracerProvider.getTracer(SDK_NAME, SDK_VERSION);
+  const linker = new TraceLinker();
+  const spans = createSpanApi(tracer, linker);
+  const log = createLogApi(events);
+
+  // ---- exceptions: one record per error (dedupe), with the trace it belongs to (G5) ----
+  const reported = new ReportedErrors();
+  const emitException = (error: unknown, attrs: Attrs): void => {
+    const link = linker.contextFor(error);
+    if (!link) {
+      events.emit("exception", attrs, "error");
+      return;
+    }
+    events.emit("exception", { ...attrs, "ouo.exception.trace_link": link.link }, "error", Date.now(), { context: link.context });
+  };
+  const timeline = {
+    taps: options.timeline?.taps !== false,
+    appLifecycle: options.timeline?.appLifecycle !== false,
+    requests: options.timeline?.requests !== false,
+  };
 
   const flush = async (): Promise<void> => {
     session.persistNow();
@@ -204,6 +231,8 @@ export function initRUM(options: RUMOptions): RUM {
     propagateTo: options.tracing?.propagateTo ?? [],
     ignoreUrls,
     onActivity,
+    requestEvents: timeline.requests,
+    linker,
   };
   const uninstallFetch = installFetchInstrumentation(networkOptions);
   // axios and other XHR clients; fetch's own XHR is skipped (traced by the fetch wrapper).
@@ -215,6 +244,8 @@ export function initRUM(options: RUMOptions): RUM {
     logger,
     ...(options.errors?.consoleErrors !== undefined ? { consoleErrors: options.errors.consoleErrors } : {}),
     ...(options.errors?.onUnhandledRejection ? { onUnhandledRejection: options.errors.onUnhandledRejection } : {}),
+    reported,
+    emitException,
     onFatal: async (error) => {
       const s = serializeError(error);
       logger.warn("fatal error, writing crash marker and flushing", s.type, s.message);
@@ -222,8 +253,15 @@ export function initRUM(options: RUMOptions): RUM {
     },
   });
 
+  // Opt-in (G6): after installErrorCapture, so ouo's own captures are known when Sentry sends them.
+  const sentryClient = options.errors?.forwardSentryErrors;
+  const uninstallSentry = sentryClient ? forwardSentryErrors({ client: sentryClient, reported, logger, emitException }) : () => {};
+
   const uninstallAppState = installAppStateListener({
     logger,
+    ...(timeline.appLifecycle
+      ? { onLifecycle: (state: string) => events.emit("app.lifecycle", { "ouo.app.state": state }, "info", Date.now(), { body: `app ${state}` }) }
+      : {}),
     onBackground: () => {
       session.onBackground();
       void flush();
@@ -254,7 +292,8 @@ export function initRUM(options: RUMOptions): RUM {
       logger.log("user set", user.id);
     },
     captureError(err: unknown, context?: Attrs): void {
-      events.emit("exception", exceptionAttributes(err, "captured", false, context), "error");
+      reported.add(err);
+      emitException(err, exceptionAttributes(err, "captured", false, context));
     },
     addEvent(name: string, attrs?: Attrs): void {
       events.emit(name, { ...(attrs ?? {}), "ouo.event.custom": true });
@@ -263,6 +302,16 @@ export function initRUM(options: RUMOptions): RUM {
       navigation.track(path, attrs);
     },
     recordActivity: onActivity,
+    trackTap(target: string, path?: string): void {
+      onActivity();
+      if (!timeline.taps || !target) return;
+      const attrs: Attrs = { "ouo.ui.target": target };
+      if (path && path !== target) attrs["ouo.ui.path"] = path;
+      events.emit("ui.tap", attrs, "info", Date.now(), { body: path || target });
+    },
+    startSpan: spans.startSpan,
+    withSpan: spans.withSpan,
+    log,
     replay: {
       pause: () => replay.pause(),
       resume: () => replay.resume(),
@@ -279,12 +328,14 @@ export function initRUM(options: RUMOptions): RUM {
       uninstallFetch();
       uninstallXhr();
       uninstallErrors();
+      uninstallSentry();
       uninstallAppState();
       replay.stop();
       session.stop();
       await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
       trace.disable();
       propagation.disable();
+      context.disable();
       logs.disable();
       setRUM(undefined);
     },

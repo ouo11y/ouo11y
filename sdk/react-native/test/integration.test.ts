@@ -12,6 +12,11 @@ interface OtlpAttr {
 }
 interface OtlpLog {
   eventName?: string;
+  body?: { stringValue?: string };
+  traceId?: string;
+  spanId?: string;
+  severityNumber?: number;
+  severityText?: string;
   timeUnixNano: string;
   attributes: OtlpAttr[];
 }
@@ -276,13 +281,22 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     expect(rum.session.id()).not.toBe(first);
     expect(rum.session.previousId()).toBe(first);
     await rum.flush();
-    const names = captured.logs.map((l) => [attr(l.attributes, "event.name"), attr(l.attributes, "session.id"), attr(l.attributes, "ouo.session.end_reason")]);
+    const names = captured.logs.map((l) => [
+      attr(l.attributes, "event.name"),
+      attr(l.attributes, "session.id"),
+      attr(l.attributes, "ouo.session.end_reason") ?? attr(l.attributes, "ouo.app.state"),
+    ]);
+    // app.lifecycle (G4): inactive and background in the old session, foreground in the new one.
     expect(names).toEqual([
       ["session.start", first, undefined],
+      ["app.lifecycle", first, "inactive"],
+      ["app.lifecycle", first, "background"],
       ["session.end", first, "background"],
       ["session.start", rum.session.id(), undefined],
+      ["app.lifecycle", rum.session.id(), "foreground"],
     ]);
-    expect(attr(captured.logs[2]!.attributes, "session.previous_id")).toBe(first);
+    expect(captured.logs[2]!.body).toEqual({ stringValue: "app background" });
+    expect(attr(captured.logs[4]!.attributes, "session.previous_id")).toBe(first);
     expect(attr(captured.resource, "service.version")).toBe("2.4.0");
     await rum._uninstall();
   });

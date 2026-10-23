@@ -1,6 +1,8 @@
 import type { DebugLogger } from "../logger";
 import type { EventEmitter } from "../telemetry/events";
+import type { Attrs } from "../types";
 import { exceptionAttributes, serializeConsoleArgs } from "./classify";
+import { ReportedErrors } from "./dedupe";
 import { sentryClientPresent } from "./sentry";
 
 /** React Native's global error hook (`global.ErrorUtils`). */
@@ -30,6 +32,10 @@ export interface ErrorCaptureOptions {
   consoleErrors?: boolean;
   /** Also hands every unhandled promise rejection to this function (see ErrorOptions). */
   onUnhandledRejection?: (error: unknown) => void;
+  /** Errors already reported, shared with the Sentry forwarder. */
+  reported?: ReportedErrors;
+  /** Emits one `exception` record; defaults to `events.emit`. `initRUM` adds the error's trace context. */
+  emitException?: (error: unknown, attrs: Attrs) => void;
 }
 
 /**
@@ -44,20 +50,18 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
     HermesInternal?: Partial<RejectionTracker>;
   };
   const restores: Array<() => void> = [];
+  const reported = opts.reported ?? new ReportedErrors();
+  const emitException = opts.emitException ?? ((_error: unknown, attrs: Attrs) => events.emit("exception", attrs, "error"));
 
   // ---- global handler ----
   // Errors already reported by one hook must not be reported again by another (Expo web has
-  // both ErrorUtils and a window; a React Native error can reach ErrorUtils twice in dev).
-  const seen = new WeakSet<object>();
-  const firstSighting = (error: unknown): boolean => {
-    if (!error || typeof error !== "object") return true;
-    if (seen.has(error)) return false;
-    seen.add(error);
-    return true;
-  };
+  // both ErrorUtils and a window; a React Native error can reach ErrorUtils twice in dev; a
+  // fatal's echoes, checklist Q1, src/errors/dedupe.ts).
+  const firstSighting = (error: unknown): boolean => reported.add(error) && !reported.isFatalRepeat(error);
   const reportFatal = (error: unknown): void => {
     try {
-      events.emit("exception", exceptionAttributes(error, "uncaught", true), "error");
+      emitException(error, exceptionAttributes(error, "uncaught", true));
+      reported.markFatal(error);
     } catch (e) {
       logger.warn("exception capture failed", e);
     }
@@ -79,7 +83,8 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
       }
       reentrant = true;
       try {
-        events.emit("exception", exceptionAttributes(error, "uncaught", fatal), "error");
+        emitException(error, exceptionAttributes(error, "uncaught", fatal));
+        if (fatal) reported.markFatal(error);
       } catch (e) {
         logger.warn("exception capture failed", e);
       } finally {
@@ -129,7 +134,7 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   // ---- unhandled promise rejections ----
   const onUnhandled = (_id: number, error: unknown): void => {
     try {
-      events.emit("exception", exceptionAttributes(error ?? "Unhandled rejection", "unhandledrejection", false), "error");
+      if (reported.add(error)) emitException(error, exceptionAttributes(error ?? "Unhandled rejection", "unhandledrejection", false));
     } catch (e) {
       logger.warn("rejection capture failed", e);
     }
@@ -181,8 +186,13 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
       if (reentrant) return;
       reentrant = true;
       try {
-        const { error } = serializeConsoleArgs(args);
-        events.emit("exception", exceptionAttributes(error, "console", false), "error");
+        // React logs the error it caught (an error boundary, a render error) with the Error
+        // object itself: already reported when the global handler or Sentry saw it.
+        const errorArg = args.find((a) => a instanceof Error);
+        const { error, message } = serializeConsoleArgs(args);
+        if ((errorArg === undefined || reported.add(errorArg)) && !reported.isFatalEcho(message)) {
+          emitException(errorArg ?? error, exceptionAttributes(error, "console", false));
+        }
       } catch (e) {
         logger.warn("console.error capture failed", e);
       } finally {

@@ -1,6 +1,7 @@
 import type { Attrs } from "../types";
+import { normalizeStack } from "./stack";
 
-export type ExceptionKind = "uncaught" | "unhandledrejection" | "console" | "captured";
+export type ExceptionKind = "uncaught" | "unhandledrejection" | "console" | "captured" | "sentry";
 
 export interface SerializedError {
   type: string;
@@ -34,14 +35,15 @@ export function serializeError(err: unknown): SerializedError {
 /**
  * Pure classification of an exception event (ADR-0004, mobile): only an error that reaches
  * the global handler with `isFatal` is fatal. Unhandled rejections are unhandled but not fatal.
+ * The stack is normalised (`app:///` paths, `[in app]` frames, `src/errors/stack.ts`).
  */
-export function exceptionAttributes(err: unknown, kind: ExceptionKind, fatal: boolean, extra: Attrs = {}): Attrs {
+export function exceptionAttributes(err: unknown, kind: ExceptionKind, fatal: boolean, extra: Attrs = {}, handledOverride?: boolean): Attrs {
   const s = serializeError(err);
-  const handled = kind === "console" || kind === "captured";
+  const handled = handledOverride ?? (kind === "console" || kind === "captured" || kind === "sentry");
   return {
     "exception.type": s.type,
     "exception.message": s.message,
-    "exception.stacktrace": s.stacktrace,
+    "exception.stacktrace": normalizeStack(s.stacktrace).stacktrace,
     "ouo.exception.fatal": fatal,
     "ouo.exception.handled": handled,
     "ouo.exception.kind": kind,
