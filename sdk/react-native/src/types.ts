@@ -30,6 +30,13 @@ export interface SessionOptions {
   maxDurationMs?: number;
   /** Background longer than this ends the session on foreground. Default 30 seconds. */
   backgroundTimeoutMs?: number;
+  /**
+   * Fraction of sessions whose telemetry (spans, events, logs, errors) and replay are sent,
+   * 0 to 1. Default 1. The decision is a deterministic hash of the session id (the rule
+   * rum-api applies for a per-project server-side cap), so it holds for the whole session
+   * and a session never sends part of its signals.
+   */
+  sampleRate?: number;
 }
 
 export interface UserOptions {
@@ -57,6 +64,18 @@ export interface ReplayOptions {
   maskImages?: boolean;
   /** Redact WKWebView. Default true. */
   maskWebViews?: boolean;
+  /**
+   * Fraction of (session-sampled) sessions recorded from their start, 0 to 1. Default 1.
+   * Deterministic per session id, like `session.sampleRate`.
+   */
+  sampleRate?: number;
+  /**
+   * Fraction of the sessions left out by `sampleRate` that start recording at their first
+   * error (`captureError`, unhandled errors and rejections), 0 to 1. Default 0. Recording
+   * covers the rest of the session from the error on: the native recorder keeps no buffer
+   * of the frames before it.
+   */
+  onErrorSampleRate?: number;
 }
 
 /** Device attributes the host app can supply (for example from `expo-device`). */

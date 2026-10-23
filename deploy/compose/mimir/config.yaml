@@ -1,4 +1,5 @@
 # Mimir monolithic mode, filesystem storage, OTLP push at /otlp/v1/metrics.
+# Started with -config.expand-env=true (metric retention from compose.yaml).
 target: all
 multitenancy_enabled: false
 
@@ -64,6 +65,9 @@ limits:
   ingestion_rate: 100000
   ingestion_burst_size: 500000
   out_of_order_time_window: 5m
+  # Metric retention (roadmap 8b): the compactor deletes blocks older than this. 0 keeps
+  # everything.
+  compactor_blocks_retention_period: ${OUO_RETENTION_METRICS:-2160h}
 
 usage_stats:
   enabled: false

@@ -66,13 +66,13 @@ func localOrigin(origin string) bool {
 
 // readAuth enforces OUO_READ_TOKEN on GET and DELETE /v1/* when it is set
 // (ADR-0007 5). Preflights, /healthz, /readyz and the replay sink are not
-// behind it.
+// behind it, nor /v1/admin/*, which takes the admin token instead.
 func readAuth(token string, next http.Handler) http.Handler {
 	if token == "" {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (r.Method == http.MethodGet || r.Method == http.MethodDelete || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/v1/") {
+		if (r.Method == http.MethodGet || r.Method == http.MethodDelete || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/v1/admin/") {
 			if !bearerMatches(r.Header.Get("Authorization"), token) {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="ouo-rum-api"`)
 				writeError(w, http.StatusUnauthorized, "read token required")

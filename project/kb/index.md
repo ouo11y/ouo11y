@@ -11,6 +11,7 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [tempo-session-search.md](tempo-session-search.md) | TraceQL and Tempo API used to list traces per session (filled in Phase 3) |
 | [rrweb-chunking.md](rrweb-chunking.md) | rrweb record/replay settings, chunk sizes, privacy classes (filled in Phase 2) |
 | [grafana-app-plugin.md](grafana-app-plugin.md) | Scaffold, unsigned plugin loading, route proxy, embedding rrweb-player (filled in Phase 4) |
+| [data-lifecycle.md](data-lifecycle.md) | Loki retention and delete API quirks, Tempo 3.0 retention keys and `tempo-cli redact`, Mimir retention, S3 lifecycle by object tag, the sampling hash (8b) |
 | [competitors.md](competitors.md) | Notes on how Sentry, Datadog, Grafana Faro, PostHog and OpenReplay model sessions and replay |
 | [otel-go-baggage.md](otel-go-baggage.md) | How the Go demo backend copies baggage `session.id` onto spans and logs; otelhttp route naming, otelslog bridge, Tempo search and local port quirks (Phase 1) |
 | [web-demo-storefront.md](web-demo-storefront.md) | How examples/ouo-web is wired to the demo backend and the browser SDK, stub mode, backend JSON quirks, React dev double-reporting of uncaught errors (Phase 2) |

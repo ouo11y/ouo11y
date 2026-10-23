@@ -25,6 +25,9 @@ services:
       S3_ACCESS_KEY_ID: ${OUO_RUM_API_S3_ACCESS_KEY:-rum-api}
       S3_SECRET_ACCESS_KEY: ${OUO_RUM_API_S3_SECRET_KEY:-rum-api-dev-secret-0000}
       OUO_RUM_API_S3_BUCKET: ${OUO_RUM_API_S3_BUCKET:-ouo-replays}
+      # rum-api writes the bucket's ouo-replays-* expiration rules from the replay retention
+      # (objects carry an ouo-retention tag); the sweeper still runs for sub-day values.
+      S3_LIFECYCLE_RULES: "true"
     depends_on:
       minio-init:
         condition: service_completed_successfully

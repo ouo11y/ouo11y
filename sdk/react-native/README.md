@@ -154,6 +154,27 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 `OuoReactNative`. In this monorepo `examples/ouo-mobile/metro.config.js` also redirects the SDK's
 `expo-modules-core` import to the app's copy.
 
+### Sampling
+
+```ts
+initRUM({
+  // ...
+  session: { sampleRate: 0.5 },                        // half the sessions send anything at all
+  replay: { enabled: true, sampleRate: 0.2, onErrorSampleRate: 1 },
+});
+```
+
+- `session.sampleRate` (default 1): a session outside it sends no spans, events, logs or replay.
+- `replay.sampleRate` (default 1): sessions (inside the session sample) recorded from their start.
+- `replay.onErrorSampleRate` (default 0): of the sessions left out by `replay.sampleRate`, the
+  fraction that start recording at their first error (`captureError`, unhandled errors and
+  rejections). The recording covers the rest of the session from the error on: the native recorder
+  keeps no buffer of earlier frames.
+
+Each decision is a deterministic hash of the session id (`sampled(id, rate, salt)`, exported), the
+same rule rum-api uses for a per-project server-side cap, so a cap below the app's rate keeps a
+subset of the app's sample. Details: `docs/operations/data-lifecycle.md`, section 5.
+
 ## API
 
 ```ts

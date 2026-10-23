@@ -1,4 +1,5 @@
 import type { DebugLogger } from "./logger";
+import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
 import type { ReplayOptions, RUMReplay } from "./types";
 
 /**
@@ -94,6 +95,8 @@ export interface ReplayControllerOptions {
   projectId: string;
   projectToken: string;
   options: ReplayOptions | undefined;
+  /** `session.sampleRate`: a session outside it is never recorded. Default 1. */
+  sessionSampleRate?: number;
   /** Injected for tests; `undefined` means "load from expo-modules-core", `null` means "absent". */
   native?: NativeReplayModule | null;
   logger: DebugLogger;
@@ -105,6 +108,8 @@ export interface ReplayController extends RUMReplay {
   readonly active: boolean;
   start(sessionId: string): void;
   sessionDidRotate(id: string): void;
+  /** An error in the current session: starts an error-triggered recording when sampled. */
+  onError(): void;
   flush(): Promise<void>;
   stop(): void;
 }
@@ -112,14 +117,28 @@ export interface ReplayController extends RUMReplay {
 /**
  * Bridges `initRUM({ replay })` and the session manager to the native recorder. Replay is off
  * unless `replay.enabled === true` (ADR-0006: "Replay is off until the host enables it").
+ *
+ * Sampling (8b): a session is recorded when it is in the session sample and in the replay
+ * sample (`replay.sampleRate`), or, failing the latter, from its first error when it is in
+ * the on-error sample (`replay.onErrorSampleRate`). The native recorder is started for the
+ * first recorded session and paused for sessions that are not recorded.
  */
 export function createReplayController(opts: ReplayControllerOptions): ReplayController {
   const { logger } = opts;
   const enabled = opts.options?.enabled === true;
   const native = enabled ? (opts.native === undefined ? loadNativeReplayModule() : opts.native ?? undefined) : undefined;
   const endpoint = opts.endpoint;
+  const sessionRate = sampleRate(opts.sessionSampleRate, 1);
+  const replayRate = sampleRate(opts.options?.sampleRate, 1);
+  const onErrorRate = sampleRate(opts.options?.onErrorSampleRate, 0);
   let active = false;
   let currentId: string | undefined;
+  /** The host called `rum.replay.pause()`. */
+  let userPaused = false;
+  /** Paused because the current session is not recorded. */
+  let samplePaused = false;
+  /** The current session started recording at an error. */
+  let errorTriggered = false;
 
   if (enabled && !native) {
     // One line, debug only: Expo Go, web and Jest/Vitest all land here.
@@ -136,6 +155,30 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       logger.warn(`replay: native ${what} failed`, err);
     }
   };
+  const inSessionSample = (id: string): boolean => sampled(id, sessionRate, SAMPLING_SALT.session);
+  const recorded = (id: string): boolean => inSessionSample(id) && sampled(id, replayRate, SAMPLING_SALT.replay);
+
+  const startNative = (sessionId: string): void => {
+    if (!native || !endpoint || active) return;
+    const startOptions: NativeStartOptions = {
+      sessionId,
+      projectId: opts.projectId,
+      projectToken: opts.projectToken,
+      frameInterval: opts.options?.frameInterval ?? 1,
+      maskText: opts.options?.maskText !== false,
+      maskInputs: opts.options?.maskInputs !== false,
+      maskImages: opts.options?.maskImages !== false,
+      maskWebViews: opts.options?.maskWebViews !== false,
+      debug: logger.enabled,
+    };
+    call("start", () => {
+      native.setSessionId(sessionId);
+      native.start(endpoint, startOptions);
+      active = true;
+      logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
+    });
+    if (active && userPaused) call("pause", () => native.pause());
+  };
 
   return {
     get active() {
@@ -144,38 +187,54 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     start(sessionId: string): void {
       if (!native || !endpoint || active) return;
       currentId = sessionId;
-      const startOptions: NativeStartOptions = {
-        sessionId,
-        projectId: opts.projectId,
-        projectToken: opts.projectToken,
-        frameInterval: opts.options?.frameInterval ?? 1,
-        maskText: opts.options?.maskText !== false,
-        maskInputs: opts.options?.maskInputs !== false,
-        maskImages: opts.options?.maskImages !== false,
-        maskWebViews: opts.options?.maskWebViews !== false,
-        debug: logger.enabled,
-      };
-      call("start", () => {
-        native.setSessionId(sessionId);
-        native.start(endpoint, startOptions);
-        active = true;
-        logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
-      });
+      if (recorded(sessionId)) {
+        startNative(sessionId);
+      } else {
+        logger.log("replay: session not in the replay sample", sessionId);
+      }
     },
     sessionDidRotate(id: string): void {
-      if (!native || !active) return;
+      if (!native) return;
       // The manager also reports the initial session (cold start resolution): same id, nothing to do.
       if (id === currentId) return;
       currentId = id;
+      errorTriggered = false;
+      if (!active) {
+        if (recorded(id)) startNative(id);
+        return;
+      }
       call("sessionDidRotate", () => native.sessionDidRotate(id));
       logger.log("replay: session rotated", id);
+      if (!recorded(id)) {
+        if (!samplePaused && !userPaused) call("pause", () => native.pause());
+        samplePaused = true;
+        logger.log("replay: session not in the replay sample", id);
+      } else if (samplePaused) {
+        samplePaused = false;
+        if (!userPaused) call("resume", () => native.resume());
+      }
+    },
+    onError(): void {
+      const id = currentId;
+      if (!native || !endpoint || id === undefined || errorTriggered) return;
+      if (!inSessionSample(id) || recorded(id) || !sampled(id, onErrorRate, SAMPLING_SALT.replayOnError)) return;
+      errorTriggered = true;
+      logger.log("replay: recording triggered by an error", id);
+      if (!active) {
+        startNative(id);
+      } else if (samplePaused) {
+        samplePaused = false;
+        if (!userPaused) call("resume", () => native.resume());
+      }
     },
     pause(): void {
-      if (!native || !active) return;
+      userPaused = true;
+      if (!native || !active || samplePaused) return;
       call("pause", () => native.pause());
     },
     resume(): void {
-      if (!native || !active) return;
+      userPaused = false;
+      if (!native || !active || samplePaused) return;
       call("resume", () => native.resume());
     },
     isRecording(): boolean {

@@ -38,6 +38,10 @@
 #   --build                build from source again after an --images install
 #   --image-version <v>    image tag for --images (default: the one in .env, else compose.images.yaml's)
 #   --registry <prefix>    image registry prefix for --images (default ghcr.io/ouo11y)
+#   --retention <list>     retention per signal, comma separated signal=duration pairs among
+#                          logs, traces, metrics, replays (e.g. logs=720h,replays=168h; Go
+#                          durations, logs at least 24h); written to .env as OUO_RETENTION_*.
+#                          Defaults: logs 720h, traces 336h, metrics 2160h, replays 720h
 #   --allowed-origins <l>  browser origins allowed to post to the collector, comma separated, no
 #                          spaces (OUO_ALLOWED_ORIGINS, e.g. https://shop.example.com,https://*.example.com)
 #   --repo <url>           git remote (default https://github.com/ouo11y/ouo11y.git)
@@ -53,7 +57,7 @@ REF=""
 DIR="/opt/ouo"
 DOMAIN="" OTEL_DOMAIN="" EMAIL="" PROJECT=""
 TLS_INTERNAL=0 INSTALL_DOCKER=1 BUILD_PLUGIN=1 SYSTEMD=1 WAIT=1
-MODE="" IMAGE_VERSION="" REGISTRY="" ORIGINS=""
+MODE="" IMAGE_VERSION="" REGISTRY="" ORIGINS="" RETENTION=""
 ARGS=("$@")
 
 while [[ $# -gt 0 ]]; do
@@ -75,7 +79,8 @@ while [[ $# -gt 0 ]]; do
     --image-version) IMAGE_VERSION="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
     --allowed-origins) ORIGINS="$2"; shift 2 ;;
-    -h|--help) sed -n '2,52p' "$0"; exit 0 ;;
+    --retention) RETENTION="$2"; shift 2 ;;
+    -h|--help) sed -n '2,56p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -87,6 +92,13 @@ need() { command -v "$1" >/dev/null 2>&1; }
 [[ "$(id -u)" == "0" ]] || die "run as root (sudo): it installs packages, writes $DIR and a systemd unit"
 if [[ -n "$PROJECT" ]] && ! [[ "$PROJECT" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]]; then
   die "--project must match ^[a-z0-9][a-z0-9._-]{0,63}$"
+fi
+if [[ -n "$RETENTION" ]]; then
+  IFS=',' read -ra pairs <<< "$RETENTION"
+  for p in "${pairs[@]}"; do
+    [[ "$p" =~ ^(logs|traces|metrics|replays)=[0-9]+(h|m|s)$ ]] \
+      || die "--retention: '$p' is not <logs|traces|metrics|replays>=<number>h (or m, s)"
+  done
 fi
 ENV_FILE="$DIR/deploy/compose/.env"
 HTPASSWD_FILE="$DIR/deploy/compose/projects.htpasswd"
@@ -184,7 +196,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'HDR'
 # Written by deploy/vm/install.sh. Read by docker compose (deploy/compose/compose.yaml +
 # deploy/vm/compose.tls.yaml) and by deploy/scripts/*.sh. Keep this file private:
-# OUO_INGEST_TOKEN, OUO_READ_TOKEN and OUO_GRAFANA_ADMIN_PASSWORD are secrets.
+# OUO_INGEST_TOKEN, OUO_READ_TOKEN, OUO_ADMIN_TOKEN and OUO_GRAFANA_ADMIN_PASSWORD are
+# secrets. OUO_RETENTION_* is the retention per signal (docs/operations/data-lifecycle.md).
 # OUO_PROJECT_ID / OUO_PROJECT_TOKEN are the PUBLIC credential SDKs send (HTTP Basic);
 # the collector checks them against deploy/compose/projects.htpasswd. To rotate (cut-over,
 # one line per project id is honoured): replace the project's line, `systemctl restart ouo`,
@@ -206,6 +219,18 @@ set_env OUO_PROJECT_ID "default" keep
 set_env OUO_PROJECT_TOKEN "pt_$(openssl rand -hex 16)" keep
 set_env OUO_INGEST_TOKEN "it_$(openssl rand -hex 16)" keep
 set_env OUO_READ_TOKEN "rt_$(openssl rand -hex 16)" keep
+# Operator bearer of rum-api's /v1/admin/* (delete by user / project, audit log).
+set_env OUO_ADMIN_TOKEN "at_$(openssl rand -hex 16)" keep
+# Retention per signal (roadmap 8b): --retention overrides, otherwise kept or defaulted.
+if [[ -n "$RETENTION" ]]; then
+  for p in "${pairs[@]}"; do
+    sig="${p%%=*}"; set_env "OUO_RETENTION_$(printf '%s' "$sig" | tr '[:lower:]' '[:upper:]')" "${p#*=}"
+  done
+fi
+set_env OUO_RETENTION_LOGS 720h keep
+set_env OUO_RETENTION_TRACES 336h keep
+set_env OUO_RETENTION_METRICS 2160h keep
+set_env OUO_RETENTION_REPLAYS 720h keep
 set_env OUO_GRAFANA_ADMIN_PASSWORD "$(openssl rand -hex 12)" keep
 # Sentry DSN public key of the bridge (ADR-0008); public like the project token. The
 # development default in compose.yaml is the same on every laptop, so a new install gets its

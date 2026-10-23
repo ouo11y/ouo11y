@@ -301,3 +301,28 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     await rum._uninstall();
   });
 });
+
+describe("session sampling (8b)", () => {
+  it("sampleRate 0 exports nothing; 1 exports the session's signals", async () => {
+    const captured = installFetchStub();
+    const off = initRUM({ ...makeOptions(new MemoryAsyncStorage()), session: { sampleRate: 0 } }) as RUMInternal;
+    await off.ready;
+    await fetch(`${BACKEND}/api/products`);
+    off.addEvent("cart.added");
+    off.captureError(new Error("not exported"));
+    await off.flush();
+    expect(captured.logs).toHaveLength(0);
+    expect(captured.spans).toHaveLength(0);
+    expect(captured.exports).toHaveLength(0);
+    // The app's own request still went through.
+    expect(captured.requests.some((r) => r.url === `${BACKEND}/api/products`)).toBe(true);
+    await off._uninstall();
+
+    const on = initRUM({ ...makeOptions(new MemoryAsyncStorage()), session: { sampleRate: 1 } }) as RUMInternal;
+    await on.ready;
+    on.addEvent("cart.added");
+    await on.flush();
+    expect(captured.logs.length).toBeGreaterThan(0);
+    expect(captured.logs.every((l) => attr(l.attributes, "session.id") === on.session.id())).toBe(true);
+  });
+});
