@@ -20,7 +20,7 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
   `plugin.json`. The build toolchain in `.config/` (webpack 5 + swc, jest + swc, tsconfig,
   eslint 9) is untouched.
 - **Monorepo**: the plugin is an npm workspace (`plugins/*`). Its React 19 / `@grafana/*`
-  deps are nested in `plugins/ouo11y-rum-app/node_modules` because `examples/web` uses React 18.
+  deps are nested in `plugins/ouo11y-rum-app/node_modules` because `examples/ouo-web` uses React 18.
   The scaffold's `.config/tsconfig.json` sets `typeRoots: ["../node_modules/@types"]`, which
   misses hoisted `@types/jest`; the root `tsconfig.json` overrides
   `typeRoots: ["./node_modules/@types", "../../node_modules/@types"]`. Scripts: `test` is

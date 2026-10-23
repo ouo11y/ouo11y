@@ -64,7 +64,7 @@ to resolve their `browser` field remaps.
    </RUMProvider>
    ```
 
-3. Linking the SDK from this monorepo (`file:` dependency) needs `examples/mobile/metro.config.js`:
+3. Linking the SDK from this monorepo (`file:` dependency) needs `examples/ouo-mobile/metro.config.js`:
    the SDK folder is added to `watchFolders`, its `node_modules` is block-listed, and a
    `resolveRequest` redirects the SDK's peer imports (`react`, `react-native`,
    `@react-native-async-storage/async-storage`, `promise`) to the app's `node_modules`.
@@ -151,7 +151,7 @@ Requirements: `expo-modules-core` (peer, optional), a development build instead 
 `npm run -w sdk/react-native build` before `pod install`: the build copies the Swift sources of
 `sdk/ios` into `ios/OuoReplayCore` and `ios/OuoReplay` (gitignored) because CocoaPods only globs
 files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `OuoReplay`,
-`OuoReactNative`. In this monorepo `examples/mobile/metro.config.js` also redirects the SDK's
+`OuoReactNative`. In this monorepo `examples/ouo-mobile/metro.config.js` also redirects the SDK's
 `expo-modules-core` import to the app's copy.
 
 ## API

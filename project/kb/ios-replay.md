@@ -2,7 +2,7 @@
 
 Status: filled in Phase 7 by `ios-replay`. Code: `sdk/ios` (Swift package `OuoReplay`),
 `sdk/react-native/ios` + `android` + `src/replay.ts` (Expo module and JS bridge), consumer
-`examples/mobile`. Contract: `docs/specs/mobile-replay.md`, decision: ADR-0006.
+`examples/ouo-mobile`. Contract: `docs/specs/mobile-replay.md`, decision: ADR-0006.
 
 ## Question
 
@@ -111,7 +111,7 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
   initial id too; same id is ignored), and `rum.flush()` awaits the native flush. Vitest cannot
   alias a bare `require`, hence `_setExpoModulesCore()` as the test hook.
 - Monorepo Metro: `expo-modules-core` was added to the PEERS redirect list in
-  `examples/mobile/metro.config.js`, otherwise the SDK's require resolves against
+  `examples/ouo-mobile/metro.config.js`, otherwise the SDK's require resolves against
   `sdk/react-native/node_modules` (absent) and the bundle fails.
 
 ## What was verified where
@@ -122,8 +122,8 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 | `sdk/ios/test.sh` (35 Swift Testing tests: chunk JSON vs spec fixture keys, flush triggers, seq persistence/reset, dedupe, planner cases, gzip + `gunzip`, uploader headers/order/retry/bound) | this Mac | 35 passed |
 | Real upload through `URLSession` (`OUO_REPLAY_STUB_URL=http://localhost:8080`) | rum-api in compose | 2 chunks accepted; `GET /v1/sessions/<id>/replay` reports `kind: frames`, `chunk_count 2`, `frame_count 5`; `/replay/frames` returns the 5 frames in seq order |
 | `npm run -w sdk/react-native build` + `test` | this Mac | 7 files, 56 tests (17 new replay tests) |
-| `npx expo prebuild --platform ios --no-install`, `expo-modules-autolinking resolve -p apple/android` | examples/mobile | three ouo pods + `OuoReplayModule` resolved; Android project resolved |
-| `npx expo export --platform ios` | examples/mobile | Hermes bundle with the replay code builds |
+| `npx expo prebuild --platform ios --no-install`, `expo-modules-autolinking resolve -p apple/android` | examples/ouo-mobile | three ouo pods + `OuoReplayModule` resolved; Android project resolved |
+| `npx expo export --platform ios` | examples/ouo-mobile | Hermes bundle with the replay code builds |
 | Compiling the UIKit target, `pod install`, simulator run, masked-fields-are-black, Grafana playback | needs Xcode | **not done** (`project/kb/xcode-setup.md`) |
 
 ## Gotchas
@@ -139,7 +139,7 @@ gzip/zlib). The test writes a file and runs `/usr/bin/gunzip -c` on it.
 
 ## Native verification findings (2026-10-08, Xcode 27 / iOS 27 simulator)
 
-- **iOS 27 requires the UIScene life cycle.** Apps without a scene manifest trap at launch inside `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`; a second launch of the same build shows a black window instead. Expo 57.0.27's prebuild template still has no scene delegate, but `expo/ios/AppDelegates/ExpoAppSceneDelegate.swift` exists for exactly this. `examples/mobile/plugins/withUIScene.js` adds the manifest, writes `SceneDelegate.swift` (`internal import Expo` to match the generated AppDelegate's access-level import), registers it in the pbxproj, makes the AppDelegate conform to `ExpoReactNativeFactoryProvider` and removes its own window creation. Drop the plugin when the Expo template catches up.
+- **iOS 27 requires the UIScene life cycle.** Apps without a scene manifest trap at launch inside `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`; a second launch of the same build shows a black window instead. Expo 57.0.27's prebuild template still has no scene delegate, but `expo/ios/AppDelegates/ExpoAppSceneDelegate.swift` exists for exactly this. `examples/ouo-mobile/plugins/withUIScene.js` adds the manifest, writes `SceneDelegate.swift` (`internal import Expo` to match the generated AppDelegate's access-level import), registers it in the pbxproj, makes the AppDelegate conform to `ExpoReactNativeFactoryProvider` and removes its own window creation. Drop the plugin when the Expo template catches up.
 - **Do not `require("expo-modules-core")` from the SDK.** With the package symlinked from `sdk/react-native` (npm `file:` link), Metro resolves bare requires relative to the real path and reports "Requiring unknown module expo-modules-core", even though the native module is registered. `loadNativeReplayModule` now reads `globalThis.expo.modules.OuoReplay` first; the debug warning prints the underlying error and the list of registered native modules.
 - **`expo prebuild` without `--clean` still deletes `ios/Pods` and the `.xcworkspace`**; run `pod install` again afterwards.
 - **Over-masking:** UIKit navigation bars contain an empty `UIImageView` background, which the class rule redacted as a solid block. `ViewTreeBuilder` now reports image views with `image == nil` as `UIView`.

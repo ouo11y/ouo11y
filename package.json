@@ -5,7 +5,7 @@
   "type": "module",
   "workspaces": [
     "sdk/*",
-    "examples/web",
+    "examples/ouo-web",
     "plugins/*"
   ],
   "engines": {

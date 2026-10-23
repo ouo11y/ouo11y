@@ -1,6 +1,6 @@
 # OTel JS SDK inside React Native / Expo
 
-Status: filled in Phase 5 by `sdk-react-native`. Code: `sdk/react-native`, consumer: `examples/mobile`.
+Status: filled in Phase 5 by `sdk-react-native`. Code: `sdk/react-native`, consumer: `examples/ouo-mobile`.
 
 ## Question
 
@@ -43,10 +43,10 @@ else was needed: `fetch`, `Headers`, `setTimeout`, `Promise`, `crypto.getRandomV
 `randomUUID` (Expo installs them; `ids.ts` falls back to `Math.random`) are present. The
 `URL` global is **not** used (RN's `URL` polyfill historically throws on `hostname`), see `src/url.ts`.
 
-### Linking the SDK into `examples/mobile` (not an npm workspace)
+### Linking the SDK into `examples/ouo-mobile` (not an npm workspace)
 
 `"@ouo11y/react-native": "file:../../sdk/react-native"` gives a symlink in
-`examples/mobile/node_modules/@ouo11y/react-native`. Metro needs three things (`metro.config.js`):
+`examples/ouo-mobile/node_modules/@ouo11y/react-native`. Metro needs three things (`metro.config.js`):
 
 1. `watchFolders` += the SDK folder (Metro only serves files under its watch folders).
 2. `resolver.blockList` += `sdk/react-native/node_modules/.*` so Metro never crawls the SDK's
@@ -184,11 +184,11 @@ true now:
   empty `ios/.npmignore` is what keeps them in the tarball. `prepack` runs the build so the
   copies are fresh. `exports` keeps a `react-native` condition for Metro and `require`/`default`
   for Node; `./package.json` and `./expo-module.config.json` are exported for tooling.
-- **Demo app.** `examples/mobile` reads `EXPO_PUBLIC_OTLP_ENDPOINT` (default `http://localhost:4318`),
+- **Demo app.** `examples/ouo-mobile` reads `EXPO_PUBLIC_OTLP_ENDPOINT` (default `http://localhost:4318`),
   `EXPO_PUBLIC_OUO_PROJECT_ID` (default `demo`) and `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (default
   `pt_dev_demo_0000000000000000`) in `app.config.ts` into `extra.otlpEndpoint` / `extra.projectId` /
   `extra.projectToken`; the replay endpoint is derived (`localhost:4319`). `EXPO_PUBLIC_RUM_API` is
-  gone. Typecheck with `npx tsc --noEmit` in `examples/mobile` (needs its own `npm install`).
+  gone. Typecheck with `npx tsc --noEmit` in `examples/ouo-mobile` (needs its own `npm install`).
   Changing the native record (`StartOptions`) needs a dev-client rebuild:
   `npx expo run:ios --no-bundler --device "iPhone 18 Pro"` recompiles the three ouo pods from the
   vendored copies (run `npm run -w sdk/react-native build` first) and reinstalls the app without

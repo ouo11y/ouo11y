@@ -69,7 +69,7 @@ npm run -w sdk/browser build
 Then, in **your** app, pick one of the two install methods.
 
 Option A, install from the folder. npm links the folder into `node_modules/@ouo11y/browser`.
-This is the same mechanism the demo app `examples/web` uses (an npm workspace link, see
+This is the same mechanism the demo app `examples/ouo-web` uses (an npm workspace link, see
 `project/kb/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
 without reinstalling:
 
@@ -143,8 +143,8 @@ put a rum-api **read** token in the browser; that one is secret and only Grafana
 Default host ports are in `deploy/compose/.env.example`: Grafana 3000, collector 4318 (OTLP)
 and 4319 (replay), demo backend 8081, Loki 3100, Tempo 3200. rum-api is internal: nothing in
 the browser needs its port. If you created `deploy/compose/.env` to move ports, use those
-values instead everywhere below: for the demo app, copy `examples/web/.env.example` to
-`examples/web/.env` (gitignored) and change `VITE_OTLP_ENDPOINT` and `VITE_BACKEND_URL`.
+values instead everywhere below: for the demo app, copy `examples/ouo-web/.env.example` to
+`examples/ouo-web/.env` (gitignored) and change `VITE_OTLP_ENDPOINT` and `VITE_BACKEND_URL`.
 
 CORS is handled by the collector (both receivers share the `confighttp` settings): the local
 config allows `http://localhost:*` and `http://127.0.0.1:*`, and its preflight answer lists
@@ -156,7 +156,7 @@ without touching the stack. A CORS error in the console with no `POST` following
 token is wrong.
 
 The demo reads its endpoint and credentials from Vite env variables. Copy this to `.env` in
-your app (ref: `examples/web/.env.example`, adjusted to the stock ports):
+your app (ref: `examples/ouo-web/.env.example`, adjusted to the stock ports):
 
 ```bash
 # Collector OTLP/HTTP base URL. The SDK posts to /v1/{traces,logs} and derives :4319/v1/replay/chunks.
@@ -180,7 +180,7 @@ VITE_APP_VERSION=1.0.0
 > instrumentation and the error handlers exist.
 
 Create `src/rum.ts`. This is the demo's file, copy it as is (ref:
-`examples/web/src/rum.ts`). Only change `service.name` and, if you do not use the demo's
+`examples/ouo-web/src/rum.ts`). Only change `service.name` and, if you do not use the demo's
 stub mechanism, drop the two `__OUO_RUM_STUB__` lines:
 
 ```ts
@@ -245,7 +245,7 @@ export function setUser(id: string): void {
 ```
 
 Then import it first in `src/main.tsx`. This is the demo's `main.tsx` as is (ref:
-`examples/web/src/main.tsx`); the only line that matters for RUM is `import "./rum"`:
+`examples/ouo-web/src/main.tsx`); the only line that matters for RUM is `import "./rum"`:
 
 ```tsx
 import React from "react";
@@ -324,7 +324,7 @@ await rum.flush();                                      // send everything now i
 Set the user as soon as you know it. rum-api uses the latest non-empty `user.id` seen in
 the session, so a `setUser` after the session started is fine. The demo stores the id in
 `localStorage` and also sends it as `x-user-id` so the backend and the browser agree
-(`examples/web/src/api.ts`); copy that file if your backend wants the same.
+(`examples/ouo-web/src/api.ts`); copy that file if your backend wants the same.
 
 Do not add `traceparent` or `baggage` headers in your own fetch wrapper. The SDK's fetch
 instrumentation adds them to every request whose origin matches `propagateTo`.
@@ -352,7 +352,7 @@ in one trace with `session.id` on it.
 Start your app. For the demo:
 
 ```bash
-npm run -w examples/web dev
+npm run -w examples/ouo-web dev
 ```
 
 Open http://localhost:5173, type a user id in the header, press "Set user", click a
@@ -491,11 +491,11 @@ click handler, then re-run the sessions curl and check `status`. Note that React
 development builds re-throw handler errors once more, so `vite dev` reports an uncaught
 error twice; the production build reports it once (`project/kb/web-demo-storefront.md`).
 
-## 7. Quick walk through the demo code (`examples/web/src`)
+## 7. Quick walk through the demo code (`examples/ouo-web/src`)
 
 Read in this order.
 
-- `examples/web/index.html`: the Vite entry, loads `/src/main.tsx` as a module.
+- `examples/ouo-web/index.html`: the Vite entry, loads `/src/main.tsx` as a module.
 - `src/main.tsx`: imports `./rum` first, then mounts `App` inside `BrowserRouter` and
   `CartProvider`. The order of the imports is the whole trick.
 - `src/rum.ts`: the only module that imports `@ouo11y/browser`. Reads the `VITE_*` variables,

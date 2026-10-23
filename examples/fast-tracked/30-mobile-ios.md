@@ -14,7 +14,7 @@ iOS 27.0 simulator runtime, CocoaPods 1.17, Node 24.15, Expo SDK 57, React Nativ
 `projectToken` as HTTP Basic) is verified with unit tests and a local stub; the live run against
 the Phase 8a collector is owed to the QA pass (see the note in section 7).
 
-Reference app: `examples/mobile` ("mobile-store"). You copy four files from it as they are
+Reference app: `examples/ouo-mobile` ("mobile-store"). You copy four files from it as they are
 (listed under "Ref files") and write the rest yourself.
 
 ---
@@ -149,9 +149,9 @@ collector's OTLP/HTTP, `4319` its replay receiver, both published on all interfa
 are the public ingest; `8081` demo backend, `3000` Grafana; rum-api's `8080` is on loopback for
 the `curl` checks in section 7.1 and never for apps) and the stack ships a development project:
 id `demo`, token `pt_dev_demo_0000000000000000` (a line in the collector's htpasswd).
-`examples/mobile/app.config.ts` falls back to the same values, so with a stock stack you do not
+`examples/ouo-mobile/app.config.ts` falls back to the same values, so with a stock stack you do not
 need to pass anything. If you moved ports or changed the project in a gitignored
-`deploy/compose/.env`, copy `examples/mobile/.env.example` to `examples/mobile/.env` and set
+`deploy/compose/.env`, copy `examples/ouo-mobile/.env.example` to `examples/ouo-mobile/.env` and set
 `EXPO_PUBLIC_OTLP_ENDPOINT`, `EXPO_PUBLIC_OUO_PROJECT_ID`, `EXPO_PUBLIC_OUO_PROJECT_TOKEN` and
 `BACKEND_URL` there; Expo CLI loads that file into `process.env` before it evaluates
 `app.config.ts`. The commands below pass the values explicitly anyway so it is obvious where
@@ -166,7 +166,7 @@ Kubernetes); the token is public by design, so putting it in the app bundle is e
 `@ouo11y/react-native` 0.2.0 is packaged for npm (`npm pack --dry-run -w sdk/react-native` lists
 `dist/`, `ios/` with the vendored Swift sources, `android/`, `expo-module.config.json`) but not
 published yet. Until it is, you consume it from a local checkout of this repository through an
-npm `file:` link, exactly like `examples/mobile` does.
+npm `file:` link, exactly like `examples/ouo-mobile` does.
 
 ### 3.1 Build the SDK once
 
@@ -237,9 +237,9 @@ helper. Any other router works through `rum.trackNavigation(path)`.
 
 ### 3.3 Metro config for the `file:` link (ref file)
 
-`examples/mobile` is not an npm workspace: it has its own `package.json` and lockfile, and
+`examples/ouo-mobile` is not an npm workspace: it has its own `package.json` and lockfile, and
 Metro has to be told how to serve a package that lives outside the app. Copy
-`examples/mobile/metro.config.js` to your app root and change only `sdkRoot` to your relative
+`examples/ouo-mobile/metro.config.js` to your app root and change only `sdkRoot` to your relative
 path. Full file:
 
 ```js
@@ -316,16 +316,16 @@ Nothing to do by hand; this is how it works so you can debug it:
 
 ## 4. Ref files: copy these as they are
 
-Copy from `examples/mobile/` into the same relative place in your app.
+Copy from `examples/ouo-mobile/` into the same relative place in your app.
 
 | File | Purpose |
 |---|---|
-| `examples/mobile/metro.config.js` | Metro config for the `file:` link (inlined above, change `sdkRoot`) |
-| `examples/mobile/app.config.ts` | Expo config: bundle id, version from `APP_VERSION`, collector URL and project credential from env, the UIScene plugin |
-| `examples/mobile/plugins/withUIScene.js` | Config plugin that makes the app launch on iOS 27 |
-| `examples/mobile/src/rum.ts` | SDK initialisation (the one file you edit) |
+| `examples/ouo-mobile/metro.config.js` | Metro config for the `file:` link (inlined above, change `sdkRoot`) |
+| `examples/ouo-mobile/app.config.ts` | Expo config: bundle id, version from `APP_VERSION`, collector URL and project credential from env, the UIScene plugin |
+| `examples/ouo-mobile/plugins/withUIScene.js` | Config plugin that makes the app launch on iOS 27 |
+| `examples/ouo-mobile/src/rum.ts` | SDK initialisation (the one file you edit) |
 
-### 4.1 `examples/mobile/app.config.ts`
+### 4.1 `examples/ouo-mobile/app.config.ts`
 
 Change `name`, `slug` and `ios.bundleIdentifier` to yours. Keep `plugins` and `extra`.
 
@@ -379,12 +379,12 @@ export default config;
 The env variables are read when Expo evaluates the config, so set them on the `npx expo
 run:ios` / `npx expo start` / `npx expo prebuild` command line. `Constants.expoConfig.extra`
 then carries them into the JS bundle. The defaults are the stock ports and the stock
-development project; put your own values in `examples/mobile/.env` (gitignored, template in
+development project; put your own values in `examples/ouo-mobile/.env` (gitignored, template in
 `.env.example`) if you do not want to pass them every time. (`EXPO_PUBLIC_*` variables are also
 inlined by Metro wherever `process.env.EXPO_PUBLIC_OTLP_ENDPOINT` appears in app code; the
 reference app reads them through `extra` so there is one path for all settings.)
 
-### 4.2 `examples/mobile/plugins/withUIScene.js`
+### 4.2 `examples/ouo-mobile/plugins/withUIScene.js`
 
 Why it exists: iOS 27 traps at launch inside
 `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption` when an app has no scene
@@ -481,7 +481,7 @@ module.exports = function withUIScene(config) {
 };
 ```
 
-### 4.3 `examples/mobile/src/rum.ts`
+### 4.3 `examples/ouo-mobile/src/rum.ts`
 
 This is the file you edit. Full reference version:
 
@@ -555,7 +555,7 @@ export const shortId = (id: string): string => id.slice(0, 8);
 ### 5.1 Call `initRUM` before the first render
 
 The global error handler and the `fetch` wrapper must exist before anything in your app runs.
-`examples/mobile/index.ts`:
+`examples/ouo-mobile/index.ts`:
 
 ```ts
 // The SDK must initialise before the first render so the global error handler and the
@@ -621,9 +621,9 @@ web views masked.
 Set `testID` (React Native's `accessibilityIdentifier`) on any view:
 
 - `testID="ouo-mask"`: the view is redacted whatever its class; one rectangle covers its
-  subtree. `examples/mobile/src/screens/CheckoutScreen.tsx` puts it on the promo `TextInput`.
+  subtree. `examples/ouo-mobile/src/screens/CheckoutScreen.tsx` puts it on the promo `TextInput`.
 - `testID="ouo-unmask"`: the view and its whole subtree stay visible whatever the options say.
-  `examples/mobile/src/screens/ProductScreen.tsx` puts it on the product title.
+  `examples/ouo-mobile/src/screens/ProductScreen.tsx` puts it on the product title.
 
 Both work with any combination of the `mask*` options. Subclasses match through their
 superclass chain; hidden views, alpha <= 0.01 and views outside the window are skipped;
@@ -631,7 +631,7 @@ rectangles are clipped to the window and merged when they overlap.
 
 ### 5.4 Wrap the root and forward navigation
 
-`examples/mobile/App.tsx`, trimmed to the SDK-related lines:
+`examples/ouo-mobile/App.tsx`, trimmed to the SDK-related lines:
 
 ```tsx
 import { RUMProvider, navigationStateListener } from "@ouo11y/react-native";
@@ -720,7 +720,7 @@ npx expo prebuild --platform ios
 ```
 
 This (re)generates `ios/` (gitignored in the reference app: `/ios` in
-`examples/mobile/.gitignore`), applies `withUIScene.js`, and runs `pod install` at the end.
+`examples/ouo-mobile/.gitignore`), applies `withUIScene.js`, and runs `pod install` at the end.
 Warning: prebuild rewrites `ios/`; even without `--clean` it deletes `ios/Pods` and the
 `.xcworkspace`, so if you passed `--no-install` or `pod install` failed, run it yourself:
 
@@ -940,14 +940,14 @@ Read in this order.
 
 **The app**
 
-1. `examples/mobile/index.ts`: imports `./src/rum` before `registerRootComponent`, nothing else.
-2. `examples/mobile/src/rum.ts`: the one `initRUM` call; collector URL, project id and token
+1. `examples/ouo-mobile/index.ts`: imports `./src/rum` before `registerRootComponent`, nothing else.
+2. `examples/ouo-mobile/src/rum.ts`: the one `initRUM` call; collector URL, project id and token
    from `expo-constants`, device attributes from `expo-device`, `replay: { enabled: true, maskText: false }`.
-3. `examples/mobile/App.tsx`: `RUMProvider`, `navigationStateListener`, the LogBox switch, a
+3. `examples/ouo-mobile/App.tsx`: `RUMProvider`, `navigationStateListener`, the LogBox switch, a
    header badge that polls `rum.session.id()` every second so you can see rotations.
-4. `examples/mobile/src/api.ts`: plain `fetch` to the backend; the SDK adds `traceparent` and
+4. `examples/ouo-mobile/src/api.ts`: plain `fetch` to the backend; the SDK adds `traceparent` and
    `baggage`, the app only adds `x-user-id`.
-5. `examples/mobile/src/screens/CheckoutScreen.tsx` (promo input, `ouo-mask`),
+5. `examples/ouo-mobile/src/screens/CheckoutScreen.tsx` (promo input, `ouo-mask`),
    `ProductScreen.tsx` (title, `ouo-unmask`), `ChaosScreen.tsx` (one button per
    classification row: slow request, 500, handled error, unhandled rejection, fatal error from
    a `setTimeout` so it reaches `ErrorUtils` with `isFatal = true`, `console.error`, custom
@@ -1093,7 +1093,7 @@ Things that can block it, and what to do:
 - **macOS firewall.** System Settings > Network > Firewall: if it is on, allow incoming
   connections for Docker (the app that owns the published ports 4318, 4319 and 8081) or turn
   "Block all incoming connections" off. Not verified in this repo.
-- **App Transport Security (ATS).** The generated `examples/mobile/ios/mobilestore/Info.plist`
+- **App Transport Security (ATS).** The generated `examples/ouo-mobile/ios/mobilestore/Info.plist`
   (verified) has `NSAppTransportSecurity` with `NSAllowsArbitraryLoads: false` and
   `NSAllowsLocalNetworking: true`. Apple documents `NSAllowsLocalNetworking` as the exception
   for local-network resources, and Expo relies on it to load the JS bundle from Metro at the

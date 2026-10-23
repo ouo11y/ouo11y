@@ -34,14 +34,14 @@ npm run -w plugins/ouo11y-rum-app build                 # dist/ is bind-mounted 
 docker compose -f deploy/compose/compose.yaml restart grafana
 
 # 3. the web demo (storefront instrumented with @ouo11y/browser)
-npm run -w examples/web dev                          # http://localhost:5173
+npm run -w examples/ouo-web dev                          # http://localhost:5173
 ```
 
 Open Grafana at `http://localhost:${OUO_GRAFANA_PORT:-3000}` (admin / testing567) and go to
 **More apps -> ouo11y RUM** (`/a/ouo11y-rum-app`): Overview (health by platform and version),
 Sessions (filters, status, user, traces, replay), Session detail (timeline, traces with
 Explore links, rrweb replay). Use the web demo's Chaos page to produce errored and crashed
-sessions. The mobile demo is in `examples/mobile` (Expo; see its README).
+sessions. The mobile demo is in `examples/ouo-mobile` (Expo; see its README).
 
 Prove the pipeline end to end with the scripted scenario (40 synthetic web and mobile
 sessions with known statuses, then assertions against rum-api and Grafana):
@@ -64,7 +64,7 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 | `services/rum-api` | Go service: session aggregation, replay storage, JSON API |
 | `plugins/ouo11y-rum-app` | the Grafana app plugin |
 | `deploy/` | `compose/` local stack and configs, `helm/` chart, `vm/` single-VM install, `envs/` named local environments (`ouo-env`), `images/`, `scripts/` |
-| `examples/web`, `examples/mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
+| `examples/ouo-web`, `examples/ouo-mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
 | `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |
 | `tests/e2e` | the end-to-end scenario script |
 | `docs/` | user-facing docs: [MVP](docs/MVP.md), [vision](docs/VISION.md), [specs](docs/specs/), [ADRs](docs/adr/README.md), [operations](docs/operations/index.md), [releasing](docs/releasing.md) ([index](docs/index.md)) |

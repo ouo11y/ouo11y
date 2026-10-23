@@ -1,7 +1,7 @@
-# mobile-store (examples/mobile)
+# mobile-store (examples/ouo-mobile)
 
 Expo managed app that exercises `@ouo11y/react-native` against the demo backend: the same
-storefront flows as `examples/web` plus a Chaos screen with one button per row of the
+storefront flows as `examples/ouo-web` plus a Chaos screen with one button per row of the
 session spec / ADR-0004 classification.
 
 Screens: Products, Product, Cart, Checkout (`card` succeeds, `broken-card` makes the
@@ -63,7 +63,7 @@ the SDK with `"@ouo11y/react-native": "file:../../sdk/react-native"` plus `metro
 # from the repo root: build the SDK first (Metro consumes dist/index.js, CocoaPods the vendored Swift sources)
 npm run -w sdk/react-native build
 
-cd examples/mobile
+cd examples/ouo-mobile
 npm install
 npx expo start --ios                      # Expo Go: telemetry only, replay stays off
 APP_VERSION=2.4.0 npx expo start --ios    # a second app version for the health split
@@ -77,7 +77,7 @@ The `OuoReplay` Expo module is native code, so the app must be built with Xcode 
 (`project/kb/xcode-setup.md` has the full machine setup):
 
 ```bash
-cd examples/mobile
+cd examples/ouo-mobile
 npx expo prebuild --platform ios          # generates ios/ (gitignored), runs pod install
 npx expo run:ios                          # builds the dev client, boots the simulator, starts Metro
 APP_VERSION=2.4.0 npx expo run:ios

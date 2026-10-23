@@ -16,7 +16,7 @@ From the repository root (npm workspaces; Node 24):
 ```bash
 npm install                                 # links sdk/browser as @ouo11y/browser
 npm run -w sdk/browser build                # the SDK is consumed from its dist/
-npm run -w examples/web dev                 # http://localhost:5173
+npm run -w examples/ouo-web dev                 # http://localhost:5173
 ```
 
 The demo backend and the LGTM stack must be running (`docker compose -f
@@ -27,16 +27,16 @@ copy `.env.example` to `.env` here and change the URLs.
 Build and preview:
 
 ```bash
-npm run -w examples/web build               # tsc (strict) + vite build -> dist/
-npm run -w examples/web preview             # http://localhost:4173
+npm run -w examples/ouo-web build               # tsc (strict) + vite build -> dist/
+npm run -w examples/ouo-web preview             # http://localhost:4173
 ```
 
 Without the SDK package (for example before `sdk/browser` is built) the app
 still runs against a console-logging stub that implements the same interface:
 
 ```bash
-VITE_RUM_STUB=1 npm run -w examples/web dev
-npm run -w examples/web build:stub
+VITE_RUM_STUB=1 npm run -w examples/ouo-web dev
+npm run -w examples/ouo-web build:stub
 ```
 
 The footer shows "(rum stub)" when the stub is active.
