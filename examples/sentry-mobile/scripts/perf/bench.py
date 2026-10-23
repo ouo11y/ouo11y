@@ -191,6 +191,9 @@ class Device:
         self.app = a.app
         self.dest = f"id={self.udid}"
         self.energy = False
+        # --power: Hitches recorded with Activity Monitor in every run (Power Profiler would join it on
+        # iOS 26+; on iOS 18 xctrace refuses it and the whole recording fails).
+        self.instruments = ["Hitches"] if getattr(a, "power", False) else []  # Power Profiler needs iOS 26
 
     def dctl(self, *args, check=True):
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as t:
@@ -218,10 +221,33 @@ class Device:
                 sh(["xcrun", "devicectl", "device", "process", "signal", "--device", self.udid, "--pid",
                     str(p["processIdentifier"]), "--signal", "SIGKILL"], check=False)
 
+    def team_apps(self):
+        apps = self.dctl("device", "info", "apps", check=False).get("result", {}).get("apps", [])
+        return [x.get("bundleIdentifier") for x in apps if (x.get("bundleIdentifier") or "").startswith("dev.ouo.")]
+
     def reset(self):
+        self._reset()
+        # A fresh install asks for the Local Network permission at its first request: a priming
+        # launch (no SDK) answers it (driver testPrime), so the measured launch is not blocked.
+        self.write_doc("perf-mode.json", json.dumps({"mode": "none"}))
+        r = subprocess.run(["xcodebuild", "test-without-building", "-xctestrun", self.xctestrun, "-destination", self.dest,
+                            "-only-testing:PerfJourney/PerfJourneyUITests/testPrime"], capture_output=True, text=True)
+        if "PERF prime" not in r.stdout:
+            log(f"  prime launch failed ({r.returncode}): {r.stdout[-400:]}")
         self.terminate()
         time.sleep(1)
-        sh(["xcrun", "devicectl", "device", "uninstall", "app", "--device", self.udid, BUNDLE], check=False)
+
+    def _reset(self):
+        self.terminate()
+        time.sleep(1)
+        # With a free (personal) team iOS drops the user's trust in the developer certificate when
+        # the team's last app leaves the device, and every later launch is refused. The XCUITest
+        # runner (dev.ouo.perfjourney.xctrunner) stays installed: never uninstall the app without it.
+        if [b for b in self.team_apps() if b != BUNDLE]:
+            sh(["xcrun", "devicectl", "device", "uninstall", "app", "--device", self.udid, BUNDLE], check=False)
+        else:
+            raise SystemExit("no other dev.ouo.* app on the device: uninstalling sentrydemo would drop the developer trust; "
+                             "install the driver's PerfJourney-Runner.app first")
         self.install()
 
     def write_doc(self, name, text):
@@ -249,25 +275,35 @@ class Device:
         # so --attach is not possible); analyze.py keeps the sentrydemo rows. Energy runs use the
         # Power Profiler template instead (one xctrace recording per device at a time).
         template = "Power Profiler" if self.energy else "Activity Monitor"
+        extra = sum((["--instrument", i] for i in self.instruments), []) if not self.energy else []
         trace = os.path.join(run_dir, "rec.trace")
         return subprocess.Popen(
-            ["xcrun", "xctrace", "record", "--template", template, "--device", self.udid, "--all-processes",
-             "--time-limit", f"{int(seconds) + 5}s", "--output", trace],
+            ["xcrun", "xctrace", "record", "--template", template, *extra, "--device", self.udid, "--all-processes",
+             "--time-limit", f"{int(seconds) + 15}s", "--output", trace],
             stdout=open(os.path.join(run_dir, "xctrace.log"), "w"), stderr=subprocess.STDOUT)
 
     def stop_recorder(self, proc, run_dir):
         try:
             proc.wait(timeout=180)
         except subprocess.TimeoutExpired:
+            # A hung recording (seen once after a failed XCUITest launch): stop it, then give up on
+            # it; the run is reported without samples instead of ending the whole benchmark.
             proc.send_signal(signal.SIGINT)
-            proc.wait(timeout=120)
+            try:
+                proc.wait(timeout=120)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
         trace = os.path.join(run_dir, "rec.trace")
         if not os.path.exists(trace):
             return
         toc = sh(["xcrun", "xctrace", "export", "--input", trace, "--toc"], check=False).stdout
         open(os.path.join(run_dir, "toc.xml"), "w").write(toc)
-        for schema in ("activity-monitor-process-live", "sysmon-process", "activity-monitor-process-ledger",
-                       "power-profiler-process", "SystemPowerLevel", "hitches"):
+        # Only the tables bench_result.py reads: exporting every Activity Monitor table of every
+        # process took about a minute per run.
+        schemas = ["activity-monitor-process-live"] + sorted(set(
+            x for x in re.findall(r'schema="([^"]+)"', toc) if re.search(r"power|energy|hitches-summary", x, re.I)))
+        for schema in schemas:
             if f'schema="{schema}"' in toc:
                 sh(["xcrun", "xctrace", "export", "--input", trace, "--output", os.path.join(run_dir, f"{schema}.xml"),
                     "--xpath", f'/trace-toc/run[@number="1"]/data/table[@schema="{schema}"]'], check=False)
@@ -377,6 +413,7 @@ def main():
     ap.add_argument("--no-soak", action="store_true")
     ap.add_argument("--no-offline", action="store_true")
     ap.add_argument("--energy-runs", type=int, default=0, help="device: extra rounds recorded with Power Profiler")
+    ap.add_argument("--power", action="store_true", help="device: add Power Profiler and Hitches to every run's recording")
     ap.add_argument("--dy", type=float, default=0, help="vertical tap offset in points (driver PERF_DY)")
     ap.add_argument("--sink", action="store_true", help="proxy answers SDK requests itself (no stack); with --env none")
     ap.add_argument("--backend-port", type=int, help="demo backend port when there is no env (--env none --sink)")
@@ -411,6 +448,7 @@ def main():
         if proxy.poll() is not None:
             raise SystemExit(f"proxy did not start: {open(os.path.join(a.out, 'proxy.log')).read()}")
         xctestrun = build_driver(t, a)
+        t.xctestrun = xctestrun
         meta = {"started": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "env": a.env, "routes": routes, "sink": a.sink,
                 "device": t.info(), "versions": versions(), "cells": cells, "runs": a.runs, "seconds": a.seconds,
                 "soak_minutes": None if a.no_soak else a.soak_minutes, "lan_ip": lan_ip() if a.target == "device" else None,

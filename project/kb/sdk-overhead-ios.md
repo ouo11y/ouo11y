@@ -203,3 +203,32 @@ Quirks found:
   `@sentry/core` (10.76.2) and Metro bundles a second copy of `@sentry/browser`, `replay`,
   `feedback`, `replay-canvas`...: +1.5 MB of Hermes bytecode (Sentry JS 822 KB -> 2,336 KB). With
   `@sentry/core` at the version the SDK depends on, 8.32.0 is 831 KB. `build.sh` installs both.
+
+## Real iPhone (iPhone 16 Pro Max, iOS 18.6.2, 2026-10-23)
+
+- **`requestAnimationFrame` is `setTimeout(0)` in bridgeless React Native** (RN 0.86
+  `ReactCommon/react/runtime/TimerManager.cpp`). The #25 frame monitor's recursive rAF loop
+  busy-looped on the phone: 12 million callbacks with dt 0 and ~85 % app CPU per 95 s run. The simulator
+  paced the same loop at 60 Hz, so it went unnoticed. `src/perf.ts` now uses a 16 ms `setTimeout`
+  heartbeat. Any device number taken with the old monitor is void.
+- **Local Network permission after every install.** An app talking to the Mac's LAN IP gets the
+  "find devices on your local network" alert at its first request after an install. Until it is
+  answered, every request is held: no backend call and no SDK upload during the run. Uninstalling
+  resets it. `bench.py` primes each fresh install with a no-SDK launch whose XCUITest
+  (`testPrime`) taps Allow in Springboard. A run where an SDK sent nothing is excluded by
+  `bench_result.py`.
+- **Free (personal) team: deleting the team's last app drops the user's trust** in the developer
+  certificate. Every later launch is then refused ("invalid code signature, inadequate
+  entitlements or its profile has not been explicitly trusted"). Keep the XCUITest runner
+  (`dev.ouo.perfjourney.xctrunner`) installed; `Device.reset` refuses to uninstall the app otherwise.
+  The founder trusts once in Settings > General > VPN & Device Management.
+- Taps: the 16 Pro Max lays the home screen out 16 pt higher than the iPhone 18 Pro simulator
+  (`--dy -16`; row centres follow the 440 pt width). Calibrated from `xcrun devicectl device capture
+  screenshot --device <udid> --destination x.png` (1320x2868 px = 440x956 pt), and checked by the run's
+  25 backend requests matching the simulator's, in order.
+- `xcrun devicectl device info apps | processes | files`, `device copy to/from --domain-type
+  appDataContainer`, `device process launch --payload-url`, and `device process signal` cover
+  everything `simctl` did. Each device run takes about 3.5 min: reinstall, priming launch,
+  recording and export.
+- Activity Monitor can carry more instruments (to confirm on the first B3 run): `--template 'Activity Monitor' --instrument 'Power
+  Profiler' --instrument Hitches` (`bench.py --power`).

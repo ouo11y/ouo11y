@@ -1,10 +1,12 @@
 // Overhead measurement build only (OUO_PERF=1, scripts/perf/run.sh). Imported first in index.ts.
 //
-// JS thread frame monitor, the same idea as React Native's perf monitor: a requestAnimationFrame
-// loop on the JS thread; an interval longer than one display frame means the JS thread missed
-// frames. The interval histogram (1 ms buckets) and the first-frame time go to
-// Documents/perf.json every 2 s; the harness reads the last copy after the run and computes
-// dropped frames against the measured refresh interval. Wall-clock (Date.now) times so the host
+// JS thread frame monitor: a 16 ms setTimeout heartbeat on the JS thread; an interval longer than
+// one 60 Hz frame means the JS thread was busy and missed frames. Not requestAnimationFrame: in
+// bridgeless React Native it is setTimeout(0) (TimerManager.cpp), so a rAF loop busy-loops on a
+// phone (12 million callbacks and ~85 % CPU per 95 s run on an iPhone 16 Pro Max) while the
+// simulator happens to pace it at 60 Hz. The interval histogram (1 ms buckets) and the first-frame
+// time go to Documents/perf.json every 2 s; the harness reads the last copy after the run and
+// computes dropped frames against 16.67 ms. Wall-clock (Date.now) times so the host
 // can compare them with the process start time from the kernel. A no-op in other builds.
 //
 // Benchmark tiers (docs/benchmarks.md section 1): Documents/perf-mode.json may carry
@@ -90,7 +92,10 @@ export function setPerfLaunch(l: Launch): void {
 }
 const hist: Record<number, number> = {};
 
-function tick(now: number): void {
+const FRAME_MS = 16;
+
+function tick(): void {
+  const now = performance.now();
   if (last > 0) {
     const dt = now - last;
     const bucket = Math.min(2000, Math.round(dt));
@@ -99,7 +104,7 @@ function tick(now: number): void {
     if (dt > maxDt) maxDt = dt;
   }
   last = now;
-  requestAnimationFrame(tick);
+  setTimeout(tick, FRAME_MS);
 }
 
 function write(): void {
@@ -132,6 +137,6 @@ export function markFirstFrame(): void {
 }
 
 if (config.perfModes) {
-  requestAnimationFrame(tick);
+  setTimeout(tick, FRAME_MS);
   setInterval(write, 2000);
 }

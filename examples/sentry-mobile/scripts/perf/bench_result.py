@@ -36,7 +36,7 @@ IDLE = (80.0, 95.0)
 
 KEYS = ["start_ms", "premain_s", "cpu_pct", "cpu_p95_pct", "idle_cpu_pct", "peak_mb", "steady_mb", "sdk_req",
         "sdk_up_kb", "sdk_up_decoded_kb", "sdk_down_kb", "replay_kb_min", "backend_up_kb", "dropped", "dropped_pct", "long_frames",
-        "disk_sentry_kb", "disk_ouo_kb", "energy_mj"]
+        "disk_sentry_kb", "disk_ouo_kb", "energy_mj", "hitches", "hitch_ratio", "wakeups"]
 
 
 # --------------------------------------------------------------------------------------------- samples
@@ -48,7 +48,7 @@ def sim_samples(d):
         return None
     smp = json.load(open(p))
     st = smp["process_start"]
-    s = [{"t": st + x["t"], "cpu_ns": x["cpu_ns"], "footprint": x["footprint"]} for x in smp["samples"]]
+    s = [{"t": st + x["t"], "cpu_ns": x["cpu_ns"], "footprint": x["footprint"], "wakeups": x.get("wakeups", 0)} for x in smp["samples"]]
     peak = smp["samples"][-1]["lifetime_max_footprint"] if smp["samples"] else None
     return {"process_start": st, "samples": s, "peak": peak}
 
@@ -98,20 +98,22 @@ def device_samples(d):
         mem = _num(rec.get("memory-physical-footprint")) or _num(rec.get("memory-real")) or _num(rec.get("memory"))
         if t_ns is None:
             continue
-        rows.append({"t_rel": t_ns / 1e9, "cpu_ns": cpu_time, "footprint": mem, "cpu_pct": _num(rec.get("cpu-percent"))})
+        rows.append({"t_rel": t_ns / 1e9, "cpu_ns": cpu_time, "footprint": mem, "cpu_pct": _num(rec.get("cpu-percent")),
+                     "wake": _num(rec.get("idle-wakeups")) or 0})
     if not rows:
         return None
     # Row times are relative to the recording's start, which the trace's TOC holds as an absolute date.
     t_zero = toc_start(d) or meta.get("recorder_t0")
     rows.sort(key=lambda r: r["t_rel"])
-    cum = 0.0
+    cum, wake = 0.0, 0.0
     out = []
     prev = None
     for r in rows:
         if r["cpu_ns"] is None and r["cpu_pct"] is not None and prev is not None:
             cum += r["cpu_pct"] / 100 * (r["t_rel"] - prev) * 1e9
             r["cpu_ns"] = cum
-        out.append({"t": t_zero + r["t_rel"], "cpu_ns": r["cpu_ns"] or 0, "footprint": r["footprint"] or 0})
+        wake = r["wake"]  # cumulative since process start in the live table, like the simulator's counter
+        out.append({"t": t_zero + r["t_rel"], "cpu_ns": r["cpu_ns"] or 0, "footprint": r["footprint"] or 0, "wakeups": wake})
         prev = r["t_rel"]
     return {"process_start": None, "samples": out, "peak": max(x["footprint"] for x in out)}
 
@@ -265,6 +267,25 @@ def replay_sent(requests, meta):
     return got
 
 
+def hitches(d, seconds):
+    """xctrace Hitches (device, bench.py --power): one hitches-summary row per hitch; the app is in front
+    the whole run. Count, total ms, and hitch time ratio in ms per second (Apple's metric)."""
+    p = os.path.join(d, "hitches-summary.xml")
+    if not os.path.exists(p):
+        return {}
+    root = ET.parse(p).getroot()
+    byid = {e.attrib["id"]: e for e in root.iter() if "id" in e.attrib}
+    deref = lambda e: byid.get(e.attrib["ref"], e) if e is not None and "ref" in e.attrib else e
+    cols = [c.findtext("mnemonic") for c in root.find(".//schema").findall("col")]
+    durs = []
+    for row in root.iter("row"):
+        rec = dict(zip(cols, (deref(c) for c in row)))
+        v = _num(rec.get("duration"))
+        if v is not None:
+            durs.append(v / 1e6)
+    return {"hitches": len(durs), "hitch_ms": sum(durs), "hitch_ratio": sum(durs) / seconds if seconds else None}
+
+
 def run_metrics(d, requests):
     meta = json.load(open(os.path.join(d, "meta.json")))
     m = {"kind": meta["kind"], "cell": meta["cell"], "round": meta["round"], "dir": d, "ok": True, "problems": []}
@@ -287,6 +308,7 @@ def run_metrics(d, requests):
             m["replay_missing"] = sorted(missing)  # excluded like a silent SDK
             m["problems"].append(f"replay expected but nothing uploaded: {', '.join(sorted(missing))} (run excluded from the stats)")
     m.update(disk(d))
+    m.update(hitches(d, meta["seconds"]))
     if meta.get("energy"):
         m["energy_mj"] = energy(d)
     if perf is None or tl is None:
@@ -306,6 +328,7 @@ def run_metrics(d, requests):
             m["premain_s"] = js0 - smp["process_start"]
         end = min(tl + JOURNEY_END, s[-1]["t"])
         m["cpu_pct"] = cpu_pct(s, js0, end)
+        m["wakeups"] = at(s, end, "wakeups") - at(s, js0, "wakeups")  # idle wakeups, JS start to journey end
         m["cpu_p95_pct"] = pctl([cpu_pct(s, x, x + 1) for x in range(int(js0) + 1, int(end))], 0.95)
         if s[-1]["t"] >= tl + IDLE[1] - 1:
             m["idle_cpu_pct"] = cpu_pct(s, tl + IDLE[0], min(tl + IDLE[1], s[-1]["t"]))
@@ -327,7 +350,10 @@ def run_metrics(d, requests):
     else:
         m["problems"].append("no recorder samples")
     if meta["kind"] == "main" and steps < 19 and meta.get("journey", "taps") == "taps":
-        m["problems"].append(f"{steps}/19 steps")
+        # The journey stopped early (XCUITest lost the app: kAXErrorServerNotFound, seen once in
+        # 27 device runs): it did less work than the others, so it is excluded like a silent SDK.
+        m["replay_missing"] = m.get("replay_missing") or ["journey"]
+        m["problems"].append(f"{steps}/19 steps (run excluded from the stats)")
     return m
 
 

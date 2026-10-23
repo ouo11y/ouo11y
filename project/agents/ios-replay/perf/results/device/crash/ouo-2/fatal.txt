@@ -1,0 +1,22 @@
+exception session=3edaf7b4-66ed-44a2-8651-cf8caba4a59a kind=native type=SIGSEGV message='EXC_BAD_ACCESS (SIGSEGV) SEGV_ACCERR at 0x0' crash_ts=1792776355988
+  SIGSEGV: EXC_BAD_ACCESS (SIGSEGV) SEGV_ACCERR at 0x0
+  Thread (main thread) crashed, arm64:
+  0   sentrydemo                      0x0000000102ba9f78 0x102b74000 + 221048
+  1   sentrydemo                      0x0000000102bf7fe4 0x102b74000 + 540644
+  2   CoreFoundation                  0x000000019b079934 0x19b04a000 + 194868
+  3   CoreFoundation                  0x000000019b078fac 0x19b04a000 + 192428
+  4   CoreFoundation                  0x000000019b0eb9cc 0x19b04a000 + 661964
+  5   React                           0x0000000103fb85d8 0x103ca8000 + 3212760
+  6   React                           0x0000000103fbda78 0x103ca8000 + 3234424
+  7   libdispatch.dylib               0x00000001a2fe6aac 0x1a2fe5000 + 6828
+  8   libdispatch.dylib               0x00000001a3000584 0x1a2fe5000 + 112004
+  9   libdispatch.dylib               0x00000001a301d5c8 0x1a2fe5000 + 230856
+  10  libdispatch.dylib               0x00000001a2ff5d30 0x1a2fe5000 + 68912
+  11  libdispatch.dylib               0x00000001a2ff5c6c 0x1a2fe5000 + 68716
+  12  CoreFoundation                  0x000000019b0b6c30 0x19b04a000 + 445488
+  13  CoreFoundation                  0x000000019b05a394 0x19b04a000 + 66452
+  14  CoreFoundation                  0x000000019b05badc 0x19b04a000 + 72412
+  15  GraphicsServices                0x00000001e7e81454 0x1e7e80000 + 5204
+  16  UIKitCore                       0x000000019da7d274 0x19d948000 + 1266292
+  17  UIKitCore                       0x000000019da48a28 0x19d948000 + 1051176
+  18  UIKitCore                       0x00000001

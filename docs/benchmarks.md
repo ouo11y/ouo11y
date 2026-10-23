@@ -43,7 +43,10 @@ before the first run (2026-10-23) and change only through a dated entry in secti
    the device or the host spreads over every cell. Reported: median and IQR (q1–q3) of each
    metric, and the paired median delta against `none` with its IQR.
 7. **Each run starts cold**: app terminated, then reinstalled or its container wiped, so no
-   queue, cache or session is left from the previous cell. On the device, run on a device that
+   queue, cache or session is left from the previous cell. On the device the reinstall is followed
+   by one priming launch with no SDK that grants iOS's Local Network permission (asked again after
+   every install; until answered, every request to the Mac is held), so the measured launch is the
+   second launch after install, the same in every cell. On the device, run on a device that
    has been rebooted since the last build was installed, and leave it idle 2 min before the
    first round. One device and one OS per result. The device model, OS build, battery level,
    thermal state and Low Power Mode are recorded at the start and end.
@@ -70,8 +73,8 @@ before the first run (2026-10-23) and change only through a dated entry in secti
     labelled **simulator-only** on every page that shows them, and never quoted as device numbers.
 12. **Runs that did not do the work are left out and counted.** A run where an SDK the cell turns
     on sent no request at all (sentry-cocoa skips its native start silently when a Release build has a
-    `sentry.options.json`), or where a recorder never uploaded a replay, would show that SDK cheaper
-    than it is: it stays out of the
+    `sentry.options.json`), or where a recorder never uploaded a replay, or where the journey stopped
+    before its 19th tap, would show that SDK cheaper than it is: it stays out of the
     cell's statistics. The report gives "runs in the statistics, X of N" per cell and lists every
     excluded run. A tap that missed (the run's backend requests differ from the usual run) is
     listed, not excluded.
@@ -89,9 +92,9 @@ All metrics are from the app process, measured on the end device unless marked o
 | Disk | app binary added, JS bundle added | linker map of the Release build attributed per library; Metro bundle with source map attributed per package (`size.py`) |
 | | on-disk queue and cache after the journey, maximum offline buffer | the app container after the run, by SDK directory; the offline cell runs the journey with the proxy refusing every SDK request, then measures the container |
 | Startup | added startup | JS start to the first frame after `NavigationContainer.onReady`, delta against `none`. Process start to JS start is reported apart. |
-| Frames | JS frames dropped and long JS frames (> 50 ms) | rAF interval histogram in the app (`src/perf.ts`), against the measured refresh interval (120 Hz ProMotion on the device) |
-| | UI hitches | device: xctrace Animation Hitches (hitch time ratio) |
-| Energy | energy impact | device only: xctrace Power Profiler (per-process CPU, network and display energy). The simulator's host-billed energy is not reported. |
+| Frames | JS frames dropped and long JS frames (> 50 ms) | a 16 ms `setTimeout` heartbeat on the JS thread (`src/perf.ts`): every interval past one 60 Hz frame is a missed JS frame. Not `requestAnimationFrame`, which is `setTimeout(0)` in bridgeless React Native and busy-loops on a phone |
+| | UI hitches | device: xctrace Hitches instrument in the same recording (`--power`) |
+| Energy | energy impact | device only: xctrace Power Profiler instrument in the same recording (`--power`). The simulator's host-billed energy is not reported. |
 
 ## 3. Cells and run length
 

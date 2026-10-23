@@ -63,6 +63,24 @@ final class PerfJourneyUITests: XCTestCase {
         return app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: px, dy: y + dy))
     }
 
+    /// Device runs only (bench.py Device.reset): the first launch after an install asks for the
+    /// Local Network permission (the SDKs and the backend are on the Mac's LAN IP), and every
+    /// request waits until it is answered. Launch once with no SDK, allow it in Springboard's
+    /// alert, quit; the measured launch that follows is a cold start with the permission granted.
+    func testPrime() {
+        app.launch()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons.matching(NSPredicate(format: "label IN %@", ["Allow", "OK"])).firstMatch
+        if allow.waitForExistence(timeout: 15) {
+            allow.tap()
+            print("PERF prime allowed local network")
+        } else {
+            print("PERF prime no alert")
+        }
+        Thread.sleep(forTimeInterval: 4)
+        app.terminate()
+    }
+
     func testJourney() {
         let env = ProcessInfo.processInfo.environment
         let seconds = Double(env["PERF_SECONDS"] ?? "") ?? 95

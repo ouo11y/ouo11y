@@ -56,31 +56,47 @@ def profile(a):
     a.team, a.gem_home, a.dy = a.team, "/opt/homebrew/Cellar/cocoapods/1.17.0/libexec", a.dy
     try:
         xctestrun = bench.build_driver(t, a)
+        t.xctestrun = xctestrun  # Device.reset primes the Local Network permission with it
         for r in range(1, a.rounds + 1):
             d = os.path.join(base, f"r{r}")
             os.makedirs(d, exist_ok=True)
             t.reset()
             t.write_doc("perf-mode.json", json.dumps({"mode": "parallel", "ouoReplay": True}))
+            t.terminate()
+            time.sleep(2)
             env = dict(os.environ, TEST_RUNNER_PERF_SECONDS="96", TEST_RUNNER_PERF_DY=str(a.dy))
             journey = subprocess.Popen(["xcodebuild", "test-without-building", "-xctestrun", xctestrun, "-destination", t.dest,
                                         "-only-testing:PerfJourney/PerfJourneyUITests/testJourney"],
                                        stdout=open(os.path.join(d, "xcuitest.log"), "w"), stderr=subprocess.STDOUT, env=env)
-            pid = None
-            for _ in range(120):
-                pid = app_pid(t)
-                if pid:
-                    break
+            # Device.reset ends with a priming launch: wait for the journey's own process.
+            # XCUITest may launch the app twice in a row: attach once one pid has lived for 3 s.
+            stale = app_pid(t)
+            pid, seen, since = None, None, 0.0
+            for _ in range(240):
+                cur = app_pid(t)
+                if cur and cur != stale and cur == seen:
+                    if time.time() - since >= 3:
+                        pid = cur
+                        break
+                elif cur and cur != stale:
+                    seen, since = cur, time.time()
                 time.sleep(0.5)
             if not pid:
                 bench.log(f"round {r}: app never started")
                 journey.wait()
                 continue
-            time.sleep(3)
             trace = os.path.join(d, "tp.trace")
             bench.log(f"round {r}: Time Profiler + os_signpost on pid {pid}, 75 s")
-            subprocess.run(["xcrun", "xctrace", "record", "--template", "Time Profiler", "--instrument", "os_signpost", "--device", a.device,
-                            "--attach", str(pid), "--time-limit", "75s", "--output", trace],
-                           stdout=open(os.path.join(d, "xctrace.log"), "w"), stderr=subprocess.STDOUT)
+            # Right after an XCUITest launch xctrace may not see the pid yet ("Cannot find process"):
+            # retry for up to 20 s.
+            for attempt in range(10):
+                r = subprocess.run(["xcrun", "xctrace", "record", "--template", "Time Profiler", "--instrument", "os_signpost",
+                                    "--device", a.device, "--attach", str(pid), "--time-limit", "75s", "--output", trace],
+                                   capture_output=True, text=True)
+                open(os.path.join(d, "xctrace.log"), "a").write(r.stdout + r.stderr)
+                if "Cannot find process" not in r.stdout + r.stderr:
+                    break
+                time.sleep(2)
             journey.wait()
             dsym = os.path.join(a.app, "sentrydemo.app.dSYM")
             sym = os.path.join(d, "tps.trace")
@@ -109,7 +125,9 @@ def crash(a):
     out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
     proxy = start_proxy(a.env, out)
+    a.gem_home, a.dy = "/opt/homebrew/Cellar/cocoapods/1.17.0/libexec", 0
     try:
+        t.xctestrun = bench.build_driver(t, a)
         t.reset()
         t.write_doc("perf-mode.json", json.dumps({"mode": a.mode}))
         t0 = time.time()
@@ -121,6 +139,11 @@ def crash(a):
         alive = app_pid(t)
         bench.log("app died" if not alive else f"app still alive (pid {alive}) after {a.action}")
         crash_t = time.time()
+        # ouo's crash report as written at crash time (sdk/ios OuoCrash), before launch 2 sends it.
+        r = bench.sh(["xcrun", "devicectl", "device", "copy", "from", "--device", a.device, "--domain-type", "appDataContainer",
+                      "--domain-identifier", bench.BUNDLE, "--source", "Library/Application Support/ouo/crash/report.json",
+                      "--destination", os.path.join(out, "report.json")], check=False)
+        bench.log("ouo report on disk: " + ("copied" if r.returncode == 0 else "none"))
         bench.log("launch 2 (sends the report)")
         bench.sh(["xcrun", "devicectl", "device", "process", "launch", "--device", a.device, bench.BUNDLE], check=False)
         time.sleep(25)
@@ -175,6 +198,7 @@ def main():
     c.add_argument("--action", choices=("native-crash", "js-fatal"), required=True)
     c.add_argument("--mode", choices=("parallel", "ouo"), default="parallel")
     c.add_argument("--out", required=True)
+    c.add_argument("--team", required=True)
     a = ap.parse_args()
     os.environ.setdefault("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer")
     profile(a) if a.cmd == "profile" else crash(a)
