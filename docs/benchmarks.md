@@ -68,8 +68,10 @@ before the first run (2026-10-23) and change only through a dated entry in secti
     metric shows both numbers and the delta, colour-coded by sign only. Every cell where ouo
     costs more gets a one-line explanation in the report, or "unexplained". Simulator numbers are
     labelled **simulator-only** on every page that shows them, and never quoted as device numbers.
-12. **Runs that did not do the work are left out and counted.** A run where a recorder the cell
-    turns on never uploaded a replay would show that SDK cheaper than it is: it stays out of the
+12. **Runs that did not do the work are left out and counted.** A run where an SDK the cell turns
+    on sent no request at all (sentry-cocoa skips its native start silently when a Release build has a
+    `sentry.options.json`), or where a recorder never uploaded a replay, would show that SDK cheaper
+    than it is: it stays out of the
     cell's statistics. The report gives "runs in the statistics, X of N" per cell and lists every
     excluded run. A tap that missed (the run's backend requests differ from the usual run) is
     listed, not excluded.

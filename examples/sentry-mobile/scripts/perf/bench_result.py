@@ -245,6 +245,14 @@ def replay_expected(cell):
     return {"sentry": {"sentry"}, "both": {"sentry"}, "both-replay": {"sentry", "ouo"}, "ouo-replay": {"ouo"}}.get(cell, set())
 
 
+def sdks_of(cell):
+    if cell == "none":
+        return set()
+    if cell in ("both", "both-replay"):
+        return {"sentry", "ouo"}
+    return {"ouo"} if cell.startswith("ouo") else {"sentry"}
+
+
 def replay_sent(requests, meta):
     t0, t1 = meta["host_t0"] - 1, meta["host_t1"] + 1
     got = set()
@@ -265,11 +273,18 @@ def run_metrics(d, requests):
     tl = launch_time(d)
     m.update(network(requests, meta))
     if meta["kind"] == "main" and not meta.get("offline"):
+        # An SDK that sent nothing did not run (e.g. sentry-cocoa skipping its native start when
+        # the build has a sentry.options.json): such a run would show that SDK as free.
+        silent = sorted(sdk for sdk, label in (("sentry", "sentry"), ("ouo", "otlp"))
+                        if sdk in sdks_of(meta["cell"]) and not m["net"].get(label, {}).get("req"))
+        if silent:
+            m["replay_missing"] = silent
+            m["problems"].append(f"SDK sent nothing: {', '.join(silent)} (run excluded from the stats)")
         missing = replay_expected(meta["cell"]) - replay_sent(requests, meta)
-        if missing:
+        if missing and not silent:
             # A recorder that never uploaded costs less than one that runs: kept out of the cell's
             # statistics (it would flatter that SDK) and counted per cell instead.
-            m["replay_missing"] = sorted(missing)
+            m["replay_missing"] = sorted(missing)  # excluded like a silent SDK
             m["problems"].append(f"replay expected but nothing uploaded: {', '.join(sorted(missing))} (run excluded from the stats)")
     m.update(disk(d))
     if meta.get("energy"):

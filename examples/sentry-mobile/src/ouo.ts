@@ -5,6 +5,7 @@
 import { initRUM, type RUM } from "@ouo11y/react-native";
 import * as Sentry from "@sentry/react-native";
 import { config } from "./config";
+import { perfOuoReplay } from "./perf";
 import { FLAG_KEY, usesSentry, type RumMode } from "./rollout";
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -36,7 +37,7 @@ export function initOuo(mode: RumMode, replay: boolean): RUM {
     // `parallel`: Sentry's replay keeps recording; a second recorder doubles the capture cost
     // on the device (project/kb/sdk-overhead-ios.md), so ouo replay is off. `ouo`: ouo is the only
     // recorder. `replay` is that rule, except in a perf run that forces it (src/rollout.ts).
-    replay: { enabled: replay, maskText: false },
+    replay: perfOuoReplay() ?? { enabled: replay, maskText: false }, // benchmark tiers only (src/perf.ts)
     debug: config.sentryDebug,
   });
   return ouo;

@@ -256,7 +256,7 @@ def main():
             abs_rows.append(f"<tr><td>{esc(label)}<span class='r'>{esc(unit)}</span></td>{cells}</tr>")
     miss = "".join(f"<td>{(r['cells'].get(c) or {}).get('runs_total', 0) - (r['cells'].get(c) or {}).get('replay_missing_runs', 0)}"
                    f" of {(r['cells'].get(c) or {}).get('runs_total', 0)}</td>" for c in m["cells"])
-    abs_rows.insert(0, "<tr><td>Runs in the statistics<span class='r'>a run where an expected replay never uploaded is left out "
+    abs_rows.insert(0, "<tr><td>Runs in the statistics<span class='r'>a run where an SDK sent nothing, or an expected replay never uploaded, is left out "
                        "and listed under run checks</span></td>" + miss + "</tr>")
     abs_head = "".join(f"<th>{esc(c)}</th>" for c in m["cells"])
     title = f"ouo {v.get('@ouo11y/react-native')} vs Sentry {v.get('@sentry/react-native')}"
