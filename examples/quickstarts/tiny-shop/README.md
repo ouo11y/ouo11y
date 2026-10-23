@@ -23,6 +23,10 @@ every span: session.id, user.id               (browser baggage, copied by Baggag
 
 Needs Node 24 and Docker. Commands have no `$` prompt; each runs from the folder named above it.
 
+**Rather build it yourself?** [build-it-yourself-from-scratch.md](build-it-yourself-from-scratch.md)
+takes you from an empty folder to the same files, one step at a time: the plain app first, then
+the stack, the backend instrumentation, and the browser SDK.
+
 ## 1. Run the ouo stack
 
 The stack is one file, [`deploy/compose/quickstart.yaml`](../../../deploy/compose/quickstart.yaml).
@@ -82,7 +86,7 @@ Click **Add** on a product, then **Checkout**, then **Call broken API** and **Th
 
 ## 5. See it in Grafana
 
-Give Tempo 10 to 15 seconds after the click.
+Give Tempo up to a minute after the click before searching.
 
 - **One trace across both apps:** Explore -> Tempo -> TraceQL
   `{ resource.service.name = "tiny-shop-backend" && name = "charge card" }`, open the trace: the root

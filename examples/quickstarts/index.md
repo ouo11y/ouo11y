@@ -8,4 +8,4 @@ terminal to the trace in Grafana. The step-by-step adoption guides for your own 
 
 | Quickstart | What it shows |
 |---|---|
-| [tiny-shop](tiny-shop/README.md) | Express API with the OpenTelemetry Node SDK (auto + manual spans) and a React app with `@ouo11y/browser`: one trace from the click to the API's manual spans, tagged with the RUM session; errors, a crash, replay |
+| [tiny-shop](tiny-shop/README.md) | Express API with the OpenTelemetry Node SDK (auto + manual spans) and a React app with `@ouo11y/browser`: one trace from the click to the API's manual spans, tagged with the RUM session; errors, a crash, replay. Run it as is, or [build it yourself from scratch](tiny-shop/build-it-yourself-from-scratch.md) |

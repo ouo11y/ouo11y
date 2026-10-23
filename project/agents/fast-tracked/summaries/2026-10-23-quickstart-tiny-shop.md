@@ -49,6 +49,24 @@ The first run used `propagateTo: [API]` (a string) and the backend trace was its
 compares strings with `===` against the full URL (kb `otel-node-sdk-3.md`). Fixed to a RegExp and
 re-run (the result above).
 
+## Build-it-yourself guide (same day)
+
+`tiny-shop/build-it-yourself-from-scratch.md`, one file, the walkthrough the founder followed by
+hand: tools check, folders + VS Code, plain API and React page, the stack from `quickstart.yaml`
+(ghcr login, port check and `.env` when 4318 is taken), backend SDK + manual spans + Grafana,
+SDK pack, browser SDK, the full trace, cleanup, a troubleshooting table.
+
+- The "final file" code blocks were rendered from the real files once and checked byte-identical
+  (`backend/instrumentation.js`, `backend/server.js`, `frontend/src/{rum.js,main.jsx,App.jsx}`). If
+  you edit those files, update the guide's blocks too (nothing checks it automatically).
+- Walked literally in an empty scratch folder with the code blocks extracted from the guide's text
+  (moved-ports path, project `-p ts-walk`): `npm init` + installs, `npm create vite ... --no-interactive`
+  into the existing empty `frontend/`, `npm pkg set scripts.start`, pack + tarball install, Vite build
+  and dev; backend traces in Tempo; then clicks: trace `f377f012...` browser `POST` -> backend manual
+  spans with `session.id`, session `crashed`, replay chunks 202. Tempo search needed up to a minute
+  this time, so the guide says "up to a minute".
+- The guide copies `quickstart.yaml` from a clone of `main`: it exists there once #52 merges.
+
 ## Left / next agent must know
 
 - Not in CI: no job installs and runs the quickstart apps. A cheap one: `npm ci` + `vite build` for

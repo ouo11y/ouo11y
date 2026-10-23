@@ -470,7 +470,7 @@ curl localhost:5001/api/fail
 
 ### 5d. See the backend traces in Grafana
 
-Wait 10 to 15 seconds (Tempo's search catches up), then in Grafana: **Explore**, data source
+Wait up to a minute (Tempo's search catches up; open a trace by id and it is there sooner), then in Grafana: **Explore**, data source
 **Tempo**, **TraceQL** tab:
 
 ```
@@ -658,8 +658,8 @@ and `baggage`, and `cors()` in `server.js` says yes.
 
 ## Step 8. See the full picture
 
-Click **Add** twice, **Checkout**, **Call broken API**, then **Throw error**. Wait 10 to 15
-seconds.
+Click **Add** twice, **Checkout**, **Call broken API**, then **Throw error**. Wait up to a
+minute.
 
 **One trace across both apps.** Explore -> Tempo -> TraceQL:
 
@@ -723,4 +723,4 @@ docker compose down -v
 | No `OPTIONS` before the API calls | same as above: no trace headers are being added |
 | CORS error on `/v1/traces` or `/v1/replay/chunks` in the console | the page is not on `localhost` / `127.0.0.1` (the collector's allowed origins), or the replay URL is wrong after moving ports (`VITE_OUO_REPLAY_ENDPOINT`) |
 | `401` from the collector | the `Authorization` header is missing or wrong |
-| Nothing in Tempo yet | wait 10 to 15 seconds; the trace-by-id view is quicker than search |
+| Nothing in Tempo yet | wait up to a minute: new traces reach search later than trace-by-id |
