@@ -29,6 +29,10 @@ export function RUMProvider(props: RUMProviderProps): ReactElement {
     {
       style: { flex: 1 },
       onTouchStart,
+      // Runs on mount: the app start ends at the frame after the root rendered (vitals).
+      ref: (node: unknown) => {
+        if (node) (rum as { _rootMounted?: () => void } | undefined)?._rootMounted?.();
+      },
     },
     props.children,
   );

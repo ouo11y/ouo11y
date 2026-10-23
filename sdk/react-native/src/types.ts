@@ -145,6 +145,14 @@ export interface TimelineOptions {
   requests?: boolean;
 }
 
+/** Mobile vitals (docs/specs/mobile-vitals.md). */
+export interface VitalsOptions {
+  /** Default true. */
+  enabled?: boolean;
+  /** JS event-loop stall tracking (a 50 ms timer, `ouo.stall`). Default true. */
+  stalls?: boolean;
+}
+
 /** Severity of `rum.log` records. */
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -219,6 +227,7 @@ export interface RUMOptions {
   resource?: Attrs;
   errors?: ErrorOptions;
   timeline?: TimelineOptions;
+  vitals?: VitalsOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */

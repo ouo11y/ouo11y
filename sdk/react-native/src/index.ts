@@ -10,6 +10,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BasicTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
@@ -22,7 +23,7 @@ import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
-import { createReplayController } from "./replay";
+import { createReplayController, loadNativeReplayModule } from "./replay";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
 import { StackContextManager } from "./telemetry/context";
@@ -33,6 +34,7 @@ import { buildResource } from "./telemetry/resource";
 import { createLogApi, createSpanApi, TraceLinker } from "./tracing";
 import type { Attrs, RUM, RUMOptions, UserOptions } from "./types";
 import { escapeRegExp } from "./url";
+import { createVitals, type NativeVitalsModule } from "./vitals";
 import { SDK_NAME, SDK_VERSION } from "./version";
 
 export type * from "./types";
@@ -58,6 +60,8 @@ export {
 /** Test / dev hook: tears everything down so initRUM can run again in the same process. */
 export interface RUMInternal extends RUM {
   _uninstall(): Promise<void>;
+  /** RUMProvider mounted: the app's first frame follows (vitals). */
+  _rootMounted(): void;
 }
 
 /**
@@ -197,8 +201,19 @@ export function initRUM(options: RUMOptions): RUM {
       );
     });
 
+  // ---- vitals (G2, docs/specs/mobile-vitals.md) ----
+  const vitalsOn = options.vitals?.enabled !== false;
+  const vitals = createVitals({
+    events,
+    logger,
+    native: vitalsOn ? (loadNativeReplayModule() as NativeVitalsModule | undefined) : undefined,
+    ...(options.vitals ? { options: options.vitals } : {}),
+    launchedInForeground: AppState.currentState === "active",
+  });
+
   // ---- session ----
   const ready = session.start().then(() => {
+    vitals.sessionReady();
     logger.log("session ready", session.id(), "previous", session.previousId() ?? null);
     if (crashed && !isReactNativeFatal(crashed)) {
       // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
@@ -263,15 +278,22 @@ export function initRUM(options: RUMOptions): RUM {
       ? { onLifecycle: (state: string) => events.emit("app.lifecycle", { "ouo.app.state": state }, "info", Date.now(), { body: `app ${state}` }) }
       : {}),
     onBackground: () => {
+      vitals.background();
       session.onBackground();
       void flush();
     },
-    onForeground: () => session.onForeground(),
+    onForeground: () => {
+      session.onForeground();
+      vitals.foreground();
+    },
   });
 
   const navigation = createNavigationTracker((attrs) => {
     events.emit("navigation", attrs);
     onActivity();
+    // `app.screen.name`: the route name, the last segment of the path.
+    const path = String(attrs["url.path"] ?? "");
+    vitals.navigated(path.slice(path.lastIndexOf("/") + 1));
   });
 
   logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
@@ -324,7 +346,9 @@ export function initRUM(options: RUMOptions): RUM {
     },
     ready,
     flush,
+    _rootMounted: () => vitals.rootMounted(),
     async _uninstall(): Promise<void> {
+      vitals.stop();
       uninstallFetch();
       uninstallXhr();
       uninstallErrors();
