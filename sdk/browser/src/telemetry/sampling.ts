@@ -4,7 +4,7 @@ import { SamplingDecision, type Sampler, type SamplingResult } from "@openteleme
 import type { SessionManager } from "../session/manager";
 
 /**
- * Head sampling by session (`sampling.sessionSampleRate`, roadmap 8b): a span is recorded and
+ * Head sampling by session (`session.sampleRate`, roadmap 8b): a span is recorded and
  * sampled when its session is, whatever the parent says, so a session is either complete or
  * absent. The decision travels in `traceparent` (flag 00 for unsampled sessions), so a
  * ParentBased backend drops its side of the trace too.

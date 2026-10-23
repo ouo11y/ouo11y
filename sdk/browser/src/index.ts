@@ -92,7 +92,7 @@ export function initRUM(options: RUMOptions): RUM {
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
     ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),
-    ...(options.sampling?.sessionSampleRate !== undefined ? { sessionSampleRate: options.sampling.sessionSampleRate } : {}),
+    ...(options.session?.sampleRate !== undefined ? { sessionSampleRate: options.session.sampleRate } : {}),
     logger,
     onEvent: (event) => events.emit(event.name, event.attributes, "info"),
     onRotate: (next, previousId) => recorder?.onRotate(next, previousId),

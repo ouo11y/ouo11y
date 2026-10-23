@@ -69,7 +69,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `clicks.rageClicks` | `{ threshold: 3, windowMs: 1000, radiusPx: 30 }` | `ouo.rage_click` for that many clicks on one element or spot within `windowMs`; `false` turns it off. |
 | `clicks.deadClicks` | `true` | `ouo.dead_click` for a button or link click after which nothing happened. |
 | `longTasks` | `{ thresholdMs: 100, maxPerPage: 50 }` | `ouo.long_animation_frame` (Chromium 123+) or `ouo.long_task` (older Chromium) events; `false` turns them off. Firefox and Safari have neither API. |
-| `sampling.sessionSampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided once per session and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
+
 | `replay.enabled` | `true` | When false rrweb is never downloaded. |
 | `replay.maskAllInputs` | `true` | Mask every input value in the recording. |
 | `replay.sampleRate` | `1` | Fraction of (sampled) sessions that get a full replay, decided once per session and persisted. |
@@ -78,6 +78,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `replay.maxChunkBytes` | `262144` | Upload a chunk when the buffer reaches this size. |
 | `session.inactivityTimeoutMs` | `1800000` (30 min) | Session ends after this much inactivity. |
 | `session.maxDurationMs` | `14400000` (4 h) | Session ends after this total duration. |
+| `session.sampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided from the session id (see "Sampling") and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
 | `user.id` | anonymous | Initial user id. Otherwise an anonymous id is generated and persisted (`ouo.user.anonymous=true`). |
 | `debug` | `false` | Log SDK decisions to the console with the `[ouo]` prefix. |
 
@@ -175,10 +176,19 @@ unsampled session records no `documentLoad`.
 
 ## Sampling (roadmap 8b)
 
-Three decisions, each taken once per session and kept in `ouo.session` (so reloads and other tabs
-agree):
+Three decisions, each a function of the session id and kept in `ouo.session` (so reloads, other
+tabs and a later rate change agree). The rule is shared with `@ouo11y/react-native` and rum-api's
+per-project cap, so a server rate lower than the client's keeps a consistent subset:
 
-1. `sampling.sessionSampleRate`: is the session sent at all? An unsampled session sends no span,
+```
+sampled(id, rate, salt) = fmix32(fnv1a32(salt + ":" + id)) / 2^32 < rate
+```
+
+FNV-1a 32 over UTF-16 code units, then MurmurHash3's fmix32 finalizer (so one id's decisions under
+different salts are independent); salts `session`, `replay`, `replay_on_error`. Test vectors:
+`""` -> `0xab3e7c0b`, `"a"` -> `0x1a80b1b3` (`src/session/sampling.ts`, `test/sampling.test.ts`).
+
+1. `session.sampleRate`: is the session sent at all? An unsampled session sends no span,
    event or replay, and its requests carry `traceparent` with the sampled flag `00`.
 2. `replay.sampleRate`: of the sampled sessions, which get a full replay.
 3. `replay.onErrorSampleRate`: of the rest, which record into memory (a full snapshot every 30 s,

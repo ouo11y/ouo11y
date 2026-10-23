@@ -53,7 +53,7 @@ export const rum: RUM = initRUM({
   projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
-  sampling: { sessionSampleRate: config.sessionSampleRate },
+  session: { sampleRate: config.sessionSampleRate },
   replay: {
     enabled: true,
     maskAllInputs: true,

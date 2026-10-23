@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionManager, SESSION_STORAGE_KEY, USER_STORAGE_KEY, type SessionEvent } from "../src/session/manager";
 import { MemoryStorage } from "../src/session/storage";
+import { isSampled } from "../src/session/sampling";
 import type { Clock } from "../src/session/clock";
 
 const MIN = 60_000;
@@ -231,16 +232,15 @@ describe("SessionManager (docs/specs/session-lifecycle.md)", () => {
     expect(m3.nextReplaySeq()).toBe(0);
   });
 
-  it("replay sampling is decided once per session and persisted", () => {
+  it("replay sampling is decided once per session from its id and persisted", () => {
     const storage = new MemoryStorage();
     const m = makeManager(storage, []);
     m.start();
-    const spy = vi.spyOn(Math, "random").mockReturnValue(0.9);
-    expect(m.replaySampled(0.5)).toBe(false);
-    spy.mockReturnValue(0.1);
-    expect(m.replaySampled(0.5)).toBe(false);
-    expect(JSON.parse(storage.get(SESSION_STORAGE_KEY)!).replaySampled).toBe(false);
-    expect(m.replaySampled(1)).toBe(false);
+    const decided = m.replaySampled(0.5);
+    expect(decided).toBe(isSampled(m.id(), 0.5, "replay"));
+    // Persisted: a later call with another rate keeps the first decision.
+    expect(m.replaySampled(decided ? 0 : 1)).toBe(decided);
+    expect(JSON.parse(storage.get(SESSION_STORAGE_KEY)!).replaySampled).toBe(decided);
   });
 
   it("anonymous user id is generated once and persisted under ouo.user", () => {

@@ -1,41 +1,74 @@
 import { describe, expect, it } from "vitest";
 import { SamplingDecision } from "@opentelemetry/sdk-trace-base";
 import { SessionManager, SESSION_STORAGE_KEY, type SessionEvent } from "../src/session/manager";
+import { isSampled, samplingHash } from "../src/session/sampling";
 import { MemoryStorage } from "../src/session/storage";
 import { SampledLogProcessor, SessionSampler } from "../src/telemetry/sampling";
 
-function manager(storage: MemoryStorage, opts: { rate?: number; random?: () => number } = {}, events: SessionEvent[] = []) {
+function manager(storage: MemoryStorage, opts: { rate?: number } = {}, events: SessionEvent[] = []) {
   const m = new SessionManager({
     storage,
     onEvent: (e) => events.push(e),
     ...(opts.rate !== undefined ? { sessionSampleRate: opts.rate } : {}),
-    ...(opts.random ? { random: opts.random } : {}),
   });
   m.start();
   return m;
 }
 
-describe("session sampling (roadmap 8b)", () => {
-  it("decides once per session against the rate and persists the decision", () => {
-    const storage = new MemoryStorage();
-    let calls = 0;
-    const m = manager(storage, { rate: 0.5, random: () => (calls++, 0.7) });
-    expect(m.sampled()).toBe(false);
-    expect(m.sampled()).toBe(false);
-    expect(calls).toBe(1);
-    expect(JSON.parse(storage.get(SESSION_STORAGE_KEY)!).sampled).toBe(false);
-    // A reload (new manager, same storage) keeps the decision without drawing again.
-    const again = manager(storage, { rate: 0.5, random: () => 0 });
-    expect(again.sampled()).toBe(false);
+/** A rate just above / below a session's hash for a salt, so the decision is known. */
+const fraction = (id: string, salt: string) => samplingHash(`${salt}:${id}`) / 2 ** 32;
+
+describe("shared sampling rule (browser, React Native, rum-api)", () => {
+  it("matches the agreed test vectors: FNV-1a 32 over UTF-16 code units, then MurmurHash3 fmix32", () => {
+    expect(samplingHash("")).toBe(0xab3e7c0b);
+    expect(samplingHash("a")).toBe(0x1a80b1b3);
+    expect(samplingHash("replay:3c63803d-6d13-4d79-944a-72c1c26f23cb")).toBe(0x1a72a21c);
+    expect(samplingHash("session:é😀x")).toBe(0x30555dd9);
   });
 
-  it("rate 1 and 0 never draw", () => {
-    const random = () => {
-      throw new Error("drawn");
-    };
-    expect(manager(new MemoryStorage(), { rate: 1, random }).sampled()).toBe(true);
-    expect(manager(new MemoryStorage(), { rate: 0, random }).sampled()).toBe(false);
-    expect(manager(new MemoryStorage(), { random }).sampled()).toBe(true);
+  it("samples iff hash / 2^32 < rate; 0 and 1 are exact", () => {
+    const id = "3c63803d-6d13-4d79-944a-72c1c26f23cb";
+    const f = fraction(id, "replay");
+    expect(f).toBeCloseTo(0x1a72a21c / 2 ** 32, 12);
+    expect(isSampled(id, f + 1e-9, "replay")).toBe(true);
+    expect(isSampled(id, f, "replay")).toBe(false);
+    expect(isSampled(id, 1, "replay")).toBe(true);
+    expect(isSampled(id, 0, "replay")).toBe(false);
+  });
+
+  it("a lower rate keeps a subset of a higher one (a server cap is consistent with the client)", () => {
+    const ids = Array.from({ length: 2000 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+    const at = (r: number) => new Set(ids.filter((id) => isSampled(id, r, "session")));
+    const high = at(0.5);
+    const low = at(0.1);
+    for (const id of low) expect(high.has(id)).toBe(true);
+    expect(low.size / ids.length).toBeGreaterThan(0.07);
+    expect(low.size / ids.length).toBeLessThan(0.13);
+  });
+
+  it("session and replay decisions of one id are independent", () => {
+    const ids = Array.from({ length: 4000 }, (_, i) => `id-${i}`);
+    const both = ids.filter((id) => isSampled(id, 0.5, "session") && isSampled(id, 0.5, "replay")).length;
+    expect(both / ids.length).toBeGreaterThan(0.22);
+    expect(both / ids.length).toBeLessThan(0.28);
+  });
+});
+
+describe("session sampling (roadmap 8b)", () => {
+  it("decides from the session id once and persists the decision", () => {
+    const storage = new MemoryStorage();
+    const m = manager(storage, { rate: 0.5 });
+    const want = isSampled(m.id(), 0.5, "session");
+    expect(m.sampled()).toBe(want);
+    expect(JSON.parse(storage.get(SESSION_STORAGE_KEY)!).sampled).toBe(want);
+    // A reload with another rate keeps the session's first decision.
+    expect(manager(storage, { rate: want ? 0 : 1 }).sampled()).toBe(want);
+  });
+
+  it("rate 1 (the default) and 0", () => {
+    expect(manager(new MemoryStorage(), { rate: 1 }).sampled()).toBe(true);
+    expect(manager(new MemoryStorage(), { rate: 0 }).sampled()).toBe(false);
+    expect(manager(new MemoryStorage()).sampled()).toBe(true);
   });
 
   it("another tab's decision is adopted through the storage event", () => {
@@ -66,11 +99,14 @@ describe("session sampling (roadmap 8b)", () => {
     expect(kept).toHaveLength(2);
   });
 
-  it("replay sampling and error-triggered replay are separate decisions", () => {
+  it("replay and error-triggered replay use their own salts", () => {
     const storage = new MemoryStorage();
-    const m = manager(storage, { random: () => 0.3 });
-    expect(m.replaySampled(0.2)).toBe(false);
-    expect(m.replayOnError(0.5)).toBe(true);
+    const m = manager(storage);
+    const id = m.id();
+    const r = fraction(id, "replay");
+    const e = fraction(id, "replay_on_error");
+    expect(m.replaySampled(r)).toBe(false); // rate equal to the hash: not sampled
+    expect(m.replayOnError(Math.min(1, e + 1e-9))).toBe(true);
     expect(m.replayTriggered()).toBe(false);
     m.triggerReplay();
     expect(m.replayTriggered()).toBe(true);

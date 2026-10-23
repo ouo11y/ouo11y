@@ -60,26 +60,19 @@ export interface LongTaskOptions {
   maxPerPage?: number;
 }
 
-export interface SamplingOptions {
-  /**
-   * Fraction of sessions that send anything (spans, events, replay), decided once per session
-   * and persisted with it. Unsampled sessions propagate `traceparent` with the sampled flag off.
-   * Default 1.
-   */
-  sessionSampleRate?: number;
-}
+
 
 export interface ReplayOptions {
   /** When false rrweb is never loaded. Default true. */
   enabled?: boolean;
   /** Mask every input value. Default true. */
   maskAllInputs?: boolean;
-  /** Fraction of (sampled) sessions that get a replay, decided once per session and persisted. Default 1. */
+  /** Fraction of (sampled) sessions that get a replay: `sampled(id, rate, "replay")`, persisted. Default 1. */
   sampleRate?: number;
   /**
    * Fraction of the sessions without a replay (`sampleRate`) that keep the last 30 to 60 s of
    * replay in memory and upload it, and the rest of the session, after the first error. Decided
-   * once per session. Default 0.
+   * with `sampled(id, rate, "replay_on_error")` and persisted. Default 0.
    */
   onErrorSampleRate?: number;
   /** Flush a chunk at least this often. Default 5000. */
@@ -93,6 +86,12 @@ export interface SessionOptions {
   inactivityTimeoutMs?: number;
   /** Default 4 hours. */
   maxDurationMs?: number;
+  /**
+   * Fraction of sessions that send anything (spans, events, replay). Decided from the session id
+   * with the rule shared with the React Native SDK and rum-api (`sampled(id, rate, "session")`) and
+   * persisted. Unsampled sessions propagate `traceparent` with the sampled flag off. Default 1.
+   */
+  sampleRate?: number;
 }
 
 export interface UserOptions {
@@ -128,7 +127,6 @@ export interface RUMOptions {
   service: ServiceOptions;
   tracing?: TracingOptions;
   replay?: ReplayOptions;
-  sampling?: SamplingOptions;
   clicks?: ClickOptions;
   /** `ouo.long_animation_frame` (Chromium 123+) or `ouo.long_task` events, or false. Default on. */
   longTasks?: LongTaskOptions | false;

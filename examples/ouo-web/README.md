@@ -119,7 +119,7 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo11y/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
-| `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `sampling.sessionSampleRate`: fraction of sessions that send anything |
+| `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `session.sampleRate`: fraction of sessions that send anything |
 | `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sampleRate`: fraction of sessions with a full replay |
 | `VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE` | `0` | `replay.onErrorSampleRate`: of the others, the fraction that buffer replay and upload it after an error |
 

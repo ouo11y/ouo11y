@@ -1,4 +1,4 @@
-/** An unsampled session (sessionSampleRate 0) sends nothing and propagates sampled=0. */
+/** An unsampled session (session.sampleRate 0) sends nothing and propagates sampled=0. */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { initRUM, type RUM } from "../src/index";
 import { stubFetch, wait } from "./helpers/otlp";
@@ -16,7 +16,7 @@ beforeAll(() => {
     projectToken: "pt_test_sampling",
     service: { name: "web-store", version: "1.0.0", environment: "test" },
     tracing: { propagateTo: [new RegExp(`^${API}`)] },
-    sampling: { sessionSampleRate: 0 },
+    session: { sampleRate: 0 },
     replay: { enabled: true, flushIntervalMs: 100 },
   });
 });

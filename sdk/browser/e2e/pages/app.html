@@ -37,7 +37,7 @@
         projectToken: "pt_e2e",
         service: { name: "e2e-page", version: "1.0.0", environment: "e2e" },
         tracing: { idleTimeoutMs: num("idle", 300) },
-        sampling: { sessionSampleRate: num("sample", 1) },
+        session: { sampleRate: num("sample", 1) },
         replay: { enabled: q.get("replay") !== "0", sampleRate: num("replayRate", 1), onErrorSampleRate: num("onError", 0), flushIntervalMs: 500 },
         longTasks: { thresholdMs: 100 },
         debug: q.get("debug") === "1",
