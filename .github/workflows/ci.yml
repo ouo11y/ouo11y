@@ -279,6 +279,8 @@ jobs:
         run: npm run build --workspaces --if-present
       - name: "@ouo11y/browser bundle-size budget (sdk/browser/size-budget.json, checklist N10)"
         run: npm run -w sdk/browser size:check
+      - name: "@ouo11y/browser compatibility: no syntax above ES2022 (es-check), entries import in Node (checklist N42)"
+        run: npm run -w sdk/browser compat:check
       - name: test all workspaces
         run: npm run test --workspaces --if-present
       - name: ouo-env logic (deploy/envs, node:test, no dependencies)
