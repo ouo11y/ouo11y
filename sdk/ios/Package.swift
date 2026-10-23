@@ -12,6 +12,7 @@ import PackageDescription
 //  - OuoCrash (Swift) on OuoCrashCore (C): native crash capture, signals and uncaught NSExceptions,
 //    written to disk at crash time and sent on the next launch by the host SDK. Tested on macOS by
 //    crashing the OuoCrashProbe executable.
+//  - OuoVitals (Swift) on OuoVitalsCore (C): app start and frame counters for the mobile vitals.
 let package = Package(
     // Named after the mirror repo github.com/ouo11y/ouo11y-ios (ADR-0009). SwiftPM's package identity
     // comes from the URL or path, so apps write `package: "ouo11y-ios"` for the mirror and
@@ -22,6 +23,7 @@ let package = Package(
         .library(name: "OuoReplay", targets: ["OuoReplay"]),
         .library(name: "OuoReplayCore", targets: ["OuoReplayCore"]),
         .library(name: "OuoCrash", targets: ["OuoCrash"]),
+        .library(name: "OuoVitals", targets: ["OuoVitals"]),
     ],
     targets: [
         .target(
@@ -37,6 +39,17 @@ let package = Package(
         .target(
             name: "OuoCrash",
             dependencies: ["OuoCrashCore"]
+        ),
+        // Mobile vitals (checklist G2): process start and image load time (C), display link frame
+        // counters and the cold/warm decision (Swift). Without UIKit the frame tracker is left out.
+        .target(name: "OuoVitalsCore"),
+        .target(
+            name: "OuoVitals",
+            dependencies: ["OuoVitalsCore"]
+        ),
+        .testTarget(
+            name: "OuoVitalsTests",
+            dependencies: ["OuoVitals"]
         ),
         // Test helper: a process that installs the handlers and crashes on purpose.
         .executableTarget(

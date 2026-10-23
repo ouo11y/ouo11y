@@ -31,7 +31,7 @@ Checklist section 3 (G2 to G6) and Q1, in `sdk/react-native/src`. The gap list i
 - **`performance.rnStartupTiming.startTime` is not the process start.** React Native 0.86 fills
   it from `APP_STARTUP_START`, which only the old bridge (`RCTCxxBridge`) logs; bridgeless falls
   back to the runtime init time. It misses pre-main and the app delegate, so it is not the cold
-  start of the vitals spec (process start, `sysctl kp_proc.p_starttime`). The SDK waits for a
+  start of the vitals spec (process start, `sysctl kp_proc.p_starttime`). The SDK uses the
   native `getAppStartInfo()` instead of emitting a shorter number.
 - **No async context in Hermes.** OTel's default context manager is a no-op, so
   `context.with(...)` did nothing before this change. The SDK installs a synchronous stack
@@ -52,17 +52,10 @@ Checklist section 3 (G2 to G6) and Q1, in `sdk/react-native/src`. The gap list i
   apply (native)`, `InternalBytecode.js`; JSC prints `fn@/…:1:2` and `[native code]`; Metro dev
   URLs look like `http://host:8081/index.bundle//&platform=ios&dev=true…:51234:17` (no `?`).
 
-## Native hooks the iOS module still needs
+## Native hooks (iOS, done 2026-10-23)
 
-The JS side reads these from the `OuoReplay` Expo module when present (`src/vitals.ts`,
-`NativeVitalsModule`); none exists in `sdk/react-native/ios` yet:
-
-1. `getAppStartInfo(): { processStartMs, type }`: process start in epoch ms
-   (`sysctl` `KERN_PROC_PID` `kp_proc.p_starttime`), `type: "warm"` when the JS runtime was
-   restarted in a live process (a second `start` or module init in the same process), else `cold`.
-2. `getFrameStats(): { total, slow, frozen, delayMs, expectedFrameMs }`: cumulative counters from
-   a `CADisplayLink` on the main run loop, slow = longer than the expected frame duration
-   (from `preferredFramesPerSecond` / `maximumFramesPerSecond`) and below 700 ms, frozen = 700 ms
-   or more, `delayMs` = sum of the overruns.
-3. Optional: the simulator's model from `SIMULATOR_MODEL_IDENTIFIER`, as a constant, for
-   `device.model.identifier` on the simulator.
+The JS side reads `getAppStartInfo()` and `getFrameStats()` from the `OuoReplay` Expo module
+(`src/vitals.ts`, `NativeVitalsModule`). The iOS side is the `OuoVitals` target of `sdk/ios`;
+contract, measurement rules and quirks are in [ios-vitals.md](ios-vitals.md). Still open: Android,
+and the optional `SIMULATOR_MODEL_IDENTIFIER` constant for `device.model.identifier` on the
+simulator (expo-device returns `arm64` there).

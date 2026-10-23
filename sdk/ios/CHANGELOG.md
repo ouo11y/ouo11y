@@ -7,6 +7,12 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ## Unreleased
 
+### Added
+
+- `OuoVitals` and `OuoVitalsCore`: app start (process start from `sysctl`, image load time for
+  prewarmed launches, cold or warm per runtime) and `CADisplayLink` frame counters (total, slow,
+  frozen, delay) for the mobile vitals spec (checklist G2).
+
 ## 0.2.0 (not yet tagged)
 
 First mirrored release. Products `OuoReplay` (UIKit capture) and `OuoReplayCore` (models,
