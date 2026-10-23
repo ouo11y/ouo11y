@@ -20,8 +20,9 @@
 #
 # Development tokens only (they are public): fine on a laptop, never on a reachable host.
 # A server install is deploy/vm/install.sh. Needs Docker Compose >= 2.24 (`configs.content`).
-
-name: ouo-quickstart
+#
+# No `name:` on purpose: the project is named after the folder, so two copies of this file in
+# two folders are two separate stacks (a fixed name would make `down -v` in one remove the other).
 
 services:
   grafana:
