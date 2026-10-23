@@ -51,7 +51,7 @@ jobs:
   test:
     name: swift tests
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.skip_tests)
-    runs-on: macos-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -69,7 +69,7 @@ jobs:
     needs: test
     # Runs after the tests, or alone when they were skipped (never after a failure).
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 10
     permissions:
       contents: read
