@@ -79,7 +79,8 @@ const extract = (file, re) => {
   return Number(m[1]);
 };
 const code = {
-  "services/rum-api/internal/replay/parse.go": extract("services/rum-api/internal/replay/parse.go", /\*schemaVersion != (\d+)/),
+  // parse.go accepts 1..SchemaVersion; the constant lives next to the start-up schema guard (#46).
+  "services/rum-api/internal/replay/schema.go": extract("services/rum-api/internal/replay/schema.go", /const SchemaVersion = (\d+)/),
   "collector/receiver/ouoreplayreceiver/chunk.go": extract("collector/receiver/ouoreplayreceiver/chunk.go", /\*schemaVersion != (\d+)/),
   "collector/receiver/ouosentryreceiver/replay.go": extract("collector/receiver/ouosentryreceiver/replay.go", /SchemaVersion:\s*(\d+)/),
   "sdk/ios/Sources/OuoReplayCore/Models.swift": extract("sdk/ios/Sources/OuoReplayCore/Models.swift", /static let schemaVersion = (\d+)/),
