@@ -17,7 +17,7 @@ Blockers marked **[founder]** need an answer or an account from the founder.
 - [x] B5 Repo organisation: ADR, then one mechanical move (product code by component, user docs under `docs/`, agent/process material under one folder, link checker in CI). Layout approved by the founder 2026-10-17; done in batch 0 ([ADR-0010](../../docs/adr/0010-repository-layout.md)): process material under `project/`, `deploy/docker` is `deploy/compose`, one `docs/releasing.md`, CI job `links`.
 - [ ] B2 Named local environments (`ouo-env`, `<service>.<env>.ouo.localhost`, `gc` on merge, login admin / testing567). Every task below starts a stack. **Built 2026-10-17** (`deploy/envs/ouo-env`, [README](../../deploy/envs/README.md), [kb](../kb/ouo-env.md)): proxy, `up/down/ls/gc/url/env`, tests, AGENTS.md rule, verified on `sbx` (smoke + e2e) and a gc run. Open: migrate the founder's `ouo` stack into `main` (needs the founder's OK to stop it), and the stopped projects whose volumes remain (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): delete their volumes only on the founder's word.
 - [x] N18 Org rename to `ouo11y` ([ADR-0009](../../docs/adr/0009-org-and-product-naming.md), accepted 2026-10-18, PR #27): repo transferred to `ouo11y/ouo11y` 2026-10-18; mechanical rename (Go modules, `@ouo11y/browser`, `@ouo11y/react-native`, plugin ID `ouo11y-rum-app` 0.7.0, `ghcr.io/ouo11y/*`, links, SwiftPM package `ouo11y-ios`) in PR #31; `docs/business/` and the roadmap timeline moved with history to the private `ouo11y/company`; `ouo11y/ouo11y-ios` created private with a README on branch `about`. Summary: `project/agents/orchestrator/summaries/2026-10-18-ouo11y-rename.md`.
-- [ ] N19 Image release after the rename. **[founder]** push `rum-api-v0.3.0`, `collector-v0.3.0`, `grafana-v0.3.0` after a release PR (`docs/releasing.md`, "Next image release after the rename"). Until then `compose.images.yaml`, the Helm defaults and the VM `--images` mode point at `ghcr.io/ouo11y/*:0.2.0`, which does not exist; build from source. Then bump the pins and re-grant Read on the new packages.
+- [x] N19 Image release after the rename [2026-10-22: release prep #33 moved the pins to 0.3.0; the founder pushed `rum-api-v0.3.0`, `collector-v0.3.0`, `grafana-v0.3.0` on `5939e41`; all three release-images runs passed and `ghcr.io/ouo11y/{collector,grafana,rum-api}:0.3.0` exist (private) with GitHub releases. Read grants on the new packages not checked yet]
 - [x] N1 Tracker hygiene [done 2026-10-17 in batch 0: roadmap 8a row (#14, open items named), Phase 12 bridge line points at the bridge section, bridge section PR status (#16, #17, #23), release summary and changelogs record the 0.2.0 tags, stale Xcode / review rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers resolved with their PRs, root `CHANGELOG.md` plugin 0.6.0 and image versions]. Was: Tracker hygiene left after this consolidation: roadmap 8a row (PR #14 merged, VM / publish / upgrade items still open), the Phase 12 line duplicating S1 to S4, the Sentry bridge section's PR status (#16, #17), the release summary "no tag pushed" (0.2.0 tags exist), stale "blocked: Xcode" and "review" rows in the ios-replay, sdk-react-native, qa, grafana-plugin, sdk-browser and platform-infra trackers, and root `CHANGELOG.md` listing the plugin at 0.3.0 while it is 0.6.0. Done after #23 merges, since #23 also edits `roadmap.md`.
 
 ## 2. Sentry path: client-ready bridge (P0)
@@ -50,6 +50,23 @@ Correctness first, then context, then UI. Effort from the gap report.
 - [ ] N5 Client setup notes: `propagateTraceparent: true` + `tracePropagationTargets` for backend correlation (needs an app release on their side); a `beforeBreadcrumb` filter if ouo runs alongside; never demo the bridge in parallel mode (ouo owns `traceparent`). C9 (~30 s duration difference) goes in the same notes.
 - [ ] B8 Pitch kit (the material itself goes to the private `ouo11y/company` repo, ADR-0009): "point your DSN at ouo" one-pager, hosted demo env, one-page comparison built from the gap report and the device-cost numbers. **[founder]** where the hosted demo lives: still open (2026-10-17).
 
+## 2b. Examples per supported path, with no broken traces (P0)
+
+Founder, 2026-10-23: one runnable example per supported path, which clients can run and the founder can track over time. "I do not want broken traces." The examples stay in this monorepo's `examples/` so they change in lockstep with the SDKs and receivers and CI tests them; a mirror repo can come when the repo goes public (N20). On the web, clients use the ouo SDK only. The Sentry browser SDK is out of scope for the bridge (`docs/specs/sentry-bridge.md`: no CORS on 4320, only `replay_video` decoded, rrweb `replay_event` / `replay_recording` items not translated), so there is no Sentry-web example.
+
+- [ ] N23 Three examples, all calling the shared `examples/backend`:
+  - `examples/ouo-web` (renamed from `examples/web`): `@ouo11y/browser` → ouo-collector → LGTM + rum-api.
+  - `examples/sentry-mobile` (exists): `@sentry/react-native` → `ouosentry` bridge → fan-out to Sentry (self-hosted `sentry-sbx` or the client's own) + ouo. Default `upstream: none`, so it runs without Sentry. `Sentry.init` sets `propagateTraceparent: true` and `tracePropagationTargets` (N5).
+  - `examples/ouo-mobile` (renamed from `examples/mobile`): `@ouo11y/react-native` → ouo-collector → ouo.
+  - Each example has: a README with a five-minute run (released `ghcr.io/ouo11y/*:0.3.0` via `ouo-env` for us, and a plain compose path for clients with `docker login ghcr.io` while the packages are private), `.env.example`, a scripted journey, a `verify` script and a CI smoke job. Renames update every reference (fast-tracked guides, docs, CI paths, links). Builds on batch 1 #1 (#38) for the sentry-mobile backend-trace fixes; conflicts with nothing else. Q2 (replay endpoint variables in the demo apps) is fixed here.
+- [ ] N24 Trace-continuity check in every example's `verify`. In Tempo, for the N requests of the journey:
+  - Every backend server span's parent span id exists in the same trace. No orphan parents: Sentry sends a random parent span id when there is no active transaction.
+  - Client and backend spans share one trace id.
+  - For the ouo paths, backend spans carry `session.id` from baggage.
+  - The number of traces with backend spans equals the number of requests sent: no dropped traces. Sentry's `tracesSampleRate` sets the sampled flag in `traceparent`, and the backend's default ParentBased sampler drops unsampled requests. Set the rate to 1.0 in the example and document this for clients (N5).
+  - CORS: the backend allows `traceparent`, `tracestate` and `baggage`, plus `sentry-trace` on the Sentry path, so preflights never fail.
+  - The example never runs the ouo SDK and the Sentry bridge into ouo at the same time: parallel mode makes ouo own `traceparent`.
+
 ## 3. ouo SDK: earn the path-1 upgrade (P1)
 
 The gap report found the ouo RN SDK behind the bridge on several points. Until these close, path 1 cannot be sold as "more data".
@@ -68,6 +85,20 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] Q1 QA rev2 findings still reproducing: second exception after `session.end`, dev symbolicated traces, resource attributes in custom-event timeline, React dev double-reports the uncaught error (`crash_count 2`)
 - [ ] Q2 Demo apps: `examples/mobile` has no replay endpoint variable and the baked `expo.extra` ignores env (R2-2); `examples/web` lacks `VITE_OUO_REPLAY_ENDPOINT` (R2-1)
 - [ ] N10 Browser SDK: FCP / LCP / CLS / INP never observed in a foreground browser; multi-tab replay interleaving; CI bundle-size budget
+- [ ] N25 Browser SDK gaps (`@ouo11y/browser` 0.2.0, OTel JS 2.x / experimental 0.222), ours to build. Already tracked elsewhere: npm publish (B4), source maps and symbolication for minified stacks (A10), Web Vitals in a real foreground browser, multi-tab replay interleaving and a CI bundle-size budget (N10), session and trace sampling options (8b), the replay endpoint variable (Q2 R2-1). New here:
+  - a cross-browser matrix: only Chromium has been verified; run Safari (WebKit) and Firefox with Playwright
+  - interaction tracing (click → fetch causality)
+  - long tasks and long animation frames
+  - soft-navigation (SPA route change) timing
+  - rage and dead clicks
+  - framework integrations: React error boundary, router
+  - document-load trace linking from server-rendered pages via `<meta name="traceparent">` (OTel document-load supports it; needs docs and a backend example)
+- [ ] N26 Web ecosystem limits, tracked only, not blocking:
+  - The OTel JS logs/events API and SDK are still 0.x: pin versions.
+  - Browser/RUM semantic conventions (web vitals, session events) are still in development, so `ouo.*` names may need migrating.
+  - Browsers have no async context without zone.js; the TC39 AsyncContext proposal is pending.
+  - OTel has no standard for session replay.
+  - The OTel Browser SIG SDK (open-telemetry/opentelemetry-browser) is pre-1.0: evaluate adopting it once it stabilises.
 
 ## 4. Benchmark and releases (P1)
 
