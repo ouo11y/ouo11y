@@ -120,23 +120,8 @@ The API on another port: `PORT=5002 npm start` and `VITE_API_URL=http://localhos
 
 ## Copy it out of the repo
 
-Both folders work anywhere. Outside the repo, install the published SDK from GitHub Packages
-instead of the `file:../../../../sdk/browser` dependency. Once per machine, with the GitHub CLI
-logged in:
-
-```bash
-gh auth refresh -s read:packages
-```
-
-```bash
-npm config set @ouo11y:registry https://npm.pkg.github.com
-```
-
-```bash
-npm config set //npm.pkg.github.com/:_authToken "$(gh auth token)"
-```
-
-then in your copy of `frontend/`: `npm install @ouo11y/browser@0.2.0`.
+Both folders work anywhere. Outside the repo, replace the `file:../../../../sdk/browser`
+dependency with the published SDK: in your copy of `frontend/`, `npm install @ouo11y/browser@0.2.0`.
 
 ## Things that bite
 

@@ -302,7 +302,7 @@ What each package is for: `api` is what your code calls (`trace.getTracer`); `sd
 runs the SDK; `sdk-trace` has the span processors; `exporter-trace-otlp-http` sends spans
 to the collector; the two `instrumentation-*` packages create the HTTP server and Express
 spans for you; `baggage-span-processor` copies the browser's session id onto your spans
-(step 7); `resources` and `semantic-conventions` name the service.
+(step 6); `resources` and `semantic-conventions` name the service.
 
 ### 5a. Initialise the SDK
 
@@ -480,29 +480,7 @@ Open the `POST /api/checkout` trace: `POST /api/checkout` -> the Express middlew
 `checkout` -> `validate cart` and `charge card` (with its `payment accepted` event). The
 `GET /api/fail` trace is red, with the exception recorded on it.
 
-## Step 6. Get access to the browser SDK
-
-`@ouo11y/browser` is published on GitHub Packages, private for now, so npm needs to know
-where `@ouo11y` packages live and sign in there with your GitHub account. Once per machine,
-with the [GitHub CLI](https://cli.github.com) logged in (`gh auth login`):
-
-```bash
-gh auth refresh -s read:packages
-```
-
-```bash
-npm config set @ouo11y:registry https://npm.pkg.github.com
-```
-
-```bash
-npm config set //npm.pkg.github.com/:_authToken "$(gh auth token)"
-```
-
-This writes your user `~/.npmrc`, nothing in the project. Your GitHub account needs read
-access to the package (org members and anyone the founder adds under Package settings >
-Manage access).
-
-## Step 7. Instrument the web app
+## Step 6. Instrument the web app
 
 Stop Vite with Ctrl+C in its terminal tab, then:
 
@@ -510,7 +488,7 @@ Stop Vite with Ctrl+C in its terminal tab, then:
 npm install @ouo11y/browser@0.2.0
 ```
 
-### 7a. Initialise the SDK
+### 6a. Initialise the SDK
 
 Create `frontend/src/rum.js`:
 
@@ -553,7 +531,7 @@ VITE_OUO_ENDPOINT=http://localhost:14318
 VITE_OUO_REPLAY_ENDPOINT=http://localhost:14319
 ```
 
-### 7b. Load it before React
+### 6b. Load it before React
 
 Replace `frontend/src/main.jsx` with:
 
@@ -571,7 +549,7 @@ createRoot(document.getElementById("root")).render(
 );
 ```
 
-### 7c. Use it in the app
+### 6c. Use it in the app
 
 Replace `frontend/src/App.jsx` with:
 
@@ -639,7 +617,7 @@ export default function App() {
 Compared with step 3: the API URL now comes from `rum.js` (the same value `propagateTo` uses),
 and **Add** records a custom `cart.added` event.
 
-### 7d. Run it
+### 6d. Run it
 
 ```bash
 npm run dev
@@ -650,7 +628,7 @@ Reload http://localhost:5173 and open DevTools -> Console:
 has an `OPTIONS` preflight before it: the browser is asking the API to accept `traceparent`
 and `baggage`, and `cors()` in `server.js` says yes.
 
-## Step 8. See the full picture
+## Step 7. See the full picture
 
 Click **Add** twice, **Checkout**, **Call broken API**, then **Throw error**. Wait up to a
 minute.
@@ -687,7 +665,7 @@ Click any backend span: `session.id` and `user.id` are on it, copied from the br
 **The session.** More apps -> ouo11y RUM -> Sessions: your session is `crashed` (the uncaught
 error), with its traces and a replay of what you clicked.
 
-## Step 9. Clean up
+## Step 8. Clean up
 
 Stop the API and Vite with Ctrl+C. Stop the stack, keeping its data:
 
@@ -712,8 +690,6 @@ docker compose down -v
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
 | `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
 | Vite: `@ouo/browser ... could not be resolved` | the package is `@ouo11y/browser` |
-| `npm install @ouo11y/browser`: `404 Not Found` from `registry.npmjs.org` | npm does not know the `@ouo11y` registry yet: step 6 |
-| `npm install @ouo11y/browser`: `401` or `403` from `npm.pkg.github.com` | the token lacks `read:packages` or your account has no read access yet: rerun step 6 |
 | `Cannot read properties of undefined (reading 'export')` in the API | OpenTelemetry 2.x code: `new BatchSpanProcessor({ exporter })` from `@opentelemetry/sdk-trace` |
 | The backend trace starts at `POST /api/checkout`, without the browser span | `propagateTo` does not match the API URL (use the RegExp), or the page was not reloaded after editing `rum.js` |
 | No `OPTIONS` before the API calls | same as above: no trace headers are being added |
