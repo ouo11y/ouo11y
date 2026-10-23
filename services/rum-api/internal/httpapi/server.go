@@ -49,6 +49,7 @@ type Options struct {
 	CORSAllowedOrigins []string                 // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
 	TraceLinks         *tempo.LinkBuilder       // Explore links for log lines' traces (nil: none)
 	LokiLinks          *loki.LinkBuilder        // Explore link for the session's log query (nil: none)
+	SourceMaps         *SourceMaps              // source-map upload and symbolication (nil: disabled, ADR-0011)
 	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
@@ -105,6 +106,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/video/{seq}", s.getReplayVideoSegment)
 	mux.HandleFunc("DELETE /v1/sessions/{id}/replay", s.deleteReplay)
 	mux.HandleFunc("GET /v1/stats/health", s.statsHealth)
+	mux.HandleFunc("PUT /v1/sourcemaps", s.putSourceMap)
+	mux.HandleFunc("GET /v1/sourcemaps", s.listSourceMaps)
+	mux.HandleFunc("POST /v1/symbolicate", s.postSymbolicate)
 	mux.HandleFunc("DELETE /v1/admin/users/{user}", s.adminAuth(s.deleteUser))
 	mux.HandleFunc("DELETE /v1/admin/projects/{project}", s.adminAuth(s.deleteProject))
 	mux.HandleFunc("GET /v1/admin/audit", s.adminAuth(s.getAudit))

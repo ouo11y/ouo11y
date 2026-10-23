@@ -57,9 +57,12 @@ type Entry struct {
 	SessionCount int      `json:"session_count"`
 	Sessions     []string `json:"sessions,omitempty"`
 	Replays      *Replays `json:"replays,omitempty"`
-	Loki         *Backend `json:"loki,omitempty"`
-	Tempo        *Backend `json:"tempo,omitempty"`
-	Error        string   `json:"error,omitempty"`
+	// SourceMaps is what delete-by-project removed from the source-map
+	// store (ADR-0011 5); absent on user deletions.
+	SourceMaps *SourceMaps `json:"sourcemaps,omitempty"`
+	Loki       *Backend    `json:"loki,omitempty"`
+	Tempo      *Backend    `json:"tempo,omitempty"`
+	Error      string      `json:"error,omitempty"`
 
 	// Prev is the SHA-256 (hex) of the previous line of the file log; empty
 	// for the first line and on S3.
@@ -73,6 +76,12 @@ const MaxSessionIDs = 1000
 type Replays struct {
 	Deleted int   `json:"deleted"`
 	Bytes   int64 `json:"bytes"`
+}
+
+// SourceMaps is how many source maps a project deletion removed (or, on a
+// dry run, would remove).
+type SourceMaps struct {
+	Deleted int `json:"deleted"`
 }
 
 // Backend is what a telemetry backend did with the deletion: Status is

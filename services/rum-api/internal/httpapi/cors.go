@@ -72,7 +72,9 @@ func readAuth(token string, next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (r.Method == http.MethodGet || r.Method == http.MethodDelete || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/v1/admin/") {
+		read := r.Method == http.MethodGet || r.Method == http.MethodDelete || r.Method == http.MethodHead ||
+			(r.Method == http.MethodPost && r.URL.Path == "/v1/symbolicate")
+		if read && strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/v1/admin/") {
 			if !bearerMatches(r.Header.Get("Authorization"), token) {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="ouo-rum-api"`)
 				writeError(w, http.StatusUnauthorized, "read token required")

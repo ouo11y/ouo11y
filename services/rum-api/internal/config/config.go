@@ -38,6 +38,8 @@ type Config struct {
 	Limits    Limits    `yaml:"limits"`
 	Storage   Storage   `yaml:"storage"`
 	Retention Retention `yaml:"retention"`
+	// SourceMaps tunes symbolication (ADR-0011).
+	SourceMaps SourceMaps `yaml:"sourcemaps"`
 	// Projects are per-project overrides keyed by project id (the collector's
 	// htpasswd user name): replay retention and server-side sampling.
 	Projects map[string]Project `yaml:"projects"`
@@ -97,6 +99,13 @@ type Limits struct {
 	MaxChunkBytes      int64 `yaml:"max_chunk_bytes"`       // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
 	MaxFrameChunkBytes int64 `yaml:"max_frame_chunk_bytes"` // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	MaxVideoChunkBytes int64 `yaml:"max_video_chunk_bytes"` // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
+	MaxSourceMapBytes  int64 `yaml:"max_sourcemap_bytes"`   // MAX_SOURCEMAP_BYTES, default 64 MiB (one decompressed source map)
+}
+
+// SourceMaps is the parsed-map cache of the symbolicator (ADR-0011 4).
+type SourceMaps struct {
+	CacheEntries int           `yaml:"cache_entries"` // SOURCEMAP_CACHE_ENTRIES, default 128 parsed maps
+	CacheTTL     time.Duration `yaml:"cache_ttl"`     // SOURCEMAP_CACHE_TTL, default 10m: other replicas see a re-upload after it
 }
 
 // Retention is how long replays are kept and what deletions search
@@ -116,18 +125,25 @@ type Retention struct {
 	// OrphanGrace is how old a session directory without meta.json (an
 	// interrupted upload or delete) must be before the sweeper removes it.
 	OrphanGrace time.Duration `yaml:"orphan_grace"` // default 1h
+	// SourceMaps is how long an uploaded source map is kept, from its upload
+	// (a re-upload restarts it). Keep it at least Logs. 0 keeps maps forever.
+	SourceMaps time.Duration `yaml:"sourcemaps"` // SOURCEMAP_RETENTION, default 2160h
 }
 
 // Project is one project's overrides.
 type Project struct {
 	Retention ProjectRetention `yaml:"retention"`
 	Sampling  Sampling         `yaml:"sampling"`
+	// UploadToken is the project's secret source-map upload token (ADR-0011
+	// 3), a CI secret; never the public ingest token. Empty: no uploads.
+	UploadToken string `yaml:"upload_token"` // OUO_UPLOAD_TOKENS=<project>:<token>,...
 }
 
 // ProjectRetention overrides retention.replays for one project (0 or absent:
 // the default).
 type ProjectRetention struct {
-	Replays time.Duration `yaml:"replays"`
+	Replays    time.Duration `yaml:"replays"`
+	SourceMaps time.Duration `yaml:"sourcemaps"`
 }
 
 // Sampling is the server-side per-project cap on replays (absent: 1). The
@@ -182,14 +198,15 @@ type S3 struct {
 // environment variable sets a key.
 func Defaults() Config {
 	return Config{
-		Server:    Server{HTTPListenAddress: ":8080"},
-		Loki:      Loki{Backend: Backend{URL: "http://loki:3100", DatasourceUID: "loki"}, DeleteAPI: true},
-		Tempo:     Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
-		Grafana:   Grafana{URL: "http://localhost:3000"},
-		Session:   Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
-		Limits:    Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20},
-		Storage:   Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
-		Retention: Retention{Replays: 720 * time.Hour, Logs: 720 * time.Hour, SweepInterval: time.Hour, OrphanGrace: time.Hour},
+		Server:     Server{HTTPListenAddress: ":8080"},
+		Loki:       Loki{Backend: Backend{URL: "http://loki:3100", DatasourceUID: "loki"}, DeleteAPI: true},
+		Tempo:      Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
+		Grafana:    Grafana{URL: "http://localhost:3000"},
+		Session:    Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
+		Limits:     Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20, MaxSourceMapBytes: 64 << 20},
+		Storage:    Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
+		Retention:  Retention{Replays: 720 * time.Hour, Logs: 720 * time.Hour, SweepInterval: time.Hour, OrphanGrace: time.Hour, SourceMaps: 2160 * time.Hour},
+		SourceMaps: SourceMaps{CacheEntries: 128, CacheTTL: 10 * time.Minute},
 	}
 }
 
@@ -348,6 +365,33 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	dur("REPLAY_RETENTION", &c.Retention.Replays)
 	dur("LOG_RETENTION", &c.Retention.Logs)
 	dur("REPLAY_SWEEP_INTERVAL", &c.Retention.SweepInterval)
+	dur("SOURCEMAP_RETENTION", &c.Retention.SourceMaps)
+	i64("MAX_SOURCEMAP_BYTES", &c.Limits.MaxSourceMapBytes)
+	dur("SOURCEMAP_CACHE_TTL", &c.SourceMaps.CacheTTL)
+	if v, ok := get("SOURCEMAP_CACHE_ENTRIES"); ok {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("SOURCEMAP_CACHE_ENTRIES: %w", err))
+		} else {
+			c.SourceMaps.CacheEntries = n
+		}
+	}
+	// OUO_UPLOAD_TOKENS=web-store:ut_...,shop:ut_... sets projects.<id>.upload_token.
+	if v, ok := get("OUO_UPLOAD_TOKENS"); ok {
+		for _, pair := range strings.Split(v, ",") {
+			id, tok, ok := strings.Cut(strings.TrimSpace(pair), ":")
+			if !ok || id == "" || tok == "" {
+				errs = append(errs, fmt.Errorf("OUO_UPLOAD_TOKENS: %q is not <project>:<token>", pair))
+				continue
+			}
+			if c.Projects == nil {
+				c.Projects = map[string]Project{}
+			}
+			p := c.Projects[id]
+			p.UploadToken = tok
+			c.Projects[id] = p
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -388,11 +432,18 @@ func (c Config) Validate() error {
 			bad("%s must be positive", name)
 		}
 	}
+	if c.Limits.MaxSourceMapBytes <= 0 {
+		bad("limits.max_sourcemap_bytes must be positive")
+	}
+	if c.SourceMaps.CacheEntries < 1 {
+		bad("sourcemaps.cache_entries must be at least 1")
+	}
 	if c.Limits.MaxChunkBytes <= 0 {
 		bad("limits.max_chunk_bytes must be positive")
 	}
 	for name, d := range map[string]time.Duration{"retention.replays": c.Retention.Replays, "retention.logs": c.Retention.Logs,
-		"retention.sweep_interval": c.Retention.SweepInterval, "retention.orphan_grace": c.Retention.OrphanGrace} {
+		"retention.sweep_interval": c.Retention.SweepInterval, "retention.orphan_grace": c.Retention.OrphanGrace,
+		"retention.sourcemaps": c.Retention.SourceMaps, "sourcemaps.cache_ttl": c.SourceMaps.CacheTTL} {
 		if d < 0 {
 			bad("%s must not be negative", name)
 		}
@@ -403,6 +454,12 @@ func (c Config) Validate() error {
 		}
 		if p.Retention.Replays < 0 {
 			bad("projects.%s.retention.replays must not be negative", id)
+		}
+		if p.Retention.SourceMaps < 0 {
+			bad("projects.%s.retention.sourcemaps must not be negative", id)
+		}
+		if p.UploadToken != "" && len(p.UploadToken) < 16 {
+			bad("projects.%s.upload_token must be at least 16 characters", id)
 		}
 		for name, r := range map[string]*float64{"session_rate": p.Sampling.SessionRate, "replay_rate": p.Sampling.ReplayRate,
 			"replay_on_error_rate": p.Sampling.ReplayOnErrorRate} {
@@ -445,7 +502,30 @@ func (c Config) Redacted() Config {
 	mask(&c.Auth.AdminToken)
 	mask(&c.Storage.S3.SecretAccessKey)
 	mask(&c.Storage.S3.SessionToken)
+	if len(c.Projects) > 0 {
+		projects := make(map[string]Project, len(c.Projects))
+		for id, p := range c.Projects {
+			mask(&p.UploadToken)
+			projects[id] = p
+		}
+		c.Projects = projects
+	}
 	return c
+}
+
+// Warnings are valid but risky settings, logged at start-up and by -config.verify.
+func (c Config) Warnings() []string {
+	var out []string
+	short := func(name string, maps time.Duration) {
+		if maps > 0 && (c.Retention.Logs == 0 || maps < c.Retention.Logs) {
+			out = append(out, fmt.Sprintf("%s (%s) is shorter than retention.logs (%s): older errors lose their source maps", name, maps, c.Retention.Logs))
+		}
+	}
+	short("retention.sourcemaps", c.Retention.SourceMaps)
+	for id, p := range c.Projects {
+		short("projects."+id+".retention.sourcemaps", p.Retention.SourceMaps)
+	}
+	return out
 }
 
 // YAML renders the config in the file format.

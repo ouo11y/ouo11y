@@ -28,6 +28,7 @@ import (
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/loki"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/sourcemap"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/telemetry"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/tempo"
 )
@@ -64,6 +65,9 @@ func main() {
 			os.Exit(2)
 		}
 		os.Stdout.Write(out)
+		for _, w := range cfg.Warnings() {
+			fmt.Fprintln(os.Stderr, "config: warning:", w)
+		}
 		fmt.Fprintln(os.Stderr, "config: valid")
 		return
 	}
@@ -118,6 +122,72 @@ func newAuditLog(cfg config.Config, store replay.Store) (audit.Log, string, erro
 		return nil, "", err
 	}
 	return f, f.Path(), nil
+}
+
+// sourceMapRetention is retention.sourcemaps with the per-project overrides.
+func sourceMapRetention(cfg config.Config) func(string) time.Duration {
+	return func(project string) time.Duration {
+		if p, ok := cfg.Projects[project]; ok && p.Retention.SourceMaps > 0 {
+			return p.Retention.SourceMaps
+		}
+		return cfg.Retention.SourceMaps
+	}
+}
+
+// s3SourceMapObjects adapts the bucket's sourcemaps/ prefix to sourcemap.Objects.
+type s3SourceMapObjects struct{ replay.Objects }
+
+func (o s3SourceMapObjects) List(ctx context.Context, prefix string) ([]sourcemap.ObjectInfo, error) {
+	objs, err := o.Objects.List(ctx, prefix)
+	out := make([]sourcemap.ObjectInfo, len(objs))
+	for i, ob := range objs {
+		out[i] = sourcemap.ObjectInfo{Key: ob.Key, ModTime: time.Unix(0, ob.ModTime)}
+	}
+	return out, err
+}
+
+// newSourceMaps opens the source-map store next to the replays (ADR-0011 2).
+func newSourceMaps(cfg config.Config, store replay.Store) (*httpapi.SourceMaps, error) {
+	var objs sourcemap.Objects
+	if s3, ok := store.(*replay.S3); ok {
+		objs = s3SourceMapObjects{replay.Objects{S3: s3, Dir: "sourcemaps"}}
+	} else {
+		fsObjs, err := sourcemap.NewFSObjects(cfg.Storage.Filesystem.Dir)
+		if err != nil {
+			return nil, err
+		}
+		objs = fsObjs
+	}
+	st := &sourcemap.Store{Objects: objs, MaxBytes: cfg.Limits.MaxSourceMapBytes, Retention: sourceMapRetention(cfg)}
+	tokens := map[string]string{}
+	for id, p := range cfg.Projects {
+		if p.UploadToken != "" {
+			tokens[id] = p.UploadToken
+		}
+	}
+	return &httpapi.SourceMaps{
+		Store:        st,
+		Symbolicator: sourcemap.NewSymbolicator(st, sourcemap.Options{CacheEntries: cfg.SourceMaps.CacheEntries, CacheTTL: cfg.SourceMaps.CacheTTL}),
+		UploadTokens: tokens,
+	}, nil
+}
+
+// sweepSourceMaps deletes expired source maps every interval.
+func sweepSourceMaps(ctx context.Context, st *sourcemap.Store, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		if n, err := st.Sweep(ctx); err != nil {
+			slog.Warn("source map sweep failed", "error", err)
+		} else if n > 0 {
+			slog.Info("source maps expired", "deleted", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }
 
 // newStore opens the replay store selected by storage.backend.
@@ -195,12 +265,22 @@ func run(cfg config.Config) error {
 	if cfg.Retention.SweepInterval > 0 {
 		go sweeper.Run(ctx, cfg.Retention.SweepInterval)
 	}
+	sourceMaps, err := newSourceMaps(cfg, store)
+	if err != nil {
+		return fmt.Errorf("source maps: %w", err)
+	}
+	if cfg.Retention.SweepInterval > 0 && cfg.Retention.SourceMaps > 0 {
+		go sweepSourceMaps(ctx, sourceMaps.Store, cfg.Retention.SweepInterval)
+	}
+	for _, w := range cfg.Warnings() {
+		slog.Warn("config: " + w)
+	}
 	auditLog, auditWhere, err := newAuditLog(cfg, store)
 	if err != nil {
 		return fmt.Errorf("audit log: %w", err)
 	}
 	deleter := lifecycle.NewDeleter(lifecycle.Deleter{
-		Store: store.(lifecycle.DeleteStore), Audit: auditLog, Logs: lokiClient, Traces: tempoClient,
+		Store: store.(lifecycle.DeleteStore), Audit: auditLog, Logs: lokiClient, Traces: tempoClient, SourceMaps: sourceMaps.Store,
 		LokiDeletes: cfg.Loki.DeleteAPI, LogRetention: cfg.Retention.Logs, MaxSessionDuration: cfg.Session.MaxDuration,
 	}, nil)
 
@@ -219,6 +299,7 @@ func run(cfg config.Config) error {
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 		TraceLinks:         tempoClient.Links,
 		LokiLinks:          lokiLinks,
+		SourceMaps:         sourceMaps,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",
 		otelhttp.WithFilter(func(r *http.Request) bool {
@@ -247,6 +328,7 @@ func run(cfg config.Config) error {
 			"admin_api", cfg.Auth.AdminToken != "",
 			"replay_retention", cfg.Retention.Replays, "sweep_interval", cfg.Retention.SweepInterval,
 			"audit_log", auditWhere,
+			"sourcemap_upload_projects", len(sourceMaps.UploadTokens), "sourcemap_retention", cfg.Retention.SourceMaps,
 			"otlp.endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

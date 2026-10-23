@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/loki"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/sourcemap"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/tempo"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/timerange"
 )
@@ -39,6 +41,10 @@ type timelineItem struct {
 	Type  session.Type      `json:"type"`
 	Name  string            `json:"name"`
 	Attrs map[string]string `json:"attrs"`
+	// Symbolicated is the exception's stack mapped through its source maps
+	// (ADR-0011); absent when the item is not an exception with a stack or
+	// symbolication is off. attrs.exception_stacktrace stays the raw stack.
+	Symbolicated *sourcemap.Result `json:"symbolicated,omitempty"`
 }
 
 // detailResponse is GET /v1/sessions/{id}.
@@ -267,8 +273,10 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	timeline := make([]timelineItem, 0, len(rec.Events))
+	symCtx, cancel := context.WithTimeout(r.Context(), symbolicateTimeout)
+	defer cancel()
 	for _, ev := range rec.Events {
-		timeline = append(timeline, timelineItem{TS: ev.TS, Type: ev.Type(), Name: ev.Name, Attrs: ev.Attrs})
+		timeline = append(timeline, timelineItem{TS: ev.TS, Type: ev.Type(), Name: ev.Name, Attrs: ev.Attrs, Symbolicated: s.symbolicateEvent(symCtx, ev)})
 	}
 	s.decorateReplay(r, rec)
 	start, end := s.traceWindow(rec)
