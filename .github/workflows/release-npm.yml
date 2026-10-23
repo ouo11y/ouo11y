@@ -44,7 +44,9 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # Repository variable RUNNER (JSON), e.g. ["self-hosted","macOS"] for the founder's Mac
+    # runner; unset = GitHub-hosted ubuntu-latest.
+    runs-on: ${{ vars.RUNNER && fromJSON(vars.RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: write       # gh release create
