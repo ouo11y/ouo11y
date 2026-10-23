@@ -54,7 +54,7 @@ jobs:
           flag() { if match "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
           flag go        '^(services/rum-api|examples/backend)/'
           flag collector '^(collector|deploy/compose/collector)/'
-          flag node      '^(sdk|plugins|examples/web|deploy/envs)/|^package(-lock)?\.json$'
+          flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           flag helm      '^deploy/helm/'
           images=""

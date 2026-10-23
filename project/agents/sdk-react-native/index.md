@@ -1,6 +1,6 @@
 # sdk-react-native
 
-Owns `sdk/react-native` (`@ouo11y/react-native`) and `examples/mobile` (Expo "mobile-store").
+Owns `sdk/react-native` (`@ouo11y/react-native`) and `examples/ouo-mobile` (Expo "mobile-store").
 
 - [tracker.md](tracker.md) — work items and status
 - `summaries/` dated run summaries

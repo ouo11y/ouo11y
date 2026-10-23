@@ -8,12 +8,12 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [platform-infra](platform-infra/) | `deploy/` (compose, collector, Grafana provisioning) | 1 |
 | [backend-demo](backend-demo/) | `examples/backend` (Go API with OTel) | 1 |
 | [sdk-browser](sdk-browser/) | `sdk/browser` | 2 |
-| [web-demo](web-demo/) | `examples/web` | 2 |
+| [web-demo](web-demo/) | `examples/ouo-web` | 2 |
 | [rum-api](rum-api/) | `services/rum-api` | 3 |
 | [grafana-plugin](grafana-plugin/) | `plugins/ouo11y-rum-app` | 4 |
-| [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/mobile` | 5 |
+| [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/ouo-mobile` | 5 |
 | [qa](qa/) | end-to-end verification, `project/reports/` | 6 |
-| [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/mobile` | 7 |
+| [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/ouo-mobile` | 7 |
 | [fast-tracked](fast-tracked/) | `examples/fast-tracked` onboarding guides (stack, Go backend, React, Expo iOS) | docs |
 | [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/compose/collector/` config and htpasswd | 8a |
 | [helm](helm/) | `deploy/helm` Kubernetes chart and kind verification | 8a |

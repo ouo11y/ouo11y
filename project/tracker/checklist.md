@@ -83,7 +83,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] N8 rum-api and plugin filter sessions and health by `ouo.rum.mode` cohort (needed to compare cohorts from #23)
 - [ ] N9 Rollout edge from #23: a device that moves to `ouo` never sends sentry-cocoa's cached session end or a pending native crash; document it or flush before switching
 - [ ] Q1 QA rev2 findings still reproducing: second exception after `session.end`, dev symbolicated traces, resource attributes in custom-event timeline, React dev double-reports the uncaught error (`crash_count 2`)
-- [ ] Q2 Demo apps: `examples/mobile` has no replay endpoint variable and the baked `expo.extra` ignores env (R2-2); `examples/web` lacks `VITE_OUO_REPLAY_ENDPOINT` (R2-1)
+- [ ] Q2 Demo apps: `examples/ouo-mobile` has no replay endpoint variable and the baked `expo.extra` ignores env (R2-2); `examples/ouo-web` lacks `VITE_OUO_REPLAY_ENDPOINT` (R2-1)
 - [ ] N10 Browser SDK: FCP / LCP / CLS / INP never observed in a foreground browser; multi-tab replay interleaving; CI bundle-size budget
 - [ ] N25 Browser SDK gaps (`@ouo11y/browser` 0.2.0, OTel JS 2.x / experimental 0.222), ours to build. Already tracked elsewhere: npm publish (B4), source maps and symbolication for minified stacks (A10), Web Vitals in a real foreground browser, multi-tab replay interleaving and a CI bundle-size budget (N10), session and trace sampling options (8b), the replay endpoint variable (Q2 R2-1). New here:
   - a cross-browser matrix: only Chromium has been verified; run Safari (WebKit) and Firefox with Playwright

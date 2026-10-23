@@ -11,7 +11,7 @@ module.exports = {
   watchman: false,
   moduleNameMapper: {
     ...base.moduleNameMapper,
-    // The npm workspace hoists React 18 (examples/web) to the root; @testing-library/react is hoisted
+    // The npm workspace hoists React 18 (examples/ouo-web) to the root; @testing-library/react is hoisted
     // too and would otherwise load that copy while @grafana/ui and src use the plugin's React 19.
     '^react$': '<rootDir>/node_modules/react',
     '^react/(.*)$': '<rootDir>/node_modules/react/$1',

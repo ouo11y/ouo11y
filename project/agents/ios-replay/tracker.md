@@ -7,7 +7,7 @@
 | 2026-10-08 | Real upload to rum-api (`OUO_REPLAY_STUB_URL=http://localhost:8080`) | done, chunks stored as `kind: frames` and served by `/replay/frames` |
 | 2026-10-08 | Expo module: config, `OuoReplayModule.swift`, three podspecs, source sync script, Android stub | done (N1 2026-10-17: Xcode was installed the same day; built and verified on the iOS 27 simulator, see the 2026-10-08 native verification row; merged in #9) |
 | 2026-10-08 | JS bridge `src/replay.ts`, `rum.replay`, `initRUM({ replay, replayEndpoint })`, rotation hook, tests | done, 56 RN tests pass |
-| 2026-10-08 | `examples/mobile`: replay enabled, `ouo-mask` / `ouo-unmask` demo, Chaos button, Metro peer redirect, prebuild, README | done (N1 2026-10-17: Xcode was installed the same day; built and verified on the iOS 27 simulator, see the 2026-10-08 native verification row; merged in #9) |
+| 2026-10-08 | `examples/ouo-mobile`: replay enabled, `ouo-mask` / `ouo-unmask` demo, Chaos button, Metro peer redirect, prebuild, README | done (N1 2026-10-17: Xcode was installed the same day; built and verified on the iOS 27 simulator, see the 2026-10-08 native verification row; merged in #9) |
 | 2026-10-08 | kb entries, tracker boxes, summary | done |
 | open | Simulator verification (masked fields black, pause stops chunks, Grafana playback) | done 2026-10-08 (native verification row below; merged in #9) |
 | open | `xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build` | done 2026-10-08 (`xcodebuild` for the simulator succeeded; merged in #9) |

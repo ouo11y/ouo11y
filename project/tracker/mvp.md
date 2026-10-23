@@ -31,7 +31,7 @@ Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 ## Phase 2 Browser SDK + web demo
 
 - [x] `sdk/browser`: init API, session manager (spec test cases 1 to 4 and 7), SpanProcessor + log attributes, fetch/XHR instrumentation with `traceparent` and baggage, errors (fatal / non-fatal), Web Vitals events, navigation events, rrweb recording with chunk upload (ADR-0003), privacy defaults, replay pause/disable (45 Vitest tests incl. jsdom integration against OTLP payloads; see `project/agents/sdk-browser/summaries/2026-10-06-phase-2.md`)
-- [x] `examples/web`: React storefront with product, cart, checkout, buttons to trigger slow request, 500, uncaught error, handled error (verified by browser click-through against the backend; see `project/agents/web-demo/summaries/2026-10-06-phase-2.md`)
+- [x] `examples/ouo-web`: React storefront with product, cart, checkout, buttons to trigger slow request, 500, uncaught error, handled error (verified by browser click-through against the backend; see `project/agents/web-demo/summaries/2026-10-06-phase-2.md`)
 - [x] Verified: spans in Tempo with `session.id`, events in Loki, chunks on disk via rum-api stub or real (real Chromium session: 4 traces in Tempo incl. demo-backend child spans via baggage, 14 Loki records all with `session_id`, 8 gzip/keepalive chunks decoded by a Node stub; commands in the sdk-browser summary)
 - [x] project/kb/otel-browser-sdk.md and project/kb/rrweb-chunking.md filled
 
@@ -56,7 +56,7 @@ Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 ## Phase 5 React Native
 
 - [x] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export (36 Vitest tests; `npm run -w sdk/react-native build` then `npm run -w sdk/react-native test`)
-- [x] `examples/mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
+- [x] `examples/ouo-mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
 - [x] Verified on iOS Simulator: sessions show up in plugin with version 2.3.0 (2026-10-08, iOS 27 simulator); crash flow verified on the simulator (fatal error, relaunch, session.end reason crash, Grafana shows crashed with replay). **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `project/agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
 - [x] project/kb/otel-react-native.md filled
 
@@ -77,7 +77,7 @@ All MVP phases are merged (statuses corrected 2026-10-17). Bug 1 of `project/age
 
 - [x] `sdk/ios` Swift package: core (chunker, dedupe, redaction geometry, encoding) tested on macOS (35 tests, `sdk/ios/test.sh`); UIKit capture target written, compiles only to the stub without Xcode
 - [x] Expo native module in `sdk/react-native/ios` exposing start/pause/resume/sessionDidRotate; Android no-op stub (autolinking resolves both; native compile pending Xcode)
-- [x] `examples/mobile` uses a dev client (`expo prebuild`) with replay enabled (prebuild generated the project; `pod install` / `run:ios` pending Xcode)
+- [x] `examples/ouo-mobile` uses a dev client (`expo prebuild`) with replay enabled (prebuild generated the project; `pod install` / `run:ios` pending Xcode)
 - [x] rum-api accepts `kind: frames` chunks (8 MB), meta `kind`, `GET .../replay/frames` (validation of base64 JPEG magic, touches, viewport; 409 on mixed kinds and on events/frames of the other kind; `replay_kind` on session records; verified with `go test ./...` and curl against the rebuilt compose service, session `frames-test-1791471557`; see `project/agents/rum-api/summaries/2026-10-08-phase-7.md`)
 - [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
 - [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (project/agents/ios-replay/reports/phase-7-ios-verification.html): checkout input masked, `ouo-unmask` honoured, header texts masked, crash flow verified

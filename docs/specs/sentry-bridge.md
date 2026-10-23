@@ -2,7 +2,7 @@
 
 Status: implemented (`collector/receiver/ouosentryreceiver`, rum-api video kind, plugin 0.4.0) and verified on real `@sentry/react-native` 8.30.0 / `sentry-cocoa` 9.30.1 traffic on 2026-10-14 (`project/reports/sentry-bridge-verification.html`). Normative since ADR-0008 was accepted on 2026-10-17. Bridge parity fixes A1 to A3, A5 to A9, A11, C5 and the N2 findings (checklist section 2) were added on 2026-10-23 and verified against self-hosted Sentry 26.10. The former **(verify)** items are resolved below from the captures in `collector/receiver/ouosentryreceiver/testdata/golden/`; Android payloads are still unverified.
 
-Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). The supported SDK version range is pinned when the golden envelopes are captured and listed here.
+Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). Mobile vitals from transaction `measurements` follow `docs/specs/mobile-vitals.md` (section 6). The supported SDK version range is pinned when the golden envelopes are captured and listed here.
 
 ## 1. Endpoint
 

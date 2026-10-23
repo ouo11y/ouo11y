@@ -78,7 +78,7 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
   (admin basic auth) and restore the same way; a Grafana restart re-applies provisioning. On
   Grafana 13.2.1 Reset + empty save deletes the key (`secureJsonFields: {}`).
 - Demo apps on remapped ports: the SDKs derive the replay URL as port 4319 only from 4318. With
-  4330 neither `examples/web` nor `examples/mobile` exposes `replayEndpoint` (qa finding R2-1/R2-2);
+  4330 neither `examples/ouo-web` nor `examples/ouo-mobile` exposes `replayEndpoint` (qa finding R2-1/R2-2);
   pass it explicitly or chunks hit the OTLP port and get 404.
 - iOS dev builds: expo-constants evaluates `app.config.ts` during `xcodebuild`
   (`EXConstants.bundle/app.config`), so `EXPO_PUBLIC_*` / `BACKEND_URL` given only to `expo start`
