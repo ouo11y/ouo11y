@@ -1,4 +1,5 @@
 import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from "web-vitals";
+import { guard } from "./guard";
 import type { EventEmitter } from "./telemetry/events";
 
 /** Pure mapping from a web-vitals metric to the `web_vital` event attributes. */
@@ -28,9 +29,9 @@ export function webVitalAttributes(metric: Pick<Metric, "name" | "value" | "rati
  * the later event wins). Call before the SDK's flush-on-hide listeners so the event is flushed.
  */
 export function installWebVitals(events: EventEmitter): () => void {
-  const report = (metric: Metric): void => {
+  const report = guard((metric: Metric): void => {
     events.emit("web_vital", webVitalAttributes(metric, location.pathname));
-  };
+  });
   onCLS(report);
   onFCP(report);
   onLCP(report);
@@ -39,19 +40,19 @@ export function installWebVitals(events: EventEmitter): () => void {
   let latestInp: { metric: Metric; path: string } | null = null;
   const sent = new Map<string, number>();
   onINP(
-    (metric) => {
+    guard((metric: Metric) => {
       latestInp = { metric: { ...metric }, path: location.pathname };
-    },
+    }),
     { reportAllChanges: true },
   );
-  const onHidden = (event: Event): void => {
+  const onHidden = guard((event: Event): void => {
     if ((event.type === "visibilitychange" && document.visibilityState !== "hidden") || !latestInp) return;
     const { metric, path } = latestInp;
     const previous = sent.get(metric.id);
     if (previous === metric.value) return;
     sent.set(metric.id, metric.value);
     events.emit("web_vital", webVitalAttributes({ ...metric, delta: metric.value - (previous ?? 0) }, path));
-  };
+  });
   document.addEventListener("visibilitychange", onHidden);
   globalThis.addEventListener("pagehide", onHidden);
   return () => {

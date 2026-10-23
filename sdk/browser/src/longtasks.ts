@@ -1,4 +1,5 @@
 import type { Attrs, LongTaskOptions } from "./types";
+import { attempt, guard } from "./guard";
 import type { EventEmitter } from "./telemetry/events";
 
 export const LONG_TASK_EVENT = "ouo.long_task";
@@ -66,28 +67,31 @@ export function longTaskAttributes(entry: LongTaskEntry, path: string): Attrs {
  * Safari support neither, so nothing is reported there. Returns an uninstall function.
  */
 export function installLongTasks(events: EventEmitter, opts: LongTaskOptions = {}): () => void {
+  if (typeof PerformanceObserver !== "function" || typeof performance === "undefined") return () => undefined;
   const supported = (globalThis.PerformanceObserver as { supportedEntryTypes?: readonly string[] } | undefined)?.supportedEntryTypes ?? [];
   const type = supported.includes("long-animation-frame") ? "long-animation-frame" : supported.includes("longtask") ? "longtask" : null;
   if (!type) return () => undefined;
   const threshold = opts.thresholdMs ?? 100;
   let budget = opts.maxPerPage ?? 50;
   const origin = performance.timeOrigin;
-  const observer = new PerformanceObserver((list) => {
-    for (const entry of list.getEntries()) {
-      if (budget <= 0) {
-        observer.disconnect();
-        return;
+  const observer = new PerformanceObserver(
+    guard((list: PerformanceObserverEntryList) => {
+      for (const entry of list.getEntries()) {
+        if (budget <= 0) {
+          observer.disconnect();
+          return;
+        }
+        if (entry.duration < threshold) continue;
+        budget -= 1;
+        const ts = origin + entry.startTime;
+        if (type === "long-animation-frame") {
+          events.emit(LONG_ANIMATION_FRAME_EVENT, longAnimationFrameAttributes(entry as LoafEntry, location.pathname), "warn", ts);
+        } else {
+          events.emit(LONG_TASK_EVENT, longTaskAttributes(entry as LongTaskEntry, location.pathname), "warn", ts);
+        }
       }
-      if (entry.duration < threshold) continue;
-      budget -= 1;
-      const ts = origin + entry.startTime;
-      if (type === "long-animation-frame") {
-        events.emit(LONG_ANIMATION_FRAME_EVENT, longAnimationFrameAttributes(entry as LoafEntry, location.pathname), "warn", ts);
-      } else {
-        events.emit(LONG_TASK_EVENT, longTaskAttributes(entry as LongTaskEntry, location.pathname), "warn", ts);
-      }
-    }
-  });
-  observer.observe({ type, buffered: true });
+    }),
+  );
+  attempt(() => observer.observe({ type, buffered: true }));
   return () => observer.disconnect();
 }

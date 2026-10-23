@@ -1,5 +1,6 @@
 import type { Attrs, RageClickOptions } from "../types";
 import type { EventEmitter } from "../telemetry/events";
+import { guard } from "../guard";
 import { systemClock, type Clock } from "../session/clock";
 import { clickTarget, describeElement, isDeadClickCandidate } from "./element";
 import type { InteractionTracker } from "./tracker";
@@ -57,7 +58,7 @@ export function installClickTracking(opts: ClickTrackingOptions): () => void {
     );
   };
 
-  const onClick = (event: MouseEvent): void => {
+  const onClick = guard((event: MouseEvent): void => {
     const el = clickTarget(event.target);
     if (!el) return;
     const now = clock.now();
@@ -96,7 +97,7 @@ export function installClickTracking(opts: ClickTrackingOptions): () => void {
         events.emit(DEAD_CLICK_EVENT, attrs, "warn", now);
       },
     });
-  };
+  });
 
   globalThis.addEventListener("click", onClick, { capture: true, passive: true });
   return () => {

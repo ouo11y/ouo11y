@@ -18,28 +18,74 @@ export class MemoryStorage implements KeyValueStorage {
   }
 }
 
-/** localStorage wrapper that never throws (private mode, quota, disabled storage). */
+/** Keys the SDK writes; copied to memory when the platform storage stops working. */
+const PREFIX = "ouo.";
+
+/**
+ * Web Storage wrapper that never throws. The `localStorage` getter throws in sandboxed and
+ * some third-party iframes (SecurityError), `setItem` throws when the quota is full (Safari
+ * private mode before 11 had a quota of 0) and either can be replaced by a page. On the first
+ * failure the store switches to memory for the rest of the page view, after copying the `ouo.*`
+ * keys it can still read: mixing the two would read a stale record from storage after a write
+ * that only reached memory. The session then lives as long as the page, which is the best a
+ * page without storage can do.
+ */
 export class LocalStorage implements KeyValueStorage {
-  private readonly fallback = new MemoryStorage();
+  private memory: MemoryStorage | null = null;
+
+  constructor(private readonly area: () => Storage | null | undefined = () => globalThis.localStorage) {
+    // Probe once so a store that cannot write is detected before the session is read from it.
+    const probe = `${PREFIX}probe`;
+    this.use((s) => {
+      s.setItem(probe, "1");
+      s.removeItem(probe);
+    });
+  }
+
+  /** True once the store fell back to memory. */
+  inMemory(): boolean {
+    return this.memory !== null;
+  }
+
   get(key: string): string | null {
-    try {
-      return globalThis.localStorage.getItem(key);
-    } catch {
-      return this.fallback.get(key);
-    }
+    let value: string | null = null;
+    if (!this.memory && this.use((s) => (value = s.getItem(key)))) return value;
+    return this.memory!.get(key);
   }
   set(key: string, value: string): void {
-    try {
-      globalThis.localStorage.setItem(key, value);
-    } catch {
-      this.fallback.set(key, value);
-    }
+    if (!this.memory && this.use((s) => s.setItem(key, value))) return;
+    this.memory!.set(key, value);
   }
   remove(key: string): void {
+    if (!this.memory && this.use((s) => s.removeItem(key))) return;
+    this.memory!.remove(key);
+  }
+
+  /** Runs `fn` on the platform store; on any failure switches to memory and returns false. */
+  private use(fn: (s: Storage) => unknown): boolean {
     try {
-      globalThis.localStorage.removeItem(key);
+      const s = this.area();
+      if (!s) throw new Error("no storage");
+      fn(s);
+      return true;
     } catch {
-      this.fallback.remove(key);
+      this.fallBack();
+      return false;
     }
+  }
+
+  private fallBack(): void {
+    if (this.memory) return;
+    const memory = new MemoryStorage();
+    try {
+      const s = this.area();
+      for (let i = 0; s && i < s.length; i++) {
+        const k = s.key(i);
+        if (k?.startsWith(PREFIX)) memory.set(k, s.getItem(k) ?? "");
+      }
+    } catch {
+      // Unreadable too: start empty.
+    }
+    this.memory = memory;
   }
 }
