@@ -18,6 +18,11 @@ in-cluster services --OTLP + Basic credential--> collector:4318 (HTTP) / collect
 ```
 
 Verified on kind (Phase 8a): `project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md`, `project/kb/helm-kind.md`.
+Verified on a one-node kind cluster on 2026-10-23 (checklist N12): S3 on in-cluster MinIO,
+Ingress with ingress-nginx and cert-manager, the `x_forwarded_for` client key, two collector
+replicas, every `existingSecret`, `lgtm.mode=external` against a separate LGTM release, and
+`helm upgrade` from chart 0.1.0. The HA values are rendered, linted and dry-run against the
+API server only. Evidence: `project/agents/platform-infra/reports/2026-10-23-8a-vm-upgrade-n12.html`.
 
 ## Images
 
@@ -85,6 +90,12 @@ and an OTLP gRPC receiver, Mimir with OTLP ingestion. Multi-tenant stacks: set
 `lgtm.external.tenantId`; the collector and the Grafana datasources then send
 `X-Scope-OrgID`. Separate read and write paths: `lgtm.external.lokiOtlpUrl`,
 `mimirOtlpUrl`, `mimirPrometheusUrl`.
+
+Verified 2026-10-23 with `values-external-lgtm.yaml` and the four URLs pointed at a second
+release of this chart that ran only the bundled Loki, Tempo and Mimir (`collector.enabled=false`,
+`grafana.enabled=false`, `rumApi.replicas=0` with `rumApi.persistence.enabled=false`, or the
+unbound replay PVC keeps `helm --wait` waiting) in another namespace: `smoke.sh` found the
+trace, log and metric in that stack, and the three Grafana datasources answered health 200.
 
 Already running Grafana? `--set grafana.enabled=false`, install the plugin from
 `plugins/ouo11y-rum-app/dist` (unsigned: `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`)
@@ -177,6 +188,22 @@ rum-api) are secret and live in the rum-api Secret (`rumApi.existingSecret` with
 `ingest-token`, `read-token` and optionally `otlp-headers` to bring your own); Grafana reads `read-token` as an environment
 variable that the provisioner expands into `secureJsonData.readToken`.
 
+Nothing secret in a values file (verified 2026-10-23): four pre-created Secrets replace every
+inline credential.
+
+```bash
+kubectl -n ouo create secret generic ouo-projects --from-literal=projects.htpasswd="web-store:{SHA}$(printf '%s' "$PT" | openssl dgst -binary -sha1 | openssl base64)"
+kubectl -n ouo create secret generic ouo-rum-api-tokens --from-literal=ingest-token=it_$(openssl rand -hex 16) --from-literal=read-token=rt_$(openssl rand -hex 16) \
+  --from-literal=otlp-headers="Authorization=Basic%20$(printf 'web-store:%s' "$PT" | base64)"
+kubectl -n ouo create secret generic ouo-grafana-admin --from-literal=admin-user=admin --from-literal=admin-password="$(openssl rand -base64 18)"
+kubectl -n ouo create secret generic ouo-rum-api-s3 --from-literal=access-key-id=... --from-literal=secret-access-key=...   # s3 store only
+```
+
+then `collector.existingProjectsSecret=ouo-projects`, `rumApi.existingSecret=ouo-rum-api-tokens`,
+`grafana.existingSecret=ouo-grafana-admin`, `rumApi.storage.s3.existingSecret=ouo-rum-api-s3`.
+`otlp-headers` matters: with `existingProjectsSecret` the chart cannot compute rum-api's own
+OTLP credential, and without the key rum-api's telemetry is refused with 401.
+
 Browser SDKs also need their origins in `collector.allowedOrigins` (`OUO_ALLOWED_ORIGINS`,
 CORS on both public receivers, the union of all projects; wildcards like
 `https://*.preview.example.com` work; empty keeps the reference default
@@ -196,7 +223,13 @@ The collector is the only service SDKs reach. Three ways:
 1. **Ingress** (`collector.ingress`): one host, `/v1/replay` (Prefix) to port 4319 and `/`
    to port 4318, optional `className`, TLS Secret and free-form annotations. cert-manager:
    `cert-manager.io/cluster-issuer: letsencrypt` plus `tls.enabled=true` and the Secret name
-   the issuer should fill. Raise the controller's body limit to at least 16 MiB for replay
+   the issuer should fill. Without public DNS (a lab, kind): a `selfSigned` ClusterIssuer
+   alone issues a leaf certificate with an empty subject that clients cannot verify against
+   anything; bootstrap a CA with it instead (a `Certificate` with `isCA: true` from the
+   self-signed issuer, then a `ca` ClusterIssuer on that Secret) and trust that one root.
+   Verified so with ingress-nginx 4.15.1 and cert-manager v1.21.2: both certificates Ready,
+   `curl --cacert root.crt` verifies, OTLP 401 / 200, replay 202, CORS preflight 204 from the
+   allowed origin, Grafana and the plugin proxy through the Grafana Ingress. Raise the controller's body limit to at least 16 MiB for replay
    chunks (`nginx.ingress.kubernetes.io/proxy-body-size: 16m`). The SDK `endpoint` is then
    `https://otel.example.com` and `replayEndpoint` can stay unset (same host, path routed).
 2. **LoadBalancer** (`collector.service.type=LoadBalancer`): the Service exposes 4318 and
@@ -216,14 +249,33 @@ Behind the Ingress the collector sees the controller as the TCP peer, so the per
 rate-limit bucket keys on the first `X-Forwarded-For` hop (`OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for`,
 automatic when `collector.ingress.enabled=true`; override with
 `collector.rateLimit.client.keyFrom`). Make sure the controller overwrites that header
-rather than appending a client-supplied one. rum-api has no Ingress and no Service type option at all:
+rather than appending a client-supplied one. ingress-nginx does by default
+(`use-forwarded-headers: false`); measured 2026-10-23 with a client limit of 1/s burst 5 and
+40 requests per run: one client through the Ingress 12 accepted, the same client sending 40
+different `X-Forwarded-For` values 14 (the spoof is replaced), while straight to a collector
+pod 40 different values all pass (each is its own bucket), so never use `x_forwarded_for`
+without such a proxy in front.
+
+**Buckets are per collector pod.** With `collector.replicas: N` the effective limits per
+project and per client are N times the configured ones, as each pod refills its own buckets
+(same run: one pod 7 accepted, two pods behind the Service 12). Size
+`collector.rateLimit.*` for one pod's share, or accept the N-fold limit. Rejections are
+`ouo_ratelimit_rejected_total{key_kind}` on each pod's `:8888/metrics`. A test burst must
+carry data: empty OTLP requests (`{"resourceSpans":[]}`) bypass the processor (checklist N13). rum-api has no Ingress and no Service type option at all:
 `<release>-rum-api` is always ClusterIP.
 
 ## Upgrade
 
 ```bash
-helm upgrade ouo deploy/helm/ouo -n ouo --reuse-values --set collector.image.tag=0.3.0 --set rumApi.image.tag=0.3.0 --set grafana.image.tag=0.3.0
+helm upgrade ouo deploy/helm/ouo -n ouo -f my-values.yaml --rollback-on-failure --timeout 10m   # Helm 3: --atomic
 ```
+
+Upgrade with your values file rather than `--reuse-values`, which keeps the previous
+release's values and so the previous chart's image tags. Rehearsed 2026-10-23 from chart
+0.1.0 (images `ghcr.io/ziadmansourm/ouo/*:0.2.0`) to 0.1.1 (`ghcr.io/ouo11y/*:0.3.0`) on kind
+with replays and sessions in place: every replay read back byte-identical, sessions and health
+unchanged, the plugin moved from `ouo-rum-app` to `ouo11y-rum-app` 0.7.0 through the init
+container (`docs/operations/upgrade.md` section 8).
 
 - Deployments carry checksums of their ConfigMaps and Secrets, so a config, project or token
   change rolls the pods.
@@ -265,12 +317,23 @@ labels through the StatefulSet template; check with `get pvc` first). Retention 
 
 ## High availability
 
-`values-ha-example.yaml` documents the path (example only, not verified): the LGTM backends
+`values-ha-example.yaml` documents the path (example only, not installed; rendered, linted and
+dry-run against a cluster's API server on 2026-10-23: two collector and two rum-api replicas
+with pod anti-affinity, no replay PVC, both Ingresses with TLS): the LGTM backends
 from the upstream `grafana/loki`, `grafana/tempo-distributed` and `grafana/mimir-distributed`
 charts in replicated mode on object storage, this chart in `lgtm.mode=external` with two
 collectors behind one Ingress, two rum-api replicas on an S3 bucket
 (`rumApi.storage.backend=s3`), and Grafana on an external database. The collector's
-rate-limit buckets are per pod until shared state lands.
+rate-limit buckets are per pod until shared state lands. To check a change to it:
+
+```bash
+S="--set collector.existingProjectsSecret=ouo-projects --set rumApi.existingSecret=ouo-rum-api-tokens --set grafana.existingSecret=ouo-grafana-admin"
+helm lint --strict deploy/helm/ouo -f deploy/helm/ouo/values-ha-example.yaml $S
+helm template ouo deploy/helm/ouo -n ouo -f deploy/helm/ouo/values-ha-example.yaml $S | kubectl apply -n ouo --dry-run=server -f -
+```
+
+`helm lint` passes even without the three Secrets; `helm template` does not (the chart refuses
+to render without a project source), so always render with them.
 
 ### rum-api replay store on S3 / MinIO
 
@@ -285,7 +348,12 @@ helm upgrade --install ouo deploy/helm/ouo -n ouo --reuse-values \
 
 On AWS leave `endpoint` empty, set `region`, and either use the Secret or pod identity
 (`rumApi.serviceAccountName` with an IRSA role, no keys). The bucket must exist. The
-pod's `/readyz` reports `storage` next to `loki` and `tempo`. Moving existing replays off
+pod's `/readyz` reports `storage` next to `loki` and `tempo`. Verified 2026-10-23 with an
+in-cluster MinIO (`pgsty/minio`), prefix `kind-n12` and two rum-api replicas: a chunk posted
+through the Ingress landed as `kind-n12/replays/<session>/000000.json.gz` and `meta.json`,
+the replay played through the plugin proxy, no replay PVC was created, and rum-api after
+0.3.0 also writes its schema marker `kind-n12/replays/schema.json`
+(`docs/operations/upgrade.md` section 4). Moving existing replays off
 the PVC: `mc mirror <pod>:/data/replays <alias>/<bucket>/[<prefix>/]replays` (same layout,
 deploy/README.md).
 
@@ -298,7 +366,7 @@ deploy/README.md).
 | `readToken` | `""` | `OUO_READ_TOKEN` for `GET`/`DELETE /v1/*`; also provisioned into the Grafana plugin |
 | `collector.enabled` | `true` | `false` only with another collector reachable at `rumApi.otel.endpoint` |
 | `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/collector`, `0.3.0` | the custom distribution |
-| `collector.replicas` | `1` | |
+| `collector.replicas` | `1` | rate-limit buckets are per pod: N replicas allow N times `collector.rateLimit.*` |
 | `collector.existingProjectsSecret` | `""` | Secret with key `projects.htpasswd` |
 | `collector.allowedOrigins` | `[]` | CORS origins on 4318 and 4319 (browser SDKs) |
 | `collector.limits.{otlpMaxBodyBytes,replayMaxBodyBytes}` | `4194304`, `8388608` | `max_request_body_size` per receiver |

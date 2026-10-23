@@ -5,8 +5,10 @@ Compose path (laptop and the VM install under `deploy/vm/`) and the Helm path. V
 and tag names are in `docs/releasing.md`; this document assumes the images and packages of
 the target release already exist.
 
-Status: procedure written in Phase 8a. The schema-version guard in section 4 is a
-**requirement**, not yet implemented in rum-api; the qa agent tests it once it lands.
+Status: rehearsed on 2026-10-23 (section 8): a VM install of 0.2.0 from its released images
+upgraded to 0.3.0 with replays of all three kinds, and `helm upgrade` from chart 0.1.0 to
+0.1.1 on kind. The schema-version guard of section 4 is implemented in rum-api (Unreleased,
+after 0.3.0).
 
 ## 1. Before any upgrade
 
@@ -42,19 +44,47 @@ deploy/scripts/wait-ready.sh
 deploy/scripts/smoke.sh
 ```
 
-VM install (`deploy/vm/install.sh`, systemd unit `ouo.service`, Caddy TLS): run the same
-`git checkout`, `build` and `up -d` steps as the service user, or `systemctl restart ouo`
-after the build, then verify through the public URL
-(`curl -fsS https://<host>/healthz` on rum-api and a login to Grafana). Compare the
-`.env` next to the compose file against `deploy/compose/.env.example` of the new release;
-new variables have defaults, but a variable that was **renamed** is listed under
-`Breaking` in the rum-api changelog and must be updated before `up -d`.
-
 With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.2.0 and later) the
 procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
 `ghcr.io/ouo11y/*` packages are private until ouo is stable, so the host needs a
 `docker login ghcr.io` with a classic `read:packages` token first ("Pull access" in
-`docs/releasing.md`).
+`docs/releasing.md`). `compose.images.yaml` copies the plugin out of the new Grafana image
+onto the `grafana-data` volume before Grafana starts (service `grafana-plugin`); without that
+step the volume keeps the plugin of the first install forever, and 0.2.0 -> 0.3.0 (plugin id
+`ouo-rum-app` -> `ouo11y-rum-app`) fails with `plugin not installed: "ouo11y-rum-app"`.
+
+### VM install (`deploy/vm/install.sh`)
+
+Re-run the installer with the target ref; it keeps `.env`, the project registry and the data,
+switches the checkout, pulls or builds, re-applies `up -d` and rewrites `ouo.service` for the
+same compose files. Run it as root (`sudo`): the checkout belongs to root, so plain `git` in
+`/opt/ouo` stops with `detected dubious ownership`.
+
+```bash
+sudo /opt/ouo/deploy/vm/install.sh --images --ref <tag or main>    # released images
+sudo /opt/ouo/deploy/vm/install.sh --ref <tag or main>             # build from source
+```
+
+From 0.2.0 (one time): the installer of 0.2.0 does not know the `deploy/docker/` ->
+`deploy/compose/` move (ADR-0010) and stops with `open deploy/docker/compose.yaml: no such
+file or directory` after it has checked out the new release (the running stack is untouched).
+Run the new installer instead; it moves `.env` and `projects.htpasswd` to `deploy/compose/`
+and keeps every token:
+
+```bash
+sudo git -C /opt/ouo fetch --tags origin
+sudo git -C /opt/ouo show origin/main:deploy/vm/install.sh > /tmp/install.sh
+sudo bash /tmp/install.sh --images --ref main
+```
+
+From then on the checked-out installer hands over to the one of the release it installs, so
+`sudo /opt/ouo/deploy/vm/install.sh --ref <tag>` is enough. Verify through the public URL
+afterwards (`deploy/vm/README.md`, "Operate": `smoke.sh` against `https://<otel host>`), log in
+to Grafana and open an older replay.
+
+Compare the `.env` next to the compose file against `deploy/compose/.env.example` of the new
+release; new variables have defaults, but a variable that was **renamed** is listed under
+`Breaking` in the rum-api changelog and must be updated before `up -d`.
 
 ## 3. Helm path
 
@@ -65,14 +95,16 @@ helm diff upgrade ouo deploy/helm/ouo -n <namespace> -f my-values.yaml   # optio
 helm upgrade ouo deploy/helm/ouo -n <namespace> -f my-values.yaml \
   --set rumApi.image.tag=<rum-api version> \
   --set grafana.image.tag=<grafana image version> \
-  --atomic --timeout 10m
+  --rollback-on-failure --timeout 10m     # Helm 4; Helm 3: --atomic
 kubectl -n <namespace> rollout status deploy/ouo-rum-api
 kubectl -n <namespace> rollout status deploy/ouo-grafana
 ```
 
-- `--atomic` rolls the release back automatically if a pod does not become ready; rum-api's
-  readiness probe fails when it refuses to start (section 4), so a schema mismatch never
-  leaves a half-upgraded release.
+- `--rollback-on-failure` (Helm 4; `--atomic` in Helm 3, deprecated in 4) rolls the release
+  back automatically if a pod does not become ready. rum-api exits when it refuses a store
+  (section 4), so a schema mismatch never leaves a half-upgraded release: rehearsed on kind,
+  the guarded rum-api exited on a store marked with schema 2 and Helm rolled back to the
+  previous revision.
 - Image tags default from `values.yaml` (`rumApi.image.tag`, `grafana.image.tag`); pin them
   in your values file so an `upgrade` with an unchanged chart does not move them.
 - Bundled LGTM (`values.yaml` `lgtm.bundled`): Loki, Tempo and Mimir versions come from the
@@ -94,22 +126,35 @@ Compatibility rule:
 - A rum-api release knows a **maximum schema version**. It accepts chunks with any
   `schema_version <= max` it can read and rejects newer ones with `400` (today: anything but
   `1`, see `internal/replay/parse.go`).
-- **Requirement (not yet implemented):** on start-up rum-api must scan the data directory
-  (a `schema.json` marker at `DATA_DIR/replays/schema.json` written on every successful
-  start with `{"max_schema_version": N, "rum_api_version": "x.y.z"}` avoids walking every
-  session) and **refuse to start** when the directory was last written by a rum-api that
-  knows a **newer** schema than itself. The exit message names both versions and points at
-  this section. This is what makes a rollback safe: an old binary never half-reads new data.
+- **Start-up guard** (rum-api after 0.3.0, `internal/replay/schema.go`): every start reads the
+  marker `replays/schema.json` (filesystem: `DATA_DIR/replays/schema.json`; S3:
+  `[<prefix>/]replays/schema.json` in the bucket), `{"max_schema_version": N,
+  "rum_api_version": "x.y.z", "updated_at": ...}`, and **refuses to start** (exit 1, before
+  serving) when `N` is newer than the schema it reads itself:
+
+  ```
+  rum-api exited error="replay store written by a newer replay schema: the store was last opened by
+  rum-api 0.9.0, which reads replay schema_version up to 2; this rum-api 0.4.0 reads up to 1. Run
+  rum-api 0.9.0 or newer on this store; do not roll back across a schema bump (docs/operations/upgrade.md section 4)"
+  ```
+
+  Otherwise it records itself in the marker (only when the version changed). A store without a
+  marker (written by 0.3.0 or older, which all read schema 1) is adopted. A marker that is not
+  valid JSON or has `max_schema_version < 1` stops the start too (read error), so a damaged
+  marker is never silently overwritten. A rollback on the **same** schema is allowed. This is
+  what makes a rollback safe: an old binary never half-reads new data. Rum-api releases up to
+  0.3.0 have no guard, so the protection starts with the release after 0.3.0.
 - Upgrading never rewrites stored chunks. A newer rum-api reads older schemas forever (or
   until a documented minimum, announced one minor in advance).
 - SDK side: an SDK that emits a new `schema_version` states the minimum rum-api version in
   its changelog; rum-api rejects chunks it cannot read, and the SDK drops them after the
   retry budget. Upgrade rum-api before the SDKs.
 
-The qa agent verifies, once implemented: start the new rum-api on a copy of the previous
-release's data directory (must start and serve old replays), then start the previous rum-api
-on a data directory written by the new one with a bumped schema marker (must refuse with a
-clear message and exit code 1).
+Verified 2026-10-23 (section 8): the guarded rum-api started on the 0.2.0-written VM store and
+served every old replay unchanged; with the marker bumped to schema 2 it exited 1 with the
+message above, in compose (restart loop, `/readyz` unreachable) and on kind (Helm rolled back),
+and on S3 (MinIO) it wrote the marker into the bucket. Unit tests: `schema_test.go` (filesystem
+and S3).
 
 ## 5. Compatibility table
 
@@ -145,3 +190,13 @@ the collector is supported, an SDK **ahead** of it is not.
   with replay still plays.
 - Record the upgrade (from, to, date, who, anything unexpected) in your operations log; the
   qa agent records rehearsals in `project/agents/qa/`.
+
+## 8. Rehearsals
+
+| Date | Path | From -> to | Data | Result |
+|---|---|---|---|---|
+| 2026-10-23 | VM (Ubuntu 24.04 under Lima), `install.sh` | 0.2.0 images -> 0.3.0 images (installer from this branch) -> build from source | 3 rrweb, 1 frames, 3 Sentry video replays (79 envelopes), 80 sessions with traces | every replay byte-identical through rum-api (sha256 of events, frames, each mp4 segment), sessions, status, trace counts and health buckets identical; findings in `deploy/vm/README.md` |
+| 2026-10-23 | Helm on kind | chart 0.1.0 (0.2.0 images) -> 0.1.1 (0.3.0 images) | 4 rrweb, 1 frames replays, 81 sessions | identical as above; plugin re-installed by the init container (0.7.0) |
+
+Method and evidence: `project/agents/platform-infra/reports/2026-10-23-8a-vm-upgrade-n12.html`;
+the seed and fingerprint script is `project/agents/platform-infra/tools/upgrade-replays.py`.

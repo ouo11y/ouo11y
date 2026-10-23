@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8a VM install, upgrade and N12</title>
+<style>
+:root{--bg:#fff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--red:#c0392b;--amber:#b7791f;--blue:#2f6fed;--green:#1e8e3e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.15rem;margin:32px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+h3{font-size:1rem;margin:18px 0 6px}
+.sub{color:var(--muted);margin:0 0 20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:16px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font-size:1.35rem}.tile span{color:var(--muted);font-size:.85rem}
+article{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:12px 0}
+article h3{margin:0 0 6px}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;color:#fff;margin-right:6px;vertical-align:middle}
+.ok{background:var(--green)}.bug{background:var(--red)}.minor{background:var(--amber)}.obs{background:var(--blue)}.env{background:var(--muted)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre-wrap}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<main>
+<h1>8a: fresh-VM install, upgrade with replays, schema guard, N12 Helm paths</h1>
+<p class="sub">platform-infra, session <code>b2-finish-8a</code>, 2026-10-23. Branch <code>claude/b2-finish-8a-e678b6</code>. VM: Ubuntu 24.04.5 LTS aarch64 under Lima 2.2.1 (vz, vzNAT, 4 vCPU, 5 GiB) on an Apple-silicon Mac. Kubernetes: one-node kind v0.33 (node v1.37.0), helm v4.3.0. Tokens and passwords are redacted; dev/test installs only.</p>
+
+<div class="tiles">
+<div class="tile"><b>6</b><span>installer runs on fresh VMs (2 brand-new VMs)</span></div>
+<div class="tile"><b>7 / 7</b><span>VM replays byte-identical after 0.2.0 &rarr; 0.3.0 (3 rrweb, 1 frames, 3 video)</span></div>
+<div class="tile"><b>80</b><span>VM sessions: status, traces, health unchanged</span></div>
+<div class="tile"><b>5 / 5</b><span>kind replays identical after chart 0.1.0 &rarr; 0.1.1</span></div>
+<div class="tile"><b>7</b><span>N12 Helm paths verified (HA as render + dry-run)</span></div>
+<div class="tile"><b>8</b><span>install / upgrade bugs found and fixed</span></div>
+</div>
+
+<h2>1. Fresh-VM install</h2>
+<div class="scroll"><table>
+<tr><th>Run</th><th>VM state</th><th>Command</th><th>Result</th></tr>
+<tr><td>1</td><td>new VM, no Docker</td><td><code>install.sh --domain ouo.192-168-64-2.nip.io</code> (build, main)</td><td>apt installed Docker 28 + Compose 2.40.3, plugin build, ocb; <b>rum-api crash loop</b> <code>mkdir /data/replays: permission denied</code>; after <code>chown 65532</code> everything below passed</td></tr>
+<tr><td>2a</td><td>wiped, no images</td><td><code>install.sh --images</code>, no login</td><td>exit 1: <code>ghcr.io refused the pull ... Log in as root ...</code> (the new message)</td></tr>
+<tr><td>2b</td><td>3 images <code>docker load</code>ed</td><td><code>install.sh --images --ref &lt;branch&gt;</code></td><td>0 to pull, demo backend built, ready in under a minute; <code>.env</code> sha256 unchanged from 2a; unit ExecStart has <code>compose.images.yaml</code>; no <code>plugins/.../dist</code> on disk</td></tr>
+<tr><td>3</td><td>wiped</td><td>0.2.0 installer + images (section 2)</td><td>see upgrade</td></tr>
+<tr><td>4</td><td>upgraded VM</td><td><code>install.sh --build</code></td><td>mode switch images &rarr; build in 160 s, rum-api from this branch (guard)</td></tr>
+<tr><td>5</td><td>brand-new VM</td><td>final script, build mode, <code>--allowed-origins</code>, unattended</td><td id="run5"><span class="tag ok">ok</span> unattended, 1101 s, SMOKE OK (section 5)</td></tr>
+</table></div>
+
+<h3>Checks on the installed VM</h3>
+<div class="scroll"><table>
+<tr><th>Check</th><th>How</th><th>Result</th></tr>
+<tr><td>TLS (Caddy <code>tls internal</code>)</td><td>root copied out of <code>caddy:/data/caddy/pki/authorities/local/root.crt</code>; <code>curl --cacert</code> from the Mac</td><td><span class="tag ok">ok</span> CN "Caddy Local Authority - 2026 ECC Root", both names verify (<code>ssl_verify_result=0</code>), HTTP/2, <code>http://</code> &rarr; 308 to https</td></tr>
+<tr><td>Ports</td><td><code>nc -z 192.168.64.2 3000 / 4318 / 8080</code> from the Mac</td><td><span class="tag ok">ok</span> connection refused; only 80/443 public</td></tr>
+<tr><td>systemd</td><td><code>systemctl is-enabled/is-active ouo</code>, VM stop + start</td><td><span class="tag ok">ok</span> enabled, active; all 8 containers back after the restart, Grafana 200 through Caddy. Before the fix the unit was <code>inactive (dead)</code> after install</td></tr>
+<tr><td><code>.env</code></td><td><code>stat</code>, key list, sha256 across re-runs</td><td><span class="tag ok">ok</span> mode 600 root; keys OUO_DOMAIN, OUO_OTEL_DOMAIN, OUO_TLS, OUO_PROJECT_ID/TOKEN, OUO_INGEST_TOKEN, OUO_READ_TOKEN, OUO_GRAFANA_ADMIN_PASSWORD, OUO_BACKEND_OTLP_HEADERS (+ OUO_SENTRY_PUBLIC_KEY, OUO_INSTALL_MODE); identical after re-runs; <code>projects.htpasswd</code> 644 with one <code>{SHA}</code> line</td></tr>
+<tr><td>Smoke from the host through Caddy</td><td>curl with the project credential</td><td><span class="tag ok">ok</span> OTLP no credential 401, wrong token 401, credential 200; trace in Tempo with <code>ouo.project.id=default</code> over a spoofed value; replay 202 and readable; CORS preflight 204</td></tr>
+<tr><td>Replays and Sentry bridge from the host</td><td><code>upgrade-replays.py seed</code> against <code>https://otel...</code> (python with <code>SSL_CERT_FILE</code>)</td><td><span class="tag ok">ok</span> 2 rrweb + 2 frames chunks 202; 79 Sentry envelopes 2xx through <code>/api/*</code> &rarr; 3 video replays (19, 3, 3 mp4 segments)</td></tr>
+<tr><td><code>smoke.sh</code> on the VM</td><td>loopback, then through Caddy with <code>CURL_CA_BUNDLE</code></td><td><span class="tag ok">ok</span> SMOKE OK both; through Caddy fails with <code>000</code> without the bundle (documented)</td></tr>
+<tr><td>Grafana</td><td>login with the generated password, plugin settings, plugin proxy</td><td><span class="tag ok">ok</span> plugin enabled, <code>secureJsonFields.readToken</code>, proxy <code>/v1/sessions</code> 200; <code>admin / testing567</code> 401 (the VM keeps generated passwords)</td></tr>
+</table></div>
+
+<h2>2. Upgrade 0.2.0 &rarr; 0.3.0 on the VM</h2>
+<ol>
+<li>Installed 0.2.0 (<code>rum-api-v0.2.0</code> = <code>cd44e19</code>) from <code>ghcr.io/ziadmansourm/ouo/*:0.2.0</code>: the 0.2.0 installer with <code>deploy/docker/compose.images.yaml</code> added and the data-dir chown (test harness patch, two lines).</li>
+<li>Seeded: rrweb <code>upg-web-v020</code> (2 chunks), frames <code>upg-frames-v020</code> (2 chunks, 6 JPEG frames, 4 touches), the 79 golden envelopes of <code>ios-rn-8.30.0/shop</code> via the collector's 4320 (not published in 0.2.0), and the 0.2.0 <code>e2e.sh</code> matrix: E2E OK, 40 sessions, 4 &times; 5/3/2 healthy/errored/crashed.</li>
+<li>Fingerprint (window 09:00Z to the seed time): 7 replays, 80 sessions with traces, health buckets.</li>
+<li>Documented path of 0.2.0 (<code>sudo /opt/ouo/deploy/vm/install.sh --ref rum-api-v0.3.0</code>): <span class="tag bug">bug</span> stops with <code>open /opt/ouo/deploy/docker/compose.yaml: no such file or directory</code> after the checkout; the 0.2.0 stack keeps running.</li>
+<li>New installer, <code>--images --ref rum-api-v0.3.0</code>: <span class="tag bug">bug</span> moved <code>.env</code> correctly, then the 0.3.0 unit template (two compose files) rebuilt the stack from source and Grafana crash-looped: <code>app provisioning error: plugin not installed: "ouo11y-rum-app"</code>.</li>
+<li>With the unit fix and the <code>grafana-plugin</code> init service, <code>--images --ref &lt;branch&gt;</code>: 25 s, <code>ouo11y-rum-app 0.7.0 installed</code>, all ready.</li>
+</ol>
+<pre>7 replays before {'video': 3, 'rrweb': 3, 'frames': 1}, 7 after; 80 sessions and the health buckets compared; 0 entries differ   (0.3.0 images)
+7 replays before {'video': 3, 'rrweb': 3, 'frames': 1}, 8 after; 80 sessions and the health buckets compared; 0 entries differ   (then --build, rum-api with the guard; +1 smoke replay)</pre>
+<p>Compared per replay: <code>GET /v1/sessions/{id}/replay</code> (kind, chunk count, project, bytes), the sha256 of <code>/replay/events</code> or <code>/replay/frames</code>, and for video every <code>/replay/video/{seq}</code> (status, size, sha256, <code>ftyp</code>); per session: list status, detail status, trace count, timeline length; <code>/v1/stats/health</code> body.</p>
+
+<h2>3. Schema-version guard</h2>
+<div class="scroll"><table>
+<tr><th>Where</th><th>Step</th><th>Result</th></tr>
+<tr><td>unit tests</td><td><code>go test ./internal/replay -run Schema</code> (filesystem + real MinIO)</td><td><span class="tag ok">ok</span> adopt without marker; record a newer release; same-schema rollback allowed; refuse schema+1 with both versions and the doc section in the message, marker untouched; garbage / zero marker is a read error; old sessions kept</td></tr>
+<tr><td>binary</td><td>marker <code>{"max_schema_version":2,"rum_api_version":"0.9.0"}</code></td><td><span class="tag ok">ok</span> exit 1</td></tr>
+<tr><td>VM (compose)</td><td>first start on the 0.2.0-written store</td><td><span class="tag ok">ok</span> <code>replays/schema.json</code> = <code>{"max_schema_version": 1, "rum_api_version": "dev", ...}</code></td></tr>
+<tr><td>VM (compose)</td><td>marker bumped to 2, restart</td><td><span class="tag ok">ok</span> <code>state=restarting exit=1</code>, <code>/readyz</code> 000, marker untouched; restored marker &rarr; ready 200; data diff still 0</td></tr>
+<tr><td>kind (Helm)</td><td>marker bumped on the PVC, <code>helm upgrade --set rumApi.image=ouo/rum-api:guard --rollback-on-failure</code></td><td><span class="tag ok">ok</span> pod log: <code>this rum-api 0.4.0-dev reads up to 1</code>; release rev 3 failed, rev 4 "Rollback to 2", rum-api back on 0.3.0</td></tr>
+<tr><td>kind (S3)</td><td>guarded image on MinIO</td><td><span class="tag ok">ok</span> <code>kind-n12/replays/schema.json</code> written by <code>0.4.0-dev</code></td></tr>
+</table></div>
+<pre>rum-api exited error="replay store written by a newer replay schema: the store was last opened by rum-api 0.9.0, which reads replay schema_version up to 2; this rum-api dev reads up to 1. Run rum-api 0.9.0 or newer on this store; do not roll back across a schema bump (docs/operations/upgrade.md section 4)"</pre>
+
+<h2>4. Helm: upgrade and N12 paths (kind <code>ouo-n12</code>)</h2>
+<div class="scroll"><table>
+<tr><th>Path</th><th>Setup</th><th>Evidence</th></tr>
+<tr><td><code>helm upgrade</code> 0.1.0 &rarr; current</td><td>chart from <code>git archive rum-api-v0.2.0</code>, 0.2.0 images, then this branch's chart (0.1.1, 0.3.0 images), same values file</td><td><span class="tag ok">ok</span> smoke + 0.2.0 e2e before (one false <code>has_error</code>, see findings); 51 s upgrade; 5 replays, 81 sessions, health: 0 entries differ; init container <code>ouo11y-rum-app 0.7.0 installed</code>, plugin proxy 200; smoke after OK</td></tr>
+<tr><td>S3 backend, in-cluster MinIO</td><td><code>pgsty/minio</code> + bucket job, <code>rumApi.storage.backend=s3</code>, prefix <code>kind-n12</code>, 2 rum-api replicas</td><td><span class="tag ok">ok</span> <code>kind-n12/replays/n12-s3-1/000000.json.gz</code> + <code>meta.json</code> in the bucket, no rum-api PVC, both pods <code>storage=s3://ouo-replays/kind-n12</code>, <code>/readyz</code> storage ok, replay through the plugin proxy 200</td></tr>
+<tr><td>Ingress + cert-manager</td><td>ingress-nginx 4.15.1, cert-manager v1.21.2; self-signed ClusterIssuer &rarr; root CA &rarr; <code>ca</code> issuer</td><td><span class="tag ok">ok</span> both Certificates Ready, SAN <code>otel.ouo.test</code>, verify 0 with the root; OTLP 401 / 200, replay 202, preflight 204 with <code>access-control-allow-origin: https://shop.ouo.test</code>, Grafana health 200, plugin 0.7.0 enabled with the read token</td></tr>
+<tr><td><code>existingSecret</code> (all)</td><td><code>collector.existingProjectsSecret</code>, <code>rumApi.existingSecret</code> (+ <code>otlp-headers</code>), <code>grafana.existingSecret</code>, <code>rumApi.storage.s3.existingSecret</code>; no credential in values</td><td><span class="tag ok">ok</span> every check of the two rows above ran on these Secrets</td></tr>
+<tr><td><code>x_forwarded_for</code> + replicas 2</td><td>client 1 req/s burst 5, 40 requests with one span each</td><td>see table below</td></tr>
+<tr><td><code>lgtm.mode=external</code></td><td>release <code>lgtm</code> (this chart, only Loki/Tempo/Mimir) in <code>observability</code>; release <code>ext</code> with <code>values-external-lgtm.yaml</code> + the four URLs</td><td><span class="tag ok">ok</span> <code>smoke.sh</code> found the trace, log and metric in the <code>lgtm</code> release; ext Grafana datasources point at <code>lgtm-ouo-*.observability.svc</code>, health 200 each</td></tr>
+<tr><td>HA values</td><td>render + lint only</td><td><span class="tag ok">ok</span> <code>helm lint --strict</code>; 14 objects; collector and rum-api 2 replicas with anti-affinity, no replay PVC, 2 TLS Ingresses; <code>kubectl apply --dry-run=server</code> accepted all 14</td></tr>
+</table></div>
+
+<h3>Rate limit: client key and per-pod buckets</h3>
+<div class="scroll"><table>
+<tr><th>Path</th><th class="n">200</th><th class="n">429</th><th>Reading</th></tr>
+<tr><td>Ingress (2 pods), one client, no XFF</td><td class="n">12</td><td class="n">28</td><td>two pods, two buckets: about 2 &times; (burst 5 + refill)</td></tr>
+<tr><td>Ingress (2 pods), client sends 40 distinct XFF</td><td class="n">14</td><td class="n">26</td><td>ingress-nginx replaces the header: no bypass</td></tr>
+<tr><td>One pod direct, same XFF</td><td class="n">7</td><td class="n">33</td><td>keyed on the header</td></tr>
+<tr><td>One pod direct, 40 distinct XFF</td><td class="n">40</td><td class="n">0</td><td>without a proxy each value is a bucket: never use <code>x_forwarded_for</code> bare</td></tr>
+<tr><td>One pod direct, no XFF</td><td class="n">7</td><td class="n">33</td><td>one pod's bucket</td></tr>
+</table></div>
+<p><code>ouo_ratelimit_rejected_total{key_kind="client"} 96</code> on the first pod. A first run with empty <code>{"resourceSpans":[]}</code> bodies got 0 &times; 429 in every row: empty requests bypass the processor (N13).</p>
+
+<h2>5. Final unattended run on a brand-new VM</h2>
+<pre id="final">brand-new VM, no Docker; install-final.sh --domain ouo.192-168-64-2.nip.io --allowed-origins https://shop.ouo.test (build mode), nothing by hand
+apt: docker.io, docker-compose-v2, docker-buildx (no "buildx isn't installed" warning)
+all 8 readiness checks 200/401, exit=0 took=1101s (ocb on 4 vCPU)
+ouo.service active; ExecStart = compose.yaml + compose.tls.yaml; deploy/data/rum-api owned 65532
+OUO_ALLOWED_ORIGINS=https://shop.ouo.test; Sentry DSN https://&lt;key&gt;@otel.ouo.192-168-64-2.nip.io/1 printed
+replays/schema.json written on first start (max_schema_version 1)
+smoke.sh: CORS check fails with the default origin http://localhost:5173 (now outside the allowed list, documented);
+          OUO_SMOKE_ORIGIN=https://shop.ouo.test smoke.sh -> SMOKE OK</pre>
+
+<h2>6. Findings</h2>
+<article><h3><span class="tag bug">bug</span> rum-api cannot write its bind-mounted data dir on Linux <span class="tag ok">fixed</span></h3>Root-owned <code>deploy/data/rum-api</code>, image runs as 65532. <code>install.sh</code> chowns it before <code>up</code>. Hidden by Docker Desktop on a Mac. Affects every Linux compose install, 0.2.0 included.</article>
+<article><h3><span class="tag bug">bug</span> Grafana image upgrades keep the first plugin (images mode) <span class="tag ok">fixed</span></h3><code>grafana-data</code> over <code>/var/lib/grafana</code> hides the image's plugin; 0.2.0 &rarr; 0.3.0 crash-loops. New <code>grafana-plugin</code> one-shot service in <code>deploy/compose/compose.images.yaml</code> (also fixes <code>ouo-env up --images</code> upgrades on laptops). The 0.3.0 tag does not have it: upgrade to <code>main</code> or the next release.</article>
+<article><h3><span class="tag bug">bug</span> <code>ouo.service</code> ignores the install mode <span class="tag ok">fixed</span></h3>Hard-coded build files: <code>systemctl start</code> after an images install rebuilt from source and swapped Grafana. ExecStart/ExecStop are now written per mode; the unit is started, not only enabled.</article>
+<article><h3><span class="tag bug">bug</span> 0.2.0 installer cannot upgrade to 0.3.0 <span class="tag ok">migrated</span></h3>ADR-0010 moved <code>deploy/docker</code> to <code>deploy/compose</code>. The new installer moves <code>.env</code> and <code>projects.htpasswd</code>, hands over only to installers that know the protocol (env var guard; old scripts reject unknown flags). One-time step documented in <code>upgrade.md</code>.</article>
+<article><h3><span class="tag bug">bug</span> Sentry bridge unreachable on the VM <span class="tag ok">fixed</span></h3>4320 neither published nor routed. Caddy <code>/api/*</code> &rarr; 4320, loopback publish, DSN key generated for new installs and printed. Remaining gap: bridged data is stamped <code>ouo.project.id=demo</code> (collector config, not this PR).</article>
+<article><h3><span class="tag minor">minor</span> re-run without <code>--ref</code> moved the install to <code>main</code>; CORS doc pointed at the collector config; no <code>docker-buildx</code> <span class="tag ok">fixed</span></h3>Re-runs keep the checked-out commit; <code>--allowed-origins</code> writes <code>OUO_ALLOWED_ORIGINS</code>; <code>docker-buildx</code> in the apt list.</article>
+<article><h3><span class="tag obs">observation</span> trip points documented, not code</h3><code>sudo docker login</code> (root pulls), <code>sudo git</code> (dubious ownership), private repo needs a read token for clone and <code>--ref</code> fetches, <code>CURL_CA_BUNDLE</code> / <code>NODE_EXTRA_CA_CERTS</code> for <code>tls internal</code>, <code>e2e.sh</code> needs <code>OUO_GRAFANA_URL</code> = public URL, Helm 4 <code>--rollback-on-failure</code>, <code>--reuse-values</code> keeps old tags, bare self-signed leaf does not verify, <code>helm lint</code> passes HA values that <code>helm template</code> refuses without Secrets, <code>otlp-headers</code> with <code>existingProjectsSecret</code>.</article>
+<article><h3><span class="tag obs">observation</span> for other owners</h3>The 0.2.0 e2e <code>has_error</code> lookup does not normalise Tempo's stripped leading zero (trace <code>04e66...</code> came back as 31 chars; the data had <code>has_error: true</code>). The chart has no Sentry bridge. Compose-built rum-api reports <code>dev</code>. Listed as checklist N23.</article>
+<article><h3><span class="tag env">environment</span> tooling</h3>kind loading multi-arch images from Docker Desktop's containerd store needs <code>docker save --platform | ctr import</code>. Self-hosted Sentry started mid-run (17.2 of 19.5 GiB) and starved the kind API server and Grafana's probes; release A was torn down before the external-mode check. A registry credential was not moved into the VM; images went in with <code>docker load</code>.</article>
+
+<h2>7. Not covered</h2>
+<ul>
+<li>ACME / Let's Encrypt with public DNS (only <code>tls internal</code>), amd64 hosts, a cloud VM.</li>
+<li><code>docker login ghcr.io</code> inside the VM with a real token (the refused-pull path was checked).</li>
+<li>Real HA (render + server dry-run only, by design on this Mac).</li>
+</ul>
+<p class="sub">Teardown: VM <code>ouo-8a</code> and kind <code>ouo-n12</code> deleted at the end of the run. Tool: <code>project/agents/platform-infra/tools/upgrade-replays.py</code>. Summary: <code>project/agents/platform-infra/summaries/2026-10-23-8a-vm-upgrade-n12.md</code>.</p>
+</main>
+</body>
+</html>

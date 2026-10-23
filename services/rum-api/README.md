@@ -118,6 +118,11 @@ moves a filesystem store to S3. The S3 store (`internal/replay/s3.go`, minio-go)
 
 The size limits and kind / project checks are shared code, identical for both stores.
 
+Next to the session folders, `replays/schema.json` records the highest chunk `schema_version`
+the last rum-api that started on the store reads, and its version. At start rum-api exits 1
+when that schema is newer than its own (`internal/replay/schema.go`; procedure and message in
+`docs/operations/upgrade.md` section 4); a store without the file is adopted.
+
 ## API
 
 All endpoints are JSON unless noted. Errors are `{"error": "..."}` with 400 (bad input,
