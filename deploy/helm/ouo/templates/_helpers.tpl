@@ -188,9 +188,9 @@ S3 keys are environment variables from Secrets.
 {{- end -}}
 {{- range $id, $p := .Values.rumApi.sampling -}}
 {{- $s := dict -}}
-{{- if hasKey $p "sessionRate" -}}{{- $_ := set $s "session_rate" $p.sessionRate -}}{{- end -}}
-{{- if hasKey $p "replayRate" -}}{{- $_ := set $s "replay_rate" $p.replayRate -}}{{- end -}}
-{{- if hasKey $p "replayOnErrorRate" -}}{{- $_ := set $s "replay_on_error_rate" $p.replayOnErrorRate -}}{{- end -}}
+{{- if hasKey $p "sessionRate" -}}{{- $_ := set $s "session_rate" ($p.sessionRate | float64) -}}{{- end -}}
+{{- if hasKey $p "replayRate" -}}{{- $_ := set $s "replay_rate" ($p.replayRate | float64) -}}{{- end -}}
+{{- if hasKey $p "replayOnErrorRate" -}}{{- $_ := set $s "replay_on_error_rate" ($p.replayOnErrorRate | float64) -}}{{- end -}}
 {{- $_ := set $projects $id (merge (dict "sampling" $s) (get $projects $id | default dict)) -}}
 {{- end -}}
 {{- if $projects -}}
