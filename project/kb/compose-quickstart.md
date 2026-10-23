@@ -30,8 +30,10 @@ with a release and a pin bump. CI needs the tags: the `quickstart` job checks ou
   `configs:` entry with `content:`, mounted with `configs: - source/target`. That needs
   Compose >= 2.23.1; the header says 2.24 like `compose.images.yaml`.
 - Same `OUO_*_PORT` / token variables and defaults as `compose.yaml`, so a `.env` next to the
-  file works the same. Project name `ouo-quickstart`, so it never adopts the containers of a
-  clone's `ouo` project.
+  file works the same. No `name:`: the project is named after the folder. The first version had
+  `name: ouo-quickstart`, and every copy on one machine was then the SAME project: a test copy's
+  `docker compose down -v` removed the founder's own quickstart stack and its volumes (2026-10-23).
+  Folder-named projects keep copies apart; the repo's `compose.yaml` keeps `name: ouo`.
 - No demo backend (it is built from `examples/backend`, not a released image).
 
 ## Gotchas

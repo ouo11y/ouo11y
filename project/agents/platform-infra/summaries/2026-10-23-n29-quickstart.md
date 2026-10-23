@@ -4,7 +4,7 @@
 
 - `deploy/compose/quickstart.yaml`: the whole local stack in one compose file (released ouo
   images, upstream Loki / Tempo / Mimir, every mounted config inlined as `configs.content`,
-  no demo backend, project `ouo-quickstart`). Copy into an empty folder and `docker compose up -d`.
+  no demo backend; the compose project is named after the folder). Copy into an empty folder and `docker compose up -d`.
 - `deploy/scripts/gen-quickstart.sh`: generates it from `compose.yaml`, `compose.images.yaml`
   and the config files; `--check` exits 1 when the committed file is stale.
 - CI job `quickstart` in `.github/workflows/ci.yml` (path flag `quickstart`:
@@ -24,6 +24,13 @@
   files inside the containers, rum-api healthy, `smoke.sh` OK, plugin proxy 200.
 - Found on the way, not fixed here (checklist N30): `main`'s own `compose.yaml + compose.images.yaml`
   has the same break since #49 until a rum-api release ships the 8b config keys.
+
+## Third pass: no fixed project name
+
+`name: ouo-quickstart` made every copy of the file one compose project. A verification copy's
+`docker compose down -v` (in a scratch folder) removed the founder's own quickstart stack, containers
+and volumes, in `~/Desktop/ouo-playground/stack`. Removed `name:`: the project is the folder name.
+Verification runs now use an explicit unique `-p`.
 
 ## How it was verified
 
