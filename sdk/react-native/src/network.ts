@@ -1,6 +1,7 @@
 import { context, propagation, SpanKind, SpanStatusCode, trace, type Span, type Tracer } from "@opentelemetry/api";
 import type { DebugLogger } from "./logger";
 import type { EventEmitter } from "./telemetry/events";
+import type { TraceLinker } from "./tracing";
 import { matchesAny, parseUrl } from "./url";
 
 export interface NetworkOptions {
@@ -11,6 +12,10 @@ export interface NetworkOptions {
   ignoreUrls: Array<RegExp | string>;
   /** Called on every outbound request (activity rule). */
   onActivity: () => void;
+  /** Emit `http.request` for answered requests below 500 (timeline, checklist G4). Default false. */
+  requestEvents?: boolean;
+  /** Remembers failed requests and rejected errors, so errors carry the request's trace (G5). */
+  linker?: TraceLinker;
 }
 
 /**
@@ -76,7 +81,8 @@ function requestMethod(input: unknown, init: RequestInit | undefined): string {
   return "GET";
 }
 
-function failedRequestEmitter(events: EventEmitter) {
+/** `http.request.failed` with the request span's trace id and span id, as the bridge derives it from `http.client` spans. */
+function failedRequestEmitter(events: EventEmitter, linker?: TraceLinker) {
   return (span: Span, status: number, url: string, method: string, errorType?: string): void => {
     events.emit(
       "http.request.failed",
@@ -87,8 +93,22 @@ function failedRequestEmitter(events: EventEmitter) {
         ...(errorType ? { "error.type": errorType } : {}),
       },
       "error",
+      Date.now(),
+      { body: `${method} ${url}`, context: trace.setSpan(context.active(), span) },
     );
     span.setAttribute("ouo.http.failed", true);
+    linker?.noteFailedRequest(span);
+  };
+}
+
+/** `http.request` for an answered request (1 to 499), named and shaped like the bridge's (spec section 9a). */
+function requestEmitter(opts: NetworkOptions) {
+  return (span: Span, status: number, url: string, method: string): void => {
+    if (!opts.requestEvents || status < 1 || status >= 500) return;
+    opts.events.emit("http.request", { "http.request.method": method, "url.full": url, "http.response.status_code": status }, "info", Date.now(), {
+      body: `${method} ${url}`,
+      context: trace.setSpan(context.active(), span),
+    });
   };
 }
 
@@ -120,7 +140,8 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
   if (original.__ouo) return () => {};
   const { tracer, events, onActivity } = opts;
 
-  const emitFailed = failedRequestEmitter(events);
+  const emitFailed = failedRequestEmitter(events, opts.linker);
+  const emitRequest = requestEmitter(opts);
 
   const wrapped: WrappedFetch = function ouoFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const url = requestUrl(input);
@@ -156,6 +177,8 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
         if (isFailedRequest(status)) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${status}` });
           emitFailed(span, status, url, method);
+        } else {
+          emitRequest(span, status, url, method);
         }
         span.end();
         return res;
@@ -172,6 +195,7 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
       span.setStatus({ code: SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
       // AbortError is the caller cancelling, not a failed backend; everything else is a network failure.
       if (!(err instanceof Error && err.name === "AbortError")) emitFailed(span, 0, url, method, type);
+      opts.linker?.rememberError(err, span);
       span.end();
     }
   } as WrappedFetch;
@@ -224,7 +248,8 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
   }
   if (proto.__ouo) return () => {};
   const { tracer, events, onActivity } = opts;
-  const emitFailed = failedRequestEmitter(events);
+  const emitFailed = failedRequestEmitter(events, opts.linker);
+  const emitRequest = requestEmitter(opts);
   const original = { open: proto.open, setRequestHeader: proto.setRequestHeader, send: proto.send };
 
   proto.open = function ouoOpen(this: XhrLike, method: string, url: string | URL, ...rest: unknown[]): void {
@@ -278,6 +303,8 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
         if (isFailedRequest(status)) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: status ? `HTTP ${status}` : "network error" });
           emitFailed(span, status, url, method, status ? undefined : "NetworkError");
+        } else {
+          emitRequest(span, status, url, method);
         }
       }
       span.end();

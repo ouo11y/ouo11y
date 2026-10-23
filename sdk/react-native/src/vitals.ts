@@ -1,0 +1,241 @@
+/**
+ * Mobile vitals (checklist G2), in the records of docs/specs/mobile-vitals.md:
+ * - `ouo.stall`: JS event-loop stalls, measured here (50 ms loop, spec 2.4);
+ * - `ouo.screen.display`: TTID per screen, from the navigation state change to the second
+ *   animation frame after it (the frame that shows the new screen), measured here;
+ * - `ouo.app.start`: needs the native process start time (`getAppStartInfo`);
+ * - `app.jank`: needs native frame counters (`getFrameStats`).
+ * The last two are read from the Expo module when its native side has them; without them the SDK
+ * emits nothing for that vital (spec rule 1: no record for a value that was not measured).
+ */
+import type { DebugLogger } from "./logger";
+import type { EventEmitter } from "./telemetry/events";
+import type { Attrs, VitalsOptions } from "./types";
+
+/** Optional native functions of the `OuoReplay` Expo module (not in this module's native side yet; see the README). */
+export interface NativeVitalsModule {
+  /** Process start (epoch ms) and whether this JS run is a relaunch in a live process. */
+  getAppStartInfo?(): { processStartMs?: number; type?: "cold" | "warm" } | null | undefined;
+  /** Cumulative frame counters since the module started (CADisplayLink / FrameMetrics). */
+  getFrameStats?(): NativeFrameStats | null | undefined;
+}
+
+export interface NativeFrameStats {
+  total: number;
+  slow: number;
+  frozen: number;
+  /** Total time frames ran over their expected duration, ms. */
+  delayMs?: number;
+  /** Expected frame duration from the display refresh rate, ms (16.7 at 60 Hz). */
+  expectedFrameMs?: number;
+}
+
+/** Stall loop (spec 2.4, Sentry React Native's stallTracking defaults). */
+export const STALL_INTERVAL_MS = 50;
+export const STALL_MIN_ITERATION_MS = 100;
+/** Spec rule 2: durations above one hour are clock jumps. */
+const MAX_DURATION_MS = 60 * 60 * 1000;
+
+export interface VitalsDeps {
+  events: EventEmitter;
+  logger: DebugLogger;
+  native?: NativeVitalsModule | undefined;
+  options?: VitalsOptions;
+  /** App state when the SDK started: an app launched in the background (iOS prewarm) has no meaningful start. */
+  launchedInForeground: boolean;
+  now?: () => number;
+  requestFrame?: (cb: () => void) => void;
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
+}
+
+export interface Vitals {
+  /** The session exists: `ouo.app.start` may be emitted now. */
+  sessionReady(): void;
+  /** The root component mounted (RUMProvider): the first frame follows. */
+  rootMounted(): void;
+  /** A navigation to `screen` happened (state change). */
+  navigated(screen: string): void;
+  background(): void;
+  foreground(): void;
+  stop(): void;
+}
+
+interface VitalWindow {
+  start: number;
+  kind: "app_start" | "screen";
+  screen?: string;
+  frames?: NativeFrameStats;
+  stalls: { count: number; total: number; longest: number };
+}
+
+const ms = (v: number): number => Math.round(v * 1000) / 1000;
+const valid = (v: number): boolean => Number.isFinite(v) && v >= 0 && v <= MAX_DURATION_MS;
+
+export function createVitals(deps: VitalsDeps): Vitals {
+  const { events, logger } = deps;
+  const now = deps.now ?? Date.now;
+  const raf = deps.requestFrame ?? ((cb: () => void) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => cb()) : setTimeout(cb, 16)));
+  const setTimer = deps.setTimer ?? ((fn: () => void, t: number) => setTimeout(fn, t));
+  const clearTimer = deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
+  const enabled = deps.options?.enabled !== false;
+  const native = deps.native;
+
+  const nativeCall = <T>(name: string, fn: (() => T) | undefined): T | undefined => {
+    if (!fn) return undefined;
+    try {
+      return fn();
+    } catch (err) {
+      logger.warn(`vitals: native ${name} failed`, err);
+      return undefined;
+    }
+  };
+  const frameStats = (): NativeFrameStats | undefined => {
+    const s = nativeCall("getFrameStats", native?.getFrameStats ? () => native.getFrameStats!() : undefined);
+    return s && typeof s.total === "number" ? s : undefined;
+  };
+  const startInfo = enabled ? nativeCall("getAppStartInfo", native?.getAppStartInfo ? () => native.getAppStartInfo!() : undefined) : undefined;
+  const processStart = startInfo && typeof startInfo.processStartMs === "number" ? startInfo.processStartMs : undefined;
+
+  const emit = (name: string, attrs: Attrs, at: number): void => events.emit(name, { ...attrs, "ouo.vital.source": "ouo" }, "info", at, { body: "" });
+
+  // ---- app start ----
+  let ready = false;
+  let firstFrameAt: number | undefined;
+  let appStartDone = !enabled || processStart === undefined || !deps.launchedInForeground;
+  let firstScreen: string | undefined;
+  const maybeAppStart = (): void => {
+    if (appStartDone || !ready || firstFrameAt === undefined || processStart === undefined) return;
+    appStartDone = true;
+    const duration = firstFrameAt - processStart;
+    if (!valid(duration)) return;
+    const attrs: Attrs = { "ouo.app.start.type": startInfo?.type === "warm" ? "warm" : "cold", "ouo.app.start.duration_ms": ms(duration) };
+    if (firstScreen) attrs["app.screen.name"] = firstScreen;
+    emit("ouo.app.start", attrs, firstFrameAt);
+  };
+  const firstFrame = (at: number): void => {
+    if (firstFrameAt !== undefined) return;
+    firstFrameAt = at;
+    maybeAppStart();
+  };
+  /** The frame that shows what was just rendered: the second animation frame from now. */
+  const afterNextFrame = (cb: (at: number) => void): void => raf(() => raf(() => cb(now())));
+
+  // ---- windows: app_start until the first screen, then one per screen visit ----
+  const openWindow = (kind: VitalWindow["kind"], screen?: string): VitalWindow => {
+    const w: VitalWindow = { start: now(), kind, stalls: { count: 0, total: 0, longest: 0 } };
+    if (screen) w.screen = screen;
+    const f = frameStats();
+    if (f) w.frames = f;
+    return w;
+  };
+  let win: VitalWindow | undefined = enabled ? openWindow("app_start") : undefined;
+  const closeWindow = (): void => {
+    const w = win;
+    win = undefined;
+    if (!w) return;
+    const end = now();
+    const period = end - w.start;
+    if (!valid(period) || period === 0) return;
+    const common: Attrs = { "ouo.vital.window": w.kind };
+    if (w.screen) common["app.screen.name"] = w.screen;
+    const f = w.frames ? frameStats() : undefined;
+    if (w.frames && f) {
+      const total = f.total - w.frames.total;
+      const slow = f.slow - w.frames.slow;
+      const frozen = f.frozen - w.frames.frozen;
+      if (total > 0 && slow >= 0 && frozen >= 0) {
+        const attrs: Attrs = {
+          ...common,
+          "app.jank.frame_count": slow + frozen,
+          "app.jank.period": ms(period) / 1000,
+          "ouo.frames.total": total,
+          "ouo.frames.slow": slow,
+          "ouo.frames.frozen": frozen,
+        };
+        if (f.expectedFrameMs) attrs["app.jank.threshold"] = f.expectedFrameMs / 1000;
+        if (f.delayMs !== undefined && w.frames.delayMs !== undefined && f.delayMs >= w.frames.delayMs) attrs["ouo.frames.delay_ms"] = ms(f.delayMs - w.frames.delayMs);
+        emit("app.jank", attrs, end);
+      }
+    }
+    if (w.stalls.count > 0) {
+      emit(
+        "ouo.stall",
+        { ...common, "ouo.stall.count": w.stalls.count, "ouo.stall.total_ms": ms(w.stalls.total), "ouo.stall.longest_ms": ms(w.stalls.longest), "ouo.stall.period_ms": ms(period) },
+        end,
+      );
+    }
+  };
+
+  // ---- stalls ----
+  const stallsOn = enabled && deps.options?.stalls !== false;
+  let timer: unknown;
+  let lastTick = 0;
+  const tick = (): void => {
+    const t = now();
+    const iteration = t - lastTick;
+    lastTick = t;
+    if (iteration >= STALL_MIN_ITERATION_MS && iteration <= MAX_DURATION_MS && win) {
+      const stall = iteration - STALL_INTERVAL_MS;
+      win.stalls.count++;
+      win.stalls.total += stall;
+      win.stalls.longest = Math.max(win.stalls.longest, stall);
+    }
+    timer = setTimer(tick, STALL_INTERVAL_MS);
+  };
+  const startLoop = (): void => {
+    if (!stallsOn || timer !== undefined) return;
+    lastTick = now();
+    timer = setTimer(tick, STALL_INTERVAL_MS);
+  };
+  const stopLoop = (): void => {
+    if (timer === undefined) return;
+    clearTimer(timer);
+    timer = undefined;
+  };
+  startLoop();
+
+  let lastNavigation: string | undefined;
+
+  return {
+    sessionReady(): void {
+      ready = true;
+      maybeAppStart();
+    },
+    rootMounted(): void {
+      if (!enabled || firstFrameAt !== undefined) return;
+      afterNextFrame(firstFrame);
+    },
+    navigated(screen: string): void {
+      if (!enabled || !screen || screen === lastNavigation) return;
+      const isFirst = lastNavigation === undefined;
+      lastNavigation = screen;
+      const changedAt = now();
+      if (isFirst) firstScreen = screen;
+      afterNextFrame((at) => {
+        firstFrame(at);
+        // First screen: from the process start (spec 5); later ones: from the state change.
+        const startAt = isFirst ? processStart : changedAt;
+        if (startAt !== undefined && (!isFirst || deps.launchedInForeground)) {
+          const ttid = at - startAt;
+          if (valid(ttid)) emit("ouo.screen.display", { "app.screen.name": screen, "ouo.screen.ttid_ms": ms(ttid) }, at);
+        }
+      });
+      closeWindow();
+      win = openWindow("screen", screen);
+    },
+    background(): void {
+      closeWindow();
+      stopLoop();
+    },
+    foreground(): void {
+      if (!enabled) return;
+      if (!win) win = openWindow("screen", lastNavigation);
+      startLoop();
+    },
+    stop(): void {
+      stopLoop();
+      closeWindow();
+    },
+  };
+}

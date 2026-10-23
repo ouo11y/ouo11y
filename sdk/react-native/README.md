@@ -2,7 +2,7 @@
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
 sessions, errors, JS and native (iOS) crashes, app version, outbound `fetch` tracing with W3C Trace
-Context and Baggage, all exported over OTLP/HTTP to the ouo collector (`ouo-collector`, the only
+Context and Baggage, a span and log API, timeline events (taps, app lifecycle, requests), mobile vitals, all exported over OTLP/HTTP to the ouo collector (`ouo-collector`, the only
 internet-facing service, ADR-0007) with the project credential as HTTP Basic. Telemetry needs no
 native code and runs in Expo Go; session replay (iOS) is an Expo native module and needs a
 development build.
@@ -168,9 +168,11 @@ const rum: RUM = initRUM({
   tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
   session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
   user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
-  device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional
+  device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
-  errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000 },
+  errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000, forwardSentryErrors: undefined },
+  timeline: { taps: true, appLifecycle: true, requests: true },
+  vitals: { enabled: true, stalls: true },
   storage: AsyncStorageLike,       // optional, defaults to @react-native-async-storage/async-storage
   debug: false,
 });
@@ -179,7 +181,11 @@ rum.setUser({ id: "user-1" });
 rum.captureError(err, { screen: "Cart" });      // exception, fatal=false, handled=true
 rum.addEvent("cart.added", { "product.id": "p-1" });
 rum.trackNavigation("/Cart");                   // navigation event + activity
-rum.recordActivity();                           // what RUMProvider does on touch
+rum.recordActivity();                           // activity without a timeline event
+rum.trackTap("checkout-pay");                   // ui.tap + activity (RUMProvider does it per touch)
+rum.withSpan("checkout", (span) => fetch(url)); // span around fn, ended when its promise settles
+const span = rum.startSpan("parse", { parent }); span.end();
+rum.log.info("checkout started", { "cart.items": 3 }); // OTel log record, linked to session and span
 rum.session.id(); rum.session.userId(); rum.session.previousId();
 await rum.ready;                                // persisted state read, session.start emitted
 await rum.flush();                              // force export of spans and log records
@@ -212,6 +218,7 @@ await rum.flush();                              // force export of spans and log
 | unhandled promise rejection (Hermes tracker) | `exception` | false | false |
 | `console.error` | `exception` | false | true |
 | `rum.captureError` | `exception` | false | true |
+| `Sentry.captureException` and other Sentry error events, with `errors.forwardSentryErrors` | `exception`, `ouo.exception.kind = sentry` | `level == fatal` | Sentry's `mechanism.handled` (default true) |
 | native crash on iOS (signal, uncaught NSException), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
 
 A fatal error writes the crash marker, waits for it and for a flush (bounded by
@@ -236,6 +243,26 @@ JS fatal that React Native turns into `RCTFatalException` in Release is not repo
 JS handler already sent it, the native report only gives the end time. Turn it off with
 `errors: { nativeCrashes: false }`. Only the crashed thread is recorded, from its frame pointers.
 
+**One error, one record.** An Error object reported by one hook is not reported again by
+another (global handler, rejection tracker, `console.error` of the same object, `captureError`,
+the Sentry forwarder). For 5 s after a fatal, a fatal with the same type and message (React
+dev re-throwing a render error as a new object) and a `console.error` line that contains the
+fatal's message (React Native's dev handler printing it) are dropped too: before 0.3.0 they
+showed up as a second error after the crashed session's `session.end`, or as `crash_count 2`.
+
+**Trace id on errors.** An `exception` record carries a trace id and span id, and
+`ouo.exception.trace_link` says where they came from: `span` (the error escaped from
+`withSpan`, or is the rejection of a fetch / XHR), `active_span` (reported while a `withSpan`
+callback ran), `failed_request` (a request failed less than 2 s before: the handler that threw
+on the 500). Otherwise it has none.
+
+**Stack paths.** `exception.stacktrace` is normalised: per-install paths
+(`/private/var/containers/Bundle/Application/<uuid>/App.app/main.jsbundle`, the simulator's
+`CoreSimulator/Devices/<uuid>/…`, Metro's `http://host:8081/index.bundle?…`) become
+`app:///main.jsbundle:1:2345`, every frame reads `  at fn (file:line:column)` as the Sentry
+bridge writes them, and frames of the app's code end with `[in app]` (not native, not
+`InternalBytecode`, not `node_modules`), so the same error groups across devices.
+
 Hermes keeps one promise rejection tracker: every `enablePromiseRejectionTracker` call replaces
 the previous one, and `HermesInternal` is frozen, so the tracker cannot be shared. The SDK
 initialised last gets unhandled rejections. `errors.onUnhandledRejection` hands each rejection
@@ -250,6 +277,8 @@ one `CLIENT` span `HTTP <METHOD>` per request with
 (`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
 SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
+In dev (`__DEV__`) Metro's `/symbolicate` (LogBox) and `/__sentry/…` (@sentry/react-native's
+middleware) calls are not traced either.
 React Native's `fetch` runs on `XMLHttpRequest`; the XHR that a wrapped `fetch` call opens is
 skipped, so a fetch is one span, not two. On XHR, `traceparent` is only added when the request
 has none yet (XHR would join two into one invalid header); `baggage` is merged.
@@ -287,7 +316,19 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
    `traceparent`; Sentry then adds `sentry-trace` and its `baggage` entries but no second
    `traceparent`, whatever its `propagateTraceparent` says. The backend joins ouo's trace.
 3. **Errors**: each global error handler calls the one before it; both SDKs see every error.
-   `Sentry.captureException` calls stay Sentry-only (use `rum.captureError` for ouo).
+   To get `Sentry.captureException`, `Sentry.ErrorBoundary` and Sentry's other error events in
+   ouo too, opt in with the client (after `Sentry.init`):
+
+   ```js
+   initRUM({ /* ... */ errors: { forwardSentryErrors: Sentry.getClient() } });
+   ```
+
+   ouo listens to the client's `beforeSendEvent` hook, so it forwards exactly the error events
+   Sentry sends (not those dropped by `beforeSend` or `sampleRate`), as `exception` records
+   with `ouo.exception.kind = sentry`, `ouo.sentry.event_id` and `ouo.sentry.mechanism`. No
+   double reporting: errors ouo captured itself (global handler, forwarded rejections, a
+   `console.error` or `captureError` of the same Error object) are skipped, and so are
+   `captureMessage`, transactions and other non-error events.
    **Native crashes**: ouo keeps the signal and `NSException` handlers installed before it
    (Sentry's) and calls them after writing its own report, so both SDKs report the crash on the
    next launch. Sentry's Mach exception handler sees a bad access first and passes it on as a
@@ -301,12 +342,76 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
    with an OpenFeature flag at each cold start (never mid-session) and tags each cohort with
    `resource: { "ouo.rum.mode": ... }`.
 
+## Spans and logs
+
+`rum.startSpan(name, options)` and `rum.withSpan(name, fn, options)` create spans on the SDK's
+tracer: every span gets the session attributes and is exported with the request spans.
+`options`: `attributes`, `kind` (`SpanKind`), `startTime`, `parent` (a span or span context;
+`null` starts a new trace). `withSpan` ends the span when `fn` returns or its promise settles; a
+throw or rejection sets the status to error, records the exception on the span and rethrows.
+
+React Native has no async context, so the span is the active one only while `fn` runs
+synchronously: requests started there are its children (and the backend joins its trace),
+logs and errors reported there carry its trace id. After an `await`, pass it on explicitly:
+`rum.startSpan("step", { parent: span })`, `rum.log.info("…", attrs, { span })`. The OTel
+global tracer provider is set too, so `trace.getTracer("my-lib")` from `@opentelemetry/api`
+works the same way.
+
+`rum.log(level, message, attrs)` or `rum.log.trace|debug|info|warn|error|fatal(message, attrs)`
+emits an OTel log record named `log`: body and `message` = the message (`message` truncated to
+1 KiB), OTel severity number and text, the attributes, the session attributes and the active
+(or given) span's trace id and span id. The Sentry bridge maps `Sentry.logger.*` to the same
+record, so rum-api's session logs show both alike. Logs are not session activity.
+
+## Timeline (taps, app lifecycle, requests)
+
+The same events the Sentry bridge derives from Sentry breadcrumbs (`docs/specs/sentry-bridge.md`
+section 9a), with the same names, attributes and bodies, so the plugin shows both paths alike.
+Each can be turned off in `timeline`.
+
+| `event.name` | When | Attributes | Body |
+|---|---|---|---|
+| `ui.tap` | a touch inside `<RUMProvider>`, or `rum.trackTap(target, path)` | `ouo.ui.target`: the first label up the touched component tree (`ouo-label`, `sentry-label`, `accessibilityLabel`, `aria-label`, `testID`), else the innermost display name; `ouo.ui.path`: labels and names innermost first, joined with ` > ` (when it differs) | the path |
+| `app.lifecycle` | every `AppState` change | `ouo.app.state`: `foreground`, `inactive`, `background` | `app <state>` |
+| `http.request` | a fetch / XHR answered with 1 to 499 | `http.request.method`, `url.full`, `http.response.status_code`; trace id and span id of the request span | `<METHOD> <url>` |
+
+Text content is never read for tap targets (Sentry reads it unless replay masks text). Give
+buttons a `testID` or an `accessibilityLabel`. `http.request.failed` keeps its rules and now
+carries its span's trace id and span id too.
+
+## Vitals
+
+Per `docs/specs/mobile-vitals.md` (`ouo.vital.source = ouo`; turn off with `vitals: { enabled: false }`):
+
+| `event.name` | Measured how | Needs |
+|---|---|---|
+| `ouo.stall` | a 50 ms JS timer; an iteration of 100 ms or more is a stall of its excess over 50 ms; one record per window with stalls (`vitals.stalls: false` turns the timer off) | nothing |
+| `ouo.screen.display` | TTID: from the navigation state change (`trackNavigation`) to the second animation frame after it; for the first screen, from the process start | the first screen: the native process start |
+| `ouo.app.start` | from the native process start to the frame after `<RUMProvider>` mounted (or the first screen's frame), once per run, not when the app was launched in the background (iOS prewarming) | `getAppStartInfo()` in the Expo module |
+| `app.jank` | native frame counters, diffed per window | `getFrameStats()` in the Expo module |
+
+Windows: `app_start` until the first screen, then one per screen visit (`ouo.vital.window =
+screen`, `app.screen.name` = the route name, the last segment of the navigation path), closed at
+the next navigation or when the app goes to the background. The Expo module's native side does
+not have `getAppStartInfo` / `getFrameStats` yet; until it does, the SDK emits no
+`ouo.app.start`, no `app.jank` and no first-screen TTID (spec rule 1: nothing that was not
+measured).
+
+## Device
+
+Without a `device` option the SDK reads expo-device's native constants from the Expo module
+registry when the app has `expo-device` installed (no import, no app code): `modelId` ->
+`device.model.identifier` (`iPhone17,2`), `modelName` -> `device.model.name`, `manufacturer`.
+On the simulator expo-device answers the CPU (`arm64`), which is not a model: the SDK sets
+`ouo.device.simulator = true` instead. Values passed in `device` win.
+
 ## Events (OTel log records, `event.name`)
 
 `session.start`, `session.end` (`ouo.session.end_reason`, `ouo.session.duration_ms`,
 `ouo.session.started_at`, `ouo.session.ended_at`), `exception`, `http.request.failed`,
-`navigation` (`url.path`, `ouo.navigation.from`), custom events from `addEvent`
-(`ouo.event.custom=true`). Every span and log record carries `session.id`,
+`navigation` (`url.path`, `ouo.navigation.from`), `ui.tap`, `app.lifecycle`, `http.request`,
+`log`, the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
+from `addEvent` (`ouo.event.custom=true`). Every span and log record carries `session.id`,
 `session.previous_id` (when set), `user.id`, `ouo.user.anonymous`, `ouo.platform=mobile`
 and `service.version`. Resource: `service.name`, `service.version`,
 `deployment.environment.name`, `ouo.platform`, `os.name`, `os.version`,

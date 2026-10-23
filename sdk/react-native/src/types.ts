@@ -1,3 +1,5 @@
+import type { Span, SpanContext } from "@opentelemetry/api";
+
 /** Primitive attribute values accepted by the public API. */
 export type AttrValue = string | number | boolean;
 export type Attrs = Record<string, AttrValue>;
@@ -98,6 +100,92 @@ export interface ErrorOptions {
    * module (not in Expo Go).
    */
   nativeCrashes?: boolean;
+  /**
+   * Opt-in, next to Sentry (checklist G6): pass `Sentry.getClient()` and every error event
+   * Sentry sends (`Sentry.captureException`, `Sentry.ErrorBoundary`, Sentry's integrations) is
+   * also an ouo `exception` (`ouo.exception.kind = "sentry"`). Errors ouo captured itself (the
+   * global handler, unhandled rejections, console.error of the same Error object) are not
+   * reported twice; `captureMessage` and transactions are not forwarded. Events dropped by
+   * Sentry's `beforeSend` or `sampleRate` are not forwarded either.
+   */
+  forwardSentryErrors?: SentryClientLike;
+}
+
+/** The part of a Sentry client (`Sentry.getClient()`, @sentry/core 8 to 10) the SDK uses. */
+export interface SentryClientLike {
+  on?(hook: "beforeSendEvent", callback: (event: SentryEventLike, hint?: SentryHintLike) => void): (() => void) | void;
+}
+
+export interface SentryEventLike {
+  type?: string;
+  level?: string;
+  event_id?: string;
+  message?: string;
+  exception?: {
+    values?: Array<{
+      type?: string;
+      value?: string;
+      mechanism?: { type?: string; handled?: boolean; synthetic?: boolean };
+      stacktrace?: { frames?: Array<{ function?: string; filename?: string; module?: string; lineno?: number; colno?: number; in_app?: boolean }> };
+    }>;
+  };
+}
+
+export interface SentryHintLike {
+  originalException?: unknown;
+}
+
+/** Timeline events the SDK records (checklist G4), each named like the Sentry bridge's (spec section 9a). Default all true. */
+export interface TimelineOptions {
+  /** `ui.tap` from touches inside `<RUMProvider>`: `ouo.ui.target`, `ouo.ui.path`. */
+  taps?: boolean;
+  /** `app.lifecycle` from `AppState`: `ouo.app.state` = `foreground`, `inactive`, `background`. */
+  appLifecycle?: boolean;
+  /** `http.request` for every answered request below 500, with its span's trace id and span id. */
+  requests?: boolean;
+}
+
+/** Mobile vitals (docs/specs/mobile-vitals.md). */
+export interface VitalsOptions {
+  /** Default true. */
+  enabled?: boolean;
+  /** JS event-loop stall tracking (a 50 ms timer, `ouo.stall`). Default true. */
+  stalls?: boolean;
+}
+
+/** Severity of `rum.log` records. */
+export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+
+export interface LogCallOptions {
+  /** Link the record to this span instead of the active one. */
+  span?: Span;
+}
+
+export type LogFn = (message: string, attrs?: Attrs, options?: LogCallOptions) => void;
+
+/**
+ * `rum.log(level, message, attrs)` or `rum.log.info(message, attrs)`: an OTel log record named
+ * `log` with the severity, the message as body and `message`, the attributes, the session
+ * attributes and the active span's trace id.
+ */
+export interface RUMLog {
+  (level: LogLevel, message: string, attrs?: Attrs, options?: LogCallOptions): void;
+  trace: LogFn;
+  debug: LogFn;
+  info: LogFn;
+  warn: LogFn;
+  error: LogFn;
+  fatal: LogFn;
+}
+
+export interface SpanOptions {
+  attributes?: Attrs;
+  /** `SpanKind` from `@opentelemetry/api`; default `INTERNAL`. */
+  kind?: number;
+  /** Epoch milliseconds, a `Date` or an OTel `HrTime`. */
+  startTime?: number | Date | [number, number];
+  /** Parent span; default the active span (inside `withSpan`), `null` for a new trace. */
+  parent?: Span | SpanContext | null;
 }
 
 export interface RUMOptions {
@@ -138,6 +226,8 @@ export interface RUMOptions {
    */
   resource?: Attrs;
   errors?: ErrorOptions;
+  timeline?: TimelineOptions;
+  vitals?: VitalsOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */
@@ -168,6 +258,26 @@ export interface RUM {
   trackNavigation(path: string, attrs?: Attrs): void;
   /** Count a user interaction as session activity (the `RUMProvider` does this for touches). */
   recordActivity(): void;
+  /**
+   * Emit a `ui.tap` (and count it as activity). `RUMProvider` calls this for every touch with
+   * the touched component's label; call it yourself for gestures it cannot see.
+   * `path` is the component path, innermost first, joined with ` > `.
+   */
+  trackTap(target: string, path?: string): void;
+  /**
+   * Start a span on the SDK's tracer (session attributes added). End it with `span.end()`.
+   * Parent: `options.parent`, else the span active inside `withSpan`.
+   */
+  startSpan(name: string, options?: SpanOptions): Span;
+  /**
+   * Run `fn` inside a new span and end it when `fn` returns or its promise settles. A throw or
+   * rejection sets the span status to error, records the exception on the span and rethrows.
+   * The span is active while `fn` runs synchronously: requests started, logs and errors reported
+   * there join its trace. After an `await`, pass the span on with `startSpan(name, { parent })`.
+   */
+  withSpan<T>(name: string, fn: (span: Span) => T, options?: SpanOptions): T;
+  /** Log API: `rum.log.info("checkout started", { "cart.items": 3 })`. */
+  log: RUMLog;
   replay: RUMReplay;
   session: RUMSession;
   /** Resolves once the persisted session state was read and `session.start` was emitted. */
