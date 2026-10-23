@@ -7,6 +7,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   testMatch: /.*\.spec\.ts/,
+  // Long-running: soak.config.ts, run nightly or by hand.
+  testIgnore: /(soak|rrweb-cost)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

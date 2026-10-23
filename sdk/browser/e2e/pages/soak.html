@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ouo e2e soak</title>
+    <style>
+      body { font: 14px system-ui; margin: 16px; }
+      .row { display: flex; gap: 8px; padding: 2px 0; }
+      .row.sel { background: #eef; }
+      .cell { width: 80px; }
+    </style>
+  </head>
+  <body>
+    <nav><button id="next">Next route</button> <button id="back">Back</button> <input id="search" placeholder="search" /></nav>
+    <p id="status">loading</p>
+    <p id="route"></p>
+    <div id="ticker"></div>
+    <main id="view"></main>
+    <script type="module" src="/soak.js"></script>
+  </body>
+</html>

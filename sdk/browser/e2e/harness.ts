@@ -4,8 +4,10 @@
  */
 import { expect, type Page } from "@playwright/test";
 
-export const PAGES = "http://localhost:4180";
-export const COLLECTOR = "http://localhost:4181";
+export const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
+export const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? 4181);
+export const PAGES = `http://localhost:${PAGE_PORT}`;
+export const COLLECTOR = `http://localhost:${COLLECTOR_PORT}`;
 /** Nothing listens here: a collector that is down. */
 export const DEAD_COLLECTOR_PORT = 4199;
 
