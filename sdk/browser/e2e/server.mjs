@@ -15,7 +15,7 @@ const root = resolve(new URL("..", import.meta.url).pathname);
 const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
 const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? 4181);
 const basic = "Basic " + Buffer.from("e2e:pt_e2e").toString("base64");
-const types = { ".html": "text/html", ".js": "text/javascript", ".map": "application/json" };
+const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".map": "application/json" };
 
 const empty = () => ({ traces: [], logs: [], replay: [], api: [], rejected: 0, faulted: 0 });
 let captured = empty();
