@@ -65,4 +65,4 @@ Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three 
 ## Next agent must know
 
 - In this worktree, `npm` and `npx` fail with "Exit prior to config file resolving" because the main checkout's `package.json` has merge-conflict markers (not touched). Use `npm --prefix <worktree>` or shims (kb entry).
-- Env `web-sourcemaps-fa863c` (`http://grafana.web-sourcemaps-fa863c.ouo.localhost`, admin / testing567) is torn down at the end of this run. See the PR for its state.
+- Env `web-sourcemaps-fa863c` (`http://grafana.web-sourcemaps-fa863c.ouo.localhost`, admin / testing567) was torn down (`ouo-env down`, volumes kept) after PR #64 was opened.
