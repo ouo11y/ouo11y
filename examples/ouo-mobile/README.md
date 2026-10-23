@@ -1,4 +1,4 @@
-# mobile-store (examples/ouo-mobile)
+# ouo-mobile: the ouo React Native path (`@ouo11y/react-native`)
 
 Expo managed app that exercises `@ouo11y/react-native` against the demo backend: the same
 storefront flows as `examples/ouo-web` plus a Chaos screen with one button per row of the
@@ -21,6 +21,58 @@ unhandled promise rejection (non-fatal, unhandled), **fatal error** (thrown from
 `ouo.exception.fatal = true`, crash marker, session `crashed`; relaunch the app and the SDK
 emits `session.end` with reason `crash`), `console.error` (handled, non-fatal), custom event,
 set user, flush.
+
+Path: `@ouo11y/react-native` → ouo collector (OTLP + replay) → Loki / Tempo / Mimir and rum-api,
+and `fetch` to `examples/backend` with `traceparent` and `baggage` (with `session.id`), so app and
+backend spans are one trace. Sentry is not in this app: never run the ouo SDK and the Sentry bridge
+into ouo at the same time (`docs/sentry-client-setup.md`, section 6).
+
+## Five-minute run
+
+Needs Docker, Node 24, Python 3, Xcode with an iOS Simulator booted (the first app build takes
+about 8 minutes; later runs only the journey).
+
+**Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
+packages are private for now: ask for read access, then log in once with a classic token that has
+only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
+npm ci && npm run -w sdk/react-native build          # the app links the SDK from this checkout
+examples/ouo-mobile/scripts/run.sh --build           # Release build + install, journey, verify
+```
+
+**ouo-env (us).**
+
+```bash
+deploy/envs/ouo-env up mobile-demo --images           # or without --images: this checkout's build
+examples/ouo-mobile/scripts/run.sh --env mobile-demo --build
+deploy/envs/ouo-env down mobile-demo
+```
+
+`scripts/build-ios.sh` bakes the stack's URLs into a Release build (`.env`, copied from
+`.env.example`, or `--env`), so no Metro is involved and `expo.extra` always matches the stack.
+`run.sh` then drives the app through `scripts/journey.sh`: products, two items into the cart,
+a card checkout, a `broken-card` checkout (500) and a 500 from the Chaos screen. The commands go
+through a file the app polls (`src/journey.ts`), because `simctl openurl` prompts on iOS 27.
+`scripts/verify.py` then checks:
+
+- rum-api has the session with traces and both failed requests;
+- trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
+  - every request the backend logged is a sampled trace in Tempo;
+  - no backend span has a missing parent;
+  - app and backend spans share one trace id;
+  - backend spans carry the `session.id` from baggage;
+  - one backend span per request, with no dropped trace;
+  - CORS allows `traceparent`, `tracestate` and `baggage`;
+  - nothing in the window came through the Sentry bridge.
+
+Mobile vitals (`docs/specs/mobile-vitals.md`) are checked with `--vitals` once the SDK emits them.
+
+CI cannot run an iOS Simulator on Linux: the `examples` job in `.github/workflows/ci.yml`
+typechecks the app and runs the SDK's built bundle in Node (`sdk/react-native/playground`) against
+the same stack and `verify.py`.
 
 ## Configuration
 

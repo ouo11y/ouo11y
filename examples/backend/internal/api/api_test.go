@@ -300,7 +300,7 @@ func TestCORS(t *testing.T) {
 	rec := do(t, h, http.MethodOptions, "/api/products", "", map[string]string{
 		"Origin":                         "http://localhost:5173",
 		"Access-Control-Request-Method":  "GET",
-		"Access-Control-Request-Headers": "traceparent, baggage",
+		"Access-Control-Request-Headers": "baggage, sentry-trace, traceparent, tracestate",
 	})
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("preflight: %d", rec.Code)
@@ -308,7 +308,7 @@ func TestCORS(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
 		t.Errorf("allow-origin = %q", got)
 	}
-	for _, hname := range []string{"traceparent", "tracestate", "baggage", "content-type"} {
+	for _, hname := range []string{"traceparent", "tracestate", "baggage", "sentry-trace", "content-type"} {
 		if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), hname) {
 			t.Errorf("allow-headers missing %s: %q", hname, rec.Header().Get("Access-Control-Allow-Headers"))
 		}

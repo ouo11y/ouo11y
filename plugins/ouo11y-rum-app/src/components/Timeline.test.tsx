@@ -1,7 +1,12 @@
 import { eventLook } from './Timeline';
 import type { TimelineEvent } from '../api/types';
 
-const ev = (name: string, attrs: Record<string, string>, type = 'custom'): TimelineEvent => ({ ts: '2026-10-14T10:00:00Z', type, name, attrs });
+const ev = (name: string, attrs: Record<string, string>, type = 'custom'): TimelineEvent => ({
+  ts: '2026-10-14T10:00:00Z',
+  type,
+  name,
+  attrs,
+});
 
 describe('eventLook', () => {
   it('titles the events the Sentry bridge derives', () => {
@@ -9,14 +14,22 @@ describe('eventLook', () => {
     expect(eventLook(log).title(log)).toBe('Log (error)');
     expect(eventLook(log).detail(log)).toBe('payment failed: HTTP 500');
 
-    const req = ev('http.request', { http_request_method: 'GET', url_full: 'http://localhost:8084/api/cart', http_response_status_code: '200' });
+    const req = ev('http.request', {
+      http_request_method: 'GET',
+      url_full: 'http://localhost:8084/api/cart',
+      http_response_status_code: '200',
+    });
     expect(eventLook(req).title(req)).toBe('Request 200');
     expect(eventLook(req).detail(req)).toBe('GET http://localhost:8084/api/cart');
 
     const app = ev('app.lifecycle', { ouo_app_state: 'background' });
     expect(eventLook(app).title(app)).toBe('App background');
 
-    const crumb = ev('breadcrumb', { ouo_breadcrumb_category: 'demo', message: 'promo opened', ouo_breadcrumb_data_promo: 'AUTUMN' });
+    const crumb = ev('breadcrumb', {
+      ouo_breadcrumb_category: 'demo',
+      message: 'promo opened',
+      ouo_breadcrumb_data_promo: 'AUTUMN',
+    });
     expect(eventLook(crumb).title(crumb)).toBe('demo');
     expect(eventLook(crumb).detail(crumb)).toBe('promo opened promo=AUTUMN');
   });
@@ -29,5 +42,29 @@ describe('eventLook', () => {
     // A web SDK event named like a bridge event but typed by rum-api keeps its type's look.
     const nav = ev('navigation', { url_path: '/cart' }, 'navigation');
     expect(eventLook(nav).detail(nav)).toBe('/cart');
+  });
+
+  it('titles mobile vitals and colours them by rating', () => {
+    const theme = {
+      colors: {
+        success: { main: 'green' },
+        warning: { main: 'orange' },
+        error: { main: 'red' },
+        text: { secondary: 'grey' },
+      },
+    };
+    const start = ev('ouo.app.start', { ouo_app_start_type: 'cold', ouo_app_start_duration_ms: '1500' }, 'vital');
+    expect(eventLook(start).title(start)).toBe('App start (cold) 1.50 s');
+    expect(eventLook(start).color(theme as never)).toBe('green');
+    const screen = ev('ouo.screen.display', { app_screen_name: 'Home', ouo_screen_ttid_ms: '3316.2' }, 'vital');
+    expect(eventLook(screen).title(screen)).toBe('Home displayed in 3.32 s');
+    expect(eventLook(screen).color(theme as never)).toBe('red');
+    const stall = ev(
+      'ouo.stall',
+      { ouo_stall_count: '2', ouo_stall_total_ms: '340', ouo_stall_longest_ms: '220' },
+      'vital'
+    );
+    expect(eventLook(stall).title(stall)).toBe('2 JS stalls, longest 220 ms');
+    expect(eventLook(stall).color(theme as never)).toBe('orange');
   });
 });

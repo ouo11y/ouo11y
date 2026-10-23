@@ -51,6 +51,11 @@ type Record struct {
 	// ReplayFrameCount is the total frame count of a frames replay; null for
 	// rrweb replays and when there is no replay.
 	ReplayFrameCount *int `json:"replay_frame_count"`
+	// AppStartMs and AppStartType are the duration (ms) and type (cold or
+	// warm) of the session's ouo.app.start (mobile vitals spec section 7);
+	// omitted when the session has none.
+	AppStartMs   *float64 `json:"app_start_ms,omitempty"`
+	AppStartType string   `json:"app_start_type,omitempty"`
 
 	// Events is the session's events in time order (not serialised; the
 	// API builds the timeline from it).
@@ -187,6 +192,11 @@ func FoldOne(id string, events []Event, now time.Time, opts Options) Record {
 		rec.EndReason = &reason
 	default:
 		rec.State = StateActive
+	}
+
+	if as, ok := AppStart(evs); ok {
+		ms := as.DurationMs
+		rec.AppStartMs, rec.AppStartType = &ms, as.Type
 	}
 
 	rec.Status = Classify(evs)

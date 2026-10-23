@@ -1,4 +1,4 @@
-# sentry-demo (examples/sentry-mobile)
+# sentry-mobile: the Sentry path (`@sentry/react-native` through the ouo bridge)
 
 Expo (React Native) iOS app instrumented with `@sentry/react-native` and, depending on the
 rollout flag, `@ouo11y/react-native` ("Rollout modes" below). It exists to generate real Sentry
@@ -6,8 +6,68 @@ mobile SDK traffic (sentry-cocoa native layer plus the RN JS
 layer, including mobile Session Replay) for the ouo Sentry bridge (ADR-0008,
 `docs/specs/sentry-bridge.md`). Knowledge and gotchas: `project/kb/sentry-react-native-demo.md`.
 
-The DSN must point at a local host: a recorder (`scripts/recorder.py`) or the `ouosentry`
-receiver. Never point it at sentry.io from this repo.
+The DSN must point at a local host: the `ouosentry` receiver (the bridge) or a recorder
+(`scripts/recorder.py`). Never point it at sentry.io from this repo.
+
+Path: `@sentry/react-native` → the ouo Sentry bridge (the collector's `ouosentry` receiver) →
+fan-out to Sentry (self-hosted `sentry-sbx`, or your own) and to ouo (Loki / Tempo / rum-api);
+`fetch` to `examples/backend` with `traceparent` (`propagateTraceparent: true`), so app and
+backend spans are one trace. The stack's bridge defaults to `upstream: none`: it runs without any
+Sentry. Client setup notes (sampling, propagation targets, breadcrumbs, parallel mode):
+[`docs/sentry-client-setup.md`](../../docs/sentry-client-setup.md).
+
+## Five-minute run
+
+Needs Docker, Node 24, Python 3, Xcode with an iOS Simulator booted (the first app build takes
+about 8 minutes; later runs only the journey).
+
+**Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
+packages are private for now: ask for read access, then log in once with a classic token that has
+only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
+cp examples/sentry-mobile/.env.example examples/sentry-mobile/.env   # bridge on :4320, backend on :8081
+examples/sentry-mobile/scripts/run.sh --build       # build + install, journey, verify
+```
+
+**ouo-env (us).**
+
+```bash
+deploy/envs/ouo-env up sentry-demo --images         # or without --images: this checkout's build
+examples/sentry-mobile/scripts/run.sh --env sentry-demo --build
+deploy/envs/ouo-env down sentry-demo
+```
+
+`run.sh` runs a short unattended journey on the booted simulator (`scripts/journey.sh`:
+launch, navigation, network calls including a 500, one shop round, errors; `--full` adds the
+background rotation and a native crash) and then `scripts/verify.py`:
+
+- rum-api has the bridged sessions with their traces and, when rum-api and the collector have
+  mobile vitals (after 0.3.0), the app start and time to initial display
+  (`docs/specs/mobile-vitals.md`);
+- trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
+  - every request the backend logged is a sampled trace in Tempo;
+  - no backend span has a missing parent (Sentry sends a random parent span id when no span is
+    active, `src/api.ts` gives such requests their own transaction);
+  - app and backend spans share one trace id, with no dropped trace;
+  - CORS allows `traceparent`, `tracestate`, `baggage` and `sentry-trace`;
+  - every app span came through the bridge;
+  - no ouo SDK span is in the window: the default build runs Sentry only
+    (`OUO_FLAG_PROVIDER=memory`, `OUO_RUM_MODE=sentry`). Never the ouo SDK and the bridge at once.
+
+**With a real Sentry.** Point the stack's bridge at it, not the app:
+`OUO_SENTRY_UPSTREAM=https://sentry.example.com`, plus `OUO_SENTRY_PROJECT_ID` and
+`OUO_SENTRY_PUBLIC_KEY` of your project, in `deploy/compose/.env` (or the env's), then build the
+app with that key and project in `SENTRY_DSN` (host still the bridge). The bridge forwards every
+envelope unchanged and answers with Sentry's response. Our run against self-hosted Sentry:
+`project/kb/sentry-self-hosted.md`.
+
+CI cannot run an iOS Simulator on Linux: the `examples` job in `.github/workflows/ci.yml`
+typechecks the app and sends the same headers and envelopes from `scripts/ci-journey.py` through
+the real bridge and backend, then runs the same `verify.py`.
+
 
 ## What is in it
 

@@ -5,8 +5,10 @@
 #   scripts/build-ios.sh [--clean] [--no-install] [--device <udid>]
 #
 # Environment (baked in at build time, see app.config.ts): SENTRY_DSN, BACKEND_URL, APP_VERSION,
-# BUILD_NUMBER, SENTRY_DEBUG=1. Needs full Xcode (DEVELOPER_DIR) and CocoaPods; see
-# project/kb/sentry-react-native-demo.md and project/kb/xcode-setup.md.
+# BUILD_NUMBER, SENTRY_DEBUG=1, read from .env when present (copy .env.example), the shell wins.
+# --env <name> points the app at an ouo-env (its published Sentry bridge and backend ports).
+# Needs full Xcode (DEVELOPER_DIR) and CocoaPods; see project/kb/sentry-react-native-demo.md and
+# project/kb/xcode-setup.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -15,16 +17,32 @@ APP_DIR="$PWD"
 DEVICE="${SIM_UDID:-D64DE653-47C7-4349-91E3-D6E64D9EF009}"
 CLEAN=0
 INSTALL=1
+ENV_NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --clean) CLEAN=1 ;;
     --no-install) INSTALL=0 ;;
     --device) DEVICE="$2"; shift ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    --env) ENV_NAME="$2"; shift ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown flag $1" >&2; exit 2 ;;
   esac
   shift
 done
+
+# .env first, then the shell's own values on top.
+if [[ -f .env ]]; then
+  saved="$(export -p)"
+  set -a; . ./.env; set +a
+  eval "$saved"
+fi
+if [[ -n $ENV_NAME ]]; then
+  urls="$(../../deploy/envs/ouo-env url "$ENV_NAME")"
+  bridge="$(sed -n 's/.*Sentry DSN host \([^ ]*\).*/\1/p' <<<"$urls")"
+  backend="$(sed -n 's/.*backend \(http:\/\/localhost:[0-9]*\).*/\1/p' <<<"$urls")"
+  [[ -n $bridge && -n $backend ]] || { echo "cannot read the ports of env $ENV_NAME" >&2; exit 1; }
+  export SENTRY_DSN="http://publickey0000000000000000000000@$bridge/1" BACKEND_URL="$backend"
+fi
 
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8   # CocoaPods refuses non-UTF-8 terminals
@@ -48,6 +66,7 @@ if [[ $CLEAN == 1 || ! -d ios ]]; then
   fi
 fi
 
+log "DSN ${SENTRY_DSN:-<app.config default>}, backend ${BACKEND_URL:-<app.config default>}, mode ${OUO_FLAG_PROVIDER:-ofrep}/${OUO_RUM_MODE:-sentry}"
 log "pod install"
 (cd ios && pod install)
 

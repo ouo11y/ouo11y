@@ -2,7 +2,9 @@
 
 Status: implemented (`collector/receiver/ouosentryreceiver`, rum-api video kind, plugin 0.4.0) and verified on real `@sentry/react-native` 8.30.0 / `sentry-cocoa` 9.30.1 traffic on 2026-10-14 (`project/reports/sentry-bridge-verification.html`). Normative since ADR-0008 was accepted on 2026-10-17. Bridge parity fixes A1 to A3, A5 to A9, A11, C5 and the N2 findings (checklist section 2) were added on 2026-10-23 and verified against self-hosted Sentry 26.10. The former **(verify)** items are resolved below from the captures in `collector/receiver/ouosentryreceiver/testdata/golden/`; Android payloads are still unverified.
 
-Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). Mobile vitals from transaction `measurements` follow `docs/specs/mobile-vitals.md` (section 6). The supported SDK version range is pinned when the golden envelopes are captured and listed here.
+Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java.android` (Android) and `sentry.javascript.react-native` (React Native over both). Mobile vitals from transaction `measurements` follow `docs/specs/mobile-vitals.md` (section 6).
+
+**Supported SDK range** (checklist N3, golden journeys per version, details in [compatibility.md](../compatibility.md#sentry-sdks-through-the-bridge)): `@sentry/react-native` 8.x on iOS, captured 8.30.0 (sentry-cocoa 9.30.1) and 8.32.0 (9.31.0), fully supported. 7.11.0 (sentry-cocoa 8.58.0, the Expo SDK 57 default) is partial: under Expo 57 it traces no `fetch`, sends no app start, a TTID in days and transactions stamped hours in the past; sessions, errors, crashes, replay and logs translate. Native sentry-cocoa and sentry-java apps: medium term, not captured.
 
 ## 1. Endpoint
 
@@ -151,6 +153,8 @@ Derived log records (same trace and span id as their span):
 - `http.request.failed` for a span with `op` `http.client` and either `http.response.status_code >= 500`, or no status code and span status in `internal_error`, `unavailable`, `deadline_exceeded`, `unknown_error`, `aborted`. Severity `ERROR`, as the ouo SDKs emit it. Attributes `http.request.method`, `url.full`, `http.response.status_code` (absent for network failures), `ouo.sentry.span_status`.
 - `http.request` for a span with `op` `http.client` and a status code from 1 to 499, **only when the session has no replay** (no replay id known for it, and none in the envelope's trace header that is not another session's): with a replay, the recording's fetch breadcrumbs bring every request, also those outside transactions (section 9a). Attributes as for `http.request` from breadcrumbs, with the span's trace and span id. A request reaches the timeline once: by span id against fetch breadcrumbs (`data.__span`) from recordings and events.
 - `navigation` for a transaction with `op` `ui.load` (iOS view controllers, Android activities) or `navigation` (React Navigation): `url.path` = `transaction`, `ouo.navigation.kind = screen`, `ouo.navigation.source = transaction`, `ouo.navigation.from` = the previous screen of the same session from receiver state, when known. Not emitted when a `navigation` breadcrumb to the same screen within 5 s is already on the timeline (section 9b).
+
+- Mobile vitals (A4): the transaction's `measurements` (`app_start_cold`, `app_start_warm`, `time_to_initial_display`, `time_to_full_display`, `frames_*`, `stall_*`) also become `ouo.app.start`, `ouo.screen.display`, `app.jank` and `ouo.stall` records with the transaction's trace and root span id, as [mobile-vitals.md](mobile-vitals.md) section 6 defines. At most one `ouo.app.start` per session.
 
 Envelope header `trace.replay_id`, when present, feeds the `replay_id -> sid` map (section 8).
 
@@ -396,4 +400,5 @@ Done on 2026-10-14 for iOS; results in `project/reports/sentry-bridge-verificati
 3. **rum-api tests**: video chunk validation, storage, manifest, range request, cross-kind `409`.
 4. **End to end**: `sentrytap compare A B` must report every request byte-identical with identical responses; `examples/sentry-mobile/scripts/verify-bridge.py` derives sessions, errors, transactions and replays from the raw envelopes and checks rum-api, Loki, Tempo and every mp4 (sha256 and AVFoundation decode). A run with the fake Sentry stopped checks that the SDK retries and that ouo records each event once.
 5. **Real upstream** (N2, 2026-10-18, and again 2026-10-23 for the parity fixes): self-hosted Sentry 26.10 as the upstream, `examples/sentry-mobile` on the iOS Simulator with real taps; counts compared with Sentry's own (`project/kb/sentry-self-hosted.md`). The N2 capture is the golden fixture `ios-rn-8.30.0/selfhosted`; `ios-rn-8.30.0/journey` is also replayed with every replay item and replay id removed, for sessions without a replay.
-6. **Not done yet**: Android, other SDK versions, a quota-limited Sentry (real `429`).
+6. **SDK versions** (2026-10-23, N3): golden journeys of 7.11.0 and 8.32.0 next to 8.30.0, tested by `versions_test.go`; captured while `examples/sentry-mobile/scripts/verify.py` checked the same run end to end.
+7. **Not done yet**: Android, native sentry-cocoa without React Native, a quota-limited Sentry (real `429`).

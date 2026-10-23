@@ -6,11 +6,12 @@ import (
 	"strings"
 )
 
-// allowedHeaders must include traceparent, tracestate and baggage: browsers
-// strip any non-safelisted request header the preflight did not allow, which
-// would silently break trace correlation from the web demo.
+// allowedHeaders must include traceparent, tracestate and baggage (W3C, the
+// ouo SDKs) and sentry-trace (@sentry/* SDKs send it next to traceparent):
+// browsers strip any non-safelisted request header the preflight did not
+// allow, which would silently break trace correlation (checklist N24).
 const (
-	allowedHeaders = "content-type, traceparent, tracestate, baggage, x-user-id"
+	allowedHeaders = "content-type, traceparent, tracestate, baggage, sentry-trace, x-user-id"
 	allowedMethods = "GET, POST, OPTIONS"
 )
 

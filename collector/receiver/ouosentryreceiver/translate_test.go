@@ -86,6 +86,7 @@ type rec struct {
 	ts    time.Time
 	body  any
 	trace string
+	span  string
 }
 
 func (x *tx) records() []rec {
@@ -105,7 +106,7 @@ func (x *tx) records() []rec {
 					if lr.Body().Type() == pcommon.ValueTypeBytes {
 						body = lr.Body().Bytes().AsRaw()
 					}
-					out = append(out, rec{name: name, attrs: lr.Attributes().AsRaw(), ts: lr.Timestamp().AsTime(), body: body, trace: lr.TraceID().String()})
+					out = append(out, rec{name: name, attrs: lr.Attributes().AsRaw(), ts: lr.Timestamp().AsTime(), body: body, trace: lr.TraceID().String(), span: lr.SpanID().String()})
 				}
 			}
 		}

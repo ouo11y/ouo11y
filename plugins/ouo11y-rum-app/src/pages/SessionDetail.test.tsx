@@ -24,6 +24,7 @@ const api = {
   replayFrames: jest.fn(),
   replayEvents: jest.fn(),
   replayVideo: jest.fn(),
+  vitals: jest.fn(),
 };
 jest.mock('../api/client', () => ({
   ...jest.requireActual('../api/client'),
@@ -167,5 +168,55 @@ describe('SessionDetail', () => {
     expect(timelineError).toHaveTextContent('+4.3s');
     // The player's label is on the same clock: the replay starts 0.3 s into the session.
     expect(screen.getByTestId('frame-time')).toHaveTextContent('+0.3s');
+  });
+
+  it('shows no vitals row and asks for no vitals without vital records', async () => {
+    api.vitals.mockClear();
+    renderPage();
+    await screen.findByTestId('replay-activity');
+    expect(screen.queryByTestId('session-vitals')).toBeNull();
+    expect(api.vitals).not.toHaveBeenCalled();
+  });
+
+  it('shows the mobile vitals in the header and the activity list (mobile vitals spec section 8)', async () => {
+    const at = iso(frames.started_at + 1000);
+    api.session.mockResolvedValue({
+      ...detail,
+      app_start_ms: 3060.7,
+      app_start_type: 'cold',
+      timeline: [
+        ...detail.timeline,
+        {
+          ts: at,
+          type: 'vital',
+          name: 'ouo.app.start',
+          attrs: { ouo_app_start_type: 'cold', ouo_app_start_duration_ms: '3060.7' },
+        },
+        {
+          ts: at,
+          type: 'vital',
+          name: 'app.jank',
+          attrs: { app_jank_frame_count: '5', ouo_frames_total: '120', ouo_frames_slow: '4', ouo_frames_frozen: '1' },
+        },
+      ],
+    });
+    api.vitals.mockResolvedValue({
+      session_id: detail.session_id,
+      summary: {
+        app_start: { type: 'cold', duration_ms: 3060.7, rating: 'needs-improvement' },
+        frames: { total: 120, slow: 4, frozen: 1, slow_ratio: 0.0333 },
+      },
+      vitals: [],
+    });
+    renderPage();
+    const row = await screen.findByTestId('session-vitals');
+    expect(within(row).getByTestId('vital-app_start')).toHaveTextContent('Cold start 3.06 s');
+    expect(within(row).getByTestId('vital-app_start')).toHaveAttribute('data-rating', 'needs-improvement');
+    expect(within(row).getByTestId('vital-frames')).toHaveAttribute('data-rating', 'poor');
+    expect(within(row).queryByTestId('vital-ttid')).toBeNull();
+    expect(api.vitals).toHaveBeenCalledWith(detail.session_id, { from: 'now-7d', to: 'now' });
+    const list = screen.getByTestId('replay-activity');
+    expect(within(list).getByText('App start (cold) 3.06 s')).toBeInTheDocument();
+    expect(within(list).getByText('Janky frames 5 / 120 (1 frozen)')).toBeInTheDocument();
   });
 });

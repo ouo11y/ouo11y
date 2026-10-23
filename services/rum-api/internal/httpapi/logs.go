@@ -20,11 +20,12 @@ const (
 )
 
 // timelineOnly are session events that are not log lines: they are the
-// session's timeline (navigation, requests, lifecycle), not something an
-// engineer reads as a log.
+// session's timeline (navigation, requests, lifecycle, vitals), not something
+// an engineer reads as a log.
 var timelineOnly = map[string]bool{
 	"session.start": true, "session.end": true, "navigation": true, "http.request": true,
 	"http.request.failed": true, "web_vital": true, "app.lifecycle": true, "ui.tap": true, "breadcrumb": true,
+	session.VitalAppStart: true, session.VitalScreenDisplay: true, session.VitalJank: true, session.VitalStall: true,
 }
 
 var hexID = regexp.MustCompile(`^[0-9a-f]{1,32}$`)

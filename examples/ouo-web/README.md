@@ -1,4 +1,4 @@
-# web-store (ouo web demo)
+# ouo-web: the web path (`@ouo11y/browser`)
 
 React 18 + Vite + TypeScript storefront instrumented with the `@ouo11y/browser`
 RUM SDK. It exists to produce every kind of signal the MVP needs: sessions,
@@ -9,7 +9,56 @@ Pages: `/` product grid, `/products/:id`, `/cart`, `/checkout`, `/order/:id`,
 `/chaos` (fault buttons). A floating "chaos" button opens the same panel on
 every other page.
 
-## Run
+Path: `@ouo11y/browser` in the page → ouo collector (OTLP + replay) → Loki / Tempo / Mimir and
+rum-api, and `fetch` to `examples/backend` with `traceparent` and `baggage`, so browser and backend
+spans are one trace. On the web, clients use the ouo SDK only: there is no Sentry-web example (the
+bridge does not translate browser envelopes, `docs/specs/sentry-bridge.md`).
+
+## Five-minute run
+
+Needs Docker, Node 24 and Python 3. From the repository root, `npm ci` once.
+
+**Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
+packages are private for now: ask for read access, then log in once with a classic token that has
+only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
+examples/ouo-web/scripts/run.sh            # build, serve on :4173, journey, verify
+```
+
+**ouo-env (us).** The same released images in a named env, or the checkout's own build without `--images`:
+
+```bash
+deploy/envs/ouo-env up web-demo --images
+examples/ouo-web/scripts/run.sh --env web-demo
+deploy/envs/ouo-env down web-demo
+```
+
+`run.sh` builds the app against the stack (`.env` here, copied from `.env.example`, overrides the
+stock ports), serves it with `vite preview`, runs the scripted journey in headless Chromium
+(`scripts/journey.mjs`: two products into the cart, a card checkout, a third product and a
+`broken-card` checkout that the backend fails with 500) and then `scripts/verify.py`:
+
+- rum-api has the journey's session with its timeline, traces and the failed request;
+- trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
+  - every request the backend logged is a sampled trace in Tempo;
+  - no backend span has a missing parent;
+  - browser and backend spans share one trace id;
+  - backend spans carry the `session.id` from baggage;
+  - one backend span and one trace per request the page sent;
+  - CORS allows `traceparent`, `tracestate` and `baggage`;
+  - nothing in the window came through the Sentry bridge.
+
+Exit status 0 means every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
+the URL `ouo-env up` prints; admin / testing567), the ouo11y RUM app, and the session.
+
+CI runs the same journey and verify on every change to this example, the backend or the browser
+SDK (job `examples` in `.github/workflows/ci.yml`).
+
+## Develop
+
 
 From the repository root (npm workspaces; Node 24):
 

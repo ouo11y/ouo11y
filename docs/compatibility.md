@@ -48,6 +48,31 @@ upgrade note in [`operations/upgrade.md`](operations/upgrade.md), section 4).
 | collector Sentry bridge emits (video) | 1 | `collector/receiver/ouosentryreceiver/replay.go` |
 | iOS and React Native emit (frames) | 1 | `sdk/ios/Sources/OuoReplayCore/Models.swift` |
 
+## Sentry SDKs through the bridge
+
+Which Sentry SDK versions the `ouosentry` bridge (collector) is tested against
+([`specs/sentry-bridge.md`](specs/sentry-bridge.md), checklist N3). Each captured version has a golden
+journey in `collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-<version>/` and a row in
+`versions_test.go`: launch, navigation, network calls, a shop round, errors, 40 s background, native
+crash, relaunch, captured from `examples/sentry-mobile` on the iOS 27 simulator. Client setup:
+[`sentry-client-setup.md`](sentry-client-setup.md).
+
+| `@sentry/react-native` | sentry-cocoa | Status | Notes |
+|---|---|---|---|
+| 8.30.0 to 8.32.0 (current major; 8.30.0 and 8.32.0 captured) | 9.30.1, 9.31.0 | **supported** | Everything in the spec: sessions, errors and native crashes, transactions with `http.client` spans, backend traces with `propagateTraceparent`, video replay with touches, logs, breadcrumbs, mobile vitals (app start, TTID, frames, stalls) |
+| 7.11.0 (the Expo SDK 57 default) | 8.58.0 | **partial, upgrade to 8.x** | Sessions, errors, the native crash (`EXC_BREAKPOINT` instead of `EXC_BAD_ACCESS`), replay, logs and navigation are translated. Under Expo 57 (React Native 0.86) the SDK traces no `fetch`: no `http.client` spans, no `traceparent`, so no backend correlation and no failed-request records. It sends no app start, reports TTID in days (dropped) and stamps transactions hours in the past, so their spans fall outside their sessions. These are what the SDK sends; the bridge cannot repair them |
+| other 8.x | 9.x | expected to work | Same envelope format; capture a golden journey before relying on it |
+| 7.x other than 7.11.0, older majors | | untested | Only if a client runs one (founder decision 2026-10-17) |
+
+Not built yet (medium term, checklist N3 and B6): native `sentry-cocoa` apps without React Native,
+and `sentry-java` / `sentry-android` (no Android envelope or replay has been captured). Browser SDKs
+are out of scope: the bridge has no CORS and does not translate rrweb replays.
+
+A new SDK version is supported once its journey is captured (`examples/sentry-mobile/scripts/run.sh
+--full` with `collector/tools/sentrytap` between the app and the bridge), committed under
+`testdata/golden/ios-rn-<version>/journey`, given a row in `versions_test.go`, and the example's
+`verify` passes against it.
+
 ## Rules of thumb
 
 - Upgrade the collector and rum-api before the SDKs. An SDK one minor **behind** the collector

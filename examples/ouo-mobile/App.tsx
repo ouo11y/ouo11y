@@ -11,6 +11,7 @@ if (__DEV__ && process.env.EXPO_PUBLIC_QUIET_LOGBOX === "1") {
   LogBox.ignoreAllLogs(true);
 }
 import type { RootStackParamList } from "./src/navigation";
+import { navigationRef, startJourneyMailbox } from "./src/journey";
 import { appVersion, rum, shortId } from "./src/rum";
 import { CartScreen } from "./src/screens/CartScreen";
 import { ChaosScreen } from "./src/screens/ChaosScreen";
@@ -38,9 +39,11 @@ function SessionBadge() {
 }
 
 export default function App() {
+  // scripts/journey.sh drives the app through a command file (src/journey.ts).
+  useEffect(() => startJourneyMailbox(), []);
   return (
     <RUMProvider rum={rum}>
-      <NavigationContainer onReady={() => rum.trackNavigation("/Products")} onStateChange={onStateChange}>
+      <NavigationContainer ref={navigationRef} onReady={() => rum.trackNavigation("/Products")} onStateChange={onStateChange}>
         <Stack.Navigator screenOptions={{ headerRight: () => <SessionBadge /> }}>
           <Stack.Screen name="Products" component={ProductsScreen} options={{ title: "mobile-store" }} />
           <Stack.Screen name="Product" component={ProductScreen} />

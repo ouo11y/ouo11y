@@ -5,7 +5,7 @@ import { navigationStateListener, RUMProvider } from "@ouo11y/react-native";
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { listenForLinks } from "./src/deeplinks";
 import { startMailbox } from "./src/mailbox";
-import { navigationRef, type RootStackParamList } from "./src/navigation";
+import { navigationRef, setNavigationReady, type RootStackParamList } from "./src/navigation";
 import { markFirstFrame } from "./src/perf";
 import { CartScreen } from "./src/screens/CartScreen";
 import { HomeScreen } from "./src/screens/HomeScreen";
@@ -37,6 +37,7 @@ export default function App() {
           // React Navigation integration: one `navigation` transaction per screen change; a no-op
           // when Sentry was not initialised (`ouo` mode).
           navigationIntegration.registerNavigationContainer(navigationRef);
+          setNavigationReady();
           if (!unlisten.current) {
             const stopLinks = listenForLinks();
             const stopMailbox = startMailbox();

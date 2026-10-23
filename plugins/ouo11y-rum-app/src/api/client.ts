@@ -13,6 +13,7 @@ import type {
   TracesResponse,
   VideoManifest,
   VideoSegment,
+  VitalsResponse,
 } from './types';
 
 /** Shown whenever rum-api answers 401 (ADR-0007 section 6: the read token is missing or wrong). */
@@ -104,6 +105,8 @@ export const rumApi = {
   traces: (id: string) => rumGet<TracesResponse>(`/v1/sessions/${encodeURIComponent(id)}/traces`),
   logs: (id: string, params: Params = {}) =>
     rumGet<LogsResponse>(`/v1/sessions/${encodeURIComponent(id)}/logs`, params),
+  vitals: (id: string, params: Params = {}) =>
+    rumGet<VitalsResponse>(`/v1/sessions/${encodeURIComponent(id)}/vitals`, params),
   replayMeta: (id: string) => rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`),
   replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
   replayFrames: (id: string) => rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
