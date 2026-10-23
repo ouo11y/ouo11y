@@ -49,10 +49,18 @@ Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three 
   - the context line is the original `throw new Error`;
   - the raw minified stack is kept (`at $k (http://localhost:4273/assets/index-n7peY1ff.js:8:223609)`).
 - Cost, measured on the M-series Mac: parsing ouo-web's 1.07 MB map takes 7.9 ms, and a lookup takes 12 ns.
-- Not verified:
-  - In the same run, 10 checks that query Loki or Tempo directly, or the backend's request log, failed: vitals, dead / rage clicks, boundary error in Loki, screen names, LoAF, and backend trace continuity. The cause is an **ouo-env bug, not this change**. Two ephemeral envs were up (`web-sdk-delivery-3e2993` too). Every service joins the shared `ouo-proxy` network with its compose name as alias, so `loki`, `tempo`, `rum-api` and so on resolve to either env. My env's Loki had no labels at all while rum-api served the session from the other Loki. This was reported to the orchestrator, and the notes folder file `web-c-sourcemaps.md` has the fix idea. A clean full verify needs one ephemeral env at a time.
-  - For the same reason, the plugin on this env's Grafana showed a 404: its proxy reached the other env's rum-api. The stack view was verified by Jest only, not in a browser.
-  - The S3 path of the map store (`replay.Objects`) is covered by build and review only. No MinIO run was done, so run `go test` with `OUO_TEST_S3_ENDPOINT` before a release.
+- **Re-run with the ouo-env network fix (PR #65,** `envfix/deploy/envs/ouo-env up web-sourcemaps-fa863c --src <this worktree>`**):** `run.sh --env web-sourcemaps-fa863c --port 4273` passed **28/28** checks (Web Vitals, dead / rage clicks, boundary error, screen names, LoAF, the four source-map checks, interaction tracing, trace continuity). The first run's 10 failures came from the env collision that #65 fixes.
+  - The env had two ephemeral envs up (`web-sdk-delivery-3e2993` too), and every service joined the shared `ouo-proxy` network under its compose name. The first run therefore had Loki and Tempo split between the envs.
+- **Plugin in the browser** (env Grafana, session `439de7ee-a23f-48fb-91d6-b27dde5e388d`):
+  - the exception in the activity list shows `source mapped`, and Original opens on `at RenderBomb (src/components/ChaosPanel.tsx:18:20)` with source lines 15 to 21;
+  - React frames map to `node_modules/react-dom/cjs/react-dom.production.min.js`;
+  - Raw shows `at $k (http://localhost:4273/assets/index-n7peY1ff.js:8:223609)`.
+- **Session B's terser build** (`claude/web-sdk-safety-209ff7` at 5b6ef99, merged with this branch in a scratch worktree, nothing pushed):
+  - terser keeps the `globalThis.__ouoDebugIds` read, and the merged SDK suite passes (131 tests);
+  - terser writes `//# sourceMappingURL=` on the code's last line, which `inject` mishandled. Fixed with a trailing-comment parser, plus tests;
+  - **B's `dist/*.map` were stale.** tsup 8.5.1 only chains terser's map when `terserOptions.sourceMap` is set, so the shipped map was esbuild's pre-terser map (9,228 lines against a 1-line file) and mapped nothing. With `sourceMap: true` (reported to the orchestrator for B), rum-api maps a terser frame to `src/errors/classify.ts:60:16` `debugIdsByUrl`, by debug id and by release.
+  - The full ouo-web run built from that merged tree (B's terser SDK, `sourceMap: true`, this branch) against the env also passed **28/28**, with the render error at `ChaosPanel.tsx:18` `RenderBomb` and 10 of 10 frames mapped.
+- Not verified: the S3 path of the map store (`replay.Objects`) is covered by build and review only. No MinIO run was done, so run `go test` with `OUO_TEST_S3_ENDPOINT` before a release.
 
 ## Left (checklist N41)
 
@@ -65,4 +73,4 @@ Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three 
 ## Next agent must know
 
 - In this worktree, `npm` and `npx` fail with "Exit prior to config file resolving" because the main checkout's `package.json` has merge-conflict markers (not touched). Use `npm --prefix <worktree>` or shims (kb entry).
-- Env `web-sourcemaps-fa863c` (`http://grafana.web-sourcemaps-fa863c.ouo.localhost`, admin / testing567) was torn down (`ouo-env down`, volumes kept) after PR #64 was opened.
+- Env `web-sourcemaps-fa863c` (`http://grafana.web-sourcemaps-fa863c.ouo.localhost`, admin / testing567) was re-upped with #65's CLI for the re-run and torn down again after it (`ouo-env down`, volumes kept).
