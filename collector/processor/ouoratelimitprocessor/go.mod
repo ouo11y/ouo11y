@@ -10,6 +10,9 @@ require (
 	go.opentelemetry.io/collector/consumer v1.66.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.160.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
+	go.opentelemetry.io/collector/extension v1.66.0
+	go.opentelemetry.io/collector/extension/extensionmiddleware v0.160.0
+	go.opentelemetry.io/collector/extension/extensiontest v0.160.0
 	go.opentelemetry.io/collector/pdata v1.66.0
 	go.opentelemetry.io/collector/processor v1.66.0
 	go.opentelemetry.io/collector/processor/processorhelper v0.160.0
@@ -53,5 +56,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

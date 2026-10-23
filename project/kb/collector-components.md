@@ -155,3 +155,41 @@ too large"}`). Our replay receiver answers 413.
 ## CORS preflight: requested headers must be sorted (found 2026-10-13)
 
 The collector's CORS handler (rs/cors, via confighttp 0.160) only accepts an `Access-Control-Request-Headers` value in the form browsers send it: lowercase, sorted, comma separated without spaces. `authorization,content-type` passes; `content-type,authorization` is rejected with a 204 that carries no `Access-Control-Allow-Origin`. Real browsers are unaffected. Hand-written curl preflights in scripts and docs must list the headers sorted, or they report a CORS failure that does not exist. The replay port (4319) does not allow `traceparent` or `baggage`; the replay uploaders never send them.
+
+## Empty OTLP exports, receiver middlewares and auth failures (N13, 2026-10-23)
+
+- **The OTLP receiver never calls the pipeline for an empty export.** `otlpreceiver` 0.160
+  (`internal/{trace,logs,metrics}/otlp.go`) answers a request with zero spans / log records /
+  data points `200` before `ConsumeX`, so no processor sees it: `{"resourceSpans":[]}` or an
+  empty protobuf body was free of `ouoratelimit` (a rate-limit test that sends empty batches
+  sees only 200s, `project/kb/upgrade-rehearsal.md`).
+- **Receiver middlewares run after authentication.** confighttp 0.160 wraps the handler as
+  `clientInfo -> otelhttp -> CORS -> auth -> body limit -> decompression -> middlewares ->
+  receiver`; configgrpc appends middleware `ServerOption`s after the client-info and auth
+  interceptors (a second `grpc.ChainUnaryInterceptor` is appended to the chain). So a
+  middleware extension (`extensionmiddleware.HTTPServer` / `GRPCServer`, configured as
+  `middlewares: [{id: ...}]` on the protocol) sees `auth.username` and can answer 429 for
+  every request. That is the `ouoratelimit` extension; it marks the request context, and the
+  processor skips marked requests (`ctx` flows from the HTTP request into `ConsumeX`, batch
+  comes later), so one request still costs one token. CORS preflights never reach it.
+- **401s happen before any receiver code.** confighttp calls the authenticator and writes 401
+  through the receiver's error handler; nothing in the receiver or pipelines runs, and the
+  `http.server.*` metrics that would show the status code are dropped below
+  `telemetry.metrics.level: detailed`. A wrapping authenticator (`ouoauth`: an
+  `extensionauth.Server` that resolves the real one from `host.GetExtensions()` in `Start` and
+  counts its errors) is the cheap way to count them. Extensions are all created before any is
+  started and receivers start after all extensions, so resolving the target in `Start` is safe.
+  basicauth's errors (`extension/internal/basicauth`): `no basic auth provided`,
+  `invalid authorization scheme prefix`, `invalid authorization format`, `invalid credentials`
+  (wrong token and unknown project are the same error).
+- **ocb and two components from one module.** ocb calls `NewFactory()` on each entry's
+  `import` path, so a second component of a module lives in a sub-package and is listed with
+  the same `gomod` plus `import:`. The repeated `require` line in the generated go.mod is fine.
+- **ocb builds from module tags (verified locally, nothing pushed).** Tags
+  `collector/<kind>/<name>/vX.Y.Z` on a bare clone, `GIT_CONFIG_GLOBAL` with
+  `url."file://<clone>".insteadOf https://github.com/ouo11y/ouo11y`, `GOPRIVATE=github.com/ouo11y`,
+  `GOPROXY=file://$HOME/go/pkg/mod/cache/download,https://proxy.golang.org,direct` (reuses the
+  module cache), and a `builder.yaml` with the tag versions and no `replaces`: ocb resolved and
+  built all five modules. The in-repo build keeps `v0.0.0` + `replaces` anyway: a commit must
+  build its own component sources (a tag exists only after the release), and the private repo
+  is not on the module proxy (`collector/README.md`).

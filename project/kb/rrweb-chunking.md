@@ -28,7 +28,8 @@ compressed chunks (ADR-0003), and what sizes come out?
 - Upload (`uploader.ts`): `JSON.stringify(chunk)` ->
   `new Response(bytes).body.pipeThrough(new CompressionStream("gzip"))` -> `POST
   ${replayEndpoint}/v1/replay/chunks` with `content-type: application/json`,
-  `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`, `keepalive: true` when the
+  `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`, `authorization: Basic
+  base64(<project id>:<project token>)` (since Phase 8a), `keepalive: true` when the
   body is under 48 KB. Uses `fetch.__original` so the OTel fetch instrumentation does not
   trace uploads (the URL is also in `ignoreUrls`). Sequential queue, 3 attempts with
   1 s / 2 s backoff, then the chunk is dropped; buffered + queued bytes capped at 2 MB
@@ -61,9 +62,14 @@ the 256 KB early-flush bound exists.
 
 ## Gotchas
 
-- rum-api must answer CORS preflights for `content-type, content-encoding,
-  x-ouo-session-id, x-ouo-seq` with `POST` from the web origin, and must accept both gzip
-  and plain bodies (`content-encoding` header tells which).
+- Since Phase 8a (ADR-0007) the SDK uploads to the collector's `ouoreplay` receiver
+  (port 4319), not to rum-api: the receiver checks the Basic credential, answers the CORS
+  preflight (`authorization, content-encoding, content-type, x-ouo-seq, x-ouo-session-id`
+  with `POST`, global `OUO_ALLOWED_ORIGINS`), accepts gzip and plain bodies
+  (`content-encoding` tells which) and hands the chunk to the `ouoreplay` exporter, which
+  posts it to rum-api's internal sink with the ingest token. rum-api only stores and serves
+  replays; it has no CORS and no public ingest. The measurements above were taken in
+  Phase 2 against a stub.
 - Chunk `started_at` / `ended_at` are Unix epoch **milliseconds** (same unit as rrweb
   event `timestamp`); `ouo.session.started_at` on events is too.
 - Several tabs of one session each record their own stream and interleave seq numbers;

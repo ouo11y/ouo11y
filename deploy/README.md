@@ -105,7 +105,7 @@ In-cluster addresses never change (`otel-collector:4318` / `4319`, `loki:3100`,
 |---|---|---|---|
 | `OUO_INGEST_TOKEN` | `it_dev_0000000000000000` | otel-collector, rum-api | **secret** bearer the collector's replay exporter sends to rum-api's `POST /v1/replay/chunks`; same value on both sides |
 | `OUO_READ_TOKEN` | `rt_dev_0000000000000000` | rum-api, Grafana | **secret** read token; Grafana gets it as `secureJsonData.readToken` through provisioning |
-| `OUO_BACKEND_OTLP_HEADERS` | `Authorization=Basic%20ZGVtbzpw...` (demo) | backend, rum-api | `OTEL_EXPORTER_OTLP_HEADERS` the in-compose services use for their own telemetry (`%20` = space) |
+| `OUO_BACKEND_OTLP_HEADERS` | `Authorization=Basic%20aW50ZXJu...` (`internal`) | backend, rum-api | `OTEL_EXPORTER_OTLP_HEADERS` the in-compose services use for their own telemetry (`%20` = space) |
 | `OUO_PROJECT_ID`, `OUO_PROJECT_TOKEN` | `demo`, `pt_dev_demo_0000000000000000` | scripts only | which project `smoke.sh` / `e2e.sh` send as; must match a line in `collector/projects.htpasswd`. Compose does not read them |
 | `OUO_*_PORT` | see table above | compose, scripts | host ports (`OUO_REPLAY_PORT` is new in 8a) |
 
@@ -150,6 +150,8 @@ host may also use the loopback gRPC port `localhost:4317`.
 deploy/scripts/wait-ready.sh   # /ready of every service, collector health + both public ports, rum-api /readyz
 deploy/scripts/smoke.sh        # edge rules + 1 trace, 1 log, 1 metric, 1 replay chunk round trip through the collector
 deploy/scripts/e2e.sh          # synthetic session matrix (tests/e2e/scenario.mjs) + rum-api / Grafana assertions
+deploy/scripts/qa-edge.sh <env> # edge QA on an ouo-env env (tests/e2e/edge-qa.mjs): 401 counter, rate limits incl. empty
+                               # exports and X-Forwarded-For, stock OTel SDK, browser CORS, plugin Viewer, RN background end
 ```
 
 `smoke.sh` sends OTLP/JSON to the collector's `/v1/{traces,logs,metrics}` with the Basic
@@ -346,7 +348,9 @@ Kubernetes: `deploy/helm/README.md`.
   until the backends are up, Grafana tolerates datasources that are not ready yet.
 - Every OTLP client needs the Basic credential, in-network services included: the
   `backend` and `rum-api` services carry `OTEL_EXPORTER_OTLP_HEADERS` (from
-  `OUO_BACKEND_OTLP_HEADERS`), so their own telemetry is stamped with the demo project.
+  `OUO_BACKEND_OTLP_HEADERS`), so their own telemetry is stamped with the `internal`
+  project: its own rate-limit buckets, never a client project's quota. On a VM install
+  the installer sets it to the generated project's credential instead.
 - Tempo 3.x logs `no jobs found` errors from its backend scheduler every few seconds
   in single-binary mode; harmless.
 - Loki, Tempo, Mimir and rum-api are still published on `0.0.0.0` in the laptop stack so

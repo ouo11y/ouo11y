@@ -1,0 +1,364 @@
+{
+  "run": "mvl1h8m6",
+  "profile": "default",
+  "at": "2026-10-23T14:04:38.043Z",
+  "otlp": "http://localhost:20100",
+  "results": [
+    {
+      "check": "auth_failures",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "missing -> 401",
+          "ok": true,
+          "detail": "401 {\"code\":16, \"message\":\"no basic auth provided\"}"
+        },
+        {
+          "name": "malformed -> 401",
+          "ok": true,
+          "detail": "401 {\"code\":16, \"message\":\"invalid authorization scheme prefix\"}"
+        },
+        {
+          "name": "wrong_token -> 401",
+          "ok": true,
+          "detail": "401 {\"code\":16, \"message\":\"invalid credentials\"}"
+        },
+        {
+          "name": "unknown_project -> 401",
+          "ok": true,
+          "detail": "401 {\"code\":16, \"message\":\"invalid credentials\"}"
+        },
+        {
+          "name": "replay_missing -> 401",
+          "ok": true,
+          "detail": "401 {\"error\":\"no basic auth provided\"}\n"
+        },
+        {
+          "name": "ouo_auth_failures_total in Mimir grew by reason (missing >= 2, malformed >= 1, invalid_credentials >= 2)",
+          "ok": true,
+          "detail": {
+            "invalid_credentials": 2,
+            "malformed": 1,
+            "missing": 2
+          }
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "before": {
+          "malformed": 3,
+          "invalid_credentials": 11,
+          "missing": 17
+        },
+        "delta": {
+          "invalid_credentials": 2,
+          "malformed": 1,
+          "missing": 2
+        }
+      },
+      "started": "2026-10-23T14:02:16.158Z",
+      "seconds": 10.3,
+      "ok": true
+    },
+    {
+      "check": "empty_ratelimit",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "350 empty JSON exports (client burst 300): some answered 429",
+          "ok": true,
+          "detail": {
+            "200": 314,
+            "429": 36
+          }
+        },
+        {
+          "name": "no other status than 200 / 429",
+          "ok": true,
+          "detail": {
+            "200": 314,
+            "429": 36
+          }
+        },
+        {
+          "name": "429 carries Retry-After >= 1",
+          "ok": true,
+          "detail": "1"
+        },
+        {
+          "name": "429 body is an OTLP Status (JSON, code 8 RESOURCE_EXHAUSTED)",
+          "ok": true,
+          "detail": "{\"code\":8, \"message\":\"rate limit exceeded for client \\\"178.128.69.202\\\", retry after 1s\", \"details\":[{\"@type\":\"type.goog"
+        },
+        {
+          "name": "empty protobuf export on the empty bucket -> 429 (protobuf Status)",
+          "ok": true,
+          "detail": "429 application/x-protobuf"
+        },
+        {
+          "name": "after the refill an empty export is 200 again",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "ouo_ratelimit_rejected_total{key_kind=client} grew by >= 37 in Mimir",
+          "ok": true,
+          "detail": {
+            "project": 0,
+            "client": 37
+          }
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "empty_json_burst": {
+          "sent": 350,
+          "statuses": {
+            "200": 314,
+            "429": 36
+          }
+        },
+        "rejected_delta": {
+          "project": 0,
+          "client": 37
+        }
+      },
+      "started": "2026-10-23T14:02:26.429Z",
+      "seconds": 14.3,
+      "ok": true
+    },
+    {
+      "check": "otel_sdk",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "stock OTel JS SDK with OTEL_EXPORTER_OTLP_HEADERS exports (exit 0)",
+          "ok": true,
+          "detail": "{\"run_id\":\"stock-mvl1h8m6\",\"trace_id\":\"95a3afc8b8dce9cc794604a8cd4fee19\"}"
+        },
+        {
+          "name": "same SDK with a wrong token fails the export (401)",
+          "ok": true,
+          "detail": "OTLPExporterError: Unauthorized"
+        },
+        {
+          "name": "its span is in Tempo",
+          "ok": true,
+          "detail": 1
+        },
+        {
+          "name": "resource ouo.project.id = demo (the SDK's spoofed value overwritten)",
+          "ok": true,
+          "detail": [
+            "demo"
+          ]
+        },
+        {
+          "name": "demo backend (stock Go SDK, env headers) spans after the call carry ouo.project.id = internal",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "rum-api's own spans carry ouo.project.id = internal",
+          "ok": true,
+          "detail": [
+            "internal"
+          ]
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "stock_sdk_resource": {
+          "deployment.environment.name": "qa",
+          "ouo.project.id": "demo",
+          "service.name": "qa-stock-sdk"
+        },
+        "backend_call": 200
+      },
+      "started": "2026-10-23T14:02:40.700Z",
+      "seconds": 64,
+      "ok": true
+    },
+    {
+      "check": "cors_browser",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "Chromium 156.0.8078.4 from http://localhost:53707: POST with Authorization succeeds (200)",
+          "ok": true,
+          "detail": {
+            "ok": true,
+            "status": 200
+          }
+        },
+        {
+          "name": "the allowed origin's span is in Tempo",
+          "ok": true
+        },
+        {
+          "name": "from foreign http://qa-foreign.localhost:53707: fetch rejected by CORS (TypeError)",
+          "ok": true,
+          "detail": {
+            "ok": false,
+            "error": "TypeError: Failed to fetch"
+          }
+        },
+        {
+          "name": "Chromium blames the preflight: no Access-Control-Allow-Origin header",
+          "ok": true,
+          "detail": "Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+        },
+        {
+          "name": "nothing from the foreign origin reached Tempo (the POST never left the browser)",
+          "ok": true,
+          "detail": 0
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "allowed": {
+          "origin": "http://localhost:53707",
+          "outcome": {
+            "ok": true,
+            "status": 200
+          },
+          "console": [],
+          "browser": "156.0.8078.4"
+        },
+        "foreign": {
+          "origin": "http://qa-foreign.localhost:53707",
+          "outcome": {
+            "ok": false,
+            "error": "TypeError: Failed to fetch"
+          },
+          "console": [
+            "Access to fetch at 'http://localhost:20100/v1/traces' from origin 'http://qa-foreign.localhost:53707' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+            "Failed to load resource: net::ERR_FAILED"
+          ],
+          "browser": "156.0.8078.4"
+        }
+      },
+      "started": "2026-10-23T14:03:44.699Z",
+      "seconds": 44,
+      "ok": true
+    },
+    {
+      "check": "viewer",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "Grafana user created (org role Viewer by default)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "its org role is Viewer",
+          "ok": true,
+          "detail": "Viewer"
+        },
+        {
+          "name": "Viewer opens /a/ouo11y-rum-app/overview (200)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "Viewer opens /a/ouo11y-rum-app/sessions (200)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "Viewer reads /v1/stats/health through the plugin proxy (200)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "Viewer reads /v1/sessions through the plugin proxy (200)",
+          "ok": true,
+          "detail": 200
+        },
+        {
+          "name": "Viewer sees the settings without the read token (secureJsonData absent)",
+          "ok": true,
+          "detail": [
+            "readToken"
+          ]
+        },
+        {
+          "name": "Viewer cannot change the plugin settings (403)",
+          "ok": true,
+          "detail": 403
+        },
+        {
+          "name": "Viewer cannot open the Configuration page (302 away)",
+          "ok": true,
+          "detail": 302
+        }
+      ],
+      "findings": [
+        {
+          "id": "V1",
+          "name": "Viewer can DELETE a replay through the plugin proxy (route `rum/*`, method `*`, reqRole Viewer)",
+          "observed": "DELETE -> 204"
+        }
+      ],
+      "observed": {
+        "delete_target": {
+          "session": "qa-viewer-delete-mvl1h8m6",
+          "chunk": 202,
+          "stored": true
+        }
+      },
+      "started": "2026-10-23T14:04:28.670Z",
+      "seconds": 1.6,
+      "ok": true
+    },
+    {
+      "check": "background",
+      "profile": "default",
+      "assertions": [
+        {
+          "name": "RN SDK live test passed (vitest exit 0)",
+          "ok": true
+        },
+        {
+          "name": "rum-api: the first session ended with end_reason background, state ended, status healthy",
+          "ok": true,
+          "detail": {
+            "service": "qa-rn-background-mvl1k6eq",
+            "first": "e791a1da-7a5b-41de-8f92-c34320a9bcac",
+            "second": "23cf1ffb-72a7-417d-ad96-81999a4aec5b",
+            "http": 200,
+            "end_reason": "background",
+            "state": "ended",
+            "status": "healthy",
+            "ended_at": "2026-10-23T14:04:34.776Z"
+          }
+        },
+        {
+          "name": "the SDK started a new session after the foreground",
+          "ok": true,
+          "detail": {
+            "first": "e791a1da-7a5b-41de-8f92-c34320a9bcac",
+            "second": "23cf1ffb-72a7-417d-ad96-81999a4aec5b"
+          }
+        }
+      ],
+      "findings": [],
+      "observed": {
+        "session": {
+          "service": "qa-rn-background-mvl1k6eq",
+          "first": "e791a1da-7a5b-41de-8f92-c34320a9bcac",
+          "second": "23cf1ffb-72a7-417d-ad96-81999a4aec5b",
+          "http": 200,
+          "end_reason": "background",
+          "state": "ended",
+          "status": "healthy",
+          "ended_at": "2026-10-23T14:04:34.776Z"
+        }
+      },
+      "started": "2026-10-23T14:04:30.310Z",
+      "seconds": 7.7,
+      "ok": true
+    }
+  ]
+}

@@ -8,4 +8,10 @@
 // upstream accepted are then translated, off the request path, into ouo
 // telemetry: logs and traces for the normal pipelines, replay chunks for the
 // replay pipeline.
+//
+// Session resolution keeps its state in memory (sessionState, the replay and
+// log hold queues), so the receiver must run as exactly one replica: with two,
+// each sees part of every device's envelopes and items lose their session,
+// replay segments are dropped as unresolved and error counts are inflated.
+// Operator guide: docs/sentry-bridge-deployment.md (checklist N4).
 package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"

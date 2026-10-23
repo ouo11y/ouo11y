@@ -112,3 +112,41 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
 - The web SDK's inactivity rotation currently emits two `session.start` records (see
   `project/agents/qa/reports/phase-6-bugs.html`); health totals for `web-store` include phantom sessions
   until that is fixed.
+
+## Edge QA checks (`tests/e2e/edge-qa.mjs`, N15, 2026-10-23)
+
+`deploy/scripts/qa-edge.sh [<env>] [--out-dir <dir>]` runs the checks that had only been
+unit-tested or reasoned about, against an `ouo-env` env: profile `default` (auth-failure
+counter, empty exports charged, stock OTel SDK with `OTEL_EXPORTER_OTLP_HEADERS`, foreign-origin
+CORS in headless Chromium, plugin as a Grafana Viewer, RN `background` end reason), then it
+recreates the collector with `OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for` and small buckets
+(`OUO_RATELIMIT_{PROJECT,CLIENT}_{RATE,BURST}`, passed through by `ouo-env up` because it hands
+its environment to compose), runs profile `limits` (X-Forwarded-For keying, project bucket),
+and restores the stock collector on exit. About 6 minutes, mostly Mimir's 15 s self-metric push.
+
+- **Playwright never sees the CORS preflight.** Chromium runs it internally: no `response`
+  event with method `OPTIONS`. The verdict is on the console (`... blocked by CORS policy:
+  Response to preflight request doesn't pass access control check: No
+  'Access-Control-Allow-Origin' header ...`); `page.on("console")` is the evidence. Any
+  `http://<name>.localhost:<port>` is a foreign origin for the dev CORS list (`*.localhost`
+  resolves to loopback in Chromium) and needs no hosts entry. Playwright 1.64.1 in headless
+  mode uses the cached `chromium_headless_shell-1248`; `tests/e2e` has its own `package.json`
+  (not a workspace) so the root install stays without Playwright.
+- **Traefik (the ouo-env proxy) replaces a client's X-Forwarded-For.** Through
+  `otlp.<env>.ouo.localhost`, requests spoofing a different header each share one client
+  bucket, named after the address Traefik saw (`172.x.0.1`). Direct to the published port, the
+  header is taken as is, which is why `key_from: x_forwarded_for` is only for deployments
+  where a proxy that overwrites the header is the only way in.
+- **The RN `background` end reason without a device:** `tests/e2e/rn-background` runs the SDK's
+  own source under Vitest with the unit tests' `react-native` / AsyncStorage / Expo stand-ins,
+  `backgroundTimeoutMs: 1500`, `AppState.__emit("background")`, waits, `__emit("active")`, and
+  exports to the env's real collector (jsdom keeps Node's fetch, no CORS). Only the OS
+  transition is simulated; rum-api reports `end_reason background`, `state ended`.
+- **Stock OTel JS SDK in Node from the repo's node_modules** (`tests/e2e/otel-sdk/stock-node.mjs`):
+  `new OTLPTraceExporter()` with no options reads `OTEL_EXPORTER_OTLP_ENDPOINT` and
+  `OTEL_EXPORTER_OTLP_HEADERS` (`%20` decoded); a wrong credential surfaces as
+  `OTLPExporterError: Unauthorized` with code 401.
+- A Grafana user created through `/api/admin/users` gets the org role Viewer. The plugin route
+  `rum/*` has `method: "*"` and `reqRole: Viewer`, so a Viewer can `DELETE` a replay through
+  `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay` (finding V1, 2026-10-23); the
+  check records it as a finding until the route is split.

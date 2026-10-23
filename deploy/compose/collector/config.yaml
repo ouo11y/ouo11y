@@ -14,6 +14,8 @@
 #   OUO_ALLOWED_ORIGINS  optional comma-separated CORS origin list, no spaces
 #                        (default http://localhost:*,http://127.0.0.1:*)
 #   OUO_RATELIMIT_CLIENT_KEY  address (default) or x_forwarded_for behind a reverse proxy
+#   OUO_RATELIMIT_{PROJECT,CLIENT}_{RATE,BURST}  bucket sizes (defaults 1000/5000 and 100/300;
+#                        deploy/scripts/qa-edge.sh lowers them to test the buckets)
 #   OUO_SENTRY_UPSTREAM  Sentry ingest base URL the bridge forwards to (https://oNNN.ingest.sentry.io),
 #                        or "none" to answer locally (default none: no data leaves the laptop)
 #   OUO_SENTRY_PROJECT_ID, OUO_SENTRY_PUBLIC_KEY  the DSN's project id and public key
@@ -28,6 +30,16 @@ extensions:
   basicauth/server:
     htpasswd:
       file: /etc/otelcol/projects.htpasswd
+  # Receivers authenticate through ouoauth, which delegates to basicauth/server and
+  # counts every rejected request (401) as ouo_auth_failures_total{reason} in Mimir.
+  ouoauth:
+    authenticator: basicauth/server
+  # Receiver middleware sharing the ouoratelimit processor's buckets: the OTLP receiver
+  # answers an empty export (no spans / records / points) 200 without calling the
+  # pipeline, so only a middleware can charge it. Requests it charged are not charged
+  # again by the processor; other receivers (replay, Sentry) are charged by the processor.
+  ouoratelimit:
+    processor: ouoratelimit
 
 receivers:
   otlp:
@@ -36,14 +48,18 @@ receivers:
         endpoint: 0.0.0.0:4317
         include_metadata: true
         auth:
-          authenticator: basicauth/server
+          authenticator: ouoauth
+        middlewares:
+          - id: ouoratelimit
       http:
         # 0.0.0.0 inside the container; exposure is decided by the compose port binding.
         endpoint: 0.0.0.0:4318
         include_metadata: true
         max_request_body_size: 4194304   # 4 MiB, applied to the compressed and the decompressed body
         auth:
-          authenticator: basicauth/server
+          authenticator: ouoauth
+        middlewares:
+          - id: ouoratelimit
         cors:
           allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
           allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
@@ -54,7 +70,7 @@ receivers:
     include_metadata: true
     max_request_body_size: 8388608       # 8 MiB: frames chunks (rrweb chunks stop at max_rrweb_chunk_bytes, 4 MiB)
     auth:
-      authenticator: basicauth/server
+      authenticator: ouoauth
     cors:
       allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
       allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
@@ -96,11 +112,11 @@ processors:
   # client bucket on the first X-Forwarded-For hop instead of the address.
   ouoratelimit:
     project:
-      rate: 1000
-      burst: 5000
+      rate: ${env:OUO_RATELIMIT_PROJECT_RATE:-1000}
+      burst: ${env:OUO_RATELIMIT_PROJECT_BURST:-5000}
     client:
-      rate: 100
-      burst: 300
+      rate: ${env:OUO_RATELIMIT_CLIENT_RATE:-100}
+      burst: ${env:OUO_RATELIMIT_CLIENT_BURST:-300}
       key_from: ${env:OUO_RATELIMIT_CLIENT_KEY:-address}
     idle_timeout: 10m
   # Stamp the authenticated project on every resource, overwriting whatever the client
@@ -158,12 +174,12 @@ exporters:
     verbosity: basic
 
 service:
-  extensions: [health_check, basicauth/server]
+  extensions: [health_check, basicauth/server, ouoauth, ouoratelimit]
   telemetry:
     logs:
       level: info
     # Self-metrics (otelcol_receiver_*, otelcol_exporter_*, ouo_ratelimit_rejected_total,
-    # ouo_replay_chunks_total): pushed to Mimir over OTLP every 15 s, and pullable on :8888
+    # ouo_auth_failures_total, ouo_replay_chunks_total): pushed to Mimir over OTLP every 15 s, and pullable on :8888
     # inside the network for debugging.
     metrics:
       level: normal

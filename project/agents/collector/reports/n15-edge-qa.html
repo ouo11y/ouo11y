@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N15 edge QA</title>
+<style>
+:root { --bg:#fbfbfa; --fg:#1d1d1b; --muted:#66655f; --card:#ffffff; --line:#e4e2dc; --ok:#1f7a4a; --okbg:#e5f3ea; --bad:#b3261e; --badbg:#fbe7e5; --find:#8a5a00; --findbg:#fbf0d9; --code:#f1efe9; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecebe6; --muted:#a3a29b; --card:#1f1f1c; --line:#33322e; --ok:#6fcf97; --okbg:#173325; --bad:#ff8a80; --badbg:#3a1a17; --find:#f2c25b; --findbg:#3a2e12; --code:#2a2a26; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width:980px; margin:0 auto; padding:32px 16px 64px; }
+h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:19px; margin:36px 0 12px; } h3 { font-size:16px; margin:0; }
+p { margin:8px 0; } code { background:var(--code); padding:1px 5px; border-radius:4px; font-size:13px; }
+.sub { color:var(--muted); }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:20px 0; }
+.kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+.kpi b { display:block; font-size:24px; } .kpi span { color:var(--muted); font-size:13px; }
+.check { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin:12px 0; }
+.check header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.meta { color:var(--muted); font-size:13px; }
+.tag { border:1px solid var(--line); border-radius:999px; padding:0 8px; margin-right:6px; }
+.pill { border-radius:999px; padding:2px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
+.pill.ok { background:var(--okbg); color:var(--ok); } .pill.bad { background:var(--badbg); color:var(--bad); }
+ul { list-style:none; padding:0; margin:10px 0 0; }
+li { padding:6px 0; border-top:1px solid var(--line); }
+.mark { display:inline-block; min-width:62px; font-size:12px; font-weight:600; }
+li.ok .mark { color:var(--ok); } li.bad .mark { color:var(--bad); } li.find .mark { color:var(--find); }
+li.find { background:var(--findbg); border-radius:6px; padding:6px 8px; }
+.detail { color:var(--muted); font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; margin:2px 0 0 66px; overflow-wrap:anywhere; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+th, td { text-align:left; padding:8px 10px; border-top:1px solid var(--line); vertical-align:top; font-size:14px; }
+th { border-top:none; color:var(--muted); font-weight:600; }
+.wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+<h1>Edge QA: checks that had never run live</h1>
+<p class="sub">Checklist N15 (and N13's collector changes), branch <code>claude/n13-collector-qa</code>, env <code>n13-collector-qa</code>, 2026-10-23. Generated from <code>n15-runs/edge-qa-default.json</code> and <code>edge-qa-limits.json</code>.</p>
+
+<div class="kpis">
+  <div class="kpi"><b>8/8</b><span>checks passed</span></div>
+  <div class="kpi"><b>46</b><span>assertions</span></div>
+  <div class="kpi"><b>1</b><span>finding(s) for other owners</span></div>
+  <div class="kpi"><b>2</b><span>collector profiles (stock, small buckets + XFF)</span></div>
+</div>
+
+<h2>How it ran</h2>
+<p><code>deploy/scripts/qa-edge.sh n13-collector-qa --out-dir project/agents/collector/reports/n15-runs</code> runs <code>tests/e2e/edge-qa.mjs</code> twice: profile <code>default</code> on the env as built from this branch, then it recreates the collector with <code>OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for</code> and small buckets (project 1/s burst 40, client 1/s burst 10), runs profile <code>limits</code>, and restores the stock collector on exit. Requests go to the env's published collector ports (OTLP http://localhost:20100), the proxy leg of <code>xff</code> through the env's Traefik host. Mimir is read for the self-metrics (pushed every 15 s), Tempo for the spans, rum-api with the read token.</p>
+<p>Not covered: the <code>background</code> check runs the React Native SDK's code under Vitest with the unit tests' <code>react-native</code> stand-ins (the AppState transition is simulated; ingest, Loki and rum-api are real). The iPhone and the simulators were in use by the benchmark session. "Quota" in N15 is the per-project token bucket: per-project quotas beyond it are a later phase (ADR-0007).</p>
+
+<h2>Findings</h2>
+<div class="wrap"><table><tr><th>Id</th><th>What</th><th>Observed</th></tr><tr><td>V1</td><td>Viewer can DELETE a replay through the plugin proxy (route `rum/*`, method `*`, reqRole Viewer)</td><td>DELETE -&gt; 204</td></tr></table></div>
+<p>V1: the plugin's only route, <code>rum/*</code>, has <code>method: "*"</code> and <code>reqRole: Viewer</code>, so any Viewer can call rum-api's <code>DELETE /v1/sessions/{id}/replay</code> with the read token Grafana injects. The plugin UI has no delete button, but the proxy accepts the call. Fix (grafana-plugin, <code>plugins/ouo11y-rum-app/src/plugin.json</code>): a <code>GET</code> route for Viewer and a <code>DELETE</code> route for Editor or Admin. The check records it as a finding until then.</p>
+
+<h2>Checks</h2>
+
+<section class="check">
+  <header><h3>Auth failures counted in Mimir</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N13</span> profile <code>default</code> &middot; 10.3 s &middot; check <code>auth_failures</code></p>
+  <p>401s from basicauth were invisible (R2-3). The new <code>ouoauth</code> extension wraps <code>basicauth/server</code> and counts every rejection as <code>ouo_auth_failures_total{reason}</code>.</p>
+  <ul><li class="ok"><span class="mark">pass</span> missing -&gt; 401<div class="detail">401 {&quot;code&quot;:16, &quot;message&quot;:&quot;no basic auth provided&quot;}</div></li><li class="ok"><span class="mark">pass</span> malformed -&gt; 401<div class="detail">401 {&quot;code&quot;:16, &quot;message&quot;:&quot;invalid authorization scheme prefix&quot;}</div></li><li class="ok"><span class="mark">pass</span> wrong_token -&gt; 401<div class="detail">401 {&quot;code&quot;:16, &quot;message&quot;:&quot;invalid credentials&quot;}</div></li><li class="ok"><span class="mark">pass</span> unknown_project -&gt; 401<div class="detail">401 {&quot;code&quot;:16, &quot;message&quot;:&quot;invalid credentials&quot;}</div></li><li class="ok"><span class="mark">pass</span> replay_missing -&gt; 401<div class="detail">401 {&quot;error&quot;:&quot;no basic auth provided&quot;}
+</div></li><li class="ok"><span class="mark">pass</span> ouo_auth_failures_total in Mimir grew by reason (missing &gt;= 2, malformed &gt;= 1, invalid_credentials &gt;= 2)<div class="detail">{&quot;invalid_credentials&quot;: 2, &quot;malformed&quot;: 1, &quot;missing&quot;: 2}</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>Empty OTLP exports are rate limited</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N13</span> profile <code>default</code> &middot; 14.3 s &middot; check <code>empty_ratelimit</code></p>
+  <p>The OTLP receiver answers an empty export 200 without calling the pipeline, so the processor never saw it. The <code>ouoratelimit</code> extension (receiver middleware) now charges every request.</p>
+  <ul><li class="ok"><span class="mark">pass</span> 350 empty JSON exports (client burst 300): some answered 429<div class="detail">{&quot;200&quot;: 314, &quot;429&quot;: 36}</div></li><li class="ok"><span class="mark">pass</span> no other status than 200 / 429<div class="detail">{&quot;200&quot;: 314, &quot;429&quot;: 36}</div></li><li class="ok"><span class="mark">pass</span> 429 carries Retry-After &gt;= 1<div class="detail">1</div></li><li class="ok"><span class="mark">pass</span> 429 body is an OTLP Status (JSON, code 8 RESOURCE_EXHAUSTED)<div class="detail">{&quot;code&quot;:8, &quot;message&quot;:&quot;rate limit exceeded for client \&quot;178.128.69.202\&quot;, retry after 1s&quot;, &quot;details&quot;:[{&quot;@type&quot;:&quot;type.goog</div></li><li class="ok"><span class="mark">pass</span> empty protobuf export on the empty bucket -&gt; 429 (protobuf Status)<div class="detail">429 application/x-protobuf</div></li><li class="ok"><span class="mark">pass</span> after the refill an empty export is 200 again<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> ouo_ratelimit_rejected_total{key_kind=client} grew by &gt;= 37 in Mimir<div class="detail">{&quot;project&quot;: 0, &quot;client&quot;: 37}</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>Stock OTel SDK with OTEL_EXPORTER_OTLP_HEADERS; the internal project</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N15 + N13</span> profile <code>default</code> &middot; 64 s &middot; check <code>otel_sdk</code></p>
+  <p>A stock OTel JS SDK configured only through the standard variables, and the demo backend (stock OTel Go SDK). rum-api and the demo backend now send as project <code>internal</code>.</p>
+  <ul><li class="ok"><span class="mark">pass</span> stock OTel JS SDK with OTEL_EXPORTER_OTLP_HEADERS exports (exit 0)<div class="detail">{&quot;run_id&quot;:&quot;stock-mvl1h8m6&quot;,&quot;trace_id&quot;:&quot;95a3afc8b8dce9cc794604a8cd4fee19&quot;}</div></li><li class="ok"><span class="mark">pass</span> same SDK with a wrong token fails the export (401)<div class="detail">OTLPExporterError: Unauthorized</div></li><li class="ok"><span class="mark">pass</span> its span is in Tempo<div class="detail">1</div></li><li class="ok"><span class="mark">pass</span> resource ouo.project.id = demo (the SDK&#x27;s spoofed value overwritten)<div class="detail">[&quot;demo&quot;]</div></li><li class="ok"><span class="mark">pass</span> demo backend (stock Go SDK, env headers) spans after the call carry ouo.project.id = internal<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> rum-api&#x27;s own spans carry ouo.project.id = internal<div class="detail">[&quot;internal&quot;]</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>Foreign-origin CORS from a real browser</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N15</span> profile <code>default</code> &middot; 44 s &middot; check <code>cors_browser</code></p>
+  <p>Headless Chromium (Playwright 1.64.1) posts OTLP from an allowed origin and from a foreign one.</p>
+  <ul><li class="ok"><span class="mark">pass</span> Chromium 156.0.8078.4 from http://localhost:53707: POST with Authorization succeeds (200)<div class="detail">{&quot;ok&quot;: true, &quot;status&quot;: 200}</div></li><li class="ok"><span class="mark">pass</span> the allowed origin&#x27;s span is in Tempo</li><li class="ok"><span class="mark">pass</span> from foreign http://qa-foreign.localhost:53707: fetch rejected by CORS (TypeError)<div class="detail">{&quot;ok&quot;: false, &quot;error&quot;: &quot;TypeError: Failed to fetch&quot;}</div></li><li class="ok"><span class="mark">pass</span> Chromium blames the preflight: no Access-Control-Allow-Origin header<div class="detail">Response to preflight request doesn&#x27;t pass access control check: No &#x27;Access-Control-Allow-Origin&#x27; header is present on the requested resource.</div></li><li class="ok"><span class="mark">pass</span> nothing from the foreign origin reached Tempo (the POST never left the browser)<div class="detail">0</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>Plugin as a Grafana Viewer</h3><span class="pill ok">pass, finding</span></header>
+  <p class="meta"><span class="tag">N15</span> profile <code>default</code> &middot; 1.6 s &middot; check <code>viewer</code></p>
+  <p>A fresh Grafana user with the org role Viewer opens the plugin and reads through its proxy.</p>
+  <ul><li class="ok"><span class="mark">pass</span> Grafana user created (org role Viewer by default)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> its org role is Viewer<div class="detail">Viewer</div></li><li class="ok"><span class="mark">pass</span> Viewer opens /a/ouo11y-rum-app/overview (200)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> Viewer opens /a/ouo11y-rum-app/sessions (200)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> Viewer reads /v1/stats/health through the plugin proxy (200)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> Viewer reads /v1/sessions through the plugin proxy (200)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> Viewer sees the settings without the read token (secureJsonData absent)<div class="detail">[&quot;readToken&quot;]</div></li><li class="ok"><span class="mark">pass</span> Viewer cannot change the plugin settings (403)<div class="detail">403</div></li><li class="ok"><span class="mark">pass</span> Viewer cannot open the Configuration page (302 away)<div class="detail">302</div></li><li class="find"><span class="mark">finding V1</span> Viewer can DELETE a replay through the plugin proxy (route `rum/*`, method `*`, reqRole Viewer)<div class="detail">DELETE -&gt; 204</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>React Native <code>background</code> session end</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N15</span> profile <code>default</code> &middot; 7.7 s &middot; check <code>background</code></p>
+  <p>The RN SDK's own code (simulated AppState, <code>backgroundTimeoutMs</code> 1.5 s) exporting to the env's collector; rum-api folds the session.</p>
+  <ul><li class="ok"><span class="mark">pass</span> RN SDK live test passed (vitest exit 0)</li><li class="ok"><span class="mark">pass</span> rum-api: the first session ended with end_reason background, state ended, status healthy<div class="detail">{&quot;service&quot;: &quot;qa-rn-background-mvl1k6eq&quot;, &quot;first&quot;: &quot;e791a1da-7a5b-41de-8f92-c34320a9bcac&quot;, &quot;second&quot;: &quot;23cf1ffb-72a7-417d-ad96-81999a4aec5b&quot;, &quot;http&quot;: 200, &quot;end_reason&quot;: &quot;background&quot;, &quot;state&quot;: &quot;ended&quot;, &quot;status&quot;: &quot;healthy&quot;, &quot;ended_at&quot;: &quot;2026-10-23T14:04:34.776Z&quot;}</div></li><li class="ok"><span class="mark">pass</span> the SDK started a new session after the foreground<div class="detail">{&quot;first&quot;: &quot;e791a1da-7a5b-41de-8f92-c34320a9bcac&quot;, &quot;second&quot;: &quot;23cf1ffb-72a7-417d-ad96-81999a4aec5b&quot;}</div></li></ul>
+</section>
+<section class="check">
+  <header><h3><code>key_from: x_forwarded_for</code></h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N15</span> profile <code>limits</code> &middot; 0.1 s &middot; check <code>xff</code></p>
+  <p>Collector recreated with <code>OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for</code>, client bucket 1/s burst 10.</p>
+  <ul><li class="ok"><span class="mark">pass</span> direct: 12 requests with X-Forwarded-For 203.0.113.10 -&gt; the last ones 429 (client bucket 10)<div class="detail">{&quot;200&quot;: 10, &quot;429&quot;: 2}</div></li><li class="ok"><span class="mark">pass</span> the rejection names the X-Forwarded-For client<div class="detail">{&quot;code&quot;:8, &quot;message&quot;:&quot;rate limit exceeded for client \&quot;203.0.113.10\&quot;, retry after 1s&quot;, &quot;details&quot;:[{&quot;@type&quot;:&quot;type.google</div></li><li class="ok"><span class="mark">pass</span> direct: the next request with X-Forwarded-For 203.0.113.11 is 200 (its own bucket)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> through the env proxy (http://otlp.n13-collector-qa.ouo.localhost), 12 requests each spoofing a different X-Forwarded-For still share one client bucket (429)<div class="detail">{&quot;200&quot;: 10, &quot;429&quot;: 2}</div></li><li class="ok"><span class="mark">pass</span> the proxy&#x27;s rejection names the address the proxy saw, not a spoofed one<div class="detail">client \&quot;172.21.0.1</div></li></ul>
+</section>
+<section class="check">
+  <header><h3>Per-project bucket</h3><span class="pill ok">pass</span></header>
+  <p class="meta"><span class="tag">N15</span> profile <code>limits</code> &middot; 10.1 s &middot; check <code>project_bucket</code></p>
+  <p>Project bucket 1/s burst 40; requests of one project spread over 50 X-Forwarded-For clients so only the project bucket can say no.</p>
+  <ul><li class="ok"><span class="mark">pass</span> 50 requests of project demo from 50 clients (project burst 40): some 429<div class="detail">{&quot;200&quot;: 40, &quot;429&quot;: 10}</div></li><li class="ok"><span class="mark">pass</span> the rejection names the project bucket (project &quot;demo&quot;)<div class="detail">{&quot;code&quot;:8, &quot;message&quot;:&quot;rate limit exceeded for project \&quot;demo\&quot;, retry after 1s&quot;, &quot;details&quot;:[{&quot;@type&quot;:&quot;type.googleapis.co</div></li><li class="ok"><span class="mark">pass</span> project internal is still 200 while demo is limited (own bucket)<div class="detail">200</div></li><li class="ok"><span class="mark">pass</span> a fresh client of demo is still 429 (the project bucket, not the client one)<div class="detail">429</div></li><li class="ok"><span class="mark">pass</span> ouo_ratelimit_rejected_total{key_kind=project} grew in Mimir<div class="detail">{&quot;project&quot;: 11, &quot;client&quot;: 4}</div></li></ul>
+</section>
+</main>
+</body>
+</html>
