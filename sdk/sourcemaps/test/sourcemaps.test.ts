@@ -5,7 +5,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { debugIdFor, deleteMaps, findArtifacts, inject, upload, urlPathOf } from "../src/index";
+import { debugIdFor, deleteMaps, findArtifacts, inject, splitTrailing, upload, urlPathOf } from "../src/index";
 
 const MAP = JSON.stringify({ version: 3, sources: ["../src/a.ts"], names: [], mappings: "AAAA" });
 
@@ -84,6 +84,26 @@ describe("ouo-sourcemaps", () => {
     const js = await readFile(index!.js, "utf8");
     expect(js.split("\n")[1]).toContain(`[s]="${r.debugId}"`);
     expect((await inject(index!)).changed).toBe(false);
+  });
+
+  it("handles terser output: sourceMappingURL on the same line as the code", async () => {
+    const d = await dist();
+    const [, vendor] = await findArtifacts(d);
+    await writeFile(vendor!.js, "export{a as b};//# sourceMappingURL=maps/vendor.map");
+    expect((await findArtifacts(d)).map((a) => path.relative(d, a.map))).toContain(path.join("assets", "maps", "vendor.map"));
+    const r = await inject(vendor!);
+    const lines = (await readFile(vendor!.js, "utf8")).trimEnd().split("\n");
+    expect(lines).toEqual(["export{a as b};", expect.stringContaining("__ouoDebugIds"), `//# debugId=${r.debugId}`, "//# sourceMappingURL=maps/vendor.map"]);
+    expect((await inject(vendor!)).changed).toBe(false);
+    await deleteMaps([vendor!]);
+    expect(await readFile(vendor!.js, "utf8")).toBe(`${lines[0]}\n${lines[1]}\n//# debugId=${r.debugId}\n`);
+  });
+
+  it("splits trailing comments in either order and leaves code alone", () => {
+    expect(splitTrailing('a()\n//# sourceMappingURL=a.map\n//# debugId=ABC\n')).toEqual({
+      body: "a()", debugId: "abc", mappingUrl: "a.map", mappingComment: "//# sourceMappingURL=a.map",
+    });
+    expect(splitTrailing('s="//# debugId=x";f()')).toEqual({ body: 's="//# debugId=x";f()' });
   });
 
   it("the snippet registers the bundle's stack under its debug id", async () => {

@@ -15,8 +15,38 @@ export interface Artifact {
 }
 
 const JS = /\.(?:m|c)?js$/;
-const debugIdComment = /^\/\/# debugId=([0-9a-fA-F-]{32,36})\s*$/m;
-const mappingUrlComment = /^\/\/[#@] sourceMappingURL=(\S+)\s*$/m;
+// One trailing `//# debugId=` or `//# sourceMappingURL=` comment, at the end of the text. It may share
+// the line with code: terser writes `...;//# sourceMappingURL=index.js.map` with no newline.
+// No quotes or parentheses in the value, so `"//# debugId=x";f()` at the end of code is not one.
+const trailingComment = /\/\/[#@] (debugId|sourceMappingURL)=([^\s'"`()]+)[ \t]*$/;
+
+interface Trailing {
+  /** The file without its trailing debugId / sourceMappingURL comments (and trailing whitespace). */
+  body: string;
+  debugId?: string;
+  /** The sourceMappingURL value and the comment as written. */
+  mappingUrl?: string;
+  mappingComment?: string;
+}
+
+/** Splits the trailing debugId / sourceMappingURL comments off a bundle (either order, each once). */
+export function splitTrailing(src: string): Trailing {
+  const out: Trailing = { body: src.replace(/\s+$/, "") };
+  for (let i = 0; i < 2; i++) {
+    const m = out.body.match(trailingComment);
+    if (!m) break;
+    if (m[1] === "debugId") {
+      if (out.debugId !== undefined) break;
+      out.debugId = m[2]!.toLowerCase();
+    } else {
+      if (out.mappingUrl !== undefined) break;
+      out.mappingUrl = m[2]!;
+      out.mappingComment = m[0].trim();
+    }
+    out.body = out.body.slice(0, m.index).replace(/\s+$/, "");
+  }
+  return out;
+}
 // The snippet itself (not just the registry name: a bundle that includes @ouo11y/browser mentions it too).
 const snippetLine = /^;!function\(\)\{try\{var g=.*__ouoDebugIds.*\}\(\);$/m;
 
@@ -44,7 +74,7 @@ export async function findArtifacts(dir: string): Promise<Artifact[]> {
   const out: Artifact[] = [];
   for (const js of files.filter((f) => JS.test(f)).sort()) {
     const src = await readFile(js, "utf8");
-    const ref = src.match(mappingUrlComment)?.[1];
+    const ref = splitTrailing(src).mappingUrl;
     let map: string | undefined;
     if (ref && !ref.startsWith("data:") && !/^[a-z]+:\/\//i.test(ref)) {
       const p = path.resolve(path.dirname(js), decodeURIComponent(ref.split(/[?#]/)[0] ?? ref));
@@ -93,7 +123,8 @@ export async function inject(a: Artifact, opts: { dryRun?: boolean } = {}): Prom
   const map = JSON.parse(mapText) as Record<string, unknown>;
   // A bundler may have written the debug id already (Rollup / Vite `sourcemapDebugIds`): keep it,
   // add only what is missing.
-  const existing = src.match(debugIdComment)?.[1]?.toLowerCase();
+  const trailing = splitTrailing(src);
+  const existing = trailing.debugId && /^[0-9a-f-]{32,36}$/.test(trailing.debugId) ? trailing.debugId : undefined;
   const id = existing ?? (typeof map["debugId"] === "string" ? map["debugId"].toLowerCase() : debugIdFor(mapText));
   const hasSnippet = snippetLine.test(src);
   if (existing && hasSnippet) {
@@ -104,17 +135,10 @@ export async function inject(a: Artifact, opts: { dryRun?: boolean } = {}): Prom
     }
     return { artifact: a, debugId: id, changed: false };
   }
-  let body = src;
-  const tail: string[] = [];
-  for (const re of [debugIdComment, mappingUrlComment]) {
-    const m = body.match(re);
-    if (m) {
-      body = body.slice(0, m.index) + body.slice(m.index! + m[0].length);
-      if (re === mappingUrlComment) tail.push(m[0].trim());
-    }
-  }
-  body = body.replace(/\s*$/, "");
-  const out = [body, hasSnippet ? "" : snippet(id), `//# debugId=${id}`, ...tail].filter(Boolean).join("\n") + "\n";
+  // Code stays on its lines (a comment that shared the last line with code is cut off it, which
+  // moves no mapping); the snippet and the comments go on new lines after it.
+  const tail = trailing.mappingComment ? [trailing.mappingComment] : [];
+  const out = [trailing.body, hasSnippet ? "" : snippet(id), `//# debugId=${id}`, ...tail].filter(Boolean).join("\n") + "\n";
   if (!opts.dryRun) {
     await writeFile(a.js, out);
     map["debugId"] = id;
@@ -157,7 +181,7 @@ export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResul
   const mapText = await readFile(a.map, "utf8");
   const map = JSON.parse(mapText) as Record<string, unknown>;
   const src = await readFile(a.js, "utf8");
-  const debugId = (typeof map["debugId"] === "string" ? map["debugId"] : src.match(debugIdComment)?.[1])?.toLowerCase();
+  const debugId = (typeof map["debugId"] === "string" ? map["debugId"] : splitTrailing(src).debugId)?.toLowerCase();
   const file = urlPathOf(a, o.urlPrefix);
   if (!debugId && !o.release) {
     return { artifact: a, file, status: 0, error: "no debug id (run `ouo-sourcemaps inject` first) and no --release" };
@@ -193,7 +217,8 @@ export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResul
 export async function deleteMaps(artifacts: Artifact[]): Promise<void> {
   for (const a of artifacts) {
     const src = await readFile(a.js, "utf8");
-    const stripped = src.replace(mappingUrlComment, "").replace(/\n+$/, "\n");
+    const t = splitTrailing(src);
+    const stripped = t.mappingComment ? `${t.body}${t.debugId ? `\n//# debugId=${t.debugId}` : ""}\n` : src;
     if (stripped !== src) await writeFile(a.js, stripped);
     await rm(a.map, { force: true });
   }
