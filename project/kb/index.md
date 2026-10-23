@@ -4,7 +4,7 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 
 | File | Question it answers |
 |---|---|
-| [otel-browser-sdk.md](otel-browser-sdk.md) | How the OTel JS web SDK is wired for sessions, fetch tracing and events (filled in Phase 2) |
+| [otel-browser-sdk.md](otel-browser-sdk.md) | How the OTel JS web SDK is wired for sessions, fetch tracing and events (Phase 2); vitals lost at page hide, interaction tracing without zone.js, cross-browser Playwright quirks (batch 3) |
 | [otel-react-native.md](otel-react-native.md) | What the OTel JS SDK needs to run inside React Native / Expo (filled in Phase 5) |
 | [collector-lgtm.md](collector-lgtm.md) | Collector config that forwards OTLP to Loki, Tempo and Mimir with browser CORS (filled in Phase 1) |
 | [loki-session-queries.md](loki-session-queries.md) | LogQL used by rum-api to fold session events (filled in Phase 3) |

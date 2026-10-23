@@ -4,12 +4,16 @@ import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations, type Instrumentation } from "@opentelemetry/instrumentation";
 import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
-import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
-import { BatchSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-web";
+import { LoggerProvider } from "@opentelemetry/sdk-logs";
+import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 
 import { installActivityListeners } from "./activity";
+import { installClickTracking } from "./interactions/clicks";
+import { FallbackContextManager } from "./interactions/context";
+import { FilteringSpanProcessor, InteractionTracker } from "./interactions/tracker";
+import { installLongTasks } from "./longtasks";
 import { exceptionAttributes } from "./errors/classify";
-import { installErrorCapture } from "./errors/install";
+import { claimError, installErrorCapture } from "./errors/install";
 import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
 import { createLogger } from "./logger";
 import { installNavigation } from "./navigation";
@@ -19,10 +23,12 @@ import { ReplayRecorder } from "./replay/recorder";
 import { createChunkUploader } from "./replay/uploader";
 import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
 import { LocalStorage } from "./session/storage";
-import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
+import { PageLogRecordProcessor, PageSpanProcessor } from "./telemetry/batch";
+import { RouteState, SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
 import { SessionPropagator } from "./telemetry/propagator";
 import { buildResource } from "./telemetry/resource";
+import { SampledLogProcessor, SessionSampler } from "./telemetry/sampling";
 import type { Attrs, RUM, RUMOptions, UserOptions } from "./types";
 import { installWebVitals } from "./vitals";
 import { SDK_NAME, SDK_VERSION } from "./version";
@@ -33,6 +39,11 @@ export type { ReplayChunk } from "./replay/chunker";
 export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
 
 let instance: RUM | undefined;
+
+/** The instance `initRUM` returned, or undefined before it was called (framework integrations use it). */
+export function getRUM(): RUM | undefined {
+  return instance;
+}
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -81,44 +92,58 @@ export function initRUM(options: RUMOptions): RUM {
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
     ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),
+    ...(options.sampling?.sessionSampleRate !== undefined ? { sessionSampleRate: options.sampling.sessionSampleRate } : {}),
     logger,
     onEvent: (event) => events.emit(event.name, event.attributes, "info"),
     onRotate: (next, previousId) => recorder?.onRotate(next, previousId),
   });
 
   const resource = buildResource(options.service);
+  const route = new RouteState();
 
   // ---- logs (events) ----
   const logExporter = new OTLPLogExporter({ url: urls.logs, headers: authHeaders });
-  const logBatch = new BatchLogRecordProcessor({
-    exporter: logExporter,
+  // Not the OTel BatchLogRecordProcessor: it drops a flush requested while one is running,
+  // which loses what is emitted at page hide (src/telemetry/batch.ts).
+  const logBatch = new PageLogRecordProcessor(logExporter, {
     scheduledDelayMillis: 1000,
     maxExportBatchSize: 64,
     maxQueueSize: 2048,
-    exportTimeoutMillis: 10000,
   });
   const loggerProvider = new LoggerProvider({
     resource,
-    processors: [new SessionLogProcessor(session, serviceVersion), logBatch],
+    processors: [new SessionLogProcessor(session, serviceVersion, route), new SampledLogProcessor(session, logBatch)],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
   const traceExporter = new OTLPTraceExporter({ url: urls.traces, headers: authHeaders });
-  const tracerProvider = new WebTracerProvider({
+  // Late-bound: the tracker is a span processor of the provider it gets its tracer from.
+  let tracerProvider: WebTracerProvider;
+  const tracker = new InteractionTracker({
+    tracer: () => tracerProvider.getTracer(SDK_NAME, SDK_VERSION),
+    ...(options.tracing?.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.tracing.idleTimeoutMs } : {}),
+  });
+  tracerProvider = new WebTracerProvider({
     resource,
+    sampler: new SessionSampler(session),
     spanProcessors: [
-      new SessionSpanProcessor(session, serviceVersion),
-      new BatchSpanProcessor(traceExporter, {
-        scheduledDelayMillis: 2000,
-        maxExportBatchSize: 64,
-        maxQueueSize: 1024,
-        exportTimeoutMillis: 10000,
-      }),
+      new SessionSpanProcessor(session, serviceVersion, route),
+      tracker,
+      new FilteringSpanProcessor(
+        new PageSpanProcessor(traceExporter, {
+          scheduledDelayMillis: 2000,
+          maxExportBatchSize: 64,
+          maxQueueSize: 1024,
+        }),
+        (span) => tracker.shouldExport(span),
+      ),
     ],
   });
-  tracerProvider.register({ propagator: new SessionPropagator(session) });
+  const contextManager = new FallbackContextManager();
+  tracerProvider.register({ propagator: new SessionPropagator(session), contextManager });
+  contextManager.setFallback(() => tracker.activeContext());
 
   // ---- session ----
   session.start();
@@ -150,9 +175,32 @@ export function initRUM(options: RUMOptions): RUM {
   registerInstrumentations({ instrumentations, tracerProvider, loggerProvider });
 
   const uninstallErrors = installErrorCapture({ events, logger });
-  const uninstallNavigation = installNavigation({ events, onActivity });
+  const uninstallNavigation = installNavigation({
+    events,
+    onActivity,
+    tracker: options.tracing?.softNavigations === false ? undefined : tracker,
+  });
+  const uninstallClicks = installClickTracking({
+    tracker,
+    events,
+    spans: options.tracing?.interactions !== false,
+    rageClicks: options.clicks?.rageClicks ?? {},
+    deadClicks: options.clicks?.deadClicks !== false,
+  });
+  let uninstallLongTasks = (): void => undefined;
+  let uninstallVitals = (): void => undefined;
+  if (options.longTasks !== false) {
+    try {
+      uninstallLongTasks = installLongTasks(events, options.longTasks ?? {});
+    } catch (err) {
+      logger.warn("long task observer unavailable", err);
+    }
+  }
   try {
-    installWebVitals(events);
+    // A tab opened in the background (and every tab of an automation pane) is hidden from the
+    // start: web-vitals then rightly reports no FCP, LCP, CLS or INP for this page view.
+    if (document.visibilityState === "hidden") logger.log("page loaded hidden: only TTFB is reported for this page view");
+    uninstallVitals = installWebVitals(events);
   } catch (err) {
     logger.warn("web-vitals unavailable", err);
   }
@@ -171,25 +219,35 @@ export function initRUM(options: RUMOptions): RUM {
     enabled: replayEnabled,
     maskAllInputs: options.replay?.maskAllInputs !== false,
     sampleRate: options.replay?.sampleRate ?? 1,
+    onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
     session,
     chunker,
     logger,
   });
   void recorder.start();
+  // Error-triggered replay: the first error of a buffering session uploads its replay.
+  const unsubscribeErrors = events.subscribe((name, _attrs, severity) => {
+    if (name === "exception" && severity === "error") recorder?.onError();
+  });
 
   // ---- lifecycle flushes ----
   const flush = async (): Promise<void> => {
+    // Console errors are reported one microtask late (errors/install.ts): let them land first.
+    await Promise.resolve();
     await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), chunker.flush()]);
   };
   // Registered after web-vitals so final vitals emitted on hide are included in the flush.
   const onVisibility = (): void => {
     if (document.visibilityState === "hidden") {
+      tracker.endAll("hidden");
       void loggerProvider.forceFlush();
       void tracerProvider.forceFlush();
       void chunker.flush();
     }
   };
   const onPageHide = (): void => {
+    // Open click and soft-navigation spans end now so the flush below carries them.
+    tracker.endAll("hidden");
     void loggerProvider.forceFlush();
     void tracerProvider.forceFlush();
     void chunker.flush({ keepalive: true });
@@ -216,10 +274,15 @@ export function initRUM(options: RUMOptions): RUM {
       logger.log("user set", user.id);
     },
     captureError(err: unknown, context?: Attrs): void {
+      claimError(err);
       events.emit("exception", exceptionAttributes(err, "captured", context), "error");
     },
     addEvent(name: string, attrs?: Attrs): void {
       events.emit(name, { ...(attrs ?? {}), "ouo.event.custom": true });
+    },
+    setRoute(name: string): void {
+      route.name = name || undefined;
+      if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
     },
     replay: {
       pause: () => recorder?.pause(),
@@ -235,10 +298,14 @@ export function initRUM(options: RUMOptions): RUM {
       uninstallActivity();
       uninstallErrors();
       uninstallNavigation();
+      uninstallClicks();
+      uninstallLongTasks();
+      uninstallVitals();
+      unsubscribeErrors();
       globalThis.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", onVisibility);
       globalThis.removeEventListener("pagehide", onPageHide);
-      recorder?.pause();
+      recorder?.shutdown();
       chunker.stop();
       session.stop();
       await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);

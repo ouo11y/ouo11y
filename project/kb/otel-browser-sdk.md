@@ -87,9 +87,9 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
 13. **web-vitals in automation**: both the Claude Browser pane and the Chrome extension
     load tabs with `document.visibilityState === "hidden"` from t=0 (`visibility-state`
     performance entries show `hidden` at 0, first paint only when the pane is shown), so
-    web-vitals correctly discards FCP/LCP/CLS/INP and only TTFB is reported. Not an SDK
-    bug: the `web_vital` pipeline is proven with TTFB end to end and the other metrics by a
-    unit test with a mocked `web-vitals`. Check them in a normal foreground Chrome window.
+    web-vitals correctly discards FCP/LCP/CLS/INP and only TTFB is reported. Use Playwright
+    (headless pages are visible) or a normal foreground window. That was only half of why CLS
+    and INP were "never observed": see items 22 to 24 (batch 3, 2026-10-23).
 
 ## Project credentials on the collector (Phase 8a, SDK 0.2.0, ADR-0007)
 
@@ -162,6 +162,61 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
 21. **Bundle impact**: 39.0 KB (0.1.0) -> 40.1 KB gzip for `dist/index.js`; rrweb chunk
     unchanged.
 
+## Batch 3 (2026-10-23, checklist N10 / N25): vitals at page hide, interactions, cross-browser
+
+22. **OTel batch processors lose what is emitted at page hide.** `BatchLogRecordProcessor`
+    (sdk-logs 0.222) and `BatchSpanProcessor` (2.11) run one flush at a time: `_flushAll` returns at
+    once when `_flushing` is set, and waits for `inFlight.exportCompleted` (the network response)
+    before exporting more. Chromium fires `pagehide` **before** `visibilitychange` on unload
+    (verified with listeners writing to `localStorage`). The SDK flushed on `pagehide` (an export
+    goes out), then web-vitals reported CLS and INP in `visibilitychange`, whose flush was skipped;
+    the page was gone before the first export was answered. Any export in flight at hide time (the
+    1 s scheduled batch) has the same effect. Fix: `src/telemetry/batch.ts`, a small batcher whose
+    flush exports everything queued immediately, concurrently with exports in flight (the OTLP
+    exporter's promise queue and the fetch transport's keepalive budget handle the concurrency),
+    under `suppressTracing`. It also drops spans whose sampled flag is off. Bundle went down
+    (44.7 -> 42.8 KB gzip) because the OTel batch processors are no longer bundled.
+23. **web-vitals 6.2.3 can drop INP at hide.** INP processes its PerformanceObserver entries in
+    `whenIdleOrHidden` (a requestIdleCallback, or a once `visibilitychange` listener registered at
+    the time). Its forced final report is an `onHidden` callback from a `visibilitychange` listener
+    registered at init, so it runs first, before the pending entries are processed: an interaction
+    in the last ~1 s before hide is missing, and when it is the only one, INP is never reported
+    (value stays -1). Reproduced 3/3 in Playwright Chromium. Fix: `onINP(cb, { reportAllChanges:
+    true })` keeps the latest value, and the SDK emits it from its own `document` `visibilitychange`
+    listener (target phase, after web-vitals' `window` capture listeners) and from `pagehide`
+    (Safari closes tabs with `pagehide` only), once per value per metric id.
+24. **Playwright artefacts that look like SDK bugs.** (a) Closing the browser right after
+    `page.close()` kills the keepalive requests of the unload flush: keep the process up ~3 s.
+    (b) WebKit's `page.close({ runBeforeUnload: true })` fires neither `pagehide` nor
+    `visibilitychange`; navigate to `about:blank` to unload like a user. (c) Firefox 1555 (PW 1.64.1)
+    fails to launch on macOS 27 ("Could not find profile folder", also after `install --force`); run
+    it in `mcr.microsoft.com/playwright:v1.64.1-noble` (`--network host` reaches an ouo-env on
+    Docker Desktop, `*.localhost` included). (d) `page.route` + `fulfill` of the document makes
+    Chromium treat the page as public: Local Network Access then blocks its fetches to loopback;
+    serve the modified page from a real local server instead.
+25. **Interaction tracing without zone.js**: a `FallbackContextManager` (StackContextManager whose
+    `active()` returns the open idle span's context when the stack is at ROOT) plus an
+    `InteractionTracker` that is also a SpanProcessor counting each idle span's open children
+    (`onStart(span, parentContext)` with `trace.getSpanContext(parentContext)`). A span ends one idle
+    period after the last child start/end or DOM mutation, at that time (child end read from
+    `span.endTime`, which for fetch is the resource-timing end, not the 300 ms-later `onEnd`). Log
+    records are emitted with `context: ROOT_CONTEXT` so they never point to a click span that is
+    dropped. Number `TimeInput`s smaller than `performance.timeOrigin` are read as
+    performance-relative: fake timers in tests must set the system time ahead of real now.
+26. **Engine support (Playwright 1.64.1)**: Chromium has `largest-contentful-paint`,
+    `layout-shift`, Event Timing with `interactionId`, `long-animation-frame`; Firefox has LCP and
+    INP, no `layout-shift`, no long tasks; WebKit 27.2 has LCP and INP, no `layout-shift`, no long
+    tasks. BroadcastChannel and CompressionStream work in all three.
+27. **React Router types and `exactOptionalPropertyTypes`**: `matchRoutes(routes, location)` does
+    not type-check with react-router-dom 6.30's `RouteObject` under that flag; cast the routes to
+    `Parameters<typeof matchRoutes>[0]`. React logs an error caught by a boundary with
+    `console.error(error)` right before `componentDidCatch` (also in production): the console capture
+    waits one microtask and skips an object `captureError` reported meanwhile.
+28. **Multi-tab replay**: only the tab holding a BroadcastChannel lease records (claimed on visible,
+    focus, pointerdown, keydown); each stretch starts with a full snapshot and an rrweb custom event
+    `ouo.tab`. Verified against rum-api: markers tab1 `/`, tab1 `/chaos`, tab2 `/cart`, tab1 `/chaos`,
+    one chunk sequence, no interleaving. The plugin's player handles the mid-stream Meta/FullSnapshot.
+
 ## What works (summary)
 
 - `initRUM()` (`sdk/browser/src/index.ts`): LoggerProvider + BatchLogRecordProcessor
@@ -179,7 +234,8 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
   `navigation`, `exception` (fatal true and false), `http.request.failed`, `web_vital`,
   custom events, all with `session_id` structured metadata.
 - Bundle (0.2.0): `dist/index.js` 133 KB raw / 40.1 KB gzip; rrweb in a lazily imported
-  chunk 257 KB raw / 80 KB gzip.
+  chunk 257 KB raw / 80 KB gzip. After batch 3: 137 KB / 42.8 KB gzip, `react.js` 0.6 KB; CI budget
+  in `sdk/browser/size-budget.json` (44 / 1 / 82 KB gzip).
 
 ## Gotchas
 

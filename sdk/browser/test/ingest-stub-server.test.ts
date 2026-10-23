@@ -5,7 +5,7 @@
  * with `Authorization: Basic base64(projectId:projectToken)` (ADR-0007). This is the closest
  * we can get to `ouo-collector` without running it.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { gunzipSync } from "node:zlib";
 import { initRUM, type RUM } from "../src/index";
@@ -76,11 +76,18 @@ describe("ingest over a real socket (collector stub on :18081, replay stub on :1
   it("traces, logs and replay chunks arrive on the collector routes with the Basic credential", async () => {
     await fetch(`http://127.0.0.1:${OTLP_PORT}/api/ping`); // one CLIENT span
     rum.addEvent("stub.check", { n: 1 }); // one log record
-    await wait(700); // fetch span closes after 300 ms; rrweb lazy chunk + 200 ms replay flush
+    const byPath = (port: number, p: string) => seen.filter((s) => s.port === port && s.method === "POST" && s.path === p);
+    // fetch span closes after 300 ms; rrweb is a lazy chunk (slow under load) + 200 ms replay flush
+    await vi.waitFor(
+      async () => {
+        await rum.flush();
+        expect(byPath(REPLAY_PORT, "/v1/replay/chunks").length).toBeGreaterThan(0);
+      },
+      { timeout: 5000, interval: 200 },
+    );
     await rum.flush();
     await wait(100);
 
-    const byPath = (port: number, p: string) => seen.filter((s) => s.port === port && s.method === "POST" && s.path === p);
     const traces = byPath(OTLP_PORT, "/v1/traces");
     const logs = byPath(OTLP_PORT, "/v1/logs");
     const chunks = byPath(REPLAY_PORT, "/v1/replay/chunks");

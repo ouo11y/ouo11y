@@ -37,25 +37,41 @@ deploy/envs/ouo-env down web-demo
 ```
 
 `run.sh` builds the app against the stack (`.env` here, copied from `.env.example`, overrides the
-stock ports), serves it with `vite preview`, runs the scripted journey in headless Chromium
+stock ports), serves it with `vite preview`, runs the scripted journey in a headless browser
 (`scripts/journey.mjs`: two products into the cart, a card checkout, a third product and a
-`broken-card` checkout that the backend fails with 500) and then `scripts/verify.py`:
+`broken-card` checkout that the backend fails with 500, then on the Chaos page a dead button, four
+fast clicks on it, a 300 ms long task and a render error) and then `scripts/verify.py`:
 
 - rum-api has the journey's session with its timeline, traces and the failed request;
+- Loki: every Web Vital the browser supports, `ouo.dead_click`, `ouo.rage_click`, the error
+  boundary's `exception` (`react.error_boundary`), route names (`app.screen.name`) and, in
+  Chromium, `ouo.long_animation_frame`;
+- Tempo: `click` spans parent the backend requests they cause, `soft-navigation` spans exist;
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
   - no backend span has a missing parent;
   - browser and backend spans share one trace id;
   - backend spans carry the `session.id` from baggage;
-  - one backend span and one trace per request the page sent;
+  - one backend span per request the page sent, and as many traces as distinct `traceparent` trace
+    ids (one click with two requests is one trace);
   - CORS allows `traceparent`, `tracestate` and `baggage`;
   - nothing in the window came through the Sentry bridge.
 
-Exit status 0 means every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
+`--browsers chromium,firefox,webkit` runs the journey and verify once per browser (each its own
+session, `journey-<browser>.json`); the default is Chromium. Exit status 0 means every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
 the URL `ouo-env up` prints; admin / testing567), the ouo11y RUM app, and the session.
 
-CI runs the same journey and verify on every change to this example, the backend or the browser
-SDK (job `examples` in `.github/workflows/ci.yml`).
+CI runs the same journey and verify in Chromium, Firefox and WebKit on every change to this example,
+the backend or the browser SDK (job `examples` in `.github/workflows/ci.yml`), after the SDK's own
+Playwright suite.
+
+React integrations: `src/App.tsx` wraps the routes in `OuoErrorBoundary` and names each route with
+`useOuoRoute(routeTemplate(matchRoutes(routes, location)))` from `@ouo11y/browser/react`. The Chaos
+page has "Render error", "Long task (300 ms)" and "Dead button" (click it fast for a rage click).
+
+Server-rendered pages: this app is a static SPA, so there is no `<meta name="traceparent">` here;
+see the SDK README, "Linking the page load" (`examples/backend` belongs to the bridge examples and is
+unchanged).
 
 ## Develop
 
@@ -103,6 +119,9 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo11y/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
+| `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `sampling.sessionSampleRate`: fraction of sessions that send anything |
+| `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sampleRate`: fraction of sessions with a full replay |
+| `VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE` | `0` | `replay.onErrorSampleRate`: of the others, the fraction that buffer replay and upload it after an error |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
 token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are

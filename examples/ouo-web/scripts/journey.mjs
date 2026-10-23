@@ -1,15 +1,21 @@
 #!/usr/bin/env node
-// Scripted shopper journey through the ouo-web example in headless Chromium (Playwright).
+// Scripted shopper journey through the ouo-web example in a headless browser (Playwright).
 //
-//   node scripts/journey.mjs [--url http://localhost:4173] [--backend http://localhost:8081] [--out journey.json]
+//   node scripts/journey.mjs [--browser chromium|firefox|webkit] [--url http://localhost:4173]
+//                            [--backend http://localhost:8081] [--out journey.json]
 //
 // Products -> product -> add to cart -> second product -> add -> cart -> checkout (card) ->
-// product -> add -> checkout (broken-card, the backend answers 500). Every request the page sends
-// to the backend is counted (preflights excluded); the summary written to --out is what
-// scripts/verify.py checks Tempo and rum-api against:
-//   {start, end, requests, sessions: [session ids], url, backend}
-// The page is closed at the end so the SDK flushes (pagehide, keepalive).
-import { chromium } from "playwright";
+// product -> add -> checkout (broken-card, the backend answers 500) -> Chaos page: a dead button
+// (ouo.dead_click), four fast clicks on it (ouo.rage_click), a 300 ms long task, a render error
+// (OuoErrorBoundary). Every request the page sends to the backend is counted (preflights
+// excluded) with the trace id of its traceparent; the summary written to --out is what
+// scripts/verify.py checks Tempo, Loki and rum-api against:
+//   {start, end, requests, traces, sessions: [session ids], url, backend, browser, vitals, loaf}
+// `traces` is the number of distinct trace ids: a click's span parents every request it causes,
+// so one checkout click with two requests is one trace. `vitals` lists the Web Vitals this engine
+// reports (verify expects each of them). The journey leaves the page at the end so the SDK flushes
+// (pagehide, visibilitychange, keepalive), and the browser stays up until those requests are out.
+import { chromium, firefox, webkit } from "playwright";
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
@@ -19,6 +25,7 @@ const { values: args } = parseArgs({
     backend: { type: "string", default: process.env.VITE_BACKEND_URL ?? "http://localhost:8081" },
     out: { type: "string", default: "journey.json" },
     headed: { type: "boolean", default: false },
+    browser: { type: "string", default: process.env.OUO_WEB_BROWSER ?? "chromium" },
   },
 });
 
@@ -26,13 +33,19 @@ const log = (msg) => console.log(`${new Date().toISOString()} [journey] ${msg}`)
 const backend = args.backend.replace(/\/$/, "");
 const start = Math.floor(Date.now() / 1000) - 1;
 
-const browser = await chromium.launch({ headless: !args.headed });
+const engines = { chromium, firefox, webkit };
+if (!engines[args.browser]) throw new Error(`--browser must be one of ${Object.keys(engines).join(", ")}`);
+const browser = await engines[args.browser].launch({ headless: !args.headed });
 const context = await browser.newContext();
 const page = await context.newPage();
 let requests = 0;
+const traceIds = new Set();
 const failed = [];
-page.on("requestfinished", (r) => {
-  if (r.url().startsWith(backend) && r.method() !== "OPTIONS") requests++;
+page.on("requestfinished", async (r) => {
+  if (!r.url().startsWith(backend) || r.method() === "OPTIONS") return;
+  requests++;
+  const tp = (await r.allHeaders())["traceparent"];
+  if (tp) traceIds.add(tp.split("-")[1]);
 });
 page.on("requestfailed", (r) => {
   if (r.url().startsWith(backend)) failed.push(`${r.method()} ${r.url()} ${r.failure()?.errorText}`);
@@ -66,14 +79,38 @@ async function checkout(method) {
   log(`checkout ${method}`);
 }
 
-log(`open ${args.url}`);
+async function chaos() {
+  await page.getByRole("navigation").getByRole("link", { name: "Chaos", exact: true }).click();
+  await page.getByTestId("chaos-log").waitFor();
+  const button = (id) => page.locator(`[data-chaos="${id}"]`);
+  await button("dead").click();
+  await page.waitForTimeout(1500); // the click goes idle with nothing happening: a dead click
+  for (let i = 0; i < 4; i++) await button("dead").click({ delay: 20 });
+  await page.waitForTimeout(1200);
+  await button("long-task").click();
+  await page.waitForTimeout(500);
+  await button("render-error").click();
+  await page.getByTestId("page-failed").waitFor();
+  log("chaos: dead click, rage click, long task, render error");
+}
+
+log(`open ${args.url} in ${args.browser}`);
 await page.goto(args.url);
 await page.getByTestId("product-grid").waitFor();
+const support = await page.evaluate(() => {
+  const t = PerformanceObserver.supportedEntryTypes ?? [];
+  const inp = t.includes("event") && typeof PerformanceEventTiming !== "undefined" && "interactionId" in PerformanceEventTiming.prototype;
+  return {
+    vitals: ["TTFB", "FCP", ...(t.includes("largest-contentful-paint") ? ["LCP"] : []), ...(t.includes("layout-shift") ? ["CLS"] : []), ...(inp ? ["INP"] : [])],
+    loaf: t.includes("long-animation-frame"),
+  };
+});
 await addProduct(0);
 await addProduct(1);
 await checkout("card");
 await addProduct(2);
 await checkout("broken-card");
+await chaos();
 // Let the last responses and spans settle, then read the session before closing.
 await page.waitForTimeout(2000);
 const sessions = await page.evaluate(() => {
@@ -84,16 +121,23 @@ const sessions = await page.evaluate(() => {
     return [];
   }
 });
-await page.close({ runBeforeUnload: true });
+// Leave the page the way a user does: a navigation unloads it with pagehide and visibilitychange in
+// every engine (WebKit's close({ runBeforeUnload }) fires neither). The SDK flushes there with
+// keepalive requests, which the browser sends after the page is gone, but only while the browser
+// process lives: keep it up a moment.
+await page.goto("about:blank");
+await page.close();
+await new Promise((r) => setTimeout(r, 3000));
 await context.close();
 await browser.close();
-// The SDK's exporters flush on pagehide; give the collector a moment.
-await new Promise((r) => setTimeout(r, 3000));
 const end = Math.ceil(Date.now() / 1000) + 1;
 
-const summary = { start, end, requests, sessions, url: args.url, backend, failed };
+const summary = {
+  start, end, requests, traces: traceIds.size, sessions, url: args.url, backend, failed,
+  browser: args.browser, vitals: support.vitals, loaf: support.loaf,
+};
 writeFileSync(args.out, JSON.stringify(summary, null, 2) + "\n");
-log(`${requests} backend requests, session ${sessions.join(", ") || "unknown"}, failed ${failed.length}; wrote ${args.out}`);
+log(`${args.browser}: ${requests} backend requests in ${traceIds.size} traces, session ${sessions.join(", ") || "unknown"}, failed ${failed.length}; wrote ${args.out}`);
 if (failed.length) {
   console.error(failed.join("\n"));
   process.exit(1);

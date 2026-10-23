@@ -2,6 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@ouo11y/browser": ["src/rum-stub.ts"] }
+    "paths": {
+      "@ouo11y/browser/react": [
+        "src/rum-react-stub.ts"
+      ],
+      "@ouo11y/browser": [
+        "src/rum-stub.ts"
+      ]
+    }
   }
 }

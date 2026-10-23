@@ -36,6 +36,7 @@ const rum: RUM = initRUM({
 rum.setUser({ id: "user-42" });
 rum.captureError(new Error("payment declined"), { "cart.id": "c-1" });
 rum.addEvent("cart.added", { sku: "sku-1", qty: 2 });
+rum.setRoute("/products/:id");                  // app.screen.name; router integrations call it
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 rum.session.id(); rum.session.userId();
 await rum.flush();
@@ -61,10 +62,18 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `service.name` / `service.version` / `service.environment` | required | Resource attributes `service.name`, `service.version`, `deployment.environment.name`. `service.version` is also put on every span and log record. |
 | `tracing.propagateTo` | `[]` | Origins (RegExp or exact string) that receive `traceparent` and `baggage` on fetch/XHR. Same-origin requests always do. |
 | `tracing.ignoreUrls` | `[]` | URLs never traced. The OTLP and replay endpoints are always ignored. |
-| `tracing.documentLoad` | `true` | Emit a `documentLoad` span from Navigation Timing. |
+| `tracing.documentLoad` | `true` | Emit a `documentLoad` span from Navigation Timing; a child of the server span when the page has `<meta name="traceparent">` (see "Linking the page load"). |
+| `tracing.interactions` | `true` | A `click` span per click, parent of the requests and the soft navigation it causes (see "Interactions"). |
+| `tracing.softNavigations` | `true` | A `soft-navigation` span per SPA route change, until the new route settles. |
+| `tracing.idleTimeoutMs` | `1000` | Quiet period (no request, no DOM mutation) that ends a click or soft-navigation span. |
+| `clicks.rageClicks` | `{ threshold: 3, windowMs: 1000, radiusPx: 30 }` | `ouo.rage_click` for that many clicks on one element or spot within `windowMs`; `false` turns it off. |
+| `clicks.deadClicks` | `true` | `ouo.dead_click` for a button or link click after which nothing happened. |
+| `longTasks` | `{ thresholdMs: 100, maxPerPage: 50 }` | `ouo.long_animation_frame` (Chromium 123+) or `ouo.long_task` (older Chromium) events; `false` turns them off. Firefox and Safari have neither API. |
+| `sampling.sessionSampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided once per session and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
 | `replay.enabled` | `true` | When false rrweb is never downloaded. |
 | `replay.maskAllInputs` | `true` | Mask every input value in the recording. |
-| `replay.sampleRate` | `1` | Fraction of sessions that get a replay, decided once per session and persisted. |
+| `replay.sampleRate` | `1` | Fraction of (sampled) sessions that get a full replay, decided once per session and persisted. |
+| `replay.onErrorSampleRate` | `0` | Fraction of the other sessions that keep the last 30 to 60 s of replay in memory and upload it, and the rest of the session, after the first error (error-triggered replay). |
 | `replay.flushIntervalMs` | `5000` | Upload a chunk at least this often. |
 | `replay.maxChunkBytes` | `262144` | Upload a chunk when the buffer reaches this size. |
 | `session.inactivityTimeoutMs` | `1800000` (30 min) | Session ends after this much inactivity. |
@@ -76,7 +85,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 
 Implements `docs/specs/session-lifecycle.md` for the web:
 
-- State is persisted in `localStorage` under `ouo.session` (`{ id, startedAt, lastActivity, previousId, replaySeq, replaySampled, endedAt, endReason }`) and `ouo.user`.
+- State is persisted in `localStorage` under `ouo.session` (`{ id, startedAt, lastActivity, previousId, replaySeq, sampled, replaySampled, replayOnError, replayTriggered, endedAt, endReason }`) and `ouo.user`.
 - Activity: click, keydown, scroll, touchstart, pointerdown, tab becoming visible, navigation, outbound fetch/XHR. Persisted at most once per second.
 - Ends: `inactivity` (30 min) or `max_duration` (4 h), detected by a timer in the tab, on the next init, or lazily when the next signal needs a session. The session is not rotated immediately on inactivity: the next activity or signal starts the new one with `session.previous_id` set.
 - Tabs of the same origin share the session through the `storage` event; a session ended in one tab is not ended again by another.
@@ -86,7 +95,8 @@ Implements `docs/specs/session-lifecycle.md` for the web:
 
 Every span and log record carries `session.id`, `user.id`, `ouo.user.anonymous`,
 `ouo.platform=web`, `service.version` and, for sessions that replaced an expired one,
-`session.previous_id`. Outbound requests to `tracing.propagateTo` origins carry
+`session.previous_id`, and `app.screen.name` once a route is named with `rum.setRoute` (not on
+the `navigation` event, which is written before the new route renders). Outbound requests to `tracing.propagateTo` origins carry
 `traceparent` and `baggage: session.id=…,user.id=…,ouo.platform=web`.
 
 ## Events emitted (OTel log records, `event.name`)
@@ -95,14 +105,88 @@ Every span and log record carries `session.id`, `user.id`, `ouo.user.anonymous`,
 |---|---|---|
 | `session.start` | new session | `ouo.session.started_at` (epoch ms) |
 | `session.end` | session expired | `ouo.session.end_reason`, `ouo.session.duration_ms`, `ouo.session.started_at`, `ouo.session.ended_at` |
-| `exception` | uncaught error, unhandled rejection (fatal), `captureError`, `console.error`, resource load failure (non-fatal) | `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal`, `ouo.exception.handled`, `ouo.exception.kind` (`uncaught`, `unhandledrejection`, `captured`, `console`, `resource`) |
+| `exception` | uncaught error, unhandled rejection (fatal), `captureError`, `console.error`, resource load failure, React error boundary (non-fatal) | `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal`, `ouo.exception.handled`, `ouo.exception.kind` (`uncaught`, `unhandledrejection`, `captured`, `console`, `resource`, `react.error_boundary` with `ouo.react.component_stack`). A `console.error` of an object `captureError` reports in the same task is not reported twice. |
 | `http.request.failed` | fetch/XHR with status 5xx or a network failure (status 0). 4xx is not an error. | `http.request.method`, `url.full`, `http.response.status_code` |
 | `navigation` | page load and `pushState` / `replaceState` / `popstate` | `url.path`, `url.full`, `ouo.navigation.from`, `ouo.navigation.kind` (`load`, `push`, `replace`, `pop`) |
-| `web_vital` | web-vitals callbacks (TTFB, FCP, LCP, CLS, INP) | `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating`, `ouo.web_vital.id`, `ouo.web_vital.delta`, `url.path` |
+| `web_vital` | web-vitals callbacks (TTFB, FCP, LCP, CLS, INP); CLS and the final INP when the page is hidden or left | `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating`, `ouo.web_vital.id`, `ouo.web_vital.delta`, `ouo.web_vital.navigation_type`, `url.path` |
+| `ouo.rage_click` | 3 or more clicks on one element or spot within 1 s (one event per burst, at its first click) | `app.widget.id`, `app.widget.name`, `app.screen.coordinate.x` / `.y`, `url.path`, `ouo.click.count`, `ouo.click.duration_ms` |
+| `ouo.dead_click` | a click on a button, link or `role=button` after which no request, DOM mutation or navigation happened before the interaction went idle. Form fields, labels, disabled buttons and links or submit buttons that leave the page never count. | `app.widget.id`, `app.widget.name`, `app.screen.coordinate.x` / `.y`, `url.path` |
+| `ouo.long_animation_frame` | a Long Animation Frame of `longTasks.thresholdMs` or more (Chromium 123+) | `ouo.long_task.duration_ms`, `.blocking_duration_ms`, `.render_start_ms`, `.script_count`, and the longest script: `ouo.long_task.script.duration_ms`, `.invoker`, `.invoker_type`, `.char_position`, `code.file.path`, `code.function.name`; `url.path` |
+| `ouo.long_task` | a Long Task, in Chromium without Long Animation Frames | `ouo.long_task.duration_ms`, `ouo.long_task.container_type`, `ouo.long_task.container_src`, `url.path` |
 | custom | `rum.addEvent(name, attrs)` | your attributes plus `ouo.event.custom=true` |
 
 Spans: `documentLoad` (and its resource fetches), one `CLIENT` span per fetch/XHR
-(`http.request.method`, `url.full`, `http.response.status_code`, `server.address`).
+(`http.request.method`, `url.full`, `http.response.status_code`, `server.address`), `click` and
+`soft-navigation` (below).
+
+Attribute names: OpenTelemetry semantic conventions where they exist (`app.widget.*`,
+`app.screen.*`, `code.*`, `url.*`, `http.*`, `session.*`), `ouo.*` otherwise. The browser and RUM
+conventions are still in development (semconv has an incubating `browser.web_vital` event), so
+`ouo.*` names may move to them later (checklist N26).
+
+## Interactions
+
+Browsers have no async context (no zone.js; TC39 AsyncContext is pending), so a `fetch` sent after
+an `await` in a click handler would start a new trace. The SDK opens an "idle span" instead:
+
+- `click` (`app.widget.id`, `app.widget.name`, `app.screen.coordinate.*`, `url.path`) starts at the
+  click and is the parent of every span started from the root context while it is open: the
+  requests the handler sends, after any number of awaits, and the `soft-navigation` it triggers.
+- `soft-navigation` (`url.path`, `url.full`, `ouo.navigation.from`, `ouo.navigation.kind`,
+  `app.screen.name`) starts at `pushState` / `replaceState` / `popstate` and parents the requests the
+  new route sends. Its duration is the route change's time to settle.
+- A span ends `tracing.idleTimeoutMs` (1 s) after its last activity (a child span starting or
+  ending, a DOM mutation), at the time of that activity, or after 15 s, or when the page is hidden
+  (`ouo.interaction.end_reason`: `idle`, `timeout`, `superseded`, `hidden`). A new click ends the
+  previous click span.
+- A click that caused no request or navigation is not exported (it would be a one-span trace); it is
+  still a timeline event when it was dead or part of a rage burst.
+- Heuristic limits: a request started by a timer or poll while an interaction is open is attributed to
+  it; continuous DOM animation keeps a span open until the 15 s cap. An explicit
+  `context.with(span, ...)` always wins over the fallback.
+
+Element names never read input values, and never the text of elements inside `ouo-mask` or
+`ouo-block`; text is only read from buttons and links (`aria-label` and `data-testid` win).
+
+## Linking the page load (`<meta name="traceparent">`)
+
+A server-rendered page can make the browser's `documentLoad` span a child of the server span that
+rendered it: write the W3C `traceparent` of that span into the page head.
+
+```html
+<meta name="traceparent" content="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" />
+```
+
+With OpenTelemetry Go (`otelhttp`), in the handler that renders the page:
+
+```go
+sc := trace.SpanContextFromContext(r.Context())
+meta := fmt.Sprintf("00-%s-%s-%s", sc.TraceID(), sc.SpanID(), sc.TraceFlags())
+// <meta name="traceparent" content="{{ .TraceParent }}"> in the template
+```
+
+Node (`@opentelemetry/api`): `const c = trace.getActiveSpan()?.spanContext()` and
+`` `00-${c.traceId}-${c.spanId}-0${c.traceFlags}` ``. Any language: inject the current context with
+the W3C propagator into a map and print its `traceparent`. The page must not be cached with the
+tag (each response has its own span). Then Tempo shows server span -> `documentLoad` ->
+`documentFetch` / `resourceFetch` in one trace. Verified in Chromium, Firefox and WebKit
+(`e2e/sdk.spec.ts`) and against the local stack. The session's sampling decision still applies: an
+unsampled session records no `documentLoad`.
+
+## Sampling (roadmap 8b)
+
+Three decisions, each taken once per session and kept in `ouo.session` (so reloads and other tabs
+agree):
+
+1. `sampling.sessionSampleRate`: is the session sent at all? An unsampled session sends no span,
+   event or replay, and its requests carry `traceparent` with the sampled flag `00`.
+2. `replay.sampleRate`: of the sampled sessions, which get a full replay.
+3. `replay.onErrorSampleRate`: of the rest, which record into memory (a full snapshot every 30 s,
+   the last two kept, so 30 to 60 s) and upload that buffer, then everything after it, from the first
+   `exception` of severity error (uncaught, unhandled rejection, `captureError`, `console.error`,
+   error boundary; not resource errors). The switch is persisted (`replayTriggered`).
+
+A per-project server-side override is not part of the SDK (roadmap 8b, collector or rum-api).
 
 ## Replay (ADR-0003)
 
@@ -112,6 +196,7 @@ Spans: `documentLoad` (and its resource fetches), one `CLIENT` span per fetch/XH
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.
 - Upload failures retry 3 times with backoff; pending data is capped at 2 MB (oldest chunks dropped).
 - `rum.replay.pause()` stops recording and flushes; `resume()` starts a new recording with a full snapshot.
+- Multi-tab: tabs of one origin share the session, and two recordings in one chunk sequence would interleave two DOMs. Only one tab records: the visible tab the user last focused, clicked or typed in. It claims a lease on the `BroadcastChannel` `ouo.replay` and starts with a full snapshot and an rrweb custom event `ouo.tab` (`tab_id`, `url`); the tab that loses the lease, or is hidden, stops and flushes. The replay is what the user looked at, one tab after the other. Without `BroadcastChannel` (Safari before 15.4) a tab only stops when hidden.
 - The collector's replay receiver must answer CORS preflights allowing the headers above (`Authorization`, `Content-Type`, `Content-Encoding`, `X-Ouo-Session-Id`, `X-Ouo-Seq`) for your origin; the OTLP receiver needs `Authorization` and `Content-Type` (ADR-0007 section 4).
 
 ## Debugging
@@ -124,12 +209,54 @@ With `debug: true` the SDK logs one init line with the URLs it derived and the p
 
 Common collector answers: `401` wrong or missing credential (basicauth), `429` or `503` rate limited (`ouoratelimit`, retried by the exporters), `413` payload too large, a CORS error with no POST at all when the page origin is not in the collector's `allowed_origins` or `Authorization` is missing from its allowed headers. Exporter responses are visible with the OTel diag logger (`debug: true` wires it to `console.warn`).
 
+## React (`@ouo11y/browser/react`)
+
+A separate entry so the core stays framework-free; React (16.8+) is an optional peer dependency.
+
+```tsx
+import { OuoErrorBoundary, routeTemplate, useOuoRoute } from "@ouo11y/browser/react";
+import { matchRoutes, useLocation, useRoutes } from "react-router-dom";
+
+function App() {
+  useOuoRoute(routeTemplate(matchRoutes(routes, useLocation()))); // "/products/:id" -> app.screen.name
+  return (
+    <OuoErrorBoundary fallback={({ error, reset }) => <Failed error={error} onRetry={reset} />}>
+      {useRoutes(routes)}
+    </OuoErrorBoundary>
+  );
+}
+```
+
+- `OuoErrorBoundary` reports render errors of its subtree as `exception` (`ouo.exception.kind`
+  `react.error_boundary`, handled, `ouo.react.component_stack`) and renders `fallback` (a node or a
+  function of `{ error, reset }`); `attributes` and `onError` are optional. React's development build
+  also rethrows the error to `window`, reported once more as uncaught; production builds report it once.
+- `useOuoRoute(template)` calls `rum.setRoute`. `routeTemplate(matches)` joins React Router
+  `matchRoutes` output (or any `[{ route: { path } }]`) into one template. Any other router: call
+  `useOuoRoute` with the matched pattern.
+
+## Web Vitals in a real browser
+
+FCP, LCP, CLS and INP are only reported for a page that was visible from the start:
+web-vitals drops them for a tab loaded in the background, and the Claude Browser pane and the
+Chrome extension load their tabs hidden (only TTFB arrives there; `debug: true` logs "page loaded
+hidden"). CLS and INP are final only when the page is hidden or left, so they ride on the flush at
+`pagehide` / `visibilitychange` with `keepalive`. Two SDK fixes make that flush reliable:
+its own batch processors instead of OTel's (which skip a flush while an export is in flight, so what
+was emitted at hide after Chromium's `pagehide` flush never left), and INP followed with
+`reportAllChanges` and emitted from the SDK's hide handlers (web-vitals' own final INP report runs
+before its pending interaction entries are processed). Engine support: Chromium all five;
+Firefox TTFB, FCP, LCP, INP (no Layout Instability API, so no CLS); WebKit (Playwright 27) TTFB,
+FCP, LCP, INP.
+
 ## Development
 
 ```bash
 npm run -w sdk/browser build      # tsup -> dist/index.js (+ rrweb chunk, .d.ts)
 npm run -w sdk/browser test       # vitest + jsdom (includes a real-socket check against collector stubs on 127.0.0.1:18081 and :18082)
 npm run -w sdk/browser size       # gzip sizes
+npm run -w sdk/browser size:check # fails above sdk/browser/size-budget.json (CI)
+npm run -w sdk/browser test:e2e   # Playwright: Chromium, Firefox, WebKit against e2e/server.mjs (build first)
 node sdk/browser/playground/server.mjs   # static playground on :4173 + collector stub on :8090 (OTLP + replay on one port, Basic-auth checked)
 ```
 

@@ -42,6 +42,7 @@ export interface RUM {
   setUser(user: { id: string }): void;
   captureError(err: unknown, ctx?: Attrs): void;
   addEvent(name: string, attrs?: Attrs): void;
+  setRoute(name: string): void;
   replay: RUMReplay;
   session: RUMSession;
   flush(): Promise<void>;
@@ -70,6 +71,9 @@ export function initRUM(config: RUMConfig): RUM {
     },
     addEvent(name, attrs) {
       log("addEvent", name, attrs);
+    },
+    setRoute(name) {
+      log("setRoute", name);
     },
     replay: {
       pause() {

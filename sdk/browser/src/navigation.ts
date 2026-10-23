@@ -1,24 +1,34 @@
 import type { EventEmitter } from "./telemetry/events";
+import type { InteractionTracker } from "./interactions/tracker";
+
+export const SOFT_NAVIGATION_SPAN = "soft-navigation";
 
 export interface NavigationOptions {
   events: EventEmitter;
   onActivity: () => void;
+  /** When set, every SPA route change opens a `soft-navigation` span that ends when the page settles. */
+  tracker?: InteractionTracker | undefined;
 }
 
 /** Patches history.pushState / replaceState and listens to popstate, emitting `navigation` events. */
 export function installNavigation(opts: NavigationOptions): () => void {
-  const { events, onActivity } = opts;
+  const { events, onActivity, tracker } = opts;
   let current = location.pathname;
 
   const emit = (kind: string): void => {
     const next = location.pathname;
     if (next === current && kind !== "load") return;
-    events.emit("navigation", {
+    const attrs = {
       "url.path": next,
       "url.full": location.href,
       "ouo.navigation.from": current,
       "ouo.navigation.kind": kind,
-    });
+    };
+    events.emit("navigation", attrs);
+    // Soft-navigation timing: from the route change until requests and DOM mutations settle,
+    // under the click that caused it when there is one.
+    const click = tracker?.current("click");
+    tracker?.begin("navigation", SOFT_NAVIGATION_SPAN, attrs, click && !click.detached ? { parent: click.context } : {});
     current = next;
     onActivity();
   };
