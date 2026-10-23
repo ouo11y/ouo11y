@@ -2,6 +2,7 @@ import type { Attrs } from "../types";
 import type { Clock } from "./clock";
 import { systemClock } from "./clock";
 import { uuidv4 } from "./ids";
+import { isSampled, type SamplingSalt } from "./sampling";
 import type { KeyValueStorage } from "./storage";
 import type { DebugLogger } from "../logger";
 
@@ -22,8 +23,14 @@ export interface SessionRecord {
   previousId?: string;
   /** Next replay chunk sequence number; reloads continue the sequence. */
   replaySeq: number;
+  /** Session sampling decision (`session.sampleRate`), taken once per session. */
+  sampled?: boolean;
   /** Replay sampling decision, taken once per session. */
   replaySampled?: boolean;
+  /** Error-triggered replay decision (`replay.onErrorSampleRate`), taken once per session. */
+  replayOnError?: boolean;
+  /** An error was reported while replay was buffering: upload from now on (all tabs, reloads). */
+  replayTriggered?: boolean;
   endedAt?: number;
   endReason?: EndReason;
 }
@@ -48,8 +55,16 @@ export interface SessionManagerOptions {
   /** Called whenever the active session id changes (new session created here or adopted from another tab). */
   onRotate?: (next: SessionRecord, previousId: string | undefined) => void;
   initialUserId?: string;
+  /** Fraction of sessions that send telemetry, decided once per session. Default 1. */
+  sessionSampleRate?: number;
   logger?: DebugLogger;
 }
+
+const SALTS: Record<"sampled" | "replaySampled" | "replayOnError", SamplingSalt> = {
+  sampled: "session",
+  replaySampled: "replay",
+  replayOnError: "replay_on_error",
+};
 
 function parse<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -73,6 +88,7 @@ export class SessionManager {
   private readonly onEvent: (event: SessionEvent) => void;
   private readonly onRotate: ((next: SessionRecord, previousId: string | undefined) => void) | undefined;
   private readonly logger: DebugLogger | undefined;
+  private readonly sessionSampleRate: number;
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
@@ -89,6 +105,7 @@ export class SessionManager {
     this.onEvent = options.onEvent;
     this.onRotate = options.onRotate;
     this.logger = options.logger;
+    this.sessionSampleRate = options.sessionSampleRate ?? 1;
     this.user = this.loadUser(options.initialUserId);
   }
 
@@ -163,14 +180,42 @@ export class SessionManager {
     return seq;
   }
 
+  /** Session sampling decided once per session and persisted with it: false drops every signal. */
+  sampled(): boolean {
+    return this.decide(this.ensure(), "sampled", this.sessionSampleRate);
+  }
+
+  /**
+   * Sampling decision of a named session without creating one: the active session, the last
+   * ended one (a `session.end` record), else true.
+   */
+  sampledFor(id: string): boolean {
+    const rec = this.current?.id === id ? this.current : this.lastEnded?.id === id ? this.lastEnded : null;
+    if (!rec) return true;
+    return this.decide(rec, "sampled", this.sessionSampleRate);
+  }
+
   /** Replay sampling decided once per session and persisted with it. */
   replaySampled(sampleRate: number): boolean {
+    return this.decide(this.ensure(), "replaySampled", sampleRate);
+  }
+
+  /** Error-triggered replay sampling decided once per session and persisted with it. */
+  replayOnError(sampleRate: number): boolean {
+    return this.decide(this.ensure(), "replayOnError", sampleRate);
+  }
+
+  /** Whether an error switched this session's buffered replay to uploading. */
+  replayTriggered(): boolean {
+    return this.ensure().replayTriggered === true;
+  }
+
+  /** An error happened while replay was buffering: every tab of this session uploads from now on. */
+  triggerReplay(): void {
     const session = this.ensure();
-    if (session.replaySampled === undefined) {
-      session.replaySampled = sampleRate >= 1 ? true : sampleRate <= 0 ? false : Math.random() < sampleRate;
-      this.persist(session, true);
-    }
-    return session.replaySampled;
+    if (session.replayTriggered) return;
+    session.replayTriggered = true;
+    this.persist(session, true);
   }
 
   /** Cross-tab sync (start rule 4): called with the new value of the `ouo.session` key. */
@@ -188,6 +233,9 @@ export class SessionManager {
       this.current.lastActivity = Math.max(this.current.lastActivity, rec.lastActivity);
       this.current.replaySeq = Math.max(this.current.replaySeq, rec.replaySeq);
       if (rec.replaySampled !== undefined) this.current.replaySampled = rec.replaySampled;
+      if (rec.sampled !== undefined) this.current.sampled = rec.sampled;
+      if (rec.replayOnError !== undefined) this.current.replayOnError = rec.replayOnError;
+      if (rec.replayTriggered) this.current.replayTriggered = true;
       return;
     }
     if (rec.endedAt) return;
@@ -211,6 +259,21 @@ export class SessionManager {
   }
 
   // ---- internals ----
+
+  /**
+   * The shared rule (./sampling.ts): a hash of the session id, so rum-api's per-project cap keeps a
+   * consistent subset. Persisted with the session all the same: the rate can change between page
+   * loads (a deploy) and a session keeps its first decision.
+   */
+  private decide(rec: SessionRecord, key: "sampled" | "replaySampled" | "replayOnError", rate: number): boolean {
+    let v = rec[key];
+    if (v === undefined) {
+      v = isSampled(rec.id, rate, SALTS[key]);
+      rec[key] = v;
+      if (rec === this.current) this.persist(rec, true);
+    }
+    return v;
+  }
 
   private ensure(): SessionRecord {
     const now = this.clock.now();

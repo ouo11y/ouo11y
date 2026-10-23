@@ -13,7 +13,10 @@ export default defineConfig(({ mode }) => {
     preview: { port: 4173 },
     resolve: {
       alias: useStub
-        ? { "@ouo11y/browser": fileURLToPath(new URL("./src/rum-stub.ts", import.meta.url)) }
+        ? {
+            "@ouo11y/browser/react": fileURLToPath(new URL("./src/rum-react-stub.ts", import.meta.url)),
+            "@ouo11y/browser": fileURLToPath(new URL("./src/rum-stub.ts", import.meta.url)),
+          }
         : {},
     },
     define: {

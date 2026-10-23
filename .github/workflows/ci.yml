@@ -253,6 +253,8 @@ jobs:
       - run: npm ci
       - name: build all workspaces
         run: npm run build --workspaces --if-present
+      - name: "@ouo11y/browser bundle-size budget (sdk/browser/size-budget.json, checklist N10)"
+        run: npm run -w sdk/browser size:check
       - name: test all workspaces
         run: npm run test --workspaces --if-present
       - name: ouo-env logic (deploy/envs, node:test, no dependencies)
@@ -267,15 +269,18 @@ jobs:
   # Simulator, which Linux runners do not have: their legs drive the same wire traffic from Linux,
   # ouo-mobile with the @ouo11y/react-native bundle in Node (sdk/react-native/playground), and
   # sentry-mobile with scripts/ci-journey.py (Sentry's headers and envelopes through the real
-  # bridge). The iOS runs are scripts/run.sh on a Mac. About 8 minutes when everything runs.
+  # bridge). The iOS runs are scripts/run.sh on a Mac. The web leg runs the browser SDK's Playwright
+# suite and the ouo-web journey in Chromium, Firefox and WebKit. About 12 minutes when everything runs.
   examples:
     name: examples (journey + verify)
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       WEB: ${{ needs.changes.outputs.ex-web }}
+      # mcr.microsoft.com/playwright v1.64.1-noble: must match the `playwright` / `@playwright/test` npm version.
+      PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
       OUO_MOBILE: ${{ needs.changes.outputs.ex-ouo-mobile }}
       SENTRY_MOBILE: ${{ needs.changes.outputs.ex-sentry-mobile }}
     steps:
@@ -304,9 +309,23 @@ jobs:
           mkdir -p deploy/data/rum-api && chmod 0777 deploy/data/rum-api
           docker compose -f deploy/compose/compose.yaml up -d --build
           OUO_READY_TIMEOUT=240 deploy/scripts/wait-ready.sh
-      - name: ouo-web (headless Chromium journey + verify)
+      # Cross-browser matrix (checklist N25) in this one job, no extra runners: the SDK's Playwright
+      # suite against its collector stub, then the ouo-web journey + verify against the stack, in
+      # Chromium, Firefox and WebKit one after the other. Both run in the Playwright image (same
+      # version as the npm package, pinned by digest), which ships the three browsers and their
+      # system libraries: `playwright install --with-deps` pulls ~120 MB from the Ubuntu mirror,
+      # which stalled for 18 minutes and timed the job out. Host network: the stack is on localhost.
+      - name: "@ouo11y/browser end to end (Playwright: Chromium, Firefox, WebKit)"
         if: env.WEB == 'true'
-        run: examples/ouo-web/scripts/run.sh
+        timeout-minutes: 10
+        run: |
+          docker pull -q "$PLAYWRIGHT_IMAGE"
+          docker run --rm --ipc=host --network host -e CI=true -v "$PWD:$PWD" -w "$PWD/sdk/browser" "$PLAYWRIGHT_IMAGE" \
+            npx playwright test -c e2e/playwright.config.ts
+      - name: ouo-web (journey + verify in Chromium, Firefox and WebKit)
+        if: env.WEB == 'true'
+        timeout-minutes: 12
+        run: examples/ouo-web/scripts/run.sh --browsers chromium,firefox,webkit --playwright-image "$PLAYWRIGHT_IMAGE"
       - name: ouo-mobile (typecheck; @ouo11y/react-native in Node + verify)
         if: env.OUO_MOBILE == 'true'
         run: |

@@ -7,6 +7,11 @@ export const USER_STORAGE_KEY = "ouo.demo.user_id";
 
 const env = import.meta.env;
 
+function rate(value: string | undefined, fallback: number): number {
+  const n = value === undefined || value === "" ? NaN : Number(value);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+}
+
 export const config = {
   // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
   // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
@@ -21,6 +26,10 @@ export const config = {
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
   stub: typeof __OUO_RUM_STUB__ !== "undefined" && __OUO_RUM_STUB__,
   debug: env.VITE_RUM_DEBUG === "1",
+  // Sampling (roadmap 8b): fractions 0..1, all sessions with a full replay by default.
+  sessionSampleRate: rate(env.VITE_OUO_SESSION_SAMPLE_RATE, 1),
+  replaySampleRate: rate(env.VITE_OUO_REPLAY_SAMPLE_RATE, 1),
+  replayOnErrorSampleRate: rate(env.VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE, 0),
 } as const;
 
 export function storedUserId(): string | undefined {
@@ -44,7 +53,13 @@ export const rum: RUM = initRUM({
   projectToken: config.projectToken,
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
-  replay: { enabled: true, maskAllInputs: true },
+  session: { sampleRate: config.sessionSampleRate },
+  replay: {
+    enabled: true,
+    maskAllInputs: true,
+    sampleRate: config.replaySampleRate,
+    onErrorSampleRate: config.replayOnErrorSampleRate,
+  },
   ...(initialUser ? { user: { id: initialUser } } : {}),
   debug: config.debug,
 });

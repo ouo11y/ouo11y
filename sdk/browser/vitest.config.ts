@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -7,10 +8,13 @@ export default defineConfig({
   resolve: {
     mainFields: ["browser", "module", "main"],
     conditions: ["browser", "import", "module", "default"],
+    // The React entry imports the SDK by its package name; in tests that is the source.
+    alias: { "@ouo11y/browser": fileURLToPath(new URL("./src/index.ts", import.meta.url)) },
   },
   test: {
     environment: "jsdom",
     include: ["test/**/*.test.ts"],
+    exclude: ["e2e/**"],
     restoreMocks: true,
     server: {
       deps: {
