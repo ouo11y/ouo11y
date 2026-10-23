@@ -13,6 +13,12 @@ project tokens: ADR-0007. Runtime notes and gotchas: `project/kb/otel-react-nati
 ## Install
 
 ```bash
+# .npmrc in the app, once (private until stable: docs/releasing.md, section 7)
+@ouo11y:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+```bash
 npm install @ouo11y/react-native @react-native-async-storage/async-storage   # expo-modules-core comes with expo
 # in this repository: "@ouo11y/react-native": "file:../../sdk/react-native" plus the Metro config below
 ```
