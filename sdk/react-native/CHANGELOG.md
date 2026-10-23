@@ -7,6 +7,13 @@ SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrame
 
 ### Added
 
+- **Sampling** (roadmap 8b, `docs/operations/data-lifecycle.md` section 5): `session.sampleRate`
+  (sessions outside it send no spans, events, logs or replay), `replay.sampleRate` and
+  `replay.onErrorSampleRate` (an unrecorded session starts recording at its first error). The
+  decision is deterministic per session id (FNV-1a + fmix32, shared with rum-api's server-side
+  per-project cap), exported as `sampled` / `samplingHash`. JS only: the native recorder is
+  started, paused and resumed per session.
+
 - **Span API** (G3): `rum.startSpan(name, { attributes, kind, startTime, parent })` and
   `rum.withSpan(name, fn, options)` on the SDK's tracer, with the session attributes. A
   synchronous context manager makes the `withSpan` span active while `fn` runs: requests,

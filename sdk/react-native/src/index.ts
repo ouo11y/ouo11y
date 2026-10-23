@@ -24,6 +24,7 @@ import { activeRoutePath, createNavigationTracker, type NavigationStateLike } fr
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
 import { createReplayController, loadNativeReplayModule } from "./replay";
+import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
 import { SessionManager } from "./session/manager";
 import { safeStorage } from "./session/storage";
 import { StackContextManager } from "./telemetry/context";
@@ -45,6 +46,7 @@ export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/
 export { touchedComponent, type FiberLike, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
 export { type NativeReplayModule, type NativeStartOptions } from "./replay";
+export { sampled, samplingHash, SAMPLING_SALT } from "./sampling";
 export {
   AUTHORIZATION_HEADER,
   DEFAULT_OTLP_PORT,
@@ -101,7 +103,15 @@ export function initRUM(options: RUMOptions): RUM {
   let events: EventEmitter;
 
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
-  const replay = createReplayController({ endpoint: endpoints.replayEndpoint, projectId, projectToken, options: options.replay, logger });
+  const sessionSampleRate = sampleRate(options.session?.sampleRate, 1);
+  const replay = createReplayController({
+    endpoint: endpoints.replayEndpoint,
+    projectId,
+    projectToken,
+    options: options.replay,
+    sessionSampleRate,
+    logger,
+  });
 
   // ---- native crashes (signals, uncaught NSExceptions): the previous run's report, taken once ----
   const nativeCrash = createNativeCrashCapture({ enabled: options.errors?.nativeCrashes !== false, logger });
@@ -131,13 +141,17 @@ export function initRUM(options: RUMOptions): RUM {
     resource,
     processors: [
       new SessionLogProcessor(session, serviceVersion),
-      new BatchLogRecordProcessor({
-        exporter: logExporter,
-        scheduledDelayMillis: 1000,
-        maxExportBatchSize: 64,
-        maxQueueSize: 2048,
-        exportTimeoutMillis: 10000,
-      }),
+      // Session sampling (8b): records of a session outside the sample are never exported.
+      new SampledLogProcessor(
+        new BatchLogRecordProcessor({
+          exporter: logExporter,
+          scheduledDelayMillis: 1000,
+          maxExportBatchSize: 64,
+          maxQueueSize: 2048,
+          exportTimeoutMillis: 10000,
+        }),
+        sessionSampleRate,
+      ),
     ],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
@@ -149,12 +163,15 @@ export function initRUM(options: RUMOptions): RUM {
     resource,
     spanProcessors: [
       new SessionSpanProcessor(session, serviceVersion),
-      new BatchSpanProcessor(traceExporter, {
-        scheduledDelayMillis: 2000,
-        maxExportBatchSize: 64,
-        maxQueueSize: 1024,
-        exportTimeoutMillis: 10000,
-      }),
+      new SampledSpanProcessor(
+        new BatchSpanProcessor(traceExporter, {
+          scheduledDelayMillis: 2000,
+          maxExportBatchSize: 64,
+          maxQueueSize: 1024,
+          exportTimeoutMillis: 10000,
+        }),
+        sessionSampleRate,
+      ),
     ],
   });
   trace.setGlobalTracerProvider(tracerProvider);
@@ -169,6 +186,7 @@ export function initRUM(options: RUMOptions): RUM {
   // ---- exceptions: one record per error (dedupe), with the trace it belongs to (G5) ----
   const reported = new ReportedErrors();
   const emitException = (error: unknown, attrs: Attrs): void => {
+    replay.onError();
     const link = linker.contextFor(error);
     if (!link) {
       events.emit("exception", attrs, "error");
@@ -310,6 +328,7 @@ export function initRUM(options: RUMOptions): RUM {
     projectToken: `${projectToken.slice(0, 8)}…`,
     session: session.id(),
     user: session.userId(),
+    sampling: { session: sessionSampleRate, replay: options.replay?.sampleRate ?? 1, replayOnError: options.replay?.onErrorSampleRate ?? 0 },
   });
 
   const rum: RUMInternal = {

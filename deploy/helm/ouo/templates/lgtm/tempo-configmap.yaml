@@ -27,6 +27,17 @@ data:
             http:
               endpoint: 0.0.0.0:4318
 
+    # Trace retention from .Values.retention.traces (scheduler and worker carry it in 3.0).
+    backend_scheduler:
+      provider:
+        compaction:
+          compaction:
+            block_retention: {{ .Values.retention.traces }}
+
+    backend_worker:
+      compaction:
+        block_retention: {{ .Values.retention.traces }}
+
     querier:
       frontend_worker:
         frontend_address: 127.0.0.1:9095

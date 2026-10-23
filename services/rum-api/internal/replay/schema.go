@@ -135,5 +135,5 @@ func (s *S3) WriteSchemaMarker(ctx context.Context, m SchemaMarker) error {
 	if err != nil {
 		return err
 	}
-	return s.put(ctx, s.schemaMarkerKey(), b, "application/json")
+	return s.put(ctx, s.schemaMarkerKey(), b, "application/json", nil)
 }

@@ -89,6 +89,14 @@ when you ship a file: they would silently win over it. The Dockerfile sets none.
 | `S3_PREFIX` | `storage.s3.prefix` | | optional key prefix (environment, tenant) |
 | `OUO_INGEST_TOKEN` | `auth.ingest_token` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
 | `OUO_READ_TOKEN` | `auth.read_token` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
+| `OUO_ADMIN_TOKEN` | `auth.admin_token` | | bearer of the operator API `/v1/admin/*` (section Admin); the read token does not open it. Empty: the admin API answers 404 |
+| `LOKI_DELETE_API` | `loki.delete_api` | `true` | submit a Loki delete request for every user / project deletion |
+| `REPLAY_RETENTION` | `retention.replays` | `720h` | replay retention from a session's last chunk; `0` keeps replays forever. `projects.<id>.retention.replays` overrides it per project |
+| `LOG_RETENTION` | `retention.logs` | `720h` | Loki's retention: how far back delete-by-user searches for the user's sessions |
+| `REPLAY_SWEEP_INTERVAL` | `retention.sweep_interval` | `1h` | retention sweeper interval; `0` disables it |
+| | `retention.orphan_grace` | `1h` | age after which a session folder without `meta.json` is removed |
+| `S3_LIFECYCLE_RULES` | `storage.s3.lifecycle_rules` | `false` | rum-api owns the bucket's `ouo-replays-*` expiration rules (one per retention in use, on the `ouo-retention` object tag) |
+| | `projects.<id>.sampling.session_rate`, `.replay_rate` | `1` | server-side replay sampling cap per project: the sink drops chunks of sessions outside it (202 `sampled_out`) |
 | `CORS_ALLOWED_ORIGINS` | `server.cors_allowed_origins` | | comma separated exact origins allowed besides the implicit `http://localhost:*` and `http://127.0.0.1:*` (local tooling only; browsers never talk to rum-api in a deployment) |
 | `SESSION_INACTIVITY` | `session.inactivity` | `30m` | a session with no signal for this long is `ended` (`end_reason: inactivity`) |
 | `SESSION_MAX_DURATION` | `session.max_duration` | `4h` | sessions that lasted at least this long end with `max_duration`; also the Loki lookback before `from` |
@@ -435,6 +443,19 @@ detail:
   of its slow ratio (< 5 % / >= 25 %) and its frozen frames (0 / >= 1), a stall window by
   `total_ms` (0 / >= 1 s). Omitted when it cannot be computed (unknown start type, no frames).
 - 404 for an unknown session, 502 when Loki fails.
+
+### Admin (data lifecycle)
+
+Behind `OUO_ADMIN_TOKEN` (404 when unset, 401 without it). Procedures and what each backend
+does: `docs/operations/data-lifecycle.md`.
+
+- `DELETE /v1/admin/users/{user}?project=&reason=&dry_run=` and
+  `DELETE /v1/admin/projects/{project}?reason=&dry_run=`, actor in `X-Ouo-Actor`: deletes the
+  replays at once, submits a Loki delete request and lists the user's Tempo trace ids for
+  `tempo-cli redact`. 200 with the completed audit entry, 502 with the failed one (partly
+  done; the entry says what), 503 when the audit log cannot be written (nothing deleted).
+- `GET /v1/admin/audit?limit=100`: `{"entries":[...]}`, the newest entries oldest first.
+- `POST /v1/admin/retention/sweep`: one retention pass now; `{"scanned","expired","orphans","bytes","errors","duration_ns"}`.
 
 ### Stats
 

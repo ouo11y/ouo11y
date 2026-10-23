@@ -75,6 +75,12 @@ spec:
                   name: {{ include "ouo.rumApi.secretName" . }}
                   key: read-token
                   optional: true
+            - name: OUO_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ouo.rumApi.secretName" . }}
+                  key: admin-token
+                  optional: true
             {{- if eq .Values.rumApi.storage.backend "s3" }}
             {{- $s3 := .Values.rumApi.storage.s3 }}
             {{- if or $s3.existingSecret $s3.accessKeyId }}

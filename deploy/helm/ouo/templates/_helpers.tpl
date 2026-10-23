@@ -175,8 +175,27 @@ S3 keys are environment variables from Secrets.
     "backend" .Values.rumApi.storage.backend
     "filesystem" (dict "dir" "/data")
     "s3" (dict "endpoint" $s3.endpoint "bucket" $s3.bucket "region" $s3.region "prefix" $s3.prefix
-               "insecure" $s3.insecure "insecure_skip_verify" $s3.insecureSkipVerify "force_path_style" $s3.forcePathStyle))
+               "insecure" $s3.insecure "insecure_skip_verify" $s3.insecureSkipVerify "force_path_style" $s3.forcePathStyle
+               "lifecycle_rules" ($s3.lifecycleRules | default false)))
+  "retention" (dict "replays" (toString .Values.retention.replays) "logs" (toString .Values.retention.logs)
+                    "sweep_interval" (toString .Values.retention.sweepInterval))
 -}}
+{{- $projects := dict -}}
+{{- range $id, $p := .Values.retention.projects -}}
+{{- if $p.replays -}}
+{{- $_ := set $projects $id (dict "retention" (dict "replays" (toString $p.replays))) -}}
+{{- end -}}
+{{- end -}}
+{{- range $id, $p := .Values.rumApi.sampling -}}
+{{- $s := dict -}}
+{{- if hasKey $p "sessionRate" -}}{{- $_ := set $s "session_rate" ($p.sessionRate | float64) -}}{{- end -}}
+{{- if hasKey $p "replayRate" -}}{{- $_ := set $s "replay_rate" ($p.replayRate | float64) -}}{{- end -}}
+{{- if hasKey $p "replayOnErrorRate" -}}{{- $_ := set $s "replay_on_error_rate" ($p.replayOnErrorRate | float64) -}}{{- end -}}
+{{- $_ := set $projects $id (merge (dict "sampling" $s) (get $projects $id | default dict)) -}}
+{{- end -}}
+{{- if $projects -}}
+{{- $_ := set $cfg "projects" $projects -}}
+{{- end -}}
 {{- toYaml (mergeOverwrite $cfg (deepCopy .Values.rumApi.structuredConfig)) -}}
 {{- end -}}
 
@@ -220,6 +239,11 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- end -}}
 {{- if and .Values.rumApi.storage.s3.existingSecret (or .Values.rumApi.storage.s3.accessKeyId .Values.rumApi.storage.s3.secretAccessKey) -}}
 {{- fail "ouo: set rumApi.storage.s3.existingSecret or accessKeyId/secretAccessKey, not both" -}}
+{{- end -}}
+{{- range $id, $p := .Values.retention.projects -}}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9._-]{0,63}$" (toString $id)) -}}
+{{- fail (printf "ouo: retention.projects key %q is not a project id" (toString $id)) -}}
+{{- end -}}
 {{- end -}}
 {{- if not (has .Values.lgtm.mode (list "bundled" "external")) -}}
 {{- fail (printf "ouo: lgtm.mode must be bundled or external, got %q" .Values.lgtm.mode) -}}

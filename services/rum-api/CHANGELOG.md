@@ -7,6 +7,21 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ### Added
 
+- Data lifecycle (roadmap 8b, `docs/operations/data-lifecycle.md`):
+  - replay retention (`retention.replays`, per project `projects.<id>.retention.replays`) enforced
+    by a sweeper on both backends (expired sessions and orphan folders, idempotent, metrics
+    `ouo.retention.*`), plus `ouo-retention` object tags and optional bucket lifecycle rules on S3
+    (`storage.s3.lifecycle_rules`);
+  - operator API behind `auth.admin_token` (`OUO_ADMIN_TOKEN`): `DELETE /v1/admin/users/{user}`,
+    `DELETE /v1/admin/projects/{project}` (replays, Loki delete request, Tempo trace ids),
+    `GET /v1/admin/audit`, `POST /v1/admin/retention/sweep`;
+  - append-only deletion audit log (`<data dir>/audit/deletions.jsonl` with a SHA-256 chain, or
+    create-only objects under `[<prefix>/]audit/` on S3); a deletion whose first entry cannot be
+    written does not run;
+  - server-side per-project replay sampling cap (`projects.<id>.sampling`: `session_rate`,
+    `replay_rate`, `replay_on_error_rate`), the SDKs' deterministic rule (`internal/sampling`);
+    a session passing either replay decision keeps its replay, so error-triggered replays survive.
+
 - Replay chunks keep their optional `masked` flag (frames and video); `GET /v1/sessions/{id}/replay`
   serves it per chunk and as the replay's `masked` (`false` as soon as one chunk is unmasked). Chunks
   stored before this version have none. A `masked` that is not a boolean is a 400.

@@ -5,7 +5,7 @@ Phases from the post-MVP roadmap of 2026-10-10 (moved with the rest of the busin
 | Phase | Proposed branch | PR | Weeks | Status | Owner agents (proposed) |
 |---|---|---|---|---|---|
 | 8a Install and secure | `phase-8a-install-secure` | #14 (merged 2026-10-16) | 1 to 3 | in-progress: edge, tokens, Helm and S3 store merged; VM install run, upgrade test and N12 Helm paths verified 2026-10-23 (PR #46); package publishing open | rum-api, sdk-browser, sdk-react-native, platform-infra, helm, grafana-plugin, release, qa |
-| 8b Data lifecycle | `phase-8b-data-lifecycle` | | 4 to 5 | todo | rum-api, sdk-browser, sdk-react-native, platform-infra |
+| 8b Data lifecycle | `phase-8b-data-lifecycle` | | 4 to 5 | in review | rum-api, sdk-browser, sdk-react-native, platform-infra |
 | 8c Operate | `phase-8c-operate` | | 6 to 7 | todo | platform-infra, rum-api |
 | 8d Pilot kit | `phase-8d-pilot-kit` | | 8 | todo | orchestrator |
 | 9 Release health + public benchmarks | `phase-9-release-health` | | 9 to 13 | todo | rum-api, grafana-plugin, new: benchmarks |
@@ -30,12 +30,12 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 
 ### 8b Data lifecycle
 
-- [ ] Retention per signal from one values entry (Loki, Tempo, Mimir TTLs)
+- [x] Retention per signal from one values entry (Loki, Tempo, Mimir TTLs) [rum-api 2026-10-23: Helm `retention` (logs, traces, metrics, replays, per-project logs / replays), compose and VM `OUO_RETENTION_*` (`install.sh --retention`), Loki compactor retention + deletes, Tempo 3.0 `block_retention` (scheduler and worker), Mimir `compactor_blocks_retention_period`, `ouo_project_id` stream label; live on `ouo-env 8b-retention-deletion`, Helm rendered + lint only; `docs/operations/data-lifecycle.md`, `project/agents/rum-api/summaries/2026-10-23-8b-data-lifecycle.md`]
 - [x] rum-api replay store on object storage and a YAML config file like Loki / Tempo [rum-api 2026-10-16: `storage.backend: s3` (AWS S3 / MinIO, conditional meta writes for replicas, ranged mp4 reads), `-config.file` / `-config.expand-env` / `-config.verify`, compose MinIO opt-in, Helm `rumApi.storage`; verified with real MinIO and in the plugin, `project/agents/rum-api/summaries/2026-10-16-config-file-s3.md`]
-- [ ] Replay chunk lifecycle in object storage (lifecycle rules plus rum-api sweeper) matching retention
-- [ ] Delete-by-user and delete-by-project, propagated to replay storage, recorded in an audit log
-- [ ] Sampling in both SDKs: session rate, replay rate, error-triggered replay, server-side per-project override
-- [ ] Masking proof document with screenshots for web and iOS; DPA template
+- [x] Replay chunk lifecycle in object storage (lifecycle rules plus rum-api sweeper) matching retention [rum-api 2026-10-23: sweeper on both backends (expired + orphan, idempotent, `ouo.retention.*` metrics, `POST /v1/admin/retention/sweep`), `ouo-retention` object tags and rum-api-managed `ouo-replays-*` lifecycle rules (`storage.s3.lifecycle_rules`), verified on real MinIO in tests; live: a 1m `ttltest` replay retention expired its replays and kept `demo`. S3 rule expiry itself not observed (daily evaluation)]
+- [x] Delete-by-user and delete-by-project, propagated to replay storage, recorded in an audit log [rum-api 2026-10-23: `DELETE /v1/admin/users/{user}` / `projects/{project}` behind `OUO_ADMIN_TOKEN`: replays at once, Loki delete request, Tempo trace ids for `tempo-cli redact`; append-only audit (JSONL with SHA-256 chain, or create-only S3 objects), no audit entry means no deletion; live: user deleted, replays 404, Loki lines gone after compaction (other user kept), Tempo traces redacted to empty, 6 audit entries with an intact chain]
+- [ ] Sampling in both SDKs: session rate, replay rate, error-triggered replay, server-side per-project override [rum-api + sdk-react-native 2026-10-23: `@ouo11y/react-native` `session.sampleRate`, `replay.sampleRate`, `replay.onErrorSampleRate` (deterministic hash shared with rum-api, unit + integration tests, not run on a device), rum-api `projects.<id>.sampling` cap at the replay sink; browser SDK in the browser-sampling session; server-side cap on OTLP (collector) open]
+- [x] Masking proof document with screenshots for web and iOS; DPA template [rum-api 2026-10-23: `docs/operations/masking-proof.md`, web (Chromium) and iOS 27 Simulator with SDK defaults and with `maskText: false`, live screen next to the stored replay, stored events / frames checked for the typed values; DPA template is legal material and lives outside this repo]
 
 ### 8c Operate
 

@@ -76,6 +76,8 @@ data:
       ingestion_rate: 100000
       ingestion_burst_size: 500000
       out_of_order_time_window: 5m
+      # Metric retention from .Values.retention.metrics.
+      compactor_blocks_retention_period: {{ .Values.retention.metrics }}
 
     usage_stats:
       enabled: false

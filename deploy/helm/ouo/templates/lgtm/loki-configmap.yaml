@@ -46,9 +46,14 @@ data:
         active_index_directory: /loki/tsdb-index
         cache_location: /loki/tsdb-cache
 
+    # Retention and deletion from .Values.retention (docs/operations/data-lifecycle.md).
     compactor:
       working_directory: /loki/compactor
-      retention_enabled: false
+      compaction_interval: {{ .Values.retention.loki.compactionInterval }}
+      retention_enabled: true
+      retention_delete_delay: {{ .Values.retention.loki.retentionDeleteDelay }}
+      delete_request_store: filesystem
+      delete_request_cancel_period: {{ .Values.retention.loki.deleteCancelPeriod }}
 
     pattern_ingester:
       enabled: true
@@ -67,6 +72,19 @@ data:
       ingestion_rate_mb: 32
       ingestion_burst_size_mb: 64
       max_label_names_per_series: 30
+      retention_period: {{ .Values.retention.logs }}
+      deletion_mode: filter-and-delete
+      {{- $streams := list }}
+      {{- range $id, $p := .Values.retention.projects }}
+      {{- if $p.logs }}
+      {{- $streams = append $streams (dict "selector" (printf "{ouo_project_id=%q}" $id) "priority" 1 "period" (toString $p.logs)) }}
+      {{- end }}
+      {{- end }}
+      {{- with $streams }}
+      # Per-project log retention (retention.projects.<id>.logs).
+      retention_stream:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       otlp_config:
         resource_attributes:
           ignore_defaults: true
@@ -77,6 +95,7 @@ data:
                 - service.namespace
                 - deployment.environment.name
                 - ouo.platform
+                - ouo.project.id
         log_attributes:
           - action: index_label
             attributes:

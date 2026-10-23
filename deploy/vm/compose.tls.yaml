@@ -21,7 +21,7 @@
 #     deep links to the public Grafana
 #
 # Required in deploy/compose/.env (written by deploy/vm/install.sh):
-#   OUO_DOMAIN, OUO_OTEL_DOMAIN, OUO_TLS, OUO_INGEST_TOKEN, OUO_READ_TOKEN,
+#   OUO_DOMAIN, OUO_OTEL_DOMAIN, OUO_TLS, OUO_INGEST_TOKEN, OUO_READ_TOKEN, OUO_ADMIN_TOKEN,
 #   OUO_GRAFANA_ADMIN_PASSWORD, OUO_BACKEND_OTLP_HEADERS (Basic credential of the
 #   generated project, for the demo backend and rum-api's own telemetry)
 
