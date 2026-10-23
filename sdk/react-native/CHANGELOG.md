@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-10-24
+
+### Changed
+
+- Published publicly on npmjs.org (`npm install @ouo11y/react-native`), released from CI through npm trusted publishing. No code changes since 0.2.0.
+
 ## Unreleased
 
 Bridge parity (checklist section 3: G2 to G6, Q1). Everything but the native vitals is in the JS

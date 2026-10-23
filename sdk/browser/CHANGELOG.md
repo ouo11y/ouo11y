@@ -2,6 +2,12 @@
 
 All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
+## 0.2.1 - 2026-10-24
+
+### Changed
+
+- Published publicly on npmjs.org (`npm install @ouo11y/browser`), released from CI through npm trusted publishing. No code changes since 0.2.0.
+
 ## 0.2.0 - unreleased
 
 The OpenTelemetry Collector is the only edge (ADR-0007). The SDK posts OTLP straight to `ouo-collector` and replay chunks to its replay receiver, and authenticates every request with HTTP Basic project credentials. Nothing from the earlier 0.2.0 draft (rum-api `/ingest/otlp`, `X-Ouo-Project-Token`) was released.
