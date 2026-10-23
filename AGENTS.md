@@ -86,3 +86,7 @@ deploy/envs/ouo-env down <env>    # no --purge unless asked: volumes are kept
 - Give the founder the URL `ouo-env up` prints (`http://grafana.<env>.ouo.localhost`, admin / testing567 in every env), and for device runs the LAN URLs from `ouo-env url <env> --lan` (a phone cannot resolve `*.localhost`).
 - Tear your env down with `ouo-env down <env>` when the work is done or the PR merges (`ouo-env gc` catches the rest). Never leave an env running without saying so, with its name and URL, in your summary.
 - Smoke-test an env with `eval "$(deploy/envs/ouo-env env <env>)" && deploy/scripts/smoke.sh`.
+
+## Processes on the founder's Mac
+
+Sessions, CI (the self-hosted runner) and the founder's own apps share one machine. Stop only processes you started: keep the PID (`$!`, a PID file) and `kill <pid>`, or use the tool's own stop command (`ouo-env down`, `xcrun simctl shutdown <udid>`, Playwright teardown). Never kill by pattern (`pkill`, `killall`, `pkill -f`, `ps | grep | xargs kill`): `pkill -f "cat"` matches every `/Applications/...` path and closed the founder's apps on 2026-10-24.
