@@ -252,7 +252,7 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek, tapTimes
               <span className={styles.body}>
                 <span className={styles.title}>{look.title(ev)}</span>
                 {look.detail(ev) && <span className={styles.detail}>{look.detail(ev)}</span>}
-                {ev.type === 'exception' && <StackTrace stack={ev.attrs.exception_stacktrace} />}
+                {ev.type === 'exception' && <StackTrace stack={ev.attrs.exception_stacktrace} symbolicated={ev.symbolicated} />}
               </span>
             </li>
           );

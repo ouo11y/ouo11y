@@ -142,7 +142,7 @@ export function LogsPanel({ data, sessionStart, onSeek }: Props) {
                       {a}
                     </span>
                   ))}
-                  {isExceptionLine(l) && <StackTrace stack={l.attrs.exception_stacktrace} />}
+                  {isExceptionLine(l) && <StackTrace stack={l.attrs.exception_stacktrace} symbolicated={l.symbolicated} />}
                 </span>
                 <span className={styles.actions}>
                   {l.trace_url && (
