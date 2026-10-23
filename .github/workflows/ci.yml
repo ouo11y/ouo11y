@@ -34,6 +34,7 @@ jobs:
       node: ${{ steps.paths.outputs.node }}
       swift: ${{ steps.paths.outputs.swift }}
       helm: ${{ steps.paths.outputs.helm }}
+      quickstart: ${{ steps.paths.outputs.quickstart }}
       images: ${{ steps.paths.outputs.images }}
       ex-web: ${{ steps.paths.outputs.ex-web }}
       ex-ouo-mobile: ${{ steps.paths.outputs.ex-ouo-mobile }}
@@ -60,6 +61,7 @@ jobs:
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           flag helm      '^deploy/helm/'
+          flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
           # SDK or receiver it exercises, and the stack they run on.
           shared='examples/(backend|tools)/|^deploy/compose/'
@@ -91,6 +93,26 @@ jobs:
             echo "::error::PR title '$TITLE' is not a conventional commit: <type>(<scope>)!: <summary>, type one of feat fix perf revert deps docs chore refactor test build ci; scope = component (browser, react-native, ios, plugin, collector, rum-api, grafana, chart) when it should land in that changelog. See docs/releasing.md."
             exit 1
           fi
+
+  # deploy/compose/quickstart.yaml is generated from deploy/compose at the release commit the
+  # image pins in compose.images.yaml were tagged on; fail when a pin bump was not regenerated
+  # or the hand-written service blocks drift from that release. Needs the tags: fetch-depth 0.
+  quickstart:
+    name: quickstart.yaml in sync
+    needs: changes
+    if: needs.changes.outputs.quickstart == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: deploy/scripts/gen-quickstart.sh --check
+        run: deploy/scripts/gen-quickstart.sh --check
+      - name: docker compose config
+        working-directory: deploy/compose
+        run: docker compose -f quickstart.yaml config --quiet
 
   go:
     name: go (${{ matrix.module }})
