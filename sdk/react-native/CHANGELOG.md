@@ -1,5 +1,58 @@
 # Changelog
 
+## Unreleased
+
+Bridge parity (checklist section 3: G2 to G6, Q1). Everything is in the JS SDK; the vitals that
+need native measurements read optional functions of the Expo module that its native side does
+not have yet.
+
+### Added
+
+- **Span API** (G3): `rum.startSpan(name, { attributes, kind, startTime, parent })` and
+  `rum.withSpan(name, fn, options)` on the SDK's tracer, with the session attributes. A
+  synchronous context manager makes the `withSpan` span active while `fn` runs: requests,
+  logs and errors inside join its trace.
+- **Log API** (G3): `rum.log(level, message, attrs)` and `rum.log.trace|debug|info|warn|error|fatal`,
+  OTel log records named `log` (as the Sentry bridge maps `Sentry.logger.*`), with severity,
+  `message`, the session attributes and the active span's trace id.
+- **Timeline** (G4), with the Sentry bridge's names and attributes (spec section 9a): `ui.tap`
+  from `RUMProvider` touches (`ouo.ui.target`, `ouo.ui.path` from `ouo-label`, `sentry-label`,
+  `accessibilityLabel`, `aria-label`, `testID` or display names) and `rum.trackTap(target, path)`;
+  `app.lifecycle` (`ouo.app.state` `foreground`, `inactive`, `background`); `http.request` for
+  answered requests below 500 with the request span's trace id. Option `timeline: { taps,
+  appLifecycle, requests }` (all default true).
+- **Vitals** (G2, `docs/specs/mobile-vitals.md`): `ouo.stall` (50 ms JS loop) and
+  `ouo.screen.display` (TTID per screen) measured in JS; `ouo.app.start` and `app.jank` from the
+  Expo module's `getAppStartInfo()` / `getFrameStats()` when its native side has them. Option
+  `vitals: { enabled, stalls }`.
+- **Sentry forwarding** (G6, opt-in): `errors: { forwardSentryErrors: Sentry.getClient() }` turns
+  every error event Sentry sends into an ouo `exception` (`ouo.exception.kind = sentry`,
+  `ouo.sentry.event_id`, `ouo.sentry.mechanism`), skipping errors ouo captured itself and
+  `captureMessage`.
+- **Device model without app code** (G5): expo-device's native constants are read from the Expo
+  module registry when the app has expo-device; `ouo.device.simulator = true` on the simulator.
+- **Trace id on errors** (G5): `exception` records carry the trace id and span id of the span the
+  error escaped from, the active span, or a request that failed less than 2 s before, and
+  `ouo.exception.trace_link` (`span`, `active_span`, `failed_request`).
+- `http.request.failed` carries its request span's trace id and span id.
+- Exports: `normalizeStack`, `touchedComponent`.
+
+### Changed
+
+- **Stack paths** (G5): `exception.stacktrace` frames are rewritten to `app:///<bundle>:line:col`
+  (no per-install container UUIDs, no Metro host or query), one `  at fn (file:line:col)` per
+  frame, `[in app]` on the app's own frames.
+- Records emitted for timeline events have readable bodies (`GET <url>`, `app background`) like
+  the bridge's; vitals have an empty body (spec section 1).
+
+### Fixed
+
+- **Q1**: one fatal error is one `exception`. React Native's dev handler printing the fatal
+  through `console.error` produced a second error after the crashed session's `session.end`, and
+  React dev re-throwing a render error as a new object counted a second crash (`crash_count 2`).
+  An Error object reported by one hook is no longer reported by another (rejection tracker,
+  `console.error` of the same object, `captureError`, the Sentry forwarder).
+
 ## 0.2.0 (unreleased)
 
 Phase 8a, ADR-0007 (the collector is the edge, project tokens as HTTP Basic). The SDK talks to

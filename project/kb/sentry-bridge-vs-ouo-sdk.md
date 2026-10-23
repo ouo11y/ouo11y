@@ -12,6 +12,8 @@ Report with every number and the gap register: `project/agents/sentry-demo/repor
 
 **Update 2026-10-23:** the bridge items A1, A2, A3, A5 to A9, A11 and C5 are fixed in the receiver (`project/kb/sentry-bridge-parity.md`, spec sections 6 to 9b): `captureMessage` is a `sentry.message`, log and session-only records get release, environment, OS and device, error-event breadcrumbs feed the timeline of sessions without a replay, back navigation comes from `navigation` breadcrumbs, native frames keep their addresses and debug images. A4 (vitals) and the plugin items (C1 to C4, C6 to C8) are still open. The numbers below are from before the fixes.
 
+**Update 2026-10-23 (ouo SDK side):** the RN SDK now has the span and log APIs, `ui.tap` / `app.lifecycle` / `http.request` timeline events in the bridge's format, `Sentry.captureException` forwarding (opt-in), the expo-device model without app code, trace ids on errors, stable `app:///` stack paths with `[in app]` frames, and JS-measured vitals (stalls, TTID); app start and frames wait for native hooks ([rn-sdk-bridge-parity.md](rn-sdk-bridge-parity.md)).
+
 ## Answer in one paragraph
 
 The bridge already gives a richer session than the ouo SDK on this journey: 93 timeline events against 9. It has:
