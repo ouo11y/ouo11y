@@ -52,6 +52,8 @@ not have yet.
   React dev re-throwing a render error as a new object counted a second crash (`crash_count 2`).
   An Error object reported by one hook is no longer reported by another (rejection tracker,
   `console.error` of the same object, `captureError`, the Sentry forwarder).
+- Dev builds no longer trace Metro's `/symbolicate` and `/__sentry/…` calls (LogBox and Sentry's
+  middleware): they were spans and `http.request` events after a crashed session's `session.end`.
 
 ## 0.2.0 (unreleased)
 

@@ -237,6 +237,10 @@ export function initRUM(options: RUMOptions): RUM {
     new RegExp(`^${escapeRegExp(endpoints.traces)}(?:[/?#]|$)`),
     new RegExp(`^${escapeRegExp(endpoints.logs)}(?:[/?#]|$)`),
     new RegExp(`^${escapeRegExp(endpoints.replayChunks)}(?:[/?#]|$)`),
+    // Dev only: LogBox asks Metro to symbolicate every error stack, and @sentry/react-native asks
+    // its Metro middleware for source context; those are not app requests (they were spans and
+    // timeline requests after a crashed session's session.end, checklist Q1).
+    ...(isDev() ? [METRO_DEV_ENDPOINTS] : []),
     ...(options.tracing?.ignoreUrls ?? []),
   ];
   const networkOptions = {
@@ -366,6 +370,13 @@ export function initRUM(options: RUMOptions): RUM {
   };
   setRUM(rum);
   return rum;
+}
+
+/** Metro dev-server endpoints: `POST /symbolicate` (LogBox), `POST /__sentry/context` (Sentry's middleware). */
+export const METRO_DEV_ENDPOINTS = /^https?:\/\/[^/]+\/(?:symbolicate|__sentry\/[^?#]*)(?:[?#]|$)/;
+
+function isDev(): boolean {
+  return (globalThis as { __DEV__?: unknown }).__DEV__ === true;
 }
 
 /** react-navigation helper: `<NavigationContainer onStateChange={navigationStateListener(rum)}>`. */

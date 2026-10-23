@@ -304,3 +304,21 @@ describe("Q1 one fatal is one exception", () => {
     expect(attr(ends[0]!.attributes, "ouo.session.end_reason")).toBe("crash");
   });
 });
+
+describe("Q1 dev symbolication", () => {
+  it("Metro's /symbolicate and /__sentry/ calls are not traced in dev", async () => {
+    const dev = globalThis as { __DEV__?: boolean };
+    dev.__DEV__ = true;
+    try {
+      const { rum, captured } = await start();
+      await fetch("http://localhost:8081/symbolicate", { method: "POST" });
+      await fetch("http://localhost:8081/__sentry/context", { method: "POST" });
+      await fetch(`${BACKEND}/symbolicate-not`);
+      await rum.flush();
+      expect(captured.spans.map((s) => attr(s.attributes, "url.full"))).toEqual([`${BACKEND}/symbolicate-not`]);
+      expect(captured.byName("http.request")).toHaveLength(1);
+    } finally {
+      delete dev.__DEV__;
+    }
+  });
+});

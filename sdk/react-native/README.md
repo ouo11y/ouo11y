@@ -277,6 +277,8 @@ one `CLIENT` span `HTTP <METHOD>` per request with
 (`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
 SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
+In dev (`__DEV__`) Metro's `/symbolicate` (LogBox) and `/__sentry/…` (@sentry/react-native's
+middleware) calls are not traced either.
 React Native's `fetch` runs on `XMLHttpRequest`; the XHR that a wrapped `fetch` call opens is
 skipped, so a fetch is one span, not two. On XHR, `traceparent` is only added when the request
 has none yet (XHR would join two into one invalid header); `baggage` is merged.

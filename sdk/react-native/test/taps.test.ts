@@ -32,4 +32,14 @@ describe("tap targets (G4)", () => {
     expect(touchedComponent(chain([undefined, {}]))).toBeUndefined();
     expect(touchedComponent(undefined)).toBeUndefined();
   });
+
+  it("skips React context providers and consumers", () => {
+    const ctx = { $$typeof: Symbol.for("react.context"), displayName: "ThemeContext", _currentValue: {} };
+    const fiber: FiberLike = {
+      elementType: "RCTView",
+      memoizedProps: { testID: "btn-Chaos" },
+      return: { elementType: ctx, memoizedProps: { value: {} }, return: { elementType: { displayName: "Screen" }, memoizedProps: {}, return: null } },
+    };
+    expect(touchedComponent(fiber)).toEqual({ target: "btn-Chaos", path: "btn-Chaos > Screen" });
+  });
 });

@@ -30,8 +30,17 @@ function labelOf(props: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+const CONTEXT_TYPES = new Set([Symbol.for("react.context"), Symbol.for("react.provider"), Symbol.for("react.consumer")]);
+
+/** Context providers and consumers (`ThemeContext`, `SafeAreaInsetsContext`): plumbing, not what was touched. */
+function isContext(elementType: object): boolean {
+  const t = elementType as { $$typeof?: unknown; _context?: unknown; _currentValue?: unknown };
+  return CONTEXT_TYPES.has(t.$$typeof as symbol) || "_currentValue" in t || t._context !== undefined;
+}
+
 function nameOf(elementType: unknown): string | undefined {
   if (!elementType || (typeof elementType !== "object" && typeof elementType !== "function")) return undefined;
+  if (isContext(elementType)) return undefined;
   const displayName = (elementType as { displayName?: unknown }).displayName;
   return typeof displayName === "string" && displayName.length > 0 ? displayName : undefined;
 }
