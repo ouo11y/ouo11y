@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import OuoCrash
 import OuoReplay
 
 /// Options passed by `initRUM({ replay })` through `start(endpoint, options)`.
@@ -25,9 +26,9 @@ final class SessionIdBox {
   func set(_ id: String) { lock.lock(); value = id; lock.unlock() }
 }
 
-/// Expo bridge for the OuoReplay Swift package. One JS instance per app; the native recorder is a
-/// process singleton, so every function forwards to `OuoReplay` (the enum in the OuoReplay module;
-/// the fully qualified name avoids the module/type name clash).
+/// Expo bridge for the OuoReplay and OuoCrash Swift packages. One JS instance per app; the native
+/// recorder is a process singleton, so every function forwards to `OuoReplay` (the enum in the
+/// OuoReplay module; the fully qualified name avoids the module/type name clash) or `OuoCrash`.
 public class OuoReplayModule: Module {
   private let sessionId = SessionIdBox()
 
@@ -90,6 +91,25 @@ public class OuoReplayModule: Module {
 
     Function("stop") {
       OuoReplay.stop()
+    }
+
+    // ---- native crashes (checklist G1), independent of replay ----
+
+    /// Installs the signal and NSException handlers (chained to any installed before, such as
+    /// Sentry's) and sets the session a crash belongs to.
+    Function("installCrashReporter") { (sessionId: String) -> Bool in
+      let ok = OuoCrash.install()
+      if !sessionId.isEmpty { OuoCrash.setSessionId(sessionId) }
+      return ok
+    }
+
+    Function("setCrashSessionId") { (id: String) in
+      OuoCrash.setSessionId(id)
+    }
+
+    /// The previous run's crash report (JSON), removed from disk; nil when the last run did not crash.
+    Function("takePendingCrash") { () -> String? in
+      OuoCrash.takePendingReport()
     }
   }
 }

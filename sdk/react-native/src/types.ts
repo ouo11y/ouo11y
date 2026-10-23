@@ -90,6 +90,14 @@ export interface ErrorOptions {
    * `onUnhandledRejection: (e) => Sentry.captureException(e, { mechanism: { type: "onunhandledrejection", handled: true } })`.
    */
   onUnhandledRejection?: (error: unknown) => void;
+  /**
+   * Capture native crashes (iOS: signals and uncaught NSExceptions) with the Expo module. The
+   * report is written at crash time and sent on the next launch as a fatal `exception` of the
+   * crashed session, which ends with reason `crash` at the crash time. Next to Sentry, ouo calls
+   * Sentry's handlers after its own, so both report the crash. Default true; needs the native
+   * module (not in Expo Go).
+   */
+  nativeCrashes?: boolean;
 }
 
 export interface RUMOptions {

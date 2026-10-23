@@ -40,6 +40,12 @@ Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` r
 - Global JS errors: both SDKs keep the previous `ErrorUtils` handler and call it; both see every
   error. `Sentry.captureException` is Sentry-only.
 - Two replays record side by side (Sentry video, ouo frames), two sessions with different rules.
+- Native crashes (2026-10-23, `project/kb/ios-native-crashes.md`): ouo keeps the signal and
+  `NSException` handlers installed before it and calls them after writing its report. With ouo
+  initialised after Sentry, both reported the same `Sentry.nativeCrash()` SIGSEGV on the next launch
+  (ouo: fatal `exception`, session `crashed`; Sentry: `EXC_BAD_ACCESS` through the bridge, same
+  frames). A JS fatal in Release reaches both JS handlers, then React Native aborts with
+  `RCTFatalException`; ouo counts it once (the JS error), the native report only gives the end time.
 - Never send both into ouo (Sentry through the collector's Sentry bridge plus the ouo SDK):
   every session would arrive twice.
 
@@ -47,5 +53,7 @@ Simulator, `examples/sentry-mobile` built with `OUO_SDK=1`, now its `parallel` r
 
 With ouo replay off, ouo next to Sentry costs no CPU, memory, start time or JS frames that can be told
 apart from noise, and about 15 requests / 60 KB of upload per 95 s of use; ouo replay on as well adds
-~6.6 pp CPU, ~1 MB upload per 95 s and a ~49 ms main-thread stall per frame on the simulator.
+~6.6 pp CPU, ~1 MB upload per 95 s and a ~49 ms main-thread stall per frame on the simulator. Since N6
+(2026-10-23) ouo's capture holds the main thread ~21 ms CPU per frame on the simulator, about half of
+Sentry's in the same traces (`project/kb/ios-replay.md`).
 Method and numbers: `project/kb/sdk-overhead-ios.md`.

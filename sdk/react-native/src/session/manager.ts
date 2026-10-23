@@ -85,6 +85,11 @@ export interface SessionManagerOptions {
   serviceVersion?: string;
   /** Defaults to a global per process; injectable so tests can simulate a cold start. */
   process?: ProcessState;
+  /**
+   * Crash marker from the native crash report of the previous run (signal or uncaught
+   * NSException, `src/crash.ts`). Used like the JS marker; its time is when the process died.
+   */
+  nativeCrash?: CrashMarker;
   logger?: DebugLogger;
 }
 
@@ -113,6 +118,7 @@ export class SessionManager {
   private readonly process: ProcessState;
   private readonly serviceVersion: string | undefined;
   private readonly logger: DebugLogger | undefined;
+  private readonly nativeCrash: CrashMarker | undefined;
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
@@ -134,6 +140,7 @@ export class SessionManager {
     this.process = options.process ?? processState();
     this.serviceVersion = options.serviceVersion;
     this.logger = options.logger;
+    this.nativeCrash = options.nativeCrash;
     this.user = this.initialUser(options.initialUserId);
   }
 
@@ -283,7 +290,7 @@ export class SessionManager {
     );
     // The persisted record may already be ours: persist() ran synchronously in create().
     const persisted = this.validRecord(parse<SessionRecord>(rawSession));
-    const crash = parse<CrashMarker>(rawCrash);
+    const jsCrash = parse<CrashMarker>(rawCrash);
     const persistedUser = parse<UserRecord>(rawUser);
 
     if (this.user.anonymous) {
@@ -297,6 +304,7 @@ export class SessionManager {
       }
     }
 
+    const crash = this.pickCrash(jsCrash, persisted);
     if (persisted && persisted.id !== rec.id) {
       if (!persisted.endedAt) {
         const reason = this.coldStartReason(persisted, crash);
@@ -307,7 +315,7 @@ export class SessionManager {
       }
       rec.previousId = persisted.id;
     }
-    if (crash) void this.storage.removeItem(CRASH_STORAGE_KEY);
+    if (jsCrash) void this.storage.removeItem(CRASH_STORAGE_KEY);
 
     this.pendingStart = null;
     if (this.current === rec) {
@@ -315,6 +323,17 @@ export class SessionManager {
       this.emitStart(rec);
       this.onRotate?.(rec, rec.previousId);
     }
+  }
+
+  /**
+   * The native report wins when it names the persisted session: the process died at its time (a
+   * JS fatal's marker is written a flush earlier, and React Native then aborts natively).
+   */
+  private pickCrash(js: CrashMarker | null, persisted: SessionRecord | null): CrashMarker | null {
+    const native = this.nativeCrash;
+    if (native && persisted && native.sessionId === persisted.id) return native;
+    if (js) return js;
+    return native && !native.sessionId ? native : null;
   }
 
   private coldStartReason(persisted: SessionRecord, crash: CrashMarker | null): EndReason {

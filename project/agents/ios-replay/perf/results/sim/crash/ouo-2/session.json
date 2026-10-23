@@ -1,0 +1,34 @@
+{
+ "session_id": "8819ef18-48c3-48af-81c1-62a0f08e7012",
+ "user_id": "82120390-b18e-4e32-9442-c4cc997cca8f",
+ "platform": "mobile",
+ "service_name": "sentry-demo-ouo",
+ "service_version": "1.0.0",
+ "started_at": "2026-10-22T23:20:11.944Z",
+ "last_signal_at": "2026-10-22T23:20:25.075Z",
+ "ended_at": "2026-10-22T23:20:25.075Z",
+ "end_reason": "crash",
+ "state": "ended",
+ "status": "crashed",
+ "error_count": 0,
+ "crash_count": 1,
+ "failed_request_count": 0,
+ "event_count": 4,
+ "trace_count": 1,
+ "has_replay": true,
+ "replay_kind": "frames",
+ "replay_duration_ms": 1028,
+ "replay_frame_count": 2,
+ "traces": [
+  {
+   "trace_id": "149df7e925720ebd5e63209ca2533c5b",
+   "root_name": "HTTP GET",
+   "root_service": "sentry-demo-ouo",
+   "start": "2026-10-22T23:20:12.026Z",
+   "duration_ms": 197,
+   "span_count": 4,
+   "has_error": false,
+   "grafana_url": "http://grafana.b1-ios-replay-crashes.ouo.localhost/explore?orgId=1&panes=%7B%22ouo%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22limit%22%3A20%2C%22query%22%3A%22149df7e925720ebd5e63209ca2533c5b%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%221792710912026%22%2C%22to%22%3A%221792711512223%22%7D%7D%7D&schemaVersion=1"
+  }
+ ]
+}

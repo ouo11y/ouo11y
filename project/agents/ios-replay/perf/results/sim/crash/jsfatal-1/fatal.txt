@@ -1,0 +1,6 @@
+exception ts=1792711301196000000 session=505d87f7-9e0e-4731-b6d2-355031f582e9 kind=uncaught service=sentry-demo-ouo type=Error message='sentry-demo fatal JS error from setTimeout' crash_ts=None
+  Error: sentry-demo fatal JS error from setTimeout
+      at anonymous (address at /Users/ziadhassanin/Library/Developer/CoreSimulator/Devices/353DDB53-EC05-41ED-A4D3-433D0D84C624/data/Containers/Bundle/Application/203DDECD-ED1F-4E4F-8D0B-80FB324CDD9C/sentrydemo.app/main.jsbundle:1:1658096)
+exception ts=1792711301209000000 session=1A0C9ABA-3A3E-4988-B455-E6ED143A5228 kind=None service=sentry-demo type=Error message='sentry-demo fatal JS error from setTimeout' crash_ts=None
+  Error: sentry-demo fatal JS error from setTimeout
+    at anonymous (app:///main.jsbundle:1:1658097) [in app]

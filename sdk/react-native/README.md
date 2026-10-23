@@ -1,7 +1,7 @@
 # @ouo11y/react-native
 
 ouo Real User Monitoring SDK for React Native / Expo. OpenTelemetry under the hood:
-sessions, errors and JS crashes, app version, outbound `fetch` tracing with W3C Trace
+sessions, errors, JS and native (iOS) crashes, app version, outbound `fetch` tracing with W3C Trace
 Context and Baggage, all exported over OTLP/HTTP to the ouo collector (`ouo-collector`, the only
 internet-facing service, ADR-0007) with the project credential as HTTP Basic. Telemetry needs no
 native code and runs in Expo Go; session replay (iOS) is an Expo native module and needs a
@@ -212,6 +212,7 @@ await rum.flush();                              // force export of spans and log
 | unhandled promise rejection (Hermes tracker) | `exception` | false | false |
 | `console.error` | `exception` | false | true |
 | `rum.captureError` | `exception` | false | true |
+| native crash on iOS (signal, uncaught NSException), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
 
 A fatal error writes the crash marker, waits for it and for a flush (bounded by
 `fatalFlushTimeoutMs`), then calls the previous global handler, so the red box (dev) or the
@@ -220,6 +221,20 @@ native crash (release) still happens. The next launch turns the marker into
 which still bundles `ErrorUtils` but whose browser timers never reach it) the `error` /
 `unhandledrejection` window events are installed as well, de-duplicated per error object, and
 an uncaught error counts as fatal (ADR-0004, web rule).
+
+**Native crashes (iOS, Expo module).** `initRUM` installs signal handlers (`SIGSEGV`, `SIGBUS`,
+`SIGABRT`, `SIGILL`, `SIGFPE`, `SIGTRAP`, `SIGSYS`) and an uncaught `NSException` handler. At
+crash time they write one JSON report (crashing thread's frames, the binary images they point
+into, signal or exception, time, session id) to `Library/Application Support/ouo/crash`. The
+next launch takes it once, ends the crashed session with reason `crash` **at the crash time**
+and emits a fatal `exception` stamped with that time and the crashed `session.id`:
+`exception.stacktrace` in Apple crash report form (`0   app   0x… 0x… + offset`, then
+`Binary Images:`), plus `ouo.crash.frames` (`instruction_addr`, `image_addr`) and
+`ouo.crash.images` (`code_file`, `debug_id`, `image_addr`, `image_size`, `image_vmaddr`) as JSON,
+so the stack can be symbolicated later (`atos -o App.dSYM -l <image_addr> <instruction_addr>`). A
+JS fatal that React Native turns into `RCTFatalException` in Release is not reported twice: the
+JS handler already sent it, the native report only gives the end time. Turn it off with
+`errors: { nativeCrashes: false }`. Only the crashed thread is recorded, from its frame pointers.
 
 Hermes keeps one promise rejection tracker: every `enablePromiseRejectionTracker` call replaces
 the previous one, and `HermesInternal` is frozen, so the tracker cannot be shared. The SDK
@@ -273,6 +288,10 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
    `traceparent`, whatever its `propagateTraceparent` says. The backend joins ouo's trace.
 3. **Errors**: each global error handler calls the one before it; both SDKs see every error.
    `Sentry.captureException` calls stay Sentry-only (use `rum.captureError` for ouo).
+   **Native crashes**: ouo keeps the signal and `NSException` handlers installed before it
+   (Sentry's) and calls them after writing its own report, so both SDKs report the crash on the
+   next launch. Sentry's Mach exception handler sees a bad access first and passes it on as a
+   signal, which then reaches ouo.
 4. **Exclude ouo's uploads from Sentry's tracing**, or Sentry records them as `http.client`
    spans: `Sentry.reactNativeTracingIntegration({ shouldCreateSpanForRequest: (url) => !url.startsWith(OUO_ENDPOINT) })`.
 5. Two independent sessions (ouo's rules and Sentry's), two replays when both record (about twice
