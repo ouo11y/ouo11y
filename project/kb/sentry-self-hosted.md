@@ -75,6 +75,7 @@ Chain: app → `sentrytap` A (127.0.0.1:4420) → ouo collector `ouosentry` (`OU
 - Symptom: every envelope gets `200`, but nothing shows in Sentry (no issues, logs or sessions). Relay logs `error fetching project state <key>: deadline exceeded ... pending=275`; web logs no project config requests.
 - Cause: the `taskbroker` Kafka consumer logged `Actor shutdown signaled` after a rebalance and never rejoined, so no task (also the project config build Relay waits for) ran. `taskworker` was idle.
 - Fix: `docker compose --env-file .env.custom restart taskbroker`. Within 10 s the taskworker runs again, Relay stops timing out and delivers the envelopes it held. Check `docker logs --since 1m sentry-sbx-relay-1 | grep -c "deadline exceeded"` before a live run.
+- 2026-10-23 (batch 2): stuck again right after `up -d --wait`, although the check before the run read 0. After the restart the consumer rebalances for about a minute; Relay times out until then, then delivers what it held (61 envelopes, nothing lost). Run the check again a minute after the first envelopes, not only before.
 
 ## Gotchas for the app
 

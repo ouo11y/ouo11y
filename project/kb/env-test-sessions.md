@@ -31,6 +31,11 @@ Result on 2026-10-23: an `errored` ouo session with a 73 s frames replay, 91 tou
 **Open:** the same build in `sentry` mode sent nothing to the bridge (no TCP connection to the bridge port,
 no `Library/Caches/io.sentry`), although `perf.json` said `sentry: true` and the DSN in the bundle was right.
 Not investigated further; the golden capture below was used for the bridged session instead.
+**Probable cause, found 2026-10-23 (batch 2, `project/kb/sentry-bridge-examples.md`):** the same
+symptoms (no connection, no `io.sentry`) come from a `sentry.options.json` in the app bundle, which
+the `@sentry/react-native` Expo plugin writes when `SENTRY_ENVIRONMENT` is set at prebuild. In a
+Release build @sentry/react-native 8 then skips the native start from JS. `examples/sentry-mobile` now
+sets `autoInitializeNativeSdk: true`; check the app's log for "Using options file".
 
 ## Bridged session: re-send a golden capture
 

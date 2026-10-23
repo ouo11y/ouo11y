@@ -140,7 +140,7 @@ From each `transaction` item's `measurements` (observed names and units in @sent
 
   ```json
   {"session_id":"<id>",
-   "summary":{"app_start":{"type":"cold","duration_ms":3060.7,"rating":"poor"},
+   "summary":{"app_start":{"type":"cold","duration_ms":3060.7,"rating":"needs-improvement"},
               "screens":4,"ttid_ms":{"p50":410.2,"max":3316.2},
               "frames":{"total":1840,"slow":31,"frozen":0,"slow_ratio":0.0168},
               "stalls":{"count":2,"total_ms":340,"longest_ms":220}},

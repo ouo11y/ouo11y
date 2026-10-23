@@ -32,6 +32,10 @@ export interface SessionRecord {
   replay_duration_ms?: number | null;
   /** Number of screenshot frames (`frames`) or encoded video frames (`video`); null or absent otherwise. */
   replay_frame_count?: number | null;
+  /** rum-api after 0.3.0: duration (ms) of the session's `ouo.app.start`; absent when it has none. */
+  app_start_ms?: number;
+  /** rum-api after 0.3.0: `cold` or `warm`; absent when the session has no `ouo.app.start`. */
+  app_start_type?: AppStartType | string;
 }
 
 export interface SessionsResponse {
@@ -42,7 +46,14 @@ export interface SessionsResponse {
 }
 
 export type TimelineType =
-  'session.start' | 'navigation' | 'exception' | 'http.request.failed' | 'web_vital' | 'custom' | 'session.end';
+  | 'session.start'
+  | 'navigation'
+  | 'exception'
+  | 'http.request.failed'
+  | 'web_vital'
+  | 'vital'
+  | 'custom'
+  | 'session.end';
 
 export interface TimelineEvent {
   ts: string;
@@ -101,6 +112,45 @@ export interface LogsResponse {
   trace_count: number;
   query: string;
   explore_url?: string;
+}
+
+/** Event names of the mobile vitals spec (docs/specs/mobile-vitals.md); timeline type `vital`. */
+export type VitalName = 'ouo.app.start' | 'ouo.screen.display' | 'app.jank' | 'ouo.stall';
+export type AppStartType = 'cold' | 'warm';
+/** Display hint of mobile vitals spec section 4. */
+export type VitalRating = 'good' | 'needs-improvement' | 'poor';
+
+/** One record of GET /v1/sessions/{id}/vitals. */
+export interface Vital {
+  /** End of the measured interval. */
+  ts: string;
+  name: VitalName | string;
+  /** `app.screen.name`, when the record has one. */
+  screen?: string;
+  trace_id?: string;
+  span_id?: string;
+  /**
+   * Numeric attributes without their prefix (`ttid_ms`, `ttfd_ms`, `duration_ms`, `total`, `slow`, `frozen`,
+   * `delay_ms`, `frame_count`, `period`, `threshold`, `count`, `total_ms`, `longest_ms`, `period_ms`) and `type`
+   * (string) for app starts.
+   */
+  values: Record<string, number | string>;
+  rating?: VitalRating;
+}
+
+/** Summary of GET /v1/sessions/{id}/vitals; a field is absent when the session has no record of that kind. */
+export interface VitalsSummary {
+  app_start?: { type: AppStartType | string; duration_ms: number; rating?: VitalRating };
+  screens?: number;
+  ttid_ms?: { p50: number; max: number };
+  frames?: { total: number; slow: number; frozen: number; slow_ratio: number };
+  stalls?: { count: number; total_ms: number; longest_ms: number };
+}
+
+export interface VitalsResponse {
+  session_id: string;
+  summary: VitalsSummary;
+  vitals: Vital[];
 }
 
 export interface TracesResponse {

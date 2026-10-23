@@ -92,8 +92,9 @@ type sess struct {
 	seenInit          bool
 	startEmitted      bool
 	endEmitted        bool
-	errorsSeen        int // last `errors` value of a session update
-	exceptionsEmitted int // exception records emitted for this session
+	appStartEmitted   bool // an ouo.app.start record was emitted (mobile vitals spec, section 3)
+	errorsSeen        int  // last `errors` value of a session update
+	exceptionsEmitted int  // exception records emitted for this session
 	replayID          string
 	replayMasked      *bool         // masking options from the replay's `options` event
 	traceIDs          []string      // trace ids learned for this session (rule 4), oldest first

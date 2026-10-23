@@ -94,6 +94,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
 	mux.HandleFunc("GET /v1/sessions/{id}/traces", s.getSessionTraces)
 	mux.HandleFunc("GET /v1/sessions/{id}/logs", s.getSessionLogs)
+	mux.HandleFunc("GET /v1/sessions/{id}/vitals", s.getSessionVitals)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay", s.getReplay)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/events", s.getReplayEvents)
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/frames", s.getReplayFrames)

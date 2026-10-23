@@ -1,6 +1,8 @@
 // Plain fetch against the demo backend (examples/backend). Sentry's fetch instrumentation turns
 // each call into an http.client span and adds sentry-trace / baggage headers.
+import * as Sentry from "@sentry/react-native";
 import { config } from "./config";
+import { navigationReady, navigationRef } from "./navigation";
 
 export interface Product {
   id: string;
@@ -39,7 +41,26 @@ export function apiUrl(path: string, flags: Flags = {}): string {
   return `${config.backendUrl}${path}${q.length ? `?${q.join("&")}` : ""}`;
 }
 
-async function api<T>(path: string, init: { method?: string; json?: unknown; flags?: Flags } = {}): Promise<T> {
+type Init = { method?: string; json?: unknown; flags?: Flags };
+
+// A request started while no span is active would carry Sentry's propagation context: a parent
+// span id no span has, and an unsampled `traceparent` (flag 00), so the backend drops its spans
+// and Tempo shows a broken trace (checklist N24, docs/sentry-client-setup.md section 4).
+// - The first screen loads its data on mount, before the navigation container is ready and
+//   Sentry's first navigation span exists: wait for it (a few ms) so the request is its child.
+//   A root span of our own here would become the SDK's app start transaction.
+// - Later requests with no active span (a timer, a screen whose navigation span already ended)
+//   get their own transaction.
+// Without Sentry.init (the `ouo` rollout mode) startSpan just runs the callback.
+async function api<T>(path: string, init: Init = {}): Promise<T> {
+  if (!navigationRef.isReady()) await navigationReady;
+  if (Sentry.getActiveSpan()) return request<T>(path, init);
+  return Sentry.startSpan({ name: `${init.method ?? "GET"} ${path}`, op: "http.request", forceTransaction: true }, () =>
+    request<T>(path, init),
+  );
+}
+
+async function request<T>(path: string, init: Init): Promise<T> {
   const url = apiUrl(path, init.flags);
   const res = await fetch(url, {
     method: init.method ?? "GET",

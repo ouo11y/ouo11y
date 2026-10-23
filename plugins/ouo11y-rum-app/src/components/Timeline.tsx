@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2, type IconName } from '@grafana/data';
 import { Icon, useStyles2, useTheme2 } from '@grafana/ui';
-import type { TimelineEvent } from '../api/types';
+import type { TimelineEvent, VitalRating } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
+import { isVitalEvent, vitalDetail, vitalRating, vitalTitle } from '../utils/vitals';
 import { scrollRowIntoView } from '../utils/scroll';
 import { StackTrace } from './StackTrace';
 
@@ -147,6 +148,37 @@ const NAMED: Record<string, (ev: TimelineEvent) => Look> = {
   }),
 };
 
+/** Colour of a vital by its rating (mobile vitals spec section 4). */
+export const ratingColor = (rating: VitalRating | undefined) => (t: GrafanaTheme2) => {
+  switch (rating) {
+    case 'good':
+      return t.colors.success.main;
+    case 'needs-improvement':
+      return t.colors.warning.main;
+    case 'poor':
+      return t.colors.error.main;
+    default:
+      return t.colors.text.secondary;
+  }
+};
+
+const VITAL_ICONS: Record<string, IconName> = {
+  'ouo.app.start': 'arrow-up',
+  'ouo.screen.display': 'mobile-android',
+  'app.jank': 'tachometer-fast',
+  'ouo.stall': 'clock-nine',
+};
+
+/** Mobile vitals (type `vital`; older rum-api versions type them `custom`). */
+function vitalLook(ev: TimelineEvent): Look {
+  return {
+    icon: VITAL_ICONS[ev.name] ?? 'heart-rate',
+    color: ratingColor(vitalRating(ev)),
+    title: vitalTitle,
+    detail: vitalDetail,
+  };
+}
+
 const FALLBACK: Look = {
   icon: 'info-circle',
   color: (t) => t.colors.text.secondary,
@@ -155,6 +187,9 @@ const FALLBACK: Look = {
 };
 
 export function eventLook(ev: TimelineEvent): Look {
+  if (isVitalEvent(ev)) {
+    return vitalLook(ev);
+  }
   const named = ev.type === 'custom' ? NAMED[ev.name] : undefined;
   if (named) {
     return named(ev);

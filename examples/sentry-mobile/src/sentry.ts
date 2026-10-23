@@ -24,6 +24,11 @@ export function initSentry(mode: RumMode): void {
     dist: config.dist,
     environment: config.environment,
     debug: config.sentryDebug,
+    // Start sentry-cocoa from JS even when the build has a sentry.options.json. The Expo plugin
+    // writes that file when SENTRY_ENVIRONMENT is set at prebuild, and @sentry/react-native 8 then
+    // skips the native start in Release builds, expecting AppDelegate to do it: no envelope is ever
+    // sent (docs/sentry-client-setup.md, section 1).
+    autoInitializeNativeSdk: true,
     // The cohort, searchable in Sentry as `ouo.rum.mode:parallel`.
     initialScope: { tags: { "ouo.rum.mode": mode } },
 
@@ -32,7 +37,10 @@ export function initSentry(mode: RumMode): void {
     enableAutoPerformanceTracing: true,
     // sentry-trace + baggage on requests to the demo backend, plus W3C `traceparent` so the
     // OpenTelemetry backend joins the app's trace (one trace in Tempo: app spans + backend spans).
-    tracePropagationTargets: ["localhost", /^http:\/\/127\.0\.0\.1/],
+    // Only the backend: a bare "localhost" would also match the collector and flag URLs
+    // (docs/sentry-client-setup.md). tracesSampleRate stays 1.0: below it, unsampled requests send
+    // `traceparent` flag 00 and the backend's ParentBased sampler drops their spans.
+    tracePropagationTargets: [config.backendUrl],
     // In parallel mode ouo, initialised after Sentry, sets `traceparent` first and Sentry then
     // adds none of its own: one per request whatever this option says.
     propagateTraceparent: true,

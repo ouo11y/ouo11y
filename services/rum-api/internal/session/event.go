@@ -42,13 +42,19 @@ const (
 	TypeRequestFailed Type = "http.request.failed"
 	TypeNavigation    Type = "navigation"
 	TypeWebVital      Type = "web_vital"
-	TypeCustom        Type = "custom"
+	// TypeVital is a mobile vital (docs/specs/mobile-vitals.md): ouo.app.start,
+	// ouo.screen.display, app.jank or ouo.stall.
+	TypeVital  Type = "vital"
+	TypeCustom Type = "custom"
 )
 
 // KnownNames is the event_name regex used in the Loki selector for the
 // session list (custom events are fetched too so event_count is complete, but
 // they are classified as TypeCustom).
-var KnownNames = []string{"session.start", "session.end", "exception", "http.request.failed", "navigation", "web_vital"}
+var KnownNames = []string{
+	"session.start", "session.end", "exception", "http.request.failed", "navigation", "web_vital",
+	VitalAppStart, VitalScreenDisplay, VitalJank, VitalStall,
+}
 
 // TypeOf maps a raw event name to its timeline type.
 func TypeOf(name string) Type {
@@ -65,6 +71,8 @@ func TypeOf(name string) Type {
 		return TypeNavigation
 	case "web_vital":
 		return TypeWebVital
+	case VitalAppStart, VitalScreenDisplay, VitalJank, VitalStall:
+		return TypeVital
 	}
 	return TypeCustom
 }

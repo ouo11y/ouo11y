@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
-import { Alert, Badge, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
+import { Alert, Badge, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2, useTheme2 } from '@grafana/ui';
 import { useParams } from 'react-router-dom';
 import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
@@ -14,7 +14,7 @@ import { ReplayActivity } from '../components/ReplayActivity';
 import { ReplayMarkers } from '../components/ReplayMarkers';
 import { ReplayPlayer, type ReplayHandle } from '../components/ReplayPlayer';
 import { StateBadge, StatusBadge } from '../components/StatusBadge';
-import { Timeline } from '../components/Timeline';
+import { Timeline, ratingColor } from '../components/Timeline';
 import { TracesTable } from '../components/TracesTable';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { useRawRange } from '../components/TimeRangeBar';
@@ -29,6 +29,7 @@ import { buildTaps } from '../utils/taps';
 import { useFeatureToggle } from '../featureToggles';
 import { maskingState, type MaskingState } from '../utils/masking';
 import { clampToSessionStart, previousSessionId, sessionContextFields } from '../utils/session';
+import { isVitalEvent, vitalsHeaderItems } from '../utils/vitals';
 
 export default function SessionDetail() {
   const styles = useStyles2(getStyles);
@@ -47,6 +48,14 @@ export default function SessionDetail() {
     `${id}|logs|${range.from}|${range.to}`,
     Boolean(session)
   );
+  // Mobile vitals (docs/specs/mobile-vitals.md): only asked for when the timeline has vital records.
+  const hasVitals = Boolean(session?.timeline.some(isVitalEvent));
+  const vitals = useRumQuery(
+    () => rumApi.vitals(id, { from: range.from, to: range.to }),
+    `${id}|vitals|${range.from}|${range.to}`,
+    hasVitals
+  );
+  const vitalsItems = hasVitals ? vitalsHeaderItems(vitals.data) : [];
   const wantsReplay = Boolean(session?.has_replay);
   // The renderer comes from `replay_kind` on the record (older records need the replay meta); the
   // meta is loaded for every replay anyway, for its `masked` flag.
@@ -214,6 +223,7 @@ export default function SessionDetail() {
                 requests · {session.event_count} events · {formatTraceCount(session.trace_count)} traces
               </dd>
             </dl>
+            {vitalsItems.length > 0 && <VitalsRow items={vitalsItems} />}
           </header>
 
           <div className={cx(styles.grid, !showTimeline ? styles.gridSingle : hasReplay && styles.gridWide)}>
@@ -379,6 +389,25 @@ export default function SessionDetail() {
   );
 }
 
+/** The compact mobile vitals row of the header (spec section 8), each value coloured by its rating. */
+function VitalsRow({ items }: { items: ReturnType<typeof vitalsHeaderItems> }) {
+  const styles = useStyles2(getStyles);
+  const theme = useTheme2();
+  return (
+    <div className={styles.vitals} data-testid="session-vitals">
+      <span className={styles.muted}>Vitals</span>
+      {items.map((it) => (
+        <span key={it.key} className={styles.vital} data-testid={`vital-${it.key}`} data-rating={it.rating}>
+          <span className={styles.muted}>{it.label}</span>{' '}
+          <span style={{ color: ratingColor(it.rating)(theme) }} className={styles.vitalValue}>
+            {it.value}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const MASKING_BADGE = {
   masked: {
     text: 'masked',
@@ -420,6 +449,16 @@ const getStyles = (theme: GrafanaTheme2) => ({
     marginBottom: theme.spacing(1),
   }),
   id: css({ fontSize: theme.typography.h4.fontSize }),
+  vitals: css({
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    columnGap: theme.spacing(2),
+    rowGap: theme.spacing(0.5),
+    marginTop: theme.spacing(1),
+  }),
+  vital: css({ whiteSpace: 'nowrap' }),
+  vitalValue: css({ fontWeight: theme.typography.fontWeightMedium }),
   meta: css({
     display: 'grid',
     gridTemplateColumns: 'max-content 1fr max-content 1fr',

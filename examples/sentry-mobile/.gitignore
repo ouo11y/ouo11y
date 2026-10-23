@@ -43,3 +43,8 @@ yarn-error.*
 # captured Sentry envelopes (scripts/recorder.py)
 /captures/
 __pycache__/
+
+# scripts/run.sh output
+/journey.json
+# written by the @sentry/react-native Expo plugin when SENTRY_ENVIRONMENT is set at prebuild
+/sentry.options.json

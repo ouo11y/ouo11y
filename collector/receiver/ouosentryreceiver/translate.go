@@ -765,6 +765,14 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string, wit
 		lr.SetTraceID(tid)
 		lr.SetSpanID(root.SpanID())
 	}
+	vitalScreen := screen
+	if tc.Op != "ui.load" && tc.Op != "navigation" {
+		vitalScreen = ""
+		if x != nil {
+			vitalScreen = x.lastScreen
+		}
+	}
+	t.emitVitals(e, x, match, userID, tid, root.SpanID(), vitalScreen)
 
 	for _, sp := range e.Spans {
 		span := t.spans.AppendEmpty()

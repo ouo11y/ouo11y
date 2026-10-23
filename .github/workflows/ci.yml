@@ -35,6 +35,9 @@ jobs:
       swift: ${{ steps.paths.outputs.swift }}
       helm: ${{ steps.paths.outputs.helm }}
       images: ${{ steps.paths.outputs.images }}
+      ex-web: ${{ steps.paths.outputs.ex-web }}
+      ex-ouo-mobile: ${{ steps.paths.outputs.ex-ouo-mobile }}
+      ex-sentry-mobile: ${{ steps.paths.outputs.ex-sentry-mobile }}
     steps:
       - name: Match changed files against each job's paths
         id: paths
@@ -57,6 +60,12 @@ jobs:
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           flag helm      '^deploy/helm/'
+          # Example smoke tests (job `examples`): the example, the shared backend and checks, the
+          # SDK or receiver it exercises, and the stack they run on.
+          shared='examples/(backend|tools)/|^deploy/compose/'
+          flag ex-web           "^(examples/ouo-web|sdk/browser)/|^$shared"
+          flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native)/|^$shared"
+          flag ex-sentry-mobile "^(examples/sentry-mobile|collector)/|^$shared"
           images=""
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
           match '^collector/'                                               && images="$images\"collector\","
@@ -252,6 +261,73 @@ jobs:
         run: |
           npm pack --dry-run -w sdk/browser
           npm pack --dry-run -w sdk/react-native
+
+  # One stack (deploy/compose, built from this checkout) and each example's
+  # scripted journey + verify, path-filtered (checklist N23 / N24). The mobile apps need an iOS
+  # Simulator, which Linux runners do not have: their legs drive the same wire traffic from Linux,
+  # ouo-mobile with the @ouo11y/react-native bundle in Node (sdk/react-native/playground), and
+  # sentry-mobile with scripts/ci-journey.py (Sentry's headers and envelopes through the real
+  # bridge). The iOS runs are scripts/run.sh on a Mac. About 8 minutes when everything runs.
+  examples:
+    name: examples (journey + verify)
+    needs: changes
+    if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WEB: ${{ needs.changes.outputs.ex-web }}
+      OUO_MOBILE: ${{ needs.changes.outputs.ex-ouo-mobile }}
+      SENTRY_MOBILE: ${{ needs.changes.outputs.ex-sentry-mobile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: tracecheck unit tests
+        run: python3 -I -m unittest discover -s examples/tools
+      - name: Free disk space for the image builds
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+      - name: npm ci, plugin and SDK builds
+        run: |
+          npm ci
+          # compose.yaml bind-mounts the plugin's dist/ into Grafana (as release-check.yml does).
+          npm run build -w plugins/ouo11y-rum-app
+          if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
+          if [ "$OUO_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
+      - name: Start the stack (built from this checkout)
+        run: |
+          cp deploy/compose/.env.example deploy/compose/.env
+          # rum-api runs as nonroot; its bind-mounted replay directory must be writable.
+          mkdir -p deploy/data/rum-api && chmod 0777 deploy/data/rum-api
+          docker compose -f deploy/compose/compose.yaml up -d --build
+          OUO_READY_TIMEOUT=240 deploy/scripts/wait-ready.sh
+      - name: ouo-web (headless Chromium journey + verify)
+        if: env.WEB == 'true'
+        run: examples/ouo-web/scripts/run.sh
+      - name: ouo-mobile (typecheck; @ouo11y/react-native in Node + verify)
+        if: env.OUO_MOBILE == 'true'
+        run: |
+          (cd examples/ouo-mobile && npm ci && npx tsc --noEmit)
+          start=$(( $(date +%s) - 1 ))
+          for scenario in healthy errored; do
+            (cd sdk/react-native && SCENARIO=$scenario OUO_BACKEND=http://localhost:8081 OUO_STORAGE_FILE="$RUNNER_TEMP/rn-$scenario.json" \
+              node --require ./playground/preload.cjs playground/scenario.cjs)
+          done
+          end=$(( $(date +%s) + 2 ))
+          printf '{"start": %d, "end": %d, "backend": "http://localhost:8081"}\n' "$start" "$end" > "$RUNNER_TEMP/rn.json"
+          python3 -I examples/ouo-mobile/scripts/verify.py --journey "$RUNNER_TEMP/rn.json" --min-failed 1
+      - name: sentry-mobile (typecheck; Sentry wire traffic through the bridge + verify)
+        if: env.SENTRY_MOBILE == 'true'
+        run: |
+          (cd examples/sentry-mobile && npm ci && npx tsc --noEmit)
+          python3 -I examples/sentry-mobile/scripts/ci-journey.py --out "$RUNNER_TEMP/sentry.json"
+          python3 -I examples/sentry-mobile/scripts/verify.py --journey "$RUNNER_TEMP/sentry.json"
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f deploy/compose/compose.yaml logs --no-color --tail 200
 
   swift:
     name: swift (OuoReplayCore)

@@ -1,0 +1,228 @@
+{
+ "status": "success",
+ "data": {
+  "resultType": "streams",
+  "result": [
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "session.start"
+    },
+    "values": [
+     [
+      "1791280800000000000",
+      "session.start"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "ouo.app.start",
+     "ouo_app_start_type": "cold",
+     "ouo_app_start_duration_ms": "3060.7",
+     "app_screen_name": "Home",
+     "ouo_vital_source": "sentry",
+     "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+     "span_id": "00f067aa0ba902b7"
+    },
+    "values": [
+     [
+      "1791280803060700000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "ouo.screen.display",
+     "app_screen_name": "Home",
+     "ouo_screen_ttid_ms": "3316.2",
+     "ouo_vital_source": "sentry",
+     "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+     "span_id": "00f067aa0ba902b7"
+    },
+    "values": [
+     [
+      "1791280803316200000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "app.jank",
+     "app_screen_name": "Home",
+     "app_jank_frame_count": "5",
+     "app_jank_period": "2.5",
+     "ouo_frames_total": "120",
+     "ouo_frames_slow": "4",
+     "ouo_frames_frozen": "1",
+     "ouo_frames_delay_ms": "812.5",
+     "ouo_vital_window": "screen",
+     "ouo_vital_source": "sentry"
+    },
+    "values": [
+     [
+      "1791280805000000000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "navigation",
+     "app_screen_name": "Cart"
+    },
+    "values": [
+     [
+      "1791280809000000000",
+      "navigation"
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "ouo.screen.display",
+     "app_screen_name": "Cart",
+     "ouo_screen_ttid_ms": "410.2",
+     "ouo_screen_ttfd_ms": "900",
+     "ouo_vital_source": "ouo"
+    },
+    "values": [
+     [
+      "1791280810000000000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "ouo.stall",
+     "app_screen_name": "Cart",
+     "ouo_stall_count": "2",
+     "ouo_stall_total_ms": "340",
+     "ouo_stall_longest_ms": "220",
+     "ouo_stall_period_ms": "3000",
+     "ouo_vital_window": "interaction"
+    },
+    "values": [
+     [
+      "1791280812000000000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "ouo.screen.display",
+     "app_screen_name": "Product",
+     "ouo_screen_ttid_ms": "300"
+    },
+    "values": [
+     [
+      "1791280820000000000",
+      ""
+     ]
+    ]
+   },
+   {
+    "stream": {
+     "service_name": "sentry-demo",
+     "ouo_platform": "mobile",
+     "service_version": "1.4.0",
+     "deployment_environment_name": "local",
+     "session_id": "V",
+     "user_id": "u1",
+     "severity_text": "INFO",
+     "os_name": "iOS",
+     "os_version": "27.0",
+     "event_name": "app.jank",
+     "app_screen_name": "Product",
+     "app_jank_frame_count": "27",
+     "app_jank_period": "30",
+     "app_jank_threshold": "0.016666666666666666",
+     "ouo_frames_total": "1720",
+     "ouo_frames_slow": "27",
+     "ouo_frames_frozen": "0"
+    },
+    "values": [
+     [
+      "1791280825000000000",
+      ""
+     ]
+    ]
+   }
+  ]
+ }
+}

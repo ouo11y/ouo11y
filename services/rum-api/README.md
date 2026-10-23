@@ -333,6 +333,9 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
   (or `max_duration` when the session lasted at least `SESSION_MAX_DURATION`).
 - `trace_count` is best effort: `-1` when Tempo failed for that session.
 - `user_id` is the latest non-empty `user.id` seen in the session (`setUser` can arrive late).
+- `app_start_ms` / `app_start_type`: duration (ms) and type (`cold` or `warm`) of the session's
+  `ouo.app.start` record ([mobile vitals spec](../../docs/specs/mobile-vitals.md)); omitted when
+  the session has none (web sessions, older SDKs).
 
 `GET /v1/sessions/{id}[?from&to]` -> the record plus `context`, `timeline` and `traces`.
 `context` is the session's device, OS, build and environment: the latest non-empty value of
@@ -361,7 +364,8 @@ the root's `url.path` (or the path of `url.full`) from a second, best-effort Tem
 ```
 
 `type` is one of `session.start | navigation | exception | http.request.failed | web_vital |
-custom | session.end`; `name` is the raw `event.name` (differs from `type` only for custom
+vital | custom | session.end` (`vital` for the mobile vitals `ouo.app.start`,
+`ouo.screen.display`, `app.jank` and `ouo.stall`); `name` is the raw `event.name` (differs from `type` only for custom
 events). `attrs` is every Loki label and structured-metadata field of the record with
 `.` replaced by `_`, minus the identifiers already on the record and per-SDK constants
 (`telemetry_sdk_*`, `browser_*`, `os_*`, `user_agent_original`, ...). `trace_id` / `span_id`
@@ -390,12 +394,47 @@ services that share one of its traces (a backend's request logs when the app pro
 The Tempo search of `/traces` gives the trace ids (padded to 32 hex, at most 200); one LogQL
 query over the session's window returns both kinds of lines. Session events that are the
 timeline rather than log lines (`session.start`, `session.end`, `navigation`, `http.request`,
-`http.request.failed`, `web_vital`, `app.lifecycle`, `ui.tap`, `breadcrumb`) are left out;
+`http.request.failed`, `web_vital`, `app.lifecycle`, `ui.tap`, `breadcrumb` and the mobile
+vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`) are left out;
 `log`, `console`, `exception` and lines without an event name stay. `source` is `session`
 (the record carries the session id) or `trace`. `level` is the lower-cased severity text. At
 most 2000 lines (`truncated`); `explore_url` opens the full query in Explore. When Tempo
 fails, `trace_count` is -1 and only the session's own lines are returned. 404 for an unknown
 session.
+
+`GET /v1/sessions/{id}/vitals[?from=&to=]` -> the session's mobile vitals
+([spec](../../docs/specs/mobile-vitals.md) section 7), read from the same Loki records as the
+detail:
+
+```json
+{"session_id":"...",
+ "summary":{"app_start":{"type":"cold","duration_ms":3060.7,"rating":"needs-improvement"},
+            "screens":3,"ttid_ms":{"p50":410.2,"max":3316.2},
+            "frames":{"total":1840,"slow":31,"frozen":1,"slow_ratio":0.0168},
+            "stalls":{"count":2,"total_ms":340,"longest_ms":220}},
+ "vitals":[{"ts":"2026-10-06T10:00:03.3162Z","name":"ouo.screen.display","screen":"Home",
+            "trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7",
+            "values":{"ttid_ms":3316.2},"rating":"poor"}]}
+```
+
+- `summary` fields are absent (not zero) when the session has no record of that kind; a
+  session without vitals answers `{"summary":{},"vitals":[]}`. `app_start` is the first
+  `ouo.app.start`; `screens` counts `ouo.screen.display` records; `ttid_ms.p50` is the median
+  (mean of the two middle values for an even count); `frames` sums the `app.jank` records'
+  `ouo.frames.*` and `slow_ratio = slow / total` (4 decimals); `stalls` sums `count` and
+  `total_ms` and takes the largest `longest_ms` of the `ouo.stall` records.
+- `vitals[]` is every record in time order: `ts` is the record's timestamp (the end of the
+  measured interval), `screen` is `app.screen.name`, `trace_id` / `span_id` are omitted when
+  the record has none. `values` holds the numeric attributes without their prefix
+  (`ouo.app.start.` -> `duration_ms`; `ouo.screen.` -> `ttid_ms`, `ttfd_ms`; `ouo.frames.` and
+  `app.jank.` -> `total`, `slow`, `frozen`, `delay_ms`, `frame_count`, `period`, `threshold`;
+  `ouo.stall.` -> `count`, `total_ms`, `longest_ms`, `period_ms`), plus the string `type` for
+  app starts.
+- `rating` (`good`, `needs-improvement`, `poor`) follows spec section 4: app start by type
+  (cold < 2 s / >= 5 s, warm < 1 s / >= 2 s), TTID < 1 s / >= 2.5 s, a frames window the worse
+  of its slow ratio (< 5 % / >= 25 %) and its frozen frames (0 / >= 1), a stall window by
+  `total_ms` (0 / >= 1 s). Omitted when it cannot be computed (unknown start type, no frames).
+- 404 for an unknown session, 502 when Loki fails.
 
 ### Stats
 
@@ -449,6 +488,7 @@ curl -H "$R" 'localhost:8080/v1/sessions?from=now-2h&status=crashed&platform=web
 curl -H "$R" 'localhost:8080/v1/sessions/<session_id>' | jq '.timeline[] | {ts, type, name}'
 curl -H "$R" 'localhost:8080/v1/sessions/<session_id>/traces' | jq '.traces[] | {trace_id, root_name, span_count, has_error, grafana_url}'
 curl -H "$R" 'localhost:8080/v1/sessions/<session_id>/logs?from=now-24h' | jq '.logs[] | {ts, service, level, body}'
+curl -H "$R" 'localhost:8080/v1/sessions/<session_id>/vitals?from=now-24h' | jq '.summary'
 curl -H "$R" 'localhost:8080/v1/stats/health?from=now-24h' | jq
 ```
 
