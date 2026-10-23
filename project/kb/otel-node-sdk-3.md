@@ -3,7 +3,7 @@
 Question: what does a plain Node / Express backend need to send traces to ouo and join the
 browser's trace, with the OpenTelemetry JS release current in October 2026?
 
-Reference code: `examples/quickstarts/tiny-shop/backend` (`instrumentation.js`, `server.js`).
+Reference code: `examples/quickstarts/tiny-shop/result/backend` (`instrumentation.js`, `server.js`).
 
 ## Versions that work together
 

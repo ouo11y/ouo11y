@@ -13,7 +13,7 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@ouo11y/browser": "file:../../../../sdk/browser",
+    "@ouo11y/browser": "^0.2.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

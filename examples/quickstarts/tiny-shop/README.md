@@ -1,7 +1,6 @@
 # Tiny Shop: Node API + React app, traced end to end
 
-A two-folder app you can read in five minutes: an Express API (`backend/`) and a React page
-(`frontend/`). Both are instrumented, so one click in the browser gives one trace from the
+A two-folder app you can read in five minutes: an Express API and a React page. Both are instrumented, so one click in the browser gives one trace from the
 button to the API's manual spans, tagged with the RUM session:
 
 ```
@@ -15,17 +14,21 @@ every span: session.id, user.id               (browser baggage, copied by Baggag
 
 | Path | What |
 |---|---|
-| `backend/instrumentation.js` | OpenTelemetry Node SDK init: OTLP exporter with the project credential, http + express auto-instrumentation, baggage -> span attributes |
-| `backend/server.js` | the API: `GET /api/products`, `POST /api/checkout`, `GET /api/fail`, with manual spans |
-| `frontend/src/rum.js` | `@ouo11y/browser` init: sessions, errors, fetch tracing with `traceparent` to the API, Web Vitals, replay |
-| `frontend/src/main.jsx` | imports `./rum` first, before React renders |
-| `frontend/src/App.jsx` | the shop: Add (custom event), Checkout, Call broken API (500), Throw error (crash) |
+| `result/backend/instrumentation.js` | OpenTelemetry Node SDK init: OTLP exporter with the project credential, http + express auto-instrumentation, baggage -> span attributes |
+| `result/backend/server.js` | the API: `GET /api/products`, `POST /api/checkout`, `GET /api/fail`, with manual spans |
+| `result/frontend/src/rum.js` | `@ouo11y/browser` init: sessions, errors, fetch tracing with `traceparent` to the API, Web Vitals, replay |
+| `result/frontend/src/main.jsx` | imports `./rum` first, before React renders |
+| `result/frontend/src/App.jsx` | the shop: Add (custom event), Checkout, Call broken API (500), Throw error (crash) |
+
+Two ways to use it:
+
+- **Build it yourself (recommended):** [build-it-yourself-guide.md](build-it-yourself-guide.md)
+  takes you from an empty folder to the same files, one step at a time: the plain app first, then
+  the stack, the backend instrumentation, and the browser SDK. About 30 minutes.
+- **Run the finished result:** the steps below run [`result/`](result), the app the guide ends
+  with.
 
 Needs Node 24 and Docker. Commands have no `$` prompt; each runs from the folder named above it.
-
-**Rather build it yourself?** [build-it-yourself-from-scratch.md](build-it-yourself-from-scratch.md)
-takes you from an empty folder to the same files, one step at a time: the plain app first, then
-the stack, the backend instrumentation, and the browser SDK.
 
 ## 1. Run the ouo stack
 
@@ -40,22 +43,9 @@ docker compose up -d
 Grafana is on http://localhost:3000 (admin / testing567), the collector on `:4318` (OTLP) and
 `:4319` (replay). Ports taken? See [Ports](#ports) below.
 
-## 2. Build the browser SDK
+## 2. Start the API
 
-`@ouo11y/browser` is not on npm yet; `frontend/package.json` points at `sdk/browser` in this repo,
-which has to be built once. From the repo root:
-
-```bash
-npm ci
-```
-
-```bash
-npm run -w sdk/browser build
-```
-
-## 3. Start the API
-
-From `examples/quickstarts/tiny-shop/backend`:
+From `examples/quickstarts/tiny-shop/result/backend`:
 
 ```bash
 npm install
@@ -69,9 +59,9 @@ It prints `[otel] tracing to http://localhost:4318/v1/traces` and serves on `:50
 `npm start` is `node --require ./instrumentation.js server.js`: the SDK has to load before
 Express so the auto-instrumentation can patch it.
 
-## 4. Start the web app
+## 3. Start the web app
 
-From `examples/quickstarts/tiny-shop/frontend`, in a second terminal:
+From `examples/quickstarts/tiny-shop/result/frontend`, in a second terminal:
 
 ```bash
 npm install
@@ -84,7 +74,7 @@ npm run dev
 Open http://localhost:5173. The DevTools console shows `[ouo] @ouo11y/browser@... initialised`.
 Click **Add** on a product, then **Checkout**, then **Call broken API** and **Throw error**.
 
-## 5. See it in Grafana
+## 4. See it in Grafana
 
 Give Tempo up to a minute after the click before searching.
 
@@ -120,8 +110,8 @@ The API on another port: `PORT=5002 npm start` and `VITE_API_URL=http://localhos
 
 ## Copy it out of the repo
 
-Both folders work anywhere. Outside the repo, replace the `file:../../../../sdk/browser`
-dependency with the published SDK: in your copy of `frontend/`, `npm install @ouo11y/browser@0.2.0`.
+`result/backend/` and `result/frontend/` work anywhere: copy them out and run the same commands.
+The web app installs `@ouo11y/browser` from npm.
 
 ## Things that bite
 
