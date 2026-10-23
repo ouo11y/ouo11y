@@ -76,6 +76,16 @@ describe("ouo-sourcemaps", () => {
     expect(js).toContain("__ouoDebugIds");
   });
 
+  it("adds the snippet to a bundle that contains the SDK (which names __ouoDebugIds too)", async () => {
+    const d = await dist();
+    const [index] = await findArtifacts(d);
+    await writeFile(index!.js, 'const reg = globalThis.__ouoDebugIds;console.log(reg)');
+    const r = await inject(index!);
+    const js = await readFile(index!.js, "utf8");
+    expect(js.split("\n")[1]).toContain(`[s]="${r.debugId}"`);
+    expect((await inject(index!)).changed).toBe(false);
+  });
+
   it("the snippet registers the bundle's stack under its debug id", async () => {
     const d = await dist();
     const [index] = await findArtifacts(d);

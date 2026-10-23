@@ -17,6 +17,8 @@ export interface Artifact {
 const JS = /\.(?:m|c)?js$/;
 const debugIdComment = /^\/\/# debugId=([0-9a-fA-F-]{32,36})\s*$/m;
 const mappingUrlComment = /^\/\/[#@] sourceMappingURL=(\S+)\s*$/m;
+// The snippet itself (not just the registry name: a bundle that includes @ouo11y/browser mentions it too).
+const snippetLine = /^;!function\(\)\{try\{var g=.*__ouoDebugIds.*\}\(\);$/m;
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -93,7 +95,7 @@ export async function inject(a: Artifact, opts: { dryRun?: boolean } = {}): Prom
   // add only what is missing.
   const existing = src.match(debugIdComment)?.[1]?.toLowerCase();
   const id = existing ?? (typeof map["debugId"] === "string" ? map["debugId"].toLowerCase() : debugIdFor(mapText));
-  const hasSnippet = src.includes("__ouoDebugIds");
+  const hasSnippet = snippetLine.test(src);
   if (existing && hasSnippet) {
     if (map["debugId"] !== id && !opts.dryRun) {
       map["debugId"] = id;

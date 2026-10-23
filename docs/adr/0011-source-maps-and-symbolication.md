@@ -1,6 +1,6 @@
 # ADR-0011 Source maps: debug ids, maps in the rum-api bucket, symbolication on read
 
-Status: proposed (2026-10-24). Implements A10 (web part) and part C of N36 in `project/tracker/checklist.md`.
+Status: proposed (2026-10-24). Implemented and verified on `ouo-env web-sourcemaps-fa863c` the same day. Implements A10 (web part) and part C of N36 in `project/tracker/checklist.md`.
 
 ## Context
 
@@ -70,7 +70,7 @@ Loki keeps the raw stack untouched. rum-api symbolicates when it serves an excep
 - The cache is an LRU of parsed maps per (project, debug id or release path), 128 entries by default (`sourcemaps.cache_entries`), plus a 60 s negative cache for misses so a page of exceptions without maps costs one lookup per script. A map changes only by re-upload, which evicts it on that replica. Other replicas see the new map when the entry ages out (`sourcemaps.cache_ttl`, default 10 min).
 - Original source lines (`sourcesContent`) come back as three lines of context around the frame when the map embeds them.
 
-Why on read, not in the collector: maps uploaded after the error still apply (a late CI step, a fixed upload). The raw record stays as evidence. The collector stays stateless and needs no bucket access. Errors are far fewer than reads of a session, so the cost is small: one parse per map per replica, then lookups in microseconds. The alternative, a collector processor that rewrites `exception.stacktrace` before Loki, gives Loki queries on original file names. That feature can come later as an *added* attribute, written by a processor that calls rum-api's `POST /v1/symbolicate`, without changing this store.
+Why on read, not in the collector: maps uploaded after the error still apply (a late CI step, a fixed upload). The raw record stays as evidence. The collector stays stateless and needs no bucket access. Errors are far fewer than reads of a session, so the cost is small: one parse per map per replica, then lookups. Measured on an M-series Mac: ouo-web's 1 MB map parses in about 8 ms, and a lookup takes about 12 ns. The alternative, a collector processor that rewrites `exception.stacktrace` before Loki, gives Loki queries on original file names. That feature can come later as an *added* attribute, written by a processor that calls rum-api's `POST /v1/symbolicate`, without changing this store.
 
 ### 5. Retention follows Phase 8b
 
@@ -87,7 +87,7 @@ A Hermes or Metro bundle map is uploaded with the same CLI and token (`ouo-sourc
 
 - One new rum-api dependency, `github.com/go-sourcemap/sourcemap` v2.1.4 (BSD-2). It is small and has no transitive dependencies. Grafana Alloy's `faro.receiver` uses it, so it is exercised on real browser stacks.
 - One new npm package, `@ouo11y/sourcemaps`, published with the SDKs.
-- The browser SDK adds about 0.5 KB (min+gzip) and one attribute per exception, only when the page registered debug ids.
-- rum-api reads maps on the request path. A cold map costs one object GET plus a parse, roughly 50 ms for a 2 MB map. The cache keeps that off repeated reads. Symbolication errors never fail the read: the item just has no `symbolicated` field, or a frame has status `no_map`.
+- The browser SDK grows by a few hundred bytes. `index.js` is 43.3 KB gzip, inside its 44 KB budget. It adds one attribute per exception, and only when the page registered debug ids.
+- rum-api reads maps on the request path. A cold map costs one object GET plus a parse, about 8 ms for a 1 MB map. The cache keeps that off repeated reads. Symbolication errors never fail the read: the item just has no `symbolicated` field, or a frame has status `no_map`.
 - A public upload path through the collector is still to build (N41). Until then CI needs network access to rum-api.
 - Malicious maps (VISION 17): a project can only write its own maps, sizes are capped, the parser is memory-safe Go, and the plugin renders source lines as text, never HTML.

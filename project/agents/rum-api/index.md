@@ -12,4 +12,5 @@ JSON API for the Grafana plugin.
 - `summaries/2026-10-14-video-kind.md` Sentry bridge: `kind: "video"` chunks (mp4 segments), manifest and ranged segment endpoints, `MAX_VIDEO_CHUNK_BYTES`
 - `summaries/2026-10-16-config-file-s3.md` YAML config file (`-config.file`, `-config.expand-env`, `-config.verify`), S3 / MinIO replay store, compose opt-in MinIO, Helm `rumApi.storage`
 - `summaries/2026-10-23-8b-data-lifecycle.md` 8b: retention per signal, replay sweeper and S3 lifecycle rules, delete by user / project with audit log, sampling, masking proof
+- `summaries/2026-10-24-web-sourcemaps.md` N36 part C / A10 web: source maps (ADR-0011), upload CLI, symbolication on read, plugin stack view, ouo-web verify
 - `scripts/8b-lifecycle-live.mjs` ingest and status script of the 8b live check (`docs/operations/data-lifecycle.md` section 7)
