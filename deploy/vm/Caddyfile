@@ -3,6 +3,8 @@
 # Two hostnames, both pointing at this VM (ADR-0007 section 7):
 #   OUO_DOMAIN       -> grafana:3000          UI and the ouo plugin; the read token stays server side
 #   OUO_OTEL_DOMAIN  -> otel-collector:4319   /v1/replay/*  (replay chunks)
+#                    -> otel-collector:4320   /api/*        (Sentry SDK envelopes, the bridge, ADR-0008:
+#                                                            DSN https://<key>@OUO_OTEL_DOMAIN/<project>)
 #                    -> otel-collector:4318   everything else (OTLP/HTTP: /v1/traces, /v1/logs, /v1/metrics)
 # The collector checks `Authorization: Basic <project id>:<project token>` itself, answers
 # the browser preflights (CORS) itself and stamps ouo.project.id; Caddy only terminates
@@ -37,6 +39,11 @@
 	@replay path /v1/replay/*
 	handle @replay {
 		reverse_proxy otel-collector:4319
+	}
+	# Sentry SDKs post to /api/<project>/envelope/ (and /api/<project>/store/ on old SDKs).
+	@sentry path /api/*
+	handle @sentry {
+		reverse_proxy otel-collector:4320
 	}
 	handle {
 		reverse_proxy otel-collector:4318

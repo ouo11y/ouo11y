@@ -7,6 +7,13 @@ release-please from conventional commits (`feat(chart): ...`, `fix(chart): ...`)
 
 ## Unreleased
 
+### Documentation
+
+- README: the paths verified on kind on 2026-10-23 (checklist N12): S3 on MinIO, ingress-nginx +
+  cert-manager (CA bootstrap from a self-signed issuer), `x_forwarded_for`, rate-limit buckets per
+  collector pod, every `existingSecret` (with `otlp-headers`), `lgtm.mode=external`, HA render and
+  server dry-run, upgrade from 0.1.0 with a values file and `--rollback-on-failure` (Helm 4).
+
 ## 0.1.1 (2026-10-18, not published)
 
 ### Changed

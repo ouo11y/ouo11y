@@ -163,7 +163,7 @@ func parseChunk(body []byte, maxVideoBytes int64) (Chunk, error) {
 		if schemaVersion == nil {
 			return c, fmt.Errorf("%w: schema_version missing", ErrInvalid)
 		}
-		if *schemaVersion != 1 {
+		if *schemaVersion < 1 || *schemaVersion > SchemaVersion {
 			return c, fmt.Errorf("%w: schema_version %d not supported", ErrInvalid, *schemaVersion)
 		}
 		if c.StartedAt <= 0 {

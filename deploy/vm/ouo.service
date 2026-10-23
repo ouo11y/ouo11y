@@ -1,5 +1,7 @@
 # systemd unit for the ouo stack on a VM. Installed by deploy/vm/install.sh, which
-# replaces __OUO_DIR__ with the checkout directory (default /opt/ouo).
+# replaces __OUO_DIR__ with the checkout directory (default /opt/ouo) and
+# __OUO_COMPOSE_FILES__ with the compose files of the install mode: build from source
+# (compose.yaml + compose.tls.yaml) or released images (--images adds compose.images.yaml).
 #
 #   systemctl status ouo      # oneshot: active (exited) means `compose up -d` succeeded
 #   systemctl restart ouo     # re-runs `up -d` (picks up .env and image changes)
@@ -18,8 +20,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=__OUO_DIR__
-ExecStart=/usr/bin/docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml up -d --remove-orphans
-ExecStop=/usr/bin/docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml down
+ExecStart=/usr/bin/docker compose __OUO_COMPOSE_FILES__ up -d --remove-orphans
+ExecStop=/usr/bin/docker compose __OUO_COMPOSE_FILES__ down
 TimeoutStartSec=0
 
 [Install]

@@ -224,3 +224,22 @@ Tempo by `{ span.session.id = "<id>" }` after 31 s with resource attribute
 `ouo.project.id=demo` overwriting the spoofed value the client sent; `POST /v1/replay/chunks`
 202 and `GET /v1/sessions/<id>/replay` 200 with the bearer token (401 without). Details in
 `project/agents/helm/summaries/2026-10-10-phase-8a.md`.
+
+## N12 paths (2026-10-23, platform-infra)
+
+kind v0.33 node v1.37.0, helm v4.3.0, ingress-nginx chart 4.15.1, cert-manager v1.21.2,
+MinIO `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`. Results are in `deploy/helm/ouo/README.md`;
+what was not obvious:
+
+- `kind load docker-image` fails on multi-arch images from Docker Desktop's containerd store;
+  pipe `docker save --platform linux/arm64` into `ctr -n k8s.io images import` on the node.
+- A `selfSigned` ClusterIssuer issues an empty-subject leaf that curl cannot verify
+  (`ssl_verify_result=1`); bootstrap a CA from it and use a `ca` issuer. Right after the
+  certificates turn Ready, ingress-nginx serves its fake certificate for a few seconds while it
+  reloads (`ssl_verify_result=20`).
+- ingress-nginx (default `use-forwarded-headers: false`) replaces a client's
+  `X-Forwarded-For`, so `key_from: x_forwarded_for` behind it is not spoofable; straight to a
+  pod it is.
+- With `collector.existingProjectsSecret` the rum-api Secret needs `otlp-headers`, or rum-api's
+  own telemetry is refused.
+- An LGTM-only release of this chart is a cheap "external" stack for `lgtm.mode=external`.

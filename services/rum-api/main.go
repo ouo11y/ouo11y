@@ -119,6 +119,13 @@ func run(cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("replay store: %w", err)
 	}
+	// Refuse a store last opened by a rum-api with a newer replay schema
+	// (docs/operations/upgrade.md section 4): exit 1 before serving anything.
+	if ms, ok := store.(replay.SchemaMarkerStore); ok {
+		if err := replay.CheckSchema(ctx, ms, version, time.Now()); err != nil {
+			return err
+		}
+	}
 	// Outbound calls to Loki / Tempo are traced too.
 	httpClient := &http.Client{Timeout: 60 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	lokiClient := loki.New(cfg.Loki.URL, httpClient)
