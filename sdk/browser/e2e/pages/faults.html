@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ouo e2e faults</title>
+  </head>
+  <body>
+    <h1>Fault injection</h1>
+    <p id="status">loading</p>
+    <button id="throw-handler">Listener throws</button>
+    <button id="fetch-then-throw">Fetch callback throws</button>
+    <button id="fetch-read">Fetch and read</button>
+    <button id="fetch-fail">Fetch to nowhere</button>
+    <button id="xhr-throw">XHR onload throws</button>
+    <button id="push">pushState</button>
+    <button id="push-bad">Cross-origin pushState</button>
+    <button id="reject">Unhandled rejection</button>
+    <button id="timer-throw">Timer throws</button>
+    <a id="link" href="/elsewhere">Prevented link</a>
+    <button id="console">console.error</button>
+    <button id="storage">Use storage</button>
+    <ul id="out"></ul>
+    <script type="module" src="/faults.js"></script>
+  </body>
+</html>
