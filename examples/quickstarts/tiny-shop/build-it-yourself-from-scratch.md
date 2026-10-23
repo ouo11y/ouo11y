@@ -208,8 +208,7 @@ Open http://localhost:5173. You see the three products (the page reached your AP
 
 ### 4a. Get the files
 
-The stack is one compose file, and the browser SDK is not on npm yet, so take both from a
-shallow clone of the repo. In the third terminal tab:
+The stack is one compose file; take it from a shallow clone of the repo. In the third terminal tab:
 
 ```bash
 cd ~/Desktop/tiny-shop
@@ -481,39 +480,29 @@ Open the `POST /api/checkout` trace: `POST /api/checkout` -> the Express middlew
 `checkout` -> `validate cart` and `charge card` (with its `payment accepted` event). The
 `GET /api/fail` trace is red, with the exception recorded on it.
 
-## Step 6. Build the browser SDK
+## Step 6. Get access to the browser SDK
 
-`@ouo11y/browser` is not on npm yet: build it from the clone and pack it into a file npm can
-install.
-
-```bash
-cd ~/Desktop/tiny-shop/ouo11y
-```
-
-```bash
-npm ci
-```
-
-```bash
-npm run -w sdk/browser build
-```
-
-```bash
-npm pack -w sdk/browser --pack-destination ~/Desktop/tiny-shop
-```
-
-That writes `~/Desktop/tiny-shop/ouo11y-browser-0.2.0.tgz`.
-
-## Step 7. Instrument the web app
-
-Stop Vite with Ctrl+C in its terminal tab, then:
+`@ouo11y/browser` is published on GitHub Packages, next to the images, and private for now.
+The token from step 4b (classic, `read:packages`) installs it too. Tell npm where `@ouo11y`
+packages live, in the frontend folder:
 
 ```bash
 cd ~/Desktop/tiny-shop/frontend
 ```
 
 ```bash
-npm install ../ouo11y-browser-0.2.0.tgz
+printf '@ouo11y:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${GHCR_TOKEN}\n' > .npmrc
+```
+
+The file holds `${GHCR_TOKEN}`, not the token: npm reads the variable from your shell, so
+`.npmrc` is safe to commit. Run npm from a shell where `GHCR_TOKEN` is exported.
+
+## Step 7. Instrument the web app
+
+Stop Vite with Ctrl+C in its terminal tab, then:
+
+```bash
+npm install @ouo11y/browser@0.2.0
 ```
 
 ### 7a. Initialise the SDK
@@ -718,6 +707,8 @@ docker compose down -v
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
 | `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
 | Vite: `@ouo/browser ... could not be resolved` | the package is `@ouo11y/browser` |
+| `npm install @ouo11y/browser`: `404 Not Found` from `registry.npmjs.org` | no `.npmrc` in `frontend/`, so npm asked npmjs.org: step 6 |
+| `npm install @ouo11y/browser`: `401` or `403` from `npm.pkg.github.com` | `GHCR_TOKEN` not exported in this shell, not a classic token with `read:packages`, or no read access to the package yet |
 | `Cannot read properties of undefined (reading 'export')` in the API | OpenTelemetry 2.x code: `new BatchSpanProcessor({ exporter })` from `@opentelemetry/sdk-trace` |
 | The backend trace starts at `POST /api/checkout`, without the browser span | `propagateTo` does not match the API URL (use the RegExp), or the page was not reloaded after editing `rum.js` |
 | No `OPTIONS` before the API calls | same as above: no trace headers are being added |

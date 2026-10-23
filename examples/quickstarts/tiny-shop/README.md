@@ -120,17 +120,16 @@ The API on another port: `PORT=5002 npm start` and `VITE_API_URL=http://localhos
 
 ## Copy it out of the repo
 
-Both folders work anywhere. Until `@ouo11y/browser` is published, pack the SDK built in step 2
-(from the repo root):
+Both folders work anywhere. Outside the repo, install the published SDK from GitHub Packages
+instead of the `file:../../../../sdk/browser` dependency. In your copy of `frontend/`, with
+`GHCR_TOKEN` (classic, `read:packages`) exported:
 
 ```bash
-npm pack -w sdk/browser --pack-destination <your folder>
+printf '@ouo11y:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${GHCR_TOKEN}\n' > .npmrc
 ```
 
-and in your copy of `frontend/` replace the `file:../../../../sdk/browser` dependency:
-
 ```bash
-npm install <your folder>/ouo11y-browser-0.2.0.tgz
+npm install @ouo11y/browser@0.2.0
 ```
 
 ## Things that bite
