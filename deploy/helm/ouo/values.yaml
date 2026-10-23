@@ -43,6 +43,43 @@ ingestToken: ""
 # read authentication (development only).
 readToken: ""
 
+# Admin token (OUO_ADMIN_TOKEN): bearer of rum-api's operator API /v1/admin/* (delete by
+# user / project, audit log, retention sweep; docs/operations/data-lifecycle.md). Nothing
+# but an operator holds it. Empty disables the admin API (404). With
+# rumApi.existingSecret, put it under the key `admin-token`.
+adminToken: ""
+
+# -----------------------------------------------------------------------------
+# Retention per signal (roadmap 8b, docs/operations/data-lifecycle.md): this one entry
+# renders Loki's retention_period, Tempo's block_retention, Mimir's
+# compactor_blocks_retention_period (bundled LGTM) and rum-api's replay retention (its
+# sweeper and, with rumApi.storage.s3.lifecycleRules, the bucket lifecycle rules). Go
+# durations in hours; Loki needs at least 24h. With lgtm.mode external, set the same
+# values in your Loki / Tempo / Mimir charts (the doc lists the keys); rum-api still
+# uses `logs` to bound delete-by-user and `replays` for replays.
+# -----------------------------------------------------------------------------
+retention:
+  logs: 720h
+  traces: 336h
+  metrics: 2160h
+  replays: 720h
+  # How often rum-api's sweeper deletes expired replays (0s disables it).
+  sweepInterval: 1h
+  # Per-project overrides keyed by project id: `logs` becomes a Loki retention_stream on
+  # the ouo_project_id label (bundled Loki), `replays` rum-api's projects.<id> retention.
+  # Tempo and Mimir are single-tenant here: traces and metrics have no per-project TTL.
+  projects: {}
+  #  ttltest:
+  #    logs: 24h
+  #    replays: 24h
+  # Bundled Loki's deletion timings: a delete request can be cancelled for
+  # deleteCancelPeriod before the compactor applies it; deleted chunks go after
+  # retentionDeleteDelay.
+  loki:
+    compactionInterval: 10m
+    deleteCancelPeriod: 24h
+    retentionDeleteDelay: 2h
+
 # -----------------------------------------------------------------------------
 # rum-api: session API, replay store, internal replay sink. ClusterIP only, never
 # an Ingress (ADR-0007 section 5): only the collector and Grafana talk to it.
@@ -53,8 +90,8 @@ rumApi:
     tag: "0.3.0"
     pullPolicy: IfNotPresent
   replicas: 1
-  # Name of a pre-created Secret with keys `ingest-token` and `read-token`.
-  # When set, `ingestToken` and `readToken` are ignored.
+  # Name of a pre-created Secret with keys `ingest-token`, `read-token` and, optionally,
+  # `admin-token`. When set, `ingestToken`, `readToken` and `adminToken` are ignored.
   existingSecret: ""
   config:
     # Browser-facing Grafana URL used in trace deep links. Empty: derived from
@@ -96,6 +133,17 @@ rumApi:
       secretAccessKey: ""
       # Pre-created Secret with keys `access-key-id` and `secret-access-key`.
       existingSecret: ""
+      # true: rum-api writes the bucket's ouo-replays-* lifecycle rules (expiration per
+      # retention in use, by the ouo-retention object tag) at start-up. Needs
+      # s3:Get/PutLifecycleConfiguration and s3:PutObjectTagging; false: provision the
+      # rules yourself (docs/operations/data-lifecycle.md has the AWS JSON).
+      lifecycleRules: false
+  # Server-side per-project replay sampling cap: the replay sink drops chunks of sessions
+  # outside it, with the SDKs' deterministic rule (docs/operations/data-lifecycle.md).
+  sampling: {}
+  #  web-store:
+  #    sessionRate: 1
+  #    replayRate: 0.25
   # ServiceAccount for the pod (pod identity / IRSA for the s3 backend). Empty: default.
   serviceAccountName: ""
   otel:

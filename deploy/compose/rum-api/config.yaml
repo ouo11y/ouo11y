@@ -11,6 +11,7 @@ server:
 auth:
   ingest_token: "${OUO_INGEST_TOKEN}"
   read_token: "${OUO_READ_TOKEN}"
+  admin_token: "${OUO_ADMIN_TOKEN}"
 
 loki:
   url: http://loki:3100
@@ -39,3 +40,17 @@ storage:
     secret_access_key: "${S3_SECRET_ACCESS_KEY}"
     insecure: true          # plain HTTP inside the compose network
     force_path_style: true  # MinIO
+
+# Replay retention and the sweeper: REPLAY_RETENTION / LOG_RETENTION / REPLAY_SWEEP_INTERVAL
+# from compose.yaml (OUO_RETENTION_REPLAYS, OUO_RETENTION_LOGS) override these.
+retention:
+  replays: 720h
+  logs: 720h
+  sweep_interval: 1h
+
+# Per-project replay retention and server-side sampling caps (restart rum-api after an
+# edit). Keep a project's log retention in loki/runtime.yaml in step.
+projects: {}
+#  ttltest:
+#    retention: { replays: 24h }
+#    sampling: { session_rate: 1, replay_rate: 0.25 }

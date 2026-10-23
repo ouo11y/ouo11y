@@ -36,16 +36,19 @@ type TraceSource interface {
 // Options tune the handlers.
 type Options struct {
 	SessionOptions     session.Options
-	ListLookback       time.Duration      // extra Loki lookback before `from` so sessions started earlier still fold completely
-	DetailLookback     time.Duration      // how far back a single-session lookup searches
-	MaxChunkBytes      int64              // rrweb chunks (decompressed); default 4 MiB
-	MaxFrameChunkBytes int64              // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
-	MaxVideoChunkBytes int64              // decoded mp4 of a kind video chunk; default 8 MiB, never below MaxChunkBytes. The store enforces it (MaxVideoBytes on replay.FS / replay.S3); here it sizes the body limit
-	IngestToken        string             // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
-	ReadToken          string             // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
-	CORSAllowedOrigins []string           // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
-	TraceLinks         *tempo.LinkBuilder // Explore links for log lines' traces (nil: none)
-	LokiLinks          *loki.LinkBuilder  // Explore link for the session's log query (nil: none)
+	ListLookback       time.Duration            // extra Loki lookback before `from` so sessions started earlier still fold completely
+	DetailLookback     time.Duration            // how far back a single-session lookup searches
+	MaxChunkBytes      int64                    // rrweb chunks (decompressed); default 4 MiB
+	MaxFrameChunkBytes int64                    // kind frames chunks (decompressed); default 8 MiB, never below MaxChunkBytes
+	MaxVideoChunkBytes int64                    // decoded mp4 of a kind video chunk; default 8 MiB, never below MaxChunkBytes. The store enforces it (MaxVideoBytes on replay.FS / replay.S3); here it sizes the body limit
+	IngestToken        string                   // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
+	ReadToken          string                   // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	AdminToken         string                   // OUO_ADMIN_TOKEN: bearer of /v1/admin/*; empty disables the admin API
+	Admin              *Admin                   // deletions, audit log, retention sweep (nil: admin API disabled)
+	Sampling           map[string]SamplingRates // server-side per-project replay sampling cap (projects.<id>.sampling)
+	CORSAllowedOrigins []string                 // CORS_ALLOWED_ORIGINS: exact extra origins besides http://localhost:* and http://127.0.0.1:*
+	TraceLinks         *tempo.LinkBuilder       // Explore links for log lines' traces (nil: none)
+	LokiLinks          *loki.LinkBuilder        // Explore link for the session's log query (nil: none)
 	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
@@ -102,6 +105,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/video/{seq}", s.getReplayVideoSegment)
 	mux.HandleFunc("DELETE /v1/sessions/{id}/replay", s.deleteReplay)
 	mux.HandleFunc("GET /v1/stats/health", s.statsHealth)
+	mux.HandleFunc("DELETE /v1/admin/users/{user}", s.adminAuth(s.deleteUser))
+	mux.HandleFunc("DELETE /v1/admin/projects/{project}", s.adminAuth(s.deleteProject))
+	mux.HandleFunc("GET /v1/admin/audit", s.adminAuth(s.getAudit))
+	mux.HandleFunc("POST /v1/admin/retention/sweep", s.adminAuth(s.postSweep))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

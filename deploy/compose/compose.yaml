@@ -59,29 +59,42 @@ services:
   # Loki, Tempo, Mimir and the collector ship distroless images (no shell, no wget),
   # so they have no container healthcheck; readiness is probed over HTTP from the
   # host (deploy/scripts/smoke.sh, deploy/scripts/wait-ready.sh).
+  # Retention per signal (roadmap 8b, docs/operations/data-lifecycle.md): one set of
+  # OUO_RETENTION_* variables (deploy/compose/.env) feeds Loki, Tempo, Mimir and rum-api.
   loki:
     image: grafana/loki:3.7.7
-    command: ["-config.file=/etc/loki/config.yaml"]
+    command: ["-config.file=/etc/loki/config.yaml", "-config.expand-env=true"]
     ports:
       - "${OUO_LOKI_PORT:-3100}:3100"
+    environment:
+      OUO_RETENTION_LOGS: ${OUO_RETENTION_LOGS:-720h}
+      OUO_LOKI_COMPACTION_INTERVAL: ${OUO_LOKI_COMPACTION_INTERVAL:-10m}
+      OUO_LOKI_RETENTION_DELETE_DELAY: ${OUO_LOKI_RETENTION_DELETE_DELAY:-2h}
+      OUO_LOKI_DELETE_CANCEL_PERIOD: ${OUO_LOKI_DELETE_CANCEL_PERIOD:-24h}
     volumes:
       - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      # Per-project retention_stream overrides, reloaded every 10 s.
+      - ./loki/runtime.yaml:/etc/loki/runtime.yaml:ro
       - loki-data:/loki
 
   tempo:
     image: grafana/tempo:3.0.3
-    command: ["-config.file=/etc/tempo/config.yaml"]
+    command: ["-config.file=/etc/tempo/config.yaml", "-config.expand-env=true"]
     ports:
       - "${OUO_TEMPO_PORT:-3200}:3200"
+    environment:
+      OUO_RETENTION_TRACES: ${OUO_RETENTION_TRACES:-336h}
     volumes:
       - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
       - tempo-data:/var/tempo
 
   mimir:
     image: grafana/mimir:3.2.1
-    command: ["-config.file=/etc/mimir/config.yaml"]
+    command: ["-config.file=/etc/mimir/config.yaml", "-config.expand-env=true"]
     ports:
       - "${OUO_MIMIR_PORT:-9009}:9009"
+    environment:
+      OUO_RETENTION_METRICS: ${OUO_RETENTION_METRICS:-2160h}
     volumes:
       - ./mimir/config.yaml:/etc/mimir/config.yaml:ro
       - mimir-data:/data
@@ -174,6 +187,12 @@ services:
       OUO_INGEST_TOKEN: ${OUO_INGEST_TOKEN:-it_dev_0000000000000000}
       # Bearer that unlocks GET/DELETE /v1/* (Grafana's plugin proxy injects it).
       OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+      # Bearer of the operator API /v1/admin/* (deletions, audit log, retention sweep).
+      OUO_ADMIN_TOKEN: ${OUO_ADMIN_TOKEN:-at_dev_0000000000000000}
+      # Replay retention and the sweeper (also read by the config file).
+      REPLAY_RETENTION: ${OUO_RETENTION_REPLAYS:-720h}
+      LOG_RETENTION: ${OUO_RETENTION_LOGS:-720h}
+      REPLAY_SWEEP_INTERVAL: ${OUO_REPLAY_SWEEP_INTERVAL:-1h}
       # rum-api's own telemetry, through the collector like everybody else (demo credential).
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_HEADERS: ${OUO_BACKEND_OTLP_HEADERS:-Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw}
@@ -233,8 +252,8 @@ services:
         mc mb --ignore-existing "local/$$BUCKET"
         cat > /tmp/rum-api-policy.json <<POLICY
         {"Version":"2012-10-17","Statement":[
-          {"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$$BUCKET"]},
-          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$$BUCKET/*"]}]}
+          {"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket","s3:GetLifecycleConfiguration","s3:PutLifecycleConfiguration"],"Resource":["arn:aws:s3:::$$BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:GetObjectTagging","s3:PutObjectTagging"],"Resource":["arn:aws:s3:::$$BUCKET/*"]}]}
         POLICY
         mc admin policy create local rum-api /tmp/rum-api-policy.json
         mc admin user add local "$$RUM_API_KEY" "$$RUM_API_SECRET"

@@ -1,4 +1,5 @@
 # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir.
+# Started with -config.expand-env=true (trace retention from compose.yaml).
 # Only keys that exist in 3.0.x are used; see project/kb/collector-lgtm.md.
 # Grafana >= 11 streams search/trace results over gRPC on the HTTP port (h2c).
 stream_over_http_enabled: true
@@ -18,6 +19,20 @@ distributor:
 
 # Tempo 3.0 removed the 2.x `ingester` and `compactor` top-level blocks
 # (block-builder / live-store replace them); defaults are fine locally.
+
+# Trace retention (roadmap 8b): blocks older than block_retention are deleted by the
+# backend scheduler's retention job (hourly) run on the backend worker. Both carry the
+# compaction settings in 3.0; keep them equal. Tempo has no delete API: single traces
+# are removed with `tempo-cli redact` (docs/operations/data-lifecycle.md).
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: ${OUO_RETENTION_TRACES:-336h}
+
+backend_worker:
+  compaction:
+    block_retention: ${OUO_RETENTION_TRACES:-336h}
 
 querier:
   frontend_worker:

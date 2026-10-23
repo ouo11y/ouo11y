@@ -21,8 +21,10 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/audit"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/config"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/httpapi"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/lifecycle"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/loki"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
@@ -71,6 +73,50 @@ func main() {
 	}
 }
 
+// retentionPolicy is the replay retention from retention.replays and the
+// projects.<id>.retention.replays overrides.
+func retentionPolicy(cfg config.Config) lifecycle.Policy {
+	p := lifecycle.Policy{Default: cfg.Retention.Replays, Projects: map[string]time.Duration{}}
+	for id, pr := range cfg.Projects {
+		if pr.Retention.Replays > 0 {
+			p.Projects[id] = pr.Retention.Replays
+		}
+	}
+	return p
+}
+
+// samplingCaps are the projects with a server-side sampling override.
+func samplingCaps(cfg config.Config) map[string]httpapi.SamplingRates {
+	out := map[string]httpapi.SamplingRates{}
+	for id, pr := range cfg.Projects {
+		if pr.Sampling.SessionRate == nil && pr.Sampling.ReplayRate == nil {
+			continue
+		}
+		r := httpapi.SamplingRates{SessionRate: 1, ReplayRate: 1}
+		if pr.Sampling.SessionRate != nil {
+			r.SessionRate = *pr.Sampling.SessionRate
+		}
+		if pr.Sampling.ReplayRate != nil {
+			r.ReplayRate = *pr.Sampling.ReplayRate
+		}
+		out[id] = r
+	}
+	return out
+}
+
+// newAuditLog opens the deletion audit log next to the replays: a file under
+// the data directory, or objects under [<prefix>/]audit/ in the bucket.
+func newAuditLog(cfg config.Config, store replay.Store) (audit.Log, string, error) {
+	if s3, ok := store.(*replay.S3); ok {
+		return audit.Bucket{Store: replay.AuditObjects{S3: s3}}, "s3 " + cfg.Storage.S3.Bucket + "/" + strings.TrimPrefix(cfg.Storage.S3.Prefix+"/audit/", "/"), nil
+	}
+	f, err := audit.NewFile(cfg.Storage.Filesystem.Dir)
+	if err != nil {
+		return nil, "", err
+	}
+	return f, f.Path(), nil
+}
+
 // newStore opens the replay store selected by storage.backend.
 func newStore(ctx context.Context, cfg config.Config) (replay.Store, error) {
 	switch cfg.Storage.Backend {
@@ -88,6 +134,13 @@ func newStore(ctx context.Context, cfg config.Config) (replay.Store, error) {
 			return nil, err
 		}
 		st.MaxVideoBytes = cfg.Limits.MaxVideoChunkBytes
+		st.Retention = retentionPolicy(cfg).For
+		if o.LifecycleRules {
+			if err := st.ApplyLifecycleRules(ctx, retentionPolicy(cfg).All()); err != nil {
+				return nil, fmt.Errorf("storage.s3.lifecycle_rules: %w", err)
+			}
+			slog.Info("bucket lifecycle rules applied", "bucket", o.Bucket, "retentions", retentionPolicy(cfg).All())
+		}
 		return st, nil
 	default:
 		st, err := replay.NewFS(cfg.Storage.Filesystem.Dir)
@@ -133,6 +186,21 @@ func run(cfg config.Config) error {
 	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Tempo.DatasourceUID}
 	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Loki.DatasourceUID}
 
+	// Data lifecycle (docs/operations/data-lifecycle.md): retention sweeper,
+	// deletions and their audit log.
+	sweeper := lifecycle.NewSweeper(store.(lifecycle.SweepStore), retentionPolicy(cfg), cfg.Retention.OrphanGrace, nil)
+	if cfg.Retention.SweepInterval > 0 {
+		go sweeper.Run(ctx, cfg.Retention.SweepInterval)
+	}
+	auditLog, auditWhere, err := newAuditLog(cfg, store)
+	if err != nil {
+		return fmt.Errorf("audit log: %w", err)
+	}
+	deleter := lifecycle.NewDeleter(lifecycle.Deleter{
+		Store: store.(lifecycle.DeleteStore), Audit: auditLog, Logs: lokiClient, Traces: tempoClient,
+		LokiDeletes: cfg.Loki.DeleteAPI, LogRetention: cfg.Retention.Logs, MaxSessionDuration: cfg.Session.MaxDuration,
+	}, nil)
+
 	api := httpapi.New(lokiClient, tempoClient, store, httpapi.Options{
 		SessionOptions:     session.Options{Inactivity: cfg.Session.Inactivity, MaxDuration: cfg.Session.MaxDuration},
 		ListLookback:       cfg.Session.MaxDuration,
@@ -142,6 +210,9 @@ func run(cfg config.Config) error {
 		MaxVideoChunkBytes: cfg.Limits.MaxVideoChunkBytes,
 		IngestToken:        cfg.Auth.IngestToken,
 		ReadToken:          cfg.Auth.ReadToken,
+		AdminToken:         cfg.Auth.AdminToken,
+		Admin:              &httpapi.Admin{Deleter: deleter, Sweeper: sweeper, Audit: auditLog},
+		Sampling:           samplingCaps(cfg),
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 		TraceLinks:         tempoClient.Links,
 		LokiLinks:          lokiLinks,
@@ -170,6 +241,9 @@ func run(cfg config.Config) error {
 			"storage", storageDesc(cfg),
 			"ingest_token", cfg.Auth.IngestToken != "",
 			"read_token", cfg.Auth.ReadToken != "",
+			"admin_api", cfg.Auth.AdminToken != "",
+			"replay_retention", cfg.Retention.Replays, "sweep_interval", cfg.Retention.SweepInterval,
+			"audit_log", auditWhere,
 			"otlp.endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

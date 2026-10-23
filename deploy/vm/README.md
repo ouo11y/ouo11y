@@ -155,6 +155,8 @@ Everything is driven by `/opt/ouo/deploy/compose/.env` and `/opt/ouo/deploy/comp
 | `OUO_PROJECT_TOKEN` | installer, random | **public**; the Basic password; hashed into `projects.htpasswd`; ships in browser bundles |
 | `OUO_INGEST_TOKEN` | installer, random | **secret**; bearer the collector's replay exporter presents to rum-api |
 | `OUO_READ_TOKEN` | installer, random | **secret**; unlocks `GET/DELETE /v1/*` on rum-api; provisioned into the Grafana plugin's `secureJsonData` |
+| `OUO_ADMIN_TOKEN` | installer, random | **secret**; unlocks rum-api's `/v1/admin/*` (delete by user / project, audit log, retention sweep); operators only |
+| `OUO_RETENTION_LOGS`, `_TRACES`, `_METRICS`, `_REPLAYS` | `--retention logs=720h,...` (defaults 720h, 336h, 2160h, 720h) | retention per signal: Loki, Tempo, Mimir, rum-api replays ([data lifecycle](../../docs/operations/data-lifecycle.md)) |
 | `OUO_BACKEND_OTLP_HEADERS` | installer, from the project credential | `Authorization=Basic%20<base64>`: what the demo backend and rum-api use for their own OTLP |
 | `OUO_GRAFANA_ADMIN_PASSWORD` | installer, random | Grafana `admin` password |
 | `OUO_INSTALL_MODE` | `--images` / `--build` (default `build`) | which compose files the installer and `ouo.service` use |
@@ -190,8 +192,13 @@ is reachable and asks for the credential).
 | certificates, ACME account, internal CA | `ouo_caddy-data` | losing it only means re-issuing certificates |
 | configuration and secrets | `/opt/ouo/deploy/compose/.env`, `/opt/ouo/deploy/compose/projects.htpasswd` | back these up with the data; neither is in git |
 
-Retention is not configured in Phase 8a (Phase 8b): disk grows with ingest. Watch
-`df -h /var/lib/docker` and `du -sh /opt/ouo/deploy/data`.
+Retention is set per signal in `.env` (`OUO_RETENTION_*`, `--retention` on install):
+Loki, Tempo and Mimir delete expired data in their compactors, rum-api's sweeper deletes
+expired replays hourly. Per-project log retention lives in `deploy/compose/loki/runtime.yaml`,
+per-project replay retention in `deploy/compose/rum-api/config.yaml` (`projects:`). Delete by
+user or project and the audit log: [data lifecycle](../../docs/operations/data-lifecycle.md).
+Disk still grows with ingest up to the retention: watch `df -h /var/lib/docker` and
+`du -sh /opt/ouo/deploy/data`.
 
 ## Operate
 

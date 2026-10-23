@@ -51,6 +51,10 @@ type S3 struct {
 	// MaxVideoBytes limits one decoded video segment (MAX_VIDEO_CHUNK_BYTES);
 	// 0 means DefaultMaxVideoBytes. Set it before the first Put.
 	MaxVideoBytes int64
+	// Retention returns a project's replay retention; every replay object is
+	// tagged ouo-retention=RetentionTag(Retention(project)) for the bucket
+	// lifecycle rules (ApplyLifecycleRules). Nil: no tag.
+	Retention func(projectID string) time.Duration
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -162,10 +166,18 @@ func isConflict(err error) bool {
 	return r.StatusCode == http.StatusPreconditionFailed || r.StatusCode == http.StatusConflict
 }
 
-func (s *S3) put(ctx context.Context, key string, data []byte, contentType string) error {
+func (s *S3) put(ctx context.Context, key string, data []byte, contentType string, tags map[string]string) error {
 	_, err := s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data), int64(len(data)),
-		minio.PutObjectOptions{ContentType: contentType, DisableMultipart: true})
+		minio.PutObjectOptions{ContentType: contentType, DisableMultipart: true, UserTags: tags})
 	return err
+}
+
+// retentionTags are the object tags of a replay object of projectID.
+func (s *S3) retentionTags(projectID string) map[string]string {
+	if s.Retention == nil {
+		return nil
+	}
+	return map[string]string{RetentionTagKey: RetentionTag(s.Retention(projectID))}
 }
 
 // Put implements Store. Chunk objects are written before meta.json (a meta
@@ -197,11 +209,11 @@ func (s *S3) Put(ctx context.Context, projectID string, body []byte, gzipBody []
 		}
 		if !written {
 			if c.Kind == KindVideo {
-				if err := s.put(ctx, s.key(c.SessionID, videoName(c.Seq)), c.mp4, "video/mp4"); err != nil {
+				if err := s.put(ctx, s.key(c.SessionID, videoName(c.Seq)), c.mp4, "video/mp4", s.retentionTags(projectID)); err != nil {
 					return c, fmt.Errorf("s3 put video: %w", err)
 				}
 			}
-			if err := s.put(ctx, s.key(c.SessionID, chunkName(c.Seq)), data, "application/gzip"); err != nil {
+			if err := s.put(ctx, s.key(c.SessionID, chunkName(c.Seq)), data, "application/gzip", s.retentionTags(projectID)); err != nil {
 				return c, fmt.Errorf("s3 put chunk: %w", err)
 			}
 			written = true
@@ -258,7 +270,7 @@ func (s *S3) writeMeta(ctx context.Context, m Meta, etag string, exists bool) er
 	if err != nil {
 		return err
 	}
-	opts := minio.PutObjectOptions{ContentType: "application/json", DisableMultipart: true}
+	opts := minio.PutObjectOptions{ContentType: "application/json", DisableMultipart: true, UserTags: s.retentionTags(m.ProjectID)}
 	if exists {
 		opts.SetMatchETag(etag)
 	} else {

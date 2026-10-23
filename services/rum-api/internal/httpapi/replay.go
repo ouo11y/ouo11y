@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -127,6 +128,21 @@ func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 				msg += fmt.Sprintf(" (kind \"frames\" may be up to %d bytes, kind \"video\" up to %d)", s.opts.MaxFrameChunkBytes, s.videoBodyLimit())
 			}
 			writeError(w, http.StatusRequestEntityTooLarge, msg)
+			return
+		}
+	}
+
+	if _, capped := s.opts.Sampling[projectID]; capped {
+		var head struct {
+			SessionID string `json:"session_id"`
+		}
+		if json.Unmarshal(body, &head) == nil && head.SessionID != "" && s.sampledOut(projectID, head.SessionID) {
+			// 202, not an error: the exporter must not retry a chunk the
+			// project's sampling cap drops on purpose.
+			s.metrics.dropped(r.Context(), projectID)
+			writeJSON(w, http.StatusAccepted, map[string]any{
+				"accepted": false, "sampled_out": true, "project_id": projectID, "session_id": head.SessionID,
+			})
 			return
 		}
 	}

@@ -7,6 +7,15 @@ release-please from conventional commits (`feat(chart): ...`, `fix(chart): ...`)
 
 ## Unreleased
 
+### Added
+
+- `retention` (roadmap 8b): one entry for Loki `retention_period` (compactor retention and
+  deletes on), Tempo `block_retention`, Mimir `compactor_blocks_retention_period` and rum-api's
+  replay retention, with per-project `retention.projects.<id>.logs` (Loki `retention_stream`) and
+  `.replays`; `adminToken` (rum-api's `/v1/admin/*`), `rumApi.sampling`,
+  `rumApi.storage.s3.lifecycleRules`. Bundled Loki promotes `ouo.project.id` to the
+  `ouo_project_id` stream label.
+
 ### Documentation
 
 - README: the paths verified on kind on 2026-10-23 (checklist N12): S3 on MinIO, ingress-nginx +

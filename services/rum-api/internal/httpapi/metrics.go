@@ -15,8 +15,9 @@ const projectIDAttribute = "ouo.project.id"
 // replayMetrics counts stored replay chunks and their decompressed bytes per
 // project (ADR-0007 8). Rejected chunks are not counted.
 type replayMetrics struct {
-	chunks metric.Int64Counter
-	bytes  metric.Int64Counter
+	chunks     metric.Int64Counter
+	bytes      metric.Int64Counter
+	sampledOut metric.Int64Counter
 }
 
 // newReplayMetrics creates the counters on mp (the global provider when nil).
@@ -29,7 +30,12 @@ func newReplayMetrics(mp metric.MeterProvider) replayMetrics {
 	m := mp.Meter("github.com/ouo11y/ouo11y/services/rum-api/internal/httpapi")
 	chunks, _ := m.Int64Counter("ouo.replay.chunks", metric.WithDescription("Replay chunks stored by project"), metric.WithUnit("{chunk}"))
 	bytes, _ := m.Int64Counter("ouo.replay.bytes", metric.WithDescription("Decompressed replay bytes stored by project"), metric.WithUnit("By"))
-	return replayMetrics{chunks: chunks, bytes: bytes}
+	sampledOut, _ := m.Int64Counter("ouo.replay.chunks_sampled_out", metric.WithDescription("Replay chunks dropped by the project's server-side sampling cap"), metric.WithUnit("{chunk}"))
+	return replayMetrics{chunks: chunks, bytes: bytes, sampledOut: sampledOut}
+}
+
+func (m replayMetrics) dropped(ctx context.Context, projectID string) {
+	m.sampledOut.Add(ctx, 1, metric.WithAttributes(attribute.String(projectIDAttribute, projectID)))
 }
 
 func (m replayMetrics) stored(ctx context.Context, projectID string, n int64) {

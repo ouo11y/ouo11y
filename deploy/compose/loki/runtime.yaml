@@ -1,0 +1,13 @@
+# Loki runtime overrides, reloaded every 10 s (runtime_config in config.yaml): edit and
+# save, no restart. Per-project log retention goes here as retention_stream entries on
+# the ouo_project_id stream label; the default is limits_config.retention_period
+# (OUO_RETENTION_LOGS). Loki's single tenant is "fake" (auth_enabled: false).
+# docs/operations/data-lifecycle.md, section Per-project retention.
+#
+# overrides:
+#   fake:
+#     retention_stream:
+#       - selector: '{ouo_project_id="ttltest"}'
+#         priority: 1
+#         period: 24h          # at least 24h
+overrides: {}

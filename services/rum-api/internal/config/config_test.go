@@ -228,3 +228,46 @@ func TestRedactedYAML(t *testing.T) {
 		t.Fatalf("round trip: %+v", back)
 	}
 }
+
+func TestRetentionProjectsAndAdmin(t *testing.T) {
+	p := writeFile(t, `
+auth:
+  admin_token: ${ADMIN}
+retention:
+  replays: 168h
+  sweep_interval: 10m
+projects:
+  ttltest:
+    retention: { replays: 1m }
+    sampling: { session_rate: 0.5, replay_rate: 0.1 }
+  demo: {}
+`)
+	c, err := Load(p, true, envMap(map[string]string{"ADMIN": "at", "LOG_RETENTION": "336h", "LOKI_DELETE_API": "false"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt := c.Projects["ttltest"]
+	if c.Auth.AdminToken != "at" || c.Retention.Replays != 168*time.Hour || c.Retention.Logs != 336*time.Hour ||
+		c.Retention.SweepInterval != 10*time.Minute || c.Retention.OrphanGrace != time.Hour || c.Loki.DeleteAPI ||
+		tt.Retention.Replays != time.Minute || *tt.Sampling.SessionRate != 0.5 || *tt.Sampling.ReplayRate != 0.1 ||
+		c.Projects["demo"].Sampling.ReplayRate != nil {
+		t.Fatalf("%+v", c)
+	}
+	if r := c.Redacted(); r.Auth.AdminToken != "<redacted>" {
+		t.Fatal("admin token not redacted")
+	}
+
+	bad := writeFile(t, `
+retention: { replays: -1h }
+projects:
+  "Bad Id": {}
+  ok:
+    sampling: { replay_rate: 1.5 }
+`)
+	_, err = Load(bad, false, envMap(nil))
+	for _, want := range []string{"retention.replays", `"Bad Id"`, "projects.ok.sampling.replay_rate"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("error %v does not mention %s", err, want)
+		}
+	}
+}

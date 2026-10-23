@@ -29,14 +29,18 @@ const (
 // Config is the runtime configuration. The comment after each field names
 // the environment variable that overrides it.
 type Config struct {
-	Server  Server  `yaml:"server"`
-	Auth    Auth    `yaml:"auth"`
-	Loki    Backend `yaml:"loki"`
-	Tempo   Tempo   `yaml:"tempo"`
-	Grafana Grafana `yaml:"grafana"`
-	Session Session `yaml:"session"`
-	Limits  Limits  `yaml:"limits"`
-	Storage Storage `yaml:"storage"`
+	Server    Server    `yaml:"server"`
+	Auth      Auth      `yaml:"auth"`
+	Loki      Loki      `yaml:"loki"`
+	Tempo     Tempo     `yaml:"tempo"`
+	Grafana   Grafana   `yaml:"grafana"`
+	Session   Session   `yaml:"session"`
+	Limits    Limits    `yaml:"limits"`
+	Storage   Storage   `yaml:"storage"`
+	Retention Retention `yaml:"retention"`
+	// Projects are per-project overrides keyed by project id (the collector's
+	// htpasswd user name): replay retention and server-side sampling.
+	Projects map[string]Project `yaml:"projects"`
 }
 
 // Server is the HTTP listener.
@@ -45,18 +49,28 @@ type Server struct {
 	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"` // CORS_ALLOWED_ORIGINS, comma separated extra origins
 }
 
-// Auth holds the two shared secrets of ADR-0007 5. rum-api is internal: the
+// Auth holds the shared secrets of ADR-0007 5. rum-api is internal: the
 // collector's replay exporter is the only writer, the Grafana plugin proxy
-// the only reader.
+// the only reader, and an operator the only caller of /v1/admin/*.
 type Auth struct {
 	IngestToken string `yaml:"ingest_token"` // OUO_INGEST_TOKEN: when set, POST /v1/replay/chunks needs `Authorization: Bearer <token>`
 	ReadToken   string `yaml:"read_token"`   // OUO_READ_TOKEN: when set, GET and DELETE /v1/* need `Authorization: Bearer <token>`
+	AdminToken  string `yaml:"admin_token"`  // OUO_ADMIN_TOKEN: bearer of /v1/admin/* (deletions, audit, sweep); empty disables the admin API
 }
 
 // Backend is a query backend and its Grafana datasource (deep links).
 type Backend struct {
 	URL           string `yaml:"url"`            // LOKI_URL / TEMPO_URL
 	DatasourceUID string `yaml:"datasource_uid"` // GRAFANA_LOKI_DATASOURCE_UID / GRAFANA_TEMPO_DATASOURCE_UID
+}
+
+// Loki adds the delete API switch.
+type Loki struct {
+	Backend `yaml:",inline"`
+	// DeleteAPI submits a Loki delete request (POST /loki/api/v1/delete) for
+	// every user or project deletion. Needs the compactor with retention and a
+	// delete request store (docs/operations/data-lifecycle.md).
+	DeleteAPI bool `yaml:"delete_api"` // LOKI_DELETE_API, default true
 }
 
 // Tempo adds the search fan-out settings.
@@ -83,6 +97,46 @@ type Limits struct {
 	MaxChunkBytes      int64 `yaml:"max_chunk_bytes"`       // MAX_CHUNK_BYTES, default 4 MiB (decompressed, rrweb chunks)
 	MaxFrameChunkBytes int64 `yaml:"max_frame_chunk_bytes"` // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	MaxVideoChunkBytes int64 `yaml:"max_video_chunk_bytes"` // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
+}
+
+// Retention is how long replays are kept and what deletions search
+// (docs/operations/data-lifecycle.md). Loki, Tempo and Mimir enforce their own
+// TTLs; the deployment renders all four from one values entry.
+type Retention struct {
+	// Replays is the default replay retention, measured from a session's
+	// last stored chunk. 0 keeps replays forever.
+	Replays time.Duration `yaml:"replays"` // REPLAY_RETENTION, default 720h
+	// Logs is Loki's retention: how far back a delete-by-user looks for the
+	// user's sessions.
+	Logs time.Duration `yaml:"logs"` // LOG_RETENTION, default 720h
+	// SweepInterval is how often the sweeper deletes expired replays (both
+	// backends; on S3 it backs up the bucket lifecycle rules and covers
+	// per-project values below one day). 0 disables the sweeper.
+	SweepInterval time.Duration `yaml:"sweep_interval"` // REPLAY_SWEEP_INTERVAL, default 1h
+	// OrphanGrace is how old a session directory without meta.json (an
+	// interrupted upload or delete) must be before the sweeper removes it.
+	OrphanGrace time.Duration `yaml:"orphan_grace"` // default 1h
+}
+
+// Project is one project's overrides.
+type Project struct {
+	Retention ProjectRetention `yaml:"retention"`
+	Sampling  Sampling         `yaml:"sampling"`
+}
+
+// ProjectRetention overrides retention.replays for one project (0 or absent:
+// the default).
+type ProjectRetention struct {
+	Replays time.Duration `yaml:"replays"`
+}
+
+// Sampling is the server-side per-project cap on replays (absent: 1). The
+// replay sink drops chunks of sessions outside the sample with the SDKs'
+// deterministic rule (sampling.Sampled), so a cap below the SDK rate keeps a
+// subset of the SDK's sample.
+type Sampling struct {
+	SessionRate *float64 `yaml:"session_rate"`
+	ReplayRate  *float64 `yaml:"replay_rate"`
 }
 
 // Storage selects the replay store.
@@ -114,19 +168,25 @@ type S3 struct {
 	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // S3_INSECURE_SKIP_VERIFY
 	ForcePathStyle     bool   `yaml:"force_path_style"`     // S3_FORCE_PATH_STYLE: bucket in the path (MinIO) instead of the host name
 	Prefix             string `yaml:"prefix"`               // S3_PREFIX: optional key prefix, e.g. a tenant or environment
+	// LifecycleRules makes rum-api own the bucket's `ouo-replays-*`
+	// lifecycle rules: one expiration rule per retention in use, matching
+	// the `ouo-retention` tag rum-api puts on every replay object. Needs
+	// s3:GetLifecycleConfiguration and s3:PutLifecycleConfiguration.
+	LifecycleRules bool `yaml:"lifecycle_rules"` // S3_LIFECYCLE_RULES, default false
 }
 
 // Defaults returns the configuration used when neither a file nor an
 // environment variable sets a key.
 func Defaults() Config {
 	return Config{
-		Server:  Server{HTTPListenAddress: ":8080"},
-		Loki:    Backend{URL: "http://loki:3100", DatasourceUID: "loki"},
-		Tempo:   Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
-		Grafana: Grafana{URL: "http://localhost:3000"},
-		Session: Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
-		Limits:  Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20},
-		Storage: Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
+		Server:    Server{HTTPListenAddress: ":8080"},
+		Loki:      Loki{Backend: Backend{URL: "http://loki:3100", DatasourceUID: "loki"}, DeleteAPI: true},
+		Tempo:     Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
+		Grafana:   Grafana{URL: "http://localhost:3000"},
+		Session:   Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
+		Limits:    Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20},
+		Storage:   Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
+		Retention: Retention{Replays: 720 * time.Hour, Logs: 720 * time.Hour, SweepInterval: time.Hour, OrphanGrace: time.Hour},
 	}
 }
 
@@ -165,6 +225,9 @@ func (c *Config) parseYAML(raw []byte, expandEnv bool, lookup func(string) (stri
 	}
 	return nil
 }
+
+// projectIDRe is the project id syntax the replay sink accepts.
+var projectIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 // envRef matches ${VAR} and ${VAR:-default}; $${ escapes a literal ${.
 var envRef = regexp.MustCompile(`\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
@@ -242,7 +305,9 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	}
 	str("OUO_INGEST_TOKEN", &c.Auth.IngestToken)
 	str("OUO_READ_TOKEN", &c.Auth.ReadToken)
+	str("OUO_ADMIN_TOKEN", &c.Auth.AdminToken)
 	str("LOKI_URL", &c.Loki.URL)
+	boolean("LOKI_DELETE_API", &c.Loki.DeleteAPI)
 	str("GRAFANA_LOKI_DATASOURCE_UID", &c.Loki.DatasourceUID)
 	str("TEMPO_URL", &c.Tempo.URL)
 	str("GRAFANA_TEMPO_DATASOURCE_UID", &c.Tempo.DatasourceUID)
@@ -276,6 +341,10 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	boolean("S3_INSECURE_SKIP_VERIFY", &s3.InsecureSkipVerify)
 	boolean("S3_FORCE_PATH_STYLE", &s3.ForcePathStyle)
 	str("S3_PREFIX", &s3.Prefix)
+	boolean("S3_LIFECYCLE_RULES", &s3.LifecycleRules)
+	dur("REPLAY_RETENTION", &c.Retention.Replays)
+	dur("LOG_RETENTION", &c.Retention.Logs)
+	dur("REPLAY_SWEEP_INTERVAL", &c.Retention.SweepInterval)
 	return errors.Join(errs...)
 }
 
@@ -319,6 +388,25 @@ func (c Config) Validate() error {
 	if c.Limits.MaxChunkBytes <= 0 {
 		bad("limits.max_chunk_bytes must be positive")
 	}
+	for name, d := range map[string]time.Duration{"retention.replays": c.Retention.Replays, "retention.logs": c.Retention.Logs,
+		"retention.sweep_interval": c.Retention.SweepInterval, "retention.orphan_grace": c.Retention.OrphanGrace} {
+		if d < 0 {
+			bad("%s must not be negative", name)
+		}
+	}
+	for id, p := range c.Projects {
+		if !projectIDRe.MatchString(id) {
+			bad("projects: %q is not a project id", id)
+		}
+		if p.Retention.Replays < 0 {
+			bad("projects.%s.retention.replays must not be negative", id)
+		}
+		for name, r := range map[string]*float64{"session_rate": p.Sampling.SessionRate, "replay_rate": p.Sampling.ReplayRate} {
+			if r != nil && (*r < 0 || *r > 1) {
+				bad("projects.%s.sampling.%s must be between 0 and 1", id, name)
+			}
+		}
+	}
 	switch c.Storage.Backend {
 	case BackendFilesystem:
 		if c.Storage.Filesystem.Dir == "" {
@@ -350,6 +438,7 @@ func (c Config) Redacted() Config {
 	}
 	mask(&c.Auth.IngestToken)
 	mask(&c.Auth.ReadToken)
+	mask(&c.Auth.AdminToken)
 	mask(&c.Storage.S3.SecretAccessKey)
 	mask(&c.Storage.S3.SessionToken)
 	return c
