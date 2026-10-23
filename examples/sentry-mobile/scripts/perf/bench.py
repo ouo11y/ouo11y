@@ -373,6 +373,23 @@ def run_one(t, a, xctestrun, kind, cell, n, seconds, journey="taps", reset=True,
             "energy": getattr(t, "energy", False)}
     json.dump(meta, open(os.path.join(d, "meta.json"), "w"))
     log(f"  {kind} {cell} run{n}: {sum(1 for s in steps if s.startswith('PERF step'))} steps, perf.json {'ok' if got else 'MISSING'}")
+    return sum(1 for s in steps if s.startswith("PERF step"))
+
+
+def run_main(t, a, xctestrun, kind, cell, n, seconds):
+    """A measured run whose journey stopped early (on the phone: a tap that landed on a notification
+    banner, XCUITest losing the app) is kept as run<n>-failed<k> and redone once, so the cell keeps
+    N runs; bench_result.py reads only run<n>, and the report lists the redo."""
+    done = run_one(t, a, xctestrun, kind, cell, n, seconds)
+    if done >= 19:
+        return
+    d = os.path.join(a.out, "runs", kind, cell, f"run{n}")
+    k = 1
+    while os.path.exists(f"{d}-failed{k}"):
+        k += 1
+    os.rename(d, f"{d}-failed{k}")
+    log(f"  redo {kind} {cell} run{n} ({done}/19 steps)")
+    run_one(t, a, xctestrun, kind, cell, n, seconds)
 
 
 def versions():
@@ -461,7 +478,7 @@ def main():
             order = cells[(r - 1) % len(cells):] + cells[: (r - 1) % len(cells)]
             log(f"round {r}/{a.runs}")
             for c in order:
-                run_one(t, a, xctestrun, "main", c, r, a.seconds)
+                run_main(t, a, xctestrun, "main", c, r, a.seconds)
         if t.kind == "device" and a.energy_runs:
             t.energy = True
             for r in range(1, a.energy_runs + 1):

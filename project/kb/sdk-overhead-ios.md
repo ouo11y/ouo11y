@@ -232,3 +232,18 @@ Quirks found:
   recording and export.
 - Activity Monitor can carry more instruments (to confirm on the first B3 run): `--template 'Activity Monitor' --instrument 'Power
   Profiler' --instrument Hitches` (`bench.py --power`).
+- **xctrace Power Profiler needs iOS 26** ("The Power Profiler instrument requires iOS 26.0"): on
+  iOS 18 adding it fails the whole recording. No per-process energy on iOS 18 through xctrace; the
+  Hitches instrument works (`hitches-summary`: one row per hitch, with its duration).
+- **Notification banners steal taps** near the top of the screen (the in-app back button at y 68 pt).
+  The app goes to the background: CPU time and memory freeze, `perf.json` stops, and XCUITest fails
+  with "kAXErrorServerNotFound". Ask for Do Not Disturb. `bench.py` keeps such a run as
+  `run<n>-failed<k>` and redoes it once.
+- Background jobs started from a Claude session were killed without a trace once (21:33). Start long
+  device chains with `nohup ... & disown`, and check `ps` before trusting a quiet log.
+- **Per-run reinstall makes iOS ask for the Local Network permission every run.** With the founder
+  watching the phone, that is a prompt every 4 minutes. Next time, keep the app installed and reset its
+  state in-app (delete `Library/Caches`, `Application Support`, `tmp` and stale `Documents` files at JS
+  start, before either SDK starts), so the permission is asked once.
+- Measured phone time per round (2026-10-23): capture profile 2.0–2.5 min, one bench run 3.4–4.2 min
+  (median 3.6), crash flow about 1 min.

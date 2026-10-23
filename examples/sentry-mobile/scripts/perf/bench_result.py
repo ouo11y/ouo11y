@@ -384,7 +384,11 @@ def main():
     req_path = os.path.join(a.out, "requests.jsonl")
     requests = [json.loads(l) for l in open(req_path)] if os.path.exists(req_path) else []
     runs = []
+    redone = []
     for d in sorted(glob.glob(os.path.join(a.out, "runs", "*", "*", "run*"))):
+        if "-failed" in os.path.basename(d):
+            redone.append(os.path.relpath(d, os.path.join(a.out, "runs")))  # bench.py redid this run
+            continue
         if os.path.exists(os.path.join(d, "meta.json")):
             runs.append(run_metrics(d, requests))
     all_main = [r for r in runs if r["kind"] == "main"]
@@ -424,7 +428,8 @@ def main():
     result = {"meta": meta, "cells": cells, "vs_none": vs_none, "tiers": tiers, **extra,
               "runs": [{k: v for k, v in r.items() if k not in ("series",)} | ({"series": r["series"]} if r["kind"] == "main" and r["round"] == 1 and "series" in r else {})
                        for r in runs],
-              "problems": [f"{r['kind']}/{r['cell']}/run{r['round']}: {p}" for r in runs for p in r["problems"]]}
+              "problems": [f"{r['kind']}/{r['cell']}/run{r['round']}: {p}" for r in runs for p in r["problems"]]
+              + [f"{x}: journey stopped early, redone" for x in redone]}
     if a.size and os.path.exists(a.size):
         result["size"] = json.load(open(a.size))
     hdr = f"{'cell':10} {'n':>2} {'start':>6} {'cpu%':>6} {'p95%':>6} {'idle%':>6} {'peakMB':>7} {'stdyMB':>7} {'req':>4} {'upKB':>7} {'decKB':>7} {'rplKB/m':>8} {'drop%':>6}"

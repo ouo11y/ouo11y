@@ -104,6 +104,22 @@ All metrics are from the app process, measured on the end device unless marked o
   growth only).
 - Offline: `sentry-T3`, `ouo-T3`, one 95 s run each, proxy refusing SDK traffic.
 
+### Phone budget (founder, 2026-10-23)
+
+The founder's phone is used for only two short experiments. Everything else (network bytes, app size,
+offline runs, soaks, crash flows, N ≥ 10 rounds of every tier) runs on the simulator.
+
+| Phone experiment | One round, measured on 2026-10-23 (reinstall, priming launch, journey, recording, export) | Proposed |
+|---|---|---|
+| Replay capture cost, ouo and Sentry in one Time Profiler trace (`n22_device.py profile`) | 2.0–2.5 min per round per build | 3 rounds of one build: about 7 min |
+| One run per cell for CPU, memory, app start and hitches (`bench.py --target device --power`) | 3.4–4.2 min per run (median 3.6) | the 8 cells once: about 30 min |
+
+Device-only numbers are spot checks (n = 1 per cell), labelled as such. The N ≥ 10 rule stays with the
+simulator run. Phone time per request: under 1 hour, including the founder's one Trust tap.
+Before the next phone request: reset the app between runs without deleting it, so iOS asks for the
+Local Network permission only once (today every reinstall asked again). That also saves about 40 s
+per run.
+
 ## 4. Running it
 
 Simulator (any Mac with Xcode; CI uses this):
