@@ -39,7 +39,7 @@ async function chromiumMetrics(cdp: CDPSession | null): Promise<Partial<Sample>>
   const { usedSize } = (await cdp.send("Runtime.getHeapUsage")) as { usedSize: number };
   const { metrics } = (await cdp.send("Performance.getMetrics")) as { metrics: Array<{ name: string; value: number }> };
   const m = Object.fromEntries(metrics.map((x) => [x.name, x.value]));
-  return { heapMB: Math.round((usedSize / 1048576) * 100) / 100, cdpListeners: m["JSEventListeners"], cdpNodes: m["Nodes"] };
+  return { heapMB: Math.round((usedSize / 1048576) * 100) / 100, cdpListeners: m["JSEventListeners"] ?? 0, cdpNodes: m["Nodes"] ?? 0 };
 }
 
 /** What a user does between samples: clicks rows and routes, types, scrolls, goes back. */

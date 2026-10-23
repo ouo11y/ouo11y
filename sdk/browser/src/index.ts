@@ -96,7 +96,7 @@ export function initRUM(options: RUMOptions): RUM {
     instance = install(options, urls, authorization, cleanup);
     return instance;
   } catch (err) {
-    console.warn("[ouo] the SDK could not start on this page and is disabled", err);
+    console.warn("[ouo] could not start, the SDK is off", err);
     for (const off of cleanup.reverse()) attempt(off);
     setGuardReporter(undefined);
     instance = undefined;
@@ -112,7 +112,7 @@ function install(
 ): RUM & { _uninstall(): Promise<void> } {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
-  setGuardReporter((err) => logger.warn("internal error contained", err));
+  setGuardReporter((err) => logger.warn("contained", err));
   if (options.debug) {
     // Never console.error here: the SDK instruments console.error and would report its own diagnostics as exceptions.
     const otelDiag: DiagLogger = {
@@ -280,6 +280,7 @@ function install(
     sampleRate: options.replay?.sampleRate ?? 1,
     onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
     blockSelector: options.replay?.blockSelector,
+    onSkip: (reason, bytes) => events.emit("ouo.replay.skipped", { "ouo.replay.skip_reason": reason, "ouo.replay.snapshot_bytes": bytes }, "warn"),
     maskTextSelector: options.replay?.maskTextSelector,
     session,
     chunker,
@@ -301,21 +302,17 @@ function install(
       // Console errors are reported one microtask late (errors/install.ts): let them land first.
       Promise.resolve().then(() => Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), chunker.flush()])),
     );
+  const flushHidden = (keepalive: boolean): void => {
+    // Open click and soft-navigation spans end now so the flush carries them.
+    tracker.endAll("hidden");
+    void quiet(Promise.all([loggerProvider.forceFlush(), tracerProvider.forceFlush(), chunker.flush({ keepalive })]));
+  };
   // Registered after web-vitals so final vitals emitted on hide are included in the flush.
   const onVisibility = guard((): void => {
-    if (document.visibilityState === "hidden") {
-      tracker.endAll("hidden");
-      void quiet(loggerProvider.forceFlush());
-      void quiet(tracerProvider.forceFlush());
-      void quiet(chunker.flush());
-    }
+    if (document.visibilityState === "hidden") flushHidden(false);
   });
   const onPageHide = guard((): void => {
-    // Open click and soft-navigation spans end now so the flush below carries them.
-    tracker.endAll("hidden");
-    void quiet(loggerProvider.forceFlush());
-    void quiet(tracerProvider.forceFlush());
-    void quiet(chunker.flush({ keepalive: true }));
+    flushHidden(true);
     session.stop();
   });
   document.addEventListener("visibilitychange", onVisibility);

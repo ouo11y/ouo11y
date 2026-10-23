@@ -1,7 +1,7 @@
 import { attempt, guard } from "../guard";
 import type { SessionManager, SessionRecord } from "../session/manager";
 import type { DebugLogger } from "../logger";
-import type { ReplayChunker } from "./chunker";
+import { DEFAULT_MAX_BUFFER_BYTES, estimateBytes, type ReplayChunker } from "./chunker";
 import { TabLease } from "./tabs";
 
 export interface RecorderOptions {
@@ -17,6 +17,10 @@ export interface RecorderOptions {
   blockSelector?: string | undefined;
   /** Text inside elements matching this CSS selector is masked (rrweb `maskTextSelector`). */
   maskTextSelector?: string | undefined;
+  /** Called when replay stops for the rest of the page view, with the reason and its size. */
+  onSkip?: (reason: "snapshot_too_large", bytes: number) => void;
+  /** Largest full snapshot recorded; a larger one could never be uploaded. Default the chunker's buffer bound. */
+  maxSnapshotBytes?: number;
   /** Cross-tab coordination; injectable for tests. Default a BroadcastChannel lease. */
   lease?: TabLease;
 }
@@ -39,6 +43,10 @@ export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
 export const BUFFER_CHECKOUT_EVERY_MS = 30 * 1000;
 /** rrweb custom event marking the tab a stretch of replay was recorded in. */
 export const TAB_EVENT_TAG = "ouo.tab";
+
+/** rrweb event types the recorder looks at. */
+const META = 4;
+const FULL_SNAPSHOT = 2;
 
 export type ReplayMode = "off" | "buffer" | "full";
 
@@ -97,7 +105,7 @@ export class ReplayRecorder {
           },
           (err: unknown) => {
             this.unavailable = true;
-            this.opts.logger.warn("replay: rrweb could not be loaded, replay is off for this page", err);
+            this.opts.logger.warn("replay off: rrweb failed to load", err);
           },
         );
       }
@@ -246,13 +254,28 @@ export class ReplayRecorder {
   }
 
   private emit(event: unknown, isCheckout?: boolean): void {
+    // A full snapshot over the chunker's buffer bound would be dropped, leaving a replay of
+    // mutations with nothing to apply them to: stop for this page view instead (huge DOMs;
+    // `replay.blockSelector` keeps a big widget out of the snapshot).
+    if ((event as { type?: number }).type === FULL_SNAPSHOT) {
+      const bytes = estimateBytes(event);
+      if (bytes > (this.opts.maxSnapshotBytes ?? DEFAULT_MAX_BUFFER_BYTES)) {
+        this.unavailable = true;
+        this.opts.logger.warn("replay off: full snapshot too large", bytes);
+        this.stop("replay stopped");
+        this.ring = [];
+        this.checkouts = [];
+        this.opts.onSkip?.("snapshot_too_large", bytes);
+        return;
+      }
+    }
     if (this.mode === "full") {
       this.opts.chunker.push(event);
       return;
     }
     // Buffer: keep from the second-to-last full snapshot on. A checkout is a Meta event (type 4)
     // followed by a FullSnapshot, both emitted with isCheckout; the Meta one marks the cut.
-    if (isCheckout && (event as { type?: number }).type === 4) {
+    if (isCheckout && (event as { type?: number }).type === META) {
       this.checkouts.push(this.ring.length);
       if (this.checkouts.length > 2) {
         const cut = this.checkouts[this.checkouts.length - 2]!;
@@ -266,7 +289,7 @@ export class ReplayRecorder {
   }
 
   private record(): void {
-    if (this.stopFn || !this.rrweb || this.paused || this.mode === "off") return;
+    if (this.stopFn || !this.rrweb || this.paused || this.unavailable || this.mode === "off") return;
     const rrweb = this.rrweb;
     // rrweb guards its own observers with errorHandler; record() itself (the first full snapshot)
     // and our emit callback are guarded here.
@@ -291,6 +314,12 @@ export class ReplayRecorder {
       }),
     );
     this.stopFn = stop ?? null;
+    // The first full snapshot is emitted inside record(): it may have been too large.
+    if (this.unavailable && this.stopFn) {
+      attempt(this.stopFn);
+      this.stopFn = null;
+      return;
+    }
     if (this.stopFn) attempt(() => rrweb.record.addCustomEvent?.(TAB_EVENT_TAG, { tab_id: this.lease.tabId, url: location.href }));
     this.opts.logger.log(`replay recording (${this.mode})`, this.stopFn ? "started" : "failed to start");
   }
