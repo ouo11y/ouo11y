@@ -288,16 +288,22 @@ jobs:
           cache: npm
       - name: tracecheck unit tests
         run: python3 -I -m unittest discover -s examples/tools
+      - name: Free disk space for the image builds
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+      - name: npm ci, plugin and SDK builds
+        run: |
+          npm ci
+          # compose.yaml bind-mounts the plugin's dist/ into Grafana (as release-check.yml does).
+          npm run build -w plugins/ouo11y-rum-app
+          if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
+          if [ "$OUO_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
       - name: Start the stack (built from this checkout)
         run: |
           cp deploy/compose/.env.example deploy/compose/.env
+          # rum-api runs as nonroot; its bind-mounted replay directory must be writable.
+          mkdir -p deploy/data/rum-api && chmod 0777 deploy/data/rum-api
           docker compose -f deploy/compose/compose.yaml up -d --build
           OUO_READY_TIMEOUT=240 deploy/scripts/wait-ready.sh
-      - name: npm ci, SDK builds
-        run: |
-          npm ci
-          if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
-          if [ "$OUO_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
       - name: ouo-web (headless Chromium journey + verify)
         if: env.WEB == 'true'
         run: examples/ouo-web/scripts/run.sh
@@ -321,7 +327,7 @@ jobs:
           python3 -I examples/sentry-mobile/scripts/verify.py --journey "$RUNNER_TEMP/sentry.json"
       - name: Stack logs on failure
         if: failure()
-        run: docker compose -f deploy/compose/compose.yaml logs --tail 200 otel-collector rum-api backend
+        run: docker compose -f deploy/compose/compose.yaml logs --no-color --tail 200
 
   swift:
     name: swift (OuoReplayCore)
