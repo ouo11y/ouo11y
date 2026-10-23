@@ -16,8 +16,8 @@
 - **N22 measured** (results in `project/agents/ios-replay/perf/results/device`, report regenerated):
   - Capture cost, 3 rounds per build. ouo 40 ms main-thread CPU per capture before #40 and 44–45 ms
     after, against Sentry's 21–23 ms. Snapshot 47–49 ms on the main thread, compose 5.7 ms on the queue.
-    Filed as N32.
-  - Crash flows: all three pass. A crash within 1 s of launch loses the session start: N33.
+    Filed as N34.
+  - Crash flows: all three pass. A crash within 1 s of launch loses the session start: N35.
   - CPU and memory per mode: partial (n = 1–3).
     - Before #40: Sentry 11.4 %, both 15.7 %, ouo 11.1 % CPU.
     - After #40: Sentry 11.4 %, both 17.1 %, ouo 12.6 % CPU.
@@ -34,7 +34,7 @@
 
 ## Next
 
-- Phone budget (`docs/benchmarks.md`): (1) capture cost after the N32 fix, about 7 min; (2) one run per
+- Phone budget (`docs/benchmarks.md`): (1) capture cost after the N34 fix, about 7 min; (2) one run per
   cell, about 30 min.
 - Before asking: reset the app in-app instead of reinstalling, so the Local Network permission is asked once.
 - Everything else of B3 stays on the simulator (dry run published, N = 10).

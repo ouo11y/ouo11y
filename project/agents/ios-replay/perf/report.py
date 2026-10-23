@@ -191,8 +191,8 @@ def device_section():
             "#40 does not help on the device. ouo holds the main thread 40 ms per capture before and 44–45 ms after, against Sentry's "
             "21–23 ms in the same traces. The main-thread <code>snapshot</code> (view walk + <code>drawHierarchy</code>) is 47–49 ms; the "
             "work #40 moved to a queue (<code>compose</code>) is 5.7 ms. After #40 the app also captures more often (95 vs 73–83 per run). "
-            "By the decision rule, the device still misses Sentry: checklist N32. All three crash flows pass on the phone; a crash in "
-            "the first second loses the session start (N33). <b>CPU/memory table: partial.</b> The founder stopped the device work before "
+            "By the decision rule, the device still misses Sentry: checklist N34. All three crash flows pass on the phone; a crash in "
+            "the first second loses the session start (N35). <b>CPU/memory table: partial.</b> The founder stopped the device work before "
             "all 3 rounds finished, so n per mode is 1–3 (it is in the JSON). Runs whose journey stopped early (a tap on a notification "
             "banner) are excluded. Energy was not measured: xctrace's Power Profiler needs iOS 26.</p>")
     return (f"{note}<h3>Per capture, main thread (CPU)</h3>{strip_chart('device')}{stall_table('device')}"
