@@ -4,7 +4,7 @@ Phases from the post-MVP roadmap of 2026-10-10 (moved with the rest of the busin
 
 | Phase | Proposed branch | PR | Weeks | Status | Owner agents (proposed) |
 |---|---|---|---|---|---|
-| 8a Install and secure | `phase-8a-install-secure` | #14 (merged 2026-10-16) | 1 to 3 | in-progress: edge, tokens, Helm and S3 store merged; VM install run, upgrade test and N12 Helm paths verified 2026-10-23 (PR __PR__); package publishing open | rum-api, sdk-browser, sdk-react-native, platform-infra, helm, grafana-plugin, release, qa |
+| 8a Install and secure | `phase-8a-install-secure` | #14 (merged 2026-10-16) | 1 to 3 | in-progress: edge, tokens, Helm and S3 store merged; VM install run, upgrade test and N12 Helm paths verified 2026-10-23 (PR #46); package publishing open | rum-api, sdk-browser, sdk-react-native, platform-infra, helm, grafana-plugin, release, qa |
 | 8b Data lifecycle | `phase-8b-data-lifecycle` | | 4 to 5 | todo | rum-api, sdk-browser, sdk-react-native, platform-infra |
 | 8c Operate | `phase-8c-operate` | | 6 to 7 | todo | platform-infra, rum-api |
 | 8d Pilot kit | `phase-8d-pilot-kit` | | 8 | todo | orchestrator |
