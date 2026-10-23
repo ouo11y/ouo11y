@@ -1,4 +1,4 @@
-# Publishes @ouo11y/browser or @ouo11y/react-native to GitHub Packages (npm.pkg.github.com)
+# Publishes @ouo11y/browser or @ouo11y/react-native to npmjs.org (public)
 # when the founder pushes a tag.
 #   browser-v0.2.0        -> sdk/browser        -> @ouo11y/browser@0.2.0
 #   react-native-v0.2.0   -> sdk/react-native   -> @ouo11y/react-native@0.2.0
@@ -8,11 +8,11 @@
 # SHA256SUMS. A real publish then uploads that exact tarball and attaches tarball, SBOM and
 # sums to a GitHub release for the tag.
 #
-# Registry (founder 2026-10-23): GitHub Packages, next to the ghcr.io images, private until
-# stable. The package is linked to this repository through package.json `repository`, so it
-# inherits the repository's visibility and access; the built-in GITHUB_TOKEN publishes it,
-# no secret needed. Consumers authenticate with a classic PAT that has read:packages
-# (docs/releasing.md, "Pull access"). npmjs.org and provenance come back when ouo goes public.
+# Registry (founder 2026-10-24): public on npmjs.org (the SDKs are Apache-2.0), through npm
+# trusted publishing: npm trusts this workflow by OIDC, so there is no NPM_TOKEN to create or
+# renew. Each package lists `ouo11y/ouo11y` + `release-npm.yml` as its trusted publisher
+# (npmjs.com > package > Settings). Trusted publishing needs a GitHub-hosted runner, so this
+# job ignores the RUNNER variable. Provenance is added by npm once the repository is public.
 #
 # Dry run (publishes nothing, `npm publish --dry-run`):
 #   - Actions > release-npm > Run workflow with the tag to rehearse;
@@ -44,13 +44,12 @@ concurrency:
 
 jobs:
   publish:
-    # Repository variable RUNNER (JSON), e.g. ["self-hosted","macOS"] for the founder's Mac
-    # runner; unset = GitHub-hosted ubuntu-latest.
-    runs-on: ${{ vars.RUNNER && fromJSON(vars.RUNNER) || 'ubuntu-latest' }}
+    # GitHub-hosted on purpose: npm trusted publishing (OIDC) does not accept self-hosted runners.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write       # gh release create
-      packages: write       # npm publish to npm.pkg.github.com
+      id-token: write       # npm trusted publishing (OIDC)
     env:
       DRY_RUN: ${{ github.event_name != 'push' }}
     steps:
@@ -62,8 +61,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: '@ouo11y'
+          registry-url: https://registry.npmjs.org
 
       - name: Resolve workspace from tag and check the version matches
         id: pkg
@@ -95,7 +93,7 @@ jobs:
             echo "version=$version"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
-          echo "$name@$version from $ws (dry run: $DRY_RUN, registry: npm.pkg.github.com)"
+          echo "$name@$version from $ws (dry run: $DRY_RUN, registry: registry.npmjs.org)"
 
       - run: npm ci
 
@@ -135,7 +133,6 @@ jobs:
 
       - name: Check the registry and that the version is new
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
           NAME: ${{ steps.pkg.outputs.name }}
           VERSION: ${{ steps.pkg.outputs.version }}
         run: |
@@ -143,7 +140,7 @@ jobs:
           # published (versions are permanent); anything else (401/403) = token or access problem.
           if out=$(npm view "$NAME@$VERSION" version 2>&1); then
             if [ -n "$out" ]; then
-              msg="$NAME@$VERSION is already published on npm.pkg.github.com"
+              msg="$NAME@$VERSION is already published on npmjs.org"
               if [ "$DRY_RUN" = true ]; then echo "::warning::$msg (a real run would fail)"; else echo "::error::$msg"; exit 1; fi
             else
               echo "$NAME is published, $VERSION is not: ok"
@@ -152,31 +149,31 @@ jobs:
             echo "$NAME@$VERSION not published yet: ok"
           else
             echo "$out"
-            echo "::error::npm.pkg.github.com did not answer as expected for $NAME"
+            echo "::error::registry.npmjs.org did not answer as expected for $NAME"
             exit 1
           fi
 
       - name: npm publish --dry-run
         if: env.DRY_RUN == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
           PRERELEASE: ${{ steps.pkg.outputs.prerelease }}
         run: |
           dist_tag=latest
           [ "$PRERELEASE" = true ] && dist_tag=next
-          npm publish "$TARBALL" --dry-run --tag "$dist_tag"
+          npm publish "$TARBALL" --dry-run --access public --tag "$dist_tag"
 
       - name: npm publish
         if: env.DRY_RUN != 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
           PRERELEASE: ${{ steps.pkg.outputs.prerelease }}
         run: |
           dist_tag=latest
           [ "$PRERELEASE" = true ] && dist_tag=next
-          npm publish "$TARBALL" --tag "$dist_tag"
+          # Trusted publishing needs npm >= 11.5.1.
+          npm install -g npm@11
+          npm publish "$TARBALL" --access public --tag "$dist_tag"
 
       - name: Release notes
         env:
@@ -185,13 +182,9 @@ jobs:
           VERSION: ${{ steps.pkg.outputs.version }}
         run: |
           {
-            echo "npm package \`$NAME@$VERSION\` on GitHub Packages (private until stable)."
+            echo "npm package \`$NAME@$VERSION\` on npmjs.org."
             echo
             echo '```sh'
-            echo "# once per project: .npmrc"
-            echo "@ouo11y:registry=https://npm.pkg.github.com"
-            echo "//npm.pkg.github.com/:_authToken=\${GITHUB_PACKAGES_TOKEN}"
-            echo
             echo "npm install $NAME@$VERSION"
             echo '```'
             echo
