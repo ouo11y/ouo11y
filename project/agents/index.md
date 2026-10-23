@@ -14,7 +14,7 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [sdk-react-native](sdk-react-native/) | `sdk/react-native`, `examples/ouo-mobile` | 5 |
 | [qa](qa/) | end-to-end verification, `project/reports/` | 6 |
 | [ios-replay](ios-replay/) | `sdk/ios`, Expo module in `sdk/react-native` (`ios/`, `android/`, `src/replay.ts`), replay in `examples/ouo-mobile` | 7 |
-| [fast-tracked](fast-tracked/) | `examples/fast-tracked` onboarding guides (stack, Go backend, React, Expo iOS) | docs |
+| [fast-tracked](fast-tracked/) | `examples/fast-tracked` onboarding guides (stack, Go backend, React, Expo iOS), `examples/quickstarts` standalone apps | docs |
 | [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/compose/collector/` config and htpasswd | 8a |
 | [helm](helm/) | `deploy/helm` Kubernetes chart and kind verification | 8a |
 | [release](release/) | versioning, changelogs, package publishing workflows, upgrade procedure (`.github/`, `CHANGELOG.md`, package manifests) | 8a |
