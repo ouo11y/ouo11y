@@ -11,4 +11,4 @@ Device-cost benchmark of the ouo SDK against the Sentry SDK (roadmap B3), and th
 | File | Content |
 |---|---|
 | [tracker.md](tracker.md) | what was done, what is open |
-| [summaries/](summaries/) | one dated summary per run |
+| [summaries/](summaries/index.md) | one dated summary per run |
