@@ -58,7 +58,11 @@ fast clicks on it, a 300 ms long task and a render error) and then `scripts/veri
   - nothing in the window came through the Sentry bridge.
 
 `--browsers chromium,firefox,webkit` runs the journey and verify once per browser (each its own
-session, `journey-<browser>.json`); the default is Chromium. Exit status 0 means every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
+session, `journey-<browser>.json`); the default is Chromium. `--playwright-image
+mcr.microsoft.com/playwright:v1.64.1-noble` runs the journey in that image (the three browsers and
+their system libraries are in it; CI does this), serving the built app inside the container. That is
+also how to run Firefox on macOS 27, where Playwright's Firefox does not start. Exit status 0 means
+every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
 the URL `ouo-env up` prints; admin / testing567), the ouo11y RUM app, and the session.
 
 CI runs the same journey and verify in Chromium, Firefox and WebKit on every change to this example,

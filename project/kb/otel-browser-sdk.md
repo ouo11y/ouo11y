@@ -193,7 +193,12 @@ Go port and is not what tsup's dts build expects), Vitest 5 + jsdom 30.
     it in `mcr.microsoft.com/playwright:v1.64.1-noble` (`--network host` reaches an ouo-env on
     Docker Desktop, `*.localhost` included). (d) `page.route` + `fulfill` of the document makes
     Chromium treat the page as public: Local Network Access then blocks its fetches to loopback;
-    serve the modified page from a real local server instead.
+    serve the modified page from a real local server instead. (e) CI: `playwright install
+    --with-deps firefox webkit` pulls ~120 MB of apt packages; on 2026-10-23 the runner's Ubuntu mirror
+    stalled for 18 minutes and the job timed out. CI now runs the SDK e2e and the ouo-web journey in
+    `mcr.microsoft.com/playwright:v1.64.1-noble` pinned by digest (`--network host`). On macOS that
+    host network reaches published container ports but not a server on the Mac's loopback, so in
+    image mode `run.sh` serves the built app inside the container.
 25. **Interaction tracing without zone.js**: a `FallbackContextManager` (StackContextManager whose
     `active()` returns the open idle span's context when the stack is at ROOT) plus an
     `InteractionTracker` that is also a SpanProcessor counting each idle span's open children

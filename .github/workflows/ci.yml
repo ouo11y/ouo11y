@@ -276,9 +276,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       WEB: ${{ needs.changes.outputs.ex-web }}
+      # mcr.microsoft.com/playwright v1.64.1-noble: must match the `playwright` / `@playwright/test` npm version.
+      PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
       OUO_MOBILE: ${{ needs.changes.outputs.ex-ouo-mobile }}
       SENTRY_MOBILE: ${{ needs.changes.outputs.ex-sentry-mobile }}
     steps:
@@ -309,15 +311,21 @@ jobs:
           OUO_READY_TIMEOUT=240 deploy/scripts/wait-ready.sh
       # Cross-browser matrix (checklist N25) in this one job, no extra runners: the SDK's Playwright
       # suite against its collector stub, then the ouo-web journey + verify against the stack, in
-      # Chromium, Firefox and WebKit one after the other.
+      # Chromium, Firefox and WebKit one after the other. Both run in the Playwright image (same
+      # version as the npm package, pinned by digest), which ships the three browsers and their
+      # system libraries: `playwright install --with-deps` pulls ~120 MB from the Ubuntu mirror,
+      # which stalled for 18 minutes and timed the job out. Host network: the stack is on localhost.
       - name: "@ouo11y/browser end to end (Playwright: Chromium, Firefox, WebKit)"
         if: env.WEB == 'true'
+        timeout-minutes: 10
         run: |
-          npx -w sdk/browser playwright install --with-deps chromium firefox webkit
-          npm run -w sdk/browser test:e2e
+          docker pull -q "$PLAYWRIGHT_IMAGE"
+          docker run --rm --ipc=host --network host -e CI=true -v "$PWD:$PWD" -w "$PWD/sdk/browser" "$PLAYWRIGHT_IMAGE" \
+            npx playwright test -c e2e/playwright.config.ts
       - name: ouo-web (journey + verify in Chromium, Firefox and WebKit)
         if: env.WEB == 'true'
-        run: examples/ouo-web/scripts/run.sh --browsers chromium,firefox,webkit
+        timeout-minutes: 12
+        run: examples/ouo-web/scripts/run.sh --browsers chromium,firefox,webkit --playwright-image "$PLAYWRIGHT_IMAGE"
       - name: ouo-mobile (typecheck; @ouo11y/react-native in Node + verify)
         if: env.OUO_MOBILE == 'true'
         run: |

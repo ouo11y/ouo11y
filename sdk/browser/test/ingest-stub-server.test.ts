@@ -77,10 +77,13 @@ describe("ingest over a real socket (collector stub on :18081, replay stub on :1
     await fetch(`http://127.0.0.1:${OTLP_PORT}/api/ping`); // one CLIENT span
     rum.addEvent("stub.check", { n: 1 }); // one log record
     const byPath = (port: number, p: string) => seen.filter((s) => s.port === port && s.method === "POST" && s.path === p);
-    // fetch span closes after 300 ms; rrweb is a lazy chunk (slow under load) + 200 ms replay flush
+    // All three, whichever is last: the fetch span closes 300 ms after the response, rrweb is a
+    // lazy chunk (slow under load) and replay flushes every 200 ms.
     await vi.waitFor(
       async () => {
         await rum.flush();
+        expect(byPath(OTLP_PORT, "/v1/traces").length).toBeGreaterThan(0);
+        expect(byPath(OTLP_PORT, "/v1/logs").length).toBeGreaterThan(0);
         expect(byPath(REPLAY_PORT, "/v1/replay/chunks").length).toBeGreaterThan(0);
       },
       { timeout: 5000, interval: 200 },
