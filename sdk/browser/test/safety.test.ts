@@ -195,3 +195,32 @@ describe("hooks contain SDK exceptions", () => {
     expect(exceptions).toHaveLength(1);
   });
 });
+
+describe("feature detection", () => {
+  it("starts and reports without the optional platform APIs", async () => {
+    const optional = [
+      "PerformanceObserver",
+      "CompressionStream",
+      "BroadcastChannel",
+      "MutationObserver",
+      "requestIdleCallback",
+      "scheduler",
+    ] as const;
+    for (const name of optional) vi.stubGlobal(name, undefined);
+    const randomUUID = crypto.randomUUID;
+    Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
+    try {
+      const warn = vi.spyOn(console, "warn");
+      rum = initRUM({ ...options, replay: { enabled: true } });
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("could not start"), expect.anything());
+      expect(rum.session.id()).toMatch(/^[0-9a-f-]{36}$/);
+      const before = logRecords().length;
+      rum.addEvent("no.optional.apis");
+      await rum.flush();
+      expect(logRecords().slice(before).map((r) => r.eventName)).toContain("no.optional.apis");
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", { value: randomUUID, configurable: true });
+      vi.unstubAllGlobals();
+    }
+  });
+});
