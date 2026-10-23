@@ -1,0 +1,53 @@
+{
+  "name": "@ouo11y/sourcemaps",
+  "version": "0.1.0",
+  "description": "ouo source-map CLI: inject debug ids into built JavaScript and upload the maps to rum-api for symbolication.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ouo11y/ouo11y.git",
+    "directory": "sdk/sourcemaps"
+  },
+  "homepage": "https://github.com/ouo11y/ouo11y/tree/main/sdk/sourcemaps#readme",
+  "keywords": [
+    "opentelemetry",
+    "rum",
+    "source-maps",
+    "debug-id",
+    "symbolication"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "bin": {
+    "ouo-sourcemaps": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
