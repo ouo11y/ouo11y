@@ -10,6 +10,7 @@ Owns `sdk/ios` (Swift package: `OuoReplay`, `OuoCrash`, `OuoVitals`), the Expo m
   - [2026-10-08-phase-7b.md](summaries/2026-10-08-phase-7b.md) masking opt-out (`maskInputs`), docs, simulator proof, replay duration on session records
   - [2026-10-23-n6-g1.md](summaries/2026-10-23-n6-g1.md) replay capture off the main thread (N6), native crash capture (G1)
   - [2026-10-23-g2-vitals.md](summaries/2026-10-23-g2-vitals.md) native app start and CADisplayLink frame counters for the mobile vitals (G2)
+  - [2026-10-23-sentry-replay-internals.md](summaries/2026-10-23-sentry-replay-internals.md) research: sentry-cocoa 9.31.0 replay capture vs ours, ranked changes to reach Sentry's main-thread cost (N22 follow-up)
   - Phase 8a (project token on uploads) is in [sdk-react-native/summaries/2026-10-10-phase-8a.md](../sdk-react-native/summaries/2026-10-10-phase-8a.md)
   - Phase 8a revision 2 (Basic credential to the collector's replay receiver) is in [sdk-react-native/summaries/2026-10-10-phase-8a-rev2.md](../sdk-react-native/summaries/2026-10-10-phase-8a-rev2.md)
 - `reports/` [phase-7-ios-verification.html](reports/phase-7-ios-verification.html) simulator verification checks and figures (Phase 7 and 7b); [n6-g1-replay-crashes.html](reports/n6-g1-replay-crashes.html) per-capture main-thread time before/after vs Sentry, CPU/memory/frames, native crash flows (N6, G1); [g2-vitals.html](reports/g2-vitals.html) vitals records in Loki and the plugin, Time Profiler cost (G2)
