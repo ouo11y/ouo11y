@@ -10,6 +10,12 @@ Basic project credentials (ADR-0007). rum-api is internal and never reached from
 ## Install
 
 ```bash
+# .npmrc in the app, once (private until stable: docs/releasing.md, section 7)
+@ouo11y:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+```bash
 npm install @ouo11y/browser
 ```
 

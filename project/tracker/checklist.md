@@ -103,8 +103,9 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 ## 4. Benchmark and releases (P1)
 
 - [ ] B3 Fair, repeatable device-cost benchmark ouo vs latest stable Sentry, per major SDK release, regression blocks the release. Builds on the PR #25 harness. Real-device run on the founder's iPhone 16 Pro Max, available since 2026-10-17 and preferred over the simulator for every performance number (xctrace Activity Monitor, LAN proxy, CADisplayLink hitch monitor; LAN-IP ingest ports from `ouo-env url <env> --lan`).
-- [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** npm org, `ouo11y-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
+- [ ] B4 Release every artefact from CI: npm SDKs, SwiftPM, plugin, collector, rum-api, Helm chart (OCI, `chart-v*`); release-please per component; compatibility matrix; one releasing doc; CHANGELOGs for `sdk/ios`, rum-api and the chart. **[founder]** `ouo11y-ios` mirror repo, Grafana signing token, and whether SDK tarballs keep source maps.
   - 2026-10-23, PR #37: release-please (8 components, tags left to the founder), publish workflows with dry runs for npm, iOS mirror, plugin, chart (OCI) and images, `docs/compatibility.md` checked by `release-check.yml` (matrix + e2e on release PRs), `docs/releasing.md` rewritten with the founder checklist, CHANGELOGs for `sdk/ios` and the chart. Open: **[founder]** the items in `docs/releasing.md` section 8 (npm org `ouo11y` not claimed, `NPM_TOKEN`, `RELEASE_PLEASE_TOKEN` or the Actions PR setting, `OUO_IOS_DEPLOY_KEY`, grafana.com org `ouo11y` not found, signing token), then the first hand tags; source maps in tarballs still undecided.
+  - 2026-10-23: the SDKs publish to GitHub Packages (`npm.pkg.github.com`, private, founder decision), with the workflow's own token, so no npm org or `NPM_TOKEN` is needed until the public release. Install steps: `docs/releasing.md` section 7. First publish = the founder pushes `browser-v0.2.0` and `react-native-v0.2.0`.
 - [ ] B7 Supply chain: Renovate, govulncheck / npm audit / Trivy, SECURITY.md, provenance
   - 2026-10-23, PR #37: `.github/renovate.json5`, `security.yml` (govulncheck every module, npm audit runtime high+), Trivy in `ci.yml` images, `.github/SECURITY.md`, SBOM on npm and plugin releases, provenance switched on automatically once the repo is public, all actions pinned by digest, path-filtered CI. Fixed the findings it raised (x/net 0.60.0, dompurify 3.4.17). Open: **[founder]** install the Renovate app, the disclosure address for SECURITY.md.
 - [ ] N11 rum-api CI: use a `services: minio` block instead of pulling `pgsty/minio` in the test
@@ -161,7 +162,7 @@ Recorded 2026-10-18 (ADR-0009, accepted):
 
 ## Decisions waiting on the founder
 
-1. Package publishing (B4, B7): the exact list is `docs/releasing.md` section 8 (npm org and token, release-please token or setting, mirror deploy key, grafana.com org and token, Renovate app, security address), plus source maps in tarballs. GHCR stays private until stable.
+1. Package publishing (B4, B7): the exact list is `docs/releasing.md` section 8 (release-please token or setting, mirror deploy key, grafana.com org and token, Renovate app, security address), plus source maps in tarballs. GHCR stays private until stable.
 2. Where the hosted demo for B8 lives.
 3. Verdict on the F4 unmasked Sentry recordings (re-run 2026-10-18 side by side with Sentry's player; see the report). Trust the ouo-env proxy CA once so https://sentry.ouo.localhost opens without a warning (`deploy/envs/README.md`).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).
