@@ -7,6 +7,8 @@
 #   examples/ouo-web/scripts/run.sh --browsers chromium,firefox,webkit   # cross-browser matrix
 #   examples/ouo-web/scripts/run.sh --playwright-image mcr.microsoft.com/playwright:v1.64.1-noble
 #       # the journey runs in that image (browsers and their system libraries included, host network)
+#   examples/ouo-web/scripts/run.sh --first-party   # the SDK posts to /otel on the app's own origin,
+#       # proxied to the collector by scripts/serve-first-party.mjs (docs/first-party-endpoint.md)
 #
 # Stock ports: OTLP 4318, replay 4319, backend 8081, Tempo 3200, rum-api 8080, overridden by
 # examples/ouo-web/.env (copy .env.example). With --env the URLs come from `ouo-env env/url`.
@@ -15,15 +17,16 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"
-ENV_NAME="" VERIFY=1 PORT="${OUO_WEB_PORT:-4173}" BROWSERS="${OUO_WEB_BROWSERS:-chromium}" IMAGE="${OUO_WEB_PLAYWRIGHT_IMAGE:-}"
+ENV_NAME="" FIRST_PARTY=0 VERIFY=1 PORT="${OUO_WEB_PORT:-4173}" BROWSERS="${OUO_WEB_BROWSERS:-chromium}" IMAGE="${OUO_WEB_PLAYWRIGHT_IMAGE:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env) ENV_NAME="$2"; shift ;;
     --no-verify) VERIFY=0 ;;
+    --first-party) FIRST_PARTY=1 ;;
     --port) PORT="$2"; shift ;;
     --browsers) BROWSERS="$2"; shift ;;
     --playwright-image) IMAGE="$2"; shift ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "unknown flag $1" >&2; exit 2 ;;
   esac
   shift
@@ -39,6 +42,9 @@ if [[ -n $ENV_NAME ]]; then
 fi
 export VITE_OTLP_ENDPOINT="${VITE_OTLP_ENDPOINT:-http://localhost:4318}"
 export VITE_BACKEND_URL="${VITE_BACKEND_URL:-http://localhost:8081}"
+# The proxy forwards to the collector; the SDK only sees its own origin.
+export OUO_OTLP_URL="${OUO_OTLP_URL:-$VITE_OTLP_ENDPOINT}" OUO_REPLAY_URL="${OUO_REPLAY_URL:-${VITE_OUO_REPLAY_ENDPOINT:-${VITE_OTLP_ENDPOINT%:4318}:4319}}"
+if [[ $FIRST_PARTY == 1 ]]; then export VITE_OTLP_ENDPOINT=/otel VITE_OUO_REPLAY_ENDPOINT=""; fi
 export OUO_TEMPO_URL="${OUO_TEMPO_URL:-http://localhost:3200}" OUO_RUM_API_URL="${OUO_RUM_API_URL:-http://localhost:8080}"
 
 cd "$root"
@@ -60,8 +66,9 @@ journey() {
     # Same paths inside (the repo mounted at its own path), host network for the stack. The built app
     # is served inside the container (a static server is enough: the journey loads / and navigates by
     # clicking), because Docker Desktop's host network does not reach a server on the Mac's loopback.
-    docker run --rm --ipc=host --network host -v "$root:$root" -w "$here" "$IMAGE" sh -c '
-      python3 -m http.server "$0" --bind 127.0.0.1 --directory dist >/dev/null 2>&1 &
+    docker run --rm --ipc=host --network host -v "$root:$root" -w "$here" -e FIRST_PARTY="$FIRST_PARTY" -e OUO_OTLP_URL -e OUO_REPLAY_URL "$IMAGE" sh -c '
+      if [ "$FIRST_PARTY" = 1 ]; then node scripts/serve-first-party.mjs "$0" >/dev/null 2>&1 &
+      else python3 -m http.server "$0" --bind 127.0.0.1 --directory dist >/dev/null 2>&1 & fi
       for _ in $(seq 1 30); do curl -sf "http://localhost:$0" >/dev/null && break; sleep 1; done
       exec node scripts/journey.mjs "$@"' "$PORT" "$@"
   else
@@ -71,7 +78,8 @@ journey() {
 
 if [[ -z $IMAGE ]]; then
   log "serve on http://localhost:$PORT"
-  npm run -w examples/ouo-web preview -- --port "$PORT" --strictPort >/dev/null 2>&1 &
+  if [[ $FIRST_PARTY == 1 ]]; then node "$here/scripts/serve-first-party.mjs" "$PORT" >/dev/null 2>&1 &
+  else npm run -w examples/ouo-web preview -- --port "$PORT" --strictPort >/dev/null 2>&1 & fi
   server=$!
   trap 'kill $server 2>/dev/null || true' EXIT
   for _ in $(seq 1 30); do curl -sf "http://localhost:$PORT" >/dev/null && break; sleep 1; done

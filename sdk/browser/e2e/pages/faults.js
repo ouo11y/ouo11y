@@ -28,7 +28,7 @@ window.addEventListener("error", (e) => {
 if (q.get("sdk") !== "0") {
   const { initRUM } = await import("/dist/index.js");
   window.rum = initRUM({
-    endpoint: `http://localhost:${q.get("collector") ?? 4181}`,
+    endpoint: `http://localhost:${q.get("collector") ?? Number(location.port) + 1}`,
     projectId: "e2e",
     projectToken: "pt_e2e",
     service: { name: "e2e-faults", version: "1.0.0", environment: "e2e" },

@@ -1,4 +1,5 @@
 /** A stubbed fetch that records every request, and decoders for the OTLP/HTTP JSON it captured. */
+import { gunzipSync } from "node:zlib";
 import { vi } from "vitest";
 
 export interface Captured {
@@ -28,10 +29,19 @@ export interface SpanOut {
   endTimeUnixNano: string;
 }
 
+/** Request body bytes as text, gunzipped when gzip (the SDK compresses bodies of 1 KB or more). */
+export function bodyText(body: unknown): string {
+  if (typeof body === "string") return body;
+  // instanceof fails across realms (jsdom vs Node), so duck-type buffers.
+  const isView = ArrayBuffer.isView(body);
+  if (!isView && Object.prototype.toString.call(body) !== "[object ArrayBuffer]") return String(body);
+  const bytes = isView ? new Uint8Array((body as ArrayBufferView).buffer, (body as ArrayBufferView).byteOffset, (body as ArrayBufferView).byteLength) : new Uint8Array(body as ArrayBuffer);
+  return bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes).toString("utf8") : new TextDecoder().decode(bytes);
+}
+
 function decodeBody(body: unknown): unknown {
   if (body === undefined || body === null) return null;
-  const isBuffer = ArrayBuffer.isView(body) || Object.prototype.toString.call(body) === "[object ArrayBuffer]";
-  const text = typeof body === "string" ? body : isBuffer ? new TextDecoder().decode(body as ArrayBuffer) : String(body);
+  const text = bodyText(body);
   try {
     return JSON.parse(text);
   } catch {

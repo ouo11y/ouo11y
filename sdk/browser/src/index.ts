@@ -1,7 +1,5 @@
 import { context, diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations, type Instrumentation } from "@opentelemetry/instrumentation";
 import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
 import { LoggerProvider } from "@opentelemetry/sdk-logs";
@@ -16,6 +14,7 @@ import { exceptionAttributes } from "./errors/classify";
 import { claimError, installErrorCapture } from "./errors/install";
 import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
 import { attempt, guard, quiet, setGuardReporter } from "./guard";
+import { createDelivery, createLogExporter, createTraceExporter } from "./transport";
 import { createLogger } from "./logger";
 import { installNavigation } from "./navigation";
 import { createNetworkInstrumentations } from "./network";
@@ -65,6 +64,7 @@ function noopRUM(): RUM & { _uninstall(): Promise<void> } {
     session: { id: () => "", userId: () => "", deviceId: () => "" },
     flush: done,
     shutdown: done,
+    deliveryStats: () => ({ sent: 0, retried: 0, queued: 0, dropped: 0, droppedBytes: 0, dropReasons: {}, rawBytes: 0, wireBytes: 0 }),
     _uninstall: done,
   };
 }
@@ -128,6 +128,11 @@ function install(
     if (diag.setLogger(otelDiag, DiagLogLevel.INFO)) cleanup.push(() => diag.disable());
   }
 
+  // Before the lifecycle handlers below: it marks the page hidden before their flush runs.
+  const delivery = createDelivery(options.transport, logger);
+  // First in, last out: closed after the providers' final flush.
+  cleanup.push(() => delivery.close());
+
   const serviceVersion = options.service.version;
   const storage = new LocalStorage();
   const deviceId = loadDeviceId(storage);
@@ -152,13 +157,14 @@ function install(
   const route = new RouteState();
 
   // ---- logs (events) ----
-  const logExporter = new OTLPLogExporter({ url: urls.logs, headers: authHeaders });
+  const logExporter = createLogExporter({ url: urls.logs, headers: authHeaders, delivery });
   // Not the OTel BatchLogRecordProcessor: it drops a flush requested while one is running,
   // which loses what is emitted at page hide (src/telemetry/batch.ts).
   const logBatch = new PageLogRecordProcessor(logExporter, {
     scheduledDelayMillis: 1000,
     maxExportBatchSize: 64,
     maxQueueSize: 2048,
+    onDrop: () => delivery.countQueueDrop("logs"),
   });
   const loggerProvider = new LoggerProvider({
     resource,
@@ -169,7 +175,7 @@ function install(
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
-  const traceExporter = new OTLPTraceExporter({ url: urls.traces, headers: authHeaders });
+  const traceExporter = createTraceExporter({ url: urls.traces, headers: authHeaders, delivery });
   // Late-bound: the tracker is a span processor of the provider it gets its tracer from.
   let tracerProvider: WebTracerProvider;
   const tracker = new InteractionTracker({
@@ -187,6 +193,7 @@ function install(
           scheduledDelayMillis: 2000,
           maxExportBatchSize: 64,
           maxQueueSize: 1024,
+          onDrop: () => delivery.countQueueDrop("traces"),
         }),
         (span) => tracker.shouldExport(span),
       ),
@@ -273,7 +280,7 @@ function install(
   const chunker = new ReplayChunker({
     sessionId: () => session.id(),
     nextSeq: () => session.nextReplaySeq(),
-    upload: createChunkUploader({ replayEndpoint: urls.replayEndpoint, authorization, logger }),
+    upload: createChunkUploader({ replayEndpoint: urls.replayEndpoint, authorization, logger, delivery }),
     ...(options.replay?.flushIntervalMs !== undefined ? { flushIntervalMs: options.replay.flushIntervalMs } : {}),
     ...(options.replay?.maxChunkBytes !== undefined ? { maxChunkBytes: options.replay.maxChunkBytes } : {}),
     logger,
@@ -399,6 +406,7 @@ function install(
     flush,
     shutdown,
     _uninstall: shutdown,
+    deliveryStats: () => ({ ...delivery.stats, dropReasons: { ...delivery.stats.dropReasons } }),
   };
   return rum;
 }

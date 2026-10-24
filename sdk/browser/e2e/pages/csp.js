@@ -7,7 +7,7 @@ document.addEventListener("securitypolicyviolation", (e) => {
 });
 const { initRUM } = await import("/dist/index.js");
 window.rum = initRUM({
-  endpoint: "http://localhost:4181",
+  endpoint: `http://localhost:${Number(location.port) + 1}`,
   projectId: "e2e",
   projectToken: "pt_e2e",
   service: { name: "e2e-csp", version: "1.0.0", environment: "e2e" },

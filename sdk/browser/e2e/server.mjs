@@ -1,23 +1,27 @@
 // End-to-end test servers for @ouo11y/browser (Playwright, e2e/*.spec.ts):
-//   :4180  the test pages (e2e/pages), the built SDK (dist/) and a tiny API (/api/*) on one origin
+//   :4180  the test pages (e2e/pages), the built SDK (dist/) and a tiny API (/api/*) on one origin,
+//          plus /otel/* : a first-party proxy route to the collector stub (README, "First-party
+//          endpoint"); like a proxy holding the credential it adds Authorization when absent (beacons)
 //   :4181  a collector stub: OTLP/HTTP JSON on /v1/{traces,logs}, replay chunks (gzip) on
 //          /v1/replay/chunks, CORS like the real collector, Basic auth checked. What it received
 //          is kept in memory and read back with GET /__captured, cleared with POST /__reset.
-//          POST /__fault {status, retryAfter, delayMs} makes every ingest request get that answer
-//          (`{}` clears it); /__captured counts them in `faulted`.
+//          POST /__fault {status, retryAfter, delayMs, count, paths} answers ingest requests on
+//          `paths` (default all) with that status and/or after that delay (a slow collector), the
+//          next `count` of them or every one until `{}` clears it; /__captured counts them in
+//          `faulted` and lists every ingest request in `requests` (path, status, encoding, bytes, time).
 //   Pages listed in CSP get a strict Content-Security-Policy with Trusted Types (e2e/csp.spec.ts).
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { extname, join, resolve } from "node:path";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
-const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? 4181);
+const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? PAGE_PORT + 1);
 const basic = "Basic " + Buffer.from("e2e:pt_e2e").toString("base64");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".map": "application/json" };
 
-const empty = () => ({ traces: [], logs: [], replay: [], api: [], rejected: 0, faulted: 0 });
+const empty = () => ({ traces: [], logs: [], replay: [], api: [], rejected: 0, faulted: 0, requests: [] });
 let captured = empty();
 let fault = {};
 const CSP = {
@@ -43,6 +47,17 @@ createServer((req, res) => {
     }, delay);
     return;
   }
+  if (url.pathname.startsWith("/otel/")) {
+    const headers = { ...req.headers, host: `localhost:${COLLECTOR_PORT}` };
+    headers["authorization"] ??= basic;
+    const upstream = request({ host: "localhost", port: COLLECTOR_PORT, method: req.method, path: url.pathname.slice("/otel".length), headers }, (up) => {
+      res.writeHead(up.statusCode ?? 502, up.headers);
+      up.pipe(res);
+    });
+    upstream.on("error", () => res.writeHead(502).end());
+    req.pipe(upstream);
+    return;
+  }
   // Server-rendered page stand-in: /ssr.html?traceparent=... writes the meta tag.
   let file = url.pathname.startsWith("/dist/") ? join(root, url.pathname) : join(root, "e2e/pages", url.pathname === "/" ? "app.html" : url.pathname);
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(root, "e2e/pages/app.html");
@@ -57,6 +72,7 @@ createServer((req, res) => {
   res.setHeader("access-control-allow-headers", "authorization, content-type, content-encoding, x-ouo-session-id, x-ouo-seq");
   res.setHeader("access-control-allow-methods", "POST, OPTIONS");
   res.setHeader("access-control-max-age", "7200");
+  res.setHeader("access-control-expose-headers", "Retry-After");
   if (req.method === "OPTIONS") return res.writeHead(204).end();
   if (req.method === "GET" && req.url === "/__captured") {
     res.writeHead(200, { "content-type": "application/json" });
@@ -67,34 +83,44 @@ createServer((req, res) => {
     fault = {};
     return res.writeHead(204).end();
   }
-  const parts = [];
   if (req.method === "POST" && req.url === "/__fault") {
+    const parts = [];
     req.on("data", (c) => parts.push(c));
-    return req.on("end", () => {
+    req.on("end", () => {
       fault = JSON.parse(Buffer.concat(parts).toString("utf8") || "{}");
       res.writeHead(204).end();
     });
+    return;
   }
-  if (fault.status) {
-    captured.faulted++;
-    req.resume();
-    return setTimeout(() => {
-      res.writeHead(fault.status, fault.retryAfter !== undefined ? { "retry-after": String(fault.retryAfter) } : {}).end();
-    }, fault.delayMs ?? 0);
-  }
+  const parts = [];
   req.on("data", (c) => parts.push(c));
   req.on("end", () => {
+    const active = (fault.status || fault.delayMs) && fault.count !== 0 && (!fault.paths || fault.paths.includes(req.url)) ? { ...fault } : null;
+    if (active) {
+      captured.faulted++;
+      if (fault.count !== undefined) fault.count--;
+    }
+    const record = { path: req.url, at: Date.now(), encoding: req.headers["content-encoding"] ?? null, bytes: Buffer.concat(parts).length, status: 200 };
+    captured.requests.push(record);
+    setTimeout(() => answer(active, record), active?.delayMs ?? 0);
+  });
+  const answer = (f, record) => {
+    if (f?.status) {
+      record.status = f.status;
+      return res.writeHead(f.status, f.retryAfter !== undefined ? { "retry-after": String(f.retryAfter) } : {}).end();
+    }
     if (req.headers["authorization"] !== basic) {
       captured.rejected++;
       return res.writeHead(401).end();
     }
     const raw = Buffer.concat(parts);
     try {
+      // Like the collector's confighttp: gzip or identity on every route.
+      const json = (req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw).toString("utf8");
       if (req.url === "/v1/traces" || req.url === "/v1/logs") {
-        captured[req.url.slice(4)].push(JSON.parse(raw.toString("utf8")));
+        captured[req.url.slice(4)].push(JSON.parse(json));
       } else if (req.url === "/v1/replay/chunks") {
-        const json = req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw;
-        captured.replay.push(JSON.parse(json.toString("utf8")));
+        captured.replay.push(JSON.parse(json));
       } else {
         return res.writeHead(404).end();
       }
@@ -103,5 +129,5 @@ createServer((req, res) => {
       return res.writeHead(400).end();
     }
     res.writeHead(200, { "content-type": "application/json" }).end("{}");
-  });
+  };
 }).listen(COLLECTOR_PORT, () => console.log(`e2e collector stub http://localhost:${COLLECTOR_PORT}`));

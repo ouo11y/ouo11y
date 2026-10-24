@@ -4,6 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initRUM, type RUM } from "../src/index";
+import { bodyText } from "./helpers/otlp";
 
 interface Captured {
   url: string;
@@ -16,9 +17,7 @@ const responses: Array<{ match: RegExp; status: number }> = [];
 
 function decodeBody(body: unknown): unknown {
   if (body === undefined || body === null) return null;
-  // instanceof fails across realms (jsdom vs Node), so duck-type buffers.
-  const isBuffer = ArrayBuffer.isView(body) || Object.prototype.toString.call(body) === "[object ArrayBuffer]";
-  const text = typeof body === "string" ? body : isBuffer ? new TextDecoder().decode(body as ArrayBuffer) : String(body);
+  const text = bodyText(body);
   try {
     return JSON.parse(text);
   } catch {
@@ -275,7 +274,8 @@ describe("initRUM end to end (jsdom, stubbed fetch)", () => {
     const chunks = replayChunks();
     expect(chunks[0]!.headers["x-ouo-session-id"]).toBe(rum.session.id());
     expect(chunks[0]!.headers["x-ouo-seq"]).toBe("0");
-    expect(chunks[0]!.headers["content-encoding"]).toBe("gzip");
+    // Bodies of 1 KB or more go gzip (src/transport/gzip.ts).
+    expect(chunks[0]!.headers["content-encoding"]).toBe(JSON.stringify(chunks[0]!.body).length >= 1024 ? "gzip" : undefined);
     expect(chunks[0]!.headers["authorization"]).toBe(BASIC);
     expect(chunks[0]!.headers["x-ouo-project-token"]).toBeUndefined();
     expect(rum.replay.isRecording()).toBe(true);

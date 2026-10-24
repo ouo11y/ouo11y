@@ -59,7 +59,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 
 | Option | Default | Meaning |
 |---|---|---|
-| `endpoint` | required | Collector OTLP/HTTP base URL. OTLP goes to `${endpoint}/v1/traces` and `${endpoint}/v1/logs`. |
+| `endpoint` | required | Collector OTLP/HTTP base URL. OTLP goes to `${endpoint}/v1/traces` and `${endpoint}/v1/logs`. A relative path (`/otel`) is a route on the page's own origin (see "First-party endpoint"). |
 | `replayEndpoint` | derived | Replay receiver base; chunks go to `${replayEndpoint}/v1/replay/chunks`. Default: `endpoint` with port `4319` when `endpoint` uses port `4318`, otherwise `endpoint` itself (a proxy routing `/v1/replay/*`). |
 | `projectId` | required | Project identifier, the Basic auth username. Throws when missing, empty or containing `:`. |
 | `projectToken` | required | Public project token, the Basic auth password. Throws when missing or empty. |
@@ -86,6 +86,10 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `session.maxDurationMs` | `14400000` (4 h) | Session ends after this total duration. |
 | `session.sampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided from the session id (see "Sampling") and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
 | `user.id` | anonymous | Initial user id. Otherwise an anonymous id is generated and persisted (`ouo.user.anonymous=true`). A different identified id than the resumed session's rotates the session (`user_change`). |
+| `transport.compression` | `true` | gzip request bodies of 1 KB or more with `CompressionStream` (`Content-Encoding: gzip`); uncompressed where the browser lacks it. |
+| `transport.maxAttempts` | `5` | Attempts per request, the first included, on network errors, timeouts, 408, 429 and 5xx before the request goes to the offline store. Other 4xx answers are never retried. |
+| `transport.offline` | `{ maxBytes: 5242880, maxAgeMs: 86400000 }` | Keep unsent requests (IndexedDB, memory where storage is unavailable), at most `maxBytes` (oldest evicted first) and `maxAgeMs` old, and send them when back online or on the next page load. `false` drops them instead. |
+| `transport.beacon` | `false` | At page hide, use `navigator.sendBeacon` when the keepalive budget is spent. A beacon cannot carry `Authorization`: only for a first-party route whose proxy adds it. |
 | `debug` | `false` | Log SDK decisions to the console with the `[ouo]` prefix. |
 
 ## Sessions
@@ -221,9 +225,9 @@ A per-project server-side override is not part of the SDK (roadmap 8b, collector
 
 - rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min (30 s while buffering), no canvas or font collection. The bundled rrweb is patched at build time so a blocked iframe's document is neither recorded nor observed (`tsup.config.ts`): rrweb 2.1.7 did both, and on Safari, where rrweb keeps two hidden helper iframes, every checkout added observers that were never released.
 - Privacy classes: add `ouo-block` to an element to exclude it from the recording (rendered as a placeholder), `ouo-mask` to replace its text with asterisks. Inputs are masked by default.
-- Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, gzip-compressed with `CompressionStream`, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip`, `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. On `pagehide` the remaining buffer is sent uncompressed with `fetch(..., { keepalive: true })`, same headers.
+- Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip` (bodies of 1 KB or more), `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. Chunks go through the same delivery layer as OTLP (see "Delivery"): on `pagehide` the remaining buffer leaves uncompressed with `keepalive`, and what does not fit the keepalive budget is kept for the next page load.
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.
-- Upload failures retry 3 times with backoff; pending data is capped at 2 MB (oldest chunks dropped).
+- Failed uploads are retried, then kept offline, by the delivery layer; a chunk the receiver refuses (4xx) is dropped and counted. Pending data in memory is capped at 2 MB (oldest chunks dropped).
 - `rum.replay.pause()` stops recording and flushes; `resume()` starts a new recording with a full snapshot.
 - Multi-tab: tabs of one origin share the session, and two recordings in one chunk sequence would interleave two DOMs. Only one tab records: the visible tab the user last focused, clicked or typed in. It claims a lease on the `BroadcastChannel` `ouo.replay` and starts with a full snapshot and an rrweb custom event `ouo.tab` (`tab_id`, `url`); the tab that loses the lease, or is hidden, stops and flushes. The replay is what the user looked at, one tab after the other. Without `BroadcastChannel` (Safari before 15.4) a tab only stops when hidden.
 - The collector's replay receiver must answer CORS preflights allowing the headers above (`Authorization`, `Content-Type`, `Content-Encoding`, `X-Ouo-Session-Id`, `X-Ouo-Seq`) for your origin; the OTLP receiver needs `Authorization` and `Content-Type` (ADR-0007 section 4).
@@ -242,7 +246,7 @@ The bundle is built for the syntax floor (`tsup.config.ts`) and CI checks every 
 es-check (`npm run compat:check`): no syntax newer than ES2022 ships, so an app bundle that includes
 the SDK still parses on those engines. Each optional platform feature is detected, and the SDK
 does without it: Long Animation Frames / Long Tasks (`PerformanceObserver.supportedEntryTypes`,
-Chromium only), `CompressionStream` (replay sent uncompressed), `BroadcastChannel` (each tab stops
+Chromium only), `CompressionStream` (OTLP and replay bodies sent uncompressed), `BroadcastChannel` (each tab stops
 recording only when hidden), `MutationObserver` (no DOM activity for interaction spans),
 `crypto.randomUUID` (`getRandomValues`, then `Math.random`), `requestIdleCallback` (web-vitals falls
 back to a timer). The SDK itself uses neither `scheduler` nor `requestIdleCallback`. Web Vitals per
@@ -305,6 +309,36 @@ and WebKit on each PR.
   `replay.onErrorSampleRate` with `sampleRate: 0` to record only sessions with an error (the buffer
   still pays the recording cost, not the upload); `rum.replay.pause()` around a heavy view.
 
+## Delivery
+
+Every ingest request (OTLP traces and logs, replay chunks) goes through one delivery layer (`src/transport/`) so a flaky network, a busy collector or a closed tab loses as little as possible:
+
+| Situation | What the SDK does |
+|---|---|
+| Page visible | gzip the body (1 KB or more), `POST` with `keepalive` while the 64 KB keepalive budget allows, abort after 30 s. |
+| Network error, timeout, `408`, `429`, `5xx` | Retry with exponential backoff and jitter (1 s, 2 s, 4 s, ... capped at 30 s), or after `Retry-After` when the answer has one, up to `transport.maxAttempts`. A `Retry-After` over 60 s, or the last failed attempt, sends the request to the offline store. |
+| Any other `4xx` | Dropped at once (the request is wrong; retrying cannot help) and counted. |
+| `navigator.onLine` is false | Straight to the offline store; sent on the `online` event. |
+| Page hidden or closing (`visibilitychange` to hidden, `pagehide`) | The request leaves synchronously, uncompressed, with `fetch(..., { keepalive: true })`. A batch larger than what is left of the 64 KB budget is split until each part fits; what still does not fit goes to the offline store (and is also sent plainly, in case the tab only went to the background), or by `navigator.sendBeacon` with `transport.beacon`. A retry waiting for its backoff is sent at once on this path. |
+| Offline store | IndexedDB database `ouo-delivery` (per origin, shared by tabs), memory when IndexedDB is missing, blocked or fails (private mode, sandboxed iframe); a full disk keeps the entry in memory. Hard cap `transport.offline.maxBytes` (default 5 MB) with oldest-first eviction, entries older than `maxAgeMs` (24 h) dropped. Sent oldest first on `online`, when the page is shown again, after any successful request, and on the next page load of the origin, by one tab at a time (Web Locks). Nothing here throws into the page. |
+
+Delivery is at least once: a request kept at page hide whose plain request also arrived is sent again by the next page load. Tempo, Loki and the replay receiver absorb the duplicate (same span id, same log line, same chunk `seq`).
+
+`rum.deliveryStats()` returns the counters since `initRUM`: `sent`, `retried`, `queued` (kept offline), `dropped` and `droppedBytes` with `dropReasons` (`rejected`, `store_full`, `too_large`, `expired`, `no_store`, `queue_full`), and `rawBytes` / `wireBytes` for the bytes before and after gzip. With `debug: true` every drop is logged with `console.warn`, and every request with its size and the gzip saving. OTLP JSON compresses about 10 to 20 times (a 13.5 KB batch of 50 log records is 0.6 KB gzip; a 6.8 KB rrweb chunk is 0.3 KB).
+
+The collector accepts `Content-Encoding: gzip` on the OTLP receiver and the replay receiver, and its CORS config allows the header and exposes `Retry-After` (`deploy/compose/collector/config.yaml`).
+
+## First-party endpoint (ad blockers)
+
+Blocklists match third-party telemetry hosts and paths, so some users never reach the collector. Serve the collector under your own origin and give the SDK a relative endpoint:
+
+```ts
+initRUM({ endpoint: "/otel", projectId, projectToken, service });
+// traces -> /otel/v1/traces, logs -> /otel/v1/logs, replay -> /otel/v1/replay/chunks
+```
+
+The reverse proxy sends `/otel/v1/replay/*` to the replay receiver (port 4319) and the rest of `/otel/*` to the OTLP receiver (port 4318), strips `/otel`, and keeps the body and its `Content-Encoding` untouched. Same origin means no CORS preflight. nginx, Caddy and Next.js examples are in [docs/first-party-endpoint.md](https://github.com/ouo11y/ouo11y/blob/main/docs/first-party-endpoint.md); `examples/ouo-web/scripts/run.sh --first-party` runs the storefront journey that way.
+
 ## Debugging
 
 With `debug: true` the SDK logs one init line with the URLs it derived and the project id, never the token:
@@ -313,7 +347,7 @@ With `debug: true` the SDK logs one init line with the URLs it derived and the p
 [ouo] @ouo11y/browser@0.2.0 initialised { endpoint: "http://localhost:4318", replayEndpoint: "http://localhost:4319", traces: "http://localhost:4318/v1/traces", logs: "http://localhost:4318/v1/logs", replay: "http://localhost:4319/v1/replay/chunks", projectId: "demo", session: "...", user: "..." }
 ```
 
-Common collector answers: `401` wrong or missing credential (basicauth), `429` or `503` rate limited (`ouoratelimit`, retried by the exporters), `413` payload too large, a CORS error with no POST at all when the page origin is not in the collector's `allowed_origins` or `Authorization` is missing from its allowed headers. Exporter responses are visible with the OTel diag logger (`debug: true` wires it to `console.warn`).
+Common collector answers: `401` wrong or missing credential (basicauth, dropped), `429` or `503` rate limited (`ouoratelimit`, retried after `Retry-After`), `413` payload too large (dropped), a CORS error with no POST at all when the page origin is not in the collector's `allowed_origins` or `Authorization` is missing from its allowed headers. With `debug: true` the delivery layer logs every request, retry and drop (`[ouo] logs: HTTP 503, retry 1 in 812 ms`, `[ouo] delivery: dropped 2048 B (rejected): traces: HTTP 400`).
 
 ## React (`@ouo11y/browser/react`)
 
@@ -364,6 +398,7 @@ npm run -w sdk/browser size       # gzip sizes
 npm run -w sdk/browser size:check # fails above sdk/browser/size-budget.json (CI)
 npm run -w sdk/browser compat:check # es-check (no syntax above ES2022), entries import in Node, source maps map the minified code (CI)
 npm run -w sdk/browser test:e2e   # Playwright: Chromium, Firefox, WebKit against e2e/server.mjs (build first)
+                                  # e2e/delivery.spec.ts injects network faults; OUO_E2E_PAGE_PORT=4280 moves the servers (collector stub on the next port)
 npm run -w sdk/browser test:soak  # soak (OUO_SOAK_MINUTES, default 2) + rrweb cost; OUO_SOAK_PROJECTS=chromium,webkit
 node sdk/browser/playground/server.mjs   # static playground on :4173 + collector stub on :8090 (OTLP + replay on one port, Basic-auth checked)
 ```
