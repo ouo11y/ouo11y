@@ -1,0 +1,5 @@
+self-hosted-runner:
+  # Custom label of the founder's self-hosted Mac runners (#60): only the runner labelled
+  # `stack` takes jobs that start a stack on fixed host ports.
+  labels:
+    - stack

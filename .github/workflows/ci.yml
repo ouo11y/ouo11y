@@ -299,7 +299,7 @@ jobs:
     name: examples (journey + verify)
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, macOS, stack]  # starts a stack on fixed ports: one at a time, on the runner labelled stack
     timeout-minutes: 35
     env:
       WEB: ${{ needs.changes.outputs.ex-web }}

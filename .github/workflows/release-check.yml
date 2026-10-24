@@ -48,7 +48,7 @@ jobs:
   e2e:
     name: e2e scenario (stack from this commit)
     needs: compat
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, macOS, stack]  # starts a stack on fixed ports: one at a time, on the runner labelled stack
     timeout-minutes: 30
     env:
       COMPOSE: docker compose -p ouo-release-check -f deploy/compose/compose.yaml
