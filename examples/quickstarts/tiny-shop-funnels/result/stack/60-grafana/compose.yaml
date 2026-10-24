@@ -9,7 +9,7 @@
 services:
   grafana:
     build:
-      context: ../../../../../..          # the repository root (the plugin is a workspace)
+      context: ${OUO11Y_REPO:-../../../../../..}   # an ouo11y checkout's root (the plugin is a workspace)
       dockerfile: examples/quickstarts/tiny-shop-funnels/result/stack/60-grafana/Dockerfile
     image: tiny-shop-funnels/grafana:from-source
     ports:

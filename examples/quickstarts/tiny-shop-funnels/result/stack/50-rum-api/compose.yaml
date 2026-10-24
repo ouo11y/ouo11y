@@ -9,7 +9,9 @@
 services:
   rum-api:
     build:
-      context: ../../../../../../services/rum-api   # this repository's services/rum-api
+      # services/rum-api of an ouo11y checkout. OUO11Y_REPO: the checkout's root (default: this
+      # folder's place inside the repository).
+      context: ${OUO11Y_REPO:-../../../../../..}/services/rum-api
       args: { VERSION: funnels-from-source }
     image: tiny-shop-funnels/rum-api:from-source
     command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]

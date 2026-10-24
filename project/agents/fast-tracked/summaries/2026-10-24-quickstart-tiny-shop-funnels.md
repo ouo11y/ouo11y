@@ -22,3 +22,17 @@ Session: `funnels`. Branch `claude/funnels-quickstart`, stacked on `claude/funne
 - After the founder tags rum-api and grafana releases with funnels: replace both `build:` blocks with the released `image:`, delete `60-grafana/Dockerfile*`, drop the "Released images" note in the README.
 - PRs #67 / #68 also edit `examples/quickstarts/{README,index}.md` and the checklist: expect a trivial merge conflict on those rows.
 - No build-it-yourself guide, like quickstart 4.
+
+## Follow-up (same day): build-it-yourself guide
+
+`build-it-yourself-guide.md` added at the founder's request. It starts from quickstart 4's result (#68) and covers only the changes: rename, the two stack files built from a clone (`OUO11Y_REPO`, now a compose variable), `App.jsx`, `rum.js`, `server.js`, the generator, building the funnel in Grafana, and drop-off to replay. It ends with a troubleshooting table; every changed file is embedded and checked by `check-embeds.mjs`.
+
+Followed once from scratch in a scratch folder:
+- fresh copy of #68's `result/`, files pasted from the guide's own blocks, a clean worktree as the clone;
+- the step 2 check printed the documented 400;
+- a manual purchase in the browser;
+- the generator gave 45 / 37 / 28 / 20 / 10;
+- the funnel built through the UI exactly as written read 46 / 38 / 29 / 21 / 11 (the generator plus the one manual session, as the guide says);
+- drop-off to replay worked.
+
+Two fixes came out of that run: the rename now also covers the `<title>Tiny Shop Replay</title>` (fixed in `result/` too), and step 1 is described as already filled in.

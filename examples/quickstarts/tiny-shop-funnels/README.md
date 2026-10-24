@@ -7,6 +7,10 @@ build the funnel in Grafana, read the conversion and the time between steps, and
 of a session that gave up. Everything is in this folder: its own app, its own API, its own stack
 and the session generator.
 
+**To build it yourself**, step by step from quickstart 4's result, follow
+[build-it-yourself-guide.md](build-it-yourself-guide.md). The rest of this page runs the finished
+`result/` as is.
+
 > **Released images.** Funnels are newer than the released rum-api and Grafana images
 > (`ghcr.io/ouo11y/rum-api:0.3.0`, `ghcr.io/ouo11y/grafana:0.3.0`), so this stack **builds both
 > from this repository** (`stack/50-rum-api`, `stack/60-grafana`). Once a release with funnels is
@@ -80,7 +84,8 @@ generate-sessions (50 headless browsers) ──drives──► web app (frontend
 ## Run it in five minutes
 
 Needs Node 24, Docker Compose 2.24 or later and a checkout of this repository (the stack builds
-rum-api and the plugin from it). Commands have no `$` prompt; each runs from the folder named
+rum-api and the plugin from it; from a copy of `result/` outside the checkout, set
+`OUO11Y_REPO=<checkout root>` first). Commands have no `$` prompt; each runs from the folder named
 above it.
 
 **1. The stack.** The collector image is private for now, so log in to ghcr.io once with a GitHub
