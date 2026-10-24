@@ -205,7 +205,7 @@ A per-project server-side override is not part of the SDK (roadmap 8b, collector
 
 ## Replay (ADR-0003)
 
-- rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min, no canvas or font collection.
+- rrweb `record` with `maskAllInputs` (default true), no canvas or font collection, a full snapshot every 5 min (30 s while buffering) taken by restarting the recording rather than with rrweb's `checkoutEveryNms`, which in Safari leaks observers on pages with patched DOM prototypes.
 - Privacy classes: add `ouo-block` to an element to exclude it from the recording (rendered as a placeholder), `ouo-mask` to replace its text with asterisks. Inputs are masked by default.
 - Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, gzip-compressed with `CompressionStream`, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip`, `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. On `pagehide` the remaining buffer is sent uncompressed with `fetch(..., { keepalive: true })`, same headers.
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.
