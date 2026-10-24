@@ -84,6 +84,7 @@ func (s *Server) parseListQuery(r *http.Request) (listQuery, error) {
 			Service:  q.Get("service"),
 			Version:  q.Get("version"),
 			User:     q.Get("user"),
+			Device:   q.Get("device"),
 		},
 		limit: defaultLimit,
 	}

@@ -307,9 +307,9 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
 
 ### Sessions
 
-`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&service=web-store&limit=100`
+`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&device=9b1f0c2e-...&service=web-store&limit=100`
 
-`device_id` is the SDK's `device.id` (the same for every session of one browser or install), omitted when the SDK sends none.
+`device_id` is the SDK's `device.id` (the same for every session of one browser or install), omitted when the SDK sends none.  `device=` lists every session of one browser or install.
 
 Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit` max 1000):
 

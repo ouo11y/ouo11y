@@ -43,6 +43,7 @@ export default function Sessions() {
       status: search.get('status') ?? '',
       version: search.get('version') ?? '',
       user: search.get('user') ?? '',
+      device: search.get('device') ?? '',
       service: search.get('service') ?? '',
       limit: Number(search.get('limit') ?? 100) || 100,
     }),
@@ -56,15 +57,21 @@ export default function Sessions() {
 
   // Free-text inputs are committed to the URL on blur / Enter; when the URL changes
   // (back button, Overview link) the inputs are re-synced during render.
-  const urlText = `${filters.version}|${filters.user}|${filters.service}`;
-  const [text, setText] = useState({ version: filters.version, user: filters.user, service: filters.service });
+  const urlText = `${filters.version}|${filters.user}|${filters.device}|${filters.service}`;
+  const [text, setText] = useState({
+    version: filters.version,
+    user: filters.user,
+    device: filters.device,
+    service: filters.service,
+  });
   const [syncedFrom, setSyncedFrom] = useState(urlText);
   if (syncedFrom !== urlText) {
     setSyncedFrom(urlText);
-    setText({ version: filters.version, user: filters.user, service: filters.service });
+    setText({ version: filters.version, user: filters.user, device: filters.device, service: filters.service });
   }
 
-  const commitText = () => setSearchParams({ version: text.version, user: text.user, service: text.service });
+  const commitText = () =>
+    setSearchParams({ version: text.version, user: text.user, device: text.device, service: text.service });
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       commitText();
@@ -125,6 +132,16 @@ export default function Sessions() {
               onKeyDown={onKey}
             />
           </Field>
+          <Field label="Device" className={styles.field}>
+            <Input
+              width={22}
+              placeholder="any device"
+              value={text.device}
+              onChange={(e) => setText({ ...text, device: e.currentTarget.value })}
+              onBlur={commitText}
+              onKeyDown={onKey}
+            />
+          </Field>
           <Field label="Limit" className={styles.field}>
             <Select
               width={12}
@@ -142,7 +159,14 @@ export default function Sessions() {
                 variant="secondary"
                 fill="text"
                 onClick={() =>
-                  setSearchParams({ platform: null, status: null, version: null, user: null, service: null })
+                  setSearchParams({
+                    platform: null,
+                    status: null,
+                    version: null,
+                    user: null,
+                    device: null,
+                    service: null,
+                  })
                 }
               >
                 Clear filters

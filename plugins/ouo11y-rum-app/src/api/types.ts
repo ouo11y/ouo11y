@@ -10,6 +10,8 @@ export type SessionState = 'active' | 'ended';
 export interface SessionRecord {
   session_id: string;
   user_id: string | null;
+  /** The SDK's `device.id`: the same for every session of one browser or install; absent when none. */
+  device_id?: string | null;
   platform: Platform | string;
   service_name: string;
   service_version: string;
@@ -302,6 +304,8 @@ export interface SessionFilters {
   status?: string;
   version?: string;
   user?: string;
+  /** `device_id`: every session of one browser or install. */
+  device?: string;
   service?: string;
   limit?: number;
 }

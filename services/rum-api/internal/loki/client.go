@@ -54,12 +54,13 @@ func (c *Client) Ready(ctx context.Context) error {
 }
 
 // Filters narrow the session-event query. Platform and Service are stream
-// labels; Version, User and SessionID are structured metadata filters.
+// labels; Version, User, Device and SessionID are structured metadata filters.
 type Filters struct {
 	Platform  string
 	Service   string
 	Version   string
 	User      string
+	Device    string // device_id: every session of one browser or install
 	SessionID string
 	// EventNames restricts event_name (regex alternatives). Empty means ".+".
 	EventNames []string
@@ -88,6 +89,9 @@ func (f Filters) Query() string {
 	}
 	if f.User != "" {
 		q += ` | user_id=` + quote(f.User)
+	}
+	if f.Device != "" {
+		q += ` | device_id=` + quote(f.Device)
 	}
 	return q
 }

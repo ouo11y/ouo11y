@@ -21,6 +21,7 @@ func TestFiltersQuery(t *testing.T) {
 		{Filters{}, `{service_name=~".+", event_name=~".+"}`},
 		{Filters{Platform: "web", Service: "web-store"}, `{service_name="web-store", event_name=~".+", ouo_platform="web"}`},
 		{Filters{Version: "1.0", User: "u\"1", SessionID: "s1"}, `{service_name=~".+", event_name=~".+"} | session_id="s1" | service_version="1.0" | user_id="u\"1"`},
+		{Filters{User: "u1", Device: "d1"}, `{service_name=~".+", event_name=~".+"} | user_id="u1" | device_id="d1"`},
 		{Filters{EventNames: []string{"session.start", "exception"}}, `{service_name=~".+", event_name=~"session.start|exception"}`},
 	}
 	for _, c := range cases {

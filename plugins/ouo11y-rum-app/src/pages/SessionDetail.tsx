@@ -180,6 +180,20 @@ export default function SessionDetail() {
             <dl className={styles.meta}>
               <dt>User</dt>
               <dd>{session.user_id || <span className={styles.muted}>anonymous</span>}</dd>
+              {session.device_id && (
+                <>
+                  <dt>Device</dt>
+                  <dd>
+                    <a
+                      className={styles.link}
+                      href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}?from=${range.from}&to=${range.to}&device=${encodeURIComponent(session.device_id)}`}
+                      data-testid="session-device"
+                    >
+                      <code>{session.device_id.slice(0, 8)}…</code>
+                    </a>
+                  </dd>
+                </>
+              )}
               <dt>Platform</dt>
               <dd>
                 <PlatformIcon platform={session.platform} />
