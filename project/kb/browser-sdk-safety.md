@@ -98,16 +98,27 @@ specs `e2e/faults.spec.ts`, `e2e/csp.spec.ts`, `e2e/soak.spec.ts`, `e2e/rrweb-co
   (`JSEventListeners`, `Nodes`).
 - **Found by the first 1 h run (WebKit only): +2 listeners and +2 observers every 5 minutes.** A
   stack-recording probe (`new Error().stack` at each add / observe, kept until remove / disconnect,
-  then mapped through the rrweb chunk's source map) pointed at rrweb's iframe manager. Where DOM
-  prototypes look patched (`toString()` without `[native code]`: Zone.js, another RUM or analytics
-  script, or the soak's own probe), rrweb's `getUntaintedPrototype` takes clean prototypes from a
-  hidden iframe and, **on Safari only, keeps that iframe in the DOM** (class `rr-block`). Every
-  full snapshot then serializes it and `onceIframeLoaded` -> `attachIframe` -> `observe(contentDocument)`
-  pushes a new MutationObserver and listener set into rrweb's `handlers`, released only by
-  `stop()`. `checkoutEveryNms` therefore leaked one set per checkout. Blocking the iframe does not
-  help (rrweb attaches to blocked iframes too). Fix: take periodic checkouts by stopping and
-  restarting `record()` (same full snapshot, everything released); the restart's Meta event is
-  passed as `isCheckout` so buffer mode still cuts its ring there.
+  then mapped through the rrweb chunk's source map) pointed at rrweb's iframe manager:
+  - rrweb 2.1.7's `getUntaintedPrototype` decides a prototype is patched when a listed getter or
+    method is not `[native code]`. Its lists are wrong for real browsers: `Element` "accessors"
+    `querySelector` / `querySelectorAll` are methods (no getter: always "tainted"), and Safari has
+    no `ShadowRoot.prototype.getSelection`. So rrweb always takes clean prototypes from a hidden
+    iframe, and **on Safari keeps two such iframes in the DOM** (class `rr-block`, attribute
+    `__rrwebUntaintedMutationObserver`); elsewhere it removes them.
+  - Every full snapshot serializes them, and `onceIframeLoaded` -> `attachIframe` ->
+    `observe(contentDocument)` runs **even for a blocked iframe** (the iframe branch of
+    `serializeNodeWithId` ignores `recordChild`), pushing a new MutationObserver and listener set
+    into rrweb's `handlers`, released only by `stop()`. So `checkoutEveryNms` leaked one set per
+    checkout per helper iframe, on every Safari page with replay.
+  - Restarting `record()` for each checkout instead releases those, but leaks worse: every
+    `record()` pushes a MutationBuffer onto rrweb's module-level `mutationBuffers`, never removed
+    (Chromium heap 5.4 to 13.5 MB in an hour). Reverted.
+  - Fix kept: an esbuild `onLoad` patch of the bundled rrweb (`tsup.config.ts`) gating the iframe
+    branch on `recordChild`, so a blocked iframe is neither recorded nor observed, plus
+    `iframe.rr-block` always in `blockSelector`. The patch asserts exactly one match and fails the
+    build otherwise. Worth sending upstream.
+- A measuring probe must not change what it measures: its wrappers report `[native code]` from
+  `Function.prototype.toString`, or rrweb takes the tainted path because of the probe.
 - Reset the collector stub every sample after counting, or it holds an hour of replay in memory.
 - Separate `OUO_E2E_PAGE_PORT` / `OUO_E2E_COLLECTOR_PORT` per engine lets two soaks run at once.
 
