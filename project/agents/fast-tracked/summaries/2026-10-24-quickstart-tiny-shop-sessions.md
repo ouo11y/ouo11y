@@ -20,6 +20,13 @@ Owner: quickstarts. Branch `claude/quickstart-tiny-shop-sessions`, stacked on
 - Plugin: `device_id` in the types; **Device** on the session header, linking to the Sessions list
   filtered by that device; a Device filter on the Sessions page. The previous-session link and
   the end reason were already there.
+- `build-it-yourself-guide.md` (added after the founder's review): builds in `tiny-shop-sessions/mine/`
+  (gitignored) so the relative build paths resolve; the app is split into `SessionPanel`,
+  `AccountPanel`, `BreakItPanel` so each step adds one embedded file. Followed once from scratch
+  by pasting every block into `mine/`: each step's check held; it found that
+  `npm pack --pack-destination` needs the folder to exist (fixed in the guide and the README),
+  and that any SDK signal (a `long_animation_frame` from a throttled background tab) starts the
+  next session after a timeout, not only a click (noted in both). Stack and processes torn down.
 - Indexes: quickstarts README and index, fast-tracked tracker, checklist N48.
 
 ## Verified, and how
@@ -42,7 +49,6 @@ Owner: quickstarts. Branch `claude/quickstart-tiny-shop-sessions`, stacked on
 - **TODO after the next release**: `@ouo11y/browser` from npm instead of `frontend/vendor/`
   (and commit a `package-lock.json` again), `image:` instead of `build:` for rum-api and Grafana,
   delete `stack/60-grafana/Dockerfile*`. Never push tags for this.
-- No `build-it-yourself-guide.md` yet, unlike quickstarts 1 and 2: the README run is the only path.
 - Gotchas found: `rum.session.id()` lazily starts a new session (so a UI that polls it defeats
   `endSession` / inactivity); clearing site data with the page open is undone by the SDK's unload
   write. Both are in the README's "Things that bite".

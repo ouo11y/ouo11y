@@ -10,12 +10,12 @@ Everything is in this folder: its own app, its own API and its own stack.
 
 | Bite | Where in the code | Where to see it |
 |---|---|---|
-| **Login keeps the session**: anonymous to `alice` only sets `user.id` | `login()` in [`App.jsx`](result/frontend/src/App.jsx), `rum.setUser` | the same session id before and after, now with user alice |
+| **Login keeps the session**: anonymous to `alice` only sets `user.id` | `login()` in [`AccountPanel.jsx`](result/frontend/src/AccountPanel.jsx), `rum.setUser` | the same session id before and after, now with user alice |
 | **Switching user rotates it**: alice to bob ends the session with `user_change` | `login()` again, `rum.setUser` | two sessions: alice's (ended, `user_change`) and bob's, whose **Previous session** is alice's |
 | **Logout rotates it**: `rum.clearUser()`, a fresh anonymous id | `logout()` | a new anonymous session after bob's |
 | **End session**: `rum.endSession()`, reason `manual`; your next click starts the next one | `endSession()` | `ended · manual` on the session page |
 | **Inactivity**: a switch shortens the timeout to 1 minute | `session.inactivityTimeoutMs` in [`rum.js`](result/frontend/src/rum.js) | `ended · inactivity` after a minute of doing nothing |
-| **Break it**: handled error, uncaught error, failed request | "Break it" in `App.jsx`, `GET /api/broken` in [`server.js`](result/backend/server.js) | `errored`, `crashed`, `errored`, and the healthy / errored / crashed split on the Overview |
+| **Break it**: handled error, uncaught error, failed request | [`BreakItPanel.jsx`](result/frontend/src/BreakItPanel.jsx), `GET /api/broken` in [`server.js`](result/backend/server.js) | `errored`, `crashed`, `errored`, and the healthy / errored / crashed split on the Overview |
 | **One device, many sessions**: `device.id` | stored by the SDK under `ouo.device` | **Device** on the session page; click it for every session of this browser |
 | **A "Your session" panel** in the page | [`session.js`](result/frontend/src/session.js) | the live session id, previous id, user, device id and state |
 
@@ -135,7 +135,10 @@ browser (frontend/, @ouo11y/browser)                Node API (backend/)
 | File | What it does |
 |---|---|
 | `result/frontend/src/rum.js` | `initRUM`: the session options (the inactivity switch), fetch tracing to the API, replay |
-| `result/frontend/src/App.jsx` | the shop, with three panels: **Your session**, **Account** (login, switch, logout, end session, short timeout) and **Break it** |
+| `result/frontend/src/App.jsx` | the shop, with the three panels above it |
+| `result/frontend/src/SessionPanel.jsx` | **Your session**: session id, state and end reason, previous id, user, device id |
+| `result/frontend/src/AccountPanel.jsx` | **Account**: login, switch user, logout (`clearUser`), End session (`endSession`), the short-timeout switch |
+| `result/frontend/src/BreakItPanel.jsx` | **Break it**: handled error, uncaught error, failed request |
 | `result/frontend/src/session.js` | reads `ouo.session`, `ouo.user` and `ouo.device` from `localStorage` for the panel, with no side effects |
 | `result/frontend/src/main.jsx` | imports `./rum` before React renders |
 | `result/frontend/package.json` | `@ouo11y/browser` from `vendor/` until the release (see "Unreleased parts") |
@@ -163,6 +166,14 @@ this repository. It must stay inside the repository checkout until then.
 
 </details>
 
+Two ways to use it:
+
+- **Build it yourself:** [build-it-yourself-guide.md](build-it-yourself-guide.md) starts from the
+  shop of the earlier quickstarts and adds only the new parts, one checkable step at a time: the
+  session panel, login / switch / logout / End session, the short timeout, the break-it panel.
+  About 30 minutes.
+- **Run the finished result** in five minutes, below.
+
 ## Run it in five minutes
 
 Needs Node 24 and Docker Compose 2.24 or later, and this repository checked out (see "Unreleased
@@ -172,6 +183,10 @@ parts"). Commands have no `$` prompt; each runs from the folder named above it.
 
 ```bash
 npm ci && npm run build -w sdk/browser
+```
+
+```bash
+mkdir -p examples/quickstarts/tiny-shop-sessions/result/frontend/vendor
 ```
 
 ```bash
@@ -272,6 +287,8 @@ commands with Ctrl+C.
   instead ([`session.js`](result/frontend/src/session.js)).
 - **Clearing site data while the page is open** does not give a fresh start: the SDK writes the
   session back when the page unloads. Close the tab, then clear, or use a private window.
+- **Any signal starts the next session**, not only a click: after `endSession` or a timeout, an
+  SDK event such as `long_animation_frame` (frequent in a throttled background tab) does too.
 - **The inactivity timeout is read once**, at init: the switch reloads the page.
 - **The short timeout is in the browser only.** rum-api keeps 30 minutes for sessions that never
   send `session.end`; a session that does send it gets the reason it sent.
