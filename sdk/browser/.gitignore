@@ -2,3 +2,4 @@ dist/
 playground/.chunks/
 test-results/
 playwright-report/
+soak-results/

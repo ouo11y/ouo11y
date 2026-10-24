@@ -79,6 +79,14 @@ export interface ReplayOptions {
   flushIntervalMs?: number;
   /** Flush a chunk when the buffered events exceed this many bytes. Default 262144 (256 KB). */
   maxChunkBytes?: number;
+  /**
+   * CSS selector of elements recorded as an empty box of the same size, in addition to the
+   * `ouo-block` class: privacy, and the cheapest way to keep a huge widget (a grid, a map, a
+   * chart) out of the replay's snapshot and mutation cost.
+   */
+  blockSelector?: string;
+  /** CSS selector of elements whose text is masked, in addition to the `ouo-mask` class. */
+  maskTextSelector?: string;
 }
 
 export interface SessionOptions {
@@ -160,6 +168,11 @@ export interface RUM {
   setRoute(name: string): void;
   replay: RUMReplay;
   session: RUMSession;
-  /** Force export of pending spans, log records and replay chunks. */
+  /** Force export of pending spans, log records and replay chunks. Never rejects. */
   flush(): Promise<void>;
+  /**
+   * Flushes, then removes every hook, listener, observer and timer the SDK installed and
+   * restores patched globals. `initRUM` can be called again afterwards. Never rejects.
+   */
+  shutdown(): Promise<void>;
 }

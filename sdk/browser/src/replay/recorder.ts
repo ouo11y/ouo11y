@@ -1,6 +1,7 @@
+import { attempt, guard } from "../guard";
 import type { SessionManager, SessionRecord } from "../session/manager";
 import type { DebugLogger } from "../logger";
-import type { ReplayChunker } from "./chunker";
+import { DEFAULT_MAX_BUFFER_BYTES, estimateBytes, type ReplayChunker } from "./chunker";
 import { TabLease } from "./tabs";
 
 export interface RecorderOptions {
@@ -12,6 +13,14 @@ export interface RecorderOptions {
   session: SessionManager;
   chunker: ReplayChunker;
   logger: DebugLogger;
+  /** Elements matching this CSS selector are recorded as an empty box of the same size (rrweb `blockSelector`). */
+  blockSelector?: string | undefined;
+  /** Text inside elements matching this CSS selector is masked (rrweb `maskTextSelector`). */
+  maskTextSelector?: string | undefined;
+  /** Called when replay stops for the rest of the page view, with the reason and its size. */
+  onSkip?: (reason: "snapshot_too_large", bytes: number) => void;
+  /** Largest full snapshot recorded; a larger one could never be uploaded. Default the chunker's buffer bound. */
+  maxSnapshotBytes?: number;
   /** Cross-tab coordination; injectable for tests. Default a BroadcastChannel lease. */
   lease?: TabLease;
 }
@@ -27,6 +36,13 @@ interface RrwebModule {
 
 /** Privacy classes (ADR-0003). */
 export const BLOCK_CLASS = "ouo-block";
+/**
+ * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
+ * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
+ * in the DOM with the class `rr-block`; it is not part of the page the user saw. (rrweb still
+ * attaches observers to its idle document at every checkout: project/kb/browser-sdk-safety.md.)
+ */
+export const ALWAYS_BLOCKED = "iframe.rr-block";
 export const MASK_TEXT_CLASS = "ouo-mask";
 /** Periodic full snapshots keep seeking cheap (ADR-0003). */
 export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
@@ -34,6 +50,10 @@ export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
 export const BUFFER_CHECKOUT_EVERY_MS = 30 * 1000;
 /** rrweb custom event marking the tab a stretch of replay was recorded in. */
 export const TAB_EVENT_TAG = "ouo.tab";
+
+/** rrweb event types the recorder looks at. */
+const META = 4;
+const FULL_SNAPSHOT = 2;
 
 export type ReplayMode = "off" | "buffer" | "full";
 
@@ -55,6 +75,8 @@ export class ReplayRecorder {
   private rrweb: RrwebModule | null = null;
   private stopFn: StopFn | null = null;
   private loading: Promise<void> | null = null;
+  /** rrweb could not be loaded (chunk blocked by CSP, offline, an ad blocker): replay stays off. */
+  private unavailable = false;
   private paused = false;
   private mode: ReplayMode = "off";
   private ring: unknown[] = [];
@@ -81,12 +103,21 @@ export class ReplayRecorder {
     if (!this.uninstallTabs) this.uninstallTabs = this.installTabs();
     if (this.paused) return;
     if (!this.rrweb) {
+      if (this.unavailable) return;
       if (!this.loading) {
-        this.loading = import("rrweb").then((mod) => {
-          this.rrweb = mod as unknown as RrwebModule;
-        });
+        // Never rejects: a failed chunk load must not become an unhandledrejection on the page.
+        this.loading = import("rrweb").then(
+          (mod) => {
+            this.rrweb = mod as unknown as RrwebModule;
+          },
+          (err: unknown) => {
+            this.unavailable = true;
+            this.opts.logger.warn("replay off: rrweb failed to load", err);
+          },
+        );
       }
       await this.loading;
+      if (!this.rrweb) return;
     }
     if (this.isActiveTab()) {
       this.lease.claim(this.opts.session.id());
@@ -128,7 +159,7 @@ export class ReplayRecorder {
     this.opts.logger.log("replay: error, uploading the buffer", `${buffered.length} events`);
     const wasRecording = this.stopFn !== null;
     if (this.stopFn) {
-      this.stopFn();
+      attempt(this.stopFn);
       this.stopFn = null;
     }
     for (const e of buffered) this.opts.chunker.push(e);
@@ -151,12 +182,12 @@ export class ReplayRecorder {
     }
     if (this.stopFn && !changed) {
       this.opts.logger.log("replay: full snapshot for new session", next.id, previousId ?? "");
-      this.rrweb?.record.takeFullSnapshot?.(true);
+      attempt(() => this.rrweb?.record.takeFullSnapshot?.(true));
       return;
     }
     // Checkout interval and target differ per mode: restart.
     if (this.stopFn) {
-      this.stopFn();
+      attempt(this.stopFn);
       this.stopFn = null;
     }
     void this.start();
@@ -189,8 +220,9 @@ export class ReplayRecorder {
 
   private stop(reason: string): void {
     if (this.stopFn) {
-      this.stopFn();
+      const stop = this.stopFn;
       this.stopFn = null;
+      attempt(stop);
       this.opts.logger.log(reason);
     }
     if (this.mode === "full") void this.opts.chunker.flush();
@@ -198,20 +230,22 @@ export class ReplayRecorder {
 
   /** Visibility, focus and input claim the lease; another tab's claim or hiding stops recording. */
   private installTabs(): () => void {
-    const claim = (): void => {
+    const claim = guard((): void => {
       if (this.paused || this.mode === "off" || !this.isActiveTab()) return;
       if (this.stopFn && this.lease.isOwner()) return;
       this.lease.claim(this.opts.session.id());
       if (!this.stopFn) this.record();
-    };
-    const onVisibility = (): void => {
+    });
+    const onVisibility = guard((): void => {
       if (document.visibilityState === "hidden") this.stop("replay: tab hidden");
       else claim();
-    };
-    const offLost = this.lease.onLost((sessionId) => {
-      if (sessionId !== this.opts.session.peek()?.id) return;
-      this.stop("replay: another tab took over");
     });
+    const offLost = this.lease.onLost(
+      guard((sessionId: string) => {
+        if (sessionId !== this.opts.session.peek()?.id) return;
+        this.stop("replay: another tab took over");
+      }),
+    );
     const opts: AddEventListenerOptions = { capture: true, passive: true };
     document.addEventListener("visibilitychange", onVisibility);
     globalThis.addEventListener("focus", claim);
@@ -227,13 +261,28 @@ export class ReplayRecorder {
   }
 
   private emit(event: unknown, isCheckout?: boolean): void {
+    // A full snapshot over the chunker's buffer bound would be dropped, leaving a replay of
+    // mutations with nothing to apply them to: stop for this page view instead (huge DOMs;
+    // `replay.blockSelector` keeps a big widget out of the snapshot).
+    if ((event as { type?: number }).type === FULL_SNAPSHOT) {
+      const bytes = estimateBytes(event);
+      if (bytes > (this.opts.maxSnapshotBytes ?? DEFAULT_MAX_BUFFER_BYTES)) {
+        this.unavailable = true;
+        this.opts.logger.warn("replay off: full snapshot too large", bytes);
+        this.stop("replay stopped");
+        this.ring = [];
+        this.checkouts = [];
+        this.opts.onSkip?.("snapshot_too_large", bytes);
+        return;
+      }
+    }
     if (this.mode === "full") {
       this.opts.chunker.push(event);
       return;
     }
     // Buffer: keep from the second-to-last full snapshot on. A checkout is a Meta event (type 4)
     // followed by a FullSnapshot, both emitted with isCheckout; the Meta one marks the cut.
-    if (isCheckout && (event as { type?: number }).type === 4) {
+    if (isCheckout && (event as { type?: number }).type === META) {
       this.checkouts.push(this.ring.length);
       if (this.checkouts.length > 2) {
         const cut = this.checkouts[this.checkouts.length - 2]!;
@@ -247,21 +296,38 @@ export class ReplayRecorder {
   }
 
   private record(): void {
-    if (this.stopFn || !this.rrweb || this.paused || this.mode === "off") return;
-    const stop = this.rrweb.record({
-      emit: (event: unknown, isCheckout?: boolean) => this.emit(event, isCheckout),
-      maskAllInputs: this.opts.maskAllInputs,
-      blockClass: BLOCK_CLASS,
-      maskTextClass: MASK_TEXT_CLASS,
-      checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
-      recordCanvas: false,
-      collectFonts: false,
-      inlineImages: false,
-      slimDOMOptions: { script: true, comment: true },
-      errorHandler: (err: unknown) => this.opts.logger.warn("rrweb error", err),
-    });
+    if (this.stopFn || !this.rrweb || this.paused || this.unavailable || this.mode === "off") return;
+    const rrweb = this.rrweb;
+    // rrweb guards its own observers with errorHandler; record() itself (the first full snapshot)
+    // and our emit callback are guarded here.
+    const stop = attempt(() =>
+      rrweb.record({
+        emit: guard((event: unknown, isCheckout?: boolean) => this.emit(event, isCheckout)),
+        maskAllInputs: this.opts.maskAllInputs,
+        blockClass: BLOCK_CLASS,
+        maskTextClass: MASK_TEXT_CLASS,
+        blockSelector: this.opts.blockSelector ? `${ALWAYS_BLOCKED}, ${this.opts.blockSelector}` : ALWAYS_BLOCKED,
+        ...(this.opts.maskTextSelector ? { maskTextSelector: this.opts.maskTextSelector } : {}),
+        checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
+        recordCanvas: false,
+        collectFonts: false,
+        inlineImages: false,
+        slimDOMOptions: { script: true, comment: true },
+        errorHandler: (err: unknown) => {
+          this.opts.logger.warn("rrweb error", err);
+          // Handled: rrweb does not rethrow into the page.
+          return true;
+        },
+      }),
+    );
     this.stopFn = stop ?? null;
-    if (this.stopFn) this.rrweb.record.addCustomEvent?.(TAB_EVENT_TAG, { tab_id: this.lease.tabId, url: location.href });
+    // The first full snapshot is emitted inside record(): it may have been too large.
+    if (this.unavailable && this.stopFn) {
+      attempt(this.stopFn);
+      this.stopFn = null;
+      return;
+    }
+    if (this.stopFn) attempt(() => rrweb.record.addCustomEvent?.(TAB_EVENT_TAG, { tab_id: this.lease.tabId, url: location.href }));
     this.opts.logger.log(`replay recording (${this.mode})`, this.stopFn ? "started" : "failed to start");
   }
 }

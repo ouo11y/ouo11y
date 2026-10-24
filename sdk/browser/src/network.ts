@@ -1,6 +1,7 @@
 import type { Span } from "@opentelemetry/api";
 import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { XMLHttpRequestInstrumentation } from "@opentelemetry/instrumentation-xml-http-request";
+import { attempt } from "./guard";
 import type { EventEmitter } from "./telemetry/events";
 import type { DebugLogger } from "./logger";
 
@@ -45,27 +46,30 @@ export function createNetworkInstrumentations(opts: NetworkOptions) {
     propagateTraceHeaderCorsUrls: opts.propagateTo,
     ignoreUrls: opts.ignoreUrls,
     ignoreNetworkEvents: true,
-    requestHook: () => onActivity(),
-    applyCustomAttributesOnSpan: (span, request, result) => {
-      const status = (result as { status?: number }).status;
-      if (!isFailedRequest(status)) return;
-      // The span attribute is the requested URL; response.url is empty on synthetic responses.
-      const url = spanAttr(span, "url.full") || (request instanceof Request ? request.url : "") || (result as { url?: string }).url;
-      const method =
-        (request instanceof Request ? request.method : (request as RequestInit).method) ?? spanAttr(span, "http.request.method");
-      emitFailed(span, status ?? 0, url, method?.toUpperCase());
-    },
+    requestHook: () => attempt(onActivity),
+    // The hooks run inside the patched fetch / XHR: guarded so the page's request never sees an SDK error.
+    applyCustomAttributesOnSpan: (span, request, result) =>
+      attempt(() => {
+        const status = (result as { status?: number }).status;
+        if (!isFailedRequest(status)) return;
+        // The span attribute is the requested URL; response.url is empty on synthetic responses.
+        const url = spanAttr(span, "url.full") || (request instanceof Request ? request.url : "") || (result as { url?: string }).url;
+        const method =
+          (request instanceof Request ? request.method : (request as RequestInit).method) ?? spanAttr(span, "http.request.method");
+        emitFailed(span, status ?? 0, url, method?.toUpperCase());
+      }),
   });
 
   const xhrInstrumentation = new XMLHttpRequestInstrumentation({
     propagateTraceHeaderCorsUrls: opts.propagateTo,
     ignoreUrls: opts.ignoreUrls,
     ignoreNetworkEvents: true,
-    applyCustomAttributesOnSpan: (span, xhr) => {
-      onActivity();
-      if (!isFailedRequest(xhr.status)) return;
-      emitFailed(span, xhr.status, xhr.responseURL || spanAttr(span, "url.full"), spanAttr(span, "http.request.method"));
-    },
+    applyCustomAttributesOnSpan: (span, xhr) =>
+      attempt(() => {
+        onActivity();
+        if (!isFailedRequest(xhr.status)) return;
+        emitFailed(span, xhr.status, xhr.responseURL || spanAttr(span, "url.full"), spanAttr(span, "http.request.method"));
+      }),
   });
 
   return [fetchInstrumentation, xhrInstrumentation];

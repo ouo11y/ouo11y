@@ -5,6 +5,7 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | File | Question it answers |
 |---|---|
 | [otel-browser-sdk.md](otel-browser-sdk.md) | How the OTel JS web SDK is wired for sessions, fetch tracing and events (Phase 2); vitals lost at page hide, interaction tracing without zone.js, cross-browser Playwright quirks (batch 3) |
+| [browser-sdk-safety.md](browser-sdk-safety.md) | How `@ouo11y/browser` keeps the host page unbroken (guards, rrweb `errorHandler` must return true, patch restore rules, OTel globals on shutdown, SSR, `"use client"` with tsup, storage fallback), fault-injection and CSP / Trusted Types specs, the soak probe for every engine, rrweb cost on 10k / 50k-element DOMs, terser vs esbuild size, Firefox on macOS 27 (N42, N43, 2026-10-24) |
 | [otel-react-native.md](otel-react-native.md) | What the OTel JS SDK needs to run inside React Native / Expo (filled in Phase 5) |
 | [collector-lgtm.md](collector-lgtm.md) | Collector config that forwards OTLP to Loki, Tempo and Mimir with browser CORS (filled in Phase 1) |
 | [loki-session-queries.md](loki-session-queries.md) | LogQL used by rum-api to fold session events (filled in Phase 3) |
