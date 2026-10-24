@@ -96,7 +96,8 @@ test(`soak: ${MINUTES} min busy SPA with replay, no growth after warm-up`, async
   const after = samples.slice(warm);
   const maxOf = (xs: Sample[], k: keyof Sample) => Math.max(...xs.map((s) => Number(s[k] ?? 0)));
   // Slack: timers and listeners come and go with in-flight work at the moment of sampling.
-  const slack: Partial<Record<keyof Sample, number>> = { listeners: 2, observers: 1, timers: 15, intervals: 0, nodes: 400 };
+  // Observers: the interaction tracker's MutationObserver lives while a click or navigation span is open.
+  const slack: Partial<Record<keyof Sample, number>> = { listeners: 2, observers: 3, timers: 15, intervals: 0, nodes: 400 };
   for (const [k, s] of Object.entries(slack) as Array<[keyof Sample, number]>) {
     expect(maxOf(after, k), `${k} after warm-up`).toBeLessThanOrEqual(maxOf(early, k) + s);
   }
