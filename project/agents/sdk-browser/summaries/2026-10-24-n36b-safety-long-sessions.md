@@ -75,7 +75,9 @@ torn down at the end of the run.
   passed, 2 skipped (LoAF outside Chromium) in Chromium, Firefox and WebKit, 2.3 min. Chromium and
   WebKit also on macOS.
 - `examples/ouo-web/scripts/run.sh --env web-sdk-safety-209ff7 --browsers chromium,firefox,webkit
-  --playwright-image <pinned> --port 4693`: 24/24, 23/23, 23/23.
+  --playwright-image <pinned> --port 4693`: 24/24, 23/23, 23/23, on the final build (terser with
+  chained maps), with the env started by PR #65's ouo-env (network isolation; two earlier verifies
+  had failed at random because envs resolved each other's Loki and Tempo).
 - Next.js 15.5.4 + React 19.1 scratch app with the packed SDK: `next build` (prerender = SSR)
   and `next start`, Playwright: a session id on the client, no console errors.
 - Soak, 60 min each, Chromium and WebKit on macOS: SOAK_RESULT.
