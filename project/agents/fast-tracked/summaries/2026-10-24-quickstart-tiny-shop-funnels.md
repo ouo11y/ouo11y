@@ -25,14 +25,24 @@ Session: `funnels`. Branch `claude/funnels-quickstart`, stacked on `claude/funne
 
 ## Follow-up (same day): build-it-yourself guide
 
-`build-it-yourself-guide.md` added at the founder's request. It starts from quickstart 4's result (#68) and covers only the changes: rename, the two stack files built from a clone (`OUO11Y_REPO`, now a compose variable), `App.jsx`, `rum.js`, `server.js`, the generator, building the funnel in Grafana, and drop-off to replay. It ends with a troubleshooting table; every changed file is embedded and checked by `check-embeds.mjs`.
+The founder asked for `build-it-yourself-guide.md`. The first version built on quickstart 4's result; the founder corrected that, since every quickstart is standalone. The guide now starts from an empty folder, like `tiny-shop`:
+- step 0: tools and a clone (for rum-api / Grafana until a release);
+- steps 1–3: a plain API and a plain five-page shop with no telemetry, shown inline;
+- step 4: the stack, one service at a time, every file embedded;
+- steps 5–6: the instrumented API, then the shop with `rum.js` and the three `rum.addEvent` calls;
+- step 7: the generator;
+- steps 8–9: building the funnel in Grafana and following a drop-off to its replay;
+- step 10: clean-up, then a troubleshooting table.
 
-Followed once from scratch in a scratch folder:
-- fresh copy of #68's `result/`, files pasted from the guide's own blocks, a clean worktree as the clone;
-- the step 2 check printed the documented 400;
-- a manual purchase in the browser;
+There are 25 embeds, checked by `check-embeds.mjs`.
+
+**Shape.** The `60-grafana` build now uses the reader's own `Dockerfile` (context `.`), with the clone passed as the named build context `ouo11y` (`OUO11Y_REPO`); BuildKit sends only the copied files. `Dockerfile.dockerignore` is gone. So `result/` is exactly what the guide ends with: README.md, build-it-yourself-guide.md and result/, no files/.
+
+**Followed once from an empty folder.** Each file was written from the guide's own blocks in the guide's order. Phase A (the plain API with curl, the plain shop clicked through to "paid") ran before any later file existed. After step 7, `diff -r` against `result/` (excluding node_modules, lockfiles, logs and `.env.local`) was identical. Then, with the images deleted:
+- the step 4 check returned the documented 400;
+- step 5 printed the `[otel]` line;
+- step 6's purchase showed every page and event in the session, with a replay;
 - the generator gave 45 / 37 / 28 / 20 / 10;
-- the funnel built through the UI exactly as written read 46 / 38 / 29 / 21 / 11 (the generator plus the one manual session, as the guide says);
-- drop-off to replay worked.
+- the Funnels page read 46 / 38 / 29 / 21 / 11 (plus the manual purchase, as the guide says), and the drop-off listed 10 sessions with Replay.
 
-Two fixes came out of that run: the rename now also covers the `<title>Tiny Shop Replay</title>` (fixed in `result/` too), and step 1 is described as already filled in.
+Other sessions held 5001, 5173, 3000, 3100, 3200, 4318 and 13133, so the run used the guide's "ports taken" overrides on a 37xxx block. `OUO_COLLECTOR_HEALTH_PORT` was added to that row. The plain step-3 app hard-codes the API on 5001, so for that check only the test copy pointed at 37001.

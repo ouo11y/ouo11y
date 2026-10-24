@@ -3,14 +3,16 @@
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
 #
 # Built from source: the plugin's Funnels page is newer than the released
-# ghcr.io/ouo11y/grafana:0.3.0. Dockerfile builds plugins/ouo11y-rum-app of this repository and
-# copies it into grafana/grafana, like the released image. Once a grafana image with funnels is
-# tagged, replace `build:` with `image: ghcr.io/ouo11y/grafana:<that version>`.
+# ghcr.io/ouo11y/grafana:0.3.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
+# ouo11y checkout and copies it into grafana/grafana, like the released image. OUO11Y_REPO: the
+# checkout's root (default: this folder's place inside the repository). Once a grafana image with
+# funnels is tagged, replace `build:` with `image: ghcr.io/ouo11y/grafana:<that version>`.
 services:
   grafana:
     build:
-      context: ${OUO11Y_REPO:-../../../../../..}   # an ouo11y checkout's root (the plugin is a workspace)
-      dockerfile: examples/quickstarts/tiny-shop-funnels/result/stack/60-grafana/Dockerfile
+      context: .
+      additional_contexts:
+        ouo11y: ${OUO11Y_REPO:-../../../../../..}
     image: tiny-shop-funnels/grafana:from-source
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"

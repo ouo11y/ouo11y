@@ -7,7 +7,7 @@ build the funnel in Grafana, read the conversion and the time between steps, and
 of a session that gave up. Everything is in this folder: its own app, its own API, its own stack
 and the session generator.
 
-**To build it yourself**, step by step from quickstart 4's result, follow
+**To build it yourself** from an empty folder, one step at a time, follow
 [build-it-yourself-guide.md](build-it-yourself-guide.md). The rest of this page runs the finished
 `result/` as is.
 
@@ -15,7 +15,7 @@ and the session generator.
 > (`ghcr.io/ouo11y/rum-api:0.3.0`, `ghcr.io/ouo11y/grafana:0.3.0`), so this stack **builds both
 > from this repository** (`stack/50-rum-api`, `stack/60-grafana`). Once a release with funnels is
 > tagged, replace each `build:` block with `image: ghcr.io/ouo11y/rum-api:<version>` and
-> `image: ghcr.io/ouo11y/grafana:<version>` and delete `60-grafana/Dockerfile*`.
+> `image: ghcr.io/ouo11y/grafana:<version>` and delete `60-grafana/Dockerfile`.
 
 ## What's new in this quickstart
 
@@ -77,7 +77,7 @@ generate-sessions (50 headless browsers) ──drives──► web app (frontend
 | `result/stack/10-collector/` | `compose.yaml`, `config.yaml`, `projects.htpasswd` (the `demo` project) |
 | `result/stack/20-tempo/`, `30-loki/` | `compose.yaml` and the store's `config.yaml` |
 | `result/stack/50-rum-api/` | `compose.yaml` (built from `services/rum-api`) and `config.yaml` |
-| `result/stack/60-grafana/` | `compose.yaml`, `Dockerfile` (builds `plugins/ouo11y-rum-app`) and `provisioning/` |
+| `result/stack/60-grafana/` | `compose.yaml`, `Dockerfile` (builds `plugins/ouo11y-rum-app` from the checkout, passed as the build context `ouo11y`) and `provisioning/` |
 
 </details>
 
