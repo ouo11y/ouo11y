@@ -29,9 +29,9 @@ their rum-api bound is what stores and serves what they send.
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
 | collector | 0.3 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |
-| rum-api | 0.3 | - | - | - | - | reads schema <= 1 | same API and storage as 0.2 |
-| plugin | 0.7 | - | >= 0.2.0 | - | >= 13.0.0 | - | ID `ouo11y-rum-app` (was `ouo-rum-app` up to 0.6) |
-| grafana | 0.3 | - | >= 0.2.0 | >= 0.7.0 | - | - | ships Grafana 13.2.1 with plugin 0.7.0 inside |
+| rum-api | 0.4 | - | - | - | - | reads schema <= 1 | data lifecycle (8b), replay `masked` flag, session `context`; storage compatible with 0.3 |
+| plugin | 0.8 | - | >= 0.4.0 | - | >= 13.0.0 | - | Timeline behind a toggle; with rum-api 0.3 the masking state and header context fall back |
+| grafana | 0.4 | - | >= 0.4.0 | >= 0.8.0 | - | - | ships Grafana 13.2.1 with plugin 0.8.0 inside |
 | chart | 0.1 | >= 0.3.0 | >= 0.3.0 | - | - | - | defaults to the grafana image 0.3.0; Kubernetes >= 1.25 |
 
 ## Replay schema
