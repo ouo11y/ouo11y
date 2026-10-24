@@ -5,6 +5,24 @@
 
 ## Unreleased
 
+## 0.4.0 (2026-10-24)
+
+### Added
+
+- Sentry bridge (`ouosentry`) parity: `captureMessage` as `sentry.message` (A1), HTTP span names and
+  `server.*` / `url.*` attributes (A5), release / environment / OS / device on logs and per session
+  (A2, A3), `session.previous_id` (A9), back navigations (A11), timeline without a replay (A8), error
+  context allowlist with opt-in `copy_tags` (A6), native frames keep addresses and debug images (A7),
+  startup logs join their session (N2).
+- Mobile vitals from Sentry transaction `measurements` (A4, `docs/specs/mobile-vitals.md`); supported
+  Sentry SDK range with golden journeys (N3).
+- `ouoauth` extension counting auth failures (`ouo_auth_failures_total{reason}`), empty OTLP exports
+  rate-limited by `ouoratelimit`, an `internal` project for the platform's own telemetry (N13).
+
+### Fixed
+
+- `golang.org/x/net` 0.60.0.
+
 ## 0.3.0 (2026-10-18)
 
 First release under `ghcr.io/ouo11y/collector` (ADR-0009).
