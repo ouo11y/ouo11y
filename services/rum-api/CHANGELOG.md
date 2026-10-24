@@ -5,6 +5,8 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+## 0.4.0 (2026-10-24)
+
 ### Added
 
 - Data lifecycle (roadmap 8b, `docs/operations/data-lifecycle.md`):

@@ -6,6 +6,20 @@ and the plugin version inside. Policy: `docs/releasing.md`.
 
 ## Unreleased
 
+## 0.4.0 (2026-10-24)
+
+Base `grafana/grafana:13.2.1`, plugin `ouo11y-rum-app` 0.8.0 inside.
+
+### Changed
+
+- Plugin 0.8.0: the session page shows only the activity list beside the player (Timeline behind
+  the `sessionTimelinePanel` toggle), stack traces, device / OS / build / environment in the header,
+  replay tap markers and the seek and clock fixes. See the plugin changelog.
+
+### Compatibility
+
+- Use with rum-api >= 0.4.0; with rum-api 0.3.x the masking state and header context fall back.
+
 ## 0.3.0 (2026-10-18)
 
 First release under `ghcr.io/ouo11y/grafana` (ADR-0009). Base `grafana/grafana:13.2.1`, plugin
