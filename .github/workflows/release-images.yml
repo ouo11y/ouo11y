@@ -53,7 +53,7 @@ env:
 
 jobs:
   build-push:
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 45
     permissions:
       contents: write   # gh release create
