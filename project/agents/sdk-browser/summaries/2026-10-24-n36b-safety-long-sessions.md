@@ -75,7 +75,7 @@ torn down at the end of the run.
 ## Verified, and how
 
 - `npm run -w sdk/browser test`: 126 Vitest tests (19 files; new `safety`, `storage`, `ssr`, and
-  a recorder case), green three times; `tsc --noEmit` clean.
+  a recorder case), green on every run; `tsc --noEmit` clean.
 - `npm run -w sdk/browser build && size:check && compat:check`: 42.0 / 0.6 / 77.2 KB within budget;
   es-check passes es2022 (fails es2020, so the check bites).
 - Per-PR Playwright suite in `mcr.microsoft.com/playwright:v1.64.1-noble` (the CI image): 40
@@ -87,7 +87,13 @@ torn down at the end of the run.
   had failed at random because envs resolved each other's Loki and Tempo).
 - Next.js 15.5.4 + React 19.1 scratch app with the packed SDK: `next build` (prerender = SSR)
   and `next start`, Playwright: a session id on the client, no console errors.
-- Soak, 60 min each, Chromium and WebKit on macOS: SOAK_RESULT.
+- Soak, 60 min each, Chromium and WebKit on macOS, final build (run 3): both passed. 20 samples
+  each; window/document listeners 50 -> 50 (Chromium) and 49 -> 49 (WebKit), observers at most
+  6 / 4, pending timeouts at most 7, DOM elements flat; Chromium heap after GC 5.4 MB at 3 min,
+  6.6 MB from 15 min to the end. Delivered about 4,200 log records, 10,900 spans and 3,450 replay
+  chunks per engine, 0 rejected. Report: `project/agents/sdk-browser/reports/long-sessions-2026-10-24.html`.
+- The 11 min WebKit leak probe (stack-recording probe, two checkouts) retains nothing from either
+  checkout on the final build.
 - rrweb cost, Chromium and WebKit, 10k elements, and Chromium 50k: numbers in the kb entry and the
   report `project/agents/sdk-browser/reports/long-sessions-2026-10-24.html`.
 
