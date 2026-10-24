@@ -39,17 +39,12 @@ export const BLOCK_CLASS = "ouo-block";
 /**
  * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
  * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
- * in the DOM with the class `rr-block`; it is not part of the page the user saw.
+ * in the DOM with the class `rr-block`. Recorded, every full snapshot (each checkout) attached
+ * new observers to its document that were only released by stop(): a leak found by the soak.
  */
 export const ALWAYS_BLOCKED = "iframe.rr-block";
 export const MASK_TEXT_CLASS = "ouo-mask";
-/**
- * Periodic full snapshots keep seeking cheap (ADR-0003). Taken by restarting the recording, not
- * with rrweb's `checkoutEveryNms`: rrweb's checkout attaches new observers to every iframe's
- * document on each snapshot and releases them only on stop() (in Safari, with rrweb's own helper
- * iframe on any page with patched DOM prototypes, that grew by two observers and two listeners
- * every checkout, found by the soak). A restart costs the same full snapshot and releases all.
- */
+/** Periodic full snapshots keep seeking cheap (ADR-0003). */
 export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
 /** In buffer mode a full snapshot every 30 s; the buffer keeps the last two, 30 to 60 s of replay. */
 export const BUFFER_CHECKOUT_EVERY_MS = 30 * 1000;
@@ -88,7 +83,6 @@ export class ReplayRecorder {
   private checkouts: number[] = [];
   private readonly lease: TabLease;
   private uninstallTabs: (() => void) | null = null;
-  private checkoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly opts: RecorderOptions) {
     this.lease = opts.lease ?? new TabLease();
@@ -164,7 +158,10 @@ export class ReplayRecorder {
     this.checkouts = [];
     this.opts.logger.log("replay: error, uploading the buffer", `${buffered.length} events`);
     const wasRecording = this.stopFn !== null;
-    this.halt();
+    if (this.stopFn) {
+      attempt(this.stopFn);
+      this.stopFn = null;
+    }
     for (const e of buffered) this.opts.chunker.push(e);
     void this.opts.chunker.flush();
     if (wasRecording) this.record();
@@ -189,7 +186,10 @@ export class ReplayRecorder {
       return;
     }
     // Checkout interval and target differ per mode: restart.
-    this.halt();
+    if (this.stopFn) {
+      attempt(this.stopFn);
+      this.stopFn = null;
+    }
     void this.start();
   }
 
@@ -218,18 +218,11 @@ export class ReplayRecorder {
     return typeof document === "undefined" || document.visibilityState !== "hidden";
   }
 
-  /** Stops rrweb and the checkout timer. */
-  private halt(): void {
-    if (this.checkoutTimer !== null) clearTimeout(this.checkoutTimer);
-    this.checkoutTimer = null;
-    const stop = this.stopFn;
-    this.stopFn = null;
-    if (stop) attempt(stop);
-  }
-
   private stop(reason: string): void {
     if (this.stopFn) {
-      this.halt();
+      const stop = this.stopFn;
+      this.stopFn = null;
+      attempt(stop);
       this.opts.logger.log(reason);
     }
     if (this.mode === "full") void this.opts.chunker.flush();
@@ -302,20 +295,20 @@ export class ReplayRecorder {
     this.ring.push(event);
   }
 
-  /** Starts rrweb (a full snapshot first). `checkout`: a periodic restart, its Meta event marks a cut. */
-  private record(checkout = false): void {
+  private record(): void {
     if (this.stopFn || !this.rrweb || this.paused || this.unavailable || this.mode === "off") return;
     const rrweb = this.rrweb;
     // rrweb guards its own observers with errorHandler; record() itself (the first full snapshot)
     // and our emit callback are guarded here.
     const stop = attempt(() =>
       rrweb.record({
-        emit: guard((event: unknown, isCheckout?: boolean) => this.emit(event, isCheckout || checkout)),
+        emit: guard((event: unknown, isCheckout?: boolean) => this.emit(event, isCheckout)),
         maskAllInputs: this.opts.maskAllInputs,
         blockClass: BLOCK_CLASS,
         maskTextClass: MASK_TEXT_CLASS,
         blockSelector: this.opts.blockSelector ? `${ALWAYS_BLOCKED}, ${this.opts.blockSelector}` : ALWAYS_BLOCKED,
         ...(this.opts.maskTextSelector ? { maskTextSelector: this.opts.maskTextSelector } : {}),
+        checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
         recordCanvas: false,
         collectFonts: false,
         inlineImages: false,
@@ -329,25 +322,12 @@ export class ReplayRecorder {
     );
     this.stopFn = stop ?? null;
     // The first full snapshot is emitted inside record(): it may have been too large.
-    if (this.unavailable) {
-      this.halt();
+    if (this.unavailable && this.stopFn) {
+      attempt(this.stopFn);
+      this.stopFn = null;
       return;
     }
-    if (!this.stopFn) {
-      this.opts.logger.log("replay failed to start");
-      return;
-    }
-    this.checkoutTimer = setTimeout(
-      guard(() => {
-        this.checkoutTimer = null;
-        if (!this.stopFn) return;
-        this.halt();
-        this.record(true);
-      }),
-      this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
-    );
-    if (checkout) return;
-    attempt(() => rrweb.record.addCustomEvent?.(TAB_EVENT_TAG, { tab_id: this.lease.tabId, url: location.href }));
-    this.opts.logger.log(`replay recording (${this.mode})`);
+    if (this.stopFn) attempt(() => rrweb.record.addCustomEvent?.(TAB_EVENT_TAG, { tab_id: this.lease.tabId, url: location.href }));
+    this.opts.logger.log(`replay recording (${this.mode})`, this.stopFn ? "started" : "failed to start");
   }
 }
