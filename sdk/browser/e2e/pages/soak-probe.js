@@ -1,7 +1,17 @@
 // Injected before any page script by the soak (page.addInitScript): counts what is alive in the
 // page so growth shows in every engine, not only where a heap API exists. window.__probe()
 // returns { listeners, observers, timers, intervals, nodes }.
+//
+// The wrappers report themselves as native code: rrweb treats a prototype whose methods are not
+// native as tainted (Zone.js, other tools) and then takes clean prototypes from a hidden iframe,
+// which on Safari changes what it does at every checkout. The instrument must not change that.
 (() => {
+  const nativeToString = Function.prototype.toString;
+  const native = new WeakSet();
+  const asNative = (fn, name) => (native.add(fn), Object.defineProperty(fn, "name", { value: name }), fn);
+  Function.prototype.toString = asNative(function toString() {
+    return native.has(this) ? `function ${this.name}() { [native code] }` : nativeToString.call(this);
+  }, "toString");
   // Listeners on window and document only: those live as long as the page, so a count that grows
   // is a leak. Listeners on nodes, XHRs and channels go away with their target.
   const ids = new WeakMap();
@@ -15,15 +25,15 @@
   const keys = new Set();
   const add = EventTarget.prototype.addEventListener;
   const remove = EventTarget.prototype.removeEventListener;
-  EventTarget.prototype.addEventListener = function (type, fn, opts) {
+  EventTarget.prototype.addEventListener = asNative(function (type, fn, opts) {
     // `once` listeners remove themselves when they fire; not counted.
     if (fn && tracked(this) && !(opts && typeof opts === "object" && opts.once)) keys.add(`${this === window ? "w" : "d"}|${keyOf(type, fn, opts)}`);
     return add.call(this, type, fn, opts);
-  };
-  EventTarget.prototype.removeEventListener = function (type, fn, opts) {
+  }, "addEventListener");
+  EventTarget.prototype.removeEventListener = asNative(function (type, fn, opts) {
     if (fn && tracked(this)) keys.delete(`${this === window ? "w" : "d"}|${keyOf(type, fn, opts)}`);
     return remove.call(this, type, fn, opts);
-  };
+  }, "removeEventListener");
 
   let observers = 0;
   for (const name of ["MutationObserver", "PerformanceObserver", "ResizeObserver", "IntersectionObserver"]) {
@@ -32,17 +42,17 @@
     const active = new WeakSet();
     const observe = C.prototype.observe;
     const disconnect = C.prototype.disconnect;
-    C.prototype.observe = function (...a) {
+    C.prototype.observe = asNative(function (...a) {
       if (!active.has(this)) {
         active.add(this);
         observers++;
       }
       return observe.apply(this, a);
-    };
-    C.prototype.disconnect = function (...a) {
+    }, "observe");
+    C.prototype.disconnect = asNative(function (...a) {
       if (active.delete(this)) observers--;
       return disconnect.apply(this, a);
-    };
+    }, "disconnect");
   }
 
   const timers = new Set();

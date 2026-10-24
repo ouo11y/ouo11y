@@ -1,4 +1,32 @@
+import { readFile } from "node:fs/promises";
 import { defineConfig, type Options } from "tsup";
+
+/**
+ * Build-time patch of the bundled rrweb (2.1.7, the latest): its snapshot loads and observes an
+ * iframe's document even when the iframe is blocked. rrweb's prototype check always fails on
+ * Safari (it requires `ShadowRoot.prototype.getSelection` and lists Element methods as
+ * accessors), so on Safari rrweb keeps two hidden helper iframes in the page; at every checkout
+ * the snapshot attached a new set of observers to them, released only on stop (+2 observers,
+ * +2 listeners every 5 min in the soak). Blocked iframes (rrweb's helpers are, see
+ * `ALWAYS_BLOCKED` in src/replay/recorder.ts) now keep their content out of the recording, which
+ * is also what blocking means for privacy. Fails the build if the patched code changes.
+ */
+const RRWEB_BLOCKED_IFRAME = {
+  find: 'if (serializedNode.type === NodeType$3.Element && serializedNode.tagName === "iframe") {',
+  replace: 'if (recordChild && serializedNode.type === NodeType$3.Element && serializedNode.tagName === "iframe") {',
+};
+const patchRrweb = {
+  name: "ouo-rrweb-blocked-iframes",
+  setup(build: { onLoad(o: { filter: RegExp }, cb: (a: { path: string }) => Promise<{ contents: string; loader: "js" }>): void }) {
+    build.onLoad({ filter: /[\\/]rrweb[\\/]dist[\\/]rrweb\.js$/ }, async ({ path }) => {
+      const source = await readFile(path, "utf8");
+      const count = source.split(RRWEB_BLOCKED_IFRAME.find).length - 1;
+      if (count !== 1) throw new Error(`rrweb patch: expected 1 occurrence in ${path}, found ${count}; review tsup.config.ts`);
+      console.log("ouo: rrweb patched (blocked iframes)", path);
+      return { contents: source.replace(RRWEB_BLOCKED_IFRAME.find, RRWEB_BLOCKED_IFRAME.replace), loader: "js" };
+    });
+  },
+};
 
 /**
  * Syntax floor of the published bundle: ES2022 as these engines ship it (class fields, private
@@ -35,6 +63,7 @@ export default defineConfig([
     clean: true,
     // Everything is bundled so the consumer gets one entry plus a lazily loaded rrweb chunk.
     noExternal: [/.*/],
+    esbuildPlugins: [patchRrweb],
   },
   {
     ...common,

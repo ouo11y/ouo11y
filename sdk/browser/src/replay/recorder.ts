@@ -39,8 +39,8 @@ export const BLOCK_CLASS = "ouo-block";
 /**
  * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
  * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
- * in the DOM with the class `rr-block`. Recorded, every full snapshot (each checkout) attached
- * new observers to its document that were only released by stop(): a leak found by the soak.
+ * in the DOM with the class `rr-block`; it is not part of the page the user saw. (rrweb still
+ * attaches observers to its idle document at every checkout: project/kb/browser-sdk-safety.md.)
  */
 export const ALWAYS_BLOCKED = "iframe.rr-block";
 export const MASK_TEXT_CLASS = "ouo-mask";
