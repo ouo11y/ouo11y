@@ -381,7 +381,7 @@ jobs:
     name: swift (OuoReplayCore)
     needs: changes
     if: needs.changes.outputs.swift == 'true'
-    runs-on: [self-hosted, macOS]  # Swift toolchain: stays on the Mac runners
+    runs-on: macos-latest  # Swift toolchain: GitHub-hosted (10x minutes), only for sdk/ios changes
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
