@@ -36,6 +36,13 @@ interface RrwebModule {
 
 /** Privacy classes (ADR-0003). */
 export const BLOCK_CLASS = "ouo-block";
+/**
+ * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
+ * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
+ * in the DOM with the class `rr-block`. Recorded, every full snapshot (each checkout) attached
+ * new observers to its document that were only released by stop(): a leak found by the soak.
+ */
+export const ALWAYS_BLOCKED = "iframe.rr-block";
 export const MASK_TEXT_CLASS = "ouo-mask";
 /** Periodic full snapshots keep seeking cheap (ADR-0003). */
 export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
@@ -299,7 +306,7 @@ export class ReplayRecorder {
         maskAllInputs: this.opts.maskAllInputs,
         blockClass: BLOCK_CLASS,
         maskTextClass: MASK_TEXT_CLASS,
-        ...(this.opts.blockSelector ? { blockSelector: this.opts.blockSelector } : {}),
+        blockSelector: this.opts.blockSelector ? `${ALWAYS_BLOCKED}, ${this.opts.blockSelector}` : ALWAYS_BLOCKED,
         ...(this.opts.maskTextSelector ? { maskTextSelector: this.opts.maskTextSelector } : {}),
         checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
         recordCanvas: false,
