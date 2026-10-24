@@ -123,6 +123,10 @@ specs `e2e/faults.spec.ts`, `e2e/csp.spec.ts`, `e2e/soak.spec.ts`, `e2e/rrweb-co
 - esbuild's minifier vs terser on the core entry: 44.0 vs 42.0 KB gzip (terser `passes: 2` in tsup,
   41.7 with the CLI). The guards cost about 1 KB gzip; terser pays for them and leaves room under
   the 44 KB budget.
+- tsup 8.5 chains terser's source map only when `terserOptions.sourceMap` is set; without it the
+  published `.map` is esbuild's pre-terser map (thousands of lines against terser's one) and maps
+  nothing (found by session C). `compat:check` now resolves a known string in each dist file through
+  its map with the `source-map` package and fails when it lands nowhere.
 - Per-call string labels in the guards (`guard("click listener", ...)`) cost about 0.3 KB gzip;
   dropped, the debug log prints the error with its stack instead.
 

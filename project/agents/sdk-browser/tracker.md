@@ -12,4 +12,5 @@
 | 2026-10-23 | FCP/LCP/CLS/INP observed in a foreground browser (root causes: hidden automation tabs, OTel batch processors skipping the hide flush, web-vitals INP at hide) | done, checklist N10 (see summaries/2026-10-23-batch3-n10-n25.md) |
 | 2026-10-23 | Multi-tab replay interleaving (one recording tab, BroadcastChannel lease) | done, checklist N10 |
 | 2026-10-23 | CI bundle-size budget; cross-browser Playwright matrix; interaction and soft-navigation spans; long tasks; rage / dead clicks; React subpath; meta traceparent docs; session and error-triggered replay sampling | done, checklist N25, 8b (browser) |
+| 2026-10-24 | N36 part B: page safety (guards, shutdown / re-init, SSR, CSP + Trusted Types, storage), browser support and es-check, fault-injection e2e, 1 h soak, rrweb cost | done, checklist N42, N43 (see summaries/2026-10-24-n36b-safety-long-sessions.md) |
 | open | Plugin looks for the new `ouo.*` events; rum-api known event names; server-side sampling override | other owners |

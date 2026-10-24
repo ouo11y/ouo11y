@@ -348,7 +348,7 @@ npm run -w sdk/browser build      # tsup -> dist/index.js (+ rrweb chunk, .d.ts)
 npm run -w sdk/browser test       # vitest + jsdom (includes a real-socket check against collector stubs on 127.0.0.1:18081 and :18082)
 npm run -w sdk/browser size       # gzip sizes
 npm run -w sdk/browser size:check # fails above sdk/browser/size-budget.json (CI)
-npm run -w sdk/browser compat:check # es-check (no syntax above ES2022) + both entries import in Node (CI)
+npm run -w sdk/browser compat:check # es-check (no syntax above ES2022), entries import in Node, source maps map the minified code (CI)
 npm run -w sdk/browser test:e2e   # Playwright: Chromium, Firefox, WebKit against e2e/server.mjs (build first)
 npm run -w sdk/browser test:soak  # soak (OUO_SOAK_MINUTES, default 2) + rrweb cost; OUO_SOAK_PROJECTS=chromium,webkit
 node sdk/browser/playground/server.mjs   # static playground on :4173 + collector stub on :8090 (OTLP + replay on one port, Basic-auth checked)
