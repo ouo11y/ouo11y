@@ -8,4 +8,4 @@ include:
   - 20-tempo/compose.yaml       # traces
   - 30-loki/compose.yaml        # browser events: session.start / session.end, errors, failed requests
   - 50-rum-api/compose.yaml     # folds those events into sessions: status, end reason, user, device (built from source)
-  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (built from source)
+  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (plugin from source)

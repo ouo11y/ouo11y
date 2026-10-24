@@ -17,6 +17,11 @@ const endpoint = process.env.OUO_OTLP_ENDPOINT || "http://localhost:4318";
 // This is the quickstart's `demo` project: base64("demo:pt_dev_demo_0000000000000000").
 const headers = { Authorization: "Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw" };
 
+// This API sends traces only. Without these two lines the NodeSDK also starts its default OTLP
+// metrics and logs exporters, which post to localhost:4318 without the credential (401).
+process.env.OTEL_METRICS_EXPORTER ??= "none";
+process.env.OTEL_LOGS_EXPORTER ??= "none";
+
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [ATTR_SERVICE_NAME]: "tiny-shop-sessions-backend",

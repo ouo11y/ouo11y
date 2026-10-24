@@ -148,7 +148,7 @@ browser (frontend/, @ouo11y/browser)                Node API (backend/)
 | `result/stack/10-collector/` | `compose.yaml`, `config.yaml` (pipelines), `projects.htpasswd` (the `demo` project) |
 | `result/stack/20-tempo/`, `30-loki/` | `compose.yaml` and the store's `config.yaml` |
 | `result/stack/50-rum-api/` | `compose.yaml` (built from source for now) and `config.yaml` (where Loki and Tempo are, the server's session timeouts) |
-| `result/stack/60-grafana/` | `compose.yaml`, `Dockerfile` (the plugin built from source for now) and `provisioning/` (datasources, the plugin) |
+| `result/stack/60-grafana/` | `compose.yaml` (stock Grafana with the plugin built from source, for now) and `provisioning/` (datasources, the plugin) |
 
 </details>
 
@@ -162,16 +162,16 @@ this repository. It must stay inside the repository checkout until then.
 |---|---|---|---|
 | `@ouo11y/browser` | `setUser` rotation, `clearUser`, `endSession`, `device.id` (PR #73) are newer than 0.2.1 on npm | a tarball packed from `sdk/browser` into `frontend/vendor/` | in `frontend/package.json`: `"@ouo11y/browser": "<next version>"` |
 | rum-api | `device_id` on the session and the `device=` filter | `build:` from `services/rum-api` | `image: ghcr.io/ouo11y/rum-api:<next version>` in `stack/50-rum-api/compose.yaml` |
-| Grafana + plugin | the device on the session page and the Device filter | `build:` with `stack/60-grafana/Dockerfile` | `image: ghcr.io/ouo11y/grafana:<next version>` in `stack/60-grafana/compose.yaml`, and delete the Dockerfile |
+| Grafana + plugin | the device on the session page and the Device filter | `grafana/grafana` with `plugins/ouo11y-rum-app/dist` mounted | `image: ghcr.io/ouo11y/grafana:<next version>` in `stack/60-grafana/compose.yaml`, without the plugin volume |
 
 </details>
 
 Two ways to use it:
 
-- **Build it yourself:** [build-it-yourself-guide.md](build-it-yourself-guide.md) starts from the
-  shop of the earlier quickstarts and adds only the new parts, one checkable step at a time: the
-  session panel, login / switch / logout / End session, the short timeout, the break-it panel.
-  About 30 minutes.
+- **Build it yourself:** [build-it-yourself-guide.md](build-it-yourself-guide.md) starts from an
+  empty folder: the plain shop with no telemetry, then the stack, the instrumentation, and the
+  session features one checkable step at a time (the session panel, login / switch / logout /
+  End session, the short timeout, the break-it panel). About 45 minutes.
 - **Run the finished result** in five minutes, below.
 
 ## Run it in five minutes
@@ -179,10 +179,10 @@ Two ways to use it:
 Needs Node 24 and Docker Compose 2.24 or later, and this repository checked out (see "Unreleased
 parts"). Commands have no `$` prompt; each runs from the folder named above it.
 
-**1. The SDK, packed from source.** From the repository root:
+**1. The SDK and the plugin, built from source.** From the repository root:
 
 ```bash
-npm ci && npm run build -w sdk/browser
+npm ci && npm run build -w sdk/browser -w plugins/ouo11y-rum-app
 ```
 
 ```bash
@@ -200,7 +200,7 @@ token that has `read:packages`:
 echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 ```
 
-From `result/stack` (the first run builds rum-api and Grafana, a few minutes):
+From `result/stack` (the first run builds rum-api, a few minutes):
 
 ```bash
 docker compose up -d --build

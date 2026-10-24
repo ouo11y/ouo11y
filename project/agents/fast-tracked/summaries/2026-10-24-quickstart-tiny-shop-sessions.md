@@ -20,13 +20,20 @@ Owner: quickstarts. Branch `claude/quickstart-tiny-shop-sessions`, stacked on
 - Plugin: `device_id` in the types; **Device** on the session header, linking to the Sessions list
   filtered by that device; a Device filter on the Sessions page. The previous-session link and
   the end reason were already there.
-- `build-it-yourself-guide.md` (added after the founder's review): builds in `tiny-shop-sessions/mine/`
-  (gitignored) so the relative build paths resolve; the app is split into `SessionPanel`,
-  `AccountPanel`, `BreakItPanel` so each step adds one embedded file. Followed once from scratch
-  by pasting every block into `mine/`: each step's check held; it found that
-  `npm pack --pack-destination` needs the folder to exist (fixed in the guide and the README),
-  and that any SDK signal (a `long_animation_frame` from a throttled background tab) starts the
-  next session after a timeout, not only a click (noted in both). Stack and processes torn down.
+- `build-it-yourself-guide.md` (after the founder's review, rewritten to be standalone): from an
+  empty `tiny-shop-sessions/mine/` (gitignored; same depth as `result/` so the relative source
+  paths resolve): plain API, plain React shop, the stack one service at a time, the API's and the
+  web app's instrumentation, then one step per session feature, clean-up and a troubleshooting
+  table. The app is split into `SessionPanel`, `AccountPanel`, `BreakItPanel` so each step embeds
+  one file. Followed once from an empty folder, each step's check held, and `mine/` ended equal
+  to `result/` (lockfiles aside). The walkthrough found and fixed: `npm pack --pack-destination`
+  needs the folder; the NodeSDK's default metrics and logs exporters posted to localhost:4318
+  without the credential (now `OTEL_*_EXPORTER=none` in `instrumentation.js`); Tempo search lags
+  ingest by up to a minute; any SDK signal (a `long_animation_frame` from a throttled background
+  tab) starts the next session after a timeout.
+- Grafana is now stock `grafana/grafana:13.2.1` with `plugins/ouo11y-rum-app/dist` bind-mounted
+  (no Dockerfile), so `result/` is exactly what the guide writes; the reader builds the plugin with
+  the SDK (`npm run build -w sdk/browser -w plugins/ouo11y-rum-app`).
 - Indexes: quickstarts README and index, fast-tracked tracker, checklist N48.
 
 ## Verified, and how
@@ -47,8 +54,8 @@ Owner: quickstarts. Branch `claude/quickstart-tiny-shop-sessions`, stacked on
 ## Left / next agent must know
 
 - **TODO after the next release**: `@ouo11y/browser` from npm instead of `frontend/vendor/`
-  (and commit a `package-lock.json` again), `image:` instead of `build:` for rum-api and Grafana,
-  delete `stack/60-grafana/Dockerfile*`. Never push tags for this.
+  (and commit a `package-lock.json` again), `image:` instead of `build:` for rum-api, and the released
+  grafana image instead of the plugin bind mount. Never push tags for this.
 - Gotchas found: `rum.session.id()` lazily starts a new session (so a UI that polls it defeats
   `endSession` / inactivity); clearing site data with the page open is undone by the SDK's unload
   write. Both are in the README's "Things that bite".

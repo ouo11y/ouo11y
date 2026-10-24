@@ -1,42 +1,238 @@
-# Build Tiny Shop Sessions yourself
+# Build Tiny Shop Sessions yourself, from an empty folder
 
-Quickstart 3, built by hand. You start from the shop of the earlier quickstarts (products, a cart,
-a checkout, traced from the click to the API) and add only the new parts, one step at a time:
-a panel that shows the session, a fake login with logout and switch user, End session, a short
-inactivity timeout and a "break it" panel. Each step ends with something you can see. About 30
-minutes; needs Node 24, Docker Compose 2.24 or later and this repository checked out.
+From an empty folder to a shop where you drive the RUM session by hand: log in, switch user, log
+out, end the session, let it time out, break it, and watch every step in Grafana. The plain app
+comes first with no telemetry, then the stack, then the instrumentation, then the session features,
+one step at a time. Each step ends with something you can see. About 45 minutes.
 
-Every file is in a collapsible section: open it, copy it, paste it into the file named in its
-title. What each rule means (when a session starts, what ends it, the defaults, device id, why no
-IP linking) is in the [README](README.md); this guide is the hands-on part.
-
-**Why inside the repository?** The session features this guide uses are merged but not released
-yet, so the SDK, rum-api and the Grafana plugin are built from this repository's source (see the
-README's "Unreleased parts"). Build next to `result/`, in `mine/`, so the relative build paths in the
-compose files resolve the same way:
+Long files are in collapsible sections: open one, copy it, paste it into the file named in its
+title. What the rules mean (when a session starts, what ends it, the defaults, device id, why no IP
+linking) is in the [README](README.md); this guide is the hands-on part.
 
 ```
-examples/quickstarts/tiny-shop-sessions/
-├── result/     the finished app (compare with it when stuck)
-└── mine/       what you build here
-    ├── stack/      the ouo stack, one folder per service
-    ├── backend/    Express API, OpenTelemetry traces
-    └── frontend/   React app, @ouo11y/browser, the session panels
+tiny-shop-sessions/mine/
+├── backend/    Express API, then OpenTelemetry traces
+├── frontend/   React app, then @ouo11y/browser and the session panels
+└── stack/      the ouo stack, one folder per service
 ```
 
 Commands have no `$` prompt; each says which folder it runs from.
 
-## 1. The stack
+## Step 0. Check your tools
+
+```bash
+node --version
+```
+
+Node 24 or later.
+
+```bash
+docker compose version
+```
+
+Docker Compose 2.24 or later, with Docker running.
+
+You also need this repository checked out. The session features used here are merged but not
+released yet, so the browser SDK, rum-api and the Grafana plugin are built from its source (the
+README's "Unreleased parts" says what changes after the release).
+
+## Step 1. Create the empty folder
+
+Build in `mine/`, next to `result/`: the stack's compose files point at the repository's sources
+with relative paths, which resolve from there. `mine/` is in `.gitignore`.
 
 From `examples/quickstarts/tiny-shop-sessions`:
 
 ```bash
-mkdir -p mine/stack && cd mine/stack
+mkdir -p mine/backend mine/frontend/src mine/stack && cd mine
 ```
 
-`compose.yaml` only lists the service folders. Each folder holds that service's compose file and
-its config. The collector, Tempo and Loki are the same as in quickstart 2 (no Mimir: this one
-needs no metrics). rum-api and Grafana are built from source for now.
+## Step 2. A plain API, no telemetry yet
+
+From `mine/backend`:
+
+```bash
+npm init -y && npm install express cors
+```
+
+Create `backend/server.js`:
+
+```js
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Tea", price: 3 },
+  { id: 3, name: "Cake", price: 6 },
+];
+
+app.get("/api/products", async (req, res) => {
+  await sleep(40);
+  res.json(products);
+});
+
+app.post("/api/checkout", async (req, res) => {
+  await sleep(120);
+  res.json({ ok: true, orderId: Math.floor(Math.random() * 100000) });
+});
+
+// Always fails: the "Failed request" button in step 10.
+app.get("/api/broken", (req, res) => {
+  res.status(500).json({ error: "this endpoint always fails" });
+});
+
+app.listen(5001, () => console.log("tiny-shop-sessions API on http://localhost:5001"));
+```
+
+From `mine/backend`:
+
+```bash
+node server.js
+```
+
+**Check**, in another terminal:
+
+```bash
+curl -s http://localhost:5001/api/products
+```
+
+prints the three products. Stop the API with Ctrl+C.
+
+## Step 3. A plain React shop, no telemetry yet
+
+From `mine/frontend`:
+
+```bash
+npm init -y && npm install react react-dom && npm install -D vite @vitejs/plugin-react
+```
+
+You replace the generated `package.json` in step 6.
+
+<details>
+<summary><code>frontend/vite.config.js</code> (click to open)</summary>
+
+<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/vite.config.js -->
+```js
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [react()],
+});
+```
+
+</details>
+
+<details>
+<summary><code>frontend/index.html</code> (click to open)</summary>
+
+<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/index.html -->
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiny Shop Sessions</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+```
+
+</details>
+
+Create `frontend/src/main.jsx` (step 6 adds the SDK to it):
+
+```jsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App.jsx";
+
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+```
+
+Create `frontend/src/App.jsx`, the shop alone:
+
+```jsx
+import { useEffect, useState } from "react";
+
+const API = "http://localhost:5001";
+const box = { border: "1px solid #ccc", borderRadius: 6, padding: "8px 16px", marginBottom: 16 };
+const h2 = { fontSize: 18, margin: "8px 0" };
+
+export default function App() {
+  const [products, setProducts] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    fetch(`${API}/api/products`)
+      .then((r) => r.json())
+      .then(setProducts);
+  }, []);
+
+  async function checkout() {
+    const res = await fetch(`${API}/api/checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items: cart.map((p) => p.id) }),
+    });
+    const data = await res.json();
+    setMessage(`Order #${data.orderId} placed`);
+    setCart([]);
+  }
+
+  return (
+    <main style={{ fontFamily: "sans-serif", maxWidth: 640, margin: "32px auto", lineHeight: 1.5 }}>
+      <h1>Tiny Shop</h1>
+      <section style={box}>
+        <h2 style={h2}>Shop</h2>
+        <ul>
+          {products.map((p) => (
+            <li key={p.id}>
+              {p.name} (${p.price}) <button onClick={() => setCart([...cart, p])}>Add</button>
+            </li>
+          ))}
+        </ul>
+        <p>
+          Cart: {cart.length} item(s){" "}
+          <button onClick={checkout} disabled={!cart.length}>
+            Checkout
+          </button>
+        </p>
+      </section>
+      <p>{message}</p>
+    </main>
+  );
+}
+```
+
+Start the API again (from `mine/backend`, `node server.js`), then from `mine/frontend`:
+
+```bash
+npx vite
+```
+
+**Check:** http://localhost:5173 lists three products; **Add** and **Checkout** print an order
+number. Stop both with Ctrl+C.
+
+## Step 4. The ouo stack, one service at a time
+
+`stack/compose.yaml` only lists the service folders. Each folder holds that service's compose file
+and its config, and each file starts with what the service is for, who sends it data and its ports.
 
 <details>
 <summary><code>stack/compose.yaml</code> (click to open)</summary>
@@ -53,16 +249,20 @@ include:
   - 20-tempo/compose.yaml       # traces
   - 30-loki/compose.yaml        # browser events: session.start / session.end, errors, failed requests
   - 50-rum-api/compose.yaml     # folds those events into sessions: status, end reason, user, device (built from source)
-  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (built from source)
+  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (plugin from source)
 ```
 
 </details>
 
-### Ingest, traces and events
+From `mine/stack`:
 
 ```bash
-mkdir -p 10-collector 20-tempo 30-loki
+mkdir -p 10-collector 20-tempo 30-loki 50-rum-api 60-grafana/provisioning/datasources 60-grafana/provisioning/plugins
 ```
+
+### Ingest: the collector
+
+The only thing the apps talk to. It checks the project credential and routes each signal.
 
 <details>
 <summary><code>stack/10-collector/compose.yaml</code> (click to open)</summary>
@@ -189,6 +389,8 @@ demo:{SHA}IUpHBAUPHvXoJmvv4inmF4cN96I=
 ```
 
 </details>
+
+### Traces and events: Tempo and Loki
 
 <details>
 <summary><code>stack/20-tempo/compose.yaml</code> (click to open)</summary>
@@ -326,15 +528,11 @@ analytics:
 
 </details>
 
-### rum-api: sessions out of events
+### Sessions: rum-api
 
-rum-api reads the `session.start` / `session.end` events in Loki and folds them into one record
-per session: status, state, end reason, `user_id` and `device_id`. Its `session:` block is the
-server's own timeout for sessions whose browser never says goodbye (a closed tab).
-
-```bash
-mkdir -p 50-rum-api
-```
+rum-api reads the `session.start` / `session.end` events in Loki and folds them into one record per
+session: status, state, end reason, `user_id` and `device_id`. Its `session:` block is the server's
+own timeout, for sessions whose browser never says goodbye (a closed tab).
 
 <details>
 <summary><code>stack/50-rum-api/compose.yaml</code> (click to open)</summary>
@@ -416,14 +614,7 @@ storage:
 
 </details>
 
-### Grafana and the ouo11y RUM app
-
-```bash
-mkdir -p 60-grafana/provisioning/datasources 60-grafana/provisioning/plugins
-```
-
-The compose file builds the plugin with `result/stack/60-grafana/Dockerfile` (shown below for
-reading; you do not need your own copy, the build uses the one in `result/`).
+### The UI: Grafana and the ouo11y RUM app
 
 <details>
 <summary><code>stack/60-grafana/compose.yaml</code> (click to open)</summary>
@@ -434,17 +625,14 @@ reading; you do not need your own copy, the build uses the one in `result/`).
 # directly, and sessions and replays from rum-api through the plugin. Port 3000,
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
 #
-# Built from source: the device id on the session page and the Device filter on the Sessions page
-# are newer than the released ghcr.io/ouo11y/grafana:0.3.0. Dockerfile builds
-# plugins/ouo11y-rum-app of this repository and copies it into grafana/grafana, like the released
-# image. Once a grafana image with them is tagged, replace `build:` with
-# `image: ghcr.io/ouo11y/grafana:<that version>`.
+# Plugin from source: the device id on the session page and the Device filter on the Sessions page
+# are newer than the released ghcr.io/ouo11y/grafana:0.3.0. Stock Grafana loads the plugin this
+# repository builds (`npm run build -w plugins/ouo11y-rum-app`), mounted from its dist/ folder.
+# Once a grafana image with them is tagged, use `image: ghcr.io/ouo11y/grafana:<that version>`
+# and drop the plugin volume (see the README, "Unreleased parts").
 services:
   grafana:
-    build:
-      context: ../../../../../..          # the repository root (the plugin is a workspace)
-      dockerfile: examples/quickstarts/tiny-shop-sessions/result/stack/60-grafana/Dockerfile
-    image: tiny-shop-sessions/grafana:from-source
+    image: grafana/grafana:13.2.1
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:
@@ -455,37 +643,9 @@ services:
       OUO_READ_TOKEN: rt_dev_0000000000000000   # read by provisioning/plugins; equals rum-api's
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
+      # this repository's plugins/ouo11y-rum-app/dist, built from source
+      - ../../../../../../plugins/ouo11y-rum-app/dist:/var/lib/grafana/plugins/ouo11y-rum-app:ro
     depends_on: [loki, tempo, rum-api]
-```
-
-</details>
-
-<details>
-<summary><code>result/stack/60-grafana/Dockerfile (read only)</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-sessions/result/stack/60-grafana/Dockerfile -->
-```dockerfile
-# syntax=docker/dockerfile:1
-# Grafana with the ouo11y RUM app plugin built from this repository (the device id and the Device
-# filter are not in a released image yet). Build context: the repository root (60-grafana/compose.yaml
-# sets it).
-# Same result as deploy/images/grafana/Dockerfile, plus the plugin build.
-FROM node:24-bookworm-slim AS plugin
-WORKDIR /src
-# The plugin is an npm workspace of the repository: install from the root lockfile, plugin only.
-COPY package.json package-lock.json ./
-COPY sdk/browser/package.json sdk/browser/
-COPY sdk/react-native/package.json sdk/react-native/
-COPY examples/ouo-web/package.json examples/ouo-web/
-COPY plugins/ouo11y-rum-app/package.json plugins/ouo11y-rum-app/
-RUN npm ci --no-audit --no-fund --ignore-scripts -w plugins/ouo11y-rum-app
-COPY plugins/ouo11y-rum-app plugins/ouo11y-rum-app
-RUN npm run build -w plugins/ouo11y-rum-app
-
-FROM grafana/grafana:13.2.1
-COPY --from=plugin --chown=grafana:root /src/plugins/ouo11y-rum-app/dist /var/lib/grafana/plugins/ouo11y-rum-app
-ENV GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app \
-    GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app
 ```
 
 </details>
@@ -547,6 +707,15 @@ apps:
 
 </details>
 
+### Start it
+
+Grafana loads the plugin from the repository's `plugins/ouo11y-rum-app/dist`, so build it first,
+together with the browser SDK you need in step 6. From the repository root:
+
+```bash
+npm ci && npm run build -w sdk/browser -w plugins/ouo11y-rum-app
+```
+
 The collector image is private for now: log in to ghcr.io once with a GitHub token that has
 `read:packages`:
 
@@ -554,26 +723,17 @@ The collector image is private for now: log in to ghcr.io once with a GitHub tok
 echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 ```
 
-From `mine/stack` (the first run builds rum-api and Grafana, a few minutes):
+From `mine/stack` (the first run builds rum-api, a few minutes):
 
 ```bash
 docker compose up -d --build
 ```
 
 **Check:** `docker compose ps` lists five services running, and http://localhost:3000 opens
-Grafana (admin / testing567) with **More apps -> ouo11y RUM**. Ports taken? See the README's
-"Ports" section.
+Grafana (admin / testing567) with **More apps -> ouo11y RUM** and no sessions yet. Ports taken?
+See the README's "Ports" section.
 
-## 2. The API
-
-The same API as before, plus `GET /api/broken`, which always answers 500 (the "Failed request"
-button in step 6).
-
-From `mine`:
-
-```bash
-mkdir backend && cd backend
-```
+## Step 5. Instrument the API
 
 <details>
 <summary><code>backend/package.json</code> (click to open)</summary>
@@ -634,6 +794,11 @@ const endpoint = process.env.OUO_OTLP_ENDPOINT || "http://localhost:4318";
 // This is the quickstart's `demo` project: base64("demo:pt_dev_demo_0000000000000000").
 const headers = { Authorization: "Basic ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw" };
 
+// This API sends traces only. Without these two lines the NodeSDK also starts its default OTLP
+// metrics and logs exporters, which post to localhost:4318 without the credential (401).
+process.env.OTEL_METRICS_EXPORTER ??= "none";
+process.env.OTEL_LOGS_EXPORTER ??= "none";
+
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [ATTR_SERVICE_NAME]: "tiny-shop-sessions-backend",
@@ -658,6 +823,8 @@ process.on("SIGTERM", shutdown);
 ```
 
 </details>
+
+The final `server.js`: the same routes, plus a manual `checkout` span.
 
 <details>
 <summary><code>backend/server.js</code> (click to open)</summary>
@@ -719,24 +886,15 @@ From `mine/backend`:
 npm install && npm start
 ```
 
-**Check:** it prints `[otel] traces to http://localhost:4318`, and in another terminal:
+**Check:** it prints `[otel] traces to http://localhost:4318`. Run
+`curl -s http://localhost:5001/api/products` once, then in Grafana, **Explore -> Tempo -> Search**,
+service `tiny-shop-sessions-backend`: a `GET /api/products` trace. Search lags behind ingest by up
+to a minute; run the query again if it is empty. Leave the API running.
 
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5001/api/broken
-```
+## Step 6. Instrument the web app
 
-prints `500`.
-
-## 3. The web app, and a panel that shows the session
-
-### The SDK, packed from source
-
-`@ouo11y/browser` 0.2.1 on npm has no `endSession`, `clearUser` or `device.id` yet. Pack the
-SDK from this repository into the app's `vendor/` folder. From the repository root:
-
-```bash
-npm ci && npm run build -w sdk/browser
-```
+`@ouo11y/browser` 0.2.1 on npm has no `endSession`, `clearUser` or `device.id` yet. Pack the SDK
+you built in step 4 into the app's `vendor/` folder. From the repository root:
 
 ```bash
 mkdir -p examples/quickstarts/tiny-shop-sessions/mine/frontend/vendor
@@ -746,14 +904,8 @@ mkdir -p examples/quickstarts/tiny-shop-sessions/mine/frontend/vendor
 npm pack -w sdk/browser --pack-destination examples/quickstarts/tiny-shop-sessions/mine/frontend/vendor
 ```
 
-`package.json` installs that file. Once the next release is on npm, use
+Replace `frontend/package.json`; it installs that file. Once the next release is on npm, use
 `"@ouo11y/browser": "<that version>"` instead.
-
-From `examples/quickstarts/tiny-shop-sessions/mine`:
-
-```bash
-cd frontend && mkdir -p src
-```
 
 <details>
 <summary><code>frontend/package.json</code> (click to open)</summary>
@@ -799,66 +951,9 @@ vendor/
 
 </details>
 
-<details>
-<summary><code>frontend/vite.config.js</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/vite.config.js -->
-```js
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-
-export default defineConfig({
-  plugins: [react()],
-});
-```
-
-</details>
-
-<details>
-<summary><code>frontend/index.html</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/index.html -->
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tiny Shop Sessions</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-```
-
-</details>
-
-<details>
-<summary><code>frontend/src/main.jsx</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/src/main.jsx -->
-```jsx
-// Initialise ouo before React renders anything.
-import "./rum";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
-
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
-```
-
-</details>
-
-### The SDK init
-
-The new part is `session:`. The inactivity timeout and the maximum duration are init options,
-read once; the switch you add in step 5 stores its choice in `localStorage` and reloads the page.
+The SDK init. The new part for this quickstart is `session:`: the inactivity timeout and the
+maximum duration are init options, read once; the switch you add in step 9 stores its choice in
+`localStorage` and reloads the page.
 
 <details>
 <summary><code>frontend/src/rum.js</code> (click to open)</summary>
@@ -904,10 +999,50 @@ export const rum = initRUM({
 
 </details>
 
-### What the SDK stored
+Load it before React renders:
+
+<details>
+<summary><code>frontend/src/main.jsx</code> (click to open)</summary>
+
+<!-- embed: examples/quickstarts/tiny-shop-sessions/result/frontend/src/main.jsx -->
+```jsx
+// Initialise ouo before React renders anything.
+import "./rum";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App.jsx";
+
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+```
+
+</details>
+
+In `App.jsx`, take the API URL from `rum.js`: replace the line
+`const API = "http://localhost:5001";` with
+
+```jsx
+import { API } from "./rum";
+```
+
+From `mine/frontend`:
+
+```bash
+npm install && npm run dev
+```
+
+**Check:** reload http://localhost:5173 and click **Add** a few times. The browser console shows
+`[ouo] session started <id>` (`session resumed` after a reload). In Grafana, **More apps ->
+ouo11y RUM -> Sessions** lists a `healthy` session within a minute, with an anonymous user and a
+few traces.
+
+## Step 7. Show the session in the page
 
 The SDK keeps three records in `localStorage`: the session, the user and the device. Reading them
-is free of side effects. (`rum.session.id()` is not: it starts the next session when the last one
+has no side effects. (`rum.session.id()` has one: it starts the next session when the last one
 ended, so a panel that polls it would never let a session stay ended.)
 
 <details>
@@ -1004,57 +1139,20 @@ export const h2 = { fontSize: 18, margin: "8px 0" };
 
 </details>
 
-A first `App.jsx`, with the shop and the session panel only. You replace it in step 6.
+In `App.jsx`, delete the `const box = ...` and `const h2 = ...` lines and add:
 
 ```jsx
-// The shop, with the session panel above it (step 3).
-import { useEffect, useState } from "react";
-import { API } from "./rum";
 import SessionPanel, { box, h2 } from "./SessionPanel";
-
-export default function App() {
-  const [products, setProducts] = useState([]);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    fetch(`${API}/api/products`)
-      .then((r) => r.json())
-      .then(setProducts);
-  }, []);
-
-  return (
-    <main style={{ fontFamily: "sans-serif", maxWidth: 640, margin: "32px auto", lineHeight: 1.5 }}>
-      <h1>Tiny Shop</h1>
-      <SessionPanel />
-      {/* step 4: <AccountPanel onMessage={setMessage} /> */}
-      <section style={box}>
-        <h2 style={h2}>Shop</h2>
-        <ul>
-          {products.map((p) => (
-            <li key={p.id}>
-              {p.name} (${p.price}) <button onClick={() => setMessage(`${p.name} added`)}>Add</button>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <p>{message}</p>
-    </main>
-  );
-}
 ```
 
-From `mine/frontend`:
+and put `<SessionPanel />` right under `<h1>Tiny Shop</h1>`.
 
-```bash
-npm install && npm run dev
-```
+**Check:** the **Your session** panel shows a `session.id`, `active, idle 0 s` counting up, an
+anonymous `user.id` and a `device.id`. Reload: the same session id (a reload resumes it). Open a
+second tab on the same URL: the same id again (tabs of one site share it). Click **Add**: the
+idle counter goes back to 0, a click is activity.
 
-**Check:** open http://localhost:5173. The **Your session** panel shows a `session.id`, `active,
-idle 0 s` counting up, an anonymous `user.id` and a `device.id`. Reload: the same session id (a
-reload resumes the session). Open a second tab on the same URL: the same session id too (tabs of
-one site share it). Click **Add**: the idle counter goes back to 0, a click is activity.
-
-## 4. Log in, switch user, log out, end the session
+## Step 8. Log in, switch user, log out, end the session
 
 <details>
 <summary><code>frontend/src/AccountPanel.jsx</code> (click to open)</summary>
@@ -1125,15 +1223,13 @@ export default function AccountPanel({ onMessage }) {
 
 </details>
 
-In `App.jsx`, import it and replace the `step 4` comment line:
+In `App.jsx`, add
 
 ```jsx
 import AccountPanel from "./AccountPanel";
 ```
 
-```jsx
-<AccountPanel onMessage={setMessage} />
-```
+and put `<AccountPanel onMessage={setMessage} />` under `<SessionPanel />`.
 
 **Check**, watching the panel after each click:
 
@@ -1145,26 +1241,26 @@ import AccountPanel from "./AccountPanel";
 | **End session** | unchanged, state `ended (manual)` | | |
 | then **Add** | new | the ended one | unchanged |
 
-`device.id` never changes. The browser console shows each decision as `[ouo] ...` (`debug: true`
-in `rum.js`).
+`device.id` never changes. The console shows each decision as `[ouo] ...` (`debug: true` in
+`rum.js`).
 
-## 5. Watch an inactivity timeout
+## Step 9. Watch an inactivity timeout
 
 Nothing to write: the switch is in `AccountPanel.jsx`. Tick **Short inactivity timeout** (the page
-reloads; the panel says `1 min (short)`), then touch nothing.
+reloads; the panel says `1 min (short)`), then touch nothing, with the tab in front.
 
 **Check:** after a minute the state reads `ended (inactivity), your next click starts a new one`.
 Click **Add**: a new session whose `session.previous_id` is the timed-out one. Untick the switch
 to go back to 30 minutes.
 
-"Next click" is really "next activity or signal": anything the SDK sends starts the next
-session, a `long_animation_frame` event included. A tab in the background, whose timers the
-browser throttles, can produce those by itself, so keep the tab in front while you wait.
+"Next click" is really "next activity or signal": anything the SDK sends starts the next session,
+a `long_animation_frame` event included. A tab in the background, whose timers the browser
+throttles, can produce those by itself.
 
-Closing the tab instead ends nothing at once: the session just stops getting activity, and rum-api
-ends it on its own after 30 minutes without signals.
+Closing the tab ends nothing at once: the session just stops getting activity, and rum-api ends
+it on its own after 30 minutes without signals.
 
-## 6. Break it
+## Step 10. Break it
 
 <details>
 <summary><code>frontend/src/BreakItPanel.jsx</code> (click to open)</summary>
@@ -1214,7 +1310,7 @@ export default function BreakItPanel({ onMessage }) {
 
 </details>
 
-Now replace `App.jsx` with the final one: all three panels and the full shop with its checkout.
+Now replace `App.jsx` with the final one: the three panels above the shop.
 
 <details>
 <summary><code>frontend/src/App.jsx</code> (click to open)</summary>
@@ -1280,22 +1376,22 @@ export default function App() {
 
 </details>
 
-**Check:** the page shows four boxes: Your session, Account, Break it, Shop. Clicking **Uncaught
-error** prints the error in the console, yet the page keeps working and the session id stays the
-same: on the web an uncaught error marks the session, it does not end it.
+**Check:** the page shows four boxes: Your session, Account, Break it, Shop. **Uncaught error**
+prints the error in the console, yet the page keeps working and the session id stays the same: on
+the web an uncaught error marks the session, it does not end it.
 
-## 7. See it in Grafana
+## Step 11. See it in Grafana
 
-Run the README's sequence once, so there is one session of each kind: from a fresh tab, **Add** and
-**Failed request**; **Log in as alice**; **Switch to bob** and **Handled error**; **Log out** and
-**Uncaught error**; **End session** and **Add**; then the short timeout and a minute of waiting.
+Run this sequence once, so there is one session of each kind: **Add** and **Failed request**;
+**Log in as alice**; **Switch to bob** and **Handled error**; **Log out** and **Uncaught error**;
+**End session** and **Add**.
 
 http://localhost:3000, admin / testing567, **More apps -> ouo11y RUM**. Allow a minute.
 
 **Check:**
 
-- **Overview**: 2 errored and 1 crashed sessions from this sequence; every other session (the
-  ones from steps 4 and 5 too) is healthy.
+- **Overview**: 2 errored and 1 crashed sessions from this sequence; every other session (from
+  steps 6 to 9) is healthy.
 - **Sessions**: alice's session `errored` (the failed request), bob's `errored` (the handled
   error), the anonymous one after the logout `crashed`.
 - Open bob's: `ended · user_change`, **User** bob, **Previous session** links to alice's,
@@ -1309,19 +1405,23 @@ curl -s -u admin:testing567 "http://localhost:3000/api/plugin-proxy/ouo11y-rum-a
 Each session has `end_reason` (`user_change`, `manual`, `inactivity`, or null while active),
 `status`, `user_id` and the same `device_id`.
 
-## Clean up
+Your `mine/` now holds the same files as `result/`.
 
-From `mine/stack`: `docker compose down -v`, then stop both `npm` commands with Ctrl+C. Delete
-`mine/` when you are done; compare it with `result/` first if something differed.
+## Step 12. Clean up
+
+From `mine/stack`: `docker compose down -v`, then stop the API and the web app with Ctrl+C.
+Delete `mine/` when you are done.
 
 ## When something does not work
 
 | Symptom | Why, and the fix |
 |---|---|
-| `npm install` in `frontend` fails on `vendor/ouo11y-browser-0.2.1.tgz` | the SDK was not packed: run step 3's three commands from the repository root |
-| `docker compose up` cannot build rum-api or Grafana | `mine/` is not at `examples/quickstarts/tiny-shop-sessions/mine`: the build paths are relative |
+| `npm install` in `frontend` fails on `vendor/ouo11y-browser-0.2.1.tgz` | the SDK was not packed: run step 6's two commands from the repository root |
+| `docker compose up` cannot build rum-api, or Grafana has no ouo11y RUM app | `mine/` is not at `examples/quickstarts/tiny-shop-sessions/mine` (the paths are relative), or the plugin was not built (step 4) |
+| The collector does not start: `denied` pulling the image | log in to ghcr.io (step 4) |
+| Tempo search finds no trace yet | search lags behind ingest by up to a minute: run it again |
+| No sessions in the plugin | wait a minute; `docker compose logs otel-collector`; the page must be on `localhost` or `127.0.0.1` |
 | The panel never shows `ended` after End session | something calls `rum.session.id()` on a timer: it starts the next session; read `localStorage` as `session.js` does |
-| Clearing site data does not give a new session | the SDK writes the session back when the page unloads: close the tab first, or use a private window |
-| No sessions in the plugin | wait a minute; check the collector with `docker compose logs otel-collector`; the page must be on `localhost` or `127.0.0.1` |
 | A new session started while you waited for the timeout | a signal, not a click, started it: a background tab can emit `long_animation_frame` events; keep it in front |
+| Clearing site data does not give a new session | the SDK writes the session back when the page unloads: close the tab first, or use a private window |
 | A session ended `inactivity` with the switch off | it was idle 30 minutes, or the tab was closed and rum-api inferred the end |

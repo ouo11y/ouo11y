@@ -2,17 +2,14 @@
 # directly, and sessions and replays from rum-api through the plugin. Port 3000,
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
 #
-# Built from source: the device id on the session page and the Device filter on the Sessions page
-# are newer than the released ghcr.io/ouo11y/grafana:0.3.0. Dockerfile builds
-# plugins/ouo11y-rum-app of this repository and copies it into grafana/grafana, like the released
-# image. Once a grafana image with them is tagged, replace `build:` with
-# `image: ghcr.io/ouo11y/grafana:<that version>`.
+# Plugin from source: the device id on the session page and the Device filter on the Sessions page
+# are newer than the released ghcr.io/ouo11y/grafana:0.3.0. Stock Grafana loads the plugin this
+# repository builds (`npm run build -w plugins/ouo11y-rum-app`), mounted from its dist/ folder.
+# Once a grafana image with them is tagged, use `image: ghcr.io/ouo11y/grafana:<that version>`
+# and drop the plugin volume (see the README, "Unreleased parts").
 services:
   grafana:
-    build:
-      context: ../../../../../..          # the repository root (the plugin is a workspace)
-      dockerfile: examples/quickstarts/tiny-shop-sessions/result/stack/60-grafana/Dockerfile
-    image: tiny-shop-sessions/grafana:from-source
+    image: grafana/grafana:13.2.1
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:
@@ -23,4 +20,6 @@ services:
       OUO_READ_TOKEN: rt_dev_0000000000000000   # read by provisioning/plugins; equals rum-api's
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
+      # this repository's plugins/ouo11y-rum-app/dist, built from source
+      - ../../../../../../plugins/ouo11y-rum-app/dist:/var/lib/grafana/plugins/ouo11y-rum-app:ro
     depends_on: [loki, tempo, rum-api]
