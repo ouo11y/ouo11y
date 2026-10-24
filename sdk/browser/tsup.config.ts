@@ -16,9 +16,11 @@ const common: Options = {
   sourcemap: true,
   treeshake: true,
   // terser, not esbuild's minifier: about 5 % smaller gzip (41.7 against 44.0 KB for the core
-  // entry), which pays for the page-safety guards within the size budget. Source maps unchanged.
+  // entry), which pays for the page-safety guards within the size budget.
   minify: "terser",
-  terserOptions: { module: true, compress: { passes: 2 } },
+  // `sourceMap` makes tsup chain terser's map onto esbuild's; without it the published .map is the
+  // pre-terser one and maps nothing on the minified line.
+  terserOptions: { module: true, compress: { passes: 2 }, sourceMap: true },
   outDir: "dist",
 };
 
