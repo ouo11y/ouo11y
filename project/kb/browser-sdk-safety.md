@@ -140,6 +140,7 @@ specs `e2e/faults.spec.ts`, `e2e/csp.spec.ts`, `e2e/soak.spec.ts`, `e2e/rrweb-co
 - `examples/ouo-web/scripts/run.sh` serves on :4173 by default; when another session's preview
   holds that port, the journey silently runs against that session's build (another env's collector).
   Pass `--port`.
-- The first ouo-web runs right after `ouo-env up` lost telemetry (accepted with 200, absent from
-  Loki or Tempo) and failed verify; the same build passed 24/24 a few minutes later, and so did
-  origin/main's build against the same env. Give a fresh env a few minutes before verify.
+- Two ouo-web verifies failed at random (telemetry accepted with 200, then absent from this env's
+  Loki or Tempo) while several envs were up: every env joined the shared `ouo-proxy` network, so
+  `loki`, `tempo`, `rum-api` and the collector resolved across envs. Fixed in ouo-env by PR #65
+  (`claude/ouo-env-network-isolation`); verify results from envs started before it are unreliable.
