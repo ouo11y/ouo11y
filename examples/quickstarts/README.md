@@ -8,6 +8,7 @@ adoption guides for your own stack are in [`../fast-tracked/`](../fast-tracked/i
 | Quickstart | What it shows |
 |---|---|
 | [tiny-shop](tiny-shop/README.md) | Express API with the OpenTelemetry Node SDK (auto + manual spans) and a React app with `@ouo11y/browser`: one trace from the click to the API's manual spans, tagged with the RUM session; errors, a crash, replay |
+| [tiny-shop-sessions](tiny-shop-sessions/README.md) | Quickstart 3, standalone: the session lifecycle by hand. Fake login, switch user, logout and End session (`user_change`, `manual`), a 1-minute inactivity switch, a break-it panel (errored, crashed), `session.previous_id` chains and one `device.id` per browser in rum-api and the plugin; why no IP linking. Its stack is split into one small folder per service |
 
 ## How a quickstart is built
 

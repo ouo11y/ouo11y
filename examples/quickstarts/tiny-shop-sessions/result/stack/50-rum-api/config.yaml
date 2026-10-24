@@ -1,0 +1,35 @@
+# rum-api configuration: where Loki and Tempo are, and the session timeouts.
+# The tokens come from the environment set in compose.yaml (-config.expand-env=true).
+server:
+  http_listen_address: ":8080"
+
+auth:
+  ingest_token: "${OUO_INGEST_TOKEN}"
+  read_token: "${OUO_READ_TOKEN}"
+
+loki:
+  url: http://loki:3100
+  datasource_uid: loki
+
+tempo:
+  url: http://tempo:3200
+  datasource_uid: tempo
+
+# The server's own end rules, for sessions whose browser never sent `session.end` (the tab was
+# closed, the laptop slept): no signal for `inactivity` means ended (reason inactivity), older than
+# `max_duration` means max_duration. They match the SDK defaults (30 min, 4 h). The quickstart's
+# "short timeout" switch only changes the SDK: the SDK then sends `session.end` itself, and rum-api
+# uses the reason it was given.
+session:
+  inactivity: 30m
+  max_duration: 4h
+
+# Where replay chunks are stored. filesystem: files under DATA_DIR, here the rum-api-data volume
+# (<dir>/replays/<session id>/, one chunk per upload, in sequence order). For more
+# than one rum-api, or real retention, use backend: s3 with MinIO or any S3 bucket:
+#   storage:
+#     backend: s3
+#     s3: { endpoint: "minio:9000", bucket: ouo-replays, insecure: true, force_path_style: true,
+#           access_key_id: ..., secret_access_key: ... }
+storage:
+  backend: filesystem

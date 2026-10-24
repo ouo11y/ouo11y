@@ -1,0 +1,27 @@
+# rum-api: the ouo platform service behind the Grafana plugin. It folds the session events in Loki
+# into one record per session: status (healthy / errored / crashed), state and end reason, user_id
+# and device_id; it also stores the replay chunks the collector forwards. Internal: only the
+# collector and Grafana talk to it, on 8080 inside the network.
+#
+# Built from source: `device_id` on the session record and the `device=` filter are newer than the
+# released ghcr.io/ouo11y/rum-api:0.3.0. Once a rum-api release with them is tagged, replace
+# `build:` with `image: ghcr.io/ouo11y/rum-api:<that version>` (see the README, "Unreleased parts").
+services:
+  rum-api:
+    build:
+      context: ../../../../../../services/rum-api   # this repository's services/rum-api
+      args: { VERSION: sessions-from-source }
+    image: tiny-shop-sessions/rum-api:from-source
+    command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
+    environment:
+      GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}   # for deep links
+      OUO_INGEST_TOKEN: it_dev_0000000000000000   # the collector's; development value
+      OUO_READ_TOKEN: rt_dev_0000000000000000     # Grafana's; development value
+      DATA_DIR: /home/nonroot                     # the image runs as nonroot
+    volumes:
+      - ./config.yaml:/etc/rum-api/config.yaml:ro
+      - rum-api-data:/home/nonroot
+    depends_on: [loki, tempo]
+
+volumes:
+  rum-api-data:
