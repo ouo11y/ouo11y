@@ -13,7 +13,12 @@ export const DEFAULT_MAX_DURATION_MS = 4 * 60 * 60 * 1000;
 /** Activity is persisted at most once per second (spec: activity rules). */
 const PERSIST_THROTTLE_MS = 1000;
 
-export type EndReason = "inactivity" | "max_duration";
+/**
+ * Why a session ended: timeouts (`inactivity`, `max_duration`), a different identified user
+ * (`setUser` with another id, or `clearUser` at logout: `user_change`) or `rum.endSession()`
+ * (`manual`). docs/specs/session-lifecycle.md.
+ */
+export type EndReason = "inactivity" | "max_duration" | "user_change" | "manual";
 
 /** What is persisted under `ouo.session`. Timestamps are Unix epoch milliseconds. */
 export interface SessionRecord {
@@ -55,6 +60,8 @@ export interface SessionManagerOptions {
   /** Called whenever the active session id changes (new session created here or adopted from another tab). */
   onRotate?: (next: SessionRecord, previousId: string | undefined) => void;
   initialUserId?: string;
+  /** `device.id` put on `session.start` and `session.end` (session/device.ts). */
+  deviceId?: string;
   /** Fraction of sessions that send telemetry, decided once per session. Default 1. */
   sessionSampleRate?: number;
   logger?: DebugLogger;
@@ -89,6 +96,8 @@ export class SessionManager {
   private readonly onRotate: ((next: SessionRecord, previousId: string | undefined) => void) | undefined;
   private readonly logger: DebugLogger | undefined;
   private readonly sessionSampleRate: number;
+  private readonly initialUserId: string | undefined;
+  private readonly deviceId: string | undefined;
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
@@ -106,7 +115,9 @@ export class SessionManager {
     this.onRotate = options.onRotate;
     this.logger = options.logger;
     this.sessionSampleRate = options.sessionSampleRate ?? 1;
-    this.user = this.loadUser(options.initialUserId);
+    this.initialUserId = options.initialUserId;
+    this.deviceId = options.deviceId;
+    this.user = this.loadUser();
   }
 
   /** Start rules 1 to 3: resume a live persisted session or create a new one. */
@@ -121,14 +132,19 @@ export class SessionManager {
         this.current = persisted;
         this.logger?.log("session resumed", persisted.id);
         this.schedule();
+        // `user.id` in the options: a different identified user than the resumed session's rotates it.
+        if (this.initialUserId) this.setUser(this.initialUserId);
         return;
       }
+      if (this.initialUserId) this.saveUser({ id: this.initialUserId, anonymous: false });
       if (reason) {
         this.rotate(persisted, reason, now);
         return;
       }
       // Ended by another tab earlier; the end event was already emitted there.
       this.lastEnded = persisted;
+    } else if (this.initialUserId) {
+      this.saveUser({ id: this.initialUserId, anonymous: false });
     }
     this.create(now);
   }
@@ -154,9 +170,32 @@ export class SessionManager {
     return this.user.anonymous;
   }
 
+  /**
+   * Identifies the user. From one identified user to another the session rotates (`user_change`):
+   * the `session.end` carries the previous user, the new session the new one. From anonymous to
+   * identified (a login during the visit) the session continues with the new user.
+   */
   setUser(id: string): void {
-    this.user = { id, anonymous: false };
-    this.storage.set(USER_STORAGE_KEY, JSON.stringify(this.user));
+    if (!id || (id === this.user.id && !this.user.anonymous)) return;
+    const next: UserRecord = { id, anonymous: false };
+    if (this.user.anonymous) this.saveUser(next);
+    else this.switchUser(next);
+  }
+
+  /** Logout: back to a fresh anonymous id, in a new session (`user_change`). */
+  clearUser(): void {
+    this.switchUser({ id: uuidv4(), anonymous: true });
+  }
+
+  /** Ends the session now (`manual`); the next activity or signal starts a new one. */
+  endSession(): void {
+    const rec = this.current;
+    if (rec) this.end(rec, "manual", this.clock.now());
+  }
+
+  /** `device.id` of this browser, when the SDK set one. */
+  device(): string | undefined {
+    return this.deviceId;
   }
 
   /** Activity rule: refresh lastActivity, persist throttled, detect expiry first. */
@@ -300,12 +339,28 @@ export class SessionManager {
    * instead of creating a second session. Exactly one `session.end` and one
    * `session.start` are emitted per rotation.
    */
-  private rotate(rec: SessionRecord, reason: EndReason, now: number): SessionRecord {
+  private rotate(rec: SessionRecord, reason: EndReason, now: number, between?: () => void): SessionRecord {
     const endAttributes = this.close(rec, reason, now);
     const next = this.install(now);
     this.onEvent({ name: "session.end", attributes: endAttributes });
+    between?.();
     this.announce(next);
     return next;
+  }
+
+  /** Another user: rotate the live session, switching the user between its end and the next start. */
+  private switchUser(next: UserRecord): void {
+    const rec = this.current;
+    if (!rec || this.expiredReason(rec, this.clock.now())) {
+      this.saveUser(next);
+      return;
+    }
+    this.rotate(rec, "user_change", this.clock.now(), () => this.saveUser(next));
+  }
+
+  private saveUser(user: UserRecord): void {
+    this.user = user;
+    this.storage.set(USER_STORAGE_KEY, JSON.stringify(user));
   }
 
   private create(now: number): SessionRecord {
@@ -337,6 +392,7 @@ export class SessionManager {
       "ouo.session.started_at": rec.startedAt,
     };
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
+    if (this.deviceId) attributes["device.id"] = this.deviceId;
     this.onEvent({ name: "session.start", attributes });
     this.schedule();
     this.onRotate?.(rec, rec.previousId);
@@ -352,7 +408,9 @@ export class SessionManager {
     const endedAt =
       reason === "inactivity"
         ? Math.min(rec.lastActivity + this.inactivityTimeoutMs, now)
-        : Math.min(rec.startedAt + this.maxDurationMs, now);
+        : reason === "max_duration"
+          ? Math.min(rec.startedAt + this.maxDurationMs, now)
+          : now;
     rec.endedAt = endedAt;
     rec.endReason = reason;
     this.lastEnded = rec;
@@ -369,6 +427,7 @@ export class SessionManager {
       "ouo.session.ended_at": endedAt,
     };
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
+    if (this.deviceId) attributes["device.id"] = this.deviceId;
     return attributes;
   }
 
@@ -423,16 +482,20 @@ export class SessionManager {
     this.storage.set(SESSION_STORAGE_KEY, JSON.stringify(rec));
   }
 
-  private loadUser(initialUserId: string | undefined): UserRecord {
-    if (initialUserId) {
-      const user = { id: initialUserId, anonymous: false };
+  /**
+   * The persisted user, or `user.id` from the options when the persisted one is anonymous. A
+   * different identified user stays until start(): it decides between a rotation (resumed
+   * session) and a plain switch (new session).
+   */
+  private loadUser(): UserRecord {
+    const p = parse<UserRecord>(this.storage.get(USER_STORAGE_KEY));
+    const persisted = p && typeof p.id === "string" ? { id: p.id, anonymous: p.anonymous !== false } : null;
+    if (this.initialUserId && (!persisted || persisted.anonymous)) {
+      const user = { id: this.initialUserId, anonymous: false };
       this.storage.set(USER_STORAGE_KEY, JSON.stringify(user));
       return user;
     }
-    const persisted = parse<UserRecord>(this.storage.get(USER_STORAGE_KEY));
-    if (persisted && typeof persisted.id === "string") {
-      return { id: persisted.id, anonymous: persisted.anonymous !== false };
-    }
+    if (persisted) return persisted;
     const user = { id: uuidv4(), anonymous: true };
     this.storage.set(USER_STORAGE_KEY, JSON.stringify(user));
     return user;

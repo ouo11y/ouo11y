@@ -309,11 +309,13 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
 
 `GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&service=web-store&limit=100`
 
+`device_id` is the SDK's `device.id` (the same for every session of one browser or install), omitted when the SDK sends none.
+
 Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit` max 1000):
 
 ```json
 {"sessions":[{
-  "session_id":"a4d47dfa-...","user_id":"3c63803d-...","platform":"web",
+  "session_id":"a4d47dfa-...","user_id":"3c63803d-...","device_id":"9b1f0c2e-...","platform":"web",
   "service_name":"web-store","service_version":"1.4.2",
   "started_at":"2026-10-06T05:06:20.896Z","last_signal_at":"2026-10-06T05:06:40.747Z",
   "ended_at":null,"end_reason":null,"state":"active","status":"crashed",

@@ -22,6 +22,7 @@ import { createNetworkInstrumentations } from "./network";
 import { ReplayChunker } from "./replay/chunker";
 import { ReplayRecorder } from "./replay/recorder";
 import { createChunkUploader } from "./replay/uploader";
+import { loadDeviceId } from "./session/device";
 import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
 import { LocalStorage } from "./session/storage";
 import { PageLogRecordProcessor, PageSpanProcessor } from "./telemetry/batch";
@@ -55,11 +56,13 @@ function noopRUM(): RUM & { _uninstall(): Promise<void> } {
   const done = (): Promise<void> => Promise.resolve();
   return {
     setUser: () => undefined,
+    clearUser: () => undefined,
+    endSession: () => undefined,
     captureError: () => undefined,
     addEvent: () => undefined,
     setRoute: () => undefined,
     replay: { pause: () => undefined, resume: () => undefined, isRecording: () => false },
-    session: { id: () => "", userId: () => "" },
+    session: { id: () => "", userId: () => "", deviceId: () => "" },
     flush: done,
     shutdown: done,
     _uninstall: done,
@@ -127,6 +130,7 @@ function install(
 
   const serviceVersion = options.service.version;
   const storage = new LocalStorage();
+  const deviceId = loadDeviceId(storage);
 
   // Late-bound: the session manager emits session.start inside start(), after these exist.
   let events: EventEmitter;
@@ -137,13 +141,14 @@ function install(
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
     ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),
+    deviceId,
     ...(options.session?.sampleRate !== undefined ? { sessionSampleRate: options.session.sampleRate } : {}),
     logger,
     onEvent: (event) => events.emit(event.name, event.attributes, "info"),
     onRotate: (next, previousId) => recorder?.onRotate(next, previousId),
   });
 
-  const resource = buildResource(options.service);
+  const resource = buildResource(options.service, deviceId);
   const route = new RouteState();
 
   // ---- logs (events) ----
@@ -357,6 +362,15 @@ function install(
         logger.log("user set", user.id);
       });
     },
+    clearUser(): void {
+      attempt(() => {
+        session.clearUser();
+        logger.log("user cleared", session.userId());
+      });
+    },
+    endSession(): void {
+      attempt(() => session.endSession());
+    },
     captureError(err: unknown, context?: Attrs): void {
       attempt(() => {
         claimError(err);
@@ -380,6 +394,7 @@ function install(
     session: {
       id: () => attempt(() => session.id(), ""),
       userId: () => attempt(() => session.userId(), ""),
+      deviceId: () => deviceId,
     },
     flush,
     shutdown,
