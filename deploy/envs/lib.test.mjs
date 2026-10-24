@@ -143,3 +143,11 @@ test("the certificate names cover every env one label below ouo.localhost", () =
   assert.deepEqual(lib.tlsNames(), lib.TLS_NAMES);
   assert.match(lib.renderProxyDynamic(lib.EXTERNAL, lib.tlsNames(["sbx"])), /^# certificate names: .*\*\.sbx\.ouo\.localhost/m);
 });
+
+test("env services stay off the shared proxy network, so service names never cross envs", () => {
+  const y = lib.renderOverlay({ env: "sbx", kind: "sbx", branch: "x", pr: "", session: "", created: "2026-10-24T00:00:00Z", block: 1, src: "/src" });
+  assert.doesNotMatch(y, /ouo-proxy/);
+  assert.doesNotMatch(y, /^\s+networks:/m);
+  assert.match(y, /traefik\.docker\.network=ouo-sbx_default/);
+  assert.equal(lib.envNetwork("sbx"), "ouo-sbx_default");
+});
