@@ -4,6 +4,7 @@ package loki
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -160,4 +161,60 @@ func (c *Client) page(ctx context.Context, query string, start, end time.Time) (
 		return nil, fmt.Errorf("loki query_range: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return session.ParseLokiResponse(body)
+}
+
+// Counts runs `sum by (<by>) (count_over_time(<query> [<range>]))` as an
+// instant query at end and returns the count per value of `by` (entries
+// without the label are dropped).
+func (c *Client) Counts(ctx context.Context, query, by string, start, end time.Time) (map[string]int, error) {
+	secs := max(int64(end.Sub(start).Seconds()), 1)
+	q := url.Values{}
+	q.Set("query", fmt.Sprintf("sum by (%s) (count_over_time(%s [%ds]))", by, query, secs))
+	q.Set("time", strconv.FormatInt(end.UnixNano(), 10))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/loki/api/v1/query?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("loki query: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return nil, fmt.Errorf("loki read: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("loki query: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	return parseCounts(body, by)
+}
+
+func parseCounts(body []byte, by string) (map[string]int, error) {
+	var r struct {
+		Status string `json:"status"`
+		Data   struct {
+			Result []struct {
+				Metric map[string]string `json:"metric"`
+				Value  [2]any            `json:"value"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("decode loki response: %w", err)
+	}
+	if r.Status != "success" {
+		return nil, fmt.Errorf("loki status %q", r.Status)
+	}
+	out := map[string]int{}
+	for _, s := range r.Data.Result {
+		k := s.Metric[by]
+		v, _ := s.Value[1].(string)
+		n, err := strconv.ParseFloat(v, 64)
+		if k == "" || err != nil {
+			continue
+		}
+		out[k] += int(n)
+	}
+	return out, nil
 }

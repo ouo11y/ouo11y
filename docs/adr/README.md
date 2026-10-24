@@ -13,5 +13,6 @@
 | [0009](0009-org-and-product-naming.md) | Org and product naming: `ouo11y` everywhere, plain product names, `ouo` as the short internal namespace, three repos | accepted |
 | [0010](0010-repository-layout.md) | Repository layout: product by component at the top, process material under `project/` | accepted |
 | [0011](0011-source-maps-and-symbolication.md) | Source maps: debug ids with release + URL fallback, maps in the rum-api bucket, upload token, symbolication on read | proposed |
+| [0012](0012-funnel-reports.md) | Funnel reports: page and custom-event steps, session-counted, computed by rum-api from Loki | accepted |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.

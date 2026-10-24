@@ -337,3 +337,85 @@ export interface SessionFilters {
   service?: string;
   limit?: number;
 }
+
+/** A funnel step (docs/specs/funnels.md): a page path (exact or prefix) or a custom event name. */
+export type FunnelStepKind = 'page' | 'event';
+export type FunnelMatch = 'exact' | 'prefix';
+
+export interface FunnelStep {
+  kind: FunnelStepKind;
+  /** Page steps only; exact when absent. */
+  match?: FunnelMatch;
+  value: string;
+}
+
+export interface FunnelFilters {
+  service?: string;
+  environment?: string;
+  release?: string;
+  platform?: string;
+  project?: string;
+}
+
+export interface FunnelRequest {
+  steps: FunnelStep[];
+  from: string;
+  to: string;
+  /** Max time from step 1 to the last step, e.g. `30m`; empty for none. */
+  within?: string;
+  filters?: FunnelFilters;
+}
+
+export interface FunnelStepResult {
+  step: FunnelStep;
+  label: string;
+  sessions: number;
+  users: number;
+  conversion_from_first: number;
+  conversion_from_previous: number;
+  dropped_off: number;
+  median_ms: number | null;
+  p75_ms: number | null;
+}
+
+export interface FunnelResponse {
+  steps: FunnelStepResult[];
+  sessions: number;
+  users: number;
+  within_ms: number | null;
+  from: string;
+  to: string;
+}
+
+export interface DroppedSession {
+  session_id: string;
+  user_id?: string;
+  entered_at: string;
+  last_step_at: string;
+  last_path?: string;
+  has_replay: boolean;
+  replay_kind: ReplayKind | null;
+}
+
+export interface DroppedResponse {
+  step: number;
+  sessions: DroppedSession[];
+  total: number;
+  offset: number;
+  limit: number;
+  next_offset: number | null;
+  from: string;
+  to: string;
+}
+
+export interface StepSuggestion {
+  value: string;
+  count: number;
+}
+
+export interface StepSuggestionsResponse {
+  pages: StepSuggestion[];
+  events: StepSuggestion[];
+  from: string;
+  to: string;
+}

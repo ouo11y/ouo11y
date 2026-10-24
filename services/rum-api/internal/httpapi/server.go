@@ -50,6 +50,7 @@ type Options struct {
 	TraceLinks         *tempo.LinkBuilder       // Explore links for log lines' traces (nil: none)
 	LokiLinks          *loki.LinkBuilder        // Explore link for the session's log query (nil: none)
 	SourceMaps         *SourceMaps              // source-map upload and symbolication (nil: disabled, ADR-0011)
+	FunnelCacheTTL     time.Duration            // funnel results cache (0: none); LOKI_FUNNEL_CACHE_TTL, default 60s
 	MeterProvider      metric.MeterProvider
 	Now                func() time.Time
 }
@@ -61,6 +62,7 @@ type Server struct {
 	store   replay.Store
 	opts    Options
 	metrics replayMetrics
+	funnels funnelCache
 }
 
 // New wires the handlers onto a ServeMux and returns the root handler.
@@ -85,7 +87,8 @@ func New(events EventSource, traces TraceSource, store replay.Store, opts Option
 		opts.MaxVideoChunkBytes = replay.DefaultMaxVideoBytes
 	}
 	opts.MaxVideoChunkBytes = max(opts.MaxVideoChunkBytes, opts.MaxChunkBytes)
-	return &Server{events: events, traces: traces, store: store, opts: opts, metrics: newReplayMetrics(opts.MeterProvider)}
+	return &Server{events: events, traces: traces, store: store, opts: opts, metrics: newReplayMetrics(opts.MeterProvider),
+		funnels: funnelCache{entries: map[string]funnelCacheEntry{}}}
 }
 
 // Handler returns the routed handler with CORS and the read token applied.
@@ -109,6 +112,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /v1/sourcemaps", s.putSourceMap)
 	mux.HandleFunc("GET /v1/sourcemaps", s.listSourceMaps)
 	mux.HandleFunc("POST /v1/symbolicate", s.postSymbolicate)
+	mux.HandleFunc("POST /v1/funnels/query", s.postFunnelQuery)
+	mux.HandleFunc("GET /v1/funnels/dropped", s.getFunnelDropped)
+	mux.HandleFunc("GET /v1/funnels/steps", s.getFunnelSteps)
 	mux.HandleFunc("DELETE /v1/admin/users/{user}", s.adminAuth(s.deleteUser))
 	mux.HandleFunc("DELETE /v1/admin/projects/{project}", s.adminAuth(s.deleteProject))
 	mux.HandleFunc("GET /v1/admin/audit", s.adminAuth(s.getAudit))

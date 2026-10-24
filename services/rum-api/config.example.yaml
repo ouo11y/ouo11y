@@ -38,6 +38,7 @@ loki:
   # Submit a Loki delete request (POST /loki/api/v1/delete) for every user / project
   # deletion. Needs Loki's compactor with retention_enabled and a delete_request_store.
   delete_api: true                        # [LOKI_DELETE_API]
+  funnel_cache_ttl: 60s                   # [LOKI_FUNNEL_CACHE_TTL] funnel results per definition + range; 0 disables
 
 tempo:
   url: http://tempo:3200                  # [TEMPO_URL]

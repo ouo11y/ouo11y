@@ -300,6 +300,7 @@ func run(cfg config.Config) error {
 		TraceLinks:         tempoClient.Links,
 		LokiLinks:          lokiLinks,
 		SourceMaps:         sourceMaps,
+		FunnelCacheTTL:     cfg.Loki.FunnelCacheTTL,
 	})
 	handler := otelhttp.NewHandler(api.Handler(), "rum-api",
 		otelhttp.WithFilter(func(r *http.Request) bool {

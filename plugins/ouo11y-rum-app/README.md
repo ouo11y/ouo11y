@@ -2,7 +2,7 @@
 
 Plugin id `ouo11y-rum-app`, version in `package.json` (see `CHANGELOG.md`). Frontend-only Grafana app
 plugin that is the ouo user interface: **Overview** (healthy / errored / crashed percentages per
-platform and version), **Sessions** (filterable list) and **Session detail** (timeline, traces with
+platform and version), **Sessions** (filterable list), **Funnels** (step conversion and drop-off, [docs/funnels.md](../../docs/funnels.md)) and **Session detail** (timeline, traces with
 Grafana Explore links, rrweb, frame or video replay synced to the timeline). All data comes from
 `services/rum-api` through the plugin route proxy; the browser never talks to rum-api directly and
 never sees the read token.
@@ -18,6 +18,7 @@ browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[0].ur
 |---|---|
 | `/a/ouo11y-rum-app/overview?from=now-24h&to=now` | stat tiles + version table per platform, Grafana time range picker (state in the URL) |
 | `/a/ouo11y-rum-app/sessions?from&to&platform&status&service&version&user&limit` | sessions table; row click opens the detail |
+| `/a/ouo11y-rum-app/funnels?from&to&step=page:/&step=page:/products/*&step=event:add_to_cart&within&service&environment&release&platform&project&dropped&offset` | funnel builder (steps in the URL, autocomplete from `GET /v1/funnels/steps`), bars with conversion, drop-off and median / p75 time per step (`POST /v1/funnels/query`); `dropped=N` opens the sessions that stopped before step N (`GET /v1/funnels/dropped`), each opening its session page and replay |
 | `/a/ouo11y-rum-app/sessions/<session_id>?from&to` | header (device, OS, build, environment), replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge) with the activity list beside it, traces, logs; the Timeline panel behind the `sessionTimelinePanel` toggle |
 | `/plugins/ouo11y-rum-app` | configuration: `rumApiUrl`, `readToken` (write-only), "Test connection" |
 
@@ -143,7 +144,7 @@ src/components/AppConfig     configuration page (rumApiUrl, readToken SecretInpu
 src/components/ApiErrorAlert one banner per failed call; dedicated wording + settings link on 401
 src/components/              TimeRangeBar, HealthTiles, VersionTable, SessionsTable, Timeline,
                              TracesTable, ReplayPlayer (rrweb-player), FramePlayer, ReplayMarkers, ...
-src/pages/                   Overview, Sessions, SessionDetail
+src/pages/                   Overview, Sessions, SessionDetail, Funnels
 src/utils/format.ts          percentages, durations, relative times (tested)
 src/utils/markers.ts         replay marker positioning / seek / active-event math (tested)
 src/utils/timerange.ts       URL <-> Grafana TimeRange
