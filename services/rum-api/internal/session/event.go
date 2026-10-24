@@ -22,6 +22,7 @@ type Event struct {
 	// Session identifiers.
 	SessionID      string
 	UserID         string
+	DeviceID       string // device.id (stable per browser or install), empty when the SDK sends none
 	Platform       string
 	ServiceName    string
 	ServiceVersion string
@@ -79,7 +80,7 @@ func TypeOf(name string) Type {
 
 // identifierKeys are lifted out of Attrs into Event fields.
 var identifierKeys = map[string]bool{
-	"session_id": true, "user_id": true, "ouo_platform": true,
+	"session_id": true, "user_id": true, "device_id": true, "ouo_platform": true,
 	"service_name": true, "service_version": true, "event_name": true,
 }
 
@@ -182,6 +183,7 @@ func eventFromLabels(ts time.Time, labels map[string]string, line string) Event 
 		Name:           labels["event_name"],
 		SessionID:      labels["session_id"],
 		UserID:         labels["user_id"],
+		DeviceID:       labels["device_id"],
 		Platform:       labels["ouo_platform"],
 		ServiceName:    labels["service_name"],
 		ServiceVersion: labels["service_version"],

@@ -34,12 +34,14 @@ const rum: RUM = initRUM({
   debug: true,
 });
 
-rum.setUser({ id: "user-42" });
+rum.setUser({ id: "user-42" });                 // login keeps the session; another identified user rotates it
+rum.clearUser();                                // logout: fresh anonymous id, new session
+rum.endSession();                               // session.end (manual); the next activity starts a new one
 rum.captureError(new Error("payment declined"), { "cart.id": "c-1" });
 rum.addEvent("cart.added", { sku: "sku-1", qty: 2 });
 rum.setRoute("/products/:id");                  // app.screen.name; router integrations call it
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
-rum.session.id(); rum.session.userId();
+rum.session.id(); rum.session.userId(); rum.session.deviceId();
 await rum.flush();
 await rum.shutdown();                           // remove every hook; initRUM works again afterwards
 ```
@@ -83,16 +85,27 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `session.inactivityTimeoutMs` | `1800000` (30 min) | Session ends after this much inactivity. |
 | `session.maxDurationMs` | `14400000` (4 h) | Session ends after this total duration. |
 | `session.sampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided from the session id (see "Sampling") and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
-| `user.id` | anonymous | Initial user id. Otherwise an anonymous id is generated and persisted (`ouo.user.anonymous=true`). |
+| `user.id` | anonymous | Initial user id. Otherwise an anonymous id is generated and persisted (`ouo.user.anonymous=true`). A different identified id than the resumed session's rotates the session (`user_change`). |
 | `debug` | `false` | Log SDK decisions to the console with the `[ouo]` prefix. |
 
 ## Sessions
 
 Implements `docs/specs/session-lifecycle.md` for the web:
 
-- State is persisted in `localStorage` under `ouo.session` (`{ id, startedAt, lastActivity, previousId, replaySeq, sampled, replaySampled, replayOnError, replayTriggered, endedAt, endReason }`) and `ouo.user`.
+- State is persisted in `localStorage` under `ouo.session` (`{ id, startedAt, lastActivity, previousId, replaySeq, sampled, replaySampled, replayOnError, replayTriggered, endedAt, endReason }`), `ouo.user` (`{ id, anonymous }`) and `ouo.device` (`{ id }`). Where storage is blocked or full all three live in memory for the page (see "Compatibility and safety").
+- Start: `initRUM` resumes the persisted session when it is younger than 4 h and active in the last 30 min (no `session.start`), otherwise it emits `session.end` for the expired one and starts a new one with `session.previous_id`.
 - Activity: click, keydown, scroll, touchstart, pointerdown, tab becoming visible, navigation, outbound fetch/XHR. Persisted at most once per second.
-- Ends: `inactivity` (30 min) or `max_duration` (4 h), detected by a timer in the tab, on the next init, or lazily when the next signal needs a session. The session is not rotated immediately on inactivity: the next activity or signal starts the new one with `session.previous_id` set.
+- Ends (`ouo.session.end_reason`):
+
+  | Reason | When | Next session |
+  |---|---|---|
+  | `inactivity` | no activity for `session.inactivityTimeoutMs` (30 min): a timer in the tab, the next init, or the next signal | starts with the next activity or signal |
+  | `max_duration` | older than `session.maxDurationMs` (4 h) | same |
+  | `user_change` | `setUser` with an identified id different from the current identified user, `clearUser()` (logout), or `user.id` in the options different from the resumed session's identified user | starts at once; `session.end` carries the previous `user.id`, the new session the new one |
+  | `manual` | `rum.endSession()` | starts with the next activity or signal |
+
+  Anonymous to identified (`setUser` after a login, the anonymous id was never a person) does not rotate: the session continues with the new `user.id`. Every new session after an end has `session.previous_id`.
+- Device: `device.id` (OpenTelemetry semantic conventions) is random, generated once per browser profile and origin and persisted apart from the session and the user, so it survives rotation, login and logout and links the sessions of one browser. It is a resource attribute of every export and is on `session.start` / `session.end`; rum-api returns it as `device_id`. Nothing else (no IP address, no fingerprint) is used to link devices.
 - Tabs of the same origin share the session through the `storage` event; a session ended in one tab is not ended again by another.
 - Web uncaught errors do not end the session; they mark it crashed (ADR-0004).
 
@@ -102,14 +115,15 @@ Every span and log record carries `session.id`, `user.id`, `ouo.user.anonymous`,
 `ouo.platform=web`, `service.version` and, for sessions that replaced an expired one,
 `session.previous_id`, and `app.screen.name` once a route is named with `rum.setRoute` (not on
 the `navigation` event, which is written before the new route renders). Outbound requests to `tracing.propagateTo` origins carry
-`traceparent` and `baggage: session.id=…,user.id=…,ouo.platform=web`.
+`traceparent` and `baggage: session.id=…,user.id=…,ouo.platform=web`. `device.id` is a resource
+attribute (once per export, not per record).
 
 ## Events emitted (OTel log records, `event.name`)
 
 | `event.name` | When | Attributes |
 |---|---|---|
-| `session.start` | new session | `ouo.session.started_at` (epoch ms) |
-| `session.end` | session expired | `ouo.session.end_reason`, `ouo.session.duration_ms`, `ouo.session.started_at`, `ouo.session.ended_at` |
+| `session.start` | new session | `ouo.session.started_at` (epoch ms), `device.id` |
+| `session.end` | session expired, user changed or `endSession()` | `ouo.session.end_reason` (`inactivity`, `max_duration`, `user_change`, `manual`), `ouo.session.duration_ms`, `ouo.session.started_at`, `ouo.session.ended_at`, `device.id` |
 | `exception` | uncaught error, unhandled rejection (fatal), `captureError`, `console.error`, resource load failure, React error boundary (non-fatal) | `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal`, `ouo.exception.handled`, `ouo.exception.kind` (`uncaught`, `unhandledrejection`, `captured`, `console`, `resource`, `react.error_boundary` with `ouo.react.component_stack`). A `console.error` of an object `captureError` reports in the same task is not reported twice. |
 | `http.request.failed` | fetch/XHR with status 5xx or a network failure (status 0). 4xx is not an error. | `http.request.method`, `url.full`, `http.response.status_code` |
 | `navigation` | page load and `pushState` / `replaceState` / `popstate` | `url.path`, `url.full`, `ouo.navigation.from`, `ouo.navigation.kind` (`load`, `push`, `replace`, `pop`) |

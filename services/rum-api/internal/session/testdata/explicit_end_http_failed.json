@@ -14,7 +14,8 @@
      "telemetry_sdk_name": "opentelemetry",
      "scope_name": "@ouo/browser",
      "session_id": "F",
-     "user_id": "u1"
+     "user_id": "u1",
+     "device_id": "dev-1"
     },
     "values": [
      [

@@ -30,6 +30,7 @@ type want struct {
 	endReason         *string
 	platform, service string
 	version, user     string
+	device            string
 	errors, crashes   int
 	failed, events    int
 	startedAt         time.Time
@@ -80,7 +81,7 @@ func TestFoldFixtures(t *testing.T) {
 			fixture: "explicit_end_http_failed",
 			now:     base.Add(time.Hour),
 			want: map[string]want{
-				"F": {status: StatusErrored, state: StateEnded, endReason: str("inactivity"), platform: "web", service: "web-store", version: "1.4.2", user: "u1",
+				"F": {status: StatusErrored, state: StateEnded, endReason: str("inactivity"), platform: "web", service: "web-store", version: "1.4.2", user: "u1", device: "dev-1",
 					failed: 1, events: 3, startedAt: base, endedAt: ptr(base.Add(31 * time.Minute))},
 			},
 		},
@@ -133,6 +134,7 @@ func TestFoldFixtures(t *testing.T) {
 				check("service", r.ServiceName, w.service)
 				check("version", r.ServiceVersion, w.version)
 				check("user", r.UserID, w.user)
+				check("device", r.DeviceID, w.device)
 				check("error_count", r.ErrorCount, w.errors)
 				check("crash_count", r.CrashCount, w.crashes)
 				check("failed_request_count", r.FailedRequestCount, w.failed)
