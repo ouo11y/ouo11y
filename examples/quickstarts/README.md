@@ -8,6 +8,7 @@ adoption guides for your own stack are in [`../fast-tracked/`](../fast-tracked/i
 | Quickstart | What it shows |
 |---|---|
 | [tiny-shop](tiny-shop/README.md) | Express API with the OpenTelemetry Node SDK (auto + manual spans) and a React app with `@ouo11y/browser`: one trace from the click to the API's manual spans, tagged with the RUM session; errors, a crash, replay |
+| [tiny-shop-funnels](tiny-shop-funnels/README.md) | quickstart 5: page views and custom events as funnel steps; 50 generated sessions; build and read a funnel in Grafana, open the replay of a session that dropped |
 
 ## How a quickstart is built
 
