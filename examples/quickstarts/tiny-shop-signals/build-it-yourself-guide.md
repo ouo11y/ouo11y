@@ -52,7 +52,7 @@ include:
 # chunks to rum-api. Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
 services:
   otel-collector:
-    image: ghcr.io/ouo11y/collector:0.3.0
+    image: ghcr.io/ouo11y/collector:0.4.0
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
@@ -405,7 +405,7 @@ limits:
 # forwards. Internal: only the collector and Grafana talk to it, on 8080 inside the network.
 services:
   rum-api:
-    image: ghcr.io/ouo11y/rum-api:0.3.0
+    image: ghcr.io/ouo11y/rum-api:0.4.0
     command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
     environment:
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}   # for deep links
@@ -466,7 +466,7 @@ storage:
 # provisioning/ sets up the datasources, the plugin and the "Tiny Shop API" dashboard.
 services:
   grafana:
-    image: ghcr.io/ouo11y/grafana:0.3.0
+    image: ghcr.io/ouo11y/grafana:0.4.0
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:

@@ -3,7 +3,7 @@
 # provisioning/ sets up the datasources, the plugin and the "Tiny Shop API" dashboard.
 services:
   grafana:
-    image: ghcr.io/ouo11y/grafana:0.3.0
+    image: ghcr.io/ouo11y/grafana:0.4.0
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:

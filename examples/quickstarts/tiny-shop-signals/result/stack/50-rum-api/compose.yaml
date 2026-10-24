@@ -3,7 +3,7 @@
 # forwards. Internal: only the collector and Grafana talk to it, on 8080 inside the network.
 services:
   rum-api:
-    image: ghcr.io/ouo11y/rum-api:0.3.0
+    image: ghcr.io/ouo11y/rum-api:0.4.0
     command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
     environment:
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}   # for deep links
