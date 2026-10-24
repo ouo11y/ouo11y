@@ -41,6 +41,12 @@ torn down at the end of the run.
   the chunker's 2 MB buffer bound (about 20k simple elements) used to be dropped while mutations
   kept flowing: an unplayable replay. The recorder now stops replay for the page view and emits
   `ouo.replay.skipped` (`ouo.replay.skip_reason`, `ouo.replay.snapshot_bytes`).
+- **Replay leak in Safari, found by the soak:** with patched DOM prototypes (Zone.js, another
+  monitoring script, or the soak's probe) rrweb keeps a hidden helper iframe in the DOM on Safari,
+  and each `checkoutEveryNms` snapshot attached a new set of observers to it (+2 listeners, +2
+  observers every 5 min, released only on stop). Checkouts now restart the recording (same
+  snapshot cost, everything released); rrweb's helper iframes are also always blocked. Kb has the
+  diagnosis method.
 - **Bundle:** core minified with terser (tsup `minify: "terser"`): index.js 44.0 -> 42.0 KB gzip
   (the guards alone had pushed esbuild's output 0.1 KB over the 44 KB budget), rrweb chunk 80.1 ->
   77.2 KB. Budget file unchanged. Output layout unchanged; C told through the orchestrator. C then
@@ -89,8 +95,8 @@ torn down at the end of the run.
 - Firefox does not launch natively on this Mac (Playwright Firefox 157, "Could not find profile
   folder"); run Firefox specs in the Playwright image. The soak's second engine here was WebKit;
   the workflow defaults to Chromium + Firefox in the image.
-- The soak ran on the build of commit "long-session soak" (before the snapshot-size guard and the
-  terser switch); neither changes listener, observer or timer handling.
+- The first 60 min soak (build before the leak fix) failed: WebKit grew as above; Chromium was flat
+  but its observer count (5 to 8 with idle spans open at sampling time) exceeded a slack of 1, now 3.
 - Not done: a Next.js check in CI (it needs `next` as a dependency); the rrweb cost in Firefox.
 - Session A: the fault switch and harness are described in the shared notes (`n36-b-safety.md`).
   A owns the chunker's bounds; the recorder's snapshot limit follows `DEFAULT_MAX_BUFFER_BYTES`.
