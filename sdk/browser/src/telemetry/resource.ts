@@ -17,7 +17,8 @@ export function detectOs(userAgent: string): { name: string; version?: string } 
   return undefined;
 }
 
-export function buildResource(service: ServiceOptions): Resource {
+/** `deviceId`: the browser's `device.id` (session/device.ts), on every exported batch. */
+export function buildResource(service: ServiceOptions, deviceId?: string): Resource {
   const attrs: Record<string, string | number | boolean> = {
     "service.name": service.name,
     "service.version": service.version,
@@ -26,6 +27,7 @@ export function buildResource(service: ServiceOptions): Resource {
     "ouo.sdk.name": SDK_NAME,
     "ouo.sdk.version": SDK_VERSION,
   };
+  if (deviceId) attrs["device.id"] = deviceId;
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const os = detectOs(ua);
   if (os) {

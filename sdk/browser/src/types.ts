@@ -153,10 +153,20 @@ export interface RUMReplay {
 export interface RUMSession {
   id(): string;
   userId(): string;
+  /** This browser's `device.id`: random, persisted apart from the user and the session. */
+  deviceId(): string;
 }
 
 export interface RUM {
+  /**
+   * Identify the user. Anonymous to identified (a login) keeps the session; one identified user
+   * to another ends it (`user_change`) and starts a new one.
+   */
   setUser(user: UserOptions): void;
+  /** Logout: back to a fresh anonymous user id, in a new session (`user_change`). */
+  clearUser(): void;
+  /** End the session now (`manual`); the next activity starts a new one. */
+  endSession(): void;
   /** Report a handled, non-fatal exception. */
   captureError(err: unknown, context?: Attrs): void;
   /** Emit a custom event (an OTel log record with `event.name = name`). */

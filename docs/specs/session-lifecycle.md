@@ -54,10 +54,17 @@ A session ends when the first of these happens:
 | `background` | mobile app in background longer than `BACKGROUND_TIMEOUT` (default 30 s) | SDK on foreground |
 | `crash` | fatal error (mobile JS fatal, web uncaught error does not end the session) | SDK, best effort, plus marker on next launch |
 | `terminated` | mobile process ended without a crash marker | SDK on next launch |
+| `user_change` | the identified user changed: `setUser` with another identified id, a logout (`clearUser`), or an init with a different identified user than the resumed session's | SDK, at once; a new session starts immediately |
+| `manual` | the app called `endSession()` | SDK; the next activity starts a new session |
 
 The SDK emits `session.end` with `ouo.session.end_reason` when it detects any of these. The server **must not depend on it**: a session with no `session.end` is treated as ended when `now - lastSignal > INACTIVITY_TIMEOUT`, and as `active` otherwise.
 
 Web uncaught errors do not end the session; they mark it `crashed` (ADR-0004) and the user keeps using the page.
+
+## User and device
+
+- A session belongs to one identified user. Going from anonymous to identified (a login during the visit) keeps the session and only sets `user.id`: the anonymous id was never a person. Going from one identified user to another ends the session with `user_change`; its `session.end` carries the previous `user.id`, and the next session (with `session.previous_id`) the new one. A logout returns to a fresh anonymous id, also with `user_change`.
+- `device.id` (OTel semantic conventions) identifies the browser profile (web: per origin) or the app install (mobile). It is random, persisted apart from the session and the user, and survives session rotation, login and logout, so it links the sessions of one device. It is a resource attribute and is on `session.start` / `session.end`. Where storage is unavailable it lasts as long as the page or process. It is never derived from the IP address or a fingerprint.
 
 ## Defaults
 
@@ -73,8 +80,8 @@ All configurable in the SDK init options.
 
 | `event.name` | Required attributes |
 |---|---|
-| `session.start` | identifiers above, `ouo.session.started_at` |
-| `session.end` | identifiers, `ouo.session.end_reason`, `ouo.session.duration_ms` |
+| `session.start` | identifiers above, `ouo.session.started_at`, `device.id` when the SDK has one |
+| `session.end` | identifiers, `ouo.session.end_reason`, `ouo.session.duration_ms`, `device.id` when the SDK has one |
 | `exception` | identifiers, `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal` (bool), `ouo.exception.handled` (bool) |
 | `http.request.failed` | identifiers, `http.request.method`, `url.full`, `http.response.status_code` |
 | `navigation` | identifiers, `url.path`, `ouo.navigation.from` |
@@ -90,6 +97,7 @@ rum-api folds all signals with the same `session.id` into:
 {
   "session_id": "...",
   "user_id": "...",
+  "device_id": "... (omitted when the SDK sends none)",
   "platform": "web",
   "service_name": "web-store",
   "service_version": "1.2.0",
@@ -115,3 +123,6 @@ rum-api folds all signals with the same `session.id` into:
 5. Mobile: background longer than `BACKGROUND_TIMEOUT` then foreground rotates the session (`background`).
 6. Mobile: fatal error emits `exception` with `ouo.exception.fatal = true`, writes the crash marker, and the next launch emits `session.end` with reason `crash`.
 7. Every span and log record emitted during a session carries `session.id`.
+8. Anonymous to identified keeps the session; one identified user to another ends it with `user_change` (the end carries the previous user) and starts a new one with `session.previous_id`; a logout does the same with a fresh anonymous id.
+9. `endSession()` emits `session.end` with `manual`; the next activity starts a new session with `session.previous_id`.
+10. `device.id` is the same before and after rotation, login and logout.

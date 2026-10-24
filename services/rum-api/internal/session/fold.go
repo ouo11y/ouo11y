@@ -25,8 +25,11 @@ const (
 
 // Record is the server-side session record from the spec.
 type Record struct {
-	SessionID          string     `json:"session_id"`
-	UserID             string     `json:"user_id"`
+	SessionID string `json:"session_id"`
+	UserID    string `json:"user_id"`
+	// DeviceID is the browser's or install's device.id: the same across the sessions and users
+	// of one device (docs/specs/session-lifecycle.md). Omitted when the SDK sends none.
+	DeviceID           string     `json:"device_id,omitempty"`
 	Platform           string     `json:"platform"`
 	ServiceName        string     `json:"service_name"`
 	ServiceVersion     string     `json:"service_version"`
@@ -136,6 +139,9 @@ func FoldOne(id string, events []Event, now time.Time, opts Options) Record {
 		// Latest non-empty user id wins: setUser() can arrive after session.start.
 		if ev.UserID != "" {
 			rec.UserID = ev.UserID
+		}
+		if ev.DeviceID != "" {
+			rec.DeviceID = ev.DeviceID
 		}
 		switch ev.Type() {
 		case TypeSessionStart:
