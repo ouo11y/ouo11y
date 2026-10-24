@@ -231,7 +231,10 @@ export function renderOverlay(s) {
   const bySvc = {};
   for (const r of ROUTES) (bySvc[r.service] ??= []).push(r);
   for (const [svc, routes] of Object.entries(bySvc)) {
-    const tl = ["traefik.enable=true", "traefik.docker.network=ouo-proxy"];
+    // Traefik joins each env's own default network (ouo-env connects it); env services never
+    // join a shared network, where compose would alias them by their bare service name
+    // (`loki`, `tempo`, ...) and two envs' collectors and rum-apis would resolve each other.
+    const tl = ["traefik.enable=true", `traefik.docker.network=${proj}_default`];
     for (const r of routes) {
       const id = `${proj}-${r.name}`;
       tl.push(`traefik.http.routers.${id}.rule=Host(\`${r.name}.${host}\`)`);
@@ -244,7 +247,6 @@ export function renderOverlay(s) {
       tl.push(`traefik.http.services.${id}.loadbalancer.server.port=${r.port}`);
     }
     add(svc, tl.map((l) => `      - ${q(l)}`));
-    add(svc, ["    networks:", "      - default", "      - ouo-proxy"]);
   }
   for (const svc of UNPUBLISHED) add(svc, ["    ports: !reset []"]);
   for (const svc of ["otel-collector", "backend"]) {
@@ -272,9 +274,12 @@ export function renderOverlay(s) {
     "services:",
   ];
   for (const [svc, lines] of Object.entries(services)) out.push(`  ${svc}:`, ...lines);
-  out.push("networks:", "  ouo-proxy:", "    external: true", "volumes:", "  rum-api-data: {}", "");
+  out.push("volumes:", "  rum-api-data: {}", "");
   return out.join("\n");
 }
+
+// The env's compose default network, which the proxy joins to reach its routes.
+export const envNetwork = (env) => `${project(env)}_default`;
 
 // Shell exports that point deploy/scripts/{wait-ready,smoke,e2e}.sh at an env.
 export function exportsOf(env, block) {

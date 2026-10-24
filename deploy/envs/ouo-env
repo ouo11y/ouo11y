@@ -111,6 +111,19 @@ function proxyCompose(args) {
   return run("docker", ["compose", "-f", PROXY_FILE, ...args], { env: { OUO_PROXY_DIR: PROXY_DIR } });
 }
 
+const PROXY_CONTAINER = "ouo-proxy-traefik-1";
+// Attach the proxy to one env's default network (idempotent). Env services stay off any
+// shared network, so service names (loki, tempo, rum-api, ...) resolve only inside the env.
+function connectProxy(env) {
+  const net = lib.envNetwork(env);
+  if (!capture("docker", ["network", "ls", "-q", "--filter", `name=^${net}$`])) return;
+  const attached = capture("docker", ["inspect", PROXY_CONTAINER, "-f", "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"]).split(/\s+/);
+  if (!attached.includes(net)) run("docker", ["network", "connect", net, PROXY_CONTAINER]);
+}
+function disconnectProxy(env) {
+  spawnSync("docker", ["network", "disconnect", "--force", lib.envNetwork(env), PROXY_CONTAINER], { stdio: "ignore" });
+}
+
 function ensureProxy() {
   if (!capture("docker", ["network", "ls", "-q", "--filter", "name=^ouo-proxy$"])) {
     run("docker", ["network", "create", "ouo-proxy"]);
@@ -119,6 +132,8 @@ function ensureProxy() {
   ensureTls(names);
   fs.writeFileSync(path.join(PROXY_DIR, "dynamic.yaml"), lib.renderProxyDynamic(lib.EXTERNAL, names));
   proxyCompose(["up", "-d", "--wait"]);
+  // A recreated proxy container has lost its env networks: reattach every env that is up.
+  for (const env of Object.keys(runningEnvs())) connectProxy(env);
 }
 
 function compose(s, args, extraFiles = []) {
@@ -243,6 +258,7 @@ async function up(env, flags) {
   if (!flags.images && !flags["no-build"]) buildPlugin(src);
   if (flags["copy-from"]) copyVolumes(flags["copy-from"], s, flags["copy-rum-api-data"]);
   retry(() => compose(s, ["up", "-d", ...(flags.images || flags["no-build"] ? [] : ["--build"]), "--remove-orphans"], extra));
+  connectProxy(env);
   await waitReady(s);
   // Every env logs in with admin / testing567, also when grafana-data came from an older stack.
   compose(s, ["exec", "-T", "grafana", "grafana", "cli", "admin", "reset-admin-password", lib.GRAFANA_PASSWORD], extra);
@@ -269,6 +285,7 @@ function copyVolumes(from, s, rumApiDir) {
 
 function down(env, flags) {
   const proj = lib.project(env);
+  disconnectProxy(env); // else compose cannot remove the env's network
   run("docker", ["compose", "-p", proj, "down", "--remove-orphans"]);
   if (flags.purge) {
     const vols = capture("docker", ["volume", "ls", "-q", "--filter", `label=com.docker.compose.project=${proj}`]).split("\n").filter(Boolean);

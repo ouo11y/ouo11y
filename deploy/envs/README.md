@@ -96,4 +96,9 @@ env works, remove the old stack with `docker compose -p <project> down` (no `-v`
   (`~/.local/state/ouo-env/proxy/dynamic.yaml`, rendered from `lib.mjs` on every `proxy up`: TLS
   certificate and the external hosts), network `ouo-proxy`, ports 80 and 443. Start it with
   `ouo-env proxy up`; plain `docker compose` fails on the unset `OUO_PROXY_DIR`.
+- Isolation: env services join only their own compose network (`ouo-<env>_default`); `ouo-env up`
+  attaches the proxy container to it, and `down` detaches it. Never put env services on a shared
+  network: compose aliases every container by its bare service name on each network it joins, so
+  two envs on one network resolve each other's `loki`, `tempo`, `rum-api` at random (seen
+  2026-10-24).
 - Knowledge and quirks: `project/kb/ouo-env.md`.

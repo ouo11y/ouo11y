@@ -399,13 +399,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      # lychee-action downloads a Linux binary, which fails on the self-hosted macOS runner
+      # (#60); run lychee from Homebrew instead (installed once on the runner).
       - name: lychee --offline
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
-        with:
-          lycheeVersion: v0.24.2
-          args: --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'
-          fail: true
-          jobSummary: true
+        run: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          command -v lychee >/dev/null || brew install lychee
+          lychee --version
+          lychee --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'
 
   helm:
     name: helm lint
