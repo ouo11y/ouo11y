@@ -23,7 +23,7 @@ vi.mock("rrweb", () => {
   return { record };
 });
 
-import { ReplayRecorder } from "../src/replay/recorder";
+import { BUFFER_CHECKOUT_EVERY_MS, CHECKOUT_EVERY_MS, ReplayRecorder } from "../src/replay/recorder";
 import { TabLease } from "../src/replay/tabs";
 import { SessionManager } from "../src/session/manager";
 import { MemoryStorage } from "../src/session/storage";
@@ -123,6 +123,46 @@ describe("ReplayRecorder modes", () => {
     await Promise.resolve();
     expect(rr.starts).toBe(1);
     recorder.shutdown();
+  });
+
+  it("periodic checkouts restart rrweb (releasing everything it attached) instead of rrweb's checkoutEveryNms", async () => {
+    vi.useFakeTimers();
+    try {
+      const { pushed, recorder } = setup({ sampleRate: 1, onErrorSampleRate: 0 });
+      await recorder.start();
+      expect(rr.starts).toBe(1);
+      vi.advanceTimersByTime(CHECKOUT_EVERY_MS);
+      expect(rr.starts).toBe(2);
+      expect(rr.stops).toBe(1);
+      expect(recorder.isRecording()).toBe(true);
+      expect(pushed.map((e) => e.type)).toEqual([4, 2, 4, 2]);
+      // The tab marker only starts a stretch, not every checkout.
+      expect(rr.custom).toHaveLength(1);
+      recorder.pause();
+      vi.advanceTimersByTime(CHECKOUT_EVERY_MS * 2);
+      expect(rr.starts).toBe(2);
+      recorder.shutdown();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("in buffer mode a checkout restart is a cut: the buffer keeps the last two", async () => {
+    vi.useFakeTimers();
+    try {
+      const { pushed, recorder } = setup({ sampleRate: 0, onErrorSampleRate: 1 });
+      await recorder.start();
+      rr.emit!(ev(3));
+      vi.advanceTimersByTime(BUFFER_CHECKOUT_EVERY_MS);
+      rr.emit!(ev(3));
+      vi.advanceTimersByTime(BUFFER_CHECKOUT_EVERY_MS);
+      rr.emit!(ev(3));
+      recorder.onError();
+      expect(pushed.map((e) => e.type)).toEqual([4, 2, 3, 4, 2, 3, 4, 2]);
+      recorder.shutdown();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("errors in full mode change nothing", async () => {
