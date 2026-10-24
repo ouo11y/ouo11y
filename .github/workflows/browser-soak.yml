@@ -1,0 +1,65 @@
+# Long-session checks of @ouo11y/browser (checklist N43), by hand only: never on a PR, so an
+# hour of soak never sits in the per-PR path of the self-hosted runner.
+#
+#   soak        e2e/soak.spec.ts: the busy SPA with replay on for `minutes` (default 60) in each
+#               engine of `projects`; listeners, observers, timers, DOM nodes and (Chromium) heap
+#               must not grow after the warm-up.
+#   rrweb cost  e2e/rrweb-cost.spec.ts: main-thread time, heap and replay bytes on a large DOM.
+#
+# Both run in the Playwright image (the per-PR e2e job's image, same browsers), engines one after
+# the other. The JSON results and an HTML report are uploaded as the `browser-soak` artifact. Locally:
+#   OUO_SOAK_MINUTES=60 npm run -w sdk/browser test:soak
+name: browser-soak
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Soak duration per engine, in minutes
+        default: "60"
+      projects:
+        description: Engines, comma separated (chromium, firefox, webkit)
+        default: chromium,firefox
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-soak
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 300
+    env:
+      PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run -w sdk/browser build
+      - name: soak and rrweb cost (Playwright image)
+        env:
+          MINUTES: ${{ inputs.minutes }}
+          PROJECTS: ${{ inputs.projects }}
+        run: |
+          docker pull -q "$PLAYWRIGHT_IMAGE"
+          docker run --rm --ipc=host --network host -e CI=true -e OUO_SOAK_MINUTES="$MINUTES" -e OUO_SOAK_PROJECTS="$PROJECTS" \
+            -e OUO_SOAK_OUT=soak-results -v "$PWD:$PWD" -w "$PWD/sdk/browser" "$PLAYWRIGHT_IMAGE" \
+            npx playwright test -c e2e/soak.config.ts
+      - name: HTML report (soak-results/report.html)
+        if: always()
+        working-directory: sdk/browser
+        run: node scripts/soak-report.mjs soak-results soak-results/report.html
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-soak
+          path: sdk/browser/soak-results/
+          if-no-files-found: warn
