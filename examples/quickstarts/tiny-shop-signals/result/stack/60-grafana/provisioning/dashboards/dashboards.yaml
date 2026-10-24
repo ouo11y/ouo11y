@@ -1,0 +1,10 @@
+# Loads every dashboard JSON file in /var/lib/grafana/dashboards (the dashboards/ folder next
+# to compose.yaml) into the "Tiny Shop" folder. Edit the JSON file and restart Grafana to change one.
+apiVersion: 1
+
+providers:
+  - name: tiny-shop
+    folder: Tiny Shop
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

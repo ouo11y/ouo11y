@@ -1,0 +1,25 @@
+{
+  "name": "tiny-shop-signals-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ouo quickstart: React app with @ouo11y/browser, frontend logs and Web Vitals",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@opentelemetry/api-logs": "0.222.0",
+    "@ouo11y/browser": "^0.2.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.4"
+  }
+}
