@@ -2,6 +2,16 @@
 
 All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
+## [0.3.0](https://github.com/ouo11y/ouo11y/compare/browser-v0.2.1...browser-v0.3.0) (2026-10-25)
+
+
+### Added
+
+* **browser:** delivery that does not lose telemetry: retry, gzip, page-hide keepalive, offline store (N36 part A) ([#66](https://github.com/ouo11y/ouo11y/issues/66)) ([e7c92c8](https://github.com/ouo11y/ouo11y/commit/e7c92c8a828a6b311db1a71f7d6dc8896c7bf248))
+* **browser:** never break the host page, ES2022 floor, fault and CSP e2e, 1 h soak (N36 part B) ([#72](https://github.com/ouo11y/ouo11y/issues/72)) ([775757e](https://github.com/ouo11y/ouo11y/commit/775757ec5bf555099f03a5c03068007590fc76c1))
+* **browser:** rotate the session on user change, endSession, clearUser, device.id (N45) ([#80](https://github.com/ouo11y/ouo11y/issues/80)) ([60c103f](https://github.com/ouo11y/ouo11y/commit/60c103f8b7491bd7105e4b97f2c9c69c2f7813cc))
+* source maps and symbolication for minified web stacks (N36 part C, ADR-0011) ([#64](https://github.com/ouo11y/ouo11y/issues/64)) ([9a41831](https://github.com/ouo11y/ouo11y/commit/9a41831b67b58831672662f838608fbb06776f25))
+
 ## 0.2.1 - 2026-10-24
 
 ### Changed
