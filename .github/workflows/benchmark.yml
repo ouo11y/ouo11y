@@ -101,14 +101,17 @@ jobs:
       - name: Benchmark the new release
         run: |
           cells="none sentry-T1 sentry-T2 ouo-T2 sentry-T3 ouo-T3 sentry-T4 ouo-T4"
-          [[ $SMOKE == true ]] && cells="none sentry-T3 ouo-T3"
+          extra=(--no-soak)
+          if [[ $SMOKE == true ]]; then cells="none sentry-T3 ouo-T3"; extra+=(--no-offline); fi
           examples/sentry-mobile/scripts/perf/bench.sh --env none --sink --target sim --device "$SIM_UDID" --runs "$RUNS" \
             --sentry "$SENTRY" --work "$WORK/new" --publish "$WORK/published" \
-            -- --backend-port "$BACKEND_PORT" --cells "$cells" --no-soak $([[ $SMOKE == true ]] && echo --no-offline)
+            -- --backend-port "$BACKEND_PORT" --cells "$cells" "${extra[@]}"
       - name: Benchmark the previous release (ouo cells)
         if: env.SMOKE != 'true'
+        env:
+          BASE_INPUT: ${{ inputs.base_ref }}
         run: |
-          base="${{ inputs.base_ref }}"
+          base="$BASE_INPUT"
           if [[ -z $base ]]; then
             base=$(git tag --list 'react-native-v*' --sort=-v:refname --merged HEAD | grep -vx "$(git describe --tags --exact-match 2>/dev/null || echo none)" | head -1)
           fi
@@ -122,8 +125,8 @@ jobs:
       - name: Gate
         if: env.SMOKE != 'true' && env.BASE_REF != ''
         run: |
-          new=$(ls -d "$WORK"/published/*/ | head -1)
-          base=$(ls -d "$WORK"/published-base/*/ | head -1)
+          new=$(find "$WORK/published" -mindepth 1 -maxdepth 1 -type d | head -1)
+          base=$(find "$WORK/published-base" -mindepth 1 -maxdepth 1 -type d | head -1)
           python3 -I examples/sentry-mobile/scripts/perf/gate.py --new "$new/result.json" --base "$base/result.json" --md "$WORK/gate.md"
       - name: Summary
         if: always()

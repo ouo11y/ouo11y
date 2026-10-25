@@ -8,6 +8,6 @@
 
 ## Open
 
-- Phone experiments within the budget (`docs/benchmarks.md`): capture cost after N34, one run per cell. First: an in-app reset instead of a reinstall.
+- Phone experiments within the budget (`docs/benchmarks.md`): capture cost after N51, one run per cell. First: an in-app reset instead of a reinstall.
 - Release gate thresholds: proposed in `docs/benchmarks.md` section 5, waiting for the founder.
 - Sentry T1 `log` envelopes with `enableLogs` unset: find their origin.

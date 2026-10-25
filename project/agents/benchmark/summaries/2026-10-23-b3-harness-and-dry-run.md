@@ -47,7 +47,7 @@
   - OTLP JSON uncompressed (Sentry gzips);
   - no offline buffer (Sentry kept 535 KB on disk and re-sent it, ouo lost the run).
 
-  New checklist items N31, N32, N33.
+  New checklist items N48, N49, N50.
 - ouo costs less on CPU (−3.9 pp with replay), idle CPU (−5 pp), memory (−8 MB steady, −46 MB peak with replay),
   startup and size (0.7 MB vs 3.9 MB).
 - Sentry's session replay sometimes does not start (1 of 4 launches in the smoke runs, 0 of 20 in the dry run).
