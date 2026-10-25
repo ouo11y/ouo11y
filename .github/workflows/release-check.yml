@@ -48,7 +48,9 @@ jobs:
   e2e:
     name: e2e scenario (stack from this commit)
     needs: compat
-    runs-on: [self-hosted, Linux, stack]  # starts a stack on fixed ports: one at a time, on the runner labelled stack
+    # Any self-hosted runner: each has its own rootless dockerd and its own host ports (OUO_*_PORT in
+    # its .env, project/kb/ci-runners.md), so two stacks on two runners do not collide.
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 30
     env:
       COMPOSE: docker compose -p ouo-release-check -f deploy/compose/compose.yaml
@@ -74,6 +76,8 @@ jobs:
           npm ci
           npm run build -w plugins/ouo11y-rum-app
           rm -rf node_modules plugins/*/node_modules sdk/*/node_modules examples/*/node_modules
+      - name: Stack URLs from this runner's ports
+        run: .github/scripts/stack-env.sh | tee -a "$GITHUB_ENV"
       - name: Start the stack
         run: |
           # rum-api runs as nonroot; give it a writable replay directory.
