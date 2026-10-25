@@ -55,11 +55,41 @@ export type TimelineType =
   | 'custom'
   | 'session.end';
 
+/** A place in generated or original code (1-based line and column). */
+export interface StackPosition {
+  file: string;
+  line: number;
+  column: number;
+  function?: string;
+}
+
+/** One frame of a symbolicated stack (ADR-0011). */
+export interface SymbolicatedFrame {
+  /** `mapped`: original position found; `no_map`: no map for the script; `unmapped`: no mapping at the position. */
+  status: 'mapped' | 'no_map' | 'unmapped';
+  generated: StackPosition;
+  original?: StackPosition;
+  /** Original source lines around the frame, when the map embeds sourcesContent. */
+  context?: { pre: string[]; line: string; post: string[] };
+  debug_id?: string;
+}
+
+/** rum-api after 0.3.0: an exception's stack mapped through its uploaded source maps. */
+export interface Symbolicated {
+  status: 'ok' | 'partial' | 'no_maps';
+  mapped: number;
+  frames: SymbolicatedFrame[];
+  /** The stack text with original positions (lines that are not frames kept). */
+  stacktrace: string;
+}
+
 export interface TimelineEvent {
   ts: string;
   type: TimelineType | string;
   name: string;
   attrs: Record<string, string>;
+  /** Exceptions only: the stack through its source maps; `attrs.exception_stacktrace` stays raw. */
+  symbolicated?: Symbolicated;
   /** Set by the plugin when it moved an event recorded before the session start to the start: the recorded time. */
   clampedFrom?: string;
 }
@@ -101,6 +131,8 @@ export interface LogLine {
   source: 'session' | 'trace';
   trace_url?: string;
   attrs: Record<string, string>;
+  /** Exception lines only: as on the timeline. */
+  symbolicated?: Symbolicated;
 }
 
 export interface LogsResponse {

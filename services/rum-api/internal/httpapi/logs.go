@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/replay"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/sourcemap"
 )
 
 const (
@@ -44,6 +46,8 @@ type logLine struct {
 	Source   string            `json:"source"`
 	TraceURL string            `json:"trace_url,omitempty"`
 	Attrs    map[string]string `json:"attrs"`
+	// Symbolicated: as on the session timeline (exceptions only).
+	Symbolicated *sourcemap.Result `json:"symbolicated,omitempty"`
 }
 
 type logsResponse struct {
@@ -120,6 +124,7 @@ func (s *Server) getSessionLogs(w http.ResponseWriter, r *http.Request) {
 		s.lokiError(w, err)
 		return
 	}
+	symbolicable := map[int]session.Event{}
 	for _, ev := range evs {
 		tid := ev.Attrs["trace_id"]
 		var source string
@@ -139,6 +144,14 @@ func (s *Server) getSessionLogs(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		resp.Logs = append(resp.Logs, s.logLineOf(ev, source))
+		if ev.Name == "exception" {
+			symbolicable[len(resp.Logs)-1] = ev
+		}
+	}
+	symCtx, cancel := context.WithTimeout(r.Context(), symbolicateTimeout)
+	defer cancel()
+	for i, ev := range symbolicable {
+		resp.Logs[i].Symbolicated = s.symbolicateEvent(symCtx, ev)
 	}
 	resp.Count = len(resp.Logs)
 	if s.opts.LokiLinks != nil {

@@ -12,5 +12,6 @@
 | [0008](0008-sentry-sdk-bridge.md) | Sentry SDK bridge: `ouosentry` receiver in ouo-collector, forward to Sentry and translate to ouo, `video` replay kind | accepted |
 | [0009](0009-org-and-product-naming.md) | Org and product naming: `ouo11y` everywhere, plain product names, `ouo` as the short internal namespace, three repos | accepted |
 | [0010](0010-repository-layout.md) | Repository layout: product by component at the top, process material under `project/` | accepted |
+| [0011](0011-source-maps-and-symbolication.md) | Source maps: debug ids with release + URL fallback, maps in the rum-api bucket, upload token, symbolication on read | proposed |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.

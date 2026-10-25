@@ -342,6 +342,29 @@ func TestDeleteProject(t *testing.T) {
 		!reflect.DeepEqual(lk.deletes, []string{`{service_name=~".+"} | ouo_project_id="acme"`}) {
 		t.Fatalf("%+v loki=%v", e, lk.deletes)
 	}
+	if e.SourceMaps != nil {
+		t.Errorf("sourcemaps = %+v without a source-map store", e.SourceMaps)
+	}
+
+	maps := &fakeMaps{n: 3}
+	d.SourceMaps = maps
+	if e, err = d.DeleteProject(ctx, Request{ProjectID: "demo", DryRun: true}); err != nil || e.SourceMaps.Deleted != 3 || maps.deleted != "" {
+		t.Fatalf("dry run: %+v %v, deleted %q", e.SourceMaps, err, maps.deleted)
+	}
+	if e, err = d.DeleteProject(ctx, Request{ProjectID: "demo"}); err != nil || e.SourceMaps.Deleted != 3 || maps.deleted != "demo" {
+		t.Fatalf("delete: %+v %v, deleted %q", e.SourceMaps, err, maps.deleted)
+	}
+}
+
+type fakeMaps struct {
+	n       int
+	deleted string
+}
+
+func (f *fakeMaps) CountProject(_ context.Context, p string) (int, error) { return f.n, nil }
+func (f *fakeMaps) DeleteProject(_ context.Context, p string) (int, error) {
+	f.deleted = p
+	return f.n, nil
 }
 
 func TestPolicy(t *testing.T) {

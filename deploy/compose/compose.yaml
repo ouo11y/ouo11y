@@ -196,6 +196,9 @@ services:
       OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
       # Bearer of the operator API /v1/admin/* (deletions, audit log, retention sweep).
       OUO_ADMIN_TOKEN: ${OUO_ADMIN_TOKEN:-at_dev_0000000000000000}
+      # Per-project SECRET source-map upload tokens, <project>:<token>,... (ADR-0011): CI
+      # uploads maps with `ouo-sourcemaps upload`. Never the public project token.
+      OUO_UPLOAD_TOKENS: ${OUO_UPLOAD_TOKENS:-demo:ut_dev_demo_0000000000000000}
       # Replay retention and the sweeper (also read by the config file).
       REPLAY_RETENTION: ${OUO_RETENTION_REPLAYS:-720h}
       LOG_RETENTION: ${OUO_RETENTION_LOGS:-720h}

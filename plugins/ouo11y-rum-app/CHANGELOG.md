@@ -3,6 +3,13 @@
 Every user-visible change bumps `version` in `package.json` (it becomes `plugin.json`'s version and the
 `module.js?_cache=<version>` query string, so browsers drop the cached bundle).
 
+## Unreleased
+
+- **Source-mapped stack traces (ADR-0011):** an exception whose stack rum-api could map through the
+  uploaded source maps opens on the original files, lines and functions, shows the source lines around the
+  first mapped frame and a `source mapped` badge, with an Original / Raw toggle back to the minified stack.
+  Needs a rum-api with source maps (the `symbolicated` field); without it the raw stack shows as before.
+
 ## 0.8.0 (bridge parity C1 to C8, B1, F4; 2026-10-23)
 
 Needs rum-api after 0.3.0 for the masking state, the header's OS and environment and the trace paths; with an

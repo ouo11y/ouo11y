@@ -10,6 +10,10 @@
 #   examples/ouo-web/scripts/run.sh --first-party   # the SDK posts to /otel on the app's own origin,
 #       # proxied to the collector by scripts/serve-first-party.mjs (docs/first-party-endpoint.md)
 #
+# The build is minified with hidden source maps: they get debug ids (`ouo-sourcemaps inject`), go to
+# rum-api with the demo project's upload token (OUO_UPLOAD_TOKEN, ADR-0011) and are deleted before the
+# app is served, so verify can check that rum-api symbolicates the render error back to its source.
+#
 # Stock ports: OTLP 4318, replay 4319, backend 8081, Tempo 3200, rum-api 8080, overridden by
 # examples/ouo-web/.env (copy .env.example). With --env the URLs come from `ouo-env env/url`.
 # Needs Node 24 and `npm ci` at the repo root; the first run downloads Playwright's browsers.
@@ -26,7 +30,7 @@ while [[ $# -gt 0 ]]; do
     --port) PORT="$2"; shift ;;
     --browsers) BROWSERS="$2"; shift ;;
     --playwright-image) IMAGE="$2"; shift ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown flag $1" >&2; exit 2 ;;
   esac
   shift
@@ -51,6 +55,13 @@ cd "$root"
 [[ -f sdk/browser/dist/index.js ]] || { log "build @ouo11y/browser"; npm run -w sdk/browser build >/dev/null; }
 log "build (OTLP $VITE_OTLP_ENDPOINT, backend $VITE_BACKEND_URL)"
 npm run -w examples/ouo-web build >/dev/null
+[[ -f sdk/sourcemaps/dist/cli.js ]] || { log "build @ouo11y/sourcemaps"; npm run -w sdk/sourcemaps build >/dev/null; }
+release="${VITE_APP_VERSION:-1.4.2}"
+log "source maps: inject debug ids, upload to $OUO_RUM_API_URL (release $release), delete them from dist"
+node sdk/sourcemaps/dist/cli.js inject examples/ouo-web/dist >/dev/null
+node sdk/sourcemaps/dist/cli.js upload examples/ouo-web/dist --url "$OUO_RUM_API_URL" \
+  --token "${OUO_UPLOAD_TOKEN:-ut_dev_demo_0000000000000000}" --project "${VITE_OUO_PROJECT_ID:-demo}" \
+  --release "$release" --delete-after | tail -1
 # On a fresh Linux CI runner the browser also needs its system libraries.
 IFS=, read -ra browsers <<< "$BROWSERS"
 if [[ -n $IMAGE ]]; then

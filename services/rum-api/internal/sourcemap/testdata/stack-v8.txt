@@ -1,0 +1,5 @@
+RangeError: negative price
+    at o (https://shop.example/assets/app.min.js:1:64)
+    at n.checkout (https://shop.example/assets/app.min.js:1:156)
+    at c (https://shop.example/assets/app.min.js:1:229)
+    at native

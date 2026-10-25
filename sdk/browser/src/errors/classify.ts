@@ -42,8 +42,27 @@ export function exceptionAttributes(err: unknown, kind: ExceptionKind, extra: At
     "ouo.exception.fatal": fatal,
     "ouo.exception.handled": !fatal,
     "ouo.exception.kind": kind,
+    ...debugIdAttribute(s.stacktrace),
     ...extra,
   };
+}
+
+/**
+ * `ouo.exception.debug_ids` (ADR-0011): JSON `{ script url: debug id }` for the scripts the stack
+ * names. `ouo-sourcemaps inject` makes every bundle register its own URL -> debug id in
+ * `globalThis.__ouoDebugIds`, so this only checks which registered URLs the stack mentions (followed
+ * by ":<line>"). Kept this small on purpose: it counts against the core bundle budget.
+ */
+export function debugIdAttribute(stack: string): Attrs {
+  try {
+    const reg = (globalThis as { __ouoDebugIds?: Record<string, string> }).__ouoDebugIds;
+    const out: Record<string, string> = {};
+    for (const url in reg) if (stack.includes(url + ":")) out[url] = reg[url]!;
+    const json = JSON.stringify(out);
+    return json != "{}" ? { "ouo.exception.debug_ids": json } : {};
+  } catch {
+    return {};
+  }
 }
 
 /** `console.error(a, b, c)` -> one message string; Errors keep their stack. */

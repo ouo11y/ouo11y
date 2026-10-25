@@ -271,3 +271,47 @@ projects:
 		}
 	}
 }
+
+func TestSourceMapSettings(t *testing.T) {
+	c, err := Load("", false, envMap(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Retention.SourceMaps != 2160*time.Hour || c.Limits.MaxSourceMapBytes != 64<<20 || c.SourceMaps.CacheEntries != 128 ||
+		c.SourceMaps.CacheTTL != 10*time.Minute || len(c.Warnings()) != 0 {
+		t.Fatalf("defaults: %+v %+v warnings %v", c.Retention, c.SourceMaps, c.Warnings())
+	}
+	p := writeFile(t, `
+projects:
+  shop:
+    upload_token: ut_file_0000000000000000
+    retention: { sourcemaps: 24h }
+`)
+	c, err = Load(p, false, envMap(map[string]string{
+		"OUO_UPLOAD_TOKENS":   "web-store:ut_env_web_00000000000000, shop:ut_env_shop_0000000000000",
+		"SOURCEMAP_RETENTION": "4320h", "SOURCEMAP_CACHE_ENTRIES": "16", "MAX_SOURCEMAP_BYTES": "1024",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Projects["shop"].UploadToken != "ut_env_shop_0000000000000" || c.Projects["web-store"].UploadToken != "ut_env_web_00000000000000" ||
+		c.Projects["shop"].Retention.SourceMaps != 24*time.Hour || c.Retention.SourceMaps != 4320*time.Hour ||
+		c.SourceMaps.CacheEntries != 16 || c.Limits.MaxSourceMapBytes != 1024 {
+		t.Fatalf("%+v", c)
+	}
+	if w := c.Warnings(); len(w) != 1 || !strings.Contains(w[0], "projects.shop.retention.sourcemaps") {
+		t.Errorf("warnings = %v", w)
+	}
+	if r := c.Redacted(); r.Projects["shop"].UploadToken != "<redacted>" || c.Projects["shop"].UploadToken == "<redacted>" {
+		t.Error("upload token not redacted in the copy only")
+	}
+	for env, want := range map[string]string{"OUO_UPLOAD_TOKENS": "not <project>:<token>", "SOURCEMAP_CACHE_ENTRIES": "SOURCEMAP_CACHE_ENTRIES"} {
+		val := map[string]string{"OUO_UPLOAD_TOKENS": "nocolon", "SOURCEMAP_CACHE_ENTRIES": "x"}[env]
+		if _, err := Load("", false, envMap(map[string]string{env: val})); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s=%s: %v", env, val, err)
+		}
+	}
+	if _, err := Load("", false, envMap(map[string]string{"OUO_UPLOAD_TOKENS": "shop:short"})); err == nil || !strings.Contains(err.Error(), "at least 16") {
+		t.Errorf("short token: %v", err)
+	}
+}

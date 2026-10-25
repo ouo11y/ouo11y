@@ -161,7 +161,7 @@ export function ReplayActivity({ items, durationMs, currentMs, onSeek, clockStar
                 <span className={styles.body}>
                   <span className={styles.title}>{text.title}</span>
                   {text.detail && <span className={styles.detail}>{text.detail}</span>}
-                  {item.event?.type === 'exception' && <StackTrace stack={item.event.attrs.exception_stacktrace} />}
+                  {item.event?.type === 'exception' && <StackTrace stack={item.event.attrs.exception_stacktrace} symbolicated={item.event.symbolicated} />}
                 </span>
                 <span className={styles.time}>
                   {formatRelative(Number.isFinite(clockStart) ? item.ts - clockStart! : item.offsetMs)}

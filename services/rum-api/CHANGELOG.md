@@ -9,6 +9,12 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ### Added
 
+- Source maps and symbolication (ADR-0011, `docs/sourcemaps.md`): `PUT /v1/sourcemaps` with a
+  per-project upload token (`projects.<id>.upload_token`, `OUO_UPLOAD_TOKENS`), maps stored per
+  project next to the replays (debug-id and release + URL indexes), `GET /v1/sourcemaps`,
+  `POST /v1/symbolicate`, and a `symbolicated` object on every exception of the session timeline
+  and session logs (raw stack untouched). Parsed-map LRU cache, `retention.sourcemaps` swept with
+  the replays, delete-by-project removes the maps. New dependency `github.com/go-sourcemap/sourcemap`.
 - Data lifecycle (roadmap 8b, `docs/operations/data-lifecycle.md`):
   - replay retention (`retention.replays`, per project `projects.<id>.retention.replays`) enforced
     by a sweeper on both backends (expired sessions and orphan folders, idempotent, metrics

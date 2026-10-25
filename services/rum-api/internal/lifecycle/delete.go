@@ -62,6 +62,8 @@ type Deleter struct {
 	Audit  audit.Log
 	Logs   LogBackend
 	Traces TraceBackend
+	// SourceMaps, when set, also loses a deleted project's source maps.
+	SourceMaps SourceMapStore
 	// LokiDeletes submits Loki delete requests (loki.delete_api).
 	LokiDeletes bool
 	// LogRetention bounds the session lookup of a user deletion.
@@ -70,6 +72,14 @@ type Deleter struct {
 	MaxSessionDuration time.Duration
 	Now                func() time.Time
 	metrics            deleteMetrics
+}
+
+// SourceMapStore is the source-map store's part in delete-by-project
+// (sourcemap.Store).
+type SourceMapStore interface {
+	// CountProject returns how many maps the project has.
+	CountProject(ctx context.Context, projectID string) (int, error)
+	DeleteProject(ctx context.Context, projectID string) (int, error)
 }
 
 // NewDeleter wires the metrics on mp (the global provider when nil).
@@ -243,6 +253,20 @@ func (d *Deleter) DeleteProject(ctx context.Context, req Request) (audit.Entry, 
 	}
 	sort.Strings(ids)
 	setSessions(&e, ids)
+	if d.SourceMaps != nil {
+		e.SourceMaps = &audit.SourceMaps{}
+		var n int
+		var err error
+		if req.DryRun {
+			n, err = d.SourceMaps.CountProject(ctx, req.ProjectID)
+		} else {
+			n, err = d.SourceMaps.DeleteProject(ctx, req.ProjectID)
+		}
+		e.SourceMaps.Deleted = n
+		if err != nil {
+			errs = append(errs, fmt.Errorf("delete source maps: %w", err))
+		}
+	}
 	query := loki.SubjectFilter("", req.ProjectID)
 	e.Loki = d.lokiDelete(ctx, query, to, req.DryRun)
 	if e.Loki.Status == BackendFailed {

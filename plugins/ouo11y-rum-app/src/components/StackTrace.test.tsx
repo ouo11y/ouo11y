@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { TimelineEvent } from '../api/types';
+import type { Symbolicated, TimelineEvent } from '../api/types';
 import { frameCount, StackTrace } from './StackTrace';
 import { Timeline } from './Timeline';
 
@@ -26,6 +26,57 @@ describe('StackTrace (C1)', () => {
   it('renders nothing without a stack', () => {
     const { container } = render(<StackTrace stack={'  '} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('opens on the original stack with source context and toggles to the raw one (ADR-0011)', () => {
+    const raw =
+      'RangeError: negative price\n    at o (https://shop.example/assets/app.min.js:1:64)\n    at c (https://shop.example/assets/vendor.js:1:9)';
+    const sym: Symbolicated = {
+      status: 'partial',
+      mapped: 1,
+      stacktrace:
+        'RangeError: negative price\n    at totalOf (src/app.ts:10:13)\n    at c (https://shop.example/assets/vendor.js:1:9)',
+      frames: [
+        {
+          status: 'mapped',
+          generated: { file: 'https://shop.example/assets/app.min.js', line: 1, column: 64, function: 'o' },
+          original: { file: 'src/app.ts', line: 10, column: 13, function: 'totalOf' },
+          context: {
+            pre: ['  for (const item of items) {', '    if (item.price < 0) {'],
+            line: '      throw new RangeError("negative price");',
+            post: ['    }'],
+          },
+        },
+        {
+          status: 'no_map',
+          generated: { file: 'https://shop.example/assets/vendor.js', line: 1, column: 9, function: 'c' },
+        },
+      ],
+    };
+    render(<StackTrace stack={raw} symbolicated={sym} />);
+    expect(screen.getByTestId('stack-symbolicated')).toHaveTextContent('source mapped 1/2');
+    fireEvent.click(screen.getByTestId('stack-toggle'));
+    const original = screen.getByTestId('stack-original');
+    expect(original).toHaveTextContent('RangeError: negative price');
+    const frames = screen.getAllByTestId('stack-frame');
+    expect(frames[0]).toHaveTextContent('at totalOf (src/app.ts:10:13)');
+    expect(frames[1]).toHaveTextContent('at c (https://shop.example/assets/vendor.js:1:9)');
+    expect(screen.getByTestId('stack-context')).toHaveTextContent('10 throw new RangeError("negative price");');
+    expect(screen.queryByTestId('stack-trace')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('stack-view-raw'));
+    expect(screen.getByTestId('stack-trace')).toHaveTextContent('at o (https://shop.example/assets/app.min.js:1:64)');
+    expect(screen.getByTestId('stack-view-raw')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByTestId('stack-view-original'));
+    expect(screen.getByTestId('stack-original')).toBeInTheDocument();
+  });
+
+  it('shows the raw stack only when nothing was mapped', () => {
+    const sym: Symbolicated = { status: 'no_maps', mapped: 0, stacktrace: STACK, frames: [] };
+    render(<StackTrace stack={STACK} symbolicated={sym} defaultOpen />);
+    expect(screen.queryByTestId('stack-symbolicated')).toBeNull();
+    expect(screen.queryByTestId('stack-view-raw')).toBeNull();
+    expect(screen.getByTestId('stack-trace')).toBeInTheDocument();
   });
 
   it('counts JS, Java-style and native frames', () => {

@@ -57,6 +57,12 @@ limits:
   max_chunk_bytes: 4194304                # [MAX_CHUNK_BYTES] rrweb chunk
   max_frame_chunk_bytes: 8388608          # [MAX_FRAME_CHUNK_BYTES] never below max_chunk_bytes
   max_video_chunk_bytes: 8388608          # [MAX_VIDEO_CHUNK_BYTES] decoded mp4; never below max_chunk_bytes
+  max_sourcemap_bytes: 67108864           # [MAX_SOURCEMAP_BYTES] one decompressed source map (ADR-0011)
+
+# Symbolication of minified stacks on read (ADR-0011, docs/sourcemaps.md).
+sourcemaps:
+  cache_entries: 128                      # [SOURCEMAP_CACHE_ENTRIES] parsed maps kept per replica
+  cache_ttl: 10m                          # [SOURCEMAP_CACHE_TTL] other replicas see a re-upload after it
 
 storage:
   # filesystem (default) or s3. Both keep the same layout:
@@ -93,12 +99,16 @@ retention:
   logs: 720h                              # [LOG_RETENTION] Loki's retention: how far back delete-by-user looks
   sweep_interval: 1h                      # [REPLAY_SWEEP_INTERVAL] retention sweeper; 0 disables it
   orphan_grace: 1h                        # session folders without meta.json older than this are removed
+  sourcemaps: 2160h                       # [SOURCEMAP_RETENTION] from the upload; keep >= logs; 0 keeps forever
 
 # Per-project overrides, keyed by project id (the collector's htpasswd user name).
 projects: {}
 #  ttltest:
 #    retention:
 #      replays: 24h                       # replaces retention.replays for this project
+#      sourcemaps: 720h                   # replaces retention.sourcemaps for this project
+#    upload_token: "${OUO_UPLOAD_TOKEN_TTLTEST}"  # SECRET source-map upload token (CI); also
+#                                         # OUO_UPLOAD_TOKENS=<project>:<token>,...
 #    sampling:                            # server-side cap; the replay sink drops chunks of
 #      session_rate: 0.5                  # sessions outside it (same deterministic rule as
 #      replay_rate: 0.1                   # the SDKs, so it keeps a subset of their sample)
