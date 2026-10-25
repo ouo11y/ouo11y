@@ -76,5 +76,7 @@ jobs:
             exit 0
           fi
           gh label create "autorelease: tagged" --repo "$GITHUB_REPOSITORY" --color ededed 2>/dev/null || true
-          gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "autorelease: pending" --add-label "autorelease: tagged"
+          # REST, not `gh pr edit`: its GraphQL query reads the retired Projects (classic) cards and fails.
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$pr/labels/autorelease%3A%20pending" --silent || true
+          gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels" -f 'labels[]=autorelease: tagged' --silent
           echo "Release PR #$pr for $TAG marked autorelease: tagged" >> "$GITHUB_STEP_SUMMARY"
