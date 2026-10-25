@@ -62,6 +62,12 @@ Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three 
   - The full ouo-web run built from that merged tree (B's terser SDK, `sourceMap: true`, this branch) against the env also passed **28/28**, with the render error at `ChaosPanel.tsx:18` `RenderBomb` and 10 of 10 frames mapped.
 - Not verified: the S3 path of the map store (`replay.Objects`) is covered by build and review only. No MinIO run was done, so run `go test` with `OUO_TEST_S3_ENDPOINT` before a release.
 
+- **After the rebase onto main** (#72 terser, #66 delivery, #80 session lifecycle; 2026-10-25), with the URL-keyed registry:
+  - `sdk/browser`: Vitest 179, `tsc`, `size:check` (index.js 45,036 of 45,056 bytes gzip) and `compat:check` (source maps included) pass;
+  - Playwright passes in Chromium and WebKit (45 passed, 1 Chromium-only skip);
+  - `ouo-sourcemaps` 11 tests pass; rum-api `go vet` and `go test` pass; the plugin's Jest 168, typecheck and lint pass; lychee passes;
+  - ouo-web verify passes **28/28** on `ouo-env web-sourcemaps-fa863c`, which runs main's network-isolated CLI.
+
 ## Left (checklist N41)
 
 - A public upload path through `ouo-collector`. I asked the orchestrator whether I could touch `collector/` and got no answer, so this ships the rum-api-only version.
