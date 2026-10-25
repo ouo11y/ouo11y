@@ -26,7 +26,9 @@
       "release-type": "node",
       "component": "browser",
       "extra-files": [
-        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/browser'].version" }
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/browser'].version" },
+        { "type": "json", "path": "/examples/ouo-web/package.json", "jsonpath": "$.dependencies['@ouo11y/browser']" },
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['examples/ouo-web'].dependencies['@ouo11y/browser']" }
       ]
     },
     "sdk/react-native": {
