@@ -25,6 +25,7 @@ their rum-api bound is what stores and serves what they send.
 <!-- compat:lines -->
 | Component | Line | Needs collector | Needs rum-api | Needs plugin | Needs Grafana | Replay | Notes |
 |---|---|---|---|---|---|---|---|
+| browser | 0.3 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | gzip OTLP and replay with retry and an offline store; with rum-api >= 0.5 stacks are symbolicated from uploaded source maps (ADR-0011) and sessions carry `device_id`; older rum-api shows raw stacks |
 | browser | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | HTTP Basic project credentials on OTLP and replay; 0.1.x posted unauthenticated |
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
