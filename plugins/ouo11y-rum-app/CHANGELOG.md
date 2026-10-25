@@ -5,19 +5,19 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## Unreleased
 
-- **Source-mapped stack traces (ADR-0011):** an exception whose stack rum-api could map through the
-  uploaded source maps opens on the original files, lines and functions, shows the source lines around the
-  first mapped frame and a `source mapped` badge, with an Original / Raw toggle back to the minified stack.
-  Needs a rum-api with source maps (the `symbolicated` field); without it the raw stack shows as before.
-
 ## [0.9.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.8.0...plugin-v0.9.0) (2026-10-25)
 
 
 ### Added
 
-* **collector:** mobile vitals, Sentry SDK range, examples with trace-continuity verify ([#45](https://github.com/ouo11y/ouo11y/issues/45)) ([131b206](https://github.com/ouo11y/ouo11y/commit/131b2063324a28ad991a05db7e03c2f9cb0cc427))
-* **rum-api,plugin:** funnel reports (N46, ADR-0012) ([#70](https://github.com/ouo11y/ouo11y/issues/70)) ([e8164e5](https://github.com/ouo11y/ouo11y/commit/e8164e533f90446a4cd312ef5363396c688560d4))
-* source maps and symbolication for minified web stacks (N36 part C, ADR-0011) ([#64](https://github.com/ouo11y/ouo11y/issues/64)) ([9a41831](https://github.com/ouo11y/ouo11y/commit/9a41831b67b58831672662f838608fbb06776f25))
+- **Funnels page (ADR-0012, `docs/funnels.md`):** Grafana -> ouo11y RUM -> Funnels. Define ordered steps
+  (page paths or events), see how many sessions and users reach each one and the drop-off between them,
+  and open the sessions that stopped at a step, with their replays. The funnel lives in the URL, so it can be
+  shared or bookmarked. Needs rum-api >= 0.5.0 (`/v1/funnels/*`).
+- **Source-mapped stack traces (ADR-0011):** an exception whose stack rum-api could map through the
+  uploaded source maps opens on the original files, lines and functions, shows the source lines around the
+  first mapped frame and a `source mapped` badge, with an Original / Raw toggle back to the minified stack.
+  Needs a rum-api with source maps (the `symbolicated` field); without it the raw stack shows as before.
 
 ## 0.8.0 (bridge parity C1 to C8, B1, F4; 2026-10-23)
 
