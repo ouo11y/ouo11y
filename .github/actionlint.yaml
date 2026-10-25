@@ -1,5 +1,0 @@
-self-hosted-runner:
-  # Custom label of the self-hosted runners: only a runner labelled `stack` takes jobs that
-  # start a stack on fixed host ports.
-  labels:
-    - stack

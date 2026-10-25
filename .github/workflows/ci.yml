@@ -303,7 +303,9 @@ jobs:
     name: examples (journey + verify)
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
-    runs-on: [self-hosted, Linux, stack]  # starts a stack on fixed ports: one at a time, on the runner labelled stack
+    # Any self-hosted runner: each has its own rootless dockerd and its own host ports (OUO_*_PORT in
+    # its .env, project/kb/ci-runners.md), so two stacks on two runners do not collide.
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 35
     env:
       WEB: ${{ needs.changes.outputs.ex-web }}
@@ -331,6 +333,8 @@ jobs:
           npm run build -w plugins/ouo11y-rum-app
           if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
           if [ "$OUO_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
+      - name: Stack URLs from this runner's ports
+        run: .github/scripts/stack-env.sh | tee -a "$GITHUB_ENV"
       - name: Start the stack (built from this checkout)
         run: |
           cp deploy/compose/.env.example deploy/compose/.env
@@ -361,17 +365,17 @@ jobs:
           (cd examples/ouo-mobile && npm ci && npx tsc --noEmit)
           start=$(( $(date +%s) - 1 ))
           for scenario in healthy errored; do
-            (cd sdk/react-native && SCENARIO=$scenario OUO_BACKEND=http://localhost:8081 OUO_STORAGE_FILE="$RUNNER_TEMP/rn-$scenario.json" \
+            (cd sdk/react-native && SCENARIO=$scenario OUO_OTLP="$OUO_OTLP_URL" OUO_REPLAY_ENDPOINT="$OUO_REPLAY_URL" OUO_BACKEND="$OUO_BACKEND_URL" OUO_STORAGE_FILE="$RUNNER_TEMP/rn-$scenario.json" \
               node --require ./playground/preload.cjs playground/scenario.cjs)
           done
           end=$(( $(date +%s) + 2 ))
-          printf '{"start": %d, "end": %d, "backend": "http://localhost:8081"}\n' "$start" "$end" > "$RUNNER_TEMP/rn.json"
+          printf '{"start": %d, "end": %d, "backend": "%s"}\n' "$start" "$end" "$OUO_BACKEND_URL" > "$RUNNER_TEMP/rn.json"
           python3 -I examples/ouo-mobile/scripts/verify.py --journey "$RUNNER_TEMP/rn.json" --min-failed 1
       - name: sentry-mobile (typecheck; Sentry wire traffic through the bridge + verify)
         if: env.SENTRY_MOBILE == 'true'
         run: |
           (cd examples/sentry-mobile && npm ci && npx tsc --noEmit)
-          python3 -I examples/sentry-mobile/scripts/ci-journey.py --out "$RUNNER_TEMP/sentry.json"
+          python3 -I examples/sentry-mobile/scripts/ci-journey.py --bridge "$OUO_SENTRY_URL" --backend "$OUO_BACKEND_URL" --out "$RUNNER_TEMP/sentry.json"
           python3 -I examples/sentry-mobile/scripts/verify.py --journey "$RUNNER_TEMP/sentry.json"
       - name: Stack logs on failure
         if: failure()
