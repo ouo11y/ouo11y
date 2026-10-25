@@ -1,0 +1,4 @@
+ouo     cpu  captures   95  median  45.0 ms  p25  40.0  p75  46.0  p95  55.0  max  69.0  >16.7ms  95  total   4136 ms
+ouo     wall captures   95  median  51.0 ms  p25  48.0  p75  53.0  p95  92.0  max 103.0  >16.7ms  95  total   5182 ms
+sentry  cpu  captures   71  median  22.0 ms  p25  15.0  p75  25.0  p95  27.0  max  29.0  >16.7ms  51  total   1442 ms
+sentry  wall captures   71  median  29.0 ms  p25  21.0  p75  32.0  p95  35.0  max  43.0  >16.7ms  62  total   1903 ms

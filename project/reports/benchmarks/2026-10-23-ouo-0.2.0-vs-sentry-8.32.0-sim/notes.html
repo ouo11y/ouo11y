@@ -1,0 +1,50 @@
+<div class="claim">
+<p><b>Dry run of the harness on the iOS simulator. These are not device costs.</b> It checks that every tier, metric,
+offline run and soak works end to end before the iPhone run. 10 rounds × 8 cells, 95 s each, every cell 10 of 10 runs in the
+statistics, every run 19/19 taps. Other sessions were building on the same Mac during the run, so absolute numbers are noisy.
+Paired deltas (each run minus the no-SDK run of the same round) cancel most of that noise.</p>
+<p>The ouo SDK is the workspace build at the start of B3 (0.2.0 plus #40: replay capture off the main thread, native
+crashes). Sentry is the latest stable at run time: <code>@sentry/react-native</code> 8.32.0 with sentry-cocoa 9.31.0.</p>
+</div>
+<h2>Findings, losses first</h2>
+<h3>Where ouo costs more</h3>
+<ul>
+<li><b>Replay upload, about 2× Sentry's.</b> ouo sends <b>+275 KB per minute</b> (T3, IQR 271–290) and <b>+267 KB per minute</b> (T4) more replay
+than Sentry. Per 95 s run that is +439 KB on the wire in T3 and +425 KB in T4. Both record the same pixels at the same rate
+and resolution in T4, but ouo uploads gzipped JPEG frames (JPEG quality 0.5, a full frame per capture plus touch-triggered captures),
+while Sentry encodes 5 s H.264 video segments. On a metered mobile connection this is the largest cost ouo adds over Sentry.</li>
+<li><b>OTLP is sent uncompressed.</b> In T1/T2 ouo's wire bytes match Sentry's (+2 KB per run in T2), but only because Sentry gzips
+its envelopes: Sentry's payload before compression is 221 KB larger than ouo's. ouo sends OTLP/HTTP JSON with no
+<code>Content-Encoding</code>, so gzip would cut ouo's T2 upload by about two thirds. In T1, ouo (running as T2, since it has no
+errors-only setup) sends 14 more requests and 52 KB more than Sentry with tracing off.</li>
+<li><b>No offline buffer.</b> With SDK traffic refused for a whole run, Sentry kept 535 KB of envelopes on disk and re-sent 315 KB
+after reconnecting. ouo kept nothing (0 KB on disk). The relaunch sent only its own start-up traffic (3 requests, 24 KB): spans, logs
+and replay chunks from the offline run were lost. ouo retries in memory while the process lives (56 attempts instead of 34)
+and drops the rest.</li>
+<li><b>No errors-only mode (T1).</b> ouo cannot switch off its fetch tracing, so an app that wants Sentry's T1 footprint has no ouo
+equivalent. Even so, ouo's T2 costs less CPU, memory and startup than Sentry's T1 on this run.</li>
+</ul>
+<h3>Where ouo costs less (simulator)</h3>
+<ul>
+<li><b>CPU with replay:</b> −3.9 pp of a core over the journey (T3 and T4), −5.0 pp in the idle tail (T3). Sentry's replay keeps
+encoding video with nobody touching the app (+8.0 pp idle against no SDK, ouo +3.0 pp).</li>
+<li><b>Memory with replay:</b> steady −8.3 MB, peak −46.5 MB (T3). Sentry's peak against no SDK is +51 MB (video encoder buffers
+on the simulator), ouo's +5 MB.</li>
+<li><b>Startup:</b> JS start to first frame +9 ms (ouo T2) against +149 ms (Sentry T2) over no SDK. With replay, ouo adds 63 ms
+and Sentry 146 ms.</li>
+<li><b>Size:</b> ouo adds 573 KB of native code and 104 KB of JS bytecode, against Sentry's 3,027 KB and 831 KB.</li>
+<li><b>Memory over 30 minutes (one soak per cell):</b> ouo's growth (+36.8 MB/h) equals the no-SDK app's own (+36.2 MB/h, React
+Native's navigation stack). Sentry's slope was −7.3 MB/h after a 157 MB peak. There is no sign of an ouo leak, but one soak per cell
+is not a measurement of growth differences.</li>
+</ul>
+<h3>Harness findings</h3>
+<ul>
+<li>Sentry's session replay did not start in 1 of 4 Sentry launches in the smoke runs, and in 0 of the 20 replay runs (T3, T4) of this run (frames on
+disk, no <code>replay_video</code> item). It may be the intermittent stop tracked as N7. The harness now leaves such runs out of the
+statistics and lists them.</li>
+<li>Sentry T1 still sent 6 <code>log</code> envelopes in every run with <code>enableLogs</code> unset. Their origin is not determined yet.
+They are counted, as Sentry's T1 cost.</li>
+<li>Upgrading <code>@sentry/react-native</code> without its <code>@sentry/core</code> doubled Sentry's JS in the bundle (+1.5 MB). The build
+now moves both together (kb: <code>sdk-overhead-ios.md</code>).</li>
+<li>Three runs had one extra backend request (a second <code>GET /api/products</code>). No tap was missed; the runs are listed and kept.</li>
+</ul>

@@ -152,3 +152,98 @@ python3 -I scripts/perf/report.py --summary <dir>/summary.json --notes notes.htm
 - Use a dedicated simulator (`xcrun simctl create "ouo-perf iPhone 18 Pro" ...`): other sessions drive
   the shared one.
 - `xcrun simctl io <udid> screenshot` works headless for calibrating coordinates (1206x2622 px = 402x874 pt).
+
+## B3 benchmark harness (2026-10-23)
+
+The #25 harness grew into the per-release benchmark of [docs/benchmarks.md](../../docs/benchmarks.md)
+(tiers T1 to T4, rules, release gate). Entry point `scripts/perf/bench.sh` (build, size, bench,
+result, report, trend); the pieces:
+
+- `build.sh`: Release build for `--target sim|device` with every endpoint on the proxy ports
+  (4718 OTLP, 4719 replay, 4720 Sentry, 4781 backend; `localhost` or the Mac's LAN IP), a link map
+  and the Hermes source map. `--ouo` / `--sentry` pick SDK versions (`npm install --no-save`).
+- `bench.py`: cells = SDK + tier (`Documents/perf-mode.json` `{"mode","tier"}`), N rounds rotated,
+  then offline + recover runs and a 30 min soak. Simulator: container wipe + `sample.py`. Device:
+  `devicectl` reinstall per run, `devicectl device copy to/from` for the mode and `perf.json`,
+  `xctrace record --template 'Activity Monitor' --all-processes`.
+- `bench_result.py` (absolute times, paired deltas, tap check by backend requests),
+  `bench_report.py`, `bench_trend.py`, `gate.py` (section 5 thresholds), `size.py`.
+- `n22_device.py`: Time Profiler + os_signpost and the two crash flows on a real iPhone.
+
+Quirks found:
+
+- **Size attribution must classify by library name, not path**: the app lives in
+  `examples/sentry-mobile`, so a `sentry` match on the object path counts all of React Native as
+  Sentry. The prebuilt `Sentry.xcframework` is a static archive linked into the app binary (no
+  `Frameworks/Sentry.framework`).
+- `LD_GENERATE_MAP_FILE` + one `LD_MAP_FILE_PATH` fails a Release simulator build (two archs, one
+  output: "duplicate output file"). Use `ONLY_ACTIVE_ARCH=YES` and
+  `LD_MAP_FILE_PATH=$(TARGET_TEMP_DIR)/linkmap-$(CURRENT_ARCH).txt`.
+- The Hermes bundle's composed source map is one line whose columns are bytecode offsets: a
+  segment's length is the next segment's column minus its own. The header and shared string tables
+  map to no source (about 40 % of `main.jsbundle`), so per-SDK JS numbers are function bytecode.
+- `@ouo11y/react-native` bundles OpenTelemetry into `dist/index.js` (tsup `noExternal`), so ouo's
+  JS shows as one source; Sentry's spreads over `@sentry/core`, `@sentry/react-native`,
+  `@sentry/replay`, `@sentry/browser`, `@sentry/conventions`.
+- Wire formats: ouo sends OTLP/HTTP **JSON uncompressed** (no `Content-Encoding`); replay chunks
+  are gzip. sentry-cocoa's native transport gzips envelopes. The proxy records both the wire size
+  and the decoded size (`req_body_decoded`) and the envelope item types, so replay bytes are
+  counted apart for Sentry too.
+- ouo keeps no on-disk queue for spans and logs (the OTel batch processors hold up to 2048 log
+  records and 1024 spans in memory); only the crash report and session state are files.
+- xctrace `Activity Monitor` export: table `activity-monitor-process-live`, columns `start`
+  (ns from the recording start), `process` (`fmt` = name), `cpu-total` (ns on core),
+  `cpu-percent`, `memory-physical-footprint`. The recording's absolute start is `start-date` in
+  the TOC. On a simulator destination the recording fails and the table has no rows: simulator
+  runs keep `sample.py`.
+- Never edit a bash script while it runs (bash reads it as it goes; the build died with a syntax
+  error in a line that was fine).
+- **Upgrading `@sentry/react-native` alone duplicates Sentry's JS.** The app pins `@sentry/core`
+  as a direct dependency; `npm install @sentry/react-native@8.32.0` then nests a second
+  `@sentry/core` (10.76.2) and Metro bundles a second copy of `@sentry/browser`, `replay`,
+  `feedback`, `replay-canvas`...: +1.5 MB of Hermes bytecode (Sentry JS 822 KB -> 2,336 KB). With
+  `@sentry/core` at the version the SDK depends on, 8.32.0 is 831 KB. `build.sh` installs both.
+
+## Real iPhone (iPhone 16 Pro Max, iOS 18.6.2, 2026-10-23)
+
+- **`requestAnimationFrame` is `setTimeout(0)` in bridgeless React Native** (RN 0.86
+  `ReactCommon/react/runtime/TimerManager.cpp`). The #25 frame monitor's recursive rAF loop
+  busy-looped on the phone: 12 million callbacks with dt 0 and ~85 % app CPU per 95 s run. The simulator
+  paced the same loop at 60 Hz, so it went unnoticed. `src/perf.ts` now uses a 16 ms `setTimeout`
+  heartbeat. Any device number taken with the old monitor is void.
+- **Local Network permission after every install.** An app talking to the Mac's LAN IP gets the
+  "find devices on your local network" alert at its first request after an install. Until it is
+  answered, every request is held: no backend call and no SDK upload during the run. Uninstalling
+  resets it. `bench.py` primes each fresh install with a no-SDK launch whose XCUITest
+  (`testPrime`) taps Allow in Springboard. A run where an SDK sent nothing is excluded by
+  `bench_result.py`.
+- **Free (personal) team: deleting the team's last app drops the user's trust** in the developer
+  certificate. Every later launch is then refused ("invalid code signature, inadequate
+  entitlements or its profile has not been explicitly trusted"). Keep the XCUITest runner
+  (`dev.ouo.perfjourney.xctrunner`) installed; `Device.reset` refuses to uninstall the app otherwise.
+  The founder trusts once in Settings > General > VPN & Device Management.
+- Taps: the 16 Pro Max lays the home screen out 16 pt higher than the iPhone 18 Pro simulator
+  (`--dy -16`; row centres follow the 440 pt width). Calibrated from `xcrun devicectl device capture
+  screenshot --device <udid> --destination x.png` (1320x2868 px = 440x956 pt), and checked by the run's
+  25 backend requests matching the simulator's, in order.
+- `xcrun devicectl device info apps | processes | files`, `device copy to/from --domain-type
+  appDataContainer`, `device process launch --payload-url`, and `device process signal` cover
+  everything `simctl` did. Each device run takes about 3.5 min: reinstall, priming launch,
+  recording and export.
+- Activity Monitor can carry more instruments (to confirm on the first B3 run): `--template 'Activity Monitor' --instrument 'Power
+  Profiler' --instrument Hitches` (`bench.py --power`).
+- **xctrace Power Profiler needs iOS 26** ("The Power Profiler instrument requires iOS 26.0"): on
+  iOS 18 adding it fails the whole recording. No per-process energy on iOS 18 through xctrace; the
+  Hitches instrument works (`hitches-summary`: one row per hitch, with its duration).
+- **Notification banners steal taps** near the top of the screen (the in-app back button at y 68 pt).
+  The app goes to the background: CPU time and memory freeze, `perf.json` stops, and XCUITest fails
+  with "kAXErrorServerNotFound". Ask for Do Not Disturb. `bench.py` keeps such a run as
+  `run<n>-failed<k>` and redoes it once.
+- Background jobs started from a Claude session were killed without a trace once (21:33). Start long
+  device chains with `nohup ... & disown`, and check `ps` before trusting a quiet log.
+- **Per-run reinstall makes iOS ask for the Local Network permission every run.** With the founder
+  watching the phone, that is a prompt every 4 minutes. Next time, keep the app installed and reset its
+  state in-app (delete `Library/Caches`, `Application Support`, `tmp` and stale `Documents` files at JS
+  start, before either SDK starts), so the permission is asked once.
+- Measured phone time per round (2026-10-23): capture profile 2.0–2.5 min, one bench run 3.4–4.2 min
+  (median 3.6), crash flow about 1 min.

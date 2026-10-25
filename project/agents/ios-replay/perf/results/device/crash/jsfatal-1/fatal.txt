@@ -1,0 +1,6 @@
+exception session=57f3263e-c0a3-4510-8393-44137068f4e6 kind=uncaught type=Error message='sentry-demo fatal JS error from setTimeout' crash_ts=None
+  Error: sentry-demo fatal JS error from setTimeout
+    at anonymous (app:///main.jsbundle:1:1813924) [in app]
+exception session=None kind=None type=Error message='sentry-demo fatal JS error from setTimeout' crash_ts=None
+  Error: sentry-demo fatal JS error from setTimeout
+    at anonymous (app:///main.jsbundle:1:1813925) [in app]

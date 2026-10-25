@@ -1,0 +1,36 @@
+{
+ "none": {
+  "mode": "none"
+ },
+ "sentry-T1": {
+  "mode": "sentry",
+  "tier": "T1"
+ },
+ "sentry-T2": {
+  "mode": "sentry",
+  "tier": "T2"
+ },
+ "ouo-T2": {
+  "mode": "ouo",
+  "tier": "T2",
+  "ouoReplay": false
+ },
+ "sentry-T3": {
+  "mode": "sentry",
+  "tier": "T3"
+ },
+ "ouo-T3": {
+  "mode": "ouo",
+  "tier": "T3",
+  "ouoReplay": true
+ },
+ "sentry-T4": {
+  "mode": "sentry",
+  "tier": "T4"
+ },
+ "ouo-T4": {
+  "mode": "ouo",
+  "tier": "T4",
+  "ouoReplay": true
+ }
+}

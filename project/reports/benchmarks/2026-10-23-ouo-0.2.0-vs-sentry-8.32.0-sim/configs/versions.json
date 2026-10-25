@@ -1,0 +1,9 @@
+{
+ "target": "sim",
+ "host": "localhost",
+ "@ouo11y/react-native": "0.2.0",
+ "@sentry/react-native": "8.32.0",
+ "@sentry/core": "10.76.2",
+ "react-native": "0.86.3",
+ "expo": "57.0.28"
+}

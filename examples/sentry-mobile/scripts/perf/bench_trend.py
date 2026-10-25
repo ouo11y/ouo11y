@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Trend page across benchmark runs: project/reports/benchmarks/trend.html (and the folder's index.md).
+
+    python3 -I bench_trend.py [--dir project/reports/benchmarks]
+
+Reads every <dir>/*/result.json. Per tier and metric, the cost each SDK adds over the no-SDK
+baseline (paired median delta), one point per run, ouo and Sentry side by side, device runs and
+simulator runs apart (they are never mixed on one line). Self-contained HTML.
+"""
+import argparse
+import glob
+import html
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bench_report import CSS  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "project", "reports", "benchmarks"))
+METRICS = [("cpu_pct", "CPU journey, pp"), ("idle_cpu_pct", "CPU idle, pp"), ("steady_mb", "Memory steady, MB"),
+           ("start_ms", "Startup added, ms"), ("sdk_up_kb", "SDK bytes up, KB/run"), ("dropped_pct", "JS frames dropped, %")]
+
+
+def esc(s):
+    return html.escape(str(s))
+
+
+def chart(points, title):
+    """points: [(run label, sentry value | None, ouo value | None)] in run order."""
+    if not points:
+        return ""
+    vals = [v for _, s, o in points for v in (s, o) if v is not None] + [0]
+    lo, hi = min(vals), max(vals)
+    hi = hi if hi > lo else lo + 1
+    W, H, L, R, T, B = 440, 170, 42, 10, 10, 34
+    n = len(points)
+    x = lambda i: L + (W - L - R) * (i + 0.5) / n
+    y = lambda v: T + (H - T - B) * (1 - (v - lo) / (hi - lo))
+    out = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{esc(title)}">',
+           f'<line x1="{L}" x2="{W - R}" y1="{y(0):.1f}" y2="{y(0):.1f}" stroke="var(--muted)"/>']
+    for i in range(5):
+        v = lo + (hi - lo) * i / 4
+        out.append(f'<text x="{L - 4}" y="{y(v) + 4:.1f}" text-anchor="end">{v:.1f}</text>')
+    for idx, col in ((1, "var(--s2)"), (2, "var(--s3)")):
+        pts = [(i, p[idx]) for i, p in enumerate(points) if p[idx] is not None]
+        if len(pts) > 1:
+            out.append('<path d="' + "".join(("M" if j == 0 else "L") + f"{x(i):.1f},{y(v):.1f}" for j, (i, v) in enumerate(pts))
+                       + f'" fill="none" stroke="{col}" stroke-width="1.6"/>')
+        for i, v in pts:
+            out.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="3.5" fill="{col}"><title>{esc(points[i][0])}: {v:+.2f}</title></circle>')
+    for i, p in enumerate(points):
+        out.append(f'<text x="{x(i):.1f}" y="{H - 18}" text-anchor="middle">{esc(p[0][:10])}</text>')
+    out.append("</svg>")
+    return f'<div class="card"><h3>{esc(title)}</h3>{"".join(out)}</div>'
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default=DEFAULT_DIR)
+    a = ap.parse_args()
+    runs = []
+    for p in sorted(glob.glob(os.path.join(a.dir, "*", "result.json"))):
+        r = json.load(open(p))
+        runs.append((os.path.basename(os.path.dirname(p)), r))
+    sections = []
+    for target in ("device", "simulator"):
+        rs = [(n, r) for n, r in runs if r["meta"]["device"].get("target") == target]
+        if not rs:
+            continue
+        cards = []
+        for tier in ("T1", "T2", "T3", "T4"):
+            for key, label in METRICS:
+                pts = []
+                for name, r in rs:
+                    t = r.get("tiers", {}).get(tier)
+                    if not t:
+                        continue
+                    g = lambda c: ((r["vs_none"].get(c) or {}).get(key) or {}).get("median")
+                    pts.append((name, g(t["sentry"]), g(t["ouo"])))
+                if pts:
+                    cards.append(chart(pts, f"{tier} · {label}"))
+        warn = "" if target == "device" else '<div class="banner"><b>Simulator-only numbers</b>: harness checks and CI regressions, not device costs.</div>'
+        sections.append(f"<h2>{'Device runs' if target == 'device' else 'Simulator runs'}</h2>{warn}<div class='grid2'>{''.join(cards)}</div>")
+    rows = "".join(
+        f"<tr><td><a href='{esc(n)}/report.html'>{esc(n)}</a></td><td>{esc(r['meta']['device'].get('target'))}</td>"
+        f"<td>{esc(r['meta']['device'].get('model'))} {esc(r['meta']['device'].get('os'))}</td>"
+        f"<td>{esc(r['meta']['versions'].get('@ouo11y/react-native'))}</td><td>{esc(r['meta']['versions'].get('@sentry/react-native'))}</td>"
+        f"<td>{r['meta']['runs']}</td></tr>" for n, r in runs)
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Benchmark trend</title><style>{CSS}</style></head><body><main>
+<h1>Device cost across releases: ouo vs Sentry</h1>
+<p class="sub">Cost each SDK adds over the no-SDK baseline (paired median per run), per tier. <span style="color:var(--s2)">●</span> Sentry,
+<span style="color:var(--s3)">●</span> ouo. Lower is better. Method: <code>docs/benchmarks.md</code>. Generated by <code>bench_trend.py</code>.</p>
+<div class="scroll"><table><thead><tr><th>Run</th><th>Target</th><th>Device</th><th>ouo</th><th>Sentry</th><th>Rounds</th></tr></thead><tbody>{rows}</tbody></table></div>
+{''.join(sections)}
+</main></body></html>"""
+    open(os.path.join(a.dir, "trend.html"), "w").write(page)
+    index = ["# Benchmarks", "", "Device-cost benchmark results, ouo vs Sentry (method: [docs/benchmarks.md](../../../docs/benchmarks.md)). "
+             "Generated by `examples/sentry-mobile/scripts/perf/bench_trend.py`.", "",
+             "- [trend.html](trend.html): every run, per tier, ouo and Sentry side by side"]
+    for n, r in runs:
+        d = r["meta"]["device"]
+        sim = " (simulator-only numbers)" if d.get("target") == "simulator" else ""
+        index.append(f"- [{n}/report.html]({n}/report.html): {d.get('model')} {d.get('os')}, {r['meta']['runs']} rounds{sim}")
+    open(os.path.join(a.dir, "index.md"), "w").write("\n".join(index) + "\n")
+    print(os.path.join(a.dir, "trend.html"))
+
+
+if __name__ == "__main__":
+    main()

@@ -20,3 +20,4 @@
 | [first-party-endpoint.md](first-party-endpoint.md) | serve the collector from the site's own origin so ad blockers do not drop browser telemetry: relative `endpoint`, nginx, Caddy, Next.js and Vite routes, rate limiting behind a proxy, `sendBeacon` through the proxy |
 | [compatibility.md](compatibility.md) | compatibility matrix: which SDK, collector, rum-api, plugin and chart lines work together, replay `schema_version`; checked on every release PR |
 | [operations/upgrade.md](operations/upgrade.md) | operator upgrade procedure (compose and Helm), replay schema-version rule, rollback (index: [operations/index.md](operations/index.md)) |
+| [benchmarks.md](benchmarks.md) | device-cost benchmark ouo vs Sentry: fairness rules, tiers, metrics, how to run it, proposed release gate (B3) |

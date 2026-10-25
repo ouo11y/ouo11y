@@ -4,6 +4,7 @@
 // never called and every Sentry.* call in the app is a no-op.
 import * as Sentry from "@sentry/react-native";
 import { config } from "./config";
+import { perfSentryOptions } from "./perf";
 import type { RumMode } from "./rollout";
 
 export const navigationIntegration = Sentry.reactNavigationIntegration({
@@ -15,7 +16,8 @@ export const isMonitoringUrl = (url: string): boolean =>
   url.startsWith(config.ouoOtlpEndpoint) || url.startsWith(config.ouoReplayEndpoint) || url.startsWith(config.flagUrl);
 
 export function initSentry(mode: RumMode): void {
-  Sentry.init({
+  // perfSentryOptions: benchmark tiers in OUO_PERF=1 builds (src/perf.ts); otherwise these options as they are.
+  Sentry.init(perfSentryOptions({
     // `sentry`: through the ouo Sentry bridge, which forwards every envelope to Sentry and
     // translates a copy into ouo. `parallel`: straight to Sentry, because the ouo SDK already
     // reports these sessions to ouo and the bridge would add each one a second time.
@@ -62,7 +64,7 @@ export function initSentry(mode: RumMode): void {
       // The ouo SDK's uploads and the flag request are not app requests.
       Sentry.reactNativeTracingIntegration({ shouldCreateSpanForRequest: (url) => !isMonitoringUrl(url) }),
     ],
-  });
+  }));
 }
 
 export { Sentry };

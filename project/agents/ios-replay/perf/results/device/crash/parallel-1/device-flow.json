@@ -1,0 +1,102 @@
+{
+ "crash_window": [
+  1792776296.4946291,
+  1792776311.933153
+ ],
+ "after_relaunch_sentry_envelopes": [
+  [
+   16.171754837036133,
+   [
+    [
+     "event",
+     42361
+    ],
+    [
+     "session",
+     305
+    ]
+   ]
+  ],
+  [
+   16.335436820983887,
+   [
+    [
+     "session",
+     282
+    ]
+   ]
+  ],
+  [
+   17.4083468914032,
+   [
+    [
+     "transaction",
+     7995
+    ],
+    [
+     "client_report",
+     108
+    ],
+    [
+     "client_report_body",
+     {
+      "timestamp": 1792776313.886,
+      "discarded_events": [
+       {
+        "reason": "no_parent_span",
+        "category": "span",
+        "quantity": 1
+       }
+      ]
+     }
+    ]
+   ]
+  ],
+  [
+   21.033824682235718,
+   [
+    [
+     "log",
+     1186
+    ]
+   ]
+  ],
+  [
+   21.469319820404053,
+   [
+    [
+     "replay_video",
+     21353
+    ]
+   ]
+  ],
+  [
+   26.443520069122314,
+   [
+    [
+     "replay_video",
+     20517
+    ]
+   ]
+  ],
+  [
+   32.44069194793701,
+   [
+    [
+     "replay_video",
+     20517
+    ]
+   ]
+  ],
+  [
+   38.44149303436279,
+   [
+    [
+     "replay_video",
+     20517
+    ]
+   ]
+  ]
+ ],
+ "app_alive_after_action": false
+}

@@ -1,0 +1,124 @@
+{
+ "crash_window": [
+  1792776413.8657868,
+  1792776429.305682
+ ],
+ "after_relaunch_sentry_envelopes": [
+  [
+   15.855512142181396,
+   [
+    [
+     "log",
+     2205
+    ]
+   ]
+  ],
+  [
+   15.984092235565186,
+   [
+    [
+     "event",
+     5558
+    ]
+   ]
+  ],
+  [
+   16.149569034576416,
+   [
+    [
+     "session",
+     282
+    ],
+    [
+     "client_report",
+     110
+    ],
+    [
+     "client_report_body",
+     {
+      "discarded_events": [
+       {
+        "quantity": 1,
+        "reason": "before_send",
+        "category": "error"
+       }
+      ],
+      "timestamp": 1792776430.0000381
+     }
+    ]
+   ]
+  ],
+  [
+   17.32775330543518,
+   [
+    [
+     "transaction",
+     8033
+    ],
+    [
+     "client_report",
+     108
+    ],
+    [
+     "client_report_body",
+     {
+      "timestamp": 1792776431.166,
+      "discarded_events": [
+       {
+        "reason": "no_parent_span",
+        "category": "span",
+        "quantity": 1
+       }
+      ]
+     }
+    ]
+   ]
+  ],
+  [
+   20.874897241592407,
+   [
+    [
+     "log",
+     1186
+    ]
+   ]
+  ],
+  [
+   21.289956092834473,
+   [
+    [
+     "replay_video",
+     21207
+    ]
+   ]
+  ],
+  [
+   26.25910711288452,
+   [
+    [
+     "replay_video",
+     20566
+    ]
+   ]
+  ],
+  [
+   32.26029920578003,
+   [
+    [
+     "replay_video",
+     20566
+    ]
+   ]
+  ],
+  [
+   38.2653112411499,
+   [
+    [
+     "replay_video",
+     20566
+    ]
+   ]
+  ]
+ ],
+ "app_alive_after_action": false
+}

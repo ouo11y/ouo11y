@@ -1,0 +1,2 @@
+compose              n  113  median   5.71 ms  p25   5.41  p75   7.77  p95   9.60  max  11.90  >16.7ms 0
+snapshot             n  113  median  46.73 ms  p25  35.04  p75  50.61  p95  52.71  max  55.43  >16.7ms 113
