@@ -13,6 +13,14 @@ New entries are written by release-please from conventional commits (`feat(ios):
   prewarmed launches, cold or warm per runtime) and `CADisplayLink` frame counters (total, slow,
   frozen, delay) for the mobile vitals spec (checklist G2).
 
+## [0.3.0](https://github.com/ouo11y/ouo11y/compare/ios-v0.2.0...ios-v0.3.0) (2026-10-25)
+
+
+### Added
+
+* **ios:** native app start and frame counters for mobile vitals (G2) ([#47](https://github.com/ouo11y/ouo11y/issues/47)) ([8121faf](https://github.com/ouo11y/ouo11y/commit/8121faf6784f2276a64e75991c0b282010dc53f6))
+* **ios:** replay capture off the main thread, native crash capture ([#40](https://github.com/ouo11y/ouo11y/issues/40)) ([9fb3dc4](https://github.com/ouo11y/ouo11y/commit/9fb3dc4a6b4fd3cdecb5177e2ffc2d58eef9a840))
+
 ## 0.2.0 (not yet tagged)
 
 First mirrored release. Products `OuoReplay` (UIKit capture) and `OuoReplayCore` (models,
