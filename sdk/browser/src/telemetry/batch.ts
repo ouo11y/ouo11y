@@ -10,6 +10,8 @@ export interface BatchOptions {
   maxExportBatchSize: number;
   /** Records beyond this many queued ones are dropped. */
   maxQueueSize: number;
+  /** Called with each record dropped because the queue was full, so the drop is counted. */
+  onDrop?: () => void;
   clock?: Clock;
 }
 
@@ -25,7 +27,8 @@ interface Exporter<T> {
  * Chromium fires `pagehide` (the SDK flushes, an export goes out) and then `visibilitychange`
  * (web-vitals reports CLS and INP), whose flush is skipped, and the page is gone before the
  * first export is answered. This batcher sends every flush right away, concurrently with exports
- * in flight; the OTLP fetch transport adds `keepalive` within the browser's budget.
+ * in flight; the delivery layer (src/transport) adds `keepalive`, splits a batch to fit its
+ * budget, and keeps what cannot leave for the next page load.
  */
 export class Batcher<T> {
   private queue: T[] = [];
@@ -41,7 +44,10 @@ export class Batcher<T> {
   }
 
   add(item: T): void {
-    if (this.queue.length >= this.opts.maxQueueSize) return;
+    if (this.queue.length >= this.opts.maxQueueSize) {
+      this.opts.onDrop?.();
+      return;
+    }
     this.queue.push(item);
     if (this.queue.length >= this.opts.maxExportBatchSize) {
       void this.flush();

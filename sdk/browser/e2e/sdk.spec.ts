@@ -4,8 +4,8 @@
  * document-load trace linking, sampling, error-triggered replay and multi-tab replay.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { COLLECTOR } from "./harness";
 
-const COLLECTOR = "http://localhost:4181";
 
 type Attr = { key: string; value: Record<string, unknown> };
 interface Span {

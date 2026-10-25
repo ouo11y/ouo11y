@@ -1,8 +1,7 @@
 /** Error-triggered replay: nothing is uploaded until the first error, then the buffer and the rest. */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { gunzipSync } from "node:zlib";
 import { initRUM, type RUM } from "../src/index";
-import { stubFetch, wait } from "./helpers/otlp";
+import { bodyText, stubFetch, wait } from "./helpers/otlp";
 
 const BASE = "http://localhost:8094";
 const { captured } = stubFetch(BASE);
@@ -12,9 +11,7 @@ const chunks = () =>
   captured
     .filter((c) => c.url === `${BASE}/v1/replay/chunks`)
     .map((c) => {
-      const raw = c.raw as ArrayBuffer | string;
-      const text = typeof raw === "string" ? raw : gunzipSync(new Uint8Array(raw)).toString();
-      return JSON.parse(text) as { seq: number; events: Array<{ type: number }> };
+      return JSON.parse(bodyText(c.raw)) as { seq: number; events: Array<{ type: number }> };
     });
 
 beforeAll(() => {

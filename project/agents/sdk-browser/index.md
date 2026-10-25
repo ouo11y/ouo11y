@@ -10,5 +10,6 @@ Owns `sdk/browser` (`@ouo11y/browser`).
   - [2026-10-23-batch3-n10-n25.md](summaries/2026-10-23-batch3-n10-n25.md) Batch 3: vitals at page hide fixed, interaction / soft-navigation spans, long tasks, rage and dead clicks, React subpath, meta traceparent, multi-tab replay, sampling, bundle budget, cross-browser CI
   - [2026-10-24-n36b-safety-long-sessions.md](summaries/2026-10-24-n36b-safety-long-sessions.md) N36 part B (N42, N43): every hook guarded, shutdown / re-init, SSR and `"use client"`, storage fallback, ES2022 floor with es-check, fault and CSP e2e in three engines, 1 h soak, rrweb cost, snapshot-size guard, terser
   - [2026-10-24-session-lifecycle.md](summaries/2026-10-24-session-lifecycle.md) N45: rotation on user change, `endSession`, `clearUser`, `device.id`, rum-api `device_id`
+  - [2026-10-24-n36a-delivery.md](summaries/2026-10-24-n36a-delivery.md) N36 part A: delivery layer (retry, gzip, keepalive split, IndexedDB offline store), first-party endpoint docs, network-fault e2e in three engines
 - `reports/` HTML reports
   - [long-sessions-2026-10-24.html](reports/long-sessions-2026-10-24.html) 1 h soak (Chromium, WebKit) and rrweb cost on 10k / 50k elements

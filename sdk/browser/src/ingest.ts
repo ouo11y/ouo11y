@@ -40,6 +40,21 @@ export function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+/**
+ * A relative endpoint (`/otel`, a first-party proxy route on the page's own origin, which ad
+ * blockers do not list) resolved against the page; absolute URLs are returned as they are.
+ */
+export function resolveEndpoint(url: string): string {
+  if (/^[a-z][a-z\d+.-]*:/i.test(url)) return url;
+  const base = (globalThis as { location?: { href?: string } }).location?.href;
+  if (!base) return url;
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
+}
+
 /** base64 of the UTF-8 bytes of `input` (`btoa` alone throws on code points above U+00FF). */
 export function base64Utf8(input: string): string {
   const bytes = new TextEncoder().encode(input);
@@ -98,12 +113,12 @@ export function deriveReplayEndpoint(endpoint: string): string {
  * id, token or endpoint so a misconfigured app fails at init, not silently.
  */
 export function deriveIngestUrls(input: IngestInput): IngestUrls {
-  const endpoint = trimSlash(requireNonEmpty(input.endpoint, "endpoint", "It is the collector's OTLP/HTTP base URL, for example `https://otel.example.com` or `http://localhost:4318`."));
+  const endpoint = trimSlash(resolveEndpoint(requireNonEmpty(input.endpoint, "endpoint", "It is the collector's OTLP/HTTP base URL, for example `https://otel.example.com`, `http://localhost:4318`, or a same-origin proxy route such as `/otel`.")));
   // Validate the credential here too so a bad id or token fails before any URL is used.
   basicAuthorization(input.projectId, input.projectToken);
   const replayEndpoint =
     typeof input.replayEndpoint === "string" && input.replayEndpoint.trim() !== ""
-      ? trimSlash(input.replayEndpoint.trim())
+      ? trimSlash(resolveEndpoint(input.replayEndpoint.trim()))
       : deriveReplayEndpoint(endpoint);
   return {
     endpoint,

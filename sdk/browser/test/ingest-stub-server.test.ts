@@ -110,7 +110,8 @@ describe("ingest over a real socket (collector stub on :18081, replay stub on :1
     expect(chunk.session_id).toBe(rum.session.id());
     expect(chunks[0]!.headers["x-ouo-session-id"]).toBe(chunk.session_id);
     expect(chunks[0]!.headers["x-ouo-seq"]).toBe(String(chunk.seq));
-    expect(chunks[0]!.headers["content-encoding"]).toBe("gzip");
+    // Bodies of 1 KB or more go gzip (src/transport/gzip.ts), OTLP and replay alike.
+    for (const r of [...traces, ...logs, ...chunks]) expect(r.headers["content-encoding"], r.path).toBe(Buffer.byteLength(r.body) >= 1024 ? "gzip" : undefined);
 
     // Nothing hit the revision-1 rum-api gateway paths, replay never went to the OTLP port,
     // and the app request itself carried trace context but no credential.

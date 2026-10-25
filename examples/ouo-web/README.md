@@ -36,6 +36,10 @@ examples/ouo-web/scripts/run.sh --env web-demo
 deploy/envs/ouo-env down web-demo
 ```
 
+`run.sh --first-party` builds the app with `VITE_OTLP_ENDPOINT=/otel` and serves it with
+`scripts/serve-first-party.mjs`, which proxies `/otel` to the collector on the app's own origin: the
+setup that keeps ad blockers from dropping telemetry ([first-party endpoint](../../docs/first-party-endpoint.md)).
+
 `run.sh` builds the app against the stack (`.env` here, copied from `.env.example`, overrides the
 stock ports), serves it with `vite preview`, runs the scripted journey in a headless browser
 (`scripts/journey.mjs`: two products into the cart, a card checkout, a third product and a

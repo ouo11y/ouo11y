@@ -32,7 +32,8 @@
         document.head.appendChild(m);
       }
       window.rum = initRUM({
-        endpoint: `http://localhost:${num("collector", 4181)}`,
+        // ?endpoint=/otel: the same-origin proxy route (a relative endpoint).
+        endpoint: q.get("endpoint") ?? `http://localhost:${num("collector", Number(location.port) + 1)}`,
         projectId: "e2e",
         projectToken: "pt_e2e",
         service: { name: "e2e-page", version: "1.0.0", environment: "e2e" },
@@ -40,6 +41,7 @@
         session: { sampleRate: num("sample", 1) },
         replay: { enabled: q.get("replay") !== "0", sampleRate: num("replayRate", 1), onErrorSampleRate: num("onError", 0), flushIntervalMs: 500 },
         longTasks: { thresholdMs: 100 },
+        transport: { beacon: q.get("beacon") === "1", ...(q.has("attempts") ? { maxAttempts: num("attempts", 5) } : {}) },
         debug: q.get("debug") === "1",
       });
       const out = document.getElementById("out");

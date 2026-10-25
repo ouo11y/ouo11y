@@ -102,6 +102,37 @@ export interface SessionOptions {
   sampleRate?: number;
 }
 
+export interface OfflineOptions {
+  /** Hard cap on the bytes kept; the oldest requests are evicted (and counted as dropped) beyond it. Default 5 MB. */
+  maxBytes?: number;
+  /** Requests kept longer than this are dropped unsent. Default 24 hours. */
+  maxAgeMs?: number;
+}
+
+/** How telemetry reaches the collector (README, "Delivery"). */
+export interface TransportOptions {
+  /** gzip request bodies of 1 KB or more with `CompressionStream` where the browser has it. Default true. */
+  compression?: boolean;
+  /**
+   * Attempts per request, the first included, on network errors, 408, 429 and 5xx (exponential
+   * backoff with jitter, `Retry-After` honoured) before the request goes to the offline store.
+   * Other 4xx answers are never retried. Default 5.
+   */
+  maxAttempts?: number;
+  /**
+   * Keep requests that could not be sent (offline, retries spent, page closed over the keepalive
+   * budget) in IndexedDB, or memory where storage is unavailable, and send them when the browser is
+   * back online or on the next page load of the origin. False drops them. Default on.
+   */
+  offline?: OfflineOptions | false;
+  /**
+   * At page hide, fall back to `navigator.sendBeacon` when the 64 KB keepalive budget is spent. A
+   * beacon cannot carry `Authorization`: enable it only when `endpoint` is a first-party proxy
+   * route that adds the header. Default false.
+   */
+  beacon?: boolean;
+}
+
 export interface UserOptions {
   id: string;
 }
@@ -140,6 +171,7 @@ export interface RUMOptions {
   longTasks?: LongTaskOptions | false;
   session?: SessionOptions;
   user?: UserOptions;
+  transport?: TransportOptions;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */
   debug?: boolean;
 }
@@ -185,4 +217,18 @@ export interface RUM {
    * restores patched globals. `initRUM` can be called again afterwards. Never rejects.
    */
   shutdown(): Promise<void>;
+  /** Counters of the delivery layer since `initRUM`: sent, retried, kept offline, dropped (and why), bytes before and after gzip. */
+  deliveryStats(): DeliveryStats;
+}
+
+export interface DeliveryStats {
+  sent: number;
+  retried: number;
+  queued: number;
+  dropped: number;
+  droppedBytes: number;
+  /** `rejected`: a 4xx other than 408 and 429. `store_full`: evicted from the offline store. `too_large`: larger than the store. `expired`: stored too long. `no_store`: failed with `offline: false`. `queue_full`: the export queue overflowed. */
+  dropReasons: Partial<Record<"rejected" | "store_full" | "too_large" | "expired" | "no_store" | "queue_full", number>>;
+  rawBytes: number;
+  wireBytes: number;
 }

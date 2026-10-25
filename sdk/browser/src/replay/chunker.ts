@@ -199,7 +199,8 @@ export class ReplayChunker {
         this.logger?.log("replay: uploaded chunk", head.chunk.session_id, head.chunk.seq, `${head.chunk.events.length} events`);
       } catch (err) {
         head.attempts += 1;
-        if (head.attempts >= this.maxAttempts) {
+        // The delivery layer already retried, stored or refused it: a refusal is final.
+        if (head.attempts >= this.maxAttempts || (err as { retryable?: boolean } | null)?.retryable === false) {
           this.queue.shift();
           this.queuedBytes -= head.bytes;
           this.logger?.warn("replay: giving up on chunk", head.chunk.seq, err);

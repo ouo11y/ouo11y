@@ -65,6 +65,14 @@ describe("ingest URL derivation (ADR-0007 section 6)", () => {
     expect(deriveReplayEndpoint("http://localhost:43180")).toBe("http://localhost:43180");
   });
 
+  it("a relative endpoint (a first-party proxy route) resolves against the page origin, replay included", () => {
+    const u = deriveIngestUrls({ endpoint: "/otel/", ...CRED });
+    expect(u.endpoint).toBe(`${location.origin}/otel`);
+    expect(u.traces).toBe(`${location.origin}/otel/v1/traces`);
+    expect(u.replay).toBe(`${location.origin}/otel/v1/replay/chunks`);
+    expect(deriveIngestUrls({ endpoint: "/otel", replayEndpoint: "/replay", ...CRED }).replay).toBe(`${location.origin}/replay/v1/replay/chunks`);
+  });
+
   it("explicit replayEndpoint wins, whatever the endpoint port", () => {
     const u = deriveIngestUrls({ endpoint: "http://localhost:4318", replayEndpoint: "https://replay.example.com/", ...CRED });
     expect(u.replayEndpoint).toBe("https://replay.example.com");
