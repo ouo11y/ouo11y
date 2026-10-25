@@ -23,6 +23,14 @@ release-please from conventional commits (`feat(chart): ...`, `fix(chart): ...`)
   collector pod, every `existingSecret` (with `otlp-headers`), `lgtm.mode=external`, HA render and
   server dry-run, upgrade from 0.1.0 with a values file and `--rollback-on-failure` (Helm 4).
 
+## [0.2.0](https://github.com/ouo11y/ouo11y/compare/chart-v0.1.1...chart-v0.2.0) (2026-10-25)
+
+
+### Added
+
+* 8b data lifecycle: retention, replay sweeper, delete by user/project with audit log, sampling, masking proof ([#49](https://github.com/ouo11y/ouo11y/issues/49)) ([b45c0c3](https://github.com/ouo11y/ouo11y/commit/b45c0c3d36b6c8472074c9d3487df4a9167a3b76))
+* **deploy:** 8a VM install on fresh VMs, --images, upgrade test, rum-api schema guard, N12 Helm paths ([#46](https://github.com/ouo11y/ouo11y/issues/46)) ([28d39f4](https://github.com/ouo11y/ouo11y/commit/28d39f4da916773e51ce384a23bca54eb37e33b3))
+
 ## 0.1.1 (2026-10-18, not published)
 
 ### Changed
