@@ -5,6 +5,18 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+## [0.5.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.4.0...rum-api-v0.5.0) (2026-10-25)
+
+
+### Added
+
+* 8b data lifecycle: retention, replay sweeper, delete by user/project with audit log, sampling, masking proof ([#49](https://github.com/ouo11y/ouo11y/issues/49)) ([b45c0c3](https://github.com/ouo11y/ouo11y/commit/b45c0c3d36b6c8472074c9d3487df4a9167a3b76))
+* **browser:** rotate the session on user change, endSession, clearUser, device.id (N45) ([#80](https://github.com/ouo11y/ouo11y/issues/80)) ([60c103f](https://github.com/ouo11y/ouo11y/commit/60c103f8b7491bd7105e4b97f2c9c69c2f7813cc))
+* **collector:** mobile vitals, Sentry SDK range, examples with trace-continuity verify ([#45](https://github.com/ouo11y/ouo11y/issues/45)) ([131b206](https://github.com/ouo11y/ouo11y/commit/131b2063324a28ad991a05db7e03c2f9cb0cc427))
+* **deploy:** 8a VM install on fresh VMs, --images, upgrade test, rum-api schema guard, N12 Helm paths ([#46](https://github.com/ouo11y/ouo11y/issues/46)) ([28d39f4](https://github.com/ouo11y/ouo11y/commit/28d39f4da916773e51ce384a23bca54eb37e33b3))
+* **rum-api,plugin:** funnel reports (N46, ADR-0012) ([#70](https://github.com/ouo11y/ouo11y/issues/70)) ([e8164e5](https://github.com/ouo11y/ouo11y/commit/e8164e533f90446a4cd312ef5363396c688560d4))
+* source maps and symbolication for minified web stacks (N36 part C, ADR-0011) ([#64](https://github.com/ouo11y/ouo11y/issues/64)) ([9a41831](https://github.com/ouo11y/ouo11y/commit/9a41831b67b58831672662f838608fbb06776f25))
+
 ## 0.4.0 (2026-10-24)
 
 ### Added
