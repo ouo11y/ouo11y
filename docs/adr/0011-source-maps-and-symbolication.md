@@ -24,9 +24,9 @@ Constraints already in place:
 
 - each `.js` / `.mjs` / `.cjs` file with a map gets a debug id, a UUID derived from the SHA-256 of the map (stable across rebuilds of the same output);
 - the bundle ends with `//# debugId=<uuid>`, following the TC39 source-map debug-id proposal, and the map gets `"debugId": "<uuid>"`;
-- the bundle also ends with a one-line registration snippet: `globalThis.__ouoDebugIds[new Error().stack] = "<uuid>"`. It is appended after the last line of code, so no existing mapping moves. A browser has no API that reads a script's `//# debugId` comment, so this is how the SDK learns it at runtime. Sentry uses the same mechanism (`_sentryDebugIds`).
+- the bundle also ends with a one-line registration snippet. It takes its own script URL from `new Error().stack` (the first URL there) and sets `globalThis.__ouoDebugIds[<script url>] = "<uuid>"`. It is appended after the last line of code, so no existing mapping moves. A browser has no API that reads a script's `//# debugId` comment, so this is how the SDK learns it at runtime. Sentry uses the same mechanism (`_sentryDebugIds`), but keys it by the raw stack and parses that in the SDK. ouo parses in the snippet instead, which lives in the app's bundle, so the SDK's core bundle stays within its size budget.
 
-The SDK (`exceptionAttributes` in `sdk/browser/src/errors/classify.ts`) reads `__ouoDebugIds`, takes each key's first frame URL, and adds `ouo.exception.debug_ids` to the exception record. The value is a JSON object `{ "<script url>": "<debug id>" }`, limited to the scripts the stack actually names. Bundles without the snippet send nothing extra.
+The SDK (`exceptionAttributes` in `sdk/browser/src/errors/classify.ts`) reads `__ouoDebugIds`, keeps the registered URLs that the stack mentions followed by `:<line>`, and adds `ouo.exception.debug_ids` to the exception record. The value is a JSON object `{ "<script url>": "<debug id>" }`, limited to the scripts the stack actually names. Bundles without the snippet send nothing extra.
 
 Why debug ids: a release is a human label that CI often gets wrong, and the same `index-B3x9.js` path can exist in two deploys. A debug id is bound to the exact bytes. It also needs no release on the SDK.
 
@@ -87,7 +87,7 @@ A Hermes or Metro bundle map is uploaded with the same CLI and token (`ouo-sourc
 
 - One new rum-api dependency, `github.com/go-sourcemap/sourcemap` v2.1.4 (BSD-2). It is small and has no transitive dependencies. Grafana Alloy's `faro.receiver` uses it, so it is exercised on real browser stacks.
 - One new npm package, `@ouo11y/sourcemaps`, published with the SDKs.
-- The browser SDK grows by a few hundred bytes. `index.js` is 43.3 KB gzip, inside its 44 KB budget. It adds one attribute per exception, and only when the page registered debug ids.
+- The browser SDK grows by about 80 bytes gzip. `index.js` is 45,036 of its 45,056-byte (44.0 KB) budget. It adds one attribute per exception, and only when the page registered debug ids.
 - rum-api reads maps on the request path. A cold map costs one object GET plus a parse, about 8 ms for a 1 MB map. The cache keeps that off repeated reads. Symbolication errors never fail the read: the item just has no `symbolicated` field, or a frame has status `no_map`.
 - A public upload path through the collector is still to build (N41). Until then CI needs network access to rum-api.
 - Malicious maps (VISION 17): a project can only write its own maps, sizes are capped, the parser is memory-safe Go, and the plugin renders source lines as text, never HTML.

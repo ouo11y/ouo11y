@@ -96,13 +96,16 @@ export function debugIdFor(content: string | Buffer): string {
 }
 
 /**
- * The registration snippet: the SDK reads `globalThis.__ouoDebugIds` (stack of this line -> id) to
- * learn which debug id each loaded script has. No eval, safe under a strict CSP, never throws.
+ * The registration snippet: it finds its own script URL (the first URL of `new Error().stack`;
+ * Firefox and Safari have no "Error" line) and registers `globalThis.__ouoDebugIds[url] = id`, which
+ * `@ouo11y/browser` reads when it reports an exception. Doing the parsing here keeps it out of the
+ * SDK's bundle. No eval, safe under a strict CSP, never throws.
  */
 export function snippet(id: string): string {
   return (
     ';!function(){try{var g="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:{},' +
-    `s=(new Error).stack;s&&((g.__ouoDebugIds=g.__ouoDebugIds||{})[s]="${id}")}catch(e){}}();`
+    "u=((new Error).stack||\"\").match(/\\w+:\\/\\/[^\\s()'\"]+?(?=:\\d+:\\d+|\\)|\\s|$)/);" +
+    `u&&((g.__ouoDebugIds=g.__ouoDebugIds||{})[u[0]]="${id}")}catch(e){}}();`
   );
 }
 

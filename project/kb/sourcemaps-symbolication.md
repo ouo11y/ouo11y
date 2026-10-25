@@ -4,14 +4,14 @@ Built 2026-10-24 for N36 part C / A10 web ([ADR-0011](../../docs/adr/0011-source
 
 ## Debug ids at runtime
 
-- No browser API reads a script's `//# debugId=` comment. The only way to learn a bundle's id at runtime is code inside the bundle. `ouo-sourcemaps inject` appends `globalThis.__ouoDebugIds[new Error().stack] = "<id>"` (Sentry does the same with `_sentryDebugIds`). The SDK takes the first `scheme://...` URL in each key's stack as that bundle's URL.
+- No browser API reads a script's `//# debugId=` comment. The only way to learn a bundle's id at runtime is code inside the bundle. `ouo-sourcemaps inject` appends a snippet that takes the first `scheme://...` URL of its own `new Error().stack` (its script) and sets `globalThis.__ouoDebugIds[url] = "<id>"`. The SDK only checks `stack.includes(url + ":")` per registered URL. Sentry keys `_sentryDebugIds` by the raw stack and parses it in the SDK. ouo moved the parsing into the snippet because the SDK's core bundle was 35 bytes over its 44.0 KB budget after the #72 / #66 / #80 merges (2026-10-25).
 - **Append, never prepend.** Code added after the last line moves no mapping. Prepending would shift every line and force a rewrite of `mappings`, which is what `sentry-cli` does and why it rewrites maps.
 - Vite's `build.sourcemap: "hidden"` writes `<file>.map` with no `sourceMappingURL` in the bundle. The CLI looks for a sibling `.map` when no comment names one.
 - Rollup can write `//# debugId=` itself (`output.sourcemapDebugIds`). The CLI keeps that id and adds only the snippet.
 - **terser** writes `//# sourceMappingURL=` on the same line as the code (no newline). The CLI therefore parses the *trailing* `debugId` / `sourceMappingURL` comments wherever they start, and rejects quoted values so code ending in a string is not mistaken for one.
 - **tsup + terser:** tsup 8.5.1 passes terser's map on only when `terserOptions.sourceMap` is set. Without it, `dist/*.js.map` is esbuild's pre-minify map, which matches nothing (found on session B's build, 2026-10-24).
 - The id is a UUID derived from the SHA-256 of the map, with version 4 and variant bits set. Rebuilding the same output gives the same id, so re-uploads are idempotent.
-- The SDK caches the parsed registry and re-parses only when its key count grows, so bundles loaded lazily later are picked up.
+- The SDK reads the registry on every exception (one entry per bundle, no cache), so bundles loaded lazily later are picked up.
 
 ## `github.com/go-sourcemap/sourcemap` v2.1.4
 

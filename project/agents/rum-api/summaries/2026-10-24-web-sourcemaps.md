@@ -11,7 +11,7 @@ Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three 
   - Symbolication happens on read in rum-api, with a cache. The raw stack in Loki is untouched.
   - Retention follows 8b.
   - React Native / Hermes reuse the same store.
-- **SDK** (`sdk/browser/src/errors/classify.ts` only, plus a new `test/debug-ids.test.ts`): `exceptionAttributes` adds `ouo.exception.debug_ids`, a JSON map from script URL to debug id for the scripts the stack names. It reads `globalThis.__ouoDebugIds` and re-parses only when the registry grows. It never throws.
+- **SDK** (`sdk/browser/src/errors/classify.ts` only, plus a new `test/debug-ids.test.ts`): `exceptionAttributes` adds `ouo.exception.debug_ids`, a JSON map from script URL to debug id for the scripts the stack names. It reads `globalThis.__ouoDebugIds`, which the inject snippet keys by the bundle's own URL, so the SDK needs no regex. It never throws. That design was rebased on 2026-10-25 so that `index.js` fits its budget: 45,036 of 45,056 bytes.
 - **Upload tool:** a new workspace package `sdk/sourcemaps` (`@ouo11y/sourcemaps`, bin `ouo-sourcemaps`, no runtime dependencies), with `inject`, `upload` and `inject-and-upload`.
   - It handles Vite `hidden` sibling maps, `sourceMappingURL` comments, Rollup's native debug ids and bundles that contain the SDK.
   - Options: gzip PUT, `--release`, `--url-prefix`, `--delete-after`, `--dry-run`, and environment variables.

@@ -82,7 +82,7 @@ describe("ouo-sourcemaps", () => {
     await writeFile(index!.js, 'const reg = globalThis.__ouoDebugIds;console.log(reg)');
     const r = await inject(index!);
     const js = await readFile(index!.js, "utf8");
-    expect(js.split("\n")[1]).toContain(`[s]="${r.debugId}"`);
+    expect(js.split("\n")[1]).toContain(`[u[0]]="${r.debugId}"`);
     expect((await inject(index!)).changed).toBe(false);
   });
 
@@ -106,16 +106,18 @@ describe("ouo-sourcemaps", () => {
     expect(splitTrailing('s="//# debugId=x";f()')).toEqual({ body: 's="//# debugId=x";f()' });
   });
 
-  it("the snippet registers the bundle's stack under its debug id", async () => {
+  it("the snippet registers the bundle's own URL under its debug id", async () => {
     const d = await dist();
-    const [index] = await findArtifacts(d);
-    const { debugId } = await inject(index!);
+    const [index, vendor] = await findArtifacts(d);
+    const a = await inject(index!);
+    const b = await inject(vendor!);
     const ctx: Record<string, unknown> = { console: { log() {} } };
     vm.runInNewContext(await readFile(index!.js, "utf8"), ctx, { filename: "https://shop.example/assets/index-B3x9.js" });
-    const reg = (ctx as { globalThis?: unknown; __ouoDebugIds?: Record<string, string> }).__ouoDebugIds!;
-    const [stack, id] = Object.entries(reg)[0]!;
-    expect(id).toBe(debugId);
-    expect(stack).toContain("https://shop.example/assets/index-B3x9.js:2:");
+    vm.runInNewContext(await readFile(vendor!.js, "utf8"), ctx, { filename: "http://localhost:4173/assets/vendor.js" });
+    expect((ctx as { __ouoDebugIds?: Record<string, string> }).__ouoDebugIds).toEqual({
+      "https://shop.example/assets/index-B3x9.js": a.debugId,
+      "http://localhost:4173/assets/vendor.js": b.debugId,
+    });
   });
 
   describe("upload", () => {
