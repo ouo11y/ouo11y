@@ -5,7 +5,8 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
-## 0.4.0 (2026-10-24)
+## [0.5.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.4.0...rum-api-v0.5.0) (2026-10-25)
+
 
 ### Added
 
@@ -15,6 +16,18 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
   `POST /v1/symbolicate`, and a `symbolicated` object on every exception of the session timeline
   and session logs (raw stack untouched). Parsed-map LRU cache, `retention.sourcemaps` swept with
   the replays, delete-by-project removes the maps. New dependency `github.com/go-sourcemap/sourcemap`.
+- Funnel reports (ADR-0012, `docs/specs/funnels.md`): `POST /v1/funnels/query` counts the sessions
+  that reach each step (page paths or events, in order) over a range of at most 31 days,
+  `GET /v1/funnels/dropped` lists the sessions that left at a step and `GET /v1/funnels/steps`
+  suggests step values, all behind the read token; results are cached per definition and range for `loki.funnel_cache_ttl`
+  (`LOKI_FUNNEL_CACHE_TTL`, default `60s`, `0` disables).
+- Sessions carry `device_id`, the SDK's `device.id` (the same for every session of one browser or
+  install), omitted when the SDK sends none.
+
+## 0.4.0 (2026-10-24)
+
+### Added
+
 - Data lifecycle (roadmap 8b, `docs/operations/data-lifecycle.md`):
   - replay retention (`retention.replays`, per project `projects.<id>.retention.replays`) enforced
     by a sweeper on both backends (expired sessions and orphan folders, idempotent, metrics
