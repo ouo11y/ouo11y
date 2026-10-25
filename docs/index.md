@@ -12,7 +12,7 @@
 | [specs/mobile-vitals.md](specs/mobile-vitals.md) | mobile vitals (app start, TTID, frames, stalls) as session events, shared by the Sentry bridge and the ouo SDK; rum-api vitals endpoint |
 | [adr/](adr/README.md) | architecture decision records |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
-| [../examples/quickstarts/index.md](../examples/quickstarts/index.md) | standalone quickstart apps against the one-file stack: `tiny-shop` (Node API + React) |
+| [../examples/quickstarts/index.md](../examples/quickstarts/index.md) | standalone quickstart apps against the one-file stack: `tiny-shop` (Node API + React); `tiny-shop-funnels` (quickstart 5, funnels) |
 | [sourcemaps.md](sourcemaps.md) | readable stacks from minified web apps: upload tokens, `ouo-sourcemaps inject` / `upload`, Vite / webpack / Next.js setups, what the plugin shows, troubleshooting, retention (ADR-0011) |
 | [releasing.md](releasing.md) | the one releasing document: components and tags, versioning, conventional commits, release-please flow, the founder's release checklist, dry runs, pull access, accounts and secrets, supply chain |
 | [sentry-client-setup.md](sentry-client-setup.md) | for clients keeping `@sentry/react-native` behind the bridge: DSN, the Expo native-start trap, `propagateTraceparent` and `tracePropagationTargets`, `tracesSampleRate` and dropped backend traces, requests outside a transaction, a `beforeBreadcrumb` filter, never parallel mode while bridging, the ~30 s duration difference (C9) |

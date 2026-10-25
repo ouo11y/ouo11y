@@ -6,3 +6,4 @@
 | [2026-10-10-frontend.md](2026-10-10-frontend.md) | writer run for `20-frontend.md` |
 | [2026-10-10-mobile.md](2026-10-10-mobile.md) | writer run for `30-mobile-ios.md` |
 | [2026-10-10-orchestrator.md](2026-10-10-orchestrator.md) | review, port-default fix, verification |
+| [2026-10-24-quickstart-tiny-shop-funnels.md](2026-10-24-quickstart-tiny-shop-funnels.md) | quickstart 5: funnel steps from pages and custom events, 50 generated sessions, rum-api and Grafana built from source; verified from a clean checkout (N47) |
