@@ -22,7 +22,9 @@ channel: [release-packaging.md](release-packaging.md).
   `deploy/images/grafana` releases it.
 - **Release types used:** `node` (package.json; the root `package-lock.json` workspace entry via
   a `json` extra-file with jsonpath `$.packages['sdk/browser'].version` and a leading `/` path =
-  repo root; one line changes), `go` (changelog only: rum-api, collector), `simple` (writes
+  repo root; one line changes. Workspaces that pin a sibling exactly, like `examples/ouo-web` on
+  `@ouo11y/browser`, need two more extra-files, the pin and its lock entry, or `npm ci` fails with
+  "Missing: @ouo11y/browser@<old> from lock file" on the release PR), `go` (changelog only: rum-api, collector), `simple` (writes
   `version.txt`: ios, grafana). The collector's `dist.version` and the chart's `version` are
   bumped by a `generic` extra-file through a `# x-release-please-version` marker on that line
   of `builder.yaml` / `Chart.yaml` (ocb and Helm ignore the comment), with release type `go`
