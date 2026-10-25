@@ -16,4 +16,5 @@ export const DEFAULT_RANGE = { from: 'now-24h', to: 'now' } as const;
 export enum ROUTES {
   Overview = 'overview',
   Sessions = 'sessions',
+  Funnels = 'funnels',
 }

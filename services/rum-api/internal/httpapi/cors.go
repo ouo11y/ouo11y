@@ -72,8 +72,9 @@ func readAuth(token string, next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// POST /v1/symbolicate and POST /v1/funnels/* are reads with a JSON body.
 		read := r.Method == http.MethodGet || r.Method == http.MethodDelete || r.Method == http.MethodHead ||
-			(r.Method == http.MethodPost && r.URL.Path == "/v1/symbolicate")
+			(r.Method == http.MethodPost && (r.URL.Path == "/v1/symbolicate" || strings.HasPrefix(r.URL.Path, "/v1/funnels/")))
 		if read && strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/v1/admin/") {
 			if !bearerMatches(r.Header.Get("Authorization"), token) {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="ouo-rum-api"`)

@@ -90,3 +90,6 @@ func Range(from, to string, now time.Time, defaultFrom time.Duration) (time.Time
 	}
 	return start, end, nil
 }
+
+// ParseDuration accepts Go durations plus d (days) and w (weeks), e.g. "30m", "1d".
+func ParseDuration(s string) (time.Duration, error) { return parseDuration(strings.TrimSpace(s)) }

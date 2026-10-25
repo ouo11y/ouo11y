@@ -107,6 +107,7 @@ when you ship a file: they would silently win over it. The Dockerfile sets none.
 | `SESSION_DETAIL_LOOKBACK` | `session.detail_lookback` | `168h` | how far back `GET /v1/sessions/{id}` searches when `from` is not given |
 | `TEMPO_CONCURRENCY` | `tempo.concurrency` | `8` | parallel Tempo searches |
 | `TEMPO_CACHE_TTL` | `tempo.cache_ttl` | `60s` | in-memory cache of Tempo results per session id + range |
+| `LOKI_FUNNEL_CACHE_TTL` | `loki.funnel_cache_ttl` | `60s` | in-memory cache of funnel results per steps + filters + range; `0` disables |
 | `MAX_CHUNK_BYTES` | `limits.max_chunk_bytes` | `4194304` | max rrweb chunk size (compressed and decompressed) |
 | `MAX_FRAME_CHUNK_BYTES` | `limits.max_frame_chunk_bytes` | `8388608` | max `kind: "frames"` chunk size (compressed and decompressed); never below `MAX_CHUNK_BYTES` |
 | `MAX_VIDEO_CHUNK_BYTES` | `limits.max_video_chunk_bytes` | `8388608` | max decoded `video.mp4` of one `kind: "video"` chunk; never below `MAX_CHUNK_BYTES`. The chunk body (base64 mp4 + envelope) may be up to `base64(MAX_VIDEO_CHUNK_BYTES) + 1 MiB` (12.2 MiB by default), compressed and decompressed |
@@ -151,7 +152,7 @@ X-Ouo-Session-Id, X-Ouo-Seq, Accept, Accept-Encoding, Range`; `X-Ouo-Replay-Kind
 Preflights are answered with 204 before authentication.
 
 **Authentication**: the replay sink (`POST /v1/replay/chunks`) needs `Authorization: Bearer
-<OUO_INGEST_TOKEN>` when that variable is set; read routes (`GET` / `DELETE /v1/*`) need
+<OUO_INGEST_TOKEN>` when that variable is set; read routes (`GET` / `DELETE /v1/*`, and `POST /v1/funnels/*`, a read with a JSON body) need
 `Authorization: Bearer <OUO_READ_TOKEN>` when that one is set. The two tokens are
 independent: the ingest token does not read, the read token does not write. Both are
 compared in constant time; the scheme is case-insensitive. `POST /v1/symbolicate` is a read
@@ -508,6 +509,67 @@ User guide: [`docs/sourcemaps.md`](../../docs/sourcemaps.md). Maps live next to 
 Buckets are sorted by platform, service, version; percentages are rounded to two decimals
 (the integer counts always add up to `total`).
 
+### Funnels
+
+Spec: [docs/specs/funnels.md](../../docs/specs/funnels.md) (ADR-0012). A step is a page path
+(`navigation` events, exact or prefix match on `url.path`) or a custom event name; sessions are
+counted in strict step order, only events inside `[from, to]` are seen (default `now-24h`, at
+most 31 days), and results are cached for `LOKI_FUNNEL_CACHE_TTL`.
+
+`POST /v1/funnels/query`
+
+```json
+{"steps":[
+   {"kind":"page","value":"/"},
+   {"kind":"page","match":"prefix","value":"/products/"},
+   {"kind":"event","value":"add_to_cart"},
+   {"kind":"event","value":"order_paid"}],
+ "from":"now-24h","to":"now",
+ "within":"30m",
+ "filters":{"service":"tiny-shop-web","environment":"local","release":"1.0.0","platform":"web","project":"demo"}}
+```
+
+`within` (optional, Go duration or `1d`, at most 7 days) bounds the time from step 1 to the last
+step; every filter is optional. Unknown fields are rejected. Answer:
+
+```json
+{"steps":[
+   {"step":{"kind":"page","match":"exact","value":"/"},"label":"page:/","sessions":50,"users":44,
+    "conversion_from_first":100,"conversion_from_previous":0,"dropped_off":0,"median_ms":null,"p75_ms":null},
+   {"step":{"kind":"page","match":"prefix","value":"/products/"},"label":"page:/products/*","sessions":38,"users":34,
+    "conversion_from_first":76,"conversion_from_previous":76,"dropped_off":12,"median_ms":2140,"p75_ms":4010}],
+ "sessions":50,"users":44,"within_ms":1800000,"from":"...","to":"..."}
+```
+
+`sessions` / `users` per step are the sessions that reached it and their distinct `user.id`;
+`dropped_off` = previous step's sessions minus this step's; `median_ms` / `p75_ms` are the time
+from the previous step (nearest rank), `null` for step 1.
+
+`GET /v1/funnels/dropped?steps=page:/,page:/products/*,event:add_to_cart&step=3&from=&to=&within=&service=&environment=&release=&platform=&project=&limit=50&offset=0`
+
+The sessions that reached step `step - 1` but not `step` (2..number of steps), latest drop first.
+`steps` is the compact form, comma separated (a trailing `*` makes a page step a prefix match).
+`limit` defaults to 50 (at most 500); follow `next_offset` (null on the last page).
+
+```json
+{"step":3,"sessions":[
+   {"session_id":"b1c…","user_id":"u-17","entered_at":"…","last_step_at":"…","last_path":"/products/4",
+    "has_replay":true,"replay_kind":"rrweb"}],
+ "total":12,"offset":0,"limit":50,"next_offset":null,"from":"…","to":"…"}
+```
+
+`GET /v1/funnels/steps?from=&to=&service=&environment=&platform=&project=&q=`
+
+Known page paths (`url.path` of `navigation` events) and custom event names (`ouo.event.custom`)
+in the range with their counts, most frequent first, at most 200 each, for the step builder's
+autocomplete; `q` keeps values containing it. Two Loki metric queries (`sum by (url_path)` and
+`sum by (event_name)` of `count_over_time`).
+
+```json
+{"pages":[{"value":"/","count":61},{"value":"/products/2","count":30}],
+ "events":[{"value":"add_to_cart","count":27},{"value":"checkout","count":15}],"from":"…","to":"…"}
+```
+
 ## curl examples
 
 Development values (`deploy/compose/.env.example`): ingest token `it_dev_0000000000000000`,
@@ -581,7 +643,8 @@ main.go                      config, telemetry, HTTP server, -check healthcheck
 internal/config              env parsing
 internal/httpapi             routes, CORS (local origins), ingest / read tokens, replay sink, handlers, metrics (+ tests with fakes)
 internal/session             Loki stream -> Event, Fold, Classify, Health (+ fixtures)
-internal/loki                query_range client with pagination
+internal/funnel              funnel steps, per-session walk, report and drop-offs (pure, + fixtures)
+internal/loki                query_range client with pagination, instant `sum by` counts
 internal/tempo               search client, cache, Grafana Explore links
 internal/replay              Store interface, chunk validation (rrweb, frames, video), filesystem store (+ mp4 segments), event / frame streaming, video manifest
 internal/timerange           from/to parsing

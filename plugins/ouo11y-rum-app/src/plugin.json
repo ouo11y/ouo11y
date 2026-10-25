@@ -38,6 +38,15 @@
     },
     {
       "type": "page",
+      "name": "Funnels",
+      "icon": "filter",
+      "path": "/a/%PLUGIN_ID%/funnels",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": false
+    },
+    {
+      "type": "page",
       "name": "Session detail",
       "path": "/a/%PLUGIN_ID%/sessions/:id",
       "role": "Viewer",

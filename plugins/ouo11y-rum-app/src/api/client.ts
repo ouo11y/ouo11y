@@ -2,6 +2,9 @@ import { lastValueFrom } from 'rxjs';
 import { getBackendSrv, isFetchError } from '@grafana/runtime';
 import { RUM_PROXY_BASE } from '../constants';
 import type {
+  DroppedResponse,
+  FunnelRequest,
+  FunnelResponse,
   HealthResponse,
   LogsResponse,
   ReplayFramesResponse,
@@ -10,6 +13,7 @@ import type {
   SessionDetail,
   SessionFilters,
   SessionsResponse,
+  StepSuggestionsResponse,
   TracesResponse,
   VideoManifest,
   VideoSegment,
@@ -96,6 +100,24 @@ export async function rumGet<T>(path: string, params: Params = {}): Promise<T> {
   }
 }
 
+export async function rumPost<T>(path: string, body: unknown): Promise<T> {
+  const url = buildUrl(path);
+  try {
+    const response = await lastValueFrom(
+      getBackendSrv().fetch<T>({
+        url,
+        method: 'POST',
+        data: body,
+        showErrorAlert: false,
+        showSuccessAlert: false,
+      })
+    );
+    return response.data;
+  } catch (err) {
+    throw describeError(err, url);
+  }
+}
+
 export const rumApi = {
   /** Liveness probe, open without a token; proves the proxy reaches rum-api at jsonData.rumApiUrl. */
   healthz: () => rumGet<unknown>('/healthz'),
@@ -111,6 +133,10 @@ export const rumApi = {
   replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
   replayFrames: (id: string) => rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
   replayVideo: (id: string) => rumGet<VideoManifest>(`/v1/sessions/${encodeURIComponent(id)}/replay/video`),
+  funnel: (req: FunnelRequest) => rumPost<FunnelResponse>('/v1/funnels/query', req),
+  /** `steps` is the compact form (`page:/,page:/products/*,event:add_to_cart`). */
+  funnelDropped: (params: Params) => rumGet<DroppedResponse>('/v1/funnels/dropped', params),
+  funnelSteps: (params: Params) => rumGet<StepSuggestionsResponse>('/v1/funnels/steps', params),
 };
 
 /**

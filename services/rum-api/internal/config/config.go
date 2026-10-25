@@ -66,13 +66,16 @@ type Backend struct {
 	DatasourceUID string `yaml:"datasource_uid"` // GRAFANA_LOKI_DATASOURCE_UID / GRAFANA_TEMPO_DATASOURCE_UID
 }
 
-// Loki adds the delete API switch.
+// Loki adds the delete API switch and the funnel cache.
 type Loki struct {
 	Backend `yaml:",inline"`
 	// DeleteAPI submits a Loki delete request (POST /loki/api/v1/delete) for
 	// every user or project deletion. Needs the compactor with retention and a
 	// delete request store (docs/operations/data-lifecycle.md).
 	DeleteAPI bool `yaml:"delete_api"` // LOKI_DELETE_API, default true
+	// FunnelCacheTTL caches funnel results per definition, filters and
+	// range (docs/specs/funnels.md); 0 disables the cache.
+	FunnelCacheTTL time.Duration `yaml:"funnel_cache_ttl"` // LOKI_FUNNEL_CACHE_TTL, default 60s
 }
 
 // Tempo adds the search fan-out settings.
@@ -199,7 +202,7 @@ type S3 struct {
 func Defaults() Config {
 	return Config{
 		Server:     Server{HTTPListenAddress: ":8080"},
-		Loki:       Loki{Backend: Backend{URL: "http://loki:3100", DatasourceUID: "loki"}, DeleteAPI: true},
+		Loki:       Loki{Backend: Backend{URL: "http://loki:3100", DatasourceUID: "loki"}, DeleteAPI: true, FunnelCacheTTL: 60 * time.Second},
 		Tempo:      Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
 		Grafana:    Grafana{URL: "http://localhost:3000"},
 		Session:    Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
@@ -328,6 +331,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	str("OUO_ADMIN_TOKEN", &c.Auth.AdminToken)
 	str("LOKI_URL", &c.Loki.URL)
 	boolean("LOKI_DELETE_API", &c.Loki.DeleteAPI)
+	dur("LOKI_FUNNEL_CACHE_TTL", &c.Loki.FunnelCacheTTL)
 	str("GRAFANA_LOKI_DATASOURCE_UID", &c.Loki.DatasourceUID)
 	str("TEMPO_URL", &c.Tempo.URL)
 	str("GRAFANA_TEMPO_DATASOURCE_UID", &c.Tempo.DatasourceUID)
@@ -426,9 +430,9 @@ func (c Config) Validate() error {
 	if c.Tempo.Concurrency < 1 {
 		bad("tempo.concurrency must be at least 1")
 	}
-	for name, d := range map[string]time.Duration{"tempo.cache_ttl": c.Tempo.CacheTTL, "session.inactivity": c.Session.Inactivity,
+	for name, d := range map[string]time.Duration{"tempo.cache_ttl": c.Tempo.CacheTTL, "loki.funnel_cache_ttl": c.Loki.FunnelCacheTTL, "session.inactivity": c.Session.Inactivity,
 		"session.max_duration": c.Session.MaxDuration, "session.detail_lookback": c.Session.DetailLookback} {
-		if d < 0 || (d == 0 && name != "tempo.cache_ttl") {
+		if d < 0 || (d == 0 && !strings.HasSuffix(name, "cache_ttl")) {
 			bad("%s must be positive", name)
 		}
 	}
