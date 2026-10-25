@@ -3,7 +3,7 @@
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
 #
 # Built from source: the plugin's Funnels page is newer than the released
-# ghcr.io/ouo11y/grafana:0.3.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
+# ghcr.io/ouo11y/grafana:0.4.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
 # ouo11y checkout and copies it into grafana/grafana, like the released image. OUO11Y_REPO: the
 # checkout's root (default: this folder's place inside the repository). Once a grafana image with
 # funnels is tagged, replace `build:` with `image: ghcr.io/ouo11y/grafana:<that version>`.

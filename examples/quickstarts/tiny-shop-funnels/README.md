@@ -12,7 +12,7 @@ and the session generator.
 `result/` as is.
 
 > **Released images.** Funnels are newer than the released rum-api and Grafana images
-> (`ghcr.io/ouo11y/rum-api:0.3.0`, `ghcr.io/ouo11y/grafana:0.3.0`), so this stack **builds both
+> (`ghcr.io/ouo11y/rum-api:0.4.0`, `ghcr.io/ouo11y/grafana:0.4.0`, tagged before funnels merged), so this stack **builds both
 > from this repository** (`stack/50-rum-api`, `stack/60-grafana`). Once a release with funnels is
 > tagged, replace each `build:` block with `image: ghcr.io/ouo11y/rum-api:<version>` and
 > `image: ghcr.io/ouo11y/grafana:<version>` and delete `60-grafana/Dockerfile`.

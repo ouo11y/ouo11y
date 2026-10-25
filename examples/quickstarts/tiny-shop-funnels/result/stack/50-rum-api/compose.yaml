@@ -4,7 +4,7 @@
 # inside the network.
 #
 # Built from source: funnels (POST /v1/funnels/query) are newer than the released
-# ghcr.io/ouo11y/rum-api:0.3.0. Once a rum-api release with funnels is tagged, replace `build:`
+# ghcr.io/ouo11y/rum-api:0.4.0. Once a rum-api release with funnels is tagged, replace `build:`
 # with `image: ghcr.io/ouo11y/rum-api:<that version>` (see the README, "Released images").
 services:
   rum-api:

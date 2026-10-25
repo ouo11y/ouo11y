@@ -31,7 +31,7 @@ docker info
 ```
 
 A clone of the ouo11y repository. Funnels are newer than the released rum-api and Grafana images
-(`0.3.0`), so step 4 builds those two from the clone (the SDK and the collector are the released
+(`0.4.0`), so step 4 builds those two from the clone (the SDK and the collector are the released
 ones). Once a release with funnels is out, step 4 uses `image:` lines instead and the clone is not
 needed.
 
@@ -393,7 +393,7 @@ to Loki, and replay chunks to rum-api.
 # The browser uploads replay to 4319 only: rum-api is never exposed. Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
 services:
   otel-collector:
-    image: ghcr.io/ouo11y/collector:0.3.0
+    image: ghcr.io/ouo11y/collector:0.4.0
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
@@ -648,7 +648,7 @@ analytics:
 </details>
 
 **rum-api** builds sessions and funnels from Loki and stores replays. It is built from the clone
-(`OUO11Y_REPO`), because the released `0.3.0` has no funnels.
+(`OUO11Y_REPO`), because the released `0.4.0` has no funnels.
 
 <details>
 <summary><code>stack/50-rum-api/compose.yaml</code> (click to open)</summary>
@@ -661,7 +661,7 @@ analytics:
 # inside the network.
 #
 # Built from source: funnels (POST /v1/funnels/query) are newer than the released
-# ghcr.io/ouo11y/rum-api:0.3.0. Once a rum-api release with funnels is tagged, replace `build:`
+# ghcr.io/ouo11y/rum-api:0.4.0. Once a rum-api release with funnels is tagged, replace `build:`
 # with `image: ghcr.io/ouo11y/rum-api:<that version>` (see the README, "Released images").
 services:
   rum-api:
@@ -739,7 +739,7 @@ plugin from the clone and copies it into `grafana/grafana`, like the released im
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
 #
 # Built from source: the plugin's Funnels page is newer than the released
-# ghcr.io/ouo11y/grafana:0.3.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
+# ghcr.io/ouo11y/grafana:0.4.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
 # ouo11y checkout and copies it into grafana/grafana, like the released image. OUO11Y_REPO: the
 # checkout's root (default: this folder's place inside the repository). Once a grafana image with
 # funnels is tagged, replace `build:` with `image: ghcr.io/ouo11y/grafana:<that version>`.
