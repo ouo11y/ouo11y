@@ -32,6 +32,7 @@ their rum-api bound is what stores and serves what they send.
 | collector | 0.4 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |
 | rum-api | 0.5 | - | - | - | - | reads schema <= 1 | source maps upload and symbolication (ADR-0011), funnels (ADR-0012), session `device_id`; storage compatible with 0.4 (maps stored next to the replays) |
 | rum-api | 0.4 | - | - | - | - | reads schema <= 1 | data lifecycle (8b), replay `masked` flag, session `context`; storage compatible with 0.3 |
+| plugin | 0.9 | - | >= 0.4.0 | - | >= 13.0.0 | - | Funnels page needs rum-api >= 0.5.0; source-mapped stacks need rum-api >= 0.5.0 and show the raw stack otherwise |
 | plugin | 0.8 | - | >= 0.4.0 | - | >= 13.0.0 | - | Timeline behind a toggle; with rum-api 0.3 the masking state and header context fall back |
 | grafana | 0.4 | - | >= 0.4.0 | >= 0.8.0 | - | - | ships Grafana 13.2.1 with plugin 0.8.0 inside |
 | chart | 0.1 | >= 0.3.0 | >= 0.3.0 | - | - | - | defaults to the grafana image 0.3.0; Kubernetes >= 1.25 |

@@ -5,6 +5,15 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## Unreleased
 
+## [0.9.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.8.0...plugin-v0.9.0) (2026-10-25)
+
+
+### Added
+
+- **Funnels page (ADR-0012, `docs/funnels.md`):** Grafana -> ouo11y RUM -> Funnels. Define ordered steps
+  (page paths or events), see how many sessions and users reach each one and the drop-off between them,
+  and open the sessions that stopped at a step, with their replays. The funnel lives in the URL, so it can be
+  shared or bookmarked. Needs rum-api >= 0.5.0 (`/v1/funnels/*`).
 - **Source-mapped stack traces (ADR-0011):** an exception whose stack rum-api could map through the
   uploaded source maps opens on the original files, lines and functions, shows the source lines around the
   first mapped frame and a `source mapped` badge, with an Original / Raw toggle back to the minified stack.
