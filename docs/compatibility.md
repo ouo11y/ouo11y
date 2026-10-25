@@ -29,6 +29,7 @@ their rum-api bound is what stores and serves what they send.
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
 | collector | 0.4 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |
+| rum-api | 0.5 | - | - | - | - | reads schema <= 1 | source maps upload and symbolication (ADR-0011), funnels (ADR-0012), session `device_id`; storage compatible with 0.4 (maps stored next to the replays) |
 | rum-api | 0.4 | - | - | - | - | reads schema <= 1 | data lifecycle (8b), replay `masked` flag, session `context`; storage compatible with 0.3 |
 | plugin | 0.8 | - | >= 0.4.0 | - | >= 13.0.0 | - | Timeline behind a toggle; with rum-api 0.3 the masking state and header context fall back |
 | grafana | 0.4 | - | >= 0.4.0 | >= 0.8.0 | - | - | ships Grafana 13.2.1 with plugin 0.8.0 inside |

@@ -10,23 +10,24 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ### Added
 
-* 8b data lifecycle: retention, replay sweeper, delete by user/project with audit log, sampling, masking proof ([#49](https://github.com/ouo11y/ouo11y/issues/49)) ([b45c0c3](https://github.com/ouo11y/ouo11y/commit/b45c0c3d36b6c8472074c9d3487df4a9167a3b76))
-* **browser:** rotate the session on user change, endSession, clearUser, device.id (N45) ([#80](https://github.com/ouo11y/ouo11y/issues/80)) ([60c103f](https://github.com/ouo11y/ouo11y/commit/60c103f8b7491bd7105e4b97f2c9c69c2f7813cc))
-* **collector:** mobile vitals, Sentry SDK range, examples with trace-continuity verify ([#45](https://github.com/ouo11y/ouo11y/issues/45)) ([131b206](https://github.com/ouo11y/ouo11y/commit/131b2063324a28ad991a05db7e03c2f9cb0cc427))
-* **deploy:** 8a VM install on fresh VMs, --images, upgrade test, rum-api schema guard, N12 Helm paths ([#46](https://github.com/ouo11y/ouo11y/issues/46)) ([28d39f4](https://github.com/ouo11y/ouo11y/commit/28d39f4da916773e51ce384a23bca54eb37e33b3))
-* **rum-api,plugin:** funnel reports (N46, ADR-0012) ([#70](https://github.com/ouo11y/ouo11y/issues/70)) ([e8164e5](https://github.com/ouo11y/ouo11y/commit/e8164e533f90446a4cd312ef5363396c688560d4))
-* source maps and symbolication for minified web stacks (N36 part C, ADR-0011) ([#64](https://github.com/ouo11y/ouo11y/issues/64)) ([9a41831](https://github.com/ouo11y/ouo11y/commit/9a41831b67b58831672662f838608fbb06776f25))
-
-## 0.4.0 (2026-10-24)
-
-### Added
-
 - Source maps and symbolication (ADR-0011, `docs/sourcemaps.md`): `PUT /v1/sourcemaps` with a
   per-project upload token (`projects.<id>.upload_token`, `OUO_UPLOAD_TOKENS`), maps stored per
   project next to the replays (debug-id and release + URL indexes), `GET /v1/sourcemaps`,
   `POST /v1/symbolicate`, and a `symbolicated` object on every exception of the session timeline
   and session logs (raw stack untouched). Parsed-map LRU cache, `retention.sourcemaps` swept with
   the replays, delete-by-project removes the maps. New dependency `github.com/go-sourcemap/sourcemap`.
+- Funnel reports (ADR-0012, `docs/specs/funnels.md`): `POST /v1/funnels/query` counts the sessions
+  that reach each step (page paths or events, in order) over a range of at most 31 days,
+  `GET /v1/funnels/dropped` lists the sessions that left at a step and `GET /v1/funnels/steps`
+  suggests step values, all behind the read token; results are cached per definition and range for `loki.funnel_cache_ttl`
+  (`LOKI_FUNNEL_CACHE_TTL`, default `60s`, `0` disables).
+- Sessions carry `device_id`, the SDK's `device.id` (the same for every session of one browser or
+  install), omitted when the SDK sends none.
+
+## 0.4.0 (2026-10-24)
+
+### Added
+
 - Data lifecycle (roadmap 8b, `docs/operations/data-lifecycle.md`):
   - replay retention (`retention.replays`, per project `projects.<id>.retention.replays`) enforced
     by a sweeper on both backends (expired sessions and orphan folders, idempotent, metrics
