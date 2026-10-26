@@ -6,6 +6,20 @@ and the plugin version inside. Policy: `docs/releasing.md`.
 
 ## Unreleased
 
+## 0.5.0 (2026-10-26)
+
+Base `grafana/grafana:13.2.1`, plugin `ouo11y-rum-app` 0.9.0 inside.
+
+### Changed
+
+- Plugin 0.9.0: the Funnels page (ordered page and event steps, drop-off, the sessions that stopped
+  at a step) and source-mapped stack traces with an Original / Raw toggle. See the plugin changelog.
+
+### Compatibility
+
+- Use with rum-api >= 0.5.0: the Funnels page calls its `/v1/funnels/*` API, and stacks are mapped
+  only by a rum-api with source maps (older ones show the raw stack).
+
 ## 0.4.0 (2026-10-24)
 
 Base `grafana/grafana:13.2.1`, plugin `ouo11y-rum-app` 0.8.0 inside.

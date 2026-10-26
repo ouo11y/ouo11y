@@ -5,6 +5,6 @@
   "plugins/ouo11y-rum-app": "0.9.0",
   "collector": "0.4.0",
   "services/rum-api": "0.5.0",
-  "deploy/images/grafana": "0.4.0",
+  "deploy/images/grafana": "0.5.0",
   "deploy/helm/ouo": "0.1.1"
 }
