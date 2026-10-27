@@ -94,22 +94,30 @@ jobs:
             exit 1
           fi
 
-  # deploy/compose/quickstart.yaml is generated from deploy/compose at the release commit the
-  # image pins in compose.images.yaml were tagged on; fail when a pin bump was not regenerated
-  # or the hand-written service blocks drift from that release. Needs the tags: fetch-depth 0.
+  # deploy/compose/quickstart.yaml follows the newest release of each image (:latest) and is
+  # generated from deploy/compose at each image's release commit; fail when a newer release
+  # was not regenerated (every push to main runs this, so main turns red after a release until
+  # it is), the hand-written service blocks drift from the releases, the release set breaks
+  # docs/compatibility.md, the in-repo pins lag, or a recorded digest no longer matches ghcr.io.
+  # Needs the tags: fetch-depth 0.
   quickstart:
     name: quickstart.yaml in sync
     needs: changes
     if: needs.changes.outputs.quickstart == 'true'
     runs-on: [self-hosted, Linux]
     timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read   # the digests of the private ghcr.io/ouo11y images
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: deploy/scripts/gen-quickstart.sh --check
-        run: deploy/scripts/gen-quickstart.sh --check
+      - name: deploy/scripts/gen-quickstart.sh --check --verify-digests
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read with curl; no docker login on the shared runner
+        run: deploy/scripts/gen-quickstart.sh --check --verify-digests
       - name: docker compose config
         working-directory: deploy/compose
         run: docker compose -f quickstart.yaml config --quiet

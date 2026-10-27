@@ -12,12 +12,36 @@ and `projects`, and the released `rum-api:0.3.0` refuses unknown keys
 `compose.yaml + compose.images.yaml` on `main` until the next rum-api release: **configs on
 `main` may need images that are not released yet.**
 
-So the generator reads the image pins from this checkout's `compose.images.yaml`, resolves the
-tags `collector-v<pin>`, `rum-api-v<pin>`, `grafana-v<pin>` (they must point at one commit;
-`QUICKSTART_REF` overrides), and takes every config file and the Loki / Tempo / Mimir tags from
-`git archive <that commit> deploy/compose`. `main`'s config changes reach the quickstart only
-with a release and a pin bump. CI needs the tags: the `quickstart` job checks out with
-`fetch-depth: 0`.
+So configs come from release commits, never from `main`. CI needs the tags: the `quickstart`
+job checks out with `fetch-depth: 0`.
+
+## Images released from different commits: `:latest` + per-image configs (2026-10-27)
+
+The first design required `collector-v<pin>`, `rum-api-v<pin>`, `grafana-v<pin>` on ONE commit.
+Components release separately (collector 0.4.0 on `45ac795`, rum-api 0.5.0 on `2654db3`,
+grafana 0.5.0 / plugin 0.9.0 on `42a2e07`), so the script refused and the quickstart sat on
+0.3.0 for three releases; the founder noticed because the session Timeline still showed (plugin
+0.9.0 hides it). Now:
+
+- The ouo images default to `:latest`; the header records the version and index digest the
+  file was generated for, the newest `<image>-vX.Y.Z` tag of each (rcs ignored). Pin with
+  `OUO_GRAFANA_VERSION=0.5.0` or `0.5.0@sha256:...` (Compose accepts tag@digest; verified).
+- `release-images.yml` moves `:latest` only when the tag is the newest final version of the image
+  (before, any final tag moved it, so a patch to an older line would have pulled `:latest` back).
+- Each image's configs come from the commit its own tag points at (collector/ from
+  `collector-v*`, rum-api/ from `rum-api-v*`, grafana/ from `grafana-v*`), Loki / Tempo / Mimir
+  from the newest of the three; the service-block check compares each service with
+  `compose.yaml` at the same commit, images compared up to the `:-<version>` default.
+- `--check` also fails when the release set breaks `docs/compatibility.md` (`Needs <x>` minimums
+  of the collector / rum-api / grafana / plugin lines in use) and when `compose.images.yaml` /
+  `.env.example` pins are not the newest releases. `--verify-digests` asks ghcr.io: with
+  `GHCR_TOKEN` set it is a `curl -I` on `/v2/ouo11y/<image>/manifests/<tag>` with
+  `Authorization: Bearer base64(token)` (GITHUB_TOKEN with `packages: read` works, and no
+  `docker login` is left on the shared runners); otherwise `docker buildx imagetools inspect`.
+- The old check compared against 0.3.0's compose, so the service blocks had silently drifted
+  (rate-limit env, retention env, `-config.expand-env=true` for Loki / Tempo / Mimir, Loki's
+  `runtime.yaml`, rum-api's admin / upload tokens and `internal` OTLP credential); fixed with
+  the switch.
 
 ## What ships
 
@@ -79,3 +103,11 @@ identical inside the containers to the files at the release commit; `OUO_ENV_FIL
 `smoke.sh` pass (trace, log, metric, replay chunk read back from rum-api); plugin enabled with
 `secureJsonFields.readToken`, `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions` 200; then
 `down -v`.
+
+## Verified (2026-10-27)
+
+Generated for collector 0.4.0, rum-api 0.5.0, grafana 0.5.0: copied as `compose.yaml` into an
+empty folder, ports shifted to 33000 / 34318 / ..., `docker compose -p ouo-qs-verify up -d --wait`:
+all healthy; the running `:latest` images had exactly the digests in the header; Grafana
+`/api/plugins/ouo11y-rum-app/settings` reported 0.9.0 enabled; OTLP `/v1/traces` 200 with the
+demo credential, rum-api `/healthz` 200; then `down -v`.

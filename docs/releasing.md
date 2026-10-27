@@ -154,11 +154,17 @@ After the tag:
    already has access to the other packages (section 7).
 8. [ ] Images: `docker buildx imagetools inspect ghcr.io/ouo11y/<image>:<version>` shows
    `linux/amd64` and `linux/arm64`.
-9. [ ] Pins that should follow the new version (chart defaults, `deploy/compose/.env.example`,
+9. [ ] Images: pins that should follow the new version (chart defaults, `deploy/compose/.env.example`,
    `deploy/compose/compose.images.yaml`, `examples/fast-tracked/00-stack.md`) are bumped in a
-   follow-up PR, and `deploy/scripts/gen-quickstart.sh` regenerates `deploy/compose/quickstart.yaml`
-   from the release commit the new tags point at (CI job `quickstart` fails until it does, and
-   when the script's service blocks no longer match that release's compose files); for the chart that is a `fix(chart)` and gives the next chart release.
+   follow-up PR, and `deploy/scripts/gen-quickstart.sh` (after `docker login ghcr.io`) regenerates
+   `deploy/compose/quickstart.yaml` with the new version and digest; then
+   `node examples/quickstarts/check-embeds.mjs --write` updates the guides that embed it. The
+   quickstart follows `:latest` (moved only by the newest final release of an image), so it
+   takes each image's configs from the commit its own tag points at: images released from
+   different commits are fine. CI job `quickstart` fails on main from the tag until this PR
+   lands, and also when the script's service blocks no longer match the releases' compose
+   files or the newest releases break `docs/compatibility.md`. For the chart that is a
+   `fix(chart)` and gives the next chart release.
 10. [ ] Released together and verified: add a row to the release trains table in
     [`CHANGELOG.md`](../CHANGELOG.md).
 

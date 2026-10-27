@@ -10,6 +10,8 @@
 #   grafana-v0.2.0         -> ghcr.io/ouo11y/grafana:0.2.0 (+ 0.2, latest)
 #                             Grafana with plugins/ouo11y-rum-app baked in
 #   <image>-v0.2.0-rc.1    -> :0.2.0-rc.1 only, GitHub release marked pre-release
+#   :latest moves only to the newest final version of the image (a patch to an older line
+#   gets :X.Y.Z and :X.Y only)
 #
 # Every image is linux/amd64 + linux/arm64 with an SBOM and max-mode provenance
 # attestation, OCI labels/annotations (version, revision, source) and the build args
@@ -119,6 +121,12 @@ jobs:
           fi
           prerelease=false
           case "$version" in *-*) prerelease=true ;; esac
+          # :latest is the newest final release, never a patch to an older line (rum-api 0.4.1
+          # after 0.5.0 keeps :latest on 0.5.0). deploy/compose/quickstart.yaml defaults to it.
+          newest=$({ git tag -l "$prefix*"; echo "$TAG"; } | sed -n "s/^$prefix\([0-9]*\.[0-9]*\.[0-9]*\)\$/\1/p" \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          latest=false
+          if [ "$prerelease" = false ] && [ "$version" = "$newest" ]; then latest=true; fi
           {
             echo "image=$image"
             echo "context=$context"
@@ -128,6 +136,7 @@ jobs:
             echo "prefix=$prefix"
             echo "version=$version"
             echo "prerelease=$prerelease"
+            echo "latest=$latest"
           } >> "$GITHUB_OUTPUT"
 
       # The grafana image copies the built plugin; build and test it first.
@@ -166,7 +175,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.target.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.target.outputs.version }}
-            type=raw,value=latest,enable=${{ steps.target.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ steps.target.outputs.latest == 'true' }}
           labels: |
             org.opencontainers.image.title=ouo ${{ steps.target.outputs.image }}
             org.opencontainers.image.version=${{ steps.target.outputs.version }}
@@ -260,6 +269,10 @@ jobs:
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
             echo
+            if [ "$DRY_RUN" != true ] && [ "${{ steps.target.outputs.latest }}" = true ]; then
+              echo "**Next:** \`:latest\` moved, so \`deploy/compose/quickstart.yaml\` is stale (CI job \`quickstart\` fails on main until it is regenerated): bump the pins and run \`deploy/scripts/gen-quickstart.sh\` in a follow-up PR (docs/releasing.md, step 9)."
+              echo
+            fi
             cat release-notes.md
           } >> "$GITHUB_STEP_SUMMARY"
 
