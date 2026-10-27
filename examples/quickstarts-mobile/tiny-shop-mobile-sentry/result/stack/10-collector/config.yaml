@@ -1,0 +1,116 @@
+# ouo-collector pipelines, a trimmed copy of the full stack's config (no rate limits).
+# Receivers: the Sentry bridge on 4320 (DSN key auth: the project table below) and OTLP/HTTP on
+# 4318 for the API (project credential in projects.htpasswd). Exporters: Tempo, Loki, Mimir and
+# rum-api (replay video from the bridge).
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  basicauth/server:
+    htpasswd:
+      file: /etc/otelcol/projects.htpasswd
+
+receivers:
+  # The Sentry bridge. The app's DSN is http://<public key>@<this host>:4320/<project id>: the
+  # same key and project as your Sentry DSN, only the host changes. Each envelope is forwarded
+  # byte for byte to `upstream` and Sentry's answer (status, headers, body) goes back to the SDK
+  # unchanged. Envelopes Sentry accepted (2xx) are translated into ouo sessions, errors, spans,
+  # logs and replay video. Unknown key or project: 403, nothing forwarded.
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    upstream_timeout: 30s
+    projects:
+      - sentry_project_id: "${env:OUO_SENTRY_PROJECT_ID}"
+        public_keys: ["${env:OUO_SENTRY_PUBLIC_KEY}"]
+        upstream: ${env:OUO_SENTRY_UPSTREAM}
+        ouo_project_id: demo              # the ouo project the copy is stored under
+        service_name: tiny-shop-mobile    # service.name of the app in ouo
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true       # keeps the authenticated project for resource/project
+        auth:
+          authenticator: basicauth/server
+
+connectors:
+  # The bridge emits replay chunks on its logs output: send them to the replay pipeline
+  # (rum-api) and everything else to Loki.
+  routing/sentry:
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: log.attributes["ouo.replay.chunk"] == true
+        pipelines: [logs/replay]
+
+processors:
+  # Stamp the project id on every resource (and drop any value the client sent): the
+  # authenticated one on OTLP, the project table's `ouo_project_id` on the bridge.
+  resource/project:
+    attributes:
+      - key: ouo.project.id
+        action: delete
+      - key: ouo.project.id
+        from_context: auth.username
+        action: upsert
+  # Copy the OTLP event name into the `event.name` attribute, which Loki turns into a label,
+  # and the resource's `ouo.platform` onto each record.
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+          - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls: { insecure: true }
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls: { insecure: true }
+  ouoreplay:
+    endpoint: http://rum-api:8080
+    ingest_token: ${env:OUO_INGEST_TOKEN}
+    timeout: 30s                     # a replay video chunk is up to 8 MiB
+
+service:
+  extensions: [health_check, basicauth/server]
+  # The collector's own metrics, among them the bridge's ouo_sentry_envelopes_total{outcome}
+  # (forwarded, rejected, upstream_error) and ouo_sentry_upstream_duration_seconds, to Mimir.
+  telemetry:
+    metrics:
+      level: normal
+      readers:
+        - periodic:
+            interval: 15000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://mimir:9009/otlp/v1/metrics
+  pipelines:
+    traces:
+      receivers: [otlp, ouosentry]
+      processors: [resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    # The bridge's output before routing; the project is in the client context.
+    logs/sentry:
+      receivers: [ouosentry]
+      exporters: [routing/sentry]
+    logs:
+      receivers: [otlp, routing/sentry]
+      processors: [resource/project, transform/events, batch]
+      exporters: [otlp_http/loki]
+    metrics:
+      receivers: [otlp]
+      processors: [resource/project, batch]
+      exporters: [otlp_http/mimir]
+    logs/replay:
+      receivers: [routing/sentry]
+      exporters: [ouoreplay]

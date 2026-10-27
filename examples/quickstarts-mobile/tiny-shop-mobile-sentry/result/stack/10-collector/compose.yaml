@@ -1,0 +1,29 @@
+# ouo-collector: the only ingest. The app's Sentry SDK sends its envelopes to the Sentry bridge
+# (4320), which forwards each one unchanged to your Sentry and translates a copy into ouo; the
+# Node API sends OTLP (4318). Out: traces to Tempo, logs to Loki, its own metrics to Mimir,
+# replay video to rum-api. Ports: 4320 Sentry bridge, 4318 OTLP/HTTP (public), 13133 health
+# (loopback).
+services:
+  otel-collector:
+    # `latest` follows each release. Tested with 0.4.0: pin `collector:0.4.0` or
+    # `collector@sha256:ca0d001dc58153671fc501cbe280a69f86dc3e681a1b4621e827dedadb7727f2` to stay on it.
+    image: ghcr.io/ouo11y/collector:latest
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "${OUO_SENTRY_PORT:-4320}:4320"
+      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"
+    environment:
+      OUO_INGEST_TOKEN: it_dev_0000000000000000   # what it sends to rum-api; must equal rum-api's
+      # Your Sentry, from stack/.env (.env.example). `none`: the bridge answers the SDK itself
+      # and forwards nothing (ouo only).
+      OUO_SENTRY_UPSTREAM: ${OUO_SENTRY_UPSTREAM:-none}
+      OUO_SENTRY_PROJECT_ID: ${OUO_SENTRY_PROJECT_ID:-1}
+      OUO_SENTRY_PUBLIC_KEY: ${OUO_SENTRY_PUBLIC_KEY:-publickey0000000000000000000000}
+    # Lets an upstream of http://host.docker.internal:9000 reach a Sentry running on this machine.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config.yaml:/etc/otelcol/config.yaml:ro
+      - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
+    depends_on: [tempo, loki, mimir]

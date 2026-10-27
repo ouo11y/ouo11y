@@ -1,0 +1,11 @@
+# The ouo stack for tiny-shop-mobile-sentry: one folder per service, each with its compose file and
+# its config. This file only lists them. Start everything from this folder: `docker compose up -d`.
+# Grafana http://localhost:3000 (admin / testing567), Sentry bridge :4320, OTLP http://localhost:4318.
+# Ports taken, or your Sentry upstream: set them in .env next to this file (see .env.example).
+include:
+  - 10-collector/compose.yaml   # ingest: the Sentry bridge (app) and OTLP (API); forwards to your Sentry
+  - 20-tempo/compose.yaml       # traces
+  - 30-loki/compose.yaml        # logs and the app's session events
+  - 40-mimir/compose.yaml       # metrics: the bridge's own counters (forwarded envelopes, upstream latency)
+  - 50-rum-api/compose.yaml     # sessions and replay for the Grafana plugin
+  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app
