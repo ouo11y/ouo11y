@@ -25,8 +25,13 @@ session that rum-api folded like an SDK one.
   `:4319/v1/replay/chunks` with `Authorization`, `x-ouo-session-id`, `x-ouo-seq`. Plain JSON
   without gzip is accepted (202). A new session must start with an rrweb full snapshot
   (`record.takeFullSnapshot()` on rotation).
-- `device_id` in the session record needs rum-api > 0.3.0: the quickstart's 0.3.0 image predates
-  it (commit `60c103f`), the attribute is in Loki either way.
+- `device_id` in the session record needs rum-api > 0.3.0 (commit `60c103f`); 0.5.0 has it.
+- rum-api 0.5.0 exports its own telemetry over OTLP: without `OTEL_EXPORTER_OTLP_ENDPOINT` it
+  retries `localhost:4318` inside its container and logs every failure. Set it to the collector.
+- Log record `body`: rum-api keeps it as the event's line (sort tie-break, dedup key) but classifies
+  only by attributes, so a one-line summary body is safe and makes Loki readable.
+- The plugin (0.9.0) has no backend: query rum-api through Grafana at
+  `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions`, not `/api/plugins/.../resources`.
 
 ## OpenTelemetry JS 3.0 in the browser
 
@@ -36,7 +41,15 @@ session that rum-api folded like an SDK one.
   `trace.setGlobalTracerProvider`, `logs.setGlobalLoggerProvider` yourself.
 - The Logs API moved into `@opentelemetry/api` 1.10 (`logs`, `SeverityNumber`); `sdk-logs` 3.0
   takes `{ processors: [...] }` and `BatchLogRecordProcessor({ exporter })`.
-- `instrumentation-fetch` 0.300: `propagateTraceHeaderCorsUrls`, `ignoreUrls` (strings compared
+- `@opentelemetry/instrumentation-fetch` and `instrumentation-xml-http-request` 0.300 are deprecated
+  in their READMEs (not on npm) in favour of `@opentelemetry/browser-instrumentation/experimental/fetch`
+  and `/xhr` (0.9, opentelemetry-browser repo). Same options; the fetch one works with the 3.0 SDK
+  although it depends on `@opentelemetry/instrumentation` 0.223 (npm nests that copy; both use the
+  global API). It does not sanitize `url.full` unless `sanitizeUrl` is passed. Its other parts emit
+  `browser.navigation`, `browser.navigation_timing`, `browser.resource_timing`, `browser.web_vital`,
+  `browser.user_action.click` (log events, not spans), `browser.console` and `exception` (no
+  `ouo.exception.fatal`). `@opentelemetry/instrumentation-web` does not exist on npm.
+- The fetch instrumentation (either package): `propagateTraceHeaderCorsUrls`, `ignoreUrls` (strings compared
   whole, use RegExps), `applyCustomAttributesOnSpan(span, request, result)`; `result.url` and
   `result.status` give the failed-request event. The OTLP browser exporters use `fetch` with a
   keepalive budget of their own.

@@ -1,6 +1,7 @@
 // RUM events as OpenTelemetry log records. ouo reads them by event.name
 // (session.start, exception, http.request.failed, navigation, web_vital); any other name is a
-// custom event on the session timeline.
+// custom event on the session timeline. The body is a one-line summary for the Loki log line;
+// ouo itself reads only the attributes.
 import { logs, SeverityNumber } from "@opentelemetry/api";
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from "web-vitals";
 import { setFailedFetchHandler } from "./otel.js";
@@ -8,18 +9,19 @@ import { deviceId, getSession, onSessionChange } from "./session.js";
 
 const logger = logs.getLogger("tiny-shop-rum");
 
-export function emit(name, attributes = {}, { severity = "INFO", session = getSession() } = {}) {
+export function emit(name, attributes = {}, { severity = "INFO", session = getSession(), body = name } = {}) {
   logger.emit({
     eventName: name,
     severityNumber: SeverityNumber[severity],
     severityText: severity,
+    body,
     attributes: { "event.name": name, "session.id": session.id, "user.id": session.userId, ...attributes },
   });
 }
 
 // A custom event, e.g. addEvent("cart.added", { "product.id": 1 }).
-export function addEvent(name, attributes) {
-  emit(name, attributes);
+export function addEvent(name, attributes = {}) {
+  emit(name, attributes, { body: `${name} ${JSON.stringify(attributes)}` });
 }
 
 // session.start and session.end, with the ids of the session they are about.
@@ -32,7 +34,7 @@ onSessionChange((type, session, detail) => {
         "device.id": deviceId,
         ...(detail ? { "session.previous_id": detail.id } : {}),
       },
-      { session },
+      { session, body: `session.start ${session.id}` },
     );
   } else {
     emit(
@@ -42,7 +44,7 @@ onSessionChange((type, session, detail) => {
         "ouo.session.duration_ms": session.lastActivity - session.startedAt,
         "device.id": deviceId,
       },
-      { session },
+      { session, body: `session.end ${session.id} (${detail})` },
     );
   }
 });
@@ -61,7 +63,7 @@ export function captureErrors() {
         "ouo.exception.fatal": true,
         "ouo.exception.handled": false,
       },
-      { severity: "ERROR" },
+      { severity: "ERROR", body: `${err.name}: ${err.message}` },
     );
   };
   addEventListener("error", (event) => report(event.error ?? event.message));
@@ -73,7 +75,7 @@ setFailedFetchHandler((method, url, status) => {
   emit(
     "http.request.failed",
     { "http.request.method": method, "url.full": url, "http.response.status_code": status },
-    { severity: "WARN" },
+    { severity: "WARN", body: `${method} ${url} ${status}` },
   );
 });
 
@@ -82,7 +84,11 @@ export function trackNavigation() {
   let from = document.referrer ? new URL(document.referrer).pathname : "";
   const report = () => {
     if (location.pathname === from) return;
-    emit("navigation", { "url.path": location.pathname, "ouo.navigation.from": from });
+    emit(
+      "navigation",
+      { "url.path": location.pathname, "ouo.navigation.from": from },
+      { body: `navigation ${from || "(entry)"} -> ${location.pathname}` },
+    );
     from = location.pathname;
   };
   report();
@@ -96,12 +102,18 @@ export function trackNavigation() {
 
 // Core Web Vitals from Google's web-vitals library. Most are final only when the page is hidden.
 export function trackWebVitals() {
+  // CLS has no unit; the others are milliseconds.
+  const shown = (metric) => (metric.name === "CLS" ? metric.value.toFixed(3) : `${Math.round(metric.value)} ms`);
   const report = (metric) =>
-    emit("web_vital", {
-      "ouo.web_vital.name": metric.name,
-      "ouo.web_vital.value": metric.value,
-      "ouo.web_vital.rating": metric.rating,
-    });
+    emit(
+      "web_vital",
+      {
+        "ouo.web_vital.name": metric.name,
+        "ouo.web_vital.value": metric.value,
+        "ouo.web_vital.rating": metric.rating,
+      },
+      { body: `${metric.name} ${shown(metric)} ${metric.rating}` },
+    );
   onCLS(report);
   onFCP(report);
   onINP(report);

@@ -7,13 +7,13 @@ want ouo's sessions, traces and replays but keep their browser instrumentation t
 source libraries. ouo sees the same session the SDK would have sent:
 
 ```
-tiny-shop-otel-frontend  POST                    (fetch span, @opentelemetry/instrumentation-fetch)
+tiny-shop-otel-frontend  POST                    (fetch span, @opentelemetry/browser-instrumentation)
 └─ tiny-shop-otel-backend  POST /api/checkout    (HTTP server span, auto-instrumentation)
    └─ checkout
       ├─ validate cart
       └─ charge card
 every span: session.id, user.id                 (SessionSpanProcessor in the browser, baggage in the API)
-session: crashed, timeline, traces, replay      (OTLP log records + rrweb chunks)
+session: crashed, activity, traces, replay      (OTLP log records + rrweb chunks)
 ```
 
 | Path | What |
@@ -26,6 +26,7 @@ session: crashed, timeline, traces, replay      (OTLP log records + rrweb chunks
 | `result/frontend/src/telemetry/index.js` | starts it all, flushes when the page is hidden |
 | `result/frontend/src/App.jsx` | the shop: Add (custom event), Checkout, Call broken API (500), Throw error (crash) |
 | `result/backend/` | the Tiny Shop API, unchanged apart from its service name |
+| `result/stack/` | the ouo stack, one folder per service: collector, Tempo, Loki, Mimir, rum-api, Grafana |
 
 Two ways to use it:
 
@@ -38,9 +39,9 @@ Needs Node 24 and Docker. Commands have no `$` prompt; each runs from the folder
 
 ## 1. Run the ouo stack
 
-The stack is one file, [`deploy/compose/quickstart.yaml`](../../../deploy/compose/quickstart.yaml).
-Copy it into an empty folder as `compose.yaml`, log in to ghcr.io (the images are private for now:
-[fast-tracked 00, "Pull access"](../../fast-tracked/00-stack.md)), then in that folder:
+Log in to ghcr.io (the images are private for now:
+[fast-tracked 00, "Pull access"](../../fast-tracked/00-stack.md)), then from
+`examples/quickstarts/tiny-shop-otel/result/stack`:
 
 ```bash
 docker compose up -d
@@ -48,6 +49,10 @@ docker compose up -d
 
 Grafana is on http://localhost:3000 (admin / testing567), the collector on `:4318` (OTLP) and
 `:4319` (replay). Ports taken? See [Ports](#ports) below.
+
+The ouo images are on `latest`, which follows each release; each compose file names the version
+and digest this example was tested with (collector 0.4.0, rum-api 0.5.0, grafana 0.5.0), to pin
+if you want to stay on them.
 
 ## 2. Start the API
 
@@ -84,7 +89,7 @@ another tab for a moment: the page sends its Web Vitals and its last replay chun
 Give Tempo up to a minute after the click before searching.
 
 - **The session:** More apps -> ouo11y RUM -> Sessions. The newest `tiny-shop-otel-frontend`
-  session is `crashed`, with 1 failed request, its traces, its timeline and a replay.
+  session is `crashed`, with 1 failed request, its traces, its activity list and a replay.
 - **One trace across both apps:** Explore -> Tempo -> TraceQL
   `{ resource.service.name = "tiny-shop-otel-backend" && name = "charge card" }`: the root is the
   browser's `POST` span, and every span has the session's `session.id`.
@@ -93,8 +98,8 @@ Give Tempo up to a minute after the click before searching.
 
 ## Ports
 
-If the quickstart runs on other ports (a `.env` next to its `compose.yaml` with
-`OUO_OTLP_HTTP_PORT=14318`, `OUO_REPLAY_PORT=14319`, ...), point both apps at them:
+If the stack runs on other ports (a `result/stack/.env` with `OUO_OTLP_HTTP_PORT=14318`,
+`OUO_REPLAY_PORT=14319`, ...), point both apps at them:
 
 ```bash
 OUO_OTLP_ENDPOINT=http://localhost:14318 npm start
@@ -113,8 +118,8 @@ the quickstart collector allows (CORS).
 
 ## Copy it out of the repo
 
-`result/backend/` and `result/frontend/` work anywhere: copy them out and run the same commands.
-Neither installs an ouo package.
+`result/` works anywhere: copy it out and run the same commands. Neither app installs an ouo
+package.
 
 ## Things that bite
 
@@ -125,12 +130,18 @@ Neither installs an ouo package.
 - **Baggage has to be added at inject time.** The browser has no async context, so baggage set
   with `context.with()` is gone when `fetch` sends the request; `SessionPropagator` adds the
   session on every inject.
+- **`@opentelemetry/instrumentation-fetch` is deprecated** (in its README; npm does not flag it).
+  Its replacement is `@opentelemetry/browser-instrumentation/experimental/fetch`, same options.
+  That package's other instrumentations emit their own event names, which ouo does not classify.
 - **`propagateTraceHeaderCorsUrls` strings must equal the whole URL.** Use a RegExp.
 - **Event names are the contract.** ouo classifies `exception`, `http.request.failed`,
   `navigation`, `web_vital`, `session.start` and `session.end` by `event.name`. The OpenTelemetry
-  browser instrumentations (`@opentelemetry/browser-instrumentation`) emit other names
-  (`browser.navigation`, ...), which ouo shows as custom events and does not count in session health.
+  browser instrumentations emit other names (`browser.navigation`, `browser.web_vital`, ...),
+  which ouo shows as custom events and does not count in session health.
 - **Every request needs the project credential**, the replay chunks too:
   `Authorization: Basic base64("demo:pt_dev_demo_0000000000000000")`. Without it the collector answers 401.
+- **rum-api 0.5.0 exports its own telemetry** and needs `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at
+  the collector (`stack/50-rum-api/compose.yaml`); without it, it logs a failed connection to
+  `localhost:4318` every second.
 - **LCP and FCP need a visible page.** web-vitals reports nothing for a page that loaded in a
   background tab.

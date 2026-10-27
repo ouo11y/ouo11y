@@ -4,7 +4,9 @@ import { CompositePropagator, W3CBaggagePropagator, W3CTraceContextPropagator } 
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
+// The fetch instrumentation from the opentelemetry-browser repo; @opentelemetry/instrumentation-fetch
+// is deprecated in its favour. The package is experimental, hence the path.
+import { FetchInstrumentation } from "@opentelemetry/browser-instrumentation/experimental/fetch";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor, StackContextManager, TracerProvider } from "@opentelemetry/sdk-trace";
