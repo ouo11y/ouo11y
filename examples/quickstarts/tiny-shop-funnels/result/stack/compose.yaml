@@ -7,5 +7,6 @@ include:
   - 10-collector/compose.yaml   # ingest: the only thing the apps talk to, replay included
   - 20-tempo/compose.yaml       # traces
   - 30-loki/compose.yaml        # browser events: page views and custom events, the funnel steps
-  - 50-rum-api/compose.yaml     # sessions, funnels, and where replay chunks are stored (built from source)
-  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (built from source)
+  - 40-mimir/compose.yaml       # metrics: rum-api's own (the shop sends none)
+  - 50-rum-api/compose.yaml     # sessions, funnels, and where replay chunks are stored
+  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app

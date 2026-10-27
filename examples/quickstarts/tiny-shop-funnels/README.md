@@ -11,11 +11,11 @@ and the session generator.
 [build-it-yourself-guide.md](build-it-yourself-guide.md). The rest of this page runs the finished
 `result/` as is.
 
-> **Released images.** Funnels are newer than the released rum-api and Grafana images
-> (`ghcr.io/ouo11y/rum-api:0.4.0`, `ghcr.io/ouo11y/grafana:0.4.0`, tagged before funnels merged), so this stack **builds both
-> from this repository** (`stack/50-rum-api`, `stack/60-grafana`). Once a release with funnels is
-> tagged, replace each `build:` block with `image: ghcr.io/ouo11y/rum-api:<version>` and
-> `image: ghcr.io/ouo11y/grafana:<version>` and delete `60-grafana/Dockerfile`.
+> **Released images.** The stack runs the released ouo images on `latest`, which follows each
+> release. Funnels need rum-api 0.5.0 and the `ouo11y/grafana` image 0.5.0 (ouo11y RUM app 0.9.0)
+> or later. Each compose file names the version and digest this example was tested with
+> (collector 0.4.0, rum-api 0.5.0, grafana 0.5.0), to pin if you want to stay on them. Nothing is
+> built from this repository.
 
 ## What's new in this quickstart
 
@@ -35,10 +35,11 @@ and the session generator.
 | ouo-collector | `stack/10-collector` | 4318 (OTLP), 4319 (replay) | the only ingest; checks the project credential, routes each signal |
 | Tempo | `stack/20-tempo` | 3200 (loopback) | traces |
 | Loki | `stack/30-loki` | 3100 (loopback) | page views and custom events: the funnel steps |
-| rum-api (built here) | `stack/50-rum-api` | none | sessions, funnels and the replay store |
-| Grafana + ouo11y RUM app (built here) | `stack/60-grafana` | 3000 | the UI, admin / testing567 |
+| Mimir | `stack/40-mimir` | 9009 (loopback) | metrics: rum-api's own (the shop sends none) |
+| rum-api | `stack/50-rum-api` | none | sessions, funnels and the replay store |
+| Grafana + ouo11y RUM app | `stack/60-grafana` | 3000 | the UI, admin / testing567 |
 | the API | `backend/` | 5001 | Express, OpenTelemetry Node SDK |
-| the web app | `frontend/` | 5173 | React, `@ouo11y/browser` 0.2.1 |
+| the web app | `frontend/` | 5173 | React, `@ouo11y/browser` 0.3.0 |
 | the session generator | `generate-sessions/` | none | Playwright, headless Chromium |
 
 </details>
@@ -51,7 +52,7 @@ generate-sessions (50 headless browsers) ──drives──► web app (frontend
    navigation {url.path}, add_to_cart, order_paid ──► :4318     replay ──► :4319
                                      ▼
                        ouo-collector (10-collector)
-            traces ──► Tempo     events ──► Loki     replay ──► rum-api
+    traces ──► Tempo     events ──► Loki     metrics ──► Mimir     replay ──► rum-api
                                      │
   rum-api, POST /v1/funnels/query: one Loki query per step kind (pages, events),
   joined per session.id in memory, strict step order, counted per session
@@ -75,42 +76,49 @@ generate-sessions (50 headless browsers) ──drives──► web app (frontend
 | `result/generate-sessions/generate.mjs` | 50 sessions over 8 personas (bounce, deep link, out of order, browse, cart, abandon, declined, buyer), seeded, then the expected count per step |
 | `result/stack/compose.yaml` | only `include:` lines, one per service folder |
 | `result/stack/10-collector/` | `compose.yaml`, `config.yaml`, `projects.htpasswd` (the `demo` project) |
-| `result/stack/20-tempo/`, `30-loki/` | `compose.yaml` and the store's `config.yaml` |
-| `result/stack/50-rum-api/` | `compose.yaml` (built from `services/rum-api`) and `config.yaml` |
-| `result/stack/60-grafana/` | `compose.yaml`, `Dockerfile` (builds `plugins/ouo11y-rum-app` from the checkout, passed as the build context `ouo11y`) and `provisioning/` |
+| `result/stack/20-tempo/`, `30-loki/`, `40-mimir/` | `compose.yaml` and the store's `config.yaml` |
+| `result/stack/50-rum-api/` | `compose.yaml` (`ghcr.io/ouo11y/rum-api:latest`) and `config.yaml` |
+| `result/stack/60-grafana/` | `compose.yaml` (`ghcr.io/ouo11y/grafana:latest`, the ouo11y RUM app inside) and `provisioning/` |
 
 </details>
 
 ## Run it in five minutes
 
-Needs Node 24, Docker Compose 2.24 or later and a checkout of this repository (the stack builds
-rum-api and the plugin from it; from a copy of `result/` outside the checkout, set
-`OUO11Y_REPO=<checkout root>` first). Commands have no `$` prompt; each runs from the folder named
+Needs Node 24 and Docker Compose 2.24 or later. `result/` works anywhere: copy it out of the
+repository and run the same commands. Commands have no `$` prompt; each runs from the folder named
 above it.
 
-**1. The stack.** The collector image is private for now, so log in to ghcr.io once with a GitHub
-token that has `read:packages`:
+**1. The stack.** The ouo images are private for now, so log in to ghcr.io once with a classic
+GitHub token that has only `read:packages`:
 
 ```bash
 echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 ```
 
-From `result/stack` (the first run builds rum-api and Grafana, two to three minutes):
+From `result/stack`:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 **2. The API.** From `result/backend`:
 
 ```bash
-npm install && npm start
+npm install
+```
+
+```bash
+npm start
 ```
 
 **3. The web app.** From `result/frontend`, in a second terminal:
 
 ```bash
-npm install && npm run dev
+npm install
+```
+
+```bash
+npm run dev
 ```
 
 Click around http://localhost:5173 if you like: home, a product, **Add to cart**, **Cart**, **Go to
@@ -119,7 +127,15 @@ checkout**, **Pay** with any card.
 **4. Fifty shoppers.** From `result/generate-sessions`, in a third terminal (about a minute):
 
 ```bash
-npm install && npx playwright install chromium && npm run generate
+npm install
+```
+
+```bash
+npx playwright install chromium
+```
+
+```bash
+npm run generate
 ```
 
 It ends with the count you should find in Grafana:
@@ -247,7 +263,7 @@ export const rum = initRUM({
 From `result/stack`:
 
 ```bash
-OUO_GRAFANA_PORT=13000 OUO_OTLP_HTTP_PORT=14318 OUO_REPLAY_PORT=14319 docker compose up -d --build
+OUO_GRAFANA_PORT=13000 OUO_OTLP_HTTP_PORT=14318 OUO_REPLAY_PORT=14319 docker compose up -d
 ```
 
 Then `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` for the API, in
@@ -269,6 +285,10 @@ From `result/stack`: `docker compose down` (add `-v` to delete the data and the 
 stop both `npm` commands with Ctrl+C.
 
 ## Things that bite
+
+- **A newer `latest` that rejects a config.** After a `docker compose pull`, a service that keeps
+  restarting names the config key it no longer knows in `docker compose logs <service>`. Pin the
+  tested version written above its `image:` line (`rum-api:0.5.0`).
 
 - **Only events inside the time range count.** A session whose `/` visit is before `from` does not
   enter, even if it pays inside the range. Widen the range rather than shifting it.
