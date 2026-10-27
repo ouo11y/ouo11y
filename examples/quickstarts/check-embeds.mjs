@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Keeps files embedded in the quickstart guides identical to their source in the repo.
 //
+// Covers the web quickstarts (this folder) and the mobile ones (../quickstarts-mobile).
+//
 // A guide embeds a repo file as a fenced block right after a marker line:
 //
 //   <!-- embed: deploy/compose/quickstart.yaml -->
@@ -21,7 +23,8 @@ const marker = /^<!-- embed: (\S+) -->\n(`{3,})([^\n]*)\n([\s\S]*?)\n\2$/gm;
 
 function markdownFiles(dir) {
   return readdirSync(dir).flatMap((name) => {
-    if (name === "node_modules") return [];
+    // Dependencies and the generated native projects of the mobile apps hold no guides.
+    if (["node_modules", "ios", "android", "Pods"].includes(name) || name.startsWith(".")) return [];
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return markdownFiles(path);
     return name.endsWith(".md") ? [path] : [];
@@ -29,7 +32,8 @@ function markdownFiles(dir) {
 }
 
 let stale = 0;
-for (const guide of markdownFiles(here)) {
+const guides = [here, resolve(here, "../quickstarts-mobile")].flatMap(markdownFiles);
+for (const guide of guides) {
   const text = readFileSync(guide, "utf8");
   const updated = text.replace(marker, (block, source, fence, lang, body) => {
     const want = readFileSync(join(root, source), "utf8").replace(/\n$/, "");
