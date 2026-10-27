@@ -78,16 +78,16 @@ versions in `deploy/compose/.env.example`:
 
 | Image | Default version | Variable |
 |---|---|---|
-| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.3.0` | `OUO_COLLECTOR_VERSION` |
-| `ghcr.io/ouo11y/rum-api` | `0.3.0` | `OUO_RUM_API_VERSION` |
-| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in) | `0.3.0` | `OUO_GRAFANA_VERSION` |
+| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.4.0` | `OUO_COLLECTOR_VERSION` |
+| `ghcr.io/ouo11y/rum-api` | `0.5.0` | `OUO_RUM_API_VERSION` |
+| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in, plugin 0.9.0) | `0.5.0` | `OUO_GRAFANA_VERSION` |
 
 They come in through the override file `deploy/compose/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
 source" in Step 3). The images are **private for now**: pulling them needs a `docker login
 ghcr.io` with a token you get access for first ("Pull access" in Step 3); building from
 source needs no login. Release notes for every version are on the repository's GitHub
-Releases page (`rum-api-v0.3.0`, `collector-v0.3.0`, `grafana-v0.3.0`, and the older `-v0.2.0`).
+Releases page (`rum-api-v0.5.0`, `collector-v0.4.0`, `grafana-v0.5.0` and older).
 
 If you would rather vendor the stack into your own repo, copy these paths **keeping
 the same relative layout**. With the released images you only need `deploy/`; the rows
@@ -172,9 +172,9 @@ OUO_RUM_API_PORT=8080
 # Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
 # everything is built from source.
 OUO_IMAGE_REGISTRY=ghcr.io/ouo11y
-OUO_RUM_API_VERSION=0.3.0
-OUO_COLLECTOR_VERSION=0.3.0
-OUO_GRAFANA_VERSION=0.3.0
+OUO_RUM_API_VERSION=0.5.0
+OUO_COLLECTOR_VERSION=0.4.0
+OUO_GRAFANA_VERSION=0.5.0
 # rum-api 0.2.0 and later read deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
 # MinIO storage is the opt-in override compose.s3.yaml (both from the rum-api config PR #19).
 
@@ -249,7 +249,7 @@ echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 
 `GHCR_TOKEN` is the token in your shell (`export GHCR_TOKEN=...`, or read it from your
 password manager); never put it in `.env` or any file in the repo. Check it with
-`docker pull ghcr.io/ouo11y/rum-api:0.3.0`.
+`docker pull ghcr.io/ouo11y/rum-api:0.5.0`.
 
 No access yet? Use **Build from source** below: it needs no login, only the full checkout.
 
