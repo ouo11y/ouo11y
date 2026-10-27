@@ -61,7 +61,7 @@ jobs:
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           flag helm      '^deploy/helm/'
-          flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
+          flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/|^examples/quickstarts-mobile/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
           # SDK or receiver it exercises, and the stack they run on.
           shared='examples/(backend|tools)/|^deploy/compose/'

@@ -89,6 +89,28 @@ Founder, 2026-10-23: one runnable example per supported path, which clients can 
   - CORS: the backend allows `traceparent`, `tracestate` and `baggage`, plus `sentry-trace` on the Sentry path, so preflights never fail.
   - The example never runs the ouo SDK and the Sentry bridge into ouo at the same time: parallel mode makes ouo own `traceparent`.
 
+## 2c. Mobile quickstarts (founder, 2026-10-28)
+
+The series plan, rules and findings are in [`examples/quickstarts-mobile/index.md`](../../examples/quickstarts-mobile/index.md). Built in parallel on 2026-10-28, each verified on its own iOS 27 simulator with real taps; summaries in `project/agents/fast-tracked/summaries/2026-10-28-quickstart-*.md`.
+
+- [ ] N58 M1 `tiny-shop-mobile`: Expo 57 app keeping `@sentry/react-native` 8.32 with the ouo bridge as DSN (`upstream: none`) + the tiny-shop-otel API; sessions healthy / errored / crashed, one trace tap → API → `charge card`, error stacks, `Sentry.logger` lines in Loki [verified 2026-10-28, review in PR #99]
+- [ ] N59 M2 `tiny-shop-mobile-replay`: Sentry mobile replay through the bridge, masking on and off, taps on the replay, on-error replay, mobile vs web replay [verified 2026-10-28, review in PR #101]
+- [ ] N60 M3 `tiny-shop-mobile-signals`: app start cold / warm, TTID / TTFD, slow and frozen frames, JS stall, logs, release, native crash on the next launch, API dashboard [verified 2026-10-28, review in PR #100]
+- [ ] N61 M4 `tiny-shop-mobile-sentry`: the bridge forwarding to a real Sentry, the same session in both UIs [verified 2026-10-28 byte-identical through `sentrytap` and against self-hosted `sentry-sbx`, never sentry.io; review in PR #103]
+- [ ] N62 M5 `tiny-shop-mobile-ouo`: `@ouo11y/react-native` 0.2.1 straight to the collector and rum-api, and `sdk-state.md`, the ouo mobile SDK against the Sentry path [verified 2026-10-28, review in PR #102]
+- [ ] N63 **P0 privacy** (M5): `sdk/ios` replay, a frame captured at a touch can show a text input unmasked (`maskInputs: true`); suspected `drawHierarchy(afterScreenUpdates: false)` pixels vs redaction rects from the current view tree during a transition or keyboard dismissal. Fix, plus a test that types into a field and taps Back
+- [ ] N64 Readable Loki lines for the bridge and `@ouo11y/react-native` (`navigation`, `session.start` / `end`, `http.request.failed`, `exception`, vitals), as N57 for the web
+- [ ] N65 Tap names: bridge takes the outermost segment of React Native replay tap paths (take the innermost labelled one); native back button gives two unreadable `ui.tap`; the ouo SDK misses native header taps
+- [ ] N66 Some replay taps have no position (`touches: []`), intermittent: tell sentry-cocoa from the bridge with a `sentrytap` capture
+- [ ] N67 Bridge: vitals after a back navigation carry the previous screen; move the current screen on `navigation` breadcrumbs too
+- [ ] N68 Bridge metrics: an upstream non-2xx (429) counts as `forwarded` and its items are not counted; add an `upstream_rejected` outcome or a status class
+- [ ] N69 Bridge / plugin: use `sentry_ui_url` to link an ouo error to its Sentry event (spec section 6)
+- [ ] N70 `@ouo11y/react-native` README (`npx expo install`, the `Device.modelId` snippet, monorepo-only steps), `ouo.sdk.version` 0.2.0 in 0.2.1, CHANGELOG
+- [ ] N71 `@ouo11y/react-native`: replay URL derived only from port 4318; a `nativeCrash()` test helper; a fatal before `rum.ready` gets a temporary `user.id`
+- [ ] N72 Sentry path in Debug builds: 25 s cold start, App Hang at every launch (session `errored`), LogBox `console` records; filter or label dev builds, document in `docs/sentry-client-setup.md`
+- [ ] N73 Plugin: a 401 on a replay segment reads "not a playable mp4"; say the user is signed out
+- Tracker hygiene: ids N23, N29, N30 and N48 are each used twice in this file, and PRs #67 / #68 add N41 and two different N54; renumber when they merge.
+
 ## 3. ouo SDK: earn the path-1 upgrade (postponed to the very last step, founder 2026-10-23)
 
 The gap report found the ouo RN SDK behind the bridge on several points. Until these close, path 1 cannot be sold as "more data".

@@ -8,13 +8,41 @@ stands.
 
 | # | Quickstart | Checklist | What the reader ends with | Status |
 |---|---|---|---|---|
-| M1 | `tiny-shop-mobile` | N58 | Expo app + Express API (OTel Node). `Sentry.init` with the **ouo bridge as DSN** (`upstream: none`, no Sentry account). Sessions healthy / errored / crashed in ouo11y RUM, one trace from a tap to the API's manual spans, a JS error with its stack, `Sentry.logger` lines in Loki | todo |
-| M2 | `tiny-shop-mobile-replay` | N59 | Sentry mobile replay through the bridge (`replay_video`), masking on and off, taps on the timeline, replay of an errored session; an honest section on how a mobile replay differs from a web one (video + tap breadcrumbs vs DOM events) | todo |
-| M3 | `tiny-shop-mobile-signals` | N60 | app start cold / warm, time to initial display, slow and frozen frames, structured logs, release and environment, a native crash reported on the next launch | todo |
-| M4 | `tiny-shop-mobile-sentry` | N61 | "keep Sentry, add ouo": the bridge forwards every envelope to a real Sentry (your sentry.io project, or self-hosted) and the same session shows in both UIs; what each side shows that the other does not | todo |
-| M5 | `tiny-shop-mobile-ouo` | N62 | no Sentry: `@ouo11y/react-native` (npm) straight to the ouo collector and rum-api: sessions, traces with `session.id`, errors, native crash, vitals, replay; ends with **the state of the ouo mobile SDK** against the Sentry path (M1 to M4) | todo |
+| M1 | `tiny-shop-mobile` | N58 | Expo app + Express API (OTel Node). `Sentry.init` with the **ouo bridge as DSN** (`upstream: none`, no Sentry account). Sessions healthy / errored / crashed in ouo11y RUM, one trace from a tap to the API's manual spans, a JS error with its stack, `Sentry.logger` lines in Loki | review, [PR #99](https://github.com/ouo11y/ouo11y/pull/99) |
+| M2 | `tiny-shop-mobile-replay` | N59 | Sentry mobile replay through the bridge (`replay_video`), masking on and off, taps on the timeline, replay of an errored session; an honest section on how a mobile replay differs from a web one (video + tap breadcrumbs vs DOM events) | review, [PR #101](https://github.com/ouo11y/ouo11y/pull/101) |
+| M3 | `tiny-shop-mobile-signals` | N60 | app start cold / warm, time to initial display, slow and frozen frames, structured logs, release and environment, a native crash reported on the next launch | review, [PR #100](https://github.com/ouo11y/ouo11y/pull/100) |
+| M4 | `tiny-shop-mobile-sentry` | N61 | "keep Sentry, add ouo": the bridge forwards every envelope to a real Sentry (your sentry.io project, or self-hosted) and the same session shows in both UIs; what each side shows that the other does not | review, [PR #103](https://github.com/ouo11y/ouo11y/pull/103) |
+| M5 | `tiny-shop-mobile-ouo` | N62 | no Sentry: `@ouo11y/react-native` (npm) straight to the ouo collector and rum-api: sessions, traces with `session.id`, errors, native crash, vitals, replay; ends with **the state of the ouo mobile SDK** against the Sentry path (M1 to M4) | review, [PR #102](https://github.com/ouo11y/ouo11y/pull/102) |
 
 Checklist ids N58 to N62 are reserved here for these five (`project/tracker/checklist.md`).
+The five were built on 2026-10-28 with Expo 57.0.31, React Native 0.86.3, `@sentry/react-native`
+8.32.0 (M1 to M4) and `@ouo11y/react-native` 0.2.1 (M5), each verified on its own iOS 27
+simulator with real taps. M5 ends with `tiny-shop-mobile-ouo/sdk-state.md`: the ouo mobile SDK
+feature by feature against the Sentry path, and what blocks replacing Sentry.
+
+## What the five found
+
+Given checklist ids N63 to N73; the repro of each is in the quickstart's agent summary
+(`project/agents/fast-tracked/summaries/2026-10-28-quickstart-*.md`).
+
+| Id | Found by | Where | What |
+|---|---|---|---|
+| N63 | M5 | `sdk/ios` replay | **P0 privacy:** a replay frame captured at a touch can show a text input unmasked (`maskInputs: true`): the typed text is readable on the Back-tap frame, masked on the timer frames around it |
+| N64 | M1, M3, M4, M5 | bridge, `@ouo11y/react-native` | Loki lines of `navigation`, `session.start` / `end`, `http.request.failed`, `exception` (SDK) and the vitals records are the event name or empty, not what happened (same as N57 on the web) |
+| N65 | M1, M2, M5 | bridge, `@ouo11y/react-native` | tap names: the bridge takes the outermost segment of React Native replay tap paths (`Debug` for a product row); the native back button gives two `ui.tap` (`__backButtonAction:`, `SafeAreaInsetsContext`); the ouo SDK misses taps on native header buttons |
+| N66 | M2 | sentry-cocoa or bridge | some taps have no position in the replay (`touches: []`), intermittent |
+| N67 | M3 | bridge | vitals after a back navigation carry the previous screen: the receiver moves the screen only on transactions, React Navigation drops empty back transactions |
+| N68 | M4 | bridge metrics | an upstream 429 counts as `outcome="forwarded"` and its items are not counted: nothing shows what Sentry refused |
+| N69 | M4 | bridge, plugin | `sentry_ui_url` is parsed but unused: no link from an ouo error to the same event in Sentry |
+| N70 | M5 | `@ouo11y/react-native` | README: `npm install` instead of `npx expo install`, the Expo snippet's `Device.modelId` overrides the SDK's own reading, monorepo-only steps; `ouo.sdk.version` says 0.2.0 in 0.2.1; the CHANGELOG lists 0.2.1's work under Unreleased |
+| N71 | M5 | `@ouo11y/react-native` | the replay URL is derived only from port 4318: on any other OTLP port, chunks go to the OTLP port with no warning; no `nativeCrash()` test helper; a fatal before `rum.ready` has a temporary `user.id` |
+| N72 | M1, M3 | Sentry path in Debug builds | a Debug launch reports a 25 s cold start and an App Hang (session `errored`), and LogBox's `console.error` arrives as a 2 KB `console` record; filter or label dev builds in the bridge, and say so in `docs/sentry-client-setup.md` |
+| N73 | M2 | plugin | after a Grafana sign-out (two Grafanas on `localhost` share the cookie) a replay segment fails with "not a playable mp4" (the request is 401); say "signed out" |
+
+Not ours, written in the guides: frozen frames vanish when a Sentry transaction ends during the
+freeze (M3); `CI=1` keeps old `EXPO_PUBLIC_*` values in Release builds (M2); `expo run:ios` does
+not rerun `pod install` for a new local module (M5). N53 (the bridge race) did not reproduce in
+M3 (0 of 10 launches).
 
 ## Rules
 
@@ -41,7 +69,9 @@ standalone: its guide writes every file from an empty folder.
 ```
 
 - **App:** Expo SDK 57, React Native 0.86, React Navigation native stack, the versions
-  `examples/sentry-mobile` runs. Screens: **Products** (list from `GET /api/products`),
+  `examples/sentry-mobile` runs. `create-expo-app@latest` scaffolds SDK 58 since October 2026:
+  pin the template, `npx create-expo-app@latest app --template blank-typescript@sdk-57`, and
+  delete what it adds besides the app (`.git`, `.claude/`, `AGENTS.md`, `LICENSE`). Screens: **Products** (list from `GET /api/products`),
   **Product** (detail, "Add to cart"), **Cart** ("Checkout" `POST /api/checkout`). A
   **Debug** section on Products with: "Call broken API" (`GET /api/fail`, 500), "Handled error",
   "Throw error" (JS fatal), and from M3 "Native crash".
