@@ -3,7 +3,9 @@
 # chunks to rum-api. Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
 services:
   otel-collector:
-    image: ghcr.io/ouo11y/collector:0.4.0
+    # `latest` follows each release. Tested with 0.4.0: pin `collector:0.4.0` or
+    # `collector@sha256:ca0d001dc58153671fc501cbe280a69f86dc3e681a1b4621e827dedadb7727f2` to stay on it.
+    image: ghcr.io/ouo11y/collector:latest
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"

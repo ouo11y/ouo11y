@@ -73,40 +73,51 @@ browser (frontend/, @ouo11y/browser)            Node API (backend/, OTel Node SD
 
 Two ways to use it:
 
-- **Build it yourself:** [build-it-yourself-guide.md](build-it-yourself-guide.md) writes every file
-  in order, the plain app first, then each signal. About 30 minutes.
+- **Build it yourself (recommended):** [build-it-yourself-guide.md](build-it-yourself-guide.md)
+  writes every file in order: the plain app first, then the stack, then each signal. About 40 minutes.
 - **Run the finished result** in five minutes, below.
 
 ## Run it in five minutes
 
 Needs Node 24 and Docker Compose 2.24 or later. Commands have no `$` prompt; each runs from the
-folder named above it.
+folder named above it. `result/` works anywhere: copy it out of the repo and run the same commands.
 
-**1. The stack.** The ouo images are private for now, so log in to ghcr.io once with a GitHub
-token that has `read:packages`:
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
-
-From `result/stack`:
+**1. The stack.** Log in to ghcr.io (the images are private for now:
+[fast-tracked 00, "Pull access"](../../fast-tracked/00-stack.md)), then from
+`examples/quickstarts/tiny-shop-signals/result/stack`:
 
 ```bash
 docker compose up -d
 ```
 
-**2. The API.** From `result/backend`:
+Grafana is on http://localhost:3000 (admin / testing567, development credentials), the collector
+on `:4318` (OTLP) and `:4319` (replay). Ports taken? See [Ports](#ports) below.
+
+The ouo images are on `latest`, which follows each release; each compose file names the version
+and digest this example was tested with (collector 0.4.0, rum-api 0.5.0, grafana 0.5.0 with the
+ouo11y RUM plugin 0.9.0), to pin if you want to stay on them.
+
+**2. The API.** From `examples/quickstarts/tiny-shop-signals/result/backend`:
 
 ```bash
-npm install && npm start
+npm install
 ```
 
-It prints `[otel] traces and metrics to http://localhost:4318`.
+```bash
+npm start
+```
 
-**3. The web app.** From `result/frontend`, in a second terminal:
+It prints `[otel] traces and metrics to http://localhost:4318` and serves on `:5001`.
+
+**3. The web app.** From `examples/quickstarts/tiny-shop-signals/result/frontend`, in a second
+terminal:
 
 ```bash
-npm install && npm run dev
+npm install
+```
+
+```bash
+npm run dev
 ```
 
 Open http://localhost:5173 **in a normal browser tab and keep it in front.** Click **View** and
@@ -127,8 +138,8 @@ Explore -> Loki:
 ```
 
 `scope_name` keeps only the app's own logs (the SDK's events have `@ouo11y/browser`). Only the
-problems: add `| severity_text=~"WARN|ERROR"`. One session: `| session_id="<id>"`. Each line has a
-**View trace** link when it was logged during a traced click.
+problems: add `| severity_text=~"WARN|ERROR"`. One session: `| session_id="<id>"`. Each line is the message
+the app logged (`checkout failed`, `order placed`); the details are in its attributes.
 
 On the session page (More apps -> ouo11y RUM -> Sessions -> a session) the **Logs** section lists
 the same lines, next to the timeline, the replay and the traces.
@@ -143,10 +154,11 @@ the same lines, next to the timeline, the replay and the traces.
 | CLS | cumulative layout shift: how much the page jumped around while loading (no unit) | < 0.1 |
 | INP | interaction to next paint: the slowest reaction to a click or key press | < 200 ms |
 
-They are on the session timeline ("Web vital LCP 812 (good)") and in Loki:
+They are on the session timeline ("Web vital LCP 812 (good)") and in Loki. The SDK's events
+carry their name as the body (`web_vital`); `line_format` makes each line say what it measured:
 
 ```logql
-{service_name="tiny-shop-signals-frontend", event_name="web_vital"}
+{service_name="tiny-shop-signals-frontend", event_name="web_vital"} | line_format `{{.ouo_web_vital_name}} {{if eq .ouo_web_vital_name "CLS"}}{{printf "%.3f" (float64 .ouo_web_vital_value)}}{{else}}{{printf "%.0f ms" (float64 .ouo_web_vital_value)}}{{end}} {{.ouo_web_vital_rating}}`
 ```
 
 **A hidden or automated tab drops FCP and LCP.** Browsers only report paint timings for a page
@@ -184,14 +196,22 @@ the `checkout failed` log line in its Logs section. The rules are in
 
 ## Ports
 
-Ports taken? Export the new ports before `docker compose up -d` (in `result/stack`):
+If something already listens on 3000, 4318 or 4319, move this stack instead of stopping it: a
+`result/stack/.env` file with the new ports, which Compose reads on its own:
 
-```bash
-export OUO_GRAFANA_PORT=13000 OUO_OTLP_HTTP_PORT=14318 OUO_REPLAY_PORT=14319
+```
+OUO_GRAFANA_PORT=13000
+OUO_OTLP_HTTP_PORT=14318
+OUO_REPLAY_PORT=14319
 ```
 
-Then `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` for the API, and in
-`frontend/.env.local`:
+Then point both apps at them. The API, from `result/backend`:
+
+```bash
+OUO_OTLP_ENDPOINT=http://localhost:14318 npm start
+```
+
+and the web app, in `result/frontend/.env.local`:
 
 ```
 VITE_OUO_ENDPOINT=http://localhost:14318
@@ -204,17 +224,34 @@ collector allows.
 
 ## Clean up
 
-From `result/stack`: `docker compose down` (add `-v` to delete the data), then stop both `npm`
-commands with Ctrl+C.
+From `result/stack`, stop the stack and keep its data:
+
+```bash
+docker compose down
+```
+
+or delete the data too:
+
+```bash
+docker compose down -v
+```
+
+Then stop both `npm` commands with Ctrl+C.
 
 ## Things that bite
 
 - **Frontend logs need no extra exporter.** `@ouo11y/browser` registers the global OpenTelemetry
   logger provider; `log.js` only asks it for a logger. Pin `@opentelemetry/api-logs` to the version
-  the SDK uses (0.222.0 for 0.2.1) so npm installs one copy.
+  the SDK uses (0.222.0 for 0.3.0) so npm installs one copy. Not `logs` from `@opentelemetry/api`
+  1.10: it keeps its own global, which the SDK (still on OpenTelemetry JS 2.x) does not register with.
 - **`increase()` on a fresh counter undercounts.** The first sample has nothing before it, so the
   dashboard's totals read the counter itself (`sum(shop_orders{...})`), which resets when the API
   restarts.
 - **Every OTLP request needs the project credential**, the API's metrics too: without
   `Authorization: Basic ...` the collector answers 401.
 - **`propagateTo` strings must equal the whole URL**; `rum.js` uses a RegExp.
+- **rum-api 0.5.0 exports its own telemetry** and needs `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at
+  the collector (`stack/50-rum-api/compose.yaml`); without it, it logs a failed connection to
+  `localhost:4318` every second.
+- **A newer `latest` may reject a config.** `docker compose logs <service>` names the key; pin the
+  tested version from the comment above its `image:` line.

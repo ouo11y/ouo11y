@@ -8,7 +8,7 @@
 | `examples/fast-tracked/20-frontend.md` | fast-tracked-frontend | done | `sdk/browser/**`, `examples/ouo-web/**` |
 | `examples/quickstarts/tiny-shop/` | quickstarts | done (2026-10-23, [summary](summaries/2026-10-23-quickstart-tiny-shop.md)) | `deploy/compose/quickstart.yaml`, `sdk/browser/**` |
 | `examples/quickstarts/tiny-shop-otel/` | quickstarts | done (2026-10-25, [summary](summaries/2026-10-25-quickstart-tiny-shop-otel.md); review 2026-10-27, [summary](summaries/2026-10-27-quickstart-tiny-shop-otel-review.md)) | `services/rum-api/internal/session` (the contract) |
-| `examples/quickstarts/tiny-shop-signals/` | quickstarts | done (2026-10-24, [summary](summaries/2026-10-24-quickstart-tiny-shop-signals.md)) | none (standalone; published `@ouo11y/browser` 0.2.1, `ghcr.io/ouo11y/*:0.3.0`) |
+| `examples/quickstarts/tiny-shop-signals/` | quickstarts | done (2026-10-24, [summary](summaries/2026-10-24-quickstart-tiny-shop-signals.md); rules pass 2026-10-27, [summary](summaries/2026-10-27-quickstart-tiny-shop-signals-rules.md)) | none (standalone; published `@ouo11y/browser` 0.3.0, `ghcr.io/ouo11y/*:latest`) |
 | `examples/fast-tracked/30-mobile-ios.md` | fast-tracked-mobile | done | `sdk/react-native/**`, `sdk/ios/**`, `examples/ouo-mobile/**`, `project/kb/xcode-setup.md`, `project/kb/ios-replay.md` |
 
 Allowed paths: `examples/fast-tracked/`, `examples/quickstarts/`, `project/agents/fast-tracked/`, index files that list them.

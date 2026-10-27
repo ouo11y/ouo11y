@@ -7,5 +7,7 @@
 | [2026-10-10-mobile.md](2026-10-10-mobile.md) | writer run for `30-mobile-ios.md` |
 | [2026-10-10-orchestrator.md](2026-10-10-orchestrator.md) | review, port-default fix, verification |
 | [2026-10-24-quickstart-tiny-shop-funnels.md](2026-10-24-quickstart-tiny-shop-funnels.md) | quickstart 5: funnel steps from pages and custom events, 50 generated sessions, rum-api and Grafana built from source; verified from a clean checkout (N47) |
+| [2026-10-24-quickstart-tiny-shop-signals.md](2026-10-24-quickstart-tiny-shop-signals.md) | quickstart 2: frontend logs, Web Vitals, Node metrics and dashboard, a checkout failing one time in three; stack split per service (N41) |
 | [2026-10-25-quickstart-tiny-shop-otel.md](2026-10-25-quickstart-tiny-shop-otel.md) | Tiny Shop without the ouo SDK: OpenTelemetry JS + rrweb + web-vitals by hand; verified against quickstart.yaml, session crashed with traces and replay, inactivity rotation (N48) |
 | [2026-10-27-quickstart-tiny-shop-otel-review.md](2026-10-27-quickstart-tiny-shop-otel-review.md) | tiny-shop-otel review round 1: stack one folder per service on `latest`, relative paths, browser-instrumentation fetch, readable event lines, package table, step 8 costs |
+| [2026-10-27-quickstart-tiny-shop-signals-rules.md](2026-10-27-quickstart-tiny-shop-signals-rules.md) | tiny-shop-signals brought in line with the quickstart rules: plain app first, stack on `latest` with tested-version comments, rum-api 0.5.0 OTLP env, package tables, readable vitals lines; verified on `tiny-shop-signals-verify` (PR #67) |

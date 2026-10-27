@@ -3,7 +3,9 @@
 # provisioning/ sets up the datasources, the plugin and the "Tiny Shop API" dashboard.
 services:
   grafana:
-    image: ghcr.io/ouo11y/grafana:0.4.0
+    # `latest` follows each release. Tested with 0.5.0: pin `grafana:0.5.0` or
+    # `grafana@sha256:57607a3616c88867644be1f69abb4681ca73df05d6bf2682543418f0dfeb622f` to stay on it.
+    image: ghcr.io/ouo11y/grafana:latest
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:

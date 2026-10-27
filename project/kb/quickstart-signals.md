@@ -30,5 +30,20 @@ and `@ouo11y/browser` 0.2.1.
 - **Grafana image without a data volume:** the plugin the `ghcr.io/ouo11y/grafana` image ships in
   `/var/lib/grafana/plugins` stays visible, so the full stack's plugin-copy init container is not
   needed.
+- **`logs` from `@opentelemetry/api` 1.10 is not a substitute (2026-10-27).** OpenTelemetry JS 3.0
+  moved the logs API into the stable API, but it stores its provider under the
+  `opentelemetry.js.api.1` global, while `@opentelemetry/api-logs` uses
+  `Symbol.for("io.opentelemetry.js.api.logs")`. `@ouo11y/browser` 0.3.0 (OTel JS 2.x) registers
+  only with the latter, so a logger from `@opentelemetry/api` drops every record silently. Checked
+  in Node with both packages side by side. `@ouo11y/browser` 0.3.0 still pins `api-logs` 0.222.0.
+- **SDK events have their name as the Loki line** (`web_vital`, `body: name` in
+  `sdk/browser/src/telemetry/events.ts`). A readable vitals line without an SDK change:
+  `| line_format` with `{{if eq .ouo_web_vital_name "CLS"}}{{printf "%.3f" (float64 .ouo_web_vital_value)}}{{else}}{{printf "%.0f ms" (float64 .ouo_web_vital_value)}}{{end}}`
+  gives `LCP 96 ms good`, `CLS 0.002 good`. `printf "%.0f"` alone turns CLS into `0`; `round` is
+  not a Loki template function.
+- **`@ouo11y/browser` 0.3.0 prints `@ouo11y/browser@0.2.0 initialised`** in debug: its
+  `SDK_VERSION` constant was not bumped with the release.
+- **Express 5 calls the `app.listen` callback on `EADDRINUSE` too**, so "API on http://localhost:5001"
+  is printed even when another process holds the port and the server exits.
 - **Local quirk:** `npm` failed inside this worktree path (`call config.load() before reading
   values`, even `npm -v`) but worked in a scratch copy; lockfiles were made there.
