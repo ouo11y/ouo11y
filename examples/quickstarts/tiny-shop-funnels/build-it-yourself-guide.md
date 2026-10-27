@@ -4,7 +4,7 @@ This guide builds the [Tiny Shop Funnels](README.md) quickstart by hand, from an
 step at a time:
 
 1. a plain Express API and a plain five-page React shop, both working with no telemetry at all;
-2. the ouo stack (collector, Tempo, Loki, rum-api, Grafana), one service at a time;
+2. the ouo stack (collector, Tempo, Loki, Mimir, rum-api, Grafana), one service at a time;
 3. the API instrumented with the OpenTelemetry Node SDK;
 4. the shop instrumented with `@ouo11y/browser`: every page change becomes a funnel step for free,
    and three `rum.addEvent` calls add the event steps;
@@ -12,49 +12,71 @@ step at a time:
    session that dropped.
 
 At the end your folder is the same as [`result/`](result) next to this guide: compare with it when
-you are stuck. Plan on about 40 minutes. Every command goes in its own block: run them one by one,
-in order. When a step says "replace the file", select everything in it and paste the new content
-over it. Long files are in collapsible sections: open one, copy it, paste it into the file named in
-its title.
+you are stuck. Plan on about 40 minutes.
+
+```
+tiny-shop-funnels/
+├── stack/               the ouo stack, one folder per service
+├── backend/             Express API, OpenTelemetry traces
+├── frontend/            React shop with five pages, @ouo11y/browser
+└── generate-sessions/   Playwright: 50 shoppers through the funnel
+```
+
+Every command goes in its own block: run them one by one, in order. Paths are relative to
+`tiny-shop-funnels/`, wherever you create it, and each command says which of its folders it runs
+in. When a step says "replace the file", select everything in it and paste the new content over
+it. Long files are in collapsible sections: open one, copy it, paste it into the file named in its
+title.
 
 ## Step 0. Check your tools
 
-Node 24 or newer, and Docker Desktop running (`docker info` prints the server details, not
-"Cannot connect"):
+Node 24 or newer:
 
 ```bash
 node -v
 ```
 
+Docker Desktop must be running. This prints the server details, not "Cannot connect":
+
 ```bash
 docker info
 ```
 
-A clone of the ouo11y repository. Funnels are newer than the released rum-api and Grafana images
-(`0.4.0`), so step 4 builds those two from the clone (the SDK and the collector are the released
-ones). Once a release with funnels is out, step 4 uses `image:` lines instead and the clone is not
-needed.
+VS Code's `code` command. If it is not found, open VS Code, press Cmd+Shift+P and run
+**Shell Command: Install 'code' command in PATH**.
 
 ```bash
-git clone https://github.com/ouo11y/ouo11y.git ~/ouo11y
+code --version
 ```
 
-## Step 1. Create the folders
+Everything else is released: the ouo images from ghcr.io (step 4), `@ouo11y/browser` from npm
+(step 6). You do not need a clone of the ouo11y repository.
+
+## Step 1. Create the folders and open VS Code
+
+From the folder where you keep your projects:
 
 ```bash
-mkdir -p ~/Desktop/tiny-shop-funnels/backend ~/Desktop/tiny-shop-funnels/frontend/src ~/Desktop/tiny-shop-funnels/stack ~/Desktop/tiny-shop-funnels/generate-sessions
+mkdir -p tiny-shop-funnels/backend tiny-shop-funnels/stack tiny-shop-funnels/generate-sessions
 ```
 
 ```bash
-cd ~/Desktop/tiny-shop-funnels
+cd tiny-shop-funnels
 ```
 
-You will use four terminal tabs: the API, the shop, the stack, the generator.
+```bash
+code .
+```
+
+In VS Code, open a terminal with Ctrl+\`. You will use four terminal tabs (the `+` button): the
+API, the shop, the stack and the generator. Each new tab opens in `tiny-shop-funnels/`.
 
 ## Step 2. A plain API, no telemetry yet
 
+In the first terminal tab, from `tiny-shop-funnels/`:
+
 ```bash
-cd ~/Desktop/tiny-shop-funnels/backend
+cd backend
 ```
 
 Create `backend/package.json`:
@@ -118,6 +140,11 @@ app.listen(port, () => console.log(`tiny-shop-funnels API on http://localhost:${
 npm install
 ```
 
+| Package | What it does here |
+|---|---|
+| `express` | the HTTP server and its routes |
+| `cors` | answers the browser's preflight: the shop on 5173 calls the API on 5001, and from step 6 it adds `traceparent` and `baggage` headers |
+
 ```bash
 npm start
 ```
@@ -130,8 +157,14 @@ running.
 A funnel needs pages. The shop has five, switched with `history.pushState` (no router library):
 `/`, `/products/<id>`, `/cart`, `/checkout`, `/orders/<id>`.
 
+In the second terminal tab, from `tiny-shop-funnels/`, create the shop's folders and go into it:
+
 ```bash
-cd ~/Desktop/tiny-shop-funnels/frontend
+mkdir -p frontend/src
+```
+
+```bash
+cd frontend
 ```
 
 Create `frontend/package.json`:
@@ -342,6 +375,12 @@ export default function App() {
 npm install
 ```
 
+| Package | What it does here |
+|---|---|
+| `react`, `react-dom` | the shop's UI |
+| `vite` | the dev server on 5173 and the build |
+| `@vitejs/plugin-react` | lets Vite compile JSX |
+
 ```bash
 npm run dev
 ```
@@ -350,14 +389,16 @@ Check: open http://localhost:5173, click **Coffee**, **Add to cart ($4)**, **Car
 checkout**, type `4242424242424242`, **Pay**: "Thanks! Order ... is paid", and the address bar
 changed at every click. Leave it running.
 
-## Step 4. The ouo stack, one service at a time
+## Step 4. The stack, one service at a time
 
-```bash
-cd ~/Desktop/tiny-shop-funnels/stack
-```
+### 4a. Create the files
 
-`compose.yaml` only lists the service folders. Each folder holds that service's compose file and
-its config, and each file starts with what the service is for and its ports.
+Six services, one folder each. Each folder holds that service's compose file and its config, and
+each file starts with what the service is for, who sends it data and its ports. Open a block, copy
+all of it, and paste it into the file named in its title (VS Code creates the folders when you
+save a new file as `stack/10-collector/compose.yaml`).
+
+`compose.yaml` only lists the service folders:
 
 <details>
 <summary><code>stack/compose.yaml</code> (click to open)</summary>
@@ -373,8 +414,9 @@ include:
   - 10-collector/compose.yaml   # ingest: the only thing the apps talk to, replay included
   - 20-tempo/compose.yaml       # traces
   - 30-loki/compose.yaml        # browser events: page views and custom events, the funnel steps
-  - 50-rum-api/compose.yaml     # sessions, funnels, and where replay chunks are stored (built from source)
-  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app (built from source)
+  - 40-mimir/compose.yaml       # metrics: rum-api's own (the shop sends none)
+  - 50-rum-api/compose.yaml     # sessions, funnels, and where replay chunks are stored
+  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app
 ```
 
 </details>
@@ -388,12 +430,15 @@ to Loki, and replay chunks to rum-api.
 
 <!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/10-collector/compose.yaml -->
 ```yaml
-# ouo-collector: the only ingest. The browser SDK and the Node API send OTLP here; it checks the
-# project credential and forwards traces to Tempo, logs to Loki and replay chunks to rum-api.
-# The browser uploads replay to 4319 only: rum-api is never exposed. Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
+# ouo-collector: the only ingest. The browser SDK, the Node API and rum-api send OTLP here; it
+# checks the project credential and forwards traces to Tempo, logs to Loki, metrics to Mimir and
+# replay chunks to rum-api. The browser uploads replay to 4319 only: rum-api is never exposed.
+# Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
 services:
   otel-collector:
-    image: ghcr.io/ouo11y/collector:0.4.0
+    # `latest` follows each release. Tested with 0.4.0: pin `collector:0.4.0` or
+    # `collector@sha256:ca0d001dc58153671fc501cbe280a69f86dc3e681a1b4621e827dedadb7727f2` to stay on it.
+    image: ghcr.io/ouo11y/collector:latest
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
@@ -404,7 +449,7 @@ services:
     volumes:
       - ./config.yaml:/etc/otelcol/config.yaml:ro
       - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
-    depends_on: [tempo, loki, rum-api]
+    depends_on: [tempo, loki, mimir]
 ```
 
 </details>
@@ -414,8 +459,8 @@ services:
 <!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/10-collector/config.yaml -->
 ```yaml
 # ouo-collector pipelines, a trimmed copy of the full stack's config (no Sentry bridge, no
-# rate limits, no metrics). Receivers: OTLP/HTTP on 4318 and replay chunks on 4319, both behind
-# the project credential in projects.htpasswd. Exporters: Tempo, Loki and rum-api.
+# rate limits). Receivers: OTLP/HTTP on 4318 and replay chunks on 4319, both behind the
+# project credential in projects.htpasswd. Exporters: Tempo, Loki, Mimir and rum-api.
 
 extensions:
   health_check:
@@ -472,7 +517,9 @@ exporters:
   otlp_http/loki:
     endpoint: http://loki:3100/otlp
     tls: { insecure: true }
-  # Replay chunks go on, unchanged, to rum-api, which stores them (see 50-rum-api/config.yaml).
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls: { insecure: true }
   ouoreplay:
     endpoint: http://rum-api:8080
     ingest_token: ${env:OUO_INGEST_TOKEN}
@@ -488,6 +535,10 @@ service:
       receivers: [otlp]
       processors: [resource/project, transform/events, batch]
       exporters: [otlp_http/loki]
+    metrics:
+      receivers: [otlp]
+      processors: [resource/project, batch]
+      exporters: [otlp_http/mimir]
     logs/replay:
       receivers: [ouoreplay]
       exporters: [ouoreplay]
@@ -647,8 +698,34 @@ analytics:
 
 </details>
 
-**rum-api** builds sessions and funnels from Loki and stores replays. It is built from the clone
-(`OUO11Y_REPO`), because the released `0.4.0` has no funnels.
+**Mimir** stores metrics. The shop sends none; rum-api sends its own (request counts and
+durations), through the collector like everything else.
+
+<details>
+<summary><code>stack/40-mimir/compose.yaml</code> (click to open)</summary>
+
+<!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/40-mimir/compose.yaml -->
+```yaml
+# Mimir: stores metrics. The collector pushes rum-api's own OTLP metrics to /otlp; Grafana queries
+# it with PromQL on 9009 (/prometheus). Port 9009 is published on loopback for curl.
+services:
+  mimir:
+    image: grafana/mimir:3.2.1
+    command: ["-config.file=/etc/mimir/config.yaml"]
+    ports:
+      - "127.0.0.1:${OUO_MIMIR_PORT:-9009}:9009"
+    volumes:
+      - ./config.yaml:/etc/mimir/config.yaml:ro
+      - mimir-data:/data
+
+volumes:
+  mimir-data:
+```
+
+</details>
+
+**rum-api** builds sessions and funnels from Loki and stores replays. Funnels are in rum-api
+0.5.0 and later.
 
 <details>
 <summary><code>stack/50-rum-api/compose.yaml</code> (click to open)</summary>
@@ -659,28 +736,27 @@ analytics:
 # (healthy / errored / crashed) and the funnel reports from Loki and Tempo, and stores replay
 # chunks the collector forwards. Internal: only the collector and Grafana talk to it, on 8080
 # inside the network.
-#
-# Built from source: funnels (POST /v1/funnels/query) are newer than the released
-# ghcr.io/ouo11y/rum-api:0.4.0. Once a rum-api release with funnels is tagged, replace `build:`
-# with `image: ghcr.io/ouo11y/rum-api:<that version>` (see the README, "Released images").
 services:
   rum-api:
-    build:
-      # services/rum-api of an ouo11y checkout. OUO11Y_REPO: the checkout's root (default: this
-      # folder's place inside the repository).
-      context: ${OUO11Y_REPO:-../../../../../..}/services/rum-api
-      args: { VERSION: funnels-from-source }
-    image: tiny-shop-funnels/rum-api:from-source
+    # `latest` follows each release. Tested with 0.5.0 (the first with funnels): pin
+    # `rum-api:0.5.0` or `rum-api@sha256:1ee9e606220df2c42f4ade4131fdd3f82085d6e814676a771754a85a6ae78336` to stay on it.
+    image: ghcr.io/ouo11y/rum-api:latest
     command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
     environment:
       GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}   # for deep links
       OUO_INGEST_TOKEN: it_dev_0000000000000000   # the collector's; development value
       OUO_READ_TOKEN: rt_dev_0000000000000000     # Grafana's; development value
       DATA_DIR: /home/nonroot                     # the image runs as nonroot
+      # rum-api's own traces and logs (0.5.0 and later), through the collector like the shop's.
+      # Without these it retries localhost:4318 inside its container and logs every failure.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS: Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: rum-api
     volumes:
       - ./config.yaml:/etc/rum-api/config.yaml:ro
       - rum-api-data:/home/nonroot
-    depends_on: [loki, tempo]
+    depends_on: [loki, tempo, otel-collector]
 
 volumes:
   rum-api-data:
@@ -726,30 +802,23 @@ storage:
 
 </details>
 
-**Grafana** with the ouo11y RUM app, which has the **Funnels** page. Its `Dockerfile` builds the
-plugin from the clone and copies it into `grafana/grafana`, like the released image does.
+**Grafana** with the ouo11y RUM app, which has the **Funnels** page (the `ouo11y/grafana` image
+0.5.0 and later, with the app 0.9.0).
 
 <details>
 <summary><code>stack/60-grafana/compose.yaml</code> (click to open)</summary>
 
 <!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/60-grafana/compose.yaml -->
 ```yaml
-# Grafana with the ouo11y RUM app plugin: the UI for everything above. It reads Tempo and Loki
-# directly, and sessions, funnels and replays from rum-api through the plugin. Port 3000,
+# Grafana with the ouo11y RUM app plugin: the UI for everything above. It reads Tempo, Loki and
+# Mimir directly, and sessions, funnels and replays from rum-api through the plugin. Port 3000,
 # admin / testing567. provisioning/ sets up the datasources and the plugin.
-#
-# Built from source: the plugin's Funnels page is newer than the released
-# ghcr.io/ouo11y/grafana:0.4.0. Dockerfile (next to this file) builds plugins/ouo11y-rum-app of an
-# ouo11y checkout and copies it into grafana/grafana, like the released image. OUO11Y_REPO: the
-# checkout's root (default: this folder's place inside the repository). Once a grafana image with
-# funnels is tagged, replace `build:` with `image: ghcr.io/ouo11y/grafana:<that version>`.
 services:
   grafana:
-    build:
-      context: .
-      additional_contexts:
-        ouo11y: ${OUO11Y_REPO:-../../../../../..}
-    image: tiny-shop-funnels/grafana:from-source
+    # `latest` follows each release. Tested with 0.5.0 (plugin 0.9.0, the first with Funnels): pin
+    # `grafana:0.5.0` or
+    # `grafana@sha256:57607a3616c88867644be1f69abb4681ca73df05d6bf2682543418f0dfeb622f` to stay on it.
+    image: ghcr.io/ouo11y/grafana:latest
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:
@@ -760,37 +829,7 @@ services:
       OUO_READ_TOKEN: rt_dev_0000000000000000   # read by provisioning/plugins; equals rum-api's
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
-    depends_on: [loki, tempo, rum-api]
-```
-
-</details>
-<details>
-<summary><code>stack/60-grafana/Dockerfile</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/60-grafana/Dockerfile -->
-```dockerfile
-# syntax=docker/dockerfile:1
-# Grafana with the ouo11y RUM app plugin built from an ouo11y checkout (the Funnels page is not
-# in a released image yet). compose.yaml passes the checkout as the named build context
-# `ouo11y`; only the files copied below are sent. Same result as the released grafana image.
-FROM node:24-bookworm-slim AS plugin
-WORKDIR /src
-# The plugin is an npm workspace of the repository: install from the root lockfile, plugin only.
-COPY --from=ouo11y package.json package-lock.json ./
-COPY --from=ouo11y sdk/browser/package.json sdk/browser/
-COPY --from=ouo11y sdk/react-native/package.json sdk/react-native/
-COPY --from=ouo11y examples/ouo-web/package.json examples/ouo-web/
-COPY --from=ouo11y plugins/ouo11y-rum-app/package.json plugins/ouo11y-rum-app/
-RUN npm ci --no-audit --no-fund --ignore-scripts -w plugins/ouo11y-rum-app
-COPY --from=ouo11y plugins/ouo11y-rum-app/src plugins/ouo11y-rum-app/src
-COPY --from=ouo11y plugins/ouo11y-rum-app/.config plugins/ouo11y-rum-app/.config
-COPY --from=ouo11y plugins/ouo11y-rum-app/tsconfig.json plugins/ouo11y-rum-app/.cprc.json plugins/ouo11y-rum-app/README.md plugins/ouo11y-rum-app/CHANGELOG.md plugins/ouo11y-rum-app/LICENSE plugins/ouo11y-rum-app/
-RUN npm run build -w plugins/ouo11y-rum-app
-
-FROM grafana/grafana:13.2.1
-COPY --from=plugin --chown=grafana:root /src/plugins/ouo11y-rum-app/dist /var/lib/grafana/plugins/ouo11y-rum-app
-ENV GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app \
-    GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app
+    depends_on: [loki, tempo, mimir, rum-api]
 ```
 
 </details>
@@ -799,7 +838,7 @@ ENV GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app \
 
 <!-- embed: examples/quickstarts/tiny-shop-funnels/result/stack/60-grafana/provisioning/datasources/datasources.yaml -->
 ```yaml
-# Grafana datasources: Loki (browser events), Tempo (traces), both inside the network.
+# Grafana datasources: Loki (logs), Tempo (traces), Mimir (metrics), all inside the network.
 # The uids are fixed because rum-api's config refers to them.
 # Log lines with a trace_id link to the trace in Tempo.
 apiVersion: 1
@@ -822,10 +861,18 @@ datasources:
     uid: tempo
     type: tempo
     url: http://tempo:3200
-    isDefault: true
     jsonData:
       lokiSearch:
         datasourceUid: loki
+
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    url: http://mimir:9009/prometheus
+    isDefault: true
+    jsonData:
+      prometheusType: Mimir
+      timeInterval: 15s
 ```
 
 </details>
@@ -850,33 +897,74 @@ apps:
 
 </details>
 
-The collector image is private for now: log in to ghcr.io once with a GitHub token that has
-`read:packages`.
+**Image versions.** The three ouo images use the `latest` tag, which follows every release. The
+compose files say which version this guide was tested with and its digest: pin
+`ghcr.io/ouo11y/rum-api:0.5.0`, or the `@sha256:...` digest, to keep a stack on one version. The
+configs in this guide are written for the tested versions; a much newer rum-api may refuse a
+config key it no longer knows, and the error in `docker compose logs rum-api` names it.
+
+### 4b. Log in to ghcr.io
+
+The ouo images are private for now. You need read access to the `ouo11y` packages and a
+**classic** GitHub token with only the `read:packages` scope. Put the token in your shell
+(`export GHCR_TOKEN=...`), never in a file, then:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u <your-github-user> --password-stdin
 ```
 
-Point the builds at your clone and start everything. The first run builds rum-api and Grafana
-(two to three minutes):
+### 4c. Check the ports
+
+The stack publishes 3000 (Grafana) and the collector's 4318 (OTLP) and 4319 (replay) to your
+network, and 3100, 3200, 9009 and 13133 on loopback only. This prints nothing when they are all free:
 
 ```bash
-export OUO11Y_REPO=~/ouo11y
+lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(3000|3100|3200|4318|4319|9009|13133) '
+```
+
+If something is listed, do not stop it: move this stack instead. From `stack/`:
+
+```bash
+code .env
+```
+
+and set the ports that are taken, for example:
+
+```
+OUO_GRAFANA_PORT=13000
+OUO_OTLP_HTTP_PORT=14318
+OUO_REPLAY_PORT=14319
+```
+
+Compose reads `.env` on its own. The others are `OUO_LOKI_PORT`, `OUO_TEMPO_PORT`,
+`OUO_MIMIR_PORT` and `OUO_COLLECTOR_HEALTH_PORT` (the `${OUO_..._PORT:-...}` lines in the compose files). Remember the
+new collector ports: steps 5 and 6 tell you where they go.
+
+### 4d. Start it
+
+In the third terminal tab, from `tiny-shop-funnels/`:
+
+```bash
+cd stack
 ```
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-Check: rum-api has the funnel endpoint (a 400 for an empty funnel, not a 404):
+```bash
+docker compose ps
+```
+
+Six services are `Up`, and `rum-api` becomes `healthy`. Check that rum-api has the funnel
+endpoint (a 400 for an empty funnel, not a 404):
 
 ```bash
 docker compose exec grafana curl -s -X POST http://rum-api:8080/v1/funnels/query -H 'Authorization: Bearer rt_dev_0000000000000000' -d '{"steps":[]}'
 ```
 
-It prints `{"error":"a funnel has 2 to 10 steps"}`. http://localhost:3000 (admin / testing567):
-More apps -> ouo11y RUM has **Funnels**. Ports taken by another stack? See "When something does
-not work" below.
+It prints `{"error":"a funnel has 2 to 10 steps"}`. Open http://localhost:3000 and log in with
+**admin / testing567**: **More apps -> ouo11y RUM** has **Funnels**.
 
 ## Step 5. Instrument the API
 
@@ -1029,23 +1117,46 @@ app.listen(port, () => console.log(`tiny-shop-funnels API on http://localhost:${
 
 </details>
 
-```bash
-cd ~/Desktop/tiny-shop-funnels/backend
-```
+In the API tab (still in `backend/`):
 
 ```bash
 npm install
 ```
 
+| Package | What it does here |
+|---|---|
+| `@opentelemetry/api` | what your code calls: `trace`, `SpanStatusCode` in `server.js` |
+| `@opentelemetry/sdk-node` | `NodeSDK`: starts the tracer provider, the instrumentations and the context manager in one call |
+| `@opentelemetry/sdk-trace` | `BatchSpanProcessor`, which sends spans in batches (OpenTelemetry JS 3.0 merged `sdk-trace-base` and `sdk-trace-node` into it) |
+| `@opentelemetry/exporter-trace-otlp-http` | sends spans to the collector over OTLP/HTTP, with the project credential |
+| `@opentelemetry/instrumentation-http`, `instrumentation-express` | a server span for every request, named after its Express route |
+| `@opentelemetry/baggage-span-processor` | copies the browser's `baggage` (`session.id`, `user.id`) onto every span, so the API's spans belong to the RUM session |
+| `@opentelemetry/resources`, `semantic-conventions` | the resource (`service.name`, `service.version`) and the standard attribute names |
+
+<details>
+<summary>Which OpenTelemetry Node package is which? (click to open)</summary>
+
+As of OpenTelemetry JS 3.0:
+
+| Package | Status | What it is |
+|---|---|---|
+| `@opentelemetry/sdk-trace` | current | The tracer provider and span processors, for Node and the browser. |
+| `@opentelemetry/sdk-trace-base`, `sdk-trace-node` | deprecated (last versions 2.x) | The 2.x split of the same thing; `sdk-trace` replaces both. |
+| `@opentelemetry/sdk-node` | current, 0.x | One-call setup. Its 0.300 line goes with the 3.0 packages. |
+| `@opentelemetry/auto-instrumentations-node` | current, contrib | Every Node instrumentation at once. This guide picks only `http` and `express`, to keep the install small and the spans readable. |
+
+</details>
+
 ```bash
 npm start
 ```
 
-Check: the first line is `[otel] traces to http://localhost:4318`.
+Check: the first line is `[otel] traces to http://localhost:4318`. Collector on 14318 (step 4c)?
+Stop it and start it with `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` instead.
 
 ## Step 6. Instrument the shop: pages and funnel events
 
-Stop Vite (Ctrl+C). Replace `frontend/package.json` (adds `@ouo11y/browser` 0.2.1):
+Stop Vite (Ctrl+C in the shop tab). Replace `frontend/package.json` (adds `@ouo11y/browser` 0.3.0):
 
 <details>
 <summary><code>frontend/package.json</code> (click to open)</summary>
@@ -1067,7 +1178,7 @@ Stop Vite (Ctrl+C). Replace `frontend/package.json` (adds `@ouo11y/browser` 0.2.
     "node": ">=24"
   },
   "dependencies": {
-    "@ouo11y/browser": "0.2.1",
+    "@ouo11y/browser": "0.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -1287,13 +1398,35 @@ export default function App() {
 
 </details>
 
-```bash
-cd ~/Desktop/tiny-shop-funnels/frontend
-```
+In the shop tab (still in `frontend/`):
 
 ```bash
 npm install
 ```
+
+| Package | What it does here |
+|---|---|
+| `@ouo11y/browser` 0.3.0 | the ouo browser SDK: sessions, a `navigation` event with `url.path` for every page change (the page steps), `rum.addEvent` (the event steps), fetch spans with `traceparent` to the API, errors, and session replay (rrweb) with masking |
+
+<details>
+<summary>What <code>@ouo11y/browser</code> brings with it (click to open)</summary>
+
+You install one package; npm adds its dependencies. The ones worth knowing:
+
+| Package | What the SDK uses it for |
+|---|---|
+| `rrweb` | records the DOM for the replay; loaded only when replay is on and the session is sampled |
+| `web-vitals` | LCP, INP, CLS, FCP and TTFB |
+| `@opentelemetry/sdk-trace-web`, `sdk-trace-base`, `sdk-logs`, `instrumentation-fetch`, `instrumentation-xml-http-request`, `instrumentation-document-load` | spans and log records in the OpenTelemetry 2.x line |
+
+`sdk-trace-web`, `sdk-trace-base`, `instrumentation-fetch` and `instrumentation-xml-http-request`
+are deprecated upstream in favour of OpenTelemetry JS 3.0 (`sdk-trace`) and
+`@opentelemetry/browser-instrumentation`, so `npm install` prints `npm warn deprecated` for the
+first two (the last two say so only in their READMEs). They still work; moving
+the SDK to the 3.0 line is on ouo's list. To see the 3.0 packages wired by hand, without the SDK,
+read [tiny-shop-otel](../tiny-shop-otel/build-it-yourself-guide.md#step-6-instrument-the-web-app-by-hand).
+
+</details>
 
 ```bash
 npm run dev
@@ -1311,8 +1444,10 @@ shop, each a real browser with the real SDK. Each follows one persona (bounce, d
 order, browse, cart, abandon, declined card, buyer) with random pauses; the seed makes the mix the
 same on every run, and it ends with how many sessions must reach each step.
 
+In the fourth terminal tab, from `tiny-shop-funnels/`:
+
 ```bash
-cd ~/Desktop/tiny-shop-funnels/generate-sessions
+cd generate-sessions
 ```
 
 <details>
@@ -1490,6 +1625,13 @@ console.log(`  (not entered: ${ok.filter((p) => PERSONAS[p].reaches === 0).lengt
 npm install
 ```
 
+| Package | What it does here |
+|---|---|
+| `playwright` | drives real browsers from Node: each shopper is a new headless Chromium context (its own storage, so its own SDK session) |
+
+`npm install` brings the library; the browser is a separate download (about 150 MB, once per
+machine):
+
 ```bash
 npx playwright install chromium
 ```
@@ -1545,11 +1687,8 @@ Check: the replay plays that shopper's path, the card input masked.
 
 ## Step 10. Clean up
 
-Stop the API and Vite with Ctrl+C. Stop the stack, keeping its data:
-
-```bash
-cd ~/Desktop/tiny-shop-funnels/stack
-```
+Stop the API and Vite with Ctrl+C. In the stack tab (still in `stack/`), stop the stack, keeping
+its data:
 
 ```bash
 docker compose down
@@ -1565,10 +1704,10 @@ docker compose down -v
 
 | You see | Cause and fix |
 |---|---|
-| `Bind for 0.0.0.0:4318 failed: port is already allocated` (or 3000, 3100, 3200, 13133) | another stack has the port: `export OUO_GRAFANA_PORT=13000 OUO_OTLP_HTTP_PORT=14318 OUO_REPLAY_PORT=14319 OUO_LOKI_PORT=13100 OUO_TEMPO_PORT=13200 OUO_COLLECTOR_HEALTH_PORT=13134` before `up`, then `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` for the API and `frontend/.env.local` with `VITE_OUO_ENDPOINT=http://localhost:14318` and `VITE_OUO_REPLAY_ENDPOINT=http://localhost:14319` |
-| `docker compose up` fails with `unable to prepare context` or a missing `ouo11y` context | `OUO11Y_REPO` is not set in this terminal, or does not point at the clone: step 4 |
-| `denied` when pulling `ghcr.io/ouo11y/collector` | not logged in to ghcr.io: step 4 |
-| No **Funnels** page in the app menu | Grafana is not the image built in step 4: `docker compose up -d --build`, then hard-reload the browser |
+| `Bind for 0.0.0.0:4318 failed: port is already allocated` (or 3000, 3100, 3200, 9009, 13133) | another stack has the port: step 4c, move this one with `stack/.env`; then `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` for the API and `frontend/.env.local` with `VITE_OUO_ENDPOINT=http://localhost:14318` and `VITE_OUO_REPLAY_ENDPOINT=http://localhost:14319` |
+| `rum-api` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs rum-api` names the key; pin the tested version (step 4a, "Image versions") |
+| `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
+| No **Funnels** page in the app menu | an old `ghcr.io/ouo11y/grafana` image from before 0.5.0 is cached: `docker compose pull`, `docker compose up -d`, then hard-reload the browser |
 | The step box suggests nothing | no page views in the range yet: buy once (step 6), time range **Last 1 hour** |
 | Every bar is 0 | step 1 does not match (`/` vs `/home`) or the Service filter has a typo; check the paths on a session page |
 | More sessions than the generator printed | your own sessions or a second `npm run generate`: every run adds the same 45 / 37 / 28 / 20 / 10 |
