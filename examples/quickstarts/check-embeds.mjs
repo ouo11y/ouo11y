@@ -28,8 +28,11 @@ function markdownFiles(dir) {
   });
 }
 
+// The web quickstarts and their mobile counterparts (examples/quickstarts-mobile).
+const guides = [here, resolve(here, "../quickstarts-mobile")].flatMap(markdownFiles);
+
 let stale = 0;
-for (const guide of markdownFiles(here)) {
+for (const guide of guides) {
   const text = readFileSync(guide, "utf8");
   const updated = text.replace(marker, (block, source, fence, lang, body) => {
     const want = readFileSync(join(root, source), "utf8").replace(/\n$/, "");

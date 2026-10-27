@@ -1,0 +1,99 @@
+# ouo-collector pipelines, a trimmed copy of the full stack's config (no rate limits, no web
+# replay receiver). Receivers: the Sentry bridge on 4320 (the app), OTLP/HTTP on 4318 (the API,
+# behind the project credential in projects.htpasswd). Exporters: Tempo, Loki, Mimir, rum-api.
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  basicauth/server:
+    htpasswd:
+      file: /etc/otelcol/projects.htpasswd
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true       # keeps the authenticated project for resource/project
+        auth:
+          authenticator: basicauth/server
+  # The Sentry bridge: takes Sentry SDK envelopes, answers like Sentry, and translates a copy
+  # into ouo sessions, errors, traces, logs, tap and request events, and replay video segments.
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    projects:
+      # The app's DSN is http://<public key>@localhost:4320/<project id>: these two must match it.
+      - sentry_project_id: "1"
+        public_keys: ["publickey0000000000000000000000"]
+        upstream: none                    # answer here, forward nothing: no Sentry account needed
+        ouo_project_id: demo              # the ouo project the data lands in
+        service_name: tiny-shop-mobile-replay-app
+
+connectors:
+  # The bridge emits replay segments on its logs output: send them to rum-api (logs/replay),
+  # everything else to Loki (logs).
+  routing/sentry:
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: log.attributes["ouo.replay.chunk"] == true
+        pipelines: [logs/replay]
+
+processors:
+  # Stamp the authenticated project id on every resource (and drop any value the client sent).
+  # The bridge sets the project from its project table, so this works for its data too.
+  resource/project:
+    attributes:
+      - key: ouo.project.id
+        action: delete
+      - key: ouo.project.id
+        from_context: auth.username
+        action: upsert
+  # Copy the OTLP event name into the `event.name` attribute, which Loki turns into a label.
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls: { insecure: true }
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls: { insecure: true }
+  # Replay segments to rum-api, which stores the mp4 files.
+  ouoreplay:
+    endpoint: http://rum-api:8080
+    ingest_token: ${env:OUO_INGEST_TOKEN}
+    timeout: 30s
+
+service:
+  extensions: [health_check, basicauth/server]
+  pipelines:
+    traces:
+      receivers: [otlp, ouosentry]
+      processors: [resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    # The bridge's records before routing.
+    logs/sentry:
+      receivers: [ouosentry]
+      exporters: [routing/sentry]
+    logs:
+      receivers: [otlp, routing/sentry]
+      processors: [resource/project, transform/events, batch]
+      exporters: [otlp_http/loki]
+    logs/replay:
+      receivers: [routing/sentry]
+      exporters: [ouoreplay]
+    metrics:
+      receivers: [otlp]
+      processors: [resource/project, batch]
+      exporters: [otlp_http/mimir]
