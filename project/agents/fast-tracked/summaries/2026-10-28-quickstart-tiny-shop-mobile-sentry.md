@@ -111,7 +111,7 @@ Self-hosted Sentry 26.10.0.
 Index row (`examples/quickstarts-mobile/index.md`, status column):
 
 ```
-| M4 | [`tiny-shop-mobile-sentry`](tiny-shop-mobile-sentry/README.md) | N61 | "keep Sentry, add ouo": the bridge forwards every envelope to a real Sentry (your sentry.io project, or self-hosted) and the same session shows in both UIs; what each side shows that the other does not | done (PR_LINK) |
+| M4 | [`tiny-shop-mobile-sentry`](tiny-shop-mobile-sentry/README.md) | N61 | "keep Sentry, add ouo": the bridge forwards every envelope to a real Sentry (your sentry.io project, or self-hosted) and the same session shows in both UIs; what each side shows that the other does not | done ([#103](https://github.com/ouo11y/ouo11y/pull/103)) |
 ```
 
 Checklist (`project/tracker/checklist.md`):
