@@ -7,5 +7,7 @@
 | [2026-10-10-mobile.md](2026-10-10-mobile.md) | writer run for `30-mobile-ios.md` |
 | [2026-10-10-orchestrator.md](2026-10-10-orchestrator.md) | review, port-default fix, verification |
 | [2026-10-24-quickstart-tiny-shop-funnels.md](2026-10-24-quickstart-tiny-shop-funnels.md) | quickstart 5: funnel steps from pages and custom events, 50 generated sessions, rum-api and Grafana built from source; verified from a clean checkout (N47) |
+| [2026-10-24-quickstart-tiny-shop-replay.md](2026-10-24-quickstart-tiny-shop-replay.md) | quickstart 4: session replay with sampling, masking, rage and dead clicks, replay -> trace -> error, replay storage and cost (N54, was N43) |
 | [2026-10-25-quickstart-tiny-shop-otel.md](2026-10-25-quickstart-tiny-shop-otel.md) | Tiny Shop without the ouo SDK: OpenTelemetry JS + rrweb + web-vitals by hand; verified against quickstart.yaml, session crashed with traces and replay, inactivity rotation (N48) |
 | [2026-10-27-quickstart-tiny-shop-otel-review.md](2026-10-27-quickstart-tiny-shop-otel-review.md) | tiny-shop-otel review round 1: stack one folder per service on `latest`, relative paths, browser-instrumentation fetch, readable event lines, package table, step 8 costs |
+| [2026-10-27-quickstart-tiny-shop-replay-rules.md](2026-10-27-quickstart-tiny-shop-replay-rules.md) | tiny-shop-replay brought in line with the quickstart rules: stack on `latest`, relative paths, ports step, package tables, `@ouo11y/browser` 0.3.0; verified on an isolated project (N54) |

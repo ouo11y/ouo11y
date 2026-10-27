@@ -6,6 +6,7 @@
 | [check-embeds.mjs](check-embeds.mjs) | keeps files embedded in the guides identical to their repo source (CI) |
 | [tiny-shop/](tiny-shop/README.md) | Express API + React app traced end to end; [build-it-yourself guide](tiny-shop/build-it-yourself-guide.md) |
 | [tiny-shop-otel/](tiny-shop-otel/README.md) | [build-it-yourself guide](tiny-shop-otel/build-it-yourself-guide.md); Tiny Shop without the ouo SDK: OpenTelemetry JS + rrweb + web-vitals in the browser, and the contract ouo needs from a browser. **The reference quickstart for the rules below** |
+| [tiny-shop-replay/](tiny-shop-replay/README.md) | [build-it-yourself guide](tiny-shop-replay/build-it-yourself-guide.md); quickstart 4: session replay with sampling, masking (`maskAllInputs`, `ouo-block`, `ouo-mask`), rage and dead clicks, replay -> trace -> error, replay storage and cost |
 | [tiny-shop-funnels/](tiny-shop-funnels/README.md) | [build-it-yourself guide](tiny-shop-funnels/build-it-yourself-guide.md); quickstart 5: shop pages and custom events as a funnel, 50 generated sessions, drop-off to replay (rum-api and Grafana built from source until the next release) |
 
 ## Rules for every quickstart
@@ -145,5 +146,6 @@ or needs a server, with a line count. tiny-shop-otel step 8 is the model.
 | Quickstart | Follows the rules | Still to change |
 |---|---|---|
 | [tiny-shop-otel](tiny-shop-otel/README.md) | all (reference) | nothing |
+| [tiny-shop-replay](tiny-shop-replay/README.md) | all | nothing (its SDK, `@ouo11y/browser` 0.3.0, still depends on deprecated OpenTelemetry 2.x browser packages: N56) |
 | [tiny-shop-funnels](tiny-shop-funnels/README.md) | stack folders | `~/Desktop` paths (2); collector pinned to 0.4.0 instead of `latest` with a tested-version comment (4); rum-api and Grafana from source until funnels are released (4, allowed) |
 | [tiny-shop](tiny-shop/README.md) | shape, embeds | one-file `quickstart.yaml` stack (3, 4); `~/Desktop` paths (2) |
