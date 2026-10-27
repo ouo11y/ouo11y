@@ -1,0 +1,80 @@
+# ouo-collector pipelines, a trimmed copy of the full stack's config (no replay, no rate limits).
+# Receivers: the Sentry bridge on 4320 (Sentry DSN key auth, nothing forwarded to Sentry) and
+# OTLP/HTTP on 4318 behind the project credential in projects.htpasswd.
+# Exporters: Tempo, Loki and Mimir.
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  basicauth/server:
+    htpasswd:
+      file: /etc/otelcol/projects.htpasswd
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true       # keeps the authenticated project for resource/project
+        auth:
+          authenticator: basicauth/server
+  # The Sentry bridge: the app's DSN is http://publickey0000000000000000000000@localhost:4320/1.
+  # It accepts envelopes for Sentry project 1 with that public key, stamps them with the ouo
+  # project `demo`, and translates sessions, errors, transactions, logs and the mobile vitals
+  # in transaction measurements into OpenTelemetry. `upstream: none`: no Sentry account,
+  # nothing leaves your machine.
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    projects:
+      - sentry_project_id: "1"
+        public_keys: ["publickey0000000000000000000000"]
+        upstream: none
+        ouo_project_id: demo
+        service_name: tiny-shop-mobile-signals   # service.name of everything the app sends
+
+processors:
+  # Stamp the authenticated project id on every resource (and drop any value the client sent).
+  # The bridge puts its project in the same place as basicauth, so this covers both.
+  resource/project:
+    attributes:
+      - key: ouo.project.id
+        action: delete
+      - key: ouo.project.id
+        from_context: auth.username
+        action: upsert
+  # Copy the OTLP event name into the `event.name` attribute, which Loki turns into a label.
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls: { insecure: true }
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls: { insecure: true }
+
+service:
+  extensions: [health_check, basicauth/server]
+  pipelines:
+    traces:
+      receivers: [otlp, ouosentry]
+      processors: [resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [otlp, ouosentry]
+      processors: [resource/project, transform/events, batch]
+      exporters: [otlp_http/loki]
+    metrics:
+      receivers: [otlp]
+      processors: [resource/project, batch]
+      exporters: [otlp_http/mimir]
