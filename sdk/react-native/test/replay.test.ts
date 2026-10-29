@@ -36,6 +36,7 @@ function fakeNative() {
     sessionDidRotate: vi.fn((_id: string) => undefined),
     setSessionId: vi.fn((_id: string) => undefined),
     screenDidChange: vi.fn(),
+    recoverPendingChunk: vi.fn((_endpoint: string, _options: unknown) => undefined),
     stop: vi.fn(),
   } satisfies NativeReplayModule & { recording: boolean };
   return n;
@@ -82,6 +83,19 @@ describe("replay controller", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     c.start("s");
     expect(native.start.mock.calls[0]![1]).toMatchObject({ mode: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
+  });
+
+  // The spool of a crashed session must go out even when the next session is not recorded.
+  it("recovers the previous run's open chunk before any sampling decision", () => {
+    const native = fakeNative();
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, sampleRate: 0 }, native, logger });
+    expect(native.recoverPendingChunk).toHaveBeenCalledTimes(1);
+    expect(native.recoverPendingChunk).toHaveBeenCalledWith("http://localhost:8080", expect.objectContaining({ projectId: PROJECT_ID, projectToken: TOKEN }));
+    c.start("not-recorded");
+    expect(native.start).not.toHaveBeenCalled();
+    const off = fakeNative();
+    createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: false }, native: off, logger });
+    expect(off.recoverPendingChunk).not.toHaveBeenCalled();
   });
 
   it("screen changes reach the native recorder while it records; older native builds without the call are fine", () => {

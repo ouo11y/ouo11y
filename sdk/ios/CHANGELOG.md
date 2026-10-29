@@ -14,8 +14,9 @@ New entries are written by release-please from conventional commits (`feat(ios):
   (`maxTouchCapturesPerSecond` is removed); a due frame waits up to 1 s while 4 or more layer
   animations run; the main-thread capture time is bounded by a 100 ms per second time bank (the
   backoff for slow devices); one capture in flight.
-- Masking fails closed: a frame in which a masked view sits on a moving layer is dropped, and a
-  subtree the walk cut at its depth limit is masked whole. `RedactionPlanner.rects` returns nil
+- Masking fails closed: a frame in which a masked view is moving (an animated position, bounds or
+  transform, a scroll in progress) is dropped before it is rendered, a view fading out stays
+  masked, and a subtree the walk cut at its depth limit is masked whole. `RedactionPlanner.rects` returns nil
   for a frame that must be dropped.
 - `OuoCrash.setSessionId(_:)` is now `setSession(_:startedAtMs:)`: the crash report carries
   `session_started_ms` (N52).
@@ -24,8 +25,9 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 - `ReplayMode` (`session`, `navigation`, `auto`: navigation below 3.5 GiB of RAM) and
   `OuoReplay.screenDidChange()`.
-- `ChunkSpool`: the open chunk is kept on disk (`Application Support/ouo/replay/open-chunk.jsonl`)
-  and sent on the next launch after a crash, watchdog kill or force quit.
+- `ChunkSpool`: the open chunk is kept on disk (`Application Support/ouo/replay/open-chunk.jsonl`,
+  excluded from backups) and sent on the next launch after a crash, watchdog kill or force quit;
+  `OuoReplay.recoverPendingChunk(_:)` sends it without starting a recorder. Older than 24 h: dropped.
 
 - `OuoVitals` and `OuoVitalsCore`: app start (process start from `sysctl`, image load time for
   prewarmed launches, cold or warm per runtime) and `CADisplayLink` frame counters (total, slow,

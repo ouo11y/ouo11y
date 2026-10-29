@@ -202,4 +202,15 @@ import Testing
         let deep = ViewNode(className: "UIView", frameInWindow: CGRect(x: 0, y: 100, width: 200, height: 50), truncated: true)
         #expect(planner.rects(for: node("UIWindow", window, [deep]), window: window) == [deep.frameInWindow])
     }
+
+    /// After `UIView.animate { v.alpha = 0 }` the model alpha is 0 at once while the screen still
+    /// shows `v` fading out: its subtree is masked until the animation ends.
+    @Test func FadingOutViewIsStillMasked() {
+        let label = ViewNode(className: "UILabel", frameInWindow: CGRect(x: 10, y: 10, width: 50, height: 20))
+        let fading = ViewNode(className: "UIView", frameInWindow: window, alpha: 0, animating: true, children: [label])
+        #expect(planner.rects(for: node("UIWindow", window, [fading]), window: window) == [label.frameInWindow])
+        let gone = ViewNode(className: "UIView", frameInWindow: window, alpha: 0, children: [label])
+        #expect(planner.rects(for: node("UIWindow", window, [gone]), window: window) == [])
+    }
 }
+

@@ -303,3 +303,14 @@ was learned on the iOS 27 simulator (`examples/ouo-mobile`, Release build, scrip
   --prefix <checkout>` does, so a wrapper on `PATH` that adds `--prefix` (the checkout root for
   workspace members, the example's own folder for standalone examples) gets `ouo-env up` and
   `build-ios.sh` through.
+- **Review round 1 (PR #109) found what the simulator journey could not show**: a view animating
+  `alpha` to 0 has model alpha 0 at once, so a walk that skips transparent views stops masking it
+  while it is still fading on screen; a scroll moves content without any layer animation and the
+  screen shows the previous offset, so a scroll view being dragged or decelerating counts as
+  moving; animation keys are not key paths (`(layer.animation(forKey:) as? CAPropertyAnimation)?
+  .keyPath`); transitions must be reported on every pass, or one that ends between due passes
+  skips the settle; while a frame waits, `isDue` must stay false (one wake time in the pacer),
+  otherwise every pass walks the tree.
+- **Forward fit with ADR-0014**: its `buffer` mode keeps an on-disk ring of the last 30 s. When it
+  lands, `ChunkSpool` should become the one-entry case of that ring, not a second on-disk format.
+

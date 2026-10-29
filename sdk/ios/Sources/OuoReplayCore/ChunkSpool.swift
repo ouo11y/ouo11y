@@ -5,7 +5,8 @@ import Foundation
 ///
 /// One append-only JSON Lines file: the chunk header first, then one line per frame and one per
 /// batch of touches. A line cut short by the crash fails to decode and is skipped. Written on the
-/// capture queue; the file is removed when the chunk is cut and handed to the uploader.
+/// capture queue; the file is removed when the chunk is cut and handed to the uploader. Its folder
+/// is excluded from device backups. A chunk older than `maxAge` is not sent.
 public final class ChunkSpool {
     struct Header: Codable {
         var sessionId: String
@@ -24,6 +25,9 @@ public final class ChunkSpool {
     }
 
     public let url: URL
+    /// A spool whose chunk started longer ago than this is dropped, not sent (a week-old replay
+    /// chunk serves nobody).
+    public static let maxAge: TimeInterval = 24 * 3600
     private var handle: FileHandle?
 
     /// Default file: `Library/Application Support/ouo/replay/open-chunk.jsonl`.
@@ -41,7 +45,11 @@ public final class ChunkSpool {
     func begin(_ header: Header) {
         close()
         let fm = FileManager.default
-        try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var dir = url.deletingLastPathComponent()
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? dir.setResourceValues(values)
         guard fm.createFile(atPath: url.path, contents: nil),
               let h = try? FileHandle(forWritingTo: url) else { return }
         handle = h
@@ -63,9 +71,9 @@ public final class ChunkSpool {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// The chunk the previous process left open, if it holds anything, and removes the file.
-    /// Call before the first frame of this process.
-    public func recover() -> FrameChunk? {
+    /// The chunk the previous process left open, if it holds anything and is younger than
+    /// `maxAge`, and removes the file. Call before the first frame of this process.
+    public func recover(now: EpochMillis = Clock.nowMillis()) -> FrameChunk? {
         close()
         defer { try? FileManager.default.removeItem(at: url) }
         guard let data = try? Data(contentsOf: url) else { return nil }
@@ -82,6 +90,7 @@ public final class ChunkSpool {
             touches += line.touches ?? []
         }
         guard let header, !(frames.isEmpty && touches.isEmpty) else { return nil }
+        guard Double(now - header.startedAt) / 1000 <= Self.maxAge else { return nil }
         let last = max(frames.map(\.ts).max() ?? 0, touches.map(\.ts).max() ?? 0)
         return FrameChunk(
             sessionId: header.sessionId,

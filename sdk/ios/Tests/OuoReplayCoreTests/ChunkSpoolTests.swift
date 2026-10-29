@@ -29,7 +29,7 @@ import Testing
         b.add(makeFrame(ts: 2_100, bytes: 0x01))
         // The process dies here: no cut, no flush. A touch after the last frame may be lost.
 
-        let chunk = try #require(ChunkSpool(url: url).recover())
+        let chunk = try #require(ChunkSpool(url: url).recover(now: 3_000))
         #expect(chunk.sessionId == "crashed-session")
         #expect(chunk.seq == 1)
         #expect(chunk.startedAt == 1_000)
@@ -37,7 +37,7 @@ import Testing
         #expect(chunk.frames == [makeFrame(ts: 1_100), makeFrame(ts: 2_100, bytes: 0x01)])
         #expect(chunk.touches == [Touch(ts: 1_000, x: 1, y: 2, phase: .began)])
         #expect(chunk.viewport.scale == 3)
-        #expect(ChunkSpool(url: url).recover() == nil, "sent at most once")
+        #expect(ChunkSpool(url: url).recover(now: 3_000) == nil, "sent at most once")
     }
 
     @Test func CutChunkLeavesNothingBehind() {
@@ -57,8 +57,23 @@ import Testing
         try h.seekToEnd()
         try h.write(contentsOf: Data("{\"frame\":{\"ts\":12".utf8))
         try h.close()
-        let chunk = try #require(ChunkSpool(url: url).recover())
+        let chunk = try #require(ChunkSpool(url: url).recover(now: 3_000))
         #expect(chunk.frames.map(\.ts) == [1_100])
+    }
+
+    /// A spool left by a run more than a day ago is dropped, not sent.
+    @Test func StaleSpoolIsDropped() {
+        let b = builder(ChunkSpool(url: url), store: InMemorySeqStore())
+        b.add(makeFrame(ts: 1_100))
+        #expect(ChunkSpool(url: url).recover(now: 1_000 + 25 * 3600 * 1000) == nil)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func SpoolFolderIsExcludedFromBackups() throws {
+        let b = builder(ChunkSpool(url: url), store: InMemorySeqStore())
+        b.add(makeFrame(ts: 1_100))
+        let values = try url.deletingLastPathComponent().resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(values.isExcludedFromBackup == true)
     }
 
     @Test func NoFileNoChunk() {

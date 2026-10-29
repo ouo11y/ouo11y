@@ -4,15 +4,18 @@ import OuoReplayCore
 
 /// Captures the key window in two halves. `snapshot(window:)` runs on the main thread and does only
 /// what UIKit requires there: `drawHierarchy` 1:1 at the screen's scale into an 8-bit bitmap in the
-/// screen's color space (no resample, no color conversion: Sentry's V2 renderer). `compose(_:)`
-/// runs on the recorder's capture queue: downscale, redaction planning (nil when masking fails
-/// closed), painting the rectangles, the dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO,
-/// thread-safe). The unredacted bitmap never leaves the capture queue; only the JPEG is uploaded.
+/// screen's color space (no resample, no color conversion: Sentry's V2 renderer), after `plan` gave
+/// the rectangles to mask (nil when masking fails closed, so an unsafe frame costs no render).
+/// `compose(_:)` runs on the recorder's capture queue: downscale, painting the rectangles, the
+/// dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO, thread-safe). The unredacted bitmap
+/// never leaves the capture queue; only the JPEG is uploaded.
 final class ScreenCapturer {
     /// Main-thread result: the raw (unredacted) frame and everything needed to redact it later.
     struct Snapshot {
         let image: CGImage
         let tree: ViewNode
+        /// What to paint black, window points.
+        let rects: [CGRect]
         let bounds: CGRect
         /// Pixels per point of the frame to encode (the image itself is at the screen scale).
         let scale: CGFloat
@@ -28,8 +31,6 @@ final class ScreenCapturer {
         case frame(Capture)
         /// Same pixels as the previous frame.
         case unchanged
-        /// A masked view was moving: the frame is dropped (masking fails closed).
-        case unsafe
         case failed
     }
 
@@ -68,8 +69,13 @@ final class ScreenCapturer {
         ))
     }
 
-    /// Main thread only (`drawHierarchy` requires it). `tree` is the walk of the same pass.
-    func snapshot(window: UIWindow, tree: ViewNode) -> Snapshot? {
+    /// The rectangles to mask, nil when the frame must be dropped (a masked view is moving).
+    func plan(_ tree: ViewNode, bounds: CGRect) -> [CGRect]? {
+        planner.rects(for: tree, window: bounds)
+    }
+
+    /// Main thread only (`drawHierarchy` requires it). `tree` and `rects` are from the same pass.
+    func snapshot(window: UIWindow, tree: ViewNode, rects: [CGRect]) -> Snapshot? {
         let bounds = window.bounds
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         let screenScale = window.screen.scale
@@ -92,13 +98,12 @@ final class ScreenCapturer {
         }
         UIGraphicsPopContext()
         guard let image = ctx.makeImage() else { return nil }
-        return Snapshot(image: image, tree: tree, bounds: bounds, scale: renderScale(for: bounds, screenScale: screenScale))
+        return Snapshot(image: image, tree: tree, rects: rects, bounds: bounds, scale: renderScale(for: bounds, screenScale: screenScale))
     }
 
-    /// Any thread (the capture queue). Order: plan first (an unsafe frame costs nothing more),
-    /// downscale, redact, dedupe on the redacted frame, then JPEG.
+    /// Any thread (the capture queue): downscale, redact, dedupe on the redacted frame, then JPEG.
     func compose(_ s: Snapshot, deduper: FrameDeduper) -> Outcome {
-        guard let rects = planner.rects(for: s.tree, window: s.bounds) else { return .unsafe }
+        let rects = s.rects
         if logger.enabled {
             let unmatched = planner.unmatchedContentClasses(in: s.tree)
             if !unmatched.isEmpty, unmatched != lastUnmatched {

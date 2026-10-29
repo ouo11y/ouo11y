@@ -15,7 +15,7 @@ Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb/mobi
 
 ## Verified, and how
 
-- `sdk/ios/test.sh`: 63 Core tests (new: `CapturePacerTests` 9, `ChunkSpoolTests` 4, planner fail-closed 2) and the crash probe tests (the report carries `session_started_ms`). `xcodebuild` for the iOS simulator builds the UIKit target clean.
+- `sdk/ios/test.sh`: 69 Core tests after review round 1 (new: `CapturePacerTests` 13, `ChunkSpoolTests` 4, planner fail-closed 2) and the crash probe tests (the report carries `session_started_ms`). `xcodebuild` for the iOS simulator builds the UIKit target clean.
 - `sdk/react-native`: `tsc --noEmit` clean, 130 Vitest tests (new: N52 unpersisted crashed session, `session_started_ms` parsing, `screenDidChange` forwarding with older native builds, `mode` pass-through).
 - `services/rum-api`: `go vet` clean; `internal/session` tests pass with the new `TestFoldStartedAtFromSessionEndWithoutStart`. `internal/replay` fails locally only because Docker Hub timed out pulling the minio image (untouched package; CI runs it).
 - Simulator, `examples/ouo-mobile` Release against env `w1-ios-capture`, scripted journey:
@@ -28,6 +28,18 @@ Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb/mobi
   - replay bytes per minute: T3 416 -> 235 KB, T4 649 -> 388 KB (Sentry 129 and 364): fewer frames, no touch captures; W3 (tiles) is the next step;
   - peak memory +5 -> +25.5 MB (the transient 1:1 bitmap; Sentry +61 MB), steady memory +1.3 -> +1.6 MB, start +62.5 -> +72.5 ms (T3), +37 -> +57 ms (T4), within the gate's 50 ms; dropped frames moved by the same amount for `none` and both SDKs (simulator load), so not attributed.
 - `lychee --offline` clean.
+
+## Review round 1 (PR #109, `Review: changes needed`, 8 findings), what changed
+
+- Fading views stay masked: a view with alpha 0 that still animates is walked, and the planner skips only non-animating transparent nodes (`ViewNode.animating`, test `FadingOutViewIsStillMasked`).
+- A scroll view being dragged or decelerating counts as moving: its masked content drops the frame (the screen shows the previous offset). Not reproduced on the simulator (the demo has no scrollable masked list); added fail-closed from the same trailing behaviour measured for transitions.
+- Animation key paths, not keys, decide "moving"; a non-property animation counts as moving.
+- Transitions are checked on every run-loop pass (`CapturePacer.motion`), so one that ends between due passes still delays the frame by the settle time (test `TransitionEndingBetweenDuePassesStillSettles`).
+- One wake time in the pacer (`wakeAt`): `isDue` is false until the settle, deferral re-check, bank or interval allows, and a one-shot timer wakes the run loop then. Simulator: walk-only passes per journey 113-183 -> 0. A navigation frame now lands 0.4 s after the route change instead of waiting for the 1 s tick.
+- The fail-closed decision runs on the main thread before the render (an unsafe frame costs no render; `ScreenCapturer.Outcome.unsafe` is gone); dropped requested frames retry at most 3 times (test `DroppedNavigationFrameIsRetriedThreeTimes`).
+- Spool: recovered before the sampling decision (`OuoReplay.recoverPendingChunk`, called by the RN controller at init); dropped when older than 24 h; its folder is excluded from backups. Simulator: `kill -9` mid-chunk, relaunch built with `replay.sampleRate: 0`: the killed session's 2 frames reached rum-api, the new session has no replay; the backup-exclusion xattr is on the folder.
+- Simulator after the changes: 23 of 23 frames settled over two journeys, masked input black; per-capture `snapshot` median 34 ms (30 before, inside the simulator's 27-34 ms spread; walk 0.4 ms).
+- kb `ios-replay.md` W1: the round's lessons and the forward fit with ADR-0014's buffer ring.
 
 ## Left
 

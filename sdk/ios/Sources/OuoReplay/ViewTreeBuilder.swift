@@ -15,10 +15,10 @@ enum ViewTreeBuilder {
     /// capture, and building their names each time was a large part of the main-thread walk.
     private static var classNames: [ObjectIdentifier: (name: String, superclasses: [String])] = [:]
 
-    /// Animations that change how a layer looks but not where: a mask over such a layer still
-    /// covers it. Any other key (position, bounds, transform, or one we do not know) counts as
-    /// moving, so masking fails closed.
-    private static let inPlaceAnimationKeys: Set<String> = [
+    /// Animated key paths that change how a layer looks but not where: a mask over such a layer
+    /// still covers it. Any other key path (position, bounds, transform, or one we do not know, or
+    /// an animation that is not a property animation) counts as moving, so masking fails closed.
+    private static let inPlaceKeyPaths: Set<String> = [
         "opacity", "backgroundColor", "contents", "borderColor", "borderWidth", "cornerRadius",
         "shadowOpacity", "shadowColor", "shadowRadius", "shadowOffset", "shadowPath", "filters",
     ]
@@ -46,11 +46,20 @@ enum ViewTreeBuilder {
     private static func node(for view: UIView, maxDepth: Int, animations: inout Int) -> ViewNode {
         let frame = view.convert(view.bounds, to: nil)
         let names = names(of: type(of: view))
+        let layer = view.layer
+        let keys = view.isHidden ? [] : (layer.animationKeys() ?? [])
         // A hidden or transparent view hides its subtree: the planner skips it, so do not walk it.
-        let invisible = view.isHidden || view.alpha <= 0.01
-        let keys = invisible ? [] : (view.layer.animationKeys() ?? [])
+        // A transparent one that still animates may be fading out on screen: walked and masked.
+        let invisible = view.isHidden || (view.alpha <= 0.01 && keys.isEmpty)
         animations += keys.count
-        let moving = keys.contains { !inPlaceAnimationKeys.contains($0) }
+        var moving = keys.contains { key in
+            guard let path = (layer.animation(forKey: key) as? CAPropertyAnimation)?.keyPath else { return true }
+            return !inPlaceKeyPaths.contains(path)
+        }
+        // Scrolling moves content without an animation, and the screen shows the previous offset.
+        if let scroll = view as? UIScrollView, scroll.isDragging || scroll.isDecelerating {
+            moving = true
+        }
         var children: [ViewNode] = []
         var truncated = false
         if !invisible {
@@ -73,6 +82,7 @@ enum ViewTreeBuilder {
             hidden: view.isHidden,
             alpha: view.alpha,
             accessibilityIdentifier: view.accessibilityIdentifier,
+            animating: !keys.isEmpty,
             moving: moving,
             truncated: truncated,
             children: children

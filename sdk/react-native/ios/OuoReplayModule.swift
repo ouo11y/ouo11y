@@ -40,6 +40,31 @@ public class OuoReplayModule: Module {
   private var appStartResolved = false
   private let appStartLock = NSLock()
 
+  private func config(_ endpoint: String, _ options: StartOptions) throws -> OuoReplayConfig {
+    guard let url = URL(string: endpoint) else {
+      throw Exception(name: "ERR_OUO_REPLAY_ENDPOINT", description: "invalid replay endpoint: \(endpoint)")
+    }
+    let projectId = options.projectId.trimmingCharacters(in: .whitespacesAndNewlines)
+    let token = options.projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !projectId.isEmpty, !token.isEmpty else {
+      throw Exception(name: "ERR_OUO_REPLAY_CREDENTIAL", description: "projectId and projectToken are required (ADR-0007); the collector rejects uploads without Authorization: Basic base64(projectId:projectToken)")
+    }
+    let box = self.sessionId
+    return OuoReplayConfig(
+      endpoint: url,
+      projectId: projectId,
+      projectToken: token,
+      sessionId: { box.get() },
+      mode: ReplayMode(rawValue: options.mode) ?? .auto,
+      frameInterval: options.frameInterval,
+      maskText: options.maskText,
+      maskInputs: options.maskInputs,
+      maskImages: options.maskImages,
+      maskWebViews: options.maskWebViews,
+      debug: options.debug
+    )
+  }
+
   public func definition() -> ModuleDefinition {
     Name("OuoReplay")
 
@@ -50,31 +75,17 @@ public class OuoReplayModule: Module {
     }
 
     Function("start") { (endpoint: String, options: StartOptions) in
-      guard let url = URL(string: endpoint) else {
-        throw Exception(name: "ERR_OUO_REPLAY_ENDPOINT", description: "invalid replay endpoint: \(endpoint)")
-      }
-      let projectId = options.projectId.trimmingCharacters(in: .whitespacesAndNewlines)
-      let token = options.projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !projectId.isEmpty, !token.isEmpty else {
-        throw Exception(name: "ERR_OUO_REPLAY_CREDENTIAL", description: "projectId and projectToken are required (ADR-0007); the collector rejects uploads without Authorization: Basic base64(projectId:projectToken)")
-      }
+      let config = try self.config(endpoint, options)
       if !options.sessionId.isEmpty {
         self.sessionId.set(options.sessionId)
       }
-      let box = self.sessionId
-      OuoReplay.start(OuoReplayConfig(
-        endpoint: url,
-        projectId: projectId,
-        projectToken: token,
-        sessionId: { box.get() },
-        mode: ReplayMode(rawValue: options.mode) ?? .auto,
-        frameInterval: options.frameInterval,
-        maskText: options.maskText,
-        maskInputs: options.maskInputs,
-        maskImages: options.maskImages,
-        maskWebViews: options.maskWebViews,
-        debug: options.debug
-      ))
+      OuoReplay.start(config)
+    }
+
+    /// Sends the chunk a crash left open in the previous run; JS calls it before its sampling
+    /// decision, so it does not depend on this session being recorded.
+    Function("recoverPendingChunk") { (endpoint: String, options: StartOptions) in
+      OuoReplay.recoverPendingChunk(try self.config(endpoint, options))
     }
 
     Function("pause") {

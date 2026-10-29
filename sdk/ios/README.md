@@ -59,6 +59,8 @@ OuoReplay.start(OuoReplayConfig(
 OuoReplay.pause()               // stops capturing, flushes
 OuoReplay.resume()              // immediate frame, capture restarts
 OuoReplay.screenDidChange()     // a new screen: its frame in navigation mode
+OuoReplay.recoverPendingChunk(config)  // send the chunk a crash left open; `start` does it too, call it
+                                       // first when you decide per session whether to record
 OuoReplay.isRecording           // Bool
 OuoReplay.flush { }             // flush the open chunk and drain the upload queue
 OuoReplay.sessionDidRotate(newId: "…")   // flushes the old session's chunk, seq restarts at 0
@@ -91,10 +93,10 @@ Subclasses match through their superclass chain. Hidden views, views with alpha 
 views entirely outside the window are skipped together with their subtrees; visible rectangles
 are clipped to the window and overlapping ones merged.
 
-Masking fails closed (capture rule 5): when a masked view sits on a moving layer (a screen
-sliding in, a view animating its position or transform), the whole frame is dropped instead of
-painting a rectangle where the view may no longer be; a subtree deeper than the walk's limit (64)
-is masked whole.
+Masking fails closed (capture rule 5): when a masked view is moving (a screen sliding in, a view
+animating its position or transform, a list being scrolled), the whole frame is dropped instead of
+painting a rectangle where the view may no longer be; a view fading out stays masked until it is
+gone; a subtree deeper than the walk's limit (64) is masked whole.
 
 The default is privacy first: everything that can carry user content is black until the host
 opts in to visibility (Sentry's mobile replay ships the same default). To opt out:

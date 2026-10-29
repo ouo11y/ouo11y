@@ -45,6 +45,14 @@ public enum OuoReplay {
         onMain { recorder?.sessionDidRotate(newId: newId) }
     }
 
+    /// Sends the replay chunk a crash, watchdog kill or force quit left open in the previous run,
+    /// with `config`'s endpoint and credential, whether or not this run records. `start` does it
+    /// too; call this first when the host decides per session whether to record (sampling), so a
+    /// crashed session's last seconds arrive even when the next session is not recorded.
+    public static func recoverPendingChunk(_ config: OuoReplayConfig) {
+        ReplayRecorder.recoverSpool(config)
+    }
+
     /// A new screen is showing (a navigation library's route change). In `navigation` mode this is
     /// what takes a frame; in `session` mode it changes nothing.
     public static func screenDidChange() {
@@ -83,6 +91,7 @@ public enum OuoReplay {
     public static var isRecording: Bool { false }
     public static func flush(completion: (() -> Void)? = nil) { warnOnce(); completion?() }
     public static func sessionDidRotate(newId: String) { warnOnce() }
+    public static func recoverPendingChunk(_ config: OuoReplayConfig) {}
     public static func screenDidChange() { warnOnce() }
     public static var mode: ReplayMode? { nil }
     public static func stop() { warnOnce() }

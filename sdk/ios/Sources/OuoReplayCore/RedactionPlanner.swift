@@ -14,8 +14,12 @@ public struct ViewNode: Sendable {
     public var hidden: Bool
     public var alpha: CGFloat
     public var accessibilityIdentifier: String?
-    /// The layer runs an animation that can move it (position, bounds, transform, or one we do not
-    /// know): what the render server shows may not be at `frameInWindow`.
+    /// The layer runs any animation: a view whose model alpha is already 0 may still be fading out
+    /// on screen, so it is not skipped as transparent.
+    public var animating: Bool
+    /// The view may not be where `frameInWindow` says: an animation that can move it (position,
+    /// bounds, transform, or one we do not know) runs on its layer, or it is a scroll view being
+    /// dragged or decelerating (the screen trails the model by a frame).
     public var moving: Bool
     /// The walk stopped at its depth limit with subviews left unvisited.
     public var truncated: Bool
@@ -28,6 +32,7 @@ public struct ViewNode: Sendable {
         hidden: Bool = false,
         alpha: CGFloat = 1,
         accessibilityIdentifier: String? = nil,
+        animating: Bool = false,
         moving: Bool = false,
         truncated: Bool = false,
         children: [ViewNode] = []
@@ -38,6 +43,7 @@ public struct ViewNode: Sendable {
         self.hidden = hidden
         self.alpha = alpha
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.animating = animating || moving
         self.moving = moving
         self.truncated = truncated
         self.children = children
@@ -127,8 +133,8 @@ public struct RedactionPlanner: Sendable {
 
     /// False when a masked rectangle is moving.
     private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, into out: inout [CGRect]) -> Bool {
-        // Hidden or transparent views hide their whole subtree.
-        if node.hidden || node.alpha <= 0.01 { return true }
+        // Hidden or transparent views hide their whole subtree, unless still fading out.
+        if node.hidden || (node.alpha <= 0.01 && !node.animating) { return true }
         // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
         if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return true }
         let moving = moving || node.moving

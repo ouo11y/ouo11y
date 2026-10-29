@@ -6,11 +6,12 @@ import OuoReplayCore
 /// Owns the capture loop (ADR-0006 rev 2, docs/specs/mobile-replay.md "Capture scheduling"):
 /// a main run-loop observer captures after the pass's UI work is committed, when the
 /// `CapturePacer` says a frame is due (interval or screen change, no view controller transition,
-/// animation deferral, settle time, time bank), one capture in flight. A keep-alive timer wakes an idle run loop once per interval so a due
-/// frame is not left waiting for the next touch, and cuts chunks on time. Touches are recorded but never trigger a capture.
-/// The walk and the render run on the main thread; planning, downscale, redaction, dedupe,
-/// encoding, chunking, the spool and the upload hand-off run on `queue`, which alone touches
-/// `deduper` and `builder`.
+/// animation deferral, settle time, time bank), one capture in flight. A one-shot timer wakes an
+/// idle run loop when the next frame can be due; a 1 s keep-alive tick cuts chunks on time.
+/// Touches are recorded but never trigger a capture. The walk, the masking plan (an unsafe frame
+/// is dropped before the render) and the render run on the main thread; downscale, redaction,
+/// dedupe, encoding, chunking, the spool and the upload hand-off run on `queue`, which alone
+/// touches `deduper` and `builder`.
 final class ReplayRecorder {
     /// Instruments: "snapshot" intervals are the main-thread part of each capture ("walk" inside
     /// it), "compose" the capture-queue part (subsystem dev.ouo.replay, category capture).
@@ -34,6 +35,7 @@ final class ReplayRecorder {
     private var captureInFlight = false
     private var runLoopObserver: CFRunLoopObserver?
     private var keepAlive: Timer?
+    private var wakeTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var attachedWindow: UIWindow?
     private(set) var isRecording = false
@@ -66,14 +68,21 @@ final class ReplayRecorder {
 
     // MARK: lifecycle
 
-    func start() {
-        // The chunk the previous process left open (crash, watchdog, force quit) goes first.
-        Self.queue.async { [spool, uploader, logger] in
-            if let chunk = spool.recover() {
-                logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
-                uploader.enqueue(chunk)
-            }
+    /// Sends the chunk the previous process left open (crash, watchdog, force quit), whether or
+    /// not this launch records: the host calls it before its sampling decision. On the capture
+    /// queue, so it runs before any frame of this process and after a stopped recorder's flush.
+    static func recoverSpool(_ config: OuoReplayConfig, uploader: ChunkUploader? = nil) {
+        let logger = ReplayLogger(enabled: config.debug)
+        queue.async {
+            guard let chunk = ChunkSpool(url: config.spoolURL).recover() else { return }
+            logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
+            let uploader = uploader ?? ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)
+            uploader.enqueue(chunk)
         }
+    }
+
+    func start() {
+        Self.recoverSpool(config, uploader: uploader)
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -132,7 +141,9 @@ final class ReplayRecorder {
     /// A new screen is showing: the frame for it in `navigation` mode (ignored in `session` mode,
     /// where the next interval frame shows it anyway).
     func screenDidChange() {
-        pacer.screenDidChange(now: ProcessInfo.processInfo.systemUptime)
+        let now = ProcessInfo.processInfo.systemUptime
+        pacer.screenDidChange(now: now)
+        scheduleWake(now: now)
     }
 
     // MARK: capture loop
@@ -149,8 +160,8 @@ final class ReplayRecorder {
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
         runLoopObserver = observer
-        // Wakes an idle run loop so the observer runs, and keeps the chunk timing and the touch
-        // window current when no frame is due (navigation mode, a static screen).
+        // Cuts chunks on time and keeps the touch window current when no frame is due (navigation
+        // mode, a static screen); frames themselves are woken for by `scheduleWake`.
         let timer = Timer(timeInterval: min(config.frameInterval, 1), repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
         keepAlive = timer
@@ -163,6 +174,8 @@ final class ReplayRecorder {
         }
         keepAlive?.invalidate()
         keepAlive = nil
+        wakeTimer?.invalidate()
+        wakeTimer = nil
         isRecording = false
     }
 
@@ -177,61 +190,80 @@ final class ReplayRecorder {
     }
 
     private func captureIfDue() {
+        guard isRecording, let window = ScreenCapturer.keyWindow() else { return }
         let start = ProcessInfo.processInfo.systemUptime
-        guard isRecording, !captureInFlight, pacer.isDue(now: start), let window = ScreenCapturer.keyWindow() else { return }
-        attachTouchObserverIfNeeded(window)
+        defer { scheduleWake(now: start) }
+        // On every pass, not only due ones: a transition that ends just before a frame is due
+        // still delays it by the settle time.
         if Self.isTransitioning(window.rootViewController) {
-            _ = pacer.decide(now: start, animations: 0, transitioning: true)
+            pacer.motion(now: start)
             return
         }
+        guard !captureInFlight, pacer.isDue(now: start) else { return }
+        attachTouchObserverIfNeeded(window)
         let ts = Clock.nowMillis()
         let sp = Self.signposter
         let snapshotState = sp.beginInterval("snapshot", id: sp.makeSignpostID())
         let walkState = sp.beginInterval("walk", id: sp.makeSignpostID())
         let walk = ViewTreeBuilder.walk(window)
         sp.endInterval("walk", walkState)
-        guard case .capture(let reason) = pacer.decide(now: start, animations: walk.animations) else {
+        let decision = pacer.decide(now: start, animations: walk.animations)
+        // Masking fails closed, decided before paying for the render: a masked view on a moving
+        // layer drops the frame.
+        let rects = decision == .wait ? nil : capturer.plan(walk.tree, bounds: window.bounds)
+        guard case .capture(let reason) = decision, let rects else {
             sp.endInterval("snapshot", snapshotState)
             pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            if case .capture(let reason) = decision {
+                logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
+                pacer.dropped(reason, now: start)
+            }
             return
         }
-        let snapshot = capturer.snapshot(window: window, tree: walk.tree)
+        let snapshot = capturer.snapshot(window: window, tree: walk.tree, rects: rects)
         sp.endInterval("snapshot", snapshotState)
         pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
         guard let snapshot else {
-            retryIfNeeded(reason)
+            pacer.dropped(reason, now: start)
             return
         }
         captureInFlight = true
         Self.queue.async { [weak self, capturer, deduper, builder, logger] in
             let state = sp.beginInterval("compose", id: sp.makeSignpostID())
-            var dropped = false
+            var failed = false
             switch capturer.compose(snapshot, deduper: deduper) {
             case .frame(let capture):
                 builder.viewport = capture.viewport
                 builder.add(Frame(ts: ts, jpegData: capture.jpeg, reason: reason))
                 logger.log("frame \(reason.rawValue) \(capture.jpeg.count) bytes, \(capture.redactedRects) redacted rects")
-            case .unsafe:
-                logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
-                dropped = true
             case .failed:
-                dropped = true
+                failed = true
             case .unchanged:
                 break
             }
             sp.endInterval("compose", state)
             DispatchQueue.main.async {
-                self?.captureInFlight = false
-                if dropped { self?.retryIfNeeded(reason) }
+                guard let self else { return }
+                self.captureInFlight = false
+                let now = ProcessInfo.processInfo.systemUptime
+                if failed { self.pacer.dropped(reason, now: now) }
+                self.scheduleWake(now: now)
             }
         }
     }
 
-    /// A dropped frame that was asked for (resume, a new screen) is asked for again: in navigation
-    /// mode no interval frame would follow. Interval frames just wait for the next interval.
-    private func retryIfNeeded(_ reason: FrameReason) {
-        guard reason != .timer, isRecording else { return }
-        pacer.requestFrame(reason, at: ProcessInfo.processInfo.systemUptime + 0.5)
+    /// Wakes the run loop when the pacer's next frame can be due, so a frame on an idle screen does
+    /// not wait for the keep-alive tick (a navigation frame lands 0.4 s after the route change).
+    /// Passes before it skip the walk (`isDue`).
+    private func scheduleWake(now: TimeInterval) {
+        guard isRecording, let at = pacer.wakeAt(now: now), at > now else { return }
+        let fire = Date(timeIntervalSinceNow: at - now)
+        if let t = wakeTimer, t.isValid, t.fireDate <= fire, t.fireDate > Date() { return }
+        wakeTimer?.invalidate()
+        // Does nothing itself: the pass it causes runs the observer.
+        let t = Timer(fire: fire, interval: 0, repeats: false) { _ in }
+        RunLoop.main.add(t, forMode: .common)
+        wakeTimer = t
     }
 
     /// A push, pop or presentation is running somewhere in the window's view controllers.
