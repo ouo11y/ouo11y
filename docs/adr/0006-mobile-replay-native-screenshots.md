@@ -35,5 +35,5 @@ Decision (normative text in `docs/specs/mobile-replay.md`, "Capture rules"):
 - **Modes**: `session`, `navigation` (one frame per screen, Luciq's low-end mode) and `auto`, which picks `navigation` below 3.5 GiB of RAM (the device tier).
 - **Crash durability**: the open chunk is kept on disk and sent on the next launch; the crash report carries the session's start (N52).
 
-Consequences: a tap's result can show up to 1 s later in the replay, as in Sentry; a screen with a masked view that never stops moving records no frames rather than an unmasked one; frames at 1x are downscaled on a background queue from a transient bitmap at the screen's scale (about 15 MB on a Pro Max, one at a time).
+Consequences: a tap's result can show up to 1 s later in the replay, as in Sentry; a screen with a masked view that never stops moving records no frames rather than an unmasked one; with the default masking nearly every list holds masked text, so session mode records no frames while a list is dragged or decelerating (including a finger resting on it) and the next frame comes after the scroll ends: the screen shows the previous scroll offset, so a mask would trail the text by up to a line; frames at 1x are downscaled on a background queue from a transient bitmap at the screen's scale (about 15 MB on a Pro Max, one at a time).
 

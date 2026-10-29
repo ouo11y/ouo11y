@@ -19,6 +19,8 @@ final class ReplayRecorder {
     /// Shared by every recorder, so a restarted recorder recovers the spool only after the
     /// previous one cut its chunk.
     private static let queue = DispatchQueue(label: "dev.ouo.replay.capture", qos: .utility)
+    /// `queue` only.
+    private static var recovered = false
 
     private let config: OuoReplayConfig
     private let logger: ReplayLogger
@@ -71,9 +73,12 @@ final class ReplayRecorder {
     /// Sends the chunk the previous process left open (crash, watchdog, force quit), whether or
     /// not this launch records: the host calls it before its sampling decision. On the capture
     /// queue, so it runs before any frame of this process and after a stopped recorder's flush.
+    /// Once per process: a later call would read this process's own open chunk.
     static func recoverSpool(_ config: OuoReplayConfig, uploader: ChunkUploader? = nil) {
         let logger = ReplayLogger(enabled: config.debug)
         queue.async {
+            guard !recovered else { return }
+            recovered = true
             guard let chunk = ChunkSpool(url: config.spoolURL).recover() else { return }
             logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
             let uploader = uploader ?? ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)

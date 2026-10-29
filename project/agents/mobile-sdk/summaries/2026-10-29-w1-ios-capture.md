@@ -41,6 +41,12 @@ Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb/mobi
 - Simulator after the changes: 23 of 23 frames settled over two journeys, masked input black; per-capture `snapshot` median 34 ms (30 before, inside the simulator's 27-34 ms spread; walk 0.4 ms).
 - kb `ios-replay.md` W1: the round's lessons and the forward fit with ADR-0014's buffer ring.
 
+## Review round 2: approve, two notes taken before merging
+
+- Spool recovery runs once per process (a later `recoverPendingChunk` would have read this process's own open chunk).
+- ADR-0006 rev 2 "Consequences" states the cost of failing closed on scroll: no frames while a masked list is dragged or decelerating. Not confirmed on the simulator: the demo's product list does not scroll on an iPhone 18 Pro screen.
+- Left as follow-ups (optional notes): a dropped `.timer` frame waits a full interval instead of the settle; `keyWindow()` and `isTransitioning` run on every pass and are not charged to the bank (microseconds; look at the phone trace).
+
 ## Left
 
 - **The phone check (W1 exit criterion)**: per-capture main-thread time ≤ 25 ms on the iPhone 16 Pro Max against Sentry in the same trace (`n22_device.py profile`, 3 rounds, about 7 min) and the T3/T4 CPU delta against Sentry (4 device runs, about 15 min). Needs the founder; N51 stays open until then.
