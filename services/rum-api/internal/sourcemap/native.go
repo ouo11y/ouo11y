@@ -27,8 +27,9 @@ type NativeImage struct {
 
 // nativeLine matches a frame line of the Apple-style stack the SDK writes:
 // "0   sentrydemo                      0x0000000104a1c2f0 0x104a00000 + 115440".
-// Group 1 is the frame index, group 2 the line up to the address.
-var nativeLine = regexp.MustCompile(`^((\d+)\s+\S+\s+0x[0-9a-fA-F]+)`)
+// Group 2 is the frame index, group 1 the line up to the address. The binary
+// name may contain spaces ("My App").
+var nativeLine = regexp.MustCompile(`^((\d+)\s+.+?\s+0x[0-9a-fA-F]+)`)
 
 func parseHex(s string) (uint64, bool) {
 	v, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X"), 16, 64)
@@ -117,15 +118,15 @@ func (s *Symbolicator) symbolicateNative(ctx context.Context, req Request) (Resu
 	if lookups > 0 && failed == lookups {
 		return Result{}, fmt.Errorf("load dSYMs: %w", firstErr)
 	}
+	// Mapped and Status count captured frames: the inlined rows before a
+	// frame's last row are not counted, so "4/5" does not depend on inlining.
 	for _, frs := range byFrame {
-		for _, fr := range frs {
-			if fr.Status == FrameMapped {
-				res.Mapped++
-			}
-			res.Frames = append(res.Frames, fr)
+		if frs[len(frs)-1].Status == FrameMapped {
+			res.Mapped++
 		}
+		res.Frames = append(res.Frames, frs...)
 	}
-	res.Status = status(res.Mapped, len(res.Frames))
+	res.Status = status(res.Mapped, len(req.Frames))
 	res.Stacktrace = nativeStack(req.Stacktrace, byFrame)
 	return res, nil
 }

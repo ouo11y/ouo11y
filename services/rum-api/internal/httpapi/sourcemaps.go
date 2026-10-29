@@ -20,6 +20,10 @@ import (
 // included); past it the remaining exceptions are served raw.
 const symbolicateTimeout = 5 * time.Second
 
+// dsymUploadTimeout replaces the server's read and write timeouts for one dSYM
+// upload: a file near limits.max_dsym_bytes takes minutes from CI.
+const dsymUploadTimeout = 10 * time.Minute
+
 // SourceMaps wires the source-map store and the symbolicator (ADR-0011).
 type SourceMaps struct {
 	Store        *sourcemap.Store
@@ -134,6 +138,11 @@ func (s *Server) putSourceMap(w http.ResponseWriter, r *http.Request) {
 // and the project's upload token. Every architecture slice is stored under
 // its LC_UUID; the response lists them.
 func (s *Server) putDSYM(w http.ResponseWriter, r *http.Request) {
+	rc := http.NewResponseController(w)
+	deadline := time.Now().Add(dsymUploadTimeout)
+	if err := errors.Join(rc.SetReadDeadline(deadline), rc.SetWriteDeadline(deadline)); err != nil {
+		slog.Warn("dSYM upload keeps the server timeouts", "error", err)
+	}
 	limit := int64(sourcemap.DefaultMaxDSYMBytes)
 	if sm := s.opts.SourceMaps; sm != nil && sm.Store != nil && sm.Store.MaxDSYMBytes > 0 {
 		limit = sm.Store.MaxDSYMBytes

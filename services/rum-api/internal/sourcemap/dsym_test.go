@@ -172,7 +172,7 @@ func TestSymbolicateNative(t *testing.T) {
 	if res.Frames[1].Address != res.Frames[2].Address || res.Frames[0].DebugID != crashyARM64 || res.Frames[4].Generated.File != "dyld" {
 		t.Errorf("frame fields %+v", res.Frames)
 	}
-	if res.Status != StatusPartial || res.Mapped != 4 {
+	if res.Status != StatusPartial || res.Mapped != 3 { // 3 of 4 captured frames; the inlined row is not counted
 		t.Errorf("status %s mapped %d", res.Status, res.Mapped)
 	}
 	for _, line := range []string{
@@ -189,8 +189,16 @@ func TestSymbolicateNative(t *testing.T) {
 		}
 	}
 
-	// Without the stack text the frames alone are printed.
+	// A binary name with spaces ("My Crashy App") is rewritten too.
 	req := crashyRequest()
+	req.Stacktrace = strings.ReplaceAll(req.Stacktrace, "crashy                          ", "My Crashy App                   ")
+	res, _ = sym.Symbolicate(ctx, req)
+	if !strings.Contains(res.Stacktrace, "0   My Crashy App                   0x0000000104a0050c crash_here (in crashy) (crashy.c:8)\n") {
+		t.Errorf("spaced name:\n%s", res.Stacktrace)
+	}
+
+	// Without the stack text the frames alone are printed.
+	req = crashyRequest()
 	req.Stacktrace = ""
 	res, _ = sym.Symbolicate(ctx, req)
 	if !strings.HasPrefix(res.Stacktrace, "0   crashy                          0x104a0050c crash_here (in crashy) (crashy.c:8)\n") {
@@ -219,7 +227,7 @@ func TestNativeBackendErrorAndCacheBytes(t *testing.T) {
 	sym := NewSymbolicator(st, Options{CacheBytes: 1})
 	req := crashyRequest()
 	req.Frames, req.Images = req.Frames[:3], req.Images[:1]
-	if res, err := sym.Symbolicate(ctx, req); err != nil || res.Mapped != 4 {
+	if res, err := sym.Symbolicate(ctx, req); err != nil || res.Mapped != 3 {
 		t.Fatalf("%+v %v", res, err)
 	}
 	if n := sym.lru.Len(); n != 1 || sym.bytes == 0 {

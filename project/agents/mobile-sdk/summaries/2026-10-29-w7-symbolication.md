@@ -18,6 +18,18 @@ Branch `claude/w7-symbolication`, cut from `origin/main` (61cf4af) in a separate
 - **End to end on `ouo-env w7-symbolication`** with `project/agents/mobile-sdk/verify/w7-dsym-e2e.sh`: `OuoCrashProbe` SIGSEGV, dSYM by `dsymutil`, exception attributes from the RN SDK's own `nativeCrashAttributes`, OTLP through the collector, upload with the CLI, `GET /v1/sessions/{id}`: `crashSegv (main.swift:42)`, `level2 (:47)`, `level1 (:56)`, `main (:58)`, the same as `atos -i`, status `partial` 4/5 (dyld's start frame has no dSYM). The Grafana plugin showed the same four frames under "symbolicated 4/5".
 - Measured on a real 50 MiB React Native Release dSYM (numbers in the kb entry): 24–31 ms parse, 0.85 ms per address, 200/200 sampled functions named. That run found the overlapping-units problem, which the unit index fixes.
 
+## Review round 1 (2026-10-30, reviewer session, PR comment "Review: changes needed")
+
+The reviewer compared `lookup()` with `atos -i` on 4,246 addresses (C and C++, DWARF 4 and 5, -O1 and -O2): 0 mismatches. Answers:
+
+- Conflicts with `main` (PR #105 created the same agent files): merged `origin/main`, both sides kept.
+- Binary names with spaces were not rewritten (Go `nativeLine`, plugin `FRAME_LINE` matched the name with `\S+`): now lazy up to the address, a test on each side with `My Crashy App`.
+- The server's 60 s read timeout capped dSYM uploads below `max_dsym_bytes`: `putDSYM` raises its read and write deadlines to 10 minutes through `http.ResponseController`. `TestDSYMUploadOutlivesReadTimeout` sends a slow upload through `otelhttp.NewHandler` (as `main.go` does) with a 200 ms server timeout; it fails without the fix (checked).
+- CLI: `uploadOptions()` resolves `--url` / `--token` / `--project` / `--release` once for both commands.
+- `mapped` and `status` of a native stack count captured frames, not the rows of inlined functions; the plugin's denominator leaves inlined rows out.
+- Cold-load deduplication in the cache: tracker row, not this PR.
+- `image (grafana)` (Trivy, CVE in the `grafana/grafana:13.2.1` base) is red on `main` too; fixed in its own PR, this one merges after it.
+
 ## Left, and what the next agent must know
 
 - Swift names are DWARF base names (`level2`, not `level2(_:)`); symbol-table names stay mangled. A Swift demangler would be its own package or a dependency: not done.

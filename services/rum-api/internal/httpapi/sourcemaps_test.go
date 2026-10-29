@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/sourcemap"
@@ -255,7 +258,7 @@ func TestDSYMUploadAndNativeCrash(t *testing.T) {
 	defer pr.Body.Close()
 	var res sourcemap.Result
 	json.NewDecoder(pr.Body).Decode(&res)
-	if pr.StatusCode != http.StatusOK || res.Status != sourcemap.StatusOK || len(res.Frames) != 3 ||
+	if pr.StatusCode != http.StatusOK || res.Status != sourcemap.StatusOK || len(res.Frames) != 3 || res.Mapped != 2 ||
 		!strings.Contains(res.Stacktrace, "crash_here (in crashy) (crashy.c:8)") {
 		t.Fatalf("symbolicate: %d %+v", pr.StatusCode, res)
 	}
@@ -271,7 +274,7 @@ func TestDSYMUploadAndNativeCrash(t *testing.T) {
 		}
 		found = true
 		s := it.Symbolicated
-		if s == nil || s.Mapped != 3 || s.Frames[1].Original.Function != "inlined_step" || !s.Frames[1].Inlined ||
+		if s == nil || s.Mapped != 2 || s.Frames[1].Original.Function != "inlined_step" || !s.Frames[1].Inlined ||
 			s.Frames[2].Original.Function != "level1" || s.Frames[2].Original.Line != 17 {
 			t.Errorf("native crash symbolicated = %+v", s)
 		}
@@ -281,6 +284,40 @@ func TestDSYMUploadAndNativeCrash(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no native exception in the timeline")
+	}
+}
+
+// A dSYM upload outlives the server's read timeout, behind the otelhttp wrapper
+// main.go puts around the handler; a source-map upload does not.
+func TestDSYMUploadOutlivesReadTimeout(t *testing.T) {
+	ts, _ := newSourceMapServer(t)
+	slow := httptest.NewUnstartedServer(otelhttp.NewHandler(ts.Config.Handler, "rum-api"))
+	slow.Config.ReadTimeout, slow.Config.WriteTimeout = 200*time.Millisecond, 200*time.Millisecond
+	slow.Start()
+	t.Cleanup(slow.Close)
+	put := func(path string, body []byte) (int, error) {
+		pr, pw := io.Pipe()
+		go func() {
+			for i := 0; i < len(body); i += len(body)/4 + 1 {
+				pw.Write(body[i:min(len(body), i+len(body)/4+1)])
+				time.Sleep(150 * time.Millisecond) // 600 ms in all, three times the timeout
+			}
+			pw.Close()
+		}()
+		req, _ := http.NewRequest(http.MethodPut, slow.URL+path, pr)
+		req.Header.Set("Authorization", "Bearer "+uploadToken)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return 0, err
+		}
+		resp.Body.Close()
+		return resp.StatusCode, nil
+	}
+	if code, err := put("/v1/dsyms", smFixture(t, "dsym/crashy.dwarf")); err != nil || code != http.StatusCreated {
+		t.Errorf("slow dSYM upload: %d %v", code, err)
+	}
+	if code, err := put("/v1/sourcemaps?debug_id="+mapDebugID, smFixture(t, "app.min.js.map")); err == nil && code == http.StatusCreated {
+		t.Error("slow source-map upload succeeded: the test does not exercise the timeout")
 	}
 }
 

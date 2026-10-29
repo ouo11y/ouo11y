@@ -63,6 +63,7 @@ The crash's own UUIDs are in its `Binary Images` lines (`<55dca0d0...>`). When a
 - **The UUIDs differ**: the dSYM is from another build. Upload the one from the build that crashed.
 - **400 `no DWARF (__debug_info)`**: the app binary was uploaded instead of the dSYM, or the build has `DEBUG_INFORMATION_FORMAT = dwarf` (no dSYM).
 - **413**: the file is above `limits.max_dsym_bytes` (512 MiB by default).
+- **Upload cut off**: one dSYM upload may take up to 10 minutes (other requests keep rum-api's 60 s read timeout). The CLI sends it gzip-compressed, usually a third of the size.
 
 To compare by hand: `atos -i -arch arm64 -o MyApp.app.dSYM/Contents/Resources/DWARF/MyApp -l <image_addr> <instruction_addr>`, with the addresses from the raw stack.
 

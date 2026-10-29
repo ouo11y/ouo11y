@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact } from "./index.js";
+import { deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact, type UploadOptions } from "./index.js";
 
 const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to rum-api (ADR-0011)
 
@@ -43,6 +43,18 @@ async function artifactsOf(dirs: string[]): Promise<Artifact[]> {
   return out;
 }
 
+/** The upload options from the flags, else the environment; exits when --url or --token is missing. */
+function uploadOptions(values: { url?: string; token?: string; project?: string; release?: string }, dryRun: boolean): UploadOptions {
+  const env = process.env;
+  const url = values.url ?? env["OUO_SOURCEMAPS_URL"];
+  const token = values.token ?? env["OUO_UPLOAD_TOKEN"];
+  const project = values.project ?? env["OUO_PROJECT_ID"];
+  const release = values.release ?? env["OUO_RELEASE"];
+  if (!url) fail("--url (or OUO_SOURCEMAPS_URL) is required");
+  if (!token && !dryRun) fail("--token (or OUO_UPLOAD_TOKEN) is required");
+  return { url, token: token ?? "", ...(project ? { project } : {}), ...(release ? { release } : {}) };
+}
+
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -63,9 +75,11 @@ async function main(): Promise<number> {
     return values.help ? 0 : 2;
   }
   const dryRun = values["dry-run"] === true;
-  const env = process.env;
 
-  if (cmd === "upload-dsym") return uploadDSYMs(dirs, values, dryRun);
+  if (cmd === "upload-dsym") {
+    if (dirs.length === 0) fail("no path given\n\n" + usage);
+    return uploadDSYMs(dirs, uploadOptions(values, dryRun), dryRun);
+  }
 
   let artifacts: Artifact[] = [];
   if (cmd === "inject" || cmd === "inject-and-upload") {
@@ -82,12 +96,7 @@ async function main(): Promise<number> {
     fail(`unknown command ${cmd}\n\n${usage}`);
   }
 
-  const url = values.url ?? env["OUO_SOURCEMAPS_URL"];
-  const token = values.token ?? env["OUO_UPLOAD_TOKEN"];
-  const project = values.project ?? env["OUO_PROJECT_ID"];
-  const release = values.release ?? env["OUO_RELEASE"];
-  if (!url) fail("--url (or OUO_SOURCEMAPS_URL) is required");
-  if (!token && !dryRun) fail("--token (or OUO_UPLOAD_TOKEN) is required");
+  const o = uploadOptions(values, dryRun);
   if (artifacts.length === 0) {
     process.stderr.write("ouo-sourcemaps: no bundle with a source map found\n");
     return 1;
@@ -95,18 +104,15 @@ async function main(): Promise<number> {
   let failed = 0;
   for (const a of artifacts) {
     if (dryRun) {
-      process.stdout.write(`would upload ${a.rel} -> ${url}\n`);
+      process.stdout.write(`would upload ${a.rel} -> ${o.url}\n`);
       continue;
     }
-    const r = await upload(a, {
-      url, token: token ?? "", ...(project ? { project } : {}), ...(release ? { release } : {}),
-      ...(values["url-prefix"] ? { urlPrefix: values["url-prefix"] } : {}),
-    });
+    const r = await upload(a, { ...o, ...(values["url-prefix"] ? { urlPrefix: values["url-prefix"] } : {}) });
     if (r.error) {
       failed++;
       process.stderr.write(`failed   ${r.file}: ${r.error}\n`);
     } else {
-      process.stdout.write(`uploaded ${r.debugId ?? "(release only)                     "}  ${r.file}${release ? `  release ${release}` : ""}\n`);
+      process.stdout.write(`uploaded ${r.debugId ?? "(release only)                     "}  ${r.file}${o.release ? `  release ${o.release}` : ""}\n`);
     }
   }
   if (failed === 0 && values["delete-after"] && !dryRun) {
@@ -117,15 +123,7 @@ async function main(): Promise<number> {
   return failed === 0 ? 0 : 1;
 }
 
-async function uploadDSYMs(paths: string[], values: { url?: string; token?: string; project?: string; release?: string }, dryRun: boolean): Promise<number> {
-  if (paths.length === 0) fail("no path given\n\n" + usage);
-  const env = process.env;
-  const url = values.url ?? env["OUO_SOURCEMAPS_URL"];
-  const token = values.token ?? env["OUO_UPLOAD_TOKEN"];
-  const project = values.project ?? env["OUO_PROJECT_ID"];
-  const release = values.release ?? env["OUO_RELEASE"];
-  if (!url) fail("--url (or OUO_SOURCEMAPS_URL) is required");
-  if (!token && !dryRun) fail("--token (or OUO_UPLOAD_TOKEN) is required");
+async function uploadDSYMs(paths: string[], o: UploadOptions, dryRun: boolean): Promise<number> {
   const files: string[] = [];
   for (const p of paths) {
     try {
@@ -141,10 +139,10 @@ async function uploadDSYMs(paths: string[], values: { url?: string; token?: stri
   let failed = 0;
   for (const f of files) {
     if (dryRun) {
-      process.stdout.write(`would upload ${f} -> ${url}\n`);
+      process.stdout.write(`would upload ${f} -> ${o.url}\n`);
       continue;
     }
-    const r = await uploadDSYM(f, { url, token: token ?? "", ...(project ? { project } : {}), ...(release ? { release } : {}) });
+    const r = await uploadDSYM(f, o);
     if (r.error) {
       failed++;
       process.stderr.write(`failed   ${f}: ${r.error}\n`);

@@ -19,7 +19,7 @@ export function frameCount(stack: string): number {
 }
 
 /** A frame line of a JS stack, or of the Apple-style native crash stack ("0   App   0x104a1c2f0 ..."). */
-const FRAME_LINE = /^\s*(at |[\w$.<>-]*@\S+:\d+:\d+|\d+\s+\S+\s+0x[0-9a-f]+)/i;
+const FRAME_LINE = /^\s*(at |[\w$.<>-]*@\S+:\d+:\d+|\d+\s+.+?\s+0x[0-9a-f]+)/i;
 
 /** True when the symbolicated stack is worth showing: at least one frame mapped. */
 function useful(s: Symbolicated | undefined): s is Symbolicated {
@@ -44,6 +44,8 @@ export function StackTrace({ stack, symbolicated, defaultOpen = false }: Props) 
   const frames = frameCount(text);
   const sym = useful(symbolicated) ? symbolicated : undefined;
   const native = sym?.frames.some((f) => f.address !== undefined) ?? false;
+  // Captured frames: an inlined function is an extra row of the frame after it.
+  const total = sym?.frames.filter((f) => !f.inlined).length ?? 0;
   const showOriginal = sym !== undefined && !raw;
   return (
     <span className={styles.wrap} onClick={(e) => e.stopPropagation()}>
@@ -65,7 +67,7 @@ export function StackTrace({ stack, symbolicated, defaultOpen = false }: Props) 
             title={native ? 'Symbolicated through the uploaded dSYMs' : 'Mapped through the uploaded source maps'}
           >
             {native ? 'symbolicated' : 'source mapped'}
-            {sym.status === 'ok' ? '' : ` ${sym.mapped}/${sym.frames.length}`}
+            {sym.status === 'ok' ? '' : ` ${sym.mapped}/${total}`}
           </span>
         )}
         {open && sym && (

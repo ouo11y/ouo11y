@@ -82,6 +82,7 @@ export interface SymbolicatedFrame {
 /** rum-api after 0.3.0: an exception's stack mapped through its uploaded source maps. */
 export interface Symbolicated {
   status: 'ok' | 'partial' | 'no_maps';
+  /** Frames mapped; a native stack counts captured frames, not the rows of inlined functions. */
   mapped: number;
   frames: SymbolicatedFrame[];
   /** The stack text with original positions (lines that are not frames kept). */

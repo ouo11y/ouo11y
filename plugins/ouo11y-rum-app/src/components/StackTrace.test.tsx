@@ -74,12 +74,12 @@ describe('StackTrace (C1)', () => {
   it('shows native frames from dSYMs atos style, with the inlined function and frames without a dSYM', () => {
     const raw =
       'SIGSEGV: EXC_BAD_ACCESS (SIGSEGV) SEGV_MAPERR at 0x0\nThread (main thread) crashed, arm64:\n' +
-      '0   crashy                          0x0000000104a0050c 0x104a00000 + 1292\n' +
+      '0   My Crashy App                   0x0000000104a0050c 0x104a00000 + 1292\n' +
       '1   dyld                            0x0000000189e1e0e0 0x189e18000 + 24800\n\nBinary Images:\n0x104a00000 - 0x104a03fff crashy arm64';
     const sym: Symbolicated = {
       status: 'partial',
-      mapped: 2,
-      stacktrace: raw.replace('0x104a00000 + 1292', 'inlined_step (in crashy) (crashy.c:13)'),
+      mapped: 1,
+      stacktrace: raw.replace('0x104a00000 + 1292', 'inlined_step (in My Crashy App) (crashy.c:13)'),
       frames: [
         {
           status: 'mapped',
@@ -98,9 +98,10 @@ describe('StackTrace (C1)', () => {
       ],
     };
     render(<StackTrace stack={raw} symbolicated={sym} defaultOpen />);
-    expect(screen.getByTestId('stack-symbolicated')).toHaveTextContent('symbolicated 2/3');
+    expect(screen.getByTestId('stack-symbolicated')).toHaveTextContent('symbolicated 1/2');
     const original = screen.getByTestId('stack-original');
     expect(original).toHaveTextContent('Thread (main thread) crashed, arm64:');
+    expect(original).not.toHaveTextContent('My Crashy App 0x'); // frame lines are not taken for the header
     expect(original).not.toHaveTextContent('Binary Images');
     const frames = screen.getAllByTestId('stack-frame');
     expect(frames[0]).toHaveTextContent('inlined_step (crashy.c:13) in crashy (inlined)');

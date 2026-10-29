@@ -61,7 +61,7 @@ type Frame struct {
 // with the original positions (lines that are not frames are kept).
 type Result struct {
 	Status     string  `json:"status"`
-	Mapped     int     `json:"mapped"`
+	Mapped     int     `json:"mapped"` // frames mapped; a native stack counts captured frames, not inlined rows
 	Frames     []Frame `json:"frames"`
 	Stacktrace string  `json:"stacktrace"`
 }
