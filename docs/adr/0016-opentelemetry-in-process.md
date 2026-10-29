@@ -11,7 +11,7 @@ What the two reference SDKs offer is not the same ([landscape-open-source.md](..
 - **opentelemetry-android** (Apache-2.0) ships sessions with `session.id`, `session.start` and `session.end`, crash, ANR, slow rendering, network, startup, OTLP/HTTP and disk buffering, all on by default.
 - **opentelemetry-swift** has none of the lifecycle, tap, crash or hang instrumentation, and its exporters bring gRPC and SwiftProtobuf.
 
-`sdk/ios` today links nothing but Foundation, UIKit and zlib, which is the answer a customer's app review asks for.
+`sdk/ios` today has no third-party dependency, only system frameworks and zlib, which is the answer a customer's app review asks for.
 
 ## Decision
 
