@@ -1,0 +1,123 @@
+# Merges "ready" pull requests that are green, one per run, oldest first (ADR-0013).
+#
+# The repository is private on the free plan: no branch protection, no auto-merge, no merge
+# queue. This workflow is the merge gate instead.
+#
+#   after ci / pr-review / release-check complete, every 30 min, or on dispatch:
+#     for the oldest open PR that is not a draft, has label "ready" (or is a release PR in the
+#     daily run), has no conflicts, every check run on its head commit completed and none failed,
+#     and the named checks below succeeded:
+#       squash-merge with the PR title as the commit subject, delete the branch, stop.
+#     a "ready" PR with conflicts: one comment, label "needs-rebase" replaces "ready".
+#
+#   code PR     requires: "changed paths", "PR title (conventional commit)", "review"
+#   release PR  requires: "changed paths", "compatibility matrix", "e2e scenario (stack from this commit)"
+#               and merges only in the daily 06:00 UTC run or on dispatch with release=true,
+#               so one day's merges become one release per component.
+#
+# Token: RELEASE_PLEASE_TOKEN so the merge triggers ci and release-please on main (a merge by
+# GITHUB_TOKEN triggers nothing, and the chain stops there).
+name: merge-ready
+
+on:
+  workflow_run:
+    workflows: [ci, pr-review, release-check]
+    types: [completed]
+  schedule:
+    - cron: '*/30 * * * *'
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Also merge release PRs (autorelease: pending) in this run'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: merge-ready
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: merge one ready PR
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
+    steps:
+      - name: Pick and merge
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          HAS_PAT: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+          RELEASE_RUN: ${{ github.event.schedule == '0 6 * * *' || github.event.inputs.release == 'true' }}
+        run: |
+          set -euo pipefail
+          R="$GITHUB_REPOSITORY"
+          if [ "$HAS_PAT" != true ]; then
+            echo "::warning::RELEASE_PLEASE_TOKEN is not set: a merge by GITHUB_TOKEN triggers no workflow on main, so release-please and the next merge-ready run will not fire (ADR-0013)."
+          fi
+
+          prs=$(gh pr list --repo "$R" --state open --limit 100 \
+            --json number,title,url,isDraft,labels,headRefOid,mergeStateStatus,createdAt \
+            --jq 'sort_by(.createdAt) | .[]')
+          [ -n "$prs" ] || { echo "No open PRs."; exit 0; }
+
+          merged=0
+          while IFS= read -r pr; do
+            n=$(jq -r .number <<<"$pr"); title=$(jq -r .title <<<"$pr"); url=$(jq -r .url <<<"$pr")
+            sha=$(jq -r .headRefOid <<<"$pr"); state=$(jq -r .mergeStateStatus <<<"$pr")
+            draft=$(jq -r .isDraft <<<"$pr")
+            labels=$(jq -r '[.labels[].name] | join(",")' <<<"$pr")
+            ready=false; release=false
+            case ",$labels," in *",ready,"*) ready=true;; esac
+            case "$title" in "chore(main): release "*) case ",$labels," in *",autorelease: pending,"*) release=true;; esac;; esac
+
+            if [ "$draft" = true ]; then continue; fi
+            if [ "$release" = true ] && [ "$RELEASE_RUN" != true ]; then echo "#$n release PR waits for the daily run"; continue; fi
+            if [ "$release" != true ] && [ "$ready" != true ]; then continue; fi
+
+            if [ "$state" = DIRTY ]; then
+              marker='<!-- merge-ready:needs-rebase -->'
+              if ! gh pr view "$n" --repo "$R" --json comments --jq '.comments[].body' | grep -qF "$marker"; then
+                gh pr comment "$n" --repo "$R" --body "$marker
+          This PR is labelled \`ready\` but conflicts with \`main\`. Rebase or merge \`main\` into it, run the \"Before you push\" list again (AGENTS.md) and re-add \`ready\`. The stale rule closes it after 11 days without activity (ADR-0013)."
+                gh label create needs-rebase --repo "$R" --color d93f0b --description "ready but conflicts with main" 2>/dev/null || true
+                gh pr edit "$n" --repo "$R" --remove-label ready --add-label needs-rebase >/dev/null 2>&1 || \
+                  { gh api -X DELETE "repos/$R/issues/$n/labels/ready" --silent || true; gh api -X POST "repos/$R/issues/$n/labels" -f 'labels[]=needs-rebase' --silent || true; }
+              fi
+              echo "#$n conflicts; flagged"; continue
+            fi
+            if [ "$state" != CLEAN ]; then echo "#$n merge state $state; skip"; continue; fi
+
+            # Latest check run per name on the head commit.
+            runs=$(gh api --paginate "repos/$R/commits/$sha/check-runs?per_page=100" \
+              --jq '.check_runs | group_by(.name) | map(max_by(.id)) | .[] | [.name, .status, (.conclusion // "")] | @tsv')
+            if [ -z "$runs" ]; then echo "#$n has no check runs yet (an empty list is not green)"; continue; fi
+            if grep -vP '\tcompleted\t' <<<"$runs" | grep -q .; then echo "#$n has checks still running"; continue; fi
+            if grep -P '\t(failure|cancelled|timed_out|action_required|stale)$' <<<"$runs" | grep -q .; then
+              echo "#$n has a failed check:"; grep -P '\t(failure|cancelled|timed_out|action_required|stale)$' <<<"$runs"; continue
+            fi
+            if [ "$release" = true ]; then
+              need=("changed paths" "compatibility matrix" "e2e scenario (stack from this commit)")
+            else
+              need=("changed paths" "PR title (conventional commit)" "review")
+            fi
+            ok=true
+            for name in "${need[@]}"; do
+              if ! grep -qP "^\Q$name\E\tcompleted\tsuccess$" <<<"$runs"; then echo "#$n misses a successful '$name' check"; ok=false; fi
+            done
+            [ "$ok" = true ] || continue
+
+            echo "Merging #$n ($title) at $sha"
+            gh pr merge "$n" --repo "$R" --squash --delete-branch --match-head-commit "$sha" \
+              --subject "$title" --body "$url"
+            merged=1
+            break
+          done <<<"$prs"
+
+          if [ "$merged" = 0 ]; then echo "Nothing to merge this run."; fi

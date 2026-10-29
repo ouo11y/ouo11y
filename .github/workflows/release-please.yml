@@ -3,11 +3,13 @@
 # Policy and the founder's checklist: docs/releasing.md.
 #
 #   push to main         -> opens or updates "chore(main): release <component> <version>" PRs
-#                           (version bump + CHANGELOG section). Merging one creates NO tag:
-#                           skip-github-release is on, tags stay with the founder.
-#   founder pushes a tag -> mark-tagged relabels the merged release PR "autorelease: tagged".
-#                           Until then release-please opens no new release PRs (it refuses to
-#                           while a merged PR is still "autorelease: pending").
+#                           (version bump + CHANGELOG section). merge-ready.yml merges them in its
+#                           daily run once green (ADR-0013).
+#   release PR merged    -> release-please creates the tag and the GitHub release itself
+#                           (skip-github-release is off since ADR-0013), which triggers the
+#                           release-<x>.yml publish workflows, and relabels the PR "autorelease: tagged".
+#   hand-pushed tag      -> mark-tagged relabels a merged release PR that is still pending (the
+#                           pre-ADR-0013 path, kept for rc tags and emergencies).
 #
 # Token: RELEASE_PLEASE_TOKEN (fine-grained PAT, this repo only, Contents + Pull requests +
 # Issues read/write) when set, so the release PRs trigger release-check.yml and ci.yml; PRs
@@ -50,7 +52,6 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
-          skip-github-release: true
 
   mark-tagged:
     if: github.ref_type == 'tag'

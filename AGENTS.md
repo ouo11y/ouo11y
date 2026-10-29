@@ -54,6 +54,19 @@ The root holds only `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` and the 
 - Reports and graphs are HTML/CSS/JS files (self-contained, no external network needed to render). Never markdown tables or image files for reports.
 - Hand-off to the orchestrator is your summary file plus a short final message. The orchestrator does not read your full transcript.
 
+## Review, merge and release are automatic ([ADR-0013](docs/adr/0013-automated-review-merge-and-release.md))
+
+Nobody waits on a pull request. Claude reviews every push (`pr-review.yml`, the check `review`), `merge-ready.yml` squash-merges the oldest PR labelled `ready` once every check passed, release PRs merge in the daily run and release-please cuts the tag, and `stale.yml` closes a PR after 11 days without activity. The founder reviews merged work, not PRs.
+
+Your part, as the session that owns a PR:
+
+- **Push only what you are proud of.** Before `git push`, and again before adding `ready`, run this list and fix what fails: the tests and `go vet` / typecheck of every touched module pass locally with the tracker's commands; the conformance or e2e checks of what you touched pass; `lychee --offline` is clean; your summary, kb entries and index rows are written; no test was skipped, weakened or marked flaky to pass; no secret, token or business material is in the diff; the PR title is a conventional commit (`feat(scope): …`, `fix(scope): …`; release-please reads it); you would sign the diff with your name. Not proud yet: do not push. Write what is missing in your summary and leave the branch local, or open a **draft** without `ready`.
+- **One PR per session or package**, rebased on `origin/main` before you add `ready`. Rebase only your own branch, never someone else's PR, never several at once.
+- **Add the label `ready` as your last act**, after the review check is green or after you fixed what the review asked for and pushed again. A `ready` PR with conflicts loses the label and gets `needs-rebase`; fix it and re-add `ready`.
+- **Never end a session with a non-draft PR that has neither `ready` nor a comment** saying why it stays open and until when. Without activity it closes itself after 11 days; `keep-open` needs a reason in a comment.
+- **Fix forward.** A broken `main` is fixed by a `fix:` PR through the same path, within the session that broke it when it is still running.
+- **Do not push tags, do not merge by hand, do not change repository settings.** Releases are cut by the bot; `docs/releasing.md` says how.
+
 ## Engineering conventions
 
 - TypeScript: npm workspaces at the repo root, strict mode, ESM, Node 24. Tests with Vitest.

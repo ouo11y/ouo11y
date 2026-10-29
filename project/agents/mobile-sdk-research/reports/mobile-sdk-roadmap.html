@@ -158,7 +158,7 @@ a{color:var(--s1)}
 <tr><th>#</th><th>Package</th><th>Value</th><th>Cost</th><th>Depends on</th><th>Lane</th><th>Exit criterion</th></tr>
 <tr><td>W1</td><td>Production-safe iOS capture: render 1:1 and downscale off main, run-loop observer with animation deferral, no touch captures, one in flight, 150 ms backoff, time bank, fail-closed masking, navigation-only mode, device tiers, crash-time chunk id, session start in the crash report (N51, N52)</td><td>very high</td><td>M, 8–10 d</td><td>nothing</td><td>A</td><td>≤ 25 ms main thread per capture on the iPhone 16 Pro Max (Sentry 22); moved mask drops the frame; a crash mid-chunk finishes next launch; B3 T3/T4 CPU delta ≤ Sentry's</td></tr>
 <tr><td>W2</td><td>Mobile SDK spec and conformance suite: twelve capabilities C1–C12, golden mobile session asserted in rum-api by the e2e scenario, maturity ladder L0–L3 in <code>docs/compatibility.md</code></td><td>very high</td><td>S–M, 4–6 d</td><td>nothing</td><td>C</td><td>spec merged; e2e asserts C1–C9 and C11 for RN iOS and prints the matrix; compat-check reads levels</td></tr>
-<tr><td>W3</td><td>Wire and durability: tiles in <code>frames</code> schema 2 (ADR-0013), canvas player, gzip OTLP (N48), offline store for batches and chunks (N49), next-launch keep/drop hook</td><td>very high</td><td>M, 8–10 d</td><td>W1, ADR-0013</td><td>A + B + C</td><td>≤ 150 KiB/min masked at T4 (Sentry ≈ 110); static screen sends zero image bytes; offline run loses nothing</td></tr>
+<tr><td>W3</td><td>Wire and durability: tiles in <code>frames</code> schema 2 (ADR-0014), canvas player, gzip OTLP (N48), offline store for batches and chunks (N49), next-launch keep/drop hook</td><td>very high</td><td>M, 8–10 d</td><td>W1, ADR-0014</td><td>A + B + C</td><td>≤ 150 KiB/min masked at T4 (Sentry ≈ 110); static screen sends zero image bytes; offline run loses nothing</td></tr>
 <tr><td>W4</td><td>Signals parity with Sentry: hang watchdog (2 s), TTFD, OOM and watchdog terminations via MetricKit, error context (last 20 events, screen, locale, memory, network), <code>session.previous_id</code></td><td>high</td><td>M, 6–8 d</td><td>W2</td><td>A + B</td><td>3 s block → one hang event; TTFD on first screen; simulated OOM shows as a termination; every error carries context</td></tr>
 <tr><td>W5</td><td>Funnels and user steps on mobile: screen names into <code>url.path</code> verified, human-readable steps as <code>app.screen.click</code> logs with a content kill switch, a mobile quickstart with a known funnel answer</td><td>high</td><td>S, 3–4 d</td><td>W2</td><td>B + C</td><td>quickstart funnel equals the generator's counts; three taps show as readable steps</td></tr>
 <tr><td>W6</td><td>Feedback primitive: <code>rum.feedback()</code> as a <code>feedback</code> log with last events and an optional masked frame; plugin list beside the replay; shared record with the bridge's Sentry feedback mapping</td><td>medium–high</td><td>S, 3–4 d</td><td>W2</td><td>B + C</td><td>a feedback from the demo app appears beside its replay</td></tr>
@@ -284,10 +284,10 @@ a{color:var(--s1)}
 <div class="tablewrap">
 <table>
 <tr><th>ADR</th><th>Decision</th><th>Blocks</th></tr>
-<tr><td>ADR-0013</td><td>Tiles in <code>frames</code> schema 2; <code>video</code> stays for Sentry-sourced replays; no rrweb container for raster</td><td>W3</td></tr>
+<tr><td>ADR-0014</td><td>Tiles in <code>frames</code> schema 2; <code>video</code> stays for Sentry-sourced replays; no rrweb container for raster</td><td>W3</td></tr>
 <tr><td>ADR-0011 rev</td><td>Native symbolication: dSYM and R8 upload, build-UUID index, rum-api symbolication, Hermes maps</td><td>W7</td></tr>
-<tr><td>ADR-0014</td><td>Mobile SDK spec, twelve capabilities, L0–L3 ladder, one conformance suite per native package</td><td>W2</td></tr>
-<tr><td>ADR-0015</td><td>opentelemetry-android as the Android base; dependency-free Swift package speaking OTLP/JSON and semconv on iOS</td><td>W8, W9</td></tr>
+<tr><td>ADR-0015</td><td>Mobile SDK spec, twelve capabilities, L0–L3 ladder, one conformance suite per native package</td><td>W2</td></tr>
+<tr><td>ADR-0016</td><td>opentelemetry-android as the Android base; dependency-free Swift package speaking OTLP/JSON and semconv on iOS</td><td>W8, W9</td></tr>
 <tr><td>ADR-0006 rev</td><td>Run-loop observer and raw-context rendering replace the timer, touch captures and <code>UIGraphicsImageRenderer</code>; masking fails closed</td><td>W1</td></tr>
 </table>
 </div>

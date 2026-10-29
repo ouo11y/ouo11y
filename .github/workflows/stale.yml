@@ -1,0 +1,40 @@
+# Pull requests that nobody touches close themselves (ADR-0013): 4 days without activity ->
+# label "stale" and a comment; 7 more days -> closed and the branch deleted. Release PRs
+# ("autorelease: pending") and "keep-open" are exempt. Issues are untouched.
+name: stale
+
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  stale:
+    name: stale pull requests
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: write
+    steps:
+      - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9
+        with:
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          days-before-pr-stale: 4
+          days-before-pr-close: 7
+          stale-pr-label: stale
+          exempt-pr-labels: 'autorelease: pending,keep-open'
+          delete-branch: true
+          operations-per-run: 200
+          stale-pr-message: >-
+            No activity for 4 days. The session that owns this PR either finishes it (run the
+            "Before you push" list in AGENTS.md, push, add the label `ready`) or closes it with a
+            line in its summary saying what is missing. Without activity it closes in 7 days and
+            the branch is deleted (ADR-0013). Add `keep-open` only with a reason in a comment.
+          close-pr-message: >-
+            Closed as stale after 11 days without activity (ADR-0013). The work is still in git
+            history under the branch name; reopen it from a fresh branch when a session picks it up.

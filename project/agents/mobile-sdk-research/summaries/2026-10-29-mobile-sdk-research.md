@@ -50,3 +50,13 @@ Positions taken that differ from §12: tiles inside our own `frames` chunk inste
 Verified: the two HTML files open with the SVGs rendered (browser pane); `lychee --offline` over the research folder and the indexes. Not verified: the cost estimates are the orchestrator's judgement in agent-days, not measurements; what rum-api groups errors by today was not checked.
 
 Respects the founder's 2026-10-23 order: the roadmap is for when the ouo mobile SDK gate opens; only the spec, the ADRs and the shared record names (feedback, hangs, user steps) are proposed to start earlier, because the bridge work for N37 and N40 needs the same names.
+
+## Addendum, same day: automated review, merge and release (ADR-0013)
+
+The founder asked for a fully automated review and release path so no PR waits on a human during W1–W10, no pile of stale PRs, and a rule that sessions push only what they are proud of.
+
+Written: `docs/adr/0013-automated-review-merge-and-release.md` (proposed); `.github/workflows/pr-review.yml` (Claude review on every push, verdict → check `review`); `.github/workflows/merge-ready.yml` (squash-merges the oldest `ready` green PR, one per run; release PRs only in the 06:00 UTC run); `.github/workflows/stale.yml` (4 + 7 days); release-please now creates tags and releases (`skip-github-release` off); `AGENTS.md` section "Review, merge and release are automatic" with the "Before you push" list; `docs/releasing.md` sections 4, 5, 8, 12; `project/kb/release-automation.md` section on what a free private repo cannot do; `.github/scripts/repo-settings.sh` for the founder (labels, `delete_branch_on_merge`, secret report). The roadmap's proposed ADR numbers moved up by one (0014–0016).
+
+Verified: `actionlint` on the three new workflows and `release-please.yml`; `lychee --offline` on the touched docs. Not verified: a live run of `pr-review.yml` (needs `ANTHROPIC_API_KEY`) and of `merge-ready.yml` (needs `RELEASE_PLEASE_TOKEN` for the chain to continue past the first merge); both are the founder's secrets. The claude-code-action inputs follow its v1 README; the first run on a self-hosted Linux runner is the test of whether its installer works there (fallback: `ubuntu-latest` for that one job).
+
+Founder's part: run `.github/scripts/repo-settings.sh`, add the two secrets, decide what to do with the twelve PRs open on 2026-10-29 (the stale rule will close the untouched ones 11 days after it starts).

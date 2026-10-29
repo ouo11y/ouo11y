@@ -130,3 +130,12 @@ channel: [release-packaging.md](release-packaging.md).
   rounded up to a whole minute. `ci.yml` now has a `changes` job (PR file list through
   `gh api .../pulls/<n>/files`, no third-party action) and per-job `if:`; the image matrix is
   built from the list of images whose paths changed (`fromJSON`).
+
+## Automated merge and release on a free private repository (ADR-0013, 2026-10-29)
+
+- GitHub gives a **private repository on the free plan** no branch protection, rulesets, required checks, auto-merge or merge queue: the API answers `403 Upgrade to GitHub Pro`. `gh pr merge --auto` therefore cannot be used; `merge-ready.yml` is the gate instead (one PR per run, oldest `ready` first, named checks required, `--match-head-commit` so a push between the check and the merge aborts it).
+- **An empty check list is not green**: the check-runs API returns nothing for a commit whose workflows never started (a PR opened with `GITHUB_TOKEN`), so the merge workflow refuses when the list is empty and requires named checks (`changed paths`, `PR title (conventional commit)`, `review`).
+- `gh pr merge --squash` uses the **single commit's message** as the subject when a PR has one commit, which breaks conventional-commit titles for release-please: always pass `--subject "$title"`.
+- `gh pr edit --add-label` can fail on repositories that still carry Projects (classic) data (the GraphQL query reads them); the REST label endpoints are the fallback, as `mark-tagged` already does.
+- A review by `GITHUB_TOKEN` counts as an approval only when "Allow GitHub Actions to create and approve pull requests" is on (it is, checked 2026-10-29); the gate reads reviews with `user.type == "Bot"` and the head `commit_id`, so an approval of an older push never carries over.
+- Releases: `skip-github-release` off makes release-please create the tag and the GitHub release on merge; the `release-<x>.yml` workflows trigger on that tag only when the token behind release-please is a PAT (`RELEASE_PLEASE_TOKEN`). Release PRs merge only in the 06:00 UTC run so a day's merges become one release per component.
