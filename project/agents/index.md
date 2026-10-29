@@ -20,5 +20,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [release](release/) | versioning, changelogs, package publishing workflows, upgrade procedure (`.github/`, `CHANGELOG.md`, package manifests) | 8a |
 | [sentry-demo](sentry-demo/) | `examples/sentry-mobile` (Expo iOS app with `@sentry/react-native`, `ouo.rum.mode` rollout switch to `@ouo11y/react-native`, journey driver, envelope capture for the Sentry bridge); since batch 2 also the three examples' journeys, `verify` scripts and `examples/tools` (trace-continuity checks) | ADR-0008 |
 | [benchmark](benchmark/) | device-cost benchmark ouo vs Sentry (B3): `examples/sentry-mobile/scripts/perf/`, `.github/workflows/benchmark.yml`, `project/reports/benchmarks/`, `docs/benchmarks.md`; iPhone run N22 | B3 |
+| [mobile-sdk-research](mobile-sdk-research/) | `project/kb/mobile-sdk-research/` research on Sentry, PostHog, Luciq and the field (RUM, replay techniques, wire size, footprint methods, OTel, feature matrix) for phases 10 and 13 | research |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

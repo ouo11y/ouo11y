@@ -1,6 +1,6 @@
 # Competitors: session and replay models
 
-Status: seeded from the vision review on 2026-10-06. Verify against current docs before relying on specifics.
+Status: seeded from the vision review on 2026-10-06. Verify against current docs before relying on specifics. **Superseded for mobile by [mobile-sdk-research/](mobile-sdk-research/index.md) (2026-10-29), which reads the SDKs' source code; the notes below are kept for the web session models.**
 
 ## Question
 
