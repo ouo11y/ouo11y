@@ -1,0 +1,169 @@
+# Mobile SDK specification: twelve capabilities, conformance checks, maturity
+
+Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, the C6 additions, C10, the C11 store) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
+
+This spec is the index. Where a record already has a spec, it is linked, not repeated:
+
+| Topic | Spec |
+|---|---|
+| sessions, identifiers, end reasons, `exception`, `navigation`, `http.request.failed` | [session-lifecycle.md](session-lifecycle.md) |
+| app start, TTID, TTFD, frames, stalls | [mobile-vitals.md](mobile-vitals.md) |
+| replay chunks, capture and masking rules | [mobile-replay.md](mobile-replay.md) |
+| funnels over screens and events | [funnels.md](funnels.md) |
+| what the Sentry bridge produces for the same capabilities | [sentry-bridge.md](sentry-bridge.md) |
+
+## 1. Rules for every record
+
+1. Telemetry is OpenTelemetry over OTLP/HTTP: spans on the traces signal, everything else as log records with `event.name` (an *event*). No other format. Names follow the OTel semantic conventions where one exists, otherwise they start with `ouo.`.
+2. Every span and event carries the session identifiers of [session-lifecycle.md](session-lifecycle.md) (`session.id`, `session.previous_id` on a replacing session, `user.id`) as attributes, and `ouo.platform = mobile`.
+3. Resource attributes, set once per process: `service.name`, `service.version`, `deployment.environment.name`, `os.name`, `os.version`, `device.model.identifier`, `device.manufacturer`, `ouo.sdk.name`, `ouo.sdk.version`; `device.model.name`, `device.id` and `ouo.device.simulator` when known. The collector stamps `ouo.project.id` (ADR-0007).
+4. Severity: `INFO` (9) unless the record's spec says otherwise (`exception` and `http.request.failed` are `ERROR`, `log` takes the level the app passed).
+5. A record is emitted only for what was observed or measured: no zeros for unknown values ([mobile-vitals.md](mobile-vitals.md) section 3 for the vitals).
+6. The SDK never reads text a user typed or sees: labels come from accessibility labels, test ids and component names, never from text content (C6, C8).
+
+## 2. Capabilities
+
+### C1 Sessions and lifecycle
+
+- **Records**: `session.start`, `session.end` ([session-lifecycle.md](session-lifecycle.md), mobile start rules and end reasons); `app.lifecycle` with `ouo.app.state` = `foreground`, `inactive`, `background` on every change (the values the bridge maps from sentry-cocoa).
+- **Thresholds**: `BACKGROUND_TIMEOUT` 30 s, `INACTIVITY_TIMEOUT` 30 min, `MAX_DURATION` 4 h (configurable).
+- **Sampling**: decided once per session from `session.id`; an unsampled session emits nothing, a sampled one everything its options enable.
+- **Check**: C1.1.
+
+### C2 Errors and crashes
+
+- **Records**: `exception` ([session-lifecycle.md](session-lifecycle.md)) with `ouo.exception.kind`: `uncaught`, `unhandledrejection`, `captured`, `console`, `sentry` (JS), `native` (a signal or an uncaught NSException / Java exception), plus `hang` and `termination` (C3).
+- **JS stacks** are normalised to `app:///<bundle>:<line>:<column>` frames, one per line, as the bridge writes them, so symbolication ([ADR-0011](../adr/0011-source-maps-and-symbolication.md)) reads both paths.
+- **Native crashes** are written to disk at crash time (iOS report format: [ios-native-crashes.md](../../project/kb/ios-native-crashes.md)) and sent by the next launch: a fatal `exception` stamped at the crash time with `ouo.crash.mechanism`, `ouo.crash.timestamp`, `ouo.crash.frames`, `ouo.crash.images` (what symbolication needs), `ouo.crash.signal`, `ouo.crash.mach_exception`, `ouo.crash.address`, `ouo.crash.arch`, `ouo.crash.thread_main` when known; then `session.end` with reason `crash` at the same time. The session is `crashed` (ADR-0004).
+- **A crash in the first second** must not lose the session: the start of the crashed session reaches rum-api even when nothing was exported before the crash (checklist N52).
+- **Checks**: C2.1, C2.2, C2.3.
+
+### C3 Hangs and terminations (draft until W4)
+
+- **Hang**: the main thread did not run for at least **2 s** (Sentry's default `appHangTimeoutInterval`). One `exception`, not fatal and not handled, with `ouo.exception.kind = hang`, `exception.type = AppHang`, `ouo.hang.duration_ms` (the whole blocked time, reported once the thread runs again), `ouo.hang.fully_blocking` (bool: no frame was drawn at all) and the main thread's stack at detection in `exception.stacktrace`. One record per hang, not one per second. The session is `errored`. JS event-loop stalls stay `ouo.stall` ([mobile-vitals.md](mobile-vitals.md) 2.4).
+- **Termination**: the previous run ended in the foreground without a crash report, an update, an app or OS restart or a user swipe (Sentry's watchdog-termination heuristic, refined by MetricKit on iOS and `ApplicationExitInfo` on Android). The next launch sends a fatal `exception` with `ouo.exception.kind = termination`, `exception.type = WatchdogTermination`, `ouo.termination.cause` = `memory`, `cpu`, `launch_timeout`, `watchdog` or `unknown`, stamped at the last time the previous run was known alive, then `session.end` with reason `crash`. A termination that the heuristic cannot attribute stays `session.end` with reason `terminated`, as today.
+- **Checks**: C3.1, C3.2.
+
+### C4 Vitals
+
+- **Records**: `ouo.app.start`, `ouo.screen.display` (TTID, and TTFD when the app reports full display), `app.jank`, `ouo.stall`, with the attributes, rules and rating thresholds of [mobile-vitals.md](mobile-vitals.md).
+- **Checks**: C4.1, C4.2. The thresholds rate a real app on a device; the conformance checks only require the records and plausible values.
+
+### C5 Network
+
+- **Spans**: one CLIENT span per request (`fetch`, `XMLHttpRequest`, `URLSession`, OkHttp), named `HTTP <method>`, with `http.request.method`, `url.full`, `server.address`, `server.port`, `url.scheme`, `http.response.status_code` and the session identifiers. Status error for 5xx and network failures.
+- **Propagation**: W3C `traceparent` and `baggage` carrying `session.id`, only to origins the app lists (`tracing.propagateTo`), so a backend span joins the trace and can carry the session.
+- **Events**: `http.request.failed` for 5xx and network errors ([session-lifecycle.md](session-lifecycle.md)); `http.request` for answered requests below 500 when timeline requests are on, with the span's trace and span id.
+- **Check**: C5.1.
+
+### C6 Interactions (additions draft until W5)
+
+- **Record**: `ui.tap` (the name the bridge already produces from Sentry's `ui.tap`, `ui.click` and `touch` breadcrumbs): `ouo.ui.target` (the first label up the view tree: `ouo-label`, `accessibilityLabel`, test id, else the component or view class name) and `ouo.ui.path` (the labelled or named ancestors, innermost first, joined by ` > `). W5 adds `app.screen.name` (the screen the tap happened on), `ouo.ui.gesture` (`tap`, `long_press`, `swipe`) and `ouo.ui.view_type`.
+- **Kill switch**: `timeline.taps: false` stops the records. Text content is never read (rule 6).
+- **Check**: C6.1.
+
+### C7 Screens and navigation
+
+- **Record**: `navigation` with `url.path` = `/` + the active screen names joined by `/` (React Navigation route names, view controller or activity names), `ouo.navigation.from`, and `ouo.navigation.kind = screen` (the bridge sends it; the React Native SDK does not yet, W5 adds it). A screen change emits one record; the same screen again emits none.
+- Funnels count screens as page steps on `url.path` ([funnels.md](funnels.md)); custom events (`rum.addEvent`, `ouo.event.custom = true`) are event steps.
+- **Check**: C7.1.
+
+### C8 Replay
+
+- **Chunks**: `kind: "frames"` keyed by `session.id`, posted to the collector's replay receiver ([mobile-replay.md](mobile-replay.md)); the `seq` of a session starts at 0 and the native side starts a new sequence on every rotation.
+- **Masking defaults**: text, inputs, images and web views are masked unless the app turns one off; masking fails closed (a frame whose masks cannot be computed is dropped, W1).
+- **Modes**: `session` (every frame of a sampled session, today); `buffer` (frames kept in memory and sent only when an error happens, the last 30 s) and `navigation` (one frame per screen change) come with W1 and W3 ([roadmap §4](../../project/kb/mobile-sdk-research/roadmap.md)).
+- **Crash**: the chunk being recorded when the app crashes is finished by the next launch, with `ended_at` at the crash time (W1).
+- **Checks**: C8.1, C8.2, C8.3. That no masked text is readable in a frame is a pixel test of the capture package (`sdk/ios` tests), not an e2e check.
+
+### C9 Span and log API
+
+- `startSpan(name, options)` (attributes, kind, start time, parent), `withSpan(name, fn)` (the span is active while `fn` runs; requests, logs and errors there join its trace), `log(level, message, attributes)` and `log.trace` … `log.fatal`: a log record named `log` with the severity, the message as body and `message`, the session identifiers and the active span's trace id. Spans and logs get the session identifiers like every other record.
+- **Check**: C9.1.
+
+### C10 Feedback (draft until W6)
+
+- **Record**: `feedback` event: body and `ouo.feedback.message` = the user's text, `ouo.feedback.contact` (optional, what the user typed), `ouo.feedback.id` (UUID), `ouo.feedback.screenshot = true` when a masked frame of the current screen was added to the session's replay at the record's time. The events before it are already on the session's timeline; the record does not copy them.
+- **API**: `rum.feedback({ message, contact?, screenshot? })`. The bridge maps Sentry's `feedback` and `user_report` items to the same record (N37).
+- **Check**: C10.1.
+
+### C11 Delivery (store draft until W3)
+
+- OTLP/HTTP JSON with `content-encoding: gzip` for logs and traces; replay chunks are gzip already.
+- Retry with backoff on network errors, 429 and 5xx, honouring `Retry-After`; no retry on other 4xx.
+- **Offline store**: batches and chunks that could not be sent are kept on disk, bounded (W3 fixes the bound; Sentry keeps 30 envelopes), oldest dropped first, and sent on the next launch or when the network is back.
+- Flush on background (and on `flush()`).
+- **Checks**: C11.1, C11.2.
+
+### C12 Cost
+
+- The B3 benchmark ([benchmarks.md](../benchmarks.md)): per tier, the paired median delta against `none` on the same journey and machine, with the release gate of section 5 there. Not an e2e check; it decides L3 (section 4).
+
+## 3. Conformance checks
+
+Each check runs on the golden app of the platform's suite (section 5) and asserts rum-api, except C8.2 and C11.2, which read the requests and native calls the suite observed.
+
+| Check | The golden app does | Passes when |
+|---|---|---|
+| C1.1 | goes to the background for longer than the timeout and comes back | the first session ends with `background`, the second's `session.start` has `session.previous_id` = the first |
+| C2.1 | reports a handled error | an `exception` with `ouo.exception.handled = true`, `fatal = false` and a stack; session `errored` |
+| C2.2 | crashes natively 3 s after launch; launches again | the crashed session is `crashed`, ends with `crash` within 1 s of the crash time, has its `session.start` and a fatal `native` exception |
+| C2.3 | crashes natively 200 ms after launch; launches again | the crashed session has its `session.start` and is `crashed` |
+| C3.1 | blocks the main thread for 3 s | exactly one `hang` exception with `ouo.hang.duration_ms` >= 2000, not fatal |
+| C3.2 | is killed in the foreground without a crash report; launches again | a fatal `termination` exception with `ouo.termination.cause`; session `crashed` |
+| C4.1 | cold start, then three screens | `ouo.app.start` `cold` with a duration, one `ouo.screen.display` with TTID per screen in order, frame counts |
+| C4.2 | reports the first screen fully displayed | its `ouo.screen.display` has `ouo.screen.ttfd_ms` |
+| C5.1 | calls the demo backend | one trace holds the app's client span and a backend span carrying the app's `session.id` |
+| C6.1 | taps three labelled controls on three screens | three `ui.tap` in order with `ouo.ui.target` and `app.screen.name` |
+| C7.1 | visits Home, Products, Cart | a funnel `page:/Home`, `page:/Products`, `page:/Cart` counts the session at step 3 |
+| C8.1 | records replay across a background rotation | both sessions have a `frames` replay |
+| C8.2 | starts replay with default options | text, inputs, images and web views masked |
+| C8.3 | crashes while recording; launches again | the crashed session's replay ends within 1.5 s of the crash |
+| C9.1 | calls the backend inside `withSpan`, writes a log line | a trace rooted at the custom span with the request under it; the line in the session's logs |
+| C10.1 | sends feedback with a message and a contact | a `feedback` event with both on the session |
+| C11.1 | runs with the collector refused; launches again online | the offline run's events are in rum-api |
+| C11.2 | sends OTLP | every OTLP request has `content-encoding: gzip` |
+
+## 4. Maturity
+
+| Level | Meaning |
+|---|---|
+| L0 | not available: no record of the capability |
+| L1 | basic: records in this spec's names, but a check fails or has no harness on the platform yet (gaps listed) |
+| L2 | conformant: every check of the capability passes in CI on the platform's golden app |
+| L3 | benchmarked: L2, and a B3 cell for the platform with the release gate applied |
+
+The suite prints the levels it measures (L0 to L2); L3 is L2 plus the B3 gate, which is proposed and not yet applied ([benchmarks.md](../benchmarks.md) section 5), so no cell is L3 today. Target: React Native iOS at L3 on C1–C9, C11, C12 and L2 on C10 (roadmap milestone M3); the targets for the other platforms are in [roadmap §5](../../project/kb/mobile-sdk-research/roadmap.md#5-spec-first-with-maturity-per-platform).
+
+### Matrix on 2026-10-29
+
+React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it.
+
+| Capability | React Native iOS | Native iOS (Swift) | React Native Android | Native Android | Flutter |
+|---|---|---|---|---|---|
+| C1 Sessions and lifecycle | L2 | L0 (no session manager in Swift) | L1 (JS) | L0 | L0 |
+| C2 Errors and crashes | L1: C2.3 waits for W1 (N52) | L0 (OuoCrash writes reports, nothing sends them) | L1 (JS errors only) | L0 | L0 |
+| C3 Hangs and terminations | L0: W4 | L0 | L0 | L0 | L0 |
+| C4 Vitals | L1: C4.2 TTFD waits for W4 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID; no native app start or frames) | L0 | L0 |
+| C5 Network | L2 | L0 | L1 (JS) | L0 | L0 |
+| C6 Interactions | L1: C6.1 waits for W5 (`app.screen.name` on taps) | L0 | L1 (JS) | L0 | L0 |
+| C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |
+| C8 Replay | L1: C8.3 waits for W1 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
+| C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |
+| C10 Feedback | L0: W6 | L0 | L0 | L0 | L0 |
+| C11 Delivery | L1: C11.1 and C11.2 wait for W3 (N49, N48) | L1 (chunk upload with retry) | L1 (JS) | L0 | L0 |
+| C12 Cost | L1 (B3 simulator cells, gate proposed) | L0 | L0 | L0 | L0 |
+
+React Native Android's L1 cells are the JavaScript half, which is the same code as on iOS; it has never run on an Android device or emulator (the Android native module is a stub). The package that changes a cell updates this table in the same PR.
+
+## 5. The conformance suite
+
+- **One suite per package**: `@ouo11y/react-native` (iOS, then Android), the native iOS package and the native Android package each get one suite with the same check ids. Objective-C and Java are API surfaces of the native packages, not separate implementations: each native package adds a smoke target in that language that compiles against its public API, and the suite runs once.
+- **React Native iOS** (`tests/e2e/mobile/`, [ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)): `conformance.mjs` runs the golden app, launches of the built `@ouo11y/react-native` bundle in Node (`launch.cjs`) with the React Native stand-ins of `sdk/react-native/playground` and `standin.cjs`, a model of the `OuoReplay` Expo module at the boundary the JavaScript calls (replay start, rotation and frame chunk upload, the crash report file, app start info, frame counters) and of the OS (crash, foreground kill, main-thread block, network down). It then asserts the checks of section 3 against an env's rum-api and prints the checks and the maturity row. CI runs it in the `examples` job on every change to `sdk/react-native` or `tests/e2e/mobile`.
+- **What it proves**: the JavaScript SDK, the native module's contract and the backend together, on every PR, without a simulator. What it cannot prove is native behaviour itself (capture, masking pixels, hang detection): the model follows the Swift code, a package that changes the native module changes `standin.cjs` in the same PR, and the native code keeps its own tests plus the simulator run of `examples/ouo-mobile` (`scripts/run.sh`).
+- **Pending checks**: a check whose package has not landed carries `pending: "<package>"`. It runs and is reported, and does not fail the run. When it passes, the run fails until the package deletes `pending`, so a capability cannot reach L2 without its check becoming required.
+- **Running it**: `npm run -w sdk/react-native build`, then with an env's variables (`eval "$(deploy/envs/ouo-env env <env>)"`) and `OUO_BACKEND_URL` set to the env's backend: `node tests/e2e/mobile/conformance.mjs [--out result.json]`.
+
+## 6. Changing this spec
+
+A new capability, a renamed record or attribute, or a changed threshold needs an ADR and a matching change of the checks. A work package that lands a capability fills in its *draft* parts here, removes `pending` from its checks and updates the matrix in the same PR (roadmap §10).

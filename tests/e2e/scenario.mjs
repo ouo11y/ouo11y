@@ -45,25 +45,15 @@
 import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { BASIC, GRAFANA, GRAFANA_AUTH, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOKEN, REPLAY, RUM, TEMPO_DS_UID, getJSON, grafanaAuth, pollUntil, readHeaders, table } from "./lib.mjs";
 
 // ---------------------------------------------------------------- configuration
 
 const env = process.env;
-const RUM = (env.OUO_RUM_API_URL ?? env.OUO_RUM_API ?? `http://localhost:${env.OUO_RUM_API_PORT ?? 8080}`).replace(/\/$/, "");
-const OTLP = (env.OUO_OTLP_URL ?? `http://localhost:${env.OUO_OTLP_HTTP_PORT ?? 4318}`).replace(/\/$/, "");
-const REPLAY = (env.OUO_REPLAY_URL ?? `http://localhost:${env.OUO_REPLAY_PORT ?? 4319}`).replace(/\/$/, "");
-const PROJECT_TOKEN = env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000";
-const PROJECT_ID = env.OUO_PROJECT_ID ?? "demo";
-const BASIC = "Basic " + (env.OUO_PROJECT_BASIC || Buffer.from(`${PROJECT_ID}:${PROJECT_TOKEN}`, "utf8").toString("base64"));
-const READ_TOKEN = env.OUO_READ_TOKEN ?? "rt_dev_0000000000000000";
-const TEMPO_DS_UID = env.OUO_TEMPO_DS_UID ?? "tempo";
 const ORIGIN = env.OUO_E2E_ORIGIN ?? "http://localhost:5173";
 // Browser-style Access-Control-Request-Headers: lowercase and sorted (project/kb/collector-components.md).
 const OTLP_PREFLIGHT_HEADERS = "authorization,content-type";
 const REPLAY_PREFLIGHT_HEADERS = "authorization,content-encoding,content-type,x-ouo-seq,x-ouo-session-id";
-const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");
-const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:testing567";
-const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 120);
 // Range: absolute run start so that two runs inside 15 minutes never count each other.
 // (`from=now-15m` works too but is not idempotent.) rum-api accepts epoch ms.
 const T0 = Date.now();
@@ -90,7 +80,6 @@ const str = (v) => ({ stringValue: String(v) });
 const bool = (v) => ({ boolValue: Boolean(v) });
 const int = (v) => ({ intValue: String(v) });
 const kv = (obj) => Object.entries(obj).map(([key, value]) => ({ key, value }));
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pct = (n, total) => (total === 0 ? 0 : Math.round((n / total) * 10000) / 100);
 
 const failures = [];
@@ -98,22 +87,6 @@ function check(name, expected, actual, detail) {
   const ok = JSON.stringify(expected) === JSON.stringify(actual);
   if (!ok) failures.push({ name, expected, actual, detail });
   return ok;
-}
-
-const grafanaAuth = () => ({ authorization: "Basic " + Buffer.from(GRAFANA_AUTH).toString("base64") });
-
-/** Headers for a rum-api read: the read token when one is configured (ADR-0007 section 6). */
-function readHeaders() {
-  return READ_TOKEN ? { authorization: `Bearer ${READ_TOKEN}` } : {};
-}
-
-async function getJSON(url, headers = {}) {
-  // rum-api reads carry the read token; Grafana calls carry basic auth; the token never goes elsewhere.
-  const auth = url.startsWith(RUM + "/") ? readHeaders() : url.startsWith(GRAFANA + "/") ? grafanaAuth() : {};
-  const res = await fetch(url, { headers: { ...auth, ...headers } });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}: ${text.slice(0, 300)}`);
-  return JSON.parse(text);
 }
 
 async function postOTLP(path, body) {
@@ -161,23 +134,6 @@ async function postReplayChunk(sessionId, startedMs) {
   const text = await res.text();
   check(`replay: POST ${url} with Basic -> 202`, 202, res.status, text.slice(0, 200));
   return { url, status: res.status, body: text.slice(0, 300) };
-}
-
-async function pollUntil(label, fn, timeoutS = TIMEOUT_S, everyMs = 3000) {
-  const deadline = Date.now() + timeoutS * 1000;
-  let last;
-  for (;;) {
-    try {
-      last = await fn();
-      if (last.done) return last.value;
-    } catch (err) {
-      last = { error: String(err) };
-    }
-    if (Date.now() >= deadline) {
-      throw new Error(`${label}: timeout after ${timeoutS}s; last: ${JSON.stringify(last).slice(0, 500)}`);
-    }
-    await sleep(everyMs);
-  }
 }
 
 // ---------------------------------------------------------------- session generation
@@ -704,15 +660,6 @@ async function assertProjectId(session) {
 }
 
 // ---------------------------------------------------------------- output
-
-function table(rows) {
-  const cols = Object.keys(rows[0]);
-  const width = cols.map((c) => Math.max(c.length, ...rows.map((r) => String(r[c]).length)));
-  const line = (r) => cols.map((c, i) => String(r[c]).padEnd(width[i])).join("  ");
-  console.log(line(Object.fromEntries(cols.map((c) => [c, c]))));
-  console.log(width.map((w) => "-".repeat(w)).join("  "));
-  for (const r of rows) console.log(line(r));
-}
 
 function printDiff(f) {
   console.log(`\nFAIL ${f.name}`);

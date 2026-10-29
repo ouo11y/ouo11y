@@ -72,7 +72,7 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 | `examples/ouo-web`, `examples/ouo-mobile`, `examples/sentry-mobile`, `examples/backend` | demo apps |
 | `examples/fast-tracked` | copy-and-paste guides to adopt ouo in your own stack, backend, web and iOS app |
 | `examples/quickstarts` | standalone apps run against the one-file stack, e.g. `tiny-shop` (Node API + React, one trace end to end) |
-| `tests/e2e` | the end-to-end scenario script |
+| `tests/e2e` | the end-to-end scenario script; `mobile/`, the mobile SDK conformance suite ([spec](docs/specs/mobile-sdk.md)) |
 | `docs/` | user-facing docs: [MVP](docs/MVP.md), [vision](docs/VISION.md), [specs](docs/specs/), [ADRs](docs/adr/README.md), [operations](docs/operations/index.md), [releasing](docs/releasing.md) ([index](docs/index.md)) |
 | `project/` | how the project is run, not shipped: `agents/` (one folder per agent), `kb/` (knowledge base), `tracker/` ([checklist](project/tracker/checklist.md) and phase trackers), `reports/` (HTML verification reports) |
 

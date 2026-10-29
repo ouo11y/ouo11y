@@ -66,7 +66,7 @@ jobs:
           # SDK or receiver it exercises, and the stack they run on.
           shared='examples/(backend|tools)/|^deploy/compose/'
           flag ex-web           "^(examples/ouo-web|sdk/browser)/|^$shared"
-          flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native)/|^$shared"
+          flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native|tests/e2e/mobile)/|^tests/e2e/lib\.mjs$|^docs/specs/mobile-sdk\.md$|^$shared"
           flag ex-sentry-mobile "^(examples/sentry-mobile|collector)/|^$shared"
           images=""
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
@@ -305,7 +305,8 @@ jobs:
   # Simulator, which Linux runners do not have: their legs drive the same wire traffic from Linux,
   # ouo-mobile with the @ouo11y/react-native bundle in Node (sdk/react-native/playground), and
   # sentry-mobile with scripts/ci-journey.py (Sentry's headers and envelopes through the real
-  # bridge). The iOS runs are scripts/run.sh on a Mac. The web leg runs the browser SDK's Playwright
+  # bridge); the ouo-mobile leg also runs the mobile SDK conformance suite (tests/e2e/mobile). The
+  # iOS runs are scripts/run.sh on a Mac. The web leg runs the browser SDK's Playwright
 # suite and the ouo-web journey in Chromium, Firefox and WebKit. About 12 minutes when everything runs.
   examples:
     name: examples (journey + verify)
@@ -380,6 +381,13 @@ jobs:
           end=$(( $(date +%s) + 2 ))
           printf '{"start": %d, "end": %d, "backend": "%s"}\n' "$start" "$end" "$OUO_BACKEND_URL" > "$RUNNER_TEMP/rn.json"
           python3 -I examples/ouo-mobile/scripts/verify.py --journey "$RUNNER_TEMP/rn.json" --min-failed 1
+      # The mobile SDK conformance suite (docs/specs/mobile-sdk.md, ADR-0015): the golden React Native
+      # iOS app in Node under the native stand-in, every check asserted in rum-api, the maturity row
+      # printed. Checks of packages not landed yet report without failing.
+      - name: mobile SDK conformance (React Native iOS)
+        if: env.OUO_MOBILE == 'true'
+        timeout-minutes: 8
+        run: node tests/e2e/mobile/conformance.mjs --out "$RUNNER_TEMP/conformance.json"
       - name: sentry-mobile (typecheck; Sentry wire traffic through the bridge + verify)
         if: env.SENTRY_MOBILE == 'true'
         run: |
