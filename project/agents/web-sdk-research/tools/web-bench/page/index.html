@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>web-bench</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 0; }
+    nav a { margin-right: 12px; }
+    header, main, aside { padding: 8px 16px; }
+    .row { display: flex; gap: 8px; border-bottom: 1px solid #ddd; padding: 2px 0; }
+    .row span { min-width: 60px; }
+    .hot { background: #ffe; }
+  </style>
+  <!-- The SDK first (as every vendor asks), then the app. Both are module scripts, run in order. -->
+  <script type="module" src="./sdk.js"></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <nav id="nav"></nav>
+    <label>Search <input id="search" name="search" autocomplete="off" /></label>
+    <button id="load" type="button">Load item</button>
+    <button id="boom" type="button">Throw</button>
+  </header>
+  <main id="view"></main>
+  <aside><ul id="list"></ul></aside>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web SDK research</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fcfcfb; --surface:#ffffff; --surface-2:#f3f2ef; --border:#dcdad4;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7873;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8d5bd6; --s5:#b8690a;
+  --good:#1b7f3a; --warn:#b8690a; --bad:#c23a3a;
+  --l0:#ecebe7; --l1:#fde3d6; --l2:#efe9c9; --l3:#d6f3e8;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+    --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+    --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+  --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+  --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:22px;margin:40px 0 12px;padding-top:8px;border-top:1px solid var(--border)}
+h3{font-size:17px;margin:22px 0 8px}
+p{margin:8px 0}
+.sub{color:var(--text-2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.card b{display:block;margin-bottom:4px}
+.card .k{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0 4px;background:var(--surface)}
+th,td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--surface-2);font-weight:600}
+.tablewrap{overflow-x:auto}
+.l0{background:var(--l0);color:var(--muted)} .l1{background:var(--l1)} .l2{background:var(--l2)} .l3{background:var(--l3)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--border);display:inline-block}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--surface-2);padding:1px 4px;border-radius:3px}
+.chart{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 6px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--text);font-size:12px}
+.chart .lane{fill:var(--text-2);font-size:12px;font-weight:600}
+.chart .grid{stroke:var(--border);stroke-width:1}
+.chart .ms{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3}
+.chart .mslbl{fill:var(--muted);font-size:11px}
+.chart .wp{rx:4}
+.chart .wp.a{fill:var(--s1)} .chart .wp.b{fill:var(--s2)} .chart .wp.c{fill:var(--s3)} .chart .wp.d{fill:var(--s4)} .chart .wp.e{fill:var(--s5)}
+.chart .wp:hover{opacity:.8}
+.chart .wl{fill:#fff;font-size:11.5px;font-weight:600;pointer-events:none}
+.chart .gap{fill:var(--surface-2)}
+.note{font-size:12.5px;color:var(--text-2)}
+.ok{color:var(--good);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+ul,ol{margin:6px 0 6px 22px} li{margin:3px 0}
+a{color:var(--s1)}
+.vg{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.vg svg{width:100%;height:auto;display:block}
+.vg text{fill:var(--text);font-size:12px}
+.vg .ax{fill:var(--text-2);font-size:11.5px}
+.vg .q{fill:var(--surface-2);stroke:var(--border)}
+.vg .dot{stroke:var(--surface);stroke-width:2}
+.vg .dot.a{fill:var(--s1)} .vg .dot.b{fill:var(--s2)} .vg .dot.c{fill:var(--s3)} .vg .dot.d{fill:var(--s4)} .vg .dot.e{fill:var(--s5)} .vg .dot.x{fill:var(--muted)}
+.vg .dl{font-size:11.5px}
+.src{font-size:12.5px;color:var(--muted);margin-top:28px}
+.bars{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.bar{display:grid;grid-template-columns:minmax(150px,260px) 1fr 56px 64px;gap:10px;align-items:center;font-size:13px;padding:3px 0}
+.bar.bh{font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:4px}
+.bt{display:flex;height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.by{background:var(--s1);display:block} .bp{background:color-mix(in srgb,var(--s1) 35%,transparent);display:block}
+.bn{color:var(--text-2);font-variant-numeric:tabular-nums}
+@media (max-width:640px){.bar{grid-template-columns:1fr 48px 56px}.bar .bt,.bar .bt0{grid-column:1/-1;order:3}}
+</style>
+</head>
+<body>
+<main>
+<h1>Web SDK research: how the field captures RUM and replay, and where ouo stands</h1>
+<p class="sub">Sentry, Datadog, PostHog, Grafana Faro and the OpenTelemetry-shaped vendors, the replay specialists and 25 vendors in all, read from their source code at their latest release tags on 2026-10-29, next to <code>@ouo11y/browser</code>, rum-api and the Grafana plugin as they stand at <code>a283b5b</code>. Companion to <code>project/kb/web-sdk-research/</code> (Appendices O, A–F, M and <code>comparison.md</code>); the recommendation is in <code>web-sdk-roadmap.html</code>.</p>
+
+<div class="cards">
+  <div class="card"><span class="k">SDK</span><b>At the leaders' level, ahead in places</b>Offline IndexedDB store with retry for spans, logs and replay; page-hide correctness including INP; semconv <code>session.start</code> / <code>session.end</code>; LoAF events with scripts; W3C <code>traceparent</code> first.</div>
+  <div class="card"><span class="k">Read side</span><b>Four holes a web team notices</b>No error issues, no web-vitals aggregates or attribution, no shipped alert rules, session search on six fields.</div>
+  <div class="card"><span class="k">Rare</span><b>OTLP to the customer's collector: 4 of 25</b>ouo, Splunk, Honeycomb, Embrace. Only ouo adds replay, a true on-error lookback buffer (5 of 25), funnels and self-hosting.</div>
+  <div class="card"><span class="k">Replay</span><b>Upstream rrweb is the right base</b>GA since June, 2.2.0 fixed the two leaks ouo's soak found. The field moved compression into workers, masks all text, breaks on mutation storms and keeps CSS out of checkouts; ouo does none yet.</div>
+  <div class="card"><span class="k">OpenTelemetry</span><b>The ground is moving</b>OTel JS 3.0 removed <code>sdk-trace-web</code>; semconv 1.44 names <code>browser.web_vital</code>; nobody has a replay convention. Three vendors put replay in OTLP logs three different ways.</div>
+  <div class="card"><span class="k">Overhead</span><b>No vendor gates CPU in CI</b>Sentry deleted its harness (2024) and gates bundle growth only; Datadog's benchmarks never block; PostHog's are opt-in.</div>
+</div>
+
+<h2>1. Where ouo stands, capability by capability</h2>
+<div class="legend"><span><i class="sw" style="background:var(--l3)"></i>ahead</span><span><i class="sw" style="background:var(--l2)"></i>par</span><span><i class="sw" style="background:var(--l1)"></i>behind</span><span><i class="sw" style="background:var(--l0)"></i>absent</span></div>
+<div class="tablewrap">
+<table>
+<tr><th>Capability</th><th>ouo today</th><th>The field</th><th>Level</th></tr>
+<tr><td>Page safety</td><td>guarded hooks, CSP + Trusted Types e2e in 3 engines, 60 min soak</td><td>Sentry wraps 30 prototypes; nobody else publishes a fault-injection suite</td><td class="l3">ahead</td></tr>
+<tr><td>Delivery</td><td>gzip, 5 attempts with <code>Retry-After</code>, IndexedDB 5 MB / 24 h, keepalive budget</td><td>Sentry opt-in offline (30 envelopes); Datadog, PostHog memory only; Splunk no retry</td><td class="l3">ahead</td></tr>
+<tr><td>Network tracing</td><td>CLIENT spans, <code>traceparent</code> + baggage <code>session.id</code></td><td>Sentry <code>sentry-trace</code> by default; Datadog 64-bit ids; PostHog own headers</td><td class="l3">ahead</td></tr>
+<tr><td>Long tasks / LoAF</td><td>standalone events with script attribution</td><td>Sentry only under spans; New Relic, PostHog none</td><td class="l3">ahead</td></tr>
+<tr><td>Replay on error</td><td>30–60 s lookback</td><td>Sentry 0–60 s; Rollbar 300 s; most trigger forward only</td><td class="l3">ahead</td></tr>
+<tr><td>Sessions, sampling</td><td>localStorage, cross-tab, deterministic sampling shared with RN and rum-api</td><td>Datadog cookie + Web Locks + subdomains; PostHog cookie + window id</td><td class="l2">par</td></tr>
+<tr><td>Errors capture, source maps</td><td>five sources, debug ids, symbolication in rum-api</td><td>same set, plus dedupe, rate limit, breadcrumbs</td><td class="l2">par</td></tr>
+<tr><td>SPA navigations</td><td>soft-navigation idle span (1 s)</td><td>Datadog / Faro activity-window loading time</td><td class="l2">par</td></tr>
+<tr><td>Frustration</td><td>rage, dead</td><td>Datadog, Faro, Splunk add error clicks</td><td class="l2">par</td></tr>
+<tr><td>Web vitals</td><td>five vitals, no attribution</td><td>attribution at 8 of 25; per-view INP / CLS at Datadog</td><td class="l1">behind</td></tr>
+<tr><td>Replay privacy and cost</td><td>inputs masked, text recorded; serialisation on the main thread</td><td>Sentry, Faro mask text; Sentry, Datadog compress in workers</td><td class="l1">behind</td></tr>
+<tr><td>Session search</td><td>six fields</td><td>URL, error, browser, duration, frustration, custom events</td><td class="l1">behind</td></tr>
+<tr><td>Frameworks, CDN</td><td>React, ESM only</td><td>Sentry 8+ packages and a loader</td><td class="l1">behind</td></tr>
+<tr><td>Issues</td><td>none</td><td>every APM vendor</td><td class="l0">absent</td></tr>
+<tr><td>Vitals aggregates</td><td>none on the web</td><td>every APM vendor</td><td class="l0">absent</td></tr>
+<tr><td>Shipped alerts</td><td>none (Grafana Alerting available)</td><td>17 of 25</td><td class="l0">absent</td></tr>
+<tr><td><code>beforeSend</code>, flags, consent</td><td>none</td><td>Sentry, Datadog, PostHog</td><td class="l0">absent</td></tr>
+</table>
+</div>
+
+<h2>2. How common each feature is (25 vendors)</h2>
+<p class="note">From Appendix F §6.3. Dark = yes, light = partial, out of 25; <code>unknown</code> counts as absent, so every bar is a floor. The right column is ouo today.</p>
+<div class="bars"><div class="bar bh"><span class="bl">Feature</span><span class="bt0">yes + partial, of 25</span><span class="bn"></span><span>ouo</span></div><div class="bar"><span class="bl">Open-source browser SDK</span><span class="bt" role="img" aria-label="21 yes, 2 partial of 25"><i class="by" style="width:84%"></i><i class="bp" style="width:8%"></i></span><span class="bn">21 + 2</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Source maps</span><span class="bt" role="img" aria-label="18 yes, 0 partial of 25"><i class="by" style="width:72%"></i><i class="bp" style="width:0%"></i></span><span class="bn">18 + 0</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Soft navigations</span><span class="bt" role="img" aria-label="17 yes, 2 partial of 25"><i class="by" style="width:68%"></i><i class="bp" style="width:8%"></i></span><span class="bn">17 + 2</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Session replay</span><span class="bt" role="img" aria-label="17 yes, 0 partial of 25"><i class="by" style="width:68%"></i><i class="bp" style="width:0%"></i></span><span class="bn">17 + 0</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Alerting on RUM</span><span class="bt" role="img" aria-label="17 yes, 3 partial of 25"><i class="by" style="width:68%"></i><i class="bp" style="width:12%"></i></span><span class="bn">17 + 3</span><span class="part">partial</span></div><div class="bar"><span class="bl">Errors (grouped or not)</span><span class="bt" role="img" aria-label="14 yes, 8 partial of 25"><i class="by" style="width:56%"></i><i class="bp" style="width:32%"></i></span><span class="bn">14 + 8</span><span class="part">partial</span></div><div class="bar"><span class="bl">Network tracing with propagation</span><span class="bt" role="img" aria-label="11 yes, 7 partial of 25"><i class="by" style="width:44%"></i><i class="bp" style="width:28%"></i></span><span class="bn">11 + 7</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Funnels</span><span class="bt" role="img" aria-label="11 yes, 2 partial of 25"><i class="by" style="width:44%"></i><i class="bp" style="width:8%"></i></span><span class="bn">11 + 2</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Paths / journeys</span><span class="bt" role="img" aria-label="9 yes, 1 partial of 25"><i class="by" style="width:36%"></i><i class="bp" style="width:4%"></i></span><span class="bn">9 + 1</span><span class="no">no</span></div><div class="bar"><span class="bl">Web vitals (attribution = yes)</span><span class="bt" role="img" aria-label="8 yes, 10 partial of 25"><i class="by" style="width:32%"></i><i class="bp" style="width:40%"></i></span><span class="bn">8 + 10</span><span class="part">partial</span></div><div class="bar"><span class="bl">Console in replay</span><span class="bt" role="img" aria-label="8 yes, 3 partial of 25"><i class="by" style="width:32%"></i><i class="bp" style="width:12%"></i></span><span class="bn">8 + 3</span><span class="part">partial</span></div><div class="bar"><span class="bl">Heatmaps</span><span class="bt" role="img" aria-label="8 yes, 0 partial of 25"><i class="by" style="width:32%"></i><i class="bp" style="width:0%"></i></span><span class="bn">8 + 0</span><span class="no">no</span></div><div class="bar"><span class="bl">Self-hostable</span><span class="bt" role="img" aria-label="8 yes, 5 partial of 25"><i class="by" style="width:32%"></i><i class="bp" style="width:20%"></i></span><span class="bn">8 + 5</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Frustration signals</span><span class="bt" role="img" aria-label="7 yes, 8 partial of 25"><i class="by" style="width:28%"></i><i class="bp" style="width:32%"></i></span><span class="bn">7 + 8</span><span class="part">partial</span></div><div class="bar"><span class="bl">Long tasks / LoAF</span><span class="bt" role="img" aria-label="7 yes, 1 partial of 25"><i class="by" style="width:28%"></i><i class="bp" style="width:4%"></i></span><span class="bn">7 + 1</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Feature flags</span><span class="bt" role="img" aria-label="7 yes, 0 partial of 25"><i class="by" style="width:28%"></i><i class="bp" style="width:0%"></i></span><span class="bn">7 + 0</span><span class="no">no</span></div><div class="bar"><span class="bl">Network bodies in replay</span><span class="bt" role="img" aria-label="6 yes, 1 partial of 25"><i class="by" style="width:24%"></i><i class="bp" style="width:4%"></i></span><span class="bn">6 + 1</span><span class="no">no</span></div><div class="bar"><span class="bl">Replay on-error buffer</span><span class="bt" role="img" aria-label="5 yes, 5 partial of 25"><i class="by" style="width:20%"></i><i class="bp" style="width:20%"></i></span><span class="bn">5 + 5</span><span class="ok">yes</span></div><div class="bar"><span class="bl">OTLP to the customer's collector</span><span class="bt" role="img" aria-label="4 yes, 6 partial of 25"><i class="by" style="width:16%"></i><i class="bp" style="width:24%"></i></span><span class="bn">4 + 6</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Release health</span><span class="bt" role="img" aria-label="3 yes, 6 partial of 25"><i class="by" style="width:12%"></i><i class="bp" style="width:24%"></i></span><span class="bn">3 + 6</span><span class="ok">yes</span></div><div class="bar"><span class="bl">Surveys</span><span class="bt" role="img" aria-label="2 yes, 0 partial of 25"><i class="by" style="width:8%"></i><i class="bp" style="width:0%"></i></span><span class="bn">2 + 0</span><span class="no">no</span></div><div class="bar"><span class="bl">Profiling</span><span class="bt" role="img" aria-label="2 yes, 0 partial of 25"><i class="by" style="width:8%"></i><i class="bp" style="width:0%"></i></span><span class="bn">2 + 0</span><span class="no">no</span></div><div class="bar"><span class="bl">Feedback widget</span><span class="bt" role="img" aria-label="1 yes, 2 partial of 25"><i class="by" style="width:4%"></i><i class="bp" style="width:8%"></i></span><span class="bn">1 + 2</span><span class="no">no</span></div></div>
+
+<h2>3. Technique matrix</h2>
+<div class="tablewrap">
+<table>
+<tr><th></th><th>ouo 0.3</th><th>Sentry 11.10</th><th>Datadog 7.16</th><th>PostHog 1.442</th><th>Faro 2.13</th><th>Dash0 0.28</th></tr>
+<tr><td>Data model</td><td>OTel spans + logs</td><td>envelopes, span v2 streamed</td><td>RUM JSON views / actions / resources</td><td><code>$</code> events</td><td>Faro JSON</td><td>OTLP/JSON by hand</td></tr>
+<tr><td>Session store</td><td>localStorage</td><td>memory (health); sessionStorage per tab (replay)</td><td>cookie, Web Locks</td><td>cookie + localStorage</td><td>sessionStorage per tab</td><td>localStorage</td></tr>
+<tr><td>Idle / max</td><td>30 min / 4 h</td><td>15 / 60 min (replay)</td><td>15 min / 4 h</td><td>30 min / 24 h</td><td>15 min / 4 h</td><td>3 h / 6 h</td></tr>
+<tr><td>Vitals</td><td><code>web-vitals</code>, no attribution</td><td><code>web-vitals</code> 6 + own attribution</td><td>own code, per view, attribution</td><td><code>web-vitals</code> lazy, INP + LCP attribution</td><td>attribution + LoAF</td><td>own</td></tr>
+<tr><td>Propagation</td><td><code>traceparent</code> + baggage</td><td><code>sentry-trace</code> + baggage</td><td>datadog + tracecontext</td><td><code>X-POSTHOG-*</code></td><td><code>traceparent</code></td><td><code>traceparent</code></td></tr>
+<tr><td>Replay recorder</td><td>rrweb 2.1.7</td><td>rrweb fork 2.45</td><td>own, Change encoding</td><td>rrweb fork</td><td>rrweb fork</td><td>rrweb</td></tr>
+<tr><td>Text masked</td><td class="no">no</td><td class="ok">yes</td><td class="no">inputs only</td><td class="no">inputs only</td><td class="ok">yes</td><td class="no">inputs</td></tr>
+<tr><td>Compression</td><td><code>CompressionStream</code>, serialisation on main</td><td>fflate in a worker</td><td>pako deflate in a worker</td><td>per-field + request gzip, main</td><td>none per event</td><td>gzip per request</td></tr>
+<tr><td>Replay transport</td><td>own receiver</td><td>envelope</td><td>intake</td><td><code>/s/</code></td><td>Faro event per rrweb event</td><td>OTLP log per chunk</td></tr>
+<tr><td>Offline store</td><td class="ok">IndexedDB</td><td class="part">opt-in, 30</td><td class="no">memory</td><td class="no">memory</td><td class="no">no</td><td class="no">no</td></tr>
+</table>
+</div>
+
+<h2>4. Replay: what the field does that ouo does not</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Practice</th><th>Who</th><th>ouo today</th><th>Cost</th></tr>
+<tr><td>Serialise and compress in a worker</td><td>Sentry, Datadog, OpenReplay, LaunchDarkly</td><td><code>JSON.stringify</code> twice per event on the main thread</td><td>2–3 d</td></tr>
+<tr><td>Mutation breaker</td><td>Sentry (stop at 10,000), PostHog per-node throttle</td><td>snapshot-size guard only</td><td>1–2 d</td></tr>
+<tr><td>Mask all text by default</td><td>Sentry, Faro, Fullstory private mode</td><td>inputs only</td><td>1–2 d + masking proof</td></tr>
+<tr><td>Stylesheets once</td><td>Clarity, OpenReplay, Fullstory</td><td>CSS re-sent in every 5 min checkout</td><td>3–4 d server side</td></tr>
+<tr><td>Record-only import</td><td>Sentry build flags, Rollbar <code>@rrweb/record</code></td><td>lazy chunk carries the player</td><td>0.5 d</td></tr>
+<tr><td>Upstream fixes</td><td>rrweb 2.2.0 (#1971, #1958); #1964 merged</td><td>2.1.7 + esbuild patch</td><td>0.5 d + soaks</td></tr>
+<tr><td>Console and network inside the replay</td><td>Sentry, PostHog, LogRocket</td><td>traces and <code>console.error</code> beside the player</td><td>3–4 d</td></tr>
+</table>
+</div>
+
+<h2>5. OpenTelemetry</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Question</th><th>Answer</th></tr>
+<tr><td>Who sends RUM as OTLP to any collector</td><td>ouo, Splunk (spans; replay recorder closed), Honeycomb, Embrace, Dash0, the OTel browser SDK. Faro sends its own JSON; the contrib receiver flattens it into logfmt log bodies.</td></tr>
+<tr><td>Who sends replay over OTLP</td><td>Splunk (protobuf logs, closed recorder), Dash0 (one log record per chunk), Faro (one event per rrweb event), Rollbar (span events, own endpoint). None to the customer's collector except Dash0's shape.</td></tr>
+<tr><td>Browser semconv in v1.44</td><td><code>session.id</code>, <code>session.previous_id</code>, <code>session.start</code> / <code>session.end</code>, <code>browser.web_vital</code>. Nothing for replay, frustration, navigation.</td></tr>
+<tr><td>What ouo emits differently</td><td><code>web_vital</code> / <code>ouo.web_vital.*</code> (rename planned, N26), <code>ouo.*</code> for frustration and LoAF</td></tr>
+<tr><td>Upstream opportunities</td><td>replay / session-recording convention; frustration events; browser SIG session manager (<code>Math.random</code> ids, no lifecycle events); a page-hide-safe batcher</td></tr>
+</table>
+</div>
+
+<h2>6. Footprint</h2>
+<h3>6.1 Bundle, as each vendor ships it (gzip)</h3>
+<p class="note">Not like for like (IIFE vs ESM, different feature sets); section 6.2 measures them on one page.</p>
+<div class="tablewrap">
+<table>
+<tr><th>SDK</th><th>Core</th><th>With tracing</th><th>Replay (lazy or eager)</th><th>Source</th></tr>
+<tr><td>ouo 0.3</td><td>45.0 KB (budget 45.06)</td><td>included</td><td>78.9 KB lazy, carries the player</td><td>O §2, measured here</td></tr>
+<tr><td>Sentry 11.10</td><td>30.4 kB errors</td><td>52.7 kB</td><td>93.0 kB with replay</td><td>A §7, CI size-limit</td></tr>
+<tr><td>Datadog 7.16</td><td>51.6 KB slim</td><td>67.0 KB (incl. 23.5 KB worker)</td><td>+11.7 KB recorder</td><td>B §7, CDN files</td></tr>
+<tr><td>PostHog 1.442</td><td>52 KB slim, 107 KB <code>array.js</code></td><td>no spans</td><td>+67 KB recorder; ~188 KB typical</td><td>C §7, tarball</td></tr>
+<tr><td>Faro 2.13</td><td>41.6 KB</td><td>+27.6 KB</td><td>63.9 KB</td><td>D, tarball</td></tr>
+<tr><td>Dash0 0.28</td><td>27.5 KB</td><td>included</td><td>22.7 KB</td><td>D, tarball</td></tr>
+<tr><td>Splunk 3.2</td><td colspan="3">see 6.2</td><td>D</td></tr>
+</table>
+</div>
+<h3>6.2 Measured here on one page and one journey</h3>
+<p>Measured here (Appendix M, 9 rounds, headless Chromium, one Mac, every SDK to a local intake; deltas paired against a no-SDK page in the same round). Shorter is better. Faro has no replay.</p>
+<h4>Eager bundle, gzip KB</h4><div class="bars">
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 45.3"><i class="by" style="width:16%"></i></span><span class="bn">45.3</span><span></span></div>
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 65.4"><i class="by" style="width:24%"></i></span><span class="bn">65.4</span><span></span></div>
+<div class="bar"><span class="bl">Faro</span><span class="bt" role="img" aria-label="Faro 90.1"><i class="by" style="width:32%"></i></span><span class="bn">90.1</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 94.6"><i class="by" style="width:34%"></i></span><span class="bn">94.6</span><span></span></div>
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 107.5"><i class="by" style="width:39%"></i></span><span class="bn">107.5</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 277.5"><i class="by" style="width:100%"></i></span><span class="bn">277.5</span><span></span></div>
+</div>
+<h4>JS downloaded with replay, KB</h4><div class="bars">
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 77.3"><i class="by" style="width:28%"></i></span><span class="bn">77.3</span><span></span></div>
+<div class="bar"><span class="bl">Faro</span><span class="bt" role="img" aria-label="Faro 90.1"><i class="by" style="width:32%"></i></span><span class="bn">90.1</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 94.6"><i class="by" style="width:34%"></i></span><span class="bn">94.6</span><span></span></div>
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 124.8"><i class="by" style="width:45%"></i></span><span class="bn">124.8</span><span></span></div>
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 209.3"><i class="by" style="width:75%"></i></span><span class="bn">209.3</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 277.5"><i class="by" style="width:100%"></i></span><span class="bn">277.5</span><span></span></div>
+</div>
+<h4>Journey CPU without replay, +ms/min</h4><div class="bars">
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 142"><i class="by" style="width:69%"></i></span><span class="bn">142</span><span></span></div>
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 161"><i class="by" style="width:79%"></i></span><span class="bn">161</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 175"><i class="by" style="width:85%"></i></span><span class="bn">175</span><span></span></div>
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 192"><i class="by" style="width:94%"></i></span><span class="bn">192</span><span></span></div>
+<div class="bar"><span class="bl">Faro</span><span class="bt" role="img" aria-label="Faro 202"><i class="by" style="width:99%"></i></span><span class="bn">202</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 205"><i class="by" style="width:100%"></i></span><span class="bn">205</span><span></span></div>
+</div>
+<h4>Journey CPU with replay, +ms/min</h4><div class="bars">
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 334"><i class="by" style="width:35%"></i></span><span class="bn">334</span><span></span></div>
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 495"><i class="by" style="width:52%"></i></span><span class="bn">495</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 569"><i class="by" style="width:59%"></i></span><span class="bn">569</span><span></span></div>
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 786"><i class="by" style="width:82%"></i></span><span class="bn">786</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 959"><i class="by" style="width:100%"></i></span><span class="bn">959</span><span></span></div>
+</div>
+<h4>Telemetry on the wire, KB/min</h4><div class="bars">
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 24.9"><i class="by" style="width:6%"></i></span><span class="bn">24.9</span><span></span></div>
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 33.9"><i class="by" style="width:8%"></i></span><span class="bn">33.9</span><span></span></div>
+<div class="bar"><span class="bl">Faro</span><span class="bt" role="img" aria-label="Faro 93.1"><i class="by" style="width:22%"></i></span><span class="bn">93.1</span><span></span></div>
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 109.2"><i class="by" style="width:26%"></i></span><span class="bn">109.2</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 155.0"><i class="by" style="width:37%"></i></span><span class="bn">155</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 417.0"><i class="by" style="width:100%"></i></span><span class="bn">417</span><span></span></div>
+</div>
+<h4>Replay on the wire, KB/min</h4><div class="bars">
+<div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 173.3"><i class="by" style="width:53%"></i></span><span class="bn">173.3</span><span></span></div>
+<div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 207.2"><i class="by" style="width:64%"></i></span><span class="bn">207.2</span><span></span></div>
+<div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 254.4"><i class="by" style="width:78%"></i></span><span class="bn">254.4</span><span></span></div>
+<div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 277.3"><i class="by" style="width:85%"></i></span><span class="bn">277.3</span><span></span></div>
+<div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 325.4"><i class="by" style="width:100%"></i></span><span class="bn">325.4</span><span></span></div>
+</div>
+<p><b>Reading:</b> the core SDK is the smallest and cheapest measured; replay is where ouo trails Datadog (79.5 KB rrweb chunk vs a 15.3 KB recorder, +161 ms/min more CPU, 3.5× the decoded replay bytes). WB1 and WB5 target that; WB10 gates it in CI. Large DOM (10,000 nodes): ouo sends the first snapshot at 97 ms with no long task; Sentry (54 ms) and Splunk (60 ms) make one.</p>
+
+<h2>7. Performance claims and how they were measured</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Vendor</th><th>Claim</th><th>Method</th><th>Gate</th></tr>
+<tr><td>Sentry</td><td>replay overhead table (TBT +415 ms, 272 KB upload)</td><td>2023, M1, 50 runs; harness deleted 2024</td><td>bundle growth over 500 B gzip per preset fails (since 2026-10-21)</td></tr>
+<tr><td>Datadog</td><td>CPU, heap, bytes, vitals for none / rum / rum_replay</td><td>scheduled job</td><td>size warns at +5 %, never fails</td></tr>
+<tr><td>PostHog</td><td>~108 ms snapshot, 190–300 ms bursts at ~50k nodes</td><td>opt-in Playwright</td><td>size diff reported, no limit</td></tr>
+<tr><td>ouo</td><td>60 min soak, rrweb cost at 10k / 50k elements, fault injection</td><td>Playwright, three engines</td><td>gzip budget per file fails CI</td></tr>
+</table>
+</div>
+
+<h2>8. Surprises worth knowing</h2>
+<ul>
+  <li>Sentry 11 sends request bodies, cookies and user info by default (<code>dataCollection</code>), and its "last 60 s" replay buffer holds 0–60 s.</li>
+  <li>Datadog's replay is no longer rrweb format (Change encoding with a string table since v7), and its trace ids are 64-bit inside <code>traceparent</code>.</li>
+  <li>PostHog sends no <code>traceparent</code>; backend correlation uses its own headers.</li>
+  <li>Faro's production path turns structured RUM into one logfmt line per record in Loki.</li>
+  <li>Splunk's recorder became a closed module fetched from its CDN in May 2025, while the transport stayed OTLP logs.</li>
+  <li>New Relic v1.324.1 has no long-task or LoAF observer although its docs describe one.</li>
+  <li>Bugsnag's performance SDK independently chose OTLP JSON and <code>&lt;meta name="traceparent"&gt;</code>, as ouo did.</li>
+  <li>ouo itself: <code>SDK_VERSION</code> still reports 0.2.0 in the 0.3.0 package.</li>
+</ul>
+
+<p class="src">Sources: <code>project/kb/web-sdk-research/</code> Appendices O (ouo at <code>a283b5b</code>), A (sentry-javascript 11.10.0), B (DataDog/browser-sdk v7.16.2), C (posthog-js 1.442.1), D (Faro 2.13.0, opentelemetry-browser 0.6.0, semconv 1.44.0, Splunk 3.2.0, Embrace 2.32.0, LaunchDarkly, Dash0 0.28.3), E (rrweb 2.2.0, Clarity, OpenReplay), F (25-vendor matrix; † cells from recall listed in F §9 Q10), M (benchmark).</p>
+</main>
+</body>
+</html>
