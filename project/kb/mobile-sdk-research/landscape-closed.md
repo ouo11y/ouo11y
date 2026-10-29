@@ -315,29 +315,29 @@ Footnotes:
 | Embrace | User Flows (two-point), no multi-step funnel | https://embrace.io/docs/product/user-journeys/ |
 | New Relic | Mobile User Journeys Sankey, inside Errors only | see ʷ |
 
-### 6.3 Feedback, surveys, pricing
+### 6.3 In-app feedback and surveys
 
-| Vendor | In-app feedback / surveys | Pricing model (one line) | Source |
-|---|---|---|---|
-| UXCam | nf | Per session per month; free 3,000 sessions/month, then Starter / Growth / Enterprise | https://uxcam.com/plans |
-| Smartlook | nf | No new sales since 2026-05-31, renewals end 2026-08-31, last paid day 2027-08-31, platform off 2027-09-30, successor Splunk DXA, no data migration | https://www.smartlook.com/pricing/ |
-| Fullstory | nf (Guides & Surveys repos exist for RN and Swift) | Free "30,000 sessions per month"; paid by quote; Mobile is an add-on | https://www.fullstory.com/pricing/ |
-| LogRocket | Surveys (general) | Per session per month, web and mobile pooled | https://logrocket.com/pricing |
-| Amplitude | Guides & Surveys mobile SDK | 10k replays/month on Free and Plus, 20k Growth, 50k Enterprise, add-on beyond | https://amplitude.com/docs/session-replay |
-| Mixpanel | nf | 10k free replays/month, 20k Growth and Enterprise, paid add-on beyond | https://docs.mixpanel.com/docs/session-replay |
-| Contentsquare | iOS in-app surveys (beta) | Not public | https://docs.contentsquare.com/en/ios/surveys/ |
-| Dynatrace | nf | RUM $0.00225 per session; replay $0.0045 per replay capture | https://www.dynatrace.com/pricing/rate-card/ |
-| New Relic | nf | GB ingest; docs example "0.0053 (GB per replay)", 50k replays ≈ $106 at $0.40/GB | https://docs.newrelic.com/docs/mobile-monitoring/mobile-monitoring-ui/mobile-session-replay/additional-information |
-| Splunk RUM | nf | "starts at $14 per 10,000 sessions"; mobile replay in RUM Enterprise (GA 2025-08-26). AppD replay is an add-on, 10k replays/month per license | https://www.splunk.com/en_us/products/pricing/observability.html |
-| Medallia DXA | yes, Medallia Digital surveys; feedback records link to the replay | Enterprise subscription | https://docs.medallia.com/en/medallia-digital-feedback/medallia-digital-in-app/administration-guide/digital-feedback-in-app-sdk-administration/medallia-mobile-sdk-bridge |
-| Quantum Metric | via Medallia | Custom, by session volume | https://www.quantummetric.com/pricing-plans |
-| Glassbox | nf | Three tiers by session volume and retention | https://glassbox.com/platform/plans-pricing |
-| Firebase | App Distribution tester feedback only | nf on fetched pages (Crashlytics believed no-cost; not verified) | https://firebase.google.com/docs/app-distribution/collect-feedback-from-testers |
-| BugSnag | nf | Events plus spans with a daily quota | https://docs.bugsnag.com/product/plans-and-billing/ |
-| Shake | Shake to report, screenshot, 15 s video, 60 s "black box" | Free 20 reports/month, then about $200–520/month (the page is inconsistent) | https://www.shakebugs.com/pricing/ |
-| Userback | Core product; NPS / CSAT | Mobile SDK on Business Plus | https://userback.io/pricing/ |
-| Bugfender | `sendUserFeedback` plus a ready UI | Free tier; paid figures inconsistent | https://bugfender.com/pricing/ |
-| Microsoft App Center | n/a | Retired 2025-03-31; Analytics & Diagnostics extended to end of March 2027 | https://learn.microsoft.com/en-us/appcenter/retirement |
+| Vendor | In-app feedback / surveys |
+|---|---|
+| UXCam | nf |
+| Smartlook | nf |
+| Fullstory | nf (Guides & Surveys repos exist for RN and Swift) |
+| LogRocket | Surveys (general) |
+| Amplitude | Guides & Surveys mobile SDK |
+| Mixpanel | nf |
+| Contentsquare | iOS in-app surveys (beta) |
+| Dynatrace | nf |
+| New Relic | nf |
+| Splunk RUM | nf |
+| Medallia DXA | yes, Medallia Digital surveys; feedback records link to the replay |
+| Quantum Metric | via Medallia |
+| Glassbox | nf |
+| Firebase | App Distribution tester feedback only |
+| BugSnag | nf |
+| Shake | Shake to report, screenshot, 15 s video, 60 s "black box" |
+| Userback | Core product; NPS / CSAT |
+| Bugfender | `sendUserFeedback` plus a ready UI |
+| Microsoft App Center | n/a |
 
 ---
 
@@ -426,23 +426,25 @@ Only **New Relic** (open repo with per-run data) and **Contentsquare** (named de
    - No closed vendor ships replay over OTel.
    - The OTel-based mobile agents either have no replay (Embrace, BugSnag) or bolt on a proprietary binary (Splunk → Smartlook engine).
    - Microsoft is sending App Center's analytics users to "OTel SDK → Collector". That is exactly ouo's architecture, with no replay or RUM UI on top.
-   - ouo's pitch: *OTel SDK plus open replay, through your own Collector, into Grafana*. Nobody occupies that position.
+   - An OTel SDK plus open replay, through the customer's own Collector, into Grafana: no studied vendor has that shape.
 2. **rrweb for mobile is proven by others; ouo should copy it, not invent a format.**
    - New Relic (wireframe) and Mixpanel (JPEG in `<img>`) both put mobile replay into rrweb events, and PostHog does too (Appendix D).
    - ouo's Grafana rrweb player can therefore take a wireframe track (New Relic style) and a screenshot track (Mixpanel style) without a new player.
    - Read `newrelic-ios-agent/Agent/SessionReplay/` and `newrelic-android-agent/.../sessionReplay/` (Apache-2.0) before writing ouo's wireframe captor. They cover UIKit, SwiftUI, Views and Compose.
+   - *Superseded for ouo by [roadmap.md §2.2](roadmap.md#22-where-i-disagree): tiles inside ouo's own `frames` chunk, no rrweb container for raster.*
 3. **Ship hybrid, defaulting to wireframe plus masked-by-default.**
    - The market converges on hybrid: Smartlook / Splunk run both tracks, LogRocket falls back to wireframe, Amplitude mixes, Mixpanel adds wireframe beside screenshots.
    - Privacy-first vendors (Fullstory, Contentsquare, New Relic) mask all text by default.
    - A sensible ouo default: wireframe with all text masked, screenshot frames as opt-in per screen or per session, and an error-triggered ring buffer (New Relic, Dynatrace and Sentry all have one).
+   - *Superseded for ouo by [roadmap.md §2.1](roadmap.md#21-where-i-agree-and-why-it-brings-value-rather-than-complexity): screenshots masked on device stay the base; wireframes are a later optional track at most.*
 4. **Flutter replay can be pure Dart.** Mixpanel proves it (`RepaintBoundary.toImage` plus native JPEG). ouo's Flutter replay can then reuse the Dart OTel / Faro path and avoid a per-platform native dependency, while RN delegates to the native SDK as everyone does.
-5. **Where the market is thin, and what matters for ouo's positioning.**
+5. **Where the field is thin.**
    - **Footprint transparency.** Only New Relic publishes a reproducible method. An ouo benchmark harness with public per-run data would stand out.
    - **APM-grade RUM plus product analytics plus replay in one tool.** The analytics vendors (Amplitude, Mixpanel, UXCam, Fullstory) have funnels but no app-start or frame metrics. The APM vendors (Dynatrace, New Relic, Splunk, Sentry) have vitals but weak or no funnels.
    - **Funnels on top of OTel data.** Sentry, the closest analogue, has none. Even a basic screen-sequence funnel or path view over ouo's spans and logs in Grafana would beat Sentry's offer.
-   - **Do not compete on in-app bug reporting first.** Luciq, Shake and Sentry User Feedback cover it, and it is not OTel-shaped.
-6. **Vendor churn is a selling point.**
+   - **Do not compete on in-app bug reporting first.** Luciq, Shake and Sentry User Feedback cover it, and it is not OTel-shaped. *Refined by [roadmap.md §2.2](roadmap.md#22-where-i-disagree): the OTel-shaped feedback primitive ships early (W6), the widget UI later.*
+6. **Vendor churn is real.**
    - Smartlook ends in 2027 with no data migration.
    - App Center is gone.
    - Embrace was acquired by Palo Alto Networks (per Embrace's blog).
-   - An open, self-hostable, OTel-standard stack is the hedge customers lack.
+   - An open, self-hostable, OTel-standard stack does not go away with a vendor.

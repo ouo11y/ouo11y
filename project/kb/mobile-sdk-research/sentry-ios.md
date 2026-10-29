@@ -243,6 +243,8 @@ Measurement:
 | realtap | **off** | 28 | 158 | 973,813 B | 35,738 (29,647–50,006) | **361.1 KiB** | 374.1 KiB |
 | all | mixed | 77 | 423 | 2,058,931 B | 30,174 | 285.2 KiB | 298.5 KiB |
 
+The golden folder holds a fifth run, `selfhosted` (the remaining 24 items, masking off), which the decode left out; a reviewer's re-decode put it at 364.8 KiB/min, in line with `shop` and `realtap`. The four runs above are the measured set.
+
 Per-segment facts from the decoded items:
 
 - Every segment is 402×874, 1 fps, `frameCount` = seconds (5 or 6, tail segments 2).
@@ -256,7 +258,7 @@ Per-segment facts from the decoded items:
 - Unmasked: the I-frame is 24–27 KB (realtap/000005 `[25633, 975, 672, 947, 617]`). A screen change mid-segment adds a 44 KB keyframe (shop/000053 `[4912, 211, 43910, 204, 1685, 106]`).
 - A static screen still costs one full I-frame every 5 s. Masked screens compress well because the mask boxes are flat colour.
 
-**Extrapolation for one active user:** about **110 KiB/min ≈ 6.4 MiB/hour** with default masking, and about **365 KiB/min ≈ 21 MiB/hour** unmasked. Both are below Sentry's 10 KB/s ≈ 586 KiB/min docs figure. A 30 s buffer flush is about 6 segments, roughly 60 KB masked or 210 KB unmasked. By comparison, ADR-0006's JPEG-frame design (20–40 KB per changed frame at 1 fps) would be about 1.2–2.4 MB/min while the screen changes, **5–20× more than Sentry's H.264**.
+**Extrapolation for one active user:** about **110 KiB/min ≈ 6.4 MiB/hour** with default masking, and about **362 KiB/min ≈ 21 MiB/hour** unmasked. Both are below Sentry's 10 KB/s ≈ 586 KiB/min docs figure. A 30 s buffer flush is about 6 segments, roughly 60 KB masked or 210 KB unmasked. By comparison, ADR-0006's JPEG-frame design (20–40 KB per changed frame at 1 fps) would be about 1.2–2.4 MB/min while the screen changes, **5–20× more than Sentry's H.264**.
 
 ## 8. Blog-to-code grounding (View Renderer V2)
 
@@ -294,14 +296,14 @@ Per-segment facts from the decoded items:
 16. **Can an Objective-C app use replay and every RUM feature?** Yes. Options and `SentrySDK.replay` are `@objc`. Apps without modules use the `SentryObjC` wrapper. SwiftUI modifiers are Swift-only by nature. `options.experimental` (`SentryExperimentalOptions`, `@objcMembers`) is reachable from ObjC, and `SentryObjC` exposes parts of it (`cocoa:CHANGELOG.md:11,26`). The `frameRate`, `sessionSegmentDuration`, `errorReplayDuration` and `maximumDuration` knobs are SPI (`@_spi(Private)`), available only to hybrid SDKs via the options dictionary (`SentryReplayOptions.swift:465-488,608-611`).
 17. **Minimum iOS?** 15 (`Package.swift:419`).
 18. **Does any of it export OTel?** No (5).
-19. **What does a minute of replay cost on the wire?** About 110 KiB masked and about 365 KiB unmasked, measured. About 293 KiB at the medium bitrate target (7.2, 7.3).
+19. **What does a minute of replay cost on the wire?** About 110 KiB masked and about 362 KiB unmasked, measured. About 293 KiB at the medium bitrate target (7.2, 7.3).
 20. **Why does `frameCount` equal the seconds even when the screen is static?** Frame-slot rendering repeats the last frame (`SentryVideoFrameProcessor.swift:98-147`, PR #8041 per #7851's description).
 
 ## 10. Takeaways for ouo
 
 **Copy (MIT, reimplementing the ideas is fine; copied code needs Sentry's MIT notice):**
 
-- **Encode to H.264 on the device.** The data shows one segment ≈ one I-frame. Masked UIs are about 110 KiB/min, 5–20× smaller than the JPEG-frame chunks in ADR-0006. Keep `kind` in the chunk contract, and plan video as the next step instead of "later".
+- **Encode to H.264 on the device.** The data shows one segment ≈ one I-frame. Masked UIs are about 110 KiB/min, 5–20× smaller than the nominal JPEG-frame bound (≈ 2× measured at matched quality, N50) of the JPEG-frame chunks in ADR-0006. Keep `kind` in the chunk contract, and plan video as the next step instead of "later".
 - **Capture after run-loop work, not on a timer.** Use a `CFRunLoopObserver` on `beforeWaiting`, a base interval of 1 s, adaptive backoff on slow captures (≥ 150 ms doubles, capped at 2 s), defer during animations (max 1 s), and capture at full rate while the user interacts.
 - **V2 rendering:** `drawHierarchy(afterScreenUpdates:false)` into a raw `CGContext` at screen scale. Do not use `UIGraphicsImageRenderer` on the hot path. Downscale to 1× off the main thread.
 - **Redaction model:** walk presentation layers, compose transforms, handle `clipOut` / `clipBegin` / `clipEnd`, clear on full-screen opaque views, mask with the average colour, and mask whole subtrees when a read throws. Use class lists with RN class names, SwiftUI private classes as base64, and iOS 26 layer classes. Per-instance mask/unmask via associated objects and a SwiftUI overlay modifier.

@@ -9,13 +9,13 @@ HTML companion with the lane chart and the matrices: [mobile-sdk-roadmap.html](.
 ## 0. The answers in one page
 
 1. **§12 is right on the technique and wrong on three details.** Keep screenshot capture with on-device masking (every vendor falls back to it for SwiftUI, Compose, React Native and Flutter). Change: (a) the diffed representation should be **tiles inside our own `frames` chunk**, not rrweb `<img>` mutations and not H.264; (b) on iOS do **not** adopt opentelemetry-swift in process, keep the dependency-free Swift package and speak OTLP/JSON and semconv ourselves (Android is the opposite: build on opentelemetry-android); (c) in-app feedback is not "do not compete", it is "ship the OTel-shaped primitive now, the widget later". Details in §2.
-2. **The biggest gap §12 missed is native crash symbolication.** `OuoCrash` writes addresses and binary images; nobody can read them without dSYM / R8 mapping upload and symbolication in rum-api. Without it "mobile crash reporting" is a checkbox, not a feature. It is work package W7 and it is cheap relative to its value because ADR-0011 already built the web half.
+2. **The biggest gap §12 left unscheduled is native crash symbolication.** `OuoCrash` writes addresses and binary images; nobody can read them without dSYM / R8 mapping upload and symbolication in rum-api. Main knows this (checklist section 7: "symbolication itself is unscheduled"; Hermes maps are designed in ADR-0011 §6 and tracked as N41) but nothing schedules it. Without it "mobile crash reporting" is a checkbox, not a feature. It is work package W7, scoped to dSYM and R8, and it is cheap relative to its value because ADR-0011 already built the store, the CLI and the web half.
 3. **Order by value per unit of cost** (§3): production-safe capture on iOS (W1), spec and conformance suite (W2), wire and durability (W3), crash symbolication (W7), signals parity with Sentry plus funnels on mobile (W4, W5), feedback primitive (W6), native iOS package (W8), Android on opentelemetry-android (W9), Flutter (W10). Wireframe capture, profiling, the feedback widget UI and release-health comparisons are explicitly later.
 4. **Three lanes can run in parallel safely**, four once Android tooling exists: the Swift capture lane, the React Native transport lane, the spec/plugin/rum-api lane, and later the Android lane. They touch disjoint folders. A fifth (Flutter) only after Android, because Flutter reuses the Android and iOS native halves.
 5. **Datadog or Sentry?** Sentry's capture technique, OpenTelemetry's data model, Datadog's capture time budget, Sentry's buffer (on-error) mode, Luciq's navigation-only mode. Not Datadog's wireframe (it falls back to screenshots exactly where new apps live) and not Sentry's protocol (we are OTel-native). §4.
-6. **Spec first, yes.** One `docs/specs/mobile-sdk.md` with twelve capabilities, each with a conformance check the e2e scenario can run against rum-api, and a maturity ladder L0–L3 per platform in `docs/compatibility.md`. The founder already decided this in principle (checklist N17, founder decision (b)); this is the concrete shape. §5.
+6. **Spec first, yes.** One `docs/specs/mobile-sdk.md` with twelve capabilities, each with a conformance check the e2e scenario can run against rum-api, and a maturity ladder L0–L3 per platform printed by the e2e scenario. The founder already decided this in principle (checklist N17, founder decision (b)); this is the concrete shape. §5.
 7. **Finish one platform to L3 before starting the next, with one exception.** React Native on iOS to L3 (conformant and benchmarked) first. The exception: the Android lane may start its native-capture port once W1 is merged, because it reuses the design and not the code, needs tooling the Mac lacks today (JDK, Android SDK, emulator), and is otherwise on the critical path for every Android prospect. Flutter waits for both native halves. §6.
-8. **Competitive afterwards?** On the six questions a buyer asks (crashes, performance, replay, timeline, replay-linked issues, funnels) ouo would match Sentry and beat it on funnels and OTel export, match PostHog on funnels and beat it on crashes, vitals and ANR, and stay behind Luciq on feedback UI and behind Sentry on profiling and release health. The honest list of what is still missing after W1–W10 is §8.
+8. **Competitive afterwards?** On the six questions a customer asks (crashes, performance, replay, timeline, replay-linked issues, funnels) ouo would match Sentry and beat it on funnels and OTel export, match PostHog on funnels and beat it on crashes, vitals and ANR, and stay behind Luciq on feedback UI and behind Sentry on profiling and release health. The honest list of what is still missing after W1–W10 is §8.
 
 ## 1. Where the SDK stands today (what the plan builds on)
 
@@ -52,20 +52,20 @@ Sources: `sdk/ios/README.md`, `sdk/react-native/README.md`, [sentry-bridge-vs-ou
 | 7 thin RN module, native owns ids | agree | medium | negative: it removes JS state | Sentry's stale `trace.replay_id` bug is the warning |
 | 8 Flutter capture once, in Dart | agree | medium, later | high, but unavoidable | Last platform |
 | 10 ANR, app start origin, frozen frames, TTFD, then a funnel view | agree | high | low per signal | App start origin and frames are done; ANR, TTFD and funnels on mobile are the work |
-| 11 B3 as the public method | agree | high (it is a sales argument no vendor has) | low | Add the init trace section and Android cells |
+| 11 B3 as the public method | agree | high (no vendor publishes a reproducible method) | low | Add the init trace section and Android cells |
 | 13 Luciq's three cheap ideas | agree | high per cost | low | Navigation-only mode and the keep/drop hook are the two best byte savers after tiles |
 
 ### 2.2 Where I disagree
 
 **Item 2, the diffed representation.** §12 says prototype LaunchDarkly's 64-px tile diff emitted as rrweb `<img>` mutations first. I would not. rrweb's player is a DOM player; putting raster tiles into it means inventing a DOM for every frame, carrying rrweb's full-snapshot and mutation semantics for something that is not a document, and depending on how rrweb-player treats `<img>` sources for the one thing we care about (sizing, timing, seeking). We already own a frames player and a video player in the plugin. The cheaper path with the same byte saving: keep `kind: "frames"`, `schema_version` 2, and let a frame carry either a full image or a list of `patches` (`x, y, w, h, image`) against the previous frame, with a full frame forced every N seconds (Sentry's 6 s keyframe rule, B §4.4) and on every screen change. The player keeps a canvas and blits patches. Storage, rum-api and the chunk receiver do not change beyond the schema version. That is the ADR-0006 revision I recommend (§9, ADR-0014). H.264 stays what it is today: the `video` kind for Sentry-sourced replays. A device encoder for our own frames can be revisited after W3 is measured, since the measured Sentry wire size (≈ 110 KiB/min masked, A §7) is the target tiles have to reach.
 
-**Item 9, opentelemetry-swift in process.** Right for Android, wrong for iOS. opentelemetry-android ships sessions, crash, ANR, jank, OTLP/HTTP and disk buffering today (G.5) and is Apache-2.0; building on it saves the Android lane months and makes the Android package OTel-native in the strongest sense. opentelemetry-swift is a large dependency tree (gRPC, SwiftProtobuf, slow compiles, a known SwiftPM footprint), has no lifecycle, tap or crash instrumentation, and the Swift package today has zero third-party dependencies, which is a feature when a customer's app review asks what we link. OTel-native means the wire format and the semantic conventions, not the reference SDK in the process. Keep the Swift package dependency-free: an OTLP/JSON logs and traces exporter is a few hundred lines and the chunk uploader already has the transport, retry and auth. Revisit when opentelemetry-swift ships a lighter core.
+**Item 9, opentelemetry-swift in process.** Right for Android, wrong for iOS. opentelemetry-android ships sessions, crash, ANR, jank, OTLP/HTTP and disk buffering today (G.5) and is Apache-2.0; building on it saves the Android lane months and makes the Android package OTel-native in the strongest sense. opentelemetry-swift is a large dependency tree (gRPC, SwiftProtobuf, slow compiles, a known SwiftPM footprint), has no lifecycle, tap or crash instrumentation, and the Swift package today has zero third-party dependencies, which is a feature when a customer's app review asks what we link. OTel-native means the wire format and the semantic conventions, not the reference SDK in the process. The middle option is opentelemetry-swift-core alone, which is what Datadog and Embrace link (G.1, G.2; the core moved back into the main repository on 2026-10-08, #1220): it gives the API types without gRPC and protobuf, which live in the exporters. It is the fallback if the package ever needs the OTel API surface for customers who bring their own instrumentation; an OTLP/JSON logs and traces exporter does not need it. Keep the Swift package dependency-free: the exporter is a few hundred lines and the chunk uploader already has the transport, retry and auth.
 
 **Item 12, in-app feedback.** The founder calls feedback crucial, and the research says the UI is where Luciq and Shake win (F §6). The two statements are compatible. Split it: the **primitive** is OTel-shaped and cheap: a `feedback` log event on the current session with message, contact, optional screenshot (the capture pipeline already produces masked frames), the last N timeline events, and a link in the plugin next to the replay. The bridge has to translate Sentry's `user_report` / `feedback` items for N37 anyway, so the record type serves both. The **widget** (shake to report, annotation, ticket integrations) is the later, non-OTel part. So: primitive in W6, widget after W10.
 
-### 2.3 What §12 missed
+### 2.3 What §12 left out or unscheduled
 
-1. **Native crash symbolication** (W7). Addresses with binary images are not a crash report a developer can act on. dSYM upload for iOS (`ouo-sourcemaps` already has the upload tool and ADR-0011 the release index), R8 / ProGuard mapping for Android, symbolication in rum-api, and Hermes bytecode source maps for the JS half of React Native (N38 mentions them for the bridge; the ouo SDK needs the same).
+1. **Native crash symbolication** (W7). Addresses with binary images are not a crash report a developer can act on. Main has it as unscheduled work (checklist section 7, after A7 kept the addresses) and ADR-0011 §6 already covers the Hermes maps for the JS half (N41). W7 is the native part only: dSYM upload for iOS through `ouo-sourcemaps`, R8 / ProGuard mapping for Android, symbolication in rum-api under a `dsym/<uuid>` prefix next to `sourcemaps/` as ADR-0011 foresees.
 2. **Error context on errors**: the last N timeline events (taps, screens, requests), current screen, locale, memory and network state attached to each error and crash, which the bridge report lists as data Sentry sends and ouo's SDK does not.
 3. **OOM and watchdog terminations** on iOS (MetricKit `MXDiagnostic`, Sentry's watchdog-termination heuristic). A crash reporter that is silent on the most common iOS termination is incomplete.
 4. **App Store privacy manifest** (`PrivacyInfo.xcprivacy`) for the Swift package and the Expo module: required since 2024 for SDKs that use the "required reason" APIs (we read `sysctl`, file timestamps and user defaults). This is a release blocker for any native iOS customer, not a feature.
@@ -78,22 +78,24 @@ Order is value divided by cost, with dependencies respected. "Cost" is the orche
 | # | Work package | Value | Cost | Depends on | Lane |
 |---|---|---|---|---|---|
 | W1 | **Production-safe iOS capture** (N51 + §12 items 3, 4, 5, 6, 13): V2-style render 1:1 and downscale off main, run-loop observer with animation deferral, no touch captures, one in flight, 150 ms backoff, Datadog-style time bank, fail-closed masking rules, navigation-only mode, device tiers, crash-time chunk id and end time, N52 session start in the crash report | very high | M (8–10 d) | nothing | A Swift |
-| W2 | **Mobile SDK spec and conformance suite**: `docs/specs/mobile-sdk.md` (twelve capabilities, attributes, event names, thresholds), a golden mobile session the e2e scenario asserts in rum-api, maturity ladder in `docs/compatibility.md` | very high (it is what lets every later package be judged) | S–M (4–6 d) | nothing | C spec |
+| W2 | **Mobile SDK spec and conformance suite**: `docs/specs/mobile-sdk.md` (twelve capabilities, attributes, event names, thresholds), a golden mobile session the e2e scenario asserts in rum-api, maturity ladder printed by the scenario | very high (it is what lets every later package be judged) | S–M (4–6 d) | nothing | C spec |
 | W3 | **Wire and durability**: tiles in `frames` schema 2 (ADR-0014), player canvas blits, N48 gzip OTLP, N49 offline buffer for OTLP batches and chunks, keep/drop hook at next launch | very high | M (8–10 d) | W1 (tiles are computed on the capture queue W1 reshapes), ADR-0014 | A Swift + B RN + C plugin |
 | W4 | **Signals parity with Sentry**: ANR / hang watchdog (2 s, fully and non-fully blocking), TTFD, OOM / watchdog terminations via MetricKit, error context (last N events, screen, locale, memory, network), `session.previous_id` | high | M (6–8 d) | W2 for the names | A Swift + B RN |
 | W5 | **Funnels and user steps on mobile**: screen names as `navigation` `url.path` verified end to end, human-readable user steps as log events (`app.screen.click` with gesture, view type, label, screen, content kill switch), a mobile quickstart with a known funnel answer like tiny-shop-funnels | high (beats Sentry, matches PostHog with no new backend) | S (3–4 d) | W2 | B RN + C examples |
 | W6 | **Feedback primitive**: `rum.feedback({message, contact, screenshot?})` as a `feedback` log event with the last N timeline events and an optional masked frame; plugin list and link beside the replay; bridge mapping of Sentry `feedback` / `user_report` shares the record | medium–high | S (3–4 d) | W2 | B RN + C plugin |
-| W7 | **Native crash symbolication**: dSYM upload through `ouo-sourcemaps`, release index per build UUID, symbolication in rum-api, Hermes source maps for the RN JS half; R8 mapping later with W9 | very high | M (6–8 d) | ADR-0011 extension | C rum-api + tooling |
+| W7 | **Native crash symbolication**: dSYM upload through `ouo-sourcemaps`, release index per build UUID, symbolication in rum-api (ADR-0011's `dsym/` prefix); R8 mapping later with W9. Hermes maps for the JS half stay N41 | very high | M (6–8 d) | ADR-0011 extension | C rum-api + tooling |
 | W8 | **Native iOS package** (Swift and Objective-C): session manager in Swift (today in JS), `URLSession` hook with W3C propagation, OTLP/JSON exporter (no opentelemetry-swift), lifecycle, taps, screens (`UIViewController` swizzle), SwiftUI `.ouoMask()` modifiers, `@objc` surface, `PrivacyInfo.xcprivacy`, UIKit + SwiftUI example app | high (second platform, and it is where the bridge's N40 customers go later) | L (12–15 d) | W1, W2, W4 | A Swift |
-| W9 | **Android** (React Native first, then native): opentelemetry-android base (sessions, crash, ANR, jank, disk buffering), `PixelCopy` RGB_565 capture with `OnDrawListener` dirty flag and `RootViewsSpy`-style window discovery, per-line text masks, Compose modifiers, same `frames` schema 2, Expo module Android side, R8 mapping symbolication, B3 Android cells | very high for prospects, zero until one needs it | L (15–20 d) | W1 design, W2, W3 schema, JDK + Android SDK + emulator on a machine | D Android |
+| W9 | **Android** (React Native first, then native): opentelemetry-android base (sessions, crash, ANR, jank, disk buffering), `PixelCopy` RGB_565 capture with `OnDrawListener` dirty flag and `RootViewsSpy`-style window discovery, per-line text masks, Compose modifiers, same `frames` schema 2, Expo module Android side, R8 mapping symbolication, B3 Android cells | very high once a customer needs Android, zero before | L (15–20 d) | W1 design, W2, W3 schema, JDK + Android SDK + emulator on a machine | D Android |
 | W10 | **Flutter**: Dart capture (`RenderRepaintBoundary.toImage` at 1×, synchronous Element walk, downsampled hash, raw RGBA to native), native halves do chunking, upload, crash, vitals | medium | L (10–12 d) | W8, W9 | E Flutter |
 | later | Wireframe track for UIKit / View apps; profiling; feedback widget UI; release-health comparisons (Phase 9); device H.264 encoder; wireframe-based text search in replays | low now | — | — | — |
+
+Cost figures: the table gives a range; the HTML lane chart draws the upper bound and the value-against-cost view the midpoint.
 
 Why this order and not §12's numbering:
 
 - **W1 before everything** because nobody can run ouo replay in production at 45 ms per capture on the main thread, and every later package's benchmark cell would be measured against a moving baseline.
 - **W2 second and in parallel** because it costs little, blocks nothing today, and every package after it gets a pass/fail instead of an opinion.
-- **W3 before W4** because bytes and offline loss are what a prospect sees on day one (N49: a run with the network down lost everything; Sentry kept 535 KB and re-sent it).
+- **W3 before W4** because bytes and offline loss are what a customer sees on day one (N49: a run with the network down lost everything; Sentry kept 535 KB and re-sent it).
 - **W7 before W8** because symbolication turns crash reporting from a checkbox into a feature on the platform we already have, while W8 adds a platform.
 - **W9 after W8** on the Mac that exists today, because W8 reuses W1's code and W9 needs tooling that is not installed. If a second machine with the Android toolchain and an Android-capable session exist, W9 starts right after W3 (§6).
 
@@ -117,7 +119,7 @@ So: Sentry's capture and modes, OpenTelemetry's model, Datadog's cost bound and 
 
 The founder decided "one ouo SDK spec with a conformance suite" (checklist N17, decision (b)). The concrete shape:
 
-**`docs/specs/mobile-sdk.md`**, twelve capabilities, each with the record type, required attributes, event names, thresholds and one conformance check:
+**`docs/specs/mobile-sdk.md`**, twelve capabilities, each with the record type, required attributes, event names, thresholds and one conformance check (the ladder lives there too; `docs/compatibility.md` stays what it is, a version matrix):
 
 | # | Capability | Record | Conformance check (golden session asserted in rum-api) |
 |---|---|---|---|
@@ -134,7 +136,7 @@ The founder decided "one ouo SDK spec with a conformance suite" (checklist N17, 
 | C11 | Delivery | gzip OTLP, bounded offline store, retry, flush on background | a run with the network refused loses nothing after the next launch |
 | C12 | Cost | B3 tier deltas | per tier, paired median delta against `none` within the release gate |
 
-**Maturity ladder**, one cell per platform in `docs/compatibility.md`:
+**Maturity ladder**, one cell per platform, printed by the e2e scenario from the spec's checks:
 
 | Level | Meaning |
 |---|---|
@@ -147,7 +149,7 @@ The founder decided "one ouo SDK spec with a conformance suite" (checklist N17, 
 
 | Capability | React Native iOS | Native iOS | React Native Android | Native Android | Flutter |
 |---|---|---|---|---|---|
-| C1–C9, C11, C12 | L3 | L3 | L3 | L2 | L2 |
+| C1–C7, C9, C11, C12 | L3 | L3 | L3 | L2 | L2 |
 | C10 feedback | L2 | L2 | L2 | L1 | L1 |
 | C8 replay | L3 | L3 | L3 | L2 | L2 |
 
@@ -159,7 +161,7 @@ Recommendation: **finish React Native on iOS to L3 before starting a new platfor
 
 Two refinements:
 
-1. **"95–99 %" should mean L3 on C1–C9 and C11–C12, not every item on the feature matrix.** Profiling, the feedback widget and wireframes are not part of the 99 %.
+1. **"95–99 %" should mean L3 on C1–C9 and C11–C12 (C10 feedback at L2), not every item on the feature matrix.** Profiling, the feedback widget and wireframes are not part of the 99 %.
 2. **One exception: the Android lane may start once W1 is merged and W2's spec exists**, before React Native iOS reaches L3, if a machine with the Android toolchain exists. It reuses the design (cadence, masking rules, chunk schema, conformance checks), not the code, and it is the longest package on the critical path for any Android prospect. It must not start before W1, otherwise it copies the capture design W1 replaces.
 
 **How many at once.** Lanes by folder, so no two writers touch the same files:
@@ -184,7 +186,7 @@ Lane D  |              |                    (tooling)    | W9 Android ----------
 Lane E  |                                                                       | W10 Flutter ---|
 ```
 
-Milestones: **M1** W1 + W2 merged (iOS capture safe, spec exists); **M2** W3 + W7 (bytes, offline, readable crashes); **M3** W4 + W5 + W6 (React Native iOS at L3 across C1–C12: the "path 1" upgrade can be sold); **M4** W8 (native iOS at L3); **M5** W9 (Android); **M6** W10 (Flutter).
+Milestones: **M1** W1 + W2 merged (iOS capture safe, spec exists); **M2** W3 + W7 (bytes, offline, readable crashes); **M3** W4 + W5 + W6 (React Native iOS at L3 on C1–C9, C11, C12 and L2 on C10: the "path 1" upgrade holds); **M4** W8 (native iOS at L3); **M5** W9 (Android); **M6** W10 (Flutter).
 
 ## 7. What can start before the founder's gate
 
@@ -213,7 +215,7 @@ Everything else waits, as decided.
 | Open-source SDK | MIT | MIT | wrappers | yes (when the repo opens, N20) |
 | Public device-cost method | blog numbers | none | numbers without method | **B3, reproducible, in the repo** |
 
-**What is still missing after W10**, in the order a prospect would notice:
+**What is still missing after W10**, in the order a customer would notice:
 
 1. **Profiling** (Sentry's continuous 101 Hz sampler, Luciq's session profiler). Expensive, needs a backend (Pyroscope exists in LGTM, which is an opening). Later.
 2. **Release health comparisons and regression alerts** across versions (Phase 9): the data is there (sessions carry version and crash status), the views are not.
@@ -233,7 +235,7 @@ Reliability-wise, after W1–W10 the SDK would be as reliable as its conformance
 | ADR | Decision | Blocks |
 |---|---|---|
 | ADR-0014 | Replay representation: tiles in `frames` schema 2 (patches against the previous frame, keyframe every 6 s and on screen change, buffer and navigation-only modes), `video` stays for Sentry-sourced replays, no rrweb container for raster | W3 |
-| ADR-0011 rev | Native symbolication: dSYM and R8 mapping upload, build-UUID release index, symbolication in rum-api, Hermes maps for React Native | W7 |
+| ADR-0011 rev | Native symbolication: dSYM and R8 mapping upload, build-UUID release index, symbolication in rum-api (Hermes maps are already its §6) | W7 |
 | ADR-0015 | Mobile SDK spec and maturity ladder: twelve capabilities, L0–L3, one conformance suite per native package, Objective-C and Java as API surfaces | W2 |
 | ADR-0016 | OpenTelemetry in process: opentelemetry-android as the Android base; dependency-free Swift package speaking OTLP/JSON and semconv on iOS | W8, W9 |
 | ADR-0006 rev | Record that touch-triggered captures, the timer and `UIGraphicsImageRenderer` are replaced by the run-loop observer and raw-context rendering (W1), and that masking fails closed | W1 (can be the same PR) |
@@ -244,7 +246,7 @@ Every package:
 
 1. Code, unit tests, and the conformance checks of the capabilities it touches pass in CI on the platform's example app.
 2. A B3 run on the simulator (N ≥ 10) with the package's tier shows no paired median delta worse than the previous release beyond the gate in `docs/benchmarks.md` §5. The one phone experiment per package follows the phone budget.
-3. Spec updated (`docs/specs/mobile-sdk.md` or `mobile-replay.md` / `mobile-vitals.md`), README of the package, `docs/compatibility.md` cell moved to its new level, CHANGELOG line.
+3. Spec updated (`docs/specs/mobile-sdk.md` or `mobile-replay.md` / `mobile-vitals.md`), README of the package, the capability's level in the spec's matrix, CHANGELOG line.
 4. kb entry for anything non-obvious, agent summary, tracker and index rows, one PR.
 
 Package-specific exit criteria:
@@ -252,14 +254,14 @@ Package-specific exit criteria:
 | Package | Exit criterion |
 |---|---|
 | W1 | per-capture main-thread time on the iPhone 16 Pro Max ≤ 25 ms (Sentry 22 ms in the same trace); no capture during a view-controller transition; a moved mask between two samples drops the frame (test); a crash mid-chunk finishes the chunk on the next launch with the right end time; B3 T3 / T4 CPU delta ≤ Sentry's |
-| W2 | spec merged; the e2e scenario asserts C1–C9 and C11 for React Native iOS and prints the maturity matrix; `compat-check` reads the levels |
-| W3 | replay bytes per minute at T4 ≤ 150 KiB masked (Sentry ≈ 110); a static screen sends zero image bytes; an offline run loses nothing after the next launch (C11); OTLP requests are gzip |
+| W2 | spec merged; the e2e scenario runs every conformance check for React Native iOS and prints the maturity matrix, without failing CI on a check whose package has not landed (C3, C6, C11 and the first-second crash come with W4, W5, W3, W1); each later package turns its own checks into required ones |
+| W3 | replay bytes per minute at T3 (masking on) ≤ 150 KiB (Sentry ≈ 110) and at T4 (masking off) ≤ 450 KiB (Sentry ≈ 362); a static screen sends zero image bytes; an offline run loses nothing after the next launch (C11); OTLP requests are gzip |
 | W4 | a 3 s block yields one hang event; TTFD on the first screen; a simulated OOM shows as a termination on the next launch; every error carries the last 20 events and the screen |
 | W5 | the mobile quickstart's funnel reports the generator's known counts; three taps show as readable steps; kill switch verified |
 | W6 | a feedback from the demo app appears beside its replay with the last events and a masked frame |
-| W7 | a native crash in the demo app shows function names and lines in the plugin; a Hermes stack maps to source |
+| W7 | a native crash in the demo app shows function names and lines in the plugin |
 | W8 | the UIKit + SwiftUI example passes C1–C9, C11; an Objective-C smoke target compiles against the `@objc` API; `PrivacyInfo.xcprivacy` present; B3 cells for the native app |
 | W9 | React Native Android example passes C1–C9, C11; B3 Android cells; Compose masking verified; R8 symbolication |
 | W10 | Flutter example passes C1–C8; masking verified on the Dart side |
 
-For the whole: React Native iOS at L3 on every capability (M3) is the point where path 1 ("more data than the Sentry SDK, at a measured cost") can be sold, which the checklist's section 3 defines as the goal.
+For the whole: React Native iOS at L3 on C1–C9, C11 and C12 and L2 on C10 (M3) is the point where path 1 ("more data than the Sentry SDK, at a measured cost") holds, which the checklist's section 3 defines as the goal.

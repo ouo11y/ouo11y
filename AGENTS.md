@@ -64,7 +64,7 @@ Nobody waits on a pull request and no bot touches it. A PR is reviewed by a seco
 - **The reviewer pushes for simpler and looks at the whole picture.** Beyond bugs, the reviewer asks of every change: is there a simpler implementation that does the same (fewer concepts, fewer files, fewer options, reuse of what the repo has), does it fit the specs and ADRs and the way the rest of the repository does the same thing, and does it leave the next session a simpler codebase than it found. "Works but could be simpler" is a finding the author answers, by simplifying or by writing down why not.
 - **Two comments on the PR, then merge.** The reviewer posts `Review: approve` (or `Review: changes needed`) with its findings and what it verified and how. You post `Author: agreed` with what you changed and what you left as is, with the reason. With both comments and CI green, merge with `.github/scripts/merge-agreed.sh <pr>` (squash, PR title as subject, branch deleted; it refuses on a failed or empty check list). Rebase only your own branch, never someone else's PR, never several at once.
 - **Leave no PR behind.** Before your session ends, your PR is merged or closed with a line in your summary saying why. No stale bot will do it for you.
-- **Releases happen at checkpoints** (the roadmap milestones, or when the founder says so), through `docs/releasing.md` unchanged. Do not push tags unless the founder asks you to.
+- **Releases happen at checkpoints** (the roadmap milestones, or when the founder says so), through `docs/releasing.md`: the checkpoint session merges the release PRs the same way and pushes the tags only when the founder asks it to.
 
 ## Engineering conventions
 
@@ -82,7 +82,7 @@ Nobody waits on a pull request and no bot touches it. A PR is reviewed by a seco
 - The acceptance checks listed in `project/tracker/mvp.md` for the phase are verified and the verification method is recorded.
 - kb entries written for anything non-obvious.
 - Agent summary written, indexes updated, phase tracker updated.
-- One pull request per phase, stacked on the previous phase branch.
+- One pull request per package or phase, cut from `origin/main`; work that needs another package's code waits for that package's merge.
 
 ## Running the local stack: `ouo-env` only
 

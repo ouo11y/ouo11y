@@ -9,8 +9,9 @@ together in [`compatibility.md`](compatibility.md); the operator-side upgrade pr
 
 Three rules from the founder hold for everything below:
 
-- **Only the founder pushes release tags.** CI never creates a tag; release-please is configured
-  so that merging a release PR does not tag either. Agents prepare, dry-run and ask; they never
+- **Only the founder pushes release tags**, or a checkpoint session the founder asks to
+  ([ADR-0013](adr/0013-session-to-session-review.md) §7). CI never creates a tag; release-please is configured
+  so that merging a release PR does not tag either. Otherwise agents prepare, dry-run and ask; they never
   push a tag, publish a package or change a visibility.
 - **Everything published stays private until a stable version**: GHCR images and charts, the
   `ouo11y-ios` mirror. Exception (founder 2026-10-24): the SDK npm packages are public on
@@ -97,7 +98,8 @@ merge to main          release-please.yml   opens or updates one PR per componen
                                             the CHANGELOG and the manifest
 release PR opened      release-check.yml    compatibility matrix + e2e scenario on the PR head
                        ci.yml               the usual checks for the touched paths
-founder merges it      (nothing)            no tag, no publish (skip-github-release)
+release PR merged      (nothing)            no tag, no publish (skip-github-release); merged like any PR,
+                                            by the checkpoint session through ADR-0013 (two comments, CI green)
 founder pushes tag     release-<x>.yml      publishes (table in section 1), creates the GitHub release
                        release-please.yml   relabels the merged PR "autorelease: tagged"
 ```
@@ -110,7 +112,7 @@ Hand edits on an open release PR (rewording the generated changelog, adding a **
 right before merging. Notes written by hand under `## Unreleased` in a component changelog stay
 where they are; move them into the generated section in that last edit.
 
-## 5. Checklist: cutting a release (founder)
+## 5. Checklist: cutting a release (founder, or the checkpoint session the founder asks; ADR-0013 §7)
 
 Before merging the release PR:
 

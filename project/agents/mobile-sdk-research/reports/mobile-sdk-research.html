@@ -91,7 +91,7 @@ a{color:var(--s1)}
   <div class="card"><span class="k">RUM</span><b>Sentry is APM-grade, PostHog is analytics, Luciq is APM plus bug reporting</b>Sentry: sessions, crashes, ANR, app start, frames, screen loads with TTID/TTFD, network spans, profiling. PostHog: <code>$screen</code>, lifecycle, opt-in crashes, no ANR, no app start, no frames, no spans. Luciq: cold/hot launch, screen load, UI hangs (250 ms), app hangs (3 s), ANR, OOM, force restart, network with latency breakdown, user steps, a 60 s session profiler.</div>
   <div class="card"><span class="k">OpenTelemetry</span><b>None of the three exports OTLP from a mobile SDK</b>Sentry propagates <code>sentry-trace</code> + <code>baggage</code> (W3C opt-in). PostHog speaks OTLP/JSON for logs only. Luciq: none, only a home-made W3C <code>traceparent</code> for deep links into Grafana, New Relic or Dynatrace. Only Embrace, Splunk, Honeycomb, Elastic and LaunchDarkly run OTel in process; nobody sends replay over OTel.</div>
   <div class="card"><span class="k">Replay</span><b>All three, three different techniques</b>Sentry: screenshots encoded to H.264 mp4 segments on device, same pipeline on iOS, Android, RN and Flutter. PostHog: wireframe JSON by default, screenshots for SwiftUI, Compose, RN and Flutter. Luciq: WebP screenshots on screen transitions (or interactions, or a ≥ 500 ms timer), ≈10 KB each, played as a stepped timeline with user steps and logs; closed source.</div>
-  <div class="card"><span class="k">Wire size</span><b>Sentry iOS measured: ≈110 KiB/min masked, ≈365 KiB/min unmasked</b>From 77 real segments captured in this repo. PostHog wireframes: a few KB/min gzipped. PostHog screenshots: 15 to 40 KB per changed frame. ouo today (ADR-0006 JPEG frames): 1.2 to 2.4 MB/min while changing.</div>
+  <div class="card"><span class="k">Wire size</span><b>Sentry iOS measured: ≈110 KiB/min masked, ≈362 KiB/min unmasked</b>From 77 real segments captured in this repo. PostHog wireframes: a few KB/min gzipped. PostHog screenshots: 15 to 40 KB per changed frame. ouo today (ADR-0006 JPEG frames): nominal 1.2 to 2.4 MB/min while changing; measured at matched quality ≈2× Sentry (N50).</div>
   <div class="card"><span class="k">Same technique across frameworks?</span><b>Sentry yes, PostHog no</b>Sentry RN is 100 % native; Flutter only swaps the capture step for Dart. PostHog forces RN into screenshot mode and captures Flutter in Dart as PNG. Everyone needs Dart-side capture for Flutter: the native tree is one opaque surface.</div>
   <div class="card"><span class="k">Open source?</span><b>Sentry and PostHog fully; Luciq wrappers only</b>Every flow for Sentry and PostHog was read in MIT code. Luciq's native SDKs are binaries, so its appendix is docs, wrapper code and header names. Sentry's player is FSL, read for the reconstruction only.</div>
   <div class="card"><span class="k">Performance measurement</span><b>Mostly manual runs; Sentry Android is the exception</b>The iOS view renderer V2 numbers came from a timing patch on an iPhone 8 that never shipped. The Android startup blog is backed by an in-repo Jetpack Macrobenchmark. PostHog publishes nothing. Datadog, Embrace, New Relic have reproducible methods.</div>
@@ -240,7 +240,7 @@ a{color:var(--s1)}
 <tr><td>OTel export</td><td class="no">no</td><td class="part">logs only</td><td class="no">no</td><td class="part">API only</td><td class="ok">yes</td><td class="no">no</td></tr>
 <tr><td>Open-source SDK</td><td class="ok">MIT</td><td class="ok">MIT</td><td class="part">wrappers</td><td class="ok">Apache-2.0</td><td class="ok">Apache-2.0</td><td class="part">mixed</td></tr>
 </table></div>
-<p class="note">The full 24-vendor matrix with per-cell footnotes, the six-target language matrix and the pricing lines are in appendix H §6 and comparison.md §9–10.</p>
+<p class="note">The full 24-vendor matrix with per-cell footnotes, the six-target language matrix and the are in appendix H §6 and comparison.md §9–10.</p>
 
 <h2>9. What ouo should build</h2>
 <ul>
@@ -266,7 +266,7 @@ a{color:var(--s1)}
   // KiB per minute while the screen changes. p: m = measured, d = derived from code, v = vendor docs.
   var rows=[
     {n:"Sentry iOS, masked (default)",v:110,r:"measured on 77 real segments; 108–110 across runs",p:"m"},
-    {n:"Sentry iOS, unmasked",v:365,r:"measured; 361–364 across runs",p:"m"},
+    {n:"Sentry iOS, unmasked",v:362,r:"measured; 361–365 across runs",p:"m"},
     {n:"Sentry iOS, bitrate target (medium)",v:293,r:"40 kbit/s target; low 146, high 439",p:"d"},
     {n:"Sentry iOS, vendor claim",v:586,r:"\"10 KB/s\"",p:"v"},
     {n:"Sentry Android, medium cap",v:560,r:"75 kbit/s VBR cap; low ≤375, high ≤750",p:"d"},
@@ -281,7 +281,7 @@ a{color:var(--s1)}
     {n:"Contentsquare, Android High",v:838,r:"≤838 / 545 / 369 KB/min High / Medium / Low",p:"v"},
     {n:"LogRocket, vendor claim",v:900,r:"\"around 15 KB a second\"",p:"v"},
     {n:"Fullstory, vendor claim",v:30,r:"\"tens of kilobytes per minute\"",p:"v"},
-    {n:"ouo today (ADR-0006 JPEG frames)",v:1800,r:"1,200–2,400 at one changed frame per second",p:"d"}
+    {n:"ouo today (ADR-0006 JPEG frames), nominal",v:1800,r:"ADR-0006 bound, 1,200–2,400 at one changed frame per second; measured at matched quality ≈2× Sentry (N50)",p:"d"}
   ];
   var g=document.getElementById('bars'), t=document.getElementById('wiretable');
   var x0=330, x1=900, lmin=1, lmax=4; // log10 10 .. 10000
@@ -299,7 +299,7 @@ a{color:var(--s1)}
     var c=document.createElementNS('http://www.w3.org/2000/svg','text');
     c.setAttribute('class','cat'); c.setAttribute('x',x0-8); c.setAttribute('y',y+h/2+4); c.setAttribute('text-anchor','end'); c.textContent=r.n; g.appendChild(c);
     var l=document.createElementNS('http://www.w3.org/2000/svg','text');
-    l.setAttribute('class','lbl'); l.setAttribute('x',X(r.v)+6); l.setAttribute('y',y+h/2+4); l.textContent=r.v.toLocaleString(); g.appendChild(l);
+    l.setAttribute('class','lbl'); l.setAttribute('x',Math.max(X(r.v),x0)+6); l.setAttribute('y',y+h/2+4); l.textContent=r.v.toLocaleString(); g.appendChild(l);
     var tr=document.createElement('tr');
     tr.innerHTML='<td>'+r.n+'</td><td>'+r.v.toLocaleString()+'</td><td>'+r.r+'</td><td>'+pn[r.p]+'</td>';
     t.appendChild(tr);

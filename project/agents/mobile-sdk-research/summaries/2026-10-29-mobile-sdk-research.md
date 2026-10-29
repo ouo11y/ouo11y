@@ -16,7 +16,7 @@
 
 ## Key findings (the five that matter most for ouo)
 
-1. Sentry's H.264 pipeline costs about 110 KiB per minute with masking on real traffic, 5–20× less than ADR-0006's JPEG frames while the screen changes; LaunchDarkly's open tile-diff-as-rrweb design is cheaper still and plays in the rrweb player ouo already ships. ADR-0006 should be revised before the Android SDK.
+1. Sentry's H.264 pipeline costs about 110 KiB per minute with masking on real traffic, 5–20× less than ADR-0006's nominal per-frame JPEG bound while the screen changes (≈ 2× less than ouo measured at matched quality, N50); LaunchDarkly's open tile-diff design is cheaper still. ADR-0006 should be revised before the Android SDK. *The representation is decided in [roadmap.md §2.2](../../../kb/mobile-sdk-research/roadmap.md#22-where-i-disagree): tiles inside ouo's own `frames` chunk, not rrweb.*
 2. Every vendor, including wireframe-first PostHog, Datadog and Fullstory, falls back to screenshots for SwiftUI, Compose, React Native and Flutter. React Native always wraps the native SDK; Flutter always needs Dart-side capture.
 3. No mobile SDK of Sentry, PostHog or Luciq exports OTLP; PostHog's only OTel touch point is logs. Nobody in the field sends replay over OTel, and only Embrace and the OTel distributions export RUM to a user's collector. That slot is empty.
 4. The iOS view renderer V2 blog's numbers came from a timing patch that was never committed; the Android startup blog is backed by an in-repo macrobenchmark with a `SentryAndroid.init` trace section. Sentry deleted its CPU/frame and startup benchmark gates in 2026; no vendor gates replay overhead in CI.
@@ -29,7 +29,7 @@
 
 ## What is left
 
-- The recommendations in `comparison.md` §12 (tile-diff replay as rrweb, change-driven cadence with a budget, fail-closed masking, OTel semconv sessions, overhead harness) need an ADR revision and a roadmap entry before implementation.
+- The recommendations in `comparison.md` §12 are ordered and refined in `roadmap.md` (same folder): tiles inside ouo's `frames` chunk rather than rrweb, no opentelemetry-swift in process, feedback primitive early. The ADRs it proposes (0014–0016, ADR-0006 and ADR-0011 revisions) are not written.
 - Not verified: sentry-android `maskAllText` coverage of React Native's newer Android text views; Amplitude's and Dynatrace's exact capture technique; Luciq's native internals (closed).
 - All vendor figures other than Sentry iOS are derived from code or docs, not measured on a device.
 
@@ -58,3 +58,14 @@ The founder asked that no PR wait on a human during W1–W10, with no pile of st
 Written: `docs/adr/0013-session-to-session-review.md` (proposed): the author session pushes only when proud and tested, a second session reviews and talks to the author until they agree, each posts one PR comment (`Review: approve` / `Author: agreed`), the author merges with `.github/scripts/merge-agreed.sh` (two comments + CI green, squash with the PR title, branch deleted), a session leaves no PR behind, releases at checkpoints through the unchanged `docs/releasing.md`. `AGENTS.md` section "Review and merge: two sessions, then the author merges" with the "Before you push" list; `project/kb/release-automation.md` section on merging by a session. The roadmap's proposed ADR numbers moved up by one (0014–0016).
 
 Verified: `shellcheck` on the script and a dry read of its `gh` calls against PR #104 (comments and check runs parse; the merge itself was not run); `lychee --offline` on the touched docs.
+
+## Addendum, same day: review round 1 of PR #104 (session `review-pr-104`)
+
+The reviewer found 8 bugs, 4 reasoning points, 4 simplifications and 6 nits; all applied except where noted in the `Author: agreed` comment on the PR. The ones that matter for later readers:
+
+- **Business material was in the diff** (a pricing table in Appendix H §6.3, "pitch" / "positioning" / "selling point" wording in H §10 and the Luciq appendix, Enterprise billing terms, sales wording in the roadmap). Removed; Appendix H §6.3 is now feedback and surveys only. The commits that carried it stay reachable under `refs/pull/104/head` until GitHub garbage-collects them; the founder decides whether that matters for the repository going public (checklist N20).
+- The two ouo wire-size figures are now labelled: ADR-0006's nominal per-frame bound (1.2–2.4 MB/min, "5–20× Sentry") against the measured ≈ 2× at matched quality (N50). Sentry unmasked is ≈ 362 KiB/min, not 365; the golden folder's fifth run (`selfhosted`) is noted as not decoded.
+- `merge-agreed.sh` now requires the latest `Review:` and `Author:` comments to be newer than the head commit, so a push after an approval is not merged.
+- Native symbolication is "left unscheduled by §12", not "missed": main lists it (checklist section 7) and ADR-0011 §6 already covers Hermes maps (N41); W7 is dSYM and R8 only.
+- The maturity ladder lives in `docs/specs/mobile-sdk.md` and is printed by the e2e scenario; `docs/compatibility.md` stays a version matrix. W2's exit no longer requires checks that only later packages can pass.
+- ADR-0013 is accepted (the founder set the process in the session) and its Decision points at `AGENTS.md` instead of repeating it.
