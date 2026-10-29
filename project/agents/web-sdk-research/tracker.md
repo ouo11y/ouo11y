@@ -3,7 +3,7 @@
 | Item | Status | Notes |
 |---|---|---|
 | Folder and appendix template | done | `project/kb/web-sdk-research/index.md` |
-| Appendix O ouo on the web today | done | SDK, rum-api, plugin at `a283b5b`; 30-item gap list checked by grep |
+| Appendix O ouo on the web today | done | SDK, rum-api, plugin at `f4a3010`; 30-item gap list checked by grep |
 | Appendix A sentry-javascript | done | 11.10.0, getsentry/rrweb 2.45.0 |
 | Appendix B Datadog browser-sdk | done | v7.16.2, rum-events-format |
 | Appendix C posthog-js | done | 1.442.1, posthog master for replay storage |

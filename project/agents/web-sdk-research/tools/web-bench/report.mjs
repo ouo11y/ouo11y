@@ -60,22 +60,22 @@ for (const c of cells) {
   console.log(row([c, fmt(kb(s.eager.gz9), 1), fmt(kb(s.lazy.gz9), 1), fmt(q(dl, 0.5), 1), files.join(", ")]));
 }
 
-console.log("\n### Page load (ms; median [IQR]; Δ = paired median delta vs none)\n");
+console.log("\n### Page load (ms; median [IQR]; Δ = paired delta vs none, median [IQR])\n");
 console.log(row(["cell", "N", "SDK init done", "load event end", "main-thread task (load+3 s)", "Δ task", "Δ script", "long tasks", "longest task", "TBT", "Δ TBT"]));
 console.log(sep(11));
 for (const c of cells) {
   const t = (r) => r.cpu.load.task * 1000, s = (r) => r.cpu.load.script * 1000, tbt = (r) => r.longTasks.load.tbt;
-  console.log(row([c, n(c), med(M.vals(c, (r) => r.load.sdkInitDone), 1), med(M.vals(c, (r) => r.load.loadEnd), 1), med(M.vals(c, t)), fmt(q(M.delta(c, t), 0.5)), fmt(q(M.delta(c, s), 0.5)),
-    med(M.vals(c, (r) => r.longTasks.load.count)), med(M.vals(c, (r) => r.longTasks.load.max)), med(M.vals(c, tbt)), fmt(q(M.delta(c, tbt), 0.5))]));
+  console.log(row([c, n(c), med(M.vals(c, (r) => r.load.sdkInitDone), 1), med(M.vals(c, (r) => r.load.loadEnd), 1), med(M.vals(c, t)), med(M.delta(c, t)), med(M.delta(c, s)),
+    med(M.vals(c, (r) => r.longTasks.load.count)), med(M.vals(c, (r) => r.longTasks.load.max)), med(M.vals(c, tbt)), med(M.delta(c, tbt))]));
 }
 
-console.log(`\n### Journey (${main.journeyS} s): CPU, long tasks, heap (median [IQR]; Δ = paired median delta vs none)\n`);
+console.log(`\n### Journey (${main.journeyS} s): CPU, long tasks, heap (median [IQR]; Δ = paired delta vs none, median [IQR])\n`);
 console.log(row(["cell", "main-thread task ms", "Δ task ms", "Δ script ms", "renderer CPU ms (all threads)", "Δ renderer ms", "long tasks", "long-task sum ms", "TBT ms", "heap after GC MB", "Δ heap MB"]));
 console.log(sep(11));
 for (const c of cells) {
   const t = (r) => r.cpu.journey.task * 1000, s = (r) => r.cpu.journey.script * 1000, rc = (r) => r.cpu.journey.renderer * 1000, h = (r) => r.heap.endAfterGc / 1048576;
-  console.log(row([c, med(M.vals(c, t)), fmt(q(M.delta(c, t), 0.5)), fmt(q(M.delta(c, s), 0.5)), med(M.vals(c, rc)), fmt(q(M.delta(c, rc), 0.5)),
-    med(M.vals(c, (r) => r.longTasks.journey.count)), med(M.vals(c, (r) => r.longTasks.journey.sum)), med(M.vals(c, (r) => r.longTasks.journey.tbt)), med(M.vals(c, h), 1), fmt(q(M.delta(c, h), 0.5), 1)]));
+  console.log(row([c, med(M.vals(c, t)), med(M.delta(c, t)), med(M.delta(c, s)), med(M.vals(c, rc)), med(M.delta(c, rc)),
+    med(M.vals(c, (r) => r.longTasks.journey.count)), med(M.vals(c, (r) => r.longTasks.journey.sum)), med(M.vals(c, (r) => r.longTasks.journey.tbt)), med(M.vals(c, h), 1), med(M.delta(c, h), 1)]));
 }
 
 console.log("\n### Network per minute of page life (load + journey + page-hide flush; KB; median [IQR])\n");

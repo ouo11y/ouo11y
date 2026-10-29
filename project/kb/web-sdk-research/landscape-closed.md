@@ -425,7 +425,7 @@ Own recorders: Datadog, Dynatrace, Fullstory, LogRocket, Clarity and OpenReplay.
 - A superscript number points to a footnote in §6.2.
 
 **Sources**
-- The ouo row was verified in this repository at `a283b5b` (§6.2, notes o1–o9).
+- The ouo row was verified in this repository at `f4a3010` (§6.2, notes o1–o9).
 - Rows marked † rely partly on `[recall]` cells. See the footnotes before quoting them.
 
 **Replay technique codes**
@@ -555,7 +555,7 @@ Own recorders: Datadog, Dynatrace, Fullstory, LogRocket, Clarity and OpenReplay.
 
 ### 6.2 Footnotes
 
-**ouo row** (repository at `a283b5b`)
+**ouo row** (repository at `f4a3010`)
 - ᵒ¹ Exceptions are OTel log records with source-mapped stacks, shown per session and in the replay activity panel. There is no issue page and no fingerprinting: no `fingerprint` or `grouping` code in `services/`, `collector/` or `plugins/ouo11y-rum-app/src`. The plugin pages are `Overview`, `Sessions`, `SessionDetail` and `Funnels` only.
 - ᵒ² rum-api `PUT /v1/sourcemaps`, `GET /v1/sourcemaps` and `POST /v1/symbolicate` [code: services/rum-api/internal/httpapi/server.go:112-114]. Stack parsing covers V8, SpiderMonkey and JavaScriptCore [code: services/rum-api/internal/sourcemap/stack.go]. The plugin renders `symbolicated` stacks [code: plugins/ouo11y-rum-app/src/components/ReplayActivity.tsx:164].
 - ᵒ³ `sdk/browser/src/vitals.ts:1` imports `web-vitals`, not `web-vitals/attribution`. Events carry value, rating, delta, navigation type and `url.path`, but no LCP element, INP target or phase breakdown.

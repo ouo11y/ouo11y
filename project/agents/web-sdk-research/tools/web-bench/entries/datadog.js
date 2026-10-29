@@ -1,5 +1,5 @@
 // @datadog/browser-rum: sessions and replay at 100 %, defaults otherwise (defaultPrivacyLevel
-// "mask", user interactions, resources and long tasks tracked by default). All requests go to the
+// "mask-user-input", user interactions, resources and long tasks tracked by default). All requests go to the
 // local intake through the documented `proxy` option.
 import { datadogRum } from "@datadog/browser-rum";
 

@@ -1,6 +1,6 @@
 # Appendix O: ouo on the web today (`@ouo11y/browser`, collector, rum-api, Grafana plugin)
 
-What a web customer gets from this repository at commit `a283b5b` (branch `claude/web-sdk-research`, 2026-10-29), read from the code. Every fact carries `path:line @ a283b5b` (the sha is left out below when a whole table is from that commit). "Measured here" means run in this worktree on 2026-10-29. Nothing was run against a live stack: no `ouo-env` was started for this appendix.
+What a web customer gets from this repository at commit `f4a3010` (`main`; read on 2026-10-29 at the pre-merge commit of #104, whose `sdk/browser`, `services` and `plugins` trees are identical to `f4a3010`), read from the code. Every fact carries `path:line @ f4a3010` (the sha is left out below when a whole table is from that commit). "Measured here" means run in this worktree on 2026-10-29. Nothing was run against a live stack: no `ouo-env` was started for this appendix.
 
 Same ten sections as appendices A–F, adapted to our own code.
 
@@ -8,7 +8,7 @@ Same ten sections as appendices A–F, adapted to our own code.
 
 | Item | Value |
 |---|---|
-| Commit | `a283b5b` (`git rev-parse --short HEAD`) |
+| Commit | `f4a3010` on `main` (read at the pre-merge commit of #104; `sdk/browser`, `services`, `plugins` identical) |
 | `@ouo11y/browser` | 0.3.0 (`sdk/browser/package.json:3`), Apache-2.0, ESM only (`package.json:28`), entries `.` and `./react` (`package.json:40-51`) |
 | Runtime dependencies | `@opentelemetry/api` ^1.9.1, `api-logs` 0.222.0, `core` ^2.11.0, `instrumentation` 0.222.0, `instrumentation-document-load` 0.67.0, `instrumentation-fetch` 0.222.0, `instrumentation-xml-http-request` 0.222.0, `opentelemetry-browser-detector` 0.222.0, `otlp-transformer` 0.222.0, `resources` ^2.11.0, `sdk-logs` 0.222.0, `sdk-trace-base` / `sdk-trace-web` ^2.11.0, `semantic-conventions` ^1.43.0, `rrweb` ^2.1.7, `web-vitals` ^6.2.3 (`sdk/browser/package.json:73-90`). React ≥16.8 optional peer (`package.json:109-116`) |
 | `@ouo11y/sourcemaps` | 0.1.0 (`sdk/sourcemaps/package.json:3`), CLI `ouo-sourcemaps`; not yet on npm (checklist N41, `project/tracker/checklist.md:30`) |
@@ -209,7 +209,7 @@ No case found where the code does something important that the README does not m
 
 ## 9. Gaps: what a Sentry / Datadog / PostHog web customer would look for
 
-Each item was checked in the code at `a283b5b`; the command is the evidence.
+Each item was checked in the code at `f4a3010`; the command is the evidence.
 
 | # | Expected feature | State in ouo | Evidence |
 |---|---|---|---|

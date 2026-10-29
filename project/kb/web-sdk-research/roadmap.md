@@ -48,7 +48,7 @@ Cost is the orchestrator's estimate in focused agent-days. Each package is one P
 Why this order:
 
 - **WB1 first** because it is a day, fixes a wrong version on every install, and shrinks the replay chunk before anything is measured against it.
-- **Replay is the measured gap** ([benchmark.md](benchmark.md) §8): ouo's core is at or ahead of all six SDKs measured, but with replay on it costs +161 ms/min CPU, +1.8 MB heap and +81 KB/min wire more than Datadog, and its replay chunk is 79.5 KB against Datadog's 15.3 KB. WB1 and WB5 target that gap; WB10 keeps it closed.
+- **Replay is the measured gap** ([benchmark.md](benchmark.md) §8–§9): without replay ouo is in the same band as Sentry and Datadog; with replay it costs +161 ms/min more main-thread work than Datadog (equal across all threads, because Datadog serialises and compresses in a worker), +1.8 MB heap and +81 KB/min wire, and its replay chunk is 79.5 KB against Datadog's 15.3 KB. `@rrweb/record` alone measures 22.9 KB (WB1); the worker and the incremental stream are WB5; WB10 keeps the gap closed.
 - **WB10 second, in parallel** because the benchmark and conformance checks turn every later package into a pass / fail, and a published, gated overhead method is something no vendor read has (comparison §5).
 - **WB2 and WB3 before replay work** because they are what a web team opens every day, and they serve both paths: errors and vitals from the Sentry bridge (N39) land as the same records.
 - **WB5 before WB4** because alert rules for issues and vitals need WB2 and WB3 first; WB4 can start its crash-rate and failed-request rules any time.
@@ -172,7 +172,7 @@ Every package: unit tests and the conformance checks of what it touches pass in 
 
 | Package | Exit criterion |
 |---|---|
-| WB1 | an installed 0.x reports its own version in `ouo.sdk.version` (test reads `package.json`); rrweb chunk gzip smaller than 78,940 B by the measured amount; both soaks pass 60 min |
+| WB1 | an installed 0.x reports its own version in `ouo.sdk.version` (test reads `package.json`); the lazy replay chunk as the size-limit gate measures it (78,940 B gzip today) is under 30,000 B (`@rrweb/record` 2.1.7 measures 22,934 B gzip -9 with the benchmark's esbuild flags, benchmark §8); both soaks pass 60 min |
 | WB10 | spec merged; e2e prints the web maturity column; PR job fails on bundle-preset growth and reports CPU and bytes per minute against `none` with N ≥ 10 paired runs |
 | WB2 | the ouo-web journey's three error kinds show as three issues with correct counts across 20 generated sessions; an issue links to its sessions' replays; error click emitted in the e2e |
 | WB3 | INP and LCP events carry target / element and phases; a route's p75 in the plugin matches a hand computation over generated sessions; old and new names both readable |

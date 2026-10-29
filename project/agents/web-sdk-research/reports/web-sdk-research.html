@@ -89,12 +89,12 @@ a{color:var(--s1)}
 <body>
 <main>
 <h1>Web SDK research: how the field captures RUM and replay, and where ouo stands</h1>
-<p class="sub">Sentry, Datadog, PostHog, Grafana Faro and the OpenTelemetry-shaped vendors, the replay specialists and 25 vendors in all, read from their source code at their latest release tags on 2026-10-29, next to <code>@ouo11y/browser</code>, rum-api and the Grafana plugin as they stand at <code>a283b5b</code>. Companion to <code>project/kb/web-sdk-research/</code> (Appendices O, A–F, M and <code>comparison.md</code>); the recommendation is in <code>web-sdk-roadmap.html</code>.</p>
+<p class="sub">Sentry, Datadog, PostHog, Grafana Faro and the OpenTelemetry-shaped vendors, the replay specialists and 25 vendors in all, read from their source code at their latest release tags on 2026-10-29, next to <code>@ouo11y/browser</code>, rum-api and the Grafana plugin as they stand at <code>f4a3010</code>. Companion to <code>project/kb/web-sdk-research/</code> (Appendices O, A–F, M and <code>comparison.md</code>); the recommendation is in <code>web-sdk-roadmap.html</code>.</p>
 
 <div class="cards">
   <div class="card"><span class="k">SDK</span><b>At the leaders' level, ahead in places</b>Offline IndexedDB store with retry for spans, logs and replay; page-hide correctness including INP; semconv <code>session.start</code> / <code>session.end</code>; LoAF events with scripts; W3C <code>traceparent</code> first.</div>
   <div class="card"><span class="k">Read side</span><b>Four holes a web team notices</b>No error issues, no web-vitals aggregates or attribution, no shipped alert rules, session search on six fields.</div>
-  <div class="card"><span class="k">Rare</span><b>OTLP to the customer's collector: 4 of 25</b>ouo, Splunk, Honeycomb, Embrace. Only ouo adds replay, a true on-error lookback buffer (5 of 25), funnels and self-hosting.</div>
+  <div class="card"><span class="k">Few have it</span><b>OTLP to the customer's collector: 4 of 25</b>ouo, Splunk, Honeycomb, Embrace. Only ouo adds replay, a true on-error lookback buffer (5 of 25), funnels and self-hosting.</div>
   <div class="card"><span class="k">Replay</span><b>Upstream rrweb is the right base</b>GA since June, 2.2.0 fixed the two leaks ouo's soak found. The field moved compression into workers, masks all text, breaks on mutation storms and keeps CSS out of checkouts; ouo does none yet.</div>
   <div class="card"><span class="k">OpenTelemetry</span><b>The ground is moving</b>OTel JS 3.0 removed <code>sdk-trace-web</code>; semconv 1.44 names <code>browser.web_vital</code>; nobody has a replay convention. Three vendors put replay in OTLP logs three different ways.</div>
   <div class="card"><span class="k">Overhead</span><b>No vendor gates CPU in CI</b>Sentry deleted its harness (2024) and gates bundle growth only; Datadog's benchmarks never block; PostHog's are opt-in.</div>
@@ -188,7 +188,7 @@ a{color:var(--s1)}
 </table>
 </div>
 <h3>6.2 Measured here on one page and one journey</h3>
-<p>Measured here (Appendix M, 9 rounds, headless Chromium, one Mac, every SDK to a local intake; deltas paired against a no-SDK page in the same round). Shorter is better. Faro has no replay.</p>
+<p>Measured here (Appendix M, 9 rounds, headless Chromium, one Mac, every SDK to a local intake; deltas paired against a no-SDK page in the same round). Shorter is better. Faro has no replay. Bars are paired medians; the IQRs are in Appendix M.</p>
 <h4>Eager bundle, gzip KB</h4><div class="bars">
 <div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 45.3"><i class="by" style="width:16%"></i></span><span class="bn">45.3</span><span></span></div>
 <div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 65.4"><i class="by" style="width:24%"></i></span><span class="bn">65.4</span><span></span></div>
@@ -205,7 +205,7 @@ a{color:var(--s1)}
 <div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 209.3"><i class="by" style="width:75%"></i></span><span class="bn">209.3</span><span></span></div>
 <div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 277.5"><i class="by" style="width:100%"></i></span><span class="bn">277.5</span><span></span></div>
 </div>
-<h4>Journey CPU without replay, +ms/min</h4><div class="bars">
+<h4>Journey main-thread work without replay, +ms/min</h4><div class="bars">
 <div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 142"><i class="by" style="width:69%"></i></span><span class="bn">142</span><span></span></div>
 <div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 161"><i class="by" style="width:79%"></i></span><span class="bn">161</span><span></span></div>
 <div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 175"><i class="by" style="width:85%"></i></span><span class="bn">175</span><span></span></div>
@@ -213,7 +213,7 @@ a{color:var(--s1)}
 <div class="bar"><span class="bl">Faro</span><span class="bt" role="img" aria-label="Faro 202"><i class="by" style="width:99%"></i></span><span class="bn">202</span><span></span></div>
 <div class="bar"><span class="bl">Splunk</span><span class="bt" role="img" aria-label="Splunk 205"><i class="by" style="width:100%"></i></span><span class="bn">205</span><span></span></div>
 </div>
-<h4>Journey CPU with replay, +ms/min</h4><div class="bars">
+<h4>Journey main-thread work with replay, +ms/min</h4><div class="bars">
 <div class="bar"><span class="bl">Datadog</span><span class="bt" role="img" aria-label="Datadog 334"><i class="by" style="width:35%"></i></span><span class="bn">334</span><span></span></div>
 <div class="bar"><span class="bl" style="font-weight:600">ouo</span><span class="bt" role="img" aria-label="ouo 495"><i class="by" style="width:52%"></i></span><span class="bn">495</span><span></span></div>
 <div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 569"><i class="by" style="width:59%"></i></span><span class="bn">569</span><span></span></div>
@@ -235,7 +235,7 @@ a{color:var(--s1)}
 <div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 277.3"><i class="by" style="width:85%"></i></span><span class="bn">277.3</span><span></span></div>
 <div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 325.4"><i class="by" style="width:100%"></i></span><span class="bn">325.4</span><span></span></div>
 </div>
-<p><b>Reading:</b> the core SDK is the smallest and cheapest measured; replay is where ouo trails Datadog (79.5 KB rrweb chunk vs a 15.3 KB recorder, +161 ms/min more CPU, 3.5× the decoded replay bytes). WB1 and WB5 target that; WB10 gates it in CI. Large DOM (10,000 nodes): ouo sends the first snapshot at 97 ms with no long task; Sentry (54 ms) and Splunk (60 ms) make one.</p>
+<p><b>Reading:</b> without replay ouo has the smallest eager bundle and its main-thread cost is in the same band as Sentry and Datadog (IQRs overlap). Replay is where ouo trails Datadog: a 79.5 KB rrweb chunk against a 15.3 KB recorder (<code>@rrweb/record</code> measures 22.9 KB), +161 ms/min more main-thread work (equal across all threads, Datadog works in a worker), 3.5× the decoded replay bytes. WB1 and WB5 target that; WB10 gates it in CI. Large DOM (10,000 nodes): ouo sends its first snapshot 97 ms after navigation with no long task; Sentry's and Splunk's snapshots each make one long task (54 ms and 60 ms).</p>
 
 <h2>7. Performance claims and how they were measured</h2>
 <div class="tablewrap">
@@ -260,7 +260,7 @@ a{color:var(--s1)}
   <li>ouo itself: <code>SDK_VERSION</code> still reports 0.2.0 in the 0.3.0 package.</li>
 </ul>
 
-<p class="src">Sources: <code>project/kb/web-sdk-research/</code> Appendices O (ouo at <code>a283b5b</code>), A (sentry-javascript 11.10.0), B (DataDog/browser-sdk v7.16.2), C (posthog-js 1.442.1), D (Faro 2.13.0, opentelemetry-browser 0.6.0, semconv 1.44.0, Splunk 3.2.0, Embrace 2.32.0, LaunchDarkly, Dash0 0.28.3), E (rrweb 2.2.0, Clarity, OpenReplay), F (25-vendor matrix; † cells from recall listed in F §9 Q10), M (benchmark).</p>
+<p class="src">Sources: <code>project/kb/web-sdk-research/</code> Appendices O (ouo at <code>f4a3010</code>), A (sentry-javascript 11.10.0), B (DataDog/browser-sdk v7.16.2), C (posthog-js 1.442.1), D (Faro 2.13.0, opentelemetry-browser 0.6.0, semconv 1.44.0, Splunk 3.2.0, Embrace 2.32.0, LaunchDarkly, Dash0 0.28.3), E (rrweb 2.2.0, Clarity, OpenReplay), F (25-vendor matrix; † cells from recall listed in F §9 Q10), M (benchmark).</p>
 </main>
 </body>
 </html>
