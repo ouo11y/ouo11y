@@ -62,9 +62,10 @@ public struct CapturePacer: Sendable {
         self.bank = budgetPerSecond
     }
 
-    /// Start or resume: the next pass captures right away (in every mode).
-    public mutating func requestFrame(_ reason: FrameReason, now: TimeInterval) {
-        pending = (reason, now)
+    /// Start or resume (`at` now), or a retry of a frame that was dropped: the first pass from
+    /// `at` on captures, in every mode.
+    public mutating func requestFrame(_ reason: FrameReason, at: TimeInterval) {
+        pending = (reason, at)
         deferringSince = nil
     }
 

@@ -141,7 +141,7 @@ final class ReplayRecorder {
         guard !isRecording else { return }
         isRecording = true
         Self.queue.async { [deduper] in deduper.reset() }
-        pacer.requestFrame(.resume, now: ProcessInfo.processInfo.systemUptime)
+        pacer.requestFrame(.resume, at: ProcessInfo.processInfo.systemUptime)
         // After Core Animation's commit observer (order 2000000), so the walk and the render see
         // the pass's committed UI; common modes so capture continues while a scroll view tracks.
         let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { [weak self] _, _ in
@@ -198,10 +198,14 @@ final class ReplayRecorder {
         let snapshot = capturer.snapshot(window: window, tree: walk.tree)
         sp.endInterval("snapshot", snapshotState)
         pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
-        guard let snapshot else { return }
+        guard let snapshot else {
+            retryIfNeeded(reason)
+            return
+        }
         captureInFlight = true
         Self.queue.async { [weak self, capturer, deduper, builder, logger] in
             let state = sp.beginInterval("compose", id: sp.makeSignpostID())
+            var dropped = false
             switch capturer.compose(snapshot, deduper: deduper) {
             case .frame(let capture):
                 builder.viewport = capture.viewport
@@ -209,12 +213,25 @@ final class ReplayRecorder {
                 logger.log("frame \(reason.rawValue) \(capture.jpeg.count) bytes, \(capture.redactedRects) redacted rects")
             case .unsafe:
                 logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
-            case .unchanged, .failed:
+                dropped = true
+            case .failed:
+                dropped = true
+            case .unchanged:
                 break
             }
             sp.endInterval("compose", state)
-            DispatchQueue.main.async { self?.captureInFlight = false }
+            DispatchQueue.main.async {
+                self?.captureInFlight = false
+                if dropped { self?.retryIfNeeded(reason) }
+            }
         }
+    }
+
+    /// A dropped frame that was asked for (resume, a new screen) is asked for again: in navigation
+    /// mode no interval frame would follow. Interval frames just wait for the next interval.
+    private func retryIfNeeded(_ reason: FrameReason) {
+        guard reason != .timer, isRecording else { return }
+        pacer.requestFrame(reason, at: ProcessInfo.processInfo.systemUptime + 0.5)
     }
 
     /// A push, pop or presentation is running somewhere in the window's view controllers.

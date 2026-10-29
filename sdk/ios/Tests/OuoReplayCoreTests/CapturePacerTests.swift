@@ -21,8 +21,19 @@ import Testing
     @Test func RequestedFrameIsTakenRightAway() {
         var p = CapturePacer(mode: .session, interval: 1)
         _ = step(&p, 0)
-        p.requestFrame(.resume, now: 0.2)
+        p.requestFrame(.resume, at: 0.2)
         #expect(step(&p, 0.2) == .capture(.resume))
+    }
+
+    /// A navigation frame that was dropped (a masked view still moving) is asked for again later:
+    /// in navigation mode nothing else would show that screen.
+    @Test func DroppedNavigationFrameIsRetried() {
+        var p = CapturePacer(mode: .navigation, interval: 1)
+        p.screenDidChange(now: 0)
+        #expect(step(&p, 0.4) == .capture(.navigation))
+        p.requestFrame(.navigation, at: 0.9)
+        #expect(step(&p, 0.6) == .wait)
+        #expect(step(&p, 0.9) == .capture(.navigation))
     }
 
     /// Four or more running animations defer a due frame up to one second, then it is forced.
@@ -81,7 +92,7 @@ import Testing
 
     @Test func NavigationModeCapturesOnlyAfterAScreenChange() {
         var p = CapturePacer(mode: .navigation, interval: 1)
-        p.requestFrame(.resume, now: 0)
+        p.requestFrame(.resume, at: 0)
         #expect(step(&p, 0) == .capture(.resume))
         #expect(step(&p, 5) == .wait)
         p.screenDidChange(now: 6)
