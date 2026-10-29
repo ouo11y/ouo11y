@@ -2,6 +2,8 @@
 
 Status: normative for iOS replay (ADR-0006). Android will use the same contract.
 
+This page describes schema 1, which every component reads and emits today. Schema 2 (patches against the previous frame, keyframes, the `mode` field) is decided in [ADR-0014](../adr/0014-replay-tiles-in-frames.md) and replaces the sections below when W3 lands.
+
 ## Chunk
 
 Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers `content-type: application/json`, `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`). rrweb chunks have no `kind` and are treated as `kind: "rrweb"`.

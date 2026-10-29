@@ -4,6 +4,7 @@ Owns the decisions of the ouo mobile SDK roadmap ([roadmap.md](../../kb/mobile-s
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries
+  - [2026-10-29-adr-0014-0016.md](summaries/2026-10-29-adr-0014-0016.md) ADR-0014 (tiles in `frames` schema 2) and ADR-0016 (OpenTelemetry in process)
   - [2026-10-29-w7-symbolication.md](summaries/2026-10-29-w7-symbolication.md) W7: native iOS crash symbolication from dSYMs (ADR-0011 section 7)
 - `verify/` reproducible checks
   - [w7-dsym-e2e.sh](verify/w7-dsym-e2e.sh) a real `OuoCrashProbe` crash through the collector, dSYM upload with the CLI, rum-api frames compared with `atos -i`
