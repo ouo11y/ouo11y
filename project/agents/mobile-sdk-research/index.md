@@ -4,4 +4,4 @@ Research agent (orchestrator session plus eight Opus sub sessions, 2026-10-29). 
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries
-- `reports/` HTML report
+- `reports/` HTML reports: [mobile-sdk-research.html](reports/mobile-sdk-research.html) (the research: matrices, pipelines, wire-size chart) and [mobile-sdk-roadmap.html](reports/mobile-sdk-roadmap.html) (the recommendation: lanes, value against cost, maturity matrices)

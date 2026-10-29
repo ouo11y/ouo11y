@@ -12,4 +12,5 @@
 | Appendix G open landscape + OTel | done | sub session `landscape-oss`, 30 repos; PostHog row corrected by the orchestrator |
 | Appendix H closed landscape | done | sub session `landscape-closed`, 24-vendor feature matrix |
 | Comparison, HTML report, indexes, summary | done | orchestrator; spot checks recorded in the summary |
-| ADR revision for replay representation (tiles as rrweb vs H.264 vs JPEG frames) | todo | follow-up, see `comparison.md` §12 |
+| Roadmap recommendation (order, done, lanes, spec and maturity ladder, Datadog vs Sentry, gaps after W10) | done | `project/kb/mobile-sdk-research/roadmap.md`, `reports/mobile-sdk-roadmap.html`, answers the founder's questions on §12 |
+| ADR-0013 replay representation (tiles in `frames` schema 2, not rrweb, not H.264) | todo | proposed in `roadmap.md` §9 together with ADR-0011 rev (native symbolication), ADR-0014 (spec and ladder), ADR-0015 (OTel in process), ADR-0006 rev |

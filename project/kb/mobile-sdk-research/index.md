@@ -9,6 +9,7 @@ Every appendix follows the same structure so the comparison can be read side by 
 | File | What it covers |
 |---|---|
 | [comparison.md](comparison.md) | Side-by-side synthesis: capture technique per platform, replay flows, wire size, performance claims and how they were measured, OTel export, feature matrix, recommendations for ouo |
+| [roadmap.md](roadmap.md) | Recommendation for ouo (2026-10-29): §12 ranked by value per cost into ten work packages W1–W10 with definitions of done, three parallel lanes, Datadog vs Sentry per part, the mobile SDK spec with twelve capabilities and an L0–L3 maturity ladder, what §12 missed (native crash symbolication, OOM, privacy manifest), what is still missing after W10, the five ADRs it needs |
 | [sentry-ios.md](sentry-ios.md) | Appendix A: sentry-cocoa (Swift / Objective-C). RUM flows, replay pipeline (view renderer v1 vs v2 grounded in code), video encoding, masking, wire format, Sentry's player, benchmarks |
 | [sentry-android.md](sentry-android.md) | Appendix B: sentry-java / sentry-android (Kotlin / Java). RUM flows, replay pipeline, "faster startup" blog grounded in commits, benchmarks |
 | [sentry-react-native-flutter.md](sentry-react-native-flutter.md) | Appendix C: sentry-react-native and sentry-dart. How replay and RUM are layered on the native SDKs, what differs per framework |
@@ -19,6 +20,8 @@ Every appendix follows the same structure so the comparison can be read side by 
 | [landscape-closed.md](landscape-closed.md) | Appendix H: closed vendors (UXCam, Smartlook, FullStory, LogRocket, Amplitude, Mixpanel, Firebase, Bugsnag, New Relic, Dynatrace): technique and features from docs |
 
 HTML report with the matrices, pipelines and the wire-size chart: [project/agents/mobile-sdk-research/reports/mobile-sdk-research.html](../../agents/mobile-sdk-research/reports/mobile-sdk-research.html).
+
+Roadmap recommendation with the lane chart, the value-against-cost view and the maturity matrices: [project/agents/mobile-sdk-research/reports/mobile-sdk-roadmap.html](../../agents/mobile-sdk-research/reports/mobile-sdk-roadmap.html).
 
 ## Appendix structure (all files)
 

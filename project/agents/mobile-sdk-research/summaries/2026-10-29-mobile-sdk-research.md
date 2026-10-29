@@ -38,3 +38,15 @@
 - Read `comparison.md` first; go to the appendix only for citations. Each appendix's §9 lists the questions it answered.
 - The sub sessions' clones live in their scratchpads under `/private/tmp/claude-501/-Users-ziadhassanin-Desktop-personal-ouo--claude-worktrees-mobile-sdk-research-bf838b/<session>/scratchpad/` until the machine cleans them; re-clone at the commits listed in each appendix's §1 for anything new.
 - The golden-capture decoder (`replay_sizes.py`, msgpack + mp4 box parser) is in the sentry-ios session's scratchpad `scripts/`; copy it into the repo if the measurement needs to be repeated.
+
+## Addendum, same day: roadmap recommendation
+
+The founder asked, on §12 of `comparison.md`: order by value, define done, how much in parallel, is the SDK competitive afterwards and what is missing, is §12 right at all, Datadog or Sentry, spec first with different maturity per platform, finish one implementation before the next.
+
+Written: `project/kb/mobile-sdk-research/roadmap.md` (the argument, ten work packages W1–W10 with exit criteria, three lanes, the twelve-capability spec and the L0–L3 ladder, five ADRs to decide) and `reports/mobile-sdk-roadmap.html` (lane chart, value-against-cost scatter, maturity matrices today and after W10, the competitive table and the gap list).
+
+Positions taken that differ from §12: tiles inside our own `frames` chunk instead of rrweb `<img>` mutations or H.264; no opentelemetry-swift in process on iOS (opentelemetry-android on Android stays); feedback as an OTel-shaped primitive now and a widget later. Added what §12 missed: native crash symbolication (dSYM, R8, Hermes), OOM and watchdog terminations, error context, the App Store privacy manifest, distribution.
+
+Verified: the two HTML files open with the SVGs rendered (browser pane); `lychee --offline` over the research folder and the indexes. Not verified: the cost estimates are the orchestrator's judgement in agent-days, not measurements; what rum-api groups errors by today was not checked.
+
+Respects the founder's 2026-10-23 order: the roadmap is for when the ouo mobile SDK gate opens; only the spec, the ADRs and the shared record names (feedback, hangs, user steps) are proposed to start earlier, because the bridge work for N37 and N40 needs the same names.
