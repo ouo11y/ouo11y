@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile SDK research: Sentry, PostHog, Luciq and the field</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fcfcfb; --surface:#ffffff; --surface-2:#f3f2ef; --border:#dcdad4;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7873;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --good:#1b7f3a; --warn:#b8690a; --bad:#c23a3a;
+  --cell-sv:#dbe8f8; --cell-sf:#fde3d6; --cell-wf:#d6f3e8; --cell-hy:#efe9c9; --cell-none:#ecebe7;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+    --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+    --cell-sv:#1f3552; --cell-sf:#4a2c1e; --cell-wf:#1f4435; --cell-hy:#44401f; --cell-none:#2b2b29;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+  --cell-sv:#1f3552; --cell-sf:#4a2c1e; --cell-wf:#1f4435; --cell-hy:#44401f; --cell-none:#2b2b29;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:22px;margin:40px 0 12px;padding-top:8px;border-top:1px solid var(--border)}
+h3{font-size:17px;margin:22px 0 8px}
+p{margin:8px 0}
+.sub{color:var(--text-2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.card b{display:block;margin-bottom:4px}
+.card .k{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0 4px;background:var(--surface)}
+th,td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--surface-2);font-weight:600}
+.tablewrap{overflow-x:auto}
+.sv{background:var(--cell-sv)} .sf{background:var(--cell-sf)} .wf{background:var(--cell-wf)} .hy{background:var(--cell-hy)} .none{background:var(--cell-none);color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--border);display:inline-block}
+.flows{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.flow{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.flow h4{margin:0 0 8px;font-size:15px}
+.step{position:relative;padding:7px 10px 7px 34px;margin:6px 0;background:var(--surface-2);border-radius:6px;font-size:13.5px}
+.step::before{content:attr(data-n);position:absolute;left:9px;top:7px;width:18px;height:18px;border-radius:50%;background:var(--s1);color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:18px}
+.step.main::before{background:var(--s2)}
+.step.bg::before{background:var(--s3)}
+.step code{font-size:12.5px}
+.thread-legend{font-size:12.5px;color:var(--text-2);margin:4px 0 10px}
+.thread-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px;vertical-align:middle}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--surface-2);padding:1px 4px;border-radius:3px}
+pre{background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;overflow:auto;font-size:12.5px;line-height:1.45}
+.chart{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 6px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--text);font-size:12px}
+.chart .axis text{fill:var(--text-2);font-size:11px}
+.chart .grid{stroke:var(--border);stroke-width:1}
+.chart .cat{fill:var(--text-2);font-size:11px}
+.chart .lbl{fill:var(--text);font-size:11.5px}
+.chart .bar{rx:3}
+.chart .bar:hover{opacity:.8}
+.chart .bar.m{fill:var(--s1)} .chart .bar.d{fill:var(--s2)} .chart .bar.v{fill:var(--s3)}
+.note{font-size:12.5px;color:var(--text-2)}
+.ok{color:var(--good);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+ul{margin:6px 0 6px 22px} li{margin:3px 0}
+.src{font-size:12.5px;color:var(--muted)}
+a{color:var(--s1)}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:10px;border:1px solid var(--border);color:var(--text-2);margin-left:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Mobile RUM and session replay SDKs</h1>
+<p class="sub">Sentry, PostHog, Luciq and the rest of the field, read from their source code where it is open. Research of 2026-10-29 by the <code>mobile-sdk-research</code> agent (one orchestrator, eight Opus sub sessions). Detail with line-level citations lives in <code>project/kb/mobile-sdk-research/</code>: <a href="../../../kb/mobile-sdk-research/comparison.md">comparison.md</a> and appendices A to H.</p>
+
+<h2>1. The questions, answered</h2>
+<div class="cards">
+  <div class="card"><span class="k">RUM</span><b>Sentry is APM-grade, PostHog is analytics, Luciq is APM plus bug reporting</b>Sentry: sessions, crashes, ANR, app start, frames, screen loads with TTID/TTFD, network spans, profiling. PostHog: <code>$screen</code>, lifecycle, opt-in crashes, no ANR, no app start, no frames, no spans. Luciq: cold/hot launch, screen load, UI hangs (250 ms), app hangs (3 s), ANR, OOM, force restart, network with latency breakdown, user steps, a 60 s session profiler.</div>
+  <div class="card"><span class="k">OpenTelemetry</span><b>None of the three exports OTLP from a mobile SDK</b>Sentry propagates <code>sentry-trace</code> + <code>baggage</code> (W3C opt-in). PostHog speaks OTLP/JSON for logs only. Luciq: none, only a home-made W3C <code>traceparent</code> for deep links into Grafana, New Relic or Dynatrace. Only Embrace, Splunk, Honeycomb, Elastic and LaunchDarkly run OTel in process; nobody sends replay over OTel.</div>
+  <div class="card"><span class="k">Replay</span><b>All three, three different techniques</b>Sentry: screenshots encoded to H.264 mp4 segments on device, same pipeline on iOS, Android, RN and Flutter. PostHog: wireframe JSON by default, screenshots for SwiftUI, Compose, RN and Flutter. Luciq: WebP screenshots on screen transitions (or interactions, or a ≥ 500 ms timer), ≈10 KB each, played as a stepped timeline with user steps and logs; closed source.</div>
+  <div class="card"><span class="k">Wire size</span><b>Sentry iOS measured: ≈110 KiB/min masked, ≈362 KiB/min unmasked</b>From 77 real segments captured in this repo. PostHog wireframes: a few KB/min gzipped. PostHog screenshots: 15 to 40 KB per changed frame. ouo today (ADR-0006 JPEG frames): nominal 1.2 to 2.4 MB/min while changing; measured at matched quality ≈2× Sentry (N50).</div>
+  <div class="card"><span class="k">Same technique across frameworks?</span><b>Sentry yes, PostHog no</b>Sentry RN is 100 % native; Flutter only swaps the capture step for Dart. PostHog forces RN into screenshot mode and captures Flutter in Dart as PNG. Everyone needs Dart-side capture for Flutter: the native tree is one opaque surface.</div>
+  <div class="card"><span class="k">Open source?</span><b>Sentry and PostHog fully; Luciq wrappers only</b>Every flow for Sentry and PostHog was read in MIT code. Luciq's native SDKs are binaries, so its appendix is docs, wrapper code and header names. Sentry's player is FSL, read for the reconstruction only.</div>
+  <div class="card"><span class="k">Performance measurement</span><b>Mostly manual runs; Sentry Android is the exception</b>The iOS view renderer V2 numbers came from a timing patch on an iPhone 8 that never shipped. The Android startup blog is backed by an in-repo Jetpack Macrobenchmark. PostHog publishes nothing. Datadog, Embrace, New Relic have reproducible methods.</div>
+  <div class="card"><span class="k">Funnels</span><b>PostHog strong, Sentry has none</b>The claim "limited on Sentry" is generous: Sentry has no funnel or journey product. Luciq, Datadog, Amplitude, Mixpanel, UXCam and Contentsquare all ship funnels.</div>
+</div>
+
+<h2>2. Capture technique per vendor and platform</h2>
+<div class="legend"><span><i class="sw sv"></i> screenshot video</span><span><i class="sw sf"></i> screenshot frames or tiles</span><span><i class="sw wf"></i> wireframe / vector</span><span><i class="sw hy"></i> hybrid or draw commands</span><span><i class="sw none"></i> none</span></div>
+<div class="tablewrap"><table>
+<tr><th>Vendor</th><th>Native iOS</th><th>Native Android</th><th>React Native</th><th>Flutter</th><th>Masking default</th><th>Open</th></tr>
+<tr><td><b>Sentry</b></td><td class="sv">screenshot → H.264 mp4 (<code>drawHierarchy</code> into raw <code>CGContext</code>)</td><td class="sv">screenshot → H.264 mp4 (<code>PixelCopy</code> RGB_565)</td><td class="sv">native SDKs + RN class names + container <code>&lt;Mask&gt;</code></td><td class="sv">Dart captures and masks, native encodes</td><td>all text and images</td><td class="ok">MIT</td></tr>
+<tr><td><b>PostHog</b></td><td class="wf">wireframe default; WebP screenshot opt-in; SwiftUI needs screenshot</td><td class="wf">wireframe default with diffing; screenshot opt-in; Compose needs screenshot</td><td class="sf">native SDK forced to screenshot</td><td class="sf">Dart PNG → native WebP → rrweb <code>screenshot</code> node</td><td>inputs and images</td><td class="ok">MIT</td></tr>
+<tr><td><b>Luciq</b></td><td class="sf">WebP screenshots on screen change, interactions or a ≥ 500 ms timer (closed binary)</td><td class="sf">same (<code>instacapture</code> + <code>PixelCopy</code> class names)</td><td class="sf">native; RN reports screen changes and resolves React tags for private views</td><td class="sf">plugin captures with <code>PixelCopy</code> / <code>drawViewHierarchyInRect</code>, Dart computes mask rectangles</td><td>private views + WebViews; type rules off by default on iOS</td><td class="part">wrappers (MIT)</td></tr>
+<tr><td>Datadog</td><td class="wf">wireframe, Heckel diff, images separate</td><td class="wf">wireframe, full snapshot every 3 s</td><td class="wf">native + RN mappers</td><td class="wf">Dart Element-tree wireframes (preview)</td><td>all text, all images, touches hidden</td><td class="ok">Apache-2.0</td></tr>
+<tr><td>OpenReplay</td><td class="sf">JPEG on a timer, no dedupe</td><td class="sf">JPEG 1 fps, no dedupe</td><td class="sf">native</td><td class="sf">Dart <code>toImageSync</code>, hash dedupe</td><td>opt-in only</td><td class="part">ELv2 / AGPL</td></tr>
+<tr><td>LaunchDarkly (ex-Highlight)</td><td class="sf">JPEG 64-px tiles, tile-hash diff, rrweb <code>&lt;img&gt;</code></td><td class="sf">same via <code>PixelCopy</code></td><td class="sf">native</td><td class="sf">Dart <code>toImage</code> → native diff</td><td>inputs only</td><td class="ok">Apache-2.0</td></tr>
+<tr><td>Microsoft Clarity</td><td class="none">closed binary</td><td class="none">closed binary</td><td class="none">binaries</td><td class="hy">draw commands from a custom <code>Canvas</code></td><td>strict</td><td class="part">Flutter only</td></tr>
+<tr><td>New Relic</td><td class="wf">wireframe → rrweb</td><td class="wf">same</td><td class="wf">native</td><td class="none">none yet</td><td>all text and images</td><td class="ok">Apache-2.0</td></tr>
+<tr><td>Mixpanel</td><td class="sf">JPEG q0.4 in rrweb <code>&lt;img&gt;</code>, ≤ 2 fps on change</td><td class="sf">same</td><td class="sf">native</td><td class="sf">Dart <code>toImage</code> → native JPEG</td><td>image, text, web, map</td><td class="ok">Apache-2.0</td></tr>
+<tr><td>Fullstory</td><td class="wf">wireframe from draw ops</td><td class="wf">same</td><td class="wf">native, annotated views</td><td class="wf">Dart feeds native wireframe</td><td>private by default</td><td class="part">wrappers</td></tr>
+<tr><td>Smartlook / Splunk</td><td class="hy">screenshots + video and a wireframe track (Cisco binaries)</td><td class="hy">same</td><td class="hy">same</td><td class="hy">same</td><td>inputs</td><td class="no">closed</td></tr>
+<tr><td>Amplitude</td><td class="hy">binary core; view-tree diffs per docs, image APIs in the interface</td><td class="none">closed</td><td class="hy">native</td><td class="hy">early access</td><td>medium level</td><td class="no">closed</td></tr>
+<tr><td>Embrace, Bugsnag, Firebase, opentelemetry-android / -swift</td><td class="none">none</td><td class="none">none</td><td class="none">none</td><td class="none">none</td><td>—</td><td class="ok">open</td></tr>
+</table></div>
+<p class="note">Pattern: crash and APM vendors chose screenshots for fidelity; analytics and privacy-first vendors chose wireframes for size and masking. Both camps fall back to screenshots for SwiftUI, Compose, React Native and Flutter, because there is no typed native view tree to serialise.</p>
+
+<h2>3. The replay pipelines, step by step</h2>
+<p class="thread-legend">Thread of each step: <i style="background:var(--s2)"></i> main / UI thread <i style="background:var(--s3)"></i> background queue <i style="background:var(--s1)"></i> event or transport</p>
+<div class="flows">
+  <div class="flow"><h4>Sentry iOS (sentry-cocoa 9.32.0)</h4>
+    <div class="step" data-n="1">Session starts → one draw: <code>sessionSampleRate</code> → session mode, else <code>onErrorSampleRate</code> → 30 s buffer</div>
+    <div class="step main" data-n="2"><code>CFRunLoopObserver</code> after UI work: 1 fps base, full rate while interacting, deferral in animations, ×2 backoff when a capture costs ≥ 150 ms</div>
+    <div class="step main" data-n="3">Redact: walk presentation layers → regions (class lists incl. RN and SwiftUI private classes, clipOut / clipBegin / clipEnd)</div>
+    <div class="step main" data-n="4">Render V2: <code>drawHierarchy(afterScreenUpdates:false)</code> into a <code>calloc</code>'d <code>CGContext</code> at screen scale (≈12 MiB on a 3× phone)</div>
+    <div class="step bg" data-n="5">Mask at 1× (points), fill with text colour or average colour; PNG to disk for crash recovery; keep 6 (session) or 31 (buffer) frames</div>
+    <div class="step bg" data-n="6">Every 5 s: <code>AVAssetWriter</code> H.264 Main, 40 kbit/s target, keyframe ≤ 6, no B-frames; identical frames are not deduped, H.264 P-frames absorb them</div>
+    <div class="step" data-n="7">Envelope item <code>replay_video</code> = msgpack {event, rrweb recording with touches and breadcrumbs, mp4}; gzip; 30-envelope disk cache shared with everything</div>
+    <div class="step" data-n="8">Crash: async-signal-safe C writes segment id and end time; next launch re-encodes the PNGs when the fatal event is processed</div>
+  </div>
+  <div class="flow"><h4>Sentry Android (sentry-java 8.62.0)</h4>
+    <div class="step main" data-n="1"><code>RootViewsSpy</code> swaps <code>WindowManagerGlobal.mViews</code>; last added root is recorded (a dialog replaces the activity)</div>
+    <div class="step main" data-n="2">Main-looper <code>postDelayed(1000 / frameRate)</code>, 1 fps; <code>OnDrawListener</code> dirty flag; no draw → re-emit the same bitmap</div>
+    <div class="step main" data-n="3"><code>PixelCopy.request(window → RGB_565 at dp × scale, rounded to 16)</code>; View + Compose semantics tree built in the callback</div>
+    <div class="step bg" data-n="4">Mask: per-line text rects in text colour, image rects in average colour, else black; JPEG q30 to disk; <code>.ongoing_segment</code> metadata</div>
+    <div class="step bg" data-n="5">Every 5 s: <code>MediaCodec</code> H.264 VBR 75 kbit/s, I-frame every 6 s, <code>MediaMuxer</code> mp4; buffer mode encodes nothing until an error</div>
+    <div class="step" data-n="6">Same msgpack <code>replay_video</code> item; crash → last segment rebuilt from JPEGs on next launch</div>
+  </div>
+  <div class="flow"><h4>PostHog iOS, wireframe mode (posthog-ios 3.92.7)</h4>
+    <div class="step main" data-n="1">Swizzled <code>UIView.layoutSublayers(of:)</code> → throttled to 1 s with a trailing call; no timer</div>
+    <div class="step main" data-n="2">SwiftUI root? → return and log "enable screenshotMode"</div>
+    <div class="step main" data-n="3">Recursive walk → <code>RRWireframe</code> per visible view: id = <code>view.hash</code>, geometry, type (text, input, image, web_view…), style, text masked to <code>*</code>, unmasked images as base64</div>
+    <div class="step" data-n="4">Emit <code>$snapshot</code>: meta on first frame, then always a type-2 <b>full</b> snapshot; no diff, no dedupe (Android diffs by id into type-3 mutations)</div>
+    <div class="step" data-n="5">Disk replay queue, flushAt 20 / 30 s, gzip, <code>POST /s/</code>; browser converts wireframes to rrweb DOM at play time</div>
+  </div>
+  <div class="flow"><h4>Flutter: Sentry vs PostHog</h4>
+    <div class="step main" data-n="1">Both wrap the app in a <code>RepaintBoundary</code> and walk the <code>Element</code> tree synchronously in the same frame for mask rects</div>
+    <div class="step main" data-n="2"><code>RenderRepaintBoundary.toImage(pixelRatio: 1.0)</code>: logical points, ≈1.34 MiB RGBA per iPhone frame</div>
+    <div class="step bg" data-n="3">Sentry: paint masks in the widget's text colour, hand raw RGBA to native (malloc pointer on iOS, JNI into a reused Bitmap on Android); no dedupe</div>
+    <div class="step bg" data-n="4">PostHog: FNV-1a hash of every byte on the UI isolate (drop if unchanged), paint black masks, encode PNG, method channel → native decodes and re-encodes WebP</div>
+    <div class="step" data-n="5">Native SDK segments / batches and uploads. Who schedules: sentry-cocoa pulls on iOS, Dart pushes on Android; PostHog Dart <code>Timer</code> + post-frame callback</div>
+  </div>
+</div>
+
+<h2>4. Wire size per minute while the screen changes</h2>
+<div class="legend"><span><i class="sw" style="background:var(--s1)"></i> measured (real segments or fixtures)</span><span><i class="sw" style="background:var(--s2)"></i> derived from code constants</span><span><i class="sw" style="background:var(--s3)"></i> vendor docs</span></div>
+<div class="chart" id="wire">
+<svg viewBox="0 0 1100 592" role="img" aria-label="Horizontal bar chart of replay bytes per minute by vendor and mode, log scale, 10 to 10,000 KiB per minute">
+  <g class="axis">
+    <line class="grid" x1="330" y1="20" x2="330" y2="552"/><text x="330" y="572" text-anchor="middle">10</text>
+    <line class="grid" x1="520" y1="20" x2="520" y2="552"/><text x="520" y="572" text-anchor="middle">100</text>
+    <line class="grid" x1="710" y1="20" x2="710" y2="552"/><text x="710" y="572" text-anchor="middle">1,000</text>
+    <line class="grid" x1="900" y1="20" x2="900" y2="552"/><text x="900" y="572" text-anchor="middle">10,000</text>
+    <text x="615" y="589" text-anchor="middle">KiB per minute (log scale)</text>
+  </g>
+  <g id="bars"></g>
+</svg>
+<p class="note">Bars show the midpoint of a range where the source gives one; the label carries the range. Sentry iOS rows are from this repo's 77 captured segments (iPhone 18 Pro simulator, medium quality, 1 fps). A static screen costs far less for every vendor except OpenReplay (no dedupe) and Sentry (one I-frame per 5 s segment).</p>
+<div class="tablewrap"><table id="wiretable"><tr><th>Row</th><th>KiB/min</th><th>Range or basis</th><th>Provenance</th></tr></table></div>
+</div>
+
+<h2>5. Performance footprint: claims and how they were measured</h2>
+<div class="tablewrap"><table>
+<tr><th>Vendor</th><th>Claim</th><th>Method</th><th>Reproducible from the repo?</th></tr>
+<tr><td>Sentry iOS, V1 → V2 renderer</td><td>149 → 25 ms render per frame (iPhone 8); 9–10 dropped frames → ≈2</td><td>hand-added <code>DispatchTime</code> timing in the sample app, rolling 120 samples, manual</td><td class="no">No: timing code never committed; unit tests could not render</td></tr>
+<tr><td>Sentry iOS, replay on</td><td>FPS 55 → 53, memory +19 MB, CPU 4 → 13 %, ≈25 ms main thread per capture, 10 KB/s</td><td>Pocket Casts, iPhone 14 Pro, 10 runs, medians</td><td class="no">No harness</td></tr>
+<tr><td>Sentry iOS, CI</td><td>—</td><td><code>Benchmarking.yml</code> measured profiler CPU only, never replay</td><td class="no">Deleted 2026-08-06 (<code>d888cf5b</code>); only size analysis remains</td></tr>
+<tr><td>Sentry Android, replay on</td><td>FPS 55 → 54, memory +10 MB, CPU 36 → 42 %, 7 KB/s</td><td>Pocket Casts, Pixel 2 XL, 10 runs</td><td class="no">No harness</td></tr>
+<tr><td><b>Sentry Android, faster startup</b></td><td><code>SentryAndroid.init</code> 43.5 → 33.1 ms (−23.9 %), −3 MB heap</td><td>Jetpack Macrobenchmark: <code>StartupTimingMetric</code> + <code>TraceSectionMetric("SentryAndroid.init")</code>, cold start, <code>CompilationMode.Full</code>, 12 iterations, interleaved A/B, Pixel 3 locked clocks</td><td class="ok">Yes: <code>sentry-uitest-android-macrobenchmark</code> (not a CI gate); older CPU / frame benchmark deleted 2026-08-25</td></tr>
+<tr><td>Sentry RN</td><td>the native Pocket Casts tables, re-published</td><td>not an RN app</td><td class="no"><code>performance-tests/</code> (init only, no replay) deleted 2026-10-16</td></tr>
+<tr><td>Sentry Flutter</td><td>Open Food Facts: iPhone X CPU 30.0 → 31.9 %; Pixel Fold CPU 93 → 106 %, memory +19 MB</td><td>10 runs, <code>py-ios-device</code></td><td class="part">mobile metrics jobs removed; <code>microbenchmarks/</code> exist without results</td></tr>
+<tr><td>PostHog</td><td>none quantified</td><td>—</td><td class="no">one Robolectric mask-walk microbenchmark, "not a CI test"</td></tr>
+<tr><td>Luciq</td><td>cold launch +54 / +64 ms (iPhone 14 Pro / 12 Pro), +39 / +50 ms (S20 FE / Pixel 5A); main thread per screenshot ≈56–66 ms iOS, ≈2.5 ms Android; download +5.3 / +4.4 MB; RAM ≈7.3 / 28 MB; no CPU or battery figure; headline "10–40 ms" contradicts the table</td><td>devices and SDK versions named; no tool, run count, percentile or feature set; claims a CI launch gate (&gt; 10 % on a Pixel 6)</td><td class="no">closed</td></tr>
+<tr><td>Datadog</td><td>Android CPU 26.8 vs 25.2 %, TTID 243 vs 229 ms, APK +552 KB; replay janky frames 3.2 → 3.9–5.6 % (Views), 2.9 → 6.2–6.9 % (Compose), memory up to +55 MB</td><td>baseline vs instrumented app in Synthetics, CPU / RSS / FPS exported through the OTel metrics SDK</td><td class="ok">Yes: <code>BenchmarkTests/</code>, <code>tools/benchmark/</code></td></tr>
+<tr><td>Embrace iOS</td><td>launch 2.317 → 2.360 s (+1.9 %)</td><td><code>XCTApplicationLaunchMetric</code> with vs without, PR gate on BrowserStack, Welch t-test, 5 % threshold</td><td class="ok">Yes</td></tr>
+<tr><td>New Relic Android</td><td>cold start +110.8 ms (+8.1 %), memory +9.25 MB, janky frames +2.7 %, APK +385 KB</td><td>Now in Android app, 5 baseline vs 4 SDK runs, per-run tables in <code>performance.md</code></td><td class="ok">Data yes, small n</td></tr>
+<tr><td>Contentsquare</td><td>Android High: main-thread CPU &lt; 15 %, 15 MB, startup +7.3 ms (Pixel 9)</td><td>named devices, nightly tests</td><td class="no">No</td></tr>
+<tr><td>UXCam, LogRocket, Fullstory, Amplitude, Mixpanel, Quantum Metric, Medallia, LaunchDarkly</td><td>bare numbers, "unnoticeable", or commit messages</td><td>none stated</td><td class="no">No</td></tr>
+</table></div>
+<p class="note">No vendor gates replay overhead in CI. An ouo harness running a replay-on app against a replay-off app with per-run frame time, CPU, memory and bytes per minute would be unique in this field.</p>
+
+<h2>6. The two Sentry blogs, grounded in code</h2>
+<h3>iOS: view renderer V2</h3>
+<ul>
+<li><b>What was slow:</b> V1 created a <code>UIGraphicsImageRenderer</code> per frame and called <code>drawHierarchy</code>; ≈155 ms per frame on an iPhone 8 at 2× (<code>SentryDefaultViewRenderer.swift:8-13</code>, PR #4940).</li>
+<li><b>The fix:</b> a hand-made <code>CGContext</code> (<code>calloc</code> w×h×4, flipped CTM, <code>UIGraphicsPushContext</code>, <code>makeImage</code>, <code>free</code>) at screen scale, ≈80 % less main-thread time (<code>SentryGraphicsImageRenderer.swift:43-89</code>, <code>SentryViewRendererV2.swift:14-28</code>). The same flag selects a V2 mask renderer, which the blog does not mention.</li>
+<li><b>The rejected shortcut:</b> <code>layer.render(in:)</code> is faster still but drops tab-bar SF Symbols, so it is opt-in as <code>enableFastViewRendering</code>, default false.</li>
+<li><b>Versions:</b> experimental in 8.47.0 (the blog says 8.48.0), GA and default in 8.50.0 (the blog says 8.50.2, which fixed one init path).</li>
+<li><b>What came after:</b> the display-link cadence became a run-loop observer with backoff and animation deferral (#7851, 9.19.0: slow frames 4.1 → 1.4 %), and encoding reads frames from memory (#8636, 9.26.0).</li>
+</ul>
+<h3>Android: 20–30 % faster startup</h3>
+<div class="tablewrap"><table>
+<tr><th>What was slow</th><th>Fix</th><th>Commit</th></tr>
+<tr><td><code>PackageManager.getApplicationInfo(GET_META_DATA)</code> and Bundle unparcelling to read manifest options on main</td><td>the Gradle plugin generates a static <code>ManifestMetadataReader.manifestMetadata</code> map at build time; runtime skips the lookup (−6.5 %)</td><td><code>5dc72eec5</code> (#5976)</td></tr>
+<tr><td><code>Class.forName</code> probes for Fragment, Timber, Replay availability</td><td>build-time <code>LoadClass.classAvailability</code> map</td><td><code>1e904b2bb</code> (#5875)</td></tr>
+<tr><td><code>new URI(dsn).normalize()</code> ≈ 6 ms on main</td><td><code>indexOf</code> / <code>substring</code> parsing ≈ 1 µs</td><td><code>29f120b09</code> (#5448)</td></tr>
+<tr><td>a <code>java.util.Timer</code> thread per transaction plus permanent timers in <code>LifecycleWatcher</code> and <code>RateLimiter</code> (1 MB ART stack each)</td><td>one lazily started shared timer executor that idles out (−3 MB)</td><td><code>bcd3e76a8</code>, <code>023ef0038</code>, <code>c318acd31</code></td></tr>
+<tr><td>ten smaller items</td><td>deferred frame-metrics thread, less reflection, no executor prewarm, lazy dirs, batched scope writes, shake detector off main, lazy locks</td><td>appendix B §8</td></tr>
+</table></div>
+<p class="note">How they knew: a <code>Trace</code> section around <code>SentryAndroid.init</code> measured by <code>TraceSectionMetric</code> in the macrobenchmark, plus Perfetto traces documented in <code>develop-docs</code>. What still runs on main: the auto-init <code>ContentProvider</code> → <code>SentryAndroid.init</code> itself.</p>
+
+<h2>7. OpenTelemetry</h2>
+<div class="tablewrap"><table>
+<tr><th>Vendor</th><th>OTel SDK in process</th><th>OTLP to any collector</th><th>Session attribute</th><th>Propagation</th></tr>
+<tr><td>Sentry (all mobile SDKs)</td><td class="no">no</td><td class="no">no</td><td>Sentry session envelope</td><td><code>sentry-trace</code> + <code>baggage</code>; W3C opt-in</td></tr>
+<tr><td>PostHog (all)</td><td class="no">no</td><td class="part">logs only (OTLP/JSON to <code>/i/v1/logs</code>)</td><td><code>$session_id</code></td><td><code>X-POSTHOG-SESSION-ID</code></td></tr>
+<tr><td>Luciq</td><td class="no">no</td><td class="no">no</td><td>—</td><td>home-made <code>traceparent</code> (epoch seconds + 32 random bits), server-flag gated</td></tr>
+<tr><td>Embrace</td><td class="ok">yes</td><td class="ok">yes, app-registered exporters; export-only mode</td><td>iOS <code>session.id</code>; Android <code>emb.*</code></td><td><code>traceparent</code> off by default</td></tr>
+<tr><td>Datadog</td><td class="part">tracing API only</td><td class="no">no</td><td>RUM JSON <code>session.id</code></td><td><code>datadog</code> + <code>tracecontext</code></td></tr>
+<tr><td>opentelemetry-android / -swift, Honeycomb, Elastic, LaunchDarkly, Splunk</td><td class="ok">yes</td><td class="ok">yes</td><td><code>session.id</code>, <code>session.start/end</code></td><td>W3C</td></tr>
+<tr><td>Bugsnag Performance</td><td class="no">no (own tracer)</td><td class="ok">emits OTLP/HTTP JSON to an overridable endpoint</td><td><code>bugsnag.*</code></td><td>—</td></tr>
+<tr><td>New Relic, Dynatrace</td><td class="no">no</td><td class="part">backend ingests OTLP, agent proprietary</td><td>—</td><td>—</td></tr>
+<tr><td>UXCam, Smartlook, Fullstory, LogRocket, Amplitude, Mixpanel, Contentsquare, Clarity, OpenReplay, Firebase</td><td class="no">no</td><td class="no">no</td><td>—</td><td>—</td></tr>
+</table></div>
+<p class="note">Semantic conventions v1.44.0 (all <code>development</code>): <code>session.id</code>, <code>session.previous_id</code>, <code>session.start</code> / <code>session.end</code>, <code>app.screen.*</code>, <code>app.widget.*</code>, <code>app.jank.*</code>, <code>app.crash</code>, <code>device.app.lifecycle</code>. Nothing for app start spans, screen views or replay. Nobody ships replay over OTel.</p>
+
+<h2>8. Feature matrix</h2>
+<div class="tablewrap"><table>
+<tr><th>Feature</th><th>Sentry</th><th>PostHog</th><th>Luciq</th><th>Datadog</th><th>Embrace</th><th>OpenReplay</th></tr>
+<tr><td>Mobile crash reporting</td><td class="ok">yes</td><td class="part">partial (opt-in, no ANR)</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">partial</td></tr>
+<tr><td>Mobile performance monitoring</td><td class="ok">yes</td><td class="part">partial (network in replay only)</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">partial</td></tr>
+<tr><td>Session replay</td><td class="ok">screenshot video</td><td class="ok">wireframe / screenshot</td><td class="ok">WebP screenshots per screen change</td><td class="ok">wireframe</td><td class="no">no</td><td class="ok">JPEG frames</td></tr>
+<tr><td>User interaction timeline</td><td class="ok">yes</td><td class="part">partial (autocapture off by default)</td><td class="ok">user steps</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>Replay linked to issues</td><td class="ok">yes (replay id on errors, buffer flush on error, crash replay on next launch)</td><td class="ok">yes (shared session id)</td><td class="ok">yes</td><td class="ok">yes</td><td class="no">no</td><td class="part">partial</td></tr>
+<tr><td>Journey / funnel analysis</td><td class="no">no</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">two-point flows</td><td class="part">web only</td></tr>
+<tr><td>In-app bug reporting / feedback</td><td class="ok">yes (widget, shake, 30 s replay)</td><td class="part">surveys</td><td class="ok">core product</td><td class="no">no</td><td class="no">no</td><td class="no">no</td></tr>
+<tr><td>OTel export</td><td class="no">no</td><td class="part">logs only</td><td class="no">no</td><td class="part">API only</td><td class="ok">yes</td><td class="no">no</td></tr>
+<tr><td>Open-source SDK</td><td class="ok">MIT</td><td class="ok">MIT</td><td class="part">wrappers</td><td class="ok">Apache-2.0</td><td class="ok">Apache-2.0</td><td class="part">mixed</td></tr>
+</table></div>
+<p class="note">The full 24-vendor matrix with per-cell footnotes, the six-target language matrix and the are in appendix H §6 and comparison.md §9–10.</p>
+
+<h2>9. What ouo should build</h2>
+<ul>
+<li><b>Keep screenshot capture with on-device masking.</b> Every vendor falls back to it for SwiftUI, Compose, RN and Flutter. Wireframes can be an optional later track for UIKit/View apps (New Relic's open captors are the reference).</li>
+<li><b>Replace JPEG frames with a diffed representation before Android.</b> Sentry's H.264 segments (≈110 KiB/min masked, needs a video player plus rrweb overlay) or LaunchDarkly's 64-px tile diff emitted as rrweb <code>&lt;img&gt;</code> mutations (zero bytes when static, plays in the rrweb player we ship). Prototype tiles first; keep <code>kind: "video"</code> for Sentry-sourced replays. Needs an ADR revision.</li>
+<li><b>Change-driven cadence with a budget:</b> layout/draw dirty flag → at most one capture per second → Sentry's backoff when a capture costs ≥ 150 ms → Datadog's 100 ms-per-second time bank → report skipped frames.</li>
+<li><b>Rendering:</b> copy V2 on iOS (<code>drawHierarchy</code> into a raw <code>CGContext</code>, downscale off main); <code>PixelCopy</code> into RGB_565 at dp resolution with <code>RootViewsSpy</code> on Android.</li>
+<li><b>Masking fails closed:</b> drop the frame when mask geometry moved between two samples, during transitions, or when the masked render fails; mask whole subtrees when a tree read throws; keep RN class lists for both architectures.</li>
+<li><b>Crash durability:</b> frames on disk, async-signal-safe metadata from the crash handler, finish the last chunk on the next launch; a separate disk budget for replay.</li>
+<li><b>React Native:</b> thin native module, container-view masks with <code>collapsable={false}</code>, never cache session or replay ids in JS without a native→JS rotation event, compress natively (Hermes has no <code>CompressionStream</code>).</li>
+<li><b>Flutter:</b> Dart-side capture at 1× logical pixels, synchronous mask walk, hash a downsampled copy, skip the walk when unchanged, hand one buffer to native without a PNG round trip.</li>
+<li><b>OTel is the differentiator:</b> build on opentelemetry-android and opentelemetry-swift, use the semconv session attributes and events, emit taps and screen views as log events; nobody else exports RUM plus replay to the user's own collector.</li>
+<li><b>Borrow from Luciq:</b> a navigation-only capture mode with a per-session byte budget for low-end devices, human-readable user steps as OTel log events with a content kill switch, and a next-launch keep/drop hook that sees the previous session's summary (client-side tail sampling).</li>
+<li><b>Fill the gaps everyone leaves:</b> ANR, app start with a kernel process-start origin, 700 ms frozen frames, TTID/TTFD, then a basic screen-sequence funnel in Grafana, which already beats Sentry.</li>
+<li><b>Measure and publish:</b> replay-on vs replay-off builds, per-run data in the repo, a trace section around init; no vendor gates replay overhead in CI today.</li>
+</ul>
+
+<h2>10. Sources and provenance</h2>
+<p class="src">Repos read at these commits: sentry-cocoa 9.32.0 <code>4e1e4ba9</code>; sentry-java <code>bdfdc765</code> (8.62.0+16); sentry-react-native 8.33.0 <code>87468d75</code>; sentry-dart 10.2.0 <code>0cae2754</code>; posthog-ios 3.92.7 <code>2b6b6b43</code>; posthog-android 3.73.1 <code>d91b3bc7</code>; posthog-js (RN) 4.84.3 <code>a3e9ec3d</code>; posthog-flutter 5.58.0 <code>0b420739</code>; posthog <code>ea413ff3</code>; sentry (FSL frontend) <code>ea830614</code>; plus Embrace, Datadog, OpenReplay, Clarity, LaunchDarkly, opentelemetry-android / -swift, semantic-conventions, Honeycomb, Splunk, Elastic, Faro, Bugsnag, Firebase, New Relic, Mixpanel, Amplitude, UXCam, Fullstory, LogRocket wrappers (commits in appendices G and H). Luciq from docs.luciq.ai, the Instabug-React-Native and Instabug-Flutter wrappers and binary public headers. Measured wire sizes from <code>collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/</code>. The orchestrator spot-checked the key constants (bitrates, keyframe interval, PostHog defaults, RN mask list, Flutter capture path, LaunchDarkly tiles, the Android startup commits) against the clones before writing this report.</p>
+</main>
+<script>
+(function(){
+  // KiB per minute while the screen changes. p: m = measured, d = derived from code, v = vendor docs.
+  var rows=[
+    {n:"Sentry iOS, masked (default)",v:110,r:"measured on 77 real segments; 108–110 across runs",p:"m"},
+    {n:"Sentry iOS, unmasked",v:362,r:"measured; 361–365 across runs",p:"m"},
+    {n:"Sentry iOS, bitrate target (medium)",v:293,r:"40 kbit/s target; low 146, high 439",p:"d"},
+    {n:"Sentry iOS, vendor claim",v:586,r:"\"10 KB/s\"",p:"v"},
+    {n:"Sentry Android, medium cap",v:560,r:"75 kbit/s VBR cap; low ≤375, high ≤750",p:"d"},
+    {n:"Sentry Android, vendor claim",v:420,r:"\"7 KB/s\"",p:"v"},
+    {n:"PostHog iOS, wireframe (gzip)",v:12,r:"60 full trees of a 50-view screen, gzip over a 20-snapshot batch",p:"m"},
+    {n:"PostHog Android, wireframe (gzip)",v:3,r:"incremental mutations; \"a few KB\"",p:"m"},
+    {n:"PostHog screenshot, typical",v:500,r:"10–20 changed frames × 15–40 KB WebP; 1,200–1,600 at 60 changes",p:"d"},
+    {n:"Datadog, vendor claim (iOS)",v:720,r:"\"≈12 KB/s\" iOS; Android ≈73",p:"v"},
+    {n:"Luciq, 1 fps Frequency mode (Normal)",v:600,r:"≈10 KB per WebP frame derived from \"1 MB ≈ 104 screenshots\"; stops at the 1 MB budget after ~100 s; Navigation mode ≈200–400 KB per session",p:"v"},
+    {n:"OpenReplay, 1 fps",v:1650,r:"900–2,400; no codec, no dedupe",p:"d"},
+    {n:"UXCam, vendor range (iOS)",v:145,r:"10–280 by quality; Android 30–400",p:"v"},
+    {n:"Contentsquare, Android High",v:838,r:"≤838 / 545 / 369 KB/min High / Medium / Low",p:"v"},
+    {n:"LogRocket, vendor claim",v:900,r:"\"around 15 KB a second\"",p:"v"},
+    {n:"Fullstory, vendor claim",v:30,r:"\"tens of kilobytes per minute\"",p:"v"},
+    {n:"ouo today (ADR-0006 JPEG frames), nominal",v:1800,r:"ADR-0006 bound, 1,200–2,400 at one changed frame per second; measured at matched quality ≈2× Sentry (N50)",p:"d"}
+  ];
+  var g=document.getElementById('bars'), t=document.getElementById('wiretable');
+  var x0=330, x1=900, lmin=1, lmax=4; // log10 10 .. 10000
+  function X(v){return x0+(Math.log10(v)-lmin)/(lmax-lmin)*(x1-x0);}
+  var top=22, h=24, gap=7;
+  var pn={m:"measured",d:"derived from code",v:"vendor docs"};
+  rows.forEach(function(r,i){
+    var y=top+i*(h+gap);
+    var bar=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bar.setAttribute('class','bar '+r.p); bar.setAttribute('x',x0); bar.setAttribute('y',y);
+    bar.setAttribute('width',Math.max(2,X(r.v)-x0)); bar.setAttribute('height',h);
+    var ti=document.createElementNS('http://www.w3.org/2000/svg','title');
+    ti.textContent=r.n+': '+r.v.toLocaleString()+' KiB/min ('+pn[r.p]+'). '+r.r; bar.appendChild(ti);
+    g.appendChild(bar);
+    var c=document.createElementNS('http://www.w3.org/2000/svg','text');
+    c.setAttribute('class','cat'); c.setAttribute('x',x0-8); c.setAttribute('y',y+h/2+4); c.setAttribute('text-anchor','end'); c.textContent=r.n; g.appendChild(c);
+    var l=document.createElementNS('http://www.w3.org/2000/svg','text');
+    l.setAttribute('class','lbl'); l.setAttribute('x',Math.max(X(r.v),x0)+6); l.setAttribute('y',y+h/2+4); l.textContent=r.v.toLocaleString(); g.appendChild(l);
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+r.n+'</td><td>'+r.v.toLocaleString()+'</td><td>'+r.r+'</td><td>'+pn[r.p]+'</td>';
+    t.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>

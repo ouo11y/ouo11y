@@ -130,3 +130,9 @@ channel: [release-packaging.md](release-packaging.md).
   rounded up to a whole minute. `ci.yml` now has a `changes` job (PR file list through
   `gh api .../pulls/<n>/files`, no third-party action) and per-job `if:`; the image matrix is
   built from the list of images whose paths changed (`fromJSON`).
+
+## Merging by a session on a free private repository (ADR-0013, 2026-10-29)
+
+- A **private repository on the free plan** has no branch protection, rulesets, required checks, auto-merge or merge queue (`403 Upgrade to GitHub Pro`), so `gh pr merge --auto` is unavailable; `.github/scripts/merge-agreed.sh` checks the two review comments and the check runs itself.
+- **An empty check list is not green**: the check-runs API returns nothing for a commit whose workflows never started (a PR opened with `GITHUB_TOKEN`); the script refuses in that case.
+- `gh pr merge --squash` uses the **single commit's message** as the subject when the PR has one commit, which breaks conventional-commit titles for release-please: always pass `--subject "$title"`; `--match-head-commit` aborts the merge when someone pushed in between.

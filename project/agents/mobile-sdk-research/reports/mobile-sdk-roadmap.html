@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile SDK roadmap recommendation</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fcfcfb; --surface:#ffffff; --surface-2:#f3f2ef; --border:#dcdad4;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7873;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8d5bd6; --s5:#b8690a;
+  --good:#1b7f3a; --warn:#b8690a; --bad:#c23a3a;
+  --l0:#ecebe7; --l1:#fde3d6; --l2:#efe9c9; --l3:#d6f3e8;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+    --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+    --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+  --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+  --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:22px;margin:40px 0 12px;padding-top:8px;border-top:1px solid var(--border)}
+h3{font-size:17px;margin:22px 0 8px}
+p{margin:8px 0}
+.sub{color:var(--text-2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.card b{display:block;margin-bottom:4px}
+.card .k{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0 4px;background:var(--surface)}
+th,td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--surface-2);font-weight:600}
+.tablewrap{overflow-x:auto}
+.l0{background:var(--l0);color:var(--muted)} .l1{background:var(--l1)} .l2{background:var(--l2)} .l3{background:var(--l3)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--border);display:inline-block}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--surface-2);padding:1px 4px;border-radius:3px}
+.chart{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 6px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--text);font-size:12px}
+.chart .lane{fill:var(--text-2);font-size:12px;font-weight:600}
+.chart .grid{stroke:var(--border);stroke-width:1}
+.chart .ms{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3}
+.chart .mslbl{fill:var(--muted);font-size:11px}
+.chart .wp{rx:4}
+.chart .wp.a{fill:var(--s1)} .chart .wp.b{fill:var(--s2)} .chart .wp.c{fill:var(--s3)} .chart .wp.d{fill:var(--s4)} .chart .wp.e{fill:var(--s5)}
+.chart .wp:hover{opacity:.8}
+.chart .wl{fill:#fff;font-size:11.5px;font-weight:600;pointer-events:none}
+.chart .gap{fill:var(--surface-2)}
+.note{font-size:12.5px;color:var(--text-2)}
+.ok{color:var(--good);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+ul,ol{margin:6px 0 6px 22px} li{margin:3px 0}
+a{color:var(--s1)}
+.vg{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.vg svg{width:100%;height:auto;display:block}
+.vg text{fill:var(--text);font-size:12px}
+.vg .ax{fill:var(--text-2);font-size:11.5px}
+.vg .q{fill:var(--surface-2);stroke:var(--border)}
+.vg .dot{stroke:var(--surface);stroke-width:2}
+.vg .dot.a{fill:var(--s1)} .vg .dot.b{fill:var(--s2)} .vg .dot.c{fill:var(--s3)} .vg .dot.d{fill:var(--s4)} .vg .dot.e{fill:var(--s5)} .vg .dot.x{fill:var(--muted)}
+.vg .dl{font-size:11.5px}
+</style>
+</head>
+<body>
+<main>
+<h1>Mobile SDK roadmap recommendation</h1>
+<p class="sub">What ouo should build from the mobile SDK research, in which order, how much in parallel, and when each piece is done. Companion to <code>project/kb/mobile-sdk-research/roadmap.md</code> (the full argument) and <code>comparison.md</code> §12 (the thirteen recommendations it ranks). 2026-10-29.</p>
+
+<div class="cards">
+  <div class="card"><span class="k">Technique</span><b>Screenshots, masked on device</b>Sentry's capture, OpenTelemetry's data model, Datadog's time budget. Not wireframes, not Sentry's protocol.</div>
+  <div class="card"><span class="k">Representation</span><b>Tiles inside our own <code>frames</code> chunk</b>Patches against the previous frame, keyframe every 6 s and on screen change. Not rrweb <code>&lt;img&gt;</code> mutations, not H.264 (that stays the <code>video</code> kind for Sentry-sourced replays).</div>
+  <div class="card"><span class="k">First package</span><b>W1: production-safe iOS capture</b>45 ms per capture on the main thread today against Sentry's 22 ms. Nothing else is measurable until this lands.</div>
+  <div class="card"><span class="k">Left unscheduled by §12</span><b>Native crash symbolication</b>Addresses and binary images are not a crash report. Main lists it as unscheduled; W7 schedules dSYM and R8 upload plus symbolication in rum-api. Hermes maps stay N41 (ADR-0011 §6).</div>
+  <div class="card"><span class="k">Parallelism</span><b>Three lanes, four with Android tooling</b>Swift capture, React Native transport, spec + rum-api + plugin; Android once a JDK, the SDK and an emulator exist.</div>
+  <div class="card"><span class="k">Maturity</span><b>React Native iOS to L3 first</b>One platform conformant and benchmarked before the next starts; Android may begin its port after W1 and the spec, Flutter after both native halves.</div>
+</div>
+
+<h2>1. Lanes and milestones</h2>
+<p class="note">Widths are the upper bound of each package's cost range in focused agent-days (orchestrator estimates, §3 of the roadmap; the scatter below uses the midpoint); the calendar is not a date promise. Packages in one lane are sequential; packages in different lanes run at the same time. W3 spans three lanes and merges as three PRs in the order schema and player, Swift tiles, React Native gzip and offline.</p>
+<div class="chart">
+<svg viewBox="0 0 1120 330" role="img" aria-label="Five lanes with work packages W1 to W10 and milestones M1 to M6">
+  <!-- grid columns: 1 unit = 1 agent-day, 0..75 days, x = 120 + d*13 -->
+  <g class="grid">
+    <line x1="120" y1="20" x2="120" y2="300"/>
+    <line x1="120" y1="300" x2="1100" y2="300"/>
+  </g>
+  <!-- milestones -->
+  <g class="ms">
+    <line x1="250" y1="20" x2="250" y2="300"/>
+    <line x1="484" y1="20" x2="484" y2="300"/>
+    <line x1="640" y1="20" x2="640" y2="300"/>
+    <line x1="835" y1="20" x2="835" y2="300"/>
+    <line x1="1100" y1="20" x2="1100" y2="300"/>
+  </g>
+  <g class="mslbl">
+    <text x="254" y="16">M1 capture safe, spec exists</text>
+    <text x="488" y="16">M2 bytes, offline, crashes</text>
+    <text x="644" y="16">M3 RN iOS L3</text>
+    <text x="839" y="16">M4 native iOS</text>
+    <text x="1040" y="16">M5, M6</text>
+  </g>
+  <!-- lane labels -->
+  <g class="lane">
+    <text x="10" y="58">A Swift capture</text>
+    <text x="10" y="113">B RN transport</text>
+    <text x="10" y="168">C spec, API, plugin</text>
+    <text x="10" y="223">D Android</text>
+    <text x="10" y="278">E Flutter</text>
+  </g>
+  <!-- Lane A: y 36..70 -->
+  <rect class="wp a" x="122" y="36" width="126" height="34"/><text class="wl" x="130" y="58">W1 capture (10 d)</text>
+  <rect class="wp a" x="252" y="36" width="78" height="34"/><text class="wl" x="258" y="58">W3 tiles</text>
+  <rect class="wp a" x="334" y="36" width="104" height="34"/><text class="wl" x="340" y="58">W4 hangs, OOM</text>
+  <rect class="wp a" x="642" y="36" width="191" height="34"/><text class="wl" x="650" y="58">W8 native iOS package (15 d)</text>
+  <!-- Lane B: y 91..125 -->
+  <rect class="wp b" x="252" y="91" width="104" height="34"/><text class="wl" x="258" y="113">W3 gzip+offline</text>
+  <rect class="wp b" x="360" y="91" width="78" height="34"/><text class="wl" x="366" y="113">W4 err ctx</text>
+  <rect class="wp b" x="442" y="91" width="91" height="34"/><text class="wl" x="448" y="113">W5 funnels</text>
+  <rect class="wp b" x="537" y="91" width="100" height="34"/><text class="wl" x="543" y="113">W6 feedback</text>
+  <!-- Lane C: y 146..180 -->
+  <rect class="wp c" x="122" y="146" width="126" height="34"/><text class="wl" x="130" y="168">W2 spec + checks</text>
+  <rect class="wp c" x="252" y="146" width="78" height="34"/><text class="wl" x="258" y="168">W3 schema</text>
+  <rect class="wp c" x="334" y="146" width="148" height="34"/><text class="wl" x="340" y="168">W7 symbolication</text>
+  <rect class="wp c" x="486" y="146" width="151" height="34"/><text class="wl" x="492" y="168">CI + plugin views</text>
+  <!-- Lane D: y 201..235 -->
+  <rect class="gap" x="334" y="201" width="100" height="34" rx="4"/><text x="344" y="223" class="mslbl">tooling</text>
+  <rect class="wp d" x="438" y="201" width="395" height="34"/><text class="wl" x="446" y="223">W9 Android (20 d): otel-android, PixelCopy, Compose, R8</text>
+  <!-- Lane E: y 256..290 -->
+  <rect class="wp e" x="837" y="256" width="260" height="34"/><text class="wl" x="845" y="278">W10 Flutter (12 d): Dart capture</text>
+  <!-- axis -->
+  <g class="mslbl">
+    <text x="120" y="316">0</text><text x="380" y="316">20 d</text><text x="640" y="316">40 d</text><text x="900" y="316">60 d</text><text x="1075" y="316">75 d</text>
+  </g>
+</svg>
+</div>
+<p class="note">Lane D starts at the earliest point allowed (after W1 and W2, with tooling in place). On the Mac that exists today it has no toolchain, so without a second machine W9 slides to after W8 and M5 moves right by about three weeks. The founder's 2026-10-23 gate (web SDK, then the bridge) comes before day 0 of this chart; only W2, the ADRs and the shared record names can start before it.</p>
+
+<h2>2. The ordered work list</h2>
+<div class="tablewrap">
+<table>
+<tr><th>#</th><th>Package</th><th>Value</th><th>Cost</th><th>Depends on</th><th>Lane</th><th>Exit criterion</th></tr>
+<tr><td>W1</td><td>Production-safe iOS capture: render 1:1 and downscale off main, run-loop observer with animation deferral, no touch captures, one in flight, 150 ms backoff, time bank, fail-closed masking, navigation-only mode, device tiers, crash-time chunk id, session start in the crash report (N51, N52)</td><td>very high</td><td>M, 8–10 d</td><td>nothing</td><td>A</td><td>≤ 25 ms main thread per capture on the iPhone 16 Pro Max (Sentry 22); moved mask drops the frame; a crash mid-chunk finishes next launch; B3 T3/T4 CPU delta ≤ Sentry's</td></tr>
+<tr><td>W2</td><td>Mobile SDK spec and conformance suite: twelve capabilities C1–C12, golden mobile session asserted in rum-api by the e2e scenario, maturity ladder L0–L3 printed by the e2e scenario</td><td>very high</td><td>S–M, 4–6 d</td><td>nothing</td><td>C</td><td>spec merged; e2e runs every check for RN iOS and prints the matrix without failing on packages not landed; later packages make their checks required</td></tr>
+<tr><td>W3</td><td>Wire and durability: tiles in <code>frames</code> schema 2 (ADR-0014), canvas player, gzip OTLP (N48), offline store for batches and chunks (N49), next-launch keep/drop hook</td><td>very high</td><td>M, 8–10 d</td><td>W1, ADR-0014</td><td>A + B + C</td><td>≤ 150 KiB/min at T3, masking on (Sentry ≈ 110), ≤ 450 at T4, masking off (Sentry ≈ 362); static screen sends zero image bytes; offline run loses nothing</td></tr>
+<tr><td>W4</td><td>Signals parity with Sentry: hang watchdog (2 s), TTFD, OOM and watchdog terminations via MetricKit, error context (last 20 events, screen, locale, memory, network), <code>session.previous_id</code></td><td>high</td><td>M, 6–8 d</td><td>W2</td><td>A + B</td><td>3 s block → one hang event; TTFD on first screen; simulated OOM shows as a termination; every error carries context</td></tr>
+<tr><td>W5</td><td>Funnels and user steps on mobile: screen names into <code>url.path</code> verified, human-readable steps as <code>app.screen.click</code> logs with a content kill switch, a mobile quickstart with a known funnel answer</td><td>high</td><td>S, 3–4 d</td><td>W2</td><td>B + C</td><td>quickstart funnel equals the generator's counts; three taps show as readable steps</td></tr>
+<tr><td>W6</td><td>Feedback primitive: <code>rum.feedback()</code> as a <code>feedback</code> log with last events and an optional masked frame; plugin list beside the replay; shared record with the bridge's Sentry feedback mapping</td><td>medium–high</td><td>S, 3–4 d</td><td>W2</td><td>B + C</td><td>a feedback from the demo app appears beside its replay</td></tr>
+<tr><td>W7</td><td>Native crash symbolication: dSYM upload through <code>ouo-sourcemaps</code>, build-UUID release index, symbolication in rum-api; R8 with W9; Hermes maps stay N41</td><td>very high</td><td>M, 6–8 d</td><td>ADR-0011 rev</td><td>C</td><td>a native crash shows function names and lines in the plugin</td></tr>
+<tr><td>W8</td><td>Native iOS package: Swift session manager, <code>URLSession</code> hook with W3C propagation, OTLP/JSON exporter (no opentelemetry-swift), lifecycle, taps, screens, SwiftUI <code>.ouoMask()</code>, <code>@objc</code> surface, <code>PrivacyInfo.xcprivacy</code>, UIKit + SwiftUI example</td><td>high</td><td>L, 12–15 d</td><td>W1, W2, W4</td><td>A</td><td>example passes C1–C9, C11; ObjC smoke target compiles; privacy manifest present; B3 cells</td></tr>
+<tr><td>W9</td><td>Android, React Native first: opentelemetry-android base, PixelCopy RGB_565 capture with a draw-listener dirty flag and window discovery, per-line text masks, Compose modifiers, same schema 2, Expo module Android side, R8 symbolication, B3 Android cells</td><td>very high once a customer needs Android, zero before</td><td>L, 15–20 d</td><td>W1 design, W2, W3 schema, tooling</td><td>D</td><td>RN Android example passes C1–C9, C11; B3 Android cells; Compose masking verified; R8 symbolication</td></tr>
+<tr><td>W10</td><td>Flutter: Dart capture at 1× with a synchronous Element walk for masks, downsampled hash, raw RGBA to native; native halves chunk, upload, crash, vitals</td><td>medium</td><td>L, 10–12 d</td><td>W8, W9</td><td>E</td><td>Flutter example passes C1–C8; masking verified on the Dart side</td></tr>
+<tr><td>later</td><td>Wireframe track for UIKit / View apps; profiling; feedback widget UI; release-health comparisons; device H.264 encoder; paths view</td><td>low now</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+</div>
+
+<h2>3. Value against cost</h2>
+<p class="note">Position is the orchestrator's judgement: value to a customer on the day it lands against the cost estimate above. Top-left is first. Grey items are deferred on purpose.</p>
+<div class="vg">
+<svg viewBox="0 0 1120 420" role="img" aria-label="Value against cost scatter of the work packages">
+  <rect class="q" x="90" y="20" width="490" height="180"/>
+  <rect class="q" x="580" y="20" width="490" height="180"/>
+  <rect class="q" x="90" y="200" width="490" height="180"/>
+  <rect class="q" x="580" y="200" width="490" height="180"/>
+  <text class="ax" x="100" y="38">high value, low cost: do first</text>
+  <text class="ax" x="590" y="38">high value, high cost: plan and sequence</text>
+  <text class="ax" x="100" y="372">low value now, low cost: fold into a package</text>
+  <text class="ax" x="590" y="372">low value now, high cost: later</text>
+  <text class="ax" x="90" y="402">cost in agent-days →</text>
+  <text class="ax" x="20" y="212" transform="rotate(-90 20 212)">value →</text>
+  <!-- x = 90 + days*40 (0..24), y = 380 - value*36 (value 0..10) -->
+  <circle class="dot c" cx="290" cy="56" r="9"/><text class="dl" x="304" y="60">W2 spec + conformance (5 d)</text>
+  <circle class="dot a" cx="450" cy="40" r="9"/><text class="dl" x="464" y="44">W1 iOS capture (9 d)</text>
+  <circle class="dot a" cx="450" cy="78" r="9"/><text class="dl" x="464" y="82">W3 wire + offline (9 d)</text>
+  <circle class="dot c" cx="370" cy="100" r="9"/><text class="dl" x="384" y="104">W7 symbolication (7 d)</text>
+  <circle class="dot b" cx="230" cy="128" r="9"/><text class="dl" x="244" y="132">W5 funnels + steps (3.5 d)</text>
+  <circle class="dot a" cx="370" cy="152" r="9"/><text class="dl" x="384" y="156">W4 signals parity (7 d)</text>
+  <circle class="dot b" cx="230" cy="186" r="9"/><text class="dl" x="244" y="190">W6 feedback primitive (3.5 d)</text>
+  <circle class="dot d" cx="790" cy="120" r="9"/><text class="dl" x="804" y="124">W9 Android (17.5 d)</text>
+  <circle class="dot a" cx="630" cy="160" r="9"/><text class="dl" x="644" y="164">W8 native iOS (13.5 d)</text>
+  <circle class="dot e" cx="530" cy="236" r="9"/><text class="dl" x="544" y="240">W10 Flutter (11 d)</text>
+  <circle class="dot x" cx="690" cy="290" r="9"/><text class="dl" x="704" y="294">profiling</text>
+  <circle class="dot x" cx="790" cy="326" r="9"/><text class="dl" x="804" y="330">wireframe track</text>
+  <circle class="dot x" cx="530" cy="316" r="9"/><text class="dl" x="544" y="320">feedback widget UI</text>
+</svg>
+</div>
+
+<h2>4. Datadog or Sentry?</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Part</th><th>Datadog</th><th>Sentry</th><th>ouo</th></tr>
+<tr><td>Replay capture</td><td>wireframe; screenshots for SwiftUI and Compose</td><td>screenshots masked on device, H.264 segments</td><td><span class="ok">Sentry's technique</span>, tiles in frames as the representation</td></tr>
+<tr><td>Scheduling</td><td>100 ms of capture work per second</td><td>run-loop observer, animation deferral, 150 ms backoff</td><td><span class="ok">both</span></td></tr>
+<tr><td>Modes</td><td>session sampling</td><td>session and buffer (last 30 s on error)</td><td><span class="ok">Sentry's buffer mode</span> plus Luciq's navigation-only mode</td></tr>
+<tr><td>Data model</td><td>RUM JSON views / actions / resources; OTel API only</td><td>envelopes, breadcrumbs, transactions</td><td><span class="ok">neither: OpenTelemetry semconv over OTLP</span>; Datadog's naming is the closer reference</td></tr>
+<tr><td>Crash and vitals breadth</td><td>KSCrash, 5 s watchdog, TTID / TTFD, 700 ms frozen</td><td>SentryCrash, 2 s hangs, prewarm-aware start, profiling</td><td><span class="ok">Sentry's list</span> minus profiling</td></tr>
+<tr><td>Error context</td><td>attributes on the view</td><td>breadcrumbs on the event</td><td><span class="ok">Sentry's</span>: last events on the error</td></tr>
+<tr><td>Transport</td><td>own intake, disk persistence</td><td>envelopes, gzip, 30-envelope offline cap</td><td>OTLP/HTTP gzip with an offline store, as the browser SDK does</td></tr>
+</table>
+</div>
+
+<h2>5. Spec first: maturity ladder and target matrix</h2>
+<div class="legend">
+  <span><i class="sw l0"></i>L0 not available</span>
+  <span><i class="sw l1"></i>L1 basic, gaps listed</span>
+  <span><i class="sw l2"></i>L2 conformant in CI</span>
+  <span><i class="sw l3"></i>L3 conformant and benchmarked</span>
+</div>
+<h3>Today</h3>
+<div class="tablewrap">
+<table>
+<tr><th>Capability</th><th>RN iOS</th><th>Native iOS</th><th>RN Android</th><th>Native Android</th><th>Flutter</th></tr>
+<tr><td>C1 sessions</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C2 errors, crashes</td><td class="l1">L1 (addresses only)</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C3 hangs, terminations</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C4 vitals</td><td class="l1">L1</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C5 network</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C6 interactions</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C7 screens, funnels</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C8 replay</td><td class="l1">L1 (45 ms, 2× bytes)</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C9 span, log API</td><td class="l1">L1</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C10 feedback</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C11 delivery</td><td class="l0">L0 (no offline, no gzip)</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+<tr><td>C12 cost</td><td class="l1">L1 (harness, no gate)</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0</td></tr>
+</table>
+</div>
+<h3>Target after W10</h3>
+<div class="tablewrap">
+<table>
+<tr><th>Capability</th><th>RN iOS</th><th>Native iOS</th><th>RN Android</th><th>Native Android</th><th>Flutter</th></tr>
+<tr><td>C1–C7, C9, C11, C12</td><td class="l3">L3</td><td class="l3">L3</td><td class="l3">L3</td><td class="l2">L2</td><td class="l2">L2</td></tr>
+<tr><td>C8 replay</td><td class="l3">L3</td><td class="l3">L3</td><td class="l3">L3</td><td class="l2">L2</td><td class="l2">L2</td></tr>
+<tr><td>C10 feedback</td><td class="l2">L2</td><td class="l2">L2</td><td class="l2">L2</td><td class="l1">L1</td><td class="l1">L1</td></tr>
+</table>
+</div>
+<p class="note">Objective-C and Java are API surfaces of the native packages (every vendor does it this way, comparison §10): one conformance run per package plus a smoke app per language.</p>
+
+<h2>6. Competitive after W10, and what is still missing</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Feature</th><th>Sentry</th><th>PostHog</th><th>Luciq</th><th>ouo after W10</th></tr>
+<tr><td>Mobile crash reporting</td><td class="ok">yes</td><td class="part">partial</td><td class="ok">yes</td><td class="ok">yes, symbolicated, OOM and watchdog</td></tr>
+<tr><td>Mobile performance monitoring</td><td class="ok">yes</td><td class="part">partial</td><td class="ok">yes</td><td><span class="ok">yes</span>, no profiling</td></tr>
+<tr><td>Session replay</td><td class="ok">video</td><td class="ok">wireframe / screenshot</td><td class="ok">WebP stills</td><td class="ok">tiles in frames, three modes</td></tr>
+<tr><td>User interaction timeline</td><td class="ok">yes</td><td class="part">partial</td><td class="ok">yes</td><td class="ok">yes, readable steps</td></tr>
+<tr><td>Replay linked to issues</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>Journey / funnel analysis</td><td class="no">no</td><td class="ok">yes</td><td class="ok">yes</td><td><span class="ok">funnels</span>, paths later</td></tr>
+<tr><td>In-app feedback</td><td class="ok">widget</td><td class="part">surveys</td><td class="ok">core product</td><td class="part">primitive, widget later</td></tr>
+<tr><td>OTel export to the customer's collector</td><td class="no">no</td><td class="part">logs only</td><td class="no">no</td><td class="ok">everything</td></tr>
+<tr><td>Public device-cost method</td><td class="part">blog numbers</td><td class="no">none</td><td class="part">numbers, no method</td><td class="ok">B3, reproducible</td></tr>
+</table>
+</div>
+<h3>Still missing after W10, in the order a customer notices</h3>
+<ol>
+<li>Profiling (Pyroscope in LGTM is the opening).</li>
+<li>Release-health comparisons and regression alerts across versions (Phase 9).</li>
+<li>Feedback widget UI: shake, annotation, ticket integrations.</li>
+<li>Paths / journey view (PostHog's paths) over the funnel query shape.</li>
+<li>Issue grouping and ownership (fingerprints, assignment, resolve / regress). What rum-api groups today was not verified in this research.</li>
+<li>Wireframe capture for UIKit / View apps that need text-searchable replays.</li>
+<li>Network body and header capture, GraphQL operation names, WebView bridging.</li>
+<li>Native Android and Flutter at L3.</li>
+<li>Platforms outside the six: tvOS, macOS, watchOS, Unity, .NET MAUI, Kotlin Multiplatform, Capacitor.</li>
+<li>Privacy and compliance surface: per-capability data inventory, user-level delete, SOC 2 evidence.</li>
+</ol>
+
+<h2>7. Decisions needed</h2>
+<div class="tablewrap">
+<table>
+<tr><th>ADR</th><th>Decision</th><th>Blocks</th></tr>
+<tr><td>ADR-0014</td><td>Tiles in <code>frames</code> schema 2; <code>video</code> stays for Sentry-sourced replays; no rrweb container for raster</td><td>W3</td></tr>
+<tr><td>ADR-0011 rev</td><td>Native symbolication: dSYM and R8 upload, build-UUID index, rum-api symbolication (Hermes maps are already §6 of ADR-0011)</td><td>W7</td></tr>
+<tr><td>ADR-0015</td><td>Mobile SDK spec, twelve capabilities, L0–L3 ladder, one conformance suite per native package</td><td>W2</td></tr>
+<tr><td>ADR-0016</td><td>opentelemetry-android as the Android base; dependency-free Swift package speaking OTLP/JSON and semconv on iOS</td><td>W8, W9</td></tr>
+<tr><td>ADR-0006 rev</td><td>Run-loop observer and raw-context rendering replace the timer, touch captures and <code>UIGraphicsImageRenderer</code>; masking fails closed</td><td>W1</td></tr>
+</table>
+</div>
+<p class="src">Sources: <code>project/kb/mobile-sdk-research/</code> (appendices A–H and <code>comparison.md</code>), <code>project/kb/sentry-ios-replay-internals.md</code>, <code>project/kb/sentry-bridge-vs-ouo-sdk.md</code>, <code>docs/benchmarks.md</code>, <code>project/tracker/checklist.md</code> sections 3 and 7, ADR-0006, ADR-0007, ADR-0011, ADR-0012.</p>
+</main>
+</body>
+</html>

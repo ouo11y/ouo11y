@@ -14,5 +14,6 @@
 | [0010](0010-repository-layout.md) | Repository layout: product by component at the top, process material under `project/` | accepted |
 | [0011](0011-source-maps-and-symbolication.md) | Source maps: debug ids with release + URL fallback, maps in the rum-api bucket, upload token, symbolication on read | proposed |
 | [0012](0012-funnel-reports.md) | Funnel reports: page and custom-event steps, session-counted, computed by rum-api from Loki | accepted |
+| [0013](0013-session-to-session-review.md) | Session-to-session review: a second session reviews, both comment on the PR, the author merges with `merge-agreed.sh`; releases at checkpoints; push only what you are proud of | proposed |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.
