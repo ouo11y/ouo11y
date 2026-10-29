@@ -35,6 +35,7 @@ function fakeNative() {
     flush: vi.fn(() => Promise.resolve()),
     sessionDidRotate: vi.fn((_id: string) => undefined),
     setSessionId: vi.fn((_id: string) => undefined),
+    screenDidChange: vi.fn(),
     stop: vi.fn(),
   } satisfies NativeReplayModule & { recording: boolean };
   return n;
@@ -53,6 +54,7 @@ describe("replay controller", () => {
       sessionId: "sess-1",
       projectId: PROJECT_ID,
       projectToken: TOKEN,
+      mode: "auto",
       frameInterval: 1,
       maskText: true,
       maskInputs: true,
@@ -73,13 +75,27 @@ describe("replay controller", () => {
       endpoint: "http://localhost:8080",
       projectId: PROJECT_ID,
       projectToken: TOKEN,
-      options: { enabled: true, frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false },
+      options: { enabled: true, mode: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false },
       native,
       logger: createLogger(true),
     });
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     c.start("s");
-    expect(native.start.mock.calls[0]![1]).toMatchObject({ frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ mode: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
+  });
+
+  it("screen changes reach the native recorder while it records; older native builds without the call are fine", () => {
+    const native = fakeNative();
+    const c = createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, logger });
+    c.screenDidChange();
+    expect(native.screenDidChange).not.toHaveBeenCalled();
+    c.start("s");
+    c.screenDidChange();
+    expect(native.screenDidChange).toHaveBeenCalledTimes(1);
+    const { screenDidChange: _gone, ...older } = fakeNative();
+    const c2 = createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native: older, logger });
+    c2.start("s");
+    expect(() => c2.screenDidChange()).not.toThrow();
   });
 
   it("maskText: false keeps inputs masked (maskInputs defaults to true on its own)", () => {
@@ -220,7 +236,7 @@ describe("initRUM({ replay })", () => {
     expect(nativeReplay.start).toHaveBeenCalledWith(REPLAY_ENDPOINT, expect.objectContaining({ sessionId: rum.session.id(), projectId: PROJECT_ID, projectToken: TOKEN, frameInterval: 1 }));
     // Never the revision-1 header or a prebuilt header value: native builds the Basic credential itself.
     expect(Object.keys(nativeReplay.start.mock.calls[0]![1] as object).sort()).toEqual(
-      ["debug", "frameInterval", "maskImages", "maskInputs", "maskText", "maskWebViews", "projectId", "projectToken", "sessionId"],
+      ["debug", "frameInterval", "maskImages", "maskInputs", "maskText", "maskWebViews", "mode", "projectId", "projectToken", "sessionId"],
     );
     await rum.ready;
     // The cold-start resolution reports the initial session through onRotate: not a rotation.

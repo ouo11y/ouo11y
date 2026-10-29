@@ -11,6 +11,8 @@ struct StartOptions: Record {
   /// on every chunk request. JS validates both first.
   @Field var projectId: String = ""
   @Field var projectToken: String = ""
+  /// "auto", "session" or "navigation" (OuoReplay `ReplayMode`); anything else is `auto`.
+  @Field var mode: String = "auto"
   @Field var frameInterval: Double = 1.0
   @Field var maskText: Bool = true
   @Field var maskInputs: Bool = true
@@ -65,6 +67,7 @@ public class OuoReplayModule: Module {
         projectId: projectId,
         projectToken: token,
         sessionId: { box.get() },
+        mode: ReplayMode(rawValue: options.mode) ?? .auto,
         frameInterval: options.frameInterval,
         maskText: options.maskText,
         maskInputs: options.maskInputs,
@@ -101,6 +104,11 @@ public class OuoReplayModule: Module {
       self.sessionId.set(id)
     }
 
+    /// A route change: the frame for the new screen in navigation mode.
+    Function("screenDidChange") {
+      OuoReplay.screenDidChange()
+    }
+
     Function("stop") {
       OuoReplay.stop()
     }
@@ -108,15 +116,15 @@ public class OuoReplayModule: Module {
     // ---- native crashes (checklist G1), independent of replay ----
 
     /// Installs the signal and NSException handlers (chained to any installed before, such as
-    /// Sentry's) and sets the session a crash belongs to.
-    Function("installCrashReporter") { (sessionId: String) -> Bool in
+    /// Sentry's) and sets the session a crash belongs to, with its start (epoch ms) for the report.
+    Function("installCrashReporter") { (sessionId: String, startedAtMs: Double) -> Bool in
       let ok = OuoCrash.install()
-      if !sessionId.isEmpty { OuoCrash.setSessionId(sessionId) }
+      if !sessionId.isEmpty { OuoCrash.setSession(sessionId, startedAtMs: Int64(startedAtMs)) }
       return ok
     }
 
-    Function("setCrashSessionId") { (id: String) in
-      OuoCrash.setSessionId(id)
+    Function("setCrashSessionId") { (id: String, startedAtMs: Double) in
+      OuoCrash.setSession(id, startedAtMs: Int64(startedAtMs))
     }
 
     /// The previous run's crash report (JSON), removed from disk; nil when the last run did not crash.

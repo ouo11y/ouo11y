@@ -55,9 +55,9 @@ public enum OuoCrash {
 
     public static var isInstalled: Bool { ouo_crash_is_installed() }
 
-    /// The session a crash from now on belongs to.
-    public static func setSessionId(_ id: String) {
-        id.withCString { ouo_crash_set_session_id($0) }
+    /// The session a crash from now on belongs to, and its start (epoch ms, 0 when unknown).
+    public static func setSession(_ id: String, startedAtMs: Int64) {
+        id.withCString { ouo_crash_set_session($0, startedAtMs) }
     }
 
     /// The report left by the previous run, if any, removed from disk (at most once: a crash loop

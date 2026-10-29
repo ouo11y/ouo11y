@@ -14,6 +14,11 @@ public struct ViewNode: Sendable {
     public var hidden: Bool
     public var alpha: CGFloat
     public var accessibilityIdentifier: String?
+    /// The layer runs an animation that can move it (position, bounds, transform, or one we do not
+    /// know): what the render server shows may not be at `frameInWindow`.
+    public var moving: Bool
+    /// The walk stopped at its depth limit with subviews left unvisited.
+    public var truncated: Bool
     public var children: [ViewNode]
 
     public init(
@@ -23,6 +28,8 @@ public struct ViewNode: Sendable {
         hidden: Bool = false,
         alpha: CGFloat = 1,
         accessibilityIdentifier: String? = nil,
+        moving: Bool = false,
+        truncated: Bool = false,
         children: [ViewNode] = []
     ) {
         self.className = className
@@ -31,6 +38,8 @@ public struct ViewNode: Sendable {
         self.hidden = hidden
         self.alpha = alpha
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.moving = moving
+        self.truncated = truncated
         self.children = children
     }
 }
@@ -107,18 +116,22 @@ public struct RedactionPlanner: Sendable {
     }
 
     /// `window` is the window bounds; rectangles outside it are clipped, empty ones dropped.
-    public func rects(for root: ViewNode, window: CGRect) -> [CGRect] {
+    /// Nil means the frame must be dropped (masking fails closed): a rectangle to mask sits on a
+    /// layer that is moving, so the pixels the render server drew may be elsewhere.
+    public func rects(for root: ViewNode, window: CGRect) -> [CGRect]? {
         var out: [CGRect] = []
         let masked = rules.maskedClasses
-        visit(root, window: window, masked: masked, into: &out)
+        guard visit(root, window: window, masked: masked, moving: false, into: &out) else { return nil }
         return mergeOverlapping ? RedactionPlanner.merge(out) : out
     }
 
-    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, into out: inout [CGRect]) {
+    /// False when a masked rectangle is moving.
+    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, into out: inout [CGRect]) -> Bool {
         // Hidden or transparent views hide their whole subtree.
-        if node.hidden || node.alpha <= 0.01 { return }
+        if node.hidden || node.alpha <= 0.01 { return true }
         // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
-        if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return }
+        if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return true }
+        let moving = moving || node.moving
         let clipped = node.frameInWindow.intersection(window)
         // UIKit does not clip subviews to their parent's bounds by default, so a zero-sized or
         // off-screen node can still have visible children (React Native paragraph views in
@@ -126,14 +139,17 @@ public struct RedactionPlanner: Sendable {
         // visible rectangle of its own can cover its subtree; otherwise keep walking.
         let visible = !(clipped.isNull || clipped.isEmpty)
         let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier
-        if visible, forced || matches(node, masked) {
+        // A subtree the walk did not finish may hold anything: masked like a matched view.
+        if visible, forced || node.truncated || matches(node, masked) {
+            if moving { return false }
             out.append(clipped)
             // The rectangle covers the subtree: no need to look inside.
-            return
+            return true
         }
         for child in node.children {
-            visit(child, window: window, masked: masked, into: &out)
+            guard visit(child, window: window, masked: masked, moving: moving, into: &out) else { return false }
         }
+        return true
     }
 
     private func matches(_ node: ViewNode, _ masked: Set<String>) -> Bool {

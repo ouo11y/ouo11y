@@ -48,6 +48,16 @@ public struct FrameComposer: Sendable {
         return screenScale / n
     }
 
+    /// `image` resized to `pixelWidth` x `pixelHeight` (the capture queue's half of a capture: the
+    /// main thread renders 1:1 at the screen scale, as Sentry does, and the resample happens here).
+    public static func downscale(_ image: CGImage, pixelWidth: Int, pixelHeight: Int) -> CGImage? {
+        if image.width == pixelWidth, image.height == pixelHeight { return image }
+        guard let ctx = makeContext(pixelWidth: pixelWidth, pixelHeight: pixelHeight, colorSpace: image.colorSpace ?? sRGB) else { return nil }
+        ctx.interpolationQuality = .low
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+        return ctx.makeImage()
+    }
+
     /// The snapshot with every rectangle filled black. `rects` are in points with a top-left origin
     /// (window coordinates, as `RedactionPlanner` returns them); `scale` is pixels per point.
     public func redact(_ image: CGImage, rects: [CGRect], scale: CGFloat) -> CGImage? {

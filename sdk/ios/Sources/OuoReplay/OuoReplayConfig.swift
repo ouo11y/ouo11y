@@ -13,7 +13,10 @@ public struct OuoReplayConfig {
     public var projectToken: String
     /// Called when a chunk is opened; must return the active `session.id`.
     public var sessionId: () -> String
-    /// Seconds between timer frames. Default 1.
+    /// `session` (a frame per `frameInterval` while the screen changes), `navigation` (a frame per
+    /// screen) or `auto` (navigation on devices with less than 3.5 GiB of RAM). Default `auto`.
+    public var mode: ReplayMode
+    /// Shortest time between two frames in `session` mode. Default 1.
     public var frameInterval: TimeInterval
     /// Redact labels and React Native text. Default true.
     public var maskText: Bool
@@ -33,16 +36,17 @@ public struct OuoReplayConfig {
     public var jpegQuality: Double
     /// Longest frame side in pixels. Default 1000.
     public var maxLongestSide: Double
-    /// Touch-triggered captures per second. Default 4.
-    public var maxTouchCapturesPerSecond: Int
     /// Where chunk seq numbers persist. Default UserDefaults.standard.
     public var seqStore: SeqStore
+    /// Where the open chunk is kept until it is cut, so a crash does not lose it.
+    public var spoolURL: URL
 
     public init(
         endpoint: URL,
         projectId: String,
         projectToken: String,
         sessionId: @escaping () -> String,
+        mode: ReplayMode = .auto,
         frameInterval: TimeInterval = 1.0,
         maskText: Bool = true,
         maskInputs: Bool = true,
@@ -54,13 +58,14 @@ public struct OuoReplayConfig {
         maxFramesPerChunk: Int = 10,
         jpegQuality: Double = 0.5,
         maxLongestSide: Double = 1000,
-        maxTouchCapturesPerSecond: Int = 4,
-        seqStore: SeqStore = UserDefaultsSeqStore()
+        seqStore: SeqStore = UserDefaultsSeqStore(),
+        spoolURL: URL = ChunkSpool.defaultURL
     ) {
         self.endpoint = endpoint
         self.projectId = projectId
         self.projectToken = projectToken
         self.sessionId = sessionId
+        self.mode = mode
         self.frameInterval = frameInterval
         self.maskText = maskText
         self.maskInputs = maskInputs
@@ -72,8 +77,8 @@ public struct OuoReplayConfig {
         self.maxFramesPerChunk = maxFramesPerChunk
         self.jpegQuality = jpegQuality
         self.maxLongestSide = maxLongestSide
-        self.maxTouchCapturesPerSecond = maxTouchCapturesPerSecond
         self.seqStore = seqStore
+        self.spoolURL = spoolURL
     }
 
     /// `Basic base64("<projectId>:<projectToken>")`, what `ChunkUploader` puts in `Authorization`.

@@ -1,6 +1,6 @@
 import type { DebugLogger } from "./logger";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
-import type { ReplayOptions, RUMReplay } from "./types";
+import type { ReplayMode, ReplayOptions, RUMReplay } from "./types";
 
 /**
  * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
@@ -14,6 +14,8 @@ export interface NativeReplayModule {
   flush(): Promise<void>;
   sessionDidRotate(id: string): void;
   setSessionId(id: string): void;
+  /** Missing on native builds older than the replay modes. */
+  screenDidChange?(): void;
   stop?(): void;
 }
 
@@ -26,6 +28,7 @@ export interface NativeStartOptions {
    */
   projectId: string;
   projectToken: string;
+  mode: ReplayMode;
   frameInterval: number;
   maskText: boolean;
   maskInputs: boolean;
@@ -108,6 +111,8 @@ export interface ReplayController extends RUMReplay {
   readonly active: boolean;
   start(sessionId: string): void;
   sessionDidRotate(id: string): void;
+  /** A new screen is showing: the frame for it in `navigation` mode. */
+  screenDidChange(): void;
   /** An error in the current session: starts an error-triggered recording when sampled. */
   onError(): void;
   flush(): Promise<void>;
@@ -164,6 +169,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       sessionId,
       projectId: opts.projectId,
       projectToken: opts.projectToken,
+      mode: opts.options?.mode ?? "auto",
       frameInterval: opts.options?.frameInterval ?? 1,
       maskText: opts.options?.maskText !== false,
       maskInputs: opts.options?.maskInputs !== false,
@@ -213,6 +219,10 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         samplePaused = false;
         if (!userPaused) call("resume", () => native.resume());
       }
+    },
+    screenDidChange(): void {
+      if (!native || !active || !native.screenDidChange) return;
+      call("screenDidChange", () => native.screenDidChange!());
     },
     onError(): void {
       const id = currentId;

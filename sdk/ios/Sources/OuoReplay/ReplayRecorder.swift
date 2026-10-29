@@ -3,18 +3,21 @@ import UIKit
 import os
 import OuoReplayCore
 
-/// Owns the capture loop: 1 Hz timer on the main run loop, touch-triggered captures limited per
-/// second, app lifecycle (background stops and flushes, foreground resumes with an immediate
-/// frame), the chunk builder and the uploader. The loop, the touches and the snapshot run on the
-/// main thread; redaction, dedupe, encoding, chunking and upload hand-off run on `queue`, which
-/// alone touches `deduper` and `builder`.
+/// Owns the capture loop (ADR-0006 rev 2, docs/specs/mobile-replay.md "Capture scheduling"):
+/// a main run-loop observer captures after the pass's UI work is committed, when the
+/// `CapturePacer` says a frame is due (interval or screen change, animation deferral, time bank),
+/// one capture in flight. A keep-alive timer wakes an idle run loop once per interval so a due
+/// frame is not left waiting for the next touch, and cuts chunks on time. Touches are recorded but never trigger a capture.
+/// The walk and the render run on the main thread; planning, downscale, redaction, dedupe,
+/// encoding, chunking, the spool and the upload hand-off run on `queue`, which alone touches
+/// `deduper` and `builder`.
 final class ReplayRecorder {
-    /// Instruments: "snapshot" intervals are the main-thread part of each capture, "compose" the
-    /// capture-queue part (subsystem dev.ouo.replay, category capture).
+    /// Instruments: "snapshot" intervals are the main-thread part of each capture ("walk" inside
+    /// it), "compose" the capture-queue part (subsystem dev.ouo.replay, category capture).
     static let signposter = OSSignposter(subsystem: "dev.ouo.replay", category: "capture")
-    /// Captures handed to `queue` and not finished yet. A slow device skips captures instead of
-    /// queueing bitmaps.
-    private static let maxInFlight = 2
+    /// Shared by every recorder, so a restarted recorder recovers the spool only after the
+    /// previous one cut its chunk.
+    private static let queue = DispatchQueue(label: "dev.ouo.replay.capture", qos: .utility)
 
     private let config: OuoReplayConfig
     private let logger: ReplayLogger
@@ -22,15 +25,17 @@ final class ReplayRecorder {
     private let deduper = FrameDeduper()
     private let builder: ChunkBuilder
     private let uploader: ChunkUploader
+    private let spool: ChunkSpool
     private let touchObserver = TouchObserver.make()
-    private let queue = DispatchQueue(label: "dev.ouo.replay.capture", qos: .utility)
-    /// Main thread.
-    private var inFlight = 0
+    let mode: ReplayMode
 
-    private var timer: Timer?
+    /// Main thread from here on.
+    private var pacer: CapturePacer
+    private var captureInFlight = false
+    private var runLoopObserver: CFRunLoopObserver?
+    private var keepAlive: Timer?
     private var observers: [NSObjectProtocol] = []
     private var attachedWindow: UIWindow?
-    private var touchCaptureTimes: [TimeInterval] = []
     private(set) var isRecording = false
     /// Set by `pause()`; a background/foreground cycle must not resume a paused recorder.
     private var pausedByHost = false
@@ -40,15 +45,20 @@ final class ReplayRecorder {
         let rules = config.redactionRules
         let uploader = ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)
         let screen = UIScreen.main.bounds
+        let spool = ChunkSpool(url: config.spoolURL)
         self.config = config
         self.logger = logger
+        self.mode = config.mode.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+        self.pacer = CapturePacer(mode: mode, interval: config.frameInterval)
         self.capturer = ScreenCapturer(rules: rules, jpegQuality: config.jpegQuality, maxLongestSide: config.maxLongestSide, logger: logger)
         self.uploader = uploader
+        self.spool = spool
         self.builder = ChunkBuilder(
             config: ChunkBuilder.Config(flushInterval: config.flushInterval, maxFrames: config.maxFramesPerChunk, platform: "ios", masked: rules.masksAnything),
             viewport: Viewport(width: Double(screen.width), height: Double(screen.height), scale: 1),
             sessionId: config.sessionId,
             seqStore: config.seqStore,
+            spool: spool,
             onChunk: { chunk in uploader.enqueue(chunk) }
         )
         touchObserver.onTouch = { [weak self] touch in self?.handle(touch) }
@@ -57,39 +67,46 @@ final class ReplayRecorder {
     // MARK: lifecycle
 
     func start() {
+        // The chunk the previous process left open (crash, watchdog, force quit) goes first.
+        Self.queue.async { [spool, uploader, logger] in
+            if let chunk = spool.recover() {
+                logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
+                uploader.enqueue(chunk)
+            }
+        }
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
-                self?.logger.log("background: stop timer, flush")
-                self?.stopTimer()
+                self?.logger.log("background: stop capturing, flush")
+                self?.stopCapture()
                 self?.flush(completion: nil)
             },
             center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 guard let self, !self.pausedByHost else { return }
-                self.logger.log("active: resume with immediate frame")
-                self.resumeCapture(reason: .resume)
+                self.logger.log("active: resume with an immediate frame")
+                self.resumeCapture()
             },
         ]
         pausedByHost = false
-        resumeCapture(reason: .resume)
-        logger.log("started endpoint=\(config.endpoint.absoluteString) project=\(config.projectId) interval=\(config.frameInterval)s")
+        resumeCapture()
+        logger.log("started endpoint=\(config.endpoint.absoluteString) project=\(config.projectId) mode=\(mode.rawValue) interval=\(config.frameInterval)s")
     }
 
     func pause() {
         pausedByHost = true
-        stopTimer()
+        stopCapture()
         flush(completion: nil)
         logger.log("paused")
     }
 
     func resume() {
         pausedByHost = false
-        resumeCapture(reason: .resume)
+        resumeCapture()
         logger.log("resumed")
     }
 
     func stop() {
-        stopTimer()
+        stopCapture()
         flush(completion: nil)
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers = []
@@ -98,7 +115,7 @@ final class ReplayRecorder {
 
     func flush(completion: (() -> Void)?) {
         // Behind every capture already handed to the queue, so their frames are in the chunk.
-        queue.async { [builder, uploader] in
+        Self.queue.async { [builder, uploader] in
             builder.flush()
             uploader.drain { DispatchQueue.main.async { completion?() } }
         }
@@ -106,77 +123,97 @@ final class ReplayRecorder {
 
     func sessionDidRotate(newId: String) {
         logger.log("session rotated -> \(newId)")
-        queue.async { [builder, deduper] in
+        Self.queue.async { [builder, deduper] in
             builder.sessionDidRotate(newId: newId)
             deduper.reset()
         }
     }
 
-    // MARK: capture loop
-
-    private func resumeCapture(reason: FrameReason) {
-        guard timer == nil else { return }
-        isRecording = true
-        queue.async { [deduper] in deduper.reset() }
-        attachTouchObserverIfNeeded()
-        captureFrame(reason: reason)
-        let t = Timer(timeInterval: config.frameInterval, repeats: true) { [weak self] _ in self?.tick() }
-        // `.common` so capture keeps running while a scroll view is tracking.
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+    /// A new screen is showing: the frame for it in `navigation` mode (ignored in `session` mode,
+    /// where the next interval frame shows it anyway).
+    func screenDidChange() {
+        pacer.screenDidChange(now: ProcessInfo.processInfo.systemUptime)
     }
 
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
+    // MARK: capture loop
+
+    private func resumeCapture() {
+        guard !isRecording else { return }
+        isRecording = true
+        Self.queue.async { [deduper] in deduper.reset() }
+        pacer.requestFrame(.resume, now: ProcessInfo.processInfo.systemUptime)
+        // After Core Animation's commit observer (order 2000000), so the walk and the render see
+        // the pass's committed UI; common modes so capture continues while a scroll view tracks.
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { [weak self] _, _ in
+            self?.captureIfDue()
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+        runLoopObserver = observer
+        // Wakes an idle run loop so the observer runs, and keeps the chunk timing and the touch
+        // window current when no frame is due (navigation mode, a static screen).
+        let timer = Timer(timeInterval: min(config.frameInterval, 1), repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(timer, forMode: .common)
+        keepAlive = timer
+    }
+
+    private func stopCapture() {
+        if let observer = runLoopObserver {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+            runLoopObserver = nil
+        }
+        keepAlive?.invalidate()
+        keepAlive = nil
         isRecording = false
     }
 
     private func tick() {
-        attachTouchObserverIfNeeded()
-        captureFrame(reason: .timer)
-        queue.async { [builder] in builder.flushIfDue() }
+        if let window = ScreenCapturer.keyWindow() { attachTouchObserverIfNeeded(window) }
+        Self.queue.async { [builder] in builder.flushIfDue() }
     }
 
     private func handle(_ touch: Touch) {
         guard isRecording else { return }
-        queue.async { [builder] in builder.add(touch) }
-        guard touch.phase != .moved else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        touchCaptureTimes.removeAll { now - $0 > 1 }
-        guard touchCaptureTimes.count < config.maxTouchCapturesPerSecond else { return }
-        touchCaptureTimes.append(now)
-        // Next run-loop turn so the touch's own UI update is on screen first.
-        DispatchQueue.main.async { [weak self] in self?.captureFrame(reason: .touch) }
+        Self.queue.async { [builder] in builder.add(touch) }
     }
 
-    private func captureFrame(reason: FrameReason) {
-        guard isRecording, let window = ScreenCapturer.keyWindow() else { return }
-        guard inFlight < Self.maxInFlight else {
-            logger.log("frame \(reason.rawValue) skipped: \(inFlight) captures still encoding")
-            return
-        }
+    private func captureIfDue() {
+        let start = ProcessInfo.processInfo.systemUptime
+        guard isRecording, !captureInFlight, pacer.isDue(now: start), let window = ScreenCapturer.keyWindow() else { return }
+        attachTouchObserverIfNeeded(window)
         let ts = Clock.nowMillis()
         let sp = Self.signposter
-        let state = sp.beginInterval("snapshot", id: sp.makeSignpostID())
-        let snapshot = capturer.snapshot(window: window)
-        sp.endInterval("snapshot", state)
+        let snapshotState = sp.beginInterval("snapshot", id: sp.makeSignpostID())
+        let walkState = sp.beginInterval("walk", id: sp.makeSignpostID())
+        let walk = ViewTreeBuilder.walk(window)
+        sp.endInterval("walk", walkState)
+        guard case .capture(let reason) = pacer.decide(now: start, animations: walk.animations) else {
+            sp.endInterval("snapshot", snapshotState)
+            pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            return
+        }
+        let snapshot = capturer.snapshot(window: window, tree: walk.tree)
+        sp.endInterval("snapshot", snapshotState)
+        pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
         guard let snapshot else { return }
-        inFlight += 1
-        queue.async { [weak self, capturer, deduper, builder, logger] in
+        captureInFlight = true
+        Self.queue.async { [weak self, capturer, deduper, builder, logger] in
             let state = sp.beginInterval("compose", id: sp.makeSignpostID())
-            if let capture = capturer.compose(snapshot, deduper: deduper) {
+            switch capturer.compose(snapshot, deduper: deduper) {
+            case .frame(let capture):
                 builder.viewport = capture.viewport
                 builder.add(Frame(ts: ts, jpegData: capture.jpeg, reason: reason))
                 logger.log("frame \(reason.rawValue) \(capture.jpeg.count) bytes, \(capture.redactedRects) redacted rects")
+            case .unsafe:
+                logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
+            case .unchanged, .failed:
+                break
             }
             sp.endInterval("compose", state)
-            DispatchQueue.main.async { self?.inFlight -= 1 }
+            DispatchQueue.main.async { self?.captureInFlight = false }
         }
     }
 
-    private func attachTouchObserverIfNeeded() {
-        guard let window = ScreenCapturer.keyWindow() else { return }
+    private func attachTouchObserverIfNeeded(_ window: UIWindow) {
         if attachedWindow === window { return }
         detachTouchObserver()
         window.addGestureRecognizer(touchObserver)

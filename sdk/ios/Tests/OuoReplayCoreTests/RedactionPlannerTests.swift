@@ -13,7 +13,7 @@ import Testing
     /// A matched parent with an empty frame must not hide a child that draws (React Native
     /// paragraph views inside navigation bars), and an off-screen parent must not hide an
     /// on-screen child either: UIKit does not clip subviews by default.
-    @Test func EmptyOrOffscreenParentsDoNotStopTheWalk() {
+    @Test func EmptyOrOffscreenParentsDoNotStopTheWalk() throws {
         let root = node("UIWindow", window, [
             node("RCTParagraphComponentView", CGRect(x: 300, y: 20, width: 0, height: 0), [
                 node("RCTParagraphTextView", CGRect(x: 300, y: 20, width: 80, height: 16)),
@@ -22,11 +22,11 @@ import Testing
                 node("UILabel", CGRect(x: 10, y: 100, width: 50, height: 20)),
             ]),
         ])
-        let rects = planner.rects(for: root, window: window)
+        let rects = try #require(planner.rects(for: root, window: window))
         #expect(rects == [CGRect(x: 300, y: 20, width: 80, height: 16), CGRect(x: 10, y: 100, width: 50, height: 20)])
     }
 
-    @Test func MaskedClassesByDefault() {
+    @Test func MaskedClassesByDefault() throws {
         let root = node("UIWindow", window, [
             node("UIView", window, [
                 node("UITextField", CGRect(x: 10, y: 10, width: 100, height: 40)),
@@ -42,7 +42,7 @@ import Testing
                 node("RCTViewComponentView", CGRect(x: 10, y: 510, width: 100, height: 40)),
             ]),
         ])
-        let rects = planner.rects(for: root, window: window)
+        let rects = try #require(planner.rects(for: root, window: window))
         #expect(rects.count == 9)
         #expect(rects.map(\.origin.y) == [10, 60, 110, 160, 210, 260, 310, 360, 410])
     }
@@ -62,12 +62,12 @@ import Testing
             node("WKWebView", CGRect(x: 0, y: 200, width: 50, height: 50)),
         ])
         let textOnly = RedactionPlanner(rules: RedactionRules(maskText: true, maskImages: false, maskWebViews: false))
-        #expect(textOnly.rects(for: root, window: window).map(\.origin.y) == [0])
+        #expect(textOnly.rects(for: root, window: window)?.map(\.origin.y) == [0])
         let none = RedactionPlanner(rules: RedactionRules(maskText: false, maskInputs: false, maskImages: false, maskWebViews: false))
         #expect(none.rects(for: root, window: window) == [])
         #expect(!(none.rules.masksAnything))
         let extra = RedactionPlanner(rules: RedactionRules(maskText: false, maskInputs: false, maskImages: false, maskWebViews: false, extraClasses: ["WKWebView"]))
-        #expect(extra.rects(for: root, window: window).map(\.origin.y) == [200])
+        #expect(extra.rects(for: root, window: window)?.map(\.origin.y) == [200])
         #expect(extra.rules.masksAnything)
     }
 
@@ -85,7 +85,7 @@ import Testing
             node("RCTUITextView", CGRect(x: 0, y: 700, width: 50, height: 50), supers: ["UITextView", "UIScrollView"]),
         ])
         let labelsVisible = RedactionPlanner(rules: RedactionRules(maskText: false), mergeOverlapping: false)
-        #expect(labelsVisible.rects(for: root, window: window).map(\.origin.y) == [300, 400, 500, 600, 700])
+        #expect(labelsVisible.rects(for: root, window: window)?.map(\.origin.y) == [300, 400, 500, 600, 700])
         #expect(labelsVisible.rules.masksAnything)
         #expect(RedactionRules.textClasses.isDisjoint(with: RedactionRules.inputClasses))
     }
@@ -100,16 +100,16 @@ import Testing
             node("RCTUITextField", CGRect(x: 0, y: 400, width: 50, height: 50), supers: ["UITextField", "UIControl"]),
         ])
         let inputsVisible = RedactionPlanner(rules: RedactionRules(maskText: true, maskInputs: false), mergeOverlapping: false)
-        #expect(inputsVisible.rects(for: root, window: window).map(\.origin.y) == [0, 100])
+        #expect(inputsVisible.rects(for: root, window: window)?.map(\.origin.y) == [0, 100])
     }
 
-    @Test func OuoMaskForcesAnyView() {
+    @Test func OuoMaskForcesAnyView() throws {
         let root = node("UIWindow", window, [
             node("RCTViewComponentView", CGRect(x: 20, y: 20, width: 200, height: 60), id: "ouo-mask", [
                 node("UIButton", CGRect(x: 30, y: 30, width: 50, height: 20)),
             ]),
         ])
-        let rects = planner.rects(for: root, window: window)
+        let rects = try #require(planner.rects(for: root, window: window))
         #expect(rects == [CGRect(x: 20, y: 20, width: 200, height: 60)], "the forced rect covers the subtree, children are not listed separately")
     }
 
@@ -146,7 +146,7 @@ import Testing
         #expect(planner.rects(for: root, window: window) == [CGRect(x: 10, y: 170, width: 100, height: 20)])
     }
 
-    @Test func ClipsToWindowAndDropsOffscreen() {
+    @Test func ClipsToWindowAndDropsOffscreen() throws {
         let root = node("UIWindow", window, [
             node("UILabel", CGRect(x: -50, y: -10, width: 100, height: 40)),       // partially visible
             node("UILabel", CGRect(x: 500, y: 10, width: 100, height: 40)),       // fully off to the right
@@ -157,7 +157,7 @@ import Testing
             ]),
             node("UILabel", CGRect(x: 10, y: 10, width: 0, height: 40)),          // zero width
         ])
-        let rects = planner.rects(for: root, window: window)
+        let rects = try #require(planner.rects(for: root, window: window))
         #expect(rects == [
             CGRect(x: 0, y: 0, width: 50, height: 30),
             CGRect(x: 350, y: 830, width: 43, height: 22),
@@ -179,5 +179,27 @@ import Testing
             node("UILabel", CGRect(x: 5, y: 5, width: 10, height: 10)),
         ])
         #expect(merging.rects(for: root, window: window) == [CGRect(x: 0, y: 0, width: 15, height: 15)])
+    }
+
+    /// Fail closed (ADR-0006 rev 2): a masked view on a moving layer, or inside one (a view
+    /// controller sliding in), drops the frame; an unmasked moving view does not.
+    @Test func MovingMaskDropsTheFrame() {
+        let label = ViewNode(className: "UILabel", frameInWindow: CGRect(x: 10, y: 10, width: 50, height: 20))
+        var slidingLabel = label
+        slidingLabel.moving = true
+        #expect(planner.rects(for: node("UIWindow", window, [slidingLabel]), window: window) == nil)
+        let sliding = ViewNode(className: "UIView", frameInWindow: window, moving: true, children: [label])
+        #expect(planner.rects(for: node("UIWindow", window, [sliding]), window: window) == nil)
+        let spinner = ViewNode(className: "UIActivityIndicatorView", frameInWindow: CGRect(x: 0, y: 400, width: 20, height: 20), moving: true)
+        #expect(planner.rects(for: node("UIWindow", window, [spinner, label]), window: window) == [label.frameInWindow])
+        // An unmasked subtree may move: it is drawn as is.
+        let unmasked = ViewNode(className: "UIView", frameInWindow: window, accessibilityIdentifier: RedactionRules.unmaskIdentifier, moving: true, children: [label])
+        #expect(planner.rects(for: node("UIWindow", window, [unmasked]), window: window) == [])
+    }
+
+    /// A subtree the walk cut at its depth limit is masked whole.
+    @Test func TruncatedSubtreeIsMasked() {
+        let deep = ViewNode(className: "UIView", frameInWindow: CGRect(x: 0, y: 100, width: 200, height: 50), truncated: true)
+        #expect(planner.rects(for: node("UIWindow", window, [deep]), window: window) == [deep.frameInWindow])
     }
 }

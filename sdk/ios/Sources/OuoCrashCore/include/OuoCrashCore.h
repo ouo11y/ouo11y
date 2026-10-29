@@ -28,8 +28,10 @@ bool ouo_crash_is_installed(void);
 /// reported. Keeps an existing one (Sentry installs its own on the threads it owns).
 void ouo_crash_install_alt_stack(void);
 
-/// The session the next crash belongs to (copied, at most 127 bytes).
-void ouo_crash_set_session_id(const char *session_id);
+/// The session the next crash belongs to (id copied, at most 127 bytes) and when it started (epoch
+/// ms, 0 when unknown). The report carries both, so a crash before the session's start was
+/// exported still shows the session from its start (N52).
+void ouo_crash_set_session(const char *session_id, int64_t started_ms);
 
 /// Writes a report for an uncaught Objective-C exception (called from the NSException handler, not
 /// from a signal). The SIGABRT that follows is then not reported again. `addresses` are the
