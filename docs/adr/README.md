@@ -15,5 +15,7 @@
 | [0011](0011-source-maps-and-symbolication.md) | Source maps: debug ids with release + URL fallback, maps in the rum-api bucket, upload token, symbolication on read | proposed |
 | [0012](0012-funnel-reports.md) | Funnel reports: page and custom-event steps, session-counted, computed by rum-api from Loki | accepted |
 | [0013](0013-session-to-session-review.md) | Session-to-session review: a second session reviews, both comment on the PR, the author merges with `merge-agreed.sh`; releases at checkpoints; push only what you are proud of | proposed |
+| [0014](0014-replay-tiles-in-frames.md) | Replay representation: tiles in `frames` schema 2 (full images or patches, keyframe every 6 s and on screen change), session / buffer / navigation-only modes, `video` stays for Sentry-sourced replays | accepted |
+| [0016](0016-opentelemetry-in-process.md) | OpenTelemetry in process: opentelemetry-android as the Android base, a dependency-free Swift package speaking OTLP/JSON on iOS, opentelemetry-swift-core as the fallback | accepted |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.
