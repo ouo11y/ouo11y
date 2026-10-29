@@ -23,7 +23,10 @@ Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb/mobi
   - Navigation mode: 10 frames for 9 screen changes plus launch, all settled, no timer frames.
   - `kill -9` of the app 4 s after launch (spool 68 KB, chunk not cut): after relaunch rum-api had the killed session's 3 frames, `ended_at` = last frame.
   - Main-thread `snapshot` per capture (signposts, two runs per variant, interleaved): 1:1 27-31 ms, 1x nearest-neighbour 26-31 ms, 1x default (before W1) 31-34 ms. Simulator numbers do not decide N51; see "Left".
-- B3 on the simulator: see the bench result below.
+- B3 on the simulator, cells `none`, `sentry-T3`, `ouo-T3`, `sentry-T4`, `ouo-T4`, 10 rounds of 95 s ([report](../../../reports/benchmarks/2026-10-30-w1-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html)); paired median delta against `none`, before W1 (2026-10-23 run) -> W1:
+  - CPU over the journey: T3 4.6 -> 3.8 pp, T4 4.4 -> 4.2 pp (Sentry 9.4 and 8.1 pp in this run): **W1 exit criterion "T3/T4 CPU delta ≤ Sentry's" holds on the simulator**;
+  - replay bytes per minute: T3 416 -> 235 KB, T4 649 -> 388 KB (Sentry 129 and 364): fewer frames, no touch captures; W3 (tiles) is the next step;
+  - peak memory +5 -> +25.5 MB (the transient 1:1 bitmap; Sentry +61 MB), steady memory +1.3 -> +1.6 MB, start +62.5 -> +72.5 ms (T3), +37 -> +57 ms (T4), within the gate's 50 ms; dropped frames moved by the same amount for `none` and both SDKs (simulator load), so not attributed.
 - `lychee --offline` clean.
 
 ## Left
