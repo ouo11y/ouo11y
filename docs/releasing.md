@@ -90,8 +90,6 @@ fix(browser)!: drop the 0.1 endpoint option
 
 ## 4. How a release happens
 
-Automatic since [ADR-0013](adr/0013-automated-review-merge-and-release.md): no human step between a merge on `main` and the published artefacts.
-
 ```
 merge to main          release-please.yml   opens or updates one PR per component with pending
                                             changes: "chore(main): release <component> <version>",
@@ -99,26 +97,20 @@ merge to main          release-please.yml   opens or updates one PR per componen
                                             the CHANGELOG and the manifest
 release PR opened      release-check.yml    compatibility matrix + e2e scenario on the PR head
                        ci.yml               the usual checks for the touched paths
-daily 06:00 UTC        merge-ready.yml      squash-merges the release PR when those checks passed
-                                            (one release per component per day at most)
-release PR merged      release-please.yml   creates the tag and the GitHub release, relabels the
-                                            PR "autorelease: tagged"
-tag created            release-<x>.yml      publishes (table in section 1)
+founder merges it      (nothing)            no tag, no publish (skip-github-release)
+founder pushes tag     release-<x>.yml      publishes (table in section 1), creates the GitHub release
+                       release-please.yml   relabels the merged PR "autorelease: tagged"
 ```
 
-The chain needs `RELEASE_PLEASE_TOKEN` (section 8): merges, tags and PRs made with `GITHUB_TOKEN`
-trigger no workflows. A hand-pushed tag still works (rc tags, emergencies) and `mark-tagged`
-relabels its PR as before.
+While a merged release PR is still `autorelease: pending`, release-please opens no further
+release PRs for any component. Pushing its tag (or relabelling it by hand) unblocks it.
 
 Hand edits on an open release PR (rewording the generated changelog, adding a **Breaking** or
-**Compatibility** note) are overwritten when the next commit lands on `main`, and the bot merges
-the PR in the next daily run: make them in the same session as the change that needs them, as a
-commit on `main` under `## Unreleased` in the component changelog, which release-please keeps.
+**Compatibility** note) are overwritten when the next commit lands on `main`: make them last,
+right before merging. Notes written by hand under `## Unreleased` in a component changelog stay
+where they are; move them into the generated section in that last edit.
 
-## 5. Checklist: cutting a release (now the bot's; kept for a release by hand)
-
-Since ADR-0013 the steps below are what `merge-ready.yml` and release-please do. A release by hand
-(an rc, a hotfix tag while the bot is broken) follows the same list.
+## 5. Checklist: cutting a release (founder)
 
 Before merging the release PR:
 
@@ -236,8 +228,7 @@ and variables.
 | What | Needed for | How |
 |---|---|---|
 | Repository setting "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General) | release-please with `GITHUB_TOKEN` | Currently **off**. Turn it on, or set `RELEASE_PLEASE_TOKEN` instead. |
-| `ANTHROPIC_API_KEY` secret | `pr-review.yml` (ADR-0013): Claude reviews every PR push; without it the `review` check fails and nothing merges | Console key for the `ouo11y` org, Actions secret. `.github/scripts/repo-settings.sh --check` reports it. |
-| `RELEASE_PLEASE_TOKEN` secret (**required** since ADR-0013) | release PRs that trigger `ci` and `release-check`; merges by `merge-ready.yml` and tags by release-please that trigger the next workflow | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
+| `RELEASE_PLEASE_TOKEN` secret (recommended) | release PRs that trigger `ci` and `release-check` | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
 | npm org `ouo11y` + trusted publisher | `release-npm.yml` | Org claimed 2026-10-23; keep 2FA on for every member. No token: (1) the founder publishes each package's first version by hand once (npm only lets you set a trusted publisher on a package that exists); (2) on each package, npmjs.com > Settings > Trusted publisher > GitHub Actions: organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (3) then every tag publishes from a GitHub-hosted runner (not the self-hosted Mac: npm refuses those). Still to claim: the lookalike `ouolly` (ADR-0009). |
 | `OUO_IOS_DEPLOY_KEY` secret | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy -N ""`; add `ouo_ios_deploy.pub` as a deploy key **with write access** on `github.com/ouo11y/ouo11y-ios` (Settings > Deploy keys); paste the private file as the secret; delete both local files. The mirror exists (private) with a README on branch `about`; the first push creates `main`; then make `main` the default branch and delete `about`. |
 | grafana.com organisation `ouo11y` | plugin signing | Not found (2026-10-23). Create it at grafana.com (sign up, organisation name `ouo11y`). |
@@ -295,11 +286,6 @@ depends on GitHub-hosted extras beyond Docker, Node, Go and Helm.
   `.github/scripts/changelog-section.sh` (understands both heading styles).
 
 ## 12. Not automated
-
-- The benchmark gate on a `react-native` release runs only when `benchmark.yml` is dispatched on
-  the release PR branch (section 5, step 3); the bot does not dispatch it yet. Until it does, a
-  session that bumps `@ouo11y/react-native` runs it before adding `ready` (the roadmap's W1 exit
-  criterion makes it part of the package).
 
 - Grafana catalog submission (community or commercial signature): needs the name and trademark
   check first.
