@@ -37,7 +37,11 @@ static char g_path[OUO_PATH_MAX];
 static char g_tmp_path[OUO_PATH_MAX + 8];
 
 // Two buffers: the writer fills the one not in use, then publishes its index.
-static char g_session[2][OUO_SESSION_MAX];
+typedef struct {
+    char id[OUO_SESSION_MAX];
+    int64_t started_ms;
+} ouo_session;
+static ouo_session g_session[2];
 static atomic_int g_session_index = 0;
 
 // First crashing thread writes; any other thread (or a second signal) only chains.
@@ -314,8 +318,13 @@ static void w_header(const char *mechanism, bool main_thread) {
     w_str(mechanism);
     w(",\"timestamp_ms\":");
     w_uint(now_ms());
+    const ouo_session *session = &g_session[atomic_load(&g_session_index)];
     w(",\"session_id\":");
-    w_str(g_session[atomic_load(&g_session_index)]);
+    w_str(session->id);
+    if (session->started_ms > 0) {
+        w(",\"session_started_ms\":");
+        w_int(session->started_ms);
+    }
     w(",\"arch\":");
     w_str(arch_name());
     w(",\"pid\":");
@@ -509,12 +518,13 @@ void ouo_crash_install_alt_stack(void) {
     if (sigaltstack(&st, NULL) != 0) free(st.ss_sp);
 }
 
-void ouo_crash_set_session_id(const char *session_id) {
+void ouo_crash_set_session(const char *session_id, int64_t started_ms) {
     int next = 1 - atomic_load(&g_session_index);
     size_t n = session_id != NULL ? strlen(session_id) : 0;
     if (n >= OUO_SESSION_MAX) n = OUO_SESSION_MAX - 1;
-    if (n > 0) memcpy(g_session[next], session_id, n);
-    g_session[next][n] = 0;
+    if (n > 0) memcpy(g_session[next].id, session_id, n);
+    g_session[next].id[n] = 0;
+    g_session[next].started_ms = started_ms;
     atomic_store(&g_session_index, next);
 }
 

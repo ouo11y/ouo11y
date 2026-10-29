@@ -48,10 +48,19 @@ export interface UserOptions {
  * (iOS; Android is a no-op stub). Off unless `enabled: true`. Needs a development build
  * (`npx expo prebuild && npx expo run:ios`); in Expo Go and on web it silently stays off.
  */
+/**
+ * `session`: a frame per `frameInterval` while the screen changes. `navigation`: one frame per
+ * screen (start, resume, every route change). `auto`: `navigation` on devices with less than
+ * 3.5 GiB of RAM, `session` otherwise.
+ */
+export type ReplayMode = "auto" | "session" | "navigation";
+
 export interface ReplayOptions {
   /** Default false. */
   enabled?: boolean;
-  /** Seconds between timer frames. Default 1. */
+  /** What is captured. Default `auto`. */
+  mode?: ReplayMode;
+  /** Shortest time between two frames in `session` mode, in seconds. Default 1. */
   frameInterval?: number;
   /**
    * Redact labels and React Native `<Text>` (not inputs). Default true. Set to `false` when

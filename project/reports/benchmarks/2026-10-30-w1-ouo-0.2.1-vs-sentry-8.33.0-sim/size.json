@@ -1,0 +1,235 @@
+{
+ "app_bytes": 38165862,
+ "native": {
+  "linked_bytes": 5196455,
+  "executable_bytes": 9674856,
+  "frameworks": {
+   "ExpoFileSystem.framework": 1158576,
+   "ExpoFont.framework": 229550,
+   "ExpoModulesCore.framework": 3806150,
+   "ExpoModulesJSI.framework": 513193,
+   "ExpoModulesWorklets.framework": 167218,
+   "React.framework": 12083914,
+   "ReactNativeDependencies.framework": 1275446,
+   "hermesvm.framework": 5095034
+  },
+  "groups": {
+   "other": 25714241,
+   "sentry": 3173692,
+   "ouo": 637603
+  },
+  "top_libraries": [
+   [
+    "Sentry",
+    3049866
+   ],
+   [
+    "libRNScreens.a",
+    460043
+   ],
+   [
+    "libOuoCrashCore.a",
+    439027
+   ],
+   [
+    "linker synthesized",
+    352741
+   ],
+   [
+    "libReactCodegen.a",
+    199609
+   ],
+   [
+    "libExpo.a",
+    128431
+   ],
+   [
+    "libRNSentry.a",
+    123826
+   ],
+   [
+    "libOuoReplayCore.a",
+    109887
+   ],
+   [
+    "libExpoDomWebView.a",
+    72634
+   ],
+   [
+    "libOuoReplay.a",
+    54071
+   ],
+   [
+    "libreact-native-safe-area-context.a",
+    45585
+   ],
+   [
+    "libRNCAsyncStorage.a",
+    29124
+   ],
+   [
+    "arm64",
+    21714
+   ],
+   [
+    "libOuoReactNative.a",
+    16453
+   ],
+   [
+    "libExpoAsset.a",
+    12301
+   ],
+   [
+    "libOuoVitals.a",
+    11854
+   ],
+   [
+    "libEXConstants.a",
+    10177
+   ],
+   [
+    "libExpoLinking.a",
+    10136
+   ],
+   [
+    "swift",
+    8812
+   ],
+   [
+    "libOuoCrash.a",
+    5767
+   ],
+   [
+    "libExpoKeepAwake.a",
+    5029
+   ],
+   [
+    "Foundation.framework",
+    4796
+   ],
+   [
+    "libswiftCompatibility56.a",
+    4263
+   ],
+   [
+    "system",
+    3436
+   ],
+   [
+    "ExpoModulesCore.framework",
+    3304
+   ]
+  ]
+ },
+ "js": {
+  "bundle_bytes": 3463884,
+  "attributed_bytes": 1988589,
+  "groups": {
+   "other": 1027586,
+   "sentry": 837250,
+   "ouo": 123753
+  },
+  "top_packages": [
+   [
+    "react-native",
+    421608
+   ],
+   [
+    "@sentry/core",
+    243128
+   ],
+   [
+    "@sentry/react-native",
+    210305
+   ],
+   [
+    "@ouo11y/react-native",
+    123753
+   ],
+   [
+    "expo",
+    109374
+   ],
+   [
+    "@sentry/replay",
+    105912
+   ],
+   [
+    "@sentry/conventions",
+    88965
+   ],
+   [
+    "@react-navigation/core",
+    72003
+   ],
+   [
+    "@sentry/browser",
+    70697
+   ],
+   [
+    "@openfeature/web-sdk",
+    45782
+   ],
+   [
+    "@openfeature/core",
+    37055
+   ],
+   [
+    "@sentry/browser-utils",
+    36284
+   ],
+   [
+    "@sentry/feedback",
+    35542
+   ],
+   [
+    "@sentry/react",
+    34073
+   ],
+   [
+    "@react-native/virtualized-lists",
+    31178
+   ],
+   [
+    "react-native-screens",
+    27341
+   ],
+   [
+    "(app)",
+    27015
+   ],
+   [
+    "expo-file-system",
+    24639
+   ],
+   [
+    "@react-navigation/elements",
+    23802
+   ],
+   [
+    "@openfeature/ofrep-web-provider",
+    21749
+   ],
+   [
+    "whatwg-url-minimum",
+    19000
+   ],
+   [
+    "@react-navigation/native",
+    18030
+   ],
+   [
+    "@react-navigation/routers",
+    17144
+   ],
+   [
+    "@sentry/replay-canvas",
+    12344
+   ],
+   [
+    "@react-navigation/native-stack",
+    11572
+   ]
+  ]
+ }
+}

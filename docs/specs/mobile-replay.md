@@ -32,16 +32,26 @@ Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers
 - `x`, `y` are in points of the unscaled viewport.
 - `seq` is monotonic per session, starts at 0 for a new session, persists across app restarts within a session (same store as the session record).
 - A chunk is flushed every 5 seconds, or when it holds 10 frames, or on `pause()`, background, and session rotation.
+- The open chunk is also kept on disk (a folder excluded from device backups); a chunk the process could not flush (crash, watchdog or OOM kill, force quit) is sent on the next launch with its own `session_id` and `seq`, `ended_at` being its last frame or touch, whether or not the next launch records (the React Native SDK asks for it before its sampling decision). A chunk that started more than 24 h before the next launch is dropped.
 - Frames are JPEG, longest side at most 1000 px (scale chosen by the SDK), quality 0.5. The SDK drops a frame whose downsampled hash equals the previous one.
 - The maximum chunk size accepted by rum-api is 8 MB for `kind: "frames"`.
 
 ## Capture rules (iOS)
 
-1. Capture the key `UIWindow` with `drawHierarchy(in:afterScreenUpdates:false)` on the main thread, timer at 1 Hz plus one capture per touch `began` and `ended` (coalesced to at most 4 per second).
-2. Before encoding, walk the window's view hierarchy and compute redaction rectangles in window coordinates for: `UITextField`, `UITextView`, `UILabel`, React Native text views (`RCTTextView`, `RCTParagraphComponentView`), `UIImageView`, `WKWebView`, and any view with `accessibilityIdentifier == "ouo-mask"` (React Native `testID`). Views with `accessibilityIdentifier == "ouo-unmask"` and their subtree are skipped. Hidden views, zero-alpha views and views clipped outside the window are skipped.
-3. Fill the rectangles with opaque black on the captured image, then downscale and encode.
-4. Stop the timer on `didEnterBackground`, flush, and resume on `didBecomeActive` with an immediate frame.
-5. Touches are observed on the window without interfering with the app's gesture handling.
+1. Capture the key `UIWindow` with `drawHierarchy(in:afterScreenUpdates:false)` on the main thread, 1:1 at the screen's scale into an 8-bit bitmap in the screen's color space; the downscale to the frame size, redaction and encoding run on a background queue. One capture in flight.
+2. **Scheduling** (ADR-0006 rev 2). A main run-loop observer (`beforeWaiting`, after Core Animation's commit) decides once per pass; a 1 s keep-alive timer wakes an idle run loop. A frame is taken when all hold:
+   - it is due: in `session` mode at least `frameInterval` (default 1 s) after the last one; in `navigation` mode only on start, resume and 0.4 s after a screen change (`screenDidChange()`, called by the React Native SDK on every route change), and again 0.5 s later, at most 3 times, when that frame was dropped;
+   - no view controller transition is running (checked on every pass; no capture during a push, pop or presentation, however long);
+   - fewer than 4 layer animations run, or the frame has waited 1 s for them (a spinner must not stop replay);
+   - 0.25 s have passed since the last transition or animation burst seen (`drawHierarchy(afterScreenUpdates: false)` reads what the screen last showed, which trails the model); passes before that skip the view walk, and a one-shot timer wakes the run loop when the frame can be due;
+   - the time bank is not overdrawn: the main-thread part of capturing (walk and render) may spend 100 ms per second, banked up to 100 ms. This is also the backoff on slow devices: a 150 ms capture leaves one frame every 1.5 s.
+   Touches are recorded but never trigger a capture.
+3. **Modes**: `session`, `navigation`, and `auto` (default): `navigation` on devices with less than 3.5 GiB of RAM, `session` otherwise.
+4. Before encoding, walk the window's view hierarchy and compute redaction rectangles in window coordinates for: `UITextField`, `UITextView`, `UILabel`, React Native text views (`RCTTextView`, `RCTParagraphComponentView`), `UIImageView`, `WKWebView`, and any view with `accessibilityIdentifier == "ouo-mask"` (React Native `testID`). Views with `accessibilityIdentifier == "ouo-unmask"` and their subtree are skipped. Hidden views, zero-alpha views and views clipped outside the window are skipped.
+5. **Masking fails closed**, decided on the main thread before the render: a frame is dropped when a rectangle to mask belongs to a moving view, or to one inside it, because the pixels may not be where the rectangle is. A view is moving when an animation runs on its layer whose key path is not opacity, colors, contents, borders, corner radius, shadows or filters, or when it is a scroll view being dragged or decelerating (the screen shows the previous offset). A view with alpha 0 that still animates (fading out) is walked and masked like a visible one. A subtree the walk cut at its depth limit (64) is masked whole.
+6. Downscale, fill the rectangles with opaque black, drop the frame when it equals the previous kept one, then encode.
+7. Stop capturing on `didEnterBackground`, flush, and resume on `didBecomeActive` with an immediate frame.
+8. Touches are observed on the window without interfering with the app's gesture handling.
 
 ## Storage
 
@@ -65,12 +75,14 @@ import OuoReplay
 OuoReplay.start(OuoReplayConfig(
     endpoint: URL(string: "http://localhost:8080")!,
     sessionId: { currentSessionId },      // called on every chunk
+    mode: .auto,                          // .session, .navigation, .auto
     frameInterval: 1.0,
     maskText: true, maskImages: true, maskWebViews: true,
     debug: false))
 OuoReplay.pause(); OuoReplay.resume(); OuoReplay.isRecording
 OuoReplay.sessionDidRotate(newId: String)   // flushes, resets seq to 0
+OuoReplay.screenDidChange()                 // the frame for a new screen in navigation mode
 OuoReplay.flush()
 ```
 
-React Native: `initRUM({ replay: { enabled: true } })` starts it through the Expo module; `rum.replay.pause()/resume()/isRecording()` mirror the web API; the JS session manager calls `sessionDidRotate` on rotation.
+React Native: `initRUM({ replay: { enabled: true, mode: "auto" } })` starts it through the Expo module; `rum.replay.pause()/resume()/isRecording()` mirror the web API; the JS session manager calls `sessionDidRotate` on rotation.

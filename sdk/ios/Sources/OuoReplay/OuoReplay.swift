@@ -1,8 +1,8 @@
 import Foundation
 import OuoReplayCore
 
-/// Public entry point. All calls are main-thread safe to make from anywhere; the work happens
-/// on the main thread because UIKit snapshots require it.
+/// Public entry point. All calls are safe to make from any thread; the work happens on the main
+/// thread because UIKit snapshots require it.
 public enum OuoReplay {
     #if canImport(UIKit)
     private static var recorder: ReplayRecorder?
@@ -45,6 +45,27 @@ public enum OuoReplay {
         onMain { recorder?.sessionDidRotate(newId: newId) }
     }
 
+    /// Sends the replay chunk a crash, watchdog kill or force quit left open in the previous run,
+    /// with `config`'s endpoint and credential, whether or not this run records. `start` does it
+    /// too; call this first when the host decides per session whether to record (sampling), so a
+    /// crashed session's last seconds arrive even when the next session is not recorded. Only the
+    /// first call in a process (this or `start`) recovers; later ones do nothing.
+    public static func recoverPendingChunk(_ config: OuoReplayConfig) {
+        ReplayRecorder.recoverSpool(config)
+    }
+
+    /// A new screen is showing (a navigation library's route change). In `navigation` mode this is
+    /// what takes a frame; in `session` mode it changes nothing.
+    public static func screenDidChange() {
+        onMain { recorder?.screenDidChange() }
+    }
+
+    /// The mode the recorder runs in (`auto` resolved for this device), nil when not started.
+    public static var mode: ReplayMode? {
+        if Thread.isMainThread { return recorder?.mode }
+        return DispatchQueue.main.sync { recorder?.mode }
+    }
+
     /// Stops everything and releases the window observers.
     public static func stop() {
         onMain {
@@ -71,6 +92,9 @@ public enum OuoReplay {
     public static var isRecording: Bool { false }
     public static func flush(completion: (() -> Void)? = nil) { warnOnce(); completion?() }
     public static func sessionDidRotate(newId: String) { warnOnce() }
+    public static func recoverPendingChunk(_ config: OuoReplayConfig) {}
+    public static func screenDidChange() { warnOnce() }
+    public static var mode: ReplayMode? { nil }
     public static func stop() { warnOnce() }
     #endif
 }

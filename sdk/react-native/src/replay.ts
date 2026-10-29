@@ -1,6 +1,6 @@
 import type { DebugLogger } from "./logger";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
-import type { ReplayOptions, RUMReplay } from "./types";
+import type { ReplayMode, ReplayOptions, RUMReplay } from "./types";
 
 /**
  * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
@@ -14,6 +14,10 @@ export interface NativeReplayModule {
   flush(): Promise<void>;
   sessionDidRotate(id: string): void;
   setSessionId(id: string): void;
+  /** Missing on native builds older than the replay modes. */
+  screenDidChange?(): void;
+  /** Sends the chunk a crash left open in the previous run; missing on older native builds. */
+  recoverPendingChunk?(endpoint: string, options: NativeStartOptions): void;
   stop?(): void;
 }
 
@@ -26,6 +30,7 @@ export interface NativeStartOptions {
    */
   projectId: string;
   projectToken: string;
+  mode: ReplayMode;
   frameInterval: number;
   maskText: boolean;
   maskInputs: boolean;
@@ -108,6 +113,8 @@ export interface ReplayController extends RUMReplay {
   readonly active: boolean;
   start(sessionId: string): void;
   sessionDidRotate(id: string): void;
+  /** A new screen is showing: the frame for it in `navigation` mode. */
+  screenDidChange(): void;
   /** An error in the current session: starts an error-triggered recording when sampled. */
   onError(): void;
   flush(): Promise<void>;
@@ -158,19 +165,27 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   const inSessionSample = (id: string): boolean => sampled(id, sessionRate, SAMPLING_SALT.session);
   const recorded = (id: string): boolean => inSessionSample(id) && sampled(id, replayRate, SAMPLING_SALT.replay);
 
+  const nativeOptions = (sessionId: string): NativeStartOptions => ({
+    sessionId,
+    projectId: opts.projectId,
+    projectToken: opts.projectToken,
+    mode: opts.options?.mode ?? "auto",
+    frameInterval: opts.options?.frameInterval ?? 1,
+    maskText: opts.options?.maskText !== false,
+    maskInputs: opts.options?.maskInputs !== false,
+    maskImages: opts.options?.maskImages !== false,
+    maskWebViews: opts.options?.maskWebViews !== false,
+    debug: logger.enabled,
+  });
+
+  // The chunk a crash left open goes out whatever this launch's sampling decides.
+  if (native && endpoint && typeof native.recoverPendingChunk === "function") {
+    call("recoverPendingChunk", () => native.recoverPendingChunk!(endpoint, nativeOptions("")));
+  }
+
   const startNative = (sessionId: string): void => {
     if (!native || !endpoint || active) return;
-    const startOptions: NativeStartOptions = {
-      sessionId,
-      projectId: opts.projectId,
-      projectToken: opts.projectToken,
-      frameInterval: opts.options?.frameInterval ?? 1,
-      maskText: opts.options?.maskText !== false,
-      maskInputs: opts.options?.maskInputs !== false,
-      maskImages: opts.options?.maskImages !== false,
-      maskWebViews: opts.options?.maskWebViews !== false,
-      debug: logger.enabled,
-    };
+    const startOptions = nativeOptions(sessionId);
     call("start", () => {
       native.setSessionId(sessionId);
       native.start(endpoint, startOptions);
@@ -213,6 +228,10 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         samplePaused = false;
         if (!userPaused) call("resume", () => native.resume());
       }
+    },
+    screenDidChange(): void {
+      if (!native || !active || !native.screenDidChange) return;
+      call("screenDidChange", () => native.screenDidChange!());
     },
     onError(): void {
       const id = currentId;

@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -283,5 +284,27 @@ func TestSessionContext(t *testing.T) {
 	}
 	if SessionContext(evs[2:]) != nil {
 		t.Error("no context keys: want nil")
+	}
+}
+
+// N52: a native crash in the session's first second, before session.start was
+// exported. The next launch ends the session with its own start time on
+// session.end, so the session still starts there and lasts 400 ms, not zero.
+func TestFoldStartedAtFromSessionEndWithoutStart(t *testing.T) {
+	crash := base.Add(10 * time.Minute)
+	started := crash.Add(-400 * time.Millisecond)
+	evs := []Event{
+		{TS: crash, Name: "exception", SessionID: "N", Platform: "mobile", Attrs: map[string]string{"ouo_exception_fatal": "true"}},
+		{TS: crash, Name: "session.end", SessionID: "N", Platform: "mobile", Attrs: map[string]string{
+			"ouo_session_end_reason": "crash",
+			"ouo_session_started_at": strconv.FormatInt(started.UnixMilli(), 10),
+		}},
+	}
+	rec := FoldOne("N", evs, crash.Add(time.Minute), DefaultOptions)
+	if !rec.StartedAt.Equal(started) {
+		t.Errorf("started_at = %v, want %v", rec.StartedAt, started)
+	}
+	if rec.Status != StatusCrashed || rec.EndedAt == nil || !rec.EndedAt.Equal(crash) {
+		t.Errorf("status %v ended %v, want crashed at %v", rec.Status, rec.EndedAt, crash)
 	}
 }

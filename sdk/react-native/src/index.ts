@@ -129,7 +129,7 @@ export function initRUM(options: RUMOptions): RUM {
     onEvent: (event) => events.emit(event.name, event.attributes, "info", event.timestamp),
     onRotate: (next) => {
       replay.sessionDidRotate(next.id);
-      nativeCrash.setSessionId(next.id);
+      nativeCrash.setSessionId(next.id, next.startedAt);
     },
   });
 
@@ -247,7 +247,7 @@ export function initRUM(options: RUMOptions): RUM {
   // The native recorder keys chunks by the session id it is told; rotations arrive through onRotate.
   replay.start(session.id());
   // After Sentry.init when both run: ouo's handlers then run first and chain to Sentry's.
-  nativeCrash.install(session.id());
+  nativeCrash.install(session.id(), session.startedAt());
 
   // ---- instrumentation ----
   // The SDK's own uploads are never traced: the OTLP exports and the replay chunks.
@@ -313,6 +313,7 @@ export function initRUM(options: RUMOptions): RUM {
   const navigation = createNavigationTracker((attrs) => {
     events.emit("navigation", attrs);
     onActivity();
+    replay.screenDidChange();
     // `app.screen.name`: the route name, the last segment of the path.
     const path = String(attrs["url.path"] ?? "");
     vitals.navigated(path.slice(path.lastIndexOf("/") + 1));

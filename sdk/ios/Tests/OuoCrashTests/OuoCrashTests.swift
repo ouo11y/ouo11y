@@ -62,6 +62,7 @@ private final class BundleToken {}
         let r = try #require(run.report)
         #expect(r["mechanism"] as? String == "signal")
         #expect(r["session_id"] as? String == "3f0c1d2e-0000-4000-8000-000000000001")
+        #expect((r["session_started_ms"] as? NSNumber)?.int64Value == 1_760_000_000_123, "N52: the session start travels with the crash")
         let sig = try #require(r["signal"] as? [String: Any])
         #expect(["SIGSEGV", "SIGBUS"].contains(sig["name"] as? String))
         #expect(sig["mach_exception"] as? String == "EXC_BAD_ACCESS")

@@ -35,7 +35,7 @@ if args.count >= 5 {
 }
 
 OuoCrash.install(directory: dir)
-OuoCrash.setSessionId(args[2])
+OuoCrash.setSession(args[2], startedAtMs: 1_760_000_000_123)
 
 @inline(never) func crashSegv() {
     let p = UnsafeMutablePointer<Int>(bitPattern: 0x10)!

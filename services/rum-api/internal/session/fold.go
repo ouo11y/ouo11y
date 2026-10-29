@@ -167,9 +167,16 @@ func FoldOne(id string, events []Event, now time.Time, opts Options) Record {
 	}
 	if startEv != nil {
 		rec.StartedAt = startEv.TS
-		// The SDK reports its own clock in ouo.session.started_at (epoch ms);
-		// prefer it when it is earlier than the log timestamp (export lag).
-		if ms, err := strconv.ParseInt(startEv.Attrs["ouo_session_started_at"], 10, 64); err == nil && ms > 0 {
+	}
+	// The SDK reports its own clock in ouo.session.started_at (epoch ms) on
+	// session.start and session.end; prefer it when it is earlier than the
+	// first log (export lag). session.end's copy counts when session.start
+	// never arrived: a crash in the session's first second (N52).
+	if ev := startEv; ev != nil || endEv != nil {
+		if ev == nil {
+			ev = endEv
+		}
+		if ms, err := strconv.ParseInt(ev.Attrs["ouo_session_started_at"], 10, 64); err == nil && ms > 0 {
 			if t := time.UnixMilli(ms).UTC(); t.Before(rec.StartedAt) && rec.StartedAt.Sub(t) < time.Hour {
 				rec.StartedAt = t
 			}

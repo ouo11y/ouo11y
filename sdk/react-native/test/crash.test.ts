@@ -109,8 +109,8 @@ function fakeCrashModule(pending: string | null) {
     flush: vi.fn(() => Promise.resolve()),
     sessionDidRotate: vi.fn(),
     setSessionId: vi.fn(),
-    installCrashReporter: vi.fn((_id: string) => true),
-    setCrashSessionId: vi.fn((_id: string) => undefined),
+    installCrashReporter: vi.fn((_id: string, _startedAtMs: number) => true),
+    setCrashSessionId: vi.fn((_id: string, _startedAtMs: number) => undefined),
     takePendingCrash: vi.fn(() => {
       const r = report;
       report = null;
@@ -173,6 +173,8 @@ describe("native crash report", () => {
   it("parses what the native handler writes and rejects anything else", () => {
     expect(parseNativeCrash(JSON.stringify(signalReport()))?.session_id).toBe(CRASHED);
     expect(parseNativeCrash("{")).toBeUndefined();
+    expect(parseNativeCrash(JSON.stringify({ ...signalReport(), session_started_ms: crashAt - 500 }))?.session_started_ms).toBe(crashAt - 500);
+    expect(parseNativeCrash(JSON.stringify({ ...signalReport(), session_started_ms: "x" }))).not.toHaveProperty("session_started_ms");
     expect(parseNativeCrash(JSON.stringify({ mechanism: "other", timestamp_ms: 1 }))).toBeUndefined();
     const nsx = parseNativeCrash(JSON.stringify({ ...signalReport(), mechanism: "nsexception", signal: undefined, exception: { name: "NSInvalidArgumentException", reason: "bad" } }))!;
     expect(nativeCrashAttributes(nsx)["exception.type"]).toBe("NSInvalidArgumentException");
@@ -205,7 +207,9 @@ describe("initRUM with a native crash from the previous run", () => {
     const storage = new MemoryAsyncStorage();
     await persistedSession(storage);
     const rum = initRUM(makeOptions(storage)) as RUMInternal;
-    expect(native.installCrashReporter).toHaveBeenCalledWith(rum.session.id());
+    expect(native.installCrashReporter).toHaveBeenCalledWith(rum.session.id(), expect.any(Number));
+    // The session's start goes into a crash report (N52): the new session started just now.
+    expect(Math.abs(native.installCrashReporter.mock.calls[0]![1] - Date.now())).toBeLessThan(5_000);
     await rum.ready;
     await rum.flush();
     const names = captured.logs.map((l) => attr(l.attributes, "event.name"));
@@ -221,6 +225,32 @@ describe("initRUM with a native crash from the previous run", () => {
     expect(BigInt(exc!.timeUnixNano) / 1_000_000n).toBe(BigInt(crashAt));
     // The new session is the crash reporter's from now on.
     expect(native.takePendingCrash).toHaveBeenCalledTimes(1);
+  });
+
+  // N52: the process died in the session's first second, before its record reached storage. The
+  // crash report alone names the session and its start; it still ends, from that start.
+  it("a crash before the session was persisted still ends that session from its start", async () => {
+    const native = fakeCrashModule(JSON.stringify({ ...signalReport(), session_started_ms: crashAt - 400 }));
+    expoGlobal.expo = { modules: { OuoReplay: native } };
+    const captured = installFetchStub();
+    const storage = new MemoryAsyncStorage();
+    await persistedSession(storage, "older");
+    const rum = initRUM(makeOptions(storage)) as RUMInternal;
+    await rum.ready;
+    await rum.flush();
+    const ends = captured.logs.filter((l) => attr(l.attributes, "event.name") === "session.end");
+    const lost = ends.find((l) => attr(l.attributes, "session.id") === CRASHED);
+    expect(lost).toBeDefined();
+    expect(attr(lost!.attributes, "ouo.session.end_reason")).toBe("crash");
+    expect(attr(lost!.attributes, "ouo.session.started_at")).toBe(crashAt - 400);
+    expect(attr(lost!.attributes, "ouo.session.ended_at")).toBe(crashAt);
+    // The older session is not the one that crashed.
+    const older = ends.find((l) => attr(l.attributes, "session.id") === "older");
+    expect(attr(older!.attributes, "ouo.session.end_reason")).not.toBe("crash");
+    const start = captured.logs.find((l) => attr(l.attributes, "event.name") === "session.start");
+    expect(attr(start!.attributes, "session.previous_id")).toBe(CRASHED);
+    const exc = captured.logs.find((l) => attr(l.attributes, "event.name") === "exception");
+    expect(attr(exc!.attributes, "session.id")).toBe(CRASHED);
   });
 
   it("a React Native fatal (RCTFatalException) only supplies the end time: the JS handler already reported it", async () => {
@@ -245,7 +275,7 @@ describe("initRUM with a native crash from the previous run", () => {
     await persistedSession(storage, "other");
     const rum = initRUM(makeOptions(storage)) as RUMInternal;
     await rum.ready;
-    expect(native.setCrashSessionId).toHaveBeenCalledWith(rum.session.id());
+    expect(native.setCrashSessionId).toHaveBeenCalledWith(rum.session.id(), expect.any(Number));
     await rum._uninstall();
 
     delete g.__ouoSessionProcessState;
