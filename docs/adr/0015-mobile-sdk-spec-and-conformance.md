@@ -1,6 +1,6 @@
 # ADR-0015 Mobile SDK spec: twelve capabilities, conformance checks per package, maturity L0–L3
 
-Status: accepted (2026-10-29: the founder approved the roadmap and its W2 package; the two places where this ADR departs from the roadmap's wording, taps staying `ui.tap` and the Node suite of decision 4, are for the founder to confirm at the next checkpoint).
+Status: accepted (2026-10-29, with the roadmap and its W2 package); two departures from the roadmap's wording, taps staying `ui.tap` (decision 1) and the Node suite (decision 4), to be confirmed by the founder at the next checkpoint.
 
 ## Context
 

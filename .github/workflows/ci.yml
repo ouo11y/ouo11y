@@ -66,7 +66,7 @@ jobs:
           # SDK or receiver it exercises, and the stack they run on.
           shared='examples/(backend|tools)/|^deploy/compose/'
           flag ex-web           "^(examples/ouo-web|sdk/browser)/|^$shared"
-          flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native|tests/e2e/mobile)/|^tests/e2e/lib\.mjs$|^docs/specs/mobile-sdk\.md$|^$shared"
+          flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native|tests/e2e/mobile|services/rum-api|collector)/|^tests/e2e/lib\.mjs$|^docs/specs/mobile-sdk\.md$|^$shared"
           flag ex-sentry-mobile "^(examples/sentry-mobile|collector)/|^$shared"
           images=""
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
@@ -383,11 +383,12 @@ jobs:
           python3 -I examples/ouo-mobile/scripts/verify.py --journey "$RUNNER_TEMP/rn.json" --min-failed 1
       # The mobile SDK conformance suite (docs/specs/mobile-sdk.md, ADR-0015): the golden React Native
       # iOS app in Node under the native stand-in, every check asserted in rum-api, the maturity row
-      # printed. Checks of packages not landed yet report without failing.
+      # printed. Checks of packages not landed yet report without failing. It asserts rum-api and the
+      # collector's receivers too, so the leg also runs on changes there.
       - name: mobile SDK conformance (React Native iOS)
         if: env.OUO_MOBILE == 'true'
         timeout-minutes: 8
-        run: node tests/e2e/mobile/conformance.mjs --out "$RUNNER_TEMP/conformance.json"
+        run: node tests/e2e/mobile/conformance.mjs
       - name: sentry-mobile (typecheck; Sentry wire traffic through the bridge + verify)
         if: env.SENTRY_MOBILE == 'true'
         run: |

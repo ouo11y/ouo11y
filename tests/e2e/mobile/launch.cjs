@@ -67,6 +67,9 @@ async function main() {
       await sleep(BACKGROUND_TIMEOUT_MS + 600);
       AppState.__emit("active");
       rum.trackNavigation("/Home");
+      // The resume frame lands in the first session (native resumes before the JS rotation); the
+      // second session's first frame is the next timer tick, as on a device.
+      await sleep(1500);
       out.second = rum.session.id();
       out.second_previous = rum.session.previousId() ?? null;
       break;

@@ -13,7 +13,7 @@ export const READ_TOKEN = env.OUO_READ_TOKEN ?? "rt_dev_0000000000000000";
 export const TEMPO_DS_UID = env.OUO_TEMPO_DS_UID ?? "tempo";
 export const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");
 export const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:testing567";
-export const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 120);
+export const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 180);
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

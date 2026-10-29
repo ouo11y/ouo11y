@@ -31,6 +31,18 @@ Session started from the W1/W2 orchestration session; branch `claude/w2-mobile-s
 - **W4 / bridge**: the bridge sets `ouo.sentry.mechanism = AppHang` on hang exceptions but no `ouo.exception.kind = hang`; to share C3.1's record the bridge should set it too (a one-line follow-up in `ouosentryreceiver`).
 - The RN SDK sends no `device.id` (session-lifecycle allows it to be absent) and no `ouo.navigation.kind` on navigations (the bridge sends `screen`); both are noted in the spec for W5.
 
+## Review round 1 (PR #106, 2026-10-30)
+
+The reviewer session found that C8.1 passed only because the stand-in captured a frame at the rotation, which the Swift recorder never does. Changes:
+
+- **Stand-in = Swift recorder**: no capture at the rotation; chunks take the session id and seq of their first frame and are cut at 5 s, 10 frames, pause, background, rotation or flush (`ChunkBuilder`); the timer stops on background and resumes with an immediate frame (`ReplayRecorder`); the module is registered on `globalThis.expo.modules` (what the SDK reads first) instead of a `Module._load` hook. The `main` journey stays 1.5 s in the second session so its first timer frame lands, as on a device.
+- Verified after the changes: conformance on env `w2-mobile-spec` CONFORMANCE OK, 9 required pass, 9 pending (C8.1 now from the timer frame in the second session, pending reasons unchanged); `scenario.mjs` E2E OK, 40 sessions; lychee clean.
+- **CI**: the `ex-ouo-mobile` filter also matches `services/rum-api/` and `collector/` (the suite asserts both); `--out` dropped in CI (failures already print their detail).
+- **Code**: `detail()` is `getJSON(...).catch(() => null)`; one `OUO_E2E_TIMEOUT` default (180 s, in `lib.mjs`).
+- **Spec**: rule 2 defers to session-lifecycle.md for `session.previous_id`; C8 modes link ADR-0014 instead of restating them; C3 says a foreground kill with no known cause is a fatal `termination` with cause `unknown`, and only the runs the heuristic excludes stay `terminated`; C2.1 names `ouo.exception.fatal`; §5 lists the CI paths. ADR-0015 status names the two departures to confirm.
+- Rebased on main after #105 (ADR-0014/0016): the `mobile-sdk` index and tracker hold both packages.
+- Left as is: folding `examples/ouo-mobile`'s Node leg into this suite (review item 13). It is worth doing once W1 lands, so there is one Node harness for the RN SDK.
+
 ## What is left
 
 - Merge after the ADR-0013 review. Each later package removes `pending` from its checks, updates the stand-in when it changes the native module, and updates the spec's matrix (see [tracker.md](../tracker.md)).

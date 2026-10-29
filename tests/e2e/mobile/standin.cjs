@@ -3,10 +3,10 @@
  * section 5). Loaded with `node --require`, before the built `@ouo11y/react-native` bundle:
  *
  * - the playground's react-native, AsyncStorage and ErrorUtils stand-ins (sdk/react-native/playground);
- * - `expo-modules-core` returning a model of the `OuoReplay` Expo module (sdk/react-native/ios) as it
- *   behaves today, at the boundary the JS calls: replay start / rotate / flush with frame chunks
- *   uploaded like the Swift `ChunkUploader`, the OuoCrash report file read on the next launch, app
- *   start info and cumulative frame counters;
+ * - `globalThis.expo.modules.OuoReplay`, a model of the Expo module (sdk/react-native/ios) as it
+ *   behaves today, at the boundary the JS calls: replay start / rotate / pause / flush with frame
+ *   chunks cut and uploaded like the Swift `ReplayRecorder` and `ChunkBuilder`, the OuoCrash report
+ *   file read on the next launch, app start info and cumulative frame counters;
  * - a `fetch` wrapper that logs every request to the collector (method, URL, content-encoding,
  *   status) and refuses them while `OUO_E2E_OFFLINE=1` (the network is down).
  *
@@ -20,7 +20,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
-const Module = require("node:module");
 
 require("../../../sdk/react-native/playground/preload.cjs");
 
@@ -64,28 +63,49 @@ const readSeq = () => {
   }
 };
 
-let recorder; // { endpoint, options, sessionId, frames, paused, timer }
+// Swift: ReplayRecorder (timer, pause, background, rotation) and OuoReplayCore.ChunkBuilder (a chunk
+// keeps the session id and seq of its first frame; cut at 5 s, 10 frames or an explicit flush).
+// Not modelled: the frame deduper (every frame here is kept, as screens change between frames),
+// touches and touch-triggered frames.
+const FLUSH_INTERVAL_MS = 5000;
+const MAX_FRAMES = 10;
+let recorder; // { endpoint, options, sessionId, timer, pausedByHost, chunk }
 let crashSessionId;
 const uploads = [];
 
 function capture(reason) {
-  if (recorder && !recorder.paused && !recorder.background) recorder.frames.push({ ts: Date.now(), jpeg: FRAME, reason });
+  if (!recorder?.timer) return; // Swift: captureFrame guards isRecording
+  const ts = Date.now();
+  if (!recorder.chunk) {
+    // ChunkBuilder.open: the chunk takes the current session id and its next seq at its first frame.
+    const sessionId = recorder.sessionId;
+    const seqs = readSeq();
+    const seq = seqs[sessionId] ?? 0;
+    fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...seqs, [sessionId]: seq + 1 }));
+    recorder.chunk = { sessionId, seq, startedAt: ts, frames: [] };
+  }
+  recorder.chunk.frames.push({ ts, jpeg: FRAME, reason });
+  if (recorder.chunk.frames.length >= MAX_FRAMES) upload();
+  else flushIfDue();
 }
 
-/** Sends the frames held for the current session as one chunk (Swift: ReplayRecorder.flush). */
+function flushIfDue() {
+  if (recorder?.chunk && Date.now() - recorder.chunk.startedAt >= FLUSH_INTERVAL_MS) upload();
+}
+
+/** Cuts the open chunk and uploads it (Swift: ChunkBuilder.flush, then ChunkUploader). */
 function upload() {
-  if (!recorder || recorder.frames.length === 0) return Promise.resolve();
-  const { endpoint, options, sessionId } = recorder;
-  const frames = recorder.frames.splice(0);
-  const seqs = readSeq();
-  const seq = seqs[sessionId] ?? 0;
-  fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...seqs, [sessionId]: seq + 1 }));
-  const chunk = {
+  const chunk = recorder?.chunk;
+  if (!chunk) return Promise.resolve();
+  recorder.chunk = undefined;
+  const { endpoint, options } = recorder;
+  const { sessionId, seq, frames } = chunk;
+  const body = {
     kind: "frames",
     schema_version: 1,
     session_id: sessionId,
     seq,
-    started_at: frames[0].ts,
+    started_at: chunk.startedAt,
     ended_at: frames[frames.length - 1].ts,
     viewport: { width: 393, height: 852, scale: 0.5 },
     platform: "ios",
@@ -103,7 +123,7 @@ function upload() {
         "x-ouo-session-id": sessionId,
         "x-ouo-seq": String(seq),
       },
-      body: zlib.gzipSync(JSON.stringify(chunk)),
+      body: zlib.gzipSync(JSON.stringify(body)),
     })
     .then((res) => record({ kind: "chunk", session_id: sessionId, seq, frames: frames.length, status: res.status }))
     .catch((err) => record({ kind: "chunk", session_id: sessionId, seq, frames: frames.length, status: String(err) }));
@@ -111,40 +131,59 @@ function upload() {
   return p;
 }
 
+/** Swift: resumeCapture, an immediate frame and the frame timer. */
+function resumeCapture() {
+  if (!recorder || recorder.timer) return;
+  recorder.timer = setInterval(() => {
+    capture("timer");
+    flushIfDue();
+  }, Math.max(1, recorder.options.frameInterval) * 1000);
+  recorder.timer.unref();
+  capture("resume");
+}
+
+function stopTimer() {
+  if (recorder?.timer) clearInterval(recorder.timer);
+  if (recorder) recorder.timer = undefined;
+}
+
 const native = {
   // Replay (NativeReplayModule)
   start(endpoint, options) {
     record({ kind: "replay.start", endpoint, options: { ...options, projectToken: undefined } });
-    recorder = { endpoint, options, sessionId: options.sessionId, frames: [], paused: false };
-    recorder.timer = setInterval(() => capture("timer"), Math.max(1, options.frameInterval) * 1000);
-    recorder.timer.unref();
-    capture("resume");
+    recorder = { endpoint, options, sessionId: options.sessionId, pausedByHost: false };
+    resumeCapture();
   },
   setSessionId(id) {
     if (recorder) recorder.sessionId = id;
   },
   sessionDidRotate(id) {
+    // OuoReplayModule sets the id, then the recorder flushes the open chunk (it keeps the old id)
+    // and resets the seq; nothing is captured here.
     record({ kind: "replay.rotate", session_id: id });
-    upload();
     if (recorder) recorder.sessionId = id;
-    capture("navigation");
+    upload();
+    const seqs = readSeq();
+    fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...seqs, [id]: 0 }));
   },
   pause() {
-    if (recorder) recorder.paused = true;
+    if (!recorder) return;
+    recorder.pausedByHost = true;
+    stopTimer();
     upload();
   },
   resume() {
     if (!recorder) return;
-    recorder.paused = false;
-    capture("resume");
+    recorder.pausedByHost = false;
+    resumeCapture();
   },
-  isRecording: () => Boolean(recorder && !recorder.paused),
+  isRecording: () => Boolean(recorder?.timer),
   flush: async () => {
     upload();
     await Promise.all(uploads);
   },
   stop() {
-    if (recorder) clearInterval(recorder.timer);
+    stopTimer();
     upload();
     recorder = undefined;
   },
@@ -174,28 +213,19 @@ const native = {
   },
 };
 
-const originalLoad = Module._load;
-Module._load = function (request, parent, isMain) {
-  if (request === "expo-modules-core") {
-    return {
-      requireNativeModule(name) {
-        if (name !== "OuoReplay") throw new Error(`Cannot find native module '${name}'`);
-        return native;
-      },
-    };
-  }
-  return originalLoad.call(this, request, parent, isMain);
-};
+// Expo registers every native module on `globalThis.expo.modules`, which the SDK reads first.
+globalThis.expo = { modules: { OuoReplay: native } };
 
-// Swift stops on didEnterBackground (flushing the chunk) and captures again on didBecomeActive.
+// Swift stops the timer and flushes on didEnterBackground, and resumes with an immediate frame on
+// didBecomeActive unless the host paused it. Registered before the SDK's listener, as on a device
+// the notification reaches native code before the JavaScript AppState event.
 require("react-native").AppState.addEventListener("change", (state) => {
   if (!recorder) return;
   if (state === "background") {
+    stopTimer();
     upload();
-    recorder.background = true;
-  } else if (state === "active" && recorder.background) {
-    recorder.background = false;
-    capture("resume");
+  } else if (state === "active" && !recorder.pausedByHost) {
+    resumeCapture();
   }
 });
 

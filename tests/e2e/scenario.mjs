@@ -39,7 +39,7 @@
 //   OUO_GRAFANA_AUTH    default admin:testing567
 //   OUO_TEMPO_DS_UID    Grafana datasource uid used for the trace-by-id lookups (default tempo)
 //   OUO_E2E_ORIGIN      origin used for the CORS preflights (default http://localhost:5173)
-//   OUO_E2E_TIMEOUT     seconds to wait for ingestion (default 120)
+//   OUO_E2E_TIMEOUT     seconds to wait for ingestion (default 180)
 // Flags: --out <file> writes the full result as JSON (used by project/reports/*-verification.html).
 
 import { randomBytes } from "node:crypto";

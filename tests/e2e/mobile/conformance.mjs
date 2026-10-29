@@ -17,19 +17,18 @@
 //
 // Needs the SDK bundle (npm run -w sdk/react-native build) and an env with the demo backend.
 // Env: the variables of tests/e2e/lib.mjs, OUO_BACKEND_URL (default http://localhost:8081),
-// OUO_E2E_TIMEOUT (default 180 s here). Flags: --out <file> writes the result as JSON.
+// OUO_E2E_TIMEOUT (default 180 s). Flags: --out <file> writes the result as JSON.
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GRAFANA, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOKEN, REPLAY, RUM, TEMPO_DS_UID, getJSON, readHeaders, sleep, table } from "../lib.mjs";
+import { GRAFANA, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOKEN, REPLAY, RUM, TEMPO_DS_UID, TIMEOUT_S, getJSON, readHeaders, sleep, table } from "../lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BUNDLE = join(HERE, "../../../sdk/react-native/dist/index.js");
 const BACKEND = (process.env.OUO_BACKEND_URL ?? "http://localhost:8081").replace(/\/$/, "");
-const TIMEOUT_S = Number(process.env.OUO_E2E_TIMEOUT ?? 180);
 const RUN_ID = Date.now().toString(36);
 const SERVICE = `qa-rn-ios-${RUN_ID}`;
 const T0 = Date.now();
@@ -95,12 +94,7 @@ async function runGoldenApp() {
 
 // ---------------------------------------------------------------- rum-api reads
 
-async function detail(id) {
-  const res = await fetch(`${RUM}/v1/sessions/${id}`, { headers: readHeaders() });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET /v1/sessions/${id} -> ${res.status}`);
-  return res.json();
-}
+const detail = (id) => getJSON(`${RUM}/v1/sessions/${id}`).catch(() => null);
 const named = (d, name) => (d?.timeline ?? []).filter((e) => e.name === name);
 const attr = (e, key) => e?.attrs?.[key.replaceAll(".", "_")];
 
