@@ -17,6 +17,22 @@ import Testing
         )
     }
 
+    private func tempDir() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("ouo-outbox-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    private func uploader(_ transport: ChunkTransport, dir: URL? = nil, config: ChunkUploader.Config = ChunkUploader.Config(), now: @escaping () -> EpochMillis = { Clock.nowMillis() }) -> ChunkUploader {
+        ChunkUploader(endpoint: URL(string: "http://localhost:4319")!, projectId: projectId, projectToken: token, directory: dir ?? tempDir(), config: config, transport: transport, now: now)
+    }
+
+    /// Drains until the folder is empty (a drain returns early when the head fails).
+    private func settle(_ u: ChunkUploader) async {
+        for _ in 0..<50 where u.queuedCount > 0 {
+            await drain(u)
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
     private func drain(_ u: ChunkUploader) async {
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
             u.drain { c.resume() }
@@ -25,7 +41,7 @@ import Testing
 
     @Test func PostsGzipJSONWithSpecHeaders() async throws {
         let transport = FakeTransport()
-        let u = ChunkUploader(endpoint: URL(string: "http://localhost:4319/")!, projectId: projectId, projectToken: token, transport: transport)
+        let u = ChunkUploader(endpoint: URL(string: "http://localhost:4319/")!, projectId: projectId, projectToken: token, directory: tempDir(), transport: transport)
         #expect(u.url.absoluteString == "http://localhost:4319/v1/replay/chunks")
         let c = chunk(seq: 7)
         u.enqueue(c)
@@ -63,7 +79,8 @@ import Testing
             endpoint: URL(string: "https://otel.example.com")!,
             projectId: "web-store",
             projectToken: "pt_live_9f3c",
-            config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { _ in 0 }),
+            directory: tempDir(),
+            config: ChunkUploader.Config(retryDelay: { _ in 0 }),
             transport: transport
         )
         #expect(u.projectId == "web-store")
@@ -71,8 +88,9 @@ import Testing
         #expect(u.authorization == "Basic d2ViLXN0b3JlOnB0X2xpdmVfOWYzYw==")
         u.enqueue(chunk(seq: 0))
         u.enqueue(chunk(seq: 1))
-        await drain(u)
-        #expect(transport.sent.count == 3)
+        await settle(u)
+        // 401 is a rejection (dropped), the next chunk goes on.
+        #expect(transport.sent.count == 2)
         for s in transport.sent {
             #expect(s.request.url?.absoluteString == "https://otel.example.com/v1/replay/chunks")
             #expect(s.request.value(forHTTPHeaderField: "authorization") == "Basic d2ViLXN0b3JlOnB0X2xpdmVfOWYzYw==")
@@ -85,77 +103,142 @@ import Testing
     @Test func SendsInOrderAndRetriesWithBackoff() async {
         let transport = FakeTransport()
         transport.responses = [.failure(TransportError()), .success(500), .success(202), .success(202)]
-        var delays: [Int] = []
-        let lock = NSLock()
-        let u = ChunkUploader(
-            endpoint: URL(string: "http://localhost:4319")!,
-            projectId: projectId,
-            projectToken: token,
-            config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { attempt in
-                lock.lock(); delays.append(attempt); lock.unlock()
-                return 0
-            }),
-            transport: transport
-        )
+        let delays = Recorded<Int>()
+        let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { n in delays.append(n); return 0 }))
         u.enqueue(chunk(seq: 0))
         u.enqueue(chunk(seq: 1))
-        await drain(u)
+        await settle(u)
         // seq 0: fail, 500, ok. seq 1: ok.
         #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "0", "0", "1"])
-        #expect(delays == [1, 2])
+        #expect(delays.values == [1, 2])
         #expect(u.uploaded == 2)
         #expect(u.failed == 0)
-        // Default backoff is 1 s, 2 s.
+        #expect(u.queuedCount == 0)
+        // Default backoff doubles from 1 s and stops growing at 60 s.
         let defaults = ChunkUploader.Config()
         #expect(defaults.retryDelay(1) == 1)
         #expect(defaults.retryDelay(2) == 2)
-        #expect(defaults.maxAttempts == 3)
-        #expect(defaults.maxQueueBytes == 2 * 1024 * 1024)
+        #expect(defaults.retryDelay(10) == 60)
+        #expect(defaults.maxQueueBytes == 10 * 1024 * 1024)
+        #expect(defaults.maxAge == 24 * 3600)
     }
 
-    @Test func GivesUpAfterMaxAttemptsAndContinues() async {
+    /// C11: a chunk that could not be sent stays on disk, and the next process sends it.
+    @Test func AnOutageLosesNothingAcrossProcesses() async throws {
+        let dir = tempDir()
+        let offline = FakeTransport()
+        offline.responses = Array(repeating: .failure(TransportError()), count: 10)
+        let first = uploader(offline, dir: dir, config: ChunkUploader.Config(retryDelay: { _ in 3600 }))
+        for seq in 0..<3 { first.enqueue(chunk(seq: seq)) }
+        await drain(first)
+        #expect(first.uploaded == 0)
+        #expect(first.queuedCount == 3, "kept on disk, not given up")
+
+        // Next launch: a new uploader on the same folder.
+        let online = FakeTransport()
+        let second = uploader(online, dir: dir)
+        await drain(second)
+        #expect(online.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "2"])
+        #expect(try FrameChunk.decode(try Gzip.decompress(online.sent[2].body)) == chunk(seq: 2))
+        #expect(second.uploaded == 3)
+        #expect(second.queuedCount == 0)
+    }
+
+    /// The file is written before the request leaves, so a kill mid-upload resends it.
+    @Test func AKillMidUploadResendsTheChunk() async {
+        let dir = tempDir()
+        let hung = HungTransport()
+        let first = uploader(hung, dir: dir)
+        first.enqueue(chunk(seq: 4))
+        for _ in 0..<100 where hung.count == 0 { try? await Task.sleep(nanoseconds: 5_000_000) }
+        #expect(hung.count == 1, "in flight")
+        #expect(first.queuedCount == 1, "and still on disk")
+
+        let online = FakeTransport()
+        let second = uploader(online, dir: dir)
+        await drain(second)
+        #expect(online.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["4"])
+    }
+
+    @Test func RejectedChunksAreDroppedAndTheQueueContinues() async {
         let transport = FakeTransport()
-        transport.responses = [.success(503), .success(503), .success(503), .success(202)]
-        let u = ChunkUploader(
-            endpoint: URL(string: "http://localhost:4319")!,
-            projectId: projectId,
-            projectToken: token,
-            config: ChunkUploader.Config(maxAttempts: 3, retryDelay: { _ in 0 }),
-            transport: transport
-        )
+        transport.responses = [.success(400), .success(408), .success(202), .success(202)]
+        let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { _ in 0 }))
         u.enqueue(chunk(seq: 0))
         u.enqueue(chunk(seq: 1))
-        await drain(u)
-        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "0", "0", "1"])
+        await settle(u)
+        // 400 is final; 408 is retried.
+        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "1"])
         #expect(u.failed == 1)
         #expect(u.uploaded == 1)
         #expect(u.queuedCount == 0)
     }
 
-    @Test func BoundedQueueDropsOldest() async {
-        let transport = FakeTransport()
-        // Block the first send until we have queued everything.
-        let gate = DispatchSemaphore(value: 0)
-        let blocking = BlockingTransport(gate: gate, inner: transport)
-        let big = chunk(seq: 0, frames: 1)
-        let bodySize = try! Gzip.compress(try! big.encodedJSON()).count
-        let u = ChunkUploader(
-            endpoint: URL(string: "http://localhost:4319")!,
-            projectId: projectId,
-            projectToken: token,
-            config: ChunkUploader.Config(maxAttempts: 1, maxQueueBytes: bodySize * 3 + 10, retryDelay: { _ in 0 }),
-            transport: blocking
-        )
+    @Test func BoundedQueueDropsOldest() async throws {
+        let bodySize = try Gzip.compress(try chunk(seq: 0).encodedJSON()).count
+        let dir = tempDir()
+        // seq 0 is in flight (never answered) while the rest arrive: it is never dropped.
+        let u = uploader(HungTransport(), dir: dir, config: ChunkUploader.Config(maxQueueBytes: bodySize * 3 + 10))
         for seq in 0..<6 { u.enqueue(chunk(seq: seq)) }
-        // Wait until the uploader has processed the enqueues (the head is in flight, 5 queued).
-        try? await Task.sleep(nanoseconds: 200_000_000)
-        gate.signal()
-        await drain(u)
-        let seqs = transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq")! }
-        #expect(seqs.first == "0", "the in-flight head is never dropped")
-        #expect(seqs.suffix(2) == ["4", "5"], "the newest chunks survive")
-        #expect(u.dropped > 0)
-        #expect(u.uploaded + u.dropped == 6)
+        #expect(u.queuedCount == 3)
+        #expect(u.dropped == 3)
+
+        let online = FakeTransport()
+        await drain(uploader(online, dir: dir))
+        #expect(online.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq")! } == ["0", "4", "5"], "the in-flight head and the newest chunks survive")
+    }
+
+    @Test func ChunksOlderThanMaxAgeAreDroppedUnsent() async {
+        let dir = tempDir()
+        let clock = FakeClock()
+        let offline = FakeTransport()
+        offline.responses = [.failure(TransportError())]
+        let first = uploader(offline, dir: dir, config: ChunkUploader.Config(retryDelay: { _ in 3600 }), now: { clock.now })
+        first.enqueue(chunk(seq: 0))
+        await drain(first)
+
+        clock.advance(ms: 24 * 3600 * 1000 + 1)
+        let online = FakeTransport()
+        let second = uploader(online, dir: dir, now: { clock.now })
+        await drain(second)
+        #expect(online.count == 0)
+        #expect(second.dropped == 1)
+    }
+
+    /// The next-launch keep/drop hook: held chunks wait for the host's decision per session.
+    @Test func HeldSessionsWaitForTheDecision() async throws {
+        let dir = tempDir()
+        let clock = FakeClock()
+        let transport = FakeTransport()
+        let first = uploader(transport, dir: dir, config: ChunkUploader.Config(hold: true), now: { clock.now })
+        first.enqueue(chunk(seq: 0, session: "a"))
+        clock.advance(ms: 5000)
+        first.enqueue(chunk(seq: 1, session: "a"))
+        first.enqueue(chunk(seq: 0, session: "b"))
+        await drain(first)
+        #expect(transport.count == 0, "nothing leaves while held")
+
+        let second = uploader(transport, dir: dir, now: { clock.now })
+        let held = second.heldSessions()
+        #expect(held.map(\.sessionId) == ["a", "b"])
+        #expect(held[0].chunks == 2)
+        #expect(held[0].lastAt - held[0].firstAt == 5000)
+        #expect(held[0].bytes > 0)
+        second.release(sessionId: "a", keep: true)
+        second.release(sessionId: "b", keep: false)
+        await drain(second)
+        #expect(transport.sent.map { "\($0.request.value(forHTTPHeaderField: "x-ouo-session-id")!)#\($0.request.value(forHTTPHeaderField: "x-ouo-seq")!)" } == ["a#0", "a#1"])
+        #expect(second.heldSessions().isEmpty)
+    }
+
+    @Test func FileNamesCarryTheRequestHeaders() throws {
+        let url = URL(fileURLWithPath: "/tmp/1760000000000-000012.3f2a-77.5.json.gz")
+        let e = try #require(ChunkUploader.Entry(url: url))
+        #expect(e.sessionId == "3f2a-77")
+        #expect(e.seq == 5)
+        #expect(e.queuedAt == 1_760_000_000_000)
+        #expect(ChunkUploader.Entry(url: URL(fileURLWithPath: "/tmp/held")) == nil)
+        #expect(ChunkUploader.Entry(url: URL(fileURLWithPath: "/tmp/x.s.1.json.gz.tmp")) == nil)
     }
 
     /// Set OUO_REPLAY_STUB_URL=http://localhost:4319 (the collector's replay receiver, or a stub),
@@ -171,6 +254,7 @@ import Testing
             endpoint: url,
             projectId: env["OUO_PROJECT_ID"] ?? "demo",
             projectToken: env["OUO_PROJECT_TOKEN"] ?? "pt_dev_demo_0000000000000000",
+            directory: tempDir(),
             logger: ReplayLogger(enabled: true)
         )
         u.enqueue(chunk(seq: 0, session: session, frames: 3))
@@ -181,25 +265,20 @@ import Testing
     }
 }
 
-/// Holds the first send until `gate` is signalled, then behaves like `inner`.
-final class BlockingTransport: ChunkTransport {
-    private let gate: DispatchSemaphore
-    private let inner: ChunkTransport
-    private var first = true
-    init(gate: DispatchSemaphore, inner: ChunkTransport) {
-        self.gate = gate
-        self.inner = inner
-    }
+/// Never answers: the request stays in flight (a process killed mid-upload).
+final class HungTransport: ChunkTransport {
+    private let lock = NSLock()
+    private var n = 0
     func send(_ request: URLRequest, completion: @escaping (Result<Int, Error>) -> Void) {
-        let wait = first
-        first = false
-        if wait {
-            DispatchQueue.global().async {
-                self.gate.wait()
-                self.inner.send(request, completion: completion)
-            }
-        } else {
-            inner.send(request, completion: completion)
-        }
+        lock.lock(); n += 1; lock.unlock()
     }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return n }
+}
+
+/// Values appended from any thread.
+final class Recorded<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [T] = []
+    func append(_ v: T) { lock.lock(); items.append(v); lock.unlock() }
+    var values: [T] { lock.lock(); defer { lock.unlock() }; return items }
 }

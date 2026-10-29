@@ -12,6 +12,9 @@ versions made to look exactly like the web ones to the collector and rum-api?
 
 - **Packages**: `@opentelemetry/api`, `api-logs`, `core`, `resources`, `sdk-trace-base`,
   `sdk-logs`, `exporter-trace-otlp-http`, `exporter-logs-otlp-http`, `semantic-conventions`.
+  Since W3 (2026-10-30) the two exporters are replaced by the SDK's outbox exporter over
+  `otlp-transformer`'s JSON serializers, sent gzip by the native module
+  ([mobile-delivery.md](mobile-delivery.md)).
   No `sdk-trace-web`, no `zone.js`, no `context-zone`, no instrumentation packages: React
   Native has no async context manager, so the fetch wrapper is hand written and baggage is
   merged at inject time (same approach as `sdk/browser`).
@@ -151,8 +154,9 @@ true now:
   brackets included), chunks go to `${replayEndpoint}/v1/replay/chunks`. Missing `endpoint`,
   `projectId` or `projectToken` throws a `TypeError` naming the option before anything is installed;
   a `:` in `projectId` is rejected because Basic splits on the first colon.
-- **Credential.** `Authorization: Basic base64("<projectId>:<projectToken>")` on both OTLP
-  exporters (`new OTLPTraceExporter({ url, headers: { Authorization } })`) and, built natively, on
+- **Credential.** `Authorization: Basic base64("<projectId>:<projectToken>")` on every OTLP
+  request (until W3: `new OTLPTraceExporter({ url, headers: { Authorization } })`; since: added by
+  the outbox's send function at send time) and, built natively, on
   every replay chunk request. `btoa` is not guaranteed on every React Native runtime and `Buffer`
   does not exist on Hermes, so `base64Encode` in `endpoints.ts` is a 20-line RFC 4648 encoder over
   the UTF-8 bytes (surrogate pairs handled); `test/endpoints.test.ts` compares it with Node's

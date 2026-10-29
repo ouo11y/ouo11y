@@ -19,6 +19,8 @@ struct StartOptions: Record {
   @Field var maskImages: Bool = true
   @Field var maskWebViews: Bool = true
   @Field var debug: Bool = false
+  /// Keep chunks on the device until JS releases their session (`replay.keepAtNextLaunch`).
+  @Field var holdUploads: Bool = false
 }
 
 /// Thread-safe holder for the session id the JS session manager pushes down.
@@ -39,6 +41,7 @@ public class OuoReplayModule: Module {
   private var appStart: AppStartInfo?
   private var appStartResolved = false
   private let appStartLock = NSLock()
+  private let otlpSession = URLSessionTransport.makeSession()
 
   private func config(_ endpoint: String, _ options: StartOptions) throws -> OuoReplayConfig {
     guard let url = URL(string: endpoint) else {
@@ -61,7 +64,8 @@ public class OuoReplayModule: Module {
       maskInputs: options.maskInputs,
       maskImages: options.maskImages,
       maskWebViews: options.maskWebViews,
-      debug: options.debug
+      debug: options.debug,
+      holdUploads: options.holdUploads
     )
   }
 
@@ -86,6 +90,53 @@ public class OuoReplayModule: Module {
     /// decision, so it does not depend on this session being recorded.
     Function("recoverPendingChunk") { (endpoint: String, options: StartOptions) in
       OuoReplay.recoverPendingChunk(try self.config(endpoint, options))
+    }
+
+    /// Finished sessions whose chunks wait on the device, after the previous run's open chunk
+    /// was recovered: `[{ sessionId, chunks, bytes, firstAt, lastAt }]`.
+    AsyncFunction("heldReplaySessions") { (endpoint: String, options: StartOptions, promise: Promise) in
+      OuoReplay.heldSessions(try self.config(endpoint, options)) { held in
+        promise.resolve(held.map { h -> [String: Any] in
+          ["sessionId": h.sessionId, "chunks": h.chunks, "bytes": h.bytes, "firstAt": Double(h.firstAt), "lastAt": Double(h.lastAt)]
+        })
+      }
+    }
+
+    /// Sends (`keep`) or deletes a held session's chunks.
+    Function("releaseHeldReplay") { (endpoint: String, options: StartOptions, sessionId: String, keep: Bool) in
+      OuoReplay.releaseHeld(try self.config(endpoint, options), sessionId: sessionId, keep: keep)
+    }
+
+    // ---- OTLP delivery (checklist N48): gzip and POST off the JS thread ----
+
+    /// gzips `body` and POSTs it with `headers` plus `content-encoding: gzip`. Resolves
+    /// `{ status, retryAfterMs? }`, status 0 when the request did not reach the server.
+    AsyncFunction("postOtlp") { (url: String, headers: [String: String], body: String, promise: Promise) in
+      guard let target = URL(string: url) else {
+        promise.resolve(["status": 400])
+        return
+      }
+      var request = URLRequest(url: target)
+      request.httpMethod = "POST"
+      for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+      let raw = Data(body.utf8)
+      if let gz = try? Gzip.compress(raw), gz.count < raw.count {
+        request.httpBody = gz
+        request.setValue("gzip", forHTTPHeaderField: "content-encoding")
+      } else {
+        request.httpBody = raw
+      }
+      self.otlpSession.dataTask(with: request) { _, response, error in
+        guard error == nil, let http = response as? HTTPURLResponse else {
+          promise.resolve(["status": 0])
+          return
+        }
+        var result: [String: Any] = ["status": http.statusCode]
+        if let ra = http.value(forHTTPHeaderField: "Retry-After"), let seconds = Double(ra) {
+          result["retryAfterMs"] = max(0, seconds * 1000)
+        }
+        promise.resolve(result)
+      }.resume()
     }
 
     Function("pause") {

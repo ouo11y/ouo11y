@@ -62,6 +62,7 @@ describe("replay controller", () => {
       maskImages: true,
       maskWebViews: true,
       debug: false,
+      holdUploads: false,
     });
     expect(c.active).toBe(true);
     expect(c.isRecording()).toBe(true);
@@ -250,7 +251,7 @@ describe("initRUM({ replay })", () => {
     expect(nativeReplay.start).toHaveBeenCalledWith(REPLAY_ENDPOINT, expect.objectContaining({ sessionId: rum.session.id(), projectId: PROJECT_ID, projectToken: TOKEN, frameInterval: 1 }));
     // Never the revision-1 header or a prebuilt header value: native builds the Basic credential itself.
     expect(Object.keys(nativeReplay.start.mock.calls[0]![1] as object).sort()).toEqual(
-      ["debug", "frameInterval", "maskImages", "maskInputs", "maskText", "maskWebViews", "mode", "projectId", "projectToken", "sessionId"],
+      ["debug", "frameInterval", "holdUploads", "maskImages", "maskInputs", "maskText", "maskWebViews", "mode", "projectId", "projectToken", "sessionId"],
     );
     await rum.ready;
     // The cold-start resolution reports the initial session through onRotate: not a rotation.
@@ -305,5 +306,88 @@ describe("initRUM({ replay })", () => {
     rum.replay.pause();
     rum.replay.resume();
     await rum.flush();
+  });
+});
+
+describe("replay.keepAtNextLaunch (next-launch keep/drop)", () => {
+  const logger = createLogger(false);
+  const held = [
+    { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstAt: 1000, lastAt: 11_000 },
+    { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstAt: 20_000, lastAt: 20_000 },
+    { sessionId: "current", chunks: 1, bytes: 5_000, firstAt: 30_000, lastAt: 30_000 },
+  ];
+  const nativeWithHeld = () => {
+    const n = { ...fakeNative(), heldReplaySessions: vi.fn(async () => held), releaseHeldReplay: vi.fn() };
+    return n;
+  };
+
+  it("asks the hook about every finished session and sends or deletes its chunks", async () => {
+    const storage = new MemoryAsyncStorage();
+    // The previous run counted two errors in prev-quiet.
+    await storage.setItem("ouo.replay.errors", JSON.stringify({ "prev-quiet": 2 }));
+    const native = nativeWithHeld();
+    const seen: unknown[] = [];
+    const c = createReplayController({
+      endpoint: "http://localhost:4319",
+      projectId: PROJECT_ID,
+      projectToken: TOKEN,
+      options: { enabled: true, keepAtNextLaunch: (s) => (seen.push(s), s.crashed || s.errors > 0 ? true : false) },
+      native,
+      storage,
+      logger,
+    });
+    c.start("current");
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ holdUploads: true });
+    await c.decideHeld("current", "prev-crashed");
+    expect(seen).toEqual([
+      { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstChunkAt: 1000, lastChunkAt: 11_000, crashed: true, errors: 0 },
+      { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstChunkAt: 20_000, lastChunkAt: 20_000, crashed: false, errors: 2 },
+    ]);
+    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
+      ["prev-crashed", true],
+      ["prev-quiet", true],
+    ]);
+  });
+
+  it("counts this session's errors for the next launch and forgets decided sessions", async () => {
+    const storage = new MemoryAsyncStorage();
+    await storage.setItem("ouo.replay.errors", JSON.stringify({ "prev-quiet": 2 }));
+    const native = nativeWithHeld();
+    const c = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, keepAtNextLaunch: () => false }, native, storage, logger });
+    c.start("current");
+    c.onError();
+    c.onError();
+    await c.decideHeld("current", undefined);
+    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
+      ["prev-crashed", false],
+      ["prev-quiet", false],
+    ]);
+    expect(JSON.parse(storage.peek("ouo.replay.errors")!)).toEqual({ current: 2 });
+  });
+
+  it("without the hook nothing is held and anything held earlier is sent; a throwing hook keeps", async () => {
+    const native = nativeWithHeld();
+    const c = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, logger });
+    c.start("current");
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ holdUploads: false });
+    await c.decideHeld("current", undefined);
+    expect(native.releaseHeldReplay.mock.calls.every((call) => call[3] === true)).toBe(true);
+
+    const n2 = nativeWithHeld();
+    const c2 = createReplayController({
+      endpoint: "http://localhost:4319",
+      projectId: PROJECT_ID,
+      projectToken: TOKEN,
+      options: {
+        enabled: true,
+        keepAtNextLaunch: () => {
+          throw new Error("hook bug");
+        },
+      },
+      native: n2,
+      logger,
+    });
+    await c2.decideHeld("current", undefined);
+    expect(n2.releaseHeldReplay.mock.calls.map((call) => call[3])).toEqual([true, true]);
   });
 });

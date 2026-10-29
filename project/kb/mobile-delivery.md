@@ -1,0 +1,34 @@
+# Mobile SDK delivery: gzip OTLP, outbox, durable chunk queue, keep/drop
+
+How `@ouo11y/react-native` and the iOS replay uploader keep telemetry through outages, crashes and kills (W3 delivery half, checklist N48 and N49, mobile spec C11; 2026-10-30). Code: `sdk/react-native/src/transport/`, `sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift`, the Expo bridge `sdk/react-native/ios/OuoReplayModule.swift`. User docs: the RN README's "Delivery and offline (C11)" and `docs/specs/mobile-replay.md` (chunk delivery and keep/drop rules). The browser's counterpart is [browser-delivery.md](browser-delivery.md).
+
+## Design in one paragraph each
+
+- **Write first, then send.** Both sides persist before the request leaves and delete on 2xx or on a final rejection (4xx other than 408 and 429). A network error, 408, 429 or 5xx leaves the item where it is. So there is one retry path (the persistent queue) instead of an in-memory retry loop plus a store for what it gave up on, and a kill mid-request costs nothing but a duplicate. Sentry does the same (envelopes to disk before sending, N49).
+- **RN outbox (AsyncStorage).** Index `ouo.outbox` = `{ next, items: [{ id, url, bytes, at }] }`, bodies under `ouo.outbox.<id>` as the uncompressed OTLP JSON string. Index written before a body and after a body is removed: a kill in between leaves an index entry without body (skipped), never an unreferenced body (AsyncStorage's interface has no `getAllKeys` to find one). One sender, single-flight, oldest first; it stops at the first failure and schedules a retry (1 s doubling to 30 s, `Retry-After` honoured). Drains on: put (unless a retry is scheduled), `rum.ready` (the next launch), foreground, `rum.flush()`. Bounds: 5 MB, 500 entries, 24 h. Bodies queued by this process are also kept in memory, so a failing AsyncStorage costs the next launch only.
+- **gzip on Hermes.** Hermes has no `CompressionStream`, and RN's `fetch` turns a binary body into base64 in JS (`convertRequestBody` -> `binaryToBase64`), and whatwg-fetch wraps it in a `Blob`. So the native module does both: `postOtlp(url, headers, body: String)` gzips with `OuoReplayCore.Gzip` and posts with an ephemeral `URLSession`, off the JS thread, resolving `{ status, retryAfterMs? }` (status 0 = no answer). Without the module (Expo Go, web, the Android stub) `fetch` sends the string uncompressed. The SDK no longer depends on `@opentelemetry/exporter-*-otlp-http`; it serialises with `@opentelemetry/otlp-transformer`'s `JsonTraceSerializer` / `JsonLogsSerializer` and decodes the bytes back to a string (`utf8Decode`, with a fallback where `TextDecoder` is missing).
+- **iOS chunk queue (files).** `Application Support/ouo/replay/outbox/` next to the spool, excluded from backup. One file per chunk named `<queued at ms, 13 digits>-<counter>.<session id>.<seq>.json.gz`: the name sorts in queue order and carries the request headers, the content is the exact gzip body, so a send is read file + POST and nothing is re-encoded. The directory listing is the queue (no index to keep consistent). `enqueue` writes synchronously on the caller's queue (the capture queue) before returning. Bounds: 10 MB, 24 h (`ChunkSpool.maxAge`); the newest file and the one in flight are never evicted. Retry 1 s doubling to 60 s, plus on the next chunk, `drain` (flush, background) and the next process (`recoverSpool` kicks a drain).
+- **One uploader per process** (`OuoReplay.uploader(config)`): two uploaders on one folder would send the same files. The first config wins (endpoint, credential, `holdUploads`).
+- **Keep/drop (Luciq's sync callback).** With `replay.keepAtNextLaunch`, chunks go to `outbox/held/`. At `rum.ready`, JS lists held sessions (native lists them on the capture queue after the spool recovery, so the crashed run's open chunk is included), asks the hook for each one but the current session with `{ sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors }`, and native moves the files to the queue or deletes them. Errors per session persist in `ouo.replay.errors` (only while the hook is set). Without the hook anything held is sent, so removing the hook strands nothing. Spans and logs are never held.
+
+## Verified on the iOS 27 simulator (examples/ouo-mobile Release build, own env, 2026-10-30)
+
+Same scripted journey (`scripts/journey.sh`, ~45 s) online and with the env's collector container stopped (OTLP and replay ports refused, backend up):
+
+| | online run | offline run, after the next launch |
+|---|---|---|
+| timeline events in rum-api | 45 | 46 (the same 45 + its `session.end`) |
+| traces | 13 | 13 |
+| replay chunks / frames | 7 / 11 | 7 / 12 |
+| left on the device | 0 | 0 |
+
+- During the offline run the device held 30 OTLP batches (94,061 B raw JSON: 17 logs, 13 traces) and 7 replay chunks (175 KB gzip). A second launch while still offline added 2 batches and 1 chunk; all went out on the launch after.
+- **C11.2 (gzip):** a stub on the OTLP port logged 30 of 30 requests with `content-encoding: gzip`, 94,143 B raw -> 24,309 B on the wire (26 %).
+- **Keep/drop through the Expo bridge** (temporary `keepAtNextLaunch: (s) => s.chunks >= 3` in the example, not committed): the journey session's 7 chunks stayed in `held/` with no replay in rum-api while its spans and events arrived live; the next launch sent them (7 chunks, 12 frames); the 1-chunk idle session was deleted on the launch after and never reached rum-api.
+
+## Gotchas
+
+- **AsyncStorage (iOS, legacy `RCTAsyncLocalStorage_V1`) stores a value over 1 KB as its own file named `md5(key)`**; `manifest.json` then has the key with `null`. To read the outbox index of a simulator app: `Library/Application Support/<bundle id>/RCTAsyncLocalStorage_V1/<md5("ouo.outbox")>`.
+- **A stopped ouo-env container keeps its bind mounts' host paths.** After `git worktree move`, `docker start` of the collector failed (config.yaml path gone). Update `src` in `~/.local/state/ouo-env/<env>.json` and run `ouo-env up <env>` again to recreate the containers from the new path.
+- **"Offline" in the simulator without touching the Mac's network**: `docker stop ouo-<env>-otel-collector-1` refuses both OTLP and replay ports (the replay receiver is in the collector) while the demo backend keeps answering; `docker start` brings it back.
+- **Remaining window on iOS:** `ChunkBuilder.cut()` clears the spool before `onChunk` hands the chunk to the uploader, so a kill during that chunk's gzip (milliseconds) loses it. Clearing the spool after `onChunk` returns closes it (W3a owns `ChunkBuilder`; told on 2026-10-30).

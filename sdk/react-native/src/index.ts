@@ -5,8 +5,6 @@ const shims = installShims();
 
 import { context, diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BasicTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,12 +24,15 @@ import { installFetchInstrumentation, installXhrInstrumentation } from "./networ
 import { createReplayController, loadNativeReplayModule } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
 import { SessionManager } from "./session/manager";
-import { safeStorage } from "./session/storage";
+import { MemoryAsyncStorage, safeStorage } from "./session/storage";
 import { StackContextManager } from "./telemetry/context";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
 import { SessionPropagator } from "./telemetry/propagator";
 import { buildResource } from "./telemetry/resource";
+import { createLogExporter, createTraceExporter } from "./transport/exporter";
+import { Outbox } from "./transport/outbox";
+import { createSend, type NativeOtlpPost } from "./transport/send";
 import { createLogApi, createSpanApi, TraceLinker } from "./tracing";
 import type { Attrs, RUM, RUMOptions, UserOptions } from "./types";
 import { escapeRegExp } from "./url";
@@ -102,6 +103,20 @@ export function initRUM(options: RUMOptions): RUM {
   // Late-bound: the session manager emits session events through this.
   let events: EventEmitter;
 
+  // One load for vitals, OTLP gzip and replay; undefined in Expo Go, on web and in tests.
+  const nativeModule = loadNativeReplayModule();
+
+  // ---- delivery (C11): every OTLP batch is persisted, then sent gzip by the native module ----
+  const offline = options.transport?.offline;
+  const outbox = new Outbox({
+    storage: offline === false ? new MemoryAsyncStorage() : storage,
+    send: createSend(ingestHeaders(authorization), nativeModule as Partial<NativeOtlpPost> | undefined),
+    logger,
+    ...(offline && offline.maxBytes !== undefined ? { maxBytes: offline.maxBytes } : {}),
+    ...(offline && offline.maxEntries !== undefined ? { maxEntries: offline.maxEntries } : {}),
+    ...(offline && offline.maxAgeMs !== undefined ? { maxAgeMs: offline.maxAgeMs } : {}),
+  });
+
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
   const sessionSampleRate = sampleRate(options.session?.sampleRate, 1);
   const replay = createReplayController({
@@ -110,6 +125,7 @@ export function initRUM(options: RUMOptions): RUM {
     projectToken,
     options: options.replay,
     sessionSampleRate,
+    storage,
     logger,
   });
 
@@ -136,7 +152,7 @@ export function initRUM(options: RUMOptions): RUM {
   const resource = buildResource(options.service, options.device, options.resource);
 
   // ---- logs (events) ----
-  const logExporter = new OTLPLogExporter({ url: endpoints.logs, headers: ingestHeaders(authorization) });
+  const logExporter = createLogExporter(endpoints.logs, outbox);
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
@@ -158,7 +174,7 @@ export function initRUM(options: RUMOptions): RUM {
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
 
   // ---- traces ----
-  const traceExporter = new OTLPTraceExporter({ url: endpoints.traces, headers: ingestHeaders(authorization) });
+  const traceExporter = createTraceExporter(endpoints.traces, outbox);
   const tracerProvider = new BasicTracerProvider({
     resource,
     spanProcessors: [
@@ -203,6 +219,8 @@ export function initRUM(options: RUMOptions): RUM {
   const flush = async (): Promise<void> => {
     session.persistNow();
     await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), replay.flush()]);
+    // The batches are persisted by now; this tries to send them (and what earlier runs left).
+    await outbox.drain();
   };
   const flushWithin = (ms: number): Promise<void> =>
     new Promise<void>((resolve) => {
@@ -224,7 +242,7 @@ export function initRUM(options: RUMOptions): RUM {
   const vitals = createVitals({
     events,
     logger,
-    native: vitalsOn ? (loadNativeReplayModule() as NativeVitalsModule | undefined) : undefined,
+    native: vitalsOn ? (nativeModule as NativeVitalsModule | undefined) : undefined,
     ...(options.vitals ? { options: options.vitals } : {}),
     launchedInForeground: AppState.currentState === "active",
   });
@@ -232,6 +250,10 @@ export function initRUM(options: RUMOptions): RUM {
   // ---- session ----
   const ready = session.start().then(() => {
     vitals.sessionReady();
+    // What earlier runs could not send: OTLP batches, and the replay chunks they held.
+    void outbox.drain();
+    const ended = session.peekLastEnded();
+    void replay.decideHeld(session.id(), ended?.endReason === "crash" ? ended.id : undefined);
     logger.log("session ready", session.id(), "previous", session.previousId() ?? null);
     if (crashed && !isReactNativeFatal(crashed)) {
       // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
@@ -307,6 +329,8 @@ export function initRUM(options: RUMOptions): RUM {
     onForeground: () => {
       session.onForeground();
       vitals.foreground();
+      // Back in the foreground: the network may be back too.
+      void outbox.drain();
     },
   });
 
@@ -381,6 +405,7 @@ export function initRUM(options: RUMOptions): RUM {
       replay.stop();
       session.stop();
       await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
+      outbox.stop();
       trace.disable();
       propagation.disable();
       context.disable();
