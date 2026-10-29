@@ -6,6 +6,9 @@ and the plugin version inside. Policy: `docs/releasing.md`.
 
 ## Unreleased
 
+Base `grafana/grafana:13.2.5` (was 13.2.1, Alpine 3.24.3): its `brotli-libs` 1.2.1-r0 fixes
+CVE-2026-111497 (CRITICAL). Plugin unchanged.
+
 ## 0.5.0 (2026-10-26)
 
 Base `grafana/grafana:13.2.1`, plugin `ouo11y-rum-app` 0.9.0 inside.
