@@ -166,14 +166,19 @@ const CHECKS = [
   },
   {
     id: "C2.3",
-    pending: "W1 (N52)",
-    title: "a native crash in the first second still shows the session start and the crash",
+    title: "a native crash in the first second keeps the session's start and ends it at the crash",
     async run(g) {
+      // N52: nothing was exported before the crash. The session must start when it started (by
+      // the time the SDK started replay at the latest), not at the crash, and end with it.
+      const started = g.early.log.find((x) => x.kind === "replay.start")?.ts;
+      const at = g.early.log.find((x) => x.kind === "os.crash")?.ts;
       const d = await detail(g.early.launches[0].session);
+      const startedAt = Date.parse(d?.started_at ?? "");
+      const endsAtCrash = Math.abs(Date.parse(d?.ended_at ?? "") - at) <= 1000;
       return result(
-        d?.status === "crashed" && named(d, "session.start").length === 1,
+        d?.status === "crashed" && d?.end_reason === "crash" && startedAt <= started && endsAtCrash,
         d && named(d, "exception").length > 0,
-        { found: Boolean(d), status: d?.status ?? null, events: (d?.timeline ?? []).map((x) => x.name) },
+        { status: d?.status ?? null, end_reason: d?.end_reason ?? null, started_at: d?.started_at ?? null, replay_start: started && new Date(started).toISOString(), ended_at: d?.ended_at ?? null, crash_at: at && new Date(at).toISOString() },
       );
     },
   },
@@ -299,7 +304,6 @@ const CHECKS = [
   },
   {
     id: "C8.3",
-    pending: "W1",
     title: "a replay cut by a crash is finished on the next launch, up to the crash",
     async run(g) {
       const crashed = g.crash.launches[0].session;

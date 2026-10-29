@@ -108,7 +108,7 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | C1.1 | goes to the background for longer than the timeout and comes back | the first session ends with `background`, the second's `session.start` has `session.previous_id` = the first |
 | C2.1 | reports a handled error | an `exception` with `ouo.exception.handled = true`, `ouo.exception.fatal = false` and a stack; session `errored` |
 | C2.2 | crashes natively 3 s after launch; launches again | the crashed session is `crashed`, ends with `crash` within 1 s of the crash time, has its `session.start` and a fatal `native` exception |
-| C2.3 | crashes natively 200 ms after launch; launches again | the crashed session has its `session.start` and is `crashed` |
+| C2.3 | crashes natively 200 ms after launch; launches again | the crashed session starts when it started (not at the crash), is `crashed` and ends at the crash with reason `crash` |
 | C3.1 | blocks the main thread for 3 s | exactly one `hang` exception with `ouo.hang.duration_ms` >= 2000, not fatal |
 | C3.2 | is killed in the foreground without a crash report; launches again | a fatal `termination` exception with `ouo.termination.cause`; session `crashed` |
 | C4.1 | cold start, then three screens | `ouo.app.start` `cold` with a duration, one `ouo.screen.display` with TTID per screen in order, frame counts |
@@ -142,13 +142,13 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 | Capability | React Native iOS | Native iOS (Swift) | React Native Android | Native Android | Flutter |
 |---|---|---|---|---|---|
 | C1 Sessions and lifecycle | L2 | L0 (no session manager in Swift) | L1 (JS) | L0 | L0 |
-| C2 Errors and crashes | L1: C2.3 waits for W1 (N52) | L0 (OuoCrash writes reports, nothing sends them) | L1 (JS errors only) | L0 | L0 |
+| C2 Errors and crashes | L2 | L0 (OuoCrash writes reports, nothing sends them) | L1 (JS errors only) | L0 | L0 |
 | C3 Hangs and terminations | L0: W4 | L0 | L0 | L0 | L0 |
 | C4 Vitals | L1: C4.2 TTFD waits for W4 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID; no native app start or frames) | L0 | L0 |
 | C5 Network | L2 | L0 | L1 (JS) | L0 | L0 |
 | C6 Interactions | L1: C6.1 waits for W5 (`app.screen.name` on taps) | L0 | L1 (JS) | L0 | L0 |
 | C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |
-| C8 Replay | L1: C8.3 waits for W1 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
+| C8 Replay | L2 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
 | C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |
 | C10 Feedback | L0: W6 | L0 | L0 | L0 | L0 |
 | C11 Delivery | L1: C11.1 and C11.2 wait for W3 (N49, N48) | L1 (chunk upload with retry) | L1 (JS) | L0 | L0 |

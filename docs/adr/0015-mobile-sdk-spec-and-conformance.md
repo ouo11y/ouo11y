@@ -18,12 +18,12 @@ Options considered for the conformance suite:
 2. **Maturity per capability and platform, L0 to L3**: not available, basic (records but failing or missing checks), conformant (every check passes in CI), benchmarked (conformant plus a B3 cell with the release gate). The spec holds the matrix; the suite prints the row it measures.
 3. **One conformance suite per package**, with the same check ids: `@ouo11y/react-native` (iOS, later Android), the native iOS package, the native Android package. **Objective-C and Java are API surfaces** of the native packages (a smoke target per language compiles against the public API), not separate implementations with their own suite.
 4. **The React Native iOS suite is option 3**: `tests/e2e/mobile/conformance.mjs` runs launches of the built bundle in Node under `standin.cjs`, a model of the `OuoReplay` Expo module and the OS, then asserts rum-api. The model follows the Swift code; a package that changes the native module changes the model in the same PR. Native behaviour itself stays covered by the native package's tests and the simulator run of the example app.
-5. **Pending checks**: a check whose package has not landed is marked with that package, runs and reports without failing CI, and fails the run once it passes, until the package marks it required. C2.3, C3, C4.2, C6.1, C8.3, C10.1 and C11 start pending.
+5. **Pending checks**: a check whose package has not landed is marked with that package, runs and reports without failing CI, and fails the run once it passes, until the package marks it required. C3, C4.2, C6.1, C10.1 and C11 start pending (C2.3 and C8.3 were pending on W1, which landed first).
 6. **C12 is not an e2e check**: cost is the B3 benchmark and its release gate ([benchmarks.md](../benchmarks.md)).
 
 ## Consequences
 
-- Every later package has its definition of done in check ids, and the matrix moves only when CI says so. Today's row for React Native iOS: L2 on C1, C5, C7, C9; L1 on C2, C4, C6, C8, C11, C12; L0 on C3, C10.
+- Every later package has its definition of done in check ids, and the matrix moves only when CI says so. Today's row for React Native iOS: L2 on C1, C2, C5, C7, C8, C9; L1 on C4, C6, C11, C12; L0 on C3, C10.
 - The suite runs in about two minutes inside the existing `examples` job (the stack, the backend and the SDK build are already there), with no new framework and no simulator in CI.
 - The model can drift from the Swift code. The rule in decision 4 and the simulator run are the guard; when the native iOS package (W8) gets its own suite, that suite runs the real native code on a simulator.
 - Records marked *draft* in the spec (C3, the C6 additions, C10, the C11 store) are fixed by their package without a new ADR; renaming anything else, or adding a capability, needs one.

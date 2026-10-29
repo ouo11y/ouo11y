@@ -43,6 +43,19 @@ The reviewer session found that C8.1 passed only because the stand-in captured a
 - Rebased on main after #105 (ADR-0014/0016): the `mobile-sdk` index and tracker hold both packages.
 - Left as is: folding `examples/ouo-mobile`'s Node leg into this suite (review item 13). It is worth doing once W1 lands, so there is one Node harness for the RN SDK.
 
+## Rebase after W1 and #108 (2026-10-30)
+
+W1 (#109) merged first and changed the `OuoReplay` module, so the stand-in follows it (ADR-0015 decision 4):
+- `CapturePacer` in `session` mode, with an immediate frame on start and resume. `screenDidChange` requests a frame in `navigation` mode. `auto` is `session`, because the modelled device has more than 3.5 GiB.
+- `ChunkSpool`: the open chunk is on disk, and `recoverPendingChunk` and `start` send it once per process.
+- `installCrashReporter` and `setCrashSessionId` take the session start, and the report carries `session_started_ms`.
+
+**Checks turned required:**
+- **C8.3** passes: the crashed launch's open chunk arrives through the spool.
+- **C2.3** is rewritten to what N52 fixed. W1 sends no `session.start` for a session lost in its first second; it carries the start on `session.end`, and rum-api folds it in. The check therefore asserts that the session starts when it started (at or before the replay start, not at the crash), is `crashed`, and ends at the crash with reason `crash`. Before W1, `started_at` was the crash time, so the check tells the two apart.
+
+**Verified** on env `w2-mobile-spec`, rebuilt from the rebased branch: CONFORMANCE OK, 11 required pass, 7 pending. Row: L2 on C1, C2, C5, C7, C8, C9; L1 on C4, C6, C11; L0 on C3, C10.
+
 ## What is left
 
 - Merge after the ADR-0013 review. Each later package removes `pending` from its checks, updates the stand-in when it changes the native module, and updates the spec's matrix (see [tracker.md](../tracker.md)).
