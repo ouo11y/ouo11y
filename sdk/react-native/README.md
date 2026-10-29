@@ -112,11 +112,20 @@ initRUM({
   endpoint: "http://localhost:4318",              // chunks go to http://localhost:4319/v1/replay/chunks
   projectId: "demo",
   projectToken: "pt_dev_demo_0000000000000000",
-  replay: { enabled: true, frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
+  replay: { enabled: true, mode: "auto", frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
   // ...
 });
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 ```
+
+`mode`: `session` records a frame at most every `frameInterval` seconds while the screen changes;
+`navigation` records one frame per screen (start, resume, and every route change the SDK tracks:
+`onStateChange` or `rum.trackNavigation`); `auto` (default) picks `navigation` on devices with
+less than 3.5 GiB of RAM and `session` otherwise. Frames are taken after the run loop's UI work, a
+due frame waits up to 1 s while animations run, and the capture's main-thread time is bounded at
+100 ms per second. A frame where a masked view is moving (a screen sliding in) is dropped rather
+than risk an unmasked pixel. The open chunk is kept on disk and sent on the next launch after a
+crash.
 
 The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
 the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,

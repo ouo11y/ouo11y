@@ -1,9 +1,11 @@
 # OuoReplay (sdk/ios)
 
 Native session replay capture for iOS, the native half of ouo mobile replay (ADR-0006,
-contract in `docs/specs/mobile-replay.md`). It snapshots the key window about once a second
-and on touches, paints opaque rectangles over sensitive views **before the frame leaves the
-device**, drops unchanged frames, and uploads gzip JSON frame chunks to the ouo collector's
+contract in `docs/specs/mobile-replay.md`). It snapshots the key window at most once a second
+after the run loop's UI work (or once per screen in `navigation` mode), paints opaque rectangles
+over sensitive views **before the frame leaves the device** and drops the frame when a masked view
+is moving (masking fails closed), drops unchanged frames, keeps the open chunk on disk so a crash
+does not lose it, and uploads gzip JSON frame chunks to the ouo collector's
 replay receiver (`POST /v1/replay/chunks`, `kind: "frames"`) keyed by the host's `session.id` and
 authenticated with the project credential as HTTP Basic (`Authorization: Basic
 base64("<projectId>:<projectToken>")`, ADR-0007).
@@ -15,12 +17,12 @@ apps use it directly.
 
 | Target | Needs | Contents |
 |---|---|---|
-| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 10 frames / explicit flush, monotonic `seq` via `SeqStore`), `FrameDeduper`, `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, dedupe thumbnail, JPEG, render scale; thread-safe), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
-| `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (timer, touch-triggered captures, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
+| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 10 frames / explicit flush, monotonic `seq` via `SeqStore`), `FrameDeduper`, `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, dedupe thumbnail, JPEG, render scale; thread-safe), `CapturePacer` (when a frame is due: interval or screen change, animation deferral, 100 ms/s time bank), `ChunkSpool` (the open chunk on disk, recovered on the next launch), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
+| `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (main run-loop observer, keep-alive tick, one capture in flight, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
 | `OuoCrashCore` | C | Async-signal-safe native crash handlers: one JSON report written at crash time (frames, binary images, signal or exception), previous handlers chained |
 | `OuoVitalsCore` | C | Process start (`sysctl` `kp_proc.p_starttime`) and the image load time (a constructor before `main`, used for prewarmed launches) |
 | `OuoVitals` | UIKit (counters without it) | Mobile vitals (`docs/specs/mobile-vitals.md`): `beginRuntime(at:)` (cold or warm start), `startFrameTracking()` / `frameStats()` (`CADisplayLink`: total, slow, frozen, delay). See `project/kb/ios-vitals.md` |
-| `OuoCrash` | Foundation | `OuoCrash.install()`, the uncaught `NSException` handler, `setSessionId`, `takePendingReport()` (the host sends it on the next launch; the React Native SDK does). Tested on macOS by crashing `OuoCrashProbe` (`project/kb/ios-native-crashes.md`) |
+| `OuoCrash` | Foundation | `OuoCrash.install()`, the uncaught `NSException` handler, `setSession(_:startedAtMs:)` (the session and its start go into the report), `takePendingReport()` (the host sends it on the next launch; the React Native SDK does). Tested on macOS by crashing `OuoCrashProbe` (`project/kb/ios-native-crashes.md`) |
 
 ## Install
 
@@ -49,12 +51,14 @@ OuoReplay.start(OuoReplayConfig(
     projectId: "demo",                                 // user name of the Basic credential (ADR-0007)
     projectToken: "pt_dev_demo_0000000000000000",      // password of the Basic credential; public by nature
     sessionId: { SessionStore.shared.currentId },       // called when a chunk opens
+    mode: .auto,                                       // .session, .navigation, or .auto (navigation below 3.5 GiB RAM)
     frameInterval: 1.0,
     maskText: true, maskInputs: true, maskImages: true, maskWebViews: true,
     debug: false))
 
-OuoReplay.pause()               // stops the timer, flushes
-OuoReplay.resume()              // immediate frame, timer restarts
+OuoReplay.pause()               // stops capturing, flushes
+OuoReplay.resume()              // immediate frame, capture restarts
+OuoReplay.screenDidChange()     // a new screen: its frame in navigation mode
 OuoReplay.isRecording           // Bool
 OuoReplay.flush { }             // flush the open chunk and drain the upload queue
 OuoReplay.sessionDidRotate(newId: "…")   // flushes the old session's chunk, seq restarts at 0
@@ -66,15 +70,15 @@ finds the key window itself. UIKit: call it from `application(_:didFinishLaunchi
 All calls are safe from any thread; the capture runs on the main thread (UIKit requirement).
 
 `OuoReplayConfig` also exposes `flushInterval` (5 s), `maxFramesPerChunk` (10), `jpegQuality`
-(0.5), `maxLongestSide` (1000 px), `maxTouchCapturesPerSecond` (4), `maskClasses` (extra class
-names), `seqStore` (`UserDefaultsSeqStore` by default, `InMemorySeqStore` for tests) and the
+(0.5), `maxLongestSide` (1000 px), `maskClasses` (extra class names), `spoolURL` (the open
+chunk's file, `Application Support/ouo/replay/open-chunk.jsonl`), `seqStore` (`UserDefaultsSeqStore` by default, `InMemorySeqStore` for tests) and the
 computed `authorization` (the header value the uploader sends). The endpoint is the replay
 receiver's base URL: port 4319 next to the collector's OTLP 4318 in the local stack, or the proxy
 host (`https://otel.example.com`) that routes `/v1/replay/*` to it in a deployment.
 
 ## Masking and how to opt out
 
-Redacted by default (spec rule 2), in four independent groups (`RedactionRules`):
+Redacted by default (spec capture rule 4), in four independent groups (`RedactionRules`):
 
 | Option (default `true`) | Classes |
 |---|---|
@@ -86,6 +90,11 @@ Redacted by default (spec rule 2), in four independent groups (`RedactionRules`)
 Subclasses match through their superclass chain. Hidden views, views with alpha `<= 0.01`, and
 views entirely outside the window are skipped together with their subtrees; visible rectangles
 are clipped to the window and overlapping ones merged.
+
+Masking fails closed (capture rule 5): when a masked view sits on a moving layer (a screen
+sliding in, a view animating its position or transform), the whole frame is dropped instead of
+painting a rectangle where the view may no longer be; a subtree deeper than the walk's limit (64)
+is masked whole.
 
 The default is privacy first: everything that can carry user content is black until the host
 opts in to visibility (Sentry's mobile replay ships the same default). To opt out:

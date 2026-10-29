@@ -5,8 +5,8 @@ import OuoReplayCore
 
 /// Owns the capture loop (ADR-0006 rev 2, docs/specs/mobile-replay.md "Capture scheduling"):
 /// a main run-loop observer captures after the pass's UI work is committed, when the
-/// `CapturePacer` says a frame is due (interval or screen change, animation deferral, time bank),
-/// one capture in flight. A keep-alive timer wakes an idle run loop once per interval so a due
+/// `CapturePacer` says a frame is due (interval or screen change, no view controller transition,
+/// animation deferral, settle time, time bank), one capture in flight. A keep-alive timer wakes an idle run loop once per interval so a due
 /// frame is not left waiting for the next touch, and cuts chunks on time. Touches are recorded but never trigger a capture.
 /// The walk and the render run on the main thread; planning, downscale, redaction, dedupe,
 /// encoding, chunking, the spool and the upload hand-off run on `queue`, which alone touches
@@ -180,6 +180,10 @@ final class ReplayRecorder {
         let start = ProcessInfo.processInfo.systemUptime
         guard isRecording, !captureInFlight, pacer.isDue(now: start), let window = ScreenCapturer.keyWindow() else { return }
         attachTouchObserverIfNeeded(window)
+        if Self.isTransitioning(window.rootViewController) {
+            _ = pacer.decide(now: start, animations: 0, transitioning: true)
+            return
+        }
         let ts = Clock.nowMillis()
         let sp = Self.signposter
         let snapshotState = sp.beginInterval("snapshot", id: sp.makeSignpostID())
@@ -211,6 +215,13 @@ final class ReplayRecorder {
             sp.endInterval("compose", state)
             DispatchQueue.main.async { self?.captureInFlight = false }
         }
+    }
+
+    /// A push, pop or presentation is running somewhere in the window's view controllers.
+    private static func isTransitioning(_ vc: UIViewController?) -> Bool {
+        guard let vc else { return false }
+        if vc.transitionCoordinator != nil { return true }
+        return isTransitioning(vc.presentedViewController) || vc.children.contains { isTransitioning($0) }
     }
 
     private func attachTouchObserverIfNeeded(_ window: UIWindow) {

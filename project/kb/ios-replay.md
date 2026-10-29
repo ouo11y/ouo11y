@@ -267,3 +267,39 @@ per round): ouo main-thread CPU per capture 36 / 37 / 50 ms -> 16 / 21 / 21.5 ms
 recording 2.9-3.7 s -> 2.1-2.4 s although more frames are captured (no longer skipped behind a
 busy main thread). Capture-queue `compose` 2.6 ms median. Device numbers: report
 `project/agents/ios-replay/reports/n6-g1-replay-crashes.html`.
+
+## W1: production-safe capture (2026-10-29)
+
+What changed is in ADR-0006 revision 2 and `docs/specs/mobile-replay.md` (capture rules 1-8). What
+was learned on the iOS 27 simulator (`examples/ouo-mobile`, Release build, scripted journey):
+
+- **`drawHierarchy(afterScreenUpdates: false)` trails the model.** It reads what the screen last
+  showed. The first W1 build captured at the first idle pass after a react-native-screens push and
+  3 of 15 frames showed the transition's last frame (the incoming screen with rounded corners, a
+  sliver of the old one). A diagnostic log at each decision showed those captures had 0 layer
+  animations and no `transitionCoordinator`: UIKit had finished, the screen had not. Fix: wait
+  `settleTime` (0.25 s) after the last pass that saw motion. After it, 0 of 26 frames over two runs
+  showed a transition.
+- **What a push looks like to the walk** (iOS 27, react-native-screens): 4 animation keys on view
+  layers (`UIPacingAnimationForAnimatorsKey` + `position` on one view, `opacity` on two) and a
+  `transitionCoordinator` on the stack; both appear on the same passes. The coordinator is the
+  direct signal for "no capture during a transition" and is checked before the walk.
+- **Render variants, simulator, `snapshot` signpost (walk + render) median per capture, two runs
+  each, interleaved**: 1:1 at 3x 27-31 ms, 1x with `interpolationQuality = .none` 26-31 ms, 1x
+  default (before W1) 31-34 ms. The simulator does not decide this (N51: 21 ms there, 45 ms on the
+  phone); 1:1 was kept because it is exactly the render Sentry measured at 22 ms on the same phone.
+  Capture-queue `compose` goes from ~3 ms to ~6 ms (the downscale moved there).
+- **Navigation mode** on the journey: 10 frames for 9 screen changes plus launch, every one settled;
+  session mode 13-15 kept frames per 42 s run (dedupe drops the static ones).
+- **Spool recovery, verified by `kill -9`** of the app 4 s after launch (chunk not yet cut, spool file
+  68 KB): after relaunch rum-api had the killed session's 3 frames, `ended_at` = its last frame.
+- **Measuring on a simulator**: `xctrace record --template "Time Profiler" --instrument os_signpost
+  --device <udid> --attach <pid>`, the pid from `pgrep -f "<udid>/.*/mobilestore.app/mobilestore$"`
+  (attaching by name or by `launchctl list` pid fails). Signposts: `snapshot` (main, includes
+  `walk`), `walk`, `compose` (queue); a `snapshot` of < 2 ms is a walk-only pass (deferred).
+- **npm inside `.claude/worktrees/*`** fails with `call config.load() before reading values` when
+  the main checkout above holds a conflicted `package.json` (npm reads the outer workspace's members;
+  also in [funnels.md](funnels.md)). `npm_config_prefix` in the environment does not help; `npm
+  --prefix <checkout>` does, so a wrapper on `PATH` that adds `--prefix` (the checkout root for
+  workspace members, the example's own folder for standalone examples) gets `ouo-env up` and
+  `build-ios.sh` through.

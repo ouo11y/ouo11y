@@ -27,6 +27,10 @@ public enum ReplayMode: String, Codable, Sendable {
 ///   the transition has begun before we look.
 /// - **Animation deferral** (Sentry): while `animationThreshold` or more layer animations run, a
 ///   due frame waits, up to `maxDeferral`, then is taken anyway (a spinner must not stop replay).
+///   While a view controller transition runs, it waits with no limit.
+/// - **Settle**: after motion ends, `settleTime` more. `drawHierarchy(afterScreenUpdates: false)`
+///   reads what the screen last showed, which trails the model: right after a transition completes
+///   it is still the transition's last frame.
 /// - **Time bank** (Datadog): the main-thread part of capturing may spend `budgetPerSecond` per
 ///   second, banked up to `budgetPerSecond`. A capture spends what it took; while the bank is
 ///   negative nothing is captured. This is also the backoff: a 150 ms capture at 1 fps leaves
@@ -42,10 +46,12 @@ public struct CapturePacer: Sendable {
     public var animationThreshold = 4
     public var maxDeferral: TimeInterval = 1
     public var settleDelay: TimeInterval = 0.4
+    public var settleTime: TimeInterval = 0.25
     public var budgetPerSecond: TimeInterval = 0.1
 
     private var lastCaptureAt: TimeInterval?
     private var deferringSince: TimeInterval?
+    private var lastMotionAt: TimeInterval?
     private var pending: (reason: FrameReason, at: TimeInterval)?
     private var bank: TimeInterval
     private var bankUpdatedAt: TimeInterval?
@@ -79,13 +85,21 @@ public struct CapturePacer: Sendable {
         return now - last >= interval
     }
 
-    /// After the walk: `animations` is the number of running layer animations on screen.
-    public mutating func decide(now: TimeInterval, animations: Int) -> Decision {
+    /// After the walk: `animations` is the number of running layer animations on screen,
+    /// `transitioning` whether a view controller transition is running.
+    public mutating func decide(now: TimeInterval, animations: Int, transitioning: Bool = false) -> Decision {
         guard isDue(now: now) else { return .wait }
+        if transitioning {
+            lastMotionAt = now
+            return .wait
+        }
         if animations >= animationThreshold {
+            lastMotionAt = now
             let since = deferringSince ?? now
             deferringSince = since
             if now - since < maxDeferral { return .wait }
+        } else if let last = lastMotionAt, now - last < settleTime {
+            return .wait
         }
         deferringSince = nil
         let reason = pending?.reason ?? .timer

@@ -13,6 +13,13 @@ SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrame
 
 ### Added
 
+- **Replay modes and production-safe capture** (mobile SDK roadmap W1): `replay.mode`
+  (`auto` default, `session`, `navigation`); route changes reach the recorder for the
+  navigation-mode frame; the iOS recorder captures after the run loop's UI work within a 100 ms/s
+  main-thread budget, never on touches, drops frames whose masked views move, and sends the chunk
+  a crash left open on the next launch (`sdk/ios` CHANGELOG).
+- **Session start survives an early native crash** (N52): the crash report carries the session's
+  start; a session the storage never saw is ended from it with reason `crash` on the next launch.
 - **Sampling** (roadmap 8b, `docs/operations/data-lifecycle.md` section 5): `session.sampleRate`
   (sessions outside it send no spans, events, logs or replay), `replay.sampleRate` and
   `replay.onErrorSampleRate` (an unrecorded session starts recording at its first error). The

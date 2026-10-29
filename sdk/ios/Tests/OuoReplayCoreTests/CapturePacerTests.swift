@@ -4,8 +4,8 @@ import Testing
 
 @Suite struct CapturePacerTests {
     /// Runs `decide` and books `cost` seconds of main-thread time when it captures.
-    private func step(_ p: inout CapturePacer, _ now: TimeInterval, animations: Int = 0, cost: TimeInterval = 0.02) -> CapturePacer.Decision {
-        let d = p.decide(now: now, animations: animations)
+    private func step(_ p: inout CapturePacer, _ now: TimeInterval, animations: Int = 0, transitioning: Bool = false, cost: TimeInterval = 0.02) -> CapturePacer.Decision {
+        let d = p.decide(now: now, animations: animations, transitioning: transitioning)
         if case .capture = d { p.spent(cost, now: now) }
         return d
     }
@@ -30,10 +30,23 @@ import Testing
         var p = CapturePacer(mode: .session, interval: 1)
         #expect(step(&p, 0, animations: 6) == .wait)
         #expect(step(&p, 0.5, animations: 6) == .wait)
-        #expect(step(&p, 0.6, animations: 3) == .capture(.timer))
-        #expect(step(&p, 1.6, animations: 9) == .wait)
-        #expect(step(&p, 2.59, animations: 9) == .wait)
-        #expect(step(&p, 2.6, animations: 9) == .capture(.timer))
+        #expect(step(&p, 0.6, animations: 3) == .wait, "settling")
+        #expect(step(&p, 0.75, animations: 3) == .capture(.timer))
+        #expect(step(&p, 1.75, animations: 9) == .wait)
+        #expect(step(&p, 2.74, animations: 9) == .wait)
+        #expect(step(&p, 2.75, animations: 9) == .capture(.timer), "forced: a spinner must not stop replay")
+    }
+
+    /// A view controller transition is never captured, however long it runs (an interactive
+    /// swipe back), and the frame after it waits until the screen shows the end state.
+    @Test func TransitionsAreNeverCapturedAndSettleAfterwards() {
+        var p = CapturePacer(mode: .session, interval: 1)
+        for t in stride(from: 0.0, through: 3.0, by: 0.1) {
+            #expect(step(&p, t, animations: 0, transitioning: true) == .wait)
+        }
+        #expect(step(&p, 3.1) == .wait)
+        #expect(step(&p, 3.2) == .wait)
+        #expect(step(&p, 3.3) == .capture(.timer))
     }
 
     /// Time bank: 100 ms of main-thread capture work per second. A 150 ms capture leaves one frame

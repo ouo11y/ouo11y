@@ -44,7 +44,7 @@ public struct ViewNode: Sendable {
     }
 }
 
-/// Which classes get redacted (spec: capture rule 2) and the override identifiers.
+/// Which classes get redacted (spec: capture rule 4) and the override identifiers.
 public struct RedactionRules: Sendable {
     public static let maskIdentifier = "ouo-mask"
     public static let unmaskIdentifier = "ouo-unmask"
