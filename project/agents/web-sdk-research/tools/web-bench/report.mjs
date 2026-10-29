@@ -99,8 +99,8 @@ if (largePath) {
   console.log(sep(11));
   for (const c of order(Object.keys(L.byCell))) {
     const first = (r) => r.requests.filter((x) => x.kind === "replay").sort((a, b) => a.t - b.t)[0];
-    console.log(row([c, L.byCell[c].length, med(L.vals(c, (r) => r.load.nodes)), med(L.vals(c, (r) => r.longTasks.load.max)), fmt(q(L.delta(c, (r) => r.longTasks.load.max), 0.5)), med(L.vals(c, (r) => r.longTasks.load.tbt)),
-      med(L.vals(c, (r) => r.cpu.load.task * 1000)), fmt(q(L.delta(c, (r) => r.cpu.load.task * 1000), 0.5)),
+    console.log(row([c, L.byCell[c].length, med(L.vals(c, (r) => r.load.nodes)), med(L.vals(c, (r) => r.longTasks.load.max)), med(L.delta(c, (r) => r.longTasks.load.max)), med(L.vals(c, (r) => r.longTasks.load.tbt)),
+      med(L.vals(c, (r) => r.cpu.load.task * 1000)), med(L.delta(c, (r) => r.cpu.load.task * 1000)),
       med(L.vals(c, (r) => first(r)?.t ?? NaN)), med(L.vals(c, (r) => kb(first(r)?.wire ?? NaN)), 1), med(L.vals(c, (r) => kb(first(r)?.decoded ?? NaN)), 1)]));
   }
 }

@@ -110,8 +110,9 @@ task at load.
   established. Faro, PostHog and Splunk sit a little higher. ouo's heap grows least (+0.9 MB).
 - With replay ouo adds +495 [408–534] ms of **main-thread** work per minute, against Datadog's
   +334 [248–483]; Sentry +569, PostHog +786, Splunk +959. Across all renderer threads ouo and
-  Datadog are about equal (+712 and +696 ms): Datadog does its replay serialisation and compression
-  in a worker, ouo on the main thread. Moving that work off the main thread is a WB5 item.
+  Datadog are about equal (+712 and +696 ms): Datadog deflates in a worker (serialisation stays on
+  the main thread, B §4), ouo serialises on the main thread and gzips with `CompressionStream`.
+  Moving work off the main thread is a WB5 item.
   ouo's heap grows +3.8 MB against Datadog's +2.0.
 - No SDK made a long task during the journey on this machine.
 
@@ -145,12 +146,12 @@ task at load.
 
 | cell | N | DOM nodes | longest task | Δ longest | TBT | main-thread task | Δ task | first replay request at (ms from nav) | first replay wire KB | first replay decoded KB |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| none | 5 | 13456 [13456–13456] | 0 [0–0] | 0 | 0 [0–0] | 71 [66–81] | 0 | – [–––] | – [–––] | – [–––] |
-| ouo | 5 | 13456 [13456–13456] | 0 [0–0] | 0 | 0 [0–0] | 123 [121–131] | 58 | 97 [96–99] | 61.0 [61.0–61.0] | 864.6 [864.6–864.6] |
-| sentry | 5 | 13456 [13456–13456] | 54 [53–55] | 54 | 4 [3–5] | 151 [149–164] | 83 | 5529 [5528–5536] | 114.4 [114.4–114.4] | 1629.8 [1629.8–1629.8] |
-| datadog | 5 | 13456 [13456–13456] | 0 [0–0] | 0 | 0 [0–0] | 111 [101–115] | 37 | 3652 [3643–3653] | 34.2 [34.2–34.2] | 238.6 [238.6–238.6] |
-| posthog | 5 | 13459 [13459–13459] | 0 [0–0] | 0 | 0 [0–0] | 153 [152–154] | 84 | 6680 [6676–6681] | 73.2 [73.2–73.4] | 180.0 [180.0–180.6] |
-| splunk | 5 | 13456 [13456–13456] | 60 [58–61] | 60 | 10 [8–11] | 258 [249–258] | 177 | 220 [206–223] | 55.1 [55.1–55.1] | 709.4 [709.4–709.4] |
+| none | 5 | 13456 [13456–13456] | 0 [0–0] | 0 [0–0] | 0 [0–0] | 71 [66–81] | 0 [0–0] | – [–––] | – [–––] | – [–––] |
+| ouo | 5 | 13456 [13456–13456] | 0 [0–0] | 0 [0–0] | 0 [0–0] | 123 [121–131] | 58 [50–65] | 97 [96–99] | 61.0 [61.0–61.0] | 864.6 [864.6–864.6] |
+| sentry | 5 | 13456 [13456–13456] | 54 [53–55] | 54 [53–55] | 4 [3–5] | 151 [149–164] | 83 [74–86] | 5529 [5528–5536] | 114.4 [114.4–114.4] | 1629.8 [1629.8–1629.8] |
+| datadog | 5 | 13456 [13456–13456] | 0 [0–0] | 0 [0–0] | 0 [0–0] | 111 [101–115] | 37 [34–40] | 3652 [3643–3653] | 34.2 [34.2–34.2] | 238.6 [238.6–238.6] |
+| posthog | 5 | 13459 [13459–13459] | 0 [0–0] | 0 [0–0] | 0 [0–0] | 153 [152–154] | 84 [72–85] | 6680 [6676–6681] | 73.2 [73.2–73.4] | 180.0 [180.0–180.6] |
+| splunk | 5 | 13456 [13456–13456] | 60 [58–61] | 60 [58–61] | 10 [8–11] | 258 [249–258] | 177 [176–184] | 220 [206–223] | 55.1 [55.1–55.1] | 709.4 [709.4–709.4] |
 
 
 ouo sends its first replay request soonest (97 ms after navigation) and makes no long task, while
@@ -169,8 +170,8 @@ The rrweb chunk has three sizes in this research; they measure different builds:
 | `export { record } from "rrweb"` | 57,872 / 58,421 B | same |
 | `export { record } from "@rrweb/record"` | **22,934 / 23,378 B** | same |
 
-Importing `@rrweb/record` instead of `rrweb` (WB1) cuts the replay chunk by about 58 KB, to about
-22 KB, near Datadog's 15.3 KB recorder. Measured on 2026-10-30 at load average 4.8.
+Importing `@rrweb/record` instead of `rrweb` (WB1) cuts the replay chunk by about 57 KB, to about
+22.4 KB, near Datadog's 15.3 KB recorder. Measured on 2026-10-30 at load average 4.8.
 
 Where ouo's replay bytes go (`snapshot.mjs --seconds 30`, cell `ouo`, same page and journey,
 2026-10-30, load average 4.4): 6 chunks, 142.9 KB on the wire, 1,587.9 KB of rrweb events.
@@ -193,7 +194,7 @@ measured here. WB5 should split the incremental stream by source before it picks
 2. Replay is where ouo trails Datadog: +64.2 KB more lazy JS (79.5 vs 15.3 KB; +47.5 KB more
    downloaded with replay, 124.8 vs 77.3), +161 ms/min more main-thread work at the median (equal
    across all threads), +1.8 MB more heap, +81 KB/min more on the wire and 3.5× the decoded bytes.
-   WB1 (`@rrweb/record`, about 58 KB less JS) and WB5 (worker serialisation and compression, the
+   WB1 (`@rrweb/record`, about 57 KB less JS) and WB5 (worker compression, one `JSON.stringify`, the
    incremental stream) target this, and WB10 puts these cells in CI so the change is measured.
 3. 32 requests and 3 preflights per minute: batch harder.
 
@@ -201,7 +202,7 @@ measured here. WB5 should split the incremental stream by source before it picks
 
 - One machine, one Chromium, headless, no CPU or network throttling: the absolute numbers hold for
   this Mac only. The paired deltas and the ranking are what carry over.
-- Nine rounds, not ten. Every Δ column prints its IQR. Where two cells' IQRs overlap, the order
+- Nine rounds, not ten. Every Δ column prints its IQR (large-DOM ones too). Where two cells' IQRs overlap, the order
   between them is not established: ouo against Sentry and Datadog at load and in the no-replay
   journey, and ouo against Datadog in the replay journey at the edges (408 vs 483).
 - Each vendor ran its default or documented RUM configuration and can be tuned further.

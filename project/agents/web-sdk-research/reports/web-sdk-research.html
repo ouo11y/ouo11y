@@ -150,7 +150,7 @@ a{color:var(--s1)}
 <div class="tablewrap">
 <table>
 <tr><th>Practice</th><th>Who</th><th>ouo today</th><th>Cost</th></tr>
-<tr><td>Serialise and compress in a worker</td><td>Sentry, Datadog, OpenReplay, LaunchDarkly</td><td><code>JSON.stringify</code> twice per event on the main thread</td><td>2–3 d</td></tr>
+<tr><td>Compress in a worker</td><td>Sentry, Datadog, OpenReplay, LaunchDarkly (Sentry and Datadog keep serialisation on the main thread)</td><td><code>JSON.stringify</code> twice per event on the main thread</td><td>2–3 d</td></tr>
 <tr><td>Mutation breaker</td><td>Sentry (stop at 10,000), PostHog per-node throttle</td><td>snapshot-size guard only</td><td>1–2 d</td></tr>
 <tr><td>Mask all text by default</td><td>Sentry, Faro, Fullstory private mode</td><td>inputs only</td><td>1–2 d + masking proof</td></tr>
 <tr><td>Stylesheets once</td><td>Clarity, OpenReplay, Fullstory</td><td>CSS re-sent in every 5 min checkout</td><td>3–4 d server side</td></tr>
@@ -235,7 +235,7 @@ a{color:var(--s1)}
 <div class="bar"><span class="bl">Sentry</span><span class="bt" role="img" aria-label="Sentry 277.3"><i class="by" style="width:85%"></i></span><span class="bn">277.3</span><span></span></div>
 <div class="bar"><span class="bl">PostHog</span><span class="bt" role="img" aria-label="PostHog 325.4"><i class="by" style="width:100%"></i></span><span class="bn">325.4</span><span></span></div>
 </div>
-<p><b>Reading:</b> without replay ouo has the smallest eager bundle and its main-thread cost is in the same band as Sentry and Datadog (IQRs overlap). Replay is where ouo trails Datadog: a 79.5 KB rrweb chunk against a 15.3 KB recorder (<code>@rrweb/record</code> measures 22.9 KB), +161 ms/min more main-thread work (equal across all threads, Datadog works in a worker), 3.5× the decoded replay bytes. WB1 and WB5 target that; WB10 gates it in CI. Large DOM (10,000 nodes): ouo sends its first snapshot 97 ms after navigation with no long task; Sentry's and Splunk's snapshots each make one long task (54 ms and 60 ms).</p>
+<p><b>Reading:</b> without replay ouo has the smallest eager bundle and its main-thread cost is in the same band as Sentry and Datadog (IQRs overlap). Replay is where ouo trails Datadog: a 79.5 KB rrweb chunk against a 15.3 KB recorder (<code>@rrweb/record</code> measures 22.4 KB), +161 ms/min more main-thread work (about equal across all threads: Datadog deflates in a worker), 3.5× the decoded replay bytes. WB1 and WB5 target that; WB10 gates it in CI. Large DOM (10,000 nodes): ouo sends its first snapshot 97 ms after navigation with no long task; Sentry's and Splunk's snapshots each make one long task (54 ms and 60 ms).</p>
 
 <h2>7. Performance claims and how they were measured</h2>
 <div class="tablewrap">

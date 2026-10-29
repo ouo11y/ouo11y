@@ -21,7 +21,7 @@
 The SDK (capture, delivery, privacy defaults, offline store, OTel semconv) is at or ahead of the
 leaders; measured without replay it has the smallest eager bundle and main-thread cost in the same band as Sentry and Datadog. The read side is behind: no issue grouping, no
 vitals aggregates or attribution, no shipped alerts, thin search. Replay costs more than Datadog's
-(rrweb chunk 79.5 KB vs a 15.3 KB recorder, +161 ms/min main-thread; `@rrweb/record` measures 22.9 KB). WB1 → WB10 → WB2/WB3 → WB5 closes most of it.
+(rrweb chunk 79.5 KB vs a 15.3 KB recorder, +161 ms/min main-thread; `@rrweb/record` measures 22.4 KB). WB1 → WB10 → WB2/WB3 → WB5 closes most of it.
 
 ## Verified and how
 
