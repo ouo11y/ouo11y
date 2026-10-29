@@ -7,7 +7,7 @@
 #   docker build -t ouo/grafana:dev -f deploy/images/grafana/Dockerfile .
 # The build context is the whole repo; Dockerfile.dockerignore (next to this file,
 # honoured by BuildKit) keeps everything but the plugin dist out of the context.
-FROM grafana/grafana:13.2.1
+FROM grafana/grafana:13.2.5
 
 # plugin.json id is ouo11y-rum-app; Grafana scans $GF_PATHS_PLUGINS (/var/lib/grafana/plugins).
 COPY --chown=grafana:root plugins/ouo11y-rum-app/dist /var/lib/grafana/plugins/ouo11y-rum-app
