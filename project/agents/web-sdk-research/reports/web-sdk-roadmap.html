@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web roadmap recommendation</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fcfcfb; --surface:#ffffff; --surface-2:#f3f2ef; --border:#dcdad4;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7873;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8d5bd6; --s5:#b8690a;
+  --good:#1b7f3a; --warn:#b8690a; --bad:#c23a3a;
+  --l0:#ecebe7; --l1:#fde3d6; --l2:#efe9c9; --l3:#d6f3e8;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+    --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+    --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1a1a19; --surface:#222221; --surface-2:#2b2b29; --border:#3b3a37;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8d86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a07ee6; --s5:#e0a24a;
+  --good:#4fbf6f; --warn:#e0a24a; --bad:#e66767;
+  --l0:#2b2b29; --l1:#4a2c1e; --l2:#44401f; --l3:#1f4435;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:22px;margin:40px 0 12px;padding-top:8px;border-top:1px solid var(--border)}
+h3{font-size:17px;margin:22px 0 8px}
+p{margin:8px 0}
+.sub{color:var(--text-2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.card b{display:block;margin-bottom:4px}
+.card .k{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0 4px;background:var(--surface)}
+th,td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--surface-2);font-weight:600}
+.tablewrap{overflow-x:auto}
+.l0{background:var(--l0);color:var(--muted)} .l1{background:var(--l1)} .l2{background:var(--l2)} .l3{background:var(--l3)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--border);display:inline-block}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--surface-2);padding:1px 4px;border-radius:3px}
+.chart{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 6px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--text);font-size:12px}
+.chart .lane{fill:var(--text-2);font-size:12px;font-weight:600}
+.chart .grid{stroke:var(--border);stroke-width:1}
+.chart .ms{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3}
+.chart .mslbl{fill:var(--muted);font-size:11px}
+.chart .wp{rx:4}
+.chart .wp.a{fill:var(--s1)} .chart .wp.b{fill:var(--s2)} .chart .wp.c{fill:var(--s3)} .chart .wp.d{fill:var(--s4)} .chart .wp.e{fill:var(--s5)}
+.chart .wp:hover{opacity:.8}
+.chart .wl{fill:#fff;font-size:11.5px;font-weight:600;pointer-events:none}
+.chart .gap{fill:var(--surface-2)}
+.note{font-size:12.5px;color:var(--text-2)}
+.ok{color:var(--good);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+ul,ol{margin:6px 0 6px 22px} li{margin:3px 0}
+a{color:var(--s1)}
+.vg{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.vg svg{width:100%;height:auto;display:block}
+.vg text{fill:var(--text);font-size:12px}
+.vg .ax{fill:var(--text-2);font-size:11.5px}
+.vg .q{fill:var(--surface-2);stroke:var(--border)}
+.vg .dot{stroke:var(--surface);stroke-width:2}
+.vg .dot.a{fill:var(--s1)} .vg .dot.b{fill:var(--s2)} .vg .dot.c{fill:var(--s3)} .vg .dot.d{fill:var(--s4)} .vg .dot.e{fill:var(--s5)} .vg .dot.x{fill:var(--muted)}
+.vg .dl{font-size:11.5px}
+.src{font-size:12.5px;color:var(--muted);margin-top:28px}
+</style>
+</head>
+<body>
+<main>
+<h1>Web roadmap recommendation</h1>
+<p class="sub">How competitive <code>@ouo11y/browser</code> and the ouo stack are on the web today, and what to build next, in which order, how much in parallel, and when each piece is done. Companion to <code>project/kb/web-sdk-research/roadmap.md</code> (the argument) and <code>comparison.md</code> (the side-by-side reading of Appendices O, A–F and M). 2026-10-29.</p>
+
+<div class="cards">
+  <div class="card"><span class="k">Verdict today</span><b>The SDK is competitive, the read side is not yet</b>Capture, delivery and page safety are at the leaders' level and ahead on offline delivery, page-hide correctness, LoAF events and W3C-first propagation. Missing: error issues, a vitals performance view, shipped alerts, session search.</div>
+  <div class="card"><span class="k">Few have it</span><b>OTLP to the customer's collector, with replay</b>4 of 25 vendors export RUM over OTLP to the customer's own collector; only ouo combines it with replay, a lookback buffer, funnels and self-hosting.</div>
+  <div class="card"><span class="k">Two steps back</span><b>Next value is in rum-api and the plugin</b>N36 is mostly done. Six of the ten packages read data the SDK already sends; they also serve the Sentry-bridge web path (N39).</div>
+  <div class="card"><span class="k">Replay</span><b>Stay on upstream rrweb</b>2.2.0 fixes the leaks our soak found; every fork is years behind. Copy the field's worker, mutation breaker, text masking and stylesheet dedupe.</div>
+  <div class="card"><span class="k">Constraint</span><b>48 bytes of core budget left</b>45,008 B gzip against 45,056 B. New capture goes into lazy chunks or needs a budget decision (§6).</div>
+  <div class="card"><span class="k">Parallelism</span><b>Four lanes</b>SDK, rum-api, plugin and provisioning, spec / tests / tooling. Disjoint folders; a package spanning lanes merges one PR per lane.</div>
+</div>
+
+<h2>1. Lanes and milestones</h2>
+<p class="note">Widths are the upper bound of each package's cost in focused agent-days (orchestrator estimates, roadmap §2); the calendar is not a date promise. Packages in one lane are sequential; lanes run at the same time.</p>
+<div class="chart">
+<svg viewBox="0 0 1120 275" role="img" aria-label="Four lanes with work packages WB1 to WB10 and milestones M1 to M5">
+  <!-- x = 120 + day*24, 0..40 days -->
+  <g class="grid"><line x1="120" y1="20" x2="120" y2="245"/><line x1="120" y1="245" x2="1080" y2="245"/></g>
+  <g class="ms">
+    <line x1="264" y1="20" x2="264" y2="245"/><line x1="480" y1="20" x2="480" y2="245"/><line x1="600" y1="20" x2="600" y2="245"/><line x1="768" y1="20" x2="768" y2="245"/><line x1="1008" y1="20" x2="1008" y2="245"/>
+  </g>
+  <g class="mslbl">
+    <text x="268" y="16">M1 measured, gated</text><text x="484" y="16">M2 issues, vitals</text><text x="604" y="16">M3 alerts, replay</text><text x="772" y="16">M4 search, capture</text><text x="1012" y="16">M5</text>
+  </g>
+  <g class="lane"><text x="10" y="58">A SDK</text><text x="10" y="113">B rum-api</text><text x="10" y="168">C plugin, deploy</text><text x="10" y="223">D spec, tooling</text></g>
+  <!-- Lane A -->
+  <rect class="wp a" x="122" y="36" width="44" height="34"/><text class="wl" x="128" y="58">WB1</text>
+  <rect class="wp a" x="170" y="36" width="44" height="34"/><text class="wl" x="176" y="58">WB2</text>
+  <rect class="wp a" x="218" y="36" width="92" height="34"/><text class="wl" x="224" y="58">WB3 attrib.</text>
+  <rect class="wp a" x="314" y="36" width="212" height="34"/><text class="wl" x="320" y="58">WB5 replay: worker, breaker, mask</text>
+  <rect class="wp a" x="530" y="36" width="164" height="34"/><text class="wl" x="536" y="58">WB7 capture</text>
+  <rect class="wp a" x="698" y="36" width="116" height="34"/><text class="wl" x="704" y="58">WB8 OTel 3.0</text>
+  <rect class="wp a" x="818" y="36" width="188" height="34"/><text class="wl" x="824" y="58">WB9 CDN, frameworks</text>
+  <!-- Lane B -->
+  <rect class="wp b" x="170" y="91" width="116" height="34"/><text class="wl" x="176" y="113">WB2 fingerprint</text>
+  <rect class="wp b" x="290" y="91" width="68" height="34"/><text class="wl" x="296" y="113">WB3 p75</text>
+  <rect class="wp b" x="434" y="91" width="92" height="34"/><text class="wl" x="440" y="113">WB5 CSS</text>
+  <rect class="wp b" x="530" y="91" width="140" height="34"/><text class="wl" x="536" y="113">WB6 index</text>
+  <!-- Lane C -->
+  <rect class="wp c" x="266" y="146" width="116" height="34"/><text class="wl" x="272" y="168">WB2 issues UI</text>
+  <rect class="wp c" x="386" y="146" width="92" height="34"/><text class="wl" x="392" y="168">WB3 perf</text>
+  <rect class="wp c" x="530" y="146" width="68" height="34"/><text class="wl" x="536" y="168">WB4</text>
+  <rect class="wp c" x="674" y="146" width="92" height="34"/><text class="wl" x="680" y="168">WB6 UI</text>
+  <!-- Lane D -->
+  <rect class="wp d" x="122" y="201" width="140" height="34"/><text class="wl" x="128" y="223">WB10 spec, bench</text>
+  <rect class="wp d" x="818" y="201" width="116" height="34"/><text class="wl" x="824" y="223">WB9 upload</text>
+  <g class="mslbl"><text x="120" y="262">0</text><text x="352" y="262">10 d</text><text x="592" y="262">20 d</text><text x="832" y="262">30 d</text><text x="1060" y="262">40 d</text></g>
+</svg>
+</div>
+
+<h2>2. The ordered work list</h2>
+<div class="tablewrap">
+<table>
+<tr><th>#</th><th>Package</th><th>Value</th><th>Cost</th><th>Depends on</th><th>Lanes</th><th>Exit criterion</th></tr>
+<tr><td>WB1</td><td>Hygiene and rrweb upstream: <code>src/version.ts</code> into release-please <code>extra-files</code> (every 0.3.0 install reports 0.2.0), README sizes, rrweb 2.2.0, <code>@rrweb/record</code> instead of <code>rrweb</code> in the lazy import, soaks re-run, upstream prototype-list fix</td><td>high</td><td>S, 1–2 d</td><td>nothing</td><td>A</td><td>installed SDK reports its own version; rrweb chunk smaller by the measured amount; 60 min soaks pass</td></tr>
+<tr><td>WB10</td><td>Web SDK spec (shared capability list with mobile), conformance checks in the Playwright e2e, Appendix M harness in CI, per-preset size budgets</td><td>very high</td><td>S–M, 4–6 d</td><td>nothing</td><td>D</td><td>e2e prints the web maturity column; PRs fail on preset growth and report CPU and bytes per minute against <code>none</code>, N ≥ 10</td></tr>
+<tr><td>WB2</td><td>Issues: fingerprint in rum-api over symbolicated in-app frames, issues list and detail in the plugin, error clicks, client dedupe and rate limit with a counter</td><td>very high</td><td>M, 7–9 d</td><td>WB10</td><td>B, C, A</td><td>three error kinds in 20 generated sessions show as three issues with right counts, linked to replays</td></tr>
+<tr><td>WB3</td><td>Performance view: attribution (INP target and phases with LoAF, LCP element, CLS shift) in a lazy chunk; semconv <code>browser.web_vital</code> dual-emitted; per-soft-navigation vitals and loading duration; p75 by route / version / browser; plugin page and dashboard</td><td>very high</td><td>M, 7–9 d</td><td>WB10, budget</td><td>A, B, C</td><td>events carry target and phases; route p75 equals a hand computation</td></tr>
+<tr><td>WB5</td><td>Replay production-grade: worker serialisation and gzip (served file, main-thread fallback), one stringify per event, mutation breaker, <code>maskAllText</code> + <code>ouo-unmask</code> (default by ADR), stylesheet dedupe in the store, segment metadata</td><td>high</td><td>M, 8–10 d</td><td>WB1</td><td>A, B</td><td>main-thread replay time down by the measured amount; 20k-mutation burst stops with a reason; masking proof passes; stored bytes per checkout drop by the CSS share</td></tr>
+<tr><td>WB4</td><td>Alerts and dashboards shipped: crashed-session rate, new issue and spike, p75 LCP / INP regression per route, failed-request rate, replay ingest errors</td><td>high</td><td>S, 3–4 d</td><td>WB2, WB3 for two rules</td><td>C</td><td>each rule fires once on injected faults and stays quiet on the clean journey</td></tr>
+<tr><td>WB6</td><td>Search and session index: URL, issue, error text, browser, has-replay, duration, frustration, custom event, device; index so a list stops folding up to 100,000 events per request</td><td>high</td><td>M, 6–8 d</td><td>WB2</td><td>B, C</td><td>a 24 h list on a 500k-event day answers under the cap; a test per filter</td></tr>
+<tr><td>WB7</td><td>Capture completeness: <code>beforeSend</code>, query-string scrubbing, global attributes, feature flags (semconv), consent API, console breadcrumbs opt-in, resource timing after load, cookie sessions across subdomains with Web Locks</td><td>medium–high</td><td>M, 6–8 d</td><td>budget, WB10</td><td>A</td><td>consent off sends nothing; two subdomains share a session; flag events in semconv shape</td></tr>
+<tr><td>WB8</td><td>OTel JS 3.0: <code>sdk-trace-web</code> → <code>sdk-trace</code>, fetch / XHR path decided, <code>telemetry.distro.*</code></td><td>medium</td><td>M, 4–6 d</td><td>WB10</td><td>A</td><td>conformance and benchmark unchanged; no <code>sdk-trace-web</code> in the lockfile</td></tr>
+<tr><td>WB9</td><td>Reach: CDN build and loader snippet, Vue / Angular / Svelte thin packages, Next.js and React Router guides, bundler plugin and public upload path for source maps (N41)</td><td>medium–high</td><td>L, 8–12 d</td><td>WB10</td><td>A, D</td><td>snippet page reports a session; framework examples pass the conformance subset; a Vite build uploads maps through the collector</td></tr>
+<tr><td>later</td><td>Heatmaps, paths, feedback primitive (shared with mobile W6), replay as OTLP logs option, console and network inside the player, profiling, canvas</td><td>low now</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+</div>
+
+<h2>3. Value against cost</h2>
+<p class="note">Position is the orchestrator's judgement: value to a web team on the day it lands against the midpoint of the cost range. The vertical split is at 6 agent-days. Grey items are deferred on purpose.</p>
+<div class="vg">
+<svg viewBox="0 0 1120 420" role="img" aria-label="Value against cost scatter of the web work packages">
+  <!-- x = 90 + days*70 (0..14), y = 380 - value*36 (0..10) -->
+  <rect class="q" x="90" y="20" width="420" height="180"/><rect class="q" x="510" y="20" width="560" height="180"/>
+  <rect class="q" x="90" y="200" width="420" height="180"/><rect class="q" x="510" y="200" width="560" height="180"/>
+  <text class="ax" x="100" y="38">high value, low cost: do first</text>
+  <text class="ax" x="860" y="38">high value, higher cost: sequence</text>
+  <text class="ax" x="100" y="372">low value now, low cost</text>
+  <text class="ax" x="520" y="372">low value now, higher cost: later</text>
+  <text class="ax" x="90" y="402">cost in agent-days →</text>
+  <text class="ax" x="20" y="212" transform="rotate(-90 20 212)">value →</text>
+  <circle class="dot a" cx="195" cy="128" r="9"/><text class="dl" x="209" y="132">WB1 hygiene, rrweb (1.5 d)</text>
+  <circle class="dot d" cx="440" cy="56" r="9"/><text class="dl" x="454" y="60">WB10 spec + bench (5 d)</text>
+  <circle class="dot c" cx="335" cy="146" r="9"/><text class="dl" x="349" y="150">WB4 alerts (3.5 d)</text>
+  <circle class="dot b" cx="650" cy="38" r="9"/><text class="dl" x="664" y="42">WB2 issues (8 d)</text>
+  <circle class="dot b" cx="615" cy="74" r="9"/><text class="dl" x="629" y="78">WB3 performance view (7.5 d)</text>
+  <circle class="dot a" cx="720" cy="110" r="9"/><text class="dl" x="734" y="114">WB5 replay (9 d)</text>
+  <circle class="dot b" cx="580" cy="132" r="9"/><text class="dl" x="594" y="136">WB6 search (7 d)</text>
+  <circle class="dot a" cx="580" cy="166" r="9"/><text class="dl" x="594" y="170">WB7 capture (7 d)</text>
+  <circle class="dot a" cx="790" cy="146" r="9"/><text class="dl" x="804" y="150">WB9 reach (10 d)</text>
+  <circle class="dot a" cx="440" cy="218" r="9"/><text class="dl" x="454" y="222">WB8 OTel 3.0 (5 d)</text>
+  <circle class="dot x" cx="370" cy="250" r="9"/><text class="dl" x="384" y="254">feedback primitive</text>
+  <circle class="dot x" cx="440" cy="286" r="9"/><text class="dl" x="454" y="290">replay as OTLP logs</text>
+  <circle class="dot x" cx="580" cy="256" r="9"/><text class="dl" x="594" y="260">paths</text>
+  <circle class="dot x" cx="790" cy="272" r="9"/><text class="dl" x="804" y="276">heatmaps</text>
+  <circle class="dot x" cx="650" cy="308" r="9"/><text class="dl" x="664" y="312">canvas</text>
+  <circle class="dot x" cx="930" cy="290" r="9"/><text class="dl" x="944" y="294">profiling</text>
+</svg>
+</div>
+
+<h2>4. Where ouo stands today</h2>
+<div class="legend"><span><i class="sw" style="background:var(--l3)"></i>ahead</span><span><i class="sw" style="background:var(--l2)"></i>par</span><span><i class="sw" style="background:var(--l1)"></i>behind</span><span><i class="sw" style="background:var(--l0)"></i>absent</span></div>
+<div class="tablewrap">
+<table>
+<tr><th>Capability</th><th>ouo today</th><th>Level</th><th>Package</th></tr>
+<tr><td>Page safety</td><td>guarded hooks, strict CSP + Trusted Types e2e, SSR, soak 60 min</td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Delivery</td><td>gzip, retry with <code>Retry-After</code>, IndexedDB offline 5 MB / 24 h, keepalive budget</td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Network tracing</td><td>CLIENT spans, W3C <code>traceparent</code> + baggage <code>session.id</code></td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Long tasks / LoAF</td><td>standalone events with script attribution</td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Replay on error</td><td>30–60 s lookback (two checkouts)</td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Funnels</td><td>ADR-0012, drop-off to replay</td><td class="l3">ahead of Sentry</td><td>—</td></tr>
+<tr><td>OTLP to own collector, self-host</td><td>spans + logs OTLP, replay on the collector's receiver, whole stack</td><td class="l3">ahead</td><td>—</td></tr>
+<tr><td>Sessions, sampling</td><td>localStorage, cross-tab, deterministic sampling</td><td class="l2">par</td><td>WB7 (subdomains)</td></tr>
+<tr><td>Errors capture, source maps</td><td>five sources, debug ids</td><td class="l2">par</td><td>WB2, WB9</td></tr>
+<tr><td>SPA navigations</td><td>soft-navigation idle span</td><td class="l2">par</td><td>WB3</td></tr>
+<tr><td>Frustration</td><td>rage, dead</td><td class="l2">par</td><td>WB2 (error clicks)</td></tr>
+<tr><td>Web vitals</td><td>five vitals, no attribution</td><td class="l1">behind</td><td>WB3</td></tr>
+<tr><td>Replay privacy and cost</td><td>inputs masked, text recorded; main-thread serialisation; no breaker</td><td class="l1">behind</td><td>WB1, WB5</td></tr>
+<tr><td>Session search</td><td>six fields</td><td class="l1">behind</td><td>WB6</td></tr>
+<tr><td>Frameworks, CDN</td><td>React, ESM only</td><td class="l1">behind</td><td>WB9</td></tr>
+<tr><td>Issues</td><td>none</td><td class="l0">absent</td><td>WB2</td></tr>
+<tr><td>Vitals aggregates</td><td>none on the web</td><td class="l0">absent</td><td>WB3</td></tr>
+<tr><td>Alerts shipped</td><td>none</td><td class="l0">absent</td><td>WB4</td></tr>
+<tr><td><code>beforeSend</code>, flags, consent</td><td>none</td><td class="l0">absent</td><td>WB7</td></tr>
+</table>
+</div>
+
+<h2>5. Datadog, Sentry or PostHog, per part</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Part</th><th>Take from</th><th>Not from</th></tr>
+<tr><td>Data model, wire</td><td>OpenTelemetry semconv, OTLP/JSON (as today)</td><td>any vendor envelope</td></tr>
+<tr><td>Sessions</td><td>Datadog: cookie option, Web Locks, no-adoption rule, nested deterministic sampling</td><td>Sentry's per-tab replay session</td></tr>
+<tr><td>Vitals</td><td>Datadog per-view INP / CLS with attribution; Faro / Honeycomb LoAF in INP; Sentry <code>durationThreshold: 0</code></td><td>PostHog's CLS attribution (leaks)</td></tr>
+<tr><td>Navigations</td><td>Datadog / Faro activity-window loading time; Sentry redirect rule</td><td>—</td></tr>
+<tr><td>Errors</td><td>fingerprint from frames like every APM vendor; dedupe; last N events</td><td>Sentry's permissive <code>dataCollection</code> defaults</td></tr>
+<tr><td>Replay</td><td>upstream rrweb; Sentry worker, guards, text masking; Datadog segment metadata; Clarity stylesheet references</td><td>a fork, an own recorder</td></tr>
+<tr><td>Size</td><td>Sentry's per-preset growth gate</td><td>Datadog's eager inlined worker</td></tr>
+</table>
+</div>
+
+<h2>6. Decisions needed</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Decision</th><th>Recommendation</th><th>Blocks</th></tr>
+<tr><td>Bundle budget policy</td><td>per-preset budgets gated on growth; core held, new capture in lazy chunks unless under 1 KB; raise only with a measured reason</td><td>WB3, WB7</td></tr>
+<tr><td>Issue grouping (new ADR)</td><td>fingerprint in rum-api at read time from symbolicated in-app frames, client override; no issue state store yet</td><td>WB2</td></tr>
+<tr><td>Replay privacy and cost (ADR-0003 rev)</td><td>worker as a served file, mutation breaker, <code>maskAllText</code>; text masked by default for new installs is a founder call</td><td>WB5</td></tr>
+<tr><td>Vitals names (N26)</td><td><code>browser.web_vital</code> + <code>browser.web_vital.*</code>, dual-emit one release</td><td>WB3</td></tr>
+<tr><td>RUM SDK spec</td><td>one spec with a column per platform, shared with the mobile proposal; web is the reference</td><td>WB10</td></tr>
+</table>
+</div>
+
+<h2>7. Web maturity (the shared C1–C12 ladder)</h2>
+<div class="legend"><span><i class="sw" style="background:var(--l0)"></i>L0 not available</span><span><i class="sw" style="background:var(--l1)"></i>L1 basic</span><span><i class="sw" style="background:var(--l2)"></i>L2 conformant</span><span><i class="sw" style="background:var(--l3)"></i>L3 benchmarked</span></div>
+<div class="tablewrap">
+<table>
+<tr><th>Capability</th><th>Today</th><th>After WB10</th><th>After WB1–WB10</th></tr>
+<tr><td>C1 sessions</td><td class="l2">L2</td><td class="l2">L2</td><td class="l2">L2 (+ subdomains)</td></tr>
+<tr><td>C2 errors</td><td class="l2">L2</td><td class="l2">L2</td><td class="l3">L3 (issues)</td></tr>
+<tr><td>C4 vitals</td><td class="l1">L1</td><td class="l1">L1</td><td class="l3">L3</td></tr>
+<tr><td>C5 network</td><td class="l2">L2</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+<tr><td>C6 interactions</td><td class="l2">L2</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+<tr><td>C7 navigation</td><td class="l2">L2</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+<tr><td>C8 replay</td><td class="l2">L2</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+<tr><td>C9 span, log API</td><td class="l2">L2</td><td class="l2">L2</td><td class="l2">L2</td></tr>
+<tr><td>C10 feedback</td><td class="l0">L0</td><td class="l0">L0</td><td class="l0">L0 (later, with mobile W6)</td></tr>
+<tr><td>C11 delivery</td><td class="l2">L2</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+<tr><td>C12 cost</td><td class="l1">L1 (size only)</td><td class="l3">L3</td><td class="l3">L3</td></tr>
+</table>
+</div>
+
+<h2>8. Competitive after WB10, and what is still missing</h2>
+<div class="tablewrap">
+<table>
+<tr><th>Feature</th><th>Sentry</th><th>Datadog</th><th>PostHog</th><th>Faro</th><th>ouo today</th><th>ouo after WB10</th></tr>
+<tr><td>Errors grouped into issues</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">partial</td><td class="no">no</td><td class="ok">yes</td></tr>
+<tr><td>Vitals with attribution, per-route view</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">partial</td><td class="ok">yes</td><td class="no">no</td><td class="ok">yes</td></tr>
+<tr><td>Frustration (rage, dead, error)</td><td class="part">rage, dead</td><td class="ok">yes</td><td class="part">rage, dead</td><td class="ok">yes</td><td class="part">rage, dead</td><td class="ok">yes</td></tr>
+<tr><td>Replay text masked by default</td><td class="ok">yes</td><td class="no">no</td><td class="no">no</td><td class="ok">yes</td><td class="no">no</td><td class="part">option, ADR</td></tr>
+<tr><td>Replay on-error lookback</td><td class="part">0–60 s</td><td class="no">no</td><td class="part">trigger buffer</td><td class="no">no</td><td class="ok">30–60 s</td><td class="ok">30–60 s</td></tr>
+<tr><td>Session search</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">Explore</td><td class="part">6 fields</td><td class="ok">yes</td></tr>
+<tr><td>Funnels</td><td class="no">no</td><td class="ok">yes</td><td class="ok">yes</td><td class="no">no</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>Alerts shipped</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td><td class="part">Grafana</td><td class="no">no</td><td class="ok">yes</td></tr>
+<tr><td>Framework packages</td><td class="ok">8+</td><td class="ok">4</td><td class="ok">3</td><td class="part">React</td><td class="part">React</td><td class="ok">React, Vue, Angular, Svelte, CDN</td></tr>
+<tr><td>OTLP to the customer's collector</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="part">via receiver</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>Self-hosted</td><td class="ok">yes</td><td class="no">no</td><td class="ok">yes</td><td class="part">partial</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>Overhead gate in CI</td><td class="part">size only</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="part">size only</td><td class="ok">size, CPU, bytes</td></tr>
+<tr><td>Profiling</td><td class="ok">yes</td><td class="ok">yes</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="no">no (later)</td></tr>
+<tr><td>Heatmaps, paths</td><td class="no">no</td><td class="ok">yes</td><td class="ok">yes</td><td class="no">no</td><td class="no">no</td><td class="no">no (later)</td></tr>
+</table>
+</div>
+<p class="note">Still missing after WB10, in the order a web team would notice: profiling; heatmaps and paths; console and network detail inside the player; a feedback widget; issue workflow beyond grouping (assign, resolve, regress); canvas and cross-origin iframe replay; release health beyond session health per version.</p>
+
+<h2>9. Widening what is already different</h2>
+<ul>
+  <li><b>OTLP with replay</b>: propose a replay / session-recording semantic convention upstream (ouo, Dash0, Splunk and Faro each invented their own attributes; semconv v1.44 has none); offer replay as OTLP logs next to the receiver.</li>
+  <li><b>One session across browser, backend and mobile</b>: <code>session.id</code> in baggage, the same sampling hash in the browser, React Native and rum-api; make the bridge path (N39) join the same id.</li>
+  <li><b>Overhead measured and gated</b>: no vendor read gates CPU or bytes in CI; WB10 does, with the harness public in the repo.</li>
+  <li><b>Privacy by default</b>: mask all text, scrub query strings, consent API, a data-collection inventory per capability.</li>
+  <li><b>Upstream work</b>: rrweb prototype-list fix; browser SIG session manager (<code>crypto.getRandomValues</code> ids, <code>session.start</code> / <code>session.end</code>, a page-hide-safe batcher).</li>
+</ul>
+
+<p class="src">Sources: <code>project/kb/web-sdk-research/</code> (Appendices O, A–F, M, <code>comparison.md</code>, <code>roadmap.md</code>), <code>project/kb/mobile-sdk-research/roadmap.md</code>, <code>project/tracker/checklist.md</code> (focus, N36, N39, N41, N44, N26), ADR-0003, ADR-0011, ADR-0012.</p>
+</main>
+</body>
+</html>
