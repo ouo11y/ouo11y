@@ -17,7 +17,7 @@ promoted labels, and stores metrics in Mimir, all on one laptop with Docker Comp
 
 | Image | Tag | Notes |
 |---|---|---|
-| grafana/grafana | 13.2.1 | Alpine based, has `wget` (healthcheck works) |
+| grafana/grafana | 13.2.5 | Alpine based, has `wget` (healthcheck works) |
 | grafana/loki | 3.7.7 | distroless |
 | grafana/tempo | 3.0.3 | distroless; **config schema changed vs 2.x** |
 | grafana/mimir | 3.2.1 | distroless |

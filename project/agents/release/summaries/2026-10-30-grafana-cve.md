@@ -17,9 +17,12 @@ fixed in 1.2.1-r0. The Grafana Go binaries had no fixable CRITICAL, only HIGHs (
 - `examples/fast-tracked/00-stack.md`: the pinned-images line.
 - `deploy/images/grafana/CHANGELOG.md`: `Unreleased` note naming the new base.
 - `project/kb/release-automation.md`: how to read a red Trivy gate caused by the base.
+- `docs/compatibility.md`: this `fix` touching `deploy/images/grafana` cuts grafana 0.5.1, which
+  stays on the one-per-line `grafana | 0.5` row, so that row now says 13.2.5 from 0.5.1 (0.5.0:
+  13.2.1). The 0.4 row stays at 13.2.1.
+- `project/kb/collector-lgtm.md`: the pinned-tags table.
 
-`docs/compatibility.md` rows for grafana 0.4 / 0.5 stay at 13.2.1: those releases ship it. The
-next grafana image release adds its row with 13.2.5. The Trivy step is unchanged.
+The Trivy step is unchanged.
 
 13.2.4 still has `brotli-libs` 1.2.0-r1 (Alpine 3.24.2); 13.3.0 has the fix too, but it is a
 minor upgrade and not needed for this.
@@ -38,6 +41,12 @@ minor upgrade and not needed for this.
   and `/a/ouo11y-rum-app` returns 200. The container was removed afterwards.
 - CI on the PR: `image (grafana)`, and through the `compose.yaml` change the quickstart and
   example jobs, which run the full stack on 13.2.5.
+
+## Review
+
+`Review: approve` from session review-pr-108-grafana-ba (env `review-pr-108` from 079ad4d:
+smoke.sh, plugin pages, proxy calls). Its two doc fixes (compatibility row, kb table) and the
+CHANGELOG wording nit are in the second commit.
 
 ## Left / next
 
