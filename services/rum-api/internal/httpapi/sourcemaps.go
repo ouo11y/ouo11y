@@ -46,34 +46,31 @@ func (sm *SourceMaps) uploadProject(r *http.Request) (string, bool) {
 	return project, project != ""
 }
 
-// putSourceMap: PUT /v1/sourcemaps?debug_id=&release=&file= with the map as
-// the body (Content-Encoding: gzip allowed) and the project's upload token.
-func (s *Server) putSourceMap(w http.ResponseWriter, r *http.Request) {
+// readUpload authenticates an upload by its project upload token and reads
+// its body (Content-Encoding: gzip allowed) up to limit bytes decompressed.
+// It writes the error response itself when ok is false.
+func (s *Server) readUpload(w http.ResponseWriter, r *http.Request, limit int64) (project string, data []byte, ok bool) {
 	sm := s.opts.SourceMaps
 	if sm == nil || sm.Store == nil {
 		writeError(w, http.StatusNotFound, "source maps are not configured")
-		return
+		return "", nil, false
 	}
-	project, ok := sm.uploadProject(r)
+	project, ok = sm.uploadProject(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="ouo-rum-api"`)
 		writeError(w, http.StatusUnauthorized, "upload token required")
-		return
+		return "", nil, false
 	}
 	if p := r.URL.Query().Get("project"); p != "" && p != project {
 		writeError(w, http.StatusForbidden, "the upload token belongs to project "+project)
-		return
-	}
-	limit := sm.Store.MaxBytes
-	if limit <= 0 {
-		limit = sourcemap.DefaultMaxBytes
+		return "", nil, false
 	}
 	var body io.Reader = http.MaxBytesReader(w, r.Body, limit+1)
 	if strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip") {
 		zr, err := gzip.NewReader(body)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid gzip body")
-			return
+			return "", nil, false
 		}
 		defer zr.Close()
 		body = zr
@@ -82,26 +79,46 @@ func (s *Server) putSourceMap(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			writeError(w, http.StatusRequestEntityTooLarge, "source map too large")
-			return
+			writeError(w, http.StatusRequestEntityTooLarge, "upload too large")
+			return "", nil, false
 		}
 		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
+		return "", nil, false
+	}
+	return project, data, true
+}
+
+// writeStoreError answers a failed Put / PutDSYM.
+func writeStoreError(w http.ResponseWriter, project, what string, err error) {
+	switch {
+	case errors.Is(err, sourcemap.ErrTooLarge):
+		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+	case errors.Is(err, sourcemap.ErrInvalid):
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		slog.Error("store "+what, "project_id", project, "error", err)
+		writeError(w, http.StatusBadGateway, "store "+what+": "+err.Error())
+	}
+}
+
+// putSourceMap: PUT /v1/sourcemaps?debug_id=&release=&file= with the map as
+// the body (Content-Encoding: gzip allowed) and the project's upload token.
+func (s *Server) putSourceMap(w http.ResponseWriter, r *http.Request) {
+	limit := int64(sourcemap.DefaultMaxBytes)
+	if sm := s.opts.SourceMaps; sm != nil && sm.Store != nil && sm.Store.MaxBytes > 0 {
+		limit = sm.Store.MaxBytes
+	}
+	project, data, ok := s.readUpload(w, r, limit)
+	if !ok {
 		return
 	}
+	sm := s.opts.SourceMaps
 	q := r.URL.Query()
 	meta, err := sm.Store.Put(r.Context(), sourcemap.Upload{
 		ProjectID: project, DebugID: q.Get("debug_id"), Release: q.Get("release"), File: q.Get("file"), Map: data,
 	})
-	switch {
-	case errors.Is(err, sourcemap.ErrTooLarge):
-		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
-		return
-	case errors.Is(err, sourcemap.ErrInvalid):
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	case err != nil:
-		slog.Error("store source map", "project_id", project, "error", err)
-		writeError(w, http.StatusBadGateway, "store source map: "+err.Error())
+	if err != nil {
+		writeStoreError(w, project, "source map", err)
 		return
 	}
 	if sm.Symbolicator != nil {
@@ -110,6 +127,35 @@ func (s *Server) putSourceMap(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("source map stored", "project_id", project, "debug_id", meta.DebugID, "release", meta.Release, "file", meta.File, "bytes", meta.Bytes)
 	writeJSON(w, http.StatusCreated, meta)
+}
+
+// putDSYM: PUT /v1/dsyms?file=&release= with one DWARF file of a .dSYM
+// bundle (Contents/Resources/DWARF/<name>, thin or universal) as the body
+// and the project's upload token. Every architecture slice is stored under
+// its LC_UUID; the response lists them.
+func (s *Server) putDSYM(w http.ResponseWriter, r *http.Request) {
+	limit := int64(sourcemap.DefaultMaxDSYMBytes)
+	if sm := s.opts.SourceMaps; sm != nil && sm.Store != nil && sm.Store.MaxDSYMBytes > 0 {
+		limit = sm.Store.MaxDSYMBytes
+	}
+	project, data, ok := s.readUpload(w, r, limit)
+	if !ok {
+		return
+	}
+	sm := s.opts.SourceMaps
+	q := r.URL.Query()
+	metas, err := sm.Store.PutDSYM(r.Context(), sourcemap.DSYMUpload{ProjectID: project, Release: q.Get("release"), File: q.Get("file"), Data: data})
+	if err != nil {
+		writeStoreError(w, project, "dSYM", err)
+		return
+	}
+	for _, m := range metas {
+		if sm.Symbolicator != nil {
+			sm.Symbolicator.Evict(sourcemap.Ref{ProjectID: project, DebugID: m.DebugID, DSYM: true})
+		}
+		slog.Info("dSYM stored", "project_id", project, "debug_id", m.DebugID, "arch", m.Arch, "file", m.File, "bytes", m.Bytes)
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"project_id": project, "dsyms": metas})
 }
 
 // listSourceMaps: GET /v1/sourcemaps?project=<id> (read token).
@@ -144,8 +190,8 @@ func (s *Server) postSymbolicate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	if !sourcemap.ValidProject(req.ProjectID) || strings.TrimSpace(req.Stacktrace) == "" {
-		writeError(w, http.StatusBadRequest, "project_id and stacktrace are required")
+	if !sourcemap.ValidProject(req.ProjectID) || strings.TrimSpace(req.Stacktrace) == "" && len(req.Frames) == 0 {
+		writeError(w, http.StatusBadRequest, "project_id and stacktrace (or native frames) are required")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), symbolicateTimeout)
@@ -160,6 +206,7 @@ func (s *Server) postSymbolicate(w http.ResponseWriter, r *http.Request) {
 
 // symbolicateEvent symbolicates an exception record with a stack, or
 // returns nil (no stack, no project, maps not configured, backend failure).
+// A native crash (ouo.crash.frames, ouo.crash.images) goes through the dSYMs.
 // The raw attributes are never changed.
 func (s *Server) symbolicateEvent(ctx context.Context, ev session.Event) *sourcemap.Result {
 	sm := s.opts.SourceMaps
@@ -174,6 +221,12 @@ func (s *Server) symbolicateEvent(ctx context.Context, ev session.Event) *source
 	req := sourcemap.Request{ProjectID: project, Release: ev.ServiceVersion, Stacktrace: stack}
 	if raw := ev.Attrs["ouo_exception_debug_ids"]; raw != "" {
 		_ = json.Unmarshal([]byte(raw), &req.DebugIDs) // a malformed value just means no debug ids
+	}
+	if raw := ev.Attrs["ouo_crash_frames"]; raw != "" {
+		// Malformed values just leave the frames out: the stack is then treated as JavaScript.
+		if json.Unmarshal([]byte(raw), &req.Frames) == nil {
+			_ = json.Unmarshal([]byte(ev.Attrs["ouo_crash_images"]), &req.Images)
+		}
 	}
 	res, err := sm.Symbolicator.Symbolicate(ctx, req)
 	if err != nil {

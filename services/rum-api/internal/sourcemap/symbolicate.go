@@ -44,13 +44,17 @@ type Context struct {
 	Post []string `json:"post"`
 }
 
-// Frame is one frame of a symbolicated stack.
+// Frame is one frame of a symbolicated stack. A native frame has the binary
+// image's name as Generated.File (no line), its Address, and Inlined when
+// the function was inlined into the next frame (same address).
 type Frame struct {
 	Status    string    `json:"status"`
 	Generated Position  `json:"generated"`
 	Original  *Position `json:"original,omitempty"`
 	Context   *Context  `json:"context,omitempty"`
 	DebugID   string    `json:"debug_id,omitempty"`
+	Address   string    `json:"address,omitempty"`
+	Inlined   bool      `json:"inlined,omitempty"`
 }
 
 // Result is a symbolicated stack: its frames and the stack text rewritten
@@ -62,39 +66,48 @@ type Result struct {
 	Stacktrace string  `json:"stacktrace"`
 }
 
-// Request is what symbolication needs from an exception record.
+// Request is what symbolication needs from an exception record. With Frames
+// it is a native crash (ouo.crash.frames and ouo.crash.images), symbolicated
+// through dSYMs; Stacktrace is then the Apple-style text it rewrites.
 type Request struct {
 	ProjectID  string            `json:"project_id"`
 	Release    string            `json:"release"`
 	Stacktrace string            `json:"stacktrace"`
 	DebugIDs   map[string]string `json:"debug_ids"` // script URL -> debug id (ouo.exception.debug_ids)
+	Frames     []NativeFrame     `json:"frames,omitempty"`
+	Images     []NativeImage     `json:"images,omitempty"`
 }
 
 // contextLines is how many source lines are returned before and after a frame.
 const contextLines = 3
 
-// Symbolicator maps stacks with the maps of a Store, caching parsed maps.
+// Symbolicator maps stacks with the maps and dSYMs of a Store, caching
+// parsed ones.
 type Symbolicator struct {
-	store  *Store
-	size   int
-	ttl    time.Duration
-	negTTL time.Duration
-	now    func() time.Time
+	store    *Store
+	size     int
+	maxBytes int64
+	ttl      time.Duration
+	negTTL   time.Duration
+	now      func() time.Time
 
 	mu    sync.Mutex
 	lru   *list.List
 	items map[string]*list.Element
+	bytes int64
 }
 
 type cacheEntry struct {
 	key     string
-	c       *gosm.Consumer // nil: known miss
+	v       any   // *gosm.Consumer or *debugFile; nil: known miss
+	size    int64 // decompressed bytes it was parsed from
 	expires time.Time
 }
 
 // Options tune the cache.
 type Options struct {
-	CacheEntries int           // parsed maps kept (default 128)
+	CacheEntries int           // parsed maps and dSYMs kept (default 128)
+	CacheBytes   int64         // their decompressed size, all together (default 512 MiB)
 	CacheTTL     time.Duration // how long a parsed map is trusted (default 10 min; replicas see re-uploads after it)
 	MissTTL      time.Duration // how long a miss is remembered (default 60 s)
 	Now          func() time.Time
@@ -105,6 +118,9 @@ func NewSymbolicator(store *Store, o Options) *Symbolicator {
 	if o.CacheEntries <= 0 {
 		o.CacheEntries = 128
 	}
+	if o.CacheBytes <= 0 {
+		o.CacheBytes = 512 << 20
+	}
 	if o.CacheTTL <= 0 {
 		o.CacheTTL = 10 * time.Minute
 	}
@@ -114,7 +130,7 @@ func NewSymbolicator(store *Store, o Options) *Symbolicator {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Symbolicator{store: store, size: o.CacheEntries, ttl: o.CacheTTL, negTTL: o.MissTTL, now: o.Now,
+	return &Symbolicator{store: store, size: o.CacheEntries, maxBytes: o.CacheBytes, ttl: o.CacheTTL, negTTL: o.MissTTL, now: o.Now,
 		lru: list.New(), items: map[string]*list.Element{}}
 }
 
@@ -127,8 +143,7 @@ func (s *Symbolicator) Evict(ref Ref) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if el, ok := s.items[k]; ok {
-		s.lru.Remove(el)
-		delete(s.items, k)
+		s.remove(el)
 	}
 }
 
@@ -138,13 +153,23 @@ func (s *Symbolicator) EvictProject(projectID string) {
 	defer s.mu.Unlock()
 	for k, el := range s.items {
 		if strings.HasPrefix(k, projectID+"/") {
-			s.lru.Remove(el)
-			delete(s.items, k)
+			s.remove(el)
 		}
 	}
 }
 
-func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*gosm.Consumer, error) {
+// remove drops a cache element; s.mu is held.
+func (s *Symbolicator) remove(el *list.Element) {
+	e := el.Value.(*cacheEntry)
+	s.lru.Remove(el)
+	delete(s.items, e.key)
+	s.bytes -= e.size
+}
+
+// cached returns ref's parsed object, loading it from the store and parsing
+// it with parse on a miss. A missing or unparsable object is remembered as
+// nil for MissTTL; a backend error is returned and not cached.
+func (s *Symbolicator) cached(ctx context.Context, ref Ref, parse func([]byte) (any, error)) (any, error) {
 	k, ok := ref.key()
 	if !ok {
 		return nil, nil
@@ -156,14 +181,14 @@ func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*gosm.Consumer, e
 		if now.Before(e.expires) {
 			s.lru.MoveToFront(el)
 			s.mu.Unlock()
-			return e.c, nil
+			return e.v, nil
 		}
-		s.lru.Remove(el)
-		delete(s.items, k)
+		s.remove(el)
 	}
 	s.mu.Unlock()
 
-	var c *gosm.Consumer
+	var v any
+	var size int64
 	ttl := s.ttl
 	b, err := s.store.Load(ctx, ref)
 	switch {
@@ -172,24 +197,31 @@ func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*gosm.Consumer, e
 	case err != nil:
 		return nil, err // backend failure: not cached
 	default:
-		if c, err = gosm.Parse("", b); err != nil {
-			slog.Warn("source map does not parse", "key", k, "error", err)
-			c, ttl = nil, s.negTTL
+		if v, err = parse(b); err != nil {
+			slog.Warn("stored debug file does not parse", "key", k, "error", err)
+			v, ttl = nil, s.negTTL
+		} else {
+			size = int64(len(b))
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if el, ok := s.items[k]; ok { // a concurrent load won
-		s.lru.Remove(el)
-		delete(s.items, k)
+		s.remove(el)
 	}
-	s.items[k] = s.lru.PushFront(&cacheEntry{key: k, c: c, expires: now.Add(ttl)})
-	for s.lru.Len() > s.size {
-		old := s.lru.Back()
-		s.lru.Remove(old)
-		delete(s.items, old.Value.(*cacheEntry).key)
+	s.items[k] = s.lru.PushFront(&cacheEntry{key: k, v: v, size: size, expires: now.Add(ttl)})
+	s.bytes += size
+	// Evict the oldest past either limit, but always keep the newest entry.
+	for s.lru.Len() > 1 && (s.lru.Len() > s.size || s.bytes > s.maxBytes) {
+		s.remove(s.lru.Back())
 	}
-	return c, nil
+	return v, nil
+}
+
+func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*gosm.Consumer, error) {
+	v, err := s.cached(ctx, ref, func(b []byte) (any, error) { return gosm.Parse("", b) })
+	c, _ := v.(*gosm.Consumer)
+	return c, err
 }
 
 type parsedLine struct {
@@ -203,6 +235,9 @@ type parsedLine struct {
 // returned only when no frame could be looked up at all; otherwise the frames
 // whose map failed to load are left as no_map.
 func (s *Symbolicator) Symbolicate(ctx context.Context, req Request) (Result, error) {
+	if len(req.Frames) > 0 {
+		return s.symbolicateNative(ctx, req)
+	}
 	lines := strings.Split(strings.TrimRight(req.Stacktrace, "\n"), "\n")
 	parsed := make([]parsedLine, len(lines))
 	var firstErr error
@@ -269,16 +304,19 @@ func (s *Symbolicator) Symbolicate(ctx context.Context, req Request) (Result, er
 		}
 		res.Frames = append(res.Frames, fr)
 	}
-	switch {
-	case res.Mapped > 0 && res.Mapped == frames:
-		res.Status = StatusOK
-	case res.Mapped > 0:
-		res.Status = StatusPartial
-	default:
-		res.Status = StatusNoMaps
-	}
+	res.Status = status(res.Mapped, frames)
 	res.Stacktrace = strings.Join(out, "\n")
 	return res, nil
+}
+
+func status(mapped, frames int) string {
+	switch {
+	case mapped > 0 && mapped == frames:
+		return StatusOK
+	case mapped > 0:
+		return StatusPartial
+	}
+	return StatusNoMaps
 }
 
 // funcDecl matches the line that opens a named function: a declaration, a

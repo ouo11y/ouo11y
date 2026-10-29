@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { deleteMaps, findArtifacts, inject, upload, type Artifact } from "./index.js";
+import { deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact } from "./index.js";
 
-const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps up to rum-api (ADR-0011)
+const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to rum-api (ADR-0011)
 
   ouo-sourcemaps inject <dir>... [--dry-run]
       Appends a debug id (and the snippet the ouo browser SDK reads) to every bundle that has a
@@ -19,6 +19,10 @@ const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps up t
       --dry-run            list what would be uploaded
 
   ouo-sourcemaps inject-and-upload <dir>... (same options as upload)
+
+  ouo-sourcemaps upload-dsym <path>... --url <rum-api> --token <upload token> [--project] [--release] [--dry-run]
+      PUTs every DWARF file of the .dSYM bundles under each path (or the path itself when it is a
+      file) to <rum-api>/v1/dsyms, so native iOS crashes get function names, files and lines.
 `;
 
 function fail(msg: string): never {
@@ -60,6 +64,8 @@ async function main(): Promise<number> {
   }
   const dryRun = values["dry-run"] === true;
   const env = process.env;
+
+  if (cmd === "upload-dsym") return uploadDSYMs(dirs, values, dryRun);
 
   let artifacts: Artifact[] = [];
   if (cmd === "inject" || cmd === "inject-and-upload") {
@@ -108,6 +114,45 @@ async function main(): Promise<number> {
     process.stdout.write(`deleted ${artifacts.length} map(s)\n`);
   }
   process.stdout.write(`${artifacts.length - failed}/${artifacts.length} map(s) uploaded\n`);
+  return failed === 0 ? 0 : 1;
+}
+
+async function uploadDSYMs(paths: string[], values: { url?: string; token?: string; project?: string; release?: string }, dryRun: boolean): Promise<number> {
+  if (paths.length === 0) fail("no path given\n\n" + usage);
+  const env = process.env;
+  const url = values.url ?? env["OUO_SOURCEMAPS_URL"];
+  const token = values.token ?? env["OUO_UPLOAD_TOKEN"];
+  const project = values.project ?? env["OUO_PROJECT_ID"];
+  const release = values.release ?? env["OUO_RELEASE"];
+  if (!url) fail("--url (or OUO_SOURCEMAPS_URL) is required");
+  if (!token && !dryRun) fail("--token (or OUO_UPLOAD_TOKEN) is required");
+  const files: string[] = [];
+  for (const p of paths) {
+    try {
+      files.push(...(await findDSYMs(p)));
+    } catch (e) {
+      fail(`${p}: ${(e as Error).message}`);
+    }
+  }
+  if (files.length === 0) {
+    process.stderr.write("ouo-sourcemaps: no .dSYM bundle found\n");
+    return 1;
+  }
+  let failed = 0;
+  for (const f of files) {
+    if (dryRun) {
+      process.stdout.write(`would upload ${f} -> ${url}\n`);
+      continue;
+    }
+    const r = await uploadDSYM(f, { url, token: token ?? "", ...(project ? { project } : {}), ...(release ? { release } : {}) });
+    if (r.error) {
+      failed++;
+      process.stderr.write(`failed   ${f}: ${r.error}\n`);
+      continue;
+    }
+    for (const d of r.dsyms ?? []) process.stdout.write(`uploaded ${d.debug_id} (${d.arch})  ${f}\n`);
+  }
+  process.stdout.write(`${files.length - failed}/${files.length} dSYM file(s) uploaded\n`);
   return failed === 0 ? 0 : 1;
 }
 

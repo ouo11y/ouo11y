@@ -71,6 +71,43 @@ describe('StackTrace (C1)', () => {
     expect(screen.getByTestId('stack-original')).toBeInTheDocument();
   });
 
+  it('shows native frames from dSYMs atos style, with the inlined function and frames without a dSYM', () => {
+    const raw =
+      'SIGSEGV: EXC_BAD_ACCESS (SIGSEGV) SEGV_MAPERR at 0x0\nThread (main thread) crashed, arm64:\n' +
+      '0   crashy                          0x0000000104a0050c 0x104a00000 + 1292\n' +
+      '1   dyld                            0x0000000189e1e0e0 0x189e18000 + 24800\n\nBinary Images:\n0x104a00000 - 0x104a03fff crashy arm64';
+    const sym: Symbolicated = {
+      status: 'partial',
+      mapped: 2,
+      stacktrace: raw.replace('0x104a00000 + 1292', 'inlined_step (in crashy) (crashy.c:13)'),
+      frames: [
+        {
+          status: 'mapped',
+          generated: { file: 'crashy', line: 0, column: 0 },
+          original: { file: '/src/crashy.c', line: 13, column: 3, function: 'inlined_step' },
+          address: '0x104a0050c',
+          inlined: true,
+        },
+        {
+          status: 'mapped',
+          generated: { file: 'crashy', line: 0, column: 0 },
+          original: { file: '/src/crashy.c', line: 17, column: 3, function: 'level1' },
+          address: '0x104a0050c',
+        },
+        { status: 'no_map', generated: { file: 'dyld', line: 0, column: 0 }, address: '0x189e1e0e0' },
+      ],
+    };
+    render(<StackTrace stack={raw} symbolicated={sym} defaultOpen />);
+    expect(screen.getByTestId('stack-symbolicated')).toHaveTextContent('symbolicated 2/3');
+    const original = screen.getByTestId('stack-original');
+    expect(original).toHaveTextContent('Thread (main thread) crashed, arm64:');
+    expect(original).not.toHaveTextContent('Binary Images');
+    const frames = screen.getAllByTestId('stack-frame');
+    expect(frames[0]).toHaveTextContent('inlined_step (crashy.c:13) in crashy (inlined)');
+    expect(frames[1]).toHaveTextContent('level1 (crashy.c:17) in crashy');
+    expect(frames[2]).toHaveTextContent('dyld 0x189e1e0e0');
+  });
+
   it('shows the raw stack only when nothing was mapped', () => {
     const sym: Symbolicated = { status: 'no_maps', mapped: 0, stacktrace: STACK, frames: [] };
     render(<StackTrace stack={STACK} symbolicated={sym} defaultOpen />);

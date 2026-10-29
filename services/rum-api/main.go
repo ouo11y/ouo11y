@@ -158,7 +158,7 @@ func newSourceMaps(cfg config.Config, store replay.Store) (*httpapi.SourceMaps, 
 		}
 		objs = fsObjs
 	}
-	st := &sourcemap.Store{Objects: objs, MaxBytes: cfg.Limits.MaxSourceMapBytes, Retention: sourceMapRetention(cfg)}
+	st := &sourcemap.Store{Objects: objs, MaxBytes: cfg.Limits.MaxSourceMapBytes, MaxDSYMBytes: cfg.Limits.MaxDSYMBytes, Retention: sourceMapRetention(cfg)}
 	tokens := map[string]string{}
 	for id, p := range cfg.Projects {
 		if p.UploadToken != "" {
@@ -167,7 +167,7 @@ func newSourceMaps(cfg config.Config, store replay.Store) (*httpapi.SourceMaps, 
 	}
 	return &httpapi.SourceMaps{
 		Store:        st,
-		Symbolicator: sourcemap.NewSymbolicator(st, sourcemap.Options{CacheEntries: cfg.SourceMaps.CacheEntries, CacheTTL: cfg.SourceMaps.CacheTTL}),
+		Symbolicator: sourcemap.NewSymbolicator(st, sourcemap.Options{CacheEntries: cfg.SourceMaps.CacheEntries, CacheBytes: cfg.SourceMaps.CacheBytes, CacheTTL: cfg.SourceMaps.CacheTTL}),
 		UploadTokens: tokens,
 	}, nil
 }

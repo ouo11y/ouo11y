@@ -1,11 +1,13 @@
-// Package sourcemap stores JavaScript source maps per project and translates
-// minified stack traces back to original files, lines and functions
-// (ADR-0011, docs/sourcemaps.md).
+// Package sourcemap stores JavaScript source maps and native debug files
+// (dSYM DWARF) per project and translates minified stack traces and native
+// crash addresses back to original files, lines and functions (ADR-0011,
+// docs/sourcemaps.md, docs/symbolication.md).
 //
 // Layout under the bucket's sourcemaps/ root:
 //
 //	<project>/debug-id/<uuid>.map.gz and .json            (map, meta)
 //	<project>/release/<sha256(release)>/<sha256(path)>.map.gz and .json
+//	<project>/dsym/<uuid>.dwarf.gz and .json              (one Mach-O slice per LC_UUID)
 //
 // The release index is the fallback for bundles without a debug id: a frame's
 // script URL path (host ignored) plus the record's service.version.
@@ -76,13 +78,15 @@ func URLPath(raw string) string {
 	return path.Clean(p)
 }
 
-// Meta describes one stored map.
+// Meta describes one stored map or dSYM slice.
 type Meta struct {
 	ProjectID  string    `json:"project_id"`
+	Kind       string    `json:"kind,omitempty"` // "dsym" for a native debug file, empty for a source map
 	DebugID    string    `json:"debug_id,omitempty"`
 	Release    string    `json:"release,omitempty"`
-	File       string    `json:"file,omitempty"` // URL path of the minified file
-	Bytes      int64     `json:"bytes"`          // decompressed map size
+	File       string    `json:"file,omitempty"` // URL path of the minified file; a dSYM's binary name
+	Arch       string    `json:"arch,omitempty"` // dSYM only: arm64, x86_64, ...
+	Bytes      int64     `json:"bytes"`          // decompressed size
 	Sources    int       `json:"sources"`
 	UploadedAt time.Time `json:"uploaded_at"`
 }
@@ -103,6 +107,8 @@ type Store struct {
 	// Retention returns a project's map retention (0: forever); nil: forever.
 	Retention func(projectID string) time.Duration
 	Now       func() time.Time
+	// MaxDSYMBytes limits one uploaded dSYM file (0: DefaultMaxDSYMBytes).
+	MaxDSYMBytes int64
 }
 
 func (s *Store) now() time.Time {
@@ -110,6 +116,14 @@ func (s *Store) now() time.Time {
 		return s.Now()
 	}
 	return time.Now()
+}
+
+func gzipBytes(b []byte) *bytes.Buffer {
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	zw.Write(b)
+	zw.Close()
+	return &gz
 }
 
 func hash(s string) string {
@@ -169,10 +183,7 @@ func (s *Store) Put(ctx context.Context, u Upload) (Meta, error) {
 	if m.DebugID == "" && (m.Release == "" || m.File == "") {
 		return Meta{}, fmt.Errorf("%w: a debug id, or a release and a file, is required", ErrInvalid)
 	}
-	var gz bytes.Buffer
-	zw := gzip.NewWriter(&gz)
-	zw.Write(u.Map)
-	zw.Close()
+	gz := gzipBytes(u.Map)
 	meta, _ := json.Marshal(m)
 	var keys []string
 	if m.DebugID != "" {
@@ -182,28 +193,39 @@ func (s *Store) Put(ctx context.Context, u Upload) (Meta, error) {
 		keys = append(keys, releaseKey(m.ProjectID, m.Release, m.File))
 	}
 	for _, k := range keys {
-		// Map first, meta second: the sweeper and List key on the meta.
-		if err := s.Objects.Put(ctx, k+".map.gz", gz.Bytes()); err != nil {
-			return Meta{}, err
-		}
-		if err := s.Objects.Put(ctx, k+".json", meta); err != nil {
+		if err := s.putObject(ctx, k, ".map.gz", gz.Bytes(), meta); err != nil {
 			return Meta{}, err
 		}
 	}
 	return m, nil
 }
 
-// Ref names the map a frame needs: by debug id, else by release + URL.
+// putObject writes the data object first and the meta second: the sweeper and
+// List key on the meta.
+func (s *Store) putObject(ctx context.Context, key, ext string, gz, meta []byte) error {
+	if err := s.Objects.Put(ctx, key+ext, gz); err != nil {
+		return err
+	}
+	return s.Objects.Put(ctx, key+".json", meta)
+}
+
+// Ref names the map a frame needs: by debug id, else by release + URL. With
+// DSYM it names the dSYM slice of the build UUID in DebugID instead.
 type Ref struct {
 	ProjectID string
 	DebugID   string
 	Release   string
 	URL       string
+	DSYM      bool
 }
 
 func (r Ref) key() (string, bool) {
 	if !ValidProject(r.ProjectID) {
 		return "", false
+	}
+	if r.DSYM {
+		id, ok := NormalizeDebugID(r.DebugID)
+		return dsymKey(r.ProjectID, id), ok
 	}
 	if id, ok := NormalizeDebugID(r.DebugID); ok {
 		return debugIDKey(r.ProjectID, id), true
@@ -214,13 +236,20 @@ func (r Ref) key() (string, bool) {
 	return "", false
 }
 
-// Load returns the decompressed map for ref, or ErrNotFound.
+// Load returns the decompressed map (or dSYM slice) for ref, or ErrNotFound.
 func (s *Store) Load(ctx context.Context, ref Ref) ([]byte, error) {
 	k, ok := ref.key()
 	if !ok {
 		return nil, ErrNotFound
 	}
-	gz, err := s.Objects.Get(ctx, k+".map.gz")
+	ext, max := ".map.gz", s.MaxBytes
+	if max <= 0 {
+		max = DefaultMaxBytes
+	}
+	if ref.DSYM {
+		ext, max = ".dwarf.gz", s.maxDSYMBytes()
+	}
+	gz, err := s.Objects.Get(ctx, k+ext)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNotFound
 	}
@@ -230,10 +259,6 @@ func (s *Store) Load(ctx context.Context, ref Ref) ([]byte, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(gz))
 	if err != nil {
 		return nil, err
-	}
-	max := s.MaxBytes
-	if max <= 0 {
-		max = DefaultMaxBytes
 	}
 	return io.ReadAll(io.LimitReader(zr, max+1))
 }
@@ -325,7 +350,7 @@ func (s *Store) Sweep(ctx context.Context) (int, error) {
 	for _, o := range objs {
 		base, isMeta := strings.CutSuffix(o.Key, ".json")
 		if !isMeta {
-			base = strings.TrimSuffix(o.Key, ".map.gz")
+			base = strings.TrimSuffix(strings.TrimSuffix(o.Key, ".map.gz"), ".dwarf.gz")
 		}
 		project, _, _ := strings.Cut(o.Key, "/")
 		ret := s.Retention(project)

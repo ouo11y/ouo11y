@@ -63,6 +63,15 @@ func newSourceMapServer(t *testing.T) (*httptest.Server, *SourceMaps) {
 			"ouo_exception_debug_ids": `{"` + bundleURL + `":"` + mapDebugID + `"}`,
 		},
 	})
+	fe.events = append(fe.events, session.Event{
+		TS: last.TS, Name: "exception", SessionID: realSession, UserID: last.UserID, Platform: last.Platform,
+		ServiceName: last.ServiceName, ServiceVersion: "1.4.2",
+		Attrs: map[string]string{
+			"exception_type": "SIGSEGV", "exception_message": "EXC_BAD_ACCESS (SIGSEGV) SEGV_MAPERR at 0x0",
+			"exception_stacktrace": crashyStack, "ouo_project_id": testProject, "ouo_exception_kind": "native",
+			"ouo_crash_frames": crashyFrames, "ouo_crash_images": crashyImages,
+		},
+	})
 	return ts, sm
 }
 
@@ -200,10 +209,88 @@ func TestSymbolicateEndpointAndReadPaths(t *testing.T) {
 	}
 }
 
+// The native crash of sourcemap/testdata/dsym/crashy.c (see dsym_test.go there), as the RN SDK
+// writes it: attributes ouo.crash.frames and ouo.crash.images next to the Apple-style stack.
+const (
+	crashyFrames = `[{"instruction_addr":"0x104a0050c","image_addr":"0x104a00000"},{"instruction_addr":"0x104a00534","image_addr":"0x104a00000"}]`
+	crashyImages = `[{"code_file":"/private/var/containers/Bundle/Application/X/crashy.app/crashy","debug_id":"3CCBBA5F-01C6-36B3-9475-412655AC7FFE","image_addr":"0x104a00000","image_size":16384,"image_vmaddr":"0x100000000"}]`
+	crashyStack  = "SIGSEGV: EXC_BAD_ACCESS (SIGSEGV) SEGV_MAPERR at 0x0\nThread (main thread) crashed, arm64:\n" +
+		"0   crashy                          0x0000000104a0050c 0x104a00000 + 1292\n" +
+		"1   crashy                          0x0000000104a00534 0x104a00000 + 1332\n"
+)
+
+func TestDSYMUploadAndNativeCrash(t *testing.T) {
+	ts, _ := newSourceMapServer(t)
+	dwarf := smFixture(t, "dsym/crashy.dwarf")
+	u := ts.URL + "/v1/dsyms?file=crashy&release=1.4.2"
+	for name, tok := range map[string]string{"none": "", "read token": readToken, "ingest token": ingestToken} {
+		if resp := putMap(t, u, tok, dwarf, false); resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s: status %d, want 401", name, resp.StatusCode)
+		}
+	}
+	if resp := putMap(t, u, uploadToken, []byte("not mach-o"), false); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("not mach-o: %d, want 400", resp.StatusCode)
+	}
+	resp := putMap(t, u, uploadToken, dwarf, true)
+	var up struct {
+		DSYMs []sourcemap.Meta `json:"dsyms"`
+	}
+	json.NewDecoder(resp.Body).Decode(&up)
+	if resp.StatusCode != http.StatusCreated || len(up.DSYMs) != 2 || up.DSYMs[0].Kind != "dsym" || up.DSYMs[0].File != "crashy" {
+		t.Fatalf("upload: %d %+v", resp.StatusCode, up)
+	}
+
+	// The same crash through POST /v1/symbolicate and on the session timeline.
+	var req sourcemap.Request
+	req.ProjectID, req.Stacktrace = testProject, crashyStack
+	json.Unmarshal([]byte(crashyFrames), &req.Frames)
+	json.Unmarshal([]byte(crashyImages), &req.Images)
+	body, _ := json.Marshal(req)
+	post, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/symbolicate", bytes.NewReader(body))
+	post.Header.Set("Authorization", "Bearer "+readToken)
+	pr, err := http.DefaultClient.Do(post)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pr.Body.Close()
+	var res sourcemap.Result
+	json.NewDecoder(pr.Body).Decode(&res)
+	if pr.StatusCode != http.StatusOK || res.Status != sourcemap.StatusOK || len(res.Frames) != 3 ||
+		!strings.Contains(res.Stacktrace, "crash_here (in crashy) (crashy.c:8)") {
+		t.Fatalf("symbolicate: %d %+v", pr.StatusCode, res)
+	}
+
+	var detail struct {
+		Timeline []timelineItem `json:"timeline"`
+	}
+	getJSONAuth(t, ts.URL+"/v1/sessions/"+realSession, &detail, readToken)
+	found := false
+	for _, it := range detail.Timeline {
+		if it.Name != "exception" || it.Attrs["ouo_exception_kind"] != "native" {
+			continue
+		}
+		found = true
+		s := it.Symbolicated
+		if s == nil || s.Mapped != 3 || s.Frames[1].Original.Function != "inlined_step" || !s.Frames[1].Inlined ||
+			s.Frames[2].Original.Function != "level1" || s.Frames[2].Original.Line != 17 {
+			t.Errorf("native crash symbolicated = %+v", s)
+		}
+		if it.Attrs["exception_stacktrace"] != crashyStack {
+			t.Errorf("raw stack changed: %q", it.Attrs["exception_stacktrace"])
+		}
+	}
+	if !found {
+		t.Fatal("no native exception in the timeline")
+	}
+}
+
 func TestSourceMapsDisabled(t *testing.T) {
 	ts, _, _ := newTestServer(t)
 	if resp := putMap(t, ts.URL+"/v1/sourcemaps?debug_id="+mapDebugID, uploadToken, []byte("{}"), false); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("upload with source maps off: %d", resp.StatusCode)
+	}
+	if resp := putMap(t, ts.URL+"/v1/dsyms", uploadToken, []byte("{}"), false); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("dSYM upload with source maps off: %d", resp.StatusCode)
 	}
 }
 
