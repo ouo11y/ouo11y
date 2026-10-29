@@ -106,6 +106,13 @@ The KDoc on `ReplayCache.addFrame` says "quality 80", which is stale: the code u
 
 - **SurfaceView**: a window `PixelCopy` leaves SurfaceView holes transparent. With `captureSurfaceViews` (experimental, off, #5333) each visible SurfaceView is copied separately and composited behind the window with `DST_OVER`. Masking is all or nothing per SurfaceView (`S/SentryReplayOptions.java:177-189`, `R/screenshot/PixelCopyStrategy.kt:225-353,455-478`).
 
+**History of the capture path** (from `git log`, added after the first draft):
+
+- Replay first landed in `e34c467f7` ("[SR] Session Replay", #3339, 2024-07-15) and was merged into the 8.x line in #3696 (2024-09-19). The 6-second key-frame interval was already in that first commit.
+- The software H.264 encoder on Exynos devices came in `f6e97b16a` (#3628, 2024-08-12).
+- The screenshot bitmap moved to `ARGB_8888` in `25217928a` (#4282, 2025-03-24) and back to `RGB_565` when no transparency is needed in `5cb2c360f` (#5821, 2026-07-30).
+- SurfaceView capture was added as an experimental option in `7ce4e9116` (#5333, 2026-05-06).
+
 ### 4.5 Redaction
 
 - **Tree**: in the `PixelCopy` callback on the main thread, `ViewHierarchyNode.fromView(root)` and `View.traverse` build a node per view with `x/y/width/height`, cumulative `elevation`, child index `distance`, `isVisible`, and `visibleRect` from `getGlobalVisibleRect`, which already clips by ancestors. Invisible means `windowVisibility`, `alpha` or `transitionAlpha` ≤ 0, or not `VISIBLE` up the parent chain (`R/util/Views.kt:37-106`, `R/viewhierarchy/ViewHierarchyNode.kt:365-445`).
