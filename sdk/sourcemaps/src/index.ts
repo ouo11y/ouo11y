@@ -1,6 +1,7 @@
-// ouo-sourcemaps: debug ids into built bundles, maps up to rum-api (ADR-0011, docs/sourcemaps.md).
+// ouo-sourcemaps: debug ids into built bundles, maps and dSYMs up to rum-api (ADR-0011,
+// docs/sourcemaps.md, docs/symbolication.md).
 import { createHash } from "node:crypto";
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 
@@ -191,29 +192,70 @@ export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResul
   }
   const q = new URLSearchParams({ file });
   if (debugId) q.set("debug_id", debugId);
+  const r = await put(o, "/v1/sourcemaps", q, "application/json", gzipSync(mapText));
+  return { artifact: a, file, ...(debugId ? { debugId } : {}), status: r.status, ...(r.error ? { error: r.error } : {}) };
+}
+
+/** PUTs a gzip body to rum-api with the upload token; error is set unless the status is 2xx. */
+async function put(
+  o: UploadOptions,
+  route: string,
+  q: URLSearchParams,
+  contentType: string,
+  body: Buffer,
+): Promise<{ status: number; json?: unknown; error?: string }> {
   if (o.release) q.set("release", o.release);
   if (o.project) q.set("project", o.project);
   const doFetch = o.fetch ?? globalThis.fetch;
   try {
-    const res = await doFetch(`${o.url.replace(/\/+$/, "")}/v1/sourcemaps?${q}`, {
+    const res = await doFetch(`${o.url.replace(/\/+$/, "")}${route}?${q}`, {
       method: "PUT",
-      headers: { authorization: `Bearer ${o.token}`, "content-type": "application/json", "content-encoding": "gzip" },
-      body: gzipSync(mapText),
+      headers: { authorization: `Bearer ${o.token}`, "content-type": contentType, "content-encoding": "gzip" },
+      body,
     });
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try {
-        const j = (await res.json()) as { error?: string };
-        if (j.error) msg += `: ${j.error}`;
-      } catch {
-        // not JSON
-      }
-      return { artifact: a, file, ...(debugId ? { debugId } : {}), status: res.status, error: msg };
+    let json: unknown;
+    try {
+      json = await res.json();
+    } catch {
+      // not JSON
     }
-    return { artifact: a, file, ...(debugId ? { debugId } : {}), status: res.status };
+    if (!res.ok) {
+      const err = (json as { error?: string } | undefined)?.error;
+      return { status: res.status, error: `HTTP ${res.status}${err ? `: ${err}` : ""}` };
+    }
+    return { status: res.status, json };
   } catch (e) {
-    return { artifact: a, file, ...(debugId ? { debugId } : {}), status: 0, error: String(e) };
+    return { status: 0, error: String(e) };
   }
+}
+
+const DWARF_FILE = /\.dSYM[\\/]Contents[\\/]Resources[\\/]DWARF[\\/][^\\/]+$/;
+
+/**
+ * The DWARF files to upload for a path: the path itself when it is a file, else every
+ * `<name>.dSYM/Contents/Resources/DWARF/<binary>` under it (a .dSYM bundle, an Xcode archive's
+ * dSYMs folder, a build products folder).
+ */
+export async function findDSYMs(p: string): Promise<string[]> {
+  const abs = path.resolve(p);
+  if ((await stat(abs)).isFile()) return [abs];
+  return (await walk(abs)).filter((f) => DWARF_FILE.test(f)).sort();
+}
+
+export interface DSYMResult {
+  file: string;
+  status: number;
+  /** The slices rum-api stored, one per architecture, keyed by LC_UUID. */
+  dsyms?: { debug_id: string; arch: string }[];
+  error?: string;
+}
+
+/** PUTs one DWARF file, gzip-compressed, to <url>/v1/dsyms; rum-api splits it into its slices. */
+export async function uploadDSYM(file: string, o: UploadOptions): Promise<DSYMResult> {
+  const q = new URLSearchParams({ file: path.basename(file) });
+  const r = await put(o, "/v1/dsyms", q, "application/octet-stream", gzipSync(await readFile(file)));
+  if (r.error) return { file, status: r.status, error: r.error };
+  return { file, status: r.status, dsyms: (r.json as { dsyms?: DSYMResult["dsyms"] } | undefined)?.dsyms ?? [] };
 }
 
 /** Deletes the maps so they are never deployed (and drops the bundles' sourceMappingURL lines). */

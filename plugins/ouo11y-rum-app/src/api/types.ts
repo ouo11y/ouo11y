@@ -65,18 +65,24 @@ export interface StackPosition {
 
 /** One frame of a symbolicated stack (ADR-0011). */
 export interface SymbolicatedFrame {
-  /** `mapped`: original position found; `no_map`: no map for the script; `unmapped`: no mapping at the position. */
+  /** `mapped`: original position found; `no_map`: no map (or dSYM) for the script (or binary); `unmapped`: no mapping at the position. */
   status: 'mapped' | 'no_map' | 'unmapped';
+  /** Native frames: the binary image's name as `file`, no line. */
   generated: StackPosition;
   original?: StackPosition;
   /** Original source lines around the frame, when the map embeds sourcesContent. */
   context?: { pre: string[]; line: string; post: string[] };
   debug_id?: string;
+  /** Native frames (dSYM): the instruction address as reported. */
+  address?: string;
+  /** Native frames: the function was inlined into the next frame (same address). */
+  inlined?: boolean;
 }
 
 /** rum-api after 0.3.0: an exception's stack mapped through its uploaded source maps. */
 export interface Symbolicated {
   status: 'ok' | 'partial' | 'no_maps';
+  /** Frames mapped; a native stack counts captured frames, not the rows of inlined functions. */
   mapped: number;
   frames: SymbolicatedFrame[];
   /** The stack text with original positions (lines that are not frames kept). */

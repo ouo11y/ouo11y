@@ -16,6 +16,11 @@ npx ouo-sourcemaps upload dist --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_
   - `--release` also indexes the maps by `service.version` + URL path, for bundles without a debug id.
   - `--url-prefix /static/` handles a directory served under a path.
   - `--delete-after` removes the `.map` files so they are never deployed.
+- `upload-dsym <path>...` PUTs the DWARF file of every `.dSYM` bundle under each path (or the path itself, when it is a file) to `<url>/v1/dsyms` with the same token, so native iOS crashes get functions, files and lines ([docs/symbolication.md](../../docs/symbolication.md)):
+
+  ```bash
+  npx ouo-sourcemaps upload-dsym build/MyApp.xcarchive/dSYMs --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN"
+  ```
 - Environment variables: `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN`, `OUO_PROJECT_ID`, `OUO_RELEASE`.
 
 Bundler setups (Vite, webpack, Next.js) are in [docs/sourcemaps.md](../../docs/sourcemaps.md).

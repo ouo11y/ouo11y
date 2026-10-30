@@ -90,10 +90,11 @@ when you ship a file: they would silently win over it. The Dockerfile sets none.
 | `OUO_INGEST_TOKEN` | `auth.ingest_token` | | shared secret between the collector's replay exporter and rum-api. When set, `POST /v1/replay/chunks` needs `Authorization: Bearer <token>` (401 otherwise). Leave empty only when the network already isolates rum-api |
 | `OUO_READ_TOKEN` | `auth.read_token` | | when set, every `GET` / `DELETE /v1/*` needs `Authorization: Bearer <token>` (401 otherwise); `/healthz`, `/readyz` and the replay sink are unaffected. Grafana's plugin proxy injects it from `secureJsonData.readToken` |
 | `OUO_ADMIN_TOKEN` | `auth.admin_token` | | bearer of the operator API `/v1/admin/*` (section Admin); the read token does not open it. Empty: the admin API answers 404 |
-| `OUO_UPLOAD_TOKENS` | `projects.<id>.upload_token` | | per-project **secret** source-map upload tokens, `<project>:<token>,...` (at least 16 characters each). Bearer of `PUT /v1/sourcemaps` (section Source maps); never the public project token |
+| `OUO_UPLOAD_TOKENS` | `projects.<id>.upload_token` | | per-project **secret** source-map upload tokens, `<project>:<token>,...` (at least 16 characters each). Bearer of `PUT /v1/sourcemaps` and `PUT /v1/dsyms` (section Source maps and dSYMs); never the public project token |
 | `SOURCEMAP_RETENTION` | `retention.sourcemaps` | `2160h` | source maps are kept this long from their upload (a re-upload restarts it); `0` keeps them forever. `projects.<id>.retention.sourcemaps` overrides it. Keep it at least `LOG_RETENTION`, or older errors lose their maps (a start-up warning says so) |
 | `MAX_SOURCEMAP_BYTES` | `limits.max_sourcemap_bytes` | `67108864` | max decompressed source map |
-| `SOURCEMAP_CACHE_ENTRIES`, `SOURCEMAP_CACHE_TTL` | `sourcemaps.cache_entries`, `.cache_ttl` | `128`, `10m` | parsed maps kept in memory per replica; another replica sees a re-upload after the TTL |
+| `MAX_DSYM_BYTES` | `limits.max_dsym_bytes` | `536870912` | max dSYM DWARF file (all architecture slices) |
+| `SOURCEMAP_CACHE_ENTRIES`, `SOURCEMAP_CACHE_BYTES`, `SOURCEMAP_CACHE_TTL` | `sourcemaps.cache_entries`, `.cache_bytes`, `.cache_ttl` | `128`, `536870912`, `10m` | parsed maps and dSYMs kept in memory per replica (count and decompressed bytes); another replica sees a re-upload after the TTL |
 | `LOKI_DELETE_API` | `loki.delete_api` | `true` | submit a Loki delete request for every user / project deletion |
 | `REPLAY_RETENTION` | `retention.replays` | `720h` | replay retention from a session's last chunk; `0` keeps replays forever. `projects.<id>.retention.replays` overrides it per project |
 | `LOG_RETENTION` | `retention.logs` | `720h` | Loki's retention: how far back delete-by-user searches for the user's sessions |
@@ -156,7 +157,7 @@ Preflights are answered with 204 before authentication.
 `Authorization: Bearer <OUO_READ_TOKEN>` when that one is set. The two tokens are
 independent: the ingest token does not read, the read token does not write. Both are
 compared in constant time; the scheme is case-insensitive. `POST /v1/symbolicate` is a read
-too. `PUT /v1/sourcemaps` takes a project's upload token instead (section Source maps).
+too. `PUT /v1/sourcemaps` and `PUT /v1/dsyms` take a project's upload token instead (section Source maps and dSYMs).
 
 Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or relative
 `now`, `now-30m`, `now-1h`, `now-7d`. Defaults: `from=now-1h`, `to=now`.
@@ -465,10 +466,12 @@ does: `docs/operations/data-lifecycle.md`.
 - `GET /v1/admin/audit?limit=100`: `{"entries":[...]}`, the newest entries oldest first.
 - `POST /v1/admin/retention/sweep`: one retention pass now; `{"scanned","expired","orphans","bytes","errors","duration_ns"}`.
 
-### Source maps (ADR-0011)
+### Source maps and dSYMs (ADR-0011)
 
-User guide: [`docs/sourcemaps.md`](../../docs/sourcemaps.md). Maps live next to the replays
-(`$DATA_DIR/sourcemaps/` or `[<prefix>/]sourcemaps/` in the bucket), per project.
+User guides: [`docs/sourcemaps.md`](../../docs/sourcemaps.md) and
+[`docs/symbolication.md`](../../docs/symbolication.md) (native crashes). Maps and dSYMs live
+next to the replays (`$DATA_DIR/sourcemaps/` or `[<prefix>/]sourcemaps/` in the bucket), per
+project.
 
 - `PUT /v1/sourcemaps?debug_id=&release=&file=&project=` with `Authorization: Bearer <upload
   token>`: the body is one source map v3 (`Content-Encoding: gzip` allowed). The token decides
@@ -478,20 +481,31 @@ User guide: [`docs/sourcemaps.md`](../../docs/sourcemaps.md). Maps live next to 
   `{"project_id","debug_id","release","file","bytes","sources","uploaded_at"}`; 401 without a
   valid upload token (the read, ingest and admin tokens do not work), 413 above
   `MAX_SOURCEMAP_BYTES`, 404 when source maps are not configured.
+- `PUT /v1/dsyms?file=&release=&project=` with the same upload token: the body is one DWARF file
+  of a `.dSYM` bundle (`Contents/Resources/DWARF/<name>`, thin or universal; `Content-Encoding:
+  gzip` allowed). Every architecture slice is stored under its `LC_UUID`. 201 with
+  `{"project_id","dsyms":[{"kind":"dsym","debug_id","arch","file","release","bytes","uploaded_at"}]}`;
+  400 for a file that is not Mach-O or has no DWARF (the app binary instead of the dSYM), 413
+  above `MAX_DSYM_BYTES`.
 - `GET /v1/sourcemaps?project=<id>` (read token): `{"project_id","sourcemaps":[meta...],"count"}`,
-  newest first; a map with both indexes is listed twice.
+  newest first; a map with both indexes is listed twice; dSYM slices have `"kind":"dsym"`.
 - `POST /v1/symbolicate` (read token) with
   `{"project_id","release","stacktrace","debug_ids":{"<script url>":"<debug id>"}}`:
   `{"status":"ok|partial|no_maps","mapped","frames":[{"status":"mapped|no_map|unmapped","generated":{"file","line","column","function"},"original":{...},"context":{"pre","line","post"},"debug_id"}],"stacktrace"}`.
   `stacktrace` is the text rewritten with the original positions. 502 when no map could be read
-  from the store.
+  from the store. A native crash adds `"frames":[{"instruction_addr","image_addr"}]` and
+  `"images":[{"code_file","debug_id","image_addr","image_size","image_vmaddr"}]` (the
+  `ouo.crash.frames` / `ouo.crash.images` values); its frames carry `address`, the image name as
+  `generated.file`, and `inlined` for a function inlined into the next frame.
 - **On read**: every `exception` item of `GET /v1/sessions/{id}` (timeline) and
   `GET /v1/sessions/{id}/logs` that has an `exception_stacktrace` gets the same object as
   `symbolicated`, built from the record's `ouo_project_id`, `service_version` and
-  `ouo_exception_debug_ids`. `attrs.exception_stacktrace` is never changed. A symbolication
+  `ouo_exception_debug_ids`, or `ouo_crash_frames` and `ouo_crash_images` for a native crash.
+  `attrs.exception_stacktrace` is never changed. A symbolication
   failure leaves the field out; it never fails the read.
-- `DELETE /v1/admin/projects/{project}` also deletes the project's maps (`sourcemaps.deleted`
-  in the audit entry). The retention sweeper expires them after `SOURCEMAP_RETENTION`.
+- `DELETE /v1/admin/projects/{project}` also deletes the project's maps and dSYMs
+  (`sourcemaps.deleted` in the audit entry counts both). The retention sweeper expires them after
+  `SOURCEMAP_RETENTION`.
 
 ### Stats
 

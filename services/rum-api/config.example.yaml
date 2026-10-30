@@ -59,10 +59,12 @@ limits:
   max_frame_chunk_bytes: 8388608          # [MAX_FRAME_CHUNK_BYTES] never below max_chunk_bytes
   max_video_chunk_bytes: 8388608          # [MAX_VIDEO_CHUNK_BYTES] decoded mp4; never below max_chunk_bytes
   max_sourcemap_bytes: 67108864           # [MAX_SOURCEMAP_BYTES] one decompressed source map (ADR-0011)
+  max_dsym_bytes: 536870912               # [MAX_DSYM_BYTES] one dSYM DWARF file, all architecture slices
 
 # Symbolication of minified stacks on read (ADR-0011, docs/sourcemaps.md).
 sourcemaps:
-  cache_entries: 128                      # [SOURCEMAP_CACHE_ENTRIES] parsed maps kept per replica
+  cache_entries: 128                      # [SOURCEMAP_CACHE_ENTRIES] parsed maps and dSYMs kept per replica
+  cache_bytes: 536870912                  # [SOURCEMAP_CACHE_BYTES] their decompressed size together, per replica
   cache_ttl: 10m                          # [SOURCEMAP_CACHE_TTL] other replicas see a re-upload after it
 
 storage:

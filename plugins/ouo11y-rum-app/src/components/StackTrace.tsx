@@ -18,6 +18,9 @@ export function frameCount(stack: string): number {
   return stack.split('\n').filter((l) => /^\s*(at |\d+\s|[\w$.<>-]+@|#\d)/.test(l)).length;
 }
 
+/** A frame line of a JS stack, or of the Apple-style native crash stack ("0   App   0x104a1c2f0 ..."). */
+const FRAME_LINE = /^\s*(at |[\w$.<>-]*@\S+:\d+:\d+|\d+\s+.+?\s+0x[0-9a-f]+)/i;
+
 /** True when the symbolicated stack is worth showing: at least one frame mapped. */
 function useful(s: Symbolicated | undefined): s is Symbolicated {
   return !!s && s.mapped > 0 && s.frames.length > 0;
@@ -40,6 +43,9 @@ export function StackTrace({ stack, symbolicated, defaultOpen = false }: Props) 
   }
   const frames = frameCount(text);
   const sym = useful(symbolicated) ? symbolicated : undefined;
+  const native = sym?.frames.some((f) => f.address !== undefined) ?? false;
+  // Captured frames: an inlined function is an extra row of the frame after it.
+  const total = sym?.frames.filter((f) => !f.inlined).length ?? 0;
   const showOriginal = sym !== undefined && !raw;
   return (
     <span className={styles.wrap} onClick={(e) => e.stopPropagation()}>
@@ -58,9 +64,10 @@ export function StackTrace({ stack, symbolicated, defaultOpen = false }: Props) 
           <span
             className={styles.badge}
             data-testid="stack-symbolicated"
-            title="Mapped through the uploaded source maps"
+            title={native ? 'Symbolicated through the uploaded dSYMs' : 'Mapped through the uploaded source maps'}
           >
-            {sym.status === 'ok' ? 'source mapped' : `source mapped ${sym.mapped}/${sym.frames.length}`}
+            {native ? 'symbolicated' : 'source mapped'}
+            {sym.status === 'ok' ? '' : ` ${sym.mapped}/${total}`}
           </span>
         )}
         {open && sym && (
@@ -101,7 +108,9 @@ export function StackTrace({ stack, symbolicated, defaultOpen = false }: Props) 
 function OriginalStack({ sym }: { sym: Symbolicated }) {
   const styles = useStyles2(getStyles);
   const top = sym.frames.find((f) => f.status === 'mapped' && f.context);
-  const header = sym.stacktrace.split('\n').filter((l) => l.trim() && !/^\s*(at |[\w$.<>-]*@\S+:\d+:\d+)/.test(l));
+  const lines = sym.stacktrace.split('\n');
+  const first = lines.findIndex((l) => FRAME_LINE.test(l));
+  const header = (first < 0 ? lines : lines.slice(0, first)).filter((l) => l.trim());
   return (
     <div className={styles.pre} data-testid="stack-original">
       {header.length > 0 && <div className={styles.header}>{header.join('\n')}</div>}
@@ -134,7 +143,27 @@ function OriginalStack({ sym }: { sym: Symbolicated }) {
   );
 }
 
+/** A native frame, atos style: `crash_here (crashy.c:8)`, or the binary and address without a dSYM. */
+function NativeFrameLine({ f }: { f: SymbolicatedFrame }) {
+  const o = f.original;
+  const where = `${f.generated.file || '???'} ${f.address}`;
+  if (!o) {
+    return <span title={f.status === 'no_map' ? 'no dSYM uploaded for this binary' : 'no debug info at this address'}>{where}</span>;
+  }
+  const file = o.file ? ` (${o.file.slice(o.file.lastIndexOf('/') + 1)}${o.line ? `:${o.line}` : ''})` : '';
+  return (
+    <span title={`${where}${o.file ? `\n${o.file}` : ''}`}>
+      {o.function || '???'}
+      {file} in {f.generated.file}
+      {f.inlined ? ' (inlined)' : ''}
+    </span>
+  );
+}
+
 function FrameLine({ f }: { f: SymbolicatedFrame }) {
+  if (f.address !== undefined) {
+    return <NativeFrameLine f={f} />;
+  }
   const p = f.original ?? f.generated;
   return (
     <span

@@ -11,7 +11,7 @@ Order and exit criteria: [roadmap.md §3 and §10](../../kb/mobile-sdk-research/
 | W4 signals parity | todo | |
 | W5 funnels and user steps | todo | |
 | W6 feedback primitive | todo | |
-| W7 native symbolication | PR #107 open | its own session |
+| W7 native symbolication | merged (PR #107) | ADR-0011 section 7, `ouo-sourcemaps upload-dsym`, rum-api `PUT /v1/dsyms` and symbolication on read, plugin native frames, `docs/symbolication.md` ([summary](summaries/2026-10-29-w7-symbolication.md)); follow-ups: Swift demangling, dSYM upload through the collector (with N41), Android R8 / ProGuard (W9), one cache load per key in flight and a peak-memory note for dSYMs near `limits.max_dsym_bytes` (PR #107 review item 7) |
 | W8 native iOS package | todo | |
 | W9 Android | todo | needs JDK, Android SDK, emulator |
 | W10 Flutter | todo | after W8 and W9 |

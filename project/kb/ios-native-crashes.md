@@ -38,7 +38,8 @@ targets `OuoCrashCore` (C) and `OuoCrash` (Swift), Expo module functions in
 hex strings (64-bit values). Image fields use Sentry's `debug_meta` names. Only images that a frame
 points into are listed. On the OTel record: `exception.stacktrace` is Apple crash-report text
 (`0   sentrydemo   0x0000000104a1c2f0 0x104a00000 + 115440` lines, then `Binary Images:`), and
-`ouo.crash.frames` / `ouo.crash.images` keep the JSON for a symbolicator. Manual symbolication:
+`ouo.crash.frames` / `ouo.crash.images` keep the JSON for a symbolicator. rum-api symbolicates them
+from uploaded dSYMs since W7 (2026-10-29, [dsym-symbolication.md](dsym-symbolication.md)). Manual symbolication:
 `atos -arch arm64 -o App.app.dSYM/Contents/Resources/DWARF/App -l <image_addr> <instruction_addr>`.
 
 ## Async-signal safety (what the handler may do)

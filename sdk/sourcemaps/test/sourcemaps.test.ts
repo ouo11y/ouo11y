@@ -5,7 +5,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { debugIdFor, deleteMaps, findArtifacts, inject, splitTrailing, upload, urlPathOf } from "../src/index";
+import { debugIdFor, deleteMaps, findArtifacts, findDSYMs, inject, splitTrailing, upload, uploadDSYM, urlPathOf } from "../src/index";
 
 const MAP = JSON.stringify({ version: 3, sources: ["../src/a.ts"], names: [], mappings: "AAAA" });
 
@@ -124,15 +124,22 @@ describe("ouo-sourcemaps", () => {
     let close: (() => void) | undefined;
     afterEach(() => close?.());
 
-    async function server(status = 201) {
-      const got: { url: string; auth: string; body: unknown }[] = [];
+    async function server(status = 201, reply: unknown = {}) {
+      const got: { url: string; auth: string; body: unknown; raw: Buffer }[] = [];
       const srv = createServer((req: IncomingMessage, res) => {
         const chunks: Buffer[] = [];
         req.on("data", (c: Buffer) => chunks.push(c));
         req.on("end", () => {
-          got.push({ url: req.url ?? "", auth: req.headers.authorization ?? "", body: JSON.parse(gunzipSync(Buffer.concat(chunks)).toString()) });
+          const raw = gunzipSync(Buffer.concat(chunks));
+          let body: unknown;
+          try {
+            body = JSON.parse(raw.toString());
+          } catch {
+            // a dSYM
+          }
+          got.push({ url: req.url ?? "", auth: req.headers.authorization ?? "", body, raw });
           res.writeHead(status, { "content-type": "application/json" });
-          res.end(JSON.stringify(status === 201 ? {} : { error: "upload token required" }));
+          res.end(JSON.stringify(status === 201 ? reply : { error: "upload token required" }));
         });
       });
       await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
@@ -162,6 +169,35 @@ describe("ouo-sourcemaps", () => {
       expect((await upload(arts[1]!, { url, token: "t" })).error).toMatch(/no debug id/);
       const r = await upload(arts[1]!, { url, token: "t", release: "1" });
       expect(r).toMatchObject({ status: 401, error: "HTTP 401: upload token required" });
+    });
+
+    it("finds the DWARF files of .dSYM bundles and PUTs them to /v1/dsyms", async () => {
+      const d = await mkdtemp(path.join(tmpdir(), "ouo-dsym-"));
+      const dwarf = path.join(d, "Products", "App.app.dSYM", "Contents", "Resources", "DWARF");
+      await mkdir(dwarf, { recursive: true });
+      await writeFile(path.join(dwarf, "App"), Buffer.from([0xca, 0xfe, 0xba, 0xbe, 1, 2]));
+      await writeFile(path.join(d, "Products", "App.app.dSYM", "Contents", "Info.plist"), "<plist/>");
+      await writeFile(path.join(d, "Products", "other.txt"), "x");
+      const files = await findDSYMs(d);
+      expect(files).toEqual([path.join(dwarf, "App")]);
+      expect(await findDSYMs(path.join(d, "Products", "App.app.dSYM"))).toEqual(files);
+      expect(await findDSYMs(files[0]!)).toEqual(files);
+
+      const slices = [{ debug_id: "3ccbba5f-01c6-36b3-9475-412655ac7ffe", arch: "arm64" }];
+      const { url, got } = await server(201, { project_id: "ios-app", dsyms: slices });
+      const r = await uploadDSYM(files[0]!, { url, token: "ut_secret", release: "2.0.0", project: "ios-app" });
+      expect(r).toEqual({ file: files[0], status: 201, dsyms: slices });
+      expect(got[0]!.url.startsWith("/v1/dsyms?")).toBe(true);
+      expect(Object.fromEntries(new URL(got[0]!.url, "http://x").searchParams)).toEqual({ file: "App", release: "2.0.0", project: "ios-app" });
+      expect(got[0]!.auth).toBe("Bearer ut_secret");
+      expect([...got[0]!.raw]).toEqual([0xca, 0xfe, 0xba, 0xbe, 1, 2]);
+    });
+
+    it("reports dSYM upload errors", async () => {
+      const d = await mkdtemp(path.join(tmpdir(), "ouo-dsym-"));
+      await writeFile(path.join(d, "App"), "not mach-o");
+      const { url } = await server(401);
+      expect(await uploadDSYM(path.join(d, "App"), { url, token: "t" })).toMatchObject({ status: 401, error: "HTTP 401: upload token required" });
     });
 
     it("deletes maps and their sourceMappingURL lines", async () => {

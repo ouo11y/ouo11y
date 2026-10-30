@@ -182,7 +182,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 ## 7. Later (roadmap phases, unchanged)
 
 - [ ] Plugin: deprecated `Select` to `Combobox`; Playwright e2e
-- [ ] Native symbolication (A7 keeps the addresses; symbolication itself is unscheduled); JS source maps for both paths (A10: web path done 2026-10-24 in ADR-0011, the store and CLI serve RN / Hermes too; rest in N41)
+- [ ] Native symbolication: iOS dSYMs done 2026-10-29 (W7: `ouo-sourcemaps upload-dsym`, rum-api `PUT /v1/dsyms` and symbolication on read, [ADR-0011](../../docs/adr/0011-source-maps-and-symbolication.md) section 7, `docs/symbolication.md`); Android R8 / ProGuard with W9; Swift demangling and dSYM upload through the collector (with N41) open. JS source maps for both paths (A10: web path done 2026-10-24 in ADR-0011, the store and CLI serve RN / Hermes too; rest in N41)
 - [ ] rum-api: Tempo paging beyond 1000, read-side project scoping, cache `meta.json` per session in `decorateReplay`
 - [ ] Phase 9 release health (version comparison, regression alerts) and public benchmark site with the other competitors (Datadog, Faro, OpenReplay)
 - [ ] Phase 10 Android replay, Phase 11 scale and multi-project, Phase 12 migration kit, Phase 13 native SDKs, AI investigation experiment

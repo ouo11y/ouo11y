@@ -110,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/sessions/{id}/replay", s.deleteReplay)
 	mux.HandleFunc("GET /v1/stats/health", s.statsHealth)
 	mux.HandleFunc("PUT /v1/sourcemaps", s.putSourceMap)
+	mux.HandleFunc("PUT /v1/dsyms", s.putDSYM)
 	mux.HandleFunc("GET /v1/sourcemaps", s.listSourceMaps)
 	mux.HandleFunc("POST /v1/symbolicate", s.postSymbolicate)
 	mux.HandleFunc("POST /v1/funnels/query", s.postFunnelQuery)

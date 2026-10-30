@@ -103,11 +103,13 @@ type Limits struct {
 	MaxFrameChunkBytes int64 `yaml:"max_frame_chunk_bytes"` // MAX_FRAME_CHUNK_BYTES, default 8 MiB (decompressed, kind frames chunks)
 	MaxVideoChunkBytes int64 `yaml:"max_video_chunk_bytes"` // MAX_VIDEO_CHUNK_BYTES, default 8 MiB (decoded mp4 of one kind video chunk), never below MaxChunkBytes
 	MaxSourceMapBytes  int64 `yaml:"max_sourcemap_bytes"`   // MAX_SOURCEMAP_BYTES, default 64 MiB (one decompressed source map)
+	MaxDSYMBytes       int64 `yaml:"max_dsym_bytes"`        // MAX_DSYM_BYTES, default 512 MiB (one dSYM DWARF file, all slices)
 }
 
 // SourceMaps is the parsed-map cache of the symbolicator (ADR-0011 4).
 type SourceMaps struct {
-	CacheEntries int           `yaml:"cache_entries"` // SOURCEMAP_CACHE_ENTRIES, default 128 parsed maps
+	CacheEntries int           `yaml:"cache_entries"` // SOURCEMAP_CACHE_ENTRIES, default 128 parsed maps and dSYMs
+	CacheBytes   int64         `yaml:"cache_bytes"`   // SOURCEMAP_CACHE_BYTES, default 512 MiB: their decompressed size together
 	CacheTTL     time.Duration `yaml:"cache_ttl"`     // SOURCEMAP_CACHE_TTL, default 10m: other replicas see a re-upload after it
 }
 
@@ -206,10 +208,10 @@ func Defaults() Config {
 		Tempo:      Tempo{Backend: Backend{URL: "http://tempo:3200", DatasourceUID: "tempo"}, Concurrency: 8, CacheTTL: 60 * time.Second},
 		Grafana:    Grafana{URL: "http://localhost:3000"},
 		Session:    Session{Inactivity: 30 * time.Minute, MaxDuration: 4 * time.Hour, DetailLookback: 168 * time.Hour},
-		Limits:     Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20, MaxSourceMapBytes: 64 << 20},
+		Limits:     Limits{MaxChunkBytes: 4 << 20, MaxFrameChunkBytes: 8 << 20, MaxVideoChunkBytes: 8 << 20, MaxSourceMapBytes: 64 << 20, MaxDSYMBytes: 512 << 20},
 		Storage:    Storage{Backend: BackendFilesystem, Filesystem: Filesystem{Dir: "/data"}, S3: S3{Region: "us-east-1"}},
 		Retention:  Retention{Replays: 720 * time.Hour, Logs: 720 * time.Hour, SweepInterval: time.Hour, OrphanGrace: time.Hour, SourceMaps: 2160 * time.Hour},
-		SourceMaps: SourceMaps{CacheEntries: 128, CacheTTL: 10 * time.Minute},
+		SourceMaps: SourceMaps{CacheEntries: 128, CacheBytes: 512 << 20, CacheTTL: 10 * time.Minute},
 	}
 }
 
@@ -371,6 +373,8 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	dur("REPLAY_SWEEP_INTERVAL", &c.Retention.SweepInterval)
 	dur("SOURCEMAP_RETENTION", &c.Retention.SourceMaps)
 	i64("MAX_SOURCEMAP_BYTES", &c.Limits.MaxSourceMapBytes)
+	i64("MAX_DSYM_BYTES", &c.Limits.MaxDSYMBytes)
+	i64("SOURCEMAP_CACHE_BYTES", &c.SourceMaps.CacheBytes)
 	dur("SOURCEMAP_CACHE_TTL", &c.SourceMaps.CacheTTL)
 	if v, ok := get("SOURCEMAP_CACHE_ENTRIES"); ok {
 		n, err := strconv.Atoi(v)
@@ -438,6 +442,12 @@ func (c Config) Validate() error {
 	}
 	if c.Limits.MaxSourceMapBytes <= 0 {
 		bad("limits.max_sourcemap_bytes must be positive")
+	}
+	if c.Limits.MaxDSYMBytes <= 0 {
+		bad("limits.max_dsym_bytes must be positive")
+	}
+	if c.SourceMaps.CacheBytes <= 0 {
+		bad("sourcemaps.cache_bytes must be positive")
 	}
 	if c.SourceMaps.CacheEntries < 1 {
 		bad("sourcemaps.cache_entries must be at least 1")
