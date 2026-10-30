@@ -7,7 +7,7 @@ Order and exit criteria: [roadmap.md §3 and §10](../../kb/mobile-sdk-research/
 | ADR-0014 replay representation, ADR-0016 OpenTelemetry in process | merged (PR #105) | unblock W3, W8, W9; `docs/specs/mobile-replay.md` rewritten for schema 2 with W3 |
 | W1 production-safe iOS capture | merged (PR #109) | run-loop pacer, 1:1 render, fail-closed masking, modes, spool, N52; the phone check is pending |
 | W2 spec and conformance suite | merged (dd844ef) | `docs/specs/mobile-sdk.md`, ADR-0015, `tests/e2e/mobile/` ([summary](summaries/2026-10-29-w2-mobile-spec.md)); every later package turns its pending checks required: W3 (C11.1, C11.2), W4 (C3.1, C3.2, C4.2), W5 (C6.1), W6 (C10.1); suites for native iOS, Android and Flutter with W8–W10, same check ids |
-| W3 wire and durability | in progress | W3b delivery merged (PR #114: gzip OTLP, outbox, durable chunk queue, keep/drop; N48, N49, C11); W3a tiles: step 1 schema 2 + player (PR #116), step 2 Swift tiles next (with N54) |
+| W3 wire and durability | in progress | W3b delivery merged (PR #114, 8f65408: gzip OTLP, outbox, durable chunk queue, keep/drop; N48, N49, C11); W3a tiles: step 1 schema 2 + player (PR #116), step 2 Swift tiles next (with N54) |
 | W4 signals parity | todo | |
 | W5 funnels and user steps | PR open (branch `claude/w5-funnels`) | `ui.tap` view type, gesture, screen and readable body, `timeline.tapLabels` kill switch, `ouo.navigation.kind = screen`; C6.1 required; plugin reads taps as steps; quickstart M6 `tiny-shop-mobile-funnels` ([summary](summaries/2026-10-30-w5-funnels.md)) |
 | W6 feedback primitive | todo | |
