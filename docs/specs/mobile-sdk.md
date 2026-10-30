@@ -1,6 +1,6 @@
 # Mobile SDK specification: twelve capabilities, conformance checks, maturity
 
-Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, the C6 additions, C10, the C11 store) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
+Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, the C6 additions, C10) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
 
 This spec is the index. Where a record already has a spec, it is linked, not repeated:
 
@@ -87,11 +87,11 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 - **API**: `rum.feedback({ message, contact?, screenshot? })`. The bridge maps Sentry's `feedback` and `user_report` items to the same record (N37).
 - **Check**: C10.1.
 
-### C11 Delivery (store draft until W3)
+### C11 Delivery
 
 - OTLP/HTTP JSON with `content-encoding: gzip` for logs and traces; replay chunks are gzip already.
-- Retry with backoff on network errors, 429 and 5xx, honouring `Retry-After`; no retry on other 4xx.
-- **Offline store**: batches and chunks that could not be sent are kept on disk, bounded (W3 fixes the bound; Sentry keeps 30 envelopes), oldest dropped first, and sent on the next launch or when the network is back.
+- Retry with backoff on network errors, 408, 429 and 5xx, honouring `Retry-After`; no retry on other 4xx.
+- **Offline store**: every OTLP batch and replay chunk is on disk before it is sent and removed when the collector answers 2xx or another 4xx, so an outage, a crash or a kill mid-request loses nothing; what is left is sent oldest first on the next launch, on foreground, on `flush()` and after a backoff. Bounds, oldest dropped first: OTLP 5 MB (uncompressed JSON), 500 requests, 24 h; replay chunks 10 MB (gzip) per folder (queued, held), 24 h ([mobile-replay.md](mobile-replay.md)). Delivery is at least once. (Sentry keeps 30 envelopes.)
 - Flush on background (and on `flush()`).
 - **Checks**: C11.1, C11.2.
 
@@ -151,7 +151,7 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 | C8 Replay | L2 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
 | C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |
 | C10 Feedback | L0: W6 | L0 | L0 | L0 | L0 |
-| C11 Delivery | L1: C11.1 and C11.2 wait for W3 (N49, N48) | L1 (chunk upload with retry) | L1 (JS) | L0 | L0 |
+| C11 Delivery | L2 | L1 (chunk queue on disk; no OTLP) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
 | C12 Cost | L1 (B3 simulator cells, gate proposed) | L0 | L0 | L0 | L0 |
 
 React Native Android's L1 cells are the JavaScript half, which is the same code as on iOS; it has never run on an Android device or emulator (the Android native module is a stub). The package that changes a cell updates this table in the same PR.

@@ -4,6 +4,43 @@ import OuoReplayCore
 /// Public entry point. All calls are safe to make from any thread; the work happens on the main
 /// thread because UIKit snapshots require it.
 public enum OuoReplay {
+    private static let uploaderLock = NSLock()
+    private static var sharedUploader: ChunkUploader?
+
+    /// The process's one chunk uploader, made from the first config that asks (two uploaders on one
+    /// folder would send the same files). Its endpoint, credential and `holdUploads` stay for the process.
+    static func uploader(_ config: OuoReplayConfig) -> ChunkUploader {
+        uploaderLock.lock()
+        defer { uploaderLock.unlock() }
+        if let u = sharedUploader { return u }
+        let u = ChunkUploader(
+            endpoint: config.endpoint,
+            projectId: config.projectId,
+            projectToken: config.projectToken,
+            directory: config.outboxURL,
+            config: ChunkUploader.Config(hold: config.holdUploads),
+            logger: ReplayLogger(enabled: config.debug)
+        )
+        sharedUploader = u
+        return u
+    }
+
+    /// Finished sessions whose chunks wait on the device (`holdUploads`), for the host's
+    /// next-launch keep/drop decision, listed after the previous run's open chunk was recovered
+    /// (it may belong to one). The host leaves out its current session.
+    public static func heldSessions(_ config: OuoReplayConfig, completion: @escaping ([ChunkUploader.HeldSession]) -> Void) {
+        #if canImport(UIKit)
+        ReplayRecorder.afterRecovery(config) { completion(uploader(config).heldSessions()) }
+        #else
+        completion(uploader(config).heldSessions())
+        #endif
+    }
+
+    /// Sends (`keep`) or deletes a held session's chunks.
+    public static func releaseHeld(_ config: OuoReplayConfig, sessionId: String, keep: Bool) {
+        uploader(config).release(sessionId: sessionId, keep: keep)
+    }
+
     #if canImport(UIKit)
     private static var recorder: ReplayRecorder?
 

@@ -47,7 +47,7 @@ final class ReplayRecorder {
     init(config: OuoReplayConfig) {
         let logger = ReplayLogger(enabled: config.debug)
         let rules = config.redactionRules
-        let uploader = ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)
+        let uploader = OuoReplay.uploader(config)
         let screen = UIScreen.main.bounds
         let spool = ChunkSpool(url: config.spoolURL)
         self.config = config
@@ -73,21 +73,30 @@ final class ReplayRecorder {
     /// Sends the chunk the previous process left open (crash, watchdog, force quit), whether or
     /// not this launch records: the host calls it before its sampling decision. On the capture
     /// queue, so it runs before any frame of this process and after a stopped recorder's flush.
-    /// Once per process: a later call would read this process's own open chunk.
-    static func recoverSpool(_ config: OuoReplayConfig, uploader: ChunkUploader? = nil) {
+    /// Once per process: a later call would read this process's own open chunk. Also starts
+    /// sending the chunks earlier processes queued and could not send.
+    static func recoverSpool(_ config: OuoReplayConfig) {
         let logger = ReplayLogger(enabled: config.debug)
         queue.async {
             guard !recovered else { return }
             recovered = true
-            guard let chunk = ChunkSpool(url: config.spoolURL).recover() else { return }
-            logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
-            let uploader = uploader ?? ChunkUploader(endpoint: config.endpoint, projectId: config.projectId, projectToken: config.projectToken, logger: logger)
-            uploader.enqueue(chunk)
+            let uploader = OuoReplay.uploader(config)
+            if let chunk = ChunkSpool(url: config.spoolURL).recover() {
+                logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
+                uploader.enqueue(chunk)
+            }
+            uploader.drain {}
         }
     }
 
+    /// Runs `body` on the capture queue once the previous run's open chunk was recovered.
+    static func afterRecovery(_ config: OuoReplayConfig, _ body: @escaping () -> Void) {
+        recoverSpool(config)
+        queue.async(execute: body)
+    }
+
     func start() {
-        Self.recoverSpool(config, uploader: uploader)
+        Self.recoverSpool(config)
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in

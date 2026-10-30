@@ -59,8 +59,8 @@ function installFetchStub(): Captured {
     const url = typeof input === "string" ? input : (input as Request).url;
     if (url.startsWith(ENDPOINT)) {
       captured.exports.push({ url, headers: lowerHeaders(init?.headers) });
-      const body = init?.body as Uint8Array;
-      const json = JSON.parse(new TextDecoder().decode(body)) as {
+      const body = init?.body;
+      const json = JSON.parse(typeof body === "string" ? body : new TextDecoder().decode(body as Uint8Array)) as {
         resourceLogs?: Array<{ resource: { attributes: OtlpAttr[] }; scopeLogs: Array<{ logRecords: OtlpLog[] }> }>;
         resourceSpans?: Array<{ resource: { attributes: OtlpAttr[] }; scopeSpans: Array<{ spans: OtlpSpan[] }> }>;
       };

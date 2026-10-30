@@ -1,6 +1,6 @@
 import type { DebugLogger } from "./logger";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
-import type { ReplayMode, ReplayOptions, RUMReplay } from "./types";
+import type { AsyncKeyValueStorage, HeldReplaySession, ReplayMode, ReplayOptions, RUMReplay } from "./types";
 
 /**
  * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
@@ -19,6 +19,18 @@ export interface NativeReplayModule {
   /** Sends the chunk a crash left open in the previous run; missing on older native builds. */
   recoverPendingChunk?(endpoint: string, options: NativeStartOptions): void;
   stop?(): void;
+  /** Finished sessions whose chunks the device holds (`holdUploads`); missing on older native builds. */
+  heldReplaySessions?(endpoint: string, options: NativeStartOptions): Promise<NativeHeldSession[]>;
+  /** Sends (`keep`) or deletes a held session's chunks. */
+  releaseHeldReplay?(endpoint: string, options: NativeStartOptions, sessionId: string, keep: boolean): void;
+}
+
+export interface NativeHeldSession {
+  sessionId: string;
+  chunks: number;
+  bytes: number;
+  firstAt: number;
+  lastAt: number;
 }
 
 /** Options the native `start` receives; mirrors `OuoReplayConfig` (docs/specs/mobile-replay.md). */
@@ -37,6 +49,8 @@ export interface NativeStartOptions {
   maskImages: boolean;
   maskWebViews: boolean;
   debug: boolean;
+  /** Keep chunks on the device until `releaseHeldReplay` (set when `replay.keepAtNextLaunch` is). */
+  holdUploads: boolean;
 }
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
@@ -104,6 +118,8 @@ export interface ReplayControllerOptions {
   sessionSampleRate?: number;
   /** Injected for tests; `undefined` means "load from expo-modules-core", `null` means "absent". */
   native?: NativeReplayModule | null;
+  /** Where the error counts of held sessions persist (`replay.keepAtNextLaunch`). */
+  storage?: AsyncKeyValueStorage;
   logger: DebugLogger;
 }
 
@@ -119,6 +135,45 @@ export interface ReplayController extends RUMReplay {
   onError(): void;
   flush(): Promise<void>;
   stop(): void;
+  /**
+   * Next-launch keep/drop: asks `replay.keepAtNextLaunch` about every held session but
+   * `currentId` and sends or deletes its chunks (all are sent when the hook is not set, so
+   * nothing stays behind after the hook is removed). `crashedId` is the session that crashed.
+   */
+  decideHeld(currentId: string, crashedId: string | undefined): Promise<void>;
+}
+
+export const REPLAY_ERRORS_KEY = "ouo.replay.errors";
+
+/** Exceptions per session, persisted so the next launch can tell `keepAtNextLaunch`. */
+function errorTally(storage: AsyncKeyValueStorage | undefined): { add(id: string): void; take(keepId: string): Promise<Record<string, number>> } {
+  let counts: Promise<Record<string, number>> = storage
+    ? storage.getItem(REPLAY_ERRORS_KEY).then(
+        (raw) => {
+          try {
+            const v = JSON.parse(raw ?? "{}") as Record<string, number>;
+            return v && typeof v === "object" ? v : {};
+          } catch {
+            return {};
+          }
+        },
+        () => ({}),
+      )
+    : Promise.resolve({});
+  const save = (c: Record<string, number>): Record<string, number> => {
+    void storage?.setItem(REPLAY_ERRORS_KEY, JSON.stringify(c)).catch(() => undefined);
+    return c;
+  };
+  return {
+    add(id) {
+      counts = counts.then((c) => save({ ...c, [id]: (c[id] ?? 0) + 1 }));
+    },
+    take(keepId) {
+      const all = counts;
+      counts = counts.then((c) => save(c[keepId] ? { [keepId]: c[keepId]! } : {}));
+      return all;
+    },
+  };
 }
 
 /**
@@ -146,6 +201,9 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   let samplePaused = false;
   /** The current session started recording at an error. */
   let errorTriggered = false;
+  const keepHook = opts.options?.keepAtNextLaunch;
+  const hold = typeof keepHook === "function";
+  const tally = errorTally(hold ? opts.storage : undefined);
 
   if (enabled && !native) {
     // One line, debug only: Expo Go, web and Jest/Vitest all land here.
@@ -176,6 +234,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     maskImages: opts.options?.maskImages !== false,
     maskWebViews: opts.options?.maskWebViews !== false,
     debug: logger.enabled,
+    holdUploads: hold,
   });
 
   // The chunk a crash left open goes out whatever this launch's sampling decides.
@@ -235,6 +294,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     },
     onError(): void {
       const id = currentId;
+      if (hold && id !== undefined) tally.add(id);
       if (!native || !endpoint || id === undefined || errorTriggered) return;
       if (!inSessionSample(id) || recorded(id) || !sampled(id, onErrorRate, SAMPLING_SALT.replayOnError)) return;
       errorTriggered = true;
@@ -276,6 +336,39 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (!native || !active) return;
       active = false;
       call("stop", () => (native.stop ? native.stop() : native.pause()));
+    },
+    async decideHeld(current: string, crashedId: string | undefined): Promise<void> {
+      if (!native || !endpoint || typeof native.heldReplaySessions !== "function" || typeof native.releaseHeldReplay !== "function") return;
+      let held: NativeHeldSession[];
+      try {
+        held = await native.heldReplaySessions(endpoint, nativeOptions(current));
+      } catch (err) {
+        logger.warn("replay: native heldReplaySessions failed", err);
+        return;
+      }
+      const errors = await tally.take(current);
+      for (const h of held) {
+        if (h.sessionId === current) continue;
+        const summary: HeldReplaySession = {
+          sessionId: h.sessionId,
+          chunks: h.chunks,
+          bytes: h.bytes,
+          firstChunkAt: h.firstAt,
+          lastChunkAt: h.lastAt,
+          crashed: h.sessionId === crashedId,
+          errors: errors[h.sessionId] ?? 0,
+        };
+        let keep = true;
+        if (keepHook) {
+          try {
+            keep = (await keepHook(summary)) === true;
+          } catch (err) {
+            logger.warn("replay: keepAtNextLaunch threw; keeping the session", err);
+          }
+        }
+        call("releaseHeldReplay", () => native.releaseHeldReplay!(endpoint, nativeOptions(current), h.sessionId, keep));
+        logger.log(`replay: ${keep ? "sending" : "deleting"} the held replay of session ${h.sessionId}`, summary);
+      }
     },
   };
 }

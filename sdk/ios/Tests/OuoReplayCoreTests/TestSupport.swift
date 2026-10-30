@@ -44,13 +44,13 @@ final class FakeTransport: ChunkTransport {
     struct Sent { let request: URLRequest; let body: Data }
     private let lock = NSLock()
     private(set) var sent: [Sent] = []
-    var responses: [Result<Int, Error>] = []
+    var responses: [Result<ChunkResponse, Error>] = []
     var onSend: (() -> Void)?
 
-    func send(_ request: URLRequest, completion: @escaping (Result<Int, Error>) -> Void) {
+    func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Error>) -> Void) {
         lock.lock()
         sent.append(Sent(request: request, body: request.httpBody ?? Data()))
-        let result = responses.isEmpty ? Result<Int, Error>.success(202) : responses.removeFirst()
+        let result = responses.isEmpty ? Result<ChunkResponse, Error>.success(202) : responses.removeFirst()
         lock.unlock()
         onSend?()
         DispatchQueue.global().async { completion(result) }

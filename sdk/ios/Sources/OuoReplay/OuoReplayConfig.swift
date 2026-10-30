@@ -40,6 +40,11 @@ public struct OuoReplayConfig {
     public var seqStore: SeqStore
     /// Where the open chunk is kept until it is cut, so a crash does not lose it.
     public var spoolURL: URL
+    /// Where cut chunks wait until the receiver accepts them (survives an outage and a kill).
+    public var outboxURL: URL
+    /// Keep chunks on the device until the host releases their session (`OuoReplay.releaseHeld`):
+    /// the next-launch keep/drop decision. Default false: chunks are sent as they are cut.
+    public var holdUploads: Bool
 
     public init(
         endpoint: URL,
@@ -59,7 +64,9 @@ public struct OuoReplayConfig {
         jpegQuality: Double = 0.5,
         maxLongestSide: Double = 1000,
         seqStore: SeqStore = UserDefaultsSeqStore(),
-        spoolURL: URL = ChunkSpool.defaultURL
+        spoolURL: URL = ChunkSpool.defaultURL,
+        outboxURL: URL = ChunkUploader.defaultDirectory,
+        holdUploads: Bool = false
     ) {
         self.endpoint = endpoint
         self.projectId = projectId
@@ -79,6 +86,8 @@ public struct OuoReplayConfig {
         self.maxLongestSide = maxLongestSide
         self.seqStore = seqStore
         self.spoolURL = spoolURL
+        self.outboxURL = outboxURL
+        self.holdUploads = holdUploads
     }
 
     /// `Basic base64("<projectId>:<projectToken>")`, what `ChunkUploader` puts in `Authorization`.

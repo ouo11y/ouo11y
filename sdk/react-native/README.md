@@ -163,6 +163,42 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 `OuoReactNative`. In this monorepo `examples/ouo-mobile/metro.config.js` also redirects the SDK's
 `expo-modules-core` import to the app's copy.
 
+### Delivery and offline (C11)
+
+Every OTLP batch is written to AsyncStorage before it is sent and removed when the collector
+answers 2xx (or rejects it with another 4xx than 408 and 429), so an outage, a crash or a kill
+mid-request loses nothing. What is left is sent oldest first on the next launch, when the app comes
+back to the foreground, on `rum.flush()`, and after a backoff (1 s doubling to 30 s, `Retry-After`
+honoured). The store keeps at most 5 MB or 500 requests (the oldest dropped first) for 24 hours. If the
+stored queue cannot be read at launch (an AsyncStorage error, or no answer within 5 s), that run
+keeps its requests in memory and leaves the stored ones for the next launch.
+Requests are gzip: the native module compresses and posts them off the JS thread (Hermes has no
+`CompressionStream`); where it is absent (Expo Go, web, the Android stub) they go out through
+`fetch`, uncompressed. Replay chunks have the same guarantee on the native side
+(`docs/specs/mobile-replay.md`).
+
+```ts
+initRUM({
+  // ...
+  transport: { offline: { maxBytes: 5 * 1024 * 1024 } },  // the default; at most 500 requests, kept 24 h
+  // transport: { offline: false }  -> retried in this process only, nothing kept for the next launch
+});
+```
+
+**Next-launch keep/drop** (client-side tail sampling for replay, iOS). With
+`replay.keepAtNextLaunch`, chunks stay on the device; at the next launch the hook sees each finished
+session and its chunks are sent when it returns `true`, deleted otherwise (a throw keeps them):
+
+```ts
+replay: {
+  enabled: true,
+  keepAtNextLaunch: (s) => s.crashed || s.errors > 0,  // { sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors }
+},
+```
+
+A session's replay then arrives one launch later, never during the session itself. Held chunks
+older than 24 hours are deleted. Spans and events are not held.
+
 ### Sampling
 
 ```ts

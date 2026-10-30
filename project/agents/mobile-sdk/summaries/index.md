@@ -6,3 +6,4 @@ One dated summary per run.
 - [2026-10-29-w1-ios-capture.md](2026-10-29-w1-ios-capture.md) W1 production-safe iOS capture: run-loop pacer, 1:1 render, fail-closed masking, modes, spool, N52
 - [2026-10-29-w2-mobile-spec.md](2026-10-29-w2-mobile-spec.md) W2: the mobile SDK spec, ADR-0015 and the React Native iOS conformance suite
 - [2026-10-29-w7-symbolication.md](2026-10-29-w7-symbolication.md) W7: native iOS crash symbolication from dSYMs (ADR-0011 section 7)
+- [2026-10-30-w3b-delivery.md](2026-10-30-w3b-delivery.md) W3 delivery: gzip OTLP and write-first outbox (RN), durable chunk queue (iOS), next-launch keep/drop

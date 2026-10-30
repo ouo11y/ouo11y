@@ -85,6 +85,42 @@ export interface ReplayOptions {
    * of the frames before it.
    */
   onErrorSampleRate?: number;
+  /**
+   * Next-launch keep/drop (client-side tail sampling). When set, a session's replay chunks stay
+   * on the device and, at the next launch, this is called once per finished session with its
+   * summary; the chunks are sent when it returns true and deleted otherwise. A throw keeps them.
+   * Chunks held longer than 24 hours are deleted unsent. iOS only.
+   */
+  keepAtNextLaunch?: (session: HeldReplaySession) => boolean | Promise<boolean>;
+}
+
+/** What `replay.keepAtNextLaunch` knows about a finished session whose replay is on the device. */
+export interface HeldReplaySession {
+  sessionId: string;
+  chunks: number;
+  bytes: number;
+  /** When its first and last chunk were cut (epoch ms). */
+  firstChunkAt: number;
+  lastChunkAt: number;
+  /** The session ended with a crash (JS fatal error or native crash). */
+  crashed: boolean;
+  /** Exceptions reported in the session (unhandled, `console.error`, `captureError`). */
+  errors: number;
+}
+
+/** How telemetry reaches the collector (README, "Delivery"). */
+export interface TransportOptions {
+  /**
+   * Keep OTLP requests on the device (AsyncStorage) until the collector accepts them, so an
+   * outage, a crash or a kill loses nothing: sent on the next launch, on foreground and after a
+   * backoff. The oldest are dropped beyond the bounds. False sends from memory only. Default on.
+   */
+  offline?: OfflineOptions | false;
+}
+
+export interface OfflineOptions {
+  /** Default 5 MB (uncompressed JSON). At most 500 requests are kept, for at most 24 hours. */
+  maxBytes?: number;
 }
 
 /** Device attributes the host app can supply (for example from `expo-device`). */
@@ -256,6 +292,7 @@ export interface RUMOptions {
   errors?: ErrorOptions;
   timeline?: TimelineOptions;
   vitals?: VitalsOptions;
+  transport?: TransportOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */

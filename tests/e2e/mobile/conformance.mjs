@@ -337,7 +337,6 @@ const CHECKS = [
   },
   {
     id: "C11.1",
-    pending: "W3 (N49)",
     title: "a run with the collector refused loses nothing after the next launch",
     async run(g) {
       const d = await detail(g.offline.launches[0].session);
@@ -347,7 +346,6 @@ const CHECKS = [
   },
   {
     id: "C11.2",
-    pending: "W3 (N48)",
     title: "OTLP requests are gzip",
     async run(g) {
       const otlp = g.main.log.filter((x) => x.kind === "request" && /\/v1\/(logs|traces|metrics)$/.test(x.url));
