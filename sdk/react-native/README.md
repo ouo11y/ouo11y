@@ -249,6 +249,7 @@ rum.addEvent("cart.added", { "product.id": "p-1" });
 rum.trackNavigation("/Cart");                   // navigation event + activity
 rum.recordActivity();                           // activity without a timeline event
 rum.trackTap("checkout-pay");                   // ui.tap on the current screen + activity (RUMProvider does it per touch)
+rum.reportFullyDisplayed();                     // the current screen's content is on screen: TTFD
 rum.withSpan("checkout", (span) => fetch(url)); // span around fn, ended when its promise settles
 const span = rum.startSpan("parse", { parent }); span.end();
 rum.log.info("checkout started", { "cart.items": 3 }); // OTel log record, linked to session and span
@@ -287,6 +288,8 @@ await rum.flush();                              // force export of spans and log
 | `rum.captureError` | `exception` | false | true |
 | `Sentry.captureException` and other Sentry error events, with `errors.forwardSentryErrors` | `exception`, `ouo.exception.kind = sentry` | `level == fatal` | Sentry's `mechanism.handled` (default true) |
 | native crash on iOS (signal, uncaught NSException), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
+| app hang on iOS: the main thread could not draw for 2 s or more, sent when it is over | `exception`, `ouo.exception.kind = hang` | false | false |
+| foreground termination on iOS (out of memory, watchdog: killed while active without a crash report), sent on the next launch | `exception`, `ouo.exception.kind = termination` | true | false |
 
 A fatal error writes the crash marker, waits for it and for a flush (bounded by
 `fatalFlushTimeoutMs`), then calls the previous global handler, so the red box (dev) or the
@@ -308,7 +311,35 @@ and emits a fatal `exception` stamped with that time and the crashed `session.id
 so the stack can be symbolicated later (`atos -o App.dSYM -l <image_addr> <instruction_addr>`). A
 JS fatal that React Native turns into `RCTFatalException` in Release is not reported twice: the
 JS handler already sent it, the native report only gives the end time. Turn it off with
-`errors: { nativeCrashes: false }`. Only the crashed thread is recorded, from its frame pointers.
+`errors: { nativeCrashes: false }` (which also turns off hangs and terminations). Only the
+crashed thread is recorded, from its frame pointers.
+
+**App hangs (iOS).** A watchdog thread reads the same `CADisplayLink` frames as the vitals every
+400 ms (sentry-cocoa's rules, mobile SDK spec C3): when the main thread drew no frame for 2 s
+(fully blocking), or drew some but more than 99 % of 2 s was frame delay, it reads the main
+thread's stack, and once frames are back on time it sends one non-fatal `exception` stamped at the
+hang's start: `exception.type = AppHang`, `App hanging for 3.0 s`, `ouo.hang.duration_ms` (the
+whole blocked time), `ouo.hang.fully_blocking`, the stack as for a crash (`ouo.crash.frames`,
+`ouo.crash.images`, symbolicated from dSYMs). One record per hang however long it lasts; none
+while the app is not active or a debugger is attached. The session is `errored`.
+
+**Terminations (iOS).** iOS kills an app over its memory limit or one whose main thread does not
+answer with `SIGKILL`, which no handler sees. The Expo module keeps `run.json` next to the crash
+report current (active or not, the session, a heartbeat every 5 s while active, a memory
+warning, a hang in progress). When the previous run was active, left no crash report and did not
+receive `willTerminate`, and neither the app version, the OS version nor the boot time changed,
+the next launch reports it as a fatal `exception` (`WatchdogTermination`,
+`ouo.termination.cause`: `memory` after a memory warning in its last 60 s, `watchdog` when a hang
+was in progress, else `unknown`) stamped at its last heartbeat, and its session ends `crash`
+there. A kill in the background (a user swipe), an update, a reboot or a debugger run end the
+session `terminated`, as before.
+
+**Error context.** Every `exception` carries what you read it with: `ouo.last_events` (the
+session's last 20 events before it, as on feedback), `app.screen.name`, `ouo.device.locale`, and
+on iOS `ouo.memory.app_bytes`, `ouo.memory.available_bytes` and `network.connection.type`
+(`wifi`, `cell`, `wired`, `unavailable`). A native crash or a termination is reported by the next
+launch with the screen and last events the crashed run persisted (`ouo.context`, at most a
+second old), without memory or network (not measured at the crash).
 
 **One error, one record.** An Error object reported by one hook is not reported again by
 another (global handler, rejection tracker, `console.error` of the same object, `captureError`,
@@ -456,7 +487,7 @@ Per `docs/specs/mobile-vitals.md` (`ouo.vital.source = ouo`; turn off with `vita
 | `event.name` | Measured how | Needs |
 |---|---|---|
 | `ouo.stall` | a 50 ms JS timer; an iteration of 100 ms or more is a stall of its excess over 50 ms; one record per window with stalls (`vitals.stalls: false` turns the timer off) | nothing |
-| `ouo.screen.display` | TTID: from the navigation state change (`trackNavigation`) to the second animation frame after it; for the first screen, from the process start | the first screen: the native process start |
+| `ouo.screen.display` | TTID: from the navigation state change (`trackNavigation`) to the second animation frame after it; for the first screen, from the process start. TTFD (`ouo.screen.ttfd_ms`) when the app calls `rum.reportFullyDisplayed()` on that screen: to the frame after the call, never below TTID. The record waits for that call until the screen is left, the app goes to the background or 30 s passed | the first screen: the native process start |
 | `ouo.app.start` | from the native process start (`cold`; the app image load when iOS prewarmed the process) or the JS runtime's start after a reload (`warm`) to the frame after `<RUMProvider>` mounted (or the first screen's frame), once per run, not when the app was launched in the background | `getAppStartInfo()` in the Expo module (iOS) |
 | `app.jank` | `CADisplayLink` frame counters (slow: longer than one frame at the refresh rate minus 1 fps, frozen: 700 ms or more, as sentry-cocoa), diffed per window | `getFrameStats()` in the Expo module (iOS) |
 

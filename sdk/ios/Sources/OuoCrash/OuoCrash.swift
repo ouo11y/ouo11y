@@ -1,5 +1,6 @@
 import Foundation
 import OuoCrashCore
+import OuoVitals
 
 /// Native crash capture (checklist G1). `install()` sets the signal handlers (OuoCrashCore, C) and
 /// the uncaught NSException handler; a crash writes one JSON report to disk at crash time, and
@@ -9,6 +10,11 @@ import OuoCrashCore
 ///
 /// Next to another crash reporter (Sentry): ouo keeps the previously installed signal and
 /// exception handlers and calls them after writing its report, whichever SDK installs first.
+///
+/// The two failures no handler can see come in the same report format (mobile SDK spec C3):
+/// `install()` also keeps `run.json` current, and the next launch's `takePendingReport()` returns a
+/// `termination` report when the previous run died in the foreground without a crash report
+/// (`RunState`, `Termination`); `startHangTracking` reports main-thread hangs as `hang` reports.
 public enum OuoCrash {
     /// Default directory: `Library/Application Support/ouo/crash`.
     public static var defaultDirectory: URL {
@@ -22,6 +28,16 @@ public enum OuoCrash {
     /// The handler that was installed before ours (Sentry's, the host's), called after ours.
     private static var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
     private static var exceptionHandlerInstalled = false
+
+    private static var tracker: RunTracker?
+    /// Directories whose previous run was read (once per process, before this run writes its own).
+    private static var previousRuns: [URL: RunState?] = [:]
+    /// Directories whose pending report was taken (a crash or a termination, at most once).
+    private static var taken: Set<URL> = []
+    /// The main thread's stack read when the current hang was detected.
+    private static var hangFrames: [UInt] = []
+    /// Where hang reports go: the last `startHangTracking` caller (a reloaded host replaces it).
+    private static var hangHandler: ((String) -> Void)?
 
     static var reportURL: URL { directory.appendingPathComponent("report.json") }
 
@@ -39,6 +55,12 @@ public enum OuoCrash {
         }
         let ok = reportURL.path.withCString { ouo_crash_install($0) }
         installExceptionHandler()
+        if tracker == nil {
+            _ = previousRun(in: directory)
+            let t = RunTracker(url: directory.appendingPathComponent("run.json"))
+            tracker = t
+            t.start()
+        }
         // Stack overflows on the main thread need an alternate signal stack there.
         if Thread.isMainThread {
             ouo_crash_install_alt_stack()
@@ -51,6 +73,10 @@ public enum OuoCrash {
     /// Restores the previous signal handlers (tests, hosts that turn crash capture off).
     public static func uninstall() {
         ouo_crash_uninstall()
+        lock.withLock {
+            tracker?.stop()
+            tracker = nil
+        }
     }
 
     public static var isInstalled: Bool { ouo_crash_is_installed() }
@@ -58,15 +84,113 @@ public enum OuoCrash {
     /// The session a crash from now on belongs to, and its start (epoch ms, 0 when unknown).
     public static func setSession(_ id: String, startedAtMs: Int64) {
         id.withCString { ouo_crash_set_session($0, startedAtMs) }
+        lock.withLock { tracker }?.update {
+            $0.sessionId = id
+            $0.sessionStartedMs = startedAtMs
+        }
     }
 
     /// The report left by the previous run, if any, removed from disk (at most once: a crash loop
-    /// must not resend it). The JSON is what OuoCrashCore wrote.
+    /// must not resend it). The JSON is what OuoCrashCore wrote, or, when the previous run died in
+    /// the foreground without one, a `termination` report built from its `run.json` (once per process).
     public static func takePendingReport(directory dir: URL? = nil) -> String? {
-        let url = (dir ?? lock.withLock { directory }).appendingPathComponent("report.json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        let d = dir ?? lock.withLock { directory }
+        let url = d.appendingPathComponent("report.json")
+        let first = lock.withLock { taken.insert(d).inserted }
+        if let data = try? Data(contentsOf: url) {
+            try? FileManager.default.removeItem(at: url)
+            return String(data: data, encoding: .utf8)
+        }
+        guard first else { return nil }
+        let previous = lock.withLock { previousRun(in: d) }
+        return Termination.decide(previous: previous, now: .current())?.report
+    }
+
+    /// The previous run's state in `dir`, read before this run's tracker writes its own, and
+    /// removed: if this run dies before it writes, the next launch must not judge that run again.
+    /// Under `lock`.
+    private static func previousRun(in dir: URL) -> RunState? {
+        if let known = previousRuns[dir] { return known }
+        let url = dir.appendingPathComponent("run.json")
+        let state = RunState.load(url)
         try? FileManager.default.removeItem(at: url)
-        return String(data: data, encoding: .utf8)
+        previousRuns[dir] = .some(state)
+        return state
+    }
+
+    /// Starts the app hang watchdog (`OuoVitals.startHangTracking`, spec C3.1). `onHang` gets one
+    /// `hang` report per hang, once it is over, on the watchdog or the main thread: the duration,
+    /// whether it was fully blocking, and the main thread's stack read when it was detected (frames
+    /// and images as in a crash report, so dSYM symbolication reads it). While a hang is in
+    /// progress `run.json` says so: a kill then is a `watchdog` termination. One watchdog per
+    /// process; a later call only replaces `onHang` (a React Native reload creates a new module).
+    public static func startHangTracking(onHang: @escaping (String) -> Void) {
+        lock.withLock { hangHandler = onHang }
+        OuoVitals.startHangTracking(
+            onStart: {
+                var buf = [UInt](repeating: 0, count: 128)
+                let n = Int(ouo_crash_main_thread_backtrace(&buf, Int32(buf.count)))
+                let t = lock.withLock { () -> RunTracker? in
+                    hangFrames = Array(buf.prefix(max(0, n)))
+                    return tracker
+                }
+                t?.update { $0.hangStartedMs = nowMs() }
+            },
+            onEnd: { hang, startMs in
+                let (frames, t, handler) = lock.withLock { () -> ([UInt], RunTracker?, ((String) -> Void)?) in
+                    defer { hangFrames = [] }
+                    return (hangFrames, tracker, hangHandler)
+                }
+                t?.update { $0.hangStartedMs = nil }
+                handler?(hangReport(hang, startMs: startMs, frames: frames))
+            }
+        )
+    }
+
+    static func hangReport(_ hang: Hang, startMs: Double, frames: [UInt]) -> String {
+        var images: [UInt: [String: Any]] = [:]
+        let fs: [[String: Any]] = frames.map { addr in
+            var f: [String: Any] = ["instruction_addr": hex(addr)]
+            var info = ouo_crash_image_info()
+            if ouo_crash_image_for(addr, &info) {
+                f["image_addr"] = hex(info.image_addr)
+                if images[info.image_addr] == nil {
+                    var image: [String: Any] = [
+                        "code_file": info.code_file.map { String(cString: $0) } ?? "",
+                        "image_addr": hex(info.image_addr),
+                        "image_size": info.image_size,
+                        "image_vmaddr": hex(UInt(info.image_vmaddr)),
+                    ]
+                    if info.has_uuid {
+                        image["debug_id"] = withUnsafeBytes(of: info.uuid) { UUID(uuid: $0.load(as: uuid_t.self)).uuidString }
+                    }
+                    images[info.image_addr] = image
+                }
+            }
+            return f
+        }
+        return json([
+            "version": 1,
+            "mechanism": "hang",
+            "timestamp_ms": startMs.rounded(),
+            "arch": arch,
+            "thread": ["main": true],
+            "hang": ["duration_ms": (hang.duration * 1_000_000).rounded() / 1000, "fully_blocking": hang.fullyBlocking],
+            "frames": fs,
+            "images": images.keys.sorted().compactMap { images[$0] },
+        ])
+    }
+
+    private static func hex(_ v: UInt) -> String { "0x" + String(v, radix: 16) }
+
+    private static var arch: String {
+        #if arch(arm64)
+        return "arm64"
+        #elseif arch(x86_64)
+        return "x86_64"
+        #else
+        return "unknown"
+        #endif
     }
 
     private static func installExceptionHandler() {

@@ -6,3 +6,5 @@ Device-cost benchmark results, ouo vs Sentry (method: [docs/benchmarks.md](../..
 - [2026-10-23-ouo-0.2.0-vs-sentry-8.32.0-sim/report.html](2026-10-23-ouo-0.2.0-vs-sentry-8.32.0-sim/report.html): iPhone 18 Pro iOS 27.0, 10 rounds (simulator-only numbers)
 - [2026-10-30-w1-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html](2026-10-30-w1-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html): iPhone 18 Pro iOS 27.0, 10 rounds (simulator-only numbers)
 - [2026-10-30-w3a-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html](2026-10-30-w3a-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html): iPhone 18 Pro iOS 27.0, 10 rounds (simulator-only numbers)
+- [2026-10-30-w4-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html](2026-10-30-w4-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html): iPhone 18 Pro iOS 27.0, 10 rounds (simulator-only numbers)
+- [2026-10-30-w4-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html](2026-10-30-w4-ouo-0.2.1-vs-sentry-8.33.0-sim/report.html): iPhone 18 Pro iOS 27.0, 10 rounds, cells none, ouo-T3, ouo-T4 (simulator-only numbers; W4: hang watchdog, run state, error context)

@@ -7,6 +7,19 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ## Unreleased
 
+### Added
+
+- **App hangs** (mobile SDK spec C3.1, roadmap W4): `OuoCrash.startHangTracking(onHang:)` runs a
+  watchdog thread on `OuoVitals`' display link frames (`HangDetector`, sentry-cocoa's V2 rules: 2 s,
+  fully and not fully blocking, one report per hang) and reports each hang once it is over as a
+  `hang` report (crash report format: duration, fully blocking, the main thread's stack read at
+  detection by `ouo_crash_main_thread_backtrace`). Not while inactive or under a debugger.
+- **Foreground terminations** (C3.2): `OuoCrash.install()` keeps `run.json` (`RunState`) current; the
+  next launch's `takePendingReport()` returns a `termination` report (`Termination.decide`: active,
+  no crash report, no `willTerminate`, debugger, update, OS update or reboot; cause `memory`,
+  `watchdog` or `unknown`) when there is no crash report.
+- `ErrorContext`: memory footprint, available memory and network type for error reports.
+
 ### Changed
 
 - Replay chunks are `frames` schema 2 (ADR-0014, mobile SDK roadmap W3): a frame is a full image or

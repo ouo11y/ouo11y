@@ -1,6 +1,6 @@
 # Mobile SDK specification: twelve capabilities, conformance checks, maturity
 
-Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
+Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* were fixed by the work package that landed them, in the same PR as the code (the last, C3, with W4 on 2026-10-30); everything changes only with an ADR now.
 
 This spec is the index. Where a record already has a spec, it is linked, not repeated:
 
@@ -36,17 +36,19 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 - **JS stacks** are normalised to `app:///<bundle>:<line>:<column>` frames, one per line, as the bridge writes them, so symbolication ([ADR-0011](../adr/0011-source-maps-and-symbolication.md)) reads both paths.
 - **Native crashes** are written to disk at crash time (iOS report format: [ios-native-crashes.md](../../project/kb/ios-native-crashes.md)) and sent by the next launch: a fatal `exception` stamped at the crash time with `ouo.crash.mechanism`, `ouo.crash.timestamp`, `ouo.crash.frames`, `ouo.crash.images` (what symbolication needs), `ouo.crash.signal`, `ouo.crash.mach_exception`, `ouo.crash.address`, `ouo.crash.arch`, `ouo.crash.thread_main` when known; then `session.end` with reason `crash` at the same time. The session is `crashed` (ADR-0004).
 - **A crash in the first second** must not lose the session: the start of the crashed session reaches rum-api even when nothing was exported before the crash (checklist N52).
+- **Error context**: every `exception` (C2 and C3) carries, besides its stack, what a developer reads it with: `ouo.last_events` (the session's last 20 timeline records before it, oldest first, as a JSON array of `{ts, name, body}`: the buffer of C10), `app.screen.name` (the screen it happened on), `ouo.device.locale` (BCP 47), and when the platform measures them at the time of the error, `ouo.memory.app_bytes` (the app's physical footprint), `ouo.memory.available_bytes` (what it can still allocate before the OS terminates it) and `network.connection.type` (`wifi`, `cell`, `wired`, `unavailable`, `unknown`). A report sent by the next launch (a native crash, a termination) carries the screen and last events the crashed run persisted (at most a second old) and no memory or network values: they were not measured at the crash (rule 5).
 - **Checks**: C2.1, C2.2, C2.3.
 
-### C3 Hangs and terminations (draft until W4)
+### C3 Hangs and terminations
 
-- **Hang**: the main thread did not run for at least **2 s** (Sentry's default `appHangTimeoutInterval`). One `exception`, not fatal and not handled, with `ouo.exception.kind = hang`, `exception.type = AppHang`, `ouo.hang.duration_ms` (the whole blocked time, reported once the thread runs again), `ouo.hang.fully_blocking` (bool: no frame was drawn at all) and the main thread's stack at detection in `exception.stacktrace`. One record per hang, not one per second. The session is `errored`. JS event-loop stalls stay `ouo.stall` ([mobile-vitals.md](mobile-vitals.md) 2.4).
-- **Termination**: the previous run ended in the foreground without a crash report, an update, an app or OS restart or a user swipe (Sentry's watchdog-termination heuristic, refined by MetricKit on iOS and `ApplicationExitInfo` on Android). The next launch sends a fatal `exception` with `ouo.exception.kind = termination`, `exception.type = WatchdogTermination`, `ouo.termination.cause` = `memory`, `cpu`, `launch_timeout`, `watchdog` or `unknown`, stamped at the last time the previous run was known alive, then `session.end` with reason `crash`. The heuristic decides whether the run was a termination; the cause comes from MetricKit or `ApplicationExitInfo` and is `unknown` when they give none, so a foreground kill with no known cause is still a fatal `termination`. Only the runs the heuristic excludes (an update, an OS restart, a user swipe, a kill in the background) end with `session.end` reason `terminated`, as today.
+- **Hang**: the main thread could not draw for at least **2 s** (Sentry's default `appHangTimeoutInterval`), measured from the display's frames with sentry-cocoa's rules (SentryANRTrackerV2): a watchdog thread looks every 400 ms at the frame delay of the last 2 s (the time frames ran over the slow-frame threshold, plus the frame still awaited). **Fully blocking**: that delay is at least 2 s and no frame was drawn in it. **Not fully blocking**: frames were drawn, but more than 99 % of the 2 s was frame delay (blocks of a second or more with a frame between). The hang is over when the last 800 ms had less than 160 ms of delay. Then one `exception`, not fatal and not handled, with `ouo.exception.kind = hang`, `exception.type = AppHang`, `exception.message = App hanging for <s> s`, stamped at the hang's start, with `ouo.hang.duration_ms` (the whole blocked time: from the last frame on time to the end of the last late frame), `ouo.hang.fully_blocking` (bool: true when the main thread drew no frame for 2 s or more within the hang, even if jank led into it; false when it kept drawing, every frame late), and the main thread's stack read at detection in `exception.stacktrace`, `ouo.crash.frames` and `ouo.crash.images` (symbolicated like a crash, [ADR-0011](../adr/0011-source-maps-and-symbolication.md)). One record per hang, however long, and none for 2 s after one ended. No hang is measured while the app is not active, while a debugger is attached, or across a gap in which the watchdog itself did not run (the process was stopped). The session is `errored`. JS event-loop stalls stay `ouo.stall` ([mobile-vitals.md](mobile-vitals.md) 2.4).
+- **Termination**: the previous run ended while the app was active, without a crash report (Sentry's watchdog-termination heuristic). The run keeps a small state file current (active or not, its session, a heartbeat every 5 s while active, a memory warning, a hang in progress); the next launch compares it with its own. It is **not** a termination when that run was not active (background, inactive: a user swipe or a kill there), received `willTerminate`, ran under a debugger, or when the app version, the OS version or the boot time changed since (an update, an OS update, a reboot), or when a crash report exists (the crash wins). Otherwise the next launch sends a fatal `exception` with `ouo.exception.kind = termination`, `exception.type = WatchdogTermination`, `ouo.termination.cause`, stamped at the last time the run was known alive, then `session.end` with reason `crash` at that time; the session is `crashed`. `ouo.termination.cause`: on iOS `memory` when the run had a memory warning in its last 60 s (jetsam follows warnings), `watchdog` when an app hang was in progress (the main thread was blocked when it died), else `unknown`; on Android `ApplicationExitInfo` gives `memory`, `cpu`, `launch_timeout` or `watchdog`. MetricKit is not a source: its exit counts are daily aggregates and its diagnostics arrive on a later launch without naming the run ([ios-hangs-terminations.md](../../project/kb/ios-hangs-terminations.md)). The runs the heuristic excludes end with `session.end` reason `terminated`, as before.
 - **Checks**: C3.1, C3.2.
 
 ### C4 Vitals
 
 - **Records**: `ouo.app.start`, `ouo.screen.display` (TTID, and TTFD when the app reports full display), `app.jank`, `ouo.stall`, with the attributes, rules and rating thresholds of [mobile-vitals.md](mobile-vitals.md).
+- **TTFD API**: `rum.reportFullyDisplayed()` (Sentry's name): the current screen's content is on screen. `ouo.screen.ttfd_ms` is measured from the screen's TTID start to the next frame drawn after the call, and never below TTID. The screen's one `ouo.screen.display` waits for it until the screen is left, the app goes to the background or 30 s passed (Sentry's TTFD deadline); without a call it carries TTID only.
 - **Checks**: C4.1, C4.2. The thresholds rate a real app on a device; the conformance checks only require the records and plausible values.
 
 ### C5 Network
@@ -121,11 +123,11 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | Check | The golden app does | Passes when |
 |---|---|---|
 | C1.1 | goes to the background for longer than the timeout and comes back | the first session ends with `background`, the second's `session.start` has `session.previous_id` = the first |
-| C2.1 | reports a handled error | an `exception` with `ouo.exception.handled = true`, `ouo.exception.fatal = false` and a stack; session `errored` |
-| C2.2 | crashes natively 3 s after launch; launches again | the crashed session is `crashed`, ends with `crash` within 1 s of the crash time, has its `session.start` and a fatal `native` exception |
+| C2.1 | reports a handled error on Cart | an `exception` with `ouo.exception.handled = true`, `ouo.exception.fatal = false`, a stack, `app.screen.name = Cart` and `ouo.last_events` (1 to 20); session `errored` |
+| C2.2 | crashes natively 3 s after launch on Home; launches again | the crashed session is `crashed`, ends with `crash` within 1 s of the crash time, has its `session.start` and a fatal `native` exception with `app.screen.name = Home` and `ouo.last_events` |
 | C2.3 | crashes natively 200 ms after launch; launches again | the crashed session starts when it started (not at the crash), is `crashed` and ends at the crash with reason `crash` |
-| C3.1 | blocks the main thread for 3 s | exactly one `hang` exception with `ouo.hang.duration_ms` >= 2000, not fatal |
-| C3.2 | is killed in the foreground without a crash report; launches again | a fatal `termination` exception with `ouo.termination.cause`; session `crashed` |
+| C3.1 | blocks the main thread for 3 s on Cart | exactly one `hang` exception with `ouo.hang.duration_ms` >= 2000, not fatal, with its error context (screen Cart) |
+| C3.2 | gets a memory warning and is killed in the foreground without a crash report; launches again | a fatal `termination` exception with `ouo.termination.cause`; session `crashed`, ended with `crash` |
 | C4.1 | cold start, then three screens | `ouo.app.start` `cold` with a duration, one `ouo.screen.display` with TTID per screen in order, frame counts |
 | C4.2 | reports the first screen fully displayed | its `ouo.screen.display` has `ouo.screen.ttfd_ms` |
 | C5.1 | calls the demo backend | one trace holds the app's client span and a backend span carrying the app's `session.id` |
@@ -150,7 +152,7 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 
 The suite prints the levels it measures (L0 to L2); L3 is L2 plus the B3 gate, which is proposed and not yet applied ([benchmarks.md](../benchmarks.md) section 5), so no cell is L3 today. Target: React Native iOS at L3 on C1–C9, C11, C12 and L2 on C10 (roadmap milestone M3); the targets for the other platforms are in [roadmap §5](../../project/kb/mobile-sdk-research/roadmap.md#5-spec-first-with-maturity-per-platform).
 
-### Matrix on 2026-10-29
+### Matrix on 2026-10-30
 
 React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it.
 
@@ -158,8 +160,8 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 |---|---|---|---|---|---|
 | C1 Sessions and lifecycle | L2 | L0 (no session manager in Swift) | L1 (JS) | L0 | L0 |
 | C2 Errors and crashes | L2 | L0 (OuoCrash writes reports, nothing sends them) | L1 (JS errors only) | L0 | L0 |
-| C3 Hangs and terminations | L0: W4 | L0 | L0 | L0 | L0 |
-| C4 Vitals | L1: C4.2 TTFD waits for W4 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID; no native app start or frames) | L0 | L0 |
+| C3 Hangs and terminations | L2 | L0 (OuoCrash detects hangs and terminations, nothing sends them) | L0 | L0 | L0 |
+| C4 Vitals | L2 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
 | C5 Network | L2 | L0 | L1 (JS) | L0 | L0 |
 | C6 Interactions | L2 | L0 | L1 (JS) | L0 | L0 |
 | C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |

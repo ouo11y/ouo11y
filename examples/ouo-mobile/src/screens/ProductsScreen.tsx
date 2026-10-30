@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { getProducts, formatPrice, type Product } from "../api";
 import type { ScreenProps } from "../navigation";
+import { rum } from "../rum";
 import { Button, ErrorBox, Loading, Screen, styles } from "../ui";
 
 export function ProductsScreen({ navigation }: ScreenProps<"Products">) {
@@ -15,6 +16,11 @@ export function ProductsScreen({ navigation }: ScreenProps<"Products">) {
       .catch((err: Error) => setError(err.message));
   }, []);
   useEffect(load, [load]);
+  // The catalog is on screen: time to full display (TTFD) of this visit.
+  const loaded = products !== null;
+  useEffect(() => {
+    if (loaded) rum.reportFullyDisplayed();
+  }, [loaded]);
 
   if (error) {
     return (

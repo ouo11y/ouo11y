@@ -13,6 +13,15 @@ import { AppState } from "react-native";
 import { installAppStateListener } from "./appstate";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
+import {
+  CONTEXT_STORAGE_KEY,
+  ContextPersister,
+  deviceContextAttributes,
+  deviceLocale,
+  parseScreenContext,
+  screenContextAttributes,
+  type NativeErrorContextModule,
+} from "./errors/context";
 import { feedbackRecord } from "./feedback";
 import { ReportedErrors } from "./errors/dedupe";
 import { installErrorCapture } from "./errors/install";
@@ -136,8 +145,13 @@ export function initRUM(options: RUMOptions): RUM {
     logger,
   });
 
-  // ---- native crashes (signals, uncaught NSExceptions): the previous run's report, taken once ----
-  const nativeCrash = createNativeCrashCapture({ enabled: options.errors?.nativeCrashes !== false, logger });
+  // ---- native crashes (signals, uncaught NSExceptions) and foreground terminations: the previous
+  // run's report, taken once; main-thread hangs arrive as events once they are over (C3) ----
+  const nativeCrash = createNativeCrashCapture({
+    enabled: options.errors?.nativeCrashes !== false,
+    logger,
+    onHang: (report) => emitException(undefined, nativeCrashAttributes(report), report.timestamp_ms),
+  });
   const crashed = nativeCrash.pending;
 
   const session = new SessionManager({
@@ -160,13 +174,23 @@ export function initRUM(options: RUMOptions): RUM {
 
   // ---- logs (events) ----
   const logExporter = createLogExporter(endpoints.logs, outbox);
-  // The session's last timeline events, for the records that carry them (feedback).
+  // The session's last timeline events, for the records that carry them (feedback, exception).
   const recent = new RecentEvents();
+  // Error context (C2): the previous run's screen and last events, read before this run persists
+  // its own (AsyncStorage runs operations in order), for its crash or termination report.
+  const previousContext = storage.getItem(CONTEXT_STORAGE_KEY).then(parseScreenContext, () => undefined);
+  const screenContext = (sessionId: string) => ({ sessionId, screen: screenName(navigation.current()), events: recent.read(sessionId) });
+  const contextPersister = new ContextPersister(storage, () => {
+    const id = session.peek()?.id;
+    return id ? screenContext(id) : undefined;
+  });
+  const locale = deviceLocale();
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
       new SessionLogProcessor(session, serviceVersion),
       recent,
+      contextPersister,
       // Session sampling (8b): records of a session outside the sample are never exported.
       new SampledLogProcessor(
         new BatchLogRecordProcessor({
@@ -211,14 +235,15 @@ export function initRUM(options: RUMOptions): RUM {
 
   // ---- exceptions: one record per error (dedupe), with the trace it belongs to (G5) ----
   const reported = new ReportedErrors();
-  const emitException = (error: unknown, attrs: Attrs): void => {
+  const emitException = (error: unknown, own: Attrs, at: number = Date.now()): void => {
     replay.onError();
+    const attrs = { ...screenContextAttributes(screenContext(session.id())), ...deviceContextAttributes(locale, nativeModule as NativeErrorContextModule | undefined, logger), ...own };
     const link = linker.contextFor(error);
     if (!link) {
-      events.emit("exception", attrs, "error");
+      events.emit("exception", attrs, "error", at);
       return;
     }
-    events.emit("exception", { ...attrs, "ouo.exception.trace_link": link.link }, "error", Date.now(), { context: link.context });
+    events.emit("exception", { ...attrs, "ouo.exception.trace_link": link.link }, "error", at, { context: link.context });
   };
   const timeline = {
     taps: options.timeline?.taps !== false,
@@ -259,7 +284,7 @@ export function initRUM(options: RUMOptions): RUM {
   });
 
   // ---- session ----
-  const ready = session.start().then(() => {
+  const ready = session.start().then(async () => {
     vitals.sessionReady();
     // What earlier runs could not send: OTLP batches, and the replay chunks they held.
     void outbox.drain();
@@ -270,10 +295,14 @@ export function initRUM(options: RUMOptions): RUM {
       // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
       // session.end (reason crash, same time) was emitted by the cold start just before.
       const attrs = nativeCrashAttributes(crashed);
+      // The crashed run's context, as it persisted it (no memory or network: not measured now).
+      const ctx = await previousContext;
+      if (ctx && ctx.sessionId === (crashed.session_id || ctx.sessionId)) Object.assign(attrs, screenContextAttributes(ctx));
+      if (locale) attrs["ouo.device.locale"] = locale;
       const ended = session.peekLastEnded();
       if (ended && ended.id === crashed.session_id && ended.serviceVersion !== undefined) attrs["service.version"] = ended.serviceVersion;
       events.emit("exception", attrs, "error", crashed.timestamp_ms);
-      logger.warn("native crash of the previous run reported", crashed.session_id, attrs["exception.message"]);
+      logger.warn(`native ${crashed.mechanism} of the previous run reported`, crashed.session_id, attrs["exception.message"]);
     }
   });
   const onActivity = (): void => session.touch();
@@ -335,6 +364,7 @@ export function initRUM(options: RUMOptions): RUM {
     onBackground: () => {
       vitals.background();
       session.onBackground();
+      contextPersister.persistNow();
       void flush();
     },
     onForeground: () => {
@@ -415,6 +445,9 @@ export function initRUM(options: RUMOptions): RUM {
       if (timeline.tapLabels) emitTap(t.touched.target, t.touched.path, gesture, t.touched.viewType, t.at, t.screen);
       else emitTap(t.touched.viewType, undefined, gesture, t.touched.viewType, t.at, t.screen);
     },
+    reportFullyDisplayed(): void {
+      vitals.fullyDisplayed();
+    },
     startSpan: spans.startSpan,
     withSpan: spans.withSpan,
     log,
@@ -454,6 +487,7 @@ export function initRUM(options: RUMOptions): RUM {
     _rootMounted: () => vitals.rootMounted(),
     async _uninstall(): Promise<void> {
       vitals.stop();
+      nativeCrash.stop();
       uninstallFetch();
       uninstallXhr();
       uninstallErrors();

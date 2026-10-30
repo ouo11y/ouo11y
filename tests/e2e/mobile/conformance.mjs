@@ -7,7 +7,7 @@
 //                 feedback, main-thread block, background rotation
 //      crash      native crash after the first export, then the next launch
 //      early      native crash 200 ms after launch, then the next launch
-//      terminate  killed in the foreground without a report, then the next launch
+//      terminate  a memory warning, killed in the foreground without a report, then the next launch
 //      offline    a launch with the collector refused, then the next launch online
 // 2. Asserts every check of the spec against rum-api (and the stand-in's request log for the
 //    wire checks), polling until the required checks pass or OUO_E2E_TIMEOUT runs out.
@@ -116,6 +116,15 @@ async function traceSpans(traceId) {
 
 const result = (ok, seen, detail) => ({ ok: Boolean(ok), seen: Boolean(seen || ok), detail });
 
+/** Error context (spec C2): the screen of the error and the session's last events before it. */
+function hasContext(e, screen) {
+  let events = [];
+  try {
+    events = JSON.parse(attr(e, "ouo.last_events") ?? "[]");
+  } catch {}
+  return attr(e, "app.screen.name") === screen && events.length > 0 && events.length <= 20;
+}
+
 // ---------------------------------------------------------------- the checks (spec section 3)
 
 // `pending`: the work package whose merge makes the check pass on React Native iOS; until then
@@ -137,12 +146,16 @@ const CHECKS = [
   },
   {
     id: "C2.1",
-    title: "a handled error is an exception (handled, not fatal) and the session is errored",
+    title: "a handled error is an exception (handled, not fatal) with its context, and the session is errored",
     async run(g) {
       const d = await detail(g.main.launches[0].session);
       const e = named(d, "exception").find((x) => attr(x, "exception.message") === "golden handled error");
       return result(
-        d?.status === "errored" && attr(e, "ouo.exception.handled") === "true" && attr(e, "ouo.exception.fatal") === "false" && Boolean(attr(e, "exception.stacktrace")),
+        d?.status === "errored" &&
+          attr(e, "ouo.exception.handled") === "true" &&
+          attr(e, "ouo.exception.fatal") === "false" &&
+          Boolean(attr(e, "exception.stacktrace")) &&
+          hasContext(e, "Cart"),
         e,
         { status: d?.status ?? null, exception: e?.attrs ?? null },
       );
@@ -158,7 +171,12 @@ const CHECKS = [
       const e = named(d, "exception").find((x) => attr(x, "ouo.exception.kind") === "native");
       const endsAtCrash = d?.ended_at && Math.abs(Date.parse(d.ended_at) - at) <= 1000;
       return result(
-        d?.status === "crashed" && d?.end_reason === "crash" && endsAtCrash && attr(e, "ouo.exception.fatal") === "true" && named(d, "session.start").length === 1,
+        d?.status === "crashed" &&
+          d?.end_reason === "crash" &&
+          endsAtCrash &&
+          attr(e, "ouo.exception.fatal") === "true" &&
+          named(d, "session.start").length === 1 &&
+          hasContext(e, "Home"),
         e,
         { status: d?.status ?? null, end_reason: d?.end_reason ?? null, ended_at: d?.ended_at ?? null, crash_at: at && new Date(at).toISOString() },
       );
@@ -184,13 +202,12 @@ const CHECKS = [
   },
   {
     id: "C3.1",
-    pending: "W4",
     title: "a 3 s main-thread block gives one hang exception with its duration",
     async run(g) {
       const d = await detail(g.main.launches[0].session);
       const hangs = named(d, "exception").filter((x) => attr(x, "ouo.exception.kind") === "hang");
       return result(
-        hangs.length === 1 && Number(attr(hangs[0], "ouo.hang.duration_ms")) >= 2000 && attr(hangs[0], "ouo.exception.fatal") === "false",
+        hangs.length === 1 && Number(attr(hangs[0], "ouo.hang.duration_ms")) >= 2000 && attr(hangs[0], "ouo.exception.fatal") === "false" && hasContext(hangs[0], "Cart"),
         hangs.length > 0,
         { hangs: hangs.map((h) => h.attrs) },
       );
@@ -198,14 +215,14 @@ const CHECKS = [
   },
   {
     id: "C3.2",
-    pending: "W4",
     title: "a foreground termination without a crash report is a fatal termination on the next launch",
     async run(g) {
       const d = await detail(g.terminate.launches[0].session);
       const e = named(d, "exception").find((x) => attr(x, "ouo.exception.kind") === "termination");
-      return result(d?.status === "crashed" && attr(e, "ouo.exception.fatal") === "true" && attr(e, "ouo.termination.cause"), e, {
+      return result(d?.status === "crashed" && d?.end_reason === "crash" && attr(e, "ouo.exception.fatal") === "true" && attr(e, "ouo.termination.cause"), e, {
         status: d?.status ?? null,
         end_reason: d?.end_reason ?? null,
+        cause: attr(e, "ouo.termination.cause") ?? null,
       });
     },
   },
@@ -229,7 +246,6 @@ const CHECKS = [
   },
   {
     id: "C4.2",
-    pending: "W4",
     title: "TTFD on the first screen",
     async run(g) {
       const v = await getJSON(`${RUM}/v1/sessions/${g.main.launches[0].session}/vitals`).catch(() => null);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ScrollView, Text } from "react-native";
+import { chaos } from "../../modules/ouo-chaos";
 import { getProducts } from "../api";
 import { rum, shortId } from "../rum";
 import { Button, styles } from "../ui";
@@ -45,6 +46,14 @@ export function ChaosScreen() {
     console.error("console.error from the Chaos screen", { cart: "empty" });
     note("console.error -> exception fatal=false handled=true");
   };
+  const hang = async () => {
+    note("main thread blocked for 3 s -> one hang exception (not fatal) when it is over");
+    await chaos?.blockMainThread(3000);
+  };
+  const outOfMemory = () => {
+    note("memory warning, then killed -> termination (memory) on the next launch");
+    chaos?.simulateOutOfMemory();
+  };
   const custom = () => {
     rum.addEvent("chaos.custom", { "chaos.kind": "button", "chaos.count": log.length });
     note("custom event chaos.custom");
@@ -76,6 +85,8 @@ export function ChaosScreen() {
       <Button title="Unhandled promise rejection" onPress={rejection} />
       <Button title="Fatal error (crash)" tone="danger" onPress={fatal} />
       <Button title="console.error" onPress={consoleError} />
+      {chaos ? <Button title="Hang the main thread (3 s)" tone="danger" onPress={() => void hang()} /> : null}
+      {chaos ? <Button title="Out-of-memory kill" tone="danger" onPress={outOfMemory} /> : null}
       <Button title="Custom event" tone="muted" onPress={custom} />
       <Button title="Set user" tone="muted" onPress={setUser} />
       <Button title="Flush" tone="muted" onPress={() => void flush()} />

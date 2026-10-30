@@ -59,7 +59,6 @@ typedef struct {
 
 static ouo_image g_images[OUO_MAX_IMAGES];
 static atomic_int g_image_count = 0;
-static bool g_images_registered = false;
 static bool g_image_used[OUO_MAX_IMAGES];
 
 // ---- binary images (normal context: dyld callback) ----
@@ -459,6 +458,77 @@ static void handle_signal(int sig, siginfo_t *info, void *uap) {
 
 // ---- public API (normal context) ----
 
+static pthread_once_t g_images_once = PTHREAD_ONCE_INIT;
+
+static void register_images(void) {
+    // Called right away for every image already loaded, then for each later dlopen.
+    _dyld_register_func_for_add_image(on_add_image);
+}
+
+static void track_images(void) { pthread_once(&g_images_once, register_images); }
+
+bool ouo_crash_image_for(uintptr_t addr, ouo_crash_image_info *out) {
+    track_images();
+    int i = image_for(addr);
+    if (i < 0 || out == NULL) return false;
+    const ouo_image *im = &g_images[i];
+    out->image_addr = im->start;
+    out->image_size = im->end - im->start;
+    out->image_vmaddr = im->vmaddr;
+    out->code_file = im->name;
+    memcpy(out->uuid, im->uuid, 16);
+    out->has_uuid = im->has_uuid;
+    return true;
+}
+
+// Image constructors run on the main thread, before `main`.
+static thread_t g_main_thread = MACH_PORT_NULL;
+__attribute__((constructor)) static void remember_main_thread(void) { g_main_thread = pthread_mach_thread_np(pthread_self()); }
+
+int ouo_crash_main_thread_backtrace(uintptr_t *out, int max) {
+    thread_t main = g_main_thread;
+    if (out == NULL || max <= 0 || main == MACH_PORT_NULL || pthread_main_np() != 0) return 0;
+    uintptr_t pc = 0, lr = 0, fp = 0;
+    if (thread_suspend(main) != KERN_SUCCESS) return 0;
+#if defined(__arm64__) || defined(__aarch64__)
+    arm_thread_state64_t st;
+    mach_msg_type_number_t count = ARM_THREAD_STATE64_COUNT;
+    if (thread_get_state(main, ARM_THREAD_STATE64, (thread_state_t)&st, &count) == KERN_SUCCESS) {
+        pc = (uintptr_t)__darwin_arm_thread_state64_get_pc(st);
+        lr = (uintptr_t)__darwin_arm_thread_state64_get_lr(st);
+        fp = (uintptr_t)__darwin_arm_thread_state64_get_fp(st);
+    }
+#elif defined(__x86_64__)
+    x86_thread_state64_t st;
+    mach_msg_type_number_t count = x86_THREAD_STATE64_COUNT;
+    if (thread_get_state(main, x86_THREAD_STATE64, (thread_state_t)&st, &count) == KERN_SUCCESS) {
+        pc = (uintptr_t)st.__rip;
+        fp = (uintptr_t)st.__rbp;
+    }
+#endif
+    // The same walk as the crash report, while the thread cannot change its stack.
+    int n = 0;
+    pc = strip_pac(pc);
+    lr = strip_pac(lr);
+    if (pc != 0) out[n++] = pc;
+    uintptr_t walked[OUO_MAX_FRAMES];
+    int wn = 0;
+    uintptr_t cur = fp;
+    while (cur != 0 && (cur & 0x7) == 0 && wn < OUO_MAX_FRAMES) {
+        uintptr_t pair[2];
+        if (!safe_read(cur, pair, sizeof(pair))) break;
+        uintptr_t ret = strip_pac(pair[1]);
+        if (ret == 0) break;
+        walked[wn++] = ret;
+        if (pair[0] <= cur) break;
+        cur = pair[0];
+    }
+    thread_resume(main);
+    if (lr != 0 && (wn == 0 || walked[0] != lr) && n < max) out[n++] = lr;
+    for (int i = 0; i < wn && n < max; i++) out[n++] = walked[i];
+    return n;
+}
+
 bool ouo_crash_install(const char *report_path) {
     if (report_path != NULL) {
         size_t n = strlen(report_path);
@@ -468,11 +538,7 @@ bool ouo_crash_install(const char *report_path) {
         memcpy(g_tmp_path, g_path, n);
         memcpy(g_tmp_path + n, ".tmp", 5);
     }
-    if (!g_images_registered) {
-        g_images_registered = true;
-        // Called right away for every image already loaded, then for each later dlopen.
-        _dyld_register_func_for_add_image(on_add_image);
-    }
+    track_images();
     if (atomic_load(&g_installed)) return true;
     bool ok = true;
     for (int i = 0; i < OUO_SIGNAL_COUNT; i++) {
