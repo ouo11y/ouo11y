@@ -154,21 +154,21 @@ The suite prints the levels it measures (L0 to L2); L3 is L2 plus the B3 gate, w
 
 ### Matrix on 2026-10-30
 
-React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it.
+React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it (native iOS: also its unit tests, an integration test into rum-api and a simulator run, `project/agents/mobile-sdk/verify/w8-native-sim.sh`; its suite comes with W8 part 2).
 
 | Capability | React Native iOS | Native iOS (Swift) | React Native Android | Native Android | Flutter |
 |---|---|---|---|---|---|
-| C1 Sessions and lifecycle | L2 | L0 (no session manager in Swift) | L1 (JS) | L0 | L0 |
-| C2 Errors and crashes | L2 | L0 (OuoCrash writes reports, nothing sends them) | L1 (JS errors only) | L0 | L0 |
-| C3 Hangs and terminations | L2 | L0 (OuoCrash detects hangs and terminations, nothing sends them) | L0 | L0 | L0 |
-| C4 Vitals | L2 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
-| C5 Network | L2 | L0 | L1 (JS) | L0 | L0 |
+| C1 Sessions and lifecycle | L2 | L1 (`OuoSDK`, W8 part 1; no suite yet) | L1 (JS) | L0 | L0 |
+| C2 Errors and crashes | L2 | L1 (captured errors, crashes on the next launch, error context; no suite yet) | L1 (JS errors only) | L0 | L0 |
+| C3 Hangs and terminations | L2 | L1 (sent by `OuoSDK`; no suite yet) | L0 | L0 | L0 |
+| C4 Vitals | L2 | L1 (app start, TTID and TTFD for `trackScreen` screens, frames; no suite yet) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
+| C5 Network | L2 | L1 (`URLSession` hook with W3C propagation; no suite yet) | L1 (JS) | L0 | L0 |
 | C6 Interactions | L2 | L0 | L1 (JS) | L0 | L0 |
-| C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |
-| C8 Replay | L2 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
-| C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |
+| C7 Screens and navigation | L2 | L1 (`Ouo.trackScreen`; automatic screens with W8 part 2) | L1 (JS) | L0 | L0 |
+| C8 Replay | L2 | L1 (OuoReplay, started per sampled session by `OuoSDK`) | L0 | L0 | L0 |
+| C9 Span and log API | L2 | L1 (`startSpan`, `withSpan`, `log`; no suite yet) | L1 (JS) | L0 | L0 |
 | C10 Feedback | L2 | L0 | L1 (JS; no screenshot without the native module) | L0 | L0 |
-| C11 Delivery | L2 | L1 (chunk queue on disk; no OTLP) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
+| C11 Delivery | L2 | L1 (gzip OTLP and a durable outbox; no suite yet) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
 | C12 Cost | L1 (B3 simulator cells, gate proposed) | L0 | L0 | L0 | L0 |
 
 React Native Android's L1 cells are the JavaScript half, which is the same code as on iOS; it has never run on an Android device or emulator (the Android native module is a stub). The package that changes a cell updates this table in the same PR.

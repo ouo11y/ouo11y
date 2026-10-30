@@ -1,27 +1,97 @@
-# OuoReplay (sdk/ios)
+# ouo11y-ios (sdk/ios)
 
-Native session replay capture for iOS, the native half of ouo mobile replay (ADR-0006,
-contract in `docs/specs/mobile-replay.md`). It snapshots the key window at most once a second
-after the run loop's UI work (or once per screen in `navigation` mode), paints opaque rectangles
-over sensitive views **before the frame leaves the device** and drops the frame when a masked view
-is moving (masking fails closed), drops unchanged frames, keeps the open chunk on disk so a crash
-does not lose it, and uploads gzip JSON frame chunks to the ouo collector's
-replay receiver (`POST /v1/replay/chunks`, `kind: "frames"`) keyed by the host's `session.id` and
-authenticated with the project credential as HTTP Basic (`Authorization: Basic
-base64("<projectId>:<projectToken>")`, ADR-0007).
+The ouo SDK for iOS. Two ways in:
 
-The React Native SDK (`sdk/react-native`) wraps this package through an Expo module; native
-apps use it directly.
+- **Native apps** (UIKit or SwiftUI, Swift or Objective-C): the `OuoSDK` product, one entry point
+  (`Ouo.start`) for sessions, crashes, hangs, terminations, vitals, network spans, replay and the
+  span and log API, sent as OTLP/JSON to the ouo collector (docs/specs/mobile-sdk.md, ADR-0016).
+  See "OuoSDK" below.
+- **React Native**: `@ouo11y/react-native` (`sdk/react-native`) wraps `OuoReplay`, `OuoCrash` and
+  `OuoVitals` through an Expo module; its JavaScript owns the session and the export.
+
+`OuoReplay` is the native half of ouo mobile replay (ADR-0006, contract in
+`docs/specs/mobile-replay.md`). It snapshots the key window at most once a second after the run
+loop's UI work (or once per screen in `navigation` mode), paints opaque rectangles over sensitive
+views **before the frame leaves the device** and drops the frame when a masked view is moving
+(masking fails closed), drops unchanged frames, keeps the open chunk on disk so a crash does not
+lose it, and uploads gzip JSON frame chunks to the ouo collector's replay receiver
+(`POST /v1/replay/chunks`, `kind: "frames"`) keyed by the host's `session.id` and authenticated
+with the project credential as HTTP Basic (`Authorization: Basic base64("<projectId>:<projectToken>")`,
+ADR-0007).
+
+## OuoSDK: native apps
+
+```swift
+import OuoSDK
+
+// application(_:didFinishLaunchingWithOptions:), or App.init, on the main thread:
+let config = OuoConfig(endpoint: URL(string: "https://otel.example.com")!,   // OTLP/HTTP base URL
+                       projectId: "mobile-store", projectToken: "pt_live_...", serviceName: "mobile-store")
+config.environment = "production"
+config.propagateTo = ["https://api.example.com"]   // traceparent + baggage (session.id) to these origins
+config.replaySampleRate = 0.1                      // replay for 10 % of sessions (default 0: off)
+Ouo.start(config)
+
+Ouo.trackScreen("Cart")                // navigation + TTID (automatic for UIKit and SwiftUI later)
+Ouo.reportFullyDisplayed()             // TTFD of the current screen
+Ouo.setUser("user-42")                 // clearUser() at logout, endSession()
+Ouo.captureError(error)                // handled exception with stack, screen and last events
+Ouo.addEvent("checkout", attributes: ["items": 3])
+Ouo.log(.info, "cart loaded", attributes: ["count": 3])
+Ouo.withSpan("checkout") { _ in api.pay() }   // requests and logs inside join the trace
+Ouo.flush { }
+```
+
+Objective-C: `[Ouo start:config]`, `[Ouo captureError:error attributes:nil]`,
+`[Ouo captureException:exception attributes:nil]`, `[Ouo log:OuoLogLevelInfo message:@"…" attributes:nil]`,
+`[Ouo withSpan:@"checkout" attributes:nil block:^(OuoSpan *span) { … }]`.
+
+What it records, in the spec's names (docs/specs/mobile-sdk.md):
+
+| Capability | Records |
+|---|---|
+| C1 sessions | `session.start` / `session.end` (`background` after 30 s in the background, `inactivity` 30 min, `max_duration` 4 h, `crash`, `terminated`, `user_change`, `manual`), `session.previous_id`, `device.id`, `app.lifecycle`; sampling per session id (`sessionSampleRate`, rum-api's rule) |
+| C2 errors and crashes | `exception`: `captured` (`captureError`), `native` (signals, uncaught NSExceptions, sent by the next launch as a fatal exception of the crashed session, which ends with `crash` at the crash time); each with `ouo.last_events`, `app.screen.name`, `ouo.device.locale`, memory and network type |
+| C3 hangs and terminations | `hang` (2 s, OuoCrash's watchdog), `termination` (killed in the foreground without a crash report, cause `memory`, `watchdog` or `unknown`) |
+| C4 vitals | `ouo.app.start` (cold, from the process start to the first frame), `ouo.screen.display` (TTID, TTFD), `app.jank` per screen window |
+| C5 network | one CLIENT span per `URLSession` request, `http.request.failed` (5xx, network errors), `http.request`; `traceparent` and `baggage` only to `propagateTo` |
+| C7 screens | `navigation` per `trackScreen` change |
+| C8 replay | `OuoReplay` for the sampled sessions, rotated with the session |
+| C9 spans and logs | `startSpan`, `withSpan`, `log` |
+| C11 delivery | OTLP/JSON, gzip, Basic credential; every batch on disk before it is sent (`Application Support/ouo/sdk/otlp`, 5 MB, 500 requests, 24 h), retried with backoff, `Retry-After`, sent on the next launch, on foreground and on `flush`; at least once |
+
+Rules worth knowing:
+
+- **Threads**: every call is safe from any thread; `start` belongs on the main thread (it reads
+  the app state there). Nothing runs on the main thread but the lifecycle notifications, the display
+  link and two small file writes (the session, and the screen context after a screen change or an
+  error, so the next launch can report a crash with them).
+- **Times** come from a monotonic clock anchored at launch: changing the device clock mid-run does
+  not reorder records or end the session.
+- **Files** (`Application Support/ouo/sdk`, excluded from backups) are written atomically and
+  readable after the first unlock, so a background launch of a locked device works; before the first
+  unlock nothing can be stored, and a batch is sent once from memory.
+- **App extensions** are refused (`start` returns false): they have no `UIApplication`.
+- **Background launches** (a push, a fetch) start a session that ends with `background` unless the
+  app is opened in time, and measure no app start.
+- **`URLSession`**: `-[NSURLSessionTask resume]` is swizzled, so every session and API is seen
+  (completion handlers, delegates, `async`); the trace headers are set through the task's
+  `currentRequest` before it starts (what sentry-cocoa does). Background sessions run out of process
+  and are not traced. The SDK's own uploads are never traced.
+- **Privacy manifest**: `PrivacyInfo.xcprivacy` ships with `OuoSDK` (no tracking; crash,
+  performance, diagnostic, product interaction data and an install id, not linked to the user;
+  `UserDefaults` CA92.1, system boot time 35F9.1).
 
 ## Layout
 
 | Target | Needs | Contents |
 |---|---|---|
-| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 1 MiB of images / size change / explicit flush, a full image first, monotonic `seq` via `SeqStore`), `TileDiffer` (64 px tile hashes against the last frame sent: unchanged, full image or merged patch rectangles, ADR-0014), `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, full or patch JPEGs, render scale; thread-safe), `CapturePacer` (when a frame is due: interval or screen change, animation deferral, 100 ms/s time bank), `ChunkSpool` (the open chunk on disk, recovered on the next launch), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
+| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 1 MiB of images / size change / explicit flush, a full image first, monotonic `seq` via `SeqStore`), `TileDiffer` (64 px tile hashes against the last frame sent: unchanged, full image or merged patch rectangles, ADR-0014), `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, full or patch JPEGs, render scale; thread-safe), `CapturePacer` (when a frame is due: interval or screen change, animation deferral, 100 ms/s time bank), `ChunkSpool` (the open chunk on disk, recovered on the next launch), `Gzip` (RFC 1952 via zlib), `DiskQueue` (a folder of requests written before they are sent, bounded, retried with backoff and `Retry-After`; the OTLP outbox uses it too), `ChunkUploader` (the replay chunk queue on a `DiskQueue`, held chunks for the keep/drop decision) |
 | `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (main run-loop observer, keep-alive tick, one capture in flight, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
 | `OuoCrashCore` | C | Async-signal-safe native crash handlers: one JSON report written at crash time (frames, binary images, signal or exception), previous handlers chained |
 | `OuoVitalsCore` | C | Process start (`sysctl` `kp_proc.p_starttime`) and the image load time (a constructor before `main`, used for prewarmed launches) |
 | `OuoVitals` | UIKit (counters without it) | Mobile vitals (`docs/specs/mobile-vitals.md`): `beginRuntime(at:)` (cold or warm start), `startFrameTracking()` / `frameStats()` (`CADisplayLink`: total, slow, frozen, delay), `HangDetector` (app hang rules on the same frames) and `startHangTracking` (its watchdog thread). See `project/kb/ios-vitals.md` |
+| `OuoSDK` | the four above | `Ouo.start` and the public API (Swift and `@objc`), `SessionManager` (session-lifecycle.md mobile rules, `session.json`), `Core` (records, error context, the timeline buffer), `Exporter` (OTLP/JSON batches into a `DiskQueue`), the `URLSession` hook, `Vitals`, the UIKit lifecycle, `PrivacyInfo.xcprivacy` |
 | `OuoCrash` | Foundation, `OuoVitals` | `OuoCrash.install()`, the uncaught `NSException` handler, `setSession(_:startedAtMs:)` (the session and its start go into the report), `takePendingReport()` (the host sends it on the next launch; the React Native SDK does): the crash report, else a `termination` report when the previous run was killed while active (`RunState`, `Termination`); `startHangTracking(onHang:)` (one `hang` report per app hang); `ErrorContext` (memory, network type). Tested on macOS by crashing `OuoCrashProbe` (`project/kb/ios-native-crashes.md`, `project/kb/ios-hangs-terminations.md`) |
 
 ## Install
@@ -129,8 +199,9 @@ reference so the next frame is always sent.
 base64("<projectId>:<projectToken>")` (`ChunkUploader.basicAuthorization(projectId:projectToken:)`,
 standard base64 of the UTF-8 bytes; the collector's `basicauth` answers 401 without a valid pair),
 `content-type: application/json`, `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`; sends
-chunks in order, retries three times (1 s, 2 s) with the header on every attempt, and drops the
-oldest queued chunk when more than 2 MB is waiting.
+chunks in order from a folder on disk (`DiskQueue`), retries 408, 429, 5xx and network errors with
+a backoff from 1 s to 60 s (at least `Retry-After`), on `drain` and on the next launch, and drops
+the oldest queued chunk beyond 10 MB or 24 h.
 Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
 `began|moved|ended`).
 
@@ -139,7 +210,8 @@ Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
 ```bash
 cd sdk/ios
 swift build            # macOS: Core builds fully, OuoReplay compiles to the stub
-./test.sh              # Core tests (40), Swift Testing; works with the Command Line Tools only
+./test.sh              # every test target, Swift Testing; works with the Command Line Tools only
+eval "$(../../deploy/envs/ouo-env env <env>)" && OUO_E2E_NATIVE=1 swift test --filter RealCollector   # OuoSDK into rum-api
 OUO_REPLAY_STUB_URL=http://localhost:4319 OUO_PROJECT_ID=demo OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 ./test.sh --filter RealHTTP   # push real chunks to the collector
 ```
 
@@ -150,7 +222,7 @@ Command Line Tools ship but SwiftPM does not look for; with Xcode installed it i
 With Xcode:
 
 ```bash
-xcodebuild -scheme OuoReplay -destination 'generic/platform=iOS Simulator' build
+xcodebuild -scheme OuoSDK -destination 'generic/platform=iOS Simulator' build   # every UIKit target
 ```
 
 What needs Xcode: compiling the `OuoReplay` UIKit target for iOS, the simulator, and the

@@ -9,6 +9,21 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ### Added
 
+- **`OuoSDK`, the SDK for native apps** (mobile SDK roadmap W8 part 1, ADR-0016): `Ouo.start(OuoConfig)`
+  and a Swift and `@objc` API. A Swift session manager (session-lifecycle.md mobile rules: background
+  timeout, inactivity, max duration, crash and termination on the next launch, `session.previous_id`,
+  `user_change`, `manual`, `device.id`, N52's `session_started_ms`), an OTLP/JSON exporter for logs and
+  traces (gzip, Basic credential, a durable outbox of 5 MB / 500 requests / 24 h), the app lifecycle
+  (`app.lifecycle`, flush on background), a `URLSession` hook (client spans, `traceparent` and
+  `baggage` to the listed origins, `http.request.failed`), OuoCrash (crashes, terminations and hangs
+  with the error context), OuoVitals (app start, TTID, TTFD, frames) and OuoReplay (per sampled
+  session) wired into it, `trackScreen`, `captureError`, `log`, `startSpan` / `withSpan`, and
+  `PrivacyInfo.xcprivacy`.
+- `DiskQueue` (OuoReplayCore): the folder queue the chunk uploader used, now shared with the OTLP
+  outbox, with an entry bound. While a retry waits, new entries no longer trigger a send (an outage
+  costs one request per backoff); entries are written readable after the first unlock.
+- `OuoVitals.nextFrame(_:)` (the next frame drawn) and `OuoCrash.stackFields(_:)` made public.
+
 - **App hangs** (mobile SDK spec C3.1, roadmap W4): `OuoCrash.startHangTracking(onHang:)` runs a
   watchdog thread on `OuoVitals`' display link frames (`HangDetector`, sentry-cocoa's V2 rules: 2 s,
   fully and not fully blocking, one report per hang) and reports each hang once it is over as a

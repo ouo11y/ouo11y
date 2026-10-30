@@ -11,6 +11,8 @@ Owns the decisions of the ouo mobile SDK roadmap ([roadmap.md](../../kb/mobile-s
   - [2026-10-30-w3a-schema2-player.md](summaries/2026-10-30-w3a-schema2-player.md) W3a step 1: `frames` schema 2, canvas player
   - [2026-10-30-w3a-swift-tiles.md](summaries/2026-10-30-w3a-swift-tiles.md) W3a step 2: Swift tiles, B3 T3 120 / T4 334 KiB/min
   - [2026-10-30-w4-signals.md](summaries/2026-10-30-w4-signals.md) W4: app hangs, foreground terminations, TTFD and error context
+  - [2026-10-31-w8-native-ios-part1.md](summaries/2026-10-31-w8-native-ios-part1.md) W8 part 1: the native iOS SDK `OuoSDK`
 - `verify/` reproducible checks
   - [w7-dsym-e2e.sh](verify/w7-dsym-e2e.sh) a real `OuoCrashProbe` crash through the collector, dSYM upload with the CLI, rum-api frames compared with `atos -i`
   - [w4-signals-sim.sh](verify/w4-signals-sim.sh) the real hang watchdog and termination check in examples/ouo-mobile on a simulator: a 3 s block, a stutter, a simulated out-of-memory kill, kills in the background and the foreground, read back from rum-api
+  - [w8-native-sim.sh](verify/w8-native-sim.sh) the `OuoSDK` package in a UIKit app ([w8-native-sim/](verify/w8-native-sim/Package.swift)) on a simulator: a journey with a background rotation, a hang, a crash, a memory kill and an offline run, read back from rum-api by [w8-native-sim-check.mjs](verify/w8-native-sim-check.mjs)

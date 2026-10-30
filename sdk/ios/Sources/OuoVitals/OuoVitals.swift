@@ -117,6 +117,17 @@ public enum OuoVitals {
         #endif
     }
 
+    /// Calls `body` on the main thread with the time (`CACurrentMediaTime` clock) the next frame
+    /// shows on the display: the `targetTimestamp` of a one-shot `CADisplayLink`'s first callback, the
+    /// first frame that can show what the app laid out before the call (app start, TTID, TTFD). Not
+    /// `timestamp`: that is the frame already on screen, which can be earlier than the call. Callable
+    /// from any thread; never calls back synchronously. Without UIKit, never calls.
+    public static func nextFrame(_ body: @escaping (CFTimeInterval) -> Void) {
+        #if canImport(UIKit)
+        DispatchQueue.main.async { NextFrame(body).start() }
+        #endif
+    }
+
     #if canImport(UIKit)
     /// Epoch ms of a display link timestamp (`CACurrentMediaTime` clock).
     static func epochMs(_ t: CFTimeInterval) -> Double {
@@ -171,6 +182,11 @@ final class DisplayLinkTracker {
     }
 
     func start() {
+        // Hang detection before the first frame relies on this link firing while the app is active:
+        // `HangDetector` counts the time since the last callback (or since tracking started or the
+        // app became active) as the delay of the frame still awaited, which is a hang only because
+        // an active app's link would have fired by then. A link that does not fire while active
+        // (not added, or added to a run loop mode the main thread is not in) would read as a hang.
         let link = CADisplayLink(target: Proxy(self), selector: #selector(Proxy.tick(_:)))
         link.add(to: .main, forMode: .common)
         self.link = link
@@ -198,6 +214,23 @@ final class DisplayLinkTracker {
         weak var owner: DisplayLinkTracker?
         init(_ owner: DisplayLinkTracker) { self.owner = owner }
         @objc func tick(_ link: CADisplayLink) { owner?.tick(link) }
+    }
+}
+
+/// A one-shot display link: the first callback reports its frame time and invalidates the link
+/// (which released the proxy, and so this object).
+private final class NextFrame: NSObject {
+    private let body: (CFTimeInterval) -> Void
+    init(_ body: @escaping (CFTimeInterval) -> Void) { self.body = body }
+
+    func start() {
+        let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        link.add(to: .main, forMode: .common)
+    }
+
+    @objc func tick(_ link: CADisplayLink) {
+        link.invalidate()
+        body(link.targetTimestamp)
     }
 }
 

@@ -13,6 +13,9 @@ import PackageDescription
 //    written to disk at crash time and sent on the next launch by the host SDK. Tested on macOS by
 //    crashing the OuoCrashProbe executable.
 //  - OuoVitals (Swift) on OuoVitalsCore (C): app start and frame counters for the mobile vitals.
+//  - OuoSDK: the SDK for native apps (`Ouo.start`): sessions, OTLP/JSON export with a durable
+//    outbox, the URLSession hook, and the three packages above wired into one entry point
+//    (ADR-0016: no opentelemetry-swift). Its pure parts test on macOS.
 let package = Package(
     // Named after the mirror repo github.com/ouo11y/ouo11y-ios (ADR-0009). SwiftPM's package identity
     // comes from the URL or path, so apps write `package: "ouo11y-ios"` for the mirror and
@@ -24,6 +27,7 @@ let package = Package(
         .library(name: "OuoReplayCore", targets: ["OuoReplayCore"]),
         .library(name: "OuoCrash", targets: ["OuoCrash"]),
         .library(name: "OuoVitals", targets: ["OuoVitals"]),
+        .library(name: "OuoSDK", targets: ["OuoSDK"]),
     ],
     targets: [
         .target(
@@ -48,6 +52,16 @@ let package = Package(
         .target(
             name: "OuoVitals",
             dependencies: ["OuoVitalsCore"]
+        ),
+        .target(
+            name: "OuoSDK",
+            dependencies: ["OuoReplay", "OuoCrash", "OuoVitals"],
+            // The privacy manifest of the whole package (an app links all four through OuoSDK).
+            resources: [.copy("PrivacyInfo.xcprivacy")]
+        ),
+        .testTarget(
+            name: "OuoSDKTests",
+            dependencies: ["OuoSDK"]
         ),
         .testTarget(
             name: "OuoVitalsTests",
