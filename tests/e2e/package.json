@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "End-to-end checks against an ouo-env stack (tests/e2e/scenario.mjs, edge-qa.mjs). Not an npm workspace: only edge-qa.mjs's browser CORS check needs a dependency.",
+  "description": "End-to-end checks against an ouo-env stack (tests/e2e/scenario.mjs, edge-qa.mjs, mobile/conformance.mjs). Not an npm workspace: only edge-qa.mjs's browser CORS check needs a dependency.",
   "engines": {
     "node": ">=24"
   },

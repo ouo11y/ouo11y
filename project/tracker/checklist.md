@@ -186,7 +186,7 @@ The gap report found the ouo RN SDK behind the bridge on several points. Until t
 - [ ] rum-api: Tempo paging beyond 1000, read-side project scoping, cache `meta.json` per session in `decorateReplay`
 - [ ] Phase 9 release health (version comparison, regression alerts) and public benchmark site with the other competitors (Datadog, Faro, OpenReplay)
 - [ ] Phase 10 Android replay, Phase 11 scale and multi-project, Phase 12 migration kit, Phase 13 native SDKs, AI investigation experiment
-- [ ] N17 Platform coverage (founder 2026-10-17): compare Sentry's SDK platform list with ouo's (browser, React Native, iOS replay today) and add each missing platform as a later phase. Long term: one ouo SDK spec with a conformance suite (Phase 13.0), implemented per platform in roadmap order.
+- [ ] N17 Platform coverage (founder 2026-10-17): compare Sentry's SDK platform list with ouo's (browser, React Native, iOS replay today) and add each missing platform as a later phase. Long term: one ouo SDK spec with a conformance suite (Phase 13.0), implemented per platform in roadmap order. [2026-10-29: mobile spec and React Native iOS suite done as roadmap W2, `docs/specs/mobile-sdk.md`, ADR-0015, `tests/e2e/mobile`; [summary](../agents/mobile-sdk/summaries/2026-10-29-w2-mobile-spec.md)]
 
 ## Founder decisions
 
