@@ -1,9 +1,12 @@
 // Reads back the runs of w8-native-sim.sh from rum-api (and the backend span from Tempo through
-// Grafana) and prints one row per conformance check it mirrors. Usage: node w8-native-sim-check.mjs <w8.jsonl>
+// Grafana) and prints one row per conformance check it mirrors.
+// Usage: node w8-native-sim-check.mjs <w8.jsonl> <w8.scene.jsonl> <w8.swiftui.jsonl>
 import { readFileSync } from "node:fs";
 import { getJSON, GRAFANA, pollUntil, RUM, table } from "../../../../tests/e2e/lib.mjs";
 
-const notes = readFileSync(process.argv[2], "utf8").trim().split("\n").map((l) => JSON.parse(l));
+const read = (f) => readFileSync(f, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+const notes = read(process.argv[2]);
+const variants = process.argv.slice(3).map((f) => read(f).find((n) => n.kind === "launch"));
 const launches = notes.filter((n) => n.kind === "launch").map((n) => n.session);
 const [journey, hang, crash, , oom, , offline] = launches;
 // The session after the background stay: the last "active" note before the second launch.
@@ -70,6 +73,17 @@ const checks = {
   },
   "C11.1 offline run delivered": async () => named(await detail(offline), "offline-step").length === 1,
 };
+// The launch kind (review of #123, B1): an app with scenes or a SwiftUI App has app start, TTID for
+// its first screen, and no app.lifecycle before its first real change (the stop's background).
+for (const v of [notes.find((n) => n.kind === "launch"), ...variants]) {
+  checks[`C4 launch ${v.variant}: app start, TTID, no spurious lifecycle`] = async () => {
+    const d = await detail(v.session);
+    const states = named(d, "app.lifecycle").map((e) => attr(e, "ouo.app.state"));
+    return attr(named(d, "ouo.app.start")[0], "ouo.app.start.type") === "cold" &&
+      Boolean(attr(named(d, "ouo.screen.display").find((e) => attr(e, "app.screen.name") === "Home"), "ouo.screen.ttid_ms")) &&
+      states.length > 0 && states[0] === "inactive";
+  };
+}
 
 const rows = [];
 let ok = true;
@@ -80,4 +94,5 @@ for (const [name, check] of Object.entries(checks)) {
 }
 table(rows);
 console.log({ journey, rotated, hang, crash, oom, offline });
+console.log("launches:", [notes.find((n) => n.kind === "launch"), ...variants].map((v) => ({ variant: v.variant, applicationState: v.applicationState, role: v.role, startMs: Math.round(v.startMs * 100) / 100 })));
 process.exit(ok ? 0 : 1);

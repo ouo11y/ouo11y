@@ -34,21 +34,31 @@ struct PersistedSession: Codable, Equatable {
     var deviceId: String?
 }
 
+/// What the store holds. `unreadable` is not `missing`: before the first unlock after a reboot (a
+/// background launch: a push, a fetch, a location event) the file exists and cannot be read, and
+/// treating it as a fresh install would end no session and give the device a new `device.id`.
+enum StoredSession: Equatable {
+    case missing
+    case unreadable
+    case state(PersistedSession)
+}
+
 protocol SessionStore: AnyObject {
-    func load() -> PersistedSession?
+    func load() -> StoredSession
     func save(_ state: PersistedSession)
 }
 
-/// `session.json`, written atomically and readable after the first unlock. Before the first unlock
-/// (a background launch after a reboot) it can be neither read nor written: that run's session is
-/// not persisted, and the next launch ends the one it finds on disk.
+/// `session.json`, written atomically and readable after the first unlock (also when the app's
+/// default protection is `complete`). A file that is not valid JSON is `missing` (it is replaced).
 final class FileSessionStore: SessionStore {
     let url: URL
     init(url: URL) { self.url = url }
 
-    func load() -> PersistedSession? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(PersistedSession.self, from: data)
+    func load() -> StoredSession {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+        guard let data = try? Data(contentsOf: url) else { return .unreadable }
+        guard let state = try? JSONDecoder().decode(PersistedSession.self, from: data) else { return .missing }
+        return .state(state)
     }
 
     func save(_ state: PersistedSession) {
@@ -97,6 +107,8 @@ final class SessionManager {
     private(set) var deviceId = UUID().uuidString.lowercased()
     private var inBackground = false
     private var lastPersist: Double = -.infinity
+    /// The file could not be read at start: nothing is saved over it until it can be (`adoptStored`).
+    private(set) var storeUnreadable = false
 
     init(store: SessionStore, now: @escaping () -> Double, timeouts: Timeouts = Timeouts(), serviceVersion: String,
          emit: @escaping (String, Attributes, Double) -> Void, onRotate: @escaping (SessionRecord) -> Void) {
@@ -116,7 +128,14 @@ final class SessionManager {
     func start(crash: CrashMarker?, background: Bool) {
         let t = now()
         inBackground = background
-        let persisted = store.load()
+        let persisted: PersistedSession?
+        switch store.load() {
+        case .state(let p): persisted = p
+        case .missing: persisted = nil
+        case .unreadable:
+            persisted = nil
+            storeUnreadable = true
+        }
         if let d = persisted?.deviceId, !d.isEmpty { deviceId = d }
         if let u = persisted?.user, !u.id.isEmpty { user = u }
         var previousId: String?
@@ -305,6 +324,39 @@ final class SessionManager {
 
     private func save(_ session: SessionRecord?) {
         lastPersist = now()
-        store.save(PersistedSession(session: session, user: user, deviceId: deviceId))
+        guard !storeUnreadable || adoptStored() else { return }
+        store.save(PersistedSession(session: (current ?? session), user: user, deviceId: deviceId))
+    }
+
+    /// The file became readable (the first unlock): what a cold start would have done with it. Its
+    /// `device.id` and its user (unless the app identified one since) are kept from now on, and its
+    /// session, if it was not ended, ends with the reason and time a cold start gives it. False while
+    /// it is still unreadable.
+    private func adoptStored() -> Bool {
+        let p: PersistedSession
+        switch store.load() {
+        case .unreadable: return false
+        case .missing:
+            storeUnreadable = false
+            return true
+        case .state(let s): p = s
+        }
+        storeUnreadable = false
+        if let d = p.deviceId, !d.isEmpty { deviceId = d }
+        if user.anonymous, let u = p.user, !u.id.isEmpty {
+            user = u
+            current?.userId = u.id
+        }
+        if let old = p.session, old.endedAt == nil, old.id != current?.id {
+            let reason = coldStartReason(old, crash: nil, now: now())
+            endPersisted(old, reason, at: coldStartEndedAt(old, reason, crash: nil, now: now()))
+        }
+        return true
+    }
+
+    /// Tries to save now: after the device's protected data became available.
+    func retryStore() {
+        guard storeUnreadable else { return }
+        persist(force: true)
     }
 }

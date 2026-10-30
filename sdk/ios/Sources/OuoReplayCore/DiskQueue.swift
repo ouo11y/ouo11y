@@ -102,18 +102,23 @@ public final class DiskQueue {
     public var rejected: Int { queue.sync { stats.rejected } }
 
     /// Writes `body` as the newest entry before returning, applies the bounds, then starts sending.
-    /// False when the disk refused it (full, not writable, protected before the first unlock): the
-    /// caller decides whether to send it once from memory.
+    /// When the disk refuses it (full, not writable, protected before the first unlock) it is sent
+    /// once from memory, unless `sendIfRefused` is false (a held replay chunk waits for its
+    /// session's decision), and false is returned.
     @discardableResult
-    public func put(_ body: Data, tag: String) -> Bool {
+    public func put(_ body: Data, tag: String, sendIfRefused: Bool = true) -> Bool {
         let ok: Bool = queue.sync {
             counter += 1
             let name = "\(Self.pad(now(), 13))-\(Self.pad(Int64(counter % 1_000_000), 6)).\(tag)"
+            let url = directory.appendingPathComponent(name)
             do {
                 try Self.prepare(directory)
-                try Self.write(body, to: directory.appendingPathComponent(name))
+                try Self.write(body, to: url)
             } catch {
-                logger.warn("could not queue \(tag) on disk: \(error)")
+                logger.warn("could not queue \(tag) on disk (\(error))\(sendIfRefused ? ", sending it once from memory" : "")")
+                if sendIfRefused, let transport, let entry = Entry(url: url), let req = request(entry, body) {
+                    transport.send(req) { _ in }
+                }
                 return false
             }
             enforceBound()

@@ -4,7 +4,7 @@ import OuoReplayCore
 /// A log record: an event when `eventName` is set (mobile SDK spec rule 1), else a `log` line.
 struct LogRecord: Equatable {
     var timeMs: Double
-    var severity: Severity
+    var severity: OuoLogLevel
     var body: String
     var attributes: Attributes
     var traceId: String?
@@ -14,17 +14,6 @@ struct LogRecord: Equatable {
         if case .string(let n)? = attributes["event.name"] { return n }
         return nil
     }
-}
-
-struct Severity: Equatable {
-    let number: Int
-    let text: String
-    static let trace = Severity(number: 1, text: "TRACE")
-    static let debug = Severity(number: 5, text: "DEBUG")
-    static let info = Severity(number: 9, text: "INFO")
-    static let warn = Severity(number: 13, text: "WARN")
-    static let error = Severity(number: 17, text: "ERROR")
-    static let fatal = Severity(number: 21, text: "FATAL")
 }
 
 /// A finished span.

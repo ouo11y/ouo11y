@@ -7,7 +7,10 @@
 #   2 a 3 s main-thread block on Cart (C3.1);
 #   3 a SIGSEGV 3 s after launch on Home, then a launch (C2.2);
 #   4 a memory warning and SIGKILL in the foreground, then a launch (C3.2);
-#   5 a run with the collector stopped, then a launch with it back (C11.1).
+#   5 a run with the collector stopped, then a launch with it back (C11.1);
+#   6 the same SDK in an app with a scene delegate and in a SwiftUI `App` (the shapes where
+#     `applicationState` is `.background` at launch): app start, the first screen's TTID, no
+#     `app.lifecycle` before the first real change, and the launch's task role and `start` time.
 # Usage: w8-native-sim.sh <env> <simulator udid>   (the env up, the simulator booted; the app is
 # uninstalled first). OUO_W8_OUT keeps the build and the run log (default: a temp folder).
 set -eu
@@ -22,20 +25,26 @@ COLLECTOR="ouo-$ENV-otel-collector-1"
 APP=dev.ouo.w8sim
 
 echo "building into $OUT"
-(cd "$HERE/w8-native-sim" && xcodebuild -quiet -scheme OuoSimApp -configuration Release \
+(cd "$HERE/w8-native-sim" && xcodebuild -quiet -scheme OuoSimApp-Package -configuration Release \
   -destination "generic/platform=iOS Simulator" -derivedDataPath "$OUT/dd" build)
 P="$OUT/dd/Build/Products/Release-iphonesimulator"
-rm -rf "$OUT/OuoSimApp.app" && mkdir -p "$OUT/OuoSimApp.app"
-cp "$P/OuoSimApp" "$HERE/w8-native-sim/Info.plist" "$OUT/OuoSimApp.app/"
-cp -R "$P/ouo11y-ios_OuoSDK.bundle" "$OUT/OuoSimApp.app/"
-codesign --force --sign - "$OUT/OuoSimApp.app" >/dev/null
-xcrun simctl uninstall "$UDID" "$APP" 2>/dev/null || true
-xcrun simctl install "$UDID" "$OUT/OuoSimApp.app"
+# A SwiftPM executable becomes an app: the binary, an Info.plist, the SDK's resource bundle, signed ad hoc.
+wrap() { # <executable> <Info.plist> <bundle id>
+  rm -rf "$OUT/$1.app" && mkdir -p "$OUT/$1.app"
+  cp "$P/$1" "$OUT/$1.app/" && cp "$HERE/w8-native-sim/$2" "$OUT/$1.app/Info.plist"
+  cp -R "$P/ouo11y-ios_OuoSDK.bundle" "$OUT/$1.app/"
+  codesign --force --sign - "$OUT/$1.app" >/dev/null
+  xcrun simctl uninstall "$UDID" "$3" 2>/dev/null || true
+  xcrun simctl install "$UDID" "$OUT/$1.app"
+}
+wrap OuoSimApp Info.plist "$APP"
+wrap OuoSimScene Info-Scene.plist "$APP.scene"
+wrap OuoSimSwiftUI Info-SwiftUI.plist "$APP.swiftui"
 
-run() { SIMCTL_CHILD_OUO_ACTION=$1 SIMCTL_CHILD_OUO_OTLP=$OUO_OTLP_URL SIMCTL_CHILD_OUO_BACKEND=$BACKEND xcrun simctl launch "$UDID" "$APP" >/dev/null; }
+run() { SIMCTL_CHILD_OUO_ACTION=$1 SIMCTL_CHILD_OUO_OTLP=$OUO_OTLP_URL SIMCTL_CHILD_OUO_BACKEND=$BACKEND xcrun simctl launch "$UDID" "${2:-$APP}" >/dev/null; }
 background() { xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null; }
 # Background first (the flush runs), then end the process: a run that ends normally.
-stop() { background; sleep 3; xcrun simctl terminate "$UDID" "$APP" 2>/dev/null || true; sleep 1; }
+stop() { background; sleep 3; xcrun simctl terminate "$UDID" "${1:-$APP}" 2>/dev/null || true; sleep 1; }
 
 echo "1 journey + background rotation"
 run journey; sleep 6; background; sleep 15; run idle; sleep 3; stop
@@ -51,6 +60,10 @@ run offline; sleep 4; stop
 docker start "$COLLECTOR" >/dev/null
 for _ in $(seq 1 30); do curl -sf -o /dev/null "$OUO_COLLECTOR_HEALTH_URL" && break; sleep 2; done
 run idle; sleep 6; stop
+echo "6 scene delegate and SwiftUI App"
+for v in scene swiftui; do run idle "$APP.$v"; sleep 6; stop "$APP.$v"; done
 
-cp "$(xcrun simctl get_app_container "$UDID" "$APP" data)/Documents/w8.jsonl" "$OUT/w8.jsonl"
-node "$HERE/w8-native-sim-check.mjs" "$OUT/w8.jsonl"
+for v in "" .scene .swiftui; do
+  cp "$(xcrun simctl get_app_container "$UDID" "$APP$v" data)/Documents/w8.jsonl" "$OUT/w8$v.jsonl"
+done
+node "$HERE/w8-native-sim-check.mjs" "$OUT/w8.jsonl" "$OUT/w8.scene.jsonl" "$OUT/w8.swiftui.jsonl"

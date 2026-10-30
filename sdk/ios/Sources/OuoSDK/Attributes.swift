@@ -1,7 +1,7 @@
 import Foundation
 
 /// An OTLP attribute value: the four scalar types the spec's records use.
-public enum AttributeValue: Equatable, Sendable {
+enum AttributeValue: Equatable, Sendable {
     case string(String)
     case int(Int64)
     case double(Double)
@@ -10,7 +10,7 @@ public enum AttributeValue: Equatable, Sendable {
     /// From a value an app passes (`[String: Any]`, an `NSDictionary` from Objective-C): strings,
     /// numbers and booleans (`NSNumber` keeps which it is); a non-finite number is left out (JSON
     /// has none), anything else becomes its description.
-    public init?(any value: Any) {
+    init?(any value: Any) {
         switch value {
         case let v as AttributeValue:
             self = v
@@ -42,13 +42,13 @@ public enum AttributeValue: Equatable, Sendable {
 }
 
 extension AttributeValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
-    public init(stringLiteral value: String) { self = .string(value) }
-    public init(integerLiteral value: Int64) { self = .int(value) }
-    public init(floatLiteral value: Double) { self = .double(value) }
-    public init(booleanLiteral value: Bool) { self = .bool(value) }
+    init(stringLiteral value: String) { self = .string(value) }
+    init(integerLiteral value: Int64) { self = .int(value) }
+    init(floatLiteral value: Double) { self = .double(value) }
+    init(booleanLiteral value: Bool) { self = .bool(value) }
 }
 
-public typealias Attributes = [String: AttributeValue]
+typealias Attributes = [String: AttributeValue]
 
 extension Dictionary where Key == String, Value == AttributeValue {
     /// The attributes an app passed, converted (`AttributeValue(any:)`).
@@ -60,16 +60,29 @@ extension Dictionary where Key == String, Value == AttributeValue {
     }
 }
 
-/// Epoch milliseconds that never jump: the wall clock at process start plus a monotonic clock that
-/// keeps counting while the device sleeps (`CLOCK_MONOTONIC` on Darwin). A user setting the clock
-/// back or forward mid-run does not reorder this run's records, expire its session or give a
-/// negative duration; the next launch reads the wall clock again.
-public enum SteadyClock {
-    private static let anchor: (wall: Double, mono: UInt64) = (Date().timeIntervalSince1970 * 1000, clock_gettime_nsec_np(CLOCK_MONOTONIC))
+/// Epoch milliseconds that never jump: the wall clock read once, at the first use, plus a monotonic
+/// clock that keeps counting while the device sleeps (`CLOCK_MONOTONIC` on Darwin; `systemUptime`
+/// and `CLOCK_UPTIME_RAW` stop). A user setting the clock back or forward mid-run does not reorder
+/// this run's records, expire its session or give a negative duration; the next launch reads the
+/// wall clock again. Both sources are injectable for tests.
+struct SteadyClock {
+    private let wallAtStart: Double
+    private let monoAtStart: UInt64
+    private let mono: () -> UInt64
 
-    public static func nowMs() -> Double {
-        anchor.wall + Double(clock_gettime_nsec_np(CLOCK_MONOTONIC) &- anchor.mono) / 1_000_000
+    init(wall: () -> Double = { Date().timeIntervalSince1970 * 1000 },
+         mono: @escaping () -> UInt64 = { clock_gettime_nsec_np(CLOCK_MONOTONIC) }) {
+        self.wallAtStart = wall()
+        self.monoAtStart = mono()
+        self.mono = mono
     }
+
+    func nowMs() -> Double {
+        wallAtStart + Double(mono() &- monoAtStart) / 1_000_000
+    }
+
+    static let shared = SteadyClock()
+    static func nowMs() -> Double { shared.nowMs() }
 }
 
 /// Deterministic session sampling, the rule of `@ouo11y/react-native` and rum-api's server-side cap

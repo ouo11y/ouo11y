@@ -12,16 +12,9 @@ import UIKit
 public enum OuoLogLevel: Int {
     case trace, debug, info, warn, error, fatal
 
-    var severity: Severity {
-        switch self {
-        case .trace: return .trace
-        case .debug: return .debug
-        case .info: return .info
-        case .warn: return .warn
-        case .error: return .error
-        case .fatal: return .fatal
-        }
-    }
+    /// OTLP `severityNumber` and `severityText`.
+    var number: Int { [1, 5, 9, 13, 17, 21][rawValue] }
+    var text: String { ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"][rawValue] }
 }
 
 /// The ouo SDK for native iOS apps (UIKit and SwiftUI, Swift and Objective-C): sessions, crashes,
@@ -55,7 +48,7 @@ public final class Ouo: NSObject {
             return false
         }
         // Extensions have no UIApplication (and their own short lifecycle): not supported.
-        guard !isAppExtension(Bundle.main.bundleURL) else {
+        guard !isAppExtension(bundleURL()) else {
             NSLog("[ouo] Ouo.start: app extensions are not supported, nothing is recorded")
             return false
         }
@@ -67,11 +60,13 @@ public final class Ouo: NSObject {
             NSLog("[ouo] Ouo.start called twice; the first configuration stays")
             return false
         }
-        let replay = ReplayControl(config)
+        // What the app set now; later changes to `config` are not seen.
+        let settings = Settings(config)
+        let replay = ReplayControl(settings)
         var hooks = Core.Hooks()
-        // Called without Core's lock: OuoCrash's session for the next crash report, replay for the new session.
+        // Called without Core's lock, in order: OuoCrash's session for the next crash report, replay.
         hooks.sessionChanged = { rec in
-            if config.crashes { OuoCrash.setSession(rec.id, startedAtMs: Int64(rec.startedAt.rounded())) }
+            if settings.crashes { OuoCrash.setSession(rec.id, startedAtMs: Int64(rec.startedAt.rounded())) }
             replay?.sessionChanged(rec.id)
         }
         #if canImport(UIKit)
@@ -85,25 +80,25 @@ public final class Ouo: NSObject {
             if let m = ErrorContext.memoryAvailableBytes { a["ouo.memory.available_bytes"] = .int(Int64(clamping: m)) }
             return a
         }
-        let c = Core(config: config, directory: baseDirectory, hooks: hooks)
+        let c = Core(settings: settings, directory: baseDirectory, hooks: hooks)
 
         // The previous run's crash or termination, read before this run's crash state is written.
-        let report = config.crashes ? OuoCrash.takePendingReport().flatMap(NativeReport.parse) : nil
-        if config.crashes { OuoCrash.install() }
+        let report = settings.crashes ? OuoCrash.takePendingReport().flatMap(NativeReport.parse) : nil
+        if settings.crashes { OuoCrash.install() }
         ErrorContext.start()
-        let background = launchedInBackground
-        let appStart = config.vitals ? OuoVitals.beginRuntime(at: c.now()) : nil
+        let background = LaunchRole.isBackground(LaunchRole.current())
+        let appStart = settings.vitals ? OuoVitals.beginRuntime(at: c.now()) : nil
         replay?.recover()
         c.start(previousReport: report, background: background, appStart: appStart)
         lock.withLock { core = c }
 
-        if config.crashes {
+        if settings.crashes {
             OuoCrash.startHangTracking { report in Ouo.current?.hang(report) }
         }
-        if config.vitals { OuoVitals.startFrameTracking() }
+        if settings.vitals { OuoVitals.startFrameTracking() }
         URLSessionHook.install { task in Ouo.current?.taskWillResume(task) }
         #if canImport(UIKit)
-        Lifecycle.install(measureFirstFrame: config.vitals && !background)
+        Lifecycle.install(measureFirstFrame: settings.vitals && !background)
         #endif
         c.log.log("started: session \(c.sessionId), endpoint \(config.endpoint.absoluteString), project \(config.projectId)")
         return true
@@ -158,7 +153,7 @@ public final class Ouo: NSObject {
     /// A log line (C9): a record named `log` with the severity, the message and the active span's trace.
     @objc(log:message:attributes:)
     public static func log(_ level: OuoLogLevel, _ message: String, attributes: [String: Any]? = nil) {
-        current?.logLine(level.severity, message, Attributes(app: attributes), span: nil)
+        current?.logLine(level, message, Attributes(app: attributes), span: nil)
     }
 
     /// A screen is showing (C7, C4): one `navigation` per change (`url.path` = `/<name>`) and its
@@ -212,7 +207,7 @@ public final class Ouo: NSObject {
         let group = DispatchGroup()
         group.enter()
         c.flush { group.leave() }
-        if c.config.replaySampleRate > 0 {
+        if c.settings.replaySampleRate > 0 {
             group.enter()
             OuoReplay.flush { group.leave() }
         }
@@ -234,16 +229,36 @@ public final class Ouo: NSObject {
     }
 
     static func isAppExtension(_ bundleURL: URL) -> Bool { bundleURL.pathExtension == "appex" }
+    /// The main bundle's URL; replaced in tests.
+    static var bundleURL: () -> URL = { Bundle.main.bundleURL }
+}
 
-    /// iOS launched the process in the background (a background fetch, a push, a location event):
-    /// its session ends with `background` unless the app is opened in time, and it has no app start.
-    private static var launchedInBackground: Bool {
-        #if canImport(UIKit)
-        guard Thread.isMainThread else { return false }
-        return UIApplication.shared.applicationState == .background
-        #else
-        return false
-        #endif
+/// Whether iOS launched the process for the user or in the background (a background fetch, a push,
+/// a location event): a background launch's session ends with `background` unless the app is opened
+/// in time, and it has no app start. Decided from the task's role, which the system sets when it
+/// launches the process (what Datadog reads too). Not from `applicationState`: in an app with
+/// scenes (every new Xcode project, every SwiftUI `App`) it is `.background` in
+/// `didFinishLaunching` even when the user tapped the icon.
+enum LaunchRole {
+    /// `task_category_policy.role`, nil when the kernel does not answer.
+    static func current() -> Int32? {
+        var policy = task_category_policy_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_category_policy_data_t>.size / MemoryLayout<integer_t>.size)
+        var getDefault: boolean_t = 0
+        let kr = withUnsafeMutablePointer(to: &policy) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_policy_get(mach_task_self_, task_policy_flavor_t(TASK_CATEGORY_POLICY), $0, &count, &getDefault)
+            }
+        }
+        return kr == KERN_SUCCESS ? policy.role.rawValue : nil
+    }
+
+    /// Background only for the roles the system gives background launches; a foreground launch, an
+    /// unknown role or no answer count as a launch for the user (the common case, and what keeps
+    /// app start and the first screen's TTID).
+    static func isBackground(_ role: Int32?) -> Bool {
+        guard let role else { return false }
+        return [TASK_BACKGROUND_APPLICATION, TASK_DARWINBG_APPLICATION, TASK_NONUI_APPLICATION].map(\.rawValue).contains(role)
     }
 }
 
@@ -258,15 +273,15 @@ final class ReplayControl {
     private var started = false
     private var paused = false
 
-    init?(_ c: OuoConfig) {
+    init?(_ c: Settings) {
         guard c.replaySampleRate > 0 else { return nil }
         rate = c.replaySampleRate
         sessionRate = c.sessionSampleRate
         let box = SessionBox()
         config = OuoReplayConfig(
-            endpoint: c.resolvedReplayEndpoint, projectId: c.projectId, projectToken: c.projectToken,
+            endpoint: c.replayEndpoint, projectId: c.projectId, projectToken: c.projectToken,
             sessionId: { box.value }, mode: c.replayMode,
-            maskText: c.replayMaskText, maskInputs: c.replayMaskInputs, maskImages: c.replayMaskImages, maskWebViews: c.replayMaskWebViews,
+            maskText: c.replayMask.text, maskInputs: c.replayMask.inputs, maskImages: c.replayMask.images, maskWebViews: c.replayMask.webViews,
             debug: c.debug
         )
         self.box = box
@@ -318,7 +333,7 @@ enum Lifecycle {
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { _ in Ouo.current?.didBecomeActive() }
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { _ in
             guard let c = Ouo.current else { return }
-            c.didEnterBackground()
+            // The task first, so the one flush (disk, then the network) runs inside it.
             let app = UIApplication.shared
             var task = UIBackgroundTaskIdentifier.invalid
             let end = {
@@ -327,7 +342,11 @@ enum Lifecycle {
                 task = .invalid
             }
             task = app.beginBackgroundTask(withName: "ouo.flush") { end() }
-            c.flush { DispatchQueue.main.async(execute: end) }
+            c.didEnterBackground { DispatchQueue.main.async(execute: end) }
+        }
+        // The first unlock after a reboot: a session file a background launch could not read.
+        center.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: nil) { _ in
+            Ouo.current?.protectedDataAvailable()
         }
         if measureFirstFrame {
             OuoVitals.nextFrame { t in Ouo.current?.firstFrame(SteadyClock.nowMs() + (t - CACurrentMediaTime()) * 1000) }

@@ -7,8 +7,14 @@ import Testing
     final class Memory: SessionStore {
         var state: PersistedSession?
         var saves = 0
-        func load() -> PersistedSession? { state }
-        func save(_ s: PersistedSession) { state = s; saves += 1 }
+        /// Before the first unlock: the state is there and cannot be read or written.
+        var locked = false
+        func load() -> StoredSession { locked ? .unreadable : state.map(StoredSession.state) ?? .missing }
+        func save(_ s: PersistedSession) {
+            guard !locked else { return }
+            state = s
+            saves += 1
+        }
     }
 
     final class Run {
@@ -283,6 +289,74 @@ import Testing
         let m = SessionManager(store: FileSessionStore(url: url), now: { r.clock.now }, serviceVersion: "1", emit: { n, a, t in r.events.append((n, a, t)) }, onRotate: { _ in })
         m.start(crash: nil, background: false)
         #expect(r.events.map(\.name) == ["session.start"])
-        #expect(FileSessionStore(url: url).load()?.session?.id == m.current!.id)
+        guard case .state(let saved) = FileSessionStore(url: url).load() else { Issue.record("not saved"); return }
+        #expect(saved.session?.id == m.current!.id, "a corrupt file is replaced")
+    }
+
+    /// B2, on a real file: before the first unlock the file exists and cannot be read (`chmod 000`
+    /// stands in for data protection class C). It is not a fresh install: nothing is written over it,
+    /// and once it can be read the previous session ends as a cold start would end it, and the
+    /// device and the user stay.
+    @Test func AFileThatCannotBeReadYetIsAdoptedOnceItCan() throws {
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("session.json")
+        let clock = TestClock()
+        let first = Run(clock: clock)
+        let m1 = SessionManager(store: FileSessionStore(url: url), now: { clock.now }, serviceVersion: "1", emit: { _, _, _ in }, onRotate: { _ in })
+        m1.start(crash: nil, background: false)
+        let old = m1.current!.id
+        let device = m1.deviceId
+        let user = m1.user
+        let before = try Data(contentsOf: url)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path) }
+        #expect(FileSessionStore(url: url).load() == .unreadable)
+        clock.advance(60_000)
+        let m2 = SessionManager(store: FileSessionStore(url: url), now: { clock.now }, serviceVersion: "1",
+                                emit: { n, a, t in first.events.append((n, a, t)) }, onRotate: { _ in })
+        m2.start(crash: nil, background: true)
+        m2.touch()
+        m2.persistNow()
+        #expect(m2.storeUnreadable)
+        #expect(first.named("session.end").isEmpty, "nothing to end yet")
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        #expect(try Data(contentsOf: url) == before, "never written over while unreadable")
+        m2.retryStore()
+        #expect(!m2.storeUnreadable)
+        let end = first.named("session.end")
+        #expect(end.count == 1)
+        #expect(end.first?.attrs["session.id"] == .string(old))
+        #expect(end.first?.attrs["ouo.session.end_reason"] == "terminated")
+        #expect(end.first?.attrs["device.id"] == .string(device))
+        #expect(m2.deviceId == device)
+        #expect(m2.user == user)
+        #expect(m2.current!.userId == user.id)
+        guard case .state(let saved) = FileSessionStore(url: url).load() else { Issue.record("not saved"); return }
+        #expect(saved.session?.id == m2.current!.id)
+        #expect(saved.deviceId == device)
+    }
+
+    /// The same through activity: the first save after the unlock adopts the file; an app's
+    /// identified user is kept over the stored anonymous one.
+    @Test func AdoptionHappensOnTheNextSaveAndKeepsAnIdentifiedUser() {
+        let store = Memory()
+        store.state = PersistedSession(session: SessionRecord(id: "old", startedAt: 1_760_000_000_000 - 120_000, lastActivity: 1_760_000_000_000 - 60_000, userId: "anon-1"),
+                                       user: UserRecord(id: "anon-1", anonymous: true), deviceId: "device-1")
+        store.locked = true
+        let r = Run(store: store)
+        r.manager.start(crash: nil, background: false)
+        r.manager.setUser("alice")
+        #expect(store.saves == 0)
+        store.locked = false
+        r.clock.advance(2000)
+        r.manager.touch()
+        #expect(r.named("session.end").map { $0.attrs["session.id"] } == ["old"])
+        #expect(r.manager.deviceId == "device-1")
+        #expect(r.manager.user.id == "alice")
+        #expect(store.state?.deviceId == "device-1")
+        #expect(store.state?.session?.id == r.manager.current!.id)
     }
 }

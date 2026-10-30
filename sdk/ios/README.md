@@ -62,10 +62,11 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 
 Rules worth knowing:
 
-- **Threads**: every call is safe from any thread; `start` belongs on the main thread (it reads
-  the app state there). Nothing runs on the main thread but the lifecycle notifications, the display
-  link and two small file writes (the session, and the screen context after a screen change or an
-  error, so the next launch can report a crash with them).
+- **Threads**: every call is safe from any thread; call `start` early, on the main thread. It
+  reads the previous session and crash report there (the session must exist when it returns); the
+  `config` is copied, later changes to it are not seen. On the main thread afterwards: the lifecycle
+  notifications, the display link and `session.json` (at most once a second and on session
+  changes); the screen context the next launch reports a crash with is written on a queue.
 - **Times** come from a monotonic clock anchored at launch: changing the device clock mid-run does
   not reorder records or end the session.
 - **Files** (`Application Support/ouo/sdk`, excluded from backups) are written atomically and
@@ -80,7 +81,17 @@ Rules worth knowing:
   and are not traced. The SDK's own uploads are never traced.
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` ships with `OuoSDK` (no tracking; crash,
   performance, diagnostic, product interaction data and an install id, not linked to the user;
-  `UserDefaults` CA92.1, system boot time 35F9.1).
+  `UserDefaults` CA92.1, system boot time 35F9.1). An app that calls `setUser` sends its user id
+  with every record: it declares User ID, linked to the user, in its own manifest.
+- **Request URLs**: `url.full` is the whole URL, query string included, as the React Native SDK
+  sends it. Keep secrets out of query strings, or list such URLs in `ignoreUrls`.
+- **Launch kind**: a launch for the user or in the background is read from the process's task role
+  (`TASK_CATEGORY_POLICY`), not from `applicationState`, which is `.background` in
+  `didFinishLaunching` of every app with scenes (SwiftUI `App`, new Xcode projects).
+- **Before the first unlock**: a background launch after a reboot cannot read `session.json`. It is
+  not treated as a fresh install: nothing is written over it, and once the device unlocks (or the
+  next save finds it readable) its session ends as a cold start would end it and its `device.id`
+  and user are kept.
 
 ## Layout
 

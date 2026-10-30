@@ -142,7 +142,6 @@ public final class ChunkUploader {
     public let directory: URL
     private let queued: DiskQueue
     private let held: DiskQueue
-    private let transport: ChunkTransport
     private let logger: ReplayLogger
     private let lock = NSLock()
     private var droppedHere = 0
@@ -172,7 +171,6 @@ public final class ChunkUploader {
         self.authorization = authorization
         self.config = config
         self.directory = directory
-        self.transport = transport
         self.logger = logger
         let bounds = DiskQueue.Config(maxBytes: config.maxQueueBytes, maxAge: config.maxAge, retryDelay: config.retryDelay)
         self.queued = DiskQueue(directory: directory, config: bounds, transport: transport, logger: logger, now: now) { e, body in
@@ -203,20 +201,18 @@ public final class ChunkUploader {
             logger.warn("could not encode chunk seq=\(chunk.seq): \(error)")
             return
         }
-        let folder = config.hold ? held : queued
-        if folder.put(body, tag: "\(chunk.sessionId).\(chunk.seq).json.gz") {
-            logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
+        // Disk full or not writable: the queue sends it once from memory rather than nothing; a
+        // held chunk is dropped instead (its session's keep/drop decision has not been made).
+        let tag = "\(chunk.sessionId).\(chunk.seq).json.gz"
+        if config.hold {
+            guard held.put(body, tag: tag, sendIfRefused: false) else {
+                lock.withLock { droppedHere += 1 }
+                return
+            }
+        } else if !queued.put(body, tag: tag) {
             return
         }
-        // Disk full or not writable: one attempt from memory rather than nothing, unless the chunk
-        // is held (its session's keep/drop decision has not been made).
-        guard !config.hold else {
-            lock.withLock { droppedHere += 1 }
-            logger.warn("could not hold chunk seq=\(chunk.seq) on disk; dropped")
-            return
-        }
-        logger.warn("could not queue chunk seq=\(chunk.seq) on disk; sending once from memory")
-        transport.send(ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: chunk.sessionId, seq: chunk.seq, gzipBody: body)) { _ in }
+        logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
     }
 
     /// Tries to send what is queued (this process's chunks and those an earlier one left) and

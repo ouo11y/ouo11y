@@ -22,7 +22,13 @@ New entries are written by release-please from conventional commits (`feat(ios):
 - `DiskQueue` (OuoReplayCore): the folder queue the chunk uploader used, now shared with the OTLP
   outbox, with an entry bound. While a retry waits, new entries no longer trigger a send (an outage
   costs one request per backoff); entries are written readable after the first unlock.
-- `OuoVitals.nextFrame(_:)` (the next frame drawn) and `OuoCrash.stackFields(_:)` made public.
+- `OuoVitals.nextFrame(_:)` (the time the next frame shows, `targetTimestamp`) and
+  `OuoCrash.stackFields(_:)` made public.
+
+### Removed
+
+- `ChunkUploader.UploadError` (unused since the queue moved to `DiskQueue`). `DiskQueue.put` sends a
+  refused write once from memory itself (`sendIfRefused`), for chunks and OTLP alike.
 
 - **App hangs** (mobile SDK spec C3.1, roadmap W4): `OuoCrash.startHangTracking(onHang:)` runs a
   watchdog thread on `OuoVitals`' display link frames (`HangDetector`, sentry-cocoa's V2 rules: 2 s,

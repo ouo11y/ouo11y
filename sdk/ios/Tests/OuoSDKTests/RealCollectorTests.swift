@@ -23,7 +23,7 @@ struct RealCollectorTests {
         config.backgroundTimeout = 1
         var hooks = Core.Hooks()
         hooks.deviceContext = { ["network.connection.type": "wifi"] }
-        return Core(config: config, directory: dir, hooks: hooks)
+        return Core(settings: Settings(config), directory: dir, hooks: hooks)
     }
 
     private func session(_ id: String) async -> [String: Any]? {

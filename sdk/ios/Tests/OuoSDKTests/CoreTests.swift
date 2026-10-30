@@ -135,7 +135,8 @@ import OuoVitals
         let crashed = c1.sessionId
         c1.trackScreen("Home")
         c1.event("ui.tap", ["ouo.ui.target": "buy"], body: "Tap buy on Home")
-        // The process dies here: no flush, no background. The context was written at once.
+        // The process dies here: no flush, no background. The context was queued at once.
+        settle(c1)
         let crashAt = first.clock.now + 500
         let report = try #require(NativeReport.parse("""
         {"version":1,"mechanism":"signal","timestamp_ms":\(Int64(crashAt)),"session_id":"\(crashed)","session_started_ms":\(Int64(first.clock.now)),"arch":"arm64",
@@ -222,11 +223,14 @@ import OuoVitals
         let c = started(h)
         let url = h.dir.appendingPathComponent("context.json")
         c.trackScreen("Home")
+        settle(c)
         #expect(ScreenContext.load(url)?.screen == "Home")
         c.event("other", [:], body: "other step")
+        settle(c)
         #expect(ScreenContext.load(url)?.events.contains { $0.name == "other" } == false)
         h.clock.advance(5000)
         h.manual.fireDue()
+        settle(c)
         #expect(ScreenContext.load(url)?.events.contains { $0.name == "other" } == true)
         #expect(ScreenContext.load(url)?.sessionId == c.sessionId)
     }

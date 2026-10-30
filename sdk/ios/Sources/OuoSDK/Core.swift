@@ -4,15 +4,18 @@ import OuoVitals
 
 /// The SDK for one process: the session, the records and where they go. Every entry point is safe
 /// from any thread: state lives under one lock, which is never held while app code or a platform
-/// callback runs. File writes under the lock are the few small ones the spec needs on disk at once
-/// (the session, and the screen context after a tap, navigation or exception).
+/// callback runs. The only file write under it is the small `session.json` (at most once a second,
+/// and on session changes); the screen context is written on its own queue after the lock is
+/// released, and session changes are reported in order after it.
 ///
 /// The platform (UIKit lifecycle, OuoCrash, OuoVitals, OuoReplay, the URLSession hook) is wired by
 /// `Ouo.start` through `Hooks`, so this class runs in tests on macOS.
 final class Core {
     struct Hooks {
         var now: () -> Double = SteadyClock.nowMs
-        var transport: ChunkTransport = URLSessionTransport()
+        /// Created at the first send, on the outbox's queue: the first `URLSession` of a process
+        /// costs about 8 ms, which `start` on the main thread does not pay.
+        var transport: ChunkTransport = LazyTransport()
         /// Display link counters, the next frame and timers for the vitals.
         var frameStats: () -> FrameStats? = { nil }
         var nextFrame: (@escaping (Double) -> Void) -> Void = { _ in }
@@ -23,18 +26,22 @@ final class Core {
         }
         /// Memory and network type now (`ErrorContext`), for an exception's context.
         var deviceContext: () -> Attributes = { [:] }
-        /// A new session is current (OuoCrash's session, replay). Called without the lock.
+        /// A new session is current (OuoCrash's session, replay). Called without the lock, in order:
+        /// a change older than one already reported is skipped.
         var sessionChanged: (SessionRecord) -> Void = { _ in }
+        /// Writes the screen context (`context.json`); injectable so tests can hold the write.
+        var saveContext: ((ScreenContext, URL) -> Void)? = nil
     }
 
     static let platform = "mobile"
     /// Longest `message` attribute of a log line (the Sentry bridge's cut).
     static let maxLogMessage = 1024
 
-    let config: OuoConfig
+    let settings: Settings
     let log: Log
     let exporter: Exporter
-    let resource: Attributes
+    /// The resource without `device.id`, which the session store holds (`publishDevice`).
+    let baseResource: Attributes
     /// The SDK's own requests, never traced.
     let ingestPrefixes: [String]
     private let hooks: Hooks
@@ -51,28 +58,35 @@ final class Core {
     private var inBackground = false
     private var savedContext: ScreenContext?
     private var contextTimer = false
-    /// Session changes seen under the lock, reported after it is released.
-    private var rotations: [SessionRecord] = []
+    /// Effects of a locked section that run after the lock is released (`locked`).
+    private var generation = 0
+    private var pendingRotation: (Int, SessionRecord)?
+    private var contextSeq = 0
+    private var pendingContext: (Int, ScreenContext)?
+    private var publishedDevice = ""
+    /// Writes `context.json` in order, off the caller's thread and out of the lock.
+    let io = DispatchQueue(label: "dev.ouo.context", qos: .utility)
+    private var writtenSeq = 0 // `io` only
+    private let delivery = InOrder<SessionRecord>()
 
-    init(config: OuoConfig, directory: URL, hooks: Hooks = Hooks()) {
-        self.config = config
+    init(settings: Settings, directory: URL, hooks: Hooks = Hooks()) {
+        self.settings = settings
         self.hooks = hooks
         self.directory = directory
         self.contextURL = directory.appendingPathComponent("context.json")
-        self.log = Log(enabled: config.debug)
+        self.log = Log(enabled: settings.debug)
         self.locale = Core.deviceLocale()
-        let replay = config.resolvedReplayEndpoint
-        let resource = Core.resource(config)
-        self.resource = resource
+        let resource = Core.resource(settings)
+        self.baseResource = resource
         self.exporter = Exporter(
-            endpoint: config.endpoint,
-            authorization: ChunkUploader.basicAuthorization(projectId: config.projectId, projectToken: config.projectToken),
+            endpoint: settings.endpoint,
+            authorization: ChunkUploader.basicAuthorization(projectId: settings.projectId, projectToken: settings.projectToken),
             directory: directory.appendingPathComponent("otlp", isDirectory: true),
             resource: resource,
             transport: hooks.transport,
             log: log
         )
-        self.ingestPrefixes = [exporter.logsURL.absoluteString, exporter.tracesURL.absoluteString, Exporter.trim(replay) + ChunkUploader.chunksPath]
+        self.ingestPrefixes = [exporter.logsURL.absoluteString, exporter.tracesURL.absoluteString, Exporter.trim(settings.replayEndpoint) + ChunkUploader.chunksPath]
     }
 
     // MARK: - start
@@ -81,8 +95,6 @@ final class Core {
     /// there is one), the new one starts, then the report itself is sent as a fatal `exception` of
     /// the crashed session, stamped at the crash, with the screen and last events that run persisted.
     func start(previousReport: NativeReport?, background: Bool, appStart: AppStartInfo?) {
-        // Read before this run writes its own.
-        let previousContext = ScreenContext.load(contextURL)
         locked {
             inBackground = background
             // The launch's own state is no change: the first `app.lifecycle` is the first change.
@@ -90,17 +102,27 @@ final class Core {
             session = SessionManager(
                 store: FileSessionStore(url: directory.appendingPathComponent("session.json")),
                 now: hooks.now,
-                timeouts: SessionManager.Timeouts(inactivity: config.inactivityTimeout * 1000, maxDuration: config.maxSessionDuration * 1000, background: config.backgroundTimeout * 1000),
-                serviceVersion: config.serviceVersion,
+                timeouts: settings.timeouts,
+                serviceVersion: settings.serviceVersion,
                 emit: { [unowned self] name, attrs, at in self.emitLocked(name, attrs, at: at) },
-                onRotate: { [unowned self] rec in self.rotations.append(rec) }
+                onRotate: { [unowned self] rec in
+                    self.generation += 1
+                    self.pendingRotation = (self.generation, rec)
+                }
             )
-            if config.vitals {
+            if settings.vitals {
                 vitals = Vitals(deps: vitalsDeps(), appStart: appStart, launchedInForeground: !background)
             }
             session.start(crash: previousReport?.crashMarker, background: background)
-            if let r = previousReport { emitPreviousReportLocked(r, previousContext) }
             vitals?.sessionReady()
+        }
+        // The crashed run's screen and last events: read on the context queue before this run
+        // writes its own there, off the caller's thread.
+        if let r = previousReport {
+            io.async { [self] in
+                let ctx = ScreenContext.load(contextURL)
+                locked { emitPreviousReportLocked(r, ctx) }
+            }
         }
         exporter.drain()
     }
@@ -118,12 +140,12 @@ final class Core {
     // MARK: - records
 
     /// An event (`event.name`) on the current session, or on the session its attributes name.
-    func event(_ name: String, _ attrs: Attributes, severity: Severity = .info, at: Double? = nil, body: String? = nil, trace: (String, String)? = nil) {
+    func event(_ name: String, _ attrs: Attributes, severity: OuoLogLevel = .info, at: Double? = nil, body: String? = nil, trace: (String, String)? = nil) {
         locked { emitLocked(name, attrs, severity: severity, at: at ?? hooks.now(), body: body, trace: trace) }
     }
 
     /// `log` (C9): the message as body and `message`, the active span's trace.
-    func logLine(_ severity: Severity, _ message: String, _ attrs: Attributes, span: OuoSpan?) {
+    func logLine(_ severity: OuoLogLevel, _ message: String, _ attrs: Attributes, span: OuoSpan?) {
         var a = attrs
         a["message"] = .string(String(message.prefix(Self.maxLogMessage)))
         let trace = (span ?? OuoSpan.active).map { ($0.traceId, $0.spanId) }
@@ -202,16 +224,23 @@ final class Core {
         locked { lifecycleLocked("inactive") }
     }
 
-    /// The event first, so the flush that follows sends it.
-    func didEnterBackground() {
+    /// The event first, then one flush that writes everything to disk and tries to send it;
+    /// `completion` once the outbox is empty or the collector could not be reached (the host ends its
+    /// background task there).
+    func didEnterBackground(completion: @escaping () -> Void = {}) {
         locked {
             lifecycleLocked("background")
             inBackground = true
             vitals?.background()
             session.background()
-            persistContextLocked()
         }
-        exporter.flush()
+        flush(completion: completion)
+    }
+
+    /// The device's protected data became available (the first unlock): a session file that could
+    /// not be read at start is adopted now.
+    func protectedDataAvailable() {
+        locked { session.retryStore() }
     }
 
     /// Back from the background the session may rotate first, so the event lands in the new one.
@@ -233,7 +262,7 @@ final class Core {
     private func lifecycleLocked(_ state: String) {
         guard state != lifecycle else { return }
         lifecycle = state
-        guard config.lifecycleEvents else { return }
+        guard settings.lifecycleEvents else { return }
         emitLocked("app.lifecycle", ["ouo.app.state": .string(state)], at: hooks.now(), body: "app \(state)")
     }
 
@@ -248,7 +277,7 @@ final class Core {
     /// Session ids for a request's baggage and a span, without touching the session.
     func correlation() -> Attributes {
         locked {
-            var a: Attributes = ["service.version": .string(config.serviceVersion)]
+            var a: Attributes = ["service.version": .string(settings.serviceVersion)]
             stampLocked(&a)
             return a
         }
@@ -261,20 +290,25 @@ final class Core {
         exporter.add(span)
     }
 
-    /// Writes the session, the context and every pending record to disk, then tries to send them;
-    /// `completion` once the outbox is empty or its oldest request failed again.
+    /// Writes the session (now), the context and every pending record to disk (on the context
+    /// queue), then tries to send them; `completion` once the outbox is empty or its oldest request
+    /// failed again.
     func flush(completion: @escaping () -> Void) {
         locked {
             session.persistNow()
             persistContextLocked()
         }
-        exporter.flush()
-        exporter.drain(completion: completion)
+        // On the context queue: after the context write queued above, and after the previous run's
+        // report that `start` emits there.
+        io.async {
+            self.exporter.flush()
+            self.exporter.drain(completion: completion)
+        }
     }
 
     // MARK: - internals (under `lock`)
 
-    private func emitLocked(_ name: String, _ attrs: Attributes, severity: Severity = .info, at: Double, body: String? = nil, trace: (String, String)? = nil) {
+    private func emitLocked(_ name: String, _ attrs: Attributes, severity: OuoLogLevel = .info, at: Double, body: String? = nil, trace: (String, String)? = nil) {
         var a = attrs
         a["event.name"] = .string(name)
         stampLocked(&a)
@@ -299,7 +333,7 @@ final class Core {
     private func stampLocked(_ a: inout Attributes) {
         func set(_ k: String, _ v: AttributeValue) { if a[k] == nil { a[k] = v } }
         set("ouo.platform", .string(Self.platform))
-        set("service.version", .string(config.serviceVersion))
+        set("service.version", .string(settings.serviceVersion))
         if case .string(let named)? = a["session.id"] {
             set("user.id", .string(session.user.id))
             set("ouo.user.anonymous", .bool(session.user.anonymous))
@@ -313,16 +347,18 @@ final class Core {
         if let p = s.previousId { set("session.previous_id", .string(p)) }
     }
 
+    /// Snapshots the context; `locked` writes it after the lock is released.
     private func persistContextLocked() {
         guard let id = session.current?.id else { return }
         let c = ScreenContext(sessionId: id, screen: screen, events: recent.read(id))
         guard c != savedContext else { return }
         savedContext = c
-        c.save(contextURL)
+        contextSeq += 1
+        pendingContext = (contextSeq, c)
     }
 
     private func sampled(_ sessionId: String) -> Bool {
-        Sampling.sampled(sessionId, rate: config.sessionSampleRate, salt: Sampling.session)
+        Sampling.sampled(sessionId, rate: settings.sessionSampleRate, salt: Sampling.session)
     }
 
     private func vitalsDeps() -> Vitals.Deps {
@@ -337,15 +373,37 @@ final class Core {
         )
     }
 
-    /// Runs `body` under the lock, then reports the session changes it caused.
+    /// Runs `body` under the lock, then, released: the context write it asked for (queued, so in
+    /// order and off this thread; a crash within a millisecond of it can lose it, as the React
+    /// Native SDK's asynchronous storage can), the resource's `device.id` when it changed, and the
+    /// session change it caused, in order across threads.
     @discardableResult
     func locked<T>(_ body: () -> T) -> T {
         lock.lock()
         let result = body()
-        let changed = rotations
-        rotations = []
+        let rotation = pendingRotation
+        let context = pendingContext
+        pendingRotation = nil
+        pendingContext = nil
+        let device = session?.deviceId ?? ""
+        let deviceChanged = device != publishedDevice
+        publishedDevice = device
         lock.unlock()
-        changed.forEach(hooks.sessionChanged)
+        if let (seq, c) = context {
+            let url = contextURL
+            let save = hooks.saveContext ?? { c, url in c.save(url) }
+            io.async { [self] in
+                guard seq > writtenSeq else { return }
+                writtenSeq = seq
+                save(c, url)
+            }
+        }
+        if deviceChanged && !device.isEmpty {
+            var r = baseResource
+            r["device.id"] = .string(device)
+            exporter.setResource(r)
+        }
+        if let (gen, rec) = rotation { delivery.deliver(gen, rec, hooks.sessionChanged) }
         return result
     }
 
@@ -372,12 +430,14 @@ final class Core {
         return id.isEmpty ? nil : id
     }
 
-    /// Resource attributes, set once (mobile SDK spec rule 3); the app's extra ones lose on a clash.
-    static func resource(_ c: OuoConfig) -> Attributes {
-        var a = Attributes(app: c.resourceAttributes)
+    /// Resource attributes, set once (mobile SDK spec rule 3) but for `device.id`, which comes from
+    /// the session store; the app's extra ones lose on a clash.
+    static func resource(_ c: Settings) -> Attributes {
+        var a = c.resourceAttributes
         let v = ProcessInfo.processInfo.operatingSystemVersion
         let env = ProcessInfo.processInfo.environment
         let simulatorModel = env["SIMULATOR_MODEL_IDENTIFIER"]
+        let model = simulatorModel ?? machine()
         a.merge([
             "service.name": .string(c.serviceName),
             "service.version": .string(c.serviceVersion),
@@ -385,28 +445,24 @@ final class Core {
             "ouo.platform": .string(platform),
             "ouo.sdk.name": .string(Ouo.sdkName),
             "ouo.sdk.version": .string(Ouo.sdkVersion),
-            "os.name": .string(osName),
+            "os.name": .string(osName(model: model)),
             "os.version": .string("\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"),
             "device.manufacturer": "Apple",
-            "device.model.identifier": .string(simulatorModel ?? machine()),
+            "device.model.identifier": .string(model),
         ]) { _, sdk in sdk }
         if simulatorModel != nil { a["ouo.device.simulator"] = true }
         return a
     }
 
-    private static var osName: String {
+    private static func osName(model: String) -> String {
         #if os(iOS)
-        return ProcessInfo.processInfo.isiOSAppOnMac ? "macOS" : (isPad ? "iPadOS" : "iOS")
+        return ProcessInfo.processInfo.isiOSAppOnMac ? "macOS" : (model.hasPrefix("iPad") ? "iPadOS" : "iOS")
         #elseif os(macOS)
         return "macOS"
         #else
         return "unknown"
         #endif
     }
-
-    #if os(iOS)
-    static var isPad = false
-    #endif
 
     /// `hw.machine`: `iPhone17,1`.
     private static func machine() -> String {
@@ -415,5 +471,37 @@ final class Core {
         return withUnsafeBytes(of: &info.machine) { raw in
             String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
         }
+    }
+}
+
+/// Delivers values in the order they were made, across threads: one older than one already delivered
+/// is skipped (a session change reported after a newer one would leave OuoCrash and replay on an
+/// ended session).
+final class InOrder<T> {
+    private let lock = NSLock()
+    private var delivered = 0
+
+    func deliver(_ generation: Int, _ value: T, _ call: (T) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation > delivered else { return }
+        delivered = generation
+        call(value)
+    }
+}
+
+/// A `URLSessionTransport` made when the first request is sent.
+final class LazyTransport: ChunkTransport {
+    private let lock = NSLock()
+    private var inner: URLSessionTransport?
+
+    func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Swift.Error>) -> Void) {
+        let t: URLSessionTransport = lock.withLock {
+            if let inner { return inner }
+            let made = URLSessionTransport()
+            inner = made
+            return made
+        }
+        t.send(request, completion: completion)
     }
 }

@@ -69,7 +69,7 @@ import Testing
 
 @Suite struct OTLPTests {
     @Test func LogsJSON() throws {
-        let r = LogRecord(timeMs: 1_760_000_000_123.456, severity: .error, body: "b", attributes: ["event.name": "exception", "n": 42, "d": 1.5, "t": true, "nan": .double(.nan)], traceId: "ab", spanId: "cd")
+        let r = LogRecord(timeMs: 1_760_000_000_123.456, severity: OuoLogLevel.error, body: "b", attributes: ["event.name": "exception", "n": 42, "d": 1.5, "t": true, "nan": .double(.nan)], traceId: "ab", spanId: "cd")
         let o = try #require(try JSONSerialization.jsonObject(with: OTLP.logsBody([r], resource: ["service.name": "x"])) as? [String: Any])
         let rl = try #require((o["resourceLogs"] as? [[String: Any]])?.first)
         let res = try #require((rl["resource"] as? [String: Any])?["attributes"] as? [[String: Any]])
@@ -152,19 +152,6 @@ import Testing
         #expect(online.logs.map(\.body) == ["0", "1", "2", "3", "4"])
     }
 
-    /// The disk refuses (full, or protected before the first unlock): one attempt from memory.
-    @Test func ADiskFailureSendsOnceFromMemory() async throws {
-        let blocker = tempDir()
-        try Data().write(to: blocker)
-        let sink = Sink()
-        let e = exporter(blocker, sink)
-        e.add(record(1))
-        e.flush()
-        for _ in 0..<50 where sink.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
-        #expect(sink.logs.map(\.body) == ["1"])
-        #expect(sink.requests.first?.value(forHTTPHeaderField: "content-encoding") == "gzip")
-    }
-
     @Test func BoundsAre5MB500Requests24h() {
         #expect(Exporter.outbox.maxBytes == 5 * 1024 * 1024)
         #expect(Exporter.outbox.maxEntries == 500)
@@ -230,18 +217,9 @@ import Testing
         #expect(r.read("a").map(\.body) == ["early", "late"], "oldest first by ts, this session only")
     }
 
-    @Test func SteadyClockNeverGoesBack() {
-        var last = SteadyClock.nowMs()
-        for _ in 0..<1000 {
-            let n = SteadyClock.nowMs()
-            #expect(n >= last)
-            last = n
-        }
-        #expect(abs(SteadyClock.nowMs() - Date().timeIntervalSince1970 * 1000) < 60_000)
-    }
 }
 
-@Suite struct PublicAPITests {
+@Suite(.serialized) struct PublicAPITests {
     @Test func ConfigProblemsAndDefaults() {
         let ok = OuoConfig(endpoint: URL(string: "http://localhost:4318")!, projectId: " demo ", projectToken: "t", serviceName: "s")
         #expect(ok.problem == nil)
@@ -255,11 +233,6 @@ import Testing
         #expect(OuoConfig(endpoint: URL(string: "https://x")!, projectId: "", projectToken: "t", serviceName: "s").problem != nil)
         #expect(OuoConfig(endpoint: URL(string: "https://x")!, projectId: "a:b", projectToken: "t", serviceName: "s").problem != nil)
         #expect(OuoConfig(endpoint: URL(string: "https://x")!, projectId: "p", projectToken: "t", serviceName: "").problem != nil)
-    }
-
-    @Test func AppExtensionsAreRefused() {
-        #expect(Ouo.isAppExtension(URL(fileURLWithPath: "/x/App.app/PlugIns/Share.appex")))
-        #expect(!Ouo.isAppExtension(URL(fileURLWithPath: "/x/App.app")))
     }
 
     /// Before `start` every call is a no-op, and a bad config does not start anything.

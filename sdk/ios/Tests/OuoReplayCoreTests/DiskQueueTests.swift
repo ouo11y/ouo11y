@@ -72,4 +72,18 @@ import Testing
         #expect(t.sent.map { $0.request.url!.lastPathComponent } == ["new", "old"])
         #expect(held.count == 0)
     }
+
+    /// A refused write is sent once from memory, unless the caller says not to (held chunks).
+    @Test func ARefusedWriteIsSentOnceFromMemory() async throws {
+        let d = dir()
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: d.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: d.path) }
+        let t = FakeTransport()
+        let q = queue(d, t)
+        #expect(!q.put(Data("a".utf8), tag: "a"))
+        #expect(!q.put(Data("b".utf8), tag: "b", sendIfRefused: false))
+        for _ in 0..<50 where t.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        #expect(t.sent.map { $0.request.url!.lastPathComponent } == ["a"])
+    }
 }

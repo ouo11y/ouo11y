@@ -89,3 +89,51 @@ public final class OuoConfig: NSObject {
         return c.url ?? endpoint
     }
 }
+
+/// The config as `start` saw it: an immutable copy, so an app changing `OuoConfig` afterwards does
+/// not race with the network, timer and watchdog threads that read it.
+struct Settings {
+    let endpoint: URL
+    let replayEndpoint: URL
+    let projectId: String
+    let projectToken: String
+    let serviceName: String
+    let serviceVersion: String
+    let environment: String
+    let sessionSampleRate: Double
+    let timeouts: SessionManager.Timeouts
+    let propagateTo: [String]
+    let ignoreUrls: [String]
+    let requestEvents: Bool
+    let lifecycleEvents: Bool
+    let crashes: Bool
+    let vitals: Bool
+    let replaySampleRate: Double
+    let replayMode: ReplayMode
+    let replayMask: (text: Bool, inputs: Bool, images: Bool, webViews: Bool)
+    let resourceAttributes: Attributes
+    let debug: Bool
+
+    init(_ c: OuoConfig) {
+        endpoint = c.endpoint
+        replayEndpoint = c.resolvedReplayEndpoint
+        projectId = c.projectId
+        projectToken = c.projectToken
+        serviceName = c.serviceName
+        serviceVersion = c.serviceVersion
+        environment = c.environment
+        sessionSampleRate = c.sessionSampleRate
+        timeouts = SessionManager.Timeouts(inactivity: c.inactivityTimeout * 1000, maxDuration: c.maxSessionDuration * 1000, background: c.backgroundTimeout * 1000)
+        propagateTo = c.propagateTo
+        ignoreUrls = c.ignoreUrls
+        requestEvents = c.requestEvents
+        lifecycleEvents = c.lifecycleEvents
+        crashes = c.crashes
+        vitals = c.vitals
+        replaySampleRate = c.replaySampleRate
+        replayMode = c.replayMode
+        replayMask = (c.replayMaskText, c.replayMaskInputs, c.replayMaskImages, c.replayMaskWebViews)
+        resourceAttributes = Attributes(app: c.resourceAttributes)
+        debug = c.debug
+    }
+}

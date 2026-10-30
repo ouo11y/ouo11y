@@ -20,11 +20,10 @@ final class Exporter {
     let logsURL: URL
     let tracesURL: URL
     let queue: DiskQueue
-    private let resource: Attributes
-    private let transport: ChunkTransport
-    private let headers: [String: String]
+    private var resource: Attributes
     private let log: Log
     private let lock = NSLock()
+    private let flushLock = NSLock()
     private var logs: [LogRecord] = []
     private var spans: [SpanRecord] = []
     private var scheduled = false
@@ -39,8 +38,6 @@ final class Exporter {
         self.logsURL = logsURL
         self.tracesURL = tracesURL
         self.resource = resource
-        self.transport = transport
-        self.headers = headers
         self.log = log
         self.queue = DiskQueue(directory: directory, config: config, transport: transport, logger: ReplayLogger(enabled: log.enabled), now: now) { entry, body in
             switch entry.tag {
@@ -89,30 +86,33 @@ final class Exporter {
         schedule(now: full)
     }
 
-    /// Writes every pending record to the outbox before returning (background, `flush`).
+    /// The resource of the batches written from now on (`device.id` arrives with the session store).
+    func setResource(_ r: Attributes) {
+        lock.withLock { resource = r }
+    }
+
+    /// Writes every pending record to the outbox before returning (background, `flush`). A batch the
+    /// disk refuses (full, or protected before the first unlock) is sent once from memory. Flushes run
+    /// one at a time: one that a timer started holds the records it took until they are on disk, so
+    /// a caller's flush returns only after those too.
     func flush() {
-        let (l, s): ([LogRecord], [SpanRecord]) = lock.withLock {
+        flushLock.lock()
+        defer { flushLock.unlock() }
+        let (l, s, res): ([LogRecord], [SpanRecord], Attributes) = lock.withLock {
             defer { logs = []; spans = [] }
-            return (logs, spans)
+            return (logs, spans, resource)
         }
         for batch in stride(from: 0, to: l.count, by: Self.maxBatch).map({ Array(l[$0..<min($0 + Self.maxBatch, l.count)]) }) {
-            put(OTLP.logsBody(batch, resource: resource), tag: "logs.json", url: logsURL)
+            queue.put(OTLP.logsBody(batch, resource: res), tag: "logs.json")
         }
         for batch in stride(from: 0, to: s.count, by: Self.maxBatch).map({ Array(s[$0..<min($0 + Self.maxBatch, s.count)]) }) {
-            put(OTLP.tracesBody(batch, resource: resource), tag: "traces.json", url: tracesURL)
+            queue.put(OTLP.tracesBody(batch, resource: res), tag: "traces.json")
         }
     }
 
     /// Sends what the outbox holds; `completion` once it is empty or its oldest request failed again.
     func drain(completion: @escaping () -> Void = {}) {
         queue.drain(completion: completion)
-    }
-
-    private func put(_ body: Data, tag: String, url: URL) {
-        guard !queue.put(body, tag: tag) else { return }
-        // The disk refused it (full, or protected before the first unlock): one attempt from memory.
-        log.warn("could not store \(tag) on disk; sending it once from memory")
-        transport.send(Self.request(url, headers, body)) { _ in }
     }
 
     private func schedule(now: Bool) {

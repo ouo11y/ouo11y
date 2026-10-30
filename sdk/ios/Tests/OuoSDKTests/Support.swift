@@ -163,10 +163,16 @@ struct Harness {
         self.sink = sink
     }
 
-    func core(_ configure: (OuoConfig) -> Void = { _ in }, frames: @escaping () -> FrameStats? = { nil }, sessionChanged: @escaping (SessionRecord) -> Void = { _ in }) -> Core {
+    static func config(_ configure: (OuoConfig) -> Void = { _ in }) -> OuoConfig {
         let config = OuoConfig(endpoint: URL(string: "http://localhost:4318")!, projectId: "demo", projectToken: "pt_test", serviceName: "native-test")
         config.serviceVersion = "1.0.0"
         configure(config)
+        return config
+    }
+
+    func core(_ configure: (OuoConfig) -> Void = { _ in }, config: OuoConfig? = nil, frames: @escaping () -> FrameStats? = { nil },
+              sessionChanged: @escaping (SessionRecord) -> Void = { _ in }, saveContext: ((ScreenContext, URL) -> Void)? = nil) -> Core {
+        let config = config ?? Harness.config(configure)
         var hooks = Core.Hooks()
         hooks.now = { [clock] in clock.now }
         hooks.transport = sink
@@ -175,7 +181,8 @@ struct Harness {
         hooks.frameStats = frames
         hooks.deviceContext = { ["network.connection.type": "wifi", "ouo.memory.app_bytes": 1000] }
         hooks.sessionChanged = sessionChanged
-        return Core(config: config, directory: dir, hooks: hooks)
+        hooks.saveContext = saveContext
+        return Core(settings: Settings(config), directory: dir, hooks: hooks)
     }
 }
 
@@ -188,6 +195,9 @@ func frameStats(total: Int, slow: Int = 0, frozen: Int = 0, delayMs: Double = 0)
     s.expectedFrameMs = 16.7
     return s
 }
+
+/// Waits for the context queue (context writes, the previous run's report).
+func settle(_ core: Core) { core.io.sync {} }
 
 /// Flushes and waits for the outbox to drain.
 func flush(_ core: Core) async {
