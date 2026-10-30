@@ -42,3 +42,13 @@ Branch `claude/w3a-swift`, second of the two W3 tiles PRs of [roadmap.md](../../
 - At T4, most bytes are keyframes: the full image that opens every 5 s chunk, plus full images after scrolls. A longer keyframe interval would save more, but ADR-0014 fixes it at 5 s (the roadmap's 6 s); revisit only with a new measurement and an ADR revision.
 - Buffer mode (ADR-0014) is not built: it needs the on-disk ring (`ChunkSpool` as its one-entry case) and the plugin's label.
 - `examples/fast-tracked/30-mobile-ios.md` still describes pre-W1 capture (touch captures, 10 frames per chunk); it is a historical guide, left as is.
+
+## Review round 1 (review-pr-118-tiles)
+
+- **Fixed**:
+  - `ChunkSpool.recover()` deleted the file before the recovered chunk reached the outbox, so a kill in that window lost it. The file now stays until the caller's `clear()`, which `ReplayRecorder.recoverSpool` runs after `enqueue` (a kill before that re-sends the chunk with the same seq, which replaces its copy). With nothing to send, `recover()` still removes the file. Tested: the chunk recovers again until `clear()`.
+  - The `withPixels` fallback made its bitmap in the image's own color space, which fails for gray or extended-range images; it is sRGB now. Tested with 8-bit gray and 16-bit float extended sRGB.
+  - The spec no longer says no SDK emits `mode`.
+- **Answered, not changed**:
+  - Each P3 patch JPEG carries the 554 B Display P3 profile. Stripping it would make browsers draw the patch in sRGB beside a P3 full image (visible seams), and gzip absorbs most of the repeat within a chunk.
+- Verified: `sdk/ios/test.sh` 84 Core tests, the UIKit simulator build.

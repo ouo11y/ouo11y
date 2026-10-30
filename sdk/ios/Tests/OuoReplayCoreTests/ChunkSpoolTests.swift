@@ -28,7 +28,8 @@ import Testing
         b.add(makeFrame(ts: 2_100, bytes: 0x01))
         // The process dies here: no cut, no flush. A touch after the last frame may be lost.
 
-        let chunk = try #require(ChunkSpool(url: url).recover(now: 3_000))
+        let spool = ChunkSpool(url: url)
+        let chunk = try #require(spool.recover(now: 3_000))
         #expect(chunk.sessionId == "crashed-session")
         #expect(chunk.seq == 1)
         #expect(chunk.startedAt == 1_000)
@@ -37,7 +38,10 @@ import Testing
         #expect(chunk.touches == [Touch(ts: 1_000, x: 1, y: 2, phase: .began)])
         #expect(chunk.viewport.scale == 1)
         #expect(chunk.mode == "navigation")
-        #expect(ChunkSpool(url: url).recover(now: 3_000) == nil, "sent at most once")
+        // Until the uploader stored it (`clear()`), a kill sends it again on the next launch.
+        #expect(try #require(ChunkSpool(url: url).recover(now: 3_000)) == chunk)
+        spool.clear()
+        #expect(ChunkSpool(url: url).recover(now: 3_000) == nil, "gone once handed over")
     }
 
     @Test func CutChunkLeavesNothingBehind() {

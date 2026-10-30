@@ -5,7 +5,7 @@ import Foundation
 ///
 /// One append-only JSON Lines file: the chunk header first, then one line per frame and one per
 /// batch of touches. A line cut short by the crash fails to decode and is skipped. Written on the
-/// capture queue; the file is removed when the chunk is cut and handed to the uploader. Its folder
+/// capture queue; the file is removed once the chunk was handed to the uploader. Its folder
 /// is excluded from device backups. A chunk older than `maxAge` is not sent.
 public final class ChunkSpool {
     struct Header: Codable {
@@ -67,17 +67,19 @@ public final class ChunkSpool {
         write(Line(touches: touches))
     }
 
-    /// The chunk was cut and handed over: the file is no longer needed.
-    func clear() {
+    /// The chunk was handed over (the uploader stored it): the file is no longer needed.
+    public func clear() {
         close()
         try? FileManager.default.removeItem(at: url)
     }
 
     /// The chunk the previous process left open, if it holds anything and is younger than
-    /// `maxAge`, and removes the file. Call before the first frame of this process.
+    /// `maxAge`. Call before the first frame of this process. The file stays until `clear()`, which
+    /// the caller runs once the uploader stored the chunk, so a kill in between sends it again on
+    /// the next launch (same session and seq: it replaces its copy). With nothing to send the file
+    /// is removed here.
     public func recover(now: EpochMillis = Clock.nowMillis()) -> FrameChunk? {
         close()
-        defer { try? FileManager.default.removeItem(at: url) }
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         var header: Header?
@@ -93,8 +95,10 @@ public final class ChunkSpool {
         }
         // Only the last line can be cut short, but never let a chunk start with a patch frame.
         frames = Array(frames.drop { !$0.isFull })
-        guard let header, !(frames.isEmpty && touches.isEmpty) else { return nil }
-        guard Double(now - header.startedAt) / 1000 <= Self.maxAge else { return nil }
+        guard let header, !(frames.isEmpty && touches.isEmpty), Double(now - header.startedAt) / 1000 <= Self.maxAge else {
+            clear()
+            return nil
+        }
         let last = max(frames.map(\.ts).max() ?? 0, touches.map(\.ts).max() ?? 0)
         return FrameChunk(
             sessionId: header.sessionId,

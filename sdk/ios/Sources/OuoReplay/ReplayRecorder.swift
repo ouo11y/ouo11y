@@ -84,10 +84,13 @@ final class ReplayRecorder {
             guard !recovered else { return }
             recovered = true
             let uploader = OuoReplay.uploader(config)
-            if let chunk = ChunkSpool(url: config.spoolURL).recover() {
+            let spool = ChunkSpool(url: config.spoolURL)
+            if let chunk = spool.recover() {
                 logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
                 uploader.enqueue(chunk)
             }
+            // After enqueue stored it in the outbox: a kill before this line sends it again.
+            spool.clear()
             uploader.drain {}
         }
     }

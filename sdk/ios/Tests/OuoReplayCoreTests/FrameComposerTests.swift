@@ -166,4 +166,27 @@ import Testing
             Issue.record("forceFull sends a changed frame as a full image"); return
         }
     }
+
+    /// Pixels in another layout (8-bit gray, 16-bit float extended sRGB) go through an sRGB BGRA
+    /// bitmap: the frame still encodes and diffs.
+    @Test func OtherPixelLayoutsStillEncode() throws {
+        let gray = CGContext(data: nil, width: 70, height: 70, bitsPerComponent: 8, bytesPerRow: 0,
+                             space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+        gray.setFillColor(gray: 0.5, alpha: 1)
+        gray.fill(CGRect(x: 0, y: 0, width: 70, height: 70))
+        let extended = try #require(CGColorSpace(name: CGColorSpace.extendedSRGB))
+        let float = CGContext(data: nil, width: 70, height: 70, bitsPerComponent: 16, bytesPerRow: 0, space: extended,
+                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.floatComponents.rawValue | CGBitmapInfo.byteOrder16Little.rawValue)!
+        float.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1))
+        float.fill(CGRect(x: 0, y: 0, width: 70, height: 70))
+        for image in [gray.makeImage()!, float.makeImage()!] {
+            let differ = TileDiffer()
+            guard case .full = FrameComposer(jpegQuality: 0.5).encode(image, differ: differ, forceFull: false) else {
+                Issue.record("bpp \(image.bitsPerPixel): the first frame is a full image"); continue
+            }
+            guard case .unchanged = FrameComposer(jpegQuality: 0.5).encode(image, differ: differ, forceFull: false) else {
+                Issue.record("bpp \(image.bitsPerPixel): the same frame again is unchanged"); continue
+            }
+        }
+    }
 }

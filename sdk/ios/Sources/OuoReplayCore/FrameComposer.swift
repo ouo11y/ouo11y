@@ -119,7 +119,8 @@ public struct FrameComposer: Sendable {
            CFDataGetLength(data) >= image.bytesPerRow * image.height, let base = CFDataGetBytePtr(data) {
             return body(UnsafeRawBufferPointer(start: base, count: CFDataGetLength(data)), image.bytesPerRow)
         }
-        guard let ctx = makeContext(pixelWidth: image.width, pixelHeight: image.height, colorSpace: image.colorSpace ?? sRGB),
+        // sRGB, not the image's own space: a gray or extended-range space has no 8-bit BGRA context.
+        guard let ctx = makeContext(pixelWidth: image.width, pixelHeight: image.height),
               let base = ctx.data else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         return body(UnsafeRawBufferPointer(start: base, count: ctx.bytesPerRow * image.height), ctx.bytesPerRow)
