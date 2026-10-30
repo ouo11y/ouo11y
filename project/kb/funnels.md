@@ -54,10 +54,13 @@ Context: roadmap W5, spec C6 and C7 (`docs/specs/mobile-sdk.md`), quickstart
   used.
 - **Gesture thresholds**: 500 ms is React Native's `delayLongPress` default; 10 points is about
   UIKit's pan slop. A move wins over a hold (a slow drag is a swipe).
-- **Keep the open touch per instance, not in a closure.** A long press often re-renders the tree
-  before the finger lifts; a closure variable of the render that saw the start is gone by then. A
-  `WeakMap` keyed by the RUM instance also stops a nested provider from counting the touch twice;
-  a touch older than 10 s is dropped so a lost `touchend` cannot block the next ones.
+- **Keep the open touch in the SDK instance, not in the provider's closure.** A long press often
+  re-renders the tree before the finger lifts; a closure variable of the render that saw the start
+  is gone by then. Read the screen at the start too: an `onLongPress` or `onPressIn` that navigates
+  commits before the finger lifts, and a screen read at the end names the next screen (review of
+  #117). A nested provider gets the same event object as it bubbles (ignore it), a second finger
+  has `nativeEvent.touches.length > 1` (ignore it), and any other start replaces the open touch,
+  so a lost `touchend` (its view unmounted) neither blocks nor hijacks the next touch.
 - **Stamp at the start, emit at the end.** The record needs the gesture, known only at the end,
   but the plugin pairs `ui.tap` with the replay's touch by the start time (`TAP_MATCH_MS`), so the
   record's timestamp is the touch start.

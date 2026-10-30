@@ -28,6 +28,12 @@ export interface TouchedComponent {
 
 export type Gesture = "tap" | "long_press" | "swipe";
 
+/** The fields of a React Native touch event the SDK reads: the touched host view's fiber, the position, the fingers down. */
+export interface TouchEventLike {
+  _targetInst?: FiberLike;
+  nativeEvent?: { pageX?: number; pageY?: number; touches?: ArrayLike<unknown> };
+}
+
 export const MAX_TAP_PATH = 20;
 /** A touch held this long is a long press (React Native's `delayLongPress` default). */
 export const LONG_PRESS_MS = 500;

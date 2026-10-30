@@ -83,17 +83,45 @@ describe("G4 timeline parity with the Sentry bridge", () => {
     expect(BigInt(taps[0]!.timeUnixNano) / 1_000_000n).toBe(BigInt(t0));
   });
 
-  it("one record per touch: a second finger and a nested provider add none", async () => {
+  it("one record per touch: a nested provider (same event bubbling) and a second finger add none", async () => {
     const { rum, captured } = await start();
     const outer = RUMProvider({ rum }) as ReactElement<Handlers>;
     const inner = RUMProvider({ rum }) as ReactElement<Handlers>;
-    inner.props.onTouchStart({ _targetInst: text });
-    outer.props.onTouchStart({ _targetInst: text }); // the same touch bubbling on
-    inner.props.onTouchStart({ _targetInst: text }); // a second finger
-    inner.props.onTouchEnd({});
-    outer.props.onTouchEnd({});
+    const down = { _targetInst: text, nativeEvent: { touches: [1] } };
+    inner.props.onTouchStart(down);
+    outer.props.onTouchStart(down); // the same touch bubbling on
+    const second = { _targetInst: text, nativeEvent: { touches: [1, 2] } };
+    inner.props.onTouchStart(second);
+    outer.props.onTouchStart(second);
+    const up = { nativeEvent: { touches: [] } };
+    inner.props.onTouchEnd(up);
+    outer.props.onTouchEnd(up);
     await rum.flush();
     expect(captured.byName("ui.tap")).toHaveLength(1);
+  });
+
+  it("the screen is the one the touch started on, even when the press navigates before the finger lifts", async () => {
+    const { rum, captured } = await start();
+    const el = RUMProvider({ rum }) as ReactElement<Handlers>;
+    rum.trackNavigation("/Product");
+    el.props.onTouchStart({ _targetInst: text });
+    rum.trackNavigation("/Cart"); // onLongPress or onPressIn navigated
+    el.props.onTouchEnd({});
+    await rum.flush();
+    const [tap] = captured.byName("ui.tap");
+    expect(attr(tap!.attributes, "app.screen.name")).toBe("Product");
+    expect(tap!.body?.stringValue).toMatch(/ on Product$/);
+  });
+
+  it("a touch whose end never came does not block or replace the next ones", async () => {
+    const { rum, captured } = await start();
+    const el = RUMProvider({ rum }) as ReactElement<Handlers>;
+    const lost = { elementType: { displayName: "Pressable" }, memoizedProps: { testID: "unmounted" }, return: screen };
+    el.props.onTouchStart({ _targetInst: lost, nativeEvent: { touches: [1] } }); // its view unmounted: no end
+    for (let i = 0; i < 3; i++) touch(el, text);
+    await rum.flush();
+    const taps = captured.byName("ui.tap");
+    expect(taps.map((l) => `${attr(l.attributes, "ouo.ui.target")} ${attr(l.attributes, "ouo.ui.gesture")}`)).toEqual(Array(3).fill("add-to-cart tap"));
   });
 
   it("timeline.tapLabels false: no label leaves the device, the step keeps gesture, view type and screen", async () => {

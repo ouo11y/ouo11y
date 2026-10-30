@@ -65,7 +65,7 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
   - `ouo.ui.gesture`: `swipe` when the touch moved 10 points or more, else `long_press` when it was held 500 ms or more, else `tap`;
   - `app.screen.name`: the screen the touch started on (the last segment of the current C7 `url.path`), absent before the first screen.
 - **Body**: the user step as a person reads it: `Tap add-to-cart (button) on Products`, `Swipe cart-items (FlatList) on Cart`.
-- **Kill switches**: `timeline.taps: false` stops the records. `timeline.tapLabels: false` keeps them without any label: `ouo.ui.target` is the view type and there is no `ouo.ui.path`; gesture, view type and screen stay. Text content is never read (rule 6).
+- **Kill switches**: `timeline.taps: false` stops the records. `timeline.tapLabels: false` keeps the taps `RUMProvider` records without any label: `ouo.ui.target` is the view type and there is no `ouo.ui.path`; gesture, view type and screen stay. Targets the app passes to `trackTap` are its own and are kept. Text content is never read (rule 6).
 - **Check**: C6.1.
 
 ### C7 Screens and navigation
