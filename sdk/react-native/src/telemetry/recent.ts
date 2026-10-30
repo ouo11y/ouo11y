@@ -1,8 +1,9 @@
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
+import { cutUtf8 } from "../feedback";
 
 /** How many events `ouo.last_events` carries (docs/specs/mobile-sdk.md C10). */
 export const LAST_EVENTS = 20;
-/** Longest `body` of one entry. */
+/** Longest `body` of one entry, in UTF-8 bytes (cut with "…" like the feedback text). */
 export const LAST_EVENT_BODY_MAX = 200;
 
 /** One entry of `ouo.last_events`: when, which record, and the step as a person reads it. */
@@ -30,13 +31,19 @@ export class RecentEvents implements LogRecordProcessor {
     if (typeof session !== "string") return;
     const name = String(a["event.name"] ?? record.eventName ?? "log");
     const [s, ns] = record.hrTime;
-    this.entries.push({ ts: s * 1000 + Math.floor(ns / 1e6), name, body: cut(summary(name, record.body, a)), session });
+    this.entries.push({ ts: s * 1000 + Math.floor(ns / 1e6), name, body: cutUtf8(summary(name, record.body, a), LAST_EVENT_BODY_MAX), session });
     if (this.entries.length > LAST_EVENTS) this.entries.shift();
   }
 
-  /** The last events of `sessionId`, oldest first. */
+  /**
+   * The last events of `sessionId`, oldest first by `ts` (stable): vitals and a native crash are
+   * emitted with earlier timestamps than the records before them.
+   */
   read(sessionId: string): RecentEvent[] {
-    return this.entries.filter((e) => e.session === sessionId).map(({ ts, name, body }) => ({ ts, name, body }));
+    return this.entries
+      .filter((e) => e.session === sessionId)
+      .map(({ ts, name, body }) => ({ ts, name, body }))
+      .sort((a, b) => a.ts - b.ts);
   }
 
   forceFlush(): Promise<void> {
@@ -67,10 +74,4 @@ function summary(name: string, body: unknown, a: Record<string, unknown>): strin
     default:
       return typeof body === "string" && body !== name ? body : "";
   }
-}
-
-function cut(s: string): string {
-  if (s.length <= LAST_EVENT_BODY_MAX) return s;
-  const code = s.charCodeAt(LAST_EVENT_BODY_MAX - 1);
-  return s.slice(0, code >= 0xd800 && code <= 0xdbff ? LAST_EVENT_BODY_MAX - 1 : LAST_EVENT_BODY_MAX);
 }

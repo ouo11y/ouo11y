@@ -14,8 +14,8 @@ const (
 	attrFeedbackMessage = "ouo.feedback.message"
 	attrFeedbackContact = "ouo.feedback.contact"
 	attrFeedbackID      = "ouo.feedback.id"
-	// maxFeedbackText is the ouo SDK's cut (MAX_FEEDBACK_TEXT) for the
-	// message and the contact.
+	// maxFeedbackText is the cut of the message and the contact, in bytes
+	// with "…" (truncate), as the ouo SDK cuts them (MAX_FEEDBACK_BYTES).
 	maxFeedbackText = 4096
 )
 
@@ -29,20 +29,20 @@ func (t *translation) emitFeedback(st *sessionState, envSessions map[string]*sen
 	if f == nil || strings.TrimSpace(f.Message) == "" {
 		return
 	}
-	replayID := f.ReplayID
-	if e.Contexts.Replay != nil && e.Contexts.Replay.ReplayID != "" {
-		replayID = e.Contexts.Replay.ReplayID
-	} else if replayID != "" {
-		e.Contexts.Replay = &struct {
-			ReplayID string `json:"replay_id"`
-		}{ReplayID: replayID}
-	}
-	x, match := t.resolve(st, envSessions, order, e, envReplayID, false)
+	// The replay id resolve falls back on when contexts.replay has none: the
+	// feedback's own (the JS replay integration's), else the envelope's.
+	replayID := firstString(f.ReplayID, envReplayID)
+	x, match := t.resolve(st, envSessions, order, e, replayID, false)
 	if x == nil {
 		if x = st.byEventID(t.j.project.OuoProjectID, f.AssociatedEventID); x != nil {
+			// Rule event names a session that its error already resolved: no
+			// device context or trace id to learn from a feedback's own fields.
 			match = matchEvent
 			st.touch(x, eventTime(e, t.j.receivedAt))
 		}
+	}
+	if e.Contexts.Replay != nil && e.Contexts.Replay.ReplayID != "" {
+		replayID = e.Contexts.Replay.ReplayID
 	}
 	userID := ""
 	if e.User != nil {
@@ -62,8 +62,11 @@ func (t *translation) emitUserReport(st *sessionState, u *userReport) {
 	if strings.TrimSpace(u.Comments) == "" {
 		return
 	}
+	// Unknown error (bridge restarted, error sampled out or not sent yet):
+	// emitted without a session (none). Holding it like logs is a later item.
 	x, match := st.byEventID(t.j.project.OuoProjectID, u.EventID), matchNone
 	if x != nil {
+		// Rule event: the error's session; a report brings no context to learn.
 		match = matchEvent
 		st.touch(x, t.j.receivedAt)
 	}

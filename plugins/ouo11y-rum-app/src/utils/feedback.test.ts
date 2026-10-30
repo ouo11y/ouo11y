@@ -49,6 +49,13 @@ describe('buildFeedback', () => {
     expect(second.steps.every((s) => s.ts <= T0 + 2000)).toBe(true);
   });
 
+  it('lists a record sent twice (same ouo.feedback.id) once; records without an id are each listed', () => {
+    const fb = (ms: number, id?: string) =>
+      ev(ms, 'feedback', { ouo_feedback_message: `m${ms}`, ...(id ? { ouo_feedback_id: id } : {}) });
+    const got = buildFeedback([fb(100, 'a'), fb(200, 'a'), fb(300), fb(400), fb(500, 'b')]);
+    expect(got.map((f) => f.message)).toEqual(['m100', 'm300', 'm400', 'm500']);
+  });
+
   it('a record moved to the session start keeps its own time; one without a message is not listed', () => {
     const moved = { ...ev(0, 'feedback', { ouo_feedback_message: 'early' }), clampedFrom: iso(-500) };
     expect(buildFeedback([moved, ev(10, 'feedback', {})]).map((f) => [f.message, f.ts])).toEqual([['early', T0 - 500]]);

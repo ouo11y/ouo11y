@@ -131,12 +131,8 @@ export interface ReplayController extends RUMReplay {
   sessionDidRotate(id: string): void;
   /** A new screen is showing: the frame for it in `navigation` mode. */
   screenDidChange(): void;
-  /**
-   * Feedback screenshot (C10): true when the recorder is recording, after asking it for a frame of
-   * the current screen. `navigation` mode takes one once the screen settled (the same request as a
-   * new screen); `session` mode's interval frames already show it. False otherwise.
-   */
-  frameForFeedback(): boolean;
+  /** A feedback in the current session (C10): counted for `keepAtNextLaunch`. */
+  onFeedback(): void;
   /** An error in the current session: starts an error-triggered recording when sampled. */
   onError(): void;
   flush(): Promise<void>;
@@ -150,11 +146,12 @@ export interface ReplayController extends RUMReplay {
 }
 
 export const REPLAY_ERRORS_KEY = "ouo.replay.errors";
+export const REPLAY_FEEDBACK_KEY = "ouo.replay.feedback";
 
-/** Exceptions per session, persisted so the next launch can tell `keepAtNextLaunch`. */
-function errorTally(storage: AsyncKeyValueStorage | undefined): { add(id: string): void; take(keepId: string): Promise<Record<string, number>> } {
+/** A count per session (exceptions, feedback), persisted under `key` so the next launch can tell `keepAtNextLaunch`. */
+function sessionTally(storage: AsyncKeyValueStorage | undefined, key: string): { add(id: string): void; take(keepId: string): Promise<Record<string, number>> } {
   let counts: Promise<Record<string, number>> = storage
-    ? storage.getItem(REPLAY_ERRORS_KEY).then(
+    ? storage.getItem(key).then(
         (raw) => {
           try {
             const v = JSON.parse(raw ?? "{}") as Record<string, number>;
@@ -167,7 +164,7 @@ function errorTally(storage: AsyncKeyValueStorage | undefined): { add(id: string
       )
     : Promise.resolve({});
   const save = (c: Record<string, number>): Record<string, number> => {
-    void storage?.setItem(REPLAY_ERRORS_KEY, JSON.stringify(c)).catch(() => undefined);
+    void storage?.setItem(key, JSON.stringify(c)).catch(() => undefined);
     return c;
   };
   return {
@@ -209,7 +206,8 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   let errorTriggered = false;
   const keepHook = opts.options?.keepAtNextLaunch;
   const hold = typeof keepHook === "function";
-  const tally = errorTally(hold ? opts.storage : undefined);
+  const tally = sessionTally(hold ? opts.storage : undefined, REPLAY_ERRORS_KEY);
+  const feedbackTally = sessionTally(hold ? opts.storage : undefined, REPLAY_FEEDBACK_KEY);
 
   if (enabled && !native) {
     // One line, debug only: Expo Go, web and Jest/Vitest all land here.
@@ -260,15 +258,6 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     if (active && userPaused) call("pause", () => native.pause());
   };
 
-  const isRecording = (): boolean => {
-    if (!native || !active) return false;
-    try {
-      return native.isRecording() === true;
-    } catch {
-      return false;
-    }
-  };
-
   return {
     get active() {
       return active;
@@ -307,11 +296,8 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (!native || !active || !native.screenDidChange) return;
       call("screenDidChange", () => native.screenDidChange!());
     },
-    frameForFeedback(): boolean {
-      if (!isRecording()) return false;
-      // Native builds without screenDidChange predate the modes: they always record in session mode.
-      if (native?.screenDidChange) call("screenDidChange", () => native.screenDidChange!());
-      return true;
+    onFeedback(): void {
+      if (hold && currentId !== undefined) feedbackTally.add(currentId);
     },
     onError(): void {
       const id = currentId;
@@ -337,7 +323,14 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (!native || !active || samplePaused) return;
       call("resume", () => native.resume());
     },
-    isRecording,
+    isRecording(): boolean {
+      if (!native || !active) return false;
+      try {
+        return native.isRecording() === true;
+      } catch {
+        return false;
+      }
+    },
     async flush(): Promise<void> {
       if (!native || !active) return;
       try {
@@ -360,7 +353,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         logger.warn("replay: native heldReplaySessions failed", err);
         return;
       }
-      const errors = await tally.take(current);
+      const [errors, feedback] = await Promise.all([tally.take(current), feedbackTally.take(current)]);
       for (const h of held) {
         if (h.sessionId === current) continue;
         const summary: HeldReplaySession = {
@@ -371,6 +364,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
           lastChunkAt: h.lastAt,
           crashed: h.sessionId === crashedId,
           errors: errors[h.sessionId] ?? 0,
+          feedback: feedback[h.sessionId] ?? 0,
         };
         let keep = true;
         if (keepHook) {

@@ -55,13 +55,22 @@ export function parseLastEvents(raw: string | undefined): FeedbackStep[] | undef
 /**
  * The session's feedback, oldest first. Each carries the steps before it: what the record says
  * (`ouo.last_events`, the ouo SDK), else the last LAST_EVENTS timeline events up to its time
- * (the Sentry bridge, whose feedback breadcrumbs are timeline events).
+ * (the Sentry bridge, whose feedback breadcrumbs are timeline events). A record whose
+ * `ouo.feedback.id` was already listed (an envelope the Sentry SDK sent again) is listed once.
  */
 export function buildFeedback(timeline: readonly TimelineEvent[]): FeedbackItem[] {
   const out: FeedbackItem[] = [];
+  const seen = new Set<string>();
   timeline.forEach((ev, i) => {
     if (!isFeedbackEvent(ev)) {
       return;
+    }
+    const id = ev.attrs.ouo_feedback_id;
+    if (id) {
+      if (seen.has(id)) {
+        return;
+      }
+      seen.add(id);
     }
     const ts = parseTs(ev.clampedFrom ?? ev.ts);
     const message = ev.attrs.ouo_feedback_message ?? '';

@@ -194,7 +194,7 @@ describe('SessionDetail', () => {
     expect(within(screen.getByTestId('panel-replay')).getByTestId('feedback-list')).toBe(list);
     expect(within(list).getByTestId('feedback-message')).toHaveTextContent('The coupon does not apply');
     expect(within(list).getByTestId('feedback-contact')).toHaveTextContent('ana@example.com');
-    expect(within(list).getByText('screenshot in replay')).toBeInTheDocument();
+    expect(within(list).getByText('replay recording')).toBeInTheDocument();
     expect(within(list).getByTestId('feedback-step')).toHaveTextContent('Tap apply-coupon (button) on Cart');
     expect(within(list).getByTestId('feedback-step')).toHaveTextContent('+1.6s'); // 0.3 s session lead + 1.5 s - 0.2 s
     // jsdom has no scrollIntoView; the seek brings the replay into view.

@@ -192,7 +192,7 @@ session and its chunks are sent when it returns `true`, deleted otherwise (a thr
 ```ts
 replay: {
   enabled: true,
-  keepAtNextLaunch: (s) => s.crashed || s.errors > 0,  // { sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors }
+  keepAtNextLaunch: (s) => s.crashed || s.errors > 0 || s.feedback > 0,  // { sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors, feedback }
 },
 ```
 
@@ -489,13 +489,14 @@ const id = rum.feedback({ message: text, contact: email, screenshot: true });
 
 | Attribute | Value |
 |---|---|
-| body, `ouo.feedback.message` | the message, trimmed, cut at 4096 characters; an empty message sends nothing and returns `undefined` |
+| body, `ouo.feedback.message` | the message, trimmed; above 4096 bytes of UTF-8 cut to whole characters plus `…` (as the Sentry bridge cuts); an empty message sends nothing and returns `undefined` |
 | `ouo.feedback.contact` | the contact, when not empty (same cut) |
 | `ouo.feedback.id` | a UUID, also the return value |
 | `ouo.feedback.screenshot` | `true` when `screenshot: true` and replay was recording: the recorder was asked for a frame of the current screen, masked like every frame, so the session's replay at the feedback time shows it. No separate image is sent |
-| `ouo.last_events` | JSON array, oldest first, of the session's last 20 events and log lines before the feedback: `{"ts": <epoch ms>, "name": "ui.tap", "body": "Tap pay (button) on Cart"}`; the body is the readable step (the path of a navigation, `Type: message` of an error, `METHOD url status` of a request), cut at 200 characters |
+| `ouo.last_events` | JSON array, by time oldest first, of the session's last 20 events and log lines before the feedback: `{"ts": <epoch ms>, "name": "ui.tap", "body": "Tap pay (button) on Cart"}`; the body is the readable step (the path of a navigation, `Type: message` of an error, `METHOD url status` of a request), cut at 200 bytes the same way |
 
-The feedback follows the session's sampling like every record. The plugin lists a session's
+The feedback follows the session's sampling like every record. With `replay.keepAtNextLaunch`,
+keep the sessions with `feedback > 0`: their replay is the feedback's screenshot. The plugin lists a session's
 feedback beside its replay, with these events and a link to the replay at the feedback time.
 
 ## Events (OTel log records, `event.name`)

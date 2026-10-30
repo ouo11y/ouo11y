@@ -67,10 +67,10 @@ export function FeedbackList({ items, clockStart, onSeek }: Props) {
             )}
             {f.screenshot && (
               <Badge
-                text="screenshot in replay"
+                text="replay recording"
                 color="green"
                 icon="lock"
-                tooltip="The SDK asked the replay for a masked frame of the screen at the feedback time."
+                tooltip="Replay was recording when the feedback was sent: the replay at its time shows the screen, masked."
               />
             )}
             {onSeek && (

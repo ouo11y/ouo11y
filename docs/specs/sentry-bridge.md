@@ -294,7 +294,8 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 | session | rules 1 to 4 (with `contexts.feedback.replay_id` as the replay id when `contexts.replay` has none), else rule 6 by `associated_event_id` | rule 6 by `event_id` |
 
 - An item with an empty message is not translated.
-- Message and contact are cut at 4096 bytes. They are what the user typed into the feedback form, so they are copied although `user.email` is not (section 12).
+- A `user_report` whose error the bridge does not know (the bridge restarted, its state is in memory with a 4 h TTL; the error was sampled out by Sentry's `sampleRate`; the error arrives later) is emitted without a session (`session_match = none`), so no session page shows it; it is in Loki. Holding reports until their error arrives, as log entries are held (section 7a), is a later item.
+- Message and contact are cut at 4096 bytes of UTF-8 with `…`, as the ouo SDK cuts them. They are what the user typed into the feedback form, so they are copied although `user.email` is not (section 12).
 - The `feedback` event's breadcrumbs become timeline events under the rules of section 9b: the steps before the feedback, which the plugin lists with it. The bridge sets neither `ouo.last_events` nor `ouo.feedback.screenshot`: Sentry's screenshot is an attachment, which is not copied; the session's replay, when there is one, shows the screen at the feedback time.
 
 ## 10. Collector wiring

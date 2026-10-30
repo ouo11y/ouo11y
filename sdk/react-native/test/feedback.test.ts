@@ -6,11 +6,9 @@ import { SeverityNumber } from "@opentelemetry/api-logs";
 import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { feedbackRecord, MAX_FEEDBACK_TEXT } from "../src/feedback";
+import { cutUtf8, feedbackRecord, MAX_FEEDBACK_BYTES } from "../src/feedback";
 import { initRUM, RUMProvider, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
-import { createLogger } from "../src/logger";
-import { createReplayController, type NativeReplayModule } from "../src/replay";
 import { LAST_EVENT_BODY_MAX, LAST_EVENTS, RecentEvents, type RecentEvent } from "../src/telemetry/recent";
 import { attr, BACKEND, baseOptions, g, installErrorUtils, installFetchStub, type Captured } from "./support/otlp";
 
@@ -30,13 +28,21 @@ describe("feedbackRecord", () => {
     expect(feedbackRecord({ message: "ok", contact: { email: "a" } } as never, "x")?.attrs["ouo.feedback.contact"]).toBeUndefined();
   });
 
-  it("cuts message and contact at MAX_FEEDBACK_TEXT without splitting a surrogate pair", () => {
-    const long = "a".repeat(MAX_FEEDBACK_TEXT + 10);
-    expect((feedbackRecord({ message: long, contact: long }, "x")!.attrs["ouo.feedback.contact"] as string).length).toBe(MAX_FEEDBACK_TEXT);
-    const emoji = "a".repeat(MAX_FEEDBACK_TEXT - 1) + "😀tail";
-    const cut = feedbackRecord({ message: emoji }, "x")!.body;
-    expect(cut).toBe("a".repeat(MAX_FEEDBACK_TEXT - 1));
-    expect(feedbackRecord({ message: "a".repeat(MAX_FEEDBACK_TEXT - 2) + "😀tail" }, "x")!.body.endsWith("😀")).toBe(true);
+  it("cuts message and contact at MAX_FEEDBACK_BYTES of UTF-8 with an ellipsis, as the bridge does", () => {
+    const long = "a".repeat(MAX_FEEDBACK_BYTES + 10);
+    const r = feedbackRecord({ message: long, contact: long }, "x")!;
+    expect(r.body).toBe("a".repeat(MAX_FEEDBACK_BYTES) + "…");
+    expect(r.attrs["ouo.feedback.contact"]).toBe(r.body);
+    expect(feedbackRecord({ message: "a".repeat(MAX_FEEDBACK_BYTES) }, "x")!.body).toBe("a".repeat(MAX_FEEDBACK_BYTES));
+  });
+
+  it("cutUtf8 keeps whole code points within the byte budget (Go truncate)", () => {
+    expect(cutUtf8("éé", 4)).toBe("éé"); // 2 bytes each, fits exactly
+    expect(cutUtf8("éééé", 5)).toBe("éé…");
+    expect(cutUtf8("ab😀cd", 5)).toBe("ab…"); // the emoji is 4 bytes: never split
+    expect(cutUtf8("ab😀cd", 6)).toBe("ab😀…");
+    expect(cutUtf8("日本語", 9)).toBe("日本語");
+    expect(cutUtf8("", 0)).toBe("");
   });
 });
 
@@ -58,6 +64,18 @@ describe("RecentEvents", () => {
     expect(got).toHaveLength(LAST_EVENTS);
     expect(got[0]!.body).toBe("Tap item-5 (button) on Products");
     expect(got.at(-1)).toEqual({ ts: 1_700_000_000_000 + LAST_EVENTS + 4, name: "ui.tap", body: `Tap item-${LAST_EVENTS + 4} (button) on Products` });
+  });
+
+  it("oldest first by ts, stable: a vital stamped earlier than the records emitted before it", () => {
+    const recent = new RecentEvents();
+    const logger = new LoggerProvider({ processors: [recent] }).getLogger("t");
+    const at = (name: string, ts: number) =>
+      logger.emit({ eventName: name, body: name, timestamp: ts, attributes: { "event.name": name, "session.id": "s1" } });
+    at("navigation", 3000);
+    at("ui.tap", 4000);
+    at("ouo.screen.display", 2500); // emitted after, measured before
+    at("log", 4000);
+    expect(recent.read("s1").map((e) => e.name)).toEqual(["ouo.screen.display", "navigation", "ui.tap", "log"]);
   });
 
   it("a record whose body is its name reads from its attributes", () => {
@@ -83,58 +101,9 @@ describe("RecentEvents", () => {
     const provider = new LoggerProvider({ processors: [recent] });
     provider.getLogger("t").emit({ body: "no session", attributes: {} });
     expect(recent.read("s1")).toHaveLength(1);
-    expect(recent.read("s1")[0]!.body).toHaveLength(LAST_EVENT_BODY_MAX);
+    expect(recent.read("s1")[0]!.body).toBe("x".repeat(LAST_EVENT_BODY_MAX) + "…");
     expect(recent.read("s0").map((e) => e.body)).toEqual(["/Old"]);
     expect(recent.read("nope")).toEqual([]);
-  });
-});
-
-describe("replay frameForFeedback", () => {
-  const logger = createLogger(false);
-  const native = (recording: boolean, withScreenDidChange = true) => {
-    const n = {
-      start: vi.fn(),
-      pause: vi.fn(),
-      resume: vi.fn(),
-      isRecording: vi.fn(() => recording),
-      flush: vi.fn(() => Promise.resolve()),
-      sessionDidRotate: vi.fn(),
-      setSessionId: vi.fn(),
-      screenDidChange: vi.fn(),
-    };
-    if (!withScreenDidChange) delete (n as Partial<typeof n>).screenDidChange;
-    return n;
-  };
-  const controller = (n: NativeReplayModule | null, enabled = true) =>
-    createReplayController({ endpoint: "http://otel.test:4319", projectId: "demo", projectToken: "pt_x", options: { enabled }, native: n, logger });
-
-  it("asks the recorder for a frame of the current screen while it records", () => {
-    const n = native(true);
-    const c = controller(n);
-    c.start("s");
-    expect(c.frameForFeedback()).toBe(true);
-    expect(n.screenDidChange).toHaveBeenCalledTimes(1);
-  });
-
-  it("false, and no native call, when replay is off, not started or not recording", () => {
-    const paused = native(false);
-    const c = controller(paused);
-    c.start("s");
-    expect(c.frameForFeedback()).toBe(false);
-    const notStarted = native(true);
-    expect(controller(notStarted).frameForFeedback()).toBe(false);
-    expect(controller(null).frameForFeedback()).toBe(false);
-    const off = native(true);
-    const c2 = controller(off, false);
-    c2.start("s");
-    expect(c2.frameForFeedback()).toBe(false);
-    for (const n of [paused, notStarted, off]) expect(n.screenDidChange).not.toHaveBeenCalled();
-  });
-
-  it("a native build without screenDidChange (session mode only) still has the screen in its interval frames", () => {
-    const c = controller(native(true, false));
-    c.start("s");
-    expect(c.frameForFeedback()).toBe(true);
   });
 });
 
@@ -233,6 +202,28 @@ describe("rum.feedback through initRUM", () => {
     await rum.flush();
     expect(n.screenDidChange).not.toHaveBeenCalled();
     expect(attr(captured.byName("feedback")[0]!.attributes, "ouo.feedback.screenshot")).toBeUndefined();
+  });
+
+  it("after an idle timeout: the frame, the last events and the record all go to the new session", async () => {
+    const n = recordingNative();
+    const { rum, captured } = await start({ replay: { enabled: true }, session: { inactivityTimeoutMs: 60_000 } });
+    rum.trackNavigation("/Old");
+    const first = rum.session.id();
+    const now = Date.now();
+    const spy = vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
+    rum.feedback({ message: "back after lunch", screenshot: true });
+    spy.mockRestore();
+    await rum.flush();
+    const f = captured.byName("feedback")[0]!;
+    expect(attr(f.attributes, "session.id")).not.toBe(first);
+    expect(attr(f.attributes, "session.id")).toBe(rum.session.id());
+    // The recorder heard of the new session before the feedback's frame request (the last one;
+    // the first came from the navigation).
+    expect(n.screenDidChange).toHaveBeenCalledTimes(2);
+    expect(n.sessionDidRotate.mock.invocationCallOrder.at(-1)!).toBeLessThan(n.screenDidChange.mock.invocationCallOrder.at(-1)!);
+    expect(n.sessionDidRotate.mock.calls.at(-1)![0]).toBe(rum.session.id());
+    const last = (JSON.parse(attr(f.attributes, "ouo.last_events") as string) as RecentEvent[]).map((e) => e.body);
+    expect(last).not.toContain("/Old");
   });
 
   it("the last events are the current session's only, after a rotation", async () => {

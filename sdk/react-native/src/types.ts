@@ -90,6 +90,7 @@ export interface ReplayOptions {
    * Next-launch keep/drop (client-side tail sampling). When set, a session's replay chunks stay
    * on the device and, at the next launch, this is called once per finished session with its
    * summary; the chunks are sent when it returns true and deleted otherwise. A throw keeps them.
+   * Keep sessions with `feedback > 0` too: their replay is the screenshot of that feedback (C10).
    * Chunks held longer than 24 hours are deleted unsent. iOS only.
    */
   keepAtNextLaunch?: (session: HeldReplaySession) => boolean | Promise<boolean>;
@@ -107,6 +108,8 @@ export interface HeldReplaySession {
   crashed: boolean;
   /** Exceptions reported in the session (unhandled, `console.error`, `captureError`). */
   errors: number;
+  /** Feedback sent in the session (`rum.feedback`): its replay is the feedback's screenshot, keep it. */
+  feedback: number;
 }
 
 /** How telemetry reaches the collector (README, "Delivery"). */
@@ -318,9 +321,9 @@ export interface RUMReplay {
 
 /** `rum.feedback(...)` (docs/specs/mobile-sdk.md C10): what the user wrote, as the app passes it. */
 export interface FeedbackInput {
-  /** The user's text. Required: an empty message sends nothing. Cut at 4096 characters. */
+  /** The user's text. Required: an empty message sends nothing. Cut at 4096 bytes (UTF-8) with "…". */
   message: string;
-  /** How to reach the user (an email, a name), as the user typed it. Cut at 4096 characters. */
+  /** How to reach the user (an email, a name), as the user typed it. Cut like the message. */
   contact?: string;
   /**
    * Ask the replay recorder for a masked frame of the current screen. Ignored when replay is not
