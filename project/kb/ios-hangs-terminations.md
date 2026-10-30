@@ -21,7 +21,8 @@ Read from `Sources/Swift/Integrations/AppHangTracking/SentryANRTrackerV2.swift` 
   1.2 s frames are.
 - Stop: the delay of the last `2 × timeout / 5` (800 ms) is below 20 % of that (160 ms).
 - No new hang for `timeout` after one stopped; a tick that comes `timeout` late is skipped
-  (Sentry) or, here, forgets the frames (the process was stopped: debugger, suspension).
+  (Sentry) or, here, ends a hang in progress at the last tick that saw it and restarts measuring
+  (the process was stopped, or ticks were skipped under a debugger).
 - Sentry reports the duration as a range (`timeout + elapsed ± sleep interval`). ouo measures it
   from frames: from the start of the first late frame of the hang to the end of the last, so a
   3 s block reads 3.0 s, not 2.0 + whatever the ticks saw.
@@ -62,9 +63,9 @@ The next launch reads the file **once per process, before its own tracker writes
 directory) and removes it, so a launch that dies before writing its own state does not get the
 same termination reported twice; then `takePendingReport` returns, in this order: the crash report if there is one
 (the crash wins, and no termination follows it), else a `termination` report when
-`Termination.decide` says so: the previous run was `active`, without `willTerminate` or a
-debugger, with the same `CFBundleShortVersionString (CFBundleVersion)`, the same
-`operatingSystemVersionString`, and a boot time within 5 s (`kern.boottime` moves a little with
+`Termination.decide` says so: the previous run was `active`, without `willTerminate`, `exit()`
+(an `atexit` handler) or a debugger, with the same `CFBundleShortVersionString (CFBundleVersion)
+<main executable LC_UUID>`, the same `major.minor.patch (kern.osversion)`, and a boot time within 5 s (`kern.boottime` moves a little with
 clock corrections; a reboot moves it by at least the previous uptime).
 
 Cause: `memory` when the run had a memory warning in its last 60 s (jetsam kills follow
@@ -104,6 +105,40 @@ warning followed by `kill(getpid(), SIGKILL)`). Final run:
 - `ouo.memory.available_bytes` is absent on the simulator: `os_proc_available_memory()` returns
   0 without a jetsam limit (a device has one). The footprint (`TASK_VM_INFO.phys_footprint`, about
   43 MB) and `network.connection.type` (`wifi`, from `NWPathMonitor`) are there.
+
+## Review round 1 (PR #122): what the first version got wrong
+
+- **A start without an end.** A late tick during a hang dropped it (`ongoing = nil`, no `.ended`),
+  so `hangStartedMs` stayed in `run.json` and a later kill read as `watchdog`. And `onStart` runs on
+  the watchdog thread after the detector's lock is released: the main thread's `willResignActive`
+  could end the hang (`interrupt`, `onEnd`) before `onStart` ran, which then set
+  `hangStartedMs` for a hang already over. Now every `.started` gets one `.ended` with the same
+  `start` (a late tick ends it at the last tick that saw it), both callbacks carry the start, and
+  `HangPairing` in OuoCrash ignores a start whose end came first. The run state is updated under
+  OuoCrash's lock, so its writes keep the start-then-end order.
+- **No measuring before the first frame.** `interrupt` (resign and become active) and a late tick
+  set `lastFrame = nil`, and `tick` returns while it is nil: a block right after launch or resume,
+  where `0x8badf00d` kills happen, was never a hang. Measuring now restarts at `now` there and when
+  tracking starts (sentry-cocoa has the same gap: its delay is -1 until a frame comes).
+- **Wakeups in the background.** The watchdog slept 400 ms and `continue`d while inactive; apps with
+  background modes are not suspended, so it woke 2.5 times a second for nothing. It now waits on an
+  `NSCondition` that `active = true` signals (tested on macOS: `HangWatchdogTests`).
+- **Termination false positives**: `exit()` from app code (react-native-restart, a forced update)
+  sends no `willTerminate` (an `atexit` handler now marks the run; tested by `OuoCrashProbe none`);
+  a development reinstall keeps the version string (the main executable's `LC_UUID`, dyld image 0,
+  is part of `release`); `operatingSystemVersionString` is localized (now
+  `operatingSystemVersion` plus `kern.osversion`).
+- **File protection**: an app whose default class is `NSFileProtectionComplete` could not read
+  `run.json` in a background launch of a locked device but could delete it; it is written with
+  `completeFileProtectionUntilFirstUserAuthentication`.
+- **The stack of a fatal hang**: the stack read at detection now goes into `run.json`
+  (`hangStack`, frames and images as JSON) and a `watchdog` termination carries it, as Sentry's
+  fatal app hang does.
+- **Simulator rerun** (new head): the 3 s block read 4.0 s once, with the machine loaded (load
+  average 14 just after the env's image builds: slow frames before the block are part of the hang),
+  and 3.08 s, fully blocking, on the next run; the stutter 3.75 s not fully blocking; the memory
+  kill `memory`, its last event now the navigation to Chaos (persisted at once); the background
+  kill `terminated`; the foreground kill `unknown`.
 
 ## npm in this worktree layout
 
