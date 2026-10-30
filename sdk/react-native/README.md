@@ -318,19 +318,22 @@ crashed thread is recorded, from its frame pointers.
 400 ms (sentry-cocoa's rules, mobile SDK spec C3): when the main thread drew no frame for 2 s
 (fully blocking), or drew some but more than 99 % of 2 s was frame delay, it reads the main
 thread's stack, and once frames are back on time it sends one non-fatal `exception` stamped at the
-hang's start: `exception.type = AppHang`, `App hanging for 3.0 s`, `ouo.hang.duration_ms` (the
+hang's start (a block right after launch or resume, before the first frame, too):
+`exception.type = AppHang`, `App hanging for 3.0 s`, `ouo.hang.duration_ms` (the
 whole blocked time), `ouo.hang.fully_blocking`, the stack as for a crash (`ouo.crash.frames`,
 `ouo.crash.images`, symbolicated from dSYMs). One record per hang however long it lasts; none
-while the app is not active or a debugger is attached. The session is `errored`.
+while the app is not active (the watchdog then waits without waking) or a debugger is attached.
+The session is `errored`.
 
 **Terminations (iOS).** iOS kills an app over its memory limit or one whose main thread does not
 answer with `SIGKILL`, which no handler sees. The Expo module keeps `run.json` next to the crash
 report current (active or not, the session, a heartbeat every 5 s while active, a memory
-warning, a hang in progress). When the previous run was active, left no crash report and did not
-receive `willTerminate`, and neither the app version, the OS version nor the boot time changed,
+warning, a hang in progress). When the previous run was active, left no crash report, did not
+receive `willTerminate` or call `exit()`, and neither the app version and build (with the
+executable's build UUID), the OS version and build nor the boot time changed,
 the next launch reports it as a fatal `exception` (`WatchdogTermination`,
 `ouo.termination.cause`: `memory` after a memory warning in its last 60 s, `watchdog` when a hang
-was in progress, else `unknown`) stamped at its last heartbeat, and its session ends `crash`
+was in progress, with that hang's stack, else `unknown`) stamped at its last heartbeat, and its session ends `crash`
 there. A kill in the background (a user swipe), an update, a reboot or a debugger run end the
 session `terminated`, as before.
 
@@ -338,8 +341,9 @@ session `terminated`, as before.
 session's last 20 events before it, as on feedback), `app.screen.name`, `ouo.device.locale`, and
 on iOS `ouo.memory.app_bytes`, `ouo.memory.available_bytes` and `network.connection.type`
 (`wifi`, `cell`, `wired`, `unavailable`). A native crash or a termination is reported by the next
-launch with the screen and last events the crashed run persisted (`ouo.context`, at most a
-second old), without memory or network (not measured at the crash).
+launch with the screen and last events the crashed run persisted (`ouo.context`: at once after a
+tap, a navigation or an exception, else at most 5 s old), without memory or network (not
+measured at the crash).
 
 **One error, one record.** An Error object reported by one hook is not reported again by
 another (global handler, rejection tracker, `console.error` of the same object, `captureError`,

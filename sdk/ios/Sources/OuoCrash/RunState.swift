@@ -1,12 +1,14 @@
 import Foundation
+import OuoCrashCore
 
 /// What a run of the app last wrote about itself (`run.json` next to the crash report), so the next
 /// launch can tell a foreground termination (OOM, watchdog) from a run that ended normally
-/// (mobile SDK spec C3.2, project/kb/ios-terminations.md).
+/// (mobile SDK spec C3.2, project/kb/ios-hangs-terminations.md).
 public struct RunState: Codable, Equatable {
-    /// `CFBundleShortVersionString (CFBundleVersion)`: an update is no termination.
+    /// `CFBundleShortVersionString (CFBundleVersion) <main executable's LC_UUID>`: an update is no
+    /// termination, nor a development reinstall that kept the version string.
     public var release: String
-    /// `operatingSystemVersionString`: an OS update restarts every app.
+    /// `major.minor.patch (kern.osversion build)`: an OS update restarts every app.
     public var os: String
     /// Device boot time, epoch ms (`kern.boottime`): a reboot or shutdown is no termination.
     public var bootMs: Double
@@ -22,6 +24,9 @@ public struct RunState: Codable, Equatable {
     public var aliveMs: Double = 0
     /// Set while an app hang is in progress (C3.1), cleared when it ends.
     public var hangStartedMs: Double?
+    /// The main thread's stack of that hang, read when it was detected: `{"frames":[...],"images":[...]}`
+    /// as in a crash report, so a watchdog kill during it reports where the main thread was stuck.
+    public var hangStack: String?
     /// The last memory warning, epoch ms.
     public var memoryWarningMs: Double?
 
@@ -36,7 +41,12 @@ public struct RunState: Codable, Equatable {
         let info = Bundle.main.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? ""
         let build = info["CFBundleVersion"] as? String ?? ""
-        return RunState(release: "\(version) (\(build))", os: ProcessInfo.processInfo.operatingSystemVersionString, bootMs: bootTimeMs())
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return RunState(
+            release: "\(version) (\(build)) \(mainImageUUID())",
+            os: "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion) (\(sysctlString("kern.osversion")))",
+            bootMs: bootTimeMs()
+        )
     }
 
     static func load(_ url: URL) -> RunState? {
@@ -44,9 +54,15 @@ public struct RunState: Codable, Equatable {
         return try? JSONDecoder().decode(RunState.self, from: data)
     }
 
+    /// Readable after the first unlock, also when the app's default is `NSFileProtectionComplete`
+    /// (a background launch of a locked device must still read it).
     func write(_ url: URL) {
         guard let data = try? JSONEncoder().encode(self) else { return }
+        #if os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        #else
         try? data.write(to: url, options: .atomic)
+        #endif
     }
 }
 
@@ -61,6 +77,8 @@ public struct Termination: Equatable {
     public let atMs: Double
     public let sessionId: String
     public let sessionStartedMs: Int64
+    /// The main thread's stack when the run died during a hang (`RunState.hangStack`).
+    public var stack: String?
 
     /// A memory warning this close to the end makes the cause `memory` (jetsam follows warnings).
     public static let memoryWarningWindowMs: Double = 60_000
@@ -82,7 +100,9 @@ public struct Termination: Equatable {
         } else {
             cause = .unknown
         }
-        return Termination(cause: cause, atMs: p.aliveMs, sessionId: p.sessionId, sessionStartedMs: p.sessionStartedMs)
+        var t = Termination(cause: cause, atMs: p.aliveMs, sessionId: p.sessionId, sessionStartedMs: p.sessionStartedMs)
+        if p.hangStartedMs != nil { t.stack = p.hangStack }
+        return t
     }
 
     /// The report the host reads like a crash report (`mechanism: "termination"`).
@@ -95,6 +115,14 @@ public struct Termination: Equatable {
             "termination": ["cause": cause.rawValue],
         ]
         if sessionStartedMs > 0 { r["session_started_ms"] = sessionStartedMs }
+        // Died during a hang: where the main thread was stuck, as in a crash report.
+        if let stack, let data = stack.data(using: .utf8),
+           let s = try? JSONSerialization.jsonObject(with: data) as? [String: Any], s["frames"] is [Any] {
+            r["frames"] = s["frames"]
+            r["images"] = s["images"] ?? []
+            r["thread"] = ["main": true]
+            if let arch = s["arch"] { r["arch"] = arch }
+        }
         return json(r)
     }
 }
@@ -110,4 +138,19 @@ func bootTimeMs() -> Double {
     var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
     guard sysctl(&mib, 2, &tv, &size, nil, 0) == 0 else { return 0 }
     return Double(tv.tv_sec) * 1000 + Double(tv.tv_usec) / 1000
+}
+
+func sysctlString(_ name: String) -> String {
+    var size = 0
+    guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return "" }
+    var buf = [CChar](repeating: 0, count: size)
+    guard sysctlbyname(name, &buf, &size, nil, 0) == 0 else { return "" }
+    return String(cString: buf)
+}
+
+/// The main executable's LC_UUID (changes with every build), "" when unknown.
+func mainImageUUID() -> String {
+    var uuid = [UInt8](repeating: 0, count: 16)
+    guard ouo_crash_main_image_uuid(&uuid) else { return "" }
+    return UUID(uuid: (uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7], uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15])).uuidString
 }

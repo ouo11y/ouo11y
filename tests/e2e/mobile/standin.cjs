@@ -381,6 +381,7 @@ const native = {
 // release, OS and boot time are the same across the golden app's launches; no debugger.
 const listeners = new Map();
 let taken = false;
+let dying = false; // os.crash / os.terminate: no exit handlers run
 let previous; // the previous run's state, read (and removed) once before this run writes its own
 const previousRun = () => {
   if (previous === undefined) {
@@ -401,6 +402,14 @@ const run = {
     run.state = { release: RELEASE, os: "Version 27.0", bootMs: 0, active: require("react-native").AppState.currentState === "active", terminated: false, debugger: false, sessionId: "", sessionStartedMs: 0, aliveMs: 0 };
     run.write();
     setInterval(() => run.state.active && run.write(), 5000).unref();
+    // RunTracker's atexit handler: an exit from app code is no termination. A crash or a kill
+    // (os.crash, os.terminate) runs no exit handlers.
+    process.on("exit", () => {
+      if (!dying) {
+        run.state.terminated = true;
+        run.write();
+      }
+    });
   },
   update(change) {
     if (!run.state) return;
@@ -418,6 +427,8 @@ function terminationOf(p) {
   const cause = p.memoryWarningMs !== undefined && p.aliveMs - p.memoryWarningMs <= MEMORY_WARNING_WINDOW_MS ? "memory" : p.hangStartedMs !== undefined ? "watchdog" : "unknown";
   const r = { version: 1, mechanism: "termination", timestamp_ms: p.aliveMs, session_id: p.sessionId, termination: { cause } };
   if (p.sessionStartedMs > 0) r.session_started_ms = p.sessionStartedMs;
+  // Died during a hang: the stack read when it was detected.
+  if (p.hangStartedMs !== undefined && p.hangStack) Object.assign(r, p.hangStack, { thread: { main: true } });
   return r;
 }
 
@@ -427,9 +438,15 @@ function terminationOf(p) {
 const HANG_TIMEOUT_MS = 2000;
 function reportHang(startedAt, ms) {
   if (ms < HANG_TIMEOUT_MS || !run.state) return;
-  setTimeout(() => run.update({ hangStartedMs: Date.now() }), HANG_TIMEOUT_MS + 400).unref();
+  const stack = {
+    arch: "arm64",
+    frames: [{ instruction_addr: "0x0000000100a1c3d8", image_addr: "0x0000000100000000" }],
+    images: [{ code_file: "/private/var/containers/Bundle/Application/GOLDEN/OuoMobile.app/OuoMobile", debug_id: "6c2a7f1e-0b5d-3c41-9a6e-2f1d4b8c7e90", image_addr: "0x0000000100000000", image_size: 16777216, image_vmaddr: "0x0000000100000000" }],
+  };
+  setTimeout(() => run.update({ hangStartedMs: Date.now(), hangStack: stack }), HANG_TIMEOUT_MS + 400).unref();
   setTimeout(() => {
     delete run.state.hangStartedMs;
+    delete run.state.hangStack;
     run.write();
     const report = {
       version: 1,
@@ -438,8 +455,8 @@ function reportHang(startedAt, ms) {
       arch: "arm64",
       thread: { main: true },
       hang: { duration_ms: ms, fully_blocking: true },
-      frames: [{ instruction_addr: "0x0000000100a1c3d8", image_addr: "0x0000000100000000" }],
-      images: [{ code_file: "/private/var/containers/Bundle/Application/GOLDEN/OuoMobile.app/OuoMobile", debug_id: "6c2a7f1e-0b5d-3c41-9a6e-2f1d4b8c7e90", image_addr: "0x0000000100000000", image_size: 16777216, image_vmaddr: "0x0000000100000000" }],
+      frames: stack.frames,
+      images: stack.images,
     };
     record({ kind: "hang.reported", ms });
     listeners.get("onHang")?.({ report: JSON.stringify(report) });
@@ -482,6 +499,7 @@ globalThis.__ouoStandin = {
     };
     fs.writeFileSync(CRASH_FILE, JSON.stringify(report));
     record({ kind: "os.crash", session_id: report.session_id });
+    dying = true;
     process.exit(0);
   },
   /** UIApplication.didReceiveMemoryWarningNotification. */
@@ -492,6 +510,7 @@ globalThis.__ouoStandin = {
   /** The system kills the app in the foreground (memory, watchdog): no report, nothing is flushed. */
   terminate() {
     record({ kind: "os.terminate" });
+    dying = true;
     process.exit(0);
   },
   /** The main thread blocks for `ms` (the JS thread runs on); the hang watchdog reports it once it is over. */

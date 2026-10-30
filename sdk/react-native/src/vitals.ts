@@ -268,7 +268,13 @@ export function createVitals(deps: VitalsDeps): Vitals {
     fullyDisplayed(): void {
       const d = display;
       if (!d || d.fullRequested) {
-        logger.log(d ? "vitals: reportFullyDisplayed already called for this screen" : "vitals: reportFullyDisplayed before the first screen, ignored");
+        logger.log(
+          d
+            ? "vitals: reportFullyDisplayed already called for this screen"
+            : lastNavigation === undefined
+              ? "vitals: reportFullyDisplayed before the first screen, ignored"
+              : `vitals: reportFullyDisplayed for ${lastNavigation} after its display record was sent (the ${TTFD_TIMEOUT_MS / 1000} s deadline or the background), ignored`,
+        );
         return;
       }
       d.fullRequested = true;

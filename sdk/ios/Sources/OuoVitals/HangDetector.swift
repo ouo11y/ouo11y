@@ -33,7 +33,11 @@ public struct Hang: Equatable {
 ///   frame within it took `timeout` or longer (the main thread was stuck, even if jank led into it),
 ///   else as not fully blocking (frames were drawn, all of them late);
 /// - after a hang, none starts for `timeout` (no event storm), and a watchdog tick that came
-///   `timeout` late (the process was suspended or stopped in a debugger) forgets the frames.
+///   `timeout` late (the process was suspended, or the watchdog skipped ticks under a debugger)
+///   ends a hang in progress there and forgets the frames;
+/// - every `.started` is followed by exactly one `.ended` (from a tick, a late tick or `interrupt`)
+///   carrying the same `start`, and measuring restarts from `now` after a gap, so a block right
+///   after launch or resume, before the first frame, is a hang too.
 ///
 /// Pure: time is passed in. The caller holds the lock shared with the display link.
 public struct HangDetector {
@@ -95,11 +99,13 @@ public struct HangDetector {
         if let i = late.firstIndex(where: { $0.end >= horizon }), i > 0 { late.removeFirst(i) }
     }
 
-    /// The app left the foreground (or came back): frames stop or start again. An ongoing hang
-    /// ends here (with what was drawn, else at `now`), and the gap is not a frame.
+    /// The app's activity changed (tracking started, it became active or stopped being active):
+    /// an ongoing hang ends here (with what was drawn, else at `now`), and measuring restarts at
+    /// `now`, as if a frame was drawn then: the gap is not a frame, but a block from now on is.
     public mutating func interrupt(now: CFTimeInterval) -> Hang? {
         let ended = ongoing.map { o in o.frames > 0 ? finish(o, end: o.end) : finish(o, end: now, waited: now - o.end) }
-        forget()
+        restart(at: now)
+        lastTick = nil
         return ended
     }
 
@@ -108,10 +114,12 @@ public struct HangDetector {
     public mutating func tick(now: CFTimeInterval) -> Tick? {
         defer { lastTick = now }
         if let last = lastTick, now - last >= timeout {
-            // The watchdog itself did not run: the whole process was stopped.
-            ongoing = nil
-            forget()
-            return nil
+            // The watchdog itself did not run (the process was stopped, or ticks were skipped under
+            // a debugger): what happened in the gap is unknown. A hang in progress ends at the last
+            // tick that saw it, so its start is always paired with an end.
+            let ended = ongoing.map { o in o.frames > 0 ? finish(o, end: o.end) : finish(o, end: last, waited: last - o.end) }
+            restart(at: now)
+            return ended.map { .ended($0) }
         }
         guard lastFrame != nil else { return nil }
         if let o = ongoing {
@@ -141,8 +149,8 @@ public struct HangDetector {
         return Hang(start: o.start, end: max(end, o.start), fullyBlocking: max(o.longest, waited) >= timeout)
     }
 
-    private mutating func forget() {
-        lastFrame = nil
+    private mutating func restart(at now: CFTimeInterval) {
+        lastFrame = now
         late.removeAll()
     }
 

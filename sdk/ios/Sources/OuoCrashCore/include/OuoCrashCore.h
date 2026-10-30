@@ -57,6 +57,9 @@ bool ouo_crash_image_for(uintptr_t addr, ouo_crash_image_info *out);
 /// main thread itself (returns 0).
 int ouo_crash_main_thread_backtrace(uintptr_t *out, int max);
 
+/// The main executable's LC_UUID (dyld image 0) into `out` (16 bytes); false when it has none.
+bool ouo_crash_main_image_uuid(uint8_t *out);
+
 /// Number of binary images tracked (tests).
 int ouo_crash_image_count(void);
 

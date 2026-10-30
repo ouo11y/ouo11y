@@ -216,6 +216,16 @@ describe("native crash report", () => {
     });
     expect(isReactNativeFatal(term)).toBe(false);
   });
+
+  it("a termination during a hang carries the hang's stack (review round 1)", () => {
+    const r = parseNativeCrash(JSON.stringify({ ...signalReport("s"), mechanism: "termination", signal: undefined, termination: { cause: "watchdog" } }))!;
+    const attrs = nativeCrashAttributes(r);
+    expect(attrs["ouo.exception.kind"]).toBe("termination");
+    expect(attrs["ouo.termination.cause"]).toBe("watchdog");
+    expect(attrs["exception.stacktrace"]).toContain("Thread (main thread) hung");
+    expect(attrs["ouo.crash.frames"]).toContain("instruction_addr");
+    expect(attrs["ouo.exception.fatal"]).toBe(true);
+  });
 });
 
 describe("initRUM with a native crash from the previous run", () => {

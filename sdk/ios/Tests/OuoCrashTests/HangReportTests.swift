@@ -46,5 +46,32 @@ import OuoVitals
         #expect((images[0]["code_file"] as? String)?.isEmpty == false)
     }
 
+
+    @Test func anEndBeforeItsStartIgnoresTheStart() {
+        // Review B1: interrupt on main ends the hang before the watchdog's onStart ran.
+        var p = HangPairing()
+        let early = p.ended(10)
+        #expect(early == [], "no stack: the start was not seen")
+        let accepted = p.started(10, frames: [1, 2])
+        #expect(!accepted, "that start is ignored")
+        // The next hang pairs normally.
+        let next = p.started(20, frames: [3])
+        let nextEnd = p.ended(20)
+        let again = p.ended(20)
+        #expect(next)
+        #expect(nextEnd == [3])
+        #expect(again == [], "ended once")
+    }
+
+    @Test func aStartIsPairedWithItsOwnEnd() {
+        var p = HangPairing()
+        let accepted = p.started(5, frames: [7])
+        let other = p.ended(6)
+        let own = p.ended(5)
+        #expect(accepted)
+        #expect(other == [], "another hang's end does not take this stack")
+        #expect(own == [7])
+    }
+
     static let marker: @convention(c) () -> Void = {}
 }

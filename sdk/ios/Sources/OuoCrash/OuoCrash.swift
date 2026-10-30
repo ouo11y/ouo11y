@@ -34,8 +34,8 @@ public enum OuoCrash {
     private static var previousRuns: [URL: RunState?] = [:]
     /// Directories whose pending report was taken (a crash or a termination, at most once).
     private static var taken: Set<URL> = []
-    /// The main thread's stack read when the current hang was detected.
-    private static var hangFrames: [UInt] = []
+    /// Pairs each hang's start (and its stack) with its end.
+    private static var hangs = HangPairing()
     /// Where hang reports go: the last `startHangTracking` caller (a reloaded host replaces it).
     private static var hangHandler: ((String) -> Void)?
 
@@ -127,27 +127,47 @@ public enum OuoCrash {
     public static func startHangTracking(onHang: @escaping (String) -> Void) {
         lock.withLock { hangHandler = onHang }
         OuoVitals.startHangTracking(
-            onStart: {
+            onStart: { start in
                 var buf = [UInt](repeating: 0, count: 128)
                 let n = Int(ouo_crash_main_thread_backtrace(&buf, Int32(buf.count)))
-                let t = lock.withLock { () -> RunTracker? in
-                    hangFrames = Array(buf.prefix(max(0, n)))
-                    return tracker
+                let frames = Array(buf.prefix(max(0, n)))
+                let stack = json(stackFields(frames).merging(["arch": arch]) { a, _ in a })
+                // Under the lock, so the run state sees the start before its end.
+                lock.withLock {
+                    guard hangs.started(start, frames: frames) else { return }
+                    tracker?.update {
+                        $0.hangStartedMs = nowMs()
+                        $0.hangStack = stack
+                    }
                 }
-                t?.update { $0.hangStartedMs = nowMs() }
             },
             onEnd: { hang, startMs in
-                let (frames, t, handler) = lock.withLock { () -> ([UInt], RunTracker?, ((String) -> Void)?) in
-                    defer { hangFrames = [] }
-                    return (hangFrames, tracker, hangHandler)
+                let (frames, handler) = lock.withLock { () -> ([UInt], ((String) -> Void)?) in
+                    let frames = hangs.ended(hang.start)
+                    tracker?.update {
+                        $0.hangStartedMs = nil
+                        $0.hangStack = nil
+                    }
+                    return (frames, hangHandler)
                 }
-                t?.update { $0.hangStartedMs = nil }
                 handler?(hangReport(hang, startMs: startMs, frames: frames))
             }
         )
     }
 
     static func hangReport(_ hang: Hang, startMs: Double, frames: [UInt]) -> String {
+        json([
+            "version": 1,
+            "mechanism": "hang",
+            "timestamp_ms": startMs.rounded(),
+            "arch": arch,
+            "thread": ["main": true],
+            "hang": ["duration_ms": (hang.duration * 1_000_000).rounded() / 1000, "fully_blocking": hang.fullyBlocking],
+        ].merging(stackFields(frames)) { a, _ in a })
+    }
+
+    /// `frames` and the `images` they point into, in the crash report's fields.
+    static func stackFields(_ frames: [UInt]) -> [String: Any] {
         var images: [UInt: [String: Any]] = [:]
         let fs: [[String: Any]] = frames.map { addr in
             var f: [String: Any] = ["instruction_addr": hex(addr)]
@@ -169,16 +189,7 @@ public enum OuoCrash {
             }
             return f
         }
-        return json([
-            "version": 1,
-            "mechanism": "hang",
-            "timestamp_ms": startMs.rounded(),
-            "arch": arch,
-            "thread": ["main": true],
-            "hang": ["duration_ms": (hang.duration * 1_000_000).rounded() / 1000, "fully_blocking": hang.fullyBlocking],
-            "frames": fs,
-            "images": images.keys.sorted().compactMap { images[$0] },
-        ])
+        return ["frames": fs, "images": images.keys.sorted().compactMap { images[$0] }]
     }
 
     private static func hex(_ v: UInt) -> String { "0x" + String(v, radix: 16) }
@@ -221,4 +232,32 @@ public enum OuoCrash {
 
 private let ouoExceptionHandler: @convention(c) (NSException) -> Void = { exception in
     OuoCrash.handle(exception)
+}
+
+/// Pairs a hang's start with its end. The watchdog reports the start on its thread after the
+/// detector's lock is released, so the end (from the main thread when the app resigns active) can
+/// come first: then the start is ignored, and the report has no stack.
+struct HangPairing {
+    private var open: (start: Double, frames: [UInt])?
+    private var endedBeforeStart: Double?
+
+    /// False when this hang already ended: nothing to record.
+    mutating func started(_ start: Double, frames: [UInt]) -> Bool {
+        if endedBeforeStart == start {
+            endedBeforeStart = nil
+            return false
+        }
+        open = (start, frames)
+        return true
+    }
+
+    /// The stack read at the start, or none when the start has not been seen.
+    mutating func ended(_ start: Double) -> [UInt] {
+        if let o = open, o.start == start {
+            open = nil
+            return o.frames
+        }
+        endedBeforeStart = start
+        return []
+    }
 }

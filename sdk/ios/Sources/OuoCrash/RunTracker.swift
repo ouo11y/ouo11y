@@ -10,6 +10,12 @@ import UIKit
 final class RunTracker {
     static let heartbeatSeconds: TimeInterval = 5
 
+    /// The tracker `exit()` marks as terminated (an `atexit` handler: app code that exits, as
+    /// react-native-restart or a forced update does, sends no `willTerminate`).
+    private static let currentLock = NSLock()
+    private static var current: RunTracker?
+    private static var atexitRegistered = false
+
     private let url: URL
     private let queue = DispatchQueue(label: "ouo.run-state", qos: .utility)
     private var state = RunState.current()
@@ -21,6 +27,13 @@ final class RunTracker {
     }
 
     func start() {
+        Self.currentLock.withLock {
+            Self.current = self
+            if !Self.atexitRegistered {
+                Self.atexitRegistered = true
+                atexit { RunTracker.currentLock.withLock { RunTracker.current }?.update(sync: true) { $0.terminated = true } }
+            }
+        }
         update { _ in }
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + Self.heartbeatSeconds, repeating: Self.heartbeatSeconds, leeway: .seconds(1))
@@ -44,7 +57,6 @@ final class RunTracker {
         }
         on(UIApplication.didBecomeActiveNotification, false) { $0.active = true }
         on(UIApplication.willResignActiveNotification, false) { $0.active = false }
-        on(UIApplication.didEnterBackgroundNotification, false) { $0.active = false }
         // The process exits right after: written before the notification returns.
         on(UIApplication.willTerminateNotification, true) { $0.terminated = true }
         on(UIApplication.didReceiveMemoryWarningNotification, false) { $0.memoryWarningMs = nowMs() }
@@ -53,6 +65,7 @@ final class RunTracker {
 
     /// Stops tracking and removes the file: a run that turned tracking off is not judged.
     func stop() {
+        Self.currentLock.withLock { if Self.current === self { Self.current = nil } }
         timer?.cancel()
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []

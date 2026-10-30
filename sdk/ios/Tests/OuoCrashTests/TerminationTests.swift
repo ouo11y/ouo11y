@@ -128,4 +128,55 @@ import Testing
         t.stop()
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
+
+    // ---- review round 1 ----
+
+    @Test func exitFromAppCodeIsNoTermination() throws {
+        // react-native-restart, a forced update: exit() sends no willTerminate; the atexit handler
+        // marks the run, so the next launch does not call it a termination.
+        let d = try dir()
+        defer { try? FileManager.default.removeItem(at: d) }
+        let p = Process()
+        p.executableURL = try OuoCrashTests.probeURL()
+        p.arguments = [d.path, "s-exit", "none"]
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        try p.run()
+        p.waitUntilExit()
+        let s = try #require(RunState.load(d.appendingPathComponent("run.json")))
+        #expect(s.terminated)
+        #expect(s.sessionId == "s-exit")
+        var active = s
+        active.active = true
+        #expect(Termination.decide(previous: active, now: active) == nil)
+    }
+
+    @Test func releaseCarriesTheBuildUUIDAndOsTheBuildNumber() {
+        let c = RunState.current()
+        // "<version> (<build>) <LC_UUID>": a reinstall of the same version string is a new release.
+        let uuid = String(c.release.split(separator: " ").last ?? "")
+        #expect(UUID(uuidString: uuid) != nil, "\(c.release)")
+        #expect(c.os.range(of: #"^\d+\.\d+\.\d+ \(\w+\)$"#, options: .regularExpression) != nil, "\(c.os)")
+        var p = killedWhileActive()
+        (p.release, p.os, p.bootMs) = (c.release, c.os, c.bootMs)
+        p.release = p.release.replacingOccurrences(of: uuid, with: UUID().uuidString)
+        #expect(Termination.decide(previous: p, now: c) == nil, "a rebuilt binary is no termination")
+    }
+
+    @Test func aKillDuringAHangCarriesTheHangsStack() throws {
+        var p = killedWhileActive()
+        p.hangStartedMs = p.aliveMs - 4_000
+        p.hangStack = #"{"arch":"arm64","frames":[{"instruction_addr":"0x1a","image_addr":"0x10"}],"images":[{"code_file":"/App","image_addr":"0x10","image_size":64,"image_vmaddr":"0x10"}]}"#
+        let raw = try #require(Termination.decide(previous: p, now: now)?.report)
+        let r = try #require(try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+        #expect((r["termination"] as? [String: Any])?["cause"] as? String == "watchdog")
+        #expect((r["frames"] as? [[String: Any]])?.first?["instruction_addr"] as? String == "0x1a")
+        #expect((r["images"] as? [[String: Any]])?.count == 1)
+        #expect((r["thread"] as? [String: Any])?["main"] as? Bool == true)
+        #expect(r["arch"] as? String == "arm64")
+        // A stack left from a hang that ended is not attached.
+        p.hangStartedMs = nil
+        let plain = try #require(Termination.decide(previous: p, now: now)?.report)
+        #expect(!plain.contains("frames"))
+    }
 }

@@ -1,4 +1,4 @@
-import type { LogRecordProcessor } from "@opentelemetry/sdk-logs";
+import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { DebugLogger } from "../logger";
 import { lastEventsAttribute, type RecentEvent } from "../telemetry/recent";
 import type { AsyncKeyValueStorage, Attrs } from "../types";
@@ -9,13 +9,17 @@ import type { AsyncKeyValueStorage, Attrs } from "../types";
  * buffer `feedback` uses), the screen, the device locale, the app's memory and the network type.
  *
  * A native crash or a termination is reported by the next launch, when this run's buffer is gone:
- * the screen and the last events are persisted (`ouo.context`, at most once a second and on
- * background), and the next launch adds the crashed session's to its report. Memory and network
+ * the screen and the last events are persisted (`ouo.context`): at once after a tap, a navigation
+ * or an exception (the steps a reader needs, and the tap that triggered a synchronous native crash),
+ * at most every 5 s after other records (a termination is dated to a 5 s heartbeat anyway), and
+ * on background and flush. The next launch adds the crashed session's to its report. Memory and network
  * are what the device has at the time of the error, so a report from a previous run has none.
  */
 export const CONTEXT_STORAGE_KEY = "ouo.context";
-/** Longest wait between an event and the persisted context. */
-export const CONTEXT_PERSIST_DELAY_MS = 1000;
+/** Longest wait between a record other than a tap, navigation or exception and the persisted context. */
+export const CONTEXT_PERSIST_DELAY_MS = 5000;
+/** Records persisted at once. */
+const PERSIST_AT_ONCE = new Set(["ui.tap", "navigation", "exception"]);
 
 /** The native module's part (iOS: `ErrorContext` in sdk/ios OuoCrash). */
 export interface NativeErrorContextModule {
@@ -73,9 +77,10 @@ export function parseScreenContext(raw: string | null): ScreenContext | undefine
 }
 
 /**
- * Persists the screen context after records are emitted: one write at most every
- * CONTEXT_PERSIST_DELAY_MS (trailing), and at once on `persistNow()` (background, flush).
- * A log processor so it sees every record without hooking each emitter.
+ * Persists the screen context after records are emitted: at once after a tap, navigation or
+ * exception, else one write at most every CONTEXT_PERSIST_DELAY_MS (trailing), and at once on
+ * `persistNow()` (background, flush). A log processor after `RecentEvents`, so the record is
+ * already in the buffer it reads.
  */
 export class ContextPersister implements LogRecordProcessor {
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -87,7 +92,12 @@ export class ContextPersister implements LogRecordProcessor {
     private readonly read: () => ScreenContext | undefined,
   ) {}
 
-  onEmit(): void {
+  onEmit(record: SdkLogRecord): void {
+    const name = record.attributes["event.name"] ?? record.eventName;
+    if (typeof name === "string" && PERSIST_AT_ONCE.has(name)) {
+      this.persistNow();
+      return;
+    }
     if (this.timer !== undefined) return;
     this.timer = setTimeout(() => this.persistNow(), CONTEXT_PERSIST_DELAY_MS);
   }

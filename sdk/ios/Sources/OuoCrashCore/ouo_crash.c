@@ -481,6 +481,21 @@ bool ouo_crash_image_for(uintptr_t addr, ouo_crash_image_info *out) {
     return true;
 }
 
+bool ouo_crash_main_image_uuid(uint8_t *out) {
+    const struct mach_header *mh = _dyld_get_image_header(0);
+    if (out == NULL || mh == NULL || mh->magic != MH_MAGIC_64) return false;
+    uintptr_t cmd = (uintptr_t)((const struct mach_header_64 *)mh + 1);
+    for (uint32_t i = 0; i < mh->ncmds; i++) {
+        const struct load_command *lc = (const struct load_command *)cmd;
+        if (lc->cmd == LC_UUID) {
+            memcpy(out, ((const struct uuid_command *)lc)->uuid, 16);
+            return true;
+        }
+        cmd += lc->cmdsize;
+    }
+    return false;
+}
+
 // Image constructors run on the main thread, before `main`.
 static thread_t g_main_thread = MACH_PORT_NULL;
 __attribute__((constructor)) static void remember_main_thread(void) { g_main_thread = pthread_mach_thread_np(pthread_self()); }

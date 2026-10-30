@@ -185,6 +185,27 @@ describe("G2 vitals (docs/specs/mobile-vitals.md)", () => {
     expect(bg.emitted.find((e) => e.name === "ouo.screen.display")!.attrs).not.toHaveProperty("ouo.screen.ttfd_ms");
   });
 
+  it("reportFullyDisplayed after the deadline says so (review round 1)", () => {
+    const lines: string[] = [];
+    const h = harness({ getAppStartInfo: () => ({ processStartMs: 1_000_000 }) });
+    // The harness logger is silent; read the decision through a second instance with a spy logger.
+    const spy = createVitals({
+      events: { emit: () => {} } as unknown as EventEmitter,
+      logger: { enabled: true, log: (...a: unknown[]) => void lines.push(a.join(" ")), warn: () => {} },
+      options: { stalls: false },
+      launchedInForeground: true,
+      now: () => h.now(),
+      requestFrame: (cb) => cb(),
+      setTimer: (fn) => (fn(), 1), // the deadline passes at once
+      clearTimer: () => {},
+    });
+    spy.fullyDisplayed();
+    spy.navigated("Home");
+    spy.fullyDisplayed();
+    expect(lines[0]).toContain("before the first screen");
+    expect(lines[1]).toContain("for Home after its display record was sent");
+  });
+
   it("reportFullyDisplayed before any screen does nothing", () => {
     const h = measured();
     h.vitals.fullyDisplayed();

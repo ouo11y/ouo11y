@@ -174,9 +174,71 @@ private struct Sim {
         d.frame(timestamp: 100, targetTimestamp: 100 + 1.0 / 60)
         #expect(d.tick(now: 100.4) == nil)
         #expect(d.tick(now: 110.4) == nil)
-        #expect(d.tick(now: 110.8) == nil, "no frame since the gap: nothing to measure")
+        #expect(d.tick(now: 110.8) == nil, "measuring restarted at the late tick")
         d.frame(timestamp: 110.81, targetTimestamp: 110.81 + 1.0 / 60)
         #expect(d.tick(now: 111.2) == nil)
+    }
+
+    @Test func aLateTickDuringAHangEndsIt() {
+        // Review B1: a started hang always gets its end, at the last tick that saw it.
+        var s = Sim()
+        s.draw(1)
+        let blockedAt = s.last
+        s.advance(to: blockedAt + 2.5) // started at the tick of 103.2
+        #expect(s.starts == 1)
+        let lastSeen = s.nextTick - 0.4
+        // The watchdog does not run for 2.5 s while the main thread recovers.
+        s.d.frame(timestamp: blockedAt + 3, targetTimestamp: blockedAt + 3 + s.frame)
+        let late = s.d.tick(now: lastSeen + 2.5)
+        #expect(late == .ended(Hang(start: blockedAt, end: blockedAt + 3, fullyBlocking: true)))
+        #expect(!s.d.isHanging)
+    }
+
+    @Test func aDebuggerAttachingMidHangEndsItAtTheLastTick() {
+        // The watchdog skips ticks while a debugger is attached; its next tick is late.
+        var s = Sim()
+        s.draw(1)
+        let blockedAt = s.last
+        s.advance(to: blockedAt + 2.5)
+        #expect(s.starts == 1)
+        let lastSeen = s.nextTick - 0.4
+        // Still blocked (stopped at a breakpoint) when the debugger detaches 30 s later.
+        let late = s.d.tick(now: lastSeen + 30)
+        #expect(late == .ended(Hang(start: blockedAt, end: lastSeen, fullyBlocking: true)))
+        #expect(s.d.tick(now: lastSeen + 30.4) == nil)
+    }
+
+    @Test func aBlockRightAfterResumeIsAHang() {
+        // Review 1: before the first frame after becoming active, a block is still measured.
+        var d = HangDetector()
+        d.frame(timestamp: 100, targetTimestamp: 100 + 1.0 / 60)
+        #expect(d.interrupt(now: 100.1) == nil) // resign active
+        #expect(d.interrupt(now: 160) == nil) // active again a minute later, then blocked 5 s
+        var events: [HangDetector.Tick] = []
+        var t = 160.4
+        while t < 165 {
+            if let e = d.tick(now: t) { events.append(e) }
+            t += 0.4
+        }
+        d.frame(timestamp: 165, targetTimestamp: 165 + 1.0 / 60)
+        var f = 165.0
+        while t < 168 {
+            while f + 1.0 / 60 <= t { f += 1.0 / 60; d.frame(timestamp: f, targetTimestamp: f + 1.0 / 60) }
+            if let e = d.tick(now: t) { events.append(e) }
+            t += 0.4
+        }
+        #expect(events.count == 2)
+        if case .started(let start, _) = events.first { #expect(start == 160) } else { Issue.record("no start: \(events)") }
+        #expect(events.last == .ended(Hang(start: 160, end: 165, fullyBlocking: true)))
+    }
+
+    @Test func aBlockRightAfterTrackingStartsIsAHang() {
+        var d = HangDetector()
+        _ = d.interrupt(now: 10) // tracking starts; no frame yet
+        #expect(d.tick(now: 10.4) == nil)
+        var started = false
+        for t in stride(from: 10.8, to: 13, by: 0.4) where d.tick(now: t) != nil { started = true }
+        #expect(started)
     }
 
     @Test func noFramesYetIsNoHang() {

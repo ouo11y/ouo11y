@@ -1,5 +1,6 @@
 import Foundation
 import OuoVitalsCore
+import QuartzCore
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -83,15 +84,19 @@ public enum OuoVitals {
     }
 
     /// Starts the app hang watchdog (mobile SDK spec C3.1, rules in `HangDetector`): a thread that
-    /// wakes every 400 ms while the app is active and no debugger is attached. `onStart` runs on
-    /// that thread when a hang is detected, while the main thread is still blocked (the moment to
-    /// read its stack); `onEnd` runs once when it is over, with its start in epoch ms. Also starts
-    /// the frame tracking. Idempotent; no-op without UIKit.
-    public static func startHangTracking(onStart: @escaping () -> Void, onEnd: @escaping (_ hang: Hang, _ startMs: Double) -> Void) {
+    /// wakes every 400 ms while the app is active and no debugger is attached, and waits without
+    /// waking while it is not. `onStart` runs on that thread when a hang is detected, while the
+    /// main thread is still blocked (the moment to read its stack), with the hang's start;
+    /// `onEnd` runs once when it is over (on the watchdog or the main thread, possibly before
+    /// `onStart` returned), with the same start and the start in epoch ms. Also starts the frame
+    /// tracking. Idempotent; no-op without UIKit.
+    public static func startHangTracking(onStart: @escaping (_ start: CFTimeInterval) -> Void, onEnd: @escaping (_ hang: Hang, _ startMs: Double) -> Void) {
         #if canImport(UIKit)
         lock.lock()
         let started = watchdog != nil
         if !started {
+            // Measuring starts now: a block before the first frame is a hang too.
+            _ = hangs.interrupt(now: CACurrentMediaTime())
             let w = HangWatchdog(interval: hangs.tickInterval, onStart: onStart, onEnd: { onEnd($0, epochMs($0.start)) }) { now in
                 lock.lock()
                 defer { lock.unlock() }
@@ -196,23 +201,32 @@ final class DisplayLinkTracker {
     }
 }
 
+#endif
+
 /// The app hang watchdog thread (sentry-cocoa runs the same loop on its own thread). It only reads
 /// a clock and the detector under the vitals lock; it calls back when a hang starts and ends.
+/// While the app is not active it waits on a condition: no wakeups in the background (apps with
+/// background modes are not suspended).
 final class HangWatchdog: Thread {
     private let interval: CFTimeInterval
-    private let onStart: () -> Void
+    private let onStart: (CFTimeInterval) -> Void
     let onEnd: (Hang) -> Void
     private let tick: (CFTimeInterval) -> HangDetector.Tick?
-    private let state = UnfairLock()
+    private let condition = NSCondition()
     private var isActive = false
 
-    /// Ticks are skipped while the app is not active (a hang then is not one the user waits on).
+    /// Ticks run only while the app is active (a hang then is one the user waits on).
     var active: Bool {
-        get { state.lock(); defer { state.unlock() }; return isActive }
-        set { state.lock(); isActive = newValue; state.unlock() }
+        get { condition.lock(); defer { condition.unlock() }; return isActive }
+        set {
+            condition.lock()
+            isActive = newValue
+            condition.signal()
+            condition.unlock()
+        }
     }
 
-    init(interval: CFTimeInterval, onStart: @escaping () -> Void, onEnd: @escaping (Hang) -> Void, tick: @escaping (CFTimeInterval) -> HangDetector.Tick?) {
+    init(interval: CFTimeInterval, onStart: @escaping (CFTimeInterval) -> Void, onEnd: @escaping (Hang) -> Void, tick: @escaping (CFTimeInterval) -> HangDetector.Tick?) {
         self.interval = interval
         self.onStart = onStart
         self.onEnd = onEnd
@@ -224,16 +238,25 @@ final class HangWatchdog: Thread {
 
     override func main() {
         while !isCancelled {
+            condition.lock()
+            while !isActive && !isCancelled { condition.wait() }
+            condition.unlock()
             Thread.sleep(forTimeInterval: interval)
-            // A debugger stops the main thread at breakpoints: those are not hangs.
+            // A debugger stops the main thread at breakpoints: those are not hangs. The skipped
+            // ticks make the next one late, which ends a hang in progress (HangDetector).
             guard active, !OuoVitals.isDebuggerAttached else { continue }
             switch tick(CACurrentMediaTime()) {
-            case .started: onStart()
+            case .started(let start, _): onStart(start)
             case .ended(let hang): onEnd(hang)
             case nil: break
             }
         }
     }
-}
 
-#endif
+    override func cancel() {
+        condition.lock()
+        super.cancel()
+        condition.signal()
+        condition.unlock()
+    }
+}

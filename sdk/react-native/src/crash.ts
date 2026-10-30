@@ -55,7 +55,7 @@ export interface NativeCrashReport {
   exception?: { name: string; reason: string };
   /** `hang`: the whole blocked time, and whether no frame was drawn at all. */
   hang?: { duration_ms: number; fully_blocking: boolean };
-  /** `termination`: what the native side knows of why (`memory`, `watchdog`, `unknown`). */
+  /** `termination`: what the native side knows of why (`memory`, `watchdog`, `unknown`); with `frames` when it died during a hang. */
   termination?: { cause: string };
   frames: NativeCrashFrame[];
   images: NativeCrashImage[];
@@ -133,8 +133,8 @@ export function formatNativeStack(r: NativeCrashReport): string {
   const { type, message } = crashTitle(r);
   const images = new Map(r.images.map((i) => [i.image_addr, i]));
   const thread = r.thread?.main === true ? "main thread" : r.thread?.main === false ? "background thread" : "crashed thread";
-  // A hang's stack is the main thread's when the hang was detected.
-  const what = r.mechanism === "hang" ? "hung" : "crashed";
+  // A hang's stack (and a termination's, when it died during a hang) is the main thread's when the hang was detected.
+  const what = r.mechanism === "hang" || r.mechanism === "termination" ? "hung" : "crashed";
   const lines = [`${type}: ${message}`.trim(), `Thread (${thread}) ${what}${r.arch ? `, ${r.arch}` : ""}:`];
   r.frames.forEach((f, i) => {
     const img = f.image_addr ? images.get(f.image_addr) : undefined;
@@ -177,9 +177,9 @@ export function nativeCrashAttributes(r: NativeCrashReport): Attrs {
     "ouo.exception.handled": false,
     "ouo.exception.kind": kind,
   };
-  if (kind === "termination") {
-    attrs["ouo.termination.cause"] = terminationCause(r);
-  } else {
+  if (kind === "termination") attrs["ouo.termination.cause"] = terminationCause(r);
+  // A termination has a stack only when the run died during a hang (where the main thread was stuck).
+  if (kind !== "termination" || r.frames.length > 0) {
     attrs["exception.stacktrace"] = formatNativeStack(r);
     attrs["ouo.crash.mechanism"] = r.mechanism;
     attrs["ouo.crash.timestamp"] = r.timestamp_ms;
