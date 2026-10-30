@@ -19,6 +19,8 @@ import { forwardSentryErrors } from "./errors/sentry";
 import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
+import type { TrackTouch } from "./provider";
+import type { Gesture } from "./taps";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
 import { createReplayController, loadNativeReplayModule } from "./replay";
@@ -44,7 +46,7 @@ export { SDK_VERSION } from "./version";
 export { RUMProvider, type RUMProviderProps } from "./provider";
 export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/stack";
-export { touchedComponent, type FiberLike, type TouchedComponent } from "./taps";
+export { touchedComponent, type FiberLike, type Gesture, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
 export { type NativeReplayModule, type NativeStartOptions } from "./replay";
 export { sampled, samplingHash, SAMPLING_SALT } from "./sampling";
@@ -65,6 +67,8 @@ export interface RUMInternal extends RUM {
   _uninstall(): Promise<void>;
   /** RUMProvider mounted: the app's first frame follows (vitals). */
   _rootMounted(): void;
+  /** RUMProvider: a touch ended (`ui.tap`, with the `timeline.tapLabels` kill switch applied). */
+  _trackTouch: TrackTouch;
 }
 
 /**
@@ -211,6 +215,7 @@ export function initRUM(options: RUMOptions): RUM {
   };
   const timeline = {
     taps: options.timeline?.taps !== false,
+    tapLabels: options.timeline?.tapLabels !== false,
     appLifecycle: options.timeline?.appLifecycle !== false,
     requests: options.timeline?.requests !== false,
   };
@@ -334,13 +339,22 @@ export function initRUM(options: RUMOptions): RUM {
   });
 
   const navigation = createNavigationTracker((attrs) => {
-    events.emit("navigation", attrs);
+    events.emit("navigation", { ...attrs, "ouo.navigation.kind": "screen" });
     onActivity();
     replay.screenDidChange();
-    // `app.screen.name`: the route name, the last segment of the path.
-    const path = String(attrs["url.path"] ?? "");
-    vitals.navigated(path.slice(path.lastIndexOf("/") + 1));
+    vitals.navigated(screenName(String(attrs["url.path"] ?? "")));
   });
+
+  // `ui.tap` at the touch start; the body is the user step as a person reads it.
+  const emitTap = (target: string, path: string | undefined, gesture: Gesture, viewType: string | undefined, at: number): void => {
+    if (!timeline.taps || !target) return;
+    const screen = screenName(navigation.current());
+    const attrs: Attrs = { "ouo.ui.target": target, "ouo.ui.gesture": gesture };
+    if (path && path !== target) attrs["ouo.ui.path"] = path;
+    if (viewType) attrs["ouo.ui.view_type"] = viewType;
+    if (screen) attrs["app.screen.name"] = screen;
+    events.emit("ui.tap", attrs, "info", at, { body: userStep(gesture, target, viewType, screen) });
+  };
 
   logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
     endpoint: endpoints.endpoint,
@@ -371,12 +385,14 @@ export function initRUM(options: RUMOptions): RUM {
       navigation.track(path, attrs);
     },
     recordActivity: onActivity,
-    trackTap(target: string, path?: string): void {
+    trackTap(target: string, path?: string, gesture: Gesture = "tap"): void {
       onActivity();
-      if (!timeline.taps || !target) return;
-      const attrs: Attrs = { "ouo.ui.target": target };
-      if (path && path !== target) attrs["ouo.ui.path"] = path;
-      events.emit("ui.tap", attrs, "info", Date.now(), { body: path || target });
+      emitTap(target, path, gesture, undefined, Date.now());
+    },
+    _trackTouch(touched, gesture, startedAt): void {
+      // Labels off: what was touched (its view type), not what it is called.
+      if (timeline.tapLabels) emitTap(touched.target, touched.path, gesture, touched.viewType, startedAt);
+      else emitTap(touched.viewType, undefined, gesture, touched.viewType, startedAt);
     },
     startSpan: spans.startSpan,
     withSpan: spans.withSpan,
@@ -414,6 +430,18 @@ export function initRUM(options: RUMOptions): RUM {
   };
   setRUM(rum);
   return rum;
+}
+
+/** `app.screen.name`: the route name, the last segment of a navigation path. */
+function screenName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+const GESTURE_WORDS: Record<Gesture, string> = { tap: "Tap", long_press: "Long press", swipe: "Swipe" };
+
+/** `Tap add-to-cart (button) on Products`. */
+function userStep(gesture: Gesture, target: string, viewType?: string, screen?: string): string {
+  return `${GESTURE_WORDS[gesture]} ${target}${viewType && viewType !== target ? ` (${viewType})` : ""}${screen ? ` on ${screen}` : ""}`;
 }
 
 /** Metro dev-server endpoints: `POST /symbolicate` (LogBox), `POST /__sentry/context` (Sentry's middleware). */

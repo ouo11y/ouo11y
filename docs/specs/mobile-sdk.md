@@ -1,6 +1,6 @@
 # Mobile SDK specification: twelve capabilities, conformance checks, maturity
 
-Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, the C6 additions, C10) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
+Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, C10) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
 
 This spec is the index. Where a record already has a spec, it is linked, not repeated:
 
@@ -56,15 +56,21 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 - **Events**: `http.request.failed` for 5xx and network errors ([session-lifecycle.md](session-lifecycle.md)); `http.request` for answered requests below 500 when timeline requests are on, with the span's trace and span id.
 - **Check**: C5.1.
 
-### C6 Interactions (additions draft until W5)
+### C6 Interactions
 
-- **Record**: `ui.tap` (the name the bridge already produces from Sentry's `ui.tap`, `ui.click` and `touch` breadcrumbs): `ouo.ui.target` (the first label up the view tree: `ouo-label`, `accessibilityLabel`, test id, else the component or view class name) and `ouo.ui.path` (the labelled or named ancestors, innermost first, joined by ` > `). W5 adds `app.screen.name` (the screen the tap happened on), `ouo.ui.gesture` (`tap`, `long_press`, `swipe`) and `ouo.ui.view_type`.
-- **Kill switch**: `timeline.taps: false` stops the records. Text content is never read (rule 6).
+- **Record**: `ui.tap`, one per touch, stamped at the touch start and emitted when the finger lifts (the name the bridge already produces from Sentry's `ui.tap`, `ui.click` and `touch` breadcrumbs, which carry the target only):
+  - `ouo.ui.target`: the first label up the view tree (`ouo-label`, `accessibilityLabel`, test id), else the component or view class name;
+  - `ouo.ui.path`: the labelled or named ancestors, innermost first, joined by ` > `;
+  - `ouo.ui.view_type`: what was touched, never its label: the control's accessibility role (`button`, `link`), else the component that carries the label (`Pressable`, `UIButton`), else the innermost component or view class;
+  - `ouo.ui.gesture`: `swipe` when the touch moved 10 points or more, else `long_press` when it was held 500 ms or more, else `tap`;
+  - `app.screen.name`: the screen the touch started on (the last segment of the current C7 `url.path`), absent before the first screen.
+- **Body**: the user step as a person reads it: `Tap add-to-cart (button) on Products`, `Swipe cart-items (FlatList) on Cart`.
+- **Kill switches**: `timeline.taps: false` stops the records. `timeline.tapLabels: false` keeps them without any label: `ouo.ui.target` is the view type and there is no `ouo.ui.path`; gesture, view type and screen stay. Text content is never read (rule 6).
 - **Check**: C6.1.
 
 ### C7 Screens and navigation
 
-- **Record**: `navigation` with `url.path` = `/` + the active screen names joined by `/` (React Navigation route names, view controller or activity names), `ouo.navigation.from`, and `ouo.navigation.kind = screen` (the bridge sends it; the React Native SDK does not yet, W5 adds it). A screen change emits one record; the same screen again emits none.
+- **Record**: `navigation` with `url.path` = `/` + the active screen names joined by `/` (React Navigation route names, view controller or activity names), `ouo.navigation.from`, and `ouo.navigation.kind = screen`, as the bridge sends it. A screen change emits one record; the same screen again emits none.
 - Funnels count screens as page steps on `url.path` ([funnels.md](funnels.md)); custom events (`rum.addEvent`, `ouo.event.custom = true`) are event steps.
 - **Check**: C7.1.
 
@@ -114,8 +120,8 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | C4.1 | cold start, then three screens | `ouo.app.start` `cold` with a duration, one `ouo.screen.display` with TTID per screen in order, frame counts |
 | C4.2 | reports the first screen fully displayed | its `ouo.screen.display` has `ouo.screen.ttfd_ms` |
 | C5.1 | calls the demo backend | one trace holds the app's client span and a backend span carrying the app's `session.id` |
-| C6.1 | taps three labelled controls on three screens | three `ui.tap` in order with `ouo.ui.target` and `app.screen.name` |
-| C7.1 | visits Home, Products, Cart | a funnel `page:/Home`, `page:/Products`, `page:/Cart` counts the session at step 3 |
+| C6.1 | taps, long-presses and swipes labelled controls on three screens | three `ui.tap` in order with `ouo.ui.target`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`) and `app.screen.name` |
+| C7.1 | visits Home, Products, Cart | one `navigation` per screen with `ouo.navigation.kind = screen`; a funnel `page:/Home`, `page:/Products`, `page:/Cart` counts the session at step 3 |
 | C8.1 | records replay across a background rotation | both sessions have a `frames` replay |
 | C8.2 | starts replay with default options | text, inputs, images and web views masked |
 | C8.3 | crashes while recording; launches again | the crashed session's replay ends within 1.5 s of the crash |
@@ -146,7 +152,7 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 | C3 Hangs and terminations | L0: W4 | L0 | L0 | L0 | L0 |
 | C4 Vitals | L1: C4.2 TTFD waits for W4 | L0 (OuoVitals measures, nothing sends) | L1 (stalls, TTID; no native app start or frames) | L0 | L0 |
 | C5 Network | L2 | L0 | L1 (JS) | L0 | L0 |
-| C6 Interactions | L1: C6.1 waits for W5 (`app.screen.name` on taps) | L0 | L1 (JS) | L0 | L0 |
+| C6 Interactions | L2 | L0 | L1 (JS) | L0 | L0 |
 | C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |
 | C8 Replay | L2 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
 | C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |

@@ -44,18 +44,86 @@ const exceptions = (c: Captured) =>
   }));
 
 describe("G4 timeline parity with the Sentry bridge", () => {
-  it("ui.tap from RUMProvider touches: target and component path", async () => {
+  type Handlers = { onTouchStart: (e: object) => void; onTouchEnd: (e: object) => void; onTouchCancel: (e: object) => void };
+  // <Pressable testID="add-to-cart" role="button"><Text>Add</Text></Pressable> on ProductScreen.
+  const screen = { elementType: { displayName: "ProductScreen" }, memoizedProps: {}, return: null };
+  const pressable = { elementType: { displayName: "Pressable" }, memoizedProps: { testID: "add-to-cart", role: "button" }, return: screen };
+  const text = { elementType: "RCTText", memoizedProps: { children: "Add" }, return: { elementType: { displayName: "View" }, memoizedProps: { testID: "add-to-cart", role: "button" }, return: pressable } };
+
+  /** A touch from start to end: held `ms`, moved `dx`, `dy` points. Returns the start time. */
+  function touch(el: ReactElement<Handlers>, fiber: object | undefined, ms = 60, dx = 0, dy = 0, end: keyof Handlers = "onTouchEnd"): number {
+    const t0 = Date.now();
+    const now = vi.spyOn(Date, "now").mockReturnValue(t0);
+    el.props.onTouchStart({ _targetInst: fiber, nativeEvent: { pageX: 100, pageY: 200 } });
+    now.mockReturnValue(t0 + ms);
+    el.props[end]({ nativeEvent: { pageX: 100 + dx, pageY: 200 + dy } });
+    now.mockRestore();
+    return t0;
+  }
+
+  it("ui.tap from RUMProvider touches: target, path, view type, gesture and screen, stamped at the touch start", async () => {
     const { rum, captured } = await start();
-    const el = RUMProvider({ rum }) as ReactElement<{ onTouchStart: (e: object) => void }>;
-    const button = { elementType: { displayName: "Pressable" }, memoizedProps: { testID: "action-fetch-ok" }, return: { elementType: { displayName: "HomeScreen" }, memoizedProps: {}, return: null } };
-    el.props.onTouchStart({ _targetInst: { elementType: "RCTText", memoizedProps: { children: "Fetch" }, return: button } });
-    el.props.onTouchStart({}); // no fiber: activity only
+    const el = RUMProvider({ rum }) as ReactElement<Handlers>;
+    rum.trackNavigation("/Products/Product");
+    const t0 = touch(el, text);
+    touch(el, text, 800);
+    touch(el, text, 300, 0, -120, "onTouchCancel"); // a scroll view took the touch over
+    touch(el, undefined); // no fiber: activity only
     await rum.flush();
     const taps = captured.byName("ui.tap");
-    expect(taps).toHaveLength(1);
-    expect(attr(taps[0]!.attributes, "ouo.ui.target")).toBe("action-fetch-ok");
-    expect(attr(taps[0]!.attributes, "ouo.ui.path")).toBe("action-fetch-ok > HomeScreen");
-    expect(taps[0]!.body?.stringValue).toBe("action-fetch-ok > HomeScreen");
+    expect(taps.map((l) => attr(l.attributes, "ouo.ui.gesture"))).toEqual(["tap", "long_press", "swipe"]);
+    const a = taps[0]!.attributes;
+    expect([attr(a, "ouo.ui.target"), attr(a, "ouo.ui.path"), attr(a, "ouo.ui.view_type"), attr(a, "app.screen.name")]).toEqual([
+      "add-to-cart",
+      "add-to-cart > ProductScreen",
+      "button",
+      "Product",
+    ]);
+    expect(taps.map((l) => l.body?.stringValue)).toEqual(["Tap add-to-cart (button) on Product", "Long press add-to-cart (button) on Product", "Swipe add-to-cart (button) on Product"]);
+    expect(BigInt(taps[0]!.timeUnixNano) / 1_000_000n).toBe(BigInt(t0));
+  });
+
+  it("one record per touch: a second finger and a nested provider add none", async () => {
+    const { rum, captured } = await start();
+    const outer = RUMProvider({ rum }) as ReactElement<Handlers>;
+    const inner = RUMProvider({ rum }) as ReactElement<Handlers>;
+    inner.props.onTouchStart({ _targetInst: text });
+    outer.props.onTouchStart({ _targetInst: text }); // the same touch bubbling on
+    inner.props.onTouchStart({ _targetInst: text }); // a second finger
+    inner.props.onTouchEnd({});
+    outer.props.onTouchEnd({});
+    await rum.flush();
+    expect(captured.byName("ui.tap")).toHaveLength(1);
+  });
+
+  it("timeline.tapLabels false: no label leaves the device, the step keeps gesture, view type and screen", async () => {
+    const { rum, captured } = await start({ timeline: { tapLabels: false } });
+    const el = RUMProvider({ rum }) as ReactElement<Handlers>;
+    rum.trackNavigation("/Cart");
+    touch(el, text, 900);
+    await rum.flush();
+    const [tap] = captured.byName("ui.tap");
+    expect(Object.fromEntries(tap!.attributes.filter((x) => x.key.startsWith("ouo.ui.") || x.key === "app.screen.name").map((x) => [x.key, attr(tap!.attributes, x.key)]))).toEqual({
+      "ouo.ui.target": "button",
+      "ouo.ui.view_type": "button",
+      "ouo.ui.gesture": "long_press",
+      "app.screen.name": "Cart",
+    });
+    expect(tap!.body?.stringValue).toBe("Long press button on Cart");
+    expect(JSON.stringify(captured)).not.toContain("add-to-cart");
+  });
+
+  it("navigation: one record per screen change, ouo.navigation.kind = screen like the bridge", async () => {
+    const { rum, captured } = await start();
+    rum.trackNavigation("/Home");
+    rum.trackNavigation("/Home");
+    rum.trackNavigation("/Products");
+    await rum.flush();
+    const nav = captured.byName("navigation");
+    expect(nav.map((l) => [attr(l.attributes, "url.path"), attr(l.attributes, "ouo.navigation.from"), attr(l.attributes, "ouo.navigation.kind")])).toEqual([
+      ["/Home", "", "screen"],
+      ["/Products", "/Home", "screen"],
+    ]);
   });
 
   it("http.request for answered requests below 500, with the request span's trace id and span id", async () => {

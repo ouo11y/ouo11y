@@ -237,7 +237,7 @@ const rum: RUM = initRUM({
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
   errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000, forwardSentryErrors: undefined },
-  timeline: { taps: true, appLifecycle: true, requests: true },
+  timeline: { taps: true, tapLabels: true, appLifecycle: true, requests: true },
   vitals: { enabled: true, stalls: true },
   storage: AsyncStorageLike,       // optional, defaults to @react-native-async-storage/async-storage
   debug: false,
@@ -248,7 +248,7 @@ rum.captureError(err, { screen: "Cart" });      // exception, fatal=false, handl
 rum.addEvent("cart.added", { "product.id": "p-1" });
 rum.trackNavigation("/Cart");                   // navigation event + activity
 rum.recordActivity();                           // activity without a timeline event
-rum.trackTap("checkout-pay");                   // ui.tap + activity (RUMProvider does it per touch)
+rum.trackTap("checkout-pay");                   // ui.tap on the current screen + activity (RUMProvider does it per touch)
 rum.withSpan("checkout", (span) => fetch(url)); // span around fn, ended when its promise settles
 const span = rum.startSpan("parse", { parent }); span.end();
 rum.log.info("checkout started", { "cart.items": 3 }); // OTel log record, linked to session and span
@@ -432,17 +432,20 @@ record, so rum-api's session logs show both alike. Logs are not session activity
 ## Timeline (taps, app lifecycle, requests)
 
 The same events the Sentry bridge derives from Sentry breadcrumbs (`docs/specs/sentry-bridge.md`
-section 9a), with the same names, attributes and bodies, so the plugin shows both paths alike.
-Each can be turned off in `timeline`.
+section 9a), with the same names and attributes, so the plugin shows both paths alike; a tap also
+carries what the bridge cannot know (view type, gesture, screen: spec C6). Each can be turned off
+in `timeline`.
 
 | `event.name` | When | Attributes | Body |
 |---|---|---|---|
-| `ui.tap` | a touch inside `<RUMProvider>`, or `rum.trackTap(target, path)` | `ouo.ui.target`: the first label up the touched component tree (`ouo-label`, `sentry-label`, `accessibilityLabel`, `aria-label`, `testID`), else the innermost display name; `ouo.ui.path`: labels and names innermost first, joined with ` > ` (when it differs) | the path |
+| `ui.tap` | a touch inside `<RUMProvider>` when the finger lifts (stamped at the touch start), or `rum.trackTap(target, path, gesture)` | `ouo.ui.target`: the first label up the touched component tree (`ouo-label`, `sentry-label`, `accessibilityLabel`, `aria-label`, `testID`), else the innermost display name; `ouo.ui.path`: labels and names innermost first, joined with ` > ` (when it differs); `ouo.ui.view_type`: the control's `role` / `accessibilityRole`, else the labelled component (`Pressable`), else the innermost one; `ouo.ui.gesture`: `swipe` (moved 10 pt or more), `long_press` (held 500 ms or more) or `tap`; `app.screen.name`: the current screen | the user step: `Tap add-to-cart (button) on Product` |
 | `app.lifecycle` | every `AppState` change | `ouo.app.state`: `foreground`, `inactive`, `background` | `app <state>` |
 | `http.request` | a fetch / XHR answered with 1 to 499 | `http.request.method`, `url.full`, `http.response.status_code`; trace id and span id of the request span | `<METHOD> <url>` |
 
 Text content is never read for tap targets (Sentry reads it unless replay masks text). Give
-buttons a `testID` or an `accessibilityLabel`. `http.request.failed` keeps its rules and now
+buttons a `testID` or an `accessibilityLabel`, and a `role` for a readable view type. When even
+labels must stay on the device, `timeline: { tapLabels: false }` records taps without them:
+`ouo.ui.target` is the view type (`Long press button on Cart`) and there is no `ouo.ui.path`. `http.request.failed` keeps its rules and now
 carries its span's trace id and span id too.
 
 ## Vitals
@@ -477,7 +480,7 @@ On the simulator expo-device answers the CPU (`arm64`), which is not a model: th
 
 `session.start`, `session.end` (`ouo.session.end_reason`, `ouo.session.duration_ms`,
 `ouo.session.started_at`, `ouo.session.ended_at`), `exception`, `http.request.failed`,
-`navigation` (`url.path`, `ouo.navigation.from`), `ui.tap`, `app.lifecycle`, `http.request`,
+`navigation` (`url.path`, `ouo.navigation.from`, `ouo.navigation.kind = screen`), `ui.tap`, `app.lifecycle`, `http.request`,
 `log`, the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
 from `addEvent` (`ouo.event.custom=true`). Every span and log record carries `session.id`,
 `session.previous_id` (when set), `user.id`, `ouo.user.anonymous`, `ouo.platform=mobile`
