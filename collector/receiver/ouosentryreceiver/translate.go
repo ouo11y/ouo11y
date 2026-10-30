@@ -46,6 +46,7 @@ const (
 	matchDevice   = "device"
 	matchTrace    = "trace"
 	matchStart    = "start"
+	matchEvent    = "event"
 	matchNone     = "none"
 )
 
@@ -77,6 +78,7 @@ type decodedItem struct {
 	event   *sentryEvent
 	replay  *replaySegment
 	logs    []sentryLog
+	report  *userReport
 }
 
 // translation accumulates the output of one envelope.
@@ -139,6 +141,15 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 			}
 			x, match := t.resolve(st, envSessions, sessionOrder, it.event, envReplayID, true)
 			t.emitEvent(it.event, x, match, envSessions)
+		}
+		// User feedback, after the errors it may name.
+		for _, it := range items {
+			switch {
+			case it.typ == "feedback" && it.event != nil:
+				t.emitFeedback(st, envSessions, sessionOrder, it.event, envReplayID)
+			case it.report != nil:
+				t.emitUserReport(st, it.report)
+			}
 		}
 		// Transactions.
 		for _, it := range items {
@@ -204,7 +215,14 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			} else {
 				translated = false
 			}
-		case "event", "transaction":
+		case "user_report":
+			var u userReport
+			if json.Unmarshal(it.Payload, &u) == nil {
+				d.report = &u
+			} else {
+				translated = false
+			}
+		case "event", "transaction", "feedback":
 			var e sentryEvent
 			if json.Unmarshal(it.Payload, &e) == nil {
 				d.event = &e
@@ -464,6 +482,8 @@ func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessio
 			replayID = e.Contexts.Replay.ReplayID
 		}
 		defer t.emitEventBreadcrumbs(e, x, match, x.replayID != "" || replayID != "")
+		// A user report or feedback names the event it is about (section 9c).
+		t.r.state.learnEvent(x, e.EventID)
 	}
 	if !e.isError() {
 		lr := t.newRecord("sentry.message", ts, x, match, userID, plog.SeverityNumberInfo)

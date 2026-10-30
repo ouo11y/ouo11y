@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { getCart, formatPrice, type Cart } from "../api";
+import { FeedbackForm } from "../FeedbackForm";
 import type { ScreenProps } from "../navigation";
 import { Button, ErrorBox, Loading, Screen, styles } from "../ui";
 
@@ -34,6 +35,7 @@ export function CartScreen({ navigation }: ScreenProps<"Cart">) {
       <Text style={styles.title}>Total {formatPrice(cart.total)}</Text>
       <Button title="Checkout" onPress={() => navigation.navigate("Checkout")} disabled={cart.itemCount === 0} />
       <Button title="Continue shopping" tone="muted" onPress={() => navigation.navigate("Products")} />
+      <FeedbackForm />
     </Screen>
   );
 }

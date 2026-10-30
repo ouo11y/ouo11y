@@ -316,6 +316,19 @@ export interface RUMReplay {
   isRecording(): boolean;
 }
 
+/** `rum.feedback(...)` (docs/specs/mobile-sdk.md C10): what the user wrote, as the app passes it. */
+export interface FeedbackInput {
+  /** The user's text. Required: an empty message sends nothing. Cut at 4096 characters. */
+  message: string;
+  /** How to reach the user (an email, a name), as the user typed it. Cut at 4096 characters. */
+  contact?: string;
+  /**
+   * Ask the replay recorder for a masked frame of the current screen. Ignored when replay is not
+   * recording; the record's `ouo.feedback.screenshot` says whether it was.
+   */
+  screenshot?: boolean;
+}
+
 export interface RUMSession {
   id(): string;
   userId(): string;
@@ -353,6 +366,13 @@ export interface RUM {
   withSpan<T>(name: string, fn: (span: Span) => T, options?: SpanOptions): T;
   /** Log API: `rum.log.info("checkout started", { "cart.items": 3 })`. */
   log: RUMLog;
+  /**
+   * Send the user's feedback as a `feedback` event on the current session (C10). The events before
+   * it are on the session's timeline; with `screenshot: true` and replay recording, the replay at
+   * that time shows the masked screen. Like every record, it follows session sampling (C1).
+   * Returns the feedback id (`ouo.feedback.id`), or undefined when the message is empty.
+   */
+  feedback(input: FeedbackInput): string | undefined;
   replay: RUMReplay;
   session: RUMSession;
   /** Resolves once the persisted session state was read and `session.start` was emitted. */

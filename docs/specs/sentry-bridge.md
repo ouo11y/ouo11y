@@ -188,9 +188,10 @@ Rules in order; the first match wins.
 3. **device**: `(ouo project, did)` has a session whose window `[started, last_update + 30 min]` contains the item timestamp. The device key of an item is its `user.id` (verified on iOS: the default `user.id` is the installation id the SDK also uses as `did`). When the app sets its own user id, `did` follows it, so the key still matches. For a replay segment the session must also have started at most 10 s after the segment (a replay starts with its session): otherwise a held segment of a session the bridge never saw (bridge restarted mid-replay) would claim the device's next session, and that session's own replay would be dropped as `replay_conflict` (found on a real run).
 4. **trace**: the item's trace id (`contexts.trace.trace_id` of events and transactions, `trace_id` of log entries) was seen on an item resolved by rules 1 to 3, and the item's time falls inside that session's window. A trace id can map to several sessions (the JS SDK's scope trace id outlives a background rotation); the latest started session whose window contains the item wins. At most 512 trace ids are remembered per session.
 5. **start** (log entries only): console output the app prints while it starts, before sentry-cocoa opened the session (`Running "main"`, the app's own startup lines), carries no replay id, no `user.id` and a trace id nothing else uses. It belongs to the session created from the same network origin (the request's `X-Forwarded-For` chain plus peer address; used for nothing else) whose `started` lies between 10 s after and 5 s before the entry (observed: entries from 60 ms before to 0.7 s after the start). When two or more sessions of that origin qualify (devices behind one address starting together), none matches. Once the entry has its session, its breadcrumb copy in the recording is de-duplicated as any console line (section 9a), so `Running "main"` is stored once.
-6. **none**: emitted without `session.id`.
+6. **event** (user feedback only, section 9c): the error or message event the feedback names (`associated_event_id`, a `user_report`'s `event_id`) was emitted in a known session. At most 64 event ids are remembered per session.
+7. **none**: emitted without `session.id`.
 
-`ouo.sentry.session_match` on every record and span says which rule matched: `envelope`, `replay`, `device`, `trace`, `start` or `none`.
+`ouo.sentry.session_match` on every record and span says which rule matched: `envelope`, `replay`, `device`, `trace`, `start`, `event` or `none`.
 
 State: LRU of `max_sessions` (default 200 000) entries, TTL 4 h after the last update. Replay segments with no resolution are held up to `replay_hold` (default 10 min, at most `replay_hold_max_bytes`, default 256 MiB), retried on every state change, then dropped with reason `replay_unresolved`.
 
@@ -277,6 +278,24 @@ Every `event` carries the scope's last 100 breadcrumbs (`touch`, `fetch`, `xhr`,
 - **Sessions without a replay** (production `replaysSessionSampleRate` is usually 0.1 or less): every category, which gives them taps, answered requests, console, lifecycle and app breadcrumbs. `navigation.dispatch` (React Navigation's note before each `navigation`), `ui.lifecycle` (UIKit view controller events) and `started` (the SDK's start note) are skipped.
 - **Copies.** The same breadcrumb arrives on every later error, and sentry-cocoa's crash report repeats the JS breadcrumbs stamped up to about 60 ms later. A breadcrumb with the same category, message and data as one an earlier event of the session brought, within 1 s, is skipped; two identical breadcrumbs in one event are both kept (two taps on one button).
 - **Navigation pairing.** A `navigation` breadcrumb and a `ui.load` / `navigation` transaction to the same screen within 5 s are one navigation: whichever arrives second is dropped (a React Navigation transaction starts 10 to 20 ms before its breadcrumb, the app-start `ui.load` up to 3 s before). Copies of a navigation breadcrumb within 1 s are dropped too.
+
+### 9c. User feedback (`feedback` and `user_report` items)
+
+Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md) C10), severity `INFO`, body = the message:
+
+| ouo attribute | `feedback` item (`Sentry.captureFeedback`, sentry-cocoa `SentrySDK.capture(feedback:)`) | `user_report` item (legacy `captureUserFeedback`) |
+|---|---|---|
+| timestamp | event `timestamp` | received time (the item has none) |
+| `ouo.feedback.message` | `contexts.feedback.message`, trimmed | `comments`, trimmed |
+| `ouo.feedback.contact` | `contexts.feedback.contact_email`, else `.name` | `email`, else `name` |
+| `ouo.feedback.id` | the event's `event_id` as a UUID | none: its `event_id` names the error it is about |
+| `ouo.sentry.event_id` | `event_id` | none |
+| trace id, span id | `contexts.trace` | none |
+| session | rules 1 to 4 (with `contexts.feedback.replay_id` as the replay id when `contexts.replay` has none), else rule 6 by `associated_event_id` | rule 6 by `event_id` |
+
+- An item with an empty message is not translated.
+- Message and contact are cut at 4096 bytes. They are what the user typed into the feedback form, so they are copied although `user.email` is not (section 12).
+- The `feedback` event's breadcrumbs become timeline events under the rules of section 9b: the steps before the feedback, which the plugin lists with it. The bridge sets neither `ouo.last_events` nor `ouo.feedback.screenshot`: Sentry's screenshot is an attachment, which is not copied; the session's replay, when there is one, shows the screen at the feedback time.
 
 ## 10. Collector wiring
 
@@ -375,7 +394,7 @@ Plugin (`plugins/ouo11y-rum-app`): a video player mounted when `replay_kind` is 
 
 ## 12. Attribute allowlist
 
-Only the attributes named in sections 4 to 9b are produced. In particular these Sentry fields are never copied: `user.ip_address`, `user.email`, `user.username`, `request.*`, `extra`, `tags` (unless the project sets `copy_tags`), `contexts` other than `os`, `device.model`, the section 6a allowlist, `trace`, `replay`, `threads`, attachments, view hierarchies and screenshots attached to errors, and debug images the stack does not point into. Three inputs carry app-chosen content by design: the attributes of Sentry log entries (section 7a), the message and `data` of breadcrumbs (sections 9a, 9b), and tags with `copy_tags`; apps decide what they put there.
+Only the attributes named in sections 4 to 9b are produced. In particular these Sentry fields are never copied: `user.ip_address`, `user.email`, `user.username`, `request.*`, `extra`, `tags` (unless the project sets `copy_tags`), `contexts` other than `os`, `device.model`, the section 6a allowlist, `trace`, `replay`, `threads`, attachments, view hierarchies and screenshots attached to errors, and debug images the stack does not point into. User feedback (section 9c) copies the message and contact the user typed. Three inputs carry app-chosen content by design: the attributes of Sentry log entries (section 7a), the message and `data` of breadcrumbs (sections 9a, 9b), and tags with `copy_tags`; apps decide what they put there.
 
 ## 13. Expected differences between Sentry and ouo
 

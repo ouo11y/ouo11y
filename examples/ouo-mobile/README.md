@@ -14,6 +14,12 @@ has `testID="ouo-unmask"` to show the two overrides; the Chaos screen's "Replay 
 button toggles the recorder and shows `rum.replay.isRecording()`. Replay only records in a
 development build (below), never in Expo Go or on web.
 
+The Cart screen has a "Report a problem" form (`src/FeedbackForm.tsx`): it calls
+`rum.feedback({ message, contact, screenshot: true })`, and the session page in Grafana lists the
+feedback beside the replay with the last 20 steps before it and a seek to the replay at that time
+(spec C10). The scripted journey (`scripts/journey.sh`) sends one on the Cart screen and
+`scripts/verify.py --feedback` checks it.
+
 Chaos buttons: slow request (`?delay=2000`), 500 from the backend (`?fail=500` ->
 `http.request.failed`, session `errored`), handled error (`captureError`, non-fatal),
 unhandled promise rejection (non-fatal, unhandled), **fatal error** (thrown from a

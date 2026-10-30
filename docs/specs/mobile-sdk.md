@@ -1,6 +1,6 @@
 # Mobile SDK specification: twelve capabilities, conformance checks, maturity
 
-Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3, C10) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
+Status: normative from 2026-10-29 ([ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)). It applies to every ouo mobile SDK: `@ouo11y/react-native` today, the native iOS (Swift, Objective-C) and Android (Kotlin, Java) packages and Flutter later. Records marked *draft* (C3) are fixed by the work package that lands them, in the same PR as the code; everything else changes only with an ADR.
 
 This spec is the index. Where a record already has a spec, it is linked, not repeated:
 
@@ -87,10 +87,18 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 - `startSpan(name, options)` (attributes, kind, start time, parent), `withSpan(name, fn)` (the span is active while `fn` runs; requests, logs and errors there join its trace), `log(level, message, attributes)` and `log.trace` … `log.fatal`: a log record named `log` with the severity, the message as body and `message`, the session identifiers and the active span's trace id. Spans and logs get the session identifiers like every other record.
 - **Check**: C9.1.
 
-### C10 Feedback (draft until W6)
+### C10 Feedback
 
-- **Record**: `feedback` event: body and `ouo.feedback.message` = the user's text, `ouo.feedback.contact` (optional, what the user typed), `ouo.feedback.id` (UUID), `ouo.feedback.screenshot = true` when a masked frame of the current screen was added to the session's replay at the record's time. The events before it are already on the session's timeline; the record does not copy them.
-- **API**: `rum.feedback({ message, contact?, screenshot? })`. The bridge maps Sentry's `feedback` and `user_report` items to the same record (N37).
+- **Record**: `feedback` event, severity `INFO`:
+  - body and `ouo.feedback.message`: the user's text as the app passes it, trimmed and cut at 4096 characters; an empty message sends nothing;
+  - `ouo.feedback.contact`: how to reach the user (an email, a name) as the user typed it, when not empty, same cut;
+  - `ouo.feedback.id`: a UUID, also what the API returns;
+  - `ouo.feedback.screenshot = true` when the app asked for a screenshot and replay was recording: the recorder was asked for a frame of the current screen, masked like every frame (C8). `navigation` mode takes it once the screen settled (the request a new screen makes); in `session` mode the interval frames already show the screen. No separate image is sent: the session's replay at the record's time shows the screen;
+  - `ouo.last_events`: JSON array, oldest first, of the session's last 20 records before it (events and log lines), each `{"ts": <epoch ms>, "name": <event.name, "log" for a log line>, "body": <the step>}`. The step is the path of a `navigation`, `exception.type: exception.message` of an `exception`, `METHOD url.full status` of a request, else the record's body when it is more than its name (the readable `ui.tap` step, a log line), else empty; cut at 200 characters. The SDK keeps them as records are emitted (the `RecentEvents` log processor of `@ouo11y/react-native`); W4 adds the same attribute to `exception` from the same buffer.
+- The record follows session sampling like every other (C1). Its text is what the app hands over; rule 6 is about what the SDK reads on its own.
+- **API**: `rum.feedback({ message, contact?, screenshot? })` returns the id, or nothing for an empty message. The form is the app's; a widget is later work.
+- **Bridge**: Sentry's `feedback` and `user_report` items become the same record ([sentry-bridge.md](sentry-bridge.md) section 9c), without `ouo.last_events` (the feedback's breadcrumbs are on the session's timeline) and without `ouo.feedback.screenshot`.
+- **Plugin**: the session page lists the feedback beside the replay: message, contact, the steps before it (`ouo.last_events`, else the last 20 timeline events up to it), a marker on the replay bar and a seek to the replay at that time, which shows the frame on screen then.
 - **Check**: C10.1.
 
 ### C11 Delivery
@@ -126,7 +134,7 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | C8.2 | starts replay with default options | text, inputs, images and web views masked |
 | C8.3 | crashes while recording; launches again | the crashed session's replay ends within 1.5 s of the crash |
 | C9.1 | calls the backend inside `withSpan`, writes a log line | a trace rooted at the custom span with the request under it; the line in the session's logs |
-| C10.1 | sends feedback with a message and a contact | a `feedback` event with both on the session |
+| C10.1 | taps on Cart, then sends feedback with a message, a contact and a screenshot while replay records | a `feedback` event on the session with the message, the contact, an id, `ouo.feedback.screenshot = true` and `ouo.last_events` ending with the journey's last steps; the replay covers its time (a frame at or before it and one after) |
 | C11.1 | runs with the collector refused; launches again online | the offline run's events are in rum-api |
 | C11.2 | sends OTLP | every OTLP request has `content-encoding: gzip` |
 
@@ -156,7 +164,7 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 | C7 Screens and navigation | L2 | L0 | L1 (JS) | L0 | L0 |
 | C8 Replay | L2 | L1 (OuoReplay uploads frames) | L0 | L0 | L0 |
 | C9 Span and log API | L2 | L0 | L1 (JS) | L0 | L0 |
-| C10 Feedback | L0: W6 | L0 | L0 | L0 | L0 |
+| C10 Feedback | L2 | L0 | L1 (JS; no screenshot without the native module) | L0 | L0 |
 | C11 Delivery | L2 | L1 (chunk queue on disk; no OTLP) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
 | C12 Cost | L1 (B3 simulator cells, gate proposed) | L0 | L0 | L0 | L0 |
 

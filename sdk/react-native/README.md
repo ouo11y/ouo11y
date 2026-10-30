@@ -252,6 +252,7 @@ rum.trackTap("checkout-pay");                   // ui.tap on the current screen 
 rum.withSpan("checkout", (span) => fetch(url)); // span around fn, ended when its promise settles
 const span = rum.startSpan("parse", { parent }); span.end();
 rum.log.info("checkout started", { "cart.items": 3 }); // OTel log record, linked to session and span
+rum.feedback({ message, contact, screenshot: true }); // feedback event with the last 20 events; returns its id
 rum.session.id(); rum.session.userId(); rum.session.previousId();
 await rum.ready;                                // persisted state read, session.start emitted
 await rum.flush();                              // force export of spans and log records
@@ -476,12 +477,33 @@ registry when the app has `expo-device` installed (no import, no app code): `mod
 On the simulator expo-device answers the CPU (`arm64`), which is not a model: the SDK sets
 `ouo.device.simulator = true` instead. Values passed in `device` win.
 
+## Feedback (C10)
+
+`rum.feedback({ message, contact?, screenshot? })` sends what the user wrote as one `feedback`
+event on the current session. Build the form yourself (a widget comes later); pass the text the
+user typed:
+
+```ts
+const id = rum.feedback({ message: text, contact: email, screenshot: true });
+```
+
+| Attribute | Value |
+|---|---|
+| body, `ouo.feedback.message` | the message, trimmed, cut at 4096 characters; an empty message sends nothing and returns `undefined` |
+| `ouo.feedback.contact` | the contact, when not empty (same cut) |
+| `ouo.feedback.id` | a UUID, also the return value |
+| `ouo.feedback.screenshot` | `true` when `screenshot: true` and replay was recording: the recorder was asked for a frame of the current screen, masked like every frame, so the session's replay at the feedback time shows it. No separate image is sent |
+| `ouo.last_events` | JSON array, oldest first, of the session's last 20 events and log lines before the feedback: `{"ts": <epoch ms>, "name": "ui.tap", "body": "Tap pay (button) on Cart"}`; the body is the readable step (the path of a navigation, `Type: message` of an error, `METHOD url status` of a request), cut at 200 characters |
+
+The feedback follows the session's sampling like every record. The plugin lists a session's
+feedback beside its replay, with these events and a link to the replay at the feedback time.
+
 ## Events (OTel log records, `event.name`)
 
 `session.start`, `session.end` (`ouo.session.end_reason`, `ouo.session.duration_ms`,
 `ouo.session.started_at`, `ouo.session.ended_at`), `exception`, `http.request.failed`,
 `navigation` (`url.path`, `ouo.navigation.from`, `ouo.navigation.kind = screen`), `ui.tap`, `app.lifecycle`, `http.request`,
-`log`, the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
+`log`, `feedback`, the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
 from `addEvent` (`ouo.event.custom=true`). Every span and log record carries `session.id`,
 `session.previous_id` (when set), `user.id`, `ouo.user.anonymous`, `ouo.platform=mobile`
 and `service.version`. Resource: `service.name`, `service.version`,

@@ -131,6 +131,12 @@ export interface ReplayController extends RUMReplay {
   sessionDidRotate(id: string): void;
   /** A new screen is showing: the frame for it in `navigation` mode. */
   screenDidChange(): void;
+  /**
+   * Feedback screenshot (C10): true when the recorder is recording, after asking it for a frame of
+   * the current screen. `navigation` mode takes one once the screen settled (the same request as a
+   * new screen); `session` mode's interval frames already show it. False otherwise.
+   */
+  frameForFeedback(): boolean;
   /** An error in the current session: starts an error-triggered recording when sampled. */
   onError(): void;
   flush(): Promise<void>;
@@ -254,6 +260,15 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     if (active && userPaused) call("pause", () => native.pause());
   };
 
+  const isRecording = (): boolean => {
+    if (!native || !active) return false;
+    try {
+      return native.isRecording() === true;
+    } catch {
+      return false;
+    }
+  };
+
   return {
     get active() {
       return active;
@@ -292,6 +307,12 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (!native || !active || !native.screenDidChange) return;
       call("screenDidChange", () => native.screenDidChange!());
     },
+    frameForFeedback(): boolean {
+      if (!isRecording()) return false;
+      // Native builds without screenDidChange predate the modes: they always record in session mode.
+      if (native?.screenDidChange) call("screenDidChange", () => native.screenDidChange!());
+      return true;
+    },
     onError(): void {
       const id = currentId;
       if (hold && id !== undefined) tally.add(id);
@@ -316,14 +337,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (!native || !active || samplePaused) return;
       call("resume", () => native.resume());
     },
-    isRecording(): boolean {
-      if (!native || !active) return false;
-      try {
-        return native.isRecording() === true;
-      } catch {
-        return false;
-      }
-    },
+    isRecording,
     async flush(): Promise<void> {
       if (!native || !active) return;
       try {

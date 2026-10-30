@@ -106,6 +106,7 @@ type sess struct {
 	navs              []navEntry    // recent navigations, to pair transactions with breadcrumbs (A11)
 	crumbs            []crumbSeen   // event breadcrumbs emitted, to skip their copies on later events (A8)
 	httpSpans         []string      // span ids emitted as http.request, oldest first (A8)
+	eventIDs          []string      // event ids of its errors and messages, oldest first (section 9c)
 	dev               deviceContext // OS and device from the session's events, transactions and logs
 	elem              *list.Element
 }
@@ -156,6 +157,7 @@ type sessionState struct {
 	byReplay map[string]*sess              // project/replay_id
 	byTrace  map[string][]*sess            // project/trace_id
 	byOrigin map[string][]*sess            // project/origin, latest sessions created from it
+	byEvent  map[string]*sess              // project/event_id of errors and messages
 	now      func() time.Time
 }
 
@@ -170,7 +172,7 @@ func newSessionState(cfg StateConfig) *sessionState {
 	}
 	return &sessionState{
 		max: maxSessions, ttl: ttl, order: list.New(),
-		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{}, byOrigin: map[string][]*sess{},
+		bySID: map[string]*sess{}, byDevice: map[string]map[*sess]struct{}{}, byReplay: map[string]*sess{}, byTrace: map[string][]*sess{}, byOrigin: map[string][]*sess{}, byEvent: map[string]*sess{},
 		now: time.Now,
 	}
 }
@@ -327,6 +329,46 @@ func (s *sessionState) byTraceAt(project, traceID string, at time.Time) *sess {
 		}
 	}
 	return best
+}
+
+// maxEventsPerSession bounds the event ids remembered per session; the oldest
+// is forgotten first. A report names an event the user just saw fail.
+const maxEventsPerSession = 64
+
+// learnEvent maps an error or message event id to its session, so a
+// `user_report` or a `feedback` naming it finds the session (section 9c).
+// Must hold the lock.
+func (s *sessionState) learnEvent(x *sess, eventID string) {
+	id := normTraceID(eventID)
+	if id == "" {
+		return
+	}
+	k := x.project + "/" + id
+	if s.byEvent[k] == x {
+		return
+	}
+	s.byEvent[k] = x
+	x.eventIDs = append(x.eventIDs, id)
+	if len(x.eventIDs) > maxEventsPerSession {
+		s.forgetEvent(x, x.eventIDs[0])
+		x.eventIDs = x.eventIDs[1:]
+	}
+}
+
+func (s *sessionState) forgetEvent(x *sess, id string) {
+	k := x.project + "/" + id
+	if s.byEvent[k] == x {
+		delete(s.byEvent, k)
+	}
+}
+
+// byEventID returns the session of an error or message event. Must hold the lock.
+func (s *sessionState) byEventID(project, eventID string) *sess {
+	id := normTraceID(eventID)
+	if id == "" {
+		return nil
+	}
+	return s.byEvent[project+"/"+id]
 }
 
 // navEntry is one navigation seen for a session, from a transaction or a
@@ -507,6 +549,9 @@ func (s *sessionState) remove(x *sess) {
 	}
 	for _, id := range x.traceIDs {
 		s.forgetTrace(x, id)
+	}
+	for _, id := range x.eventIDs {
+		s.forgetEvent(x, id)
 	}
 	if x.origin != "" {
 		k := x.project + "/" + x.origin

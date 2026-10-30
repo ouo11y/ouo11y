@@ -9,3 +9,4 @@ One dated summary per run.
 - [2026-10-30-w3b-delivery.md](2026-10-30-w3b-delivery.md) W3 delivery: gzip OTLP and write-first outbox (RN), durable chunk queue (iOS), next-launch keep/drop
 - [2026-10-30-w3a-schema2-player.md](2026-10-30-w3a-schema2-player.md) W3a step 1: `frames` schema 2 in rum-api and the collector, the canvas frame player, the spec rewritten
 - [2026-10-30-w5-funnels.md](2026-10-30-w5-funnels.md) W5: readable user steps (view type, gesture, screen, labels kill switch), screen navigation kind, C6.1 required, mobile funnels quickstart M6
+- [2026-10-30-w6-feedback.md](2026-10-30-w6-feedback.md) W6: the feedback primitive (SDK, Sentry bridge, plugin), the shared last-events buffer, C10.1 required

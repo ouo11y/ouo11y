@@ -19,7 +19,7 @@ browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[0].ur
 | `/a/ouo11y-rum-app/overview?from=now-24h&to=now` | stat tiles + version table per platform, Grafana time range picker (state in the URL) |
 | `/a/ouo11y-rum-app/sessions?from&to&platform&status&service&version&user&limit` | sessions table; row click opens the detail |
 | `/a/ouo11y-rum-app/funnels?from&to&step=page:/&step=page:/products/*&step=event:add_to_cart&within&service&environment&release&platform&project&dropped&offset` | funnel builder (steps in the URL, autocomplete from `GET /v1/funnels/steps`), bars with conversion, drop-off and median / p75 time per step (`POST /v1/funnels/query`); `dropped=N` opens the sessions that stopped before step N (`GET /v1/funnels/dropped`), each opening its session page and replay |
-| `/a/ouo11y-rum-app/sessions/<session_id>?from&to` | header (device, OS, build, environment), replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge) with the activity list beside it, traces, logs; the Timeline panel behind the `sessionTimelinePanel` toggle |
+| `/a/ouo11y-rum-app/sessions/<session_id>?from&to` | header (device, OS, build, environment), replay (web `rrweb`, native `frames`, or `video` mp4 segments from the Sentry bridge) with the activity list beside it and the session's user feedback under it (message, contact, the last 20 steps before it, a seek to the replay at its time; mobile SDK spec C10), traces, logs; the Timeline panel behind the `sessionTimelinePanel` toggle |
 | `/plugins/ouo11y-rum-app` | configuration: `rumApiUrl`, `readToken` (write-only), "Test connection" |
 
 ## Replay players

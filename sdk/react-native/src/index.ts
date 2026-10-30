@@ -13,6 +13,7 @@ import { AppState } from "react-native";
 import { installAppStateListener } from "./appstate";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
+import { feedbackRecord } from "./feedback";
 import { ReportedErrors } from "./errors/dedupe";
 import { installErrorCapture } from "./errors/install";
 import { forwardSentryErrors } from "./errors/sentry";
@@ -24,12 +25,14 @@ import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
 import { createReplayController, loadNativeReplayModule } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
+import { uuidv4 } from "./session/ids";
 import { SessionManager } from "./session/manager";
 import { MemoryAsyncStorage, safeStorage } from "./session/storage";
 import { StackContextManager } from "./telemetry/context";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
 import { SessionPropagator } from "./telemetry/propagator";
+import { lastEventsAttribute, RecentEvents } from "./telemetry/recent";
 import { buildResource } from "./telemetry/resource";
 import { createLogExporter, createTraceExporter } from "./transport/exporter";
 import { Outbox } from "./transport/outbox";
@@ -157,10 +160,13 @@ export function initRUM(options: RUMOptions): RUM {
 
   // ---- logs (events) ----
   const logExporter = createLogExporter(endpoints.logs, outbox);
+  // The session's last timeline events, for the records that carry them (feedback).
+  const recent = new RecentEvents();
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
       new SessionLogProcessor(session, serviceVersion),
+      recent,
       // Session sampling (8b): records of a session outside the sample are never exported.
       new SampledLogProcessor(
         new BatchLogRecordProcessor({
@@ -412,6 +418,20 @@ export function initRUM(options: RUMOptions): RUM {
     startSpan: spans.startSpan,
     withSpan: spans.withSpan,
     log,
+    feedback(input): string | undefined {
+      const id = uuidv4();
+      const record = feedbackRecord(input, id);
+      if (!record) {
+        logger.warn("feedback: empty message, nothing sent");
+        return undefined;
+      }
+      // Only for a record that is sent: a masked frame of the screen the user is reporting on.
+      if (input.screenshot === true && replay.frameForFeedback()) record.attrs["ouo.feedback.screenshot"] = true;
+      onActivity();
+      record.attrs["ouo.last_events"] = lastEventsAttribute(recent.read(session.id()));
+      events.emit("feedback", record.attrs, "info", Date.now(), { body: record.body });
+      return id;
+    },
     replay: {
       pause: () => replay.pause(),
       resume: () => replay.resume(),
