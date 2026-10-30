@@ -7,3 +7,4 @@ One dated summary per run.
 - [2026-10-29-w2-mobile-spec.md](2026-10-29-w2-mobile-spec.md) W2: the mobile SDK spec, ADR-0015 and the React Native iOS conformance suite
 - [2026-10-29-w7-symbolication.md](2026-10-29-w7-symbolication.md) W7: native iOS crash symbolication from dSYMs (ADR-0011 section 7)
 - [2026-10-30-w3b-delivery.md](2026-10-30-w3b-delivery.md) W3 delivery: gzip OTLP and write-first outbox (RN), durable chunk queue (iOS), next-launch keep/drop
+- [2026-10-30-w3a-schema2-player.md](2026-10-30-w3a-schema2-player.md) W3a step 1: `frames` schema 2 in rum-api and the collector, the canvas frame player, the spec rewritten

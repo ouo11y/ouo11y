@@ -1,6 +1,6 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import type { ReplayFramesResponse } from '../api/types';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReplayFrame, ReplayFramesResponse } from '../api/types';
 import fixture from '../__fixtures__/frames.json';
 import { FramePlayer } from './FramePlayer';
 import type { ReplayHandle } from './ReplayPlayer';
@@ -25,7 +25,7 @@ function renderPlayer(onTime = jest.fn()) {
   return { ref, onTime, ...utils };
 }
 
-const frameIndex = () => Number(screen.getByTestId('frame-img').getAttribute('data-frame-index'));
+const frameIndex = () => Number(screen.getByTestId('frame-canvas').getAttribute('data-frame-index'));
 
 describe('FramePlayer', () => {
   let rafQueue: Array<(now: number) => void> = [];
@@ -51,10 +51,9 @@ describe('FramePlayer', () => {
     act(() => cbs.forEach((cb) => cb(now)));
   };
 
-  it('renders the first frame as a JPEG data URL sized to the viewport aspect ratio', () => {
+  it('renders the first frame on a stage sized to the viewport aspect ratio', () => {
     renderPlayer();
-    const img = screen.getByTestId('frame-img');
-    expect(img.getAttribute('src')).toBe(`data:image/jpeg;base64,${resp.frames[0].jpeg}`);
+    expect(screen.getByTestId('frame-canvas')).toHaveAttribute('aria-label', 'Frame 1 of 5 (resume)');
     expect(frameIndex()).toBe(0);
     const stage = screen.getByTestId('frame-stage');
     expect(stage.style.aspectRatio).toBe(`${393 / 852}`);
@@ -142,10 +141,98 @@ describe('FramePlayer', () => {
     expect(frameIndex()).toBe(4);
   });
 
+  describe('canvas painting (schema 2 patches)', () => {
+    let draws: unknown[][];
+    let sizes: Map<string, [number, number]>;
+    beforeEach(() => {
+      draws = [];
+      sizes = new Map();
+      const ctx = { drawImage: (img: HTMLImageElement, ...rest: number[]) => draws.push([img.src, ...rest]) };
+      jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ctx as never);
+      // jsdom loads no images: setting src fires load (error for BROKEN), sizes come from `sizes`.
+      jest.spyOn(HTMLImageElement.prototype, 'src', 'set').mockImplementation(function (
+        this: HTMLImageElement,
+        v: string
+      ) {
+        this.setAttribute('src', v);
+        queueMicrotask(() => (v.includes('BROKEN') ? this.onerror : this.onload)?.call(this, new Event('load')));
+      });
+      jest.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function (
+        this: HTMLImageElement
+      ) {
+        return sizes.get(this.src)?.[0] ?? 0;
+      });
+      jest.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockImplementation(function (
+        this: HTMLImageElement
+      ) {
+        return sizes.get(this.src)?.[1] ?? 0;
+      });
+    });
+
+    const url = (b64: string) => `data:image/jpeg;base64,${b64}`;
+    const t0 = 1_760_000_000_000;
+    const frames: ReplayFrame[] = [
+      { ts: t0, reason: 'change', jpeg: 'FULL1' },
+      { ts: t0 + 1000, reason: 'change', patches: [{ x: 0, y: 64, w: 64, h: 64, jpeg: 'P1' }] },
+      {
+        ts: t0 + 2000,
+        reason: 'change',
+        patches: [
+          { x: 64, y: 0, w: 32, h: 64, jpeg: 'P2A' },
+          { x: 0, y: 0, w: 64, h: 64, jpeg: 'P2B' },
+        ],
+      },
+      // next chunk: a new full image, then a patch whose image does not decode
+      { ts: t0 + 5000, reason: 'change', jpeg: 'FULL2' },
+      { ts: t0 + 6000, reason: 'change', patches: [{ x: 0, y: 0, w: 8, h: 8, jpeg: 'BROKEN' }] },
+    ];
+    const renderPatches = () => {
+      const ref = React.createRef<ReplayHandle>();
+      render(
+        <FramePlayer
+          ref={ref}
+          frames={frames}
+          touches={[]}
+          viewport={{ width: 96, height: 128, scale: 1 }}
+          startTs={t0}
+          durationMs={7000}
+        />
+      );
+      return ref;
+    };
+
+    it('draws the full image sized to the canvas, then blits patches in order', async () => {
+      sizes.set(url('FULL1'), [96, 128]);
+      const ref = renderPatches();
+      await waitFor(() => expect(draws).toEqual([[url('FULL1'), 0, 0]]));
+      const canvas = screen.getByTestId('frame-canvas') as HTMLCanvasElement;
+      expect([canvas.width, canvas.height]).toEqual([96, 128]);
+
+      draws = [];
+      act(() => ref.current!.goto(2500)); // frame 2: full image, then frames 1 and 2 patches
+      await waitFor(() =>
+        expect(draws).toEqual([
+          [url('FULL1'), 0, 0],
+          [url('P1'), 0, 64, 64, 64],
+          [url('P2A'), 64, 0, 32, 64],
+          [url('P2B'), 0, 0, 64, 64],
+        ])
+      );
+    });
+
+    it('seeks into a later chunk from its own full image and skips a patch that does not decode', async () => {
+      sizes.set(url('FULL2'), [48, 64]);
+      const ref = renderPatches();
+      draws = [];
+      act(() => ref.current!.goto(6500));
+      await waitFor(() => expect(draws).toEqual([[url('FULL2'), 0, 0]]));
+      const canvas = screen.getByTestId('frame-canvas') as HTMLCanvasElement;
+      expect([canvas.width, canvas.height]).toEqual([48, 64]);
+    });
+  });
+
   it('renders an empty state without frames', () => {
-    render(
-      <FramePlayer frames={[]} touches={[]} viewport={resp.viewport} startTs={start} durationMs={0} />
-    );
+    render(<FramePlayer frames={[]} touches={[]} viewport={resp.viewport} startTs={start} durationMs={0} />);
     expect(screen.getByText('The replay has no frames yet.')).toBeInTheDocument();
   });
 });

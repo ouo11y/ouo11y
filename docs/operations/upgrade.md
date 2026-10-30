@@ -118,14 +118,16 @@ kubectl -n <namespace> rollout status deploy/ouo-grafana
 ## 4. Replay chunk schema version
 
 Replay chunks (`docs/specs/mobile-replay.md`) carry an integer `schema_version` (currently
-`1`). rum-api stores chunks under `DATA_DIR/replays/<session_id>/<seq>.json.gz` and records
+`2` for `kind: "frames"`, ADR-0014, and `1` for `kind: "video"`). rum-api stores chunks under `DATA_DIR/replays/<session_id>/<seq>.json.gz` and records
 `kind` in `meta.json`.
 
 Compatibility rule:
 
 - A rum-api release knows a **maximum schema version**. It accepts chunks with any
-  `schema_version <= max` it can read and rejects newer ones with `400` (today: anything but
-  `1`: the maximum is `SchemaVersion` in `internal/replay/schema.go`, `parse.go` enforces it).
+  `schema_version <= max` it can read and rejects newer ones with `400` (the maximum is
+  `SchemaVersion` in `internal/replay/schema.go`, `parse.go` enforces it; video chunks stay at
+  `1`). rum-api 0.6 is the first to read schema 2 and writes `2` into the marker below, so an
+  older rum-api refuses to start on a store it has opened.
 - **Start-up guard** (rum-api after 0.3.0, `internal/replay/schema.go`): every start reads the
   marker `replays/schema.json` (filesystem: `DATA_DIR/replays/schema.json`; S3:
   `[<prefix>/]replays/schema.json` in the bucket), `{"max_schema_version": N,
@@ -148,7 +150,9 @@ Compatibility rule:
   until a documented minimum, announced one minor in advance).
 - SDK side: an SDK that emits a new `schema_version` states the minimum rum-api version in
   its changelog; rum-api rejects chunks it cannot read, and the SDK drops them after the
-  retry budget. Upgrade rum-api before the SDKs.
+  retry budget. Upgrade rum-api before the SDKs. For schema 2 the order is rum-api and the
+  plugin (a plugin built for schema 1 shows patch frames as broken images), then the collector
+  (its replay receiver rejects schema 2 below collector 0.5), then the SDKs.
 
 Verified 2026-10-23 (section 8): the guarded rum-api started on the 0.2.0-written VM store and
 served every old replay unchanged; with the marker bumped to schema 2 it exited 1 with the

@@ -263,11 +263,26 @@ export interface ReplayMeta {
 export type FrameReason = 'timer' | 'touch' | 'navigation' | 'resume';
 export type TouchPhase = 'began' | 'moved' | 'ended';
 
+/** A rectangle of a patch frame, in pixels of the most recent full image (schema 2, ADR-0014). */
+export interface ReplayPatch {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Base64 JPEG of the rectangle. */
+  jpeg: string;
+}
+
+/**
+ * A frame holds exactly one of `jpeg` (a full image) and `patches` (rectangles drawn over the frame
+ * before it). Schema 1 frames are always full images; every chunk starts with one.
+ */
 export interface ReplayFrame {
   /** Epoch ms (device clock). */
   ts: number;
   /** Base64 JPEG, masked by the SDK before upload. */
-  jpeg: string;
+  jpeg?: string;
+  patches?: ReplayPatch[];
   reason: FrameReason | string;
 }
 

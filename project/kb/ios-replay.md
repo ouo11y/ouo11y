@@ -314,3 +314,21 @@ was learned on the iOS 27 simulator (`examples/ouo-mobile`, Release build, scrip
 - **Forward fit with ADR-0014**: its `buffer` mode keeps an on-disk ring of the last 30 s. When it
   lands, `ChunkSpool` should become the one-entry case of that ring, not a second on-disk format.
 
+
+## W3a: schema 2 on the server and in the player (2026-10-30)
+
+- **Patch bounds need the full image's pixel size**, which the chunk does not carry: both validators
+  read it from the JPEG header with Go's `image/jpeg.DecodeConfig` (header only, no decode). Test
+  fixtures that are only the `FF D8` marker still pass as full images; they fail only when a patch
+  follows them.
+- **Key order is free in JSON**, so `frames` may be streamed before `schema_version`: the checker
+  counts patch frames while streaming and the version rule ("patches need schema 2") runs after the
+  object is read.
+- **jsdom loads no images and implements no `decode()`**: the player uses `onload`/`onerror`, and
+  its tests spy on the `HTMLImageElement.prototype.src` setter to fire `onload` in a microtask and on
+  the `naturalWidth`/`naturalHeight` getters. The Grafana jest setup stubs `getContext` to return
+  `undefined`, so painting code must tolerate a missing context.
+- **Checking a canvas player live**: in the built-in browser, `getImageData` on the player's canvas
+  after each step tells whether patches landed where the chunk says (no screenshot comparison
+  needed). A generator that draws a square moving one 64 px tile row per frame makes the expected
+  rows obvious.

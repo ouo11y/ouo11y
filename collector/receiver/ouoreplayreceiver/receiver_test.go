@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"net"
 	"net/http"
@@ -82,6 +84,48 @@ func TestConfigValidate(t *testing.T) {
 	bad.ServerConfig.NetAddr.Endpoint = ""
 	if err := bad.Validate(); err == nil {
 		t.Fatal("expected error for empty endpoint")
+	}
+}
+
+// TestParseChunkSchema2 mirrors rum-api's TestFramesSchema2 (ADR-0014).
+func TestParseChunkSchema2(t *testing.T) {
+	enc := func(w, h int) string {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, image.NewGray(image.Rect(0, 0, w, h)), nil); err != nil {
+			t.Fatal(err)
+		}
+		return base64.StdEncoding.EncodeToString(buf.Bytes())
+	}
+	full, tile := enc(128, 256), enc(2, 2)
+	chunk := func(v int, frames ...any) []byte {
+		b, _ := json.Marshal(map[string]any{
+			"kind": "frames", "schema_version": v, "session_id": testSession, "seq": 0, "mode": "session",
+			"started_at": 1760000000000, "ended_at": 1760000005000,
+			"viewport": map[string]any{"width": 393, "height": 852, "scale": 0.5}, "frames": frames,
+		})
+		return b
+	}
+	fullAt := map[string]any{"ts": 1760000000100, "jpeg": full}
+	patchAt := func(x, y, w, h int) map[string]any {
+		return map[string]any{"ts": 1760000001100, "patches": []any{map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": tile}}}
+	}
+	if c, err := parseChunk(chunk(2, fullAt, patchAt(64, 192, 64, 64))); err != nil || c.Frames != 2 {
+		t.Fatalf("good schema 2: %+v %v", c, err)
+	}
+	if _, err := parseChunk(chunk(2, fullAt)); err != nil {
+		t.Fatalf("full images only under schema 2: %v", err)
+	}
+	bad := map[string][]byte{
+		"patches under schema 1": chunk(1, fullAt, patchAt(0, 0, 2, 2)),
+		"schema 3":               chunk(3, fullAt),
+		"first frame patches":    chunk(2, patchAt(0, 0, 2, 2)),
+		"patch outside":          chunk(2, fullAt, patchAt(100, 0, 64, 64)),
+		"both":                   chunk(2, map[string]any{"ts": 1, "jpeg": full, "patches": []any{}}),
+	}
+	for name, body := range bad {
+		if _, err := parseChunk(body); !errors.Is(err, errInvalid) {
+			t.Errorf("%s: expected errInvalid, got %v", name, err)
+		}
 	}
 }
 

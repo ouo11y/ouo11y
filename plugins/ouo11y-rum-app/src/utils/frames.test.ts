@@ -2,8 +2,10 @@ import type { ReplayFramesResponse, ReplayTouch } from '../api/types';
 import fixture from '../__fixtures__/frames.json';
 import {
   clampOffset,
+  frameDrawOps,
   frameIndexAt,
   framesBounds,
+  paintOps,
   replayRenderer,
   stepFrameIndex,
   TOUCH_WINDOW_MS,
@@ -21,10 +23,51 @@ describe('fixture', () => {
       expect(resp.frames[i].ts).toBeGreaterThan(resp.frames[i - 1].ts);
     }
     for (const f of resp.frames) {
-      const bytes = Buffer.from(f.jpeg, 'base64');
+      const bytes = Buffer.from(f.jpeg!, 'base64');
       expect(bytes[0]).toBe(0xff); // SOI marker
       expect(bytes[1]).toBe(0xd8);
     }
+  });
+});
+
+describe('frameDrawOps and paintOps (schema 2, ADR-0014)', () => {
+  const frames = [
+    { ts: 1, reason: 'change', jpeg: 'A' },
+    { ts: 2, reason: 'change', patches: [{ x: 0, y: 0, w: 2, h: 2, jpeg: 'p1' }] },
+    {
+      ts: 3,
+      reason: 'change',
+      patches: [
+        { x: 2, y: 0, w: 2, h: 2, jpeg: 'p2' },
+        { x: 0, y: 2, w: 2, h: 2, jpeg: 'p3' },
+      ],
+    },
+    { ts: 4, reason: 'change', jpeg: 'B' },
+    { ts: 5, reason: 'change', patches: [{ x: 1, y: 1, w: 1, h: 1, jpeg: 'p4' }] },
+  ];
+  const ops = frameDrawOps(frames);
+  const srcs = (i: number) => paintOps(ops, i).map((op) => op.src.replace('data:image/jpeg;base64,', ''));
+
+  it('builds one op per full image and one per patch, with data URLs', () => {
+    expect(ops[0]).toEqual([{ src: 'data:image/jpeg;base64,A' }]);
+    expect(ops[2]).toEqual([
+      { src: 'data:image/jpeg;base64,p2', rect: { x: 2, y: 0, w: 2, h: 2 } },
+      { src: 'data:image/jpeg;base64,p3', rect: { x: 0, y: 2, w: 2, h: 2 } },
+    ]);
+  });
+
+  it('paints from the latest full image at or before the frame, then every patch after it', () => {
+    expect(srcs(0)).toEqual(['A']);
+    expect(srcs(1)).toEqual(['A', 'p1']);
+    expect(srcs(2)).toEqual(['A', 'p1', 'p2', 'p3']);
+    expect(srcs(3)).toEqual(['B']);
+    expect(srcs(4)).toEqual(['B', 'p4']);
+  });
+
+  it('paints nothing without a full image before the frame, and schema 1 frames alone', () => {
+    expect(paintOps(frameDrawOps(frames.slice(1)), 1)).toEqual([]);
+    expect(paintOps(ops, -1)).toEqual([]);
+    expect(paintOps(frameDrawOps(resp.frames), 3)).toHaveLength(1);
   });
 });
 

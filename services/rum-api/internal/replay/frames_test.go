@@ -20,7 +20,13 @@ import (
 // tinyJPEG is a real 2x2 JPEG produced by image/jpeg.
 func tinyJPEG(t *testing.T) []byte {
 	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	return sizedJPEG(t, 2, 2)
+}
+
+// sizedJPEG is a real w x h JPEG produced by image/jpeg.
+func sizedJPEG(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	img.Set(0, 0, color.RGBA{255, 0, 0, 255})
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 50}); err != nil {
@@ -251,7 +257,7 @@ func TestFramesValidation(t *testing.T) {
 	notJPEG := base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G', 0, 0, 0, 0})
 	bad := map[string]func(m map[string]any){
 		"missing schema_version": func(m map[string]any) { delete(m, "schema_version") },
-		"wrong schema_version":   func(m map[string]any) { m["schema_version"] = 2 },
+		"wrong schema_version":   func(m map[string]any) { m["schema_version"] = 3 },
 		"ended before started":   func(m map[string]any) { m["ended_at"] = 500 },
 		"zero started_at":        func(m map[string]any) { m["started_at"] = 0; m["ended_at"] = 0 },
 		"missing viewport":       func(m map[string]any) { delete(m, "viewport") },
@@ -292,6 +298,127 @@ func TestFramesValidation(t *testing.T) {
 	// A frames chunk rejected by validation leaves nothing behind.
 	if st.Has(ctx, "v-1") != true {
 		t.Fatal("good session lost")
+	}
+}
+
+// TestFramesSchema2 covers ADR-0014: a frame is a full image or patches
+// against the frame before it, the first frame is a full image, and patches
+// lie inside the most recent full image. Schema 1 allows full images only.
+func TestFramesSchema2(t *testing.T) {
+	ctx := context.Background()
+	st, err := NewFS(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := base64.StdEncoding.EncodeToString(sizedJPEG(t, 128, 256))
+	small := base64.StdEncoding.EncodeToString(sizedJPEG(t, 64, 64))
+	tile := base64.StdEncoding.EncodeToString(tinyJPEG(t))
+	patch := func(x, y, w, h int, img string) map[string]any {
+		return map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": img}
+	}
+	good := framesChunk(t, "s2", 0, 1000, 0, nil)
+	good["schema_version"] = 2
+	good["mode"] = "session"
+	good["frames"] = []map[string]any{
+		{"ts": 1000, "reason": "change", "jpeg": full},
+		{"ts": 2000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64, tile), patch(64, 192, 64, 64, tile)}},
+		{"ts": 3000, "reason": "change", "jpeg": small},
+		{"ts": 4000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64, tile)}},
+	}
+	c, err := st.Put(ctx, "demo", mustJSON(t, good), nil)
+	if err != nil || c.FrameCount != 4 {
+		t.Fatalf("good schema 2 chunk: %+v %v", c, err)
+	}
+	// A schema 1 chunk is a valid schema 2 chunk.
+	v1 := framesChunk(t, "s2-v1", 0, 1000, 2, nil)
+	v1["schema_version"] = 2
+	if _, err := st.Put(ctx, "demo", mustJSON(t, v1), nil); err != nil {
+		t.Fatalf("schema 1 frames under schema_version 2: %v", err)
+	}
+
+	withFrames := func(frames ...map[string]any) func(m map[string]any) {
+		return func(m map[string]any) { m["frames"] = frames }
+	}
+	fullAt := func(ts int64) map[string]any { return map[string]any{"ts": ts, "jpeg": full} }
+	patchAt := func(ts int64, ps ...map[string]any) map[string]any { return map[string]any{"ts": ts, "patches": ps} }
+	fakeJPEG := base64.StdEncoding.EncodeToString([]byte{0xFF, 0xD8, 0xFF, 0xD9})
+	notJPEG := base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G'})
+	bad := map[string]func(m map[string]any){
+		"patches under schema 1": func(m map[string]any) {
+			m["schema_version"] = 1
+			m["frames"] = []map[string]any{fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, tile))}
+		},
+		"first frame patches":   withFrames(patchAt(1000, patch(0, 0, 2, 2, tile))),
+		"both jpeg and patches": withFrames(map[string]any{"ts": 1000, "jpeg": full, "patches": []map[string]any{patch(0, 0, 2, 2, tile)}}),
+		"neither":               withFrames(fullAt(1000), map[string]any{"ts": 2000}),
+		"empty patches":         withFrames(fullAt(1000), patchAt(2000)),
+		"patch past right":      withFrames(fullAt(1000), patchAt(2000, patch(100, 0, 64, 64, tile))),
+		"patch past bottom":     withFrames(fullAt(1000), patchAt(2000, patch(0, 200, 64, 64, tile))),
+		"patch negative":        withFrames(fullAt(1000), patchAt(2000, patch(-1, 0, 2, 2, tile))),
+		"patch zero size":       withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 0, 2, tile))),
+		"patch fractional":      withFrames(fullAt(1000), patchAt(2000, map[string]any{"x": 0.5, "y": 0, "w": 2, "h": 2, "jpeg": tile})),
+		"patch missing w":       withFrames(fullAt(1000), patchAt(2000, map[string]any{"x": 0, "y": 0, "h": 2, "jpeg": tile})),
+		"patch not a jpeg":      withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, notJPEG))),
+		"patch empty jpeg":      withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, ""))),
+		"patch after a later smaller full image": withFrames(
+			fullAt(1000), map[string]any{"ts": 2000, "jpeg": small}, patchAt(3000, patch(0, 100, 64, 64, tile))),
+		// The marker alone passes schema 1, but a patch needs the full image's size.
+		"patch after unreadable full image": withFrames(
+			map[string]any{"ts": 1000, "jpeg": fakeJPEG}, patchAt(2000, patch(0, 0, 1, 1, tile))),
+	}
+	for name, mut := range bad {
+		b := mustJSON(t, mutate(good, mut))
+		if _, err := st.Put(ctx, "demo", b, nil); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: expected ErrInvalid, got %v", name, err)
+		}
+	}
+	// A full image whose header is unreadable still passes on its own (schema 1 behaviour).
+	if _, err := st.Put(ctx, "demo", mustJSON(t, mutate(good, withFrames(map[string]any{"ts": 1000, "jpeg": fakeJPEG}))), nil); err != nil {
+		t.Fatalf("marker-only full image: %v", err)
+	}
+}
+
+// TestFramesMixedSchemasStream: a session may mix schema 1 and 2 chunks; the
+// frames endpoint passes every frame through unchanged, in seq order.
+func TestFramesMixedSchemasStream(t *testing.T) {
+	ctx := context.Background()
+	st, err := NewFS(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := "mixed-1"
+	full := base64.StdEncoding.EncodeToString(sizedJPEG(t, 64, 64))
+	tile := base64.StdEncoding.EncodeToString(tinyJPEG(t))
+	if _, err := st.Put(ctx, "demo", mustJSON(t, framesChunk(t, id, 0, 1000, 1, nil)), nil); err != nil {
+		t.Fatal(err)
+	}
+	c2 := framesChunk(t, id, 1, 6000, 0, nil)
+	c2["schema_version"] = 2
+	c2["mode"] = "session"
+	c2["frames"] = []map[string]any{
+		{"ts": 6000, "jpeg": full, "reason": "change"},
+		{"ts": 7000, "patches": []map[string]any{{"x": 8, "y": 16, "w": 2, "h": 2, "jpeg": tile}}, "reason": "change"},
+	}
+	if _, err := st.Put(ctx, "demo", mustJSON(t, c2), nil); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := WriteFrames(ctx, st, id, &out); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Frames []struct {
+			TS      int64 `json:"ts"`
+			JPEG    string
+			Patches []struct{ X, Y, W, H int }
+		} `json:"frames"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Frames) != 3 || got.Frames[0].JPEG == "" || got.Frames[1].JPEG != full || got.Frames[2].JPEG != "" ||
+		len(got.Frames[2].Patches) != 1 || got.Frames[2].Patches[0].X != 8 || got.Frames[2].Patches[0].Y != 16 {
+		t.Fatalf("stream: %s", out.String())
 	}
 }
 

@@ -1,4 +1,11 @@
-import type { ReplayFramesResponse, ReplayKind, ReplayMeta, ReplayTouch, SessionRecord } from '../api/types';
+import type {
+  ReplayFrame,
+  ReplayFramesResponse,
+  ReplayKind,
+  ReplayMeta,
+  ReplayTouch,
+  SessionRecord,
+} from '../api/types';
 import { isReplayKind } from './format';
 
 /** How long a touch indicator stays visible after the touch instant. */
@@ -27,6 +34,39 @@ export function frameIndexAt(frames: ReadonlyArray<{ ts: number }>, ts: number):
     }
   }
   return lo;
+}
+
+/** One image the frame player draws on its canvas: a full image (`rect` absent) or a patch. */
+export interface DrawOp {
+  /** JPEG data URL. */
+  src: string;
+  rect?: { x: number; y: number; w: number; h: number };
+}
+
+/** The draw ops of every frame, built once per replay (one op per full image, one per patch). */
+export function frameDrawOps(frames: readonly ReplayFrame[]): DrawOp[][] {
+  return frames.map((f) =>
+    f.jpeg !== undefined
+      ? [{ src: `data:image/jpeg;base64,${f.jpeg}` }]
+      : (f.patches ?? []).map(({ x, y, w, h, jpeg }) => ({
+          src: `data:image/jpeg;base64,${jpeg}`,
+          rect: { x, y, w, h },
+        }))
+  );
+}
+
+/**
+ * What paints frame `index` (ADR-0014): the latest full image at or before it, then the patches of
+ * every frame after that one up to `index`, in order. Every chunk starts with a full image, so the
+ * list is short (a few seconds of frames) and a missing chunk never breaks the next. Empty when no
+ * full image precedes `index`.
+ */
+export function paintOps(ops: ReadonlyArray<readonly DrawOp[]>, index: number): DrawOp[] {
+  let key = Math.min(index, ops.length - 1);
+  while (key >= 0 && !(ops[key].length === 1 && !ops[key][0].rect)) {
+    key--;
+  }
+  return key < 0 ? [] : ops.slice(key, index + 1).flat();
 }
 
 export interface VisibleTouch {
