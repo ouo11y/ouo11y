@@ -51,6 +51,26 @@ describe("tap targets (G4)", () => {
     const touchable = chain([undefined, { testID: "pay" }], ["View", { testID: "pay" }], ["TouchableOpacity", { testID: "pay" }], ["CartScreen", { accessibilityRole: "list" }]);
     expect(touchedComponent(touchable)).toMatchObject({ target: "pay", viewType: "TouchableOpacity" });
     expect(touchedComponent(chain([undefined, { accessibilityRole: "none", testID: "x" }]))?.viewType).toBe("RCTView");
+    // A context or an unnamed host view inside the control does not end it; a role outside it is not used.
+    const ctx = { $$typeof: Symbol.for("react.context"), _currentValue: false };
+    const wrapped: FiberLike = {
+      elementType: "RCTView",
+      memoizedProps: { testID: "row-1" },
+      return: {
+        elementType: ctx,
+        memoizedProps: { value: false },
+        return: {
+          elementType: { displayName: "View" },
+          memoizedProps: { testID: "row-1" },
+          return: {
+            elementType: { displayName: "Pressable" },
+            memoizedProps: { testID: "row-1" },
+            return: { elementType: "RCTView", memoizedProps: { role: "list" }, return: { elementType: { displayName: "List" }, memoizedProps: { role: "list" }, return: null } },
+          },
+        },
+      },
+    };
+    expect(touchedComponent(wrapped)).toMatchObject({ target: "row-1", viewType: "Pressable" });
   });
 });
 

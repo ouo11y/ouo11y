@@ -69,6 +69,13 @@ function nameOf(elementType: unknown): string | undefined {
   return typeof displayName === "string" && displayName.length > 0 ? displayName : undefined;
 }
 
+/** One fiber of the walk: its label, display name and accessibility role. */
+interface Seen {
+  label: string | undefined;
+  name: string | undefined;
+  role: string | undefined;
+}
+
 /**
  * Walks from the touched fiber to the root (or `stop`, the provider's own view). Returns
  * undefined when nothing on the way has a label or a display name.
@@ -76,13 +83,7 @@ function nameOf(elementType: unknown): string | undefined {
 export function touchedComponent(fiber: FiberLike | null | undefined, stop?: (f: FiberLike) => boolean): TouchedComponent | undefined {
   const parts: string[] = [];
   let label: string | undefined;
-  // The touched control: the fibers up to the last one that carries the target's label
-  // (React Native passes a Pressable's testID and role down to its View).
-  let inControl = true;
-  let role: string | undefined;
-  let labelledName: string | undefined;
-  let innermostName: string | undefined;
-  const hostView = typeof fiber?.elementType === "string" ? fiber.elementType : undefined;
+  const seen: Seen[] = [];
   let cursor = fiber ?? undefined;
   let steps = 0;
   while (cursor && parts.length < MAX_TAP_PATH && steps < 200) {
@@ -92,16 +93,34 @@ export function touchedComponent(fiber: FiberLike | null | undefined, stop?: (f:
     const l = props ? labelOf(props) : undefined;
     const name = nameOf(cursor.elementType);
     if (l && !label) label = l;
-    if (label && l !== label) inControl = false;
-    if (inControl) {
-      role ??= props ? roleOf(props) : undefined;
-      if (l && name) labelledName = name;
-      innermostName ??= name;
-    }
+    seen.push({ label: l, name, role: props ? roleOf(props) : undefined });
     const part = l ?? name;
     if (part && parts[parts.length - 1] !== part) parts.push(part);
     cursor = cursor.return ?? undefined;
   }
   if (parts.length === 0) return undefined;
-  return { target: label ?? parts[0]!, path: parts.join(" > "), viewType: role ?? labelledName ?? innermostName ?? hostView ?? "View" };
+  return { target: label ?? parts[0]!, path: parts.join(" > "), viewType: viewTypeOf(seen, label, fiber) };
+}
+
+/**
+ * The touched control is the walk up to the last fiber of the first run that carries the target's
+ * label (React Native passes a Pressable's testID and role down to its View and host view; a
+ * fiber with neither label nor name, such as a host view or a context, does not end the run).
+ * Without a label it ends at the innermost named component.
+ */
+function viewTypeOf(seen: Seen[], label: string | undefined, fiber: FiberLike | null | undefined): string {
+  let end = label ? seen.findIndex((s) => s.label === label) : seen.findIndex((s) => s.name);
+  if (end < 0) end = seen.length - 1;
+  if (label) {
+    for (let i = end + 1; i < seen.length; i++) {
+      if (seen[i]!.label === label) end = i;
+      else if (seen[i]!.label || seen[i]!.name) break;
+    }
+  }
+  const control = seen.slice(0, end + 1);
+  const role = control.find((s) => s.role)?.role;
+  const labelled = control.filter((s) => label && s.label === label && s.name).at(-1)?.name;
+  const innermost = control.find((s) => s.name)?.name;
+  const host = typeof fiber?.elementType === "string" ? fiber.elementType : undefined;
+  return role ?? labelled ?? innermost ?? host ?? "View";
 }
