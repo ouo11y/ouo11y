@@ -88,3 +88,4 @@ Context: roadmap W5, spec C6 and C7 (`docs/specs/mobile-sdk.md`), quickstart
   walks up from the worktree into the shared main checkout's `package.json` (workspaces) and
   reads its workspace `package.json` files, which held merge-conflict markers. `--prefix` from
   outside avoids the walk.
+- **`npm pack` + `file:` tarball in an app**: packing again under the same name (`ouo11y-react-native-0.2.1.tgz`) and running `npm install` keeps the copy the lockfile pinned; delete the app's `package-lock.json` and `node_modules/@ouo11y` first, and `grep` the installed `dist` for a new symbol before trusting a device run.
