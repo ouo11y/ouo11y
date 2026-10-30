@@ -5,7 +5,7 @@ import { Icon, Input, useStyles2, useTheme2 } from '@grafana/ui';
 import { activeActivityIndex, matchesFilter, type ActivityFilter, type ActivityItem } from '../utils/activity';
 import { formatDateTime, formatRelative } from '../utils/format';
 import { scrollRowIntoView } from '../utils/scroll';
-import { hasPosition, type ReplayTap } from '../utils/taps';
+import { gestureTitle, hasPosition, tapSubject, type ReplayTap } from '../utils/taps';
 import { StackTrace } from './StackTrace';
 import { eventLook } from './Timeline';
 
@@ -37,10 +37,13 @@ const FILTERS: Array<{ value: ActivityFilter; label: string }> = [
 const TAP_COLOR = '#ff7a1a';
 
 function tapText(tap: ReplayTap): { title: string; detail: string } {
-  const title = tap.drag ? 'Swipe' : 'Tap';
+  const title = gestureTitle(tap.gesture, tap.drag);
   const where = hasPosition(tap) ? `at ${Math.round(tap.x)}, ${Math.round(tap.y)}` : 'no position in the recording';
   if (tap.target) {
-    return { title: `${title} ${tap.target}`, detail: [tap.path, where].filter(Boolean).join(' · ') };
+    return {
+      title: `${title} ${tapSubject(tap.target, tap.viewType, tap.screen)}`,
+      detail: [tap.path, where].filter(Boolean).join(' · '),
+    };
   }
   return { title, detail: where };
 }
@@ -161,7 +164,9 @@ export function ReplayActivity({ items, durationMs, currentMs, onSeek, clockStar
                 <span className={styles.body}>
                   <span className={styles.title}>{text.title}</span>
                   {text.detail && <span className={styles.detail}>{text.detail}</span>}
-                  {item.event?.type === 'exception' && <StackTrace stack={item.event.attrs.exception_stacktrace} symbolicated={item.event.symbolicated} />}
+                  {item.event?.type === 'exception' && (
+                    <StackTrace stack={item.event.attrs.exception_stacktrace} symbolicated={item.event.symbolicated} />
+                  )}
                 </span>
                 <span className={styles.time}>
                   {formatRelative(Number.isFinite(clockStart) ? item.ts - clockStart! : item.offsetMs)}

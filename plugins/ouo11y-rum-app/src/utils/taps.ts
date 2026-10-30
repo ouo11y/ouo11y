@@ -22,6 +22,10 @@ export interface ReplayTap {
   /** Touched component (`ouo_ui_target`) and component path (`ouo_ui_path`) from the breadcrumb. */
   target?: string;
   path?: string;
+  /** From the ouo SDKs (spec C6): `ouo_ui_gesture`, `ouo_ui_view_type`, `app_screen_name`. */
+  gesture?: string;
+  viewType?: string;
+  screen?: string;
   /** Index of the `ui.tap` event in the timeline, when the tap has one. */
   timelineIndex?: number;
 }
@@ -103,6 +107,9 @@ export function buildTaps(touches: readonly ReplayTouch[], timeline: readonly Ti
     const named = {
       target: ev.attrs.ouo_ui_target || undefined,
       path: ev.attrs.ouo_ui_path || undefined,
+      gesture: ev.attrs.ouo_ui_gesture || undefined,
+      viewType: ev.attrs.ouo_ui_view_type || undefined,
+      screen: ev.attrs.app_screen_name || undefined,
       timelineIndex,
     };
     if (best >= 0) {
@@ -113,6 +120,19 @@ export function buildTaps(touches: readonly ReplayTouch[], timeline: readonly Ti
     }
   });
   return taps.sort((a, b) => a.ts - b.ts);
+}
+
+const GESTURES: Record<string, string> = { tap: 'Tap', long_press: 'Long press', swipe: 'Swipe' };
+
+/** The gesture of a tap as a word: the SDK's `ouo_ui_gesture`, else a swipe when the recorded touch moved. */
+export const gestureTitle = (gesture?: string, drag?: boolean): string =>
+  (gesture && GESTURES[gesture]) || (drag ? 'Swipe' : 'Tap');
+
+/** What was touched and where, as a user step reads after its gesture: `add-to-cart (button) on Products` (spec C6). */
+export function tapSubject(target?: string, viewType?: string, screen?: string): string {
+  return [target, viewType && viewType !== target ? `(${viewType})` : '', screen ? `on ${screen}` : '']
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** True when the tap has a position to draw. */

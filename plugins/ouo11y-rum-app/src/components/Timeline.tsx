@@ -6,6 +6,7 @@ import type { TimelineEvent, VitalRating } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
 import { isVitalEvent, vitalDetail, vitalRating, vitalTitle } from '../utils/vitals';
 import { scrollRowIntoView } from '../utils/scroll';
+import { gestureTitle, tapSubject } from '../utils/taps';
 import { StackTrace } from './StackTrace';
 
 interface Props {
@@ -123,8 +124,8 @@ const NAMED: Record<string, (ev: TimelineEvent) => Look> = {
   'ui.tap': () => ({
     icon: 'arrow-right',
     color: (t) => t.colors.text.primary,
-    title: () => 'Tap',
-    detail: (e) => e.attrs.ouo_ui_target ?? '',
+    title: (e) => gestureTitle(e.attrs.ouo_ui_gesture),
+    detail: (e) => tapSubject(e.attrs.ouo_ui_target, e.attrs.ouo_ui_view_type, e.attrs.app_screen_name),
   }),
   breadcrumb: () => ({
     icon: 'list-ul',
@@ -252,7 +253,9 @@ export function Timeline({ timeline, sessionStart, activeIndex, onSeek, tapTimes
               <span className={styles.body}>
                 <span className={styles.title}>{look.title(ev)}</span>
                 {look.detail(ev) && <span className={styles.detail}>{look.detail(ev)}</span>}
-                {ev.type === 'exception' && <StackTrace stack={ev.attrs.exception_stacktrace} symbolicated={ev.symbolicated} />}
+                {ev.type === 'exception' && (
+                  <StackTrace stack={ev.attrs.exception_stacktrace} symbolicated={ev.symbolicated} />
+                )}
               </span>
             </li>
           );
