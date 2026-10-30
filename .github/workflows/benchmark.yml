@@ -58,6 +58,8 @@ concurrency:
 
 jobs:
   bench:
+    # GitHub-hosted on purpose: hours of simulator load would land on the founder's Mac, and the
+    # numbers need a machine nobody else is using (project/kb/ci-runners.md).
     runs-on: macos-latest
     timeout-minutes: 340
     permissions:
