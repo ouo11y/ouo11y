@@ -3,7 +3,7 @@
 //
 // 1. Runs the golden app: launches of the built @ouo11y/react-native bundle under the native
 //    stand-in (launch.cjs, standin.cjs), one "device" (storage, crash file) per journey:
-//      main       Home -> Products -> Cart, taps, request in a custom span, log, handled error,
+//      main       Home -> Products -> Cart, a tap, a long press and a swipe, request in a custom span, log, handled error,
 //                 feedback, main-thread block, background rotation
 //      crash      native crash after the first export, then the next launch
 //      early      native crash 200 ms after launch, then the next launch
@@ -254,18 +254,18 @@ const CHECKS = [
   },
   {
     id: "C6.1",
-    pending: "W5",
-    title: "three taps appear in order with their labels and the screen they were on",
+    title: "a tap, a long press and a swipe appear in order with label, view type, gesture and screen",
     async run(g) {
       const d = await detail(g.main.launches[0].session);
-      const taps = named(d, "ui.tap").map((e) => `${attr(e, "ouo.ui.target")}@${attr(e, "app.screen.name") ?? "?"}`);
-      return result(taps.join(",") === "open-products@Home,add-to-cart@Products,checkout@Cart", taps.length > 0, { taps });
+      const taps = named(d, "ui.tap").map((e) => ["ouo.ui.target", "ouo.ui.view_type", "ouo.ui.gesture", "app.screen.name"].map((k) => attr(e, k) ?? "?").join(" "));
+      const want = ["open-products button tap Home", "add-to-cart button long_press Products", "cart-items FlatList swipe Cart"];
+      return result(taps.join(",") === want.join(","), taps.length > 0, { taps });
     },
   },
   {
     id: "C7.1",
-    title: "the three-screen journey counts as a three-step funnel",
-    async run() {
+    title: "the three-screen journey: one screen navigation per change, a three-step funnel",
+    async run(g) {
       const res = await fetch(`${RUM}/v1/funnels/query`, {
         method: "POST",
         headers: { ...readHeaders(), "content-type": "application/json" },
@@ -278,7 +278,10 @@ const CHECKS = [
       });
       const body = res.ok ? await res.json() : null;
       const counts = (body?.steps ?? []).map((s) => s.sessions);
-      return result(counts[2] === 1 && counts[1] === 1, counts[0] > 0, { http: res.status, sessions_per_step: counts });
+      // Each screen change is one navigation record of kind `screen`, like the bridge's.
+      const nav = named(await detail(g.main.launches[0].session), "navigation").map((e) => `${attr(e, "url.path")}:${attr(e, "ouo.navigation.kind")}`);
+      const screens = nav.join(",") === "/Home:screen,/Products:screen,/Cart:screen";
+      return result(counts[2] === 1 && counts[1] === 1 && screens, counts[0] > 0, { http: res.status, sessions_per_step: counts, navigation: nav });
     },
   },
   {

@@ -19,6 +19,7 @@ import { forwardSentryErrors } from "./errors/sentry";
 import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
+import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
 import { createReplayController, loadNativeReplayModule } from "./replay";
@@ -44,7 +45,7 @@ export { SDK_VERSION } from "./version";
 export { RUMProvider, type RUMProviderProps } from "./provider";
 export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/stack";
-export { touchedComponent, type FiberLike, type TouchedComponent } from "./taps";
+export { touchedComponent, type FiberLike, type Gesture, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
 export { type NativeReplayModule, type NativeStartOptions } from "./replay";
 export { sampled, samplingHash, SAMPLING_SALT } from "./sampling";
@@ -65,6 +66,10 @@ export interface RUMInternal extends RUM {
   _uninstall(): Promise<void>;
   /** RUMProvider mounted: the app's first frame follows (vitals). */
   _rootMounted(): void;
+  /** RUMProvider: a touch started on `touched` (its screen and time are read now). */
+  _touchStart(event: TouchEventLike, touched: TouchedComponent | undefined): void;
+  /** RUMProvider: the touch ended or was cancelled: `ui.tap` with its gesture. */
+  _touchEnd(event: TouchEventLike): void;
 }
 
 /**
@@ -211,6 +216,7 @@ export function initRUM(options: RUMOptions): RUM {
   };
   const timeline = {
     taps: options.timeline?.taps !== false,
+    tapLabels: options.timeline?.tapLabels !== false,
     appLifecycle: options.timeline?.appLifecycle !== false,
     requests: options.timeline?.requests !== false,
   };
@@ -334,13 +340,26 @@ export function initRUM(options: RUMOptions): RUM {
   });
 
   const navigation = createNavigationTracker((attrs) => {
-    events.emit("navigation", attrs);
+    events.emit("navigation", { ...attrs, "ouo.navigation.kind": "screen" });
     onActivity();
     replay.screenDidChange();
-    // `app.screen.name`: the route name, the last segment of the path.
-    const path = String(attrs["url.path"] ?? "");
-    vitals.navigated(path.slice(path.lastIndexOf("/") + 1));
+    vitals.navigated(screenName(String(attrs["url.path"] ?? "")));
   });
+
+  // `ui.tap` at the touch start, on the screen it started on; the body is the user step as a person reads it.
+  const emitTap = (target: string, path: string | undefined, gesture: Gesture, viewType: string | undefined, at: number, screen: string): void => {
+    if (!timeline.taps || !target) return;
+    const attrs: Attrs = { "ouo.ui.target": target, "ouo.ui.gesture": gesture };
+    if (path && path !== target) attrs["ouo.ui.path"] = path;
+    if (viewType) attrs["ouo.ui.view_type"] = viewType;
+    if (screen) attrs["app.screen.name"] = screen;
+    events.emit("ui.tap", attrs, "info", at, { body: userStep(gesture, target, viewType, screen) });
+  };
+
+  // The touch RUMProvider saw start, until its end. A touch whose end never came (its view
+  // unmounted) is replaced by the next one-finger start. A nested provider gets the same event
+  // object as it bubbles, and a second finger has more than one touch down: neither starts a touch.
+  let touch: { event: TouchEventLike; touched: TouchedComponent | undefined; x: number; y: number; at: number; screen: string } | undefined;
 
   logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
     endpoint: endpoints.endpoint,
@@ -371,12 +390,24 @@ export function initRUM(options: RUMOptions): RUM {
       navigation.track(path, attrs);
     },
     recordActivity: onActivity,
-    trackTap(target: string, path?: string): void {
+    trackTap(target: string, path?: string, gesture: Gesture = "tap"): void {
       onActivity();
-      if (!timeline.taps || !target) return;
-      const attrs: Attrs = { "ouo.ui.target": target };
-      if (path && path !== target) attrs["ouo.ui.path"] = path;
-      events.emit("ui.tap", attrs, "info", Date.now(), { body: path || target });
+      emitTap(target, path, gesture, undefined, Date.now(), screenName(navigation.current()));
+    },
+    _touchStart(event, touched): void {
+      if (touch?.event === event || (event.nativeEvent?.touches?.length ?? 1) > 1) return;
+      const p = event.nativeEvent;
+      touch = { event, touched, x: p?.pageX ?? 0, y: p?.pageY ?? 0, at: Date.now(), screen: screenName(navigation.current()) };
+    },
+    _touchEnd(event): void {
+      const t = touch;
+      touch = undefined;
+      if (!t?.touched) return;
+      const p = event.nativeEvent;
+      const gesture = gestureOf(Date.now() - t.at, (p?.pageX ?? t.x) - t.x, (p?.pageY ?? t.y) - t.y);
+      // Labels off: what was touched (its view type), not what it is called.
+      if (timeline.tapLabels) emitTap(t.touched.target, t.touched.path, gesture, t.touched.viewType, t.at, t.screen);
+      else emitTap(t.touched.viewType, undefined, gesture, t.touched.viewType, t.at, t.screen);
     },
     startSpan: spans.startSpan,
     withSpan: spans.withSpan,
@@ -414,6 +445,18 @@ export function initRUM(options: RUMOptions): RUM {
   };
   setRUM(rum);
   return rum;
+}
+
+/** `app.screen.name`: the route name, the last segment of a navigation path. */
+function screenName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+const GESTURE_WORDS: Record<Gesture, string> = { tap: "Tap", long_press: "Long press", swipe: "Swipe" };
+
+/** `Tap add-to-cart (button) on Products`. */
+function userStep(gesture: Gesture, target: string, viewType?: string, screen?: string): string {
+  return `${GESTURE_WORDS[gesture]} ${target}${viewType && viewType !== target ? ` (${viewType})` : ""}${screen ? ` on ${screen}` : ""}`;
 }
 
 /** Metro dev-server endpoints: `POST /symbolicate` (LogBox), `POST /__sentry/context` (Sentry's middleware). */

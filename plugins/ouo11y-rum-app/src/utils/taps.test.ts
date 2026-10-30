@@ -1,5 +1,5 @@
 import type { TimelineEvent } from '../api/types';
-import { buildTaps, tapLabel, visibleTaps } from './taps';
+import { buildTaps, gestureTitle, tapLabel, tapSubject, visibleTaps } from './taps';
 
 const start = 1_791_946_506_794;
 const tapEvent = (offsetMs: number, target: string, path = `${target} > Text`): TimelineEvent => ({
@@ -9,6 +9,42 @@ const tapEvent = (offsetMs: number, target: string, path = `${target} > Text`): 
   attrs: { ouo_ui_target: target, ouo_ui_path: path },
 });
 const other: TimelineEvent = { ts: new Date(start).toISOString(), type: 'navigation', name: 'navigation', attrs: {} };
+
+describe('user steps (spec C6)', () => {
+  it('names the gesture, else a swipe from the recorded touch', () => {
+    expect([
+      gestureTitle('long_press'),
+      gestureTitle('swipe'),
+      gestureTitle('tap', true),
+      gestureTitle(undefined, true),
+      gestureTitle(),
+    ]).toEqual(['Long press', 'Swipe', 'Tap', 'Swipe', 'Tap']);
+  });
+
+  it('says what was touched and where, without repeating a view type that is the target', () => {
+    expect(tapSubject('add-to-cart', 'button', 'Product')).toBe('add-to-cart (button) on Product');
+    expect(tapSubject('button', 'button', 'Cart')).toBe('button on Cart');
+    expect(tapSubject('checkout-pay')).toBe('checkout-pay');
+  });
+
+  it('carries gesture, view type and screen from the ui.tap event', () => {
+    const ev = {
+      ...tapEvent(100, 'cart-items'),
+      attrs: {
+        ouo_ui_target: 'cart-items',
+        ouo_ui_gesture: 'swipe',
+        ouo_ui_view_type: 'FlatList',
+        app_screen_name: 'Cart',
+      },
+    };
+    expect(buildTaps([], [ev])[0]).toMatchObject({
+      target: 'cart-items',
+      gesture: 'swipe',
+      viewType: 'FlatList',
+      screen: 'Cart',
+    });
+  });
+});
 
 describe('buildTaps', () => {
   it('pairs each ui.tap breadcrumb with the touch that started just before it', () => {

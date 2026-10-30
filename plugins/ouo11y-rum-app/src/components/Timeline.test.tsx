@@ -34,6 +34,25 @@ describe('eventLook', () => {
     expect(eventLook(crumb).detail(crumb)).toBe('promo opened promo=AUTUMN');
   });
 
+  it('reads a tap as a user step: gesture, target, view type, screen (spec C6)', () => {
+    const step = ev('ui.tap', {
+      ouo_ui_target: 'add-to-cart',
+      ouo_ui_view_type: 'button',
+      ouo_ui_gesture: 'long_press',
+      app_screen_name: 'Product',
+    });
+    expect(eventLook(step).title(step)).toBe('Long press');
+    expect(eventLook(step).detail(step)).toBe('add-to-cart (button) on Product');
+    // The Sentry bridge's taps carry the target only; labels off, the target is the view type.
+    const bridge = ev('ui.tap', { ouo_ui_target: 'checkout-pay' });
+    expect([eventLook(bridge).title(bridge), eventLook(bridge).detail(bridge)]).toEqual(['Tap', 'checkout-pay']);
+    const unlabelled = ev('ui.tap', { ouo_ui_target: 'button', ouo_ui_view_type: 'button', ouo_ui_gesture: 'swipe' });
+    expect([eventLook(unlabelled).title(unlabelled), eventLook(unlabelled).detail(unlabelled)]).toEqual([
+      'Swipe',
+      'button',
+    ]);
+  });
+
   it('keeps the generic look for other custom events and the typed looks', () => {
     const custom = ev('cart.added', { sku: 'sku-1' });
     expect(eventLook(custom).title(custom)).toBe('cart.added');

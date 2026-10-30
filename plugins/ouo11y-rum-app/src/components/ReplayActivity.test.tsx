@@ -15,12 +15,25 @@ const ev = (offsetMs: number, type: string, name = type, attrs: Record<string, s
 const items = buildActivity(
   [
     ev(1000, 'navigation', 'navigation', { url_path: '/catalog' }),
-    ev(2050, 'custom', 'ui.tap', { ouo_ui_target: 'btn-Add to cart' }),
+    ev(2050, 'custom', 'ui.tap', {
+      ouo_ui_target: 'btn-Add to cart',
+      ouo_ui_view_type: 'button',
+      app_screen_name: 'Product',
+    }),
     ev(4000, 'exception', 'exception', { exception_type: 'TypeError', exception_message: 'boom' }),
   ],
   start,
   [
-    { ts: start + 2000, x: 201, y: 418, target: 'btn-Add to cart', path: 'btn-Add to cart > Text', timelineIndex: 1 },
+    {
+      ts: start + 2000,
+      x: 201,
+      y: 418,
+      target: 'btn-Add to cart',
+      path: 'btn-Add to cart > Text',
+      viewType: 'button',
+      screen: 'Product',
+      timelineIndex: 1,
+    },
     { ts: start + 3000, x: 10, y: 20 },
   ]
 );
@@ -37,7 +50,7 @@ describe('ReplayActivity', () => {
     render(<ReplayActivity items={items} durationMs={10_000} currentMs={2500} onSeek={onSeek} />);
     const rows = screen.getAllByTestId('activity-item');
     expect(rows.map((r) => r.getAttribute('data-category'))).toEqual(['navigation', 'tap', 'tap', 'error']);
-    expect(rows[1]).toHaveTextContent('Tap btn-Add to cart');
+    expect(rows[1]).toHaveTextContent('Tap btn-Add to cart (button) on Product');
     expect(rows[1]).toHaveTextContent('at 201, 418');
     expect(rows[2]).toHaveTextContent('Tap');
     expect(rows[1]).toHaveAttribute('data-active', 'true');

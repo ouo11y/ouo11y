@@ -1,4 +1,5 @@
 import type { Span, SpanContext } from "@opentelemetry/api";
+import type { Gesture } from "./taps";
 
 /** Primitive attribute values accepted by the public API. */
 export type AttrValue = string | number | boolean;
@@ -201,8 +202,17 @@ export interface SentryHintLike {
 
 /** Timeline events the SDK records (checklist G4), each named like the Sentry bridge's (spec section 9a). Default all true. */
 export interface TimelineOptions {
-  /** `ui.tap` from touches inside `<RUMProvider>`: `ouo.ui.target`, `ouo.ui.path`. */
+  /**
+   * `ui.tap` from touches inside `<RUMProvider>`: `ouo.ui.target`, `ouo.ui.path`,
+   * `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`), `app.screen.name`.
+   */
   taps?: boolean;
+  /**
+   * Content kill switch. `false`: taps the provider records carry no label (`ouo-label`,
+   * `accessibilityLabel`, test id): `ouo.ui.target` is the view type and there is no
+   * `ouo.ui.path`; gesture, view type and screen stay. Targets passed to `trackTap` are kept.
+   */
+  tapLabels?: boolean;
   /** `app.lifecycle` from `AppState`: `ouo.app.state` = `foreground`, `inactive`, `background`. */
   appLifecycle?: boolean;
   /** `http.request` for every answered request below 500, with its span's trace id and span id. */
@@ -324,11 +334,11 @@ export interface RUM {
   /** Count a user interaction as session activity (the `RUMProvider` does this for touches). */
   recordActivity(): void;
   /**
-   * Emit a `ui.tap` (and count it as activity). `RUMProvider` calls this for every touch with
-   * the touched component's label; call it yourself for gestures it cannot see.
-   * `path` is the component path, innermost first, joined with ` > `.
+   * Emit a `ui.tap` on the current screen (and count it as activity). `RUMProvider` records
+   * touches itself; call this for gestures it cannot see. `path` is the component path,
+   * innermost first, joined with ` > `; `gesture` defaults to `tap`.
    */
-  trackTap(target: string, path?: string): void;
+  trackTap(target: string, path?: string, gesture?: Gesture): void;
   /**
    * Start a span on the SDK's tracer (session attributes added). End it with `span.end()`.
    * Parent: `options.parent`, else the span active inside `withSpan`.
