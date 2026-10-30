@@ -109,12 +109,11 @@ export function initRUM(options: RUMOptions): RUM {
   // ---- delivery (C11): every OTLP batch is persisted, then sent gzip by the native module ----
   const offline = options.transport?.offline;
   const outbox = new Outbox({
-    storage: offline === false ? new MemoryAsyncStorage() : storage,
+    // Unwrapped: the outbox tells a failed read from an empty store and guards its own calls.
+    storage: offline === false ? new MemoryAsyncStorage() : (options.storage ?? AsyncStorage),
     send: createSend(ingestHeaders(authorization), nativeModule as Partial<NativeOtlpPost> | undefined),
     logger,
     ...(offline && offline.maxBytes !== undefined ? { maxBytes: offline.maxBytes } : {}),
-    ...(offline && offline.maxEntries !== undefined ? { maxEntries: offline.maxEntries } : {}),
-    ...(offline && offline.maxAgeMs !== undefined ? { maxAgeMs: offline.maxAgeMs } : {}),
   });
 
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----

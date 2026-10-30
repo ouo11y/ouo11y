@@ -91,7 +91,7 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 
 - OTLP/HTTP JSON with `content-encoding: gzip` for logs and traces; replay chunks are gzip already.
 - Retry with backoff on network errors, 408, 429 and 5xx, honouring `Retry-After`; no retry on other 4xx.
-- **Offline store**: every OTLP batch and replay chunk is on disk before it is sent and removed when the collector answers 2xx or another 4xx, so an outage, a crash or a kill mid-request loses nothing; what is left is sent oldest first on the next launch, on foreground, on `flush()` and after a backoff. Bounds, oldest dropped first: OTLP 5 MB (uncompressed JSON), 500 requests, 24 h; replay chunks 10 MB (gzip), 24 h ([mobile-replay.md](mobile-replay.md)). Delivery is at least once. (Sentry keeps 30 envelopes.)
+- **Offline store**: every OTLP batch and replay chunk is on disk before it is sent and removed when the collector answers 2xx or another 4xx, so an outage, a crash or a kill mid-request loses nothing; what is left is sent oldest first on the next launch, on foreground, on `flush()` and after a backoff. Bounds, oldest dropped first: OTLP 5 MB (uncompressed JSON), 500 requests, 24 h; replay chunks 10 MB (gzip) per folder (queued, held), 24 h ([mobile-replay.md](mobile-replay.md)). Delivery is at least once. (Sentry keeps 30 envelopes.)
 - Flush on background (and on `flush()`).
 - **Checks**: C11.1, C11.2.
 

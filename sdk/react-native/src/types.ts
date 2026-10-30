@@ -119,12 +119,8 @@ export interface TransportOptions {
 }
 
 export interface OfflineOptions {
-  /** Default 5 MB (uncompressed JSON). */
+  /** Default 5 MB (uncompressed JSON). At most 500 requests are kept, for at most 24 hours. */
   maxBytes?: number;
-  /** Default 500 requests. */
-  maxEntries?: number;
-  /** Requests kept longer than this are dropped unsent. Default 24 hours. */
-  maxAgeMs?: number;
 }
 
 /** Device attributes the host app can supply (for example from `expo-device`). */

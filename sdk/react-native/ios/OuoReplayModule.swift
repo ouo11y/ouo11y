@@ -110,7 +110,8 @@ public class OuoReplayModule: Module {
     // ---- OTLP delivery (checklist N48): gzip and POST off the JS thread ----
 
     /// gzips `body` and POSTs it with `headers` plus `content-encoding: gzip`. Resolves
-    /// `{ status, retryAfterMs? }`, status 0 when the request did not reach the server.
+    /// `{ status, retryAfter? }` (the raw header; JS parses seconds and HTTP dates), status 0 when
+    /// the request did not reach the server.
     AsyncFunction("postOtlp") { (url: String, headers: [String: String], body: String, promise: Promise) in
       guard let target = URL(string: url) else {
         promise.resolve(["status": 400])
@@ -132,9 +133,7 @@ public class OuoReplayModule: Module {
           return
         }
         var result: [String: Any] = ["status": http.statusCode]
-        if let ra = http.value(forHTTPHeaderField: "Retry-After"), let seconds = Double(ra) {
-          result["retryAfterMs"] = max(0, seconds * 1000)
-        }
+        if let ra = http.value(forHTTPHeaderField: "Retry-After") { result["retryAfter"] = ra }
         promise.resolve(result)
       }.resume()
     }

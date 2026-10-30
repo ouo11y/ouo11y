@@ -191,6 +191,67 @@ describe("outbox", () => {
     expect(c.bodies).toEqual(["two", "three"]);
   });
 
+  it("an index read slower than 5 s runs memory-only and leaves the stored queue for the next launch", async () => {
+    vi.useFakeTimers();
+    try {
+      const storage = new MemoryAsyncStorage();
+      const at = Date.now();
+      await storage.setItem(OUTBOX_KEY, JSON.stringify({ next: 3, items: [{ id: 1, url: "u", bytes: 4, at }, { id: 2, url: "u", bytes: 4, at }] }));
+      await storage.setItem(`${OUTBOX_KEY}.1`, "old1");
+      await storage.setItem(`${OUTBOX_KEY}.2`, "old2");
+      const slow = Object.assign(Object.create(storage) as MemoryAsyncStorage, {
+        getItem: (k: string) => (k === OUTBOX_KEY ? new Promise<string | null>((r) => setTimeout(() => r(storage.peek(k)), 6000)) : storage.getItem(k)),
+      });
+      const c = collector([503]);
+      const outbox = new Outbox({ storage: slow, send: c.send, logger });
+      const put = outbox.put("u", "new");
+      await vi.advanceTimersByTimeAsync(5001);
+      await put;
+      await vi.advanceTimersByTimeAsync(10);
+      expect(c.bodies).toEqual(["new"]);
+      expect(JSON.parse(storage.peek(OUTBOX_KEY)!).items.map((i: { id: number }) => i.id)).toEqual([1, 2]);
+      expect([storage.peek(`${OUTBOX_KEY}.1`), storage.peek(`${OUTBOX_KEY}.2`)]).toEqual(["old1", "old2"]);
+      outbox.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an index read that fails runs memory-only and touches nothing stored", async () => {
+    const storage = new MemoryAsyncStorage();
+    await storage.setItem(OUTBOX_KEY, JSON.stringify({ next: 2, items: [{ id: 1, url: "u", bytes: 4, at: Date.now() }] }));
+    await storage.setItem(`${OUTBOX_KEY}.1`, "old1");
+    const failing = Object.assign(Object.create(storage) as MemoryAsyncStorage, {
+      getItem: (k: string) => (k === OUTBOX_KEY ? Promise.reject(new Error("disk")) : storage.getItem(k)),
+    });
+    const c = collector();
+    const outbox = new Outbox({ storage: failing, send: c.send, logger });
+    await outbox.put("u", "new");
+    await settle(outbox);
+    expect(c.bodies).toEqual(["new"]);
+    expect(storage.peek(`${OUTBOX_KEY}.1`)).toBe("old1");
+    expect(storage.peek(`${OUTBOX_KEY}.2`)).toBeNull();
+    // The next launch reads it fine and sends what was stored.
+    const next = collector();
+    await new Outbox({ storage: storage.clone(), send: next.send, logger }).drain();
+    expect(next.bodies).toEqual(["old1"]);
+  });
+
+  it("the head being read from storage is in flight: a put's eviction leaves it", async () => {
+    const storage = new MemoryAsyncStorage();
+    const at = Date.now();
+    await storage.setItem(OUTBOX_KEY, JSON.stringify({ next: 2, items: [{ id: 1, url: "u", bytes: 10, at }] }));
+    await storage.setItem(`${OUTBOX_KEY}.1`, "0123456789");
+    const c = collector();
+    const outbox = new Outbox({ storage, send: c.send, logger, maxBytes: 15 });
+    const draining = outbox.drain();
+    await outbox.put("u", "abcdefghij");
+    await draining;
+    await settle(outbox);
+    expect(c.bodies).toEqual(["0123456789", "abcdefghij"]);
+    expect(outbox.stats.dropped).toBe(0);
+  });
+
   it("a storage that fails still sends from memory", async () => {
     const broken = {
       getItem: () => Promise.reject(new Error("disk")),
@@ -211,6 +272,9 @@ describe("send", () => {
     const send = createSend({ Authorization: "Basic x" }, { postOtlp });
     expect(await send("u", "{}")).toEqual({ status: 200 });
     expect(postOtlp).toHaveBeenCalledWith("u", { "content-type": "application/json", Authorization: "Basic x" }, "{}");
+    // The native module hands back the raw Retry-After; JS parses seconds and HTTP dates.
+    const limited = createSend({}, { postOtlp: async () => ({ status: 429, retryAfter: "7" }) });
+    expect(await limited("u", "{}")).toEqual({ status: 429, retryAfterMs: 7000 });
   });
 
   it("falls back to fetch without the native module; a thrown fetch is status 0", async () => {

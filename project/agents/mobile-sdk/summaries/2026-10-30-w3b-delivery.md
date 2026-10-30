@@ -61,6 +61,22 @@ Branch `claude/w3b-delivery`, the delivery half of work package W3 of [roadmap.m
 - **Conformance suite** against env `w3b-delivery` (`node tests/e2e/mobile/conformance.mjs`, after the rebase onto W2): `CONFORMANCE OK`, 13 required checks pass and 5 pending (W4, W5, W6). C11.1 and C11.2 pass, and C11 Delivery is at L2.
 - `lychee --offline` clean.
 
+## Review round 1 (review-pr-114)
+
+- Fixed:
+  - An outbox index read that is slow (over 5 s) or fails now runs that process memory-only; the stored queue is not overwritten.
+  - With hold set, a chunk the disk cannot take is dropped, not sent.
+  - `Retry-After` is honoured for chunks (`ChunkTransport` returns `ChunkResponse`), and native `postOtlp` returns the raw header for JS to parse.
+  - Swift retries only 408, 429 and 5xx; 1xx and 3xx are final.
+  - The head is in flight while its body is read.
+  - `transport.offline` is down to `{ maxBytes }`; the dead merge in `load()` is gone.
+  - The standin's final statuses match Swift, and its header says what it does not model.
+  - The spec says 10 MB per folder.
+- Left as is:
+  - The spool clearing before the chunk is written: `ChunkBuilder` belongs to W3a, which will take it in its Swift PR.
+  - Narrowing the retried 5xx to 502, 503 and 504: that needs a C11 change, so it is a follow-up. The trade-off is in the kb.
+- Tests after the round: RN 153, Swift 76 Core + 6 crash; conformance suite OK against env `w3b-delivery`.
+
 ## Left, and what the next session must know
 
 - **ChunkBuilder window:** `ChunkBuilder.cut()` clears the spool before `onChunk` writes the chunk to the queue. A kill during that chunk's gzip (milliseconds) loses it. The fix is to clear the spool after `onChunk`, in W3a's file; W3a was told.

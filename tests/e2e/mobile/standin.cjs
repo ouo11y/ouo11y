@@ -121,7 +121,9 @@ function captureIfDue() {
 
 // ChunkUploader (W3): every chunk is written to the queue folder (or `held/` with `holdUploads`)
 // as its gzip body before it is sent, named `<queued ms>-<n>.<session>.<seq>.json.gz`, and removed
-// on 2xx or a final rejection; a refused upload stays for `drain`, the next chunk or the next launch.
+// on 2xx or a final answer (any status but 408, 429, 5xx); a refused upload stays for `drain`, the
+// next chunk or the next launch. Not modelled: the retry timer and `Retry-After` (a launch is
+// short), the 10 MB bound and the 24 h expiry.
 const OUTBOX = path.join(DEVICE_DIR, "outbox");
 const HELD = path.join(OUTBOX, "held");
 let queued = 0;
@@ -182,7 +184,7 @@ function drainOutbox(endpoint, options) {
         status = String(err);
       }
       record({ kind: "chunk", session_id: sessionId, seq: Number(seq), status });
-      const final = typeof status === "number" && (status < 400 || (status < 500 && status !== 408 && status !== 429));
+      const final = typeof status === "number" && status !== 408 && status !== 429 && status < 500;
       if (!final) return;
       fs.rmSync(file, { force: true });
     }
@@ -319,8 +321,7 @@ const native = {
   async postOtlp(url, headers, body) {
     try {
       const res = await globalThis.fetch(url, { method: "POST", headers: { ...headers, "content-encoding": "gzip" }, body: zlib.gzipSync(body) });
-      const ra = Number(res.headers.get("retry-after"));
-      return Number.isFinite(ra) && res.headers.get("retry-after") !== null ? { status: res.status, retryAfterMs: ra * 1000 } : { status: res.status };
+      return { status: res.status, retryAfter: res.headers.get("retry-after") };
     } catch {
       return { status: 0 };
     }

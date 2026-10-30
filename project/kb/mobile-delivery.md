@@ -11,6 +11,13 @@ How `@ouo11y/react-native` and the iOS replay uploader keep telemetry through ou
 - **One uploader per process** (`OuoReplay.uploader(config)`): two uploaders on one folder would send the same files. The first config wins (endpoint, credential, `holdUploads`).
 - **Keep/drop (Luciq's sync callback).** With `replay.keepAtNextLaunch`, chunks go to `outbox/held/`. At `rum.ready`, JS lists held sessions (native lists them on the capture queue after the spool recovery, so the crashed run's open chunk is included), asks the hook for each one but the current session with `{ sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors }`, and native moves the files to the queue or deletes them. Errors per session persist in `ouo.replay.errors` (only while the hook is set). Without the hook anything held is sent, so removing the hook strands nothing. Spans and logs are never held.
 
+## Trade-offs written down (review of #114)
+
+- **Head-of-line blocking.** Both queues are strict FIFO and stop at the first retryable failure, and they retry every 5xx (C11). A request the collector answers 500 to every time blocks everything behind it until the bound evicts it or 24 h pass. OTLP/HTTP's own spec retries only 429, 502, 503 and 504. Narrowing to those would let a deterministic 500 be dropped at once, but it needs a C11 change: a follow-up, not done here. Any status that is not 2xx, 408, 429 or 5xx is final on both sides (1xx and 3xx included).
+- **An unreadable stored queue does not get overwritten.** If the outbox index cannot be read at launch (an error or 5 s without an answer), the run keeps its requests in memory and writes nothing, so the stored queue is still there for the next launch. A plain "start empty" fallback overwrote the stored index and reused body ids: found in review, regression tests in `test/delivery.test.ts`. That is why the outbox gets the unwrapped storage, not `safeStorage`, which turns errors into `null`.
+- **Held chunks never leave early.** With `holdUploads`, a chunk the disk cannot take is dropped, not sent from memory: sending it would bypass the keep/drop decision.
+- **`Retry-After`.** The replay receiver and the OTLP receiver send it with 429 (and 503). `ChunkTransport` reports it and the uploader waits at least that long (whole seconds). `postOtlp` returns the raw header and JS parses seconds and HTTP dates with one parser.
+
 ## Verified on the iOS 27 simulator (examples/ouo-mobile Release build, own env, 2026-10-30)
 
 Same scripted journey (`scripts/journey.sh`, ~45 s) online and with the env's collector container stopped (OTLP and replay ports refused, backend up):

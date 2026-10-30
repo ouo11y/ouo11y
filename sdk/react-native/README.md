@@ -169,7 +169,9 @@ Every OTLP batch is written to AsyncStorage before it is sent and removed when t
 answers 2xx (or rejects it with another 4xx than 408 and 429), so an outage, a crash or a kill
 mid-request loses nothing. What is left is sent oldest first on the next launch, when the app comes
 back to the foreground, on `rum.flush()`, and after a backoff (1 s doubling to 30 s, `Retry-After`
-honoured). The store keeps at most 5 MB or 500 requests (the oldest dropped first) for 24 hours.
+honoured). The store keeps at most 5 MB or 500 requests (the oldest dropped first) for 24 hours. If the
+stored queue cannot be read at launch (an AsyncStorage error, or no answer within 5 s), that run
+keeps its requests in memory and leaves the stored ones for the next launch.
 Requests are gzip: the native module compresses and posts them off the JS thread (Hermes has no
 `CompressionStream`); where it is absent (Expo Go, web, the Android stub) they go out through
 `fetch`, uncompressed. Replay chunks have the same guarantee on the native side
@@ -178,7 +180,7 @@ Requests are gzip: the native module compresses and posts them off the JS thread
 ```ts
 initRUM({
   // ...
-  transport: { offline: { maxBytes: 5 * 1024 * 1024, maxEntries: 500, maxAgeMs: 24 * 3600 * 1000 } }, // the defaults
+  transport: { offline: { maxBytes: 5 * 1024 * 1024 } },  // the default; at most 500 requests, kept 24 h
   // transport: { offline: false }  -> retried in this process only, nothing kept for the next launch
 });
 ```

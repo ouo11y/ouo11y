@@ -1,8 +1,8 @@
 import type { SendResult, Send } from "./outbox";
 
-/** Native gzip + POST of the Expo module (`postOtlp`), off the JS thread. */
+/** Native gzip + POST of the Expo module (`postOtlp`), off the JS thread; `status` 0 when there was no answer. */
 export interface NativeOtlpPost {
-  postOtlp(url: string, headers: Record<string, string>, body: string): Promise<SendResult>;
+  postOtlp(url: string, headers: Record<string, string>, body: string): Promise<{ status: number; retryAfter?: string | null }>;
 }
 
 /** Abort a request after this long; the outbox retries it. */
@@ -18,21 +18,28 @@ export function createSend(headers: Record<string, string>, native: Partial<Nati
   const all = { "content-type": "application/json", ...headers };
   if (native && typeof native.postOtlp === "function") {
     const post = native.postOtlp.bind(native);
-    return (url, body) => post(url, all, body);
+    return async (url, body) => {
+      const res = await post(url, all, body);
+      return withRetryAfter(res.status, res.retryAfter ?? null);
+    };
   }
   return async (url, body) => {
     const abort = typeof AbortController === "function" ? new AbortController() : null;
     const timer = abort ? setTimeout(() => abort.abort(), SEND_TIMEOUT_MS) : null;
     try {
       const res = await fetch(url, { method: "POST", headers: all, body, ...(abort ? { signal: abort.signal } : {}) });
-      const retryAfterMs = parseRetryAfter(res.headers?.get?.("retry-after") ?? null);
-      return retryAfterMs === undefined ? { status: res.status } : { status: res.status, retryAfterMs };
+      return withRetryAfter(res.status, res.headers?.get?.("retry-after") ?? null);
     } catch {
       return { status: 0 };
     } finally {
       if (timer !== null) clearTimeout(timer);
     }
   };
+}
+
+function withRetryAfter(status: number, header: string | null): SendResult {
+  const retryAfterMs = parseRetryAfter(header);
+  return retryAfterMs === undefined ? { status } : { status, retryAfterMs };
 }
 
 /** `Retry-After` in seconds or as an HTTP date, in milliseconds from now. */

@@ -3,10 +3,26 @@ import Foundation
 import FoundationNetworking
 #endif
 
+/// What the receiver answered. An integer literal is a status without `Retry-After`.
+public struct ChunkResponse: Equatable, ExpressibleByIntegerLiteral {
+    public var status: Int
+    /// `Retry-After` in seconds (the receiver sends whole seconds with 429 and 503).
+    public var retryAfter: TimeInterval?
+
+    public init(status: Int, retryAfter: TimeInterval? = nil) {
+        self.status = status
+        self.retryAfter = retryAfter
+    }
+
+    public init(integerLiteral status: Int) {
+        self.init(status: status)
+    }
+}
+
 /// Abstracts the HTTP send so tests can capture requests without a server.
 public protocol ChunkTransport: AnyObject {
-    /// Completes with the HTTP status code, or an error for transport failures.
-    func send(_ request: URLRequest, completion: @escaping (Result<Int, Swift.Error>) -> Void)
+    /// Completes with the answer, or an error for transport failures.
+    func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Swift.Error>) -> Void)
 }
 
 public final class URLSessionTransport: ChunkTransport {
@@ -23,10 +39,11 @@ public final class URLSessionTransport: ChunkTransport {
         return URLSession(configuration: config)
     }
 
-    public func send(_ request: URLRequest, completion: @escaping (Result<Int, Swift.Error>) -> Void) {
+    public func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Swift.Error>) -> Void) {
         let task = session.dataTask(with: request) { _, response, error in
             if let error { completion(.failure(error)); return }
-            completion(.success((response as? HTTPURLResponse)?.statusCode ?? 0))
+            let http = response as? HTTPURLResponse
+            completion(.success(ChunkResponse(status: http?.statusCode ?? 0, retryAfter: http?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init))))
         }
         task.resume()
     }
@@ -38,7 +55,8 @@ public final class URLSessionTransport: ChunkTransport {
 ///
 /// The queue is a folder (docs/specs/mobile-replay.md, "Delivery"): each chunk is written there as
 /// the gzip body it is sent with before anything is sent, and removed on a 2xx or a rejection
-/// (another 4xx). A network error, 408, 429 or 5xx leaves it in place and retries after a backoff,
+/// (any other status but 408, 429 and 5xx). Those and network errors leave it in place and retry
+/// after a backoff (at least `Retry-After`),
 /// on the next chunk, on `drain` and in the next process, so an outage or a kill mid-upload loses
 /// nothing. Bounded like the spool: `maxQueueBytes` (oldest dropped first) and `ChunkSpool.maxAge`.
 ///
@@ -199,7 +217,13 @@ public final class ChunkUploader {
                 try Self.prepare(folder)
                 try body.write(to: folder.appendingPathComponent(name), options: .atomic)
             } catch {
-                // Disk full or not writable: one attempt from memory rather than nothing.
+                // Disk full or not writable: one attempt from memory rather than nothing, unless the
+                // chunk is held (its session's keep/drop decision has not been made).
+                guard !config.hold else {
+                    dropped += 1
+                    logger.warn("could not hold chunk seq=\(chunk.seq) on disk (\(error)); dropped")
+                    return
+                }
                 logger.warn("could not queue chunk seq=\(chunk.seq) on disk (\(error)); sending once from memory")
                 let request = ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: chunk.sessionId, seq: chunk.seq, gzipBody: body)
                 transport.send(request) { _ in }
@@ -329,31 +353,31 @@ public final class ChunkUploader {
         }
     }
 
-    private func finish(_ head: Entry, _ result: Result<Int, Swift.Error>) {
+    private func finish(_ head: Entry, _ result: Result<ChunkResponse, Swift.Error>) {
         inFlight = nil
-        switch result {
+        switch result.map(\.status) {
         case .success(let status) where (200..<300).contains(status):
             try? FileManager.default.removeItem(at: head.url)
             uploaded += 1
             failures = 0
             logger.log("uploaded session=\(head.sessionId) seq=\(head.seq)")
             pump()
-        case .success(let status) where (400..<500).contains(status) && status != 408 && status != 429:
+        case .success(let status) where status == 408 || status == 429 || status >= 500:
+            retryLater(head, UploadError.httpStatus(status), retryAfter: (try? result.get())?.retryAfter)
+        case .success(let status):
             try? FileManager.default.removeItem(at: head.url)
             failed += 1
             logger.warn("chunk session=\(head.sessionId) seq=\(head.seq) rejected: HTTP \(status)")
             pump()
-        case .success(let status):
-            retryLater(head, UploadError.httpStatus(status))
         case .failure(let error):
-            retryLater(head, error)
+            retryLater(head, error, retryAfter: nil)
         }
     }
 
     /// The head stays on disk; the next chunk, `drain`, the next process or this timer retries it.
-    private func retryLater(_ head: Entry, _ error: Swift.Error) {
+    private func retryLater(_ head: Entry, _ error: Swift.Error, retryAfter: TimeInterval?) {
         failures += 1
-        let delay = config.retryDelay(failures)
+        let delay = max(config.retryDelay(failures), retryAfter ?? 0)
         logger.warn("upload of seq=\(head.seq) failed (\(error)), kept on disk, retry in \(delay) s")
         finishWaiters()
         guard !retryScheduled else { return }

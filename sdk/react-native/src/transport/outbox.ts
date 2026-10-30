@@ -9,7 +9,9 @@ export const DEFAULT_OUTBOX_MAX_ENTRIES = 500;
 export const DEFAULT_OUTBOX_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** Retry waits double from 1 s up to this. */
 export const MAX_RETRY_DELAY_MS = 30_000;
-const LOAD_TIMEOUT_MS = 1500;
+/** A stored index that cannot be read within this runs the process memory-only (`persistent` false). */
+const LOAD_TIMEOUT_MS = 5000;
+const TIMED_OUT = Symbol("timed out");
 
 /** What the collector answered: an HTTP status, or 0 when the request did not reach it. */
 export interface SendResult {
@@ -23,6 +25,7 @@ export type Send = (url: string, body: string) => Promise<SendResult>;
 interface Item {
   id: number;
   url: string;
+  /** Body length in UTF-16 code units: bytes for OTLP JSON, which is ASCII but for user strings. */
   bytes: number;
   /** Queued at (epoch ms). */
   at: number;
@@ -34,6 +37,7 @@ interface Index {
 }
 
 export interface OutboxOptions {
+  /** Not wrapped in `safeStorage`: a failed read must be told apart from an empty store. */
   storage: AsyncKeyValueStorage;
   send: Send;
   logger: DebugLogger;
@@ -58,7 +62,9 @@ export function retryable(status: number): boolean {
  *
  * Layout: `ouo.outbox` holds the index (`{ next, items }`), each body is under `ouo.outbox.<id>`.
  * The index is written before a body and after a body is removed, so a kill in between leaves
- * an index entry without a body (skipped) rather than a body nobody references.
+ * an index entry without a body (skipped) rather than a body nobody references. When the stored
+ * index cannot be read (an error, or no answer within 5 s), this process keeps its requests in
+ * memory only and writes nothing, so the stored queue is left for the next launch intact.
  *
  * Delivery is at least once: a request that arrived just before a kill is sent again. Tempo and
  * Loki tolerate the duplicate (same span id, same log line).
@@ -81,6 +87,8 @@ export class Outbox {
   private failures = 0;
   private retryTimer: TimerHandle | null = null;
   private stopped = false;
+  /** False when the stored index could not be read: nothing is written or removed in storage. */
+  private persistent = true;
 
   /** Counters for tests and the debug log. */
   readonly stats = { sent: 0, rejected: 0, dropped: 0 };
@@ -110,7 +118,7 @@ export class Outbox {
     this.enforceBound();
     // Index first: a kill before the body is written leaves an entry the drain skips.
     this.persistIndex();
-    await this.guard(this.storage.setItem(bodyKey(item.id), body));
+    if (this.persistent) await this.guard(this.storage.setItem(bodyKey(item.id), body));
     if (this.retryTimer === null) void this.drain();
   }
 
@@ -146,14 +154,16 @@ export class Outbox {
         this.remove(head, "older than the offline store keeps");
         continue;
       }
-      const body = this.bodies.get(head.id) ?? (await this.guard(this.storage.getItem(bodyKey(head.id)), null));
-      if (body === null) {
-        this.remove(head, "body missing (killed while it was written)");
-        continue;
-      }
+      // In flight from here: a put's eviction must not drop it while its body is read or sent.
       this.inFlight = head.id;
       let res: SendResult;
       try {
+        const body = this.bodies.get(head.id) ?? (await this.guard(this.storage.getItem(bodyKey(head.id)), null));
+        if (body === null) {
+          this.inFlight = null;
+          this.remove(head, "body missing (killed while it was written)");
+          continue;
+        }
         res = await this.sendFn(head.url, body);
       } catch {
         res = { status: 0 };
@@ -184,13 +194,22 @@ export class Outbox {
   }
 
   private async load(): Promise<void> {
-    const raw = await withTimeout(this.storage.getItem(OUTBOX_KEY), LOAD_TIMEOUT_MS, null);
+    let raw: string | null | typeof TIMED_OUT;
+    try {
+      raw = await withTimeout<string | null | typeof TIMED_OUT>(this.storage.getItem(OUTBOX_KEY), LOAD_TIMEOUT_MS, TIMED_OUT);
+    } catch {
+      raw = TIMED_OUT;
+    }
+    if (raw === TIMED_OUT) {
+      this.persistent = false;
+      this.logger.warn("delivery: stored requests unreadable; this run keeps its requests in memory and leaves them for the next launch");
+      return;
+    }
     if (!raw) return;
     try {
       const parsed = JSON.parse(raw) as Index;
       if (parsed && Array.isArray(parsed.items) && typeof parsed.next === "number") {
-        // Puts of this process that raced the load come after the stored ones.
-        this.index = { next: Math.max(parsed.next, this.index.next), items: [...parsed.items, ...this.index.items] };
+        this.index = parsed;
         if (parsed.items.length > 0) this.logger.log(`delivery: ${parsed.items.length} request(s) left by an earlier run`);
       }
     } catch {
@@ -219,11 +238,12 @@ export class Outbox {
   private forget(item: Item): void {
     this.index.items = this.index.items.filter((i) => i.id !== item.id);
     this.bodies.delete(item.id);
-    void this.guard(this.storage.removeItem(bodyKey(item.id)));
+    if (this.persistent) void this.guard(this.storage.removeItem(bodyKey(item.id)));
     this.persistIndex();
   }
 
   private persistIndex(): void {
+    if (!this.persistent) return;
     void this.guard(this.storage.setItem(OUTBOX_KEY, JSON.stringify(this.index)));
   }
 

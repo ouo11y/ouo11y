@@ -162,15 +162,14 @@ import Testing
 
     @Test func RejectedChunksAreDroppedAndTheQueueContinues() async {
         let transport = FakeTransport()
-        transport.responses = [.success(400), .success(408), .success(202), .success(202)]
+        // 400 and a 3xx are final; 408 is retried.
+        transport.responses = [.success(400), .success(408), .success(202), .success(304), .success(202)]
         let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { _ in 0 }))
-        u.enqueue(chunk(seq: 0))
-        u.enqueue(chunk(seq: 1))
+        for seq in 0..<4 { u.enqueue(chunk(seq: seq)) }
         await settle(u)
-        // 400 is final; 408 is retried.
-        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "1"])
-        #expect(u.failed == 1)
-        #expect(u.uploaded == 1)
+        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "1", "2", "3"])
+        #expect(u.failed == 2)
+        #expect(u.uploaded == 2)
         #expect(u.queuedCount == 0)
     }
 
@@ -231,6 +230,30 @@ import Testing
         #expect(second.heldSessions().isEmpty)
     }
 
+    /// The receiver's 429 + `Retry-After` sets the wait when it is longer than the backoff.
+    @Test func HonoursRetryAfter() async {
+        let transport = FakeTransport()
+        transport.responses = [.success(ChunkResponse(status: 429, retryAfter: 3600))]
+        let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { _ in 0 }))
+        u.enqueue(chunk(seq: 0))
+        await drain(u)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(transport.count == 1, "no retry before Retry-After")
+        #expect(u.queuedCount == 1)
+    }
+
+    /// A held chunk never leaves the device before its session's decision, not even when the disk fails.
+    @Test func AHeldChunkIsDroppedWhenTheDiskFails() async throws {
+        let blocker = tempDir()
+        try Data().write(to: blocker)  // a file where the folder should be: the write fails
+        let transport = FakeTransport()
+        let u = uploader(transport, dir: blocker, config: ChunkUploader.Config(hold: true))
+        u.enqueue(chunk(seq: 0))
+        await drain(u)
+        #expect(transport.count == 0)
+        #expect(u.dropped == 1)
+    }
+
     @Test func FileNamesCarryTheRequestHeaders() throws {
         let url = URL(fileURLWithPath: "/tmp/1760000000000-000012.3f2a-77.5.json.gz")
         let e = try #require(ChunkUploader.Entry(url: url))
@@ -269,7 +292,7 @@ import Testing
 final class HungTransport: ChunkTransport {
     private let lock = NSLock()
     private var n = 0
-    func send(_ request: URLRequest, completion: @escaping (Result<Int, Error>) -> Void) {
+    func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Error>) -> Void) {
         lock.lock(); n += 1; lock.unlock()
     }
     var count: Int { lock.lock(); defer { lock.unlock() }; return n }
