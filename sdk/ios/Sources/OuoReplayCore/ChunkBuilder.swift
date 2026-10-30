@@ -2,8 +2,9 @@ import Foundation
 
 /// Accumulates frames and touches into `FrameChunk`s and cuts a chunk when any flush trigger
 /// fires: `flushInterval` elapsed since the chunk started, `maxFrames` frames, or an explicit
-/// `flush()` (pause, background, rotation). Not thread-safe by itself: the UIKit target drives it
-/// from the main thread, tests from one thread.
+/// `flush()` (pause, background, rotation). With a `spool`, the open chunk is also on disk so the
+/// next launch can send it after a crash. Not thread-safe by itself: the UIKit target drives it
+/// from its capture queue, tests from one thread.
 public final class ChunkBuilder {
     public struct Config: Sendable {
         public var flushInterval: TimeInterval
@@ -24,12 +25,15 @@ public final class ChunkBuilder {
     private let seqStore: SeqStore
     private let now: () -> EpochMillis
     private let onChunk: (FrameChunk) -> Void
+    private let spool: ChunkSpool?
 
     /// Viewport reported with every chunk; the capturer updates it when the window size changes.
     public var viewport: Viewport
 
     private var frames: [Frame] = []
     private var touches: [Touch] = []
+    /// Touches not written to the spool yet (they go with the next frame line).
+    private var spooledTouches = 0
     private var chunkSessionId: String?
     private var chunkSeq = 0
     private var startedAt: EpochMillis = 0
@@ -41,6 +45,7 @@ public final class ChunkBuilder {
         sessionId: @escaping () -> String,
         seqStore: SeqStore,
         now: @escaping () -> EpochMillis = Clock.nowMillis,
+        spool: ChunkSpool? = nil,
         onChunk: @escaping (FrameChunk) -> Void
     ) {
         self.config = config
@@ -48,6 +53,7 @@ public final class ChunkBuilder {
         self.sessionId = sessionId
         self.seqStore = seqStore
         self.now = now
+        self.spool = spool
         self.onChunk = onChunk
     }
 
@@ -58,6 +64,11 @@ public final class ChunkBuilder {
     public func add(_ frame: Frame) {
         open(at: frame.ts)
         frames.append(frame)
+        if let spool {
+            spool.append(Array(touches[spooledTouches...]))
+            spooledTouches = touches.count
+            spool.append(frame, viewport: viewport)
+        }
         lastTs = max(lastTs, frame.ts)
         if frames.count >= config.maxFrames {
             flush()
@@ -111,7 +122,9 @@ public final class ChunkBuilder {
         )
         frames = []
         touches = []
+        spooledTouches = 0
         chunkSessionId = nil
+        spool?.clear()
         return chunk
     }
 
@@ -130,5 +143,6 @@ public final class ChunkBuilder {
         chunkSeq = seqStore.next(sessionId: sid)
         startedAt = ts
         lastTs = ts
+        spool?.begin(.init(sessionId: sid, seq: chunkSeq, startedAt: ts, viewport: viewport, platform: config.platform, masked: config.masked))
     }
 }

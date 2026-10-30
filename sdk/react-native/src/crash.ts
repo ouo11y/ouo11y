@@ -10,8 +10,9 @@ import type { Attrs } from "./types";
  * (ADR-0004: the session is `crashed`). Report format: project/kb/ios-native-crashes.md.
  */
 export interface NativeCrashModule {
-  installCrashReporter?(sessionId: string): boolean;
-  setCrashSessionId?(id: string): void;
+  /** `startedAtMs`: the session's start, written into a crash report (N52). */
+  installCrashReporter?(sessionId: string, startedAtMs: number): boolean;
+  setCrashSessionId?(id: string, startedAtMs: number): void;
   takePendingCrash?(): string | null | undefined;
 }
 
@@ -33,6 +34,8 @@ export interface NativeCrashReport {
   mechanism: "signal" | "nsexception";
   timestamp_ms: number;
   session_id: string;
+  /** When the crashed session started (epoch ms), so its start survives a crash in its first second. */
+  session_started_ms?: number;
   arch?: string;
   thread?: { main?: boolean };
   signal?: { number: number; name: string; mach_exception?: string; code?: number; code_name?: string; address?: string };
@@ -47,7 +50,7 @@ export function parseNativeCrash(raw: string): NativeCrashReport | undefined {
     if (!r || typeof r !== "object") return undefined;
     if (r.mechanism !== "signal" && r.mechanism !== "nsexception") return undefined;
     if (typeof r.timestamp_ms !== "number") return undefined;
-    return {
+    const report: NativeCrashReport = {
       ...r,
       version: typeof r.version === "number" ? r.version : 1,
       mechanism: r.mechanism,
@@ -56,6 +59,8 @@ export function parseNativeCrash(raw: string): NativeCrashReport | undefined {
       frames: Array.isArray(r.frames) ? r.frames.filter((f) => f && typeof f.instruction_addr === "string") : [],
       images: Array.isArray(r.images) ? r.images.filter((i) => i && typeof i.image_addr === "string") : [],
     };
+    if (!(typeof r.session_started_ms === "number" && r.session_started_ms > 0)) delete report.session_started_ms;
+    return report;
   } catch {
     return undefined;
   }
@@ -156,15 +161,17 @@ export function nativeCrashAttributes(r: NativeCrashReport): Attrs {
 /** The session manager's crash marker for the crashed session: its end time is the crash time. */
 export function crashMarker(r: NativeCrashReport): CrashMarker {
   const { type, message } = crashTitle(r);
-  return { sessionId: r.session_id, at: r.timestamp_ms, type, message: message.slice(0, 500) };
+  const marker: CrashMarker = { sessionId: r.session_id, at: r.timestamp_ms, type, message: message.slice(0, 500) };
+  if (r.session_started_ms !== undefined) marker.startedAt = r.session_started_ms;
+  return marker;
 }
 
 export interface NativeCrashCapture {
   readonly active: boolean;
   /** The previous run's report, taken once at creation. */
   readonly pending: NativeCrashReport | undefined;
-  install(sessionId: string): void;
-  setSessionId(id: string): void;
+  install(sessionId: string, startedAtMs: number): void;
+  setSessionId(id: string, startedAtMs: number): void;
 }
 
 export interface NativeCrashCaptureOptions {
@@ -204,19 +211,19 @@ export function createNativeCrashCapture(opts: NativeCrashCaptureOptions): Nativ
       return active;
     },
     pending,
-    install(sessionId: string): void {
+    install(sessionId: string, startedAtMs: number): void {
       if (!supported || active) return;
       try {
-        active = installNative!(sessionId) !== false;
+        active = installNative!(sessionId, startedAtMs) !== false;
         logger.log("native crash capture installed", active);
       } catch (err) {
         logger.warn("native crash: install failed", err);
       }
     },
-    setSessionId(id: string): void {
+    setSessionId(id: string, startedAtMs: number): void {
       if (!active) return;
       try {
-        native?.setCrashSessionId?.(id);
+        native?.setCrashSessionId?.(id, startedAtMs);
       } catch (err) {
         logger.warn("native crash: setCrashSessionId failed", err);
       }

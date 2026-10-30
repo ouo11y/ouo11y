@@ -3,16 +3,21 @@ import UIKit
 import OuoReplayCore
 
 /// Captures the key window in two halves. `snapshot(window:)` runs on the main thread and does only
-/// what UIKit requires there: walk the view tree into value types and `drawHierarchy` into an 8-bit
-/// sRGB bitmap. `compose(_:)` runs on the recorder's capture queue: redaction planning, painting
-/// the rectangles, the dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO, thread-safe).
-/// The unredacted bitmap never leaves the capture queue; only the composed JPEG is uploaded.
+/// what UIKit requires there: `drawHierarchy` 1:1 at the screen's scale into an 8-bit bitmap in the
+/// screen's color space (no resample, no color conversion: Sentry's V2 renderer), after `plan` gave
+/// the rectangles to mask (nil when masking fails closed, so an unsafe frame costs no render).
+/// `compose(_:)` runs on the recorder's capture queue: downscale, painting the rectangles, the
+/// dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO, thread-safe). The unredacted bitmap
+/// never leaves the capture queue; only the JPEG is uploaded.
 final class ScreenCapturer {
     /// Main-thread result: the raw (unredacted) frame and everything needed to redact it later.
     struct Snapshot {
         let image: CGImage
         let tree: ViewNode
+        /// What to paint black, window points.
+        let rects: [CGRect]
         let bounds: CGRect
+        /// Pixels per point of the frame to encode (the image itself is at the screen scale).
         let scale: CGFloat
     }
 
@@ -20,6 +25,13 @@ final class ScreenCapturer {
         let jpeg: Data
         let viewport: Viewport
         let redactedRects: Int
+    }
+
+    enum Outcome {
+        case frame(Capture)
+        /// Same pixels as the previous frame.
+        case unchanged
+        case failed
     }
 
     private let planner: RedactionPlanner
@@ -47,8 +59,8 @@ final class ScreenCapturer {
         return scenes.first?.windows.first
     }
 
-    /// Pixels per point for the frame: the screen scale divided by the smallest integer that makes
-    /// the longest side fit (`FrameComposer.renderScale`).
+    /// Pixels per point of the encoded frame: the screen scale divided by the smallest integer that
+    /// makes the longest side fit (`FrameComposer.renderScale`).
     func renderScale(for bounds: CGRect, screenScale: CGFloat) -> CGFloat {
         CGFloat(FrameComposer.renderScale(
             longestSidePoints: Double(max(bounds.width, bounds.height)),
@@ -57,22 +69,26 @@ final class ScreenCapturer {
         ))
     }
 
-    /// Main thread only (`drawHierarchy` and the view walk require it).
-    func snapshot(window: UIWindow) -> Snapshot? {
+    /// The rectangles to mask, nil when the frame must be dropped (a masked view is moving).
+    func plan(_ tree: ViewNode, bounds: CGRect) -> [CGRect]? {
+        planner.rects(for: tree, window: bounds)
+    }
+
+    /// Main thread only (`drawHierarchy` requires it). `tree` and `rects` are from the same pass.
+    func snapshot(window: UIWindow, tree: ViewNode, rects: [CGRect]) -> Snapshot? {
         let bounds = window.bounds
         guard bounds.width > 0, bounds.height > 0 else { return nil }
-        let tree = ViewTreeBuilder.node(for: window)
-        let scale = renderScale(for: bounds, screenScale: window.screen.scale)
-        let pw = Int((bounds.width * scale).rounded(.up))
-        let ph = Int((bounds.height * scale).rounded(.up))
-        // Rendered once, directly at the final size, 8 bits per channel in the screen's color space:
-        // UIGraphicsImageRenderer picks a 16-bit half-float format on wide-color screens (decode,
-        // resample and convert in half floats, then the JPEG encoder converts back), and an sRGB
-        // target makes drawHierarchy convert every pixel from Display P3.
+        let screenScale = window.screen.scale
+        let pw = Int((bounds.width * screenScale).rounded(.up))
+        let ph = Int((bounds.height * screenScale).rounded(.up))
+        // 8 bits per channel in the screen's own color space: UIGraphicsImageRenderer picks a 16-bit
+        // half-float format on wide-color screens, and an sRGB target makes drawHierarchy convert
+        // every pixel from Display P3. At the screen scale the render server's surface is copied,
+        // not resampled (N51: resampling inside drawHierarchy doubled our main-thread time).
         let space = window.traitCollection.displayGamut == .P3 ? FrameComposer.displayP3 : FrameComposer.sRGB
         guard let ctx = FrameComposer.makeContext(pixelWidth: pw, pixelHeight: ph, colorSpace: space) else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(ph))
-        ctx.scaleBy(x: scale, y: -scale)
+        ctx.scaleBy(x: screenScale, y: -screenScale)
         UIGraphicsPushContext(ctx)
         // `afterScreenUpdates: false` reads the last committed frame without forcing a layout pass.
         let drawn = window.drawHierarchy(in: bounds, afterScreenUpdates: false)
@@ -82,13 +98,12 @@ final class ScreenCapturer {
         }
         UIGraphicsPopContext()
         guard let image = ctx.makeImage() else { return nil }
-        return Snapshot(image: image, tree: tree, bounds: bounds, scale: scale)
+        return Snapshot(image: image, tree: tree, rects: rects, bounds: bounds, scale: renderScale(for: bounds, screenScale: screenScale))
     }
 
-    /// Any thread (the capture queue): redaction, thumbnail for dedupe, JPEG. Returns nil when the
-    /// frame equals the previous kept one (`deduper`) or encoding fails.
-    func compose(_ s: Snapshot, deduper: FrameDeduper) -> Capture? {
-        let rects = planner.rects(for: s.tree, window: s.bounds)
+    /// Any thread (the capture queue): downscale, redact, dedupe on the redacted frame, then JPEG.
+    func compose(_ s: Snapshot, deduper: FrameDeduper) -> Outcome {
+        let rects = s.rects
         if logger.enabled {
             let unmatched = planner.unmatchedContentClasses(in: s.tree)
             if !unmatched.isEmpty, unmatched != lastUnmatched {
@@ -96,15 +111,17 @@ final class ScreenCapturer {
                 logger.log("redaction: unmatched content-like classes \(unmatched)")
             }
         }
-        guard let masked = composer.redact(s.image, rects: rects, scale: s.scale) else { return nil }
-        // Dedupe on the redacted frame (what would be uploaded), before paying for the JPEG.
-        guard deduper.shouldKeep(FrameComposer.thumbnail(of: masked) ?? Data()) else { return nil }
-        guard let jpeg = composer.jpeg(masked) else { return nil }
-        return Capture(
+        let pw = Int((s.bounds.width * s.scale).rounded(.up))
+        let ph = Int((s.bounds.height * s.scale).rounded(.up))
+        guard let small = FrameComposer.downscale(s.image, pixelWidth: pw, pixelHeight: ph),
+              let masked = composer.redact(small, rects: rects, scale: s.scale) else { return .failed }
+        guard deduper.shouldKeep(FrameComposer.thumbnail(of: masked) ?? Data()) else { return .unchanged }
+        guard let jpeg = composer.jpeg(masked) else { return .failed }
+        return .frame(Capture(
             jpeg: jpeg,
             viewport: Viewport(width: Double(s.bounds.width), height: Double(s.bounds.height), scale: Double(s.scale)),
             redactedRects: rects.count
-        )
+        ))
     }
 }
 #endif

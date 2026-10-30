@@ -565,7 +565,7 @@ and Mimir are never reachable from outside. Your own backend still has to allow
 API directly (covered in `10-backend.md`).
 
 Collector >= 0.150 names the exporters `otlp_grpc` / `otlp_http`; `otlp` and
-`otlphttp` are deprecated aliases. Pinned images: Grafana 13.2.1, Loki 3.7.7,
+`otlphttp` are deprecated aliases. Pinned images: Grafana 13.2.5, Loki 3.7.7,
 Tempo 3.0.3, Mimir 3.2.1; the collector's upstream component versions are pinned in
 `collector/builder.yaml`.
 

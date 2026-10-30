@@ -37,6 +37,8 @@ export interface SessionRecord {
 export interface CrashMarker {
   sessionId: string;
   at: number;
+  /** The crashed session's start, from the native crash report (N52). */
+  startedAt?: number;
   type?: string;
   message?: string;
 }
@@ -315,6 +317,11 @@ export class SessionManager {
       }
       rec.previousId = persisted.id;
     }
+    const lost = this.crashedUnpersisted(persisted, rec);
+    if (lost) {
+      this.endPersisted(lost, "crash", lost.lastActivity);
+      rec.previousId = lost.id;
+    }
     if (jsCrash) void this.storage.removeItem(CRASH_STORAGE_KEY);
 
     this.pendingStart = null;
@@ -334,6 +341,21 @@ export class SessionManager {
     if (native && persisted && native.sessionId === persisted.id) return native;
     if (js) return js;
     return native && !native.sessionId ? native : null;
+  }
+
+  /**
+   * N52: the native crash names a session the storage never saw (the process died before the
+   * write landed, in its first second). Rebuilt from the crash report so it still ends, from its
+   * start, with reason crash.
+   */
+  private crashedUnpersisted(persisted: SessionRecord | null, rec: SessionRecord): SessionRecord | null {
+    const native = this.nativeCrash;
+    if (!native?.sessionId || native.sessionId === rec.id || native.sessionId === persisted?.id) return null;
+    const at = Math.min(native.at, rec.startedAt);
+    const startedAt = native.startedAt !== undefined && native.startedAt <= at ? native.startedAt : at;
+    const lost: SessionRecord = { id: native.sessionId, startedAt, lastActivity: at, userId: this.user.id };
+    if (this.serviceVersion !== undefined) lost.serviceVersion = this.serviceVersion;
+    return lost;
   }
 
   private coldStartReason(persisted: SessionRecord, crash: CrashMarker | null): EndReason {

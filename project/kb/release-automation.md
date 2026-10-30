@@ -109,7 +109,10 @@ channel: [release-packaging.md](release-packaging.md).
   action. `--severity CRITICAL --ignore-unfixed --exit-code 1` on the released 0.3.0 images:
   0 for rum-api, collector and grafana. The grafana image (upstream `grafana/grafana:13.2.1`
   on Alpine) carries many HIGH findings in Grafana's bundled Go binaries (13 to 23 per binary);
-  they are listed, not gating, and only a Grafana base bump fixes them.
+  they are listed, not gating, and only a Grafana base bump fixes them. When the gate turns red
+  on a PR that did not touch the image, a new advisory hit the base: read the second (gating)
+  table of the job log, check the candidate base with `apk list -I` inside it, bump to the
+  newest patch of the same minor (2026-10-30: brotli CVE-2026-111497, 13.2.1 -> 13.2.5).
 - **Renovate config validation:** `npx --package renovate renovate-config-validator --strict`
   with no argument validates the repository config (`.github/renovate.json5`); passing the path
   validates it as a *global* config instead. Installing with `--ignore-scripts` leaves out
