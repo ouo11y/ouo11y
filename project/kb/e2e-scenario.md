@@ -98,8 +98,8 @@ rum-api's health percentages, session lists, trace counts and Grafana links repr
 ## Gotchas
 
 - Tempo's search API returns trace ids with leading zeros stripped (`0a09...` comes back as
-  `a09...`); rum-api passes them through. Compare ids with `replace(/^0+/, "")`. Tempo
-  `/api/traces/<id>` and Grafana accept both forms.
+  `a09...`); rum-api passes them through. Compare ids through `normTraceId` in
+  `tests/e2e/lib.mjs`, never raw. Tempo `/api/traces/<id>` and Grafana accept both forms.
 - rum-api `GET /v1/sessions/{id}` returns the record fields at the top level next to `timeline`
   and `traces` (not under a `session` key).
 - Grafana's Tempo datasource with `queryType: "traceql"` and a bare trace id answers
