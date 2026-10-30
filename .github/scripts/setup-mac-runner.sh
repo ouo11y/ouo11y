@@ -10,7 +10,8 @@
 #   self-hosted,macOS,ARM64. One job at a time.
 # - LaunchDaemon com.ouo11y.actions-runner: starts at boot without a login, runs as ouo-runner at
 #   nice 10 with low-priority I/O so your apps win the CPU and disk.
-# Re-running is safe: every step skips what is already there.
+# Re-running skips every step that is already done, but it restarts the daemon, which kills a
+# job in flight: re-run it when the runner is idle.
 set -euo pipefail
 
 RUNNER_USER=ouo-runner

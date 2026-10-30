@@ -34,5 +34,8 @@ jobs when it is reached.
 
 ## Left / next agent
 
+- The org's $5 Actions budget is spent for October (hosted jobs refused "spending limit"). Until it resets on Nov 1, what stays hosted cannot start: `benchmark.yml` tag and dispatch runs (the major-release gate in `docs/releasing.md` section 5) and `release-npm.yml`.
+- Verified by the reviewer on 1e9cb40: `bench` (36 min, simulator booted for `ouo-runner` with no login session) and `swift` (96 tests) both on `ouo11y-mac-1`, 17/17 checks green.
+
 - The Mac sleeping or off means iOS jobs queue (GitHub cancels after 24 h). No hosted fallback.
 - Before the repo goes public: gate self-hosted jobs against fork PRs (kb entry says how).
