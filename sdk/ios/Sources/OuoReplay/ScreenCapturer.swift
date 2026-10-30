@@ -6,9 +6,10 @@ import OuoReplayCore
 /// what UIKit requires there: `drawHierarchy` 1:1 at the screen's scale into an 8-bit bitmap in the
 /// screen's color space (no resample, no color conversion: Sentry's V2 renderer), after `plan` gave
 /// the rectangles to mask (nil when masking fails closed, so an unsafe frame costs no render).
-/// `compose(_:)` runs on the recorder's capture queue: downscale, painting the rectangles, the
-/// dedupe thumbnail and JPEG encoding (CoreGraphics + ImageIO, thread-safe). The unredacted bitmap
-/// never leaves the capture queue; only the JPEG is uploaded.
+/// `compose` runs on the recorder's capture queue: downscale, painting the rectangles, the tile
+/// diff against the last frame sent and JPEG encoding of a full image or the changed rectangles
+/// (CoreGraphics + ImageIO, thread-safe). The unredacted bitmap never leaves the capture queue;
+/// only JPEGs are uploaded.
 final class ScreenCapturer {
     /// Main-thread result: the raw (unredacted) frame and everything needed to redact it later.
     struct Snapshot {
@@ -21,15 +22,9 @@ final class ScreenCapturer {
         let scale: CGFloat
     }
 
-    struct Capture {
-        let jpeg: Data
-        let viewport: Viewport
-        let redactedRects: Int
-    }
-
     enum Outcome {
-        case frame(Capture)
-        /// Same pixels as the previous frame.
+        case frame(Frame)
+        /// Same pixels as the last frame sent.
         case unchanged
         case failed
     }
@@ -101,9 +96,14 @@ final class ScreenCapturer {
         return Snapshot(image: image, tree: tree, rects: rects, bounds: bounds, scale: renderScale(for: bounds, screenScale: screenScale))
     }
 
-    /// Any thread (the capture queue): downscale, redact, dedupe on the redacted frame, then JPEG.
-    func compose(_ s: Snapshot, deduper: FrameDeduper) -> Outcome {
-        let rects = s.rects
+    /// The viewport of the frame `s` becomes: points and the pixels per point of the frame.
+    static func viewport(of s: Snapshot) -> Viewport {
+        Viewport(width: Double(s.bounds.width), height: Double(s.bounds.height), scale: Double(s.scale))
+    }
+
+    /// Any thread (the capture queue): downscale, redact, then a full image or the changed
+    /// rectangles against the last frame sent (`differ`); `forceFull` for the first frame of a chunk.
+    func compose(_ s: Snapshot, differ: TileDiffer, forceFull: Bool, ts: EpochMillis, reason: FrameReason) -> Outcome {
         if logger.enabled {
             let unmatched = planner.unmatchedContentClasses(in: s.tree)
             if !unmatched.isEmpty, unmatched != lastUnmatched {
@@ -114,14 +114,16 @@ final class ScreenCapturer {
         let pw = Int((s.bounds.width * s.scale).rounded(.up))
         let ph = Int((s.bounds.height * s.scale).rounded(.up))
         guard let small = FrameComposer.downscale(s.image, pixelWidth: pw, pixelHeight: ph),
-              let masked = composer.redact(small, rects: rects, scale: s.scale) else { return .failed }
-        guard deduper.shouldKeep(FrameComposer.thumbnail(of: masked) ?? Data()) else { return .unchanged }
-        guard let jpeg = composer.jpeg(masked) else { return .failed }
-        return .frame(Capture(
-            jpeg: jpeg,
-            viewport: Viewport(width: Double(s.bounds.width), height: Double(s.bounds.height), scale: Double(s.scale)),
-            redactedRects: rects.count
-        ))
+              let masked = composer.redact(small, rects: s.rects, scale: s.scale),
+              let encoded = composer.encode(masked, differ: differ, forceFull: forceFull) else { return .failed }
+        switch encoded {
+        case .unchanged:
+            return .unchanged
+        case .full(let jpeg):
+            return .frame(Frame(ts: ts, jpegData: jpeg, reason: reason))
+        case .patches(let patches):
+            return .frame(Frame(ts: ts, patches: patches.map { Patch($0.0, jpegData: $0.1) }, reason: reason))
+        }
     }
 }
 #endif

@@ -68,12 +68,12 @@ const readSeq = () => {
 // Swift (W1): ReplayRecorder (run-loop pacing, background, rotation), OuoReplayCore.CapturePacer
 // (`session` mode: a frame per `frameInterval`; `navigation`: one per screen; start and resume
 // request a frame at once), ChunkBuilder (a chunk keeps the session id and seq of its first frame;
-// cut at 5 s, 10 frames or an explicit flush) and ChunkSpool (the open chunk on disk, sent by the
+// cut at 5 s, 1 MiB of images or an explicit flush) and ChunkSpool (the open chunk on disk, sent by the
 // next launch after a crash). Not modelled: the frame deduper (every frame is kept, as screens
-// change between frames), motion and animation deferral, the time bank, touches. The device has
+// change between frames, so every frame is a full image), motion and animation deferral, the time bank, touches. The device has
 // more than 3.5 GiB, so `auto` is `session`.
 const FLUSH_INTERVAL_MS = 5000;
-const MAX_FRAMES = 10;
+const MAX_IMAGE_BYTES = 1 << 20;
 const SETTLE_DELAY_MS = 400;
 const SPOOL_FILE = path.join(DEVICE_DIR, "open-chunk.jsonl");
 let recorder; // { endpoint, options, mode, sessionId, recording, pausedByHost, pending, lastCaptureAt, chunk, loop, keepAlive }
@@ -88,18 +88,18 @@ const nextSeq = (sessionId) => {
   return seq;
 };
 
-/** ChunkBuilder.add with its spool: open the chunk at its first frame, cut at 10 frames or 5 s. */
+/** ChunkBuilder.add with its spool: open the chunk at its first frame, cut at 1 MiB of images or 5 s. */
 function addFrame(reason) {
   const ts = Date.now();
   if (!recorder.chunk) {
     const sessionId = recorder.sessionId;
-    recorder.chunk = { sessionId, seq: nextSeq(sessionId), startedAt: ts, frames: [] };
-    fs.writeFileSync(SPOOL_FILE, JSON.stringify({ header: { sessionId, seq: recorder.chunk.seq, startedAt: ts, masked: recorder.options.maskText } }) + "\n");
+    recorder.chunk = { sessionId, seq: nextSeq(sessionId), startedAt: ts, mode: recorder.mode, frames: [] };
+    fs.writeFileSync(SPOOL_FILE, JSON.stringify({ header: { sessionId, seq: recorder.chunk.seq, startedAt: ts, mode: recorder.mode, masked: recorder.options.maskText } }) + "\n");
   }
   const frame = { ts, jpeg: FRAME, reason };
   recorder.chunk.frames.push(frame);
   fs.appendFileSync(SPOOL_FILE, JSON.stringify({ frame }) + "\n");
-  if (recorder.chunk.frames.length >= MAX_FRAMES) upload();
+  if (recorder.chunk.frames.length * FRAME.length >= MAX_IMAGE_BYTES) upload();
   else flushIfDue();
 }
 
@@ -129,10 +129,11 @@ const HELD = path.join(OUTBOX, "held");
 let queued = 0;
 let draining = null;
 
-function post(endpoint, options, { sessionId, seq, startedAt, frames, masked }) {
+function post(endpoint, options, { sessionId, seq, startedAt, mode, frames, masked }) {
   const body = {
     kind: "frames",
-    schema_version: 1,
+    schema_version: 2,
+    mode: mode ?? "session",
     session_id: sessionId,
     seq,
     started_at: startedAt,

@@ -17,7 +17,7 @@ apps use it directly.
 
 | Target | Needs | Contents |
 |---|---|---|
-| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 10 frames / explicit flush, monotonic `seq` via `SeqStore`), `FrameDeduper`, `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, dedupe thumbnail, JPEG, render scale; thread-safe), `CapturePacer` (when a frame is due: interval or screen change, animation deferral, 100 ms/s time bank), `ChunkSpool` (the open chunk on disk, recovered on the next launch), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
+| `OuoReplayCore` | Foundation + zlib + CoreGraphics/ImageIO | `FrameChunk`/`Frame`/`Touch`/`Viewport` models (spec JSON keys), `ChunkBuilder` (5 s / 1 MiB of images / size change / explicit flush, a full image first, monotonic `seq` via `SeqStore`), `TileDiffer` (64 px tile hashes against the last frame sent: unchanged, full image or merged patch rectangles, ADR-0014), `RedactionPlanner` (geometry over a `ViewNode` tree), `FrameComposer` (redaction fill, full or patch JPEGs, render scale; thread-safe), `CapturePacer` (when a frame is due: interval or screen change, animation deferral, 100 ms/s time bank), `ChunkSpool` (the open chunk on disk, recovered on the next launch), `Gzip` (RFC 1952 via zlib), `ChunkUploader` (URLSession, retry 3x with 1 s / 2 s backoff, 2 MB bounded queue) |
 | `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (main run-loop observer, keep-alive tick, one capture in flight, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
 | `OuoCrashCore` | C | Async-signal-safe native crash handlers: one JSON report written at crash time (frames, binary images, signal or exception), previous handlers chained |
 | `OuoVitalsCore` | C | Process start (`sysctl` `kp_proc.p_starttime`) and the image load time (a constructor before `main`, used for prewarmed launches) |
@@ -71,7 +71,7 @@ SwiftUI: call `OuoReplay.start` from `App.init` or `.onAppear` of the root view;
 finds the key window itself. UIKit: call it from `application(_:didFinishLaunchingWithOptions:)`.
 All calls are safe from any thread; the capture runs on the main thread (UIKit requirement).
 
-`OuoReplayConfig` also exposes `flushInterval` (5 s), `maxFramesPerChunk` (10), `jpegQuality`
+`OuoReplayConfig` also exposes `flushInterval` (5 s; a chunk is also cut once its images pass 1 MiB), `jpegQuality`
 (0.5), `maxLongestSide` (1000 px), `maskClasses` (extra class names), `spoolURL` (the open
 chunk's file, `Application Support/ouo/replay/open-chunk.jsonl`), `seqStore` (`UserDefaultsSeqStore` by default, `InMemorySeqStore` for tests) and the
 computed `authorization` (the header value the uploader sends). The endpoint is the replay

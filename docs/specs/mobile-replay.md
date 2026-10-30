@@ -2,7 +2,7 @@
 
 Status: normative for iOS replay (ADR-0006, ADR-0014). Android and Flutter emit the same contract.
 
-This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. rum-api and the collector read schema 2 and the plugin plays it; the iOS SDK emits schema 1 until its W3 tiles change lands (roadmap W3).
+This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. The iOS SDK (and the React Native SDK, which embeds it) emits schema 2.
 
 ## Chunk
 
@@ -34,8 +34,8 @@ Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers
 - `ts`, `started_at`, `ended_at` are epoch milliseconds in the device clock; the timeline aligns them with telemetry the same way as rrweb chunks.
 - Touch `x`, `y` are in points of the unscaled viewport.
 - `seq` is monotonic per session, starts at 0 for a new session, persists across app restarts within a session (same store as the session record).
-- `mode` is the capture mode drawn at session start, the same on every chunk of the session: `session`, `navigation` or `buffer` (decided in ADR-0014, not emitted by any SDK yet). It is informational free text; readers must not reject other values.
-- `reason` is informational free text (`change`, `resume`, `navigation`; schema 1 also has `timer` and `touch`). Readers never use it to tell full frames from patch frames.
+- `mode` is the capture mode drawn at session start, the same on every chunk of the session: `session` or `navigation` (the iOS SDK), or `buffer` (decided in ADR-0014, not built yet). It is informational free text; readers must not reject other values.
+- `reason` is informational free text: why the frame was taken (`timer` in `session` mode, `navigation`, `resume`; older SDKs also sent `touch`). Readers never use it to tell full frames from patch frames.
 
 ## Frames
 
@@ -52,7 +52,7 @@ Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers
 - Further full images go out on every screen change (`screenDidChange()`) and on resume.
 - **Patches** come from a hash of every 64 px tile of the frame, compared with the last frame *sent* (never a dropped one). Changed tiles are merged into a few rectangles. When their total area would exceed half the frame, the SDK sends a full image instead.
 - The open chunk is also kept on disk (a folder excluded from device backups); a chunk the process could not flush (crash, watchdog or OOM kill, force quit) is sent on the next launch with its own `session_id` and `seq`, `ended_at` being its last frame or touch, whether or not the next launch records (the React Native SDK asks for it before its sampling decision). A chunk that started more than 24 h before the next launch is dropped.
-- A cut chunk is written to disk (the `outbox` folder next to the spool, excluded from device backups) as the gzip body it is sent with, before it is sent, and removed when rum-api's receiver answers 2xx or another 4xx than 408 and 429. A network error, 408, 429 or 5xx leaves it there: it is retried after a backoff (1 s doubling to 60 s, at least the `Retry-After` the receiver sends with 429 and 503), with the next chunk, on `flush()` and in the next process, oldest first. Each folder (queued, held) holds at most 10 MB, the oldest chunks dropped first, and a chunk queued more than 24 h ago is dropped. The guarantee starts when the chunk is cut: until the SDK clears the spool only after this write (W3a), a kill during the cut chunk's encoding can lose it. Delivery is at least once; a resent chunk has the same `session_id` and `seq` and replaces its copy.
+- A cut chunk is written to disk (the `outbox` folder next to the spool, excluded from device backups) as the gzip body it is sent with, before it is sent, and removed when rum-api's receiver answers 2xx or another 4xx than 408 and 429. A network error, 408, 429 or 5xx leaves it there: it is retried after a backoff (1 s doubling to 60 s, at least the `Retry-After` the receiver sends with 429 and 503), with the next chunk, on `flush()` and in the next process, oldest first. Each folder (queued, held) holds at most 10 MB, the oldest chunks dropped first, and a chunk queued more than 24 h ago is dropped. The spool is cleared only after this write, so a kill at any point loses nothing. Delivery is at least once; a resent chunk has the same `session_id` and `seq` and replaces its copy.
 - **Next-launch keep/drop** (React Native `replay.keepAtNextLaunch`): with it, cut chunks wait in `outbox/held/` instead. At the next launch, after the previous run's open chunk is recovered, the host is asked once per finished session (any held session but the current one) with `{ sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors, feedback }` (`feedback`: `rum.feedback` records of the session, C10) and the session's chunks are sent or deleted. Without the hook nothing is held, and chunks held by an earlier build are sent.
 - The maximum chunk size accepted by rum-api is 8 MB for `kind: "frames"`, and at most 1000 frames.
 

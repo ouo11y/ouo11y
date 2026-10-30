@@ -9,6 +9,15 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ### Changed
 
+- Replay chunks are `frames` schema 2 (ADR-0014, mobile SDK roadmap W3): a frame is a full image or
+  the rectangles that changed since the last frame sent (64 px tiles, merged, each its own JPEG);
+  a chunk starts with a full image, as do the frames after a resume or a screen change and any
+  frame that changed over more than half its area. A static screen sends no image bytes. Chunks
+  carry `mode` and are cut every 5 s, once their images pass 1 MiB, and when the viewport changes;
+  `maxFramesPerChunk` and `FrameDeduper` are removed. Needs rum-api and a collector that read
+  schema 2 (`docs/operations/upgrade.md` section 4).
+- `ChunkBuilder` clears the spool only after the cut chunk was handed to `onChunk`.
+
 - Production-safe capture (mobile SDK roadmap W1, ADR-0006 rev 2): frames are taken by a main
   run-loop observer after the pass's UI work, at most one per `frameInterval`, never on touches
   (`maxTouchCapturesPerSecond` is removed); a due frame waits up to 1 s while 4 or more layer
