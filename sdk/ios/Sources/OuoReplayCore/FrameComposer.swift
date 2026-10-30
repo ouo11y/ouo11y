@@ -3,9 +3,10 @@ import Foundation
 import CoreGraphics
 import ImageIO
 
-/// The off-main half of a capture: paints the redaction rectangles over the raw snapshot, makes
-/// the 16x16 dedupe thumbnail and encodes JPEG. CoreGraphics and ImageIO only (thread-safe, no
-/// UIKit), so the UIKit target runs it on its capture queue and the tests run it on macOS.
+/// The off-main half of a capture: paints the redaction rectangles over the raw snapshot, compares
+/// its tiles with the last frame sent and encodes a full JPEG or one JPEG per changed rectangle.
+/// CoreGraphics and ImageIO only (thread-safe, no UIKit), so the UIKit target runs it on its
+/// capture queue and the tests run it on macOS.
 public struct FrameComposer: Sendable {
     public var jpegQuality: Double
 
@@ -74,21 +75,54 @@ public struct FrameComposer: Sendable {
         return ctx.makeImage()
     }
 
-    /// 16x16 8-bit grayscale rendering: small, and insensitive to JPEG noise (the dedupe input).
-    public static func thumbnail(of image: CGImage, side: Int = 16) -> Data? {
-        guard let ctx = CGContext(
-            data: nil,
-            width: side,
-            height: side,
-            bitsPerComponent: 8,
-            bytesPerRow: side,
-            space: CGColorSpaceCreateDeviceGray(),
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
-        ) else { return nil }
-        ctx.interpolationQuality = .low
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-        guard let data = ctx.data else { return nil }
-        return Data(bytes: data, count: side * side)
+    /// What a redacted frame becomes on the wire (ADR-0014).
+    public enum Encoded {
+        /// Same tiles as the last frame sent.
+        case unchanged
+        case full(Data)
+        case patches([(PixelRect, Data)])
+    }
+
+    /// Diffs `image` against the last frame sent and encodes what changed. `forceFull` asks for a
+    /// full image if anything changed (the first frame of a chunk). Commits the frame to `differ`
+    /// only once every JPEG encoded, so the next frame is never diffed against one not sent; nil
+    /// when encoding failed.
+    public func encode(_ image: CGImage, differ: TileDiffer, forceFull: Bool) -> Encoded? {
+        guard let decision = Self.withPixels(of: image, { pixels, bytesPerRow in
+            differ.diff(pixels: pixels, width: image.width, height: image.height, bytesPerRow: bytesPerRow, forceFull: forceFull)
+        }) else { return nil }
+        let out: Encoded
+        switch decision {
+        case .unchanged:
+            return .unchanged
+        case .full:
+            guard let data = jpeg(image) else { return nil }
+            out = .full(data)
+        case .patches(let rects):
+            var patches: [(PixelRect, Data)] = []
+            for r in rects {
+                // CGImage crops in pixels with a top-left origin, as patches are.
+                guard let tile = image.cropping(to: CGRect(x: r.x, y: r.y, width: r.w, height: r.h)),
+                      let data = jpeg(tile) else { return nil }
+                patches.append((r, data))
+            }
+            out = .patches(patches)
+        }
+        differ.commit()
+        return out
+    }
+
+    /// Runs `body` over the image's pixels, 4 bytes each, drawing it into an 8-bit BGRA bitmap first
+    /// when it has another layout.
+    static func withPixels<T>(of image: CGImage, _ body: (UnsafeRawBufferPointer, Int) -> T) -> T? {
+        if image.bitsPerPixel == 32, image.bitsPerComponent == 8, let data = image.dataProvider?.data,
+           CFDataGetLength(data) >= image.bytesPerRow * image.height, let base = CFDataGetBytePtr(data) {
+            return body(UnsafeRawBufferPointer(start: base, count: CFDataGetLength(data)), image.bytesPerRow)
+        }
+        guard let ctx = makeContext(pixelWidth: image.width, pixelHeight: image.height, colorSpace: image.colorSpace ?? sRGB),
+              let base = ctx.data else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return body(UnsafeRawBufferPointer(start: base, count: ctx.bytesPerRow * image.height), ctx.bytesPerRow)
     }
 
     /// JPEG bytes through ImageIO (thread-safe, unlike `UIImage.jpegData` on older iOS).

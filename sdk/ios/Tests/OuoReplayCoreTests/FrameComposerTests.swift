@@ -124,12 +124,46 @@ import Testing
         #expect(isWhite(pixel(decoded, 40, 150)))
     }
 
-    @Test func ThumbnailIsStableAndSeesTheMask() {
-        let raw = snapshot(w: 50, h: 100, scale: 2)
-        let a = FrameComposer.thumbnail(of: raw)!
-        #expect(a.count == 256)
-        #expect(FrameComposer.thumbnail(of: snapshot(w: 50, h: 100, scale: 2)) == a, "same content, same bytes: dedupe works")
-        let masked = FrameComposer(jpegQuality: 0.5).redact(raw, rects: [CGRect(x: 0, y: 50, width: 50, height: 50)], scale: 2)!
-        #expect(FrameComposer.thumbnail(of: masked) != a)
+    /// A 402 x 300 px screen (the last tile column is 18 px wide), gray with a red square at
+    /// (`squareX`, `squareY`) in pixels, top-left origin.
+    func screen(squareX: Int = 10, squareY: Int = 10, side: Int = 20) -> CGImage {
+        let ctx = FrameComposer.makeContext(pixelWidth: 402, pixelHeight: 300)!
+        ctx.setFillColor(CGColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: 402, height: 300))
+        ctx.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        ctx.fill(CGRect(x: squareX, y: 300 - squareY - side, width: side, height: side))
+        return ctx.makeImage()!
+    }
+
+    func decode(_ jpeg: Data) -> CGImage {
+        CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithData(jpeg as CFData, nil)!, 0, nil)!
+    }
+
+    /// ADR-0014 end to end on the composer: full, unchanged (zero bytes), patches of the changed
+    /// tiles with their own JPEG cropped from the right pixels, full when forced.
+    @Test func EncodesFullUnchangedAndPatches() throws {
+        let composer = FrameComposer(jpegQuality: 0.5)
+        let differ = TileDiffer()
+        guard case .full(let first) = composer.encode(screen(), differ: differ, forceFull: false) else {
+            Issue.record("the first frame is a full image"); return
+        }
+        #expect(decode(first).width == 402 && decode(first).height == 300)
+        guard case .unchanged = composer.encode(screen(), differ: differ, forceFull: true) else {
+            Issue.record("a static screen sends nothing, even at a chunk start"); return
+        }
+        // The square moves from tile (0, 0) to the 18 px wide last column, row 2.
+        guard case .patches(let patches) = composer.encode(screen(squareX: 390, squareY: 140, side: 10), differ: differ, forceFull: false) else {
+            Issue.record("a small change is sent as patches"); return
+        }
+        #expect(patches.map(\.0) == [PixelRect(x: 0, y: 0, w: 64, h: 64), PixelRect(x: 384, y: 128, w: 18, h: 64)])
+        let tile = decode(patches[1].1)
+        #expect(tile.width == 18 && tile.height == 64)
+        // The square sits at (6, 12) inside that tile: red; the rest is the gray background.
+        let red = pixel(tile, 10, 16)
+        #expect(red.0 > 200 && red.1 < 60 && red.2 < 60)
+        #expect(pixel(decode(patches[0].1), 20, 20).1 > 200, "the old square is gone from tile (0, 0)")
+        guard case .full = composer.encode(screen(squareX: 100, squareY: 100), differ: differ, forceFull: true) else {
+            Issue.record("forceFull sends a changed frame as a full image"); return
+        }
     }
 }

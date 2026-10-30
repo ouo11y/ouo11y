@@ -18,6 +18,10 @@ SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrame
   navigation-mode frame; the iOS recorder captures after the run loop's UI work within a 100 ms/s
   main-thread budget, never on touches, drops frames whose masked views move, and sends the chunk
   a crash left open on the next launch, before the sampling decision (`sdk/ios` CHANGELOG).
+- **Replay tiles** (roadmap W3, ADR-0014): the iOS recorder sends `frames` schema 2. A frame is a
+  full image or only the 64 px tiles that changed since the last frame sent, and a static screen
+  sends no image bytes (on the B3 simulator journey, 120 KiB/min masked, down from 235). Needs
+  rum-api and a collector that read schema 2, and plugin 0.10 to play it (`sdk/ios` CHANGELOG).
 - **Session start survives an early native crash** (N52): the crash report carries the session's
   start; a session the storage never saw is ended from it with reason `crash` on the next launch.
 - **Sampling** (roadmap 8b, `docs/operations/data-lifecycle.md` section 5): `session.sampleRate`

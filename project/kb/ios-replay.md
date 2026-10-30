@@ -332,3 +332,31 @@ was learned on the iOS 27 simulator (`examples/ouo-mobile`, Release build, scrip
   after each step tells whether patches landed where the chunk says (no screenshot comparison
   needed). A generator that draws a square moving one 64 px tile row per frame makes the expected
   rows obvious.
+
+## W3a: tiles on the device (2026-10-30)
+
+- **Where the bytes go on the B3 journey** (simulator, one round per cell, before the 10-round run):
+  ouo-T4 sent 21 full images (about 52 KB of base64 each, product photos unmasked) and 15 patch
+  frames (31 patches, 169 KB) in 95 s; 11 of the full images open a 5 s chunk. Most other full
+  images follow a scroll or a navigation, which changes more than half the screen. At T3 (masked)
+  frames are fewer (a masked view in motion drops the frame), so tiles and the 5 s keyframe
+  together brought T3 from 235 to about 117 KiB/min, while T4 stayed near W1 (about 390).
+- **Small patches are expensive per pixel**: an ImageIO JPEG carries about 1.1 KB of headers and
+  tables (1.7 KB with a Display P3 profile) even for a flat 64x64 tile, so changed tiles are merged
+  into a few rectangles and more than 8 become their bounding box. Within a chunk the repeated
+  headers are base64 of identical bytes at offset 0, so gzip removes most of them on the wire.
+- **Exact pixel hashes, not the old 16x16 thumbnail**: the redacted frame's bytes are hashed per 64
+  px tile (FNV-1a over 8-byte words, 0.135 ms for 402x874 in an optimized build). Rendering the
+  same UI twice gives the same pixels, so a static screen still sends nothing; a blinking caret or
+  a spinner now shows up as a one-tile patch instead of being swallowed by the thumbnail.
+- **The reference is the last frame sent**: `TileDiffer.diff` keeps the new hashes pending and
+  `commit()` adopts them only after every JPEG encoded. `reset()` (resume, screen change, session
+  rotation) makes the next frame full even if unchanged; `forceFull` (the chunk has no frame yet)
+  makes it full only if something changed, so a static screen at a chunk boundary stays at zero
+  bytes.
+- **The Mac sleeping ruins a simulator benchmark**: on battery with the lid closed, the XCUITest
+  driver times out ("Timed out while preparing execution worker", exit 65) and a 95 s round takes
+  90 minutes. `pmset -g log` shows the DarkWake cycles. Run B3 with the Mac awake and on power.
+- `sdk/react-native/ios` holds only podspecs in git: a fresh worktree needs
+  `npm run build -w sdk/react-native` (which runs `scripts/sync-ios.mjs`) before
+  `examples/sentry-mobile/scripts/perf/build.sh`, or the pod fails with `no such module 'OuoCrash'`.

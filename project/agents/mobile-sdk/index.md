@@ -9,5 +9,6 @@ Owns the decisions of the ouo mobile SDK roadmap ([roadmap.md](../../kb/mobile-s
   - [2026-10-29-w2-mobile-spec.md](summaries/2026-10-29-w2-mobile-spec.md) W2: the mobile SDK spec, ADR-0015 and the React Native iOS conformance suite
   - [2026-10-29-w7-symbolication.md](summaries/2026-10-29-w7-symbolication.md) W7: native iOS crash symbolication from dSYMs (ADR-0011 section 7)
   - [2026-10-30-w3a-schema2-player.md](summaries/2026-10-30-w3a-schema2-player.md) W3a step 1: `frames` schema 2, canvas player
+  - [2026-10-30-w3a-swift-tiles.md](summaries/2026-10-30-w3a-swift-tiles.md) W3a step 2: Swift tiles, B3 T3 120 / T4 334 KiB/min
 - `verify/` reproducible checks
   - [w7-dsym-e2e.sh](verify/w7-dsym-e2e.sh) a real `OuoCrashProbe` crash through the collector, dSYM upload with the CLI, rum-api frames compared with `atos -i`

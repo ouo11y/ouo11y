@@ -1,22 +1,28 @@
 import Foundation
 
 /// Accumulates frames and touches into `FrameChunk`s and cuts a chunk when any flush trigger
-/// fires: `flushInterval` elapsed since the chunk started, `maxFrames` frames, or an explicit
-/// `flush()` (pause, background, rotation). With a `spool`, the open chunk is also on disk so the
-/// next launch can send it after a crash. Not thread-safe by itself: the UIKit target drives it
-/// from its capture queue, tests from one thread.
+/// fires: `flushInterval` elapsed since the chunk started, its images reached `maxImageBytes`, the
+/// viewport changed (`update(viewport:)`), or an explicit `flush()` (pause, background, rotation).
+/// The first frame of a chunk must be a full image (ADR-0014): `needsFullFrame` tells the capturer,
+/// and a patch frame offered first is dropped. With a `spool`, the open chunk is also on disk so
+/// the next launch can send it after a crash. Not thread-safe by itself: the UIKit target drives
+/// it from its capture queue, tests from one thread.
 public final class ChunkBuilder {
     public struct Config: Sendable {
         public var flushInterval: TimeInterval
-        public var maxFrames: Int
+        /// Base64 characters of images after which the chunk is cut (1 MiB).
+        public var maxImageBytes: Int
         public var platform: String
         public var masked: Bool
+        /// The session's capture mode, written on every chunk.
+        public var mode: String
 
-        public init(flushInterval: TimeInterval = 5, maxFrames: Int = 10, platform: String = "ios", masked: Bool = true) {
+        public init(flushInterval: TimeInterval = 5, maxImageBytes: Int = 1 << 20, platform: String = "ios", masked: Bool = true, mode: String = "session") {
             self.flushInterval = flushInterval
-            self.maxFrames = maxFrames
+            self.maxImageBytes = maxImageBytes
             self.platform = platform
             self.masked = masked
+            self.mode = mode
         }
     }
 
@@ -27,10 +33,11 @@ public final class ChunkBuilder {
     private let onChunk: (FrameChunk) -> Void
     private let spool: ChunkSpool?
 
-    /// Viewport reported with every chunk; the capturer updates it when the window size changes.
-    public var viewport: Viewport
+    /// Viewport reported with every chunk; `update(viewport:)` changes it.
+    public private(set) var viewport: Viewport
 
     private var frames: [Frame] = []
+    private var imageBytes = 0
     private var touches: [Touch] = []
     /// Touches not written to the spool yet (they go with the next frame line).
     private var spooledTouches = 0
@@ -60,17 +67,29 @@ public final class ChunkBuilder {
     public var frameCount: Int { frames.count }
     public var touchCount: Int { touches.count }
     public var isEmpty: Bool { frames.isEmpty && touches.isEmpty }
+    /// The next frame must be a full image: the open chunk has none yet.
+    public var needsFullFrame: Bool { frames.isEmpty }
+
+    /// The window size or frame scale changed: patches cannot span it, so the open chunk is cut.
+    public func update(viewport: Viewport) {
+        guard viewport != self.viewport else { return }
+        flush()
+        self.viewport = viewport
+    }
 
     public func add(_ frame: Frame) {
+        // A patch frame has nothing to apply to in a new chunk; the capturer never offers one.
+        guard frame.isFull || !frames.isEmpty else { return }
         open(at: frame.ts)
         frames.append(frame)
+        imageBytes += frame.imageBytes
         if let spool {
             spool.append(Array(touches[spooledTouches...]))
             spooledTouches = touches.count
             spool.append(frame, viewport: viewport)
         }
         lastTs = max(lastTs, frame.ts)
-        if frames.count >= config.maxFrames {
+        if imageBytes >= config.maxImageBytes {
             flush()
         } else {
             flushIfDue()
@@ -97,13 +116,16 @@ public final class ChunkBuilder {
         return false
     }
 
-    /// Cuts the open chunk (if any) and hands it to `onChunk`.
+    /// Cuts the open chunk (if any) and hands it to `onChunk`. The spool is cleared only after
+    /// `onChunk` returned (the uploader has it on disk by then), so a kill in between loses nothing.
     public func flush() {
         guard let chunk = cut() else { return }
         onChunk(chunk)
+        spool?.clear()
     }
 
-    /// Pure cut: returns the open chunk and resets the buffer, nil when nothing is buffered.
+    /// Returns the open chunk and resets the buffer, nil when nothing is buffered. The spool still
+    /// holds it until `flush()` clears it.
     public func cut() -> FrameChunk? {
         guard let sid = chunkSessionId, !isEmpty else {
             chunkSessionId = nil
@@ -116,15 +138,16 @@ public final class ChunkBuilder {
             endedAt: max(lastTs, startedAt),
             viewport: viewport,
             platform: config.platform,
+            mode: config.mode,
             frames: frames,
             touches: touches,
             masked: config.masked
         )
         frames = []
+        imageBytes = 0
         touches = []
         spooledTouches = 0
         chunkSessionId = nil
-        spool?.clear()
         return chunk
     }
 
@@ -143,6 +166,6 @@ public final class ChunkBuilder {
         chunkSeq = seqStore.next(sessionId: sid)
         startedAt = ts
         lastTs = ts
-        spool?.begin(.init(sessionId: sid, seq: chunkSeq, startedAt: ts, viewport: viewport, platform: config.platform, masked: config.masked))
+        spool?.begin(.init(sessionId: sid, seq: chunkSeq, startedAt: ts, viewport: viewport, platform: config.platform, masked: config.masked, mode: config.mode))
     }
 }

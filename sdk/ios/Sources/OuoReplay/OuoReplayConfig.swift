@@ -28,10 +28,8 @@ public struct OuoReplayConfig {
     /// Extra view class names to redact.
     public var maskClasses: Set<String>
     public var debug: Bool
-    /// Seconds before an open chunk is flushed. Default 5.
+    /// Seconds before an open chunk is flushed (also once its images pass 1 MiB). Default 5.
     public var flushInterval: TimeInterval
-    /// Frames per chunk before it is flushed. Default 10.
-    public var maxFramesPerChunk: Int
     /// JPEG quality. Default 0.5.
     public var jpegQuality: Double
     /// Longest frame side in pixels. Default 1000.
@@ -60,7 +58,6 @@ public struct OuoReplayConfig {
         maskClasses: Set<String> = [],
         debug: Bool = false,
         flushInterval: TimeInterval = 5,
-        maxFramesPerChunk: Int = 10,
         jpegQuality: Double = 0.5,
         maxLongestSide: Double = 1000,
         seqStore: SeqStore = UserDefaultsSeqStore(),
@@ -81,7 +78,6 @@ public struct OuoReplayConfig {
         self.maskClasses = maskClasses
         self.debug = debug
         self.flushInterval = flushInterval
-        self.maxFramesPerChunk = maxFramesPerChunk
         self.jpegQuality = jpegQuality
         self.maxLongestSide = maxLongestSide
         self.seqStore = seqStore

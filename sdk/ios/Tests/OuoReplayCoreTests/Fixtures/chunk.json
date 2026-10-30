@@ -1,15 +1,17 @@
 {
   "kind": "frames",
-  "schema_version": 1,
+  "schema_version": 2,
   "session_id": "0f9a4e2c-7d3b-4c1e-9a6f-2b8d5e1c3a70",
   "seq": 0,
   "started_at": 1760000000000,
   "ended_at": 1760000005000,
   "viewport": { "width": 393, "height": 852, "scale": 0.5 },
   "platform": "ios",
+  "mode": "session",
   "frames": [
     { "ts": 1760000000100, "jpeg": "/9j/4AAQSkZJRg==", "reason": "timer" },
-    { "ts": 1760000002100, "jpeg": "/9j/4AAQSkZJRh==", "reason": "touch" }
+    { "ts": 1760000002100, "reason": "touch",
+      "patches": [ { "x": 0, "y": 128, "w": 196, "h": 64, "jpeg": "/9j/4AAQSkZJRh==" } ] }
   ],
   "touches": [
     { "ts": 1760000001200, "x": 120.5, "y": 640.0, "phase": "began" },

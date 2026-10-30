@@ -10,8 +10,10 @@ import OuoReplayCore
 /// idle run loop when the next frame can be due; a 1 s keep-alive tick cuts chunks on time.
 /// Touches are recorded but never trigger a capture. The walk, the masking plan (an unsafe frame
 /// is dropped before the render) and the render run on the main thread; downscale, redaction,
-/// dedupe, encoding, chunking, the spool and the upload hand-off run on `queue`, which alone
-/// touches `deduper` and `builder`.
+/// the tile diff, encoding, chunking, the spool and the upload hand-off run on `queue`, which
+/// alone touches `differ` and `builder`. A chunk's first frame, the frame after a resume or a
+/// screen change, and a frame whose tiles changed over more than half its area are full images;
+/// other frames carry only their changed rectangles (ADR-0014).
 final class ReplayRecorder {
     /// Instruments: "snapshot" intervals are the main-thread part of each capture ("walk" inside
     /// it), "compose" the capture-queue part (subsystem dev.ouo.replay, category capture).
@@ -25,7 +27,7 @@ final class ReplayRecorder {
     private let config: OuoReplayConfig
     private let logger: ReplayLogger
     private let capturer: ScreenCapturer
-    private let deduper = FrameDeduper()
+    private let differ = TileDiffer()
     private let builder: ChunkBuilder
     private let uploader: ChunkUploader
     private let spool: ChunkSpool
@@ -52,13 +54,14 @@ final class ReplayRecorder {
         let spool = ChunkSpool(url: config.spoolURL)
         self.config = config
         self.logger = logger
-        self.mode = config.mode.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+        let mode = config.mode.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+        self.mode = mode
         self.pacer = CapturePacer(mode: mode, interval: config.frameInterval)
         self.capturer = ScreenCapturer(rules: rules, jpegQuality: config.jpegQuality, maxLongestSide: config.maxLongestSide, logger: logger)
         self.uploader = uploader
         self.spool = spool
         self.builder = ChunkBuilder(
-            config: ChunkBuilder.Config(flushInterval: config.flushInterval, maxFrames: config.maxFramesPerChunk, platform: "ios", masked: rules.masksAnything),
+            config: ChunkBuilder.Config(flushInterval: config.flushInterval, platform: "ios", masked: rules.masksAnything, mode: mode.rawValue),
             viewport: Viewport(width: Double(screen.width), height: Double(screen.height), scale: 1),
             sessionId: config.sessionId,
             seqStore: config.seqStore,
@@ -146,15 +149,16 @@ final class ReplayRecorder {
 
     func sessionDidRotate(newId: String) {
         logger.log("session rotated -> \(newId)")
-        Self.queue.async { [builder, deduper] in
+        Self.queue.async { [builder, differ] in
             builder.sessionDidRotate(newId: newId)
-            deduper.reset()
+            differ.reset()
         }
     }
 
-    /// A new screen is showing: the frame for it in `navigation` mode (ignored in `session` mode,
-    /// where the next interval frame shows it anyway).
+    /// A new screen is showing: the frame for it in `navigation` mode (in `session` mode the next
+    /// interval frame shows it). Either way that frame is a full image, a seek point.
     func screenDidChange() {
+        Self.queue.async { [differ] in differ.reset() }
         let now = ProcessInfo.processInfo.systemUptime
         pacer.screenDidChange(now: now)
         scheduleWake(now: now)
@@ -165,7 +169,7 @@ final class ReplayRecorder {
     private func resumeCapture() {
         guard !isRecording else { return }
         isRecording = true
-        Self.queue.async { [deduper] in deduper.reset() }
+        Self.queue.async { [differ] in differ.reset() }
         pacer.requestFrame(.resume, at: ProcessInfo.processInfo.systemUptime)
         // After Core Animation's commit observer (order 2000000), so the walk and the render see
         // the pass's committed UI; common modes so capture continues while a scroll view tracks.
@@ -242,14 +246,16 @@ final class ReplayRecorder {
             return
         }
         captureInFlight = true
-        Self.queue.async { [weak self, capturer, deduper, builder, logger] in
+        Self.queue.async { [weak self, capturer, differ, builder, logger] in
             let state = sp.beginInterval("compose", id: sp.makeSignpostID())
             var failed = false
-            switch capturer.compose(snapshot, deduper: deduper) {
-            case .frame(let capture):
-                builder.viewport = capture.viewport
-                builder.add(Frame(ts: ts, jpegData: capture.jpeg, reason: reason))
-                logger.log("frame \(reason.rawValue) \(capture.jpeg.count) bytes, \(capture.redactedRects) redacted rects")
+            // A new size cuts the chunk, so the frame below opens the next one with a full image.
+            builder.update(viewport: ScreenCapturer.viewport(of: snapshot))
+            switch capturer.compose(snapshot, differ: differ, forceFull: builder.needsFullFrame, ts: ts, reason: reason) {
+            case .frame(let frame):
+                builder.add(frame)
+                let kind = frame.isFull ? "full" : "\(frame.patches?.count ?? 0) patches"
+                logger.log("frame \(reason.rawValue) \(kind) \(frame.imageBytes) bytes, \(snapshot.rects.count) redacted rects")
             case .failed:
                 failed = true
             case .unchanged:

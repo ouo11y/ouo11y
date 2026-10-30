@@ -15,6 +15,8 @@ public final class ChunkSpool {
         var viewport: Viewport
         var platform: String
         var masked: Bool
+        /// Absent in spools written before schema 2.
+        var mode: String?
     }
 
     private struct Line: Codable {
@@ -89,6 +91,8 @@ public final class ChunkSpool {
             if let v = line.viewport { viewport = v }
             touches += line.touches ?? []
         }
+        // Only the last line can be cut short, but never let a chunk start with a patch frame.
+        frames = Array(frames.drop { !$0.isFull })
         guard let header, !(frames.isEmpty && touches.isEmpty) else { return nil }
         guard Double(now - header.startedAt) / 1000 <= Self.maxAge else { return nil }
         let last = max(frames.map(\.ts).max() ?? 0, touches.map(\.ts).max() ?? 0)
@@ -99,6 +103,7 @@ public final class ChunkSpool {
             endedAt: max(last, header.startedAt),
             viewport: viewport ?? header.viewport,
             platform: header.platform,
+            mode: header.mode ?? "session",
             frames: frames,
             touches: touches,
             masked: header.masked

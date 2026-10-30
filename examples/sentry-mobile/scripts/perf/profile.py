@@ -21,7 +21,7 @@ SENTRY = re.compile(r"sentry", re.I)
 # ouo's Swift types carry no common prefix in demangled names: match the module and type names of
 # sdk/ios (OuoReplay, OuoReplayCore) and the Expo module.
 OUO = re.compile(r"Ouo|\b(ScreenCapturer|ReplayRecorder|TouchObserver|ViewTreeBuilder|ChunkBuilder|ChunkUploader|"
-                 r"FrameDeduper|RedactionPlanner|UserDefaultsSeqStore|InMemorySeqStore|URLSessionTransport|SessionIdBox)\b")
+                 r"TileDiffer|RedactionPlanner|UserDefaultsSeqStore|InMemorySeqStore|URLSessionTransport|SessionIdBox)\b")
 
 
 def main():
