@@ -67,6 +67,17 @@ Context: roadmap W5, spec C6 and C7 (`docs/specs/mobile-sdk.md`), quickstart
   works: iOS puts `-key value` launch arguments in the `NSArgumentDomain` of the user defaults,
   and React Native's built-in `Settings.get("journey")` reads them synchronously at start. Every
   `simctl launch` is a cold start, so a new session (session-lifecycle, mobile rule 1).
+- **Real taps on any installed app, with no Xcode project of its own.** A UI test bundle can
+  drive another app: `XCUIApplication(bundleIdentifier: "dev.ouo.tinyshop.m6")`, elements by
+  `testID` (React Native's accessibility identifier) through
+  `app.descendants(matching: .any).matching(identifier:)`, `.tap()`, `.press(forDuration: 0.9)`,
+  `.swipeUp()`, `XCUIDevice.shared.press(.home)` to send the app to the background. A throwaway
+  runner is a `project.yml` for `xcodegen` with an empty SwiftUI app and a `bundle.ui-testing`
+  target (`TEST_TARGET_NAME: Runner`, `CODE_SIGNING_ALLOWED: NO`), run with
+  `xcodebuild test -scheme RunnerUITests -destination 'id=<udid>'`. It needs no simulator access
+  grant and no idb; the W5 summary has the test. On a three-row list that does not scroll, a
+  swipe that starts on a row still ends in that row's `onPress` (React Native's behaviour, not
+  the SDK's), and the SDK records it as `swipe` by its motion.
 - **Generator timing on the simulator**: a Release build starts and reaches the first screen in
   about 1 s on an M-series Mac; 4 s plus one pace per step left every session's records exported
   before the next launch stopped the app (30 of 30 sessions, see the W5 summary).
