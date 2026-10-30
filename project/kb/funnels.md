@@ -30,3 +30,47 @@ Context: funnel reports (N46, ADR-0012, `docs/specs/funnels.md`), 2026-10-24.
   `node_modules/.bin/{jest,tsc,eslint}` directly. `ouo-env up` runs `npm run build` in the checkout
   and hits it too: build the plugin first and write `git rev-parse HEAD` to
   `plugins/ouo11y-rum-app/dist/.ouo-env-built` so it skips the build. Cause not found.
+
+## Funnels and user steps on mobile (W5, 2026-10-30)
+
+Context: roadmap W5, spec C6 and C7 (`docs/specs/mobile-sdk.md`), quickstart
+`examples/quickstarts-mobile/tiny-shop-mobile-funnels`.
+
+- **Screens are page steps with no backend change.** The React Native SDK's `navigation` records
+  carry `url.path` = `/` + the active route names, like the browser's paths, so rum-api's page
+  steps match them as they are. `ouo.navigation.kind = screen` (the bridge's value) tells them
+  apart from browser `load` / `push` / `replace` / `pop`; the plugin shows `Navigation (screen)`.
+  Every product is one route, so `/Product` is one step for all products: an event carries the id.
+- **Touches in React Native.** A plain `View`'s `onTouchStart`, `onTouchEnd` and `onTouchCancel`
+  bubble from the touched host view without taking the responder, so `RUMProvider` sees every
+  touch without changing what the app does. A scroll view that takes a touch over makes React
+  Native send `touchcancel`: that is the end of a swipe. The event's `_targetInst` is the touched
+  host fiber.
+- **What a fiber walk can name.** `Pressable` passes `testID` and `role` / `accessibilityRole` down
+  to its `View` and host view, so the same label appears on several fibers in a row: "the control"
+  is the run of fibers that carry the target's label, and its view type is its role, else the
+  outermost named component of that run (`Pressable`, `TouchableOpacity`), else the host type
+  (`RCTView`). An ancestor's role (a screen with `role="list"`) is outside the control and is not
+  used.
+- **Gesture thresholds**: 500 ms is React Native's `delayLongPress` default; 10 points is about
+  UIKit's pan slop. A move wins over a hold (a slow drag is a swipe).
+- **Keep the open touch per instance, not in a closure.** A long press often re-renders the tree
+  before the finger lifts; a closure variable of the render that saw the start is gone by then. A
+  `WeakMap` keyed by the RUM instance also stops a nested provider from counting the touch twice;
+  a touch older than 10 s is dropped so a lost `touchend` cannot block the next ones.
+- **Stamp at the start, emit at the end.** The record needs the gesture, known only at the end,
+  but the plugin pairs `ui.tap` with the replay's touch by the start time (`TAP_MATCH_MS`), so the
+  record's timestamp is the touch start.
+- **Driving a simulator app without a dialog.** `xcrun simctl openurl` to an app that is not
+  running shows iOS's "Open in …?" confirmation, so deep links cannot drive unattended cold
+  launches. `xcrun simctl launch --terminate-running-process <udid> <bundle> -journey a,b -pace 900`
+  works: iOS puts `-key value` launch arguments in the `NSArgumentDomain` of the user defaults,
+  and React Native's built-in `Settings.get("journey")` reads them synchronously at start. Every
+  `simctl launch` is a cold start, so a new session (session-lifecycle, mobile rule 1).
+- **Generator timing on the simulator**: a Release build starts and reaches the first screen in
+  about 1 s on an M-series Mac; 4 s plus one pace per step left every session's records exported
+  before the next launch stopped the app (30 of 30 sessions, see the W5 summary).
+- **npm in this worktree** failed the same way as above; the cause this time was visible: npm
+  walks up from the worktree into the shared main checkout's `package.json` (workspaces) and
+  reads its workspace `package.json` files, which held merge-conflict markers. `--prefix` from
+  outside avoids the walk.
