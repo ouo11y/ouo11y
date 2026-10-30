@@ -30,6 +30,10 @@ The reviewer compared `lookup()` with `atos -i` on 4,246 addresses (C and C++, D
 - Cold-load deduplication in the cache: tracker row, not this PR.
 - `image (grafana)` (Trivy, CVE in the `grafana/grafana:13.2.1` base) is red on `main` too; fixed in its own PR, this one merges after it.
 
+## Before the merge (2026-10-30)
+
+Merged `origin/main` with #108 (Grafana 13.2.5), W1 #109 and W2 #106: `project/agents/mobile-sdk/{index,tracker}.md` kept both sides' rows, W7 joined W2's tracker table. On the rebuilt `ouo-env w7-symbolication`: `go vet` / `go test ./...`, CLI and plugin tests, `lychee --offline` clean; the W2 conformance suite (`node tests/e2e/mobile/conformance.mjs`) `CONFORMANCE OK`, 11 required checks including C2.2 and C2.3; `w7-dsym-e2e.sh` again 4 frames equal to `atos -i`, partial 4/5.
+
 ## Left, and what the next agent must know
 
 - Swift names are DWARF base names (`level2`, not `level2(_:)`); symbol-table names stay mangled. A Swift demangler would be its own package or a dependency: not done.
