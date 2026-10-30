@@ -1,11 +1,11 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { IconButton, RadioButtonGroup, useStyles2 } from '@grafana/ui';
 import type { ReplayFrame, ReplayTouch, ReplayViewport } from '../api/types';
 import { usePlaybackClock, type PlaybackSpeed } from '../hooks/usePlaybackClock';
 import { formatDuration, formatRelative } from '../utils/format';
-import { frameIndexAt, stepFrameIndex } from '../utils/frames';
+import { type DrawOp, frameDrawOps, frameIndexAt, paintOps, stepFrameIndex } from '../utils/frames';
 import type { ReplayHandle } from './ReplayPlayer';
 import { TouchOverlay } from './TouchOverlay';
 
@@ -34,9 +34,64 @@ export const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
 ];
 
 /**
- * Frame-based replay for mobile sessions (ADR-0006): shows the latest frame at or before the
- * cursor, draws touches that fade over 500 ms, and exposes the same `goto`/`play`/`pause`
- * handle as the rrweb wrapper so markers and timeline clicks seek it the same way.
+ * Decoded images kept across renders, least recently used first: a few seconds of frames, and never
+ * fewer than one paint needs (`keep`), or a long run of patch frames would decode everything again.
+ */
+const IMAGE_CACHE_SIZE = 64;
+const imageCache = new Map<DrawOp, Promise<HTMLImageElement>>();
+
+/** Decodes the op's JPEG once; ops are built once per replay, so the op itself is the key. */
+function loadImage(op: DrawOp, keep: number): Promise<HTMLImageElement> {
+  let p = imageCache.get(op);
+  if (p) {
+    imageCache.delete(op);
+  } else {
+    const img = new Image();
+    p = new Promise((resolve, reject) => {
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('frame image did not decode'));
+      img.src = op.src;
+    });
+  }
+  imageCache.set(op, p);
+  while (imageCache.size > Math.max(IMAGE_CACHE_SIZE, keep)) {
+    imageCache.delete(imageCache.keys().next().value!);
+  }
+  return p;
+}
+
+/**
+ * Draws a full image, sizing the canvas to it, then blits each patch in order. When the full image
+ * did not decode, the canvas keeps what it showed; a patch that did not decode is skipped.
+ */
+function paint(canvas: HTMLCanvasElement, ops: DrawOp[], imgs: Array<HTMLImageElement | undefined>) {
+  const ctx = canvas.getContext('2d');
+  const base = imgs[0];
+  if (!ctx || !base) {
+    return;
+  }
+  ops.forEach((op, i) => {
+    const img = imgs[i];
+    if (!img) {
+      return;
+    }
+    if (!op.rect) {
+      if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.drawImage(img, 0, 0);
+    } else {
+      ctx.drawImage(img, op.rect.x, op.rect.y, op.rect.w, op.rect.h);
+    }
+  });
+}
+
+/**
+ * Frame-based replay for mobile sessions (ADR-0006, ADR-0014): paints the latest frame at or
+ * before the cursor on a canvas (its full image, then the patch frames after it), draws touches
+ * that fade over 500 ms, and exposes the same `goto`/`play`/`pause` handle as the rrweb wrapper
+ * so markers and timeline clicks seek it the same way.
  */
 export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   { frames, touches, viewport, startTs, durationMs, onTime, clockOffsetMs = 0 },
@@ -48,14 +103,34 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
     onTime,
   });
 
-  // One data URL per frame, computed once; the base64 string is kept, nothing is decoded here.
-  const urls = useMemo(() => frames.map((f) => `data:image/jpeg;base64,${f.jpeg}`), [frames]);
+  // Data URLs per frame, computed once; images are decoded on demand by loadImage.
+  const ops = useMemo(() => frameDrawOps(frames), [frames]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({ goto, play, pause }), [goto, play, pause]);
 
   const cursorTs = startTs + offsetMs;
   const frameIndex = frameIndexAt(frames, cursorTs);
   const frame = frameIndex >= 0 ? frames[frameIndex] : undefined;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const todo = paintOps(ops, frameIndex);
+    // Never empty for validated frames: the first frame is a full image, and a cursor before it
+    // shows frame 0 (frameIndexAt).
+    if (!canvas || !todo.length) {
+      return;
+    }
+    let stale = false;
+    Promise.all(todo.map((op) => loadImage(op, todo.length).catch(() => undefined))).then((imgs) => {
+      if (!stale) {
+        paint(canvas, todo, imgs);
+      }
+    });
+    return () => {
+      stale = true;
+    };
+  }, [ops, frameIndex]);
 
   const stepFrame = useCallback(
     (delta: -1 | 1) => {
@@ -125,16 +200,14 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
       data-testid="frame-player"
     >
       <div className={styles.stage} style={{ aspectRatio: `${ratio}`, width: stageWidth }} data-testid="frame-stage">
-        {frame && (
-          <img
-            className={styles.img}
-            src={urls[frameIndex]}
-            alt={`Frame ${frameIndex + 1} of ${frames.length} (${frame.reason})`}
-            draggable={false}
-            data-testid="frame-img"
-            data-frame-index={frameIndex}
-          />
-        )}
+        <canvas
+          ref={canvasRef}
+          className={styles.canvas}
+          role="img"
+          aria-label={frame ? `Frame ${frameIndex + 1} of ${frames.length} (${frame.reason})` : undefined}
+          data-testid="frame-canvas"
+          data-frame-index={frameIndex}
+        />
         <TouchOverlay touches={touches} viewport={viewport} cursorTs={cursorTs} testId="frame-touch" />
       </div>
 
@@ -194,7 +267,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
     overflow: 'hidden',
     userSelect: 'none',
   }),
-  img: css({
+  canvas: css({
     display: 'block',
     width: '100%',
     height: '100%',

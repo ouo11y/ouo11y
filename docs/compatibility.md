@@ -47,9 +47,9 @@ upgrade note in [`operations/upgrade.md`](operations/upgrade.md), section 4).
 <!-- compat:schema -->
 | Where | schema_version | Source |
 |---|---|---|
-| rum-api reads at most | 1 | `services/rum-api/internal/replay/schema.go` |
-| collector replay receiver accepts at most | 1 | `collector/receiver/ouoreplayreceiver/chunk.go` |
-| collector Sentry bridge emits (video) | 1 | `collector/receiver/ouosentryreceiver/replay.go` |
+| rum-api reads at most | 2 | `services/rum-api/internal/replay/schema.go` |
+| collector replay receiver accepts at most | 2 | `collector/receiver/ouoreplayreceiver/chunk.go` |
+| collector Sentry bridge emits (video, stays 1 per ADR-0014) | 1 | `collector/receiver/ouosentryreceiver/replay.go` |
 | iOS and React Native emit (frames) | 1 | `sdk/ios/Sources/OuoReplayCore/Models.swift` |
 
 ## Sentry SDKs through the bridge

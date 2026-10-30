@@ -16,7 +16,7 @@ import (
 // SchemaVersion is the highest replay chunk `schema_version` this rum-api
 // reads (docs/specs/mobile-replay.md). Bump it together with parse.go when a
 // new schema lands, never for a change older releases can still read.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // schemaMarkerName is the store-wide marker next to the session folders:
 // DATA_DIR/replays/schema.json, or [<prefix>/]replays/schema.json on S3

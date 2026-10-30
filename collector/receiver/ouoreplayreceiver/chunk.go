@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"regexp"
 )
 
@@ -33,6 +34,10 @@ var (
 )
 
 const maxFramesPerChunk = 1000
+
+// maxSchemaVersion is the highest frames `schema_version` accepted (rum-api's
+// SchemaVersion; ADR-0014).
+const maxSchemaVersion = 2
 
 // chunk is the validated envelope of one upload.
 type chunk struct {
@@ -70,7 +75,7 @@ func parseChunk(body []byte) (chunk, error) {
 		schemaVersion                                     *int
 		kindSet                                           bool
 		vp                                                viewport
-		decodeBuf                                         []byte
+		frames                                            frameChecker
 	)
 	for dec.More() {
 		keyTok, err := dec.Token()
@@ -120,11 +125,7 @@ func parseChunk(body []byte) (chunk, error) {
 			c.Events = n
 		case "frames":
 			seenFrames = true
-			n, err := countArray(dec, "frames", func(raw json.RawMessage, i int) error {
-				var err error
-				decodeBuf, err = validateFrame(raw, i, decodeBuf)
-				return err
-			})
+			n, err := countArray(dec, "frames", frames.check)
 			if err != nil {
 				return c, err
 			}
@@ -170,7 +171,7 @@ func parseChunk(body []byte) (chunk, error) {
 		if schemaVersion == nil {
 			return c, fmt.Errorf("%w: schema_version missing", errInvalid)
 		}
-		if *schemaVersion != 1 {
+		if *schemaVersion < 1 || *schemaVersion > maxSchemaVersion {
 			return c, fmt.Errorf("%w: schema_version %d not supported", errInvalid, *schemaVersion)
 		}
 		if c.StartedAt <= 0 {
@@ -190,6 +191,9 @@ func parseChunk(body []byte) (chunk, error) {
 		}
 		if !seenFrames {
 			return c, fmt.Errorf("%w: frames missing", errInvalid)
+		}
+		if *schemaVersion < 2 && frames.hasPatches {
+			return c, fmt.Errorf("%w: frames with patches need schema_version 2", errInvalid)
 		}
 		if !seenTouches {
 			c.Touches = 0
@@ -224,40 +228,110 @@ func countArray(dec *json.Decoder, name string, each func(raw json.RawMessage, i
 }
 
 type frame struct {
-	TS   *int64 `json:"ts"`
+	TS      *int64  `json:"ts"`
+	JPEG    *string `json:"jpeg"`
+	Patches []patch `json:"patches"`
+}
+
+type patch struct {
+	X    *int   `json:"x"`
+	Y    *int   `json:"y"`
+	W    *int   `json:"w"`
+	H    *int   `json:"h"`
 	JPEG string `json:"jpeg"`
 }
 
-// validateFrame checks {ts, jpeg}: ts present, jpeg non-empty base64 that
-// decodes and starts with the JPEG SOI marker. buf is reused across frames.
-func validateFrame(raw json.RawMessage, i int, buf []byte) ([]byte, error) {
+// frameChecker validates the frames of one chunk in array order
+// (docs/specs/mobile-replay.md, ADR-0014): every frame has ts and exactly one
+// of jpeg (a full image) and patches; the first frame is a full image; every
+// image is base64 starting with the JPEG marker; every patch lies inside the
+// most recent full image and its JPEG is exactly w x h. Schema 1 allows full
+// images only, which the caller checks with hasPatches once schema_version is
+// known.
+type frameChecker struct {
+	buf []byte
+	// w, h: size of the most recent full image, read from its JPEG header;
+	// -1 when the header is unreadable (allowed until a patch needs it).
+	w, h       int
+	hasPatches bool
+}
+
+func (fc *frameChecker) check(raw json.RawMessage, i int) error {
 	var f frame
 	if err := json.Unmarshal(raw, &f); err != nil {
-		return buf, fmt.Errorf("%w: frames[%d]: %v", errInvalid, i, err)
+		return fmt.Errorf("%w: frames[%d]: %v", errInvalid, i, err)
 	}
 	if f.TS == nil || *f.TS <= 0 {
-		return buf, fmt.Errorf("%w: frames[%d]: ts must be epoch milliseconds", errInvalid, i)
+		return fmt.Errorf("%w: frames[%d]: ts must be epoch milliseconds", errInvalid, i)
 	}
-	if f.JPEG == "" {
-		return buf, fmt.Errorf("%w: frames[%d]: jpeg must be non-empty base64", errInvalid, i)
+	switch {
+	case f.JPEG != nil && f.Patches != nil:
+		return fmt.Errorf("%w: frames[%d]: has both jpeg and patches", errInvalid, i)
+	case f.JPEG != nil:
+		img, err := fc.decode(*f.JPEG, fmt.Sprintf("frames[%d].jpeg", i))
+		if err != nil {
+			return err
+		}
+		fc.w, fc.h = -1, -1
+		if cfg, err := jpeg.DecodeConfig(bytes.NewReader(img)); err == nil {
+			fc.w, fc.h = cfg.Width, cfg.Height
+		}
+		return nil
+	case f.Patches == nil:
+		return fmt.Errorf("%w: frames[%d]: jpeg must be non-empty base64", errInvalid, i)
+	}
+	fc.hasPatches = true
+	if i == 0 {
+		return fmt.Errorf("%w: frames[0]: the first frame must be a full image (jpeg)", errInvalid)
+	}
+	if len(f.Patches) == 0 {
+		return fmt.Errorf("%w: frames[%d]: patches must not be empty", errInvalid, i)
+	}
+	if fc.w < 0 {
+		return fmt.Errorf("%w: frames[%d]: the full image before it has no readable JPEG size", errInvalid, i)
+	}
+	for j, p := range f.Patches {
+		name := fmt.Sprintf("frames[%d].patches[%d]", i, j)
+		if p.X == nil || p.Y == nil || p.W == nil || p.H == nil {
+			return fmt.Errorf("%w: %s: x, y, w and h are required integers", errInvalid, name)
+		}
+		// x < w and w <= fc.w-x, not x+w <= fc.w, which overflows.
+		if *p.X < 0 || *p.Y < 0 || *p.W <= 0 || *p.H <= 0 || *p.X >= fc.w || *p.W > fc.w-*p.X || *p.Y >= fc.h || *p.H > fc.h-*p.Y {
+			return fmt.Errorf("%w: %s: must lie inside the %dx%d full image", errInvalid, name, fc.w, fc.h)
+		}
+		img, err := fc.decode(p.JPEG, name+".jpeg")
+		if err != nil {
+			return err
+		}
+		if cfg, err := jpeg.DecodeConfig(bytes.NewReader(img)); err != nil || cfg.Width != *p.W || cfg.Height != *p.H {
+			return fmt.Errorf("%w: %s.jpeg must be a %dx%d JPEG", errInvalid, name, *p.W, *p.H)
+		}
+	}
+	return nil
+}
+
+// decode checks that s is non-empty base64 (padded or not) of bytes starting
+// with the JPEG marker and returns them (valid until the next call).
+func (fc *frameChecker) decode(s, name string) ([]byte, error) {
+	if s == "" {
+		return nil, fmt.Errorf("%w: %s must be non-empty base64", errInvalid, name)
 	}
 	enc := base64.StdEncoding
-	if len(f.JPEG)%4 != 0 {
+	if len(s)%4 != 0 {
 		enc = base64.RawStdEncoding
 	}
-	need := enc.DecodedLen(len(f.JPEG))
-	if cap(buf) < need {
-		buf = make([]byte, need)
+	need := enc.DecodedLen(len(s))
+	if cap(fc.buf) < need {
+		fc.buf = make([]byte, need)
 	}
-	buf = buf[:need]
-	n, err := enc.Decode(buf, []byte(f.JPEG))
+	n, err := enc.Decode(fc.buf[:need], []byte(s))
 	if err != nil {
-		return buf, fmt.Errorf("%w: frames[%d]: jpeg is not valid base64: %v", errInvalid, i, err)
+		return nil, fmt.Errorf("%w: %s is not valid base64: %v", errInvalid, name, err)
 	}
-	if n < len(jpegMagic) || !bytes.Equal(buf[:len(jpegMagic)], jpegMagic) {
-		return buf, fmt.Errorf("%w: frames[%d]: jpeg does not start with the JPEG marker FF D8", errInvalid, i)
+	if n < len(jpegMagic) || !bytes.Equal(fc.buf[:len(jpegMagic)], jpegMagic) {
+		return nil, fmt.Errorf("%w: %s does not start with the JPEG marker FF D8", errInvalid, name)
 	}
-	return buf, nil
+	return fc.buf[:n], nil
 }
 
 type touch struct {
