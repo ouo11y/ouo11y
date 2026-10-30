@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
+import { FeedbackList } from '../components/FeedbackList';
 import { FramePlayer } from '../components/FramePlayer';
 import { LogsPanel } from '../components/LogsPanel';
 import { PlatformIcon } from '../components/PlatformIcon';
@@ -25,6 +26,7 @@ import { framesBounds, replayRenderer } from '../utils/frames';
 import { totalFrames, videoBounds } from '../utils/video';
 import { buildMarkers, latestEventIndex, replayBounds, seekOffset } from '../utils/markers';
 import { buildActivity } from '../utils/activity';
+import { buildFeedback } from '../utils/feedback';
 import { buildTaps } from '../utils/taps';
 import { useFeatureToggle } from '../featureToggles';
 import { maskingState, type MaskingState } from '../utils/masking';
@@ -118,6 +120,7 @@ export default function SessionDetail() {
   const activityStart = hasReplay ? bounds.start : sessionStart;
   const activity = useMemo(() => buildActivity(timeline, activityStart, taps), [timeline, activityStart, taps]);
   const showActivity = hasReplay || (!showTimeline && !replayLoading);
+  const feedback = useMemo(() => buildFeedback(timeline), [timeline]);
   const masking = maskingState(meta.data);
   const contextFields = session ? sessionContextFields(session) : [];
   const previousId = previousSessionId(session?.timeline ?? []);
@@ -344,6 +347,11 @@ export default function SessionDetail() {
                   segments stream through the plugin proxy
                 </div>
               )}
+              <FeedbackList
+                items={feedback}
+                clockStart={clockStart}
+                onSeek={hasReplay ? onLogSeek : undefined}
+              />
               {renderer === 'rrweb' && replay.data && replay.data.length === 0 && (
                 <Alert severity="info" title="Replay is empty">
                   rum-api reports a replay for this session but no events were decodable.

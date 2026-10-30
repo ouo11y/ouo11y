@@ -77,8 +77,9 @@ async function main() {
       await touch(root, { label: "cart-items", component: "FlatList", screen: "CartScreen" }, 250, -160);
       rum.log.info("golden log line", { "golden.step": "cart" });
       rum.captureError(new Error("golden handled error"), { screen: "Cart" });
-      // C10 (W6): the feedback API does not exist yet.
-      if (typeof rum.feedback === "function") rum.feedback({ message: "golden feedback", contact: "qa@example.invalid" });
+      // C10: the steps above are its last events; replay records, so the screenshot is a frame.
+      out.feedback = rum.feedback({ message: "golden feedback", contact: "qa@example.invalid", screenshot: true });
+      await sleep(1200); // the next interval frame shows the screen
       os.blockMainThread(3000);
       await sleep(1500);
       AppState.__emit("background");

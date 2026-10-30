@@ -141,6 +141,15 @@ const NAMED: Record<string, (ev: TimelineEvent) => Look> = {
         .filter(Boolean)
         .join(' '),
   }),
+  feedback: () => ({
+    icon: 'comment-alt-message',
+    color: (t) => t.colors.success.main,
+    title: () => 'Feedback',
+    detail: (e) =>
+      [e.attrs.ouo_feedback_message, e.attrs.ouo_feedback_contact && `(${e.attrs.ouo_feedback_contact})`]
+        .filter(Boolean)
+        .join(' '),
+  }),
   'sentry.message': () => ({
     icon: 'comment-alt',
     color: (t) => t.colors.text.primary,

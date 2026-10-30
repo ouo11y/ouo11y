@@ -9,6 +9,7 @@
 //   action/checkout?method=card  POST /api/checkout (broken-card: the backend answers 500)
 //   action/fetch-500             GET /api/products?fail=500
 //   action/flush                 rum.flush()
+//   action/feedback?message=...&contact=...  rum.feedback with a screenshot
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
 import { createNavigationContainerRef } from "@react-navigation/native";
 import { File, Paths } from "expo-file-system";
@@ -53,6 +54,9 @@ async function run(cmd: string): Promise<void> {
         break;
       case "flush":
         await rum.flush();
+        break;
+      case "feedback":
+        rum.feedback({ message: params.get("message") ?? "", contact: params.get("contact") ?? "", screenshot: true });
         break;
     }
   } catch {

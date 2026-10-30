@@ -119,6 +119,23 @@ type contexts struct {
 	Replay *struct {
 		ReplayID string `json:"replay_id"`
 	} `json:"replay"`
+	// Feedback is the user feedback of a `feedback` item (Sentry.captureFeedback).
+	Feedback *struct {
+		Message           string `json:"message"`
+		ContactEmail      string `json:"contact_email"`
+		Name              string `json:"name"`
+		ReplayID          string `json:"replay_id"`
+		AssociatedEventID string `json:"associated_event_id"`
+	} `json:"feedback"`
+}
+
+// userReport is the payload of the legacy `user_report` item
+// (captureUserFeedback / SentrySDK.capture(userFeedback:)).
+type userReport struct {
+	EventID  string `json:"event_id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Comments string `json:"comments"`
 }
 
 // deviceCtx is contexts.device. Numbers and booleans stay `any`: SDKs differ

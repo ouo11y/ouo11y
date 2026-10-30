@@ -340,8 +340,8 @@ describe("replay.keepAtNextLaunch (next-launch keep/drop)", () => {
     expect(native.start.mock.calls[0]![1]).toMatchObject({ holdUploads: true });
     await c.decideHeld("current", "prev-crashed");
     expect(seen).toEqual([
-      { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstChunkAt: 1000, lastChunkAt: 11_000, crashed: true, errors: 0 },
-      { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstChunkAt: 20_000, lastChunkAt: 20_000, crashed: false, errors: 2 },
+      { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstChunkAt: 1000, lastChunkAt: 11_000, crashed: true, errors: 0, feedback: 0 },
+      { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstChunkAt: 20_000, lastChunkAt: 20_000, crashed: false, errors: 2, feedback: 0 },
     ]);
     expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
       ["prev-crashed", true],
@@ -363,6 +363,41 @@ describe("replay.keepAtNextLaunch (next-launch keep/drop)", () => {
       ["prev-quiet", false],
     ]);
     expect(JSON.parse(storage.peek("ouo.replay.errors")!)).toEqual({ current: 2 });
+  });
+
+  it("counts this session's feedback for the next launch, so the hook can keep the sessions users reported on (C10)", async () => {
+    const storage = new MemoryAsyncStorage();
+    await storage.setItem("ouo.replay.feedback", JSON.stringify({ "prev-quiet": 1 }));
+    const native = nativeWithHeld();
+    const seen: Array<{ sessionId: string; feedback: number }> = [];
+    const c = createReplayController({
+      endpoint: "http://localhost:4319",
+      projectId: PROJECT_ID,
+      projectToken: TOKEN,
+      options: { enabled: true, keepAtNextLaunch: (s) => (seen.push(s), s.feedback > 0) },
+      native,
+      storage,
+      logger,
+    });
+    c.start("current");
+    c.onFeedback();
+    await c.decideHeld("current", undefined);
+    expect(seen.map((s) => [s.sessionId, s.feedback])).toEqual([
+      ["prev-crashed", 0],
+      ["prev-quiet", 1],
+    ]);
+    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
+      ["prev-crashed", false],
+      ["prev-quiet", true],
+    ]);
+    expect(JSON.parse(storage.peek("ouo.replay.feedback")!)).toEqual({ current: 1 });
+    // Without the hook nothing is counted (nothing is held).
+    const s2 = new MemoryAsyncStorage();
+    const c2 = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native: nativeWithHeld(), storage: s2, logger });
+    c2.start("current");
+    c2.onFeedback();
+    await c2.decideHeld("current", undefined);
+    expect(s2.peek("ouo.replay.feedback")).toBeNull();
   });
 
   it("without the hook nothing is held and anything held earlier is sent; a throwing hook keeps", async () => {

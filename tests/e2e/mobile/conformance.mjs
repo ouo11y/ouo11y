@@ -330,12 +330,33 @@ const CHECKS = [
   },
   {
     id: "C10.1",
-    pending: "W6",
-    title: "a feedback appears on the session with its message and contact",
+    title: "a feedback appears on the session with message, contact, id, screenshot and the steps before it",
     async run(g) {
-      const d = await detail(g.main.launches[0].session);
+      const { session, feedback: id } = g.main.launches[0];
+      const d = await detail(session);
       const f = named(d, "feedback")[0];
-      return result(attr(f, "ouo.feedback.message") === "golden feedback" && attr(f, "ouo.feedback.contact"), f, { feedback: f?.attrs ?? null });
+      let steps = [];
+      try {
+        steps = JSON.parse(attr(f, "ouo.last_events") ?? "[]").map((e) => `${e.name}|${e.body}`);
+      } catch {
+        steps = ["unparsable"];
+      }
+      const at = Date.parse(f?.ts ?? "");
+      const replay = f ? await getJSON(`${RUM}/v1/sessions/${session}/replay/frames`).catch(() => null) : null;
+      // The replay at the feedback time shows the screen: a frame at or before it, and the recording goes on.
+      const shown = (replay?.frames ?? []).filter((x) => x.ts <= at).at(-1);
+      const frame = shown && (replay?.frames ?? []).some((x) => x.ts > at) ? shown : undefined;
+      const want = ["ui.tap|Swipe cart-items (FlatList) on Cart", "log|golden log line", "exception|Error: golden handled error"];
+      return result(
+        attr(f, "ouo.feedback.message") === "golden feedback" &&
+          attr(f, "ouo.feedback.contact") === "qa@example.invalid" &&
+          attr(f, "ouo.feedback.id") === id &&
+          String(attr(f, "ouo.feedback.screenshot")) === "true" &&
+          steps.slice(-3).join(",") === want.join(",") &&
+          frame,
+        f,
+        { feedback: f ? { message: attr(f, "ouo.feedback.message"), contact: attr(f, "ouo.feedback.contact"), screenshot: attr(f, "ouo.feedback.screenshot") } : null, last_steps: steps.slice(-3), frame_before_ms: frame ? at - frame.ts : null },
+      );
     },
   },
   {

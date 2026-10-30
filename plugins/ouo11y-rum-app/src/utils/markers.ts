@@ -1,8 +1,9 @@
 import type { TimelineEvent, TimelineType } from '../api/types';
+import { isFeedbackEvent } from './feedback';
 import { parseTs } from './format';
 import { isTapEvent, tapLabel, type ReplayTap } from './taps';
 
-export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap';
+export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap' | 'feedback';
 
 export interface ReplayMarker {
   /** Index into the timeline array; -1 for a tap known only from a recorded touch. */
@@ -46,7 +47,7 @@ export function markerKind(ev: TimelineEvent): MarkerKind | null {
     case 'navigation':
       return 'navigation';
     case 'custom':
-      return isTapEvent(ev) ? 'tap' : null;
+      return isTapEvent(ev) ? 'tap' : isFeedbackEvent(ev) ? 'feedback' : null;
     default:
       return null;
   }
@@ -65,6 +66,9 @@ export function markerLabel(ev: TimelineEvent): string {
       if (isTapEvent(ev)) {
         return `Tap ${a.ouo_ui_target ?? ''}`.trim();
       }
+      if (isFeedbackEvent(ev)) {
+        return `Feedback: ${a.ouo_feedback_message ?? ''}`.trim();
+      }
       return ev.name;
     default:
       return ev.name;
@@ -72,7 +76,7 @@ export function markerLabel(ev: TimelineEvent): string {
 }
 
 /**
- * Builds replay markers (errors, failed requests, navigations, taps) from a timeline. With `taps`
+ * Builds replay markers (errors, failed requests, navigations, taps, feedback) from a timeline. With `taps`
  * (`buildTaps` of a video replay's touches and the timeline), taps come from that list instead of
  * the timeline's `ui.tap` events, so a touch without a breadcrumb gets a marker too. Taps are
  * listed first so the other kinds are drawn on top of them.

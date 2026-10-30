@@ -18,6 +18,7 @@ const KIND_LABEL: Record<MarkerKind, string> = {
   failed_request: 'Failed request',
   navigation: 'Navigation',
   tap: 'Tap',
+  feedback: 'Feedback',
 };
 
 export function ReplayMarkers({ markers, durationMs, currentMs, onSeek }: Props) {
@@ -56,6 +57,9 @@ export function ReplayMarkers({ markers, durationMs, currentMs, onSeek }: Props)
         </span>
         <span>
           <i className={cx(styles.dot, styles.navigation)} /> navigation
+        </span>
+        <span>
+          <i className={cx(styles.dot, styles.feedback)} /> feedback
         </span>
         <span className={styles.time}>{formatRelative(currentMs)}</span>
       </div>
@@ -99,6 +103,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
   error: css({ background: theme.colors.warning.main }),
   failed_request: css({ background: theme.colors.warning.shade }),
   navigation: css({ background: theme.colors.primary.main }),
+  feedback: css({ background: theme.colors.success.main }),
   // Taps are frequent: a thin, round-topped tick in the tap indicator's orange, under the other kinds.
   tap: css({ background: '#ff7a1a' }),
   tapTick: css({ width: 6, marginLeft: -3, borderRadius: 3 }),

@@ -47,5 +47,5 @@ end=$(( $(date +%s) + 1 ))
 printf '{"start": %d, "end": %d, "backend": "%s", "device": "%s"}\n' "$start" "$end" "$backend" "$DEVICE" > journey.json
 log "journey window $start..$end, backend $backend"
 if [[ $VERIFY == 1 ]]; then
-  python3 -I scripts/verify.py --journey journey.json
+  python3 -I scripts/verify.py --journey journey.json --feedback
 fi

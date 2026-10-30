@@ -10,7 +10,7 @@ Order and exit criteria: [roadmap.md §3 and §10](../../kb/mobile-sdk-research/
 | W3 wire and durability | in progress | W3b delivery merged (PR #114, 8f65408: gzip OTLP, outbox, durable chunk queue, keep/drop; N48, N49, C11); W3a tiles: step 1 schema 2 + player (PR #116), step 2 Swift tiles next (with N54) |
 | W4 signals parity | todo | |
 | W5 funnels and user steps | PR open (branch `claude/w5-funnels`) | `ui.tap` view type, gesture, screen and readable body, `timeline.tapLabels` kill switch, `ouo.navigation.kind = screen`; C6.1 required; plugin reads taps as steps; quickstart M6 `tiny-shop-mobile-funnels` ([summary](summaries/2026-10-30-w5-funnels.md)) |
-| W6 feedback primitive | todo | |
+| W6 feedback primitive | PR open (branch `claude/w6-feedback`) | `rum.feedback` with `ouo.last_events` from the shared `RecentEvents` buffer (W4 reuses it) and the replay as screenshot; bridge `feedback` / `user_report`; plugin feedback list beside the replay; C10.1 required, C10 at L2 ([summary](summaries/2026-10-30-w6-feedback.md)) |
 | W7 native symbolication | merged (PR #107) | ADR-0011 section 7, `ouo-sourcemaps upload-dsym`, rum-api `PUT /v1/dsyms` and symbolication on read, plugin native frames, `docs/symbolication.md` ([summary](summaries/2026-10-29-w7-symbolication.md)); follow-ups: Swift demangling, dSYM upload through the collector (with N41), Android R8 / ProGuard (W9), one cache load per key in flight and a peak-memory note for dSYMs near `limits.max_dsym_bytes` (PR #107 review item 7) |
 | W8 native iOS package | todo | |
 | W9 Android | todo | needs JDK, Android SDK, emulator |

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import framesFixture from '../__fixtures__/frames.json';
 import type { ReplayFramesResponse, SessionDetail as Detail } from '../api/types';
@@ -168,6 +168,50 @@ describe('SessionDetail', () => {
     expect(timelineError).toHaveTextContent('+4.3s');
     // The player's label is on the same clock: the replay starts 0.3 s into the session.
     expect(screen.getByTestId('frame-time')).toHaveTextContent('+0.3s');
+  });
+
+  it('lists a feedback beside the replay with its contact and steps; the seek shows the screen at its time (C10)', async () => {
+    const at = frames.started_at + 1500;
+    api.session.mockResolvedValue({
+      ...detail,
+      timeline: [
+        ...detail.timeline,
+        {
+          ts: iso(at),
+          type: 'custom',
+          name: 'feedback',
+          attrs: {
+            ouo_feedback_message: 'The coupon does not apply',
+            ouo_feedback_contact: 'ana@example.com',
+            ouo_feedback_screenshot: 'true',
+            ouo_last_events: JSON.stringify([{ ts: at - 200, name: 'ui.tap', body: 'Tap apply-coupon (button) on Cart' }]),
+          },
+        },
+      ],
+    });
+    renderPage();
+    const list = await screen.findByTestId('feedback-list');
+    expect(within(screen.getByTestId('panel-replay')).getByTestId('feedback-list')).toBe(list);
+    expect(within(list).getByTestId('feedback-message')).toHaveTextContent('The coupon does not apply');
+    expect(within(list).getByTestId('feedback-contact')).toHaveTextContent('ana@example.com');
+    expect(within(list).getByText('replay recording')).toBeInTheDocument();
+    expect(within(list).getByTestId('feedback-step')).toHaveTextContent('Tap apply-coupon (button) on Cart');
+    expect(within(list).getByTestId('feedback-step')).toHaveTextContent('+1.6s'); // 0.3 s session lead + 1.5 s - 0.2 s
+    // jsdom has no scrollIntoView; the seek brings the replay into view.
+    const scroll = jest.fn();
+    Element.prototype.scrollIntoView = scroll;
+    fireEvent.click(within(list).getByTestId('feedback-seek'));
+    expect(scroll).toHaveBeenCalled();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    // The replay at the feedback time (+1.5 s into the replay), on the session clock.
+    expect(screen.getByTestId('frame-time')).toHaveTextContent('+1.8s');
+    expect(screen.getAllByTestId('activity-item').some((r) => r.textContent?.includes('Feedback'))).toBe(true);
+  });
+
+  it('shows no feedback list without feedback', async () => {
+    renderPage();
+    await screen.findByTestId('replay-activity');
+    expect(screen.queryByTestId('feedback-list')).toBeNull();
   });
 
   it('shows no vitals row and asks for no vitals without vital records', async () => {

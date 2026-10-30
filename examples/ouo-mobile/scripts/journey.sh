@@ -4,7 +4,8 @@
 #
 #   scripts/journey.sh [--device <udid>]
 #
-# Launch (Products loads the catalog) -> two products, each added to the cart -> cart -> checkout
+# Launch (Products loads the catalog) -> two products, each added to the cart -> cart, feedback with a
+# screenshot -> checkout
 # (card) -> one more product -> checkout (broken-card, 500) -> 500 from /api/products -> flush,
 # background (Home) so the SDK exports, terminate.
 set -euo pipefail
@@ -40,6 +41,7 @@ cmd "screen/Products"
 cmd "screen/Product?id=p-1002"
 cmd "action/add?id=p-1002"
 cmd "screen/Cart"
+cmd "action/feedback?message=The%20cart%20total%20looks%20wrong&contact=qa%40example.invalid" 3
 cmd "screen/Checkout"
 cmd "action/checkout?method=card" 3
 cmd "screen/Product?id=p-1003"
