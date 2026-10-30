@@ -151,7 +151,8 @@ Compatibility rule:
 - SDK side: an SDK that emits a new `schema_version` states the minimum rum-api version in
   its changelog; rum-api rejects chunks it cannot read, and the SDK drops them after the
   retry budget. Upgrade rum-api before the SDKs. For schema 2 the order is rum-api and the
-  plugin (a plugin built for schema 1 shows patch frames as broken images), then the collector
+  plugin 0.10 (a plugin built for schema 1 shows patch frames as broken images; most deployments get
+  the plugin through the grafana image, so that means the grafana image that ships it), then the collector
   (its replay receiver rejects schema 2 below collector 0.5), then the SDKs.
 
 Verified 2026-10-23 (section 8): the guarded rum-api started on the 0.2.0-written VM store and

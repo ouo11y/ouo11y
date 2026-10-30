@@ -30,3 +30,15 @@ Branch `claude/w3a-tiles`, first of the two W3 tiles PRs of [roadmap.md](../../.
 - Step 2: Swift tiles in `sdk/ios` (`ScreenCapturer.compose`, `FrameComposer`, `Models`, `ChunkBuilder`), `FrameChunk.schemaVersion` 2 and the iOS row of the schema table, and the B3 simulator run against the W1 result.
 - W3b's note for step 2: `ChunkBuilder.cut()` clears the spool before `onChunk` hands the chunk to W3b's on-disk outbox, so a kill in that window loses it; clear the spool after `onChunk` returns.
 - Buffer mode (ADR-0014) is not built by W3a: it needs the on-disk ring (where `ChunkSpool` should become the one-entry case) and the plugin label.
+
+## Review round 1 (review-pr-116)
+
+- **Fixed**:
+  - The patch bounds check overflowed (`x + w > width` with x = MaxInt). Both validators now check `x < width && w <= width - x` (same for y), with tests.
+  - A patch's JPEG must be exactly `w` x `h` (read from its header), which catches a points-vs-pixels bug in an SDK with a 400.
+  - `frameChecker` lost its frame counter (the index is passed in), and `patchFrames` became a bool.
+  - The player's image cache never evicts what one paint needs (`max(64, ops of the paint)`).
+  - ADR-0014 got revision 1 with the two readings (most recent full image; a touches-only chunk is sent).
+  - `upgrade.md` names plugin 0.10 and the grafana image.
+- **Answered, not changed**: "scrubbing back before the first frame keeps the last frame on the canvas" does not happen. `frameIndexAt` clamps such a cursor to frame 0, which is always a full image, so the canvas repaints it. A new test pins this.
+- Verified again: rum-api `go vet` and its replay tests (the S3 tests could not pull the MinIO image from Docker Hub locally, a timeout; CI runs them); the collector's `go vet` and `go test`; the checker copies are identical except for the error name; plugin jest 185/185, `tsc`, eslint, prettier.

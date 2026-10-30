@@ -220,6 +220,16 @@ describe('FramePlayer', () => {
       );
     });
 
+    it('scrubbing back before the first frame paints the first full image again', async () => {
+      sizes.set(url('FULL1'), [96, 128]);
+      const ref = renderPatches();
+      act(() => ref.current!.goto(2500));
+      await waitFor(() => expect(draws.length).toBeGreaterThan(1));
+      draws = [];
+      act(() => ref.current!.goto(-1000));
+      await waitFor(() => expect(draws).toEqual([[url('FULL1'), 0, 0]]));
+    });
+
     it('seeks into a later chunk from its own full image and skips a patch that does not decode', async () => {
       sizes.set(url('FULL2'), [48, 64]);
       const ref = renderPatches();

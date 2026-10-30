@@ -64,7 +64,7 @@ Both reject with 400:
 - a frame without `ts`, with both or neither of `jpeg` and `patches`, or with an empty `patches`;
 - a first frame that is not a full image;
 - an image that is not base64 of bytes starting with the JPEG marker `FF D8`;
-- a patch outside the most recent full image (its size is read from the JPEG header), or with a non-integer or non-positive coordinate or size;
+- a patch outside the most recent full image (its size is read from the JPEG header), with a non-integer or non-positive coordinate or size, or whose JPEG is not `w` x `h`;
 - `patches` in a chunk with `schema_version: 1`.
 
 rum-api stores and serves frames unchanged. Upgrade order: rum-api and plugin, then collector, then SDKs ([`operations/upgrade.md`](../operations/upgrade.md) section 4).

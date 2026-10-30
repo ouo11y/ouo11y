@@ -11,6 +11,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -96,7 +97,7 @@ func TestParseChunkSchema2(t *testing.T) {
 		}
 		return base64.StdEncoding.EncodeToString(buf.Bytes())
 	}
-	full, tile := enc(128, 256), enc(2, 2)
+	full := enc(128, 256)
 	chunk := func(v int, frames ...any) []byte {
 		b, _ := json.Marshal(map[string]any{
 			"kind": "frames", "schema_version": v, "session_id": testSession, "seq": 0, "mode": "session",
@@ -106,9 +107,11 @@ func TestParseChunkSchema2(t *testing.T) {
 		return b
 	}
 	fullAt := map[string]any{"ts": 1760000000100, "jpeg": full}
-	patchAt := func(x, y, w, h int) map[string]any {
-		return map[string]any{"ts": 1760000001100, "patches": []any{map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": tile}}}
+	// img is the patch's JPEG: w x h unless the case says otherwise.
+	patchImg := func(x, y, w, h int, img string) map[string]any {
+		return map[string]any{"ts": 1760000001100, "patches": []any{map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": img}}}
 	}
+	patchAt := func(x, y, w, h int) map[string]any { return patchImg(x, y, w, h, enc(w, h)) }
 	if c, err := parseChunk(chunk(2, fullAt, patchAt(64, 192, 64, 64))); err != nil || c.Frames != 2 {
 		t.Fatalf("good schema 2: %+v %v", c, err)
 	}
@@ -120,6 +123,8 @@ func TestParseChunkSchema2(t *testing.T) {
 		"schema 3":               chunk(3, fullAt),
 		"first frame patches":    chunk(2, patchAt(0, 0, 2, 2)),
 		"patch outside":          chunk(2, fullAt, patchAt(100, 0, 64, 64)),
+		"patch x overflows":      chunk(2, fullAt, patchImg(math.MaxInt, 0, 1, 1, enc(1, 1))),
+		"patch jpeg not w x h":   chunk(2, fullAt, patchImg(0, 0, 2, 2, enc(64, 64))),
 		"both":                   chunk(2, map[string]any{"ts": 1, "jpeg": full, "patches": []any{}}),
 	}
 	for name, body := range bad {

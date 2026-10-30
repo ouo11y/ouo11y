@@ -33,12 +33,15 @@ export const SPEEDS: Array<{ label: string; value: PlaybackSpeed }> = [
   { label: '2×', value: 2 },
 ];
 
-/** Decoded images kept across renders, least recently used first (a few seconds of frames). */
+/**
+ * Decoded images kept across renders, least recently used first: a few seconds of frames, and never
+ * fewer than one paint needs (`keep`), or a long run of patch frames would decode everything again.
+ */
 const IMAGE_CACHE_SIZE = 64;
 const imageCache = new Map<DrawOp, Promise<HTMLImageElement>>();
 
 /** Decodes the op's JPEG once; ops are built once per replay, so the op itself is the key. */
-function loadImage(op: DrawOp): Promise<HTMLImageElement> {
+function loadImage(op: DrawOp, keep: number): Promise<HTMLImageElement> {
   let p = imageCache.get(op);
   if (p) {
     imageCache.delete(op);
@@ -51,7 +54,7 @@ function loadImage(op: DrawOp): Promise<HTMLImageElement> {
     });
   }
   imageCache.set(op, p);
-  if (imageCache.size > IMAGE_CACHE_SIZE) {
+  while (imageCache.size > Math.max(IMAGE_CACHE_SIZE, keep)) {
     imageCache.delete(imageCache.keys().next().value!);
   }
   return p;
@@ -113,11 +116,13 @@ export const FramePlayer = forwardRef<ReplayHandle, Props>(function FramePlayer(
   useEffect(() => {
     const canvas = canvasRef.current;
     const todo = paintOps(ops, frameIndex);
+    // Never empty for validated frames: the first frame is a full image, and a cursor before it
+    // shows frame 0 (frameIndexAt).
     if (!canvas || !todo.length) {
       return;
     }
     let stale = false;
-    Promise.all(todo.map((op) => loadImage(op).catch(() => undefined))).then((imgs) => {
+    Promise.all(todo.map((op) => loadImage(op, todo.length).catch(() => undefined))).then((imgs) => {
       if (!stale) {
         paint(canvas, todo, imgs);
       }

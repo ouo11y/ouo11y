@@ -1,6 +1,6 @@
 # ADR-0014 Replay representation: tiles in `frames` schema 2
 
-Status: accepted (2026-10-29, roadmap agreed by the founder)
+Status: accepted (2026-10-29, roadmap agreed by the founder); revision 1 (2026-10-30, W3a) at the end
 
 ## Context
 
@@ -64,3 +64,8 @@ ADR-0006 sends every changed screen as a full JPEG: 20–40 KB per frame, measur
 - ADR-0006's "JPEG frames, one full image each" is replaced by this ADR for schema 2. The ADR-0006 revision (W1) points here.
 - Buffer mode costs disk (30–35 s of chunks) and CPU while it uploads nothing. Navigation-only mode is the cheap fallback on low-end devices.
 - Android (W9) and Flutter (W10) emit the same schema, so the player and the conformance checks are written once.
+
+## Revision 1 (2026-10-30): two readings made explicit by W3a
+
+- Patch coordinates are pixels of the **most recent full image** of the chunk. That is the chunk's first image whenever the SDK cuts the chunk on a size change, as it must; the validators and the player apply this one rule. Each patch's JPEG is exactly `w` x `h`, which the validators check.
+- "A chunk with no frames is not sent" means a chunk with **neither frames nor touches**. A chunk holding only touches (taps on a static screen) is sent: it carries zero image bytes, and the player keeps the last image.

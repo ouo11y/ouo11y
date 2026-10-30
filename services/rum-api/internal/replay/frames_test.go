@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -313,7 +314,17 @@ func TestFramesSchema2(t *testing.T) {
 	full := base64.StdEncoding.EncodeToString(sizedJPEG(t, 128, 256))
 	small := base64.StdEncoding.EncodeToString(sizedJPEG(t, 64, 64))
 	tile := base64.StdEncoding.EncodeToString(tinyJPEG(t))
-	patch := func(x, y, w, h int, img string) map[string]any {
+	sized := map[[2]int]string{}
+	// A patch whose JPEG is w x h, as the spec requires.
+	patch := func(x, y, w, h int) map[string]any {
+		img, ok := sized[[2]int{w, h}]
+		if !ok {
+			img = base64.StdEncoding.EncodeToString(sizedJPEG(t, w, h))
+			sized[[2]int{w, h}] = img
+		}
+		return map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": img}
+	}
+	patchImg := func(x, y, w, h int, img string) map[string]any {
 		return map[string]any{"x": x, "y": y, "w": w, "h": h, "jpeg": img}
 	}
 	good := framesChunk(t, "s2", 0, 1000, 0, nil)
@@ -321,9 +332,9 @@ func TestFramesSchema2(t *testing.T) {
 	good["mode"] = "session"
 	good["frames"] = []map[string]any{
 		{"ts": 1000, "reason": "change", "jpeg": full},
-		{"ts": 2000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64, tile), patch(64, 192, 64, 64, tile)}},
+		{"ts": 2000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64), patch(64, 192, 64, 64)}},
 		{"ts": 3000, "reason": "change", "jpeg": small},
-		{"ts": 4000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64, tile)}},
+		{"ts": 4000, "reason": "change", "patches": []map[string]any{patch(0, 0, 64, 64)}},
 	}
 	c, err := st.Put(ctx, "demo", mustJSON(t, good), nil)
 	if err != nil || c.FrameCount != 4 {
@@ -346,25 +357,28 @@ func TestFramesSchema2(t *testing.T) {
 	bad := map[string]func(m map[string]any){
 		"patches under schema 1": func(m map[string]any) {
 			m["schema_version"] = 1
-			m["frames"] = []map[string]any{fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, tile))}
+			m["frames"] = []map[string]any{fullAt(1000), patchAt(2000, patch(0, 0, 2, 2))}
 		},
-		"first frame patches":   withFrames(patchAt(1000, patch(0, 0, 2, 2, tile))),
-		"both jpeg and patches": withFrames(map[string]any{"ts": 1000, "jpeg": full, "patches": []map[string]any{patch(0, 0, 2, 2, tile)}}),
+		"first frame patches":   withFrames(patchAt(1000, patch(0, 0, 2, 2))),
+		"both jpeg and patches": withFrames(map[string]any{"ts": 1000, "jpeg": full, "patches": []map[string]any{patch(0, 0, 2, 2)}}),
 		"neither":               withFrames(fullAt(1000), map[string]any{"ts": 2000}),
 		"empty patches":         withFrames(fullAt(1000), patchAt(2000)),
-		"patch past right":      withFrames(fullAt(1000), patchAt(2000, patch(100, 0, 64, 64, tile))),
-		"patch past bottom":     withFrames(fullAt(1000), patchAt(2000, patch(0, 200, 64, 64, tile))),
-		"patch negative":        withFrames(fullAt(1000), patchAt(2000, patch(-1, 0, 2, 2, tile))),
-		"patch zero size":       withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 0, 2, tile))),
+		"patch past right":      withFrames(fullAt(1000), patchAt(2000, patch(100, 0, 64, 64))),
+		"patch past bottom":     withFrames(fullAt(1000), patchAt(2000, patch(0, 200, 64, 64))),
+		"patch negative":        withFrames(fullAt(1000), patchAt(2000, patchImg(-1, 0, 2, 2, tile))),
+		"patch zero size":       withFrames(fullAt(1000), patchAt(2000, patchImg(0, 0, 0, 2, tile))),
 		"patch fractional":      withFrames(fullAt(1000), patchAt(2000, map[string]any{"x": 0.5, "y": 0, "w": 2, "h": 2, "jpeg": tile})),
 		"patch missing w":       withFrames(fullAt(1000), patchAt(2000, map[string]any{"x": 0, "y": 0, "h": 2, "jpeg": tile})),
-		"patch not a jpeg":      withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, notJPEG))),
-		"patch empty jpeg":      withFrames(fullAt(1000), patchAt(2000, patch(0, 0, 2, 2, ""))),
+		"patch not a jpeg":      withFrames(fullAt(1000), patchAt(2000, patchImg(0, 0, 2, 2, notJPEG))),
+		"patch x overflows":     withFrames(fullAt(1000), patchAt(2000, patchImg(math.MaxInt, 0, 1, 1, tile))),
+		"patch y overflows":     withFrames(fullAt(1000), patchAt(2000, patchImg(0, math.MaxInt, 1, 1, tile))),
+		"patch jpeg not w x h":  withFrames(fullAt(1000), patchAt(2000, patchImg(0, 0, 2, 2, base64.StdEncoding.EncodeToString(sizedJPEG(t, 64, 64))))),
+		"patch empty jpeg":      withFrames(fullAt(1000), patchAt(2000, patchImg(0, 0, 2, 2, ""))),
 		"patch after a later smaller full image": withFrames(
-			fullAt(1000), map[string]any{"ts": 2000, "jpeg": small}, patchAt(3000, patch(0, 100, 64, 64, tile))),
+			fullAt(1000), map[string]any{"ts": 2000, "jpeg": small}, patchAt(3000, patch(0, 100, 64, 64))),
 		// The marker alone passes schema 1, but a patch needs the full image's size.
 		"patch after unreadable full image": withFrames(
-			map[string]any{"ts": 1000, "jpeg": fakeJPEG}, patchAt(2000, patch(0, 0, 1, 1, tile))),
+			map[string]any{"ts": 1000, "jpeg": fakeJPEG}, patchAt(2000, patchImg(0, 0, 1, 1, tile))),
 	}
 	for name, mut := range bad {
 		b := mustJSON(t, mutate(good, mut))

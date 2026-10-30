@@ -192,7 +192,7 @@ func parseChunk(body []byte, maxVideoBytes int64) (Chunk, error) {
 			if !seenFrames {
 				return c, fmt.Errorf("%w: frames missing", ErrInvalid)
 			}
-			if *schemaVersion < 2 && frames.patchFrames > 0 {
+			if *schemaVersion < 2 && frames.hasPatches {
 				return c, fmt.Errorf("%w: frames with patches need schema_version 2", ErrInvalid)
 			}
 			break
@@ -389,15 +389,15 @@ type patch struct {
 // (docs/specs/mobile-replay.md, ADR-0014): every frame has ts and exactly one
 // of jpeg (a full image) and patches; the first frame is a full image; every
 // image is base64 starting with the JPEG marker; every patch lies inside the
-// most recent full image. Schema 1 allows full images only, which the caller
-// checks with patchFrames once schema_version is known.
+// most recent full image and its JPEG is exactly w x h. Schema 1 allows full
+// images only, which the caller checks with hasPatches once schema_version is
+// known.
 type frameChecker struct {
 	buf []byte
 	// w, h: size of the most recent full image, read from its JPEG header;
 	// -1 when the header is unreadable (allowed until a patch needs it).
-	w, h        int
-	n           int
-	patchFrames int
+	w, h       int
+	hasPatches bool
 }
 
 func (fc *frameChecker) check(raw json.RawMessage, i int) error {
@@ -408,7 +408,6 @@ func (fc *frameChecker) check(raw json.RawMessage, i int) error {
 	if f.TS == nil || *f.TS <= 0 {
 		return fmt.Errorf("%w: frames[%d]: ts must be epoch milliseconds", ErrInvalid, i)
 	}
-	fc.n++
 	switch {
 	case f.JPEG != nil && f.Patches != nil:
 		return fmt.Errorf("%w: frames[%d]: has both jpeg and patches", ErrInvalid, i)
@@ -425,8 +424,8 @@ func (fc *frameChecker) check(raw json.RawMessage, i int) error {
 	case f.Patches == nil:
 		return fmt.Errorf("%w: frames[%d]: jpeg must be non-empty base64", ErrInvalid, i)
 	}
-	fc.patchFrames++
-	if fc.n == 1 {
+	fc.hasPatches = true
+	if i == 0 {
 		return fmt.Errorf("%w: frames[0]: the first frame must be a full image (jpeg)", ErrInvalid)
 	}
 	if len(f.Patches) == 0 {
@@ -440,11 +439,16 @@ func (fc *frameChecker) check(raw json.RawMessage, i int) error {
 		if p.X == nil || p.Y == nil || p.W == nil || p.H == nil {
 			return fmt.Errorf("%w: %s: x, y, w and h are required integers", ErrInvalid, name)
 		}
-		if *p.X < 0 || *p.Y < 0 || *p.W <= 0 || *p.H <= 0 || *p.X+*p.W > fc.w || *p.Y+*p.H > fc.h {
+		// x < w and w <= fc.w-x, not x+w <= fc.w, which overflows.
+		if *p.X < 0 || *p.Y < 0 || *p.W <= 0 || *p.H <= 0 || *p.X >= fc.w || *p.W > fc.w-*p.X || *p.Y >= fc.h || *p.H > fc.h-*p.Y {
 			return fmt.Errorf("%w: %s: must lie inside the %dx%d full image", ErrInvalid, name, fc.w, fc.h)
 		}
-		if _, err := fc.decode(p.JPEG, name+".jpeg"); err != nil {
+		img, err := fc.decode(p.JPEG, name+".jpeg")
+		if err != nil {
 			return err
+		}
+		if cfg, err := jpeg.DecodeConfig(bytes.NewReader(img)); err != nil || cfg.Width != *p.W || cfg.Height != *p.H {
+			return fmt.Errorf("%w: %s.jpeg must be a %dx%d JPEG", ErrInvalid, name, *p.W, *p.H)
 		}
 	}
 	return nil
