@@ -45,7 +45,7 @@
 import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { BASIC, GRAFANA, GRAFANA_AUTH, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOKEN, REPLAY, RUM, TEMPO_DS_UID, getJSON, grafanaAuth, pollUntil, readHeaders, table } from "./lib.mjs";
+import { BASIC, GRAFANA, GRAFANA_AUTH, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOKEN, REPLAY, RUM, TEMPO_DS_UID, getJSON, grafanaAuth, normTraceId, pollUntil, readHeaders, table } from "./lib.mjs";
 
 // ---------------------------------------------------------------- configuration
 
@@ -497,18 +497,16 @@ async function assertDetail(session) {
 
   // traces: ids, has_error on the 500 trace, grafana_url opens in Grafana (HTTP 200)
   const traces = body.traces ?? [];
-  // Tempo's search API returns trace ids without leading zeros (a 32-hex id starting with
-  // "0" comes back as 31 chars); Tempo and Grafana accept both forms, so compare normalised.
-  const norm = (id) => String(id).replace(/^0+/, "");
+  // Tempo's search API returns trace ids without leading zeros; compare normalised.
   check(
     `trace ids ${session.id}`,
-    session.traces.map((t) => norm(t.traceId)).sort(),
-    traces.map((t) => norm(t.trace_id)).sort(),
+    session.traces.map((t) => normTraceId(t.traceId)).sort(),
+    traces.map((t) => normTraceId(t.trace_id)).sort(),
     url,
   );
   const shortIds = traces.filter((t) => String(t.trace_id).length !== 32).map((t) => t.trace_id);
   if (session.expect.failedTraceId) {
-    const failed = traces.find((t) => t.trace_id === session.expect.failedTraceId);
+    const failed = traces.find((t) => normTraceId(t.trace_id) === normTraceId(session.expect.failedTraceId));
     check(`has_error ${session.expect.failedTraceId}`, true, failed?.has_error ?? null, url);
   }
   const links = [];

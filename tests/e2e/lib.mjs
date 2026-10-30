@@ -17,6 +17,13 @@ export const TIMEOUT_S = Number(env.OUO_E2E_TIMEOUT ?? 180);
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * A trace id in the form Tempo returns it: Tempo's search API drops leading zeros (a 32-hex
+ * id starting with "0" comes back as 31 chars), and both forms resolve. Compare ids through
+ * this, never raw.
+ */
+export const normTraceId = (id) => String(id).toLowerCase().replace(/^0+/, "");
+
 export const grafanaAuth = () => ({ authorization: "Basic " + Buffer.from(GRAFANA_AUTH).toString("base64") });
 
 /** Headers for a rum-api read: the read token when one is configured (ADR-0007 section 6). */

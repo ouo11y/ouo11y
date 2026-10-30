@@ -35,7 +35,8 @@ intact, on the VM install and on Helm?
   the sessions fall outside a "last hours" window.
 - The old e2e scenario fails `has_error <trace id>` when the failed trace id starts with `0`:
   Tempo strips leading zeros and the scenario normalises ids for the list check but not for
-  that lookup (1 in 16 runs). The data is right.
+  that lookup (1 in 16 runs). The data is right. Fixed by #119: both comparisons use
+  `normTraceId`.
 - `helm --wait` on a release with `rumApi.replicas: 0` and a PVC never finishes (the claim is
   `WaitForFirstConsumer` and stays Pending).
 - Empty OTLP requests bypass `ouoratelimit` (N13): a rate-limit test must send a span.
