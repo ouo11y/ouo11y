@@ -261,8 +261,8 @@ Actions minutes (free plan, 2,000 per month for private repos, macOS counts 10x)
 each job only for the paths it covers, the macOS jobs only for `sdk/ios` (and the iOS release),
 every workflow has a concurrency group, and release dry runs only run when their own workflow
 file changes. The Linux jobs run on the self-hosted server and the Swift jobs on the self-hosted
-Mac (`[self-hosted, macOS]`), so they use no minutes. Only `benchmark.yml` (macOS, an idle machine
-for the numbers) and `release-npm.yml` (npm OIDC refuses self-hosted runners) stay on GitHub-hosted
+Mac (`[self-hosted, macOS]`), so they use no minutes. Only `benchmark.yml` tag and manual runs (macOS, an idle
+machine for the numbers; its PR smoke run is on the Mac) and `release-npm.yml` (npm OIDC refuses self-hosted runners) stay on GitHub-hosted
 runners. Layout and setup: [ci-runners.md](../project/kb/ci-runners.md).
 
 ## 10. Local checks

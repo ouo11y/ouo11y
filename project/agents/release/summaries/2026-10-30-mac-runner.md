@@ -15,8 +15,11 @@ jobs when it is reached.
   primary group (not `staff`, which can read the founder's home), from a LaunchDaemon at nice 10
   with low-priority I/O.
 - `ci.yml` `swift` and `release-ios.yml` `test`: `runs-on: [self-hosted, macOS]`.
-- `benchmark.yml` stays on `macos-latest` (hours of simulator load; numbers need an idle
-  machine), with a comment saying why. `release-npm.yml` stays hosted (npm OIDC).
+- `benchmark.yml`: the PR smoke run goes to the Mac (asked by the mobile SDK orchestrator: with the
+  budget spent, every PR touching the perf harness had a red `bench`); tag and dispatch runs stay
+  on `macos-latest` (hours of simulator load; numbers need an idle machine). On the Mac it adds
+  `/opt/homebrew/bin` to `PATH` for CocoaPods and shuts its simulator down at the end.
+  `release-npm.yml` stays hosted (npm OIDC).
 - `project/kb/ci-runners.md`: a Mac runner section. `docs/releasing.md`: the minutes paragraph.
 
 ## Verified

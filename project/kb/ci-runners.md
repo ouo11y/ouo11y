@@ -55,6 +55,6 @@ Why: on the free plan a GitHub-hosted macOS minute costs 10 Linux minutes. In Oc
 Not obvious:
 
 - **When the Mac sleeps or is off, the runner is offline.** iOS jobs wait in the queue (GitHub cancels them after 24 h). There is no automatic fallback to `macos-latest`; to use the hosted runner for one PR, change `runs-on` on the branch.
-- **`benchmark.yml` stays on `macos-latest`.** It loads the simulator for hours, and its numbers need an idle machine. It only runs on major React Native tags, on manual runs, and on PRs that change its own harness.
+- **`benchmark.yml` is split.** Its PR smoke run (1 round, 3 cells, no gate; PRs that change the perf harness) runs on the Mac, so those PRs are not blocked when the hosted budget is spent. Tag and manual runs stay on `macos-latest`: they load the simulator for hours, and their numbers need an idle machine. On the Mac the job adds `/opt/homebrew/bin` to `PATH` (CocoaPods; the runner's own `PATH` has no Homebrew) and shuts its simulator down at the end. `ouo-runner` has its own CoreSimulator device set, separate from the founder's.
 - **`release-npm.yml` stays on `ubuntu-latest`**: npm trusted publishing (OIDC) refuses self-hosted runners.
 - **Before the repo goes public:** a self-hosted runner runs whatever a pull request's workflow says. Fork PRs cannot exist on a private repo, but once the repo is public they can. Then either require approval for every outside contributor, or gate the macOS (and Linux) jobs on `github.event.pull_request.head.repo.full_name == github.repository`.
