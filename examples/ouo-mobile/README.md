@@ -26,7 +26,13 @@ unhandled promise rejection (non-fatal, unhandled), **fatal error** (thrown from
 `setTimeout` so it reaches `ErrorUtils` with `isFatal = true`: `exception` with
 `ouo.exception.fatal = true`, crash marker, session `crashed`; relaunch the app and the SDK
 emits `session.end` with reason `crash`), `console.error` (handled, non-fatal), custom event,
-set user, flush.
+set user, flush. In a development or Release build two more come from the demo-only native module
+`modules/ouo-chaos` (not part of the SDK): **hang the main thread** for 3 s (one non-fatal `hang`
+exception when it is over) and **out-of-memory kill** (a memory warning, then `SIGKILL`, what
+jetsam does: the next launch reports a fatal `termination` with cause `memory`). The journey
+mailbox also takes `action/hang?ms=3000`, `action/stutter?ms=1200&times=3` and `action/oom`
+(`project/agents/mobile-sdk/verify/w4-signals-sim.sh` uses them). Products calls
+`rum.reportFullyDisplayed()` once the catalog is on screen (TTFD).
 
 Path: `@ouo11y/react-native` → ouo collector (OTLP + replay) → Loki / Tempo / Mimir and rum-api,
 and `fetch` to `examples/backend` with `traceparent` and `baggage` (with `session.id`), so app and

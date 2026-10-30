@@ -2,7 +2,10 @@
  * Mobile vitals (checklist G2), in the records of docs/specs/mobile-vitals.md:
  * - `ouo.stall`: JS event-loop stalls, measured here (50 ms loop, spec 2.4);
  * - `ouo.screen.display`: TTID per screen, from the navigation state change to the second
- *   animation frame after it (the frame that shows the new screen), measured here;
+ *   animation frame after it (the frame that shows the new screen), measured here; and TTFD when
+ *   the app calls `rum.reportFullyDisplayed()` on that screen (the frame after the call). The
+ *   record waits for the report until the screen is left, the app goes to the background or
+ *   `TTFD_TIMEOUT_MS` passed (Sentry's deadline), so it carries both values once;
  * - `ouo.app.start`: needs the native process start time (`getAppStartInfo`);
  * - `app.jank`: needs native frame counters (`getFrameStats`).
  * The last two come from the Expo module's iOS side (`OuoVitals` in sdk/ios); without them (Expo
@@ -37,6 +40,8 @@ export interface NativeFrameStats {
 /** Stall loop (spec 2.4, Sentry React Native's stallTracking defaults). */
 export const STALL_INTERVAL_MS = 50;
 export const STALL_MIN_ITERATION_MS = 100;
+/** How long a screen's display record waits for `reportFullyDisplayed` (Sentry's TTFD deadline). */
+export const TTFD_TIMEOUT_MS = 30_000;
 /** Spec rule 2: durations above one hour are clock jumps. */
 const MAX_DURATION_MS = 60 * 60 * 1000;
 
@@ -60,6 +65,8 @@ export interface Vitals {
   rootMounted(): void;
   /** A navigation to `screen` happened (state change). */
   navigated(screen: string): void;
+  /** The app reports the current screen fully displayed (TTFD). */
+  fullyDisplayed(): void;
   background(): void;
   foreground(): void;
   stop(): void;
@@ -201,6 +208,34 @@ export function createVitals(deps: VitalsDeps): Vitals {
 
   let lastNavigation: string | undefined;
 
+  // ---- the current screen's ouo.screen.display, held for TTFD ----
+  interface Display {
+    screen: string;
+    /** Navigation start: the process start for the first screen, else the state change. */
+    startAt: number | undefined;
+    measured: boolean;
+    ttidAt?: number;
+    /** The frame after `reportFullyDisplayed`. */
+    fullAt?: number;
+    fullRequested?: boolean;
+    timer?: unknown;
+  }
+  let display: Display | undefined;
+  /** Emits the held record (TTID, and TTFD when reported) and forgets the screen. */
+  const emitDisplay = (d: Display | undefined): void => {
+    if (!d || d !== display) return;
+    display = undefined;
+    if (d.timer !== undefined) clearTimer(d.timer);
+    if (!d.measured || d.startAt === undefined || d.ttidAt === undefined) return;
+    const ttid = d.ttidAt - d.startAt;
+    if (!valid(ttid)) return;
+    const attrs: Attrs = { "app.screen.name": d.screen, "ouo.screen.ttid_ms": ms(ttid) };
+    // Full display is never before the initial display (Sentry's rule).
+    const ttfd = d.fullAt !== undefined ? Math.max(d.fullAt, d.ttidAt) - d.startAt : undefined;
+    if (ttfd !== undefined && valid(ttfd)) attrs["ouo.screen.ttfd_ms"] = ms(ttfd);
+    emit("ouo.screen.display", attrs, d.ttidAt);
+  };
+
   return {
     sessionReady(): void {
       ready = true;
@@ -216,19 +251,41 @@ export function createVitals(deps: VitalsDeps): Vitals {
       lastNavigation = screen;
       const changedAt = now();
       if (isFirst) firstScreen = screen;
+      emitDisplay(display);
+      // First screen: from the process start (spec 5); later ones: from the state change.
+      const d: Display = { screen, startAt: isFirst ? processStart : changedAt, measured: !isFirst || deps.launchedInForeground };
+      display = d;
       afterNextFrame((at) => {
         firstFrame(at);
-        // First screen: from the process start (spec 5); later ones: from the state change.
-        const startAt = isFirst ? processStart : changedAt;
-        if (startAt !== undefined && (!isFirst || deps.launchedInForeground)) {
-          const ttid = at - startAt;
-          if (valid(ttid)) emit("ouo.screen.display", { "app.screen.name": screen, "ouo.screen.ttid_ms": ms(ttid) }, at);
-        }
+        if (display !== d) return;
+        d.ttidAt = at;
+        if (d.fullAt !== undefined) emitDisplay(d);
+        else if (!d.fullRequested) d.timer = setTimer(() => emitDisplay(d), TTFD_TIMEOUT_MS);
       });
       closeWindow();
       win = openWindow("screen", screen);
     },
+    fullyDisplayed(): void {
+      const d = display;
+      if (!d || d.fullRequested) {
+        logger.log(
+          d
+            ? "vitals: reportFullyDisplayed already called for this screen"
+            : lastNavigation === undefined
+              ? "vitals: reportFullyDisplayed before the first screen, ignored"
+              : `vitals: reportFullyDisplayed for ${lastNavigation} after its display record was sent (the ${TTFD_TIMEOUT_MS / 1000} s deadline or the background), ignored`,
+        );
+        return;
+      }
+      d.fullRequested = true;
+      if (d.timer !== undefined) clearTimer(d.timer);
+      afterNextFrame((at) => {
+        d.fullAt = at;
+        if (d.ttidAt !== undefined) emitDisplay(d);
+      });
+    },
     background(): void {
+      emitDisplay(display);
       closeWindow();
       stopLoop();
     },
@@ -238,6 +295,7 @@ export function createVitals(deps: VitalsDeps): Vitals {
       startLoop();
     },
     stop(): void {
+      emitDisplay(display);
       stopLoop();
       closeWindow();
     },

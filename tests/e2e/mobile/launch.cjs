@@ -6,13 +6,14 @@
  *   node --require ./standin.cjs launch.cjs     (env: OUO_E2E_LAUNCH, see below)
  *
  * OUO_E2E_LAUNCH:
- *   main         Home -> Products -> Cart with a tap, a long press and a swipe through
- *                RUMProvider, a request inside a custom span, a log
+ *   main         Home (reported fully displayed) -> Products -> Cart with a tap, a long press and a
+ *                swipe through RUMProvider, a request inside a custom span, a log
  *                line, a handled error, feedback, a 3 s main-thread block, then a background stay
  *                longer than the timeout and a second session
  *   crash        Home, then a native crash once the first batches are out
  *   early-crash  a native crash 200 ms after launch, before anything was exported
- *   terminate    Home, then the system kills the app in the foreground (no crash report)
+ *   terminate    Home, a memory warning, then the system kills the app in the foreground (no
+ *                crash report): a simulated out-of-memory kill
  *   offline      Home and a background stay with the collector refused (OUO_E2E_OFFLINE=1)
  *   relaunch     the next launch: takes the previous run's state, then flushes
  * Env: OUO_OTLP_URL, OUO_REPLAY_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
@@ -65,7 +66,9 @@ async function main() {
     case "main": {
       const root = RUMProvider({ rum });
       rum.trackNavigation("/Home");
-      await sleep(300);
+      await sleep(100);
+      rum.reportFullyDisplayed(); // Home's data is on screen: TTFD
+      await sleep(200);
       await touch(root, { label: "open-products", role: "button", component: "Pressable", screen: "HomeScreen" });
       rum.trackNavigation("/Products");
       await sleep(300);
@@ -81,7 +84,7 @@ async function main() {
       out.feedback = rum.feedback({ message: "golden feedback", contact: "qa@example.invalid", screenshot: true });
       await sleep(1200); // the next interval frame shows the screen
       os.blockMainThread(3000);
-      await sleep(1500);
+      await sleep(4000); // the hang is reported once the block is over
       AppState.__emit("background");
       await sleep(BACKGROUND_TIMEOUT_MS + 600);
       AppState.__emit("active");
@@ -108,6 +111,7 @@ async function main() {
       rum.trackNavigation("/Home");
       await sleep(3000);
       report();
+      os.memoryWarning();
       os.terminate();
       break;
     case "offline":

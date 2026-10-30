@@ -164,8 +164,10 @@ export interface ErrorOptions {
    * Capture native crashes (iOS: signals and uncaught NSExceptions) with the Expo module. The
    * report is written at crash time and sent on the next launch as a fatal `exception` of the
    * crashed session, which ends with reason `crash` at the crash time. Next to Sentry, ouo calls
-   * Sentry's handlers after its own, so both report the crash. Default true; needs the native
-   * module (not in Expo Go).
+   * Sentry's handlers after its own, so both report the crash. Also reports what no handler sees
+   * (mobile SDK spec C3): a kill in the foreground without a crash report (out of memory, the
+   * watchdog) as a fatal `termination` on the next launch, and main-thread hangs of 2 s or more
+   * as non-fatal `hang` exceptions. Default true; needs the native module (not in Expo Go).
    */
   nativeCrashes?: boolean;
   /**
@@ -355,6 +357,13 @@ export interface RUM {
    * innermost first, joined with ` > `; `gesture` defaults to `tap`.
    */
   trackTap(target: string, path?: string, gesture?: Gesture): void;
+  /**
+   * The current screen is fully displayed: its content (data, images) is on screen, not only the
+   * first frame. Gives `ouo.screen.ttfd_ms` (time to full display) on the screen's
+   * `ouo.screen.display` record, measured to the next frame. Call once per screen visit, for
+   * example when its data loaded; without a call within 30 s the record carries TTID only.
+   */
+  reportFullyDisplayed(): void;
   /**
    * Start a span on the SDK's tracer (session attributes added). End it with `span.end()`.
    * Parent: `options.parent`, else the span active inside `withSpan`.

@@ -111,6 +111,7 @@ What the SDK measures to fill the records; how is the SDK's choice as long as th
 
 - **App start**: cold from the native process start time (`sysctl` `kp_proc.p_starttime` on iOS, `Process.getStartUptimeMillis()` on Android) to the first frame after the root component mounted; warm from the JS reload or activity re-creation. Emitted once the session exists, with the end-of-interval timestamp.
 - **TTID**: from the navigation state change (or app start for the first screen) to the next frame drawn after the new screen rendered.
+- **TTFD**: `rum.reportFullyDisplayed()` marks the current screen fully drawn; TTFD runs from the same start as TTID to the next frame after the call, and is never below TTID. The screen's `ouo.screen.display` (stamped at the TTID frame) waits for the call until the screen is left, the app goes to the background or 30 s passed (Sentry's deadline), so each screen visit still has one record (rule 3); without a call it has TTID only (mobile SDK spec C4). The cost of waiting: a crash or a kill while a screen's record waits loses that record (its TTID too), where before it went out at the TTID frame.
 - **Frames**: native frame callbacks (`CADisplayLink` on iOS, `FrameMetrics` / `Choreographer` on Android), summarised per screen load window and per interaction window, threshold from the display refresh rate.
 - **Stalls**: the 50 ms loop described in 2.4.
 

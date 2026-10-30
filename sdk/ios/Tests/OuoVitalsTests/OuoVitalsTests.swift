@@ -117,11 +117,12 @@ import Testing
 }
 
 @Suite struct FrameCostTests {
-    /// The per-frame work on the main thread: lock, classify, unlock. Measured, with a bound far
+    /// The per-frame work on the main thread: lock, classify, feed the hang detector, unlock. Measured, with a bound far
     /// above it (debug build, shared CI machines) so the test only catches a regression in kind.
     @Test func perFrameCostIsNegligible() {
         let lock = UnfairLock()
         var c = FrameCounter()
+        var h = HangDetector()
         let n = 200_000
         let e = 1.0 / 120
         var t = 1.0
@@ -130,6 +131,7 @@ import Testing
             t += i % 50 == 0 ? 0.03 : e
             lock.lock()
             c.frame(timestamp: t, targetTimestamp: t + e)
+            h.frame(timestamp: t, targetTimestamp: t + e)
             lock.unlock()
         }
         let perFrameNs = Double(DispatchTime.now().uptimeNanoseconds - start) / Double(n)

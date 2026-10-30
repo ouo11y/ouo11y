@@ -36,9 +36,11 @@ let package = Package(
         ),
         // Native crash capture (checklist G1): async-signal-safe C handlers plus the Swift API.
         .target(name: "OuoCrashCore"),
+        // Hangs and foreground terminations (W4) are reported through OuoCrash: the hang watchdog
+        // runs on OuoVitals' display link frames.
         .target(
             name: "OuoCrash",
-            dependencies: ["OuoCrashCore"]
+            dependencies: ["OuoCrashCore", "OuoVitals"]
         ),
         // Mobile vitals (checklist G2): process start and image load time (C), display link frame
         // counters and the cold/warm decision (Swift). Without UIKit the frame tracker is left out.

@@ -10,9 +10,13 @@
 //   action/fetch-500             GET /api/products?fail=500
 //   action/flush                 rum.flush()
 //   action/feedback?message=...&contact=...  rum.feedback with a screenshot
+//   action/hang?ms=3000          block the main thread (modules/ouo-chaos): one hang exception
+//   action/stutter?ms=1200&times=3  block it three times with a frame between: a hang not fully blocking
+//   action/oom                   a memory warning, then SIGKILL: a termination on the next launch
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
 import { createNavigationContainerRef } from "@react-navigation/native";
 import { File, Paths } from "expo-file-system";
+import { chaos } from "../modules/ouo-chaos";
 import { addToCart, checkout, getProducts, type PaymentMethod } from "./api";
 import type { RootStackParamList } from "./navigation";
 import { rum } from "./rum";
@@ -57,6 +61,15 @@ async function run(cmd: string): Promise<void> {
         break;
       case "feedback":
         rum.feedback({ message: params.get("message") ?? "", contact: params.get("contact") ?? "", screenshot: true });
+        break;
+      case "hang":
+        await chaos?.blockMainThread(Number(params.get("ms") ?? 3000));
+        break;
+      case "stutter":
+        chaos?.stutterMainThread(Number(params.get("ms") ?? 1200), Number(params.get("times") ?? 3));
+        break;
+      case "oom":
+        chaos?.simulateOutOfMemory();
         break;
     }
   } catch {

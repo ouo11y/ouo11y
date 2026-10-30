@@ -1,3 +1,4 @@
+import { cutUtf8 } from "./text";
 import type { Attrs, FeedbackInput } from "./types";
 
 /** Longest message and contact kept, in UTF-8 bytes; the Sentry bridge cuts the same way. */
@@ -20,21 +21,4 @@ export function feedbackRecord(input: FeedbackInput | undefined, id: string): { 
 /** Trimmed and cut at MAX_FEEDBACK_BYTES; "" for anything but a string. */
 function clean(v: unknown): string {
   return typeof v === "string" ? cutUtf8(v.trim(), MAX_FEEDBACK_BYTES) : "";
-}
-
-/**
- * The bridge's cut (Go `truncate`): a string longer than `maxBytes` in UTF-8 keeps its longest
- * prefix of whole code points that fits in `maxBytes`, followed by "…".
- */
-export function cutUtf8(s: string, maxBytes: number): string {
-  let bytes = 0;
-  let end = 0;
-  for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    const n = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
-    if (bytes + n > maxBytes) return `${s.slice(0, end)}…`;
-    bytes += n;
-    end += ch.length;
-  }
-  return s;
 }

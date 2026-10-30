@@ -8,14 +8,17 @@
  *   paced and chunks cut, spooled and uploaded like the Swift `ReplayRecorder`, `CapturePacer`,
  *   `ChunkBuilder`, `ChunkSpool` and `ChunkUploader` (the chunk queue folder, held sessions), the
  *   OTLP gzip + POST (`postOtlp`), the OuoCrash report (with the session's start) read on the
- *   next launch, app start info and cumulative frame counters;
+ *   next launch, the run state (`run.json`) whose foreground kill the next launch reports as a
+ *   `termination`, the app hang watchdog (`onHang` events), app start info and cumulative frame
+ *   counters;
  * - a `fetch` wrapper that logs every request to the collector (method, URL, content-encoding,
  *   status) and refuses them while `OUO_E2E_OFFLINE=1` (the network is down).
  *
  * The model follows the Swift code: a package that changes what the native module does changes
- * this file in the same PR (W4 hangs and terminations next).
+ * this file in the same PR.
  *
- * `globalThis.__ouoStandin` lets the journey act as the OS: crash(), terminate(), blockMainThread().
+ * `globalThis.__ouoStandin` lets the journey act as the OS: crash(), memoryWarning(), terminate(),
+ * blockMainThread().
  * Env: OUO_E2E_DEVICE_DIR (this device's "disk"), OUO_E2E_COLLECTOR_ORIGINS (comma-separated
  * origins whose requests are logged and refused offline), OUO_E2E_OFFLINE.
  */
@@ -29,6 +32,7 @@ const DEVICE_DIR = process.env.OUO_E2E_DEVICE_DIR;
 if (!DEVICE_DIR) throw new Error("standin: OUO_E2E_DEVICE_DIR is required");
 fs.mkdirSync(DEVICE_DIR, { recursive: true });
 const CRASH_FILE = path.join(DEVICE_DIR, "ouo-crash.json");
+const RUN_FILE = path.join(DEVICE_DIR, "run.json");
 const SEQ_FILE = path.join(DEVICE_DIR, "replay-seq.json");
 const LOG_FILE = path.join(DEVICE_DIR, "standin.jsonl");
 const OFFLINE = process.env.OUO_E2E_OFFLINE === "1";
@@ -328,21 +332,37 @@ const native = {
     }
   },
   // Crash (NativeCrashModule): OuoCrash writes the report at crash time, the next launch takes it.
+  // install also starts the run state and the hang watchdog (W4).
   installCrashReporter(sessionId, startedAtMs) {
     crashSession = { id: sessionId, startedMs: startedAtMs };
+    previousRun();
+    run.start();
+    run.update({ sessionId, sessionStartedMs: startedAtMs });
     return true;
   },
   setCrashSessionId(id, startedAtMs) {
     crashSession = { id, startedMs: startedAtMs };
+    run.update({ sessionId: id, sessionStartedMs: startedAtMs });
   },
+  /** OuoCrash.takePendingReport: the crash report, else (once per process) a termination from the previous run.json. */
   takePendingCrash() {
+    const first = !taken;
+    taken = true;
     try {
       const raw = fs.readFileSync(CRASH_FILE, "utf8");
       fs.unlinkSync(CRASH_FILE);
       return raw;
     } catch {
-      return null;
+      if (!first) return null;
+      const t = terminationOf(previousRun());
+      if (t) record({ kind: "termination.reported", cause: t.termination.cause, session_id: t.session_id });
+      return t ? JSON.stringify(t) : null;
     }
+  },
+  // Events (Expo EventEmitter): `onHang`.
+  addListener(event, listener) {
+    listeners.set(event, listener);
+    return { remove: () => listeners.delete(event) };
   },
   // Vitals (NativeVitalsModule): the process start is this Node process's start.
   getAppStartInfo: () => ({ processStartMs: Math.round(performance.timeOrigin), type: "cold", prewarmed: false }),
@@ -353,6 +373,96 @@ const native = {
   },
 };
 
+// ---------------------------------------------------------------- OuoCrash run state and hangs (W4)
+
+// RunTracker / RunState: `run.json` says whether this run is active, its session, when it was last
+// alive (a 5 s heartbeat while active), a memory warning and a hang in progress. The next launch
+// reports a foreground kill without a crash report as a `termination` (Termination.decide). The
+// release, OS and boot time are the same across the golden app's launches; no debugger.
+const listeners = new Map();
+let taken = false;
+let dying = false; // os.crash / os.terminate: no exit handlers run
+let previous; // the previous run's state, read (and removed) once before this run writes its own
+const previousRun = () => {
+  if (previous === undefined) {
+    try {
+      previous = JSON.parse(fs.readFileSync(RUN_FILE, "utf8"));
+    } catch {
+      previous = null;
+    }
+    fs.rmSync(RUN_FILE, { force: true }); // judged once, even if this run dies before it writes
+  }
+  return previous;
+};
+const RELEASE = "1.0.0 (1)";
+const run = {
+  state: undefined,
+  start() {
+    if (run.state) return;
+    run.state = { release: RELEASE, os: "Version 27.0", bootMs: 0, active: require("react-native").AppState.currentState === "active", terminated: false, debugger: false, sessionId: "", sessionStartedMs: 0, aliveMs: 0 };
+    run.write();
+    setInterval(() => run.state.active && run.write(), 5000).unref();
+    // RunTracker's atexit handler: an exit from app code is no termination. A crash or a kill
+    // (os.crash, os.terminate) runs no exit handlers.
+    process.on("exit", () => {
+      if (!dying) {
+        run.state.terminated = true;
+        run.write();
+      }
+    });
+  },
+  update(change) {
+    if (!run.state) return;
+    Object.assign(run.state, change);
+    run.write();
+  },
+  write() {
+    run.state.aliveMs = Date.now();
+    fs.writeFileSync(RUN_FILE, JSON.stringify(run.state));
+  },
+};
+const MEMORY_WARNING_WINDOW_MS = 60_000;
+function terminationOf(p) {
+  if (!p || !p.active || p.terminated || p.debugger || !(p.aliveMs > 0) || p.release !== RELEASE) return null;
+  const cause = p.memoryWarningMs !== undefined && p.aliveMs - p.memoryWarningMs <= MEMORY_WARNING_WINDOW_MS ? "memory" : p.hangStartedMs !== undefined ? "watchdog" : "unknown";
+  const r = { version: 1, mechanism: "termination", timestamp_ms: p.aliveMs, session_id: p.sessionId, termination: { cause } };
+  if (p.sessionStartedMs > 0) r.session_started_ms = p.sessionStartedMs;
+  // Died during a hang: the stack read when it was detected.
+  if (p.hangStartedMs !== undefined && p.hangStack) Object.assign(r, p.hangStack, { thread: { main: true } });
+  return r;
+}
+
+// The app hang watchdog (OuoVitals HangDetector): a block of 2 s or more is detected while it
+// lasts and reported once, when frames are back on time (about 0.6 s after the block), with the
+// whole duration and the main thread's stack read at detection. Shorter blocks are no hang.
+const HANG_TIMEOUT_MS = 2000;
+function reportHang(startedAt, ms) {
+  if (ms < HANG_TIMEOUT_MS || !run.state) return;
+  const stack = {
+    arch: "arm64",
+    frames: [{ instruction_addr: "0x0000000100a1c3d8", image_addr: "0x0000000100000000" }],
+    images: [{ code_file: "/private/var/containers/Bundle/Application/GOLDEN/OuoMobile.app/OuoMobile", debug_id: "6c2a7f1e-0b5d-3c41-9a6e-2f1d4b8c7e90", image_addr: "0x0000000100000000", image_size: 16777216, image_vmaddr: "0x0000000100000000" }],
+  };
+  setTimeout(() => run.update({ hangStartedMs: Date.now(), hangStack: stack }), HANG_TIMEOUT_MS + 400).unref();
+  setTimeout(() => {
+    delete run.state.hangStartedMs;
+    delete run.state.hangStack;
+    run.write();
+    const report = {
+      version: 1,
+      mechanism: "hang",
+      timestamp_ms: startedAt,
+      arch: "arm64",
+      thread: { main: true },
+      hang: { duration_ms: ms, fully_blocking: true },
+      frames: stack.frames,
+      images: stack.images,
+    };
+    record({ kind: "hang.reported", ms });
+    listeners.get("onHang")?.({ report: JSON.stringify(report) });
+  }, ms + 600);
+}
+
 // Expo registers every native module on `globalThis.expo.modules`, which the SDK reads first.
 globalThis.expo = { modules: { OuoReplay: native } };
 
@@ -360,6 +470,7 @@ globalThis.expo = { modules: { OuoReplay: native } };
 // didBecomeActive unless the host paused it. Registered before the SDK's listener, as on a device
 // the notification reaches native code before the JavaScript AppState event.
 require("react-native").AppState.addEventListener("change", (state) => {
+  run.update({ active: state === "active" });
   if (!recorder) return;
   if (state === "background") {
     stopCapture();
@@ -388,15 +499,23 @@ globalThis.__ouoStandin = {
     };
     fs.writeFileSync(CRASH_FILE, JSON.stringify(report));
     record({ kind: "os.crash", session_id: report.session_id });
+    dying = true;
     process.exit(0);
+  },
+  /** UIApplication.didReceiveMemoryWarningNotification. */
+  memoryWarning() {
+    record({ kind: "os.memory_warning" });
+    run.update({ memoryWarningMs: Date.now() });
   },
   /** The system kills the app in the foreground (memory, watchdog): no report, nothing is flushed. */
   terminate() {
     record({ kind: "os.terminate" });
+    dying = true;
     process.exit(0);
   },
-  /** The main thread blocks for `ms`. The native module has no hang detector yet (W4): nothing reports it. */
+  /** The main thread blocks for `ms` (the JS thread runs on); the hang watchdog reports it once it is over. */
   blockMainThread(ms) {
     record({ kind: "os.main_thread_block", ms });
+    reportHang(Date.now(), ms);
   },
 };

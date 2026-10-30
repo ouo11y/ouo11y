@@ -72,10 +72,14 @@ public class OuoReplayModule: Module {
   public func definition() -> ModuleDefinition {
     Name("OuoReplay")
 
+    /// A main-thread hang is over: `{ report }`, a `hang` report (mobile SDK spec C3.1).
+    Events("onHang")
+
     // Frame counters run from the module's creation (the JS runtime's start), not only while
     // replay records, so the app start window has frames too.
     OnCreate {
       OuoVitals.startFrameTracking()
+      ErrorContext.start()
     }
 
     Function("start") { (endpoint: String, options: StartOptions) in
@@ -178,9 +182,14 @@ public class OuoReplayModule: Module {
 
     /// Installs the signal and NSException handlers (chained to any installed before, such as
     /// Sentry's) and sets the session a crash belongs to, with its start (epoch ms) for the report.
+    /// Also tracks the run for the next launch's termination check and starts the app hang
+    /// watchdog, whose reports arrive as `onHang` events (JS listens before calling this).
     Function("installCrashReporter") { (sessionId: String, startedAtMs: Double) -> Bool in
       let ok = OuoCrash.install()
       if !sessionId.isEmpty { OuoCrash.setSession(sessionId, startedAtMs: Int64(startedAtMs)) }
+      OuoCrash.startHangTracking { [weak self] report in
+        self?.sendEvent("onHang", ["report": report])
+      }
       return ok
     }
 
@@ -188,9 +197,18 @@ public class OuoReplayModule: Module {
       OuoCrash.setSession(id, startedAtMs: Int64(startedAtMs))
     }
 
-    /// The previous run's crash report (JSON), removed from disk; nil when the last run did not crash.
+    /// The previous run's crash report (JSON), removed from disk, or a `termination` report when it
+    /// died in the foreground without one; nil when the last run ended normally.
     Function("takePendingCrash") { () -> String? in
       OuoCrash.takePendingReport()
+    }
+
+    /// The device side of an error's context (mobile SDK spec C2): memory and network type now.
+    Function("getErrorContext") { () -> [String: Any] in
+      var c: [String: Any] = ["networkType": ErrorContext.networkType]
+      if let f = ErrorContext.memoryFootprintBytes { c["memoryFootprintBytes"] = Double(f) }
+      if let a = ErrorContext.memoryAvailableBytes { c["memoryAvailableBytes"] = Double(a) }
+      return c
     }
 
     // ---- mobile vitals (checklist G2, docs/specs/mobile-vitals.md) ----

@@ -32,8 +32,10 @@ export function createNavigationTracker(emit: (attrs: Attrs) => void): Navigatio
   return {
     track(path, attrs = {}) {
       if (path === current) return;
-      emit({ "url.path": path, "ouo.navigation.from": current, ...attrs });
+      // The new screen is current while its record is emitted (the error context reads it then).
+      const from = current;
       current = path;
+      emit({ "url.path": path, "ouo.navigation.from": from, ...attrs });
     },
     onStateChange(state) {
       this.track(activeRoutePath(state));

@@ -13,6 +13,15 @@ SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrame
 
 ### Added
 
+- **Hangs, terminations, TTFD and error context** (mobile SDK roadmap W4, spec C2 to C4): iOS app
+  hangs of 2 s or more (fully blocking or not, sentry-cocoa's rules) are one non-fatal `hang`
+  exception each, with the duration and the main thread's stack; a kill in the foreground without a
+  crash report (out of memory, the watchdog) is a fatal `termination` exception on the next launch
+  (`ouo.termination.cause`), and its session is `crashed`; `rum.reportFullyDisplayed()` adds
+  `ouo.screen.ttfd_ms` to the screen's `ouo.screen.display` (which now waits for it until the screen
+  is left, the background or 30 s); every `exception` carries `ouo.last_events`, `app.screen.name`,
+  `ouo.device.locale` and, on iOS, memory and `network.connection.type`, and a crash reported by
+  the next launch the crashed run's screen and last events.
 - **Replay modes and production-safe capture** (mobile SDK roadmap W1): `replay.mode`
   (`auto` default, `session`, `navigation`); route changes reach the recorder for the
   navigation-mode frame; the iOS recorder captures after the run loop's UI work within a 100 ms/s

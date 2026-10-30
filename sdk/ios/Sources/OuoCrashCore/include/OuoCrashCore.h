@@ -38,6 +38,28 @@ void ouo_crash_set_session(const char *session_id, int64_t started_ms);
 /// exception's return addresses (`callStackReturnAddresses`).
 void ouo_crash_record_exception(const char *name, const char *reason, const uintptr_t *addresses, size_t count, bool main_thread);
 
+/// A binary image as the report lists it (Sentry `debug_meta` fields).
+typedef struct {
+    uintptr_t image_addr;
+    uint64_t image_size;
+    uint64_t image_vmaddr;
+    const char *code_file;  // stable for the life of the image; may be NULL
+    uint8_t uuid[16];
+    bool has_uuid;
+} ouo_crash_image_info;
+
+/// The tracked binary image that contains `addr`. Tracks images from the first call (as install does).
+bool ouo_crash_image_for(uintptr_t addr, ouo_crash_image_info *out);
+
+/// Return addresses of the main thread, read from another thread (the app hang watchdog): the
+/// main thread is suspended while its registers and frame-pointer chain are read, then resumed.
+/// Writes at most `max` addresses (pc first, PAC stripped) and returns how many. Not for the
+/// main thread itself (returns 0).
+int ouo_crash_main_thread_backtrace(uintptr_t *out, int max);
+
+/// The main executable's LC_UUID (dyld image 0) into `out` (16 bytes); false when it has none.
+bool ouo_crash_main_image_uuid(uint8_t *out);
+
 /// Number of binary images tracked (tests).
 int ouo_crash_image_count(void);
 

@@ -11,3 +11,4 @@ One dated summary per run.
 - [2026-10-30-w5-funnels.md](2026-10-30-w5-funnels.md) W5: readable user steps (view type, gesture, screen, labels kill switch), screen navigation kind, C6.1 required, mobile funnels quickstart M6
 - [2026-10-30-w6-feedback.md](2026-10-30-w6-feedback.md) W6: the feedback primitive (SDK, Sentry bridge, plugin), the shared last-events buffer, C10.1 required
 - [2026-10-30-w3a-swift-tiles.md](2026-10-30-w3a-swift-tiles.md) W3a step 2: tiles in `sdk/ios` (TileDiffer, full or patch frames, 1 MiB chunks); B3 T3 120 and T4 334 KiB/min, static screen zero bytes
+- [2026-10-30-w4-signals.md](2026-10-30-w4-signals.md) W4: app hangs, foreground terminations, TTFD and error context; C3.1, C3.2, C4.2 required

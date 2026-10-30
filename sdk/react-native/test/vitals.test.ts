@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { initRUM, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
 import type { EventEmitter } from "../src/telemetry/events";
-import { createVitals, type NativeFrameStats, type NativeVitalsModule } from "../src/vitals";
+import { createVitals, TTFD_TIMEOUT_MS, type NativeFrameStats, type NativeVitalsModule } from "../src/vitals";
 import { attr, baseOptions, g, installErrorUtils, installFetchStub, waitFor } from "./support/otlp";
 
 /** Manual clock, animation frames and timers. */
@@ -63,6 +63,9 @@ function harness(native?: NativeVitalsModule, launchedInForeground = true, stall
   };
 }
 
+/** The process started when the clock did: the first screen's TTID counts from there. */
+const measured = () => harness({ getAppStartInfo: () => ({ processStartMs: 1_000_000 }) });
+
 describe("G2 vitals (docs/specs/mobile-vitals.md)", () => {
   it("ouo.app.start: process start to the frame after the root mounted, once the session exists", () => {
     const h = harness({ getAppStartInfo: () => ({ processStartMs: 1_000_000 - 1500 }) });
@@ -74,7 +77,9 @@ describe("G2 vitals (docs/specs/mobile-vitals.md)", () => {
     expect(start.attrs).toEqual({ "ouo.app.start.type": "cold", "ouo.app.start.duration_ms": 1532, "app.screen.name": "Products", "ouo.vital.source": "ouo" });
     expect(start.at).toBe(h.now());
     expect(start.body).toBe("");
-    // First screen TTID from the process start too.
+    // First screen TTID from the process start too (the record waits for TTFD until the deadline).
+    expect(h.emitted.filter((e) => e.name === "ouo.screen.display")).toHaveLength(0);
+    h.block(TTFD_TIMEOUT_MS);
     expect(h.emitted.find((e) => e.name === "ouo.screen.display")!.attrs).toMatchObject({ "app.screen.name": "Products", "ouo.screen.ttid_ms": 1532 });
     // At most one per run.
     h.vitals.rootMounted();
@@ -113,13 +118,106 @@ describe("G2 vitals (docs/specs/mobile-vitals.md)", () => {
     h.vitals.navigated("Product"); // same screen: no second record
     h.frame(1, 120); // slow render
     h.frame(1, 16);
+    h.vitals.background(); // emits the held record of the current screen
     const displays = h.emitted.filter((e) => e.name === "ouo.screen.display");
-    expect(displays).toHaveLength(1);
+    expect(displays).toHaveLength(1); // the first screen has no start without the native process start
     expect(displays[0]!.attrs).toEqual({ "app.screen.name": "Product", "ouo.screen.ttid_ms": 136, "ouo.vital.source": "ouo" });
   });
 
+  it("TTFD: reportFullyDisplayed gives ttfd_ms on the screen's one display record, stamped at TTID", () => {
+    const h = measured();
+    h.vitals.navigated("Home");
+    const navAt = h.now();
+    h.frame(2); // TTID 32
+    const ttidAt = h.now();
+    h.advance(500); // the data loads
+    h.vitals.fullyDisplayed();
+    expect(h.emitted.filter((e) => e.name === "ouo.screen.display")).toHaveLength(0); // waits for the frame
+    h.frame(2);
+    const d = h.emitted.filter((e) => e.name === "ouo.screen.display");
+    expect(d).toHaveLength(1);
+    expect(d[0]!.attrs).toEqual({ "app.screen.name": "Home", "ouo.screen.ttid_ms": 32, "ouo.screen.ttfd_ms": h.now() - navAt, "ouo.vital.source": "ouo" });
+    expect(d[0]!.at).toBe(ttidAt);
+    // Once per visit: a second report and leaving the screen emit nothing more for Home.
+    h.vitals.fullyDisplayed();
+    h.frame(2);
+    h.vitals.navigated("Cart");
+    expect(h.emitted.filter((e) => e.name === "ouo.screen.display")).toHaveLength(1);
+    expect(h.timers.filter((t) => t.at >= h.now() + TTFD_TIMEOUT_MS - 100)).toHaveLength(0); // no deadline left behind
+  });
+
+  it("TTFD reported before the first frame equals TTID", () => {
+    const h = measured();
+    h.vitals.navigated("Home");
+    h.vitals.fullyDisplayed(); // content was ready with the first render
+    h.frame(2);
+    const d = h.emitted.find((e) => e.name === "ouo.screen.display")!;
+    expect(d.attrs["ouo.screen.ttfd_ms"]).toBe(d.attrs["ouo.screen.ttid_ms"]);
+  });
+
+  it("without a report: TTID only, at the deadline, when the screen is left or the app goes to the background", () => {
+    const deadline = measured();
+    deadline.vitals.navigated("Home");
+    deadline.frame(2);
+    deadline.advance(TTFD_TIMEOUT_MS - 100);
+    expect(deadline.emitted.filter((e) => e.name === "ouo.screen.display")).toHaveLength(0);
+    deadline.block(100);
+    expect(deadline.emitted.find((e) => e.name === "ouo.screen.display")!.attrs).not.toHaveProperty("ouo.screen.ttfd_ms");
+    deadline.vitals.fullyDisplayed(); // too late: the record is out
+    deadline.frame(2);
+    expect(deadline.emitted.filter((e) => e.name === "ouo.screen.display")).toHaveLength(1);
+
+    const left = measured();
+    left.vitals.navigated("Home");
+    left.frame(2);
+    left.vitals.navigated("Cart");
+    left.vitals.fullyDisplayed(); // belongs to Cart
+    left.frame(2);
+    const [home, cart] = left.emitted.filter((e) => e.name === "ouo.screen.display");
+    expect(home!.attrs).not.toHaveProperty("ouo.screen.ttfd_ms");
+    expect(cart!.attrs["app.screen.name"]).toBe("Cart");
+    expect(cart!.attrs).toHaveProperty("ouo.screen.ttfd_ms");
+
+    const bg = measured();
+    bg.vitals.navigated("Home");
+    bg.frame(2);
+    bg.vitals.background();
+    expect(bg.emitted.find((e) => e.name === "ouo.screen.display")!.attrs).not.toHaveProperty("ouo.screen.ttfd_ms");
+  });
+
+  it("reportFullyDisplayed after the deadline says so (review round 1)", () => {
+    const lines: string[] = [];
+    const h = harness({ getAppStartInfo: () => ({ processStartMs: 1_000_000 }) });
+    // The harness logger is silent; read the decision through a second instance with a spy logger.
+    const spy = createVitals({
+      events: { emit: () => {} } as unknown as EventEmitter,
+      logger: { enabled: true, log: (...a: unknown[]) => void lines.push(a.join(" ")), warn: () => {} },
+      options: { stalls: false },
+      launchedInForeground: true,
+      now: () => h.now(),
+      requestFrame: (cb) => cb(),
+      setTimer: (fn) => (fn(), 1), // the deadline passes at once
+      clearTimer: () => {},
+    });
+    spy.fullyDisplayed();
+    spy.navigated("Home");
+    spy.fullyDisplayed();
+    expect(lines[0]).toContain("before the first screen");
+    expect(lines[1]).toContain("for Home after its display record was sent");
+  });
+
+  it("reportFullyDisplayed before any screen does nothing", () => {
+    const h = measured();
+    h.vitals.fullyDisplayed();
+    h.frame(2);
+    h.vitals.navigated("Home");
+    h.frame(2);
+    h.vitals.background();
+    expect(h.emitted.find((e) => e.name === "ouo.screen.display")!.attrs).not.toHaveProperty("ouo.screen.ttfd_ms");
+  });
+
   it("ouo.stall: iterations of 100 ms or more, excess over 50 ms, per screen window", () => {
-    const h = harness();
+    const h = measured();
     h.vitals.navigated("Cart");
     h.idle(500);
     h.block(300); // one stall of 250 ms
@@ -207,6 +305,7 @@ describe("vitals through initRUM", () => {
       await rum.ready;
       rum.trackNavigation("/Products");
       await waitFor(() => captured.byName("ouo.app.start").length > 0 || false, 300);
+      rum.reportFullyDisplayed();
       await new Promise((r) => setTimeout(r, 100));
       await rum.flush();
       const start = captured.byName("ouo.app.start")[0]!;
@@ -214,7 +313,9 @@ describe("vitals through initRUM", () => {
       expect(attr(start.attributes, "ouo.app.start.duration_ms") as number).toBeGreaterThanOrEqual(2000);
       expect(attr(start.attributes, "session.id")).toBe(rum.session.id());
       expect(start.severityText).toBe("INFO");
-      expect(attr(captured.byName("ouo.screen.display")[0]!.attributes, "app.screen.name")).toBe("Products");
+      const display = captured.byName("ouo.screen.display")[0]!;
+      expect(attr(display.attributes, "app.screen.name")).toBe("Products");
+      expect(attr(display.attributes, "ouo.screen.ttfd_ms") as number).toBeGreaterThanOrEqual(attr(display.attributes, "ouo.screen.ttid_ms") as number);
     } finally {
       globalThis.fetch = originalFetch;
     }

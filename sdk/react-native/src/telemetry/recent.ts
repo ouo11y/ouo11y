@@ -1,5 +1,5 @@
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
-import { cutUtf8 } from "../feedback";
+import { cutUtf8 } from "../text";
 
 /** How many events `ouo.last_events` carries (docs/specs/mobile-sdk.md C10). */
 export const LAST_EVENTS = 20;

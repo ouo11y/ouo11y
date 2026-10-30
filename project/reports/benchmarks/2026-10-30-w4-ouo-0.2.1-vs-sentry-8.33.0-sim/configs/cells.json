@@ -1,0 +1,15 @@
+{
+ "none": {
+  "mode": "none"
+ },
+ "ouo-T3": {
+  "mode": "ouo",
+  "tier": "T3",
+  "ouoReplay": true
+ },
+ "ouo-T4": {
+  "mode": "ouo",
+  "tier": "T4",
+  "ouoReplay": true
+ }
+}

@@ -101,7 +101,15 @@ function makeOptions(storage: MemoryAsyncStorage, version = "2.3.0") {
 /** The Expo module as `globalThis.expo.modules.OuoReplay` exposes it, with the crash functions. */
 function fakeCrashModule(pending: string | null) {
   let report = pending;
+  const listeners = new Map<string, (payload: { report?: string }) => void>();
   return {
+    listeners,
+    /** The native side sends an event (Expo `sendEvent`). */
+    send: (event: string, payload: { report?: string }) => listeners.get(event)?.(payload),
+    addListener: vi.fn((event: string, fn: (payload: { report?: string }) => void) => {
+      listeners.set(event, fn);
+      return { remove: () => listeners.delete(event) };
+    }),
     start: vi.fn(),
     pause: vi.fn(),
     resume: vi.fn(),
@@ -181,6 +189,42 @@ describe("native crash report", () => {
     expect(nativeCrashAttributes(nsx)["exception.message"]).toBe("bad");
     expect(isReactNativeFatal(nsx)).toBe(false);
     expect(isReactNativeFatal({ ...nsx, exception: { name: "RCTFatalException: boom", reason: "boom" } })).toBe(true);
+  });
+
+  it("hang and termination reports: kind, fatal, message, attributes", () => {
+    const hang = parseNativeCrash(JSON.stringify({ ...signalReport(""), mechanism: "hang", signal: undefined, hang: { duration_ms: 2400, fully_blocking: false } }))!;
+    expect(nativeCrashAttributes(hang)).toMatchObject({
+      "exception.type": "AppHang",
+      "exception.message": "App hanging for 2.4 s (not fully blocking)",
+      "ouo.exception.kind": "hang",
+      "ouo.exception.fatal": false,
+      "ouo.hang.duration_ms": 2400,
+      "ouo.hang.fully_blocking": false,
+    });
+    expect(nativeCrashAttributes(hang)).not.toHaveProperty("session.id");
+    // A hang without its duration is not a hang report.
+    expect(parseNativeCrash(JSON.stringify({ mechanism: "hang", timestamp_ms: 1 }))).toBeUndefined();
+    const term = parseNativeCrash(JSON.stringify({ version: 1, mechanism: "termination", timestamp_ms: 5, session_id: "s", termination: { cause: "bogus" } }))!;
+    expect(nativeCrashAttributes(term)).toEqual({
+      "exception.type": "WatchdogTermination",
+      "exception.message": "The app was terminated in the foreground without a crash report (cause: unknown)",
+      "ouo.exception.fatal": true,
+      "ouo.exception.handled": false,
+      "ouo.exception.kind": "termination",
+      "ouo.termination.cause": "unknown",
+      "session.id": "s",
+    });
+    expect(isReactNativeFatal(term)).toBe(false);
+  });
+
+  it("a termination during a hang carries the hang's stack (review round 1)", () => {
+    const r = parseNativeCrash(JSON.stringify({ ...signalReport("s"), mechanism: "termination", signal: undefined, termination: { cause: "watchdog" } }))!;
+    const attrs = nativeCrashAttributes(r);
+    expect(attrs["ouo.exception.kind"]).toBe("termination");
+    expect(attrs["ouo.termination.cause"]).toBe("watchdog");
+    expect(attrs["exception.stacktrace"]).toContain("Thread (main thread) hung");
+    expect(attrs["ouo.crash.frames"]).toContain("instruction_addr");
+    expect(attrs["ouo.exception.fatal"]).toBe(true);
   });
 });
 
@@ -285,5 +329,142 @@ describe("initRUM with a native crash from the previous run", () => {
     await rum2.ready;
     expect(off.installCrashReporter).not.toHaveBeenCalled();
     expect(off.takePendingCrash).not.toHaveBeenCalled();
+  });
+
+  it("a foreground termination (no crash report) is a fatal termination exception; the session is crashed at the last alive time", async () => {
+    const report = { version: 1, mechanism: "termination", timestamp_ms: crashAt, session_id: CRASHED, termination: { cause: "memory" } };
+    expoGlobal.expo = { modules: { OuoReplay: fakeCrashModule(JSON.stringify(report)) } };
+    const captured = installFetchStub();
+    const storage = new MemoryAsyncStorage();
+    await persistedSession(storage);
+    const rum = initRUM(makeOptions(storage)) as RUMInternal;
+    await rum.ready;
+    await rum.flush();
+    expect(captured.logs.map((l) => attr(l.attributes, "event.name"))).toEqual(["session.end", "session.start", "exception"]);
+    const [end, , exc] = captured.logs;
+    expect(attr(end!.attributes, "ouo.session.end_reason")).toBe("crash");
+    expect(attr(end!.attributes, "ouo.session.ended_at")).toBe(crashAt);
+    expect(attr(exc!.attributes, "session.id")).toBe(CRASHED);
+    expect(attr(exc!.attributes, "ouo.exception.kind")).toBe("termination");
+    expect(attr(exc!.attributes, "exception.type")).toBe("WatchdogTermination");
+    expect(attr(exc!.attributes, "ouo.termination.cause")).toBe("memory");
+    expect(attr(exc!.attributes, "ouo.exception.fatal")).toBe(true);
+    expect(attr(exc!.attributes, "exception.stacktrace")).toBeUndefined();
+    expect(attr(exc!.attributes, "ouo.crash.frames")).toBeUndefined();
+    expect(BigInt(exc!.timeUnixNano) / 1_000_000n).toBe(BigInt(crashAt));
+  });
+
+  it("a hang reported by the native watchdog is one non-fatal hang exception on the current session, stamped at its start", async () => {
+    const native = fakeCrashModule(null);
+    expoGlobal.expo = { modules: { OuoReplay: native } };
+    const captured = installFetchStub();
+    const rum = initRUM(makeOptions(new MemoryAsyncStorage())) as RUMInternal;
+    // Listening before the native side starts its watchdog.
+    expect(native.addListener.mock.invocationCallOrder[0]!).toBeLessThan(native.installCrashReporter.mock.invocationCallOrder[0]!);
+    await rum.ready;
+    const startedAt = Date.now() - 3500;
+    const hang = { ...signalReport(""), mechanism: "hang", signal: undefined, timestamp_ms: startedAt, hang: { duration_ms: 3012.5, fully_blocking: true } };
+    native.send("onHang", { report: JSON.stringify(hang) });
+    native.send("onHang", { report: "{" }); // unreadable: dropped
+    await rum.flush();
+    const hangs = captured.logs.filter((l) => attr(l.attributes, "event.name") === "exception");
+    expect(hangs).toHaveLength(1);
+    const a = hangs[0]!.attributes;
+    expect(attr(a, "session.id")).toBe(rum.session.id());
+    expect(attr(a, "ouo.exception.kind")).toBe("hang");
+    expect(attr(a, "exception.type")).toBe("AppHang");
+    expect(attr(a, "exception.message")).toBe("App hanging for 3.0 s");
+    expect(attr(a, "ouo.exception.fatal")).toBe(false);
+    expect(attr(a, "ouo.exception.handled")).toBe(false);
+    expect(attr(a, "ouo.hang.duration_ms")).toBe(3012.5);
+    expect(attr(a, "ouo.hang.fully_blocking")).toBe(true);
+    expect(attr(a, "exception.stacktrace")).toContain("Thread (main thread) hung");
+    expect(attr(a, "ouo.crash.frames")).toContain("instruction_addr"); // symbolication reads it like a crash
+    expect(BigInt(hangs[0]!.timeUnixNano) / 1_000_000n).toBe(BigInt(startedAt));
+    await rum._uninstall();
+    expect(native.listeners.size).toBe(0);
+  });
+});
+describe("error context (docs/specs/mobile-sdk.md C2)", () => {
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    delete g.__ouoSessionProcessState;
+  });
+  afterEach(async () => {
+    await (getRUM() as RUMInternal | undefined)?._uninstall();
+    globalThis.fetch = originalFetch;
+    delete expoGlobal.expo;
+    delete g.__ouoSessionProcessState;
+  });
+
+  const lastEvents = (l: OtlpLog): Array<{ name: string; body: string }> => JSON.parse(String(attr(l.attributes, "ouo.last_events") ?? "[]"));
+
+  it("every exception of the run carries the last events, the screen, the locale, memory and network", async () => {
+    const native = { ...fakeCrashModule(null), getErrorContext: vi.fn(() => ({ memoryFootprintBytes: 123_000_000, memoryAvailableBytes: 900_000_000, networkType: "wifi" })) };
+    expoGlobal.expo = { modules: { OuoReplay: native } };
+    const captured = installFetchStub();
+    const rum = initRUM(makeOptions(new MemoryAsyncStorage())) as RUMInternal;
+    await rum.ready;
+    rum.trackNavigation("/Home");
+    rum.trackNavigation("/Cart");
+    rum.addEvent("coupon_applied");
+    rum.captureError(new Error("payment declined"));
+    native.send("onHang", { report: JSON.stringify({ ...signalReport(""), mechanism: "hang", signal: undefined, timestamp_ms: Date.now(), hang: { duration_ms: 2500, fully_blocking: true } }) });
+    await rum.flush();
+    const [handled, hang] = captured.logs.filter((l) => attr(l.attributes, "event.name") === "exception");
+    for (const e of [handled!, hang!]) {
+      expect(attr(e.attributes, "app.screen.name")).toBe("Cart");
+      expect(attr(e.attributes, "ouo.device.locale")).toBe(Intl.DateTimeFormat().resolvedOptions().locale);
+      expect(attr(e.attributes, "ouo.memory.app_bytes")).toBe(123_000_000);
+      expect(attr(e.attributes, "ouo.memory.available_bytes")).toBe(900_000_000);
+      expect(attr(e.attributes, "network.connection.type")).toBe("wifi");
+    }
+    // The session's timeline before the error, oldest first, the error itself not included.
+    expect(lastEvents(handled!).map((e) => e.name)).toEqual(["session.start", "navigation", "navigation", "coupon_applied"]);
+    expect(lastEvents(handled!)[2]!.body).toBe("/Cart");
+    expect(lastEvents(hang!).at(-1)!.body).toBe("Error: payment declined");
+  });
+
+  it("at most the last 20 events", async () => {
+    expoGlobal.expo = { modules: { OuoReplay: fakeCrashModule(null) } };
+    const captured = installFetchStub();
+    const rum = initRUM(makeOptions(new MemoryAsyncStorage())) as RUMInternal;
+    await rum.ready;
+    for (let i = 0; i < 30; i++) rum.addEvent(`step_${i}`);
+    rum.captureError(new Error("late"));
+    await rum.flush();
+    const e = captured.logs.find((l) => attr(l.attributes, "event.name") === "exception")!;
+    const names = lastEvents(e).map((x) => x.name);
+    expect(names).toHaveLength(20);
+    expect(names.at(-1)).toBe("step_29");
+  });
+
+  it("a native crash reported by the next launch carries the crashed run's screen and last events", async () => {
+    const storage = new MemoryAsyncStorage();
+    // Run 1: navigates, then dies (the context is persisted on background and within a second).
+    expoGlobal.expo = { modules: { OuoReplay: fakeCrashModule(null) } };
+    installFetchStub();
+    const run1 = initRUM(makeOptions(storage)) as RUMInternal;
+    await run1.ready;
+    run1.trackNavigation("/Checkout");
+    run1.addEvent("pay_tapped");
+    await run1.flush(); // persists the context now
+    const crashedId = run1.session.id();
+    await run1._uninstall();
+    delete g.__ouoSessionProcessState;
+
+    // Run 2: the native report names run 1's session.
+    expoGlobal.expo = { modules: { OuoReplay: fakeCrashModule(JSON.stringify(signalReport(crashedId))) } };
+    const captured = installFetchStub();
+    const run2 = initRUM(makeOptions(storage)) as RUMInternal;
+    await run2.ready;
+    await run2.flush();
+    const exc = captured.logs.find((l) => attr(l.attributes, "event.name") === "exception")!;
+    expect(attr(exc.attributes, "session.id")).toBe(crashedId);
+    expect(attr(exc.attributes, "app.screen.name")).toBe("Checkout");
+    expect(lastEvents(exc).map((e) => e.name)).toEqual(["session.start", "navigation", "pay_tapped"]);
+    // Memory and network were not measured at the crash: absent, not this run's values.
+    expect(attr(exc.attributes, "ouo.memory.app_bytes")).toBeUndefined();
+    expect(attr(exc.attributes, "network.connection.type")).toBeUndefined();
   });
 });
