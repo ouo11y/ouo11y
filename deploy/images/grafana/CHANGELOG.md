@@ -21,6 +21,18 @@ Base `grafana/grafana:13.2.5` (Alpine 3.24.3; was 13.2.1 on Alpine 3.24.1): its 
   rum-api >= 0.6.0. Upgrade this image together with rum-api 0.6 (`docs/operations/upgrade.md`
   section 4): an older plugin shows schema 2 patch frames as broken images.
 
+## [0.6.0](https://github.com/ouo11y/ouo11y/compare/grafana-v0.5.0...grafana-v0.6.0) (2026-10-31)
+
+
+### Added
+
+* **grafana:** ship plugin 0.10.0 ([9e18d20](https://github.com/ouo11y/ouo11y/commit/9e18d20106e4922c050de940ff36d2ea275cb8b5))
+
+
+### Fixed
+
+* **deploy:** grafana base image 13.2.5 for CRITICAL CVEs ([#108](https://github.com/ouo11y/ouo11y/issues/108)) ([dcc7ebd](https://github.com/ouo11y/ouo11y/commit/dcc7ebd6f7d9ed59aa83d16fa31a768c260b8d30))
+
 ## 0.5.0 (2026-10-26)
 
 Base `grafana/grafana:13.2.1`, plugin `ouo11y-rum-app` 0.9.0 inside.
