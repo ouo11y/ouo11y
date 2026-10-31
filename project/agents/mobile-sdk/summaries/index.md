@@ -13,3 +13,4 @@ One dated summary per run.
 - [2026-10-30-w3a-swift-tiles.md](2026-10-30-w3a-swift-tiles.md) W3a step 2: tiles in `sdk/ios` (TileDiffer, full or patch frames, 1 MiB chunks); B3 T3 120 and T4 334 KiB/min, static screen zero bytes
 - [2026-10-30-w4-signals.md](2026-10-30-w4-signals.md) W4: app hangs, foreground terminations, TTFD and error context; C3.1, C3.2, C4.2 required
 - [2026-10-31-w8-native-ios-part1.md](2026-10-31-w8-native-ios-part1.md) W8 part 1: the native iOS SDK `OuoSDK` (sessions, OTLP export and outbox, lifecycle, URLSession, crash, vitals and replay wired, `@objc` API, privacy manifest)
+- [2026-10-31-fix-ingest-stub-flake.md](2026-10-31-fix-ingest-stub-flake.md) Fix of the ingest-stub CI flake: `_uninstall` awaits the outbox drain (bounded 2 s), PR #124

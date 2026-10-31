@@ -150,4 +150,22 @@ describe("SDK against a collector stub with basicauth (real fetch)", () => {
     expect(logs[0]!.headers["authorization"]).toBe(`Basic ${Buffer.from("demo:pt_unknown").toString("base64")}`);
     dump("rejected");
   });
+
+  it("_uninstall sends what its shutdown exports before it resolves (no request outlives the instance)", async () => {
+    const rum = initRUM({
+      endpoint: baseUrl,
+      projectId: PROJECT_ID,
+      projectToken: TOKEN,
+      service: { name: "mobile-store", version: "2.3.0", environment: "test" },
+      storage: new MemoryAsyncStorage(),
+    }) as RUMInternal;
+    await rum.ready;
+    await rum.flush();
+    // Recorded after the last flush, like a vitals stall on a loaded machine: only the provider
+    // shutdown in _uninstall exports it.
+    rum.addEvent("after.flush");
+    await rum._uninstall();
+    const late = logged.filter((r) => r.path === "/v1/logs" && r.body.includes("after.flush"));
+    expect(late.map((r) => r.status)).toEqual([200]);
+  });
 });
