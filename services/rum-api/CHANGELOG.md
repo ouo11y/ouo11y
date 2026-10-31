@@ -11,9 +11,10 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 - **Replay chunk `schema_version` 2** (ADR-0014): rum-api 0.6 reads schema 1 and 2 and, at its first
   start, writes `max_schema_version: 2` into the store's `replays/schema.json`. From then on
-  rum-api 0.5 and older refuse to start on that store (exit 1, the guard of
-  `docs/operations/upgrade.md` section 4): do not roll back across this release. Stored chunks are
-  not rewritten and every older replay still plays.
+  rum-api 0.4 and 0.5 refuse to start on that store (exit 1, the guard of
+  `docs/operations/upgrade.md` section 4); 0.3.0 and older have no guard and must never run on it.
+  Do not roll back across this release. Stored chunks are not rewritten and every older replay
+  still plays.
 
 ### Added
 
