@@ -139,3 +139,34 @@ channel: [release-packaging.md](release-packaging.md).
 - A **private repository on the free plan** has no branch protection, rulesets, required checks, auto-merge or merge queue (`403 Upgrade to GitHub Pro`), so `gh pr merge --auto` is unavailable; `.github/scripts/merge-agreed.sh` checks the two review comments and the check runs itself.
 - **An empty check list is not green**: the check-runs API returns nothing for a commit whose workflows never started (a PR opened with `GITHUB_TOKEN`); the script refuses in that case.
 - `gh pr merge --squash` uses the **single commit's message** as the subject when the PR has one commit, which breaks conventional-commit titles for release-please: always pass `--subject "$title"`; `--match-head-commit` aborts the merge when someone pushed in between.
+
+## Release checkpoint lessons (M2/M3, 2026-10-31)
+
+- **Release PRs conflict with each other in the manifest.** `separate-pull-requests` gives one PR
+  per component, each changing one line of `.github/release-please/manifest.json`. Git treats
+  changes on adjacent lines as a conflict, so merging one release PR makes its neighbours
+  (rum-api / collector / plugin / grafana / chart, ios / react-native / browser) CONFLICTING.
+  release-please does not refresh them: it compares the PR body only and logs "PR … remained the
+  same". Fix: merge `origin/main` into the release branch (manifest only, no force push), then a
+  fresh `Review: approve`, because `merge-agreed.sh` counts only reviews after the head commit.
+- **Hand edits on a release PR survive** until a commit touching that component lands on `main`
+  (the body then changes and release-please force-pushes a rebuild). A `fix` / `feat` merged for
+  a component during the checkpoint therefore wipes its notes: keep the notes in a file and
+  re-apply them.
+- **`ci.yml` has no `workflow_dispatch`.** For a release PR opened with `GITHUB_TOKEN`, a push of
+  the notes commit with a user token starts `ci` and `release-check` (`pull_request` synchronize);
+  without a commit, close and reopen the PR. A dispatched publish rehearsal leaves its own check
+  (`build-push`, `release`, `swift tests`) on the head SHA.
+- **`compat-check.mjs` refuses a "needs" bound newer than the manifest**, so a row such as
+  `ios | 0.3 | >= 0.5.0 (collector)` can land only after the collector release PR merged: rows go
+  in their own release PR, not in a docs PR ahead of time.
+- **release-please lists commits a hand-cut tag already shipped** (collector 0.5.0 listed three
+  entries of the hand-written 0.4.0 section) and **links to tags that do not exist**
+  (`ios-v0.2.0`, `chart-v0.1.1`, never tagged): drop the entries, use a plain `## x.y.z (date)`
+  heading; `changelog-section.sh` reads both.
+- **A version constant kept by hand drifts.** `@ouo11y/browser` 0.3.0 reported `ouo.sdk.version`
+  0.2.0 because `src/version.ts` was outside release-please; it is now a `generic` extra-file with
+  `// x-release-please-version`, plus a test comparing it with `package.json` (#130).
+- **`helm registry login` fails on the self-hosted runners**: `mkdir /home/runner-N/.config/helm:
+  permission denied`. The dry run never logs in, so the rehearsal stays green and only the real
+  tag run fails (chart-v0.2.0, run 41200375608). A re-run uses the workflow file of the tag commit.
