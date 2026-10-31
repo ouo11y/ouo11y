@@ -7,7 +7,19 @@ and the plugin version inside. Policy: `docs/releasing.md`.
 ## Unreleased
 
 Base `grafana/grafana:13.2.5` (Alpine 3.24.3; was 13.2.1 on Alpine 3.24.1): its `brotli-libs`
-1.2.1-r0 fixes CVE-2026-111497 (CRITICAL). Plugin unchanged.
+1.2.1-r0 fixes CVE-2026-111497 (CRITICAL). Plugin `ouo11y-rum-app` 0.10.0 inside.
+
+### Changed
+
+- Plugin 0.10.0: the replay player plays `frames` schema 2 (tiles, ADR-0014), native crash frames
+  read `function (file:line) in binary`, mobile taps read as steps, and the replay panel lists user
+  feedback. See the plugin changelog.
+
+### Compatibility
+
+- Use with rum-api >= 0.4.0 as before; schema 2 replays and native symbolicated frames need
+  rum-api >= 0.6.0. Upgrade this image together with rum-api 0.6 (`docs/operations/upgrade.md`
+  section 4): an older plugin shows schema 2 patch frames as broken images.
 
 ## 0.5.0 (2026-10-26)
 
