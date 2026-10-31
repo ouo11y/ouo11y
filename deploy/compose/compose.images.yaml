@@ -8,17 +8,16 @@
 # absent. The demo backend is still built from examples/backend (it is example code, not a
 # released image); delete that service when you do not need it.
 #
-# The ghcr.io/ouo11y packages are private until ouo reaches a stable version:
-# log in first (`echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin`,
-# classic PAT with read:packages; examples/fast-tracked/00-stack.md, Step 3, "Pull
-# access"), or the pulls fail with `denied`.
+# The ghcr.io/ouo11y images are public: no `docker login`. A pull that fails with `denied`
+# means an old, expired ghcr.io login: `docker logout ghcr.io` (examples/fast-tracked/00-stack.md,
+# Step 3, "Pull access").
 #
-# Build from source instead (no login needed): leave this file out (compose.yaml alone builds the collector
+# Build from source instead: leave this file out (compose.yaml alone builds the collector
 # and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
-# Pinned to the exact newest release of each image (collector 0.4.0, rum-api 0.5.0, grafana 0.5.0
-# with plugin 0.9.0); `deploy/scripts/gen-quickstart.sh --check` (CI job `quickstart`) fails when
+# Pinned to the exact newest release of each image (collector 0.5.0, rum-api 0.6.0, grafana 0.6.0
+# with plugin 0.10.0); `deploy/scripts/gen-quickstart.sh --check` (CI job `quickstart`) fails when
 # a newer release is tagged and these, .env.example and quickstart.yaml are not bumped. Nothing
 # older than 0.3.0, the first release under ghcr.io/ouo11y (ADR-0009): the 0.2.0 images exist
 # only under the old path ghcr.io/ziadmansourm/ouo/* and carry the plugin as ouo-rum-app, which
@@ -30,12 +29,12 @@
 services:
   otel-collector:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.4.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.5.0}
     pull_policy: missing
 
   rum-api:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.5.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.6.0}
     pull_policy: missing
     # rum-api 0.2.0 is the first release and includes the YAML config file + S3 / MinIO
     # replay storage (PR #19). Nothing rum-api specific is needed here: once #19 is merged,
@@ -48,7 +47,7 @@ services:
     # no baked ENV, so a mounted file is never overridden by image defaults.
 
   grafana:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.5.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.6.0}
     pull_policy: missing
     # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo11y-rum-app/dist.
     volumes: !override
@@ -65,7 +64,7 @@ services:
   # "ouo11y-rum-app"`). Copy it onto the volume before every start, like the Helm chart's
   # install-plugin init container.
   grafana-plugin:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.5.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.6.0}
     pull_policy: missing
     entrypoint: ["sh", "-ec"]
     command:

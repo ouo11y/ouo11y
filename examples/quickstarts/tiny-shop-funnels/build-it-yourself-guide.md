@@ -903,15 +903,17 @@ compose files say which version this guide was tested with and its digest: pin
 configs in this guide are written for the tested versions; a much newer rum-api may refuse a
 config key it no longer knows, and the error in `docker compose logs rum-api` names it.
 
-### 4b. Log in to ghcr.io
+### 4b. Check that ghcr.io answers
 
-The ouo images are private for now. You need read access to the `ouo11y` packages and a
-**classic** GitHub token with only the `read:packages` scope. Put the token in your shell
-(`export GHCR_TOKEN=...`), never in a file, then:
+The ouo images are public: no GitHub account, no token, no `docker login`. Check that this
+machine can pull them:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <your-github-user> --password-stdin
+docker pull ghcr.io/ouo11y/rum-api:latest
 ```
+
+`denied` means Docker still sends an old ghcr.io login whose token expired: run
+`docker logout ghcr.io`, then pull again.
 
 ### 4c. Check the ports
 
@@ -1706,7 +1708,7 @@ docker compose down -v
 |---|---|
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` (or 3000, 3100, 3200, 9009, 13133) | another stack has the port: step 4c, move this one with `stack/.env`; then `OUO_OTLP_ENDPOINT=http://localhost:14318 npm start` for the API and `frontend/.env.local` with `VITE_OUO_ENDPOINT=http://localhost:14318` and `VITE_OUO_REPLAY_ENDPOINT=http://localhost:14319` |
 | `rum-api` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs rum-api` names the key; pin the tested version (step 4a, "Image versions") |
-| `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
+| `denied` when pulling `ghcr.io/ouo11y/...` | an old, expired ghcr.io login: `docker logout ghcr.io` (step 4b) |
 | No **Funnels** page in the app menu | an old `ghcr.io/ouo11y/grafana` image from before 0.5.0 is cached: `docker compose pull`, `docker compose up -d`, then hard-reload the browser |
 | The step box suggests nothing | no page views in the range yet: buy once (step 6), time range **Last 1 hour** |
 | Every bar is 0 | step 1 does not match (`/` vs `/home`) or the Service filter has a typo; check the paths on a session page |

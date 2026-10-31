@@ -88,14 +88,7 @@ Needs Node 24 and Docker Compose 2.24 or later. `result/` works anywhere: copy i
 repository and run the same commands. Commands have no `$` prompt; each runs from the folder named
 above it.
 
-**1. The stack.** The ouo images are private for now, so log in to ghcr.io once with a classic
-GitHub token that has only `read:packages`:
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
-
-From `result/stack`:
+**1. The stack.** The ouo images are public, no `docker login`. From `result/stack`:
 
 ```bash
 docker compose up -d

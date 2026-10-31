@@ -44,8 +44,8 @@ the **read token** (Grafana -> rum-api).
 
 [`deploy/compose/quickstart.yaml`](../../deploy/compose/quickstart.yaml) is the whole stack
 in a single compose file, exactly as released: the released images plus the config files
-below, as they were at that release, inlined as compose `configs:` entries. Copy it into an empty folder as `compose.yaml`, log in to ghcr.io
-("Pull access" in Step 3), then:
+below, as they were at that release, inlined as compose `configs:` entries. Copy it into an empty folder as `compose.yaml`
+(no login: the images are public, "Pull access" in Step 3), then:
 
 ```bash
 docker compose up -d
@@ -78,16 +78,15 @@ versions in `deploy/compose/.env.example`:
 
 | Image | Default version | Variable |
 |---|---|---|
-| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.4.0` | `OUO_COLLECTOR_VERSION` |
-| `ghcr.io/ouo11y/rum-api` | `0.5.0` | `OUO_RUM_API_VERSION` |
-| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in, plugin 0.9.0) | `0.5.0` | `OUO_GRAFANA_VERSION` |
+| `ghcr.io/ouo11y/collector` (ouo-collector: OTLP, replay and Sentry receivers) | `0.5.0` | `OUO_COLLECTOR_VERSION` |
+| `ghcr.io/ouo11y/rum-api` | `0.6.0` | `OUO_RUM_API_VERSION` |
+| `ghcr.io/ouo11y/grafana` (Grafana with the ouo app plugin baked in, plugin 0.10.0) | `0.6.0` | `OUO_GRAFANA_VERSION` |
 
 They come in through the override file `deploy/compose/compose.images.yaml`; without it,
 `compose.yaml` builds the same three from source (the contributor path, see "Build from
-source" in Step 3). The images are **private for now**: pulling them needs a `docker login
-ghcr.io` with a token you get access for first ("Pull access" in Step 3); building from
-source needs no login. Release notes for every version are on the repository's GitHub
-Releases page (`rum-api-v0.5.0`, `collector-v0.4.0`, `grafana-v0.5.0` and older).
+source" in Step 3). The images are public on ghcr.io: pulling them needs no `docker login`
+and no token ("Pull access" in Step 3). Release notes for every version are on the repository's GitHub
+Releases page (`rum-api-v0.6.0`, `collector-v0.5.0`, `grafana-v0.6.0` and older).
 
 If you would rather vendor the stack into your own repo, copy these paths **keeping
 the same relative layout**. With the released images you only need `deploy/`; the rows
@@ -172,9 +171,9 @@ OUO_RUM_API_PORT=8080
 # Pre-releases look like 0.2.0-rc.1. Without compose.images.yaml nothing here is used and
 # everything is built from source.
 OUO_IMAGE_REGISTRY=ghcr.io/ouo11y
-OUO_RUM_API_VERSION=0.5.0
-OUO_COLLECTOR_VERSION=0.4.0
-OUO_GRAFANA_VERSION=0.5.0
+OUO_RUM_API_VERSION=0.6.0
+OUO_COLLECTOR_VERSION=0.5.0
+OUO_GRAFANA_VERSION=0.6.0
 # rum-api 0.2.0 and later read deploy/compose/rum-api/config.yaml (mounted by compose.yaml); S3 /
 # MinIO storage is the opt-in override compose.s3.yaml (both from the rum-api config PR #19).
 
@@ -230,28 +229,18 @@ In-cluster addresses are fixed and independent of `.env`: `otel-collector:4318` 
 
 ## Step 3. Start
 
-### Pull access (the ouo images are private for now)
+### Pull access
 
-The three `ghcr.io/ouo11y/*` images stay **private until ouo reaches a stable
-version**. Without a login the first `up -d` stops with `denied` (HTTP 403) on the
-collector, rum-api or Grafana pull. Before the first start, once per machine:
-
-1. Ask the ouo founder for **read access to the ouo packages on ghcr.io** for your GitHub
-   user (`collector`, `rum-api`, `grafana`). Read is all you need.
-2. Create a **classic** personal access token (GitHub > Settings > Developer settings >
-   Personal access tokens > Tokens (classic)) with only the **`read:packages`** scope. Fine
-   grained tokens do not work with ghcr.io.
-3. Log in with it; Docker keeps the credential in its credential store:
+The three `ghcr.io/ouo11y/*` images are public: no GitHub account, no token, no
+`docker login`. Check that this machine reaches ghcr.io with
+`docker pull ghcr.io/ouo11y/rum-api:0.6.0`. If that stops with `denied` (HTTP 403), Docker
+still sends an old ghcr.io login whose token expired or was revoked; drop it and pull again:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+docker logout ghcr.io
 ```
 
-`GHCR_TOKEN` is the token in your shell (`export GHCR_TOKEN=...`, or read it from your
-password manager); never put it in `.env` or any file in the repo. Check it with
-`docker pull ghcr.io/ouo11y/rum-api:0.5.0`.
-
-No access yet? Use **Build from source** below: it needs no login, only the full checkout.
+No route to ghcr.io? Use **Build from source** below: it needs only the full checkout.
 
 ### Start the stack
 

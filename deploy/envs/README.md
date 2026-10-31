@@ -25,7 +25,7 @@ deploy/envs/ouo-env env <env>            # exports for deploy/scripts/{wait-read
 deploy/envs/ouo-env proxy up|down        # the shared proxy (up is implicit in `up`)
 ```
 
-- `up main` fetches origin and checks out `origin/main` in the main worktree (`--ref <ref>` for another ref), builds the plugin there when the commit changed, then builds the images. `--images` runs the released GHCR images instead (`compose.images.yaml`, needs `docker login ghcr.io`, see `docs/releasing.md` section 8). Refresh main after every merge with `deploy/envs/ouo-env up main`.
+- `up main` fetches origin and checks out `origin/main` in the main worktree (`--ref <ref>` for another ref), builds the plugin there when the commit changed, then builds the images. `--images` runs the released GHCR images instead (`compose.images.yaml`, public images, no login). Refresh main after every merge with `deploy/envs/ouo-env up main`.
 - `up <env>` for any other env builds from the checkout the script lives in (`--src <dir>` for another one) and records the branch, its PR (via `gh`), `OUO_SESSION` / `--session`, the creation time and the port block as Docker labels (`ouo.env`, `ouo.branch`, `ouo.pr`, `ouo.session`, `ouo.created`, `ouo.block`) and in `~/.local/state/ouo-env/<env>.json` (override with `OUO_ENV_STATE`).
 - `gc` never touches `main` or `sbx`, and keeps an env when `gh` cannot answer. Volumes are kept unless `--purge`.
 - Smoke-test an env: `eval "$(deploy/envs/ouo-env env sbx)" && deploy/scripts/smoke.sh`.

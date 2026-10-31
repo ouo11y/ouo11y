@@ -13,10 +13,11 @@ Three rules from the founder hold for everything below:
   ([ADR-0013](adr/0013-session-to-session-review.md) §7). CI never creates a tag; release-please is configured
   so that merging a release PR does not tag either. Otherwise agents prepare, dry-run and ask; they never
   push a tag, publish a package or change a visibility.
-- **Everything published stays private until a stable version**: GHCR images and charts, the
-  `ouo11y-ios` mirror. Exception (founder 2026-10-24): the SDK npm packages are public on
-  npmjs.org (Apache-2.0). Going public is a separate founder
-  decision per channel.
+- **Everything published stays private until a stable version**, except where the founder
+  decided otherwise: the SDK npm packages are public on npmjs.org (2026-10-24, Apache-2.0) and
+  the `collector`, `rum-api` and `grafana` images on ghcr.io (2026-10-31, for the pilots). Still
+  private: the Helm chart package and the `ouo11y-ios` mirror. Going public is a separate
+  founder decision per channel.
 - Tags and published versions are permanent. A broken release is fixed by the next patch, never
   by moving or deleting a tag.
 
@@ -152,13 +153,14 @@ After the tag:
 5. [ ] The `release-<x>` run is green; its summary lists what was published, checksums and digest.
 6. [ ] The `release-please` run relabelled the release PR `autorelease: tagged`.
 7. [ ] First publish of an image or chart package only: GitHub > Packages > the package >
-   Package settings: link it to `ouo11y/ouo11y`, leave it **private**, grant Read to whoever
-   already has access to the other packages (section 7).
+   Package settings: link it to `ouo11y/ouo11y`. It starts **private**: a chart stays so (grant
+   Read to whoever already has chart access); a new image package waits for the founder to
+   make it public like the others (section 7).
 8. [ ] Images: `docker buildx imagetools inspect ghcr.io/ouo11y/<image>:<version>` shows
    `linux/amd64` and `linux/arm64`.
 9. [ ] Images: pins that should follow the new version (chart defaults, `deploy/compose/.env.example`,
    `deploy/compose/compose.images.yaml`, `examples/fast-tracked/00-stack.md`) are bumped in a
-   follow-up PR, and `deploy/scripts/gen-quickstart.sh` (after `docker login ghcr.io`) regenerates
+   follow-up PR, and `deploy/scripts/gen-quickstart.sh` (reads ghcr.io anonymously) regenerates
    `deploy/compose/quickstart.yaml` with the new version and digest; then
    `node examples/quickstarts/check-embeds.mjs --write` updates the guides that embed it. The
    quickstart follows `:latest` (moved only by the newest final release of an image), so it
@@ -199,25 +201,25 @@ A tag pushed before the accounts exist degrades to a dry run with a notice (iOS 
 `OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token). npm needs no secret: it
 publishes by trusted publishing (OIDC) from a GitHub-hosted runner.
 
-## 7. Pull access (private until stable)
+## 7. Pull access
 
-Founder decision (2026-10-17): `ghcr.io/ouo11y/*` images and charts stay **private** until ouo
-reaches a stable version. Anyone pulling them logs in first:
+Founder decisions: 2026-10-17, images and charts stay **private** until a stable version;
+2026-10-31, the images `ghcr.io/ouo11y/{collector,rum-api,grafana}` are **public** so pilots
+can run the stack on their own infra. Pulling an image needs no login and no token.
 
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
+- `denied` (HTTP 403) on an image pull: Docker still sends an old ghcr.io login whose token
+  expired or was revoked. `docker logout ghcr.io` (with `sudo` where root pulls, as on the VM).
+- Kubernetes: no pull secret for the images; `imagePullSecrets` stays for a private mirror
+  (`deploy/helm/ouo/README.md`, "Pull access").
+- The Helm chart package (`oci://ghcr.io/ouo11y/charts/ouo`, once published) stays private.
+  Installing from a checkout (`helm install ouo deploy/helm/ouo`) needs no login; pulling the
+  package does, with a **classic** personal access token that has only **`read:packages`**
+  (fine-grained tokens do not work with ghcr.io), and Read granted by the founder in Package
+  settings > Manage access:
 
 ```bash
 echo $GHCR_TOKEN | helm registry login ghcr.io -u <github-user> --password-stdin
 ```
-
-- The token is a **classic** personal access token with only **`read:packages`** (fine-grained
-  tokens do not work with ghcr.io). It lives in the puller's shell or password manager.
-- Access is granted per package by the founder: Package settings > Manage access > add the
-  GitHub user with **Read**, for `collector`, `rum-api`, `grafana` and `charts/ouo`.
-- Kubernetes: a `docker-registry` Secret plus `imagePullSecrets` (`deploy/helm/ouo/README.md`).
-- No access: build from source (`deploy/envs/ouo-env up <env>`), no login needed.
 - **SDK npm packages** are public on npmjs.org (founder decision 2026-10-24, Apache-2.0):
   `npm install @ouo11y/browser` or `npm install @ouo11y/react-native`, no login. The 0.2.0
   copies published to GitHub Packages on 2026-10-23 stay there, private, and get no new versions.

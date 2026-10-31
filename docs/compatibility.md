@@ -29,13 +29,16 @@ their rum-api bound is what stores and serves what they send.
 | browser | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | HTTP Basic project credentials on OTLP and replay; 0.1.x posted unauthenticated |
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
+| collector | 0.5 | - | >= 0.2.0 | - | - | accepts schema <= 2 | frames schema 2 checked at the edge, Sentry `feedback` / `user_report` as `feedback` records; schema 2 chunks need rum-api >= 0.6.0 (older rum-api answers 400) |
 | collector | 0.4 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |
 | rum-api | 0.6 | - | - | - | - | reads schema <= 2 | frames schema 2 (ADR-0014), dSYM upload and native crash symbolication (W7); writes schema 2 into the store marker, so afterwards rum-api 0.4 and 0.5 refuse to start on its store; 0.3.0 and older have no guard and must never run on it (upgrade.md section 4) |
 | rum-api | 0.5 | - | - | - | - | reads schema <= 1 | source maps upload and symbolication (ADR-0011), funnels (ADR-0012), session `device_id`; storage compatible with 0.4 (maps stored next to the replays) |
 | rum-api | 0.4 | - | - | - | - | reads schema <= 1 | data lifecycle (8b), replay `masked` flag, session `context`; storage compatible with 0.3 |
+| plugin | 0.10 | - | >= 0.4.0 | - | >= 13.0.0 | plays schema <= 2 | frame player on a canvas for schema 2 tiles; native symbolicated frames need rum-api >= 0.6.0; readable mobile steps and the feedback list |
 | plugin | 0.9 | - | >= 0.4.0 | - | >= 13.0.0 | - | Funnels page needs rum-api >= 0.5.0; source-mapped stacks need rum-api >= 0.5.0 and show the raw stack otherwise |
 | plugin | 0.8 | - | >= 0.4.0 | - | >= 13.0.0 | - | Timeline behind a toggle; with rum-api 0.3 the masking state and header context fall back |
-| grafana | 0.5 | - | >= 0.4.0 | >= 0.9.0 | - | - | ships Grafana 13.2.5 from 0.5.1 (0.5.0: 13.2.1) with plugin 0.9.0 inside; funnels and source-mapped stacks need rum-api >= 0.5.0 |
+| grafana | 0.6 | - | >= 0.4.0 | >= 0.10.0 | - | - | ships Grafana 13.2.5 with plugin 0.10.0 inside; schema 2 replays and native symbolicated frames need rum-api >= 0.6.0 |
+| grafana | 0.5 | - | >= 0.4.0 | >= 0.9.0 | - | - | ships Grafana 13.2.1 with plugin 0.9.0 inside (0.5.1 was never released; its 13.2.5 base ships in 0.6.0); funnels and source-mapped stacks need rum-api >= 0.5.0 |
 | grafana | 0.4 | - | >= 0.4.0 | >= 0.8.0 | - | - | ships Grafana 13.2.1 with plugin 0.8.0 inside |
 | chart | 0.1 | >= 0.3.0 | >= 0.3.0 | - | - | - | defaults to the grafana image 0.3.0; Kubernetes >= 1.25 |
 

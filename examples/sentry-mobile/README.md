@@ -22,11 +22,9 @@ Needs Docker, Node 24, Python 3, Xcode with an iOS Simulator booted (the first a
 about 8 minutes; later runs only the journey).
 
 **Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
-packages are private for now: ask for read access, then log in once with a classic token that has
-only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+images are public, no `docker login`:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 cp examples/sentry-mobile/.env.example examples/sentry-mobile/.env   # bridge on :4320, backend on :8081
 examples/sentry-mobile/scripts/run.sh --build       # build + install, journey, verify
@@ -110,16 +108,9 @@ Screens: `sentrydemo://screen/home`, `sentrydemo://screen/product?id=p-1002`,
 
 The `ouosentry` receiver ships in the released ouo collector image
 (`ghcr.io/ouo11y/collector`, version pinned by `OUO_COLLECTOR_VERSION` in
-`deploy/compose/.env.example`). The ouo images are **private for now**, so log in to ghcr.io
-once first. You need read access to the ouo packages (ask the ouo founder) and a classic
-personal access token with only the `read:packages` scope, kept in your shell and never in the
-repo (details: `examples/fast-tracked/00-stack.md`, Step 3, "Pull access"):
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
-
-Then start the main stack with the released images:
+`deploy/compose/.env.example`). The ouo images are public, so no `docker login` is needed
+(`examples/fast-tracked/00-stack.md`, Step 3, "Pull access"). Start the main stack with the
+released images:
 
 ```bash
 docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d

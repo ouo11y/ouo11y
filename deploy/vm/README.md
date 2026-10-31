@@ -80,7 +80,6 @@ no spaces; written to `OUO_ALLOWED_ORIGINS`). Without it only `http://localhost:
 ### Released images (`--images`)
 
 ```bash
-echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin
 sudo /opt/ouo/deploy/vm/install.sh --images --domain ouo.example.com --email you@example.com
 ```
 
@@ -89,12 +88,10 @@ for the checked-out ref (`--image-version <v>` pins one in `.env`, `--registry` 
 prefix), so no Node, Go or ocb build happens; only the demo backend is built. The mode is
 remembered in `.env` (`OUO_INSTALL_MODE`); `--build` switches back.
 
-- The packages are **private** until ouo is stable. Ask the founder for read access for a
-  GitHub user and create a **classic** token with only `read:packages`. Log in **with
-  `sudo`**: the installer and `ouo.service` pull as root, and a login as your own user is not
-  seen by them. Without it the installer stops with `ghcr.io refused the pull ... the ouo
-  images are private` and the login command.
-- No access, or no internet on the VM: `docker save` the three images on a machine that has
+- The images are public: no `docker login`. The installer and `ouo.service` pull as root,
+  so an old, expired ghcr.io login of root makes the pull fail with `denied`; the installer
+  then stops with `ghcr.io refused the pull` and the fix, `sudo docker logout ghcr.io`.
+- No internet on the VM: `docker save` the three images on a machine that has
   them (pick the VM's platform, e.g. `--platform linux/arm64`), `sudo docker load` them on the
   VM, run the installer with `--images`; it pulls only what is missing.
 
@@ -309,7 +306,7 @@ Phase 8c replaces this with object storage, a rehearsed restore and a runbook.
 - rum-api restarts with `replay store written by a newer replay schema`: a rum-api older than
   the one that last opened the store; run that version or newer (`docs/operations/upgrade.md`
   section 4). Do not delete `replays/schema.json` to force it.
-- `install.sh: ghcr.io refused the pull`: `sudo docker login ghcr.io` (see "Released images").
+- `install.sh: ghcr.io refused the pull`: `sudo docker logout ghcr.io` (an expired root login; see "Released images").
 
 ## Trying it on a laptop VM
 
