@@ -55,8 +55,9 @@ section 6). `gh workflow run release-chart.yml --ref main -f tag=chart-v0.2.0 -f
 
 ## Founder-only steps
 
-- Chart: GitHub > Packages > `charts/ouo` > Package settings: link it to `ouo11y/ouo11y` and
-  choose its visibility. It was created **private** (the images are public since 2026-10-31).
+- Chart: GitHub > Packages > `charts/ouo` > Package settings: choose its visibility. It is
+  already linked to `ouo11y/ouo11y` and was created **private** (the images are public since
+  2026-10-31).
   The runners' `~/.config` ownership no longer matters to `release-chart`.
 - iOS: create `OUO_IOS_DEPLOY_KEY` (`docs/releasing.md` section 8), then re-run run 41201437767
   to push `main` and tag `0.3.0` to `ouo11y/ouo11y-ios`; make `main` the mirror's default branch
