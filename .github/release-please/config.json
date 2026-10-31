@@ -40,7 +40,8 @@
     },
     "sdk/ios": {
       "release-type": "simple",
-      "component": "ios"
+      "component": "ios",
+      "extra-files": [{ "type": "generic", "path": "Sources/OuoSDK/Ouo.swift" }]
     },
     "plugins/ouo11y-rum-app": {
       "release-type": "node",

@@ -415,6 +415,10 @@ jobs:
         run: swift build
       - name: OuoReplayCore tests
         run: sh sdk/ios/test.sh
+      # The macOS build above compiles the UIKit code to stubs; this compiles it for iOS.
+      - name: iOS simulator build (OuoSDK and the UIKit targets)
+        working-directory: sdk/ios
+        run: xcodebuild -quiet -scheme OuoSDK -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/xcode build
 
   # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
   # external URLs are not fetched, so the job is fast and never flaky. Always runs.

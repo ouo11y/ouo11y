@@ -166,8 +166,9 @@ public enum OuoCrash {
         ].merging(stackFields(frames)) { a, _ in a })
     }
 
-    /// `frames` and the `images` they point into, in the crash report's fields.
-    static func stackFields(_ frames: [UInt]) -> [String: Any] {
+    /// `frames` and the `images` they point into, in the crash report's fields (also what a host
+    /// puts on a captured error's stack, so dSYM symbolication reads it).
+    public static func stackFields(_ frames: [UInt]) -> [String: Any] {
         var images: [UInt: [String: Any]] = [:]
         let fs: [[String: Any]] = frames.map { addr in
             var f: [String: Any] = ["instruction_addr": hex(addr)]

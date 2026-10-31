@@ -53,12 +53,10 @@ public final class URLSessionTransport: ChunkTransport {
 /// collector's `ouoreplay` receiver) in order, with the headers the browser uploader sends plus
 /// the project credential as HTTP Basic (ADR-0007).
 ///
-/// The queue is a folder (docs/specs/mobile-replay.md, "Delivery"): each chunk is written there as
-/// the gzip body it is sent with before anything is sent, and removed on a 2xx or a rejection
-/// (any other status but 408, 429 and 5xx). Those and network errors leave it in place and retry
-/// after a backoff (at least `Retry-After`),
-/// on the next chunk, on `drain` and in the next process, so an outage or a kill mid-upload loses
-/// nothing. Bounded like the spool: `maxQueueBytes` (oldest dropped first) and `ChunkSpool.maxAge`.
+/// The queue is a `DiskQueue` folder (docs/specs/mobile-replay.md, "Delivery"): each chunk is
+/// written there as the gzip body it is sent with before anything is sent, and removed on a 2xx or
+/// a rejection; an outage or a kill mid-upload loses nothing. Bounded by `maxQueueBytes` (oldest
+/// dropped first) and `ChunkSpool.maxAge`.
 ///
 /// With `hold`, chunks go to `held/` instead and wait for `release(sessionId:keep:)`: the host
 /// decides at the next launch whether a finished session's replay is sent (the keep/drop hook).
@@ -93,7 +91,7 @@ public final class ChunkUploader {
         public init(
             maxQueueBytes: Int = 10 * 1024 * 1024,
             maxAge: TimeInterval = ChunkSpool.maxAge,
-            retryDelay: @escaping @Sendable (Int) -> TimeInterval = { n in min(pow(2, Double(n - 1)), 60) },
+            retryDelay: @escaping @Sendable (Int) -> TimeInterval = DiskQueue.Config.doubling(upTo: 60),
             hold: Bool = false
         ) {
             self.maxQueueBytes = maxQueueBytes
@@ -101,10 +99,6 @@ public final class ChunkUploader {
             self.retryDelay = retryDelay
             self.hold = hold
         }
-    }
-
-    public enum UploadError: Swift.Error, Equatable {
-        case httpStatus(Int)
     }
 
     /// A finished session's held chunks, for the keep/drop decision.
@@ -120,22 +114,22 @@ public final class ChunkUploader {
     /// One file: `<queued at, 13 digits>-<counter>.<session id>.<seq>.json.gz`, so the name sorts
     /// in queue order and carries the request headers.
     struct Entry {
-        let url: URL
+        let entry: DiskQueue.Entry
         let sessionId: String
         let seq: Int
-        let queuedAt: EpochMillis
-        let bytes: Int
+        var queuedAt: EpochMillis { entry.queuedAt }
 
         init?(url: URL) {
-            let parts = url.lastPathComponent.components(separatedBy: ".")
-            guard parts.count >= 5, parts.suffix(2) == ["json", "gz"],
-                  let at = Int64(parts[0].prefix(while: { $0 != "-" })),
-                  let seq = Int(parts[parts.count - 3]) else { return nil }
-            self.url = url
-            self.sessionId = parts[1..<(parts.count - 3)].joined(separator: ".")
+            guard let e = DiskQueue.Entry(url: url) else { return nil }
+            self.init(e)
+        }
+
+        init?(_ e: DiskQueue.Entry) {
+            let parts = e.tag.components(separatedBy: ".")
+            guard parts.count >= 4, parts.suffix(2) == ["json", "gz"], let seq = Int(parts[parts.count - 3]) else { return nil }
+            self.entry = e
+            self.sessionId = parts[0..<(parts.count - 3)].joined(separator: ".")
             self.seq = seq
-            self.queuedAt = at
-            self.bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         }
     }
 
@@ -146,22 +140,16 @@ public final class ChunkUploader {
     public let authorization: String
     public let config: Config
     public let directory: URL
-    private let heldDirectory: URL
-    private let transport: ChunkTransport
+    private let queued: DiskQueue
+    private let held: DiskQueue
     private let logger: ReplayLogger
-    private let now: () -> EpochMillis
-    private let queue = DispatchQueue(label: "dev.ouo.replay.uploader")
-    private var counter = 0
-    /// The file being sent; nil when idle.
-    private var inFlight: URL?
-    private var failures = 0
-    private var retryScheduled = false
-    private var drainWaiters: [() -> Void] = []
+    private let lock = NSLock()
+    private var droppedHere = 0
 
-    /// Counters for tests and debugging: sent, dropped (bound, age, disk), rejected by the server.
-    public private(set) var uploaded = 0
-    public private(set) var dropped = 0
-    public private(set) var failed = 0
+    /// Chunks sent, dropped (bound, age, disk, a dropped held session) and rejected by the server.
+    public var uploaded: Int { queued.sent }
+    public var dropped: Int { queued.dropped + held.dropped + lock.withLock { droppedHere } }
+    public var failed: Int { queued.rejected }
 
     public init(
         endpoint: URL,
@@ -175,16 +163,20 @@ public final class ChunkUploader {
     ) {
         var base = endpoint.absoluteString
         while base.hasSuffix("/") { base.removeLast() }
-        self.url = URL(string: base + ChunkUploader.chunksPath) ?? endpoint
+        let url = URL(string: base + ChunkUploader.chunksPath) ?? endpoint
+        let authorization = ChunkUploader.basicAuthorization(projectId: projectId, projectToken: projectToken)
+        self.url = url
         self.projectId = projectId
         self.projectToken = projectToken
-        self.authorization = ChunkUploader.basicAuthorization(projectId: projectId, projectToken: projectToken)
+        self.authorization = authorization
         self.config = config
         self.directory = directory
-        self.heldDirectory = directory.appendingPathComponent("held", isDirectory: true)
-        self.transport = transport
         self.logger = logger
-        self.now = now
+        let bounds = DiskQueue.Config(maxBytes: config.maxQueueBytes, maxAge: config.maxAge, retryDelay: config.retryDelay)
+        self.queued = DiskQueue(directory: directory, config: bounds, transport: transport, logger: logger, now: now) { e, body in
+            Entry(e).map { ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: $0.sessionId, seq: $0.seq, gzipBody: body) }
+        }
+        self.held = DiskQueue(directory: directory.appendingPathComponent("held", isDirectory: true), config: bounds, transport: nil, logger: logger, now: now) { _, _ in nil }
     }
 
     public static func makeRequest(url: URL, authorization: String, sessionId: String, seq: Int, gzipBody: Data) -> URLRequest {
@@ -200,7 +192,7 @@ public final class ChunkUploader {
     }
 
     /// Encodes, compresses and writes the chunk to the queue folder before returning (the spool
-    /// was cleared when it was cut), then starts sending. Safe from any thread.
+    /// is cleared after this returns), then starts sending. Safe from any thread.
     public func enqueue(_ chunk: FrameChunk) {
         let body: Data
         do {
@@ -209,188 +201,50 @@ public final class ChunkUploader {
             logger.warn("could not encode chunk seq=\(chunk.seq): \(error)")
             return
         }
-        queue.sync {
-            let folder = config.hold ? heldDirectory : directory
-            counter += 1
-            let name = "\(Self.pad(now(), 13))-\(Self.pad(Int64(counter), 6)).\(chunk.sessionId).\(chunk.seq).json.gz"
-            do {
-                try Self.prepare(folder)
-                try body.write(to: folder.appendingPathComponent(name), options: .atomic)
-            } catch {
-                // Disk full or not writable: one attempt from memory rather than nothing, unless the
-                // chunk is held (its session's keep/drop decision has not been made).
-                guard !config.hold else {
-                    dropped += 1
-                    logger.warn("could not hold chunk seq=\(chunk.seq) on disk (\(error)); dropped")
-                    return
-                }
-                logger.warn("could not queue chunk seq=\(chunk.seq) on disk (\(error)); sending once from memory")
-                let request = ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: chunk.sessionId, seq: chunk.seq, gzipBody: body)
-                transport.send(request) { _ in }
+        // Disk full or not writable: the queue sends it once from memory rather than nothing; a
+        // held chunk is dropped instead (its session's keep/drop decision has not been made).
+        let tag = "\(chunk.sessionId).\(chunk.seq).json.gz"
+        if config.hold {
+            guard held.put(body, tag: tag, sendIfRefused: false) else {
+                lock.withLock { droppedHere += 1 }
                 return
             }
-            enforceBound(folder)
-            logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
+        } else if !queued.put(body, tag: tag) {
+            return
         }
-        queue.async { self.pump() }
+        logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
     }
 
     /// Tries to send what is queued (this process's chunks and those an earlier one left) and
     /// calls `completion` once the folder is empty or its oldest chunk failed again (it stays
     /// on disk for the next try).
     public func drain(completion: @escaping () -> Void) {
-        queue.async {
-            self.drainWaiters.append(completion)
-            self.pump()
-        }
+        queued.drain(completion: completion)
     }
 
     /// Chunks in the queue folder (not held).
-    public var queuedCount: Int {
-        queue.sync { entries(in: directory).count }
-    }
+    public var queuedCount: Int { queued.count }
 
     /// Sessions with held chunks, oldest first; expired chunks are removed here.
     public func heldSessions() -> [HeldSession] {
-        queue.sync {
-            var order: [String] = []
-            var groups: [String: [Entry]] = [:]
-            for e in liveEntries(in: heldDirectory) {
-                if groups[e.sessionId] == nil { order.append(e.sessionId) }
-                groups[e.sessionId, default: []].append(e)
-            }
-            return order.map { id in
-                let es = groups[id]!
-                return HeldSession(sessionId: id, chunks: es.count, bytes: es.reduce(0) { $0 + $1.bytes }, firstAt: es.first!.queuedAt, lastAt: es.last!.queuedAt)
-            }
+        var order: [String] = []
+        var groups: [String: [Entry]] = [:]
+        for e in held.entries().compactMap(Entry.init) {
+            if groups[e.sessionId] == nil { order.append(e.sessionId) }
+            groups[e.sessionId, default: []].append(e)
+        }
+        return order.map { id in
+            let es = groups[id]!
+            return HeldSession(sessionId: id, chunks: es.count, bytes: es.reduce(0) { $0 + $1.entry.bytes }, firstAt: es.first!.queuedAt, lastAt: es.last!.queuedAt)
         }
     }
 
     /// Sends (`keep`) or deletes a held session's chunks.
     public func release(sessionId: String, keep: Bool) {
-        queue.async {
-            let es = self.entries(in: self.heldDirectory).filter { $0.sessionId == sessionId }
-            for e in es {
-                if keep {
-                    try? Self.prepare(self.directory)
-                    try? FileManager.default.moveItem(at: e.url, to: self.directory.appendingPathComponent(e.url.lastPathComponent))
-                } else {
-                    try? FileManager.default.removeItem(at: e.url)
-                }
-            }
-            self.logger.log("\(keep ? "kept" : "dropped") \(es.count) held chunks of session=\(sessionId)")
-            if keep {
-                self.enforceBound(self.directory)
-                self.pump()
-            }
+        let es = held.entries().compactMap(Entry.init).filter { $0.sessionId == sessionId }
+        for e in es {
+            if keep { held.move(e.entry, to: queued) } else { held.remove(e.entry) }
         }
-    }
-
-    // MARK: - internals (on `queue`)
-
-    private static func pad(_ n: Int64, _ width: Int) -> String {
-        let s = String(n)
-        return String(repeating: "0", count: max(0, width - s.count)) + s
-    }
-
-    /// Creates the folder, excluded from device backups.
-    private static func prepare(_ folder: URL) throws {
-        var dir = folder
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try? dir.setResourceValues(values)
-    }
-
-    /// The folder's chunks in queue order.
-    private func entries(in folder: URL) -> [Entry] {
-        let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey])) ?? []
-        return urls.compactMap(Entry.init(url:)).sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
-    }
-
-    /// `entries(in:)` without, and after deleting, the chunks older than `maxAge`.
-    private func liveEntries(in folder: URL) -> [Entry] {
-        let cutoff = now() - EpochMillis(config.maxAge * 1000)
-        return entries(in: folder).filter { e in
-            guard e.queuedAt < cutoff else { return true }
-            drop(e, why: "older than \(Int(config.maxAge / 3600)) h")
-            return false
-        }
-    }
-
-    private func enforceBound(_ folder: URL) {
-        let es = entries(in: folder)
-        var total = es.reduce(0) { $0 + $1.bytes }
-        // Oldest first; never the newest, nor the one in flight (its answer removes it).
-        for victim in es.dropLast() where total > config.maxQueueBytes && victim.url != inFlight {
-            total -= victim.bytes
-            drop(victim, why: "queue bound")
-        }
-    }
-
-    private func drop(_ e: Entry, why: String) {
-        try? FileManager.default.removeItem(at: e.url)
-        dropped += 1
-        logger.warn("dropped chunk session=\(e.sessionId) seq=\(e.seq) (\(why))")
-    }
-
-    private func pump() {
-        guard inFlight == nil else { return }
-        guard let head = liveEntries(in: directory).first else {
-            failures = 0
-            finishWaiters()
-            return
-        }
-        guard let body = try? Data(contentsOf: head.url) else {
-            drop(head, why: "unreadable")
-            pump()
-            return
-        }
-        inFlight = head.url
-        let request = ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: head.sessionId, seq: head.seq, gzipBody: body)
-        transport.send(request) { result in
-            self.queue.async { self.finish(head, result) }
-        }
-    }
-
-    private func finish(_ head: Entry, _ result: Result<ChunkResponse, Swift.Error>) {
-        inFlight = nil
-        switch result.map(\.status) {
-        case .success(let status) where (200..<300).contains(status):
-            try? FileManager.default.removeItem(at: head.url)
-            uploaded += 1
-            failures = 0
-            logger.log("uploaded session=\(head.sessionId) seq=\(head.seq)")
-            pump()
-        case .success(let status) where status == 408 || status == 429 || status >= 500:
-            retryLater(head, UploadError.httpStatus(status), retryAfter: (try? result.get())?.retryAfter)
-        case .success(let status):
-            try? FileManager.default.removeItem(at: head.url)
-            failed += 1
-            logger.warn("chunk session=\(head.sessionId) seq=\(head.seq) rejected: HTTP \(status)")
-            pump()
-        case .failure(let error):
-            retryLater(head, error, retryAfter: nil)
-        }
-    }
-
-    /// The head stays on disk; the next chunk, `drain`, the next process or this timer retries it.
-    private func retryLater(_ head: Entry, _ error: Swift.Error, retryAfter: TimeInterval?) {
-        failures += 1
-        let delay = max(config.retryDelay(failures), retryAfter ?? 0)
-        logger.warn("upload of seq=\(head.seq) failed (\(error)), kept on disk, retry in \(delay) s")
-        finishWaiters()
-        guard !retryScheduled else { return }
-        retryScheduled = true
-        queue.asyncAfter(deadline: .now() + delay) {
-            self.retryScheduled = false
-            self.pump()
-        }
-    }
-
-    private func finishWaiters() {
-        let waiters = drainWaiters
-        drainWaiters = []
-        waiters.forEach { $0() }
+        logger.log("\(keep ? "kept" : "dropped") \(es.count) held chunks of session=\(sessionId)")
     }
 }
