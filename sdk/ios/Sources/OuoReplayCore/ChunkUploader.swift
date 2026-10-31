@@ -102,7 +102,8 @@ public final class ChunkUploader {
         public let sessionId: String
         public let chunks: Int
         public let bytes: Int
-        /// When its first and last chunk were queued (epoch ms, the names' stamps: `DiskQueue.Entry.queuedAt`).
+        /// When its first and last chunk were queued (epoch ms): the names' stamps
+        /// (`DiskQueue.Entry.queuedAt`), so after the clock moved back they can lie ahead of it.
         public let firstAt: EpochMillis
         public let lastAt: EpochMillis
     }
@@ -142,7 +143,7 @@ public final class ChunkUploader {
     private let lock = NSLock()
     private var droppedHere = 0
 
-    /// Chunks sent, dropped (bound, age, disk, a dropped held session) and rejected by the server.
+    /// Chunks sent, dropped (bound, disk, a dropped held session) and rejected by the server.
     public var uploaded: Int { queued.sent }
     public var dropped: Int { queued.dropped + held.dropped + lock.withLock { droppedHere } }
     public var failed: Int { queued.rejected }
@@ -221,7 +222,7 @@ public final class ChunkUploader {
     /// Chunks in the queue folder (not held).
     public var queuedCount: Int { queued.count }
 
-    /// Sessions with held chunks, oldest first; expired chunks are removed here.
+    /// Sessions with held chunks, oldest first.
     public func heldSessions() -> [HeldSession] {
         var order: [String] = []
         var groups: [String: [Entry]] = [:]

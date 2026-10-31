@@ -22,8 +22,9 @@ import FoundationNetworking
 /// Files are `<stamp, 13 digits>-<counter, 6 digits>.<tag>`, so names sort in queue order and the
 /// tag carries what the request needs (the signal, a session and seq). The stamp is the wall clock
 /// when queued, raised above the newest name in the folder when the clock moved back, so the order
-/// is the order of `put` whatever the clock does. One queue per folder per process: two would send
-/// the same files.
+/// within a folder is the order of `put` whatever the clock does (an entry `move`d in keeps its
+/// name, so its place). The stamp alone orders the names; the counter stays for the format of the
+/// files already on devices. One queue per folder per process: two would send the same files.
 public final class DiskQueue {
     public struct Config: Sendable {
         /// Bytes kept on disk (file sizes); the oldest entries are dropped beyond it.
@@ -115,7 +116,8 @@ public final class DiskQueue {
     public func put(_ body: Data, tag: String, sendIfRefused: Bool = true) -> Bool {
         let ok: Bool = queue.sync {
             counter += 1
-            let stamp = max(now(), (Self.list(directory).last?.queuedAt ?? 0) + 1)
+            let before = Self.list(directory)
+            let stamp = max(now(), (before.last?.queuedAt ?? 0) + 1)
             let name = "\(Self.pad(stamp, 13))-\(Self.pad(Int64(counter % 1_000_000), 6)).\(tag)"
             let url = directory.appendingPathComponent(name)
             do {
@@ -128,7 +130,7 @@ public final class DiskQueue {
                 }
                 return false
             }
-            enforceBound()
+            enforceBound(before + [Entry(url: url)].compactMap { $0 })
             return true
         }
         // During a backoff the new entry waits for the retry: an outage is not hammered once per put.
@@ -213,8 +215,9 @@ public final class DiskQueue {
 
     // MARK: - internals (on `queue`)
 
-    private func enforceBound() {
-        let es = Self.list(directory)
+    /// `es`: the folder's entries in queue order, when the caller has just listed them.
+    private func enforceBound(_ listed: [Entry]? = nil) {
+        let es = listed ?? Self.list(directory)
         var total = es.reduce(0) { $0 + $1.bytes }
         var count = es.count
         // Oldest first; never the newest, nor the one in flight (its answer removes it).

@@ -23,3 +23,14 @@ An age has to be measured across processes and reboots (entries outlive both). T
 
 - The shared checkout `/Users/ziadhassanin/Desktop/personal/ouo` was mid-merge (conflict markers in its workspace `package.json` files) during this run, and npm walks up into it from any worktree below and fails with "call config.load() before reading values". `ouo-env up` was run with an `npm` shim on `PATH` that adds `--prefix "$(pwd)"`, which stops the walk.
 - API removed in `OuoReplayCore` (0.x): `DiskQueue.Config.maxAge` and `ChunkUploader.Config.maxAge`, `ChunkSpool.maxAge`. No caller in the repo passed them.
+
+## Review (ADR-0013, PR #137)
+
+Round 1, `Review: changes needed`, all answered:
+
+1. Stale 24 h text: `ChunkUploader` doc comments, `project/kb/mobile-delivery.md`, `project/kb/ios-native-sdk.md`, the N55 line: fixed.
+2. The age was the only escape from N55's head-of-line block (a request answered 5xx every time): now the bound is, so on a quiet app 500 batches or 5 MB (OTLP), 10 MB (replay). Written in both specs, the kb and N55, which says this makes it more pressing. Kept bounds only: a wall-clock age as the escape is the bug, and the real fix is N55's narrower retry set.
+3. `put` lists the folder once (stamp and bound from the same listing) instead of twice.
+4. The doc comment says the stamp alone orders the names and the counter stays for the files already on devices.
+5. "Within a folder" in the spec and the doc comment (a released held chunk keeps its name).
+6. `HeldSession.firstAt` / `lastAt` (`firstChunkAt` / `lastChunkAt`) are the stamps: doc comment and `mobile-replay.md` say they can lie ahead of a clock moved back.
