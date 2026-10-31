@@ -5,6 +5,46 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+## [0.6.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.5.0...rum-api-v0.6.0) (2026-10-31)
+
+### Breaking
+
+- **Replay chunk `schema_version` 2** (ADR-0014): rum-api 0.6 reads schema 1 and 2 and, at its first
+  start, writes `max_schema_version: 2` into the store's `replays/schema.json`. From then on
+  rum-api 0.4 and 0.5 refuse to start on that store (exit 1, the guard of
+  `docs/operations/upgrade.md` section 4); 0.3.0 and older have no guard and must never run on it.
+  Do not roll back across this release. Stored chunks are not rewritten and every older replay
+  still plays.
+
+### Added
+
+- **Frames schema 2** (mobile SDK roadmap W3, `docs/specs/mobile-replay.md`): a frame is a full
+  JPEG (`jpeg`) or a list of `patches` drawn over the latest full image. Every frame is checked on
+  upload: exactly one of `jpeg` and `patches`, a full image first, base64 JPEG only, patches with
+  integer coordinates and a positive size inside the latest full image; anything else is a `400`,
+  as are `patches` under schema 1. Video chunks stay at schema 1. Frames are stored and served as
+  uploaded ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb)).
+- **Native crash symbolication from dSYM** (W7, ADR-0011 section 7, `docs/symbolication.md`):
+  `PUT /v1/dsyms` with the project upload token (gzip, at most `limits.max_dsym_bytes` /
+  `MAX_DSYM_BYTES`, default 512 MiB) splits a universal file into slices keyed by build UUID,
+  stored next to the source maps (`sourcemaps/<project>/dsym/`, so retention, sweep and delete by
+  project apply). On read, an `exception` with native frames and images gets a `symbolicated`
+  stack (`function (file:line)`, inlined frames as `atos -i` prints them, a symbol-table fallback
+  without DWARF); `POST /v1/symbolicate` takes the same frames and images. Upload with
+  `ouo-sourcemaps upload-dsym <path>...`. New `sourcemaps.cache_bytes` / `SOURCEMAP_CACHE_BYTES`
+  (default 512 MiB): the byte budget of the shared source map and dSYM cache
+  ([4a3393a](https://github.com/ouo11y/ouo11y/commit/4a3393a31ecdab5aa9aaf0b77ce18406fa8389ad)).
+- A mobile session whose `session.start` never arrived (a native crash in its first second) starts
+  at the `ouo.session.started_at` its `session.end` carries (N52,
+  [986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012)).
+
+### Compatibility
+
+- Upgrade order for schema 2: rum-api 0.6 and plugin 0.10 (most deployments: the grafana image that
+  ships it) first, then collector 0.5, then the SDKs that send schema 2 (iOS 0.3, React Native 0.3).
+  A plugin older than 0.10 shows patch frames as broken images.
+- Storage otherwise compatible with 0.5: dSYMs are stored next to the source maps.
+
 ## [0.5.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.4.0...rum-api-v0.5.0) (2026-10-25)
 
 
