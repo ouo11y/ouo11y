@@ -32,6 +32,9 @@ First published version of the chart (0.1.0 and 0.1.1 were never pushed).
   `rumApi.storage.s3.lifecycleRules`. Bundled Loki promotes `ouo.project.id` to the
   `ouo_project_id` stream label
   ([b45c0c3](https://github.com/ouo11y/ouo11y/commit/b45c0c3d36b6c8472074c9d3487df4a9167a3b76)).
+- `grafana.plugin.featureToggles`: plugin feature toggles (e.g. `sessionTimelinePanel`) provisioned
+  into the app's `jsonData.featureToggles`
+  ([92f2fa4](https://github.com/ouo11y/ouo11y/commit/92f2fa44da0ab4ee4d58d88bdfec310ce265c639)).
 
 ### Documentation
 
@@ -40,14 +43,18 @@ First published version of the chart (0.1.0 and 0.1.1 were never pushed).
   collector pod, every `existingSecret` (with `otlp-headers`), `lgtm.mode=external`, HA render and
   server dry-run, upgrade from 0.1.0 with a values file and `--rollback-on-failure` (Helm 4)
   ([28d39f4](https://github.com/ouo11y/ouo11y/commit/28d39f4da916773e51ce384a23bca54eb37e33b3)).
+- README "Pull access": the `ghcr.io/ouo11y` images are public since 2026-10-31, so no pull
+  secret is needed; `imagePullSecrets` is now only for a private mirror
+  ([48df47e](https://github.com/ouo11y/ouo11y/commit/48df47efd87047aafe075182152febefd8651f32)).
 
 ### Compatibility
 
 - Needs collector >= 0.5.0 and rum-api >= 0.6.0 (its defaults) and Kubernetes >= 1.25. The
   rendered rum-api and collector configs pass `rum-api:0.6.0 -config.verify` and
-  `collector:0.5.0 validate`. Still not in the chart (checklist N29, N78): the collector's
-  `ouoauth` failure counter and `ouoratelimit` middleware, the plugin's `featureToggles`, and
-  project upload tokens for source maps and dSYMs.
+  `collector:0.5.0 validate`. Still not in the chart (checklist N29, N80): the collector's
+  `ouoauth` failure counter and `ouoratelimit` middleware, and a public upload path for source
+  maps and dSYMs: the upload API is reachable only inside the cluster (N41). Set the upload tokens
+  as `OUO_UPLOAD_TOKENS` through `rumApi.extraEnv` (from a Secret; not in the README yet).
 
 ## 0.1.1 (2026-10-18, not published)
 
