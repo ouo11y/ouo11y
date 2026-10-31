@@ -40,8 +40,8 @@ last released) with the settings in
 | `chart` | `deploy/helm/ouo` | `Chart.yaml` `version` | `chart-v<semver>` | `oci://ghcr.io/ouo11y/charts/ouo` | `release-chart.yml` |
 
 Every publish workflow refuses a tag whose version differs from the version field, and every
-one can be rehearsed (section 6). Each creates a GitHub release for its tag, marked
-pre-release for `-rc.N`.
+one can be rehearsed (section 6). Each except `release-ios` (its release is the mirror's tag)
+creates a GitHub release for its tag, marked pre-release for `-rc.N`.
 
 **"Latest" on GitHub is the newest chart release.** GitHub always shows one release as Latest,
 even when every release is created with `--latest=false` (checklist N81: it then keeps whichever

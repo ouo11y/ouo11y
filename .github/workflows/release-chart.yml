@@ -153,6 +153,7 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           DIGEST: ${{ steps.push.outputs.digest }}
+          LATEST: ${{ steps.ver.outputs.latest }}
         run: |
           app=$(awk '$1 == "appVersion:" { gsub(/"/, "", $2); print $2; exit }' "$CHART_DIR/Chart.yaml")
           {
@@ -174,6 +175,8 @@ jobs:
           } > release-notes.md
           {
             if [ "$DRY_RUN" = true ]; then echo "## Dry run of chart $VERSION: nothing pushed"; else echo "## Pushed $OCI_REPO/ouo:$VERSION"; fi
+            echo
+            echo "GitHub release marked Latest: $LATEST (newest final chart only, docs/releasing.md section 1)"
             echo
             cat release-notes.md
           } >> "$GITHUB_STEP_SUMMARY"

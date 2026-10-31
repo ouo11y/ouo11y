@@ -114,8 +114,9 @@ job of `ci.yml` (every PR). Policy and checklist: `docs/releasing.md`.
   sorts `0.2.0-rc.2` before `0.2.0`; without the suffix setting git sorts the rc after the
   final. Final releases skip rcs so their notes cover everything since the last final.
   Needs `actions/checkout` with `fetch-depth: 0`.
-- **GitHub releases in a multi-package repo.** `gh release create --latest=false` so an
-  image patch does not become the repository's "Latest release" over an SDK release.
+- **GitHub releases in a multi-package repo.** `gh release create --latest=false` for images,
+  plugin and npm; the newest final chart release is Latest instead (GitHub always shows one,
+  N81 and `docs/releasing.md` section 1).
   `--verify-tag` refuses to create a tag implicitly.
 - **`if: env.X` sees only workflow/job env.** A step's own `env:` is not visible to its
   `if:`. `release-plugin.yml` checked `env.GRAFANA_ACCESS_POLICY_TOKEN` with the secret set
