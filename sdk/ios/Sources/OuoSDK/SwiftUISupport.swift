@@ -16,10 +16,10 @@ public extension View {
         background(OuoMarker(identifier: RedactionRules.maskIdentifier))
     }
 
-    /// Replay shows this view's area unmasked, whatever the options mask inside it: an `ouo-unmask`
-    /// marker view behind it.
+    /// Replay shows this view's area unmasked, whatever the options mask inside it (not what
+    /// `.ouoMask()` forces): an `ouo-unmask-area` marker view behind it.
     func ouoUnmask() -> some View {
-        background(OuoMarker(identifier: RedactionRules.unmaskIdentifier))
+        background(OuoMarker(identifier: RedactionRules.unmaskAreaIdentifier))
     }
 }
 

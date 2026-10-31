@@ -1,12 +1,15 @@
 import Foundation
 import Testing
+#if canImport(UIKit)
+import UIKit
+#endif
 @testable import OuoReplayCore
 @testable import OuoSDK
 
 /// Taps (C6), screens (C7), feedback (C10) and the crash-time context: the rules and the records.
 @Suite struct InteractionTests {
-    private func v(_ cls: String, id: String? = nil, label: String? = nil, control: Bool = false, role: String? = nil, text: Bool = false) -> TouchedView {
-        TouchedView(className: cls, identifier: id, accessibilityLabel: label, isControl: control, role: role, showsText: text)
+    private func v(_ cls: String, id: String? = nil, control: Bool = false) -> TouchedView {
+        TouchedView(className: cls, identifier: id, isControl: control)
     }
 
     @Test func Gestures() {
@@ -17,30 +20,48 @@ import Testing
     }
 
     @Test func TargetPathAndViewType() throws {
-        // A button's title label inside the button inside a labelled cell.
-        let chain = [v("UIButtonLabel", label: "Pay 42.10", text: true), v("UIButton", id: "pay", label: "Pay 42.10", control: true, role: "button"),
-                     v("MyApp.CheckoutCell", id: "checkout-cell"), v("UIView"), v("UIWindow")]
+        // A button's title label inside the button inside a cell with a test id.
+        let chain = [v("UIButtonLabel"), v("UIButton", id: "pay", control: true), v("MyApp.CheckoutCell", id: "checkout-cell"), v("UIView"), v("UIWindow")]
         let d = try #require(TapRules.describe(chain, labels: true))
         #expect(d.target == "pay")
         #expect(d.path == "pay > checkout-cell")
-        #expect(d.viewType == "button")
+        #expect(d.viewType == "UIButton")
         // Labels off: what was touched, never what it is called.
         let off = try #require(TapRules.describe(chain, labels: false))
-        #expect(off.target == "button")
-        #expect(off.path == nil)
-        #expect(off.viewType == "button")
+        #expect(off == ("UIButton", nil, "UIButton"))
     }
 
-    /// Rule 6: a view that shows text is never named by its accessibility label (that is its text);
-    /// mask markers are not labels.
-    @Test func TextIsNeverATarget() throws {
-        let label = try #require(TapRules.describe([v("UILabel", label: "Ada Lovelace", control: true, text: true), v("UIView", id: "ouo-mask"), v("UIWindow")], labels: true))
-        #expect(label.target == "UILabel")
-        #expect(label.path == nil)
-        let control = try #require(TapRules.describe([v("MyApp.Toggle", label: "Dark mode", control: true)], labels: true))
-        #expect(control.target == "Dark mode", "a control's accessibility label is its name")
-        #expect(control.viewType == "Toggle")
+    /// Without a test id the target is the view type: the touched control's class, else the view's.
+    /// Replay markers are not names.
+    @Test func WithoutATestIdTheTargetIsTheViewType() throws {
+        let control = try #require(TapRules.describe([v("UIButtonLabel"), v("UIButton", control: true), v("UIView", id: "ouo-mask"), v("UIWindow")], labels: true))
+        #expect(control == ("UIButton", nil, "UIButton"))
+        let swiftUI = try #require(TapRules.describe([v("SwiftUI.CGDrawingView"), v("_TtGC7SwiftUI14_UIHostingViewVS_7AnyView_"), v("UIWindow")], labels: true))
+        #expect(swiftUI.target == "CGDrawingView")
     }
+
+    #if canImport(UIKit)
+    /// Rule 6 with an assistive technology on (VoiceOver, Voice Control, an XCUITest runner): UIKit
+    /// then gives a button its visible title as accessibility label and the button trait. The tap
+    /// never carries it.
+    @MainActor @Test func AButtonTitleNeverLeaksIntoATap() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let button = UIButton(type: .system)
+        button.setTitle("Send to Ada Lovelace", for: .normal)
+        button.accessibilityLabel = "Send to Ada Lovelace"
+        button.accessibilityTraits = .button
+        let cell = UIView()
+        cell.accessibilityLabel = "Ada Lovelace, 99 dollars"
+        cell.addSubview(button)
+        window.addSubview(cell)
+        for labels in [true, false] {
+            let d = try #require(TapRules.describe(TapTracking.chain(button), labels: labels))
+            let step = TapRules.step(gesture: "tap", target: d.target, viewType: d.viewType, screen: "Cart")
+            #expect(![d.target, d.path ?? "", d.viewType, step].contains { $0.contains("Ada") })
+            #expect(d.target == "UIButton")
+        }
+    }
+    #endif
 
     @Test func StepsReadLikeTheReactNativeSDK() {
         #expect(TapRules.step(gesture: "tap", target: "add-to-cart", viewType: "button", screen: "Products") == "Tap add-to-cart (button) on Products")

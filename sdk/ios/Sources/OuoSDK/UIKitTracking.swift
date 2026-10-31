@@ -105,21 +105,13 @@ final class TapTracking {
         }
     }
 
-    /// The touched view and its superviews, innermost first, as the tap rules read them.
+    /// The touched view and its superviews, innermost first, as the tap rules read them: class,
+    /// test id, control. Nothing that can hold visible text.
     static func chain(_ view: UIView) -> [TouchedView] {
         var out: [TouchedView] = []
         var v: UIView? = view
         while let cur = v, out.count < 32 {
-            let traits = cur.accessibilityTraits
-            let role = traits.contains(.button) ? "button" : traits.contains(.link) ? "link" : nil
-            out.append(TouchedView(
-                className: NSStringFromClass(type(of: cur)),
-                identifier: cur.accessibilityIdentifier,
-                accessibilityLabel: cur.accessibilityLabel,
-                isControl: cur is UIControl || role != nil,
-                role: role,
-                showsText: cur is UILabel || cur is UITextField || cur is UITextView
-            ))
+            out.append(TouchedView(className: NSStringFromClass(type(of: cur)), identifier: cur.accessibilityIdentifier, isControl: cur is UIControl))
             v = cur.superview
         }
         return out

@@ -5,12 +5,12 @@ import UIKit
 /// Home (UIKit): automatic screen (named by `OuoScreenNaming`), reports full display, the button to Products.
 final class HomeViewController: UIViewController, OuoScreenNaming {
     var ouoScreenName: String? { "Home" }
+    let greeting = UILabel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Home"
         view.backgroundColor = .systemBackground
-        let greeting = UILabel()
         greeting.text = "Hello, Ada Lovelace"
         let open = UIButton(type: .system)
         open.setTitle("Products", for: .normal)
@@ -26,6 +26,7 @@ final class HomeViewController: UIViewController, OuoScreenNaming {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         Journey.homeAppeared()
+        Journey.area("Home", "text", greeting.convert(greeting.bounds, to: nil))
         // The content is all there once it appears: TTFD (C4.2).
         Ouo.reportFullyDisplayed()
     }
@@ -44,15 +45,34 @@ struct Products: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Espresso cup, 4.50").font(.title3)
+            Text("Espresso cup, 4.50").font(.title3).background(Area(screen: "Products", name: "swiftui-text"))
             Text("Card ending 4242").ouoMask()
             Text("Total 4.50").ouoUnmask()
-            Image(systemName: "cup.and.saucer.fill").font(.largeTitle)
+            Image(systemName: "cup.and.saucer.fill").font(.largeTitle).background(Area(screen: "Products", name: "swiftui-image"))
             Button("Add to cart", action: onCart).accessibilityIdentifier("add-to-cart")
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ouoScreen("Products")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Ada's picks").background(Area(screen: "Products", name: "toolbar-title"))
+            }
+        }
+    }
+}
+
+/// Notes its view's window frame once it appears (the suite's pixel check).
+struct Area: View {
+    let screen: String
+    let name: String
+    var body: some View {
+        GeometryReader { g in
+            Color.clear.onAppear {
+                // After the push animation, where the frame is captured.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { Journey.area(screen, name, g.frame(in: .global)) }
+            }
+        }
     }
 }
 
@@ -84,5 +104,13 @@ final class CartViewController: UIViewController, OuoScreenNaming {
         checkout.frame = CGRect(x: 24, y: 300, width: 320, height: 44)
         checkout.addAction(UIAction { _ in Journey.checkout() }, for: .touchUpInside)
         [promo, list, checkout].forEach(view.addSubview)
+        self.promo = promo
+    }
+
+    private var promo: UITextField?
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let promo { Journey.area("Cart", "input", promo.convert(promo.bounds, to: nil)) }
     }
 }

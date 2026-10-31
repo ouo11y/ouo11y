@@ -61,7 +61,7 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 | C3 hangs and terminations | `hang` (2 s, OuoCrash's watchdog), `termination` (killed in the foreground without a crash report, cause `memory`, `watchdog` or `unknown`) |
 | C4 vitals | `ouo.app.start` (cold, from the process start to the first frame), `ouo.screen.display` (TTID, TTFD), `app.jank` per screen window |
 | C5 network | one CLIENT span per `URLSession` request, `http.request.failed` (5xx, network errors), `http.request`; `traceparent` and `baggage` only to `propagateTo` |
-| C6 interactions | `ui.tap` per touch: `ouo.ui.target` (a test id, a control's accessibility label; never text a view shows), `ouo.ui.path`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`), `app.screen.name`, a readable body; `taps` and the `tapLabels` kill switch |
+| C6 interactions | `ui.tap` per touch: `ouo.ui.target` (the test id, `accessibilityIdentifier`, else the view type; accessibility labels are not read: with VoiceOver or Voice Control on UIKit fills them with the visible title), `ouo.ui.path`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`), `app.screen.name`, a readable body; `taps` and the `tapLabels` kill switch |
 | C7 screens | `navigation` per screen change: every view controller of the app shown on its own or in a navigation, tab bar, split or page controller (named after its class, or `OuoScreenNaming`), SwiftUI's `.ouoScreen`, `trackScreen` |
 | C8 replay | `OuoReplay` for the sampled sessions, rotated with the session; SwiftUI text and symbols masked (`SwiftUI.CGDrawingView`, not inside system bars), `.ouoMask()` / `.ouoUnmask()` |
 | C10 feedback | `feedback` with message, contact, id, `ouo.last_events`, and a masked frame of the screen when replay records |
@@ -83,12 +83,19 @@ Rules worth knowing:
 - **App extensions** are refused (`start` returns false): they have no `UIApplication`.
 - **Background launches** (a push, a fetch) start a session that ends with `background` unless the
   app is opened in time, and measure no app start.
-- **SwiftUI images are not masked by default** (checklist N79): SwiftUI draws them in the hosting
-  view's own layer, which the masking walk does not see. Put `.ouoMask()` on images that can show
-  user content. SwiftUI text is masked.
-- **Taps in SwiftUI**: a SwiftUI control is not a `UIView`, so a touch on it is named after the
-  hosting view (`ouo.ui.view_type` and target `_UIHostingView…`). Call `Ouo.trackTap("name")` in
-  its action for a named step.
+- **SwiftUI masking**: text (`SwiftUI.CGDrawingView`) under `maskText`; images and vector shapes
+  (`SwiftUI._UIGraphicsView`, `…_UIShapeHitTestingView`: photos, symbols, also a prominent
+  button's background) under `maskImages`. In system bars SwiftUI's drawing is bar chrome and not
+  masked, except a SwiftUI toolbar item (`UIKitBarItemHost`). `.ouoUnmask()` uncovers what the
+  options mask in its area, never what `.ouoMask()` forces.
+- **Taps in SwiftUI**: a SwiftUI control is not a `UIView` of its own; a touch on it reads as the
+  view that draws it (`ouo.ui.target` and `ouo.ui.view_type` `CGDrawingView` or
+  `_UIShapeHitTestingView`). Call `Ouo.trackTap("name")` in its action for a named step.
+- **Screens, edge cases**: a controller from a dynamic framework (`Bundle(for:)` is not the main
+  bundle) is not a screen; both children of a `UISplitViewController` are, so a split view that
+  appears gives two `navigation` records and the current screen is the last to appear; an app's
+  own `UIHostingController` subclass is a screen named after its class, besides any `.ouoScreen`
+  inside it (name it with `OuoScreenNaming`, or return nil to leave it to `.ouoScreen`).
 - **A crash right after a tap** carries that tap: the screen context is handed to the crash
   handler in memory on every change, and the handler writes it into the report.
 - **`URLSession`**: `-[NSURLSessionTask resume]` is swizzled, so every session and API is seen

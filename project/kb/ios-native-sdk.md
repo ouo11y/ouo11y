@@ -59,14 +59,28 @@ Question: how does a UIKit or SwiftUI app without React Native get the same reco
   `Text`/`Image`, under `_UIHostingView<…>`; a `Button` adds `_UIShapeHitTestingView`. No replay
   rule masked it, so a SwiftUI app's text was readable in replay. It is masked under `maskText`
   except inside `UINavigationBar`, `UITabBar`, `UIToolbar` (iOS 26+ draws the bar glass with it).
-  Found with the example's `dump` action (`OUO_ACTION=dump` writes the view classes). A SwiftUI
-  `Image` (an SF Symbol) is in no view and no sublayer of the hosting view: four drawing views for
-  five elements; it stays visible in the replay frame (N79; `.ouoMask()` covers it).
-- **SwiftUI markers**: `.ouoMask()` / `.ouoUnmask()` put a plain `UIView` with the identifier behind
-  the content (`UIViewRepresentable` in `.background`): the content is drawn in sibling views, so an
-  unmask marker without children unmasks the masked rectangles inside its frame (1 pt of slack).
-- **SwiftUI taps** hit the drawing view: `ouo.ui.target` is `CGDrawingView`. XCUITest finds SwiftUI
-  controls by `.accessibilityIdentifier` (the accessibility tree), the SDK does not (the view tree).
+  Found with the example's `dump` action (`OUO_ACTION=dump` writes the view classes). Images are
+  in views too (the review of #127, on a probe app): `Image(uiImage:)`, a `Label`'s and a `List`
+  row's symbol in `SwiftUI._UIGraphicsView` (it has `contents`), a large SF Symbol in
+  `_TtC7SwiftUIP33_…_UIShapeHitTestingView` (a `ColorShapeLayer`, no `contents`; matched by name
+  suffix): both masked under `maskImages` now, like sentry-cocoa. A SwiftUI toolbar item in a
+  navigation bar draws its text in a `CGDrawingView` under `_TtGC7SwiftUI16UIKitBarItemHostVS_11BarItemView_`:
+  masked; the bar exemption is for SwiftUI drawing outside such items only.
+- **SwiftUI markers**: `.ouoMask()` / `.ouoUnmask()` put a plain `UIView` with an identifier behind
+  the content (`UIViewRepresentable` in `.background`): the content is drawn in sibling views. The
+  unmask marker has its own identifier, `ouo-unmask-area`, which only the modifier sets: rectangles
+  masked by class inside its frame are left out (1 pt of slack), forced (`ouo-mask`) and cut-off
+  ones stay. A plain `ouo-unmask` view still unmasks only its own subtree (the first version made
+  any childless `ouo-unmask` view an area, which a React Native overlay could set).
+- **SwiftUI taps** hit the drawing view: `ouo.ui.target` is `CGDrawingView` or `_UIShapeHitTestingView`.
+  XCUITest finds SwiftUI controls by `.accessibilityIdentifier` (the accessibility tree), the SDK
+  does not (the view tree).
+- **Taps never read accessibility labels** (the review of #127): with the accessibility runtime on
+  (VoiceOver, Voice Control, Switch Control, and the XCUITest runner) a `UIButton` reports its
+  visible title as `accessibilityLabel` with the button trait; with it off, nil and no traits. A
+  tap is named by `accessibilityIdentifier` (or `Ouo.trackTap`), else by the class of the touched
+  control or view, the same with or without assistive technology. `AButtonTitleNeverLeaksIntoATap`
+  runs on the iOS simulator.
 - **Screens**: swizzling `viewWillAppear`/`viewDidAppear` on `UIViewController` itself is enough
   (subclasses call `super`). "In the main bundle" filters UIKit's and SwiftUI's controllers; a
   class name like `HomeViewController` is a poor screen name, so apps name screens with

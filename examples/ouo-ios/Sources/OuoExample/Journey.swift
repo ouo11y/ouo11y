@@ -32,6 +32,11 @@ enum Journey {
         note("home")
     }
 
+    /// Where content that replay must mask is on screen (window points), for the suite's pixel check.
+    static func area(_ screen: String, _ name: String, _ rect: CGRect) {
+        note("area", ["screen": screen, "name": name, "x": rect.minX, "y": rect.minY, "w": rect.width, "h": rect.height])
+    }
+
     /// The checkout request inside a span (C5, C9), and a log line.
     static func checkout() {
         Ouo.withSpan("checkout") { _ in

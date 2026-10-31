@@ -66,6 +66,7 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
   - `ouo.ui.view_type`: what was touched, never its label: the control's accessibility role (`button`, `link`), else the component that carries the label (`Pressable`, `UIButton`), else the innermost component or view class;
   - `ouo.ui.gesture`: `swipe` when the touch moved 10 points or more, else `long_press` when it was held 500 ms or more, else `tap`;
   - `app.screen.name`: the screen the touch started on (the last segment of the current C7 `url.path`), absent before the first screen.
+- **Native iOS** (W8): `ouo.ui.target` is the test id (`accessibilityIdentifier`) up the view tree, else the name the app passes to `trackTap`, else the view type; `ouo.ui.view_type` is the class of the view with the id, else of the touched control, else of the touched view (`UIButton`, `UIScrollView`). Accessibility labels and traits are not read: with an assistive technology on (VoiceOver, Voice Control) UIKit fills a button's label with its visible title, and the trait appears only then, so a step would differ by user (rule 6).
 - **Body**: the user step as a person reads it: `Tap add-to-cart (button) on Products`, `Swipe cart-items (FlatList) on Cart`.
 - **Kill switches**: `timeline.taps: false` stops the records. `timeline.tapLabels: false` keeps the taps `RUMProvider` records without any label: `ouo.ui.target` is the view type and there is no `ouo.ui.path`; gesture, view type and screen stay. Targets the app passes to `trackTap` are its own and are kept. Text content is never read (rule 6).
 - **Check**: C6.1.
@@ -163,9 +164,9 @@ React Native iOS is measured by the suite (CI, job `examples`). The other column
 | C3 Hangs and terminations | L2 | L2 (native suite) | L0 | L0 | L0 |
 | C4 Vitals | L2 | L2 (native suite) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
 | C5 Network | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
-| C6 Interactions | L2 | L2 (native suite; SwiftUI controls named by `trackTap`) | L1 (JS) | L0 | L0 |
+| C6 Interactions | L2 | L2 (native suite; test ids only, SwiftUI controls by `trackTap`) | L1 (JS) | L0 | L0 |
 | C7 Screens and navigation | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
-| C8 Replay | L2 | L2 (native suite; SwiftUI images not masked by default, N79) | L0 | L0 | L0 |
+| C8 Replay | L2 | L2 (native suite) | L0 | L0 | L0 |
 | C9 Span and log API | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
 | C10 Feedback | L2 | L2 (native suite) | L1 (JS; no screenshot without the native module) | L0 | L0 |
 | C11 Delivery | L2 | L2 (native suite) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |

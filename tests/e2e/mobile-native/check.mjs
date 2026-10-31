@@ -1,7 +1,8 @@
 // Asserts the native iOS suite's launches (run.sh) against rum-api, with the check ids of
 // docs/specs/mobile-sdk.md section 3, and prints the checks and the maturity row.
 // Usage: node check.mjs <out dir>   (the env's variables set: deploy/envs/ouo-env env)
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getJSON, GRAFANA, pollUntil, readHeaders, RUM, table } from "../lib.mjs";
 
@@ -98,12 +99,32 @@ const CHECKS = {
     const [a, b] = await Promise.all([detail(main.session), detail(rotated)]);
     return a?.replay_kind === "frames" && b?.replay_kind === "frames";
   },
-  "C8.2": async () => (await getJSON(`${RUM}/v1/sessions/${main.session}/replay`).catch(() => null))?.masked === true,
+  // The chunk says masked, and the pixels agree: every area the app noted (UIKit text, an input, SwiftUI
+  // text, a SwiftUI image, a SwiftUI toolbar title) is black in the frame shown before the next screen.
+  "C8.2": async () => {
+    const meta = await getJSON(`${RUM}/v1/sessions/${main.session}/replay`).catch(() => null);
+    const frames = await getJSON(`${RUM}/v1/sessions/${main.session}/replay/frames`).catch(() => null);
+    const navs = named(await detail(main.session), "navigation").map((e) => Date.parse(e.ts));
+    const areas = notes.filter((n) => n.kind === "area" && n.session === main.session);
+    if (meta?.masked !== true || !frames || areas.length < 5) return false;
+    const file = join(out, "frames.json");
+    writeFileSync(file, JSON.stringify(frames));
+    const results = areas.map((a) => {
+      const until = (navs.find((t) => t > a.ts) ?? a.ts + 5000) - 1;
+      // The centre half of the area: unmasked content leaves white there (a label's or an image's
+      // layout frame is wider than what it draws), a mask does not.
+      const rect = [a.x + a.w / 4, a.y + a.h / 4, a.w / 2, a.h / 2].join(",");
+      const [mean] = JSON.parse(execFileSync(join(out, "pixels"), [file, String(until), rect]).toString());
+      return { name: a.name, mean };
+    });
+    pixelReport = results;
+    return results.every((r) => r.mean >= 0 && r.mean < 0.15);
+  },
   "C8.3": async () => {
     const meta = await getJSON(`${RUM}/v1/sessions/${crash.session}/replay`).catch(() => null);
     const at = noteAfter(crash, "crash")?.ts;
     const end = Number(meta?.ended_at) || Date.parse(meta?.ended_at ?? "");
-    return meta?.kind === "frames" && end >= at - 1500;
+    return meta?.kind === "frames" && Math.abs(end - at) <= 1500;
   },
   "C9.1": async () => {
     const spans = (await tracesOf(main.session)).find((s) => s.some((x) => x.name === "checkout")) ?? [];
@@ -112,10 +133,18 @@ const CHECKS = {
     return Boolean(root) && spans.some((x) => x.kind === 3 || x.kind === "SPAN_KIND_CLIENT" ? x.parentSpanId === root.spanId : false) &&
       (logs?.logs ?? []).some((l) => l.body === "golden log line");
   },
+  // The record, the steps before it (ending with the journey's last ones), and the replay around it.
   "C10.1": async () => {
-    const id = noteAfter(main, "feedback")?.id;
+    const note = noteAfter(main, "feedback");
     const f = named(await detail(main.session), "feedback")[0];
-    return Boolean(id) && attr(f, "ouo.feedback.id") === id && attr(f, "ouo.feedback.contact") === "ada@example.com" && attr(f, "ouo.feedback.screenshot") === "true" && lastEvents(f).length > 0;
+    const steps = lastEvents(f).map((e) => `${e.name} ${e.body}`);
+    const frames = (await getJSON(`${RUM}/v1/sessions/${main.session}/replay/frames`).catch(() => null))?.frames ?? [];
+    const at = Date.parse(f?.ts ?? "");
+    return Boolean(note?.id) && attr(f, "ouo.feedback.id") === note.id && attr(f, "ouo.feedback.message") === "golden feedback" &&
+      attr(f, "ouo.feedback.contact") === "ada@example.com" && attr(f, "ouo.feedback.screenshot") === "true" &&
+      // The journey's last steps before it: the error and the log line of the checkout (its request may answer after).
+      steps.slice(-3).some((s) => s.startsWith("log golden log line")) && steps.some((s) => s.includes("golden handled error")) &&
+      frames.some((x) => Number(x.ts) <= at) && frames.some((x) => Number(x.ts) > at);
   },
   "C11.1": async () => named(await detail(offline.session), "offline-step").length === 1,
   "C11.2": async () => {
@@ -124,6 +153,7 @@ const CHECKS = {
   },
 };
 
+let pixelReport = null;
 const rows = [];
 const levels = {};
 for (const [id, check] of Object.entries(CHECKS)) {
@@ -133,6 +163,7 @@ for (const [id, check] of Object.entries(CHECKS)) {
   levels[cap] = levels[cap] === "L1" || pass !== true ? "L1" : "L2";
 }
 table(rows);
+if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
 console.log("maturity (native iOS, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
 console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session });
 process.exit(rows.some((r) => r.result === "FAIL") ? 1 : 0);

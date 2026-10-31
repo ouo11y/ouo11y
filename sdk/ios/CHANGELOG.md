@@ -12,13 +12,16 @@ New entries are written by release-please from conventional commits (`feat(ios):
 - **W8 part 2** (`OuoSDK`): screens from UIKit by themselves (a `viewWillAppear` / `viewDidAppear`
   swizzle on `UIViewController`; the app's controllers shown on their own or in a system container;
   TTID from `viewWillAppear`; `OuoScreenNaming`), SwiftUI's `.ouoScreen("Name")`; `ui.tap` for every
-  touch (OuoReplay's `TouchObserver`; target, path, view type, gesture, screen; never the text a view
-  shows) with `taps` and the `tapLabels` kill switch, and `Ouo.trackTap`; SwiftUI `.ouoMask()` and
+  touch (OuoReplay's `TouchObserver`; named by `accessibilityIdentifier` or `Ouo.trackTap`, else the
+  view type; accessibility labels are never read, since assistive technologies fill them with the
+  visible title) with `taps` and the `tapLabels` kill switch; SwiftUI `.ouoMask()` and
   `.ouoUnmask()`; `Ouo.feedback` (C10, with a masked frame when replay records); the screen context
   in memory for the crash handler (`OuoCrash.setContext`), so a crash right after a tap carries it.
-- Replay masks SwiftUI text and symbols (`SwiftUI.CGDrawingView`) under `maskText`, except inside
-  system bars (iOS 26+ draws the navigation bar's glass with it). A childless `ouo-unmask` view
-  unmasks the area it covers.
+- Replay masks SwiftUI text (`SwiftUI.CGDrawingView`) under `maskText`, and SwiftUI images and
+  shapes (`SwiftUI._UIGraphicsView`, `…_UIShapeHitTestingView`) under `maskImages`. In system bars
+  SwiftUI's drawing is chrome and not masked, except a SwiftUI toolbar item's (`UIKitBarItemHost`).
+  An `ouo-unmask-area` view (SwiftUI's `.ouoUnmask()`) leaves out the class masks inside its frame,
+  never forced `ouo-mask` ones.
 - The `OuoObjCSmoke` target: every Objective-C call of `OuoSDK`, compiled for iOS in CI.
 - The replay chunk a crash left open ends at the crash when `OuoSDK` knows it
   (`recoverPendingChunk(_:crash:)`), as the spec's C8 says: an unchanged screen sends no frames, so

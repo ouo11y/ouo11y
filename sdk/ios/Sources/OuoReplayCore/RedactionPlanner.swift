@@ -54,6 +54,10 @@ public struct ViewNode: Sendable {
 public struct RedactionRules: Sendable {
     public static let maskIdentifier = "ouo-mask"
     public static let unmaskIdentifier = "ouo-unmask"
+    /// SwiftUI's `.ouoUnmask()` only: a view behind content that SwiftUI draws in sibling views. The
+    /// rectangles masked by class inside its frame are left out; forced (`ouo-mask`) and cut-off
+    /// subtrees stay masked.
+    public static let unmaskAreaIdentifier = "ouo-unmask-area"
 
     /// Text inputs: UIKit entry views plus the React Native input components (`RCTUITextField` /
     /// `RCTUITextView` subclass UIKit's; Fabric wraps them in `RCTTextInputComponentView`).
@@ -77,11 +81,20 @@ public struct RedactionRules: Sendable {
     ]
     public static let imageClasses: Set<String> = [
         "UIImageView", "RCTImageView", "RCTImageComponentView",
+        // SwiftUI draws `Image(uiImage:)`, a `Label`'s and a `List` row's symbol in this view (it has
+        // `contents`); sentry-cocoa redacts it too. Fails closed on SwiftUI shapes as well.
+        "SwiftUI._UIGraphicsView",
     ]
+    /// Matched as name suffixes (the mangled name carries a private hash): SwiftUI's vector shapes,
+    /// which draw large SF Symbols (`_TtC7SwiftUIP33_…_UIShapeHitTestingView`).
+    public static let imageClassSuffixes: [String] = ["_UIShapeHitTestingView"]
     public static let webViewClasses: Set<String> = ["WKWebView"]
     /// System bars: SwiftUI drawing views inside them are bar chrome, not app content.
     public static let barClasses: Set<String> = ["UINavigationBar", "UITabBar", "UIToolbar"]
     static let drawingClasses: Set<String> = ["SwiftUI.CGDrawingView"]
+    /// A SwiftUI toolbar item inside a bar (`_TtGC7SwiftUI16UIKitBarItemHostVS_11BarItemView_`): app
+    /// content, so its drawing views are masked even inside a bar.
+    static let barItemHostMarker = "UIKitBarItemHost"
 
     /// Labels and React Native text (`textClasses`).
     public var maskText: Bool
@@ -128,18 +141,21 @@ public struct RedactionPlanner: Sendable {
     /// Nil means the frame must be dropped (masking fails closed): a rectangle to mask sits on a
     /// layer that is moving, so the pixels the render server drew may be elsewhere.
     public func rects(for root: ViewNode, window: CGRect) -> [CGRect]? {
-        var out: [CGRect] = []
+        var out: [(rect: CGRect, byClass: Bool)] = []
         let masked = rules.maskedClasses
-        guard visit(root, window: window, masked: masked, moving: false, inBar: false, into: &out) else { return nil }
-        // A childless `ouo-unmask` marker (SwiftUI's `.ouoUnmask()`, a view behind content drawn in
-        // its siblings) unmasks the area it covers: masked rectangles inside it are left out.
-        let regions = Self.unmaskRegions(root)
-        if !regions.isEmpty { out.removeAll { r in regions.contains { $0.insetBy(dx: -1, dy: -1).contains(r) } } }
-        return mergeOverlapping ? RedactionPlanner.merge(out) : out
+        guard visit(root, window: window, masked: masked, moving: false, bar: .none, into: &out) else { return nil }
+        // `.ouoUnmask()` areas: the rectangles masked by class inside them are left out.
+        let areas = Self.unmaskAreas(root)
+        if !areas.isEmpty { out.removeAll { r in r.byClass && areas.contains { $0.insetBy(dx: -1, dy: -1).contains(r.rect) } } }
+        let rects = out.map(\.rect)
+        return mergeOverlapping ? RedactionPlanner.merge(rects) : rects
     }
 
+    /// Where the walk is: outside bars, inside a system bar, or inside a SwiftUI item in a bar.
+    private enum Bar { case none, bar, item }
+
     /// False when a masked rectangle is moving.
-    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, inBar: Bool, into out: inout [CGRect]) -> Bool {
+    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, bar: Bar, into out: inout [(rect: CGRect, byClass: Bool)]) -> Bool {
         // Hidden or transparent views hide their whole subtree, unless still fading out.
         if node.hidden || (node.alpha <= 0.01 && !node.animating) { return true }
         // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
@@ -153,27 +169,30 @@ public struct RedactionPlanner: Sendable {
         let visible = !(clipped.isNull || clipped.isEmpty)
         let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier
         // A subtree the walk did not finish may hold anything: masked like a matched view.
-        let inBar = inBar || Self.isKind(node, RedactionRules.barClasses)
-        let bar = inBar && RedactionRules.drawingClasses.contains(node.className)
-        if visible, forced || node.truncated || (matches(node, masked) && !bar) {
+        var bar = bar
+        if bar == .none, Self.isKind(node, RedactionRules.barClasses) { bar = .bar }
+        if bar == .bar, node.className.contains(RedactionRules.barItemHostMarker) { bar = .item }
+        // Bar chrome drawn by SwiftUI is not content; a SwiftUI toolbar item's drawing is.
+        let chrome = bar == .bar && RedactionRules.drawingClasses.contains(node.className)
+        let byClass = matches(node, masked) && !chrome
+        if visible, forced || node.truncated || byClass {
             if moving { return false }
-            out.append(clipped)
+            out.append((clipped, !forced && !node.truncated))
             // The rectangle covers the subtree: no need to look inside.
             return true
         }
         for child in node.children {
-            guard visit(child, window: window, masked: masked, moving: moving, inBar: inBar, into: &out) else { return false }
+            guard visit(child, window: window, masked: masked, moving: moving, bar: bar, into: &out) else { return false }
         }
         return true
     }
 
-    private static func unmaskRegions(_ node: ViewNode) -> [CGRect] {
-        if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier, node.children.isEmpty { return [node.frameInWindow] }
-        return node.children.flatMap(unmaskRegions)
+    private static func unmaskAreas(_ node: ViewNode) -> [CGRect] {
+        (node.accessibilityIdentifier == RedactionRules.unmaskAreaIdentifier ? [node.frameInWindow] : []) + node.children.flatMap(unmaskAreas)
     }
 
     private func matches(_ node: ViewNode, _ masked: Set<String>) -> Bool {
-        Self.isKind(node, masked)
+        Self.isKind(node, masked) || (rules.maskImages && RedactionRules.imageClassSuffixes.contains { node.className.hasSuffix($0) })
     }
 
     private static func isKind(_ node: ViewNode, _ classes: Set<String>) -> Bool {

@@ -2,26 +2,23 @@ import Foundation
 import OuoReplayCore
 
 /// One view of the chain a touch went through, innermost first: what the tap rules need, read on the
-/// main thread by the UIKit glue (`UIKitTracking`).
+/// main thread by the UIKit glue (`UIKitTracking`). No accessibility label and no traits: with an
+/// assistive technology on (VoiceOver, Voice Control, Switch Control, an XCUITest runner) UIKit
+/// fills a button's label with its visible title (rule 6).
 struct TouchedView: Equatable {
     var className: String
-    /// `accessibilityIdentifier` (a test id; `ouo-mask` and `ouo-unmask` are not labels).
+    /// `accessibilityIdentifier` (a test id; the replay markers are not names).
     var identifier: String?
-    /// `accessibilityLabel`, used only for controls (rule 6: a label view's label is its text).
-    var accessibilityLabel: String?
-    /// A `UIControl`, or an element with the button or link trait.
+    /// A `UIControl`: the view type of a touch on its content.
     var isControl: Bool
-    /// `button` or `link` from the accessibility traits, nil otherwise.
-    var role: String?
-    /// A view that shows text (labels, text fields and views): its accessibility label is never read.
-    var showsText: Bool
 }
 
-/// `ui.tap` (mobile SDK spec C6), the rules of the React Native SDK's taps for native views.
+/// `ui.tap` (mobile SDK spec C6) for native views: named by test ids only.
 enum TapRules {
     static let swipeDistance: Double = 10
     static let longPress: Double = 500
     static let maxPath = 5
+    private static let markers: Set<String> = [RedactionRules.maskIdentifier, RedactionRules.unmaskIdentifier, RedactionRules.unmaskAreaIdentifier]
 
     /// `swipe` when the touch moved 10 points or more, else `long_press` when held 500 ms or more, else `tap`.
     static func gesture(durationMs: Double, dx: Double, dy: Double) -> String {
@@ -29,22 +26,23 @@ enum TapRules {
         return durationMs >= longPress ? "long_press" : "tap"
     }
 
-    /// A view's label: its test id, else a control's accessibility label; never text content.
+    /// A view's name: its test id, never text.
     static func label(_ v: TouchedView) -> String? {
-        if let id = v.identifier, !id.isEmpty, id != RedactionRules.maskIdentifier, id != RedactionRules.unmaskIdentifier { return id }
-        if v.isControl, !v.showsText, let l = v.accessibilityLabel, !l.isEmpty { return l }
-        return nil
+        guard let id = v.identifier, !id.isEmpty, !markers.contains(id) else { return nil }
+        return id
     }
 
-    /// `ouo.ui.target`, `ouo.ui.path` and `ouo.ui.view_type` for a touch on `chain` (innermost first).
-    /// Without labels (`tapLabels` off) the target is the view type and there is no path.
+    /// `ouo.ui.target`, `ouo.ui.path` and `ouo.ui.view_type` for a touch on `chain` (innermost first):
+    /// the first test id up the chain and the test ids above it; the view type is the class of the
+    /// view that carries the id, else of the first control, else of the touched view, and is the
+    /// target when nothing has an id. Without labels (`tapLabels` off) the target is the view type,
+    /// without a path.
     static func describe(_ chain: [TouchedView], labels: Bool) -> (target: String, path: String?, viewType: String)? {
         guard let innermost = chain.first else { return nil }
         let labelled = chain.firstIndex { label($0) != nil }
         let carrier = labelled.map { chain[$0] } ?? chain.first { $0.isControl } ?? innermost
-        let viewType = carrier.role ?? shortName(carrier.className)
-        guard labels else { return (viewType, nil, viewType) }
-        guard let i = labelled, let target = label(chain[i]) else { return (shortName(innermost.className), nil, viewType) }
+        let viewType = shortName(carrier.className)
+        guard labels, let i = labelled, let target = label(chain[i]) else { return (viewType, nil, viewType) }
         let names = chain[i...].compactMap(label).prefix(maxPath)
         return (target, names.count > 1 ? names.joined(separator: " > ") : nil, viewType)
     }

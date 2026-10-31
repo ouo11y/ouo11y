@@ -71,6 +71,7 @@ final class Core {
     let io = DispatchQueue(label: "dev.ouo.context", qos: .utility)
     private var writtenSeq = 0 // `io` only
     private let delivery = InOrder<SessionRecord>()
+    private let crashOrder = InOrder<Data>()
 
     init(settings: Settings, directory: URL, hooks: Hooks = Hooks()) {
         self.settings = settings
@@ -431,7 +432,8 @@ final class Core {
         publishedDevice = device
         lock.unlock()
         if let (seq, c) = context {
-            if let data = try? JSONEncoder().encode(c) { hooks.crashContext(data) }
+            // In order across threads, like the file below: an older context never lands last.
+            if let data = try? JSONEncoder().encode(c) { crashOrder.deliver(seq, data, hooks.crashContext) }
             let url = contextURL
             let save = hooks.saveContext ?? { c, url in c.save(url) }
             io.async { [self] in

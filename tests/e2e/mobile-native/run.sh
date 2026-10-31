@@ -26,12 +26,14 @@ BUNDLE=$("$ROOT/examples/ouo-ios/scripts/build.sh" "$OUT" | tail -1)
 mkdir -p "$OUT/taps" && xcodegen generate --spec "$HERE/taps/project.yml" --project "$OUT/taps" --quiet
 TAPS_RUN="xcodebuild -project $OUT/taps/Taps.xcodeproj -scheme RunnerUITests -destination id=$UDID -derivedDataPath $OUT/taps/dd -quiet"
 perl -e 'alarm 900; exec @ARGV' $TAPS_RUN build-for-testing > "$OUT/taps-build.log" 2>&1
+swiftc -O "$HERE/pixels.swift" -o "$OUT/pixels"
 xcrun simctl uninstall "$UDID" "$APP" 2>/dev/null || true
 xcrun simctl install "$UDID" "$BUNDLE"
 : > "$OUT/requests.jsonl"
 node "$HERE/proxy.mjs" "$PROXY_PORT" "$OUO_OTLP_URL" "$OUT/requests.jsonl" &
 PROXY=$!
-trap 'kill $PROXY 2>/dev/null || true' EXIT
+# The offline run stops the collector: whatever happens, it is started again.
+trap 'kill $PROXY 2>/dev/null || true; docker start "$COLLECTOR" >/dev/null 2>&1 || true' EXIT
 
 run() { SIMCTL_CHILD_OUO_ACTION=$1 SIMCTL_CHILD_OUO_OTLP=${2:-$OUO_OTLP_URL} SIMCTL_CHILD_OUO_REPLAY=$OUO_REPLAY_URL SIMCTL_CHILD_OUO_BACKEND=$BACKEND xcrun simctl launch "$UDID" "$APP" >/dev/null; }
 background() { xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null; }
