@@ -94,6 +94,20 @@ New entries are written by release-please from conventional commits (`feat(ios):
   prewarmed launches, cold or warm per runtime) and `CADisplayLink` frame counters (total, slow,
   frozen, delay) for the mobile vitals spec (checklist G2).
 
+## [0.3.0](https://github.com/ouo11y/ouo11y/compare/ios-v0.2.0...ios-v0.3.0) (2026-10-31)
+
+
+### Added
+
+* **ios:** hangs, terminations, TTFD and error context (W4) ([aa6da5a](https://github.com/ouo11y/ouo11y/commit/aa6da5aa7dd8275538ee13e7de9adc860ad69e03))
+* **ios:** native app start and frame counters for mobile vitals (G2) ([#47](https://github.com/ouo11y/ouo11y/issues/47)) ([8121faf](https://github.com/ouo11y/ouo11y/commit/8121faf6784f2276a64e75991c0b282010dc53f6))
+* **ios:** native session, network and OTLP exporter (W8 part 1) ([69033f6](https://github.com/ouo11y/ouo11y/commit/69033f66dd0b61bd54a6646da88a373f7f26ff13))
+* **ios:** production-safe replay capture (W1) ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012))
+* **ios:** replay capture off the main thread, native crash capture ([#40](https://github.com/ouo11y/ouo11y/issues/40)) ([9fb3dc4](https://github.com/ouo11y/ouo11y/commit/9fb3dc4a6b4fd3cdecb5177e2ffc2d58eef9a840))
+* **ios:** screens, taps, SwiftUI masking and the native example app (W8 part 2) ([64d5056](https://github.com/ouo11y/ouo11y/commit/64d5056a33d67c9be447d2f39b9697fbffed64e2))
+* **ios:** tiles in frames schema 2, a static screen sends no image bytes (W3a) ([bf5c22d](https://github.com/ouo11y/ouo11y/commit/bf5c22d47925656414f9877b6ba448a32185f942))
+* **react-native:** gzip OTLP, offline outbox and durable replay chunk queue (W3 delivery) ([8f65408](https://github.com/ouo11y/ouo11y/commit/8f6540800034e658317f61dbfb674cc72be2bc89))
+
 ## 0.2.0 (not yet tagged)
 
 First mirrored release. Products `OuoReplay` (UIKit capture) and `OuoReplayCore` (models,
