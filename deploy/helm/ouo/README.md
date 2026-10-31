@@ -233,10 +233,16 @@ with no Ingress (ADR-0007), so `PUT /v1/sourcemaps` and `PUT /v1/dsyms` are not 
 uploads either through a port-forward from a machine with cluster access
 
 ```bash
-kubectl -n ouo port-forward svc/ouo-rum-api 8080:8080 &
+kubectl -n ouo port-forward svc/ouo-rum-api 8080:8080 & pf=$!
+sleep 2   # let the forward listen before the first request
+npx ouo-sourcemaps inject dist
 npx ouo-sourcemaps upload dist --url http://localhost:8080 --token "$OUO_UPLOAD_TOKEN" \
   --project web-store --release "$APP_VERSION" --delete-after
+kill "$pf"
 ```
+
+(the whole build step, `inject` included, is in `docs/sourcemaps.md`; dSYMs use
+`ouo-sourcemaps upload-dsym`, `docs/symbolication.md`)
 
 or from inside the cluster (a Job or an in-cluster CI runner, `--url
 http://ouo-rum-api.ouo.svc:8080`). A public upload path through the collector, for CI on hosted

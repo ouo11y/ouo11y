@@ -32,7 +32,7 @@ projects:
 
 The local stack (`deploy/compose`, `ouo-env`) ships `demo:ut_dev_demo_0000000000000000`.
 
-**Network:** uploads go to rum-api, which is never public (ADR-0007). CI reaches it over your private network: a self-hosted runner, a VPN, or `kubectl port-forward svc/ouo-rum-api 8080` with the Helm chart. If your CI runs on hosted runners and cannot reach rum-api, see [Limits](#limits).
+**Network:** uploads go to rum-api, which is never public (ADR-0007). CI reaches it over your private network: a self-hosted runner, a VPN, or `kubectl port-forward svc/ouo-rum-api 8080` with the Helm chart (its README, "Source maps and dSYMs: upload tokens", shows the tokens and the port-forward). If your CI runs on hosted runners and cannot reach rum-api, see [Limits](#limits).
 
 ### 2. Install the CLI and the SDK
 
