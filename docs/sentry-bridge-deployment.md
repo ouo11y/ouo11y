@@ -174,7 +174,7 @@ spec:
     spec:
       containers:
         - name: bridge
-          image: ghcr.io/ouo11y/collector:0.3.0    # same tag as the chart's collector
+          image: ghcr.io/ouo11y/collector:0.5.0    # same tag as the chart's collector
           args: ["--config=/etc/otelcol/config.yaml"]
           env:
             - name: OUO_INGEST_TOKEN
