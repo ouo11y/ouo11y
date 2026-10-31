@@ -7,13 +7,29 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## [0.10.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.9.0...plugin-v0.10.0) (2026-10-31)
 
-
 ### Added
 
-* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
-* **react-native:** screen funnels and readable user steps (W5) ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5))
-* **replay:** frames schema 2 in rum-api, the collector and the frame player (W3a) ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb))
-* **rum-api:** native crash symbolication from dSYM (W7) ([4a3393a](https://github.com/ouo11y/ouo11y/commit/4a3393a31ecdab5aa9aaf0b77ce18406fa8389ad))
+- **Frames schema 2 in the replay player** (ADR-0014): the frame player paints a `<canvas>`; for
+  the frame at the cursor it draws the latest full image at or before it, then the patches of every
+  frame after it, so tiled iOS replays (iOS 0.3, React Native 0.3) and backward scrubs play
+  ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb)).
+- **Native crash frames** (W7): symbolicated native frames read `function (file:line) in binary`,
+  with `(inlined)`, or `binary address` without a dSYM
+  ([4a3393a](https://github.com/ouo11y/ouo11y/commit/4a3393a31ecdab5aa9aaf0b77ce18406fa8389ad)).
+- **Readable user steps** (W5): the session timeline and the replay activity read a mobile tap as a
+  step (gesture, target, view type and screen: `Tap add-to-cart (button) on Product`); bridge taps
+  read as before ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5)).
+- **User feedback** (W6): a Feedback list in the replay panel (message, contact, screenshot badge,
+  the steps before it, "Replay at feedback"), feedback in the activity list and a replay-bar marker,
+  for the React Native SDK's `rum.feedback()` and Sentry feedback through the bridge
+  ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3)).
+
+### Compatibility
+
+- Needs rum-api >= 0.4.0 as 0.9 did. Native symbolicated frames need rum-api >= 0.6.0 (raw
+  addresses otherwise); schema 2 replays exist only on rum-api >= 0.6.0. Plugins older than 0.10
+  show schema 2 patch frames as broken images: upgrade the plugin (or the grafana image) with
+  rum-api 0.6.
 
 ## [0.9.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.8.0...plugin-v0.9.0) (2026-10-25)
 
