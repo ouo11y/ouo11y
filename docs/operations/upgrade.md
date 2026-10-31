@@ -179,6 +179,10 @@ the collector is supported, an SDK **ahead** of it is not.
   downgraded across a major version.
 - **Helm:** `helm rollback ouo <revision> -n <namespace>` (revision from `helm history`).
   With `--atomic` the failed upgrade already rolled back. PVCs are kept across rollbacks.
+  Not across a replay schema bump: once rum-api 0.6.0 (chart 0.2.0) has run, never roll back
+  to chart 0.1.x, by hand or through `--rollback-on-failure` / `--atomic`. Its rum-api 0.3.0 has
+  no schema guard (section 4) and must not run on a store that holds schema 2 chunks; fix a
+  failed upgrade forward.
 - **SDKs:** pin the previous version in the application's `package.json` / `Package.swift`
   and redeploy the app. Sessions started by the newer SDK remain readable.
 - **Plugin (compose):** check out the previous `plugin-v*` tag, rebuild `dist/`, hard-reload
