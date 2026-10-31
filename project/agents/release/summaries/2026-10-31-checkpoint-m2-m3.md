@@ -13,7 +13,7 @@ commit, `Author: agreed`, `.github/scripts/merge-agreed.sh`) and pushed the tags
 | collector 0.5.0 | #93, `846b3eb` | `collector-v0.5.0` | `release-images` 41194336682, green | amd64 + arm64; release; label |
 | plugin 0.10.0 | #115, `a379966` | `plugin-v0.10.0` | `release-plugin` 41194979671, green | zip, CycloneDX SBOM, md5 / sha1, SHA256SUMS on the release (unsigned: no grafana.com token) |
 | grafana image 0.6.0 | #113, `4354873` (after #126 `feat(grafana): ship plugin 0.10.0`, `9e18d20`) | `grafana-v0.6.0` | `release-images` 41196117069, green | amd64 + arm64; `plugin.json` in the image says 0.10.0; base 13.2.5 (CVE-2026-111497 fix) |
-| chart 0.2.0 | #95, `f3adbfd` | `chart-v0.2.0` | `release-chart` 41200375608, **failed**: not published | see "Chart blocker" |
+| chart 0.2.0 | #95, `f3adbfd` | `chart-v0.2.0` | tag run `release-chart` 41200375608 failed; published by dispatch 41242867986 (after #133), green | `helm show chart oci://ghcr.io/ouo11y/charts/ouo --version 0.2.0`: appVersion 0.6.0, digest `sha256:71e2e37a…`; release with `ouo-0.2.0.tgz` + SHA256SUMS |
 | ios 0.3.0 | #94, `4fcf425` (includes W8 part 2, `64d5056`) | `ios-v0.3.0` | `release-ios` 41201437767, green, **dry run** | swift tests and subtree split pass; mirror push skipped: no `OUO_IOS_DEPLOY_KEY` |
 
 Grafana 0.5.1 (the CVE fix alone) was never released: tagged on that day's `main` it would have
@@ -41,25 +41,23 @@ Follow-up PRs, each reviewed and merged:
 - Then the release trains row in the root `CHANGELOG.md` (step 10) and its Packages table, which
   still shows the 0.3.0-era versions.
 
-## Chart blocker
+## Chart blocker (resolved the same day)
 
-`release-chart` for `chart-v0.2.0` passed the version check, compat, lint, template and package,
-then failed at `helm registry login`: `mkdir /home/runner-2/.config/helm: permission denied`.
-Nothing was pushed and there is no GitHub release. Dry runs never log in, so the rehearsals could
-not see it. A re-run uses the workflow file at the tag commit, so a fix on `main` cannot publish
-0.2.0. Options:
-
-- (a) The founder makes `~/.config` writable by `runner-N` on every runner of the Hetzner server
-  (for example `chown runner-N: /home/runner-N/.config`), then re-runs the failed job of run
-  41200375608. Chart 0.2.0 publishes from its own tag. Recommended.
-- (b) A `fix(ci)` PR pointing helm at `$RUNNER_TEMP` (`HELM_REGISTRY_CONFIG`,
-  `HELM_CONFIG_HOME`), then chart 0.2.1 through a release PR; 0.2.0 stays tagged and unpublished.
+The tag run 41200375608 passed the version check, compat, lint, template and package, then failed
+at `helm registry login`: `mkdir /home/runner-2/.config/helm: permission denied` (`~/.config` is
+not writable by `runner-N` on the self-hosted runners). Dry runs never log in, so the rehearsals
+could not see it, and a re-run uses the tag commit's copy of the workflow. The founder was away;
+the coordinator chose the workflow fix: #133 (`f873f46`, reviewed by a background session) keeps
+helm's config, cache, data and registry files under `$RUNNER_TEMP` and adds `publish` to the
+`workflow_dispatch` (checks out `refs/tags/<tag>`, pushes like the tag run; `docs/releasing.md`
+section 6). `gh workflow run release-chart.yml --ref main -f tag=chart-v0.2.0 -f publish=true`
+(run 41242867986) published 0.2.0 from the existing tag; no tag was moved or created.
 
 ## Founder-only steps
 
-- Chart: option (a) or (b) above. After the first push, GitHub > Packages > `charts/ouo` >
-  Package settings: link it to `ouo11y/ouo11y`, and choose its visibility (the images are public
-  since 2026-10-31).
+- Chart: GitHub > Packages > `charts/ouo` > Package settings: link it to `ouo11y/ouo11y` and
+  choose its visibility. It was created **private** (the images are public since 2026-10-31).
+  The runners' `~/.config` ownership no longer matters to `release-chart`.
 - iOS: create `OUO_IOS_DEPLOY_KEY` (`docs/releasing.md` section 8), then re-run run 41201437767
   to push `main` and tag `0.3.0` to `ouo11y/ouo11y-ios`; make `main` the mirror's default branch
   and delete `about`.
@@ -73,5 +71,8 @@ conflicts between release PRs, `ci.yml` has no dispatch, hand edits are wiped wh
 commit lands, compat rows go in their own release PR, release-please links to missing tags, the
 helm login on the runners. New checklist item N80 (chart upload path). In this worktree npm fails
 at the repository root ("Exit prior to config file resolving") and works from a workspace folder.
+
+Follow-up (N81): `rum-api 0.6.0` shows as "Latest" on GitHub releases although every publish
+workflow passes `--latest=false` (`docs/releasing.md` section 1: no component release is latest).
 
 No env was started; nothing is left running.
