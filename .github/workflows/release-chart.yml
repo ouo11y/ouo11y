@@ -10,6 +10,9 @@
 # Dry run (lint, template, package; pushes nothing, keeps the .tgz as a run artifact):
 #   Actions > release-chart > Run workflow with the tag to rehearse, or any pull request that
 #   changes this file (rehearses chart-v<Chart.yaml version>).
+# Publish an existing tag again (its tag run failed; a re-run would use the tag's own, older copy
+# of this file): Run workflow with the tag and `publish` ticked. It checks out the tag, not the
+# branch, and pushes like the tag run; never move or re-create a tag for this (docs/releasing.md).
 name: release-chart
 
 on:
@@ -25,6 +28,10 @@ on:
         description: 'Tag to rehearse, e.g. chart-v0.1.1 (dry run: lint, package, pushes nothing)'
         required: true
         type: string
+      publish:
+        description: 'Publish this existing tag (checks out the tag, pushes the chart, creates the release)'
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -46,11 +53,25 @@ jobs:
       id-token: write       # build attestation (public repo only)
       attestations: write
     env:
-      DRY_RUN: ${{ github.event_name != 'push' }}
+      DRY_RUN: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && !inputs.publish) }}
       REPO_PUBLIC: ${{ github.event.repository.private == false }}
     steps:
+      # helm keeps its registry login, cache and plugins under ~/.config, ~/.cache and
+      # ~/.local/share; on the self-hosted runners ~/.config is not writable by runner-N
+      # (chart-v0.2.0's tag run failed at `helm registry login`). Keep them in the job's temp folder.
+      - name: Helm's files in the job's temp folder
+        run: |
+          {
+            echo "HELM_CONFIG_HOME=$RUNNER_TEMP/helm/config"
+            echo "HELM_CACHE_HOME=$RUNNER_TEMP/helm/cache"
+            echo "HELM_DATA_HOME=$RUNNER_TEMP/helm/data"
+            echo "HELM_REGISTRY_CONFIG=$RUNNER_TEMP/helm/config/registry/config.json"
+          } >> "$GITHUB_ENV"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # `publish` builds the tag itself; every other run builds the commit that triggered it.
+          ref: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) && format('refs/tags/{0}', inputs.tag) || '' }}
           fetch-depth: 0   # compat-check looks up the image tags
           persist-credentials: false
 
