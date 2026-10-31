@@ -15,6 +15,7 @@ export type ActionName =
   | "js-fatal"
   | "native-crash"
   | "message"
+  | "feedback"
   | "browse-catalog"
   | "search"
   | "checkout"
@@ -167,6 +168,22 @@ export const actions: Record<ActionName, { title: string; run: () => void | Prom
       Sentry.addBreadcrumb({ category: "demo", message: "user opened the promo sheet", level: "info", data: { promo: "AUTUMN" } });
       const id = monitoring.captureMessage("sentry-demo custom message: promo sheet opened", { promo: "AUTUMN" });
       setStatus(`message: ${id ? `event ${id.slice(0, 8)}` : "reported"}`);
+    },
+  },
+  feedback: {
+    title: "Error + user feedback",
+    run: () => {
+      // The user saw an error and wrote about it twice (bridge spec section 9c): a captureFeedback
+      // event (resolved like an event), and a legacy user report naming the error (rule event).
+      let id: string | undefined;
+      try {
+        throw new Error("sentry-demo pay button error");
+      } catch (e) {
+        id = monitoring.captureException(e, { "demo.action": "feedback" });
+      }
+      monitoring.captureFeedback("The pay button does nothing", "qa@example.invalid");
+      if (id) monitoring.sendUserReport(id, "It failed when I paid", "qa@example.invalid");
+      setStatus(`feedback: sent${id ? ` about event ${id.slice(0, 8)}` : ""}`);
     },
   },
   "browse-catalog": { title: "Browse catalog (5 requests)", run: browseCatalog },

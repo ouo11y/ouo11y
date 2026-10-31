@@ -54,6 +54,10 @@ background rotation and a native crash) and then `scripts/verify.py`:
   - every app span came through the bridge;
   - no ouo SDK span is in the window: the default build runs Sentry only
     (`OUO_FLAG_PROVIDER=memory`, `OUO_RUM_MODE=sentry`). Never the ouo SDK and the bridge at once.
+- user feedback (bridge spec section 9c): the errors phase's `feedback` action gives one
+  `feedback` record per message on the session, with its contact, its id (none for the user
+  report) and the session rule that matched (`event` for the user report). The CI journey adds a
+  user report sent before its error, which the bridge holds until the error arrives.
 
 **With a real Sentry.** Point the stack's bridge at it, not the app:
 `OUO_SENTRY_UPSTREAM=https://sentry.example.com`, plus `OUO_SENTRY_PROJECT_ID` and
@@ -86,6 +90,7 @@ the real bridge and backend, then runs the same `verify.py`.
 | `fetch-slow` | `GET /api/products?delay=2500` in a `ui.action` transaction |
 | `handled-error` | `Sentry.captureException`: `event`, level `error`, mechanism `generic`, `handled: true`; the session `errors` count goes up |
 | `message` | breadcrumb plus `Sentry.captureMessage(..., "info")`: `event` level `info`, no exception |
+| `feedback` | `Sentry.captureException`, then `Sentry.captureFeedback` (`feedback` item: an event of type `feedback` with `contexts.feedback`) and a hand-built legacy `user_report` item naming the error (what `captureUserFeedback` sent before SDK 8 removed it). The bridge maps both to `feedback` records (spec section 9c) |
 | `unhandled-rejection` | `Promise.reject` nobody awaits: `event` level `error`, mechanism `onunhandledrejection` but `handled: true` (sic, SDK 8.30); session stays `ok`, `errors` + 1; the app keeps running |
 | `js-fatal` | `throw` inside `setTimeout`: `event` level `fatal`, mechanism `onerror`, `handled: false`, sent together with the session update `crashed` before RN terminates the app (Release). Opt-in in the journey (`--js-fatal`) |
 | `native-crash` | `Sentry.nativeCrash()`: on the **next** launch sentry-cocoa sends `event` (level `fatal`, `EXC_BAD_ACCESS`, mechanism `mach`, `handled: false`) + session `crashed` in one envelope, after the new session's `init` |

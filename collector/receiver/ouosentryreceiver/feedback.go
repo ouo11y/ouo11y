@@ -56,19 +56,16 @@ func (t *translation) emitFeedback(st *sessionState, envSessions map[string]*sen
 }
 
 // emitUserReport maps the legacy `user_report` item: no time, user or
-// context, only the event it is about, whose session it takes. Received time
-// stands for its time. Must hold the lock.
-func (t *translation) emitUserReport(st *sessionState, u *userReport) {
+// context, only the event it is about, whose session x is (rule event), or
+// nil when that error is not known (none). The received time stands for its
+// time. With a session, the lock must be held.
+func (t *translation) emitUserReport(u *userReport, x *sess) {
 	if strings.TrimSpace(u.Comments) == "" {
 		return
 	}
-	// Unknown error (bridge restarted, error sampled out or not sent yet):
-	// emitted without a session (none). Holding it like logs is a later item.
-	x, match := st.byEventID(t.j.project.OuoProjectID, u.EventID), matchNone
+	match := matchNone
 	if x != nil {
-		// Rule event: the error's session; a report brings no context to learn.
 		match = matchEvent
-		st.touch(x, t.j.receivedAt)
 	}
 	t.newFeedback(t.j.receivedAt, x, match, "", u.Comments, firstString(u.Email, u.Name), "")
 }

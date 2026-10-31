@@ -122,6 +122,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 
 	var replays []*replaySegment
 	var heldLogs []sentryLog
+	var heldReports []*userReport
 	r.state.withLock(func() {
 		st := r.state
 		project := j.project.OuoProjectID
@@ -148,7 +149,14 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 			case it.typ == "feedback" && it.event != nil:
 				t.emitFeedback(st, envSessions, sessionOrder, it.event, envReplayID)
 			case it.report != nil:
-				t.emitUserReport(st, it.report)
+				// Its error is known: rule event, a report brings no context
+				// to learn. Else held until the error arrives (section 9c).
+				if x := st.byEventID(project, it.report.EventID); x != nil {
+					st.touch(x, j.receivedAt)
+					t.emitUserReport(it.report, x)
+				} else if strings.TrimSpace(it.report.Comments) != "" {
+					heldReports = append(heldReports, it.report)
+				}
 			}
 		}
 		// Transactions.
@@ -185,7 +193,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 		}
 	})
 
-	r.holdLogs(ctx, t, heldLogs)
+	r.holdLogs(ctx, t, heldLogs, heldReports)
 	t.consume(ctx)
 	for _, seg := range replays {
 		seg.os = t.os
@@ -194,8 +202,8 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 		seg.sdkName = t.sdkName
 		r.handleReplay(ctx, j, seg)
 	}
-	// Sessions, replay ids and trace ids learned from this envelope may
-	// resolve held segments and logs.
+	// Sessions, replay ids, trace ids and event ids learned from this
+	// envelope may resolve held segments, logs and user reports.
 	r.flushPending(ctx)
 	r.flushPendingLogs(ctx, false)
 }
