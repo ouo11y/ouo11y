@@ -40,8 +40,19 @@ last released) with the settings in
 | `chart` | `deploy/helm/ouo` | `Chart.yaml` `version` | `chart-v<semver>` | `oci://ghcr.io/ouo11y/charts/ouo` | `release-chart.yml` |
 
 Every publish workflow refuses a tag whose version differs from the version field, and every
-one can be rehearsed (section 6). Each creates a GitHub release for its tag, marked
-pre-release for `-rc.N` and never "latest" (several components share the repo).
+one can be rehearsed (section 6). Each except `release-ios` (its release is the mirror's tag)
+creates a GitHub release for its tag, marked pre-release for `-rc.N`.
+
+**"Latest" on GitHub is the newest chart release.** GitHub always shows one release as Latest,
+even when every release is created with `--latest=false` (checklist N81: it then keeps whichever
+release it picked, `rum-api 0.6.0` on 2026-10-31, and `gh release edit <tag> --latest=false`
+does not clear it). Several components share the repo, so a component release must not be read
+as "the" release; the chart is the one artefact that names a version of every server image
+(its defaults point at tagged images). So `release-chart.yml` creates the newest final chart
+release with `--latest=true`, and every other release (images, plugin, npm, a chart rc or a
+patch to an older chart line) with `--latest=false`; `chart-v0.2.0` was set by hand
+(`gh release edit chart-v0.2.0 --latest`). Which versions work together is
+[`compatibility.md`](compatibility.md), not the Latest badge.
 
 ## 2. Versioning rules
 

@@ -170,3 +170,8 @@ channel: [release-packaging.md](release-packaging.md).
 - **`helm registry login` fails on the self-hosted runners**: `mkdir /home/runner-N/.config/helm:
   permission denied`. The dry run never logs in, so the rehearsal stays green and only the real
   tag run fails (chart-v0.2.0, run 41200375608). A re-run uses the workflow file of the tag commit.
+- **GitHub always shows one "Latest" release.** Creating every release with `--latest=false`
+  does not leave the repo without one: GitHub kept `rum-api 0.6.0` as Latest, and
+  `gh release edit rum-api-v0.6.0 --latest=false` did not clear it. Only marking another release
+  Latest moves it (`gh release edit chart-v0.2.0 --latest` did). Policy since N81: the newest
+  final chart release is Latest (`release-chart.yml`).
