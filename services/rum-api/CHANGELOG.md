@@ -5,6 +5,15 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+## [0.6.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.5.0...rum-api-v0.6.0) (2026-10-31)
+
+
+### Added
+
+* **ios:** production-safe replay capture (W1) ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012))
+* **replay:** frames schema 2 in rum-api, the collector and the frame player (W3a) ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb))
+* **rum-api:** native crash symbolication from dSYM (W7) ([4a3393a](https://github.com/ouo11y/ouo11y/commit/4a3393a31ecdab5aa9aaf0b77ce18406fa8389ad))
+
 ## [0.5.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.4.0...rum-api-v0.5.0) (2026-10-25)
 
 
