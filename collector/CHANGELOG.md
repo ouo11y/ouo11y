@@ -7,18 +7,24 @@
 
 ## [0.5.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.4.0...collector-v0.5.0) (2026-10-31)
 
-
 ### Added
 
-* **collector:** count auth failures, rate-limit empty exports, internal project; live edge QA (N13, N15, N16, N4) ([#48](https://github.com/ouo11y/ouo11y/issues/48)) ([82fc68a](https://github.com/ouo11y/ouo11y/commit/82fc68a9f0ca506ee698a66b276edb675c75819e))
-* **collector:** mobile vitals, Sentry SDK range, examples with trace-continuity verify ([#45](https://github.com/ouo11y/ouo11y/issues/45)) ([131b206](https://github.com/ouo11y/ouo11y/commit/131b2063324a28ad991a05db7e03c2f9cb0cc427))
-* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
-* **replay:** frames schema 2 in rum-api, the collector and the frame player (W3a) ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb))
+- **Replay frames schema 2** (ADR-0014, `docs/specs/mobile-replay.md`): the `ouoreplay` receiver
+  accepts `schema_version` up to 2 and checks every frame as rum-api 0.6 does (exactly one of
+  `jpeg` and `patches`, a full image first, base64 JPEG, patches inside the latest full image);
+  a chunk that fails is refused at the edge with `400`
+  ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb)).
+- **User feedback through the Sentry bridge** (W6, `docs/specs/sentry-bridge.md` section 9c):
+  Sentry `feedback` events and legacy `user_report` envelopes become the same `feedback` record
+  the React Native SDK sends (`ouo.feedback.message`, `ouo.feedback.contact`, `ouo.feedback.id`);
+  a new session rule `event` finds a report's session by the error event id it names
+  ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3)).
 
+### Compatibility
 
-### Fixed
-
-* **deps:** golang.org/x/net 0.60.0 and dompurify 3.4.17 ([cd1f011](https://github.com/ouo11y/ouo11y/commit/cd1f0118c3649b3aa6ac782a60567f0f46ed584c))
+- Upgrade rum-api to 0.6 before this collector carries schema 2 chunks: rum-api 0.5 and older
+  answer `400` to them. Everything else works with rum-api >= 0.2.0, as 0.4 did.
+- The Sentry bridge still emits video replays at schema 1 (ADR-0014).
 
 ## 0.4.0 (2026-10-24)
 
