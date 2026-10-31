@@ -16,7 +16,7 @@ An age has to be measured across processes and reboots (entries outlive both). T
 ## Verified, and how
 
 - `sdk/ios/test.sh` (Xcode): all suites pass (34 + 77 + 94 + 24 tests). New: `DiskQueueTests.AClockMovedForwardDropsNothing` (two days forward: both entries kept, the next process sends them then its own), `AClockMovedBackKeepsTheOrder` (two days back: the new entry sorts last in this process and the next, the bound drops the real oldest, back on time names follow the clock), `ChunkUploaderTests.AClockMovedForwardKeepsTheChunks` (was `ChunksOlderThanMaxAgeAreDroppedUnsent`), `ChunkSpoolTests.AClockMovedForwardKeepsTheSpool` (was `StaleSpoolIsDropped`).
-- Native conformance suite (`tests/e2e/mobile-native/run.sh`) against env `ios-n77-diskqueue` on the simulator above: see the PR for the row (C11.1 offline run and next launch, C8 replay).
+- Native conformance suite (`tests/e2e/mobile-native/run.sh`) against env `ios-n77-diskqueue` on the simulator above: 17 of 18 pass, C11.1 (offline run, then the next launch delivers) and C11.2, C8.1, C8.3 (replay chunks through the queue) among them. C8.2 failed on the toolbar-title area only (mean 0.44; text, input, SwiftUI text and image 0.004): the example noted that area at x 30 pt mid push animation (the taps run of the same suite noted it at x 152 pt, its place), so the pixels were read beside the title. A harness timing problem of `Area` in `examples/ouo-ios`, not the queue.
 - `lychee --offline` with the AGENTS.md flags: clean.
 
 ## What the next session must know
