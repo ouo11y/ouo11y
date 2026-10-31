@@ -29,6 +29,7 @@ their rum-api bound is what stores and serves what they send.
 | browser | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | HTTP Basic project credentials on OTLP and replay; 0.1.x posted unauthenticated |
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
+| collector | 0.5 | - | >= 0.2.0 | - | - | accepts schema <= 2 | frames schema 2 checked at the edge, Sentry `feedback` / `user_report` as `feedback` records; schema 2 chunks need rum-api >= 0.6.0 (older rum-api answers 400) |
 | collector | 0.4 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |
 | rum-api | 0.6 | - | - | - | - | reads schema <= 2 | frames schema 2 (ADR-0014), dSYM upload and native crash symbolication (W7); writes schema 2 into the store marker, so afterwards rum-api 0.4 and 0.5 refuse to start on its store; 0.3.0 and older have no guard and must never run on it (upgrade.md section 4) |
 | rum-api | 0.5 | - | - | - | - | reads schema <= 1 | source maps upload and symbolication (ADR-0011), funnels (ADR-0012), session `device_id`; storage compatible with 0.4 (maps stored next to the replays) |
