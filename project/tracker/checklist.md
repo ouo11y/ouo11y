@@ -80,7 +80,7 @@ Founder, 2026-10-23: one runnable example per supported path, which clients can 
   - `examples/ouo-web` (renamed from `examples/web`): `@ouo11y/browser` → ouo-collector → LGTM + rum-api.
   - `examples/sentry-mobile` (exists): `@sentry/react-native` → `ouosentry` bridge → fan-out to Sentry (self-hosted `sentry-sbx` or the client's own) + ouo. Default `upstream: none`, so it runs without Sentry. `Sentry.init` sets `propagateTraceparent: true` and `tracePropagationTargets` (N5).
   - `examples/ouo-mobile` (renamed from `examples/mobile`): `@ouo11y/react-native` → ouo-collector → ouo.
-  - Each example has: a README with a five-minute run (released `ghcr.io/ouo11y/*:0.3.0` via `ouo-env` for us, and a plain compose path for clients with `docker login ghcr.io` while the packages are private), `.env.example`, a scripted journey, a `verify` script and a CI smoke job. Renames update every reference (fast-tracked guides, docs, CI paths, links). Builds on batch 1 #1 (#38) for the sentry-mobile backend-trace fixes; conflicts with nothing else. Q2 (replay endpoint variables in the demo apps) is fixed here.
+  - Each example has: a README with a five-minute run (released `ghcr.io/ouo11y/*:0.3.0` via `ouo-env` for us, and a plain compose path for clients; no `docker login` since the images went public on 2026-10-31), `.env.example`, a scripted journey, a `verify` script and a CI smoke job. Renames update every reference (fast-tracked guides, docs, CI paths, links). Builds on batch 1 #1 (#38) for the sentry-mobile backend-trace fixes; conflicts with nothing else. Q2 (replay endpoint variables in the demo apps) is fixed here.
 - [x] N24 Trace-continuity check in every example's `verify` [done 2026-10-23, batch 2: `examples/tools/tracecheck.py`, the backend's request log as the reference; found and fixed: Sentry requests outside a span (random parent, unsampled flag), the Expo native start skipped, `tracePropagationTargets: ["localhost"]`, `sentry-trace` missing from the backend's CORS]. In Tempo, for the N requests of the journey:
   - Every backend server span's parent span id exists in the same trace. No orphan parents: Sentry sends a random parent span id when there is no active transaction.
   - Client and backend spans share one trace id.
@@ -213,7 +213,7 @@ Recorded 2026-10-18 (ADR-0009, accepted):
 
 ## Decisions waiting on the founder
 
-1. Package publishing (B4, B7): the exact list is `docs/releasing.md` section 8 (release-please token or setting, mirror deploy key, grafana.com org and token, Renovate app, security address), plus source maps in tarballs. GHCR stays private until stable.
+1. Package publishing (B4, B7): the exact list is `docs/releasing.md` section 8 (release-please token or setting, mirror deploy key, grafana.com org and token, Renovate app, security address), plus source maps in tarballs. GHCR: the three images are public since 2026-10-31 (pilot program; docs without `docker login` in the PR that followed), the chart package stays private until stable.
 2. Where the hosted demo for B8 lives.
 3. Verdict on the F4 unmasked Sentry recordings (re-run 2026-10-18 side by side with Sentry's player; see the report). Trust the ouo-env proxy CA once so https://sentry.ouo.localhost opens without a warning (`deploy/envs/README.md`).
 4. Old stopped compose projects' volumes (`ouo-8a`, `ouo-sb`, `ouo-taps`, `ouo-cmp`, `ouo-flags`): keep or delete (B2).

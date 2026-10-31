@@ -32,9 +32,8 @@
 #   --ref <git ref>        branch, tag or sha to install (first run: default main; re-run: default
 #                          the commit already checked out, so a re-run never moves the install)
 #   --images               run the released images (deploy/compose/compose.images.yaml) instead of
-#                          building from source. The packages are private: log in as root first,
-#                          `echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin`
-#                          (classic PAT, read:packages). Remembered in .env (OUO_INSTALL_MODE)
+#                          building from source. The images are public, no docker login.
+#                          Remembered in .env (OUO_INSTALL_MODE)
 #   --build                build from source again after an --images install
 #   --image-version <v>    image tag for --images (default: the one in .env, else compose.images.yaml's)
 #   --registry <prefix>    image registry prefix for --images (default ghcr.io/ouo11y)
@@ -285,9 +284,9 @@ if [[ "$MODE" == "images" ]]; then
     if ! docker pull --quiet "$img" 2>"$DIR/.pull.err"; then
       cat "$DIR/.pull.err" >&2
       if grep -qiE 'denied|unauthorized|403' "$DIR/.pull.err"; then
-        die "ghcr.io refused the pull of $img: the ouo images are private. Log in as root (the installer and ouo.service pull as root):
-  echo \"\$GHCR_TOKEN\" | sudo docker login ghcr.io -u <github-user> --password-stdin
-with a classic personal access token that has only read:packages, for a GitHub user the ouo founder granted read access.
+        die "ghcr.io refused the pull of $img. The ouo images are public, so root (the installer and ouo.service pull as root) most likely has an old, expired ghcr.io login:
+  sudo docker logout ghcr.io
+A --registry other than ghcr.io/ouo11y may need its own sudo docker login.
 Without access: docker save the images on a machine that has them and docker load them here, or install without --images."
       fi
       die "pull of $img failed (see above)"

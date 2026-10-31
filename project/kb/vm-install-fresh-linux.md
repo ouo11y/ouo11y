@@ -34,8 +34,9 @@ Mac, and how do we test that locally?
   stack runs; start it (a no-op on re-runs, unlike `restart`, which runs `compose down`).
 - `docker-compose-v2` without `docker-buildx` warns "Compose is configured to build using Bake,
   but buildx isn't installed" and falls back to the classic builder; install both.
-- Private registry and `sudo`: `docker login` as the normal user is invisible to the installer
-  and the unit, which pull as root. `sudo docker login ghcr.io`.
+- Registry logins and `sudo`: `docker login` as the normal user is invisible to the installer
+  and the unit, which pull as root. The ouo images are public since 2026-10-31, so no login is
+  needed; a stale root login that fails with `denied` goes with `sudo docker logout ghcr.io`.
 - Git as non-root in `/opt/ouo` (root's checkout): `fatal: detected dubious ownership`. Use
   `sudo git`.
 - Re-running the 0.2.0 installer with `--ref` of 0.3.0 checks out 0.3.0 and then fails with

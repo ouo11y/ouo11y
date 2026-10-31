@@ -45,11 +45,9 @@ Needs Docker, Node 24, Python 3, Xcode with an iOS Simulator booted (the first a
 about 8 minutes; later runs only the journey).
 
 **Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
-packages are private for now: ask for read access, then log in once with a classic token that has
-only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+images are public, no `docker login`:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 npm ci && npm run -w sdk/react-native build          # the app links the SDK from this checkout
 examples/ouo-mobile/scripts/run.sh --build           # Release build + install, journey, verify

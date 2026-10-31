@@ -108,7 +108,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      packages: read   # the digests of the private ghcr.io/ouo11y images
+      packages: read   # the ghcr.io/ouo11y image digests (public images; anonymous works too)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

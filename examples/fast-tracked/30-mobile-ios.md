@@ -125,13 +125,8 @@ brew install watchman
 ### 2.4 The ouo stack
 
 From the ouo checkout (full steps in `00-stack.md`; this pulls the pinned released images,
-leave the second `-f` out to build from source). The released images are private for now:
-log in to ghcr.io once first with a classic `read:packages` token ("Pull access" in
-`00-stack.md`, Step 3), or build from source, which needs no login:
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
+leave the second `-f` out to build from source). The released images are public, no
+`docker login`:
 
 ```bash
 docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d

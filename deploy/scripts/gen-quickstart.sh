@@ -15,7 +15,7 @@
 # deploy/compose reaches the quickstart only when its image is released.
 #
 # Usage: deploy/scripts/gen-quickstart.sh              rewrite deploy/compose/quickstart.yaml
-#                                                       (reads the digests from ghcr.io: docker login)
+#                                                       (reads the digests from ghcr.io, anonymously)
 #        deploy/scripts/gen-quickstart.sh --check      exit 1 when the committed file is stale or a
 #                                                       newer release exists, its service blocks
 #                                                       drift from the releases' compose files, the
@@ -77,24 +77,26 @@ done
 
 # Digest of the multi-arch index each tested version had when the file was generated. Writing
 # the file asks the registry; --check reads them back from the committed file, and --check
-# --verify-digests asks the registry again. The registry is read with your `docker login
-# ghcr.io`, or with GHCR_TOKEN (a token with read:packages; CI passes GITHUB_TOKEN) and no
-# Docker credentials at all.
+# --verify-digests asks the registry again. The images are public, so the registry is read
+# with an anonymous pull token, or with GHCR_TOKEN when it is set (CI passes GITHUB_TOKEN); no
+# Docker credentials either way.
 registry_digest() {
+  local bearer
   if [[ -n "${GHCR_TOKEN:-}" ]]; then
-    curl -fsSI -H "Authorization: Bearer $(printf %s "$GHCR_TOKEN" | base64 | tr -d '\n')" \
-      -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
-      "https://ghcr.io/v2/ouo11y/$1/manifests/$2" | tr -d '\r' | sed -n 's/^docker-content-digest: //Ip'
+    bearer="$(printf %s "$GHCR_TOKEN" | base64 | tr -d '\n')"
   else
-    docker buildx imagetools inspect "ghcr.io/ouo11y/$1:$2" --format '{{json .Manifest.Digest}}' | tr -d '"'
+    bearer="$(curl -fsS "https://ghcr.io/token?scope=repository:ouo11y/$1:pull" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
   fi
+  curl -fsSI -H "Authorization: Bearer $bearer" \
+    -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
+    "https://ghcr.io/v2/ouo11y/$1/manifests/$2" | tr -d '\r' | sed -n 's/^docker-content-digest: //Ip'
 }
 committed_digest() { sed -n "s/^#   $1 *$2 *\(sha256:[0-9a-f]*\) .*/\1/p" "$OUT" 2>/dev/null | head -1; }
 digest() {
   local d
   if [[ "$MODE" == write ]]; then
     d="$(registry_digest "$1" "$2")" \
-      || { echo "gen-quickstart: cannot read ghcr.io/ouo11y/$1:$2 (docker login ghcr.io)" >&2; exit 1; }
+      || { echo "gen-quickstart: cannot read ghcr.io/ouo11y/$1:$2 (network, or no such tag)" >&2; exit 1; }
   else
     d="$(committed_digest "$1" "$2")"
     [[ -n "$d" ]] || d="sha256:unknown"   # renders differently, so the check reports it stale
@@ -137,9 +139,8 @@ render() {
 # and Mimir from @NEWEST@. A later release that needs new configs comes with a regenerated
 # file: fetch it again (deploy/compose/quickstart.yaml in the ouo11y/ouo11y repo).
 #
-# Copy this file into an empty folder as compose.yaml, then:
+# Copy this file into an empty folder as compose.yaml, then (the images are public, no docker login):
 #
-#   echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin   # images are private for now
 #   docker compose up -d
 #
 # Grafana          http://localhost:3000      admin / testing567, More apps -> ouo11y RUM
@@ -468,7 +469,7 @@ if [[ "$MODE" == check ]]; then
   check_compat || { echo "the newest releases are not a compatible set (docs/compatibility.md)" >&2; exit 1; }
   check_pins || { echo "bump the pins to the newest releases (docs/releasing.md, after the tag)" >&2; exit 1; }
   if $VERIFY; then
-    check_digests || { echo "cannot read a digest (login / GHCR_TOKEN), or a tag was re-pushed: run deploy/scripts/gen-quickstart.sh and commit it" >&2; exit 1; }
+    check_digests || { echo "cannot read a digest (network / GHCR_TOKEN), or a tag was re-pushed: run deploy/scripts/gen-quickstart.sh and commit it" >&2; exit 1; }
   fi
   echo "quickstart.yaml is up to date ($RELEASE)"
 else

@@ -205,7 +205,7 @@ spec:
 
 Expose the Service on its own host (`sentry-bridge.example.com`) with your ingress controller
 and TLS, as you expose the chart's collector; the DSN host becomes that name (no port with
-TLS on 443). If the images are still private, add the chart's `imagePullSecrets` to the pod.
+TLS on 443). The image is public; add the chart's `imagePullSecrets` only when you pull it from a private mirror.
 Upgrade the bridge image together with the chart's collector.
 
 Check it: `kubectl -n ouo get deploy ouo-sentry-bridge` shows `1/1`, and after the app sent a

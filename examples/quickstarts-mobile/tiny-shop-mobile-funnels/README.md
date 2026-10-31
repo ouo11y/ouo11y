@@ -87,8 +87,7 @@ no `$` prompt; each runs from the folder named above it.
 
 ## 1. Run the ouo stack
 
-Log in to ghcr.io (the images are private for now:
-[fast-tracked 00, "Pull access"](../../fast-tracked/00-stack.md)), then from
+The images are public, no `docker login`. From
 `examples/quickstarts-mobile/tiny-shop-mobile-funnels/result/stack`:
 
 ```bash

@@ -19,11 +19,9 @@ bridge does not translate browser envelopes, `docs/specs/sentry-bridge.md`).
 Needs Docker, Node 24 and Python 3. From the repository root, `npm ci` once.
 
 **Plain compose (clients).** The stack with the released images (`ghcr.io/ouo11y/*:0.3.0`). The
-packages are private for now: ask for read access, then log in once with a classic token that has
-only `read:packages` (`examples/fast-tracked/00-stack.md`, "Pull access"):
+images are public, no `docker login`:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 examples/ouo-web/scripts/run.sh            # build, serve on :4173, journey, verify
 ```
