@@ -13,9 +13,8 @@
 # and Mimir from grafana-v0.5.0. A later release that needs new configs comes with a regenerated
 # file: fetch it again (deploy/compose/quickstart.yaml in the ouo11y/ouo11y repo).
 #
-# Copy this file into an empty folder as compose.yaml, then:
+# Copy this file into an empty folder as compose.yaml, then (the images are public, no docker login):
 #
-#   echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin   # images are private for now
 #   docker compose up -d
 #
 # Grafana          http://localhost:3000      admin / testing567, More apps -> ouo11y RUM

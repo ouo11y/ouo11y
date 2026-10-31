@@ -46,8 +46,7 @@ deploy/scripts/smoke.sh
 
 With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.2.0 and later) the
 procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
-`ghcr.io/ouo11y/*` packages are private until ouo is stable, so the host needs a
-`docker login ghcr.io` with a classic `read:packages` token first ("Pull access" in
+`ghcr.io/ouo11y/*` images are public, so the host needs no `docker login` ("Pull access" in
 `docs/releasing.md`). `compose.images.yaml` copies the plugin out of the new Grafana image
 onto the `grafana-data` volume before Grafana starts (service `grafana-plugin`); without that
 step the volume keeps the plugin of the first install forever, and 0.2.0 -> 0.3.0 (plugin id

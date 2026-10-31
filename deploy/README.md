@@ -77,17 +77,11 @@ Builder, which takes a few minutes. Data lives in named volumes (`ouo_grafana-da
 `down -v` and can be inspected.
 
 **Released images instead of builds:** add `-f deploy/compose/compose.images.yaml` to pull
-the pinned `ghcr.io/ouo11y/{collector,rum-api,grafana}` images. They are
-**private until ouo reaches a stable version**, so log in once first with a classic
-personal access token that has only `read:packages` (ask the ouo founder for read access
-to the packages; keep the token in your shell, never in the repo):
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-```
-
-Without it the pull fails with `denied` (HTTP 403); the plain `compose.yaml` above builds
-from source and needs no login. Full steps: `examples/fast-tracked/00-stack.md`, Step 3.
+the pinned `ghcr.io/ouo11y/{collector,rum-api,grafana}` images. They are public: no
+`docker login` and no token. A pull that fails with `denied` (HTTP 403) means Docker still
+sends an old ghcr.io login whose token expired; `docker logout ghcr.io` and pull again. The
+plain `compose.yaml` above builds the same three from source. Full steps:
+`examples/fast-tracked/00-stack.md`, Step 3.
 
 ## Ports
 

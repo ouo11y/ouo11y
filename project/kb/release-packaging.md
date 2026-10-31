@@ -43,8 +43,15 @@ What each publishing channel needs and what was checked locally in Phase 8a. Pol
 - Image names must be lowercase: a GitHub owner like `ZiadMansourM` became `ghcr.io/ziadmansourm/...`; the org `ouo11y` is lowercase already (`ghcr.io/ouo11y/rum-api`).
 - `GITHUB_TOKEN` with `packages: write` can push. The first push creates the package
   **private** and unlinked; in the GitHub UI (Packages > package > Package settings) link it
-  to the repository, once per package. ouo keeps them private until stable (below).
-- **Pulling private GHCR packages.** Anonymous pulls fail with `denied` (HTTP 403); in
+  to the repository, once per package. ouo kept them private until 2026-10-31; since then the
+  `collector`, `rum-api` and `grafana` images are public (Package settings > Danger zone >
+  Change visibility, founder only) and only the chart package stays private.
+- **Public GHCR packages** pull anonymously, but a client that sends credentials still gets them
+  checked: an expired or revoked PAT left in Docker's credential store makes the token
+  endpoint answer 403, so `docker pull` fails with `denied` even for a public image. Fix:
+  `docker logout ghcr.io` (verified 2026-10-31 with `curl -u user:bad
+  'https://ghcr.io/token?scope=repository:ouo11y/rum-api:pull'` -> 403, anonymous -> token).
+- **Pulling private GHCR packages** (still true for the chart). Anonymous pulls fail with `denied` (HTTP 403); in
   Kubernetes the pod sits in `ImagePullBackOff` with `403 Forbidden` in its events.
   - The owner grants each user access per package: Package settings > Manage access > add
     the GitHub user, role **Read**. Linking the package to the repo can inherit repo access,

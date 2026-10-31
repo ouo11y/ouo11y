@@ -34,10 +34,11 @@ grafana 0.5.0 / plugin 0.9.0 on `42a2e07`), so the script refused and the quicks
   `compose.yaml` at the same commit, images compared up to the `:-<version>` default.
 - `--check` also fails when the release set breaks `docs/compatibility.md` (`Needs <x>` minimums
   of the collector / rum-api / grafana / plugin lines in use) and when `compose.images.yaml` /
-  `.env.example` pins are not the newest releases. `--verify-digests` asks ghcr.io: with
-  `GHCR_TOKEN` set it is a `curl -I` on `/v2/ouo11y/<image>/manifests/<tag>` with
+  `.env.example` pins are not the newest releases. `--verify-digests` asks ghcr.io with a
+  `curl -I` on `/v2/ouo11y/<image>/manifests/<tag>`: with `GHCR_TOKEN` set the header is
   `Authorization: Bearer base64(token)` (GITHUB_TOKEN with `packages: read` works, and no
-  `docker login` is left on the shared runners); otherwise `docker buildx imagetools inspect`.
+  `docker login` is left on the shared runners); without it, since the images went public
+  (2026-10-31), an anonymous token from `https://ghcr.io/token?scope=repository:ouo11y/<image>:pull`.
 - The old check compared against 0.3.0's compose, so the service blocks had silently drifted
   (rate-limit env, retention env, `-config.expand-env=true` for Loki / Tempo / Mimir, Loki's
   `runtime.yaml`, rum-api's admin / upload tokens and `internal` OTLP credential); fixed with

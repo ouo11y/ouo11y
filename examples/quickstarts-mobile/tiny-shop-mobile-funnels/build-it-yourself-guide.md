@@ -1151,15 +1151,17 @@ compose files say which version this guide was tested with and its digest: pin
 configs in this guide are written for the tested versions; a much newer rum-api may refuse a
 config key it no longer knows, and the error in `docker compose logs rum-api` names it.
 
-### 4b. Log in to ghcr.io
+### 4b. Check that ghcr.io answers
 
-The ouo images are private for now. You need read access to the `ouo11y` packages and a
-**classic** GitHub token with only the `read:packages` scope. Put the token in your shell
-(`export GHCR_TOKEN=...`), never in a file, then:
+The ouo images are public: no GitHub account, no token, no `docker login`. Check that this
+machine can pull them:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <your-github-user> --password-stdin
+docker pull ghcr.io/ouo11y/rum-api:latest
 ```
+
+`denied` means Docker still sends an old ghcr.io login whose token expired: run
+`docker logout ghcr.io`, then pull again.
 
 ### 4c. Check the ports
 
@@ -1897,7 +1899,7 @@ from Xcode's **Window -> Devices and Simulators**.
 |---|---|
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
 | `rum-api` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs rum-api` names the key; pin the tested version (step 4a, "Image versions") |
-| `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
+| `denied` when pulling `ghcr.io/ouo11y/...` | an old, expired ghcr.io login: `docker logout ghcr.io` (step 4b) |
 | The app opens and closes at once, before any screen, on iOS 27 | no scene delegate: `plugins/withUIScene.js` missing from `app.json`, or `ios/` was generated before you added it (`npx expo prebuild --clean`, then `npx expo run:ios`) |
 | `create-expo-app` made an Expo 58 app | the template needs `@sdk-57` (step 3a) |
 | `401` in the `[ouo]` lines of Metro | the project credential in `rum.ts` does not match `projects.htpasswd` |

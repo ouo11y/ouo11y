@@ -4,7 +4,7 @@
 # The tag must equal `version` in deploy/helm/ouo/Chart.yaml (the release PR bumps it), and
 # every image the chart defaults to must already be tagged (compat-check.mjs).
 # Also creates a GitHub release with the packaged chart and SHA256SUMS. The package is created
-# private, like the images; pulls need `helm registry login ghcr.io` (docs/releasing.md).
+# private (the images are public); pulls need `helm registry login ghcr.io` (docs/releasing.md).
 # Build provenance is attested in the registry when the repository is public.
 #
 # Dry run (lint, template, package; pushes nothing, keeps the .tgz as a run artifact):

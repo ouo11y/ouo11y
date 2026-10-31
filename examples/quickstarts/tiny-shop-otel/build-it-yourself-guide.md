@@ -802,15 +802,17 @@ compose files say which version this guide was tested with and its digest: pin
 configs in this guide are written for the tested versions; a much newer rum-api may refuse a
 config key it no longer knows, and the error in `docker compose logs rum-api` names it.
 
-### 4b. Log in to ghcr.io
+### 4b. Check that ghcr.io answers
 
-The ouo images are private for now. You need read access to the `ouo11y` packages and a
-**classic** GitHub token with only the `read:packages` scope. Put the token in your shell
-(`export GHCR_TOKEN=...`), never in a file, then:
+The ouo images are public: no GitHub account, no token, no `docker login`. Check that this
+machine can pull them:
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <your-github-user> --password-stdin
+docker pull ghcr.io/ouo11y/rum-api:latest
 ```
+
+`denied` means Docker still sends an old ghcr.io login whose token expired: run
+`docker logout ghcr.io`, then pull again.
 
 ### 4c. Check the ports
 
@@ -1827,7 +1829,7 @@ docker compose down -v
 |---|---|
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
 | `rum-api` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs rum-api` names the key; pin the tested version (step 4a, "Image versions") |
-| `denied` when pulling `ghcr.io/ouo11y/...` | not logged in to ghcr.io, or no read access yet: step 4b |
+| `denied` when pulling `ghcr.io/ouo11y/...` | an old, expired ghcr.io login: `docker logout ghcr.io` (step 4b) |
 | `401` from `/v1/traces`, `/v1/logs` or `/v1/replay/chunks` | the `Authorization` header is missing or wrong (`AUTHORIZATION` in `config.js`) |
 | CORS error on the collector in the console | the page is not on `localhost` / `127.0.0.1` (the collector's allowed origins), or a port in `.env.local` is wrong |
 | The backend trace starts at `POST /api/checkout`, without the browser span | `propagateTraceHeaderCorsUrls` does not match the API URL (use the RegExp), or the page was not reloaded |
