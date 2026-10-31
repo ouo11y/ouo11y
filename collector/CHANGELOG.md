@@ -5,6 +5,21 @@
 
 ## Unreleased
 
+## [0.5.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.4.0...collector-v0.5.0) (2026-10-31)
+
+
+### Added
+
+* **collector:** count auth failures, rate-limit empty exports, internal project; live edge QA (N13, N15, N16, N4) ([#48](https://github.com/ouo11y/ouo11y/issues/48)) ([82fc68a](https://github.com/ouo11y/ouo11y/commit/82fc68a9f0ca506ee698a66b276edb675c75819e))
+* **collector:** mobile vitals, Sentry SDK range, examples with trace-continuity verify ([#45](https://github.com/ouo11y/ouo11y/issues/45)) ([131b206](https://github.com/ouo11y/ouo11y/commit/131b2063324a28ad991a05db7e03c2f9cb0cc427))
+* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
+* **replay:** frames schema 2 in rum-api, the collector and the frame player (W3a) ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb))
+
+
+### Fixed
+
+* **deps:** golang.org/x/net 0.60.0 and dompurify 3.4.17 ([cd1f011](https://github.com/ouo11y/ouo11y/commit/cd1f0118c3649b3aa6ac782a60567f0f46ed584c))
+
 ## 0.4.0 (2026-10-24)
 
 ### Added
