@@ -5,6 +5,16 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## Unreleased
 
+## [0.10.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.9.0...plugin-v0.10.0) (2026-10-31)
+
+
+### Added
+
+* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
+* **react-native:** screen funnels and readable user steps (W5) ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5))
+* **replay:** frames schema 2 in rum-api, the collector and the frame player (W3a) ([3e6afc9](https://github.com/ouo11y/ouo11y/commit/3e6afc944d019a8ba3688fa6a3e92b1d7b8168bb))
+* **rum-api:** native crash symbolication from dSYM (W7) ([4a3393a](https://github.com/ouo11y/ouo11y/commit/4a3393a31ecdab5aa9aaf0b77ce18406fa8389ad))
+
 ## [0.9.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.8.0...plugin-v0.9.0) (2026-10-25)
 
 
