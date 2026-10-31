@@ -36,7 +36,7 @@ import { createReplayController, loadNativeReplayModule } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
 import { uuidv4 } from "./session/ids";
 import { SessionManager } from "./session/manager";
-import { MemoryAsyncStorage, safeStorage } from "./session/storage";
+import { MemoryAsyncStorage, safeStorage, withTimeout } from "./session/storage";
 import { StackContextManager } from "./telemetry/context";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
@@ -496,6 +496,10 @@ export function initRUM(options: RUMOptions): RUM {
       replay.stop();
       session.stop();
       await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
+      // The shutdown persisted its last batches and started sending them: wait for that send, so
+      // no request outlives the instance, but bounded, so an app offline or on a hung request
+      // does not wait on it. What is not sent stays in the outbox for the next launch (C11).
+      await withTimeout(outbox.drain(), UNINSTALL_DRAIN_TIMEOUT_MS, undefined);
       outbox.stop();
       trace.disable();
       propagation.disable();
@@ -519,6 +523,9 @@ const GESTURE_WORDS: Record<Gesture, string> = { tap: "Tap", long_press: "Long p
 function userStep(gesture: Gesture, target: string, viewType?: string, screen?: string): string {
   return `${GESTURE_WORDS[gesture]} ${target}${viewType && viewType !== target ? ` (${viewType})` : ""}${screen ? ` on ${screen}` : ""}`;
 }
+
+/** How long `_uninstall` waits for the outbox to send what the shutdown exported. */
+export const UNINSTALL_DRAIN_TIMEOUT_MS = 2000;
 
 /** Metro dev-server endpoints: `POST /symbolicate` (LogBox), `POST /__sentry/context` (Sentry's middleware). */
 export const METRO_DEV_ENDPOINTS = /^https?:\/\/[^/]+\/(?:symbolicate|__sentry\/[^?#]*)(?:[?#]|$)/;

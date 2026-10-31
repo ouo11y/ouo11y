@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initRUM, type RUMInternal } from "../src/index";
+import { initRUM, UNINSTALL_DRAIN_TIMEOUT_MS, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
 import { createLogger } from "../src/logger";
 import type { Clock } from "../src/session/clock";
@@ -343,6 +343,26 @@ describe("initRUM delivery", () => {
     const event = captured.byName("checkout.offline")[0]!;
     expect(event.attributes.find((a) => a.key === "session.id")?.value.stringValue).toBe(offlineSession);
     expect(captured.byName("session.start").some((l) => l.attributes.find((a) => a.key === "session.id")?.value.stringValue === offlineSession)).toBe(true);
+  });
+
+  it("_uninstall waits for the last send at most UNINSTALL_DRAIN_TIMEOUT_MS; the batch stays for the next launch", async () => {
+    const storage = new MemoryAsyncStorage();
+    const rum = initRUM(baseOptions(storage)) as RUMInternal;
+    await rum.ready;
+    await rum.flush();
+    globalThis.fetch = (() => new Promise<Response>(() => undefined)) as typeof fetch; // never answers
+    rum.addEvent("left.behind");
+    const started = Date.now();
+    await rum._uninstall();
+    const waited = Date.now() - started;
+    expect(waited).toBeGreaterThanOrEqual(UNINSTALL_DRAIN_TIMEOUT_MS - 50);
+    expect(waited).toBeLessThan(UNINSTALL_DRAIN_TIMEOUT_MS + 1000);
+    delete g.__ouoSessionProcessState;
+
+    const captured = installFetchStub();
+    const next = initRUM(baseOptions(storage.clone())) as RUMInternal;
+    await next.ready;
+    await waitFor(() => captured.byName("left.behind").length > 0);
   });
 
   it("transport.offline false keeps nothing for the next launch", async () => {
