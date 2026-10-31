@@ -197,6 +197,12 @@ release; artefacts are kept on the run for 7 days.
 | `release-chart` | compat check, `helm lint`, `helm template`, `helm package`, sums | `helm push` to `oci://ghcr.io/ouo11y/charts`, GitHub release |
 | `release-images` | resolve, version checks, amd64 + arm64 build with SBOM and provenance, notes | push to `ghcr.io/ouo11y/<image>`, GitHub release |
 
+A tag run that failed before it published (the chart's `helm registry login` on 2026-10-31) is
+not fixed by a re-run: a re-run uses the tag commit's copy of the workflow. After the fix is on
+`main`, `release-chart` publishes the existing tag: Actions > `release-chart` > Run workflow on
+`main` with the tag and `publish` ticked (`gh workflow run release-chart.yml --ref main -f
+tag=chart-v0.2.0 -f publish=true`); it checks out the tag itself. Never move or re-create the tag.
+
 A tag pushed before the accounts exist degrades to a dry run with a notice (iOS without
 `OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token). npm needs no secret: it
 publishes by trusted publishing (OIDC) from a GitHub-hosted runner.

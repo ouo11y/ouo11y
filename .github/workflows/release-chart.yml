@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to rehearse, e.g. chart-v0.1.1 (dry run: lint, package, pushes nothing)'
+        description: 'Tag to rehearse (dry run: lint, package, pushes nothing) or, with publish, to publish, e.g. chart-v0.2.0'
         required: true
         type: string
       publish:
@@ -36,7 +36,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: release-chart-${{ inputs.tag || github.ref }}
+  group: release-chart-${{ inputs.tag || github.ref_name }}   # a publish dispatch and its tag run share one group
   cancel-in-progress: false
 
 env:
@@ -53,7 +53,8 @@ jobs:
       id-token: write       # build attestation (public repo only)
       attestations: write
     env:
-      DRY_RUN: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && !inputs.publish) }}
+      # Pushes only for a tag push or a dispatch with publish; any other trigger is a dry run.
+      DRY_RUN: ${{ !(github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
       REPO_PUBLIC: ${{ github.event.repository.private == false }}
     steps:
       # helm keeps its registry login, cache and plugins under ~/.config, ~/.cache and
