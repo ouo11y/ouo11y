@@ -197,7 +197,7 @@ replay: {
 ```
 
 A session's replay then arrives one launch later, never during the session itself. Held chunks
-older than 24 hours are deleted. Spans and events are not held.
+beyond 10 MB are deleted, the oldest first. Spans and events are not held.
 
 ### Sampling
 

@@ -94,12 +94,12 @@ import Testing
         #expect(chunk.frames.map(\.ts) == [1_100])
     }
 
-    /// A spool left by a run more than a day ago is dropped, not sent.
-    @Test func StaleSpoolIsDropped() {
+    /// N77: no age limit, so a clock moved a day forward before the next launch loses nothing.
+    @Test func AClockMovedForwardKeepsTheSpool() throws {
         let b = builder(ChunkSpool(url: url), store: InMemorySeqStore())
         b.add(makeFrame(ts: 1_100))
-        #expect(ChunkSpool(url: url).recover(now: 1_000 + 25 * 3600 * 1000) == nil)
-        #expect(!FileManager.default.fileExists(atPath: url.path))
+        let chunk = try #require(ChunkSpool(url: url).recover(now: 1_000 + 25 * 3600 * 1000))
+        #expect(chunk.frames.map(\.ts) == [1_100])
     }
 
     @Test func SpoolFolderIsExcludedFromBackups() throws {

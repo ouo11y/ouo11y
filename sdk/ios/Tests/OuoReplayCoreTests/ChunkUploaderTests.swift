@@ -120,7 +120,6 @@ import Testing
         #expect(defaults.retryDelay(2) == 2)
         #expect(defaults.retryDelay(10) == 60)
         #expect(defaults.maxQueueBytes == 10 * 1024 * 1024)
-        #expect(defaults.maxAge == 24 * 3600)
     }
 
     /// C11: a chunk that could not be sent stays on disk, and the next process sends it.
@@ -187,7 +186,8 @@ import Testing
         #expect(online.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq")! } == ["0", "4", "5"], "the in-flight head and the newest chunks survive")
     }
 
-    @Test func ChunksOlderThanMaxAgeAreDroppedUnsent() async {
+    /// N77: a chunk left unsent survives a clock moved more than a day forward and is sent.
+    @Test func AClockMovedForwardKeepsTheChunks() async {
         let dir = tempDir()
         let clock = FakeClock()
         let offline = FakeTransport()
@@ -200,8 +200,8 @@ import Testing
         let online = FakeTransport()
         let second = uploader(online, dir: dir, now: { clock.now })
         await drain(second)
-        #expect(online.count == 0)
-        #expect(second.dropped == 1)
+        #expect(online.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq")! } == ["0"])
+        #expect(second.dropped == 0)
     }
 
     /// The next-launch keep/drop hook: held chunks wait for the host's decision per session.

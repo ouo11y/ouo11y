@@ -56,7 +56,7 @@ public final class URLSessionTransport: ChunkTransport {
 /// The queue is a `DiskQueue` folder (docs/specs/mobile-replay.md, "Delivery"): each chunk is
 /// written there as the gzip body it is sent with before anything is sent, and removed on a 2xx or
 /// a rejection; an outage or a kill mid-upload loses nothing. Bounded by `maxQueueBytes` (oldest
-/// dropped first) and `ChunkSpool.maxAge`.
+/// dropped first).
 ///
 /// With `hold`, chunks go to `held/` instead and wait for `release(sessionId:keep:)`: the host
 /// decides at the next launch whether a finished session's replay is sent (the keep/drop hook).
@@ -81,8 +81,6 @@ public final class ChunkUploader {
     public struct Config: Sendable {
         /// Bytes kept on disk, per folder (queued, held); the oldest chunks are dropped beyond it.
         public var maxQueueBytes: Int
-        /// A chunk queued longer ago than this is dropped unsent.
-        public var maxAge: TimeInterval
         /// Wait before retrying after the nth failure in a row. Injected so tests do not wait.
         public var retryDelay: @Sendable (Int) -> TimeInterval
         /// Keep chunks in `held/` until `release(sessionId:keep:)`.
@@ -90,12 +88,10 @@ public final class ChunkUploader {
 
         public init(
             maxQueueBytes: Int = 10 * 1024 * 1024,
-            maxAge: TimeInterval = ChunkSpool.maxAge,
             retryDelay: @escaping @Sendable (Int) -> TimeInterval = DiskQueue.Config.doubling(upTo: 60),
             hold: Bool = false
         ) {
             self.maxQueueBytes = maxQueueBytes
-            self.maxAge = maxAge
             self.retryDelay = retryDelay
             self.hold = hold
         }
@@ -106,12 +102,13 @@ public final class ChunkUploader {
         public let sessionId: String
         public let chunks: Int
         public let bytes: Int
-        /// When its first and last chunk were queued (epoch ms).
+        /// When its first and last chunk were queued (epoch ms): the names' stamps
+        /// (`DiskQueue.Entry.queuedAt`), so after the clock moved back they can lie ahead of it.
         public let firstAt: EpochMillis
         public let lastAt: EpochMillis
     }
 
-    /// One file: `<queued at, 13 digits>-<counter>.<session id>.<seq>.json.gz`, so the name sorts
+    /// One file: `<stamp, 13 digits>-<counter>.<session id>.<seq>.json.gz`, so the name sorts
     /// in queue order and carries the request headers.
     struct Entry {
         let entry: DiskQueue.Entry
@@ -146,7 +143,7 @@ public final class ChunkUploader {
     private let lock = NSLock()
     private var droppedHere = 0
 
-    /// Chunks sent, dropped (bound, age, disk, a dropped held session) and rejected by the server.
+    /// Chunks sent, dropped (bound, disk, a dropped held session) and rejected by the server.
     public var uploaded: Int { queued.sent }
     public var dropped: Int { queued.dropped + held.dropped + lock.withLock { droppedHere } }
     public var failed: Int { queued.rejected }
@@ -172,7 +169,7 @@ public final class ChunkUploader {
         self.config = config
         self.directory = directory
         self.logger = logger
-        let bounds = DiskQueue.Config(maxBytes: config.maxQueueBytes, maxAge: config.maxAge, retryDelay: config.retryDelay)
+        let bounds = DiskQueue.Config(maxBytes: config.maxQueueBytes, retryDelay: config.retryDelay)
         self.queued = DiskQueue(directory: directory, config: bounds, transport: transport, logger: logger, now: now) { e, body in
             Entry(e).map { ChunkUploader.makeRequest(url: url, authorization: authorization, sessionId: $0.sessionId, seq: $0.seq, gzipBody: body) }
         }
@@ -225,7 +222,7 @@ public final class ChunkUploader {
     /// Chunks in the queue folder (not held).
     public var queuedCount: Int { queued.count }
 
-    /// Sessions with held chunks, oldest first; expired chunks are removed here.
+    /// Sessions with held chunks, oldest first.
     public func heldSessions() -> [HeldSession] {
         var order: [String] = []
         var groups: [String: [Entry]] = [:]
