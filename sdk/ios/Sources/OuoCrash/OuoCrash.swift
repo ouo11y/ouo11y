@@ -90,6 +90,17 @@ public enum OuoCrash {
         }
     }
 
+    /// What the app showed and its last steps (the host's screen context as JSON), kept in memory
+    /// for the crash handler to write into the report: a crash right after a tap still carries the
+    /// tap, which a file written after it could miss. At most 24 KiB of JSON (32 KiB in base64);
+    /// longer is not kept. Cheap (a copy); from any thread.
+    public static func setContext(_ json: Data) {
+        let b64 = json.count <= 24 * 1024 ? json.base64EncodedString() : ""
+        lock.withLock {
+            b64.withCString { ouo_crash_set_context($0, b64.utf8.count) }
+        }
+    }
+
     /// The report left by the previous run, if any, removed from disk (at most once: a crash loop
     /// must not resend it). The JSON is what OuoCrashCore wrote, or, when the previous run died in
     /// the foreground without one, a `termination` report built from its `run.json` (once per process).

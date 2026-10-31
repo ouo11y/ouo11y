@@ -26,6 +26,51 @@ import Testing
         #expect(rects == [CGRect(x: 300, y: 20, width: 80, height: 16), CGRect(x: 10, y: 100, width: 50, height: 20)])
     }
 
+    /// SwiftUI's `.ouoUnmask()` (`ouo-unmask-area`): class-masked rectangles inside its frame are
+    /// left out; a forced `ouo-mask` inside stays; a childless plain `ouo-unmask` view (a React
+    /// Native overlay, an empty UIKit view) unmasks no area.
+    @Test func TheUnmaskAreaLeavesOutOnlyClassMasks() throws {
+        let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+        let root = node("UIWindow", window, [
+            node("UIView", CGRect(x: 0, y: 0, width: 400, height: 200), id: "ouo-unmask-area"),
+            node("UILabel", CGRect(x: 10, y: 10, width: 100, height: 20)),
+            node("UIView", CGRect(x: 10, y: 50, width: 100, height: 20), id: "ouo-mask"),
+            node("UILabel", CGRect(x: 10, y: 190, width: 100, height: 20)),
+            node("UIView", CGRect(x: 0, y: 300, width: 400, height: 200), id: "ouo-unmask"),
+            node("UITextField", CGRect(x: 10, y: 350, width: 100, height: 20)),
+        ])
+        let rects = try #require(RedactionPlanner(mergeOverlapping: false).rects(for: root, window: window))
+        #expect(rects == [CGRect(x: 10, y: 50, width: 100, height: 20), CGRect(x: 10, y: 190, width: 100, height: 20), CGRect(x: 10, y: 350, width: 100, height: 20)])
+    }
+
+    /// SwiftUI on iOS 27, the real shapes: text in `SwiftUI.CGDrawingView`, images in
+    /// `SwiftUI._UIGraphicsView`, large symbols in `…_UIShapeHitTestingView`, all masked; in a
+    /// navigation bar, a SwiftUI toolbar item's text (under `UIKitBarItemHost`) is masked, bar chrome
+    /// drawn by SwiftUI is not.
+    @Test func SwiftUITextImagesShapesAndToolbarItemsAreMasked() throws {
+        let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+        let shape = "_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697122_UIShapeHitTestingView"
+        let host = "_TtGC7SwiftUI16UIKitBarItemHostVS_11BarItemView_"
+        let root = node("UIWindow", window, [
+            node("UINavigationBar", CGRect(x: 0, y: 0, width: 400, height: 100), [
+                node("_UIBarBackground", CGRect(x: 0, y: 0, width: 400, height: 100), [node("SwiftUI.CGDrawingView", CGRect(x: 0, y: 0, width: 400, height: 100))]),
+                node("_UINavigationBarContentView", CGRect(x: 0, y: 50, width: 400, height: 44), [
+                    node(host, CGRect(x: 150, y: 55, width: 100, height: 30), [node("SwiftUI.CGDrawingView", CGRect(x: 160, y: 60, width: 80, height: 20))]),
+                ]),
+            ]),
+            node("_TtGC7SwiftUI14_UIHostingViewVS_7AnyView_", CGRect(x: 0, y: 100, width: 400, height: 700), [
+                node("SwiftUI.CGDrawingView", CGRect(x: 20, y: 120, width: 200, height: 20)),
+                node("SwiftUI._UIGraphicsView", CGRect(x: 20, y: 160, width: 60, height: 60)),
+                node(shape, CGRect(x: 20, y: 240, width: 50, height: 50)),
+            ]),
+        ])
+        let rects = try #require(RedactionPlanner(mergeOverlapping: false).rects(for: root, window: window))
+        #expect(rects == [CGRect(x: 160, y: 60, width: 80, height: 20), CGRect(x: 20, y: 120, width: 200, height: 20),
+                          CGRect(x: 20, y: 160, width: 60, height: 60), CGRect(x: 20, y: 240, width: 50, height: 50)])
+        let noImages = try #require(RedactionPlanner(rules: RedactionRules(maskImages: false), mergeOverlapping: false).rects(for: root, window: window))
+        #expect(noImages == [CGRect(x: 160, y: 60, width: 80, height: 20), CGRect(x: 20, y: 120, width: 200, height: 20)])
+    }
+
     @Test func MaskedClassesByDefault() throws {
         let root = node("UIWindow", window, [
             node("UIView", window, [

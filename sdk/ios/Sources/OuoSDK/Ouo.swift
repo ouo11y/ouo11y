@@ -35,6 +35,10 @@ public final class Ouo: NSObject {
 
     private static let lock = NSLock()
     private static var core: Core?
+    private static var replay: ReplayControl?
+    #if canImport(UIKit)
+    private static var taps: TapTracking?
+    #endif
     private static var starting = false
     static var current: Core? { lock.withLock { core } }
 
@@ -63,12 +67,14 @@ public final class Ouo: NSObject {
         // What the app set now; later changes to `config` are not seen.
         let settings = Settings(config)
         let replay = ReplayControl(settings)
+        lock.withLock { Ouo.replay = replay }
         var hooks = Core.Hooks()
         // Called without Core's lock, in order: OuoCrash's session for the next crash report, replay.
         hooks.sessionChanged = { rec in
             if settings.crashes { OuoCrash.setSession(rec.id, startedAtMs: Int64(rec.startedAt.rounded())) }
             replay?.sessionChanged(rec.id)
         }
+        if settings.crashes { hooks.crashContext = { OuoCrash.setContext($0) } }
         #if canImport(UIKit)
         hooks.frameStats = { OuoVitals.frameStats() }
         // The frame's time on the SDK's clock, so a TTID never mixes two clocks.
@@ -88,7 +94,7 @@ public final class Ouo: NSObject {
         ErrorContext.start()
         let background = LaunchRole.isBackground(LaunchRole.current())
         let appStart = settings.vitals ? OuoVitals.beginRuntime(at: c.now()) : nil
-        replay?.recover()
+        replay?.recover(crash: report.flatMap { r in r.session_id.map { ($0, EpochMillis(r.timestamp_ms.rounded())) } })
         c.start(previousReport: report, background: background, appStart: appStart)
         lock.withLock { core = c }
 
@@ -99,6 +105,15 @@ public final class Ouo: NSObject {
         URLSessionHook.install { task in Ouo.current?.taskWillResume(task) }
         #if canImport(UIKit)
         Lifecycle.install(measureFirstFrame: settings.vitals && !background)
+        let uikit = {
+            if settings.screens { ScreenTracking.install() }
+            if settings.taps {
+                let t = TapTracking(labels: settings.tapLabels)
+                lock.withLock { taps = t }
+                t.install()
+            }
+        }
+        if Thread.isMainThread { uikit() } else { DispatchQueue.main.async(execute: uikit) }
         #endif
         c.log.log("started: session \(c.sessionId), endpoint \(config.endpoint.absoluteString), project \(config.projectId)")
         return true
@@ -157,9 +172,28 @@ public final class Ouo: NSObject {
     }
 
     /// A screen is showing (C7, C4): one `navigation` per change (`url.path` = `/<name>`) and its
-    /// `ouo.screen.display` (TTID). Screens of UIKit and SwiftUI are tracked by themselves in a later
-    /// version; until then, and for screens the SDK cannot see, call this.
+    /// `ouo.screen.display` (TTID). UIKit view controllers are tracked by themselves (`screens`) and
+    /// SwiftUI views with `.ouoScreen("Name")`; call this for screens neither can see.
     public static func trackScreen(_ name: String) { current?.trackScreen(name) }
+
+    /// A tap the SDK cannot see (a SwiftUI control, a custom gesture): `ui.tap` on the current
+    /// screen with this target, kept as given also when `tapLabels` is off. Counts as activity.
+    public static func trackTap(_ target: String) {
+        guard let c = current else { return }
+        c.tap(target: target, path: nil, viewType: nil, gesture: "tap", at: c.now(), screen: c.screenName)
+    }
+
+    /// User feedback (C10): the user's text and how to reach them, as the app passes them. Returns
+    /// the feedback's id, nil for an empty message. With `screenshot` and replay recording this
+    /// session, the recorder takes a masked frame of the current screen (the replay is the screenshot).
+    @objc(feedback:contact:screenshot:)
+    @discardableResult
+    public static func feedback(_ message: String, contact: String? = nil, screenshot: Bool = false) -> String? {
+        guard let c = current else { return nil }
+        let recording = screenshot && (lock.withLock { replay }?.isRecording ?? false)
+        if recording { OuoReplay.screenDidChange() }
+        return c.feedback(message: message, contact: contact, screenshot: recording)
+    }
 
     /// The current screen's content is on screen: its `ouo.screen.display` gets TTFD (C4).
     public static func reportFullyDisplayed() { current?.reportFullyDisplayed() }
@@ -289,8 +323,11 @@ final class ReplayControl {
 
     private let box: SessionBox
 
-    /// Sends the chunk a crash left open, whether or not this session records.
-    func recover() { OuoReplay.recoverPendingChunk(config) }
+    /// Sends the chunk a crash left open, whether or not this session records; it ends at the crash.
+    func recover(crash: (sessionId: String, at: EpochMillis)?) { OuoReplay.recoverPendingChunk(config, crash: crash) }
+
+    /// Replay records the current session.
+    var isRecording: Bool { lock.withLock { started && !paused } }
 
     func sessionChanged(_ id: String) {
         let record = Sampling.sampled(id, rate: sessionRate, salt: Sampling.session) && Sampling.sampled(id, rate: rate, salt: Sampling.replay)

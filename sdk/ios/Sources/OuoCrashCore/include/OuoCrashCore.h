@@ -33,6 +33,12 @@ void ouo_crash_install_alt_stack(void);
 /// exported still shows the session from its start (N52).
 void ouo_crash_set_session(const char *session_id, int64_t started_ms);
 
+/// What the app was showing and its last steps when a crash comes (the host's screen context,
+/// pre-encoded: base64 of JSON, at most 32 KiB, longer is dropped). Copied into a second buffer and
+/// swapped in; the crash handler writes the current one into the report as `"context"`, so a crash
+/// right after a tap carries that tap. Callers serialise their calls.
+void ouo_crash_set_context(const char *base64, size_t length);
+
 /// Writes a report for an uncaught Objective-C exception (called from the NSException handler, not
 /// from a signal). The SIGABRT that follows is then not reported again. `addresses` are the
 /// exception's return addresses (`callStackReturnAddresses`).

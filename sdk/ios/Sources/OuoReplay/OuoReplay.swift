@@ -87,8 +87,9 @@ public enum OuoReplay {
     /// too; call this first when the host decides per session whether to record (sampling), so a
     /// crashed session's last seconds arrive even when the next session is not recorded. Only the
     /// first call in a process (this or `start`) recovers; later ones do nothing.
-    public static func recoverPendingChunk(_ config: OuoReplayConfig) {
-        ReplayRecorder.recoverSpool(config)
+    /// `crash`: the previous run's crash and its time (epoch ms), so its chunk ends at the crash.
+    public static func recoverPendingChunk(_ config: OuoReplayConfig, crash: (sessionId: String, at: EpochMillis)? = nil) {
+        ReplayRecorder.recoverSpool(config, crash: crash)
     }
 
     /// A new screen is showing (a navigation library's route change). In `navigation` mode this is
@@ -129,7 +130,7 @@ public enum OuoReplay {
     public static var isRecording: Bool { false }
     public static func flush(completion: (() -> Void)? = nil) { warnOnce(); completion?() }
     public static func sessionDidRotate(newId: String) { warnOnce() }
-    public static func recoverPendingChunk(_ config: OuoReplayConfig) {}
+    public static func recoverPendingChunk(_ config: OuoReplayConfig, crash: (sessionId: String, at: EpochMillis)? = nil) {}
     public static func screenDidChange() { warnOnce() }
     public static var mode: ReplayMode? { nil }
     public static func stop() { warnOnce() }

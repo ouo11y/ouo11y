@@ -39,6 +39,15 @@ public final class OuoConfig: NSObject {
     public var requestEvents = true
     /// `app.lifecycle` events (`foreground`, `inactive`, `background`). Default true.
     public var lifecycleEvents = true
+    /// Screens (C7) from UIKit: every view controller of the app that appears on its own or in a
+    /// navigation, tab bar, split or page controller is a screen, named after its class (or
+    /// `OuoScreenNaming`). SwiftUI views use `.ouoScreen("Name")`. Default true.
+    public var screens = true
+    /// `ui.tap` (C6) for every touch: tap, long press or swipe, on the screen it started on. Default true.
+    public var taps = true
+    /// Labels on taps (test ids, controls' accessibility labels). False: the target is the view
+    /// type, without a path; taps the app passes to `trackTap` keep their target. Default true.
+    public var tapLabels = true
 
     /// Crashes (signals, uncaught NSExceptions), foreground terminations and app hangs (C2, C3).
     /// Default true.
@@ -106,6 +115,9 @@ struct Settings {
     let ignoreUrls: [String]
     let requestEvents: Bool
     let lifecycleEvents: Bool
+    let screens: Bool
+    let taps: Bool
+    let tapLabels: Bool
     let crashes: Bool
     let vitals: Bool
     let replaySampleRate: Double
@@ -128,6 +140,9 @@ struct Settings {
         ignoreUrls = c.ignoreUrls
         requestEvents = c.requestEvents
         lifecycleEvents = c.lifecycleEvents
+        screens = c.screens
+        taps = c.taps
+        tapLabels = c.tapLabels
         crashes = c.crashes
         vitals = c.vitals
         replaySampleRate = c.replaySampleRate

@@ -48,6 +48,14 @@ struct NativeReport: Codable, Equatable {
     var termination: TerminationInfo?
     var frames: [Frame]?
     var images: [Image]?
+    /// The screen context the crash handler wrote (base64 JSON, `OuoCrash.setContext`).
+    var context: String?
+
+    /// That context, when it decodes.
+    var screenContext: ScreenContext? {
+        guard let b64 = context, let data = Data(base64Encoded: b64) else { return nil }
+        return try? JSONDecoder().decode(ScreenContext.self, from: data)
+    }
 
     static let mechanisms: Set<String> = ["signal", "nsexception", "hang", "termination"]
 
