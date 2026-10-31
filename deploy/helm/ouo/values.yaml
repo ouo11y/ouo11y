@@ -158,7 +158,8 @@ rumApi:
     # Override when collector.enabled=false (another OTLP/HTTP endpoint).
     endpoint: ""
   # Extra environment variables (list of core/v1 EnvVar), e.g. MAX_FRAME_CHUNK_BYTES.
-  # They override the config file.
+  # They override the config file. Source map and dSYM upload tokens go here as
+  # OUO_UPLOAD_TOKENS from a Secret (README "Source maps and dSYMs: upload tokens").
   extraEnv: []
   persistence:
     # Replay chunks with storage.backend filesystem (/data); ignored with s3. With more

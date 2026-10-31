@@ -200,6 +200,48 @@ Project ids must match `^[a-z0-9][a-z0-9._-]{0,63}$` (the chart refuses others).
 reads the htpasswd once at start; the checksum annotation makes `helm upgrade` roll the
 collector so a new project or token takes effect.
 
+### Source maps and dSYMs: upload tokens
+
+rum-api symbolicates web stacks from uploaded source maps (`docs/sourcemaps.md`) and native iOS
+crashes from uploaded dSYMs (`docs/symbolication.md`). Uploads (`PUT /v1/sourcemaps`,
+`PUT /v1/dsyms`, sent by `ouo-sourcemaps upload` / `upload-dsym`) authenticate with a
+per-project **upload token**. Unlike the project token it is a secret, at least 16 characters.
+rum-api reads the tokens from `OUO_UPLOAD_TOKENS` (`<project>:<token>,...`). The chart has no
+value of its own for it; pass it through `rumApi.extraEnv` from a Secret:
+
+```bash
+kubectl -n ouo create secret generic ouo-upload-tokens \
+  --from-literal=upload-tokens="web-store:ut_$(openssl rand -hex 16),mobile-app:ut_$(openssl rand -hex 16)"
+```
+
+```yaml
+rumApi:
+  extraEnv:
+    - name: OUO_UPLOAD_TOKENS
+      valueFrom:
+        secretKeyRef:
+          name: ouo-upload-tokens
+          key: upload-tokens
+```
+
+`helm upgrade` rolls rum-api when `extraEnv` changes; after rotating a token in the Secret
+alone, run `kubectl -n ouo rollout restart deploy/ouo-rum-api`. Without `OUO_UPLOAD_TOKENS` the
+upload endpoints refuse every request and stacks stay raw.
+
+**Network: uploads reach rum-api only from inside the cluster.** rum-api is a ClusterIP Service
+with no Ingress (ADR-0007), so `PUT /v1/sourcemaps` and `PUT /v1/dsyms` are not public. A CI job
+uploads either through a port-forward from a machine with cluster access
+
+```bash
+kubectl -n ouo port-forward svc/ouo-rum-api 8080:8080 &
+npx ouo-sourcemaps upload dist --url http://localhost:8080 --token "$OUO_UPLOAD_TOKEN" \
+  --project web-store --release "$APP_VERSION" --delete-after
+```
+
+or from inside the cluster (a Job or an in-cluster CI runner, `--url
+http://ouo-rum-api.ouo.svc:8080`). A public upload path through the collector, for CI on hosted
+runners, is checklist N41.
+
 ### Expose the collector
 
 The collector is the only service SDKs reach. Three ways:
