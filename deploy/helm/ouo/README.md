@@ -33,7 +33,7 @@ API server only. Evidence: `project/agents/platform-infra/reports/2026-10-23-8a-
 | Grafana + plugin | `ghcr.io/ouo11y/grafana` (released by `grafana-v*` tags) | `deploy/images/grafana/Dockerfile`, after `npm run -w plugins/ouo11y-rum-app build`: `docker build -t ouo/grafana:<tag> -f deploy/images/grafana/Dockerfile .` |
 | Loki / Tempo / Mimir (bundled) | `grafana/loki:3.7.7`, `grafana/tempo:3.0.3`, `grafana/mimir:3.2.1` | upstream |
 
-Every tag is a value: `--set collector.image.tag=0.3.0 --set rumApi.image.tag=0.3.0 --set grafana.image.tag=0.3.0 --set lgtm.bundled.loki.image.tag=...`.
+Every tag is a value: `--set collector.image.tag=0.5.0 --set rumApi.image.tag=0.6.0 --set grafana.image.tag=0.6.0 --set lgtm.bundled.loki.image.tag=...`.
 Use `<component>.image.repository` for a registry (`ghcr.io/ouo11y/collector`,
 `.../rum-api`, `.../grafana`) and `imagePullSecrets` for a private one.
 
@@ -349,7 +349,7 @@ deploy/README.md).
 | `ingestToken` | `""` | `OUO_INGEST_TOKEN` on the collector (bearer on replay forwards) and rum-api (check) |
 | `readToken` | `""` | `OUO_READ_TOKEN` for `GET`/`DELETE /v1/*`; also provisioned into the Grafana plugin |
 | `collector.enabled` | `true` | `false` only with another collector reachable at `rumApi.otel.endpoint` |
-| `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/collector`, `0.3.0` | the custom distribution |
+| `collector.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/collector`, `0.5.0` | the custom distribution |
 | `collector.replicas` | `1` | rate-limit buckets are per pod: N replicas allow N times `collector.rateLimit.*` |
 | `collector.existingProjectsSecret` | `""` | Secret with key `projects.htpasswd` |
 | `collector.allowedOrigins` | `[]` | CORS origins on 4318 and 4319 (browser SDKs) |
@@ -361,7 +361,7 @@ deploy/README.md).
 | `collector.service.{type,annotations}` | `ClusterIP` | public Service (4318, 4319) |
 | `collector.ingress.{enabled,className,annotations,host,pathType,tls.enabled,tls.secretName}` | disabled | `/v1/replay` to 4319, `/` to 4318 |
 | `collector.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
-| `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/rum-api`, `0.3.0` | rum-api image |
+| `rumApi.image.{repository,tag,pullPolicy}` | `ghcr.io/ouo11y/rum-api`, `0.6.0` | rum-api image |
 | `rumApi.replicas` | `1` | > 1 needs `rumApi.storage.backend=s3` (or a ReadWriteMany replay volume) |
 | `rumApi.existingSecret` | `""` | Secret with `ingest-token`, `read-token` and optionally `otlp-headers` |
 | `rumApi.config.grafanaUrl` | derived | browser-facing Grafana URL in trace deep links (`GRAFANA_URL`) |
@@ -379,7 +379,7 @@ deploy/README.md).
 | `rumApi.service.{port,annotations}` | `8080` | always ClusterIP, no Ingress |
 | `rumApi.{resources,podSecurityContext,containerSecurityContext,nodeSelector,tolerations,affinity,priorityClassName,livenessProbe,readinessProbe,podAnnotations,podLabels}` | see values.yaml | scheduling and hardening |
 | `grafana.enabled` | `true` | `false` when the customer runs Grafana |
-| `grafana.image.*` | `ghcr.io/ouo11y/grafana`, `0.3.0` | image with the plugin |
+| `grafana.image.*` | `ghcr.io/ouo11y/grafana`, `0.6.0` | image with the plugin |
 | `grafana.adminUser` / `grafana.adminPassword` / `grafana.existingSecret` | `admin` / `""` / `""` | password required unless the Secret is given |
 | `grafana.rootUrl` | derived from the Ingress | `GF_SERVER_ROOT_URL` |
 | `grafana.defaultTheme`, `grafana.anonymousEnabled` | `dark`, `false` | |

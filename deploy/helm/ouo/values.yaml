@@ -85,7 +85,7 @@ retention:
 rumApi:
   image:
     repository: ghcr.io/ouo11y/rum-api
-    tag: "0.3.0"
+    tag: "0.6.0"
     pullPolicy: IfNotPresent
   replicas: 1
   # Name of a pre-created Secret with keys `ingest-token`, `read-token` and, optionally,
@@ -219,7 +219,7 @@ collector:
   enabled: true
   image:
     repository: ghcr.io/ouo11y/collector
-    tag: "0.3.0"
+    tag: "0.5.0"
     pullPolicy: IfNotPresent
   replicas: 1
   # Pre-created Secret with key `projects.htpasswd` (htpasswd lines, {SHA} or apr1,
@@ -304,7 +304,7 @@ grafana:
   enabled: true
   image:
     repository: ghcr.io/ouo11y/grafana
-    tag: "0.3.0"
+    tag: "0.6.0"
     pullPolicy: IfNotPresent
   replicas: 1
   adminUser: admin

@@ -6,7 +6,7 @@ description: >-
   single-binary Loki, Tempo and Mimir.
 type: application
 version: 0.1.1 # x-release-please-version
-appVersion: "0.3.0"
+appVersion: "0.6.0"
 kubeVersion: ">=1.25.0-0"
 home: https://github.com/ouo11y/ouo11y
 sources:
