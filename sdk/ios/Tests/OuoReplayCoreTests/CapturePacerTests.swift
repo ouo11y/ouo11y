@@ -143,6 +143,25 @@ import Testing
         #expect(step(&p, 10.4) == .capture(.navigation), "a new screen starts over")
     }
 
+    /// N76: a feedback asks for a frame at once in both modes, between interval frames too, and a
+    /// dropped one is retried like a new screen's.
+    @Test func FeedbackFrameIsTakenAtOnceInEveryMode() {
+        var s = CapturePacer(mode: .session, interval: 1)
+        #expect(step(&s, 0) == .capture(.timer))
+        s.requestFrame(.feedback, at: 0.3)
+        #expect(s.wakeAt(now: 0.3) == 0.3)
+        #expect(step(&s, 0.3) == .capture(.feedback), "does not wait for the next interval")
+        s.dropped(.feedback, now: 0.3)
+        #expect(step(&s, 0.8) == .capture(.feedback), "retried")
+
+        var n = CapturePacer(mode: .navigation, interval: 1)
+        n.requestFrame(.resume, at: 0)
+        _ = step(&n, 0)
+        n.requestFrame(.feedback, at: 5)
+        #expect(step(&n, 5) == .capture(.feedback))
+        #expect(n.wakeAt(now: 5) == nil)
+    }
+
     @Test func DroppedIntervalFrameWaitsForTheNextInterval() {
         var p = CapturePacer(mode: .session, interval: 1)
         #expect(step(&p, 0) == .capture(.timer))

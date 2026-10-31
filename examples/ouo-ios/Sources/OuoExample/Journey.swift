@@ -51,12 +51,14 @@ enum Journey {
         switch env["OUO_ACTION"] ?? "idle" {
         case "journey":
             after(1) { push(Products.controller()) }
-            after(2.2) { push(CartViewController()) }
-            after(3.2) {
+            // Products stays 2 s: a push takes about 0.5 s and the recorder waits 0.25 s after it,
+            // so with 1.2 s the next push could start before Products had a frame (C8.2 flaked).
+            after(3) { push(CartViewController()) }
+            after(4) {
                 Ouo.captureError(NSError(domain: "OuoExample", code: 7, userInfo: [NSLocalizedDescriptionKey: "golden handled error"]))
                 checkout()
             }
-            after(4.2) { note("feedback", ["id": Ouo.feedback("golden feedback", contact: "ada@example.com", screenshot: true) ?? ""]) }
+            after(5) { note("feedback", ["id": Ouo.feedback("golden feedback", contact: "ada@example.com", screenshot: true) ?? ""]) }
         case "hang":
             after(1.5) { push(CartViewController()) }
             after(3) {

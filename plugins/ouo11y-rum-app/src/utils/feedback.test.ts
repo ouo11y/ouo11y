@@ -1,5 +1,5 @@
-import type { TimelineEvent } from '../api/types';
-import { buildFeedback, LAST_EVENTS, parseLastEvents } from './feedback';
+import type { ReplayFrame, TimelineEvent } from '../api/types';
+import { buildFeedback, FEEDBACK_FRAME_AFTER_MS, LAST_EVENTS, parseLastEvents } from './feedback';
 import { buildMarkers } from './markers';
 
 const T0 = Date.UTC(2026, 9, 30, 10, 0, 0);
@@ -47,6 +47,23 @@ describe('buildFeedback', () => {
     // Malformed attribute: the timeline instead; the earlier feedback and later events are not steps.
     expect(second.steps.map((s) => s.name)).not.toContain('feedback');
     expect(second.steps.every((s) => s.ts <= T0 + 2000)).toBe(true);
+  });
+
+  it('finds the frame the SDK took for a feedback (reason feedback, N76): the screenshot', () => {
+    const frame = (ms: number, reason: string): ReplayFrame => ({ ts: T0 + ms, reason, jpeg: 'x' });
+    const fb = (ms: number) => ev(ms, 'feedback', { ouo_feedback_message: `m${ms}`, ouo_feedback_screenshot: 'true' });
+    const frames = [
+      frame(900, 'feedback'), // 1.1 s before the second one: neither's
+      frame(1950, 'timer'),
+      frame(2040, 'feedback'),
+      frame(5000 + FEEDBACK_FRAME_AFTER_MS + 1, 'feedback'), // too late for the third
+    ];
+    const [a, b, c] = buildFeedback([fb(-3000), fb(2000), fb(5000)], frames);
+    expect(a.frameTs).toBeUndefined();
+    expect(b.frameTs).toBe(T0 + 2040);
+    expect(c.frameTs).toBeUndefined();
+    expect(c.screenshot).toBe(true);
+    expect(buildFeedback([fb(2000)])[0].frameTs).toBeUndefined();
   });
 
   it('lists a record sent twice (same ouo.feedback.id) once; records without an id are each listed', () => {

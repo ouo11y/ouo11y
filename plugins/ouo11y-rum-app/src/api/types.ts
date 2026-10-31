@@ -260,7 +260,7 @@ export interface ReplayMeta {
   chunks: ReplayChunkMeta[];
 }
 
-export type FrameReason = 'timer' | 'touch' | 'navigation' | 'resume';
+export type FrameReason = 'timer' | 'touch' | 'navigation' | 'resume' | 'feedback';
 export type TouchPhase = 'began' | 'moved' | 'ended';
 
 /** A rectangle of a patch frame, in pixels of the most recent full image (schema 2, ADR-0014). */

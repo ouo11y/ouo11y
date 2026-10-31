@@ -167,6 +167,17 @@ final class ReplayRecorder {
         scheduleWake(now: now)
     }
 
+    /// A feedback (C10): a frame of the screen as it is now, in every mode, with reason `feedback`.
+    /// The differ forgets the last frame, so it is a full image even on a static screen (an
+    /// unchanged frame is otherwise not sent) and a seek point.
+    func frameForFeedback() {
+        guard isRecording else { return }
+        Self.queue.async { [differ] in differ.reset() }
+        let now = ProcessInfo.processInfo.systemUptime
+        pacer.requestFrame(.feedback, at: now)
+        scheduleWake(now: now)
+    }
+
     // MARK: capture loop
 
     private func resumeCapture() {

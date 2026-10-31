@@ -7,7 +7,7 @@ Branch `claude/ios-n77-diskqueue`, checklist N77 (found in the W8 part 1 review,
 - **No age bound** in `DiskQueue` (`sdk/ios/Sources/OuoReplayCore/DiskQueue.swift`): `Config.maxAge` is gone, entries are dropped only by the byte and entry bounds (oldest first, never the newest nor the one in flight), by a final status, or when unreadable. The same for what feeds it: `ChunkUploader.Config.maxAge` is gone (queued and held replay chunks) and `ChunkSpool.recover` no longer drops an open chunk that started more than 24 h ago. The OTLP outbox (`Exporter.outbox`) keeps 5 MB and 500 requests.
 - **Names keep the order of `put`**: the stamp in `<stamp>-<counter>.<tag>` is `max(wall clock, newest stamp in the folder + 1)`, so a clock moved back does not put a new entry before older ones (in this process or the next, whose counter starts again), and the bound still drops the real oldest. `Entry.queuedAt` (and `HeldSession.firstAt` / `lastAt`) are that stamp: the queue time unless the clock moved back.
 - Specs: `mobile-sdk.md` C11 and `mobile-replay.md` "Delivery" say no age, and why; the iOS and React Native READMEs and the stand-in's comment follow.
-- New checklist item **N81**: the React Native JS outbox (`outbox.ts`, AsyncStorage) still drops requests older than 24 h by `Date.now()`; the same fix applies there.
+- New checklist item **N83** (first numbered N81, which the release session had taken the same day): the React Native JS outbox (`outbox.ts`, AsyncStorage) still drops requests older than 24 h by `Date.now()`; the same fix applies there.
 
 ## Why bounds only, not a monotonic age
 

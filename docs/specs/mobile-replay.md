@@ -35,7 +35,7 @@ Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers
 - Touch `x`, `y` are in points of the unscaled viewport.
 - `seq` is monotonic per session, starts at 0 for a new session, persists across app restarts within a session (same store as the session record).
 - `mode` is the capture mode drawn at session start, the same on every chunk of the session: `session` or `navigation` (the iOS SDK), or `buffer` (decided in ADR-0014, not built yet). It is informational free text; readers must not reject other values.
-- `reason` is informational free text: why the frame was taken (`timer` in `session` mode, `navigation`, `resume`; older SDKs also sent `touch`). Readers never use it to tell full frames from patch frames.
+- `reason` is informational free text: why the frame was taken (`timer` in `session` mode, `navigation`, `resume`, `feedback`: the screen when the user sent feedback, a full image, [mobile-sdk.md](mobile-sdk.md) C10; older SDKs also sent `touch`). Readers never use it to tell full frames from patch frames.
 
 ## Frames
 

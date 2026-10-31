@@ -40,7 +40,8 @@ export function stepText(step: FeedbackStep): { title: string; detail: string } 
 
 /**
  * The session's user feedback beside its replay (docs/specs/mobile-sdk.md C10): message, contact,
- * the steps before it, and a seek to the replay at the feedback time: the frame on screen then
+ * the steps before it, and a seek to the replay at the feedback: its screenshot (the frame the SDK
+ * took for it, reason `feedback`) when the replay holds one, else the frame on screen at its time
  * (with `ouo.feedback.screenshot`, the SDK made sure replay was recording it).
  */
 export function FeedbackList({ items, clockStart, onSeek }: Props) {
@@ -65,13 +66,22 @@ export function FeedbackList({ items, clockStart, onSeek }: Props) {
                 <Icon name="user" /> {f.contact}
               </span>
             )}
-            {f.screenshot && (
+            {f.frameTs !== undefined ? (
               <Badge
-                text="replay recording"
+                text="screenshot"
                 color="green"
-                icon="lock"
-                tooltip="Replay was recording when the feedback was sent: the replay at its time shows the screen, masked."
+                icon="camera"
+                tooltip="The SDK took a frame of the screen when the feedback was sent, masked like every frame: Replay at feedback shows it."
               />
+            ) : (
+              f.screenshot && (
+                <Badge
+                  text="replay recording"
+                  color="green"
+                  icon="lock"
+                  tooltip="Replay was recording when the feedback was sent: the replay at its time shows the screen, masked."
+                />
+              )
             )}
             {onSeek && (
               <Button
@@ -79,7 +89,7 @@ export function FeedbackList({ items, clockStart, onSeek }: Props) {
                 variant="secondary"
                 icon="play"
                 className={styles.seek}
-                onClick={() => onSeek(f.ts)}
+                onClick={() => onSeek(f.frameTs ?? f.ts)}
                 data-testid="feedback-seek"
               >
                 Replay at feedback

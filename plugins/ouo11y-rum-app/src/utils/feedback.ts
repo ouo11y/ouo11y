@@ -1,8 +1,23 @@
-import type { TimelineEvent } from '../api/types';
+import type { ReplayFrame, TimelineEvent } from '../api/types';
 import { parseTs } from './format';
 
 /** How many steps before a feedback are listed (docs/specs/mobile-sdk.md C10). */
 export const LAST_EVENTS = 20;
+
+/**
+ * Where the frame an SDK took for a feedback (reason `feedback`, C10) may lie around the record:
+ * up to 2 s after it (the recorder takes it at its next pass, once a running transition settled),
+ * and 0.5 s before it for the two clocks the SDK stamps them with.
+ */
+export const FEEDBACK_FRAME_AFTER_MS = 2000;
+export const FEEDBACK_FRAME_BEFORE_MS = 500;
+
+/** The time (epoch ms) of the frame taken for a feedback at `ts`, when the replay holds one. */
+export function feedbackFrameTs(frames: readonly ReplayFrame[] | undefined, ts: number): number | undefined {
+  return frames?.find(
+    (f) => f.reason === 'feedback' && f.ts >= ts - FEEDBACK_FRAME_BEFORE_MS && f.ts <= ts + FEEDBACK_FRAME_AFTER_MS
+  )?.ts;
+}
 
 /** One step before a feedback: an `ouo.last_events` entry, or a timeline event (`event` set). */
 export interface FeedbackStep {
@@ -21,6 +36,8 @@ export interface FeedbackItem {
   contact?: string;
   /** `ouo.feedback.screenshot`: the replay was asked for a frame of the screen. */
   screenshot: boolean;
+  /** Epoch ms of the frame the SDK took for it (reason `feedback`), when the replay holds one: the screenshot. */
+  frameTs?: number;
   /** Oldest first: the record's `ouo.last_events`, else the session's timeline events before it. */
   steps: FeedbackStep[];
 }
@@ -58,7 +75,7 @@ export function parseLastEvents(raw: string | undefined): FeedbackStep[] | undef
  * (the Sentry bridge, whose feedback breadcrumbs are timeline events). A record whose
  * `ouo.feedback.id` was already listed (an envelope the Sentry SDK sent again) is listed once.
  */
-export function buildFeedback(timeline: readonly TimelineEvent[]): FeedbackItem[] {
+export function buildFeedback(timeline: readonly TimelineEvent[], frames?: readonly ReplayFrame[]): FeedbackItem[] {
   const out: FeedbackItem[] = [];
   const seen = new Set<string>();
   timeline.forEach((ev, i) => {
@@ -83,12 +100,14 @@ export function buildFeedback(timeline: readonly TimelineEvent[]): FeedbackItem[
         .filter((e, j) => j !== i && !isFeedbackEvent(e) && parseTs(e.clampedFrom ?? e.ts) <= ts)
         .slice(-LAST_EVENTS)
         .map((e) => ({ ts: parseTs(e.clampedFrom ?? e.ts), name: e.name, body: '', event: e }));
+    const frameTs = feedbackFrameTs(frames, ts);
     out.push({
       key: `fb-${i}`,
       ts,
       message,
       ...(ev.attrs.ouo_feedback_contact ? { contact: ev.attrs.ouo_feedback_contact } : {}),
       screenshot: ev.attrs.ouo_feedback_screenshot === 'true',
+      ...(frameTs !== undefined ? { frameTs } : {}),
       steps,
     });
   });

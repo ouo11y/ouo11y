@@ -184,7 +184,9 @@ describe('SessionDetail', () => {
             ouo_feedback_message: 'The coupon does not apply',
             ouo_feedback_contact: 'ana@example.com',
             ouo_feedback_screenshot: 'true',
-            ouo_last_events: JSON.stringify([{ ts: at - 200, name: 'ui.tap', body: 'Tap apply-coupon (button) on Cart' }]),
+            ouo_last_events: JSON.stringify([
+              { ts: at - 200, name: 'ui.tap', body: 'Tap apply-coupon (button) on Cart' },
+            ]),
           },
         },
       ],
@@ -206,6 +208,38 @@ describe('SessionDetail', () => {
     // The replay at the feedback time (+1.5 s into the replay), on the session clock.
     expect(screen.getByTestId('frame-time')).toHaveTextContent('+1.8s');
     expect(screen.getAllByTestId('activity-item').some((r) => r.textContent?.includes('Feedback'))).toBe(true);
+  });
+
+  it('says screenshot when the replay holds the frame the SDK took for the feedback, and seeks to it (N76)', async () => {
+    const at = frames.started_at + 1500;
+    api.replayFrames.mockResolvedValue({
+      ...frames,
+      frames: [...frames.frames, { ts: at + 40, reason: 'feedback', jpeg: frames.frames[0].jpeg }].sort(
+        (a, b) => a.ts - b.ts
+      ),
+    });
+    api.session.mockResolvedValue({
+      ...detail,
+      timeline: [
+        ...detail.timeline,
+        {
+          ts: iso(at),
+          type: 'custom',
+          name: 'feedback',
+          attrs: { ouo_feedback_message: 'The coupon does not apply', ouo_feedback_screenshot: 'true' },
+        },
+      ],
+    });
+    renderPage();
+    const list = await screen.findByTestId('feedback-list');
+    expect(await within(list).findByText('screenshot')).toBeInTheDocument();
+    expect(within(list).queryByText('replay recording')).toBeNull();
+    Element.prototype.scrollIntoView = jest.fn();
+    fireEvent.click(within(list).getByTestId('feedback-seek'));
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    // The feedback frame, 40 ms after the record (+1.5 s into the replay), on the session clock.
+    expect(screen.getByTestId('frame-time')).toHaveTextContent('+1.8s');
+    expect(screen.getByTestId('frame-canvas')).toHaveAccessibleName(/\(feedback\)/);
   });
 
   it('shows no feedback list without feedback', async () => {
