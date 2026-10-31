@@ -225,13 +225,13 @@ their configuration inline. Open the block below, copy all of it, and paste it i
 # The ouo images default to :latest, the newest release. This file was generated for, and its
 # configs come from, these releases (digest = the multi-arch image index at that version):
 #
-#   collector  0.4.0  sha256:ca0d001dc58153671fc501cbe280a69f86dc3e681a1b4621e827dedadb7727f2  OUO_COLLECTOR_VERSION
-#   rum-api    0.5.0  sha256:1ee9e606220df2c42f4ade4131fdd3f82085d6e814676a771754a85a6ae78336  OUO_RUM_API_VERSION
-#   grafana    0.5.0  sha256:57607a3616c88867644be1f69abb4681ca73df05d6bf2682543418f0dfeb622f  OUO_GRAFANA_VERSION (plugin ouo11y-rum-app 0.9.0)
+#   collector  0.5.0  sha256:64f2be4da3ee8f19633c8aa078f21a9ee192af48ae0d1ecb4659318e3bbddda5  OUO_COLLECTOR_VERSION
+#   rum-api    0.6.0  sha256:43adbb2eb96f2b53efa95c7f7f38b2116d635ba492238ea5206c0b624749fcde  OUO_RUM_API_VERSION
+#   grafana    0.6.0  sha256:479980fe7dba0969cabd6352de33a44a327b153599ed2cb5adfe718e2ac91eb2  OUO_GRAFANA_VERSION (plugin ouo11y-rum-app 0.10.0)
 #
-# To stay on exactly these, put e.g. OUO_GRAFANA_VERSION=0.5.0 (or 0.5.0@sha256:...) in a .env
+# To stay on exactly these, put e.g. OUO_GRAFANA_VERSION=0.6.0 (or 0.6.0@sha256:...) in a .env
 # file next to this one. Each config below comes from its image's release commit; Loki, Tempo
-# and Mimir from grafana-v0.5.0. A later release that needs new configs comes with a regenerated
+# and Mimir from grafana-v0.6.0. A later release that needs new configs comes with a regenerated
 # file: fetch it again (deploy/compose/quickstart.yaml in the ouo11y/ouo11y repo).
 #
 # Copy this file into an empty folder as compose.yaml, then (the images are public, no docker login):
@@ -428,7 +428,7 @@ volumes:
 
 configs:
   collector:
-    # deploy/compose/collector/config.yaml at collector-v0.4.0
+    # deploy/compose/collector/config.yaml at collector-v0.5.0
     content: |
       # ouo-collector configuration for the local stack (ADR-0007: the collector is the edge).
       #
@@ -653,7 +653,7 @@ configs:
             processors: [memory_limiter]
             exporters: [routing/sentry]
   projects-htpasswd:
-    # deploy/compose/collector/projects.htpasswd at collector-v0.4.0
+    # deploy/compose/collector/projects.htpasswd at collector-v0.5.0
     content: |
       # Development project registry for ouo-collector (basicauth extension, ADR-0007).
       # LOCAL USE ONLY. The demo token is public in this repository; never deploy this file.
@@ -665,7 +665,7 @@ configs:
       # so it has its own rate-limit buckets and never spends a client project's quota.
       internal:{SHA}wXBw3q7GMLhIo7ifP3a0fC2Z14M=
   loki:
-    # deploy/compose/loki/config.yaml at grafana-v0.5.0
+    # deploy/compose/loki/config.yaml at grafana-v0.6.0
     content: |
       # Loki 3.x single-binary, filesystem storage, native OTLP ingestion.
       # Started with -config.expand-env=true: the OUO_* variables below come from compose.yaml (retention,
@@ -773,7 +773,7 @@ configs:
       analytics:
         reporting_enabled: false
   loki-runtime:
-    # deploy/compose/loki/runtime.yaml at grafana-v0.5.0
+    # deploy/compose/loki/runtime.yaml at grafana-v0.6.0
     content: |
       # Loki runtime overrides, reloaded every 10 s (runtime_config in config.yaml): edit and
       # save, no restart. Per-project log retention goes here as retention_stream entries on
@@ -789,7 +789,7 @@ configs:
       #         period: 24h          # at least 24h
       overrides: {}
   tempo:
-    # deploy/compose/tempo/config.yaml at grafana-v0.5.0
+    # deploy/compose/tempo/config.yaml at grafana-v0.6.0
     content: |
       # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir.
       # Started with -config.expand-env=true (trace retention from compose.yaml).
@@ -861,7 +861,7 @@ configs:
           metrics_generator:
             processors: [service-graphs, span-metrics]
   mimir:
-    # deploy/compose/mimir/config.yaml at grafana-v0.5.0
+    # deploy/compose/mimir/config.yaml at grafana-v0.6.0
     content: |
       # Mimir monolithic mode, filesystem storage, OTLP push at /otlp/v1/metrics.
       # Started with -config.expand-env=true (metric retention from compose.yaml).
@@ -937,7 +937,7 @@ configs:
       usage_stats:
         enabled: false
   rum-api:
-    # deploy/compose/rum-api/config.yaml at rum-api-v0.5.0
+    # deploy/compose/rum-api/config.yaml at rum-api-v0.6.0
     content: |
       # rum-api configuration for the local stack, mounted at /etc/rum-api/config.yaml and
       # started with -config.file=/etc/rum-api/config.yaml -config.expand-env=true (like Loki
@@ -996,7 +996,7 @@ configs:
       #    retention: { replays: 24h }
       #    sampling: { session_rate: 1, replay_rate: 0.25 }
   grafana-datasources:
-    # deploy/compose/grafana/provisioning/datasources/datasources.yaml at grafana-v0.5.0
+    # deploy/compose/grafana/provisioning/datasources/datasources.yaml at grafana-v0.6.0
     content: |
       apiVersion: 1
 
@@ -1077,7 +1077,7 @@ configs:
               - name: trace_id
                 datasourceUid: tempo
   grafana-plugin-app:
-    # deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml at grafana-v0.5.0
+    # deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml at grafana-v0.6.0
     content: |
       # Enables the ouo11y RUM app plugin (plugins/ouo11y-rum-app, loaded unsigned from
       # /var/lib/grafana/plugins/ouo11y-rum-app) and points its "rum" route at the
