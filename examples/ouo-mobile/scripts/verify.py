@@ -18,10 +18,8 @@ Defaults are the plain compose stack's ports; `scripts/run.sh --env <name>` pass
 """
 
 import argparse
-import datetime as dt
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
@@ -29,13 +27,6 @@ import rumcheck  # noqa: E402
 import tracecheck  # noqa: E402
 
 CLIENT = "mobile-store"
-
-
-def epoch_ms(ts):
-    """rum-api's RFC 3339 time (up to nanoseconds) as epoch ms."""
-    m = re.match(r"(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$", ts)
-    base = dt.datetime.fromisoformat(m.group(1) + (m.group(3).replace("Z", "+00:00")))
-    return int(base.timestamp() * 1000) + int((m.group(2) or "0")[:3].ljust(3, "0"))
 
 
 def check_feedback(a, feedback, res):
@@ -56,7 +47,7 @@ def check_feedback(a, feedback, res):
     if not s.get("has_replay"):
         res.add("feedback screenshot (no replay recorded: skipped)", True, "")
         return
-    at = epoch_ms(f["ts"])
+    at = rumcheck.epoch_ms(f["ts"])
     frames = rumcheck.get(a.rum_api, f"/v1/sessions/{s['session_id']}/replay/frames", a.read_token).get("frames", [])
     before = [at - x["ts"] for x in frames if x["ts"] <= at]
     after = [x["ts"] for x in frames if x["ts"] > at]

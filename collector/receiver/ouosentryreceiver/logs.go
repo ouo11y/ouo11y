@@ -304,20 +304,18 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 		for i := range p.entries {
 			pl := &p.entries[i]
 			project := pl.group.j.project.OuoProjectID
-			var x *sess
-			var match string
+			// A report resolves by the error it names (rule event) at its
+			// received time; a log entry by section 8 at its own time.
+			x, match, at := (*sess)(nil), matchEvent, pl.group.j.receivedAt
 			if pl.report != nil {
 				x = r.state.byEventID(project, pl.report.EventID)
 			} else {
 				x, match = resolveLog(r.state, project, pl.group.j.originKey(), &pl.log)
+				at = pl.log.Timestamp.Time
 			}
 			switch {
-			case x != nil && pl.report != nil:
-				// Rule event: a report brings no device context to learn.
-				r.state.touch(x, pl.group.j.receivedAt)
-				emit(pl, x, matchEvent)
 			case x != nil:
-				r.state.touch(x, pl.log.Timestamp.Time)
+				r.state.touch(x, at)
 				x.dev.merge(pl.group.dev)
 				emit(pl, x, match)
 			case force || now.After(pl.until):

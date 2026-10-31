@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -27,6 +28,14 @@ def get(base: str, path: str, token: str | None, params: dict | None = None):
 
 def iso(unix: int) -> str:
     return dt.datetime.fromtimestamp(unix, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def epoch_ms(ts: str) -> int:
+    """rum-api's RFC 3339 time (up to nanoseconds, trailing zeros trimmed) as epoch ms. Compare
+    these, not the strings: `...:00.5Z` sorts before `...:00Z` as text."""
+    m = re.match(r"(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$", ts)
+    base = dt.datetime.fromisoformat(m.group(1) + (m.group(3).replace("Z", "+00:00")))
+    return int(base.timestamp() * 1000) + int((m.group(2) or "0")[:3].ljust(3, "0"))
 
 
 def sessions(base: str, token: str | None, service: str, start: int, end: int, settle: int = 90) -> list[dict]:

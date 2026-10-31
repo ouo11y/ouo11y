@@ -58,11 +58,9 @@ func (t *translation) emitFeedback(st *sessionState, envSessions map[string]*sen
 // emitUserReport maps the legacy `user_report` item: no time, user or
 // context, only the event it is about, whose session x is (rule event), or
 // nil when that error is not known (none). The received time stands for its
-// time. With a session, the lock must be held.
+// time. The caller skips an empty report. With a session, the lock must be
+// held.
 func (t *translation) emitUserReport(u *userReport, x *sess) {
-	if strings.TrimSpace(u.Comments) == "" {
-		return
-	}
 	match := matchNone
 	if x != nil {
 		match = matchEvent

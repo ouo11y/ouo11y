@@ -148,13 +148,14 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 			switch {
 			case it.typ == "feedback" && it.event != nil:
 				t.emitFeedback(st, envSessions, sessionOrder, it.event, envReplayID)
-			case it.report != nil:
+			case it.report != nil && strings.TrimSpace(it.report.Comments) != "":
 				// Its error is known: rule event, a report brings no context
 				// to learn. Else held until the error arrives (section 9c).
+				// An empty report is not translated and touches nothing.
 				if x := st.byEventID(project, it.report.EventID); x != nil {
 					st.touch(x, j.receivedAt)
 					t.emitUserReport(it.report, x)
-				} else if strings.TrimSpace(it.report.Comments) != "" {
+				} else {
 					heldReports = append(heldReports, it.report)
 				}
 			}

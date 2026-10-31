@@ -48,7 +48,7 @@ def check_feedback(a, ss: list[dict], want: list[dict], res) -> None:
         res.add(f"{name}: session rule {'/'.join(w['rules'])}", at.get("ouo_sentry_session_match") in w["rules"],
                 f"{at.get('ouo_sentry_session_match')} on {d.get('session_id', '')[:8]}")
         for step in w.get("steps", []):
-            navs = [x for x in d.get("timeline", []) if x.get("type") == "navigation" and x.get("ts", "") <= e.get("ts", "")
+            navs = [x for x in d.get("timeline", []) if x.get("type") == "navigation" and rumcheck.epoch_ms(x["ts"]) <= rumcheck.epoch_ms(e["ts"])
                     and str(x.get("attrs", {}).get("url_path", x.get("body", ""))).endswith(step)]
             res.add(f"{name}: step to {step} before it (its breadcrumbs, 9b)", bool(navs), f"{len(navs)} navigation(s)")
 
