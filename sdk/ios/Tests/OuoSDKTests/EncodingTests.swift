@@ -152,10 +152,9 @@ import Testing
         #expect(online.logs.map(\.body) == ["0", "1", "2", "3", "4"])
     }
 
-    @Test func BoundsAre5MB500Requests24h() {
+    @Test func BoundsAre5MBAnd500Requests() {
         #expect(Exporter.outbox.maxBytes == 5 * 1024 * 1024)
         #expect(Exporter.outbox.maxEntries == 500)
-        #expect(Exporter.outbox.maxAge == 24 * 3600)
         #expect(Exporter.outbox.retryDelay(1) == 1)
         #expect(Exporter.outbox.retryDelay(3) == 4)
         #expect(Exporter.outbox.retryDelay(10) == 30)

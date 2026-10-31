@@ -6,7 +6,8 @@ import Foundation
 /// One append-only JSON Lines file: the chunk header first, then one line per frame and one per
 /// batch of touches. A line cut short by the crash fails to decode and is skipped. Written on the
 /// capture queue; the file is removed once the chunk was handed to the uploader. Its folder
-/// is excluded from device backups. A chunk older than `maxAge` is not sent.
+/// is excluded from device backups. No age limit, like the queue it goes to (`DiskQueue`): the
+/// wall clock may have moved since the chunk started.
 public final class ChunkSpool {
     struct Header: Codable {
         var sessionId: String
@@ -27,9 +28,6 @@ public final class ChunkSpool {
     }
 
     public let url: URL
-    /// A spool whose chunk started longer ago than this is dropped, not sent (a week-old replay
-    /// chunk serves nobody).
-    public static let maxAge: TimeInterval = 24 * 3600
     private var handle: FileHandle?
 
     /// Default file: `Library/Application Support/ouo/replay/open-chunk.jsonl`.
@@ -73,13 +71,13 @@ public final class ChunkSpool {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// The chunk the previous process left open, if it holds anything and is younger than
-    /// `maxAge`. Call before the first frame of this process. The file stays until `clear()`, which
-    /// the caller runs once the uploader stored the chunk, so a kill in between sends it again on
-    /// the next launch (same session and seq: it replaces its copy). With nothing to send the file
-    /// is removed here. `crash`: the previous run's crash (or termination) and its time; a chunk of
-    /// that session ends there (spec C8: the screen did not change between its last frame and the
-    /// crash, which an unchanged screen's missing frames would otherwise hide).
+    /// The chunk the previous process left open, if it holds anything. Call before the first frame
+    /// of this process. The file stays until `clear()`, which the caller runs once the uploader
+    /// stored the chunk, so a kill in between sends it again on the next launch (same session and
+    /// seq: it replaces its copy). With nothing to send the file is removed here. `crash`: the
+    /// previous run's crash (or termination) and its time; a chunk of that session ends there
+    /// (spec C8: the screen did not change between its last frame and the crash, which an
+    /// unchanged screen's missing frames would otherwise hide).
     public func recover(now: EpochMillis = Clock.nowMillis(), crash: (sessionId: String, at: EpochMillis)? = nil) -> FrameChunk? {
         close()
         guard let data = try? Data(contentsOf: url) else { return nil }
@@ -97,7 +95,7 @@ public final class ChunkSpool {
         }
         // Only the last line can be cut short, but never let a chunk start with a patch frame.
         frames = Array(frames.drop { !$0.isFull })
-        guard let header, !(frames.isEmpty && touches.isEmpty), Double(now - header.startedAt) / 1000 <= Self.maxAge else {
+        guard let header, !(frames.isEmpty && touches.isEmpty) else {
             clear()
             return nil
         }

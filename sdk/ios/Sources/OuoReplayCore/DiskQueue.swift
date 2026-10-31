@@ -8,30 +8,34 @@ import FoundationNetworking
 /// status but 408, 429 and 5xx). Those and network errors leave it in place and retry after a
 /// backoff (at least `Retry-After`), on `drain` and in the next process, so an
 /// outage, a crash or a kill mid-request loses nothing; what arrived just before a kill is sent
-/// again (at least once). Sent oldest first, one request at a time. Bounded by bytes, entries and
-/// age, the oldest dropped first, never the one in flight nor the newest.
+/// again (at least once). Sent oldest first, one request at a time. Bounded by bytes and entries,
+/// the oldest dropped first, never the one in flight nor the newest.
+///
+/// No age bound: an age needs a clock that both survives a reboot and cannot be moved, and a phone
+/// has none (the wall clock is the user's to set, a monotonic one restarts at boot). An age on the
+/// wall clock dropped everything queued when the clock moved a day forward (checklist N77). The
+/// bounds already cap the disk; what is too old to ingest is the backend's call.
 ///
 /// The replay chunk queue (`ChunkUploader`) and the OTLP outbox of `OuoSDK` are two of these. A
 /// queue without a transport only holds (the replay chunks a host decides on at the next launch).
 ///
-/// Files are `<queued at, 13 digits>-<counter, 6 digits>.<tag>`, so names sort in queue order and
-/// the tag carries what the request needs (the signal, a session and seq). One queue per folder per
-/// process: two would send the same files.
+/// Files are `<stamp, 13 digits>-<counter, 6 digits>.<tag>`, so names sort in queue order and the
+/// tag carries what the request needs (the signal, a session and seq). The stamp is the wall clock
+/// when queued, raised above the newest name in the folder when the clock moved back, so the order
+/// is the order of `put` whatever the clock does. One queue per folder per process: two would send
+/// the same files.
 public final class DiskQueue {
     public struct Config: Sendable {
         /// Bytes kept on disk (file sizes); the oldest entries are dropped beyond it.
         public var maxBytes: Int
         /// Entries kept on disk; the oldest are dropped beyond it.
         public var maxEntries: Int
-        /// An entry queued longer ago than this is dropped unsent.
-        public var maxAge: TimeInterval
         /// Wait before retrying after the nth failure in a row. Injected so tests do not wait.
         public var retryDelay: @Sendable (Int) -> TimeInterval
 
-        public init(maxBytes: Int, maxEntries: Int = .max, maxAge: TimeInterval, retryDelay: @escaping @Sendable (Int) -> TimeInterval) {
+        public init(maxBytes: Int, maxEntries: Int = .max, retryDelay: @escaping @Sendable (Int) -> TimeInterval) {
             self.maxBytes = maxBytes
             self.maxEntries = maxEntries
-            self.maxAge = maxAge
             self.retryDelay = retryDelay
         }
 
@@ -43,8 +47,10 @@ public final class DiskQueue {
 
     public struct Entry: Equatable {
         public let url: URL
-        /// What follows `<queued at>-<counter>.` in the file name.
+        /// What follows `<stamp>-<counter>.` in the file name.
         public let tag: String
+        /// The name's stamp: when it was queued (epoch ms), unless the clock moved back since an
+        /// older entry (then just above that one).
         public let queuedAt: EpochMillis
         public let bytes: Int
 
@@ -96,7 +102,7 @@ public final class DiskQueue {
         self.queue = DispatchQueue(label: "dev.ouo.disk-queue.\(directory.lastPathComponent)")
     }
 
-    /// Sent (2xx), dropped (bounds, age, unreadable, `remove`) and rejected (final status) entries.
+    /// Sent (2xx), dropped (bounds, unreadable, `remove`) and rejected (final status) entries.
     public var sent: Int { queue.sync { stats.sent } }
     public var dropped: Int { queue.sync { stats.dropped } }
     public var rejected: Int { queue.sync { stats.rejected } }
@@ -109,7 +115,8 @@ public final class DiskQueue {
     public func put(_ body: Data, tag: String, sendIfRefused: Bool = true) -> Bool {
         let ok: Bool = queue.sync {
             counter += 1
-            let name = "\(Self.pad(now(), 13))-\(Self.pad(Int64(counter % 1_000_000), 6)).\(tag)"
+            let stamp = max(now(), (Self.list(directory).last?.queuedAt ?? 0) + 1)
+            let name = "\(Self.pad(stamp, 13))-\(Self.pad(Int64(counter % 1_000_000), 6)).\(tag)"
             let url = directory.appendingPathComponent(name)
             do {
                 try Self.prepare(directory)
@@ -139,9 +146,9 @@ public final class DiskQueue {
         }
     }
 
-    /// Entries on disk, oldest first; expired ones are removed here.
+    /// Entries on disk, oldest first.
     public func entries() -> [Entry] {
-        queue.sync { liveEntries() }
+        queue.sync { Self.list(directory) }
     }
 
     public var count: Int { queue.sync { Self.list(directory).count } }
@@ -206,16 +213,6 @@ public final class DiskQueue {
 
     // MARK: - internals (on `queue`)
 
-    /// `list` without, and after deleting, the entries older than `maxAge`.
-    private func liveEntries() -> [Entry] {
-        let cutoff = now() - EpochMillis(config.maxAge * 1000)
-        return Self.list(directory).filter { e in
-            guard e.queuedAt < cutoff else { return true }
-            drop(e, why: "older than \(Int(config.maxAge / 3600)) h")
-            return false
-        }
-    }
-
     private func enforceBound() {
         let es = Self.list(directory)
         var total = es.reduce(0) { $0 + $1.bytes }
@@ -240,7 +237,7 @@ public final class DiskQueue {
             return
         }
         guard inFlight == nil else { return }
-        guard let head = liveEntries().first else {
+        guard let head = Self.list(directory).first else {
             failures = 0
             finishWaiters()
             return

@@ -127,7 +127,7 @@ function captureIfDue() {
 // as its gzip body before it is sent, named `<queued ms>-<n>.<session>.<seq>.json.gz`, and removed
 // on 2xx or a final answer (any status but 408, 429, 5xx); a refused upload stays for `drain`, the
 // next chunk or the next launch. Not modelled: the retry timer and `Retry-After` (a launch is
-// short), the 10 MB bound and the 24 h expiry.
+// short) and the 10 MB bound.
 const OUTBOX = path.join(DEVICE_DIR, "outbox");
 const HELD = path.join(OUTBOX, "held");
 let queued = 0;

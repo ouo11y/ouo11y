@@ -8,8 +8,10 @@ import Testing
         FileManager.default.temporaryDirectory.appendingPathComponent("ouo-dq-\(UUID().uuidString)", isDirectory: true)
     }
 
-    private func queue(_ d: URL, _ t: ChunkTransport?, maxEntries: Int = .max, retry: @escaping @Sendable (Int) -> TimeInterval = { _ in 3600 }) -> DiskQueue {
-        DiskQueue(directory: d, config: DiskQueue.Config(maxBytes: 1 << 20, maxEntries: maxEntries, maxAge: 3600, retryDelay: retry), transport: t) { e, body in
+    private func queue(_ d: URL, _ t: ChunkTransport?, maxEntries: Int = .max, clock: FakeClock? = nil,
+                       retry: @escaping @Sendable (Int) -> TimeInterval = { _ in 3600 }) -> DiskQueue {
+        DiskQueue(directory: d, config: DiskQueue.Config(maxBytes: 1 << 20, maxEntries: maxEntries, retryDelay: retry), transport: t,
+                  now: { clock?.now ?? Clock.nowMillis() }) { e, body in
             var r = URLRequest(url: URL(string: "http://x/\(e.tag)")!)
             r.httpBody = body
             return r
@@ -26,6 +28,51 @@ import Testing
         for i in 0..<5 { #expect(q.put(Data("\(i)".utf8), tag: "t\(i)")) }
         #expect(q.entries().map(\.tag) == ["t2", "t3", "t4"])
         #expect(q.dropped == 2)
+    }
+
+    private static let day: Int64 = 24 * 3600 * 1000
+
+    /// N77: a clock moved two days forward (by the user, or a wrong clock corrected) drops nothing:
+    /// the queue has no age, only its bounds.
+    @Test func AClockMovedForwardDropsNothing() async {
+        let d = dir()
+        let clock = FakeClock()
+        let held = queue(d, nil, clock: clock)
+        held.put(Data("a".utf8), tag: "a")
+        held.put(Data("b".utf8), tag: "b")
+        clock.advance(ms: 2 * Self.day)
+        #expect(held.entries().map(\.tag) == ["a", "b"])
+        // The next process, still two days ahead, sends both, then its own.
+        let t = FakeTransport()
+        let next = queue(d, t, clock: clock)
+        next.put(Data("c".utf8), tag: "c")
+        await drain(next)
+        #expect(t.sent.map { $0.request.url!.lastPathComponent } == ["a", "b", "c"])
+        #expect(held.dropped == 0 && next.dropped == 0)
+    }
+
+    /// N77: a clock moved back does not put a new entry before the older ones, in this process or
+    /// the next (its counter starts again), so the order is still the order of `put` and the bound
+    /// drops the oldest, never the newest.
+    @Test func AClockMovedBackKeepsTheOrder() async {
+        let d = dir()
+        let clock = FakeClock()
+        let q = queue(d, nil, maxEntries: 3, clock: clock)
+        q.put(Data("a".utf8), tag: "a")
+        q.put(Data("b".utf8), tag: "b")
+        clock.advance(ms: -2 * Self.day)
+        q.put(Data("c".utf8), tag: "c")
+        #expect(q.entries().map(\.tag) == ["a", "b", "c"])
+        let t = FakeTransport()
+        let next = queue(d, t, maxEntries: 3, clock: clock)
+        next.put(Data("d".utf8), tag: "d")
+        #expect(next.entries().map(\.tag) == ["b", "c", "d"], "the bound dropped the oldest")
+        await drain(next)
+        #expect(t.sent.map { $0.request.url!.lastPathComponent } == ["b", "c", "d"])
+        // Back on time, names follow the clock again.
+        clock.advance(ms: 2 * Self.day + 1000)
+        next.put(Data("e".utf8), tag: "e")
+        #expect(next.entries().last?.queuedAt == clock.now)
     }
 
     /// During a backoff a new entry waits for the retry: an outage costs one request per backoff.

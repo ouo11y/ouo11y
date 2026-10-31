@@ -4,8 +4,8 @@ import OuoReplayCore
 /// OTLP/HTTP JSON delivery for logs and traces (mobile SDK spec C11, ADR-0016): records are batched
 /// in memory for at most a second (or 64 of a kind), then each batch is written to the outbox, a
 /// `DiskQueue` folder, before it is sent gzip with the project credential. The outbox keeps what the
-/// collector has not accepted across outages, kills and launches: 5 MB of uncompressed JSON, 500
-/// requests, 24 h, the oldest dropped first; retried after 1 s doubling to 30 s (at least
+/// collector has not accepted across outages, kills and launches: 5 MB of uncompressed JSON and 500
+/// requests, the oldest dropped first (no age: `DiskQueue`); retried after 1 s doubling to 30 s (at least
 /// `Retry-After`), on foreground, on `flush` and on the next launch. Delivery is at least once.
 ///
 /// What is lost: the records of the last second before a crash or a kill (not yet in a batch).
@@ -15,7 +15,7 @@ final class Exporter {
     /// Records kept in memory waiting for a batch; beyond it the oldest are dropped.
     static let maxPendingLogs = 2048
     static let maxPendingSpans = 1024
-    static let outbox = DiskQueue.Config(maxBytes: 5 * 1024 * 1024, maxEntries: 500, maxAge: 24 * 3600, retryDelay: DiskQueue.Config.doubling(upTo: 30))
+    static let outbox = DiskQueue.Config(maxBytes: 5 * 1024 * 1024, maxEntries: 500, retryDelay: DiskQueue.Config.doubling(upTo: 30))
 
     let logsURL: URL
     let tracesURL: URL
