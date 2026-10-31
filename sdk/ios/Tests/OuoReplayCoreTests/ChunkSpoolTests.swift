@@ -44,6 +44,18 @@ import Testing
         #expect(ChunkSpool(url: url).recover(now: 3_000) == nil, "gone once handed over")
     }
 
+    /// Spec C8: the chunk of the crashed session ends at the crash, also when the screen did not
+    /// change after its last frame (no frame is sent for an unchanged screen); another session's
+    /// crash, or one in the future, changes nothing.
+    @Test func ARecoveredChunkEndsAtItsSessionsCrash() throws {
+        let b = builder(ChunkSpool(url: url), store: InMemorySeqStore())
+        b.add(makeFrame(ts: 1_100))
+        let spool = ChunkSpool(url: url)
+        #expect(try #require(spool.recover(now: 9_000, crash: ("crashed-session", 4_200))).endedAt == 4_200)
+        #expect(try #require(spool.recover(now: 9_000, crash: ("other", 4_200))).endedAt == 1_100)
+        #expect(try #require(spool.recover(now: 3_000, crash: ("crashed-session", 4_200))).endedAt == 1_100)
+    }
+
     @Test func CutChunkLeavesNothingBehind() {
         var out: [FrameChunk] = []
         var onDiskDuringHandOff = false

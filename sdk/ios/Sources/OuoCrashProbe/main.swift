@@ -36,6 +36,11 @@ if args.count >= 5 {
 
 OuoCrash.install(directory: dir)
 OuoCrash.setSession(args[2], startedAtMs: 1_760_000_000_123)
+// The host's screen context, as the crash handler must write it into the report.
+if let context = ProcessInfo.processInfo.environment["OUO_PROBE_CONTEXT"] {
+    OuoCrash.setContext(Data("{\"first\":true}".utf8))
+    OuoCrash.setContext(Data(context.utf8))
+}
 
 @inline(never) func crashSegv() {
     let p = UnsafeMutablePointer<Int>(bitPattern: 0x10)!

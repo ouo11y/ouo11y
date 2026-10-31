@@ -78,14 +78,14 @@ final class ReplayRecorder {
     /// queue, so it runs before any frame of this process and after a stopped recorder's flush.
     /// Once per process: a later call would read this process's own open chunk. Also starts
     /// sending the chunks earlier processes queued and could not send.
-    static func recoverSpool(_ config: OuoReplayConfig) {
+    static func recoverSpool(_ config: OuoReplayConfig, crash: (sessionId: String, at: EpochMillis)? = nil) {
         let logger = ReplayLogger(enabled: config.debug)
         queue.async {
             guard !recovered else { return }
             recovered = true
             let uploader = OuoReplay.uploader(config)
             let spool = ChunkSpool(url: config.spoolURL)
-            if let chunk = spool.recover() {
+            if let chunk = spool.recover(crash: crash) {
                 logger.log("recovered open chunk \(chunk.sessionId)#\(chunk.seq): \(chunk.frames.count) frames")
                 uploader.enqueue(chunk)
             }

@@ -77,8 +77,10 @@ public final class ChunkSpool {
     /// `maxAge`. Call before the first frame of this process. The file stays until `clear()`, which
     /// the caller runs once the uploader stored the chunk, so a kill in between sends it again on
     /// the next launch (same session and seq: it replaces its copy). With nothing to send the file
-    /// is removed here.
-    public func recover(now: EpochMillis = Clock.nowMillis()) -> FrameChunk? {
+    /// is removed here. `crash`: the previous run's crash (or termination) and its time; a chunk of
+    /// that session ends there (spec C8: the screen did not change between its last frame and the
+    /// crash, which an unchanged screen's missing frames would otherwise hide).
+    public func recover(now: EpochMillis = Clock.nowMillis(), crash: (sessionId: String, at: EpochMillis)? = nil) -> FrameChunk? {
         close()
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
@@ -99,7 +101,8 @@ public final class ChunkSpool {
             clear()
             return nil
         }
-        let last = max(frames.map(\.ts).max() ?? 0, touches.map(\.ts).max() ?? 0)
+        var last = max(frames.map(\.ts).max() ?? 0, touches.map(\.ts).max() ?? 0)
+        if let crash, crash.sessionId == header.sessionId, crash.at <= now { last = max(last, crash.at) }
         return FrameChunk(
             sessionId: header.sessionId,
             seq: header.seq,

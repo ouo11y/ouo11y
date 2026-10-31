@@ -32,13 +32,19 @@ config.propagateTo = ["https://api.example.com"]   // traceparent + baggage (ses
 config.replaySampleRate = 0.1                      // replay for 10 % of sessions (default 0: off)
 Ouo.start(config)
 
-Ouo.trackScreen("Cart")                // navigation + TTID (automatic for UIKit and SwiftUI later)
+// UIKit screens and taps are recorded by themselves. SwiftUI:
+//   SomeView().ouoScreen("Cart")       // a screen: navigation + TTID
+//   Text(card).ouoMask()               // replay masks it whatever the options
+//   Text(total).ouoUnmask()            // replay shows it whatever the options
+Ouo.trackScreen("Cart")                // a screen the SDK cannot see
+Ouo.trackTap("pay")                    // a tap the SDK cannot name (SwiftUI controls)
 Ouo.reportFullyDisplayed()             // TTFD of the current screen
 Ouo.setUser("user-42")                 // clearUser() at logout, endSession()
 Ouo.captureError(error)                // handled exception with stack, screen and last events
 Ouo.addEvent("checkout", attributes: ["items": 3])
 Ouo.log(.info, "cart loaded", attributes: ["count": 3])
 Ouo.withSpan("checkout") { _ in api.pay() }   // requests and logs inside join the trace
+Ouo.feedback("the cart is slow", contact: "ada@example.com", screenshot: true)
 Ouo.flush { }
 ```
 
@@ -55,8 +61,10 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 | C3 hangs and terminations | `hang` (2 s, OuoCrash's watchdog), `termination` (killed in the foreground without a crash report, cause `memory`, `watchdog` or `unknown`) |
 | C4 vitals | `ouo.app.start` (cold, from the process start to the first frame), `ouo.screen.display` (TTID, TTFD), `app.jank` per screen window |
 | C5 network | one CLIENT span per `URLSession` request, `http.request.failed` (5xx, network errors), `http.request`; `traceparent` and `baggage` only to `propagateTo` |
-| C7 screens | `navigation` per `trackScreen` change |
-| C8 replay | `OuoReplay` for the sampled sessions, rotated with the session |
+| C6 interactions | `ui.tap` per touch: `ouo.ui.target` (the test id, `accessibilityIdentifier`, else the view type; accessibility labels are not read: with VoiceOver or Voice Control on UIKit fills them with the visible title), `ouo.ui.path`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`), `app.screen.name`, a readable body; `taps` and the `tapLabels` kill switch |
+| C7 screens | `navigation` per screen change: every view controller of the app shown on its own or in a navigation, tab bar, split or page controller (named after its class, or `OuoScreenNaming`), SwiftUI's `.ouoScreen`, `trackScreen` |
+| C8 replay | `OuoReplay` for the sampled sessions, rotated with the session; SwiftUI text and symbols masked (`SwiftUI.CGDrawingView`, not inside system bars), `.ouoMask()` / `.ouoUnmask()` |
+| C10 feedback | `feedback` with message, contact, id, `ouo.last_events`, and a masked frame of the screen when replay records |
 | C9 spans and logs | `startSpan`, `withSpan`, `log` |
 | C11 delivery | OTLP/JSON, gzip, Basic credential; every batch on disk before it is sent (`Application Support/ouo/sdk/otlp`, 5 MB, 500 requests, 24 h), retried with backoff, `Retry-After`, sent on the next launch, on foreground and on `flush`; at least once |
 
@@ -75,6 +83,21 @@ Rules worth knowing:
 - **App extensions** are refused (`start` returns false): they have no `UIApplication`.
 - **Background launches** (a push, a fetch) start a session that ends with `background` unless the
   app is opened in time, and measure no app start.
+- **SwiftUI masking**: text (`SwiftUI.CGDrawingView`) under `maskText`; images and vector shapes
+  (`SwiftUI._UIGraphicsView`, `…_UIShapeHitTestingView`: photos, symbols, also a prominent
+  button's background) under `maskImages`. In system bars SwiftUI's drawing is bar chrome and not
+  masked, except a SwiftUI toolbar item (`UIKitBarItemHost`). `.ouoUnmask()` uncovers what the
+  options mask in its area, never what `.ouoMask()` forces.
+- **Taps in SwiftUI**: a SwiftUI control is not a `UIView` of its own; a touch on it reads as the
+  view that draws it (`ouo.ui.target` and `ouo.ui.view_type` `CGDrawingView` or
+  `_UIShapeHitTestingView`). Call `Ouo.trackTap("name")` in its action for a named step.
+- **Screens, edge cases**: a controller from a dynamic framework (`Bundle(for:)` is not the main
+  bundle) is not a screen; both children of a `UISplitViewController` are, so a split view that
+  appears gives two `navigation` records and the current screen is the last to appear; an app's
+  own `UIHostingController` subclass is a screen named after its class, besides any `.ouoScreen`
+  inside it (name it with `OuoScreenNaming`, or return nil to leave it to `.ouoScreen`).
+- **A crash right after a tap** carries that tap: the screen context is handed to the crash
+  handler in memory on every change, and the handler writes it into the report.
 - **`URLSession`**: `-[NSURLSessionTask resume]` is swizzled, so every session and API is seen
   (completion handlers, delegates, `async`); the trace headers are set through the task's
   `currentRequest` before it starts (what sentry-cocoa does). Background sessions run out of process
