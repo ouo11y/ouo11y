@@ -287,7 +287,7 @@ if [[ "$MODE" == "images" ]]; then
         die "ghcr.io refused the pull of $img. The ouo images are public, so root (the installer and ouo.service pull as root) most likely has an old, expired ghcr.io login:
   sudo docker logout ghcr.io
 A --registry other than ghcr.io/ouo11y may need its own sudo docker login.
-Without access: docker save the images on a machine that has them and docker load them here, or install without --images."
+No route to ghcr.io (offline VM): docker save the images on a machine that has them and docker load them here, or install without --images."
       fi
       die "pull of $img failed (see above)"
     fi

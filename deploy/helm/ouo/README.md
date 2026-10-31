@@ -45,9 +45,9 @@ registry in the release namespace, then add `--set 'imagePullSecrets[0].name=<se
 `helm install` / `helm upgrade` commands below (or `imagePullSecrets: [{name: <secret>}]` in
 your values file). The chart puts it on every pod it runs, bundled LGTM included.
 
-No route from the cluster to ghcr.io: build the three images from source (table above), push
-them to a registry the cluster can reach (kind: `kind load docker-image`) and set
-`<component>.image.repository` / `.tag`.
+No route from the cluster to ghcr.io: pull the released images (or build them from source,
+table above), push them to a registry the cluster can reach (kind: `kind load docker-image`)
+and set `<component>.image.repository` / `.tag`.
 
 ## Install A: existing cluster, the customer's LGTM stack (`lgtm.mode=external`)
 

@@ -203,8 +203,8 @@ publishes by trusted publishing (OIDC) from a GitHub-hosted runner.
 
 ## 7. Pull access
 
-Founder decisions: images and charts were **private** until a stable version (2026-10-17); the
-images `ghcr.io/ouo11y/{collector,rum-api,grafana}` are **public** since 2026-10-31 so pilots
+Founder decisions: 2026-10-17, images and charts stay **private** until a stable version;
+2026-10-31, the images `ghcr.io/ouo11y/{collector,rum-api,grafana}` are **public** so pilots
 can run the stack on their own infra. Pulling an image needs no login and no token.
 
 - `denied` (HTTP 403) on an image pull: Docker still sends an old ghcr.io login whose token
