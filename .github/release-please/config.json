@@ -28,14 +28,16 @@
       "extra-files": [
         { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/browser'].version" },
         { "type": "json", "path": "/examples/ouo-web/package.json", "jsonpath": "$.dependencies['@ouo11y/browser']" },
-        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['examples/ouo-web'].dependencies['@ouo11y/browser']" }
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['examples/ouo-web'].dependencies['@ouo11y/browser']" },
+        { "type": "generic", "path": "src/version.ts" }
       ]
     },
     "sdk/react-native": {
       "release-type": "node",
       "component": "react-native",
       "extra-files": [
-        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/react-native'].version" }
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/react-native'].version" },
+        { "type": "generic", "path": "src/version.ts" }
       ]
     },
     "sdk/ios": {
