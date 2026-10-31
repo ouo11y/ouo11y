@@ -132,7 +132,7 @@ describe("initRUM configuration errors", () => {
     expect(getRUM()).toBeUndefined();
   });
 
-  it("initialises with a credential and reports 0.2.0", async () => {
+  it("initialises with a credential", async () => {
     const rum = initRUM({ ...base, projectId: "demo", projectToken: "pt_x" }) as RUMInternal;
     expect(getRUM()).toBe(rum);
     await rum.ready;
