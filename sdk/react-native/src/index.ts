@@ -524,7 +524,10 @@ function userStep(gesture: Gesture, target: string, viewType?: string, screen?: 
   return `${GESTURE_WORDS[gesture]} ${target}${viewType && viewType !== target ? ` (${viewType})` : ""}${screen ? ` on ${screen}` : ""}`;
 }
 
-/** How long `_uninstall` waits for the outbox to send what the shutdown exported. */
+/**
+ * How long `_uninstall` waits for the outbox to send what the shutdown exported.
+ * @internal Exported for the SDK's tests; not part of the public API.
+ */
 export const UNINSTALL_DRAIN_TIMEOUT_MS = 2000;
 
 /** Metro dev-server endpoints: `POST /symbolicate` (LogBox), `POST /__sentry/context` (Sentry's middleware). */
