@@ -14,3 +14,4 @@ One dated summary per run.
 - [2026-10-30-w4-signals.md](2026-10-30-w4-signals.md) W4: app hangs, foreground terminations, TTFD and error context; C3.1, C3.2, C4.2 required
 - [2026-10-31-w8-native-ios-part1.md](2026-10-31-w8-native-ios-part1.md) W8 part 1: the native iOS SDK `OuoSDK` (sessions, OTLP export and outbox, lifecycle, URLSession, crash, vitals and replay wired, `@objc` API, privacy manifest)
 - [2026-10-31-fix-ingest-stub-flake.md](2026-10-31-fix-ingest-stub-flake.md) Fix of the ingest-stub CI flake: `_uninstall` awaits the outbox drain (bounded 2 s), PR #124
+- [2026-10-31-w8-native-ios-part2.md](2026-10-31-w8-native-ios-part2.md) W8 part 2: UIKit screens and taps, SwiftUI masking, feedback, the crash-time context, the native example, its suite and B3 cells

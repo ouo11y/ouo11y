@@ -85,15 +85,15 @@ final class Vitals {
         maybeAppStart()
     }
 
-    /// A screen is showing; the same screen again changes nothing.
-    func navigated(_ screen: String) {
+    /// A screen is showing (since `at`, default now); the same screen again changes nothing.
+    func navigated(_ screen: String, at: Double? = nil) {
         guard !screen.isEmpty, screen != lastScreen else { return }
         let isFirst = lastScreen == nil
         lastScreen = screen
         if isFirst { firstScreen = screen }
         emitDisplay(display)
         // First screen: from the process start (mobile-vitals.md section 5); later ones: from the change.
-        let d = Display(screen: screen, startAt: isFirst ? appStart?.startMs : deps.now(), measured: !isFirst || launchedInForeground)
+        let d = Display(screen: screen, startAt: isFirst ? appStart?.startMs : (at ?? deps.now()), measured: !isFirst || launchedInForeground)
         display = d
         deps.nextFrame { [weak self, d] at in
             guard let self else { return }

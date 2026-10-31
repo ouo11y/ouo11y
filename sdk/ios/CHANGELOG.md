@@ -9,6 +9,21 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ### Added
 
+- **W8 part 2** (`OuoSDK`): screens from UIKit by themselves (a `viewWillAppear` / `viewDidAppear`
+  swizzle on `UIViewController`; the app's controllers shown on their own or in a system container;
+  TTID from `viewWillAppear`; `OuoScreenNaming`), SwiftUI's `.ouoScreen("Name")`; `ui.tap` for every
+  touch (OuoReplay's `TouchObserver`; target, path, view type, gesture, screen; never the text a view
+  shows) with `taps` and the `tapLabels` kill switch, and `Ouo.trackTap`; SwiftUI `.ouoMask()` and
+  `.ouoUnmask()`; `Ouo.feedback` (C10, with a masked frame when replay records); the screen context
+  in memory for the crash handler (`OuoCrash.setContext`), so a crash right after a tap carries it.
+- Replay masks SwiftUI text and symbols (`SwiftUI.CGDrawingView`) under `maskText`, except inside
+  system bars (iOS 26+ draws the navigation bar's glass with it). A childless `ouo-unmask` view
+  unmasks the area it covers.
+- The `OuoObjCSmoke` target: every Objective-C call of `OuoSDK`, compiled for iOS in CI.
+- The replay chunk a crash left open ends at the crash when `OuoSDK` knows it
+  (`recoverPendingChunk(_:crash:)`), as the spec's C8 says: an unchanged screen sends no frames, so
+  its last frame could be seconds before the crash.
+
 - **`OuoSDK`, the SDK for native apps** (mobile SDK roadmap W8 part 1, ADR-0016): `Ouo.start(OuoConfig)`
   and a Swift and `@objc` API. A Swift session manager (session-lifecycle.md mobile rules: background
   timeout, inactivity, max duration, crash and termination on the next launch, `session.previous_id`,

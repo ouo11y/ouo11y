@@ -26,6 +26,32 @@ import Testing
         #expect(rects == [CGRect(x: 300, y: 20, width: 80, height: 16), CGRect(x: 10, y: 100, width: 50, height: 20)])
     }
 
+    /// SwiftUI's `.ouoUnmask()`: a childless marker behind content drawn by its siblings unmasks the
+    /// masked rectangles inside its area, not those outside or only partly inside.
+    @Test func AChildlessUnmaskMarkerUnmasksItsArea() throws {
+        let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+        let root = node("UIWindow", window, [
+            node("UIView", CGRect(x: 0, y: 0, width: 400, height: 200), id: "ouo-unmask"),
+            node("UILabel", CGRect(x: 10, y: 10, width: 100, height: 20)),
+            node("UILabel", CGRect(x: 10, y: 190, width: 100, height: 20)),
+            node("UILabel", CGRect(x: 10, y: 400, width: 100, height: 20)),
+        ])
+        let rects = try #require(RedactionPlanner().rects(for: root, window: window))
+        #expect(rects == [CGRect(x: 10, y: 190, width: 100, height: 20), CGRect(x: 10, y: 400, width: 100, height: 20)])
+    }
+
+    /// SwiftUI text and symbols are drawn in `SwiftUI.CGDrawingView`: masked with `maskText`, but not
+    /// inside a navigation bar (iOS 26+ draws its glass with the same class).
+    @Test func SwiftUIDrawingIsMaskedOutsideBars() throws {
+        let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+        let root = node("UIWindow", window, [
+            node("UINavigationBar", CGRect(x: 0, y: 0, width: 400, height: 100), [node("SwiftUI.CGDrawingView", CGRect(x: 0, y: 0, width: 400, height: 100))]),
+            node("_TtGC7SwiftUI14_UIHostingViewVS_7AnyView_", CGRect(x: 0, y: 100, width: 400, height: 700), [node("SwiftUI.CGDrawingView", CGRect(x: 20, y: 120, width: 200, height: 20))]),
+        ])
+        #expect(try #require(RedactionPlanner().rects(for: root, window: window)) == [CGRect(x: 20, y: 120, width: 200, height: 20)])
+        #expect(try #require(RedactionPlanner(rules: RedactionRules(maskText: false)).rects(for: root, window: window)).isEmpty)
+    }
+
     @Test func MaskedClassesByDefault() throws {
         let root = node("UIWindow", window, [
             node("UIView", window, [

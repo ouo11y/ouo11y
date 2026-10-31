@@ -69,9 +69,9 @@ public struct RedactionRules: Sendable {
     public static let textClasses: Set<String> = [
         "UILabel",
         "RCTTextView", "RCTParagraphComponentView", "RCTParagraphTextView",
-        // Not included: SwiftUI drawing views (`_UIGraphicsView`, `CGDrawingView`). On iOS 26+ the
-        // navigation bar's glass background is one of them, so masking them blacks out whole bars.
-        // Hosts with SwiftUI text can add them through `extraClasses`.
+        // SwiftUI draws text (and symbol images) in these. iOS 26+ also draws the navigation bar's
+        // glass with them, so inside system bars (`barClasses`) they are not masked.
+        "SwiftUI.CGDrawingView",
         // iOS 26+ navigation bar items (back button title, bar button titles) are wrapped here.
         "_TtCC5UIKit19NavigationButtonBar15ItemWrapperView",
     ]
@@ -79,6 +79,9 @@ public struct RedactionRules: Sendable {
         "UIImageView", "RCTImageView", "RCTImageComponentView",
     ]
     public static let webViewClasses: Set<String> = ["WKWebView"]
+    /// System bars: SwiftUI drawing views inside them are bar chrome, not app content.
+    public static let barClasses: Set<String> = ["UINavigationBar", "UITabBar", "UIToolbar"]
+    static let drawingClasses: Set<String> = ["SwiftUI.CGDrawingView"]
 
     /// Labels and React Native text (`textClasses`).
     public var maskText: Bool
@@ -127,12 +130,16 @@ public struct RedactionPlanner: Sendable {
     public func rects(for root: ViewNode, window: CGRect) -> [CGRect]? {
         var out: [CGRect] = []
         let masked = rules.maskedClasses
-        guard visit(root, window: window, masked: masked, moving: false, into: &out) else { return nil }
+        guard visit(root, window: window, masked: masked, moving: false, inBar: false, into: &out) else { return nil }
+        // A childless `ouo-unmask` marker (SwiftUI's `.ouoUnmask()`, a view behind content drawn in
+        // its siblings) unmasks the area it covers: masked rectangles inside it are left out.
+        let regions = Self.unmaskRegions(root)
+        if !regions.isEmpty { out.removeAll { r in regions.contains { $0.insetBy(dx: -1, dy: -1).contains(r) } } }
         return mergeOverlapping ? RedactionPlanner.merge(out) : out
     }
 
     /// False when a masked rectangle is moving.
-    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, into out: inout [CGRect]) -> Bool {
+    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, inBar: Bool, into out: inout [CGRect]) -> Bool {
         // Hidden or transparent views hide their whole subtree, unless still fading out.
         if node.hidden || (node.alpha <= 0.01 && !node.animating) { return true }
         // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
@@ -146,22 +153,31 @@ public struct RedactionPlanner: Sendable {
         let visible = !(clipped.isNull || clipped.isEmpty)
         let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier
         // A subtree the walk did not finish may hold anything: masked like a matched view.
-        if visible, forced || node.truncated || matches(node, masked) {
+        let inBar = inBar || Self.isKind(node, RedactionRules.barClasses)
+        let bar = inBar && RedactionRules.drawingClasses.contains(node.className)
+        if visible, forced || node.truncated || (matches(node, masked) && !bar) {
             if moving { return false }
             out.append(clipped)
             // The rectangle covers the subtree: no need to look inside.
             return true
         }
         for child in node.children {
-            guard visit(child, window: window, masked: masked, moving: moving, into: &out) else { return false }
+            guard visit(child, window: window, masked: masked, moving: moving, inBar: inBar, into: &out) else { return false }
         }
         return true
     }
 
+    private static func unmaskRegions(_ node: ViewNode) -> [CGRect] {
+        if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier, node.children.isEmpty { return [node.frameInWindow] }
+        return node.children.flatMap(unmaskRegions)
+    }
+
     private func matches(_ node: ViewNode, _ masked: Set<String>) -> Bool {
-        if masked.contains(node.className) { return true }
-        for name in node.superclassNames where masked.contains(name) { return true }
-        return false
+        Self.isKind(node, masked)
+    }
+
+    private static func isKind(_ node: ViewNode, _ classes: Set<String>) -> Bool {
+        classes.contains(node.className) || node.superclassNames.contains { classes.contains($0) }
     }
 
     /// Union-merges every pair of intersecting rectangles until none intersect.

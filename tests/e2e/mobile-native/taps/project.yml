@@ -1,0 +1,35 @@
+# The tap driver of the native suite (C6.1): an empty app and a UI test that drives the example
+# (dev.ouo.example.ios) by accessibility identifier. run.sh generates the project with xcodegen
+# into its output folder; nothing generated is committed.
+name: Taps
+options:
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  CODE_SIGNING_ALLOWED: NO
+  GENERATE_INFOPLIST_FILE: YES
+targets:
+  Runner:
+    type: application
+    platform: iOS
+    sources: [Runner]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.ouo.taps.runner
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  RunnerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RunnerUITests]
+    dependencies:
+      - target: Runner
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.ouo.taps.uitests
+      TEST_TARGET_NAME: Runner
+schemes:
+  RunnerUITests:
+    build:
+      targets:
+        Runner: all
+        RunnerUITests: [test]
+    test:
+      targets: [RunnerUITests]

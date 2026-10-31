@@ -154,22 +154,22 @@ The suite prints the levels it measures (L0 to L2); L3 is L2 plus the B3 gate, w
 
 ### Matrix on 2026-10-30
 
-React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it (native iOS: also its unit tests, an integration test into rum-api and a simulator run, `project/agents/mobile-sdk/verify/w8-native-sim.sh`; its suite comes with W8 part 2).
+React Native iOS is measured by the suite (CI, job `examples`). The other columns have no suite yet; their cells are what the code does, by reading it (native iOS: its suite, `tests/e2e/mobile-native`, passes every check on a simulator but runs by hand, not in CI yet (checklist N78): "L2 (native suite)" means that).
 
 | Capability | React Native iOS | Native iOS (Swift) | React Native Android | Native Android | Flutter |
 |---|---|---|---|---|---|
-| C1 Sessions and lifecycle | L2 | L1 (`OuoSDK`, W8 part 1; no suite yet) | L1 (JS) | L0 | L0 |
-| C2 Errors and crashes | L2 | L1 (captured errors, crashes on the next launch, error context; no suite yet) | L1 (JS errors only) | L0 | L0 |
-| C3 Hangs and terminations | L2 | L1 (sent by `OuoSDK`; no suite yet) | L0 | L0 | L0 |
-| C4 Vitals | L2 | L1 (app start, TTID and TTFD for `trackScreen` screens, frames; no suite yet) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
-| C5 Network | L2 | L1 (`URLSession` hook with W3C propagation; no suite yet) | L1 (JS) | L0 | L0 |
-| C6 Interactions | L2 | L0 | L1 (JS) | L0 | L0 |
-| C7 Screens and navigation | L2 | L1 (`Ouo.trackScreen`; automatic screens with W8 part 2) | L1 (JS) | L0 | L0 |
-| C8 Replay | L2 | L1 (OuoReplay, started per sampled session by `OuoSDK`) | L0 | L0 | L0 |
-| C9 Span and log API | L2 | L1 (`startSpan`, `withSpan`, `log`; no suite yet) | L1 (JS) | L0 | L0 |
-| C10 Feedback | L2 | L0 | L1 (JS; no screenshot without the native module) | L0 | L0 |
-| C11 Delivery | L2 | L1 (gzip OTLP and a durable outbox; no suite yet) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
-| C12 Cost | L1 (B3 simulator cells, gate proposed) | L0 | L0 | L0 | L0 |
+| C1 Sessions and lifecycle | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
+| C2 Errors and crashes | L2 | L2 (native suite) | L1 (JS errors only) | L0 | L0 |
+| C3 Hangs and terminations | L2 | L2 (native suite) | L0 | L0 | L0 |
+| C4 Vitals | L2 | L2 (native suite) | L1 (stalls, TTID, TTFD; no native app start or frames) | L0 | L0 |
+| C5 Network | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
+| C6 Interactions | L2 | L2 (native suite; SwiftUI controls named by `trackTap`) | L1 (JS) | L0 | L0 |
+| C7 Screens and navigation | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
+| C8 Replay | L2 | L2 (native suite; SwiftUI images not masked by default, N79) | L0 | L0 | L0 |
+| C9 Span and log API | L2 | L2 (native suite) | L1 (JS) | L0 | L0 |
+| C10 Feedback | L2 | L2 (native suite) | L1 (JS; no screenshot without the native module) | L0 | L0 |
+| C11 Delivery | L2 | L2 (native suite) | L1 (JS outbox, uncompressed: the native module is a stub) | L0 | L0 |
+| C12 Cost | L1 (B3 simulator cells, gate proposed) | L1 (B3 simulator cells, gate not applied) | L0 | L0 | L0 |
 
 React Native Android's L1 cells are the JavaScript half, which is the same code as on iOS; it has never run on an Android device or emulator (the Android native module is a stub). The package that changes a cell updates this table in the same PR.
 
@@ -177,6 +177,7 @@ React Native Android's L1 cells are the JavaScript half, which is the same code 
 
 - **One suite per package**: `@ouo11y/react-native` (iOS, then Android), the native iOS package and the native Android package each get one suite with the same check ids. Objective-C and Java are API surfaces of the native packages, not separate implementations: each native package adds a smoke target in that language that compiles against its public API, and the suite runs once.
 - **React Native iOS** (`tests/e2e/mobile/`, [ADR-0015](../adr/0015-mobile-sdk-spec-and-conformance.md)): `conformance.mjs` runs the golden app, launches of the built `@ouo11y/react-native` bundle in Node (`launch.cjs`) with the React Native stand-ins of `sdk/react-native/playground` and `standin.cjs`, a model of the `OuoReplay` Expo module at the boundary the JavaScript calls (replay start, rotation, chunks cut like the Swift `ChunkBuilder` and uploaded, the crash report file, app start info, frame counters) and of the OS (crash, foreground kill, main-thread block, network down). It then asserts the checks of section 3 against an env's rum-api and prints the checks and the maturity row. CI runs it in the `examples` job on every change to `sdk/react-native`, `tests/e2e/mobile`, `services/rum-api`, `collector` or the shared stack (the `ex-ouo-mobile` path filter in `ci.yml`).
+- **Native iOS** (`tests/e2e/mobile-native/`, W8): `run.sh` runs the example app `examples/ouo-ios` (UIKit with a SwiftUI screen) on an iOS simulator against an env: the real Swift code, every launch the checks need, C6.1's taps from an XCUITest runner, OTLP through a recording proxy for C11.2; `check.mjs` asserts the same checks against rum-api and prints the row. It runs by hand until CI has a job with a simulator and a stack (checklist N78).
 - **What it proves**: the JavaScript SDK, the native module's contract and the backend together, on every PR, without a simulator. What it cannot prove is native behaviour itself (capture, masking pixels, hang detection): the model follows the Swift code, a package that changes the native module changes `standin.cjs` in the same PR, and the native code keeps its own tests plus the simulator run of `examples/ouo-mobile` (`scripts/run.sh`).
 - **Pending checks**: a check whose package has not landed carries `pending: "<package>"`. It runs and is reported, and does not fail the run. When it passes, the run fails until the package deletes `pending`, so a capability cannot reach L2 without its check becoming required.
 - **Running it**: `npm run -w sdk/react-native build`, then with an env's variables (`eval "$(deploy/envs/ouo-env env <env>)"`) and `OUO_BACKEND_URL` set to the env's backend: `node tests/e2e/mobile/conformance.mjs [--out result.json]`.

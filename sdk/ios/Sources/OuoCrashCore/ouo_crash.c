@@ -44,6 +44,14 @@ typedef struct {
 static ouo_session g_session[2];
 static atomic_int g_session_index = 0;
 
+#define OUO_CONTEXT_MAX (32 * 1024)
+typedef struct {
+    char data[OUO_CONTEXT_MAX];
+    size_t length;
+} ouo_context;
+static ouo_context g_context[2];
+static atomic_int g_context_index = 0;
+
 // First crashing thread writes; any other thread (or a second signal) only chains.
 static atomic_flag g_handling = ATOMIC_FLAG_INIT;
 static atomic_bool g_exception_recorded = false;
@@ -323,6 +331,13 @@ static void w_header(const char *mechanism, bool main_thread) {
     if (session->started_ms > 0) {
         w(",\"session_started_ms\":");
         w_int(session->started_ms);
+    }
+    const ouo_context *context = &g_context[atomic_load(&g_context_index)];
+    if (context->length > 0) {
+        // base64: plain ASCII, so a write that raced the crash cannot break the report's JSON.
+        w(",\"context\":\"");
+        w_raw(context->data, context->length);
+        w_char('"');
     }
     w(",\"arch\":");
     w_str(arch_name());
@@ -607,6 +622,14 @@ void ouo_crash_set_session(const char *session_id, int64_t started_ms) {
     g_session[next].id[n] = 0;
     g_session[next].started_ms = started_ms;
     atomic_store(&g_session_index, next);
+}
+
+void ouo_crash_set_context(const char *base64, size_t length) {
+    int next = 1 - atomic_load(&g_context_index);
+    if (base64 == NULL || length > OUO_CONTEXT_MAX) length = 0;
+    if (length > 0) memcpy(g_context[next].data, base64, length);
+    g_context[next].length = length;
+    atomic_store(&g_context_index, next);
 }
 
 void ouo_crash_record_exception(const char *name, const char *reason, const uintptr_t *addresses, size_t count, bool main_thread) {

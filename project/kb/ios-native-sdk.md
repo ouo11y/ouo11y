@@ -28,6 +28,8 @@ Question: how does a UIKit or SwiftUI app without React Native get the same reco
 | Background launches | the session starts marked as in the background, so it ends with `background` unless the app opens in time; no app start; a session created by a record in the background is marked too | `BackgroundLaunchEndsWithBackground`, `ASessionCreatedInTheBackgroundIsMarkedSo`, `ABackgroundLaunchHasNoAppStart` |
 | Before the first unlock | every file is written `completeUntilFirstUserAuthentication` (readable in a background launch after the first unlock even when the app's default is `complete`). Before it, `session.json` exists and cannot be read: the store says `unreadable` (not `missing`), nothing is saved over it, and the first save after it becomes readable (or `protectedDataDidBecomeAvailable`) ends its session as a cold start would and keeps its `device.id` and user. The first version treated it as a fresh install and overwrote it at the unlock: the old session never ended and `device.id` changed (review of #123). A batch the outbox folder refuses is sent once from memory (`DiskQueue.put`) | `AFileThatCannotBeReadYetIsAdoptedOnceItCan` (`chmod 000` for class C, fails without the `unreadable` case), `AdoptionHappensOnTheNextSaveAndKeepsAnIdentifiedUser`, `AnUnwritableOutboxSendsOnceFromMemory` (`chmod 555`), `ARefusedWriteIsSentOnceFromMemory` |
 | Clock changes | `SteadyClock`: wall clock read once plus `CLOCK_MONOTONIC` (counts sleep on Darwin; `systemUptime` and `CLOCK_UPTIME_RAW` do not), both injectable. A clock change mid-run does not reorder records or expire the session; durations never go negative. Left: the outbox names its files with the wall clock and drops them after 24 h by it, so a jump of more than 24 h forward drops what is queued (N77) | `TheDeviceClockChangingMidRunMovesNothing` (moves the wall clock back an hour and forward two), `NoNegativeDuration` |
+| Ids after an adopted file | when a file that was unreadable at start (before the first unlock) is adopted mid-run, the current session switches to the stored anonymous `user.id`, and the resource to the stored `device.id`, after its `session.start` went out with the run's temporary ones. Rare (a background launch before the first unlock that lives until the unlock) and accepted: the device and the user stay right from then on | by reading (review of #123, round 2) |
+| A crash right after a tap | the screen context (screen, last 20 events) is set in memory for the crash handler on the thread that changed it, before that call returns (`OuoCrash.setContext`, a double buffer in OuoCrashCore, as sentry-cocoa keeps its scope); the handler writes it into the report as base64, so a write that raced the crash cannot break the report's JSON. `context.json` (written on a queue) remains for terminations, which no handler sees. W8 part 2 | `TheCrashCarriesTheLastContextTheHostSet` (a real crash of the probe), `TapsAndScreensSetTheCrashContextAtOnce`, `ThePreviousCrashUsesTheHandlersContext` |
 | A request the collector always answers 5xx | retried until the bound or 24 h drops it, blocking the queue behind it (FIFO); the same for the replay chunks and now the OTLP outbox (N55, needs a C11 change) | by reading |
 | Flush ordering | a flush a timer started holds the records it took until they are on disk; a caller's `flush` (background, `Ouo.flush`) waited for nothing and its drain could finish before that batch was written. Flushes are serialized | `BatchesOf64WrittenBeforeTheyAreSent` (it caught it, about one run in ten) |
 | Offline | the outbox; the next launch, foreground, `flush` and the backoff send | `AnOfflineRunIsSentByTheNextLaunch`, `AnOutageIsNotHammered`, simulator run 5 |
@@ -49,4 +51,34 @@ Question: how does a UIKit or SwiftUI app without React Native get the same reco
 
 - The automatic screen tracking (UIKit swizzle, SwiftUI) calls `Core.trackScreen`: it already emits `navigation`, measures TTID and keeps the screen for errors and the context.
 - `OuoVitals.nextFrame` is the "next frame drawn" primitive for TTID and TTFD.
-- `Ouo.start` reads `applicationState` only on the main thread; called elsewhere it assumes a foreground launch.
+- `Ouo.start` decides a launch for the user or in the background from the task role (`TASK_CATEGORY_POLICY`), on any thread; not from `applicationState`, which is `.background` in `didFinishLaunching` of every app with scenes.
+
+## Part 2 (2026-10-31): screens, taps, SwiftUI, the native suite
+
+- **SwiftUI on iOS 27 draws text and SF Symbols in `SwiftUI.CGDrawingView`** (a `UIView`), one per
+  `Text`/`Image`, under `_UIHostingView<…>`; a `Button` adds `_UIShapeHitTestingView`. No replay
+  rule masked it, so a SwiftUI app's text was readable in replay. It is masked under `maskText`
+  except inside `UINavigationBar`, `UITabBar`, `UIToolbar` (iOS 26+ draws the bar glass with it).
+  Found with the example's `dump` action (`OUO_ACTION=dump` writes the view classes). A SwiftUI
+  `Image` (an SF Symbol) is in no view and no sublayer of the hosting view: four drawing views for
+  five elements; it stays visible in the replay frame (N79; `.ouoMask()` covers it).
+- **SwiftUI markers**: `.ouoMask()` / `.ouoUnmask()` put a plain `UIView` with the identifier behind
+  the content (`UIViewRepresentable` in `.background`): the content is drawn in sibling views, so an
+  unmask marker without children unmasks the masked rectangles inside its frame (1 pt of slack).
+- **SwiftUI taps** hit the drawing view: `ouo.ui.target` is `CGDrawingView`. XCUITest finds SwiftUI
+  controls by `.accessibilityIdentifier` (the accessibility tree), the SDK does not (the view tree).
+- **Screens**: swizzling `viewWillAppear`/`viewDidAppear` on `UIViewController` itself is enough
+  (subclasses call `super`). "In the main bundle" filters UIKit's and SwiftUI's controllers; a
+  class name like `HomeViewController` is a poor screen name, so apps name screens with
+  `OuoScreenNaming` (the example does).
+- **The replay endpoint** is derived as OTLP port 4318 → 4319; an env's ports are arbitrary
+  (`:20300`/`:20301`), so a native app pointed at an env must set `replayEndpoint` (the example reads
+  `OUO_REPLAY`). The first suite run had no replay at all because of it.
+- **A crash on a static screen**: replay sends no frame for an unchanged screen, so the open chunk's
+  last frame can be seconds before the crash; recovery now ends the crashed session's chunk at the
+  crash (the spec's C8 wording), from the crash report `OuoSDK` reads first.
+- **Taps in the suite**: an `xcodegen` project (`tests/e2e/mobile-native/taps/project.yml`, an empty
+  app and a UI test) built once with `build-for-testing`, run with `test-without-building` while the
+  example runs: `XCUIApplication(bundleIdentifier:)`, `.activate()`, elements by identifier. It needs
+  no simulator access grant and no person. `xcodegen generate --project <dir>` needs `<dir>` to exist.
+- **No `timeout` on this Mac**: bound commands with `perl -e 'alarm N; exec @ARGV' cmd`.

@@ -31,6 +31,9 @@ final class Core {
         var sessionChanged: (SessionRecord) -> Void = { _ in }
         /// Writes the screen context (`context.json`); injectable so tests can hold the write.
         var saveContext: ((ScreenContext, URL) -> Void)? = nil
+        /// The same context, encoded, for the crash handler (`OuoCrash.setContext`). Called on the
+        /// thread that changed it, before that call returns: a crash right after keeps it.
+        var crashContext: (Data) -> Void = { _ in }
     }
 
     static let platform = "mobile"
@@ -120,7 +123,8 @@ final class Core {
         // writes its own there, off the caller's thread.
         if let r = previousReport {
             io.async { [self] in
-                let ctx = ScreenContext.load(contextURL)
+                // The context the crash handler wrote wins; a termination (no handler ran) has the file.
+                let ctx = r.screenContext ?? ScreenContext.load(contextURL)
                 locked { emitPreviousReportLocked(r, ctx) }
             }
         }
@@ -191,8 +195,9 @@ final class Core {
         exception(r.attributes, at: r.timestamp_ms)
     }
 
-    /// A screen is showing (C7): one `navigation` per change, with `ouo.navigation.from`.
-    func trackScreen(_ name: String) {
+    /// A screen is showing (C7): one `navigation` per change, with `ouo.navigation.from`. `startedAt`:
+    /// when it started to appear (UIKit's `viewWillAppear`), the start of its TTID; default now.
+    func trackScreen(_ name: String, startedAt: Double? = nil) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         locked {
@@ -204,8 +209,44 @@ final class Core {
             screen = name
             session.touch()
             emitLocked("navigation", a, at: hooks.now(), body: p)
-            vitals?.navigated(name)
+            vitals?.navigated(name, at: startedAt)
         }
+    }
+
+    /// The current screen's name ("" before the first): a tap records the screen it started on.
+    var screenName: String { locked { screen } }
+
+    /// `ui.tap` (C6), stamped at the touch start, on the screen it started on. A tap is activity.
+    func tap(target: String, path: String?, viewType: String?, gesture: String, at: Double, screen: String) {
+        guard settings.taps, !target.isEmpty else { return }
+        var a: Attributes = ["ouo.ui.target": .string(target), "ouo.ui.gesture": .string(gesture)]
+        if let path, path != target { a["ouo.ui.path"] = .string(path) }
+        if let viewType { a["ouo.ui.view_type"] = .string(viewType) }
+        if !screen.isEmpty { a["app.screen.name"] = .string(screen) }
+        let body = TapRules.step(gesture: gesture, target: target, viewType: viewType, screen: screen)
+        locked {
+            session.touch()
+            emitLocked("ui.tap", a, at: at, body: body)
+        }
+    }
+
+    /// `feedback` (C10): returns its id, nil for an empty message. The record carries the session's
+    /// last events; `screenshot` says the replay was asked for a frame of the screen.
+    func feedback(message: String, contact: String?, screenshot: Bool) -> String? {
+        let id = UUID().uuidString.lowercased()
+        guard var a = Feedback.attributes(message: message, contact: contact, id: id) else {
+            log.warn("feedback: empty message, nothing sent")
+            return nil
+        }
+        if screenshot { a["ouo.feedback.screenshot"] = true }
+        locked {
+            // First: after an idle timeout this rotates, so the record lands on the session it is about.
+            session.touch()
+            let sid = session.ensure().id
+            a["ouo.last_events"] = RecentEvents.attribute(recent.read(sid))
+            emitLocked("feedback", a, at: hooks.now(), body: a["ouo.feedback.message"]?.text)
+        }
+        return id
     }
 
     func now() -> Double { hooks.now() }
@@ -390,6 +431,7 @@ final class Core {
         publishedDevice = device
         lock.unlock()
         if let (seq, c) = context {
+            if let data = try? JSONEncoder().encode(c) { hooks.crashContext(data) }
             let url = contextURL
             let save = hooks.saveContext ?? { c, url in c.save(url) }
             io.async { [self] in

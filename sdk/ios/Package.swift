@@ -59,6 +59,9 @@ let package = Package(
             // The privacy manifest of the whole package (an app links all four through OuoSDK).
             resources: [.copy("PrivacyInfo.xcprivacy")]
         ),
+        // The Objective-C surface of OuoSDK, compiled (not run) for iOS by CI: a call of every
+        // public method, so a change that drops one from Objective-C fails the build.
+        .target(name: "OuoObjCSmoke", dependencies: ["OuoSDK"]),
         .testTarget(
             name: "OuoSDKTests",
             dependencies: ["OuoSDK"]

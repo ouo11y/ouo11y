@@ -29,7 +29,7 @@ private final class BundleToken {}
         throw CocoaError(.fileNoSuchFile)
     }
 
-    func crash(_ kind: String, chain: Bool = false, session: String = "3f0c1d2e-0000-4000-8000-000000000001") throws -> Run {
+    func crash(_ kind: String, chain: Bool = false, session: String = "3f0c1d2e-0000-4000-8000-000000000001", context: String? = nil) throws -> Run {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ouo-crash-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -37,6 +37,7 @@ private final class BundleToken {}
         let p = Process()
         p.executableURL = try Self.probeURL()
         p.arguments = [dir.path, session, kind] + (chain ? [marker.path] : [])
+        if let context { p.environment = ["OUO_PROBE_CONTEXT": context] }
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try p.run()
@@ -55,6 +56,18 @@ private final class BundleToken {}
 
     func frames(_ r: [String: Any]) -> [[String: Any]] { r["frames"] as? [[String: Any]] ?? [] }
     func images(_ r: [String: Any]) -> [[String: Any]] { r["images"] as? [[String: Any]] ?? [] }
+
+    /// The crash handler writes the last context the host set (base64 of its JSON): a crash right
+    /// after a tap carries the tap, with no file write in between.
+    @Test func TheCrashCarriesTheLastContextTheHostSet() throws {
+        let json = #"{"sessionId":"s","screen":"Cart","events":[{"ts":1,"name":"ui.tap","body":"Tap pay (button) on Cart ✓"}]}"#
+        let run = try crash("segv", context: json)
+        let r = try #require(run.report)
+        let b64 = try #require(r["context"] as? String)
+        #expect(String(data: try #require(Data(base64Encoded: b64)), encoding: .utf8) == json)
+        let none = try #require(try crash("abort").report)
+        #expect(none["context"] == nil, "no context set, none written")
+    }
 
     @Test func SegfaultIsWrittenWithFramesAndImagesAndTheProcessStillDies() throws {
         let run = try crash("segv")
