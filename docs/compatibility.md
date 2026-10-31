@@ -28,7 +28,7 @@ their rum-api bound is what stores and serves what they send.
 | browser | 0.3 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | gzip OTLP and replay with retry and an offline store; with rum-api >= 0.5 stacks are symbolicated from uploaded source maps (ADR-0011) and sessions carry `device_id`; older rum-api shows raw stacks |
 | browser | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | rrweb (no `schema_version`) | HTTP Basic project credentials on OTLP and replay; 0.1.x posted unauthenticated |
 | react-native | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | vendors the `sdk/ios` Swift sources through CocoaPods |
-| ios | 0.3 | >= 0.5.0 | >= 0.6.0 | - | - | frames, schema 2 | first mirrored release; `OuoSDK` for native apps (sessions, screens, taps, OTLP logs and traces, network, crashes, hangs, vitals, feedback); plugin >= 0.10 to play schema 2 |
+| ios | 0.3 | >= 0.5.0 | >= 0.6.0 | >= 0.10.0 | - | frames, schema 2 | first mirrored release; `OuoSDK` for native apps (sessions, screens, taps, OTLP logs and traces, network, crashes, hangs, vitals, feedback); the plugin plays schema 2 from 0.10 |
 | ios | 0.2 | >= 0.2.0 | >= 0.2.0 | - | - | frames, schema 1 | `POST /v1/replay/chunks` on the replay receiver (`:4319`) |
 | collector | 0.5 | - | >= 0.2.0 | - | - | accepts schema <= 2 | frames schema 2 checked at the edge, Sentry `feedback` / `user_report` as `feedback` records; schema 2 chunks need rum-api >= 0.6.0 (older rum-api answers 400) |
 | collector | 0.4 | - | >= 0.2.0 | - | - | accepts schema <= 1 | replay exporter posts to rum-api with the ingest token; `ouo.rum.mode` on bridged data |

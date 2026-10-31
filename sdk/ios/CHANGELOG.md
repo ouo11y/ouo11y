@@ -18,9 +18,22 @@ First version published to the mirror `ouo11y/ouo11y-ios` (0.2.0 was never tagge
 - Replay chunks are `frames` **schema 2** (below): they need rum-api >= 0.6.0 and collector
   >= 0.5.0, and plugin 0.10 to play them. Upgrade the server side first
   (`docs/operations/upgrade.md` section 4).
-- API removed or renamed: `OuoReplayConfig.maxTouchCapturesPerSecond` (W1), `maxFramesPerChunk` and
-  `FrameDeduper` (W3), `ChunkUploader.UploadError` (W8); `OuoCrash.setSessionId(_:)` is now
-  `setSession(_:startedAtMs:)` (N52).
+- API removed or changed in `OuoReplay` and `OuoReplayCore`:
+  - `OuoReplayConfig.maxTouchCapturesPerSecond` is removed (W1).
+  - `RedactionPlanner.rects(for:window:)` returns `[CGRect]?`: `nil` for a frame that must be
+    dropped (masking fails closed, W1).
+  - `OuoReplayConfig.maxFramesPerChunk` and `FrameDeduper` are removed, with
+    `FrameComposer.thumbnail(of:side:)` (which existed only in the copy React Native 0.2.x
+    vendored) (W3).
+  - `ChunkBuilder.Config.maxFrames` is replaced by `maxImageBytes`: the init is now
+    `init(flushInterval:maxImageBytes:platform:masked:mode:)` (W3).
+  - `ChunkTransport.send(_:completion:)` and `URLSessionTransport.send` complete with
+    `Result<ChunkResponse, Error>` instead of `Result<Int, Error>`, so custom transports must be
+    updated (W3 delivery, W8).
+  - `ChunkUploader.Config.maxAttempts` is removed (retries run until `maxAge`; the init takes
+    `maxAge` and `hold`) and `ChunkUploader.UploadError` is removed (W3 delivery, W8).
+- `OuoCrash.setSessionId(_:)` is now `setSession(_:startedAtMs:)` (N52). `OuoCrash` was never in an
+  iOS release; this concerns only the copy React Native 0.2.x vendored.
 
 ### Added
 
@@ -100,8 +113,8 @@ First version published to the mirror `ouo11y/ouo11y-ios` (0.2.0 was never tagge
   ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012)).
 - Masking fails closed: a frame in which a masked view is moving (an animated position, bounds or
   transform, a scroll in progress) is dropped before it is rendered, a view fading out stays
-  masked, and a subtree the walk cut at its depth limit is masked whole. `RedactionPlanner.rects`
-  returns nil for a frame that must be dropped.
+  masked, and a subtree the walk cut at its depth limit is masked whole (`RedactionPlanner.rects`
+  under Breaking).
 - The crash report carries `session_started_ms` (N52). `ChunkBuilder` clears the spool only after
   the cut chunk was handed to `onChunk`. `DiskQueue.put` sends a refused write once from memory
   itself (`sendIfRefused`), for chunks and OTLP alike.
