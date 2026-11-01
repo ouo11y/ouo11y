@@ -7,10 +7,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * A folder of requests waiting for the collector (mobile SDK spec C11): each body is a file written
- * before anything is sent and removed when the collector answers 2xx or rejects it (any other
- * status but 408, 429 and 5xx). Those and network errors leave it in place and retry after a
- * backoff (at least `Retry-After`), on [drain] and in the next process, so an outage, a crash or a
- * kill mid-request loses nothing. Sent oldest first, one request at a time. Bounded by bytes, the
+ * before anything is sent and removed when the collector answers. Network errors and OTLP/HTTP's
+ * retryable answers (429, 502, 503, 504: [retryable]) leave it in place and retry after a backoff
+ * (at least `Retry-After`), on [drain] and in the next process, so an outage, a crash or a kill
+ * mid-request loses nothing. Any other answer is final: 2xx is sent, the rest is rejected (removed
+ * and counted), so a request answered 500 every time does not block the queue (checklist N55). Sent oldest first, one request at a time. Bounded by bytes, the
  * oldest dropped first, never the one in flight nor the newest. The Swift `DiskQueue` of `sdk/ios`,
  * ported.
  *
@@ -207,12 +208,12 @@ class DiskQueue(
         logger.log("sent ${head.tag}")
         pump()
       }
-      status == 0 || status == 408 || status == 429 || status >= 500 ->
+      status == 0 || retryable(status) ->
         retryLater(head, if (status == 0) "network error" else "HTTP $status", answer.retryAfterSeconds)
       else -> {
         head.file.delete()
         rejected++
-        logger.warn("${head.tag} rejected: HTTP $status")
+        logger.warn("${head.tag} rejected: HTTP $status, dropped (not retryable)")
         pump()
       }
     }
@@ -238,6 +239,9 @@ class DiskQueue(
   }
 
   companion object {
+    /** OTLP/HTTP's retryable answers: 429, 502, 503 and 504. Any other status is final. */
+    fun retryable(status: Int): Boolean = status == 429 || status == 502 || status == 503 || status == 504
+
     fun pad(n: Long, width: Int): String = n.toString().padStart(width, '0')
 
     fun list(folder: File): List<Entry> =

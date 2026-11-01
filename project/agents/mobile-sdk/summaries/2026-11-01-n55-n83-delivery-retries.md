@@ -9,6 +9,7 @@ Branch `claude/n55-delivery-retries`, checklist N55 and N83. Env `n55-delivery-r
 - **iOS** (`sdk/ios/Sources/OuoReplayCore/DiskQueue.swift`): `DiskQueue.retryable(_:)` holds the set; `finish` uses it. That covers the OTLP outbox (`OuoSDK.Exporter`) and the replay chunk queue (`ChunkUploader`), on the native SDK and in the React Native Expo module (which vendors `OuoReplayCore`).
 - **React Native** (`sdk/react-native/src/transport/outbox.ts`): `retryable` narrowed the same way. **N83**: `maxAgeMs`, `DEFAULT_OUTBOX_MAX_AGE_MS` and the item's `at` are gone; the outbox has the bounds only (5 MB, 500 requests). Its order was already the index array's, never the clock's; an index written by an older version (items with `at`) is read as is.
 - Docs: both READMEs, `types.ts` (stale "24 hours" on `keepAtNextLaunch` and `OfflineOptions` too), the stand-in's chunk rule, the native suite README, kb `mobile-delivery.md`, `ios-native-sdk.md`, `mobile-conformance.md`.
+- **Android** (W9 part 1 merged while this PR was open): `sdk/android` `DiskQueue.kt` had the old rule; it gets `DiskQueue.retryable` and the same narrowing, with `DeliveryAndPacingTest.aFiveHundredIsFinalAndDoesNotBlock` (`./gradlew :replay-core:test`, 18 tests pass). The Android suite does not run C11.3 yet, so the matrix's React Native Android C11 cell is L1 until checklist **N89**.
 - New checklist item **N88** (N85 to N87 were taken by W9 the same day): the browser SDK still retries 408 and every 5xx.
 
 ## Why the narrow set is safe with this backend

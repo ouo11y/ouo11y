@@ -170,7 +170,7 @@ React Native iOS is measured by the suite (CI, job `examples`). Native iOS and R
 | C8 Replay | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C9 Span and log API | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C10 Feedback | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
-| C11 Delivery | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
+| C11 Delivery | L2 | L2 (native suite) | L1 (Android suite passes C11.1 and C11.2; C11.3 not in it yet, checklist N89) | L0 | L0 |
 | C12 Cost | L1 (B3 simulator cells, gate proposed) | L1 (B3 simulator cells, gate not applied) | L0 | L0 | L0 |
 
 React Native Android (W9 part 1): the JavaScript half is the iOS code; the Expo module's Android side adds replay (`sdk/android`), gzip delivery and the vitals counters. Native crashes, terminations and hangs (C2.2, C2.3, C3) come with the opentelemetry-android base of W9 part 2 and are pending in its suite. The package that changes a cell updates this table in the same PR.
