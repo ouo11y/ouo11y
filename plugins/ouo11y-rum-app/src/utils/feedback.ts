@@ -5,18 +5,21 @@ import { parseTs } from './format';
 export const LAST_EVENTS = 20;
 
 /**
- * Where the frame an SDK took for a feedback (reason `feedback`, C10) may lie around the record:
- * up to 2 s after it (the recorder takes it at its next pass, once a running transition settled),
- * and 0.5 s before it for the two clocks the SDK stamps them with.
+ * Where the frame an SDK took for a feedback (reason `feedback`, C10) may lie: the first one up to
+ * 2 s after the record (the recorder takes it at its next pass, once a running transition
+ * settled), else one up to 0.5 s before it (the record and the frame are stamped with two clocks,
+ * which part only when the wall clock jumps).
  */
 export const FEEDBACK_FRAME_AFTER_MS = 2000;
 export const FEEDBACK_FRAME_BEFORE_MS = 500;
 
 /** The time (epoch ms) of the frame taken for a feedback at `ts`, when the replay holds one. */
 export function feedbackFrameTs(frames: readonly ReplayFrame[] | undefined, ts: number): number | undefined {
-  return frames?.find(
-    (f) => f.reason === 'feedback' && f.ts >= ts - FEEDBACK_FRAME_BEFORE_MS && f.ts <= ts + FEEDBACK_FRAME_AFTER_MS
-  )?.ts;
+  const taken = (frames ?? []).filter((f) => f.reason === 'feedback');
+  return (
+    taken.find((f) => f.ts >= ts && f.ts <= ts + FEEDBACK_FRAME_AFTER_MS)?.ts ??
+    taken.filter((f) => f.ts < ts && f.ts >= ts - FEEDBACK_FRAME_BEFORE_MS).at(-1)?.ts
+  );
 }
 
 /** One step before a feedback: an `ouo.last_events` entry, or a timeline event (`event` set). */
@@ -100,13 +103,14 @@ export function buildFeedback(timeline: readonly TimelineEvent[], frames?: reado
         .filter((e, j) => j !== i && !isFeedbackEvent(e) && parseTs(e.clampedFrom ?? e.ts) <= ts)
         .slice(-LAST_EVENTS)
         .map((e) => ({ ts: parseTs(e.clampedFrom ?? e.ts), name: e.name, body: '', event: e }));
-    const frameTs = feedbackFrameTs(frames, ts);
+    const screenshot = ev.attrs.ouo_feedback_screenshot === 'true';
+    const frameTs = screenshot ? feedbackFrameTs(frames, ts) : undefined;
     out.push({
       key: `fb-${i}`,
       ts,
       message,
       ...(ev.attrs.ouo_feedback_contact ? { contact: ev.attrs.ouo_feedback_contact } : {}),
-      screenshot: ev.attrs.ouo_feedback_screenshot === 'true',
+      screenshot,
       ...(frameTs !== undefined ? { frameTs } : {}),
       steps,
     });

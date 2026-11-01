@@ -162,6 +162,19 @@ import Testing
         #expect(n.wakeAt(now: 5) == nil)
     }
 
+    /// A feedback form that dismisses itself: the dismissal defers the feedback frame, then the
+    /// screen below reports a change. The frame waits for that screen and stays the feedback's.
+    @Test func AScreenChangeKeepsAWaitingFeedbackFrame() {
+        var p = CapturePacer(mode: .navigation, interval: 1)
+        p.requestFrame(.feedback, at: 0)
+        #expect(step(&p, 0, transitioning: true) == .wait)
+        p.screenDidChange(now: 0.1)
+        #expect(step(&p, 0.3) == .wait, "waits for the new screen to settle")
+        #expect(step(&p, 0.5) == .capture(.feedback))
+        p.screenDidChange(now: 1)
+        #expect(step(&p, 1.4) == .capture(.navigation), "only the waiting one")
+    }
+
     @Test func DroppedIntervalFrameWaitsForTheNextInterval() {
         var p = CapturePacer(mode: .session, interval: 1)
         #expect(step(&p, 0) == .capture(.timer))

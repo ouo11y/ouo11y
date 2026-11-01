@@ -23,3 +23,15 @@ Branch `claude/ios-n76-feedback-frame`, checklist N76 (W6 review item 10, PR #12
 
 - npm walks up from a worktree into the shared checkout, which was mid-merge this run; an `npm` shim adding `--prefix "$(pwd)"` was on `PATH` for `ouo-env up` and `npm ci` (see the N77 summary).
 - Env `ios-n76-feedback-frame` and the simulator are torn down at the end of the run (see the PR).
+
+## Review (ADR-0013, PR #140)
+
+Round 1, `Review: changes needed`:
+
+1. Navigation mode: a `screenDidChange` overwrote a waiting `feedback` request (a feedback form that dismisses itself), so the frame came labelled `navigation`. Fixed in `CapturePacer.screenDidChange`: a waiting feedback request stays one and waits for the new screen to settle; test `AScreenChangeKeepsAWaitingFeedbackFrame`.
+2. Plugin: a record could take another record's frame (two within 0.5 s, or a record without a screenshot next to one with). Now only a record with `ouo.feedback.screenshot` looks, and it takes the first `feedback` frame up to 2 s after it before one up to 0.5 s before; tests for both.
+3. `frameForFeedback`, `screenDidChange` and `resumeCapture` share one helper (`fullFrame`: differ reset, pacer request, wake).
+4. Spec: "usually within 2 s", with the retry and time-budget cases and the screen change.
+5. Older W6 code: `Ouo.feedback` decides the screenshot flag before the session is touched (rotation after an idle timeout): checklist **N84**.
+
+After the round: `sdk/ios/test.sh` 34 / 77 / 96 / 24; the iOS simulator build of every target (`xcodebuild … generic/platform=iOS Simulator`) exits 0; plugin `tsc` clean, eslint 0 errors, Jest 201 tests; native suite again 18 / 18, the feedback frame 1 ms after the record.

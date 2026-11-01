@@ -64,6 +64,17 @@ describe('buildFeedback', () => {
     expect(c.frameTs).toBeUndefined();
     expect(c.screenshot).toBe(true);
     expect(buildFeedback([fb(2000)])[0].frameTs).toBeUndefined();
+    // Its own frame first, though another record's lies in the 0.5 s before; one stamped a little
+    // before it (the two clocks) when none follows.
+    const [d, e] = buildFeedback([fb(2000), fb(2300)], [frame(2010, 'feedback'), frame(2310, 'feedback')]);
+    expect([d.frameTs, e.frameTs]).toEqual([T0 + 2010, T0 + 2310]);
+    expect(buildFeedback([fb(2000)], [frame(1700, 'feedback')])[0].frameTs).toBe(T0 + 1700);
+    // A record without a screenshot has none, even next to another's frame.
+    const plain = ev(2050, 'feedback', { ouo_feedback_message: 'no screenshot' });
+    expect(buildFeedback([fb(2000), plain], [frame(2040, 'feedback')]).map((f) => f.frameTs)).toEqual([
+      T0 + 2040,
+      undefined,
+    ]);
   });
 
   it('lists a record sent twice (same ouo.feedback.id) once; records without an id are each listed', () => {

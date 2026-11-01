@@ -161,20 +161,22 @@ final class ReplayRecorder {
     /// A new screen is showing: the frame for it in `navigation` mode (in `session` mode the next
     /// interval frame shows it). Either way that frame is a full image, a seek point.
     func screenDidChange() {
-        Self.queue.async { [differ] in differ.reset() }
-        let now = ProcessInfo.processInfo.systemUptime
-        pacer.screenDidChange(now: now)
-        scheduleWake(now: now)
+        fullFrame { $0.screenDidChange(now: $1) }
     }
 
-    /// A feedback (C10): a frame of the screen as it is now, in every mode, with reason `feedback`.
-    /// The differ forgets the last frame, so it is a full image even on a static screen (an
-    /// unchanged frame is otherwise not sent) and a seek point.
+    /// A feedback (C10): a frame of the screen as it is now, in every mode, with reason `feedback`,
+    /// a full image even on a static screen (an unchanged frame is otherwise not sent).
     func frameForFeedback() {
         guard isRecording else { return }
+        fullFrame { $0.requestFrame(.feedback, at: $1) }
+    }
+
+    /// The differ forgets the last frame, so the frame `ask` requests from the pacer is a full image
+    /// (a seek point); the run loop wakes for it.
+    private func fullFrame(_ ask: (inout CapturePacer, TimeInterval) -> Void) {
         Self.queue.async { [differ] in differ.reset() }
         let now = ProcessInfo.processInfo.systemUptime
-        pacer.requestFrame(.feedback, at: now)
+        ask(&pacer, now)
         scheduleWake(now: now)
     }
 
@@ -183,8 +185,7 @@ final class ReplayRecorder {
     private func resumeCapture() {
         guard !isRecording else { return }
         isRecording = true
-        Self.queue.async { [differ] in differ.reset() }
-        pacer.requestFrame(.resume, at: ProcessInfo.processInfo.systemUptime)
+        fullFrame { $0.requestFrame(.resume, at: $1) }
         // After Core Animation's commit observer (order 2000000), so the walk and the render see
         // the pass's committed UI; common modes so capture continues while a scroll view tracks.
         let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { [weak self] _, _ in
