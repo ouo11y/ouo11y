@@ -11,3 +11,6 @@ data/
 .expo/
 ios/Pods/
 android/.gradle/
+
+# Python bytecode (py_compile, imports of the verify scripts)
+__pycache__/
