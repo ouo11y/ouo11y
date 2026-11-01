@@ -323,6 +323,14 @@ describe("Delivery at page hide", () => {
     expect(store!.size()).toBe(0);
   });
 
+  it("over the keepalive budget without a store, a plain request answered 500 counts one drop, not two", async () => {
+    const { d } = make([500], { store: null });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(await d.send(req(KEEPALIVE_MAX_BYTES + 1000, "replay"))).toBe("dropped");
+    expect(d.stats.dropped).toBe(1);
+    expect(d.stats.dropReasons).toEqual({ no_store: 1 });
+  });
+
   it("stores a failed keepalive request without retrying it", async () => {
     const { d, calls, store } = make([503, 200]);
     window.dispatchEvent(new Event("pagehide"));

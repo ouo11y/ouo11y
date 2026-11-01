@@ -20,7 +20,11 @@ export function replayChunksUrl(replayEndpoint: string): string {
   return `${trimSlash(replayEndpoint)}${REPLAY_CHUNKS_PATH}`;
 }
 
-/** The receiver refused the chunk (any answer but 2xx, 429, 502, 503 and 504): sending it again cannot help. */
+/**
+ * The chunk was dropped by the delivery layer: the receiver refused it (any answer but 2xx, 429,
+ * 502, 503 and 504), or it could not be kept for later (no offline store, larger than it). Sending
+ * it again cannot help.
+ */
 export class ChunkRejectedError extends Error {
   readonly retryable = false;
 }

@@ -29,6 +29,7 @@ Any prefix works (`/otel` is an example; something app-specific like `/_t` is le
 - Pass the body and its headers through untouched: `Authorization` (the SDK still sends the project credential), `Content-Type`, and `Content-Encoding: gzip` (the SDK compresses bodies of 1 KB or more; the collector decompresses them). Do not decompress or re-encode.
 - Allow bodies up to 8 MB (the replay receiver's limit; chunks are 256 KB by default).
 - Pass `429` and `503` answers and their `Retry-After` header back unchanged: the SDK retries on them and waits as asked.
+- Answer `502`, `503` or `504` when the collector cannot be reached (down, restarting, timed out), never `500`. The SDK retries network errors, `429`, `502`, `503` and `504` and keeps them for later; any other answer, `500` included, means the request will never be accepted, so it is dropped. nginx and Caddy answer `502` and `504` on their own; the Next.js rewrite and the Vite dev proxy answer `500` (see their sections).
 - Add `X-Forwarded-For` and run the collector with `OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for`. Otherwise every user shares the proxy's address and one per-client rate-limit bucket.
 
 CORS does not apply to same-origin requests. The collector's `OUO_ALLOWED_ORIGINS` only matters for pages that still post to it directly.
@@ -99,17 +100,30 @@ module.exports = {
 
 The rewrite proxies the request server-side, so the collector does not need to be reachable from the browser. On a hosting platform, check its limit on proxied request bodies against the replay chunk size (`replay.maxChunkBytes`, 256 KB by default).
 
+When the collector cannot be reached, the rewrite answers `500 Internal Server Error`, which the SDK treats as final: what the pages send during a collector restart or outage is dropped instead of retried and kept for later. If that matters, put nginx or Caddy in front of the collector route (they answer `502`), or proxy it with a route handler that answers `502` when its request to the collector fails.
+
 ## Vite dev server
 
 For local development the same route keeps dev and production configs alike:
 
 ```ts
 // vite.config.ts
+import { defineConfig, type ProxyOptions } from "vite";
+
+// Vite answers 500 when the target cannot be reached, which the SDK treats as final (the request
+// is dropped). Answer 502 instead, so it is retried and kept for later; this handler runs before
+// Vite's own, which then leaves the response alone.
+const answer502: ProxyOptions["configure"] = (proxy) => {
+  proxy.on("error", (_err, _req, res) => {
+    if ("writeHead" in res && !res.headersSent) res.writeHead(502).end();
+  });
+};
+
 export default defineConfig({
   server: {
     proxy: {
-      "/otel/v1/replay": { target: "http://localhost:4319", rewrite: (p) => p.replace(/^\/otel/, "") },
-      "/otel": { target: "http://localhost:4318", rewrite: (p) => p.replace(/^\/otel/, "") },
+      "/otel/v1/replay": { target: "http://localhost:4319", rewrite: (p) => p.replace(/^\/otel/, ""), configure: answer502 },
+      "/otel": { target: "http://localhost:4318", rewrite: (p) => p.replace(/^\/otel/, ""), configure: answer502 },
     },
   },
 });

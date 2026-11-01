@@ -243,6 +243,8 @@ export class Delivery {
     return this.attempt(req, false).then(async (res) => {
       if (res.kind === "retry") return stored;
       const outcome = await stored;
+      // Not stored (no store, larger than it): already counted as dropped, once is enough.
+      if (outcome !== "queued" && res.kind === "drop") return outcome;
       const id = this.lastParkedId.get(req);
       if (outcome === "queued" && id !== undefined) await this.store!.delete(id);
       return res.kind === "ok" ? this.sent() : this.drop(req, "rejected", res.why);
