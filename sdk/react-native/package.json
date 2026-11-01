@@ -1,6 +1,6 @@
 {
   "name": "@ouo11y/react-native",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS).",
   "license": "Apache-2.0",
   "repository": {
