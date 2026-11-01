@@ -5,23 +5,35 @@ Compose path (laptop and the VM install under `deploy/vm/`) and the Helm path. V
 and tag names are in `docs/releasing.md`; this document assumes the images and packages of
 the target release already exist.
 
-Status: rehearsed on 2026-10-23 (section 8): a VM install of 0.2.0 from its released images
+Status: rehearsed (section 8) on 2026-10-23 (a VM install of 0.2.0 from its released images
 upgraded to 0.3.0 with replays of all three kinds, and `helm upgrade` from chart 0.1.0 to
-0.1.1 on kind. The schema-version guard of section 4 is implemented in rum-api (Unreleased,
-after 0.3.0).
+0.1.1 on kind) and on 2026-11-01 (compose with the released images, from rum-api 0.5.0,
+collector 0.4.0 and grafana 0.5.0 to the M2/M3 set, across the replay schema 2 bump). The
+schema-version guard of section 4 ships in rum-api 0.4.0 and later.
 
 ## 1. Before any upgrade
 
 1. Read the per-package changelogs for every version you are skipping over, especially the
    `Breaking` and `Compatibility` headings (`CHANGELOG.md` at the root links them all).
 2. Check the compatibility matrix ([`../compatibility.md`](../compatibility.md)). Upgrade in this order when more than one
-   component changes: **rum-api first, then Grafana image / plugin, then SDKs**. rum-api is
-   backwards compatible with the previous SDK minor; SDKs are not forwards compatible with
-   an older rum-api.
+   component changes: **rum-api first, then the Grafana image (plugin), then the collector,
+   then the SDKs**, one component per `up -d` (or Helm upgrade), checking `/readyz` and the
+   plugin in between. rum-api is backwards compatible with the previous SDK minor; SDKs are
+   not forwards compatible with an older rum-api, and a newer collector can accept a replay
+   schema an older rum-api refuses (section 4).
 3. Back up what cannot be rebuilt: the rum-api data directory (replay chunks and
    `meta.json` files), the Grafana database (dashboards, service accounts, plugin settings),
    and the project registry file if you use `OUO_PROJECTS_FILE`. Loki, Tempo and Mimir data
-   are telemetry; back them up according to your retention needs (Phase 8c drill).
+   are telemetry; back them up according to your retention needs (Phase 8c drill). On the
+   compose stack rum-api's data is the bind mount `deploy/data/rum-api` and Grafana's is the
+   named volume `<project>_grafana-data` (`docker volume ls`: the project is `compose` when
+   started from `deploy/compose`; under `ouo-env` it is `ouo-<env>`, and rum-api's data is the
+   volume `ouo-<env>_rum-api-data`):
+
+   ```bash
+   tar czf rum-api-data.tgz -C deploy/data/rum-api .
+   docker run --rm -v <project>_grafana-data:/d:ro -v "$PWD":/b alpine:3.22 tar czf /b/grafana-data.tgz -C /d .
+   ```
 4. Note the running versions so you can roll back:
    - compose: `docker compose -f deploy/compose/compose.yaml images`
    - Helm: `helm history ouo -n <namespace>` and `helm get values ouo -n <namespace>`
@@ -44,8 +56,25 @@ deploy/scripts/wait-ready.sh
 deploy/scripts/smoke.sh
 ```
 
-With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.2.0 and later) the
-procedure shrinks to editing the `OUO_*_VERSION` tags in `.env`, `pull`, `up -d`. The
+With the released images (`-f deploy/compose/compose.images.yaml`, ouo 0.3.0 and later: the
+0.2.0 images exist only under the old `ghcr.io/ziadmansourm/ouo` path) the procedure shrinks
+to editing the `OUO_*_VERSION` tags in `deploy/compose/.env`, one component at a time in the
+order of section 1, and `up -d` after each (it pulls a tag that is not on the host yet and
+recreates only the changed container):
+
+```bash
+F="-f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml"
+sed -i.bak 's/^OUO_RUM_API_VERSION=.*/OUO_RUM_API_VERSION=<new>/' deploy/compose/.env
+docker compose $F up -d && deploy/scripts/wait-ready.sh          # then OUO_GRAFANA_VERSION, then OUO_COLLECTOR_VERSION
+deploy/scripts/smoke.sh
+```
+
+The images bring their own binaries but not their config files: `compose.yaml` mounts the
+collector, rum-api, Loki, Tempo and Mimir configs from the checkout. When a release changes
+anything under `deploy/compose/` other than the pins (`git diff <your commit> <release-train
+commit> -- deploy/compose`), check out the release-train commit first (keeping your `.env`,
+which is gitignored), then edit the pins. From rum-api 0.5.0 / collector 0.4.0 / grafana 0.5.0
+to the M2/M3 set nothing changed there but the pins (rehearsal of 2026-11-01). The
 `ghcr.io/ouo11y/*` images are public, so the host needs no `docker login` ("Pull access" in
 `docs/releasing.md`). `compose.images.yaml` copies the plugin out of the new Grafana image
 onto the `grafana-data` volume before Grafana starts (service `grafana-plugin`); without that
@@ -87,13 +116,20 @@ release; new variables have defaults, but a variable that was **renamed** is lis
 
 ## 3. Helm path
 
+The chart is published from 0.2.0 on as `oci://ghcr.io/ouo11y/charts/ouo` (private: `helm
+registry login` first, "Pull access" in `docs/releasing.md`); a checkout of the chart tag
+works the same with no login. The package leaves out the example values files
+(`values-kind.yaml`, `values-external-lgtm.yaml`, `values-ha-example.yaml`, `.helmignore`):
+take them from the tag.
+
 ```bash
-helm repo update                        # once the chart is published; for now use the checkout
-git fetch --tags && git checkout chart-v<new>
-helm diff upgrade ouo deploy/helm/ouo -n <namespace> -f my-values.yaml   # optional, helm-diff plugin
-helm upgrade ouo deploy/helm/ouo -n <namespace> -f my-values.yaml \
+CHART=oci://ghcr.io/ouo11y/charts/ouo; V="--version <new chart>"
+# or: git fetch --tags && git checkout chart-v<new> && CHART=deploy/helm/ouo V=
+helm diff upgrade ouo $CHART $V -n <namespace> -f my-values.yaml   # optional, helm-diff plugin
+helm upgrade ouo $CHART $V -n <namespace> -f my-values.yaml \
   --set rumApi.image.tag=<rum-api version> \
   --set grafana.image.tag=<grafana image version> \
+  --set collector.image.tag=<collector version> \
   --rollback-on-failure --timeout 10m     # Helm 4; Helm 3: --atomic
 kubectl -n <namespace> rollout status deploy/ouo-rum-api
 kubectl -n <namespace> rollout status deploy/ouo-grafana
@@ -176,7 +212,10 @@ the collector is supported, an SDK **ahead** of it is not.
   rum-api backend`, `docker compose up -d`. Data directories are untouched by an upgrade, so
   rolling rum-api back works as long as the new release did not bump the replay schema
   (section 4 guard). Restore the Grafana volume from the backup if Grafana itself was
-  downgraded across a major version.
+  downgraded across a major version. With the released images: put the previous
+  `OUO_*_VERSION` back in `.env` and `up -d`. Not rum-api once 0.6.0 has run: rum-api 0.5.0
+  then exits 1 with the section 4 message and the store is left as it was (rehearsed
+  2026-11-01); the Grafana image and the collector can go back.
 - **Helm:** `helm rollback ouo <revision> -n <namespace>` (revision from `helm history`).
   With `--atomic` the failed upgrade already rolled back. PVCs are kept across rollbacks.
   Not across a replay schema bump: once rum-api 0.6.0 (chart 0.2.0) has run, never roll back
@@ -205,6 +244,8 @@ the collector is supported, an SDK **ahead** of it is not.
 |---|---|---|---|---|
 | 2026-10-23 | VM (Ubuntu 24.04 under Lima), `install.sh` | 0.2.0 images -> 0.3.0 images (installer from this branch) -> build from source | 3 rrweb, 1 frames, 3 Sentry video replays (79 envelopes), 80 sessions with traces | every replay byte-identical through rum-api (sha256 of events, frames, each mp4 segment), sessions, status, trace counts and health buckets identical; findings in `deploy/vm/README.md` |
 | 2026-10-23 | Helm on kind | chart 0.1.0 (0.2.0 images) -> 0.1.1 (0.3.0 images) | 4 rrweb, 1 frames replays, 81 sessions | identical as above; plugin re-installed by the init container (0.7.0) |
+| 2026-11-01 | compose with `compose.images.yaml` under `ouo-env`, the checkout of 2026-10-27 (`48fc296`) kept, pins edited one at a time | rum-api 0.5.0, grafana 0.5.0 (plugin 0.9.0), collector 0.4.0 -> rum-api 0.6.0, grafana 0.6.0 (plugin 0.10.0), collector 0.5.0 | 4 rrweb (one a real `@ouo11y/browser` 0.3.0 session from npm), 1 frames, 3 Sentry video replays, 42 sessions | 8 replays byte-identical through rum-api and through the plugin proxy, 42 sessions and the health buckets identical; store marker 1 -> 2, rum-api 0.5.0 then refuses it; smoke, e2e, the ouo-web journey with `@ouo11y/browser` 0.3.1 from npm (28/28, replay) and the React Native conformance suite on the npm 0.3.0 bundle (schema 2 chunks next to schema 1) pass; `helm template` of the published chart 0.2.0 names the same images |
 
-Method and evidence: `project/agents/platform-infra/reports/2026-10-23-8a-vm-upgrade-n12.html`;
-the seed and fingerprint script is `project/agents/platform-infra/tools/upgrade-replays.py`.
+Method and evidence: `project/agents/platform-infra/reports/2026-10-23-8a-vm-upgrade-n12.html`
+and `project/agents/release/summaries/2026-11-01-qa-upgrade-m2-m3.md`; the seed and
+fingerprint script is `project/agents/platform-infra/tools/upgrade-replays.py`.
