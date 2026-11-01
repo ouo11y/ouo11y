@@ -2,6 +2,16 @@
 
 All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
+## [0.3.1](https://github.com/ouo11y/ouo11y/compare/browser-v0.3.0...browser-v0.3.1) (2026-11-01)
+
+### Fixed
+
+- `ouo.sdk.version` (and the OTel logger and tracer version, and the init log) reports the package
+  version: 0.3.0 reported 0.2.0, because `src/version.ts` was kept by hand. release-please now bumps
+  it with `package.json`, and a test fails when the two differ
+  ([cd65004](https://github.com/ouo11y/ouo11y/commit/cd650047d988ca57584eb5bea50ee2d72e807ca3)).
+  Queries that filter on `ouo.sdk.version` see 0.2.0 for sessions sent by 0.3.0.
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/browser-v0.2.1...browser-v0.3.0) (2026-10-25)
 
 
