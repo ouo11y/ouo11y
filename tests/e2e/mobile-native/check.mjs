@@ -175,6 +175,6 @@ for (const [id, check] of Object.entries(CHECKS)) {
 table(rows);
 console.log("C10.1 feedback frame after the record (ms):", feedbackFrameMs);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
-console.log("maturity (native iOS, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
+console.log("maturity (native iOS suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
 console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session });
 process.exit(rows.some((r) => r.result === "FAIL") ? 1 : 0);

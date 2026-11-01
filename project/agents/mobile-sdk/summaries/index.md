@@ -17,3 +17,4 @@ One dated summary per run.
 - [2026-10-31-w8-native-ios-part2.md](2026-10-31-w8-native-ios-part2.md) W8 part 2: UIKit screens and taps, SwiftUI masking, feedback, the crash-time context, the native example, its suite and B3 cells
 - [2026-10-31-n77-diskqueue-clock.md](2026-10-31-n77-diskqueue-clock.md) N77: iOS disk queues keep no age (bounds only) and keep `put` order when the clock moves; tests move the clock
 - [2026-10-31-n76-feedback-frame.md](2026-10-31-n76-feedback-frame.md) N76: `FrameReason.feedback` on iOS, native C10.1 asks for the frame within 2 s, the plugin says "screenshot" and seeks to it
+- [2026-11-01-n78-native-suite-ci.md](2026-11-01-n78-native-suite-ci.md) N78: the native iOS suite in CI (job `ios-native`, stack in a Lima VM on the Mac runner, new simulator, teardown)

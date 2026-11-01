@@ -1,0 +1,16 @@
+# ci.sh's overlay on deploy/compose/compose.yaml, for a stack in a Lima VM that mounts the user's
+# home read-only:
+# - rum-api keeps its replay chunks in a named volume (as ouo-env does), not in deploy/data/rum-api;
+# - Grafana gets the datasources only: the suite reads Tempo through it and never the app plugin,
+#   whose provisioning stops Grafana when the plugin is not built (the build needs `npm ci`).
+services:
+  rum-api:
+    volumes: !override
+      - ./rum-api/config.yaml:/etc/rum-api/config.yaml:ro
+      - rum-api-data:/data
+  grafana:
+    volumes: !override
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+volumes:
+  rum-api-data: {}

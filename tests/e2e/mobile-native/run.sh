@@ -3,10 +3,12 @@
 # (examples/ouo-ios) on a simulator against an ouo-env stack, launches for every check, then
 # check.mjs asserts rum-api with the same check ids as the React Native suite and prints the
 # maturity row. C6.1's taps come from an XCUITest runner (taps/, generated with xcodegen) that
-# drives the example by accessibility identifier. Run by hand: CI's Mac runner runs one job at a
-# time and has no stack (README.md).
+# drives the example by accessibility identifier. CI runs it through ci.sh (a stack in a Lima VM).
 #
-# Usage: run.sh <env> <simulator udid>
+# Usage: run.sh <env> <simulator udid>   the stack of `ouo-env up <env>`
+#        run.sh - <simulator udid>       the stack whose OUO_*_URL variables are set
+#                                        (.github/scripts/stack-env.sh), collector container
+#                                        $OUO_NATIVE_COLLECTOR (ci.sh)
 # OUO_NATIVE_OUT keeps the build, the app's notes and the proxy log (default: a temp folder).
 set -eu
 ENV=$1
@@ -15,9 +17,14 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 OUT=${OUO_NATIVE_OUT:-$(mktemp -d)}
 mkdir -p "$OUT"
-eval "$("$ROOT/deploy/envs/ouo-env" env "$ENV")"
-BACKEND=$("$ROOT/deploy/envs/ouo-env" url "$ENV" | sed -n 's/.*backend \(http[^ ]*\).*/\1/p' | tail -1)
-COLLECTOR="ouo-$ENV-otel-collector-1"
+if [ "$ENV" = - ]; then
+  BACKEND=$OUO_BACKEND_URL
+  COLLECTOR=$OUO_NATIVE_COLLECTOR
+else
+  eval "$("$ROOT/deploy/envs/ouo-env" env "$ENV")"
+  BACKEND=$("$ROOT/deploy/envs/ouo-env" url "$ENV" | sed -n 's/.*backend \(http[^ ]*\).*/\1/p' | tail -1)
+  COLLECTOR="ouo-$ENV-otel-collector-1"
+fi
 APP=dev.ouo.example.ios
 PROXY_PORT=${OUO_NATIVE_PROXY_PORT:-18318}
 

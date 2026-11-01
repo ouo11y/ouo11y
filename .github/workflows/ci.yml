@@ -1,12 +1,14 @@
 # Continuous integration for every pull request and for pushes to main.
 # Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
 # ocb build (collector/), npm build + test across the workspaces (Node 24), the Swift core
-# tests of sdk/ios on macOS, helm lint, an offline link check of the docs, and a build (no
-# push) plus a Trivy scan of every released container image. See docs/releasing.md.
+# tests of sdk/ios and the native iOS suite on macOS, helm lint, an offline link check of the
+# docs, and a build (no push) plus a Trivy scan of every released container image. See
+# docs/releasing.md.
 #
 # Actions minutes (free org plan): the `changes` job lists the files a pull request touches
 # and every other job runs only when its paths changed (macOS bills 10x, so `swift` runs only
-# for sdk/ios). A push to main runs everything. A change to this file runs everything.
+# for sdk/ios). A push to main runs everything but `ios-native`, which runs when the push touches
+# its paths. A change to this file runs everything.
 name: ci
 
 on:
@@ -39,17 +41,21 @@ jobs:
       ex-web: ${{ steps.paths.outputs.ex-web }}
       ex-ouo-mobile: ${{ steps.paths.outputs.ex-ouo-mobile }}
       ex-sentry-mobile: ${{ steps.paths.outputs.ex-sentry-mobile }}
+      ios-native: ${{ steps.paths.outputs.ios-native }}
     steps:
       - name: Match changed files against each job's paths
         id: paths
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
         run: |
           all=false
           files=""
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             all=true
+            # Only `ios-native` looks at a push's files: it holds the one Mac runner for about 20 minutes.
+            pushed=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" --jq '.files[].filename' 2>/dev/null || true)
           else
             files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
             printf '%s\n' "$files" | grep -qx '.github/workflows/ci.yml' && all=true
@@ -68,6 +74,12 @@ jobs:
           flag ex-web           "^(examples/ouo-web|sdk/browser)/|^$shared"
           flag ex-ouo-mobile    "^(examples/ouo-mobile|sdk/react-native|tests/e2e/mobile|services/rum-api|collector)/|^tests/e2e/lib\.mjs$|^docs/specs/mobile-sdk\.md$|^$shared"
           flag ex-sentry-mobile "^(examples/sentry-mobile|collector)/|^$shared"
+          # The native iOS suite (job `ios-native`): the SDK, its example app and the suite. On a push,
+          # only when the pushed commits touch them (the PR ran it).
+          native='^(sdk/ios|examples/ouo-ios|tests/e2e/mobile-native)/|^tests/e2e/lib\.mjs$'
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then flag ios-native "$native"
+          elif printf '%s\n' "$pushed" | grep -Eq "$native"; then echo "ios-native=true" >> "$GITHUB_OUTPUT"
+          else echo "ios-native=false" >> "$GITHUB_OUTPUT"; fi
           images=""
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
           match '^collector/'                                               && images="$images\"collector\","
@@ -419,6 +431,32 @@ jobs:
       - name: iOS simulator build (every target, with the UIKit code and the Objective-C smoke)
         working-directory: sdk/ios
         run: xcodebuild -quiet -scheme ouo11y-ios-Package -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/xcode build
+
+  # The native iOS conformance suite (tests/e2e/mobile-native, checklist N78): the example app on a
+  # new simulator against the stack built from this checkout, in a Lima VM of the runner's own user
+  # (it cannot reach the Mac's Docker Desktop, project/kb/ci-runners.md). ci.sh tears the simulator
+  # and the VM down on exit; the always() step repeats it after a cancel. About 15 minutes.
+  ios-native:
+    name: ios native conformance (simulator + stack)
+    needs: changes
+    if: needs.changes.outputs.ios-native == 'true'
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: native iOS suite (stack in a Lima VM, new simulator)
+        run: tests/e2e/mobile-native/ci.sh
+      - name: Stack logs on failure
+        if: failure()
+        run: tests/e2e/mobile-native/ci.sh logs
+      - name: Tear down the simulator and the VM
+        if: always()
+        run: tests/e2e/mobile-native/ci.sh down
 
   # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
   # external URLs are not fetched, so the job is fast and never flaky. Always runs.
