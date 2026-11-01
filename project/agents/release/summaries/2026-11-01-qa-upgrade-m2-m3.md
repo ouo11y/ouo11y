@@ -84,7 +84,7 @@ published 0.2.0 was rendered only (below).
   every changelog's Compatibility note say rum-api and the plugin, then the collector, then
   the SDKs. Now one order, one component per `up -d`.
 - Section 1 said to back up rum-api's data and Grafana's database but not where they are on
-  compose; now the bind mount, the volume names and the commands.
+  compose; now a pointer to `deploy/vm/README.md` "Backup" and the `ouo-env` volume names.
 - Section 2 said "ouo 0.2.0 and later" for the images path (0.2.0 images exist only under the
   old registry path), and did not say that the images do not carry their config files: a
   release that changes `deploy/compose/` needs the release-train commit checked out. The root
@@ -92,8 +92,8 @@ published 0.2.0 was rendered only (below).
 - Section 3 still said the chart was not published, and left the collector tag out of the
   `--set` list; now the OCI path, the login, the missing example values files and all three
   tags.
-- Section 6 had no rollback for the images path; now what can go back and that rum-api cannot
-  once 0.6.0 ran (verified).
+- Section 6 had no rollback for the images path; now that rum-api cannot go back once 0.6.0 ran
+  (verified) and why the Grafana image and collector should not either (not rehearsed).
 - The status line still called the guard unreleased; section 8 gets this rehearsal.
 
 ## Product findings (checklist)
@@ -118,6 +118,15 @@ read fine (kb `upgrade-rehearsal.md`).
 
 ## Next session
 
-Evidence (logs, fingerprints, backups) stayed in this session's scratchpad. The qa-upgrade env
+Evidence: [the report](../reports/2026-11-01-qa-upgrade-m2-m3.html) (steps, before / after
+fingerprints); the raw logs and backups stayed in this session's scratchpad. The qa-upgrade env
 was taken down with its volumes kept (`ouo-env down qa-upgrade`); `ouo-env gc` removes it once
 this branch is merged. The detached worktree `.claude/worktrees/qa-upgrade-m3-prev` was removed.
+
+## Review
+
+Reviewer session (PR #147, `Review: changes needed`): wrong volume name in the first backup
+command (`compose.yaml` sets `name: ouo`), `$F` / `$V` word splitting fails in zsh, section 1's
+one-component rule against the one `helm upgrade`, `.helmignore` is in the package, an
+unrehearsed rollback claim, the collector rollout check. All fixed; the evidence moved from the
+scratchpad into an HTML report.
