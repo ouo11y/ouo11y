@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
+import { maskedArea } from "./journey";
 import { rum } from "./rum";
 import { Button, styles } from "./ui";
 
@@ -20,7 +21,7 @@ export function FeedbackForm() {
   return (
     <View style={{ marginTop: 16 }}>
       <Text style={styles.title}>Report a problem</Text>
-      <TextInput testID="feedback-message" value={message} onChangeText={setMessage} placeholder="What went wrong?" multiline style={styles.input} />
+      <TextInput ref={maskedArea("feedback-message")} testID="feedback-message" value={message} onChangeText={setMessage} placeholder="What went wrong?" multiline style={styles.input} />
       <TextInput testID="feedback-contact" value={contact} onChangeText={setContact} placeholder="Email (optional)" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
       <Button title="Send feedback" onPress={send} disabled={!message.trim()} />
       {sent ? <Text testID="feedback-sent" style={styles.dim}>Thanks, sent ({sent.slice(0, 8)})</Text> : null}

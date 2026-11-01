@@ -10,7 +10,7 @@ export const SEND_TIMEOUT_MS = 15_000;
 
 /**
  * How an OTLP body leaves the device: through the native module, which gzips it (checklist
- * N48; Hermes has no `CompressionStream`), or, without it (Expo Go, the Android stub), through
+ * N48; Hermes has no `CompressionStream`), or, without it (Expo Go, web), through
  * `fetch` uncompressed. `headers` are added at send time, so stored requests carry the
  * credential of the run that sends them.
  */

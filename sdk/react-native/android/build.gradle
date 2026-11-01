@@ -1,17 +1,26 @@
-// Android side of @ouo11y/react-native: a no-op OuoReplayModule so Expo autolinking and the
-// Android build do not break. Replay capture on Android is a later phase (ADR-0006).
+// Android side of @ouo11y/react-native: the OuoReplay Expo module (dev.ouo.reactnative), which
+// compiles the replay capture of sdk/android (vendored into vendor/ by scripts/sync-android.mjs,
+// run by `npm run build`) and adds the gzip OTLP delivery the JavaScript outbox uses.
 plugins {
   id 'com.android.library'
   id 'expo-module-gradle-plugin'
 }
 
+// The npm package's version (release-please bumps package.json only).
+def packageVersion = new groovy.json.JsonSlurper().parse(file('../package.json')).version
+
 group = 'dev.ouo'
-version = '0.2.0'
+version = packageVersion
 
 android {
-  namespace "dev.ouo.replay"
+  namespace "dev.ouo.reactnative"
   defaultConfig {
     versionCode 1
-    versionName '0.2.0'
+    versionName packageVersion
+  }
+  sourceSets {
+    main {
+      java.srcDirs += ['vendor']
+    }
   }
 }

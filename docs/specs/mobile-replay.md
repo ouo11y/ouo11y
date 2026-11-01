@@ -1,8 +1,8 @@
 # Mobile replay specification (frame chunks)
 
-Status: normative for iOS replay (ADR-0006, ADR-0014). Android and Flutter emit the same contract.
+Status: normative for iOS and Android replay (ADR-0006, ADR-0014). Flutter emits the same contract.
 
-This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. The iOS SDK (and the React Native SDK, which embeds it) emits schema 2.
+This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. The iOS SDK, the Android capture (`sdk/android`) and the React Native SDK, which embeds both, emit schema 2 (`platform` `ios` or `android`).
 
 ## Chunk
 
@@ -85,6 +85,16 @@ rum-api stores and serves frames unchanged. Upgrade order: rum-api and plugin, t
 6. Downscale, fill the rectangles with opaque black, then compare the 64 px tiles with the last frame sent: no changed tile drops the frame; otherwise send a full image (first frame of a chunk, screen change, resume, or changed area above half the frame) or the changed rectangles as patches, each encoded on its own.
 7. Stop capturing on `didEnterBackground`, flush, and resume on `didBecomeActive` with an immediate frame.
 8. Touches are observed on the window without interfering with the app's gesture handling.
+
+## Capture rules (Android)
+
+`sdk/android` (W9; the React Native SDK compiles it into its Expo module). The same chunks, cadence, tiles and modes as iOS; what differs is how the screen is read:
+
+1. **Window**: the topmost visible root view that covers the activity's window (the activity, or a full-screen dialog such as a React Native `Modal`), found through `WindowManagerGlobal`'s root views. It is copied with `PixelCopy` (Android 8+) straight into an RGB_565 bitmap at the frame size (longest side at most 1000 px; the GPU scales); before Android 8 the tree is drawn in software into the same bitmap. Popups, toasts and dialogs that do not cover the activity are not recorded.
+2. **Scheduling**: the window's `OnDrawListener` sets a dirty flag. In `session` mode a frame is due at most once per `frameInterval` and only when the window drew since the last frame (a static screen costs no copy); `navigation` and `auto` modes and the 100 ms per second time bank of the main-thread work (walks and the copy request) are as on iOS. Touches are recorded through a wrapper of the window's `Window.Callback`, in dp (the viewport's points), and never trigger a capture.
+3. **Masks**: the view tree is walked on the main thread into window-pixel boxes through every parent's offset, scroll and transform. Masked by default: text (`TextView`, so React Native's `ReactTextView`, and React Native's `PreparedLayoutTextView`) **one box per laid-out line** (`Layout` line bounds; the space beside a short line stays visible; an unknown layout masks the whole view), inputs (`EditText`, whole, governed by `maskInputs` alone), images (`ImageView`, React Native images) and web views (`WebView`). Jetpack Compose content (`AndroidComposeView`) is masked whole with text, since the view walk cannot see into it (fails closed until a Compose semantics walk). A view whose tag is `ouo-mask` (React Native `testID`) is masked whole, `ouo-unmask` leaves its subtree out; hidden and transparent views are skipped; a subtree deeper than 64 levels is masked whole.
+4. **Masking fails closed**: the tree is walked again when the copy is done; when any mask moved between the two walks (a scroll, a running transform), the frame is dropped and asked for again after the settle time.
+5. Background (no started activity): stop and flush; foreground: resume with a full frame. The spool and the outbox live in `noBackupFilesDir/ouo/replay`.
 
 ## Storage
 

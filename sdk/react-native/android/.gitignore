@@ -1,0 +1,4 @@
+# Vendored copies of sdk/android sources, written by scripts/sync-android.mjs (npm run build).
+/vendor/
+/build/
+/.gradle/

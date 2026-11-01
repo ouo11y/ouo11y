@@ -4,7 +4,7 @@ import type { AsyncKeyValueStorage, HeldReplaySession, ReplayMode, ReplayOptions
 
 /**
  * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
- * Android stub in android/). Every function is synchronous except `flush`.
+ * android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt). Every function is synchronous except `flush`.
  */
 export interface NativeReplayModule {
   start(endpoint: string, options: NativeStartOptions): void;

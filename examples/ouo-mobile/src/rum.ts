@@ -12,6 +12,8 @@ interface Extra {
   projectId: string;
   projectToken: string;
   environment: string;
+  /** The golden app of the Android conformance suite (OUO_CONFORMANCE=1, app.config.ts). */
+  conformance?: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -23,6 +25,7 @@ export const config: Extra = {
   projectId: extra.projectId ?? "demo",
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
+  conformance: extra.conformance === true,
 };
 
 /** `service.version` is the app version from app.config.ts (APP_VERSION env). */
@@ -52,8 +55,20 @@ export const rum: RUM = initRUM({
   // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
   // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
   // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".
-  replay: { enabled: true, maskText: false },
+  // The conformance build keeps every default (spec C8.2: text, inputs, images and web views
+  // masked) and ends a session after 5 s in the background (C1.1 without a 30 s wait).
+  replay: config.conformance ? { enabled: true } : { enabled: true, maskText: false },
+  ...(config.conformance ? { session: { backgroundTimeoutMs: 5000 } } : {}),
   debug: __DEV__,
 });
+
+/**
+ * A line for the Android conformance suite (tests/e2e/mobile-android/check.mjs), which reads them from
+ * logcat: `OUO_NOTE {"kind": ..., "ts": ..., "session": ...}`. Nothing outside the conformance build.
+ */
+export function note(kind: string, fields: Record<string, unknown> = {}): void {
+  if (!config.conformance) return;
+  console.log(`OUO_NOTE ${JSON.stringify({ kind, ts: Date.now(), session: rum.session.id(), ...fields })}`);
+}
 
 export const shortId = (id: string): string => id.slice(0, 8);

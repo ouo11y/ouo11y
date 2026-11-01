@@ -3,7 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { LogBox, Text } from "react-native";
+import { AppState, LogBox, Text } from "react-native";
 
 // LogBox's own renderer throws in the iOS 27 dev client and its toast covers the bottom buttons.
 // Set EXPO_PUBLIC_QUIET_LOGBOX=1 when starting Metro to silence it (dev builds only).
@@ -12,7 +12,7 @@ if (__DEV__ && process.env.EXPO_PUBLIC_QUIET_LOGBOX === "1") {
 }
 import type { RootStackParamList } from "./src/navigation";
 import { navigationRef, startJourneyMailbox } from "./src/journey";
-import { appVersion, rum, shortId } from "./src/rum";
+import { appVersion, note, rum, shortId } from "./src/rum";
 import { CartScreen } from "./src/screens/CartScreen";
 import { ChaosScreen } from "./src/screens/ChaosScreen";
 import { CheckoutScreen } from "./src/screens/CheckoutScreen";
@@ -41,6 +41,12 @@ function SessionBadge() {
 export default function App() {
   // scripts/journey.sh drives the app through a command file (src/journey.ts).
   useEffect(() => startJourneyMailbox(), []);
+  // Conformance notes (tests/e2e/mobile-android): each launch and each return to the foreground, with the session then.
+  useEffect(() => {
+    note("launch");
+    const sub = AppState.addEventListener("change", (s) => s === "active" && note("active"));
+    return () => sub.remove();
+  }, []);
   return (
     <RUMProvider rum={rum}>
       <NavigationContainer ref={navigationRef} onReady={() => rum.trackNavigation("/Products")} onStateChange={onStateChange}>

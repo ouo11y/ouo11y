@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Text } from "react-native";
+import { Image, Text } from "react-native";
 import { addToCart, getProduct, formatPrice, type Product } from "../api";
 import type { ScreenProps } from "../navigation";
+import { maskedArea } from "../journey";
 import { rum } from "../rum";
 import { Button, ErrorBox, Loading, Screen, styles } from "../ui";
 
@@ -38,7 +39,9 @@ export function ProductScreen({ route, navigation }: ScreenProps<"Product">) {
       <Text style={styles.title} testID="ouo-unmask">
         {product.name}
       </Text>
-      <Text style={styles.text}>{formatPrice(product.price)}</Text>
+      {/* Images are masked in the replay by default (maskImages). */}
+      <Image ref={maskedArea("product-image")} source={require("../../assets/icon.png")} style={{ width: 96, height: 96 }} accessibilityIgnoresInvertColors />
+      <Text ref={maskedArea("product-price")} style={styles.text}>{formatPrice(product.price)}</Text>
       <Button title="Add to cart" onPress={add} disabled={adding} />
     </Screen>
   );
