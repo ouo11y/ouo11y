@@ -31,15 +31,22 @@ Follow-up PRs, each reviewed and merged:
 - #130 `fix(sdk)`: `src/version.ts` of both SDKs bumped by release-please (`ouo.sdk.version`
   said 0.2.0 in browser 0.3.0), with a test against `package.json`. It opened browser 0.3.1 (#131).
 
-## Waiting for 2026-11-01 (hosted runner)
+## npm releases (2026-11-01)
 
-- #112 react-native 0.3.0 (head `f92fc00`) and #131 browser 0.3.1 (head `6feb132`) are approved,
-  **not merged**. Section 5 step 3: rehearse `release-npm` on each final head
-  (`gh workflow run release-npm.yml --ref <branch> -f tag=<tag>`), then merge and tag. The two
-  manifest lines are adjacent: the second to merge needs a merge of `main` and a fresh approval.
-  The react-native minor opts out of the device benchmark (hosted only as well).
-- Then the release trains row in the root `CHANGELOG.md` (step 10) and its Packages table, which
-  still shows the 0.3.0-era versions.
+The hosted runner was back on 2026-11-01. Both release PRs were rebuilt by release-please that
+morning (new date in the heading, plus `eda5e32` and `93bc1bd` in `sdk/ios`, which React Native
+vendors), so the hand notes were re-applied, rehearsed and re-reviewed; the coordinator froze
+merges to `sdk/{react-native,ios,browser}` until both tags were out.
+
+| Package | Release PR, merge commit | Tag | Rehearsal / publish run | npm |
+|---|---|---|---|---|
+| `@ouo11y/react-native` 0.3.0 | #112, `8136b6f` | `react-native-v0.3.0` | 41304097194 / 41306640925, green | `latest` 0.3.0; `dist/index.js` has `SDK_VERSION = "0.3.0"` |
+| `@ouo11y/browser` 0.3.1 | #131, `6893447` (after a merge of main, re-approved) | `browser-v0.3.1` | 41306910614 / 41307552136, green | `latest` 0.3.1; the bundle's version constant is `"0.3.1"`, no `"0.2.0"` left |
+
+No provenance attestation on either (`dist.attestations` empty): npm provenance needs a public
+repository, so it starts when the repository goes public (`docs/releasing.md` section 8). The
+release trains row and the Packages table are in the root `CHANGELOG.md`. Release PRs #139
+(ios 0.4.0) and #142 (plugin 0.11.0) opened during the checkpoint and wait for the next one.
 
 ## Chart blocker (resolved the same day)
 

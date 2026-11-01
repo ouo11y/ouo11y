@@ -30,23 +30,24 @@ Each package's own changelog has the details under Unreleased.
 
 | Package | Current version | Changelog | Tag prefix |
 |---|---|---|---|
-| `@ouo11y/browser` (was `@ouo/browser`) | 0.2.0 | [sdk/browser/CHANGELOG.md](sdk/browser/CHANGELOG.md) | `browser-v` |
-| `@ouo11y/react-native` (was `@ouo/react-native`) | 0.2.0 | [sdk/react-native/CHANGELOG.md](sdk/react-native/CHANGELOG.md) | `react-native-v` |
-| `OuoReplay` (Swift, package `ouo11y-ios`) | 0.2.0 (not tagged) | [sdk/ios/CHANGELOG.md](sdk/ios/CHANGELOG.md) | `ios-v` |
-| `ouo11y-rum-app` (Grafana plugin, was `ouo-rum-app`) | 0.7.0 (not tagged; baked into the grafana 0.3.0 image) | [plugins/ouo11y-rum-app/CHANGELOG.md](plugins/ouo11y-rum-app/CHANGELOG.md) | `plugin-v` |
-| `rum-api` | 0.3.0 (released 2026-10-22) | [services/rum-api/CHANGELOG.md](services/rum-api/CHANGELOG.md) | `rum-api-v` |
-| `grafana` image | 0.3.0 (released 2026-10-22, plugin 0.7.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
-| `collector` image (ouo-collector) | 0.3.0 (released 2026-10-22) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
-| Helm chart `ouo` | 0.1.1 (not tagged) | [deploy/helm/ouo/CHANGELOG.md](deploy/helm/ouo/CHANGELOG.md) | `chart-v` |
+| `@ouo11y/browser` (was `@ouo/browser`) | 0.3.1 (npm, 2026-11-01) | [sdk/browser/CHANGELOG.md](sdk/browser/CHANGELOG.md) | `browser-v` |
+| `@ouo11y/react-native` (was `@ouo/react-native`) | 0.3.0 (npm, 2026-11-01) | [sdk/react-native/CHANGELOG.md](sdk/react-native/CHANGELOG.md) | `react-native-v` |
+| Swift package `ouo11y-ios` (`OuoSDK`, `OuoReplay`, ...) | 0.3.0 (tagged 2026-10-31; the mirror push waits for its deploy key) | [sdk/ios/CHANGELOG.md](sdk/ios/CHANGELOG.md) | `ios-v` |
+| `ouo11y-rum-app` (Grafana plugin, was `ouo-rum-app`) | 0.10.0 (released 2026-10-31; inside the grafana image 0.6.0) | [plugins/ouo11y-rum-app/CHANGELOG.md](plugins/ouo11y-rum-app/CHANGELOG.md) | `plugin-v` |
+| `rum-api` | 0.6.0 (released 2026-10-31) | [services/rum-api/CHANGELOG.md](services/rum-api/CHANGELOG.md) | `rum-api-v` |
+| `grafana` image | 0.6.0 (released 2026-10-31, Grafana 13.2.5, plugin 0.10.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
+| `collector` image (ouo-collector) | 0.5.0 (released 2026-10-31) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
+| Helm chart `ouo` | 0.2.0 (released 2026-10-31; GitHub "Latest") | [deploy/helm/ouo/CHANGELOG.md](deploy/helm/ouo/CHANGELOG.md) | `chart-v` |
 
 ## Release trains
 
-Versions that were released and verified together. A row is added when the qa agent has
-run the upgrade procedure (`docs/operations/upgrade.md`) for that combination.
+Versions that were released and verified together, and how they were verified. The full
+check is the upgrade procedure (`docs/operations/upgrade.md`) run by the qa agent for that
+combination; a row says when it has not been run yet.
 
-| Date | rum-api | collector | grafana image | chart | plugin | @ouo11y/browser | @ouo11y/react-native | OuoReplay | Verified by |
+| Date | rum-api | collector | grafana image | chart | plugin | @ouo11y/browser | @ouo11y/react-native | ouo11y-ios | Verified by |
 |---|---|---|---|---|---|---|---|---|---|
-| (none yet) | | | | | | | | | |
+| 2026-10-31 to 2026-11-01 (M2/M3 checkpoint) | 0.6.0 | 0.5.0 | 0.6.0 | 0.2.0 | 0.10.0 | 0.3.1 | 0.3.0 | 0.3.0 (tagged, mirror pending) | `release-check` e2e on every release PR (collector, rum-api, plugin built from source together); the released images' versions and digests checked by CI `quickstart` (#128, no stack started); the chart's rendered configs accepted by the released `rum-api:0.6.0` (`-config.verify`) and `collector:0.5.0` (`validate`) (#129); no stack run on the released images and upgrade procedure not run yet. Summary: `project/agents/release/summaries/2026-10-31-checkpoint-m2-m3.md` |
 
 ## Before tags existed
 
