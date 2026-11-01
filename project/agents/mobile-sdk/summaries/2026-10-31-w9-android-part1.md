@@ -16,13 +16,30 @@ Date: 2026-10-31. Branch `claude/w9-android`. Roadmap W9 ([roadmap.md](../../../
 ## Verified, and how
 
 - `cd sdk/android && ./gradlew :replay-core:test`: 17 JVM tests pass (base64 against the JDK, the spec's JSON keys, chunk cuts, spool recovery after a torn line, seq store, tile diff and merge, padding, per-line and override masks, Compose, upload headers and gzip body, retry and rejection, held sessions, the queue bound with the clock moved back and forward, pacer rules).
-- `./gradlew :replay:connectedAndroidTest` on the emulator `ouo-w9` (API 35, arm64): the pixel test (`MaskPixelTest`) walks, plans, copies with `PixelCopy` into RGB_565, encodes, decodes the JPEG and measures: both lines of a label black where their text is, white beside the short second line (per-line masks), an `EditText` and an `ImageView` black, an `ouo-unmask` label readable. Passes.
-- `tests/e2e/mobile-android/run.sh w9-android emulator-5580` against my own env (released images, `ouo-env up w9-android --images`), Release APK, three full runs: C1.1, C2.1, C4.1, C4.2, C5.1, C6.1, C7.1, C8.1, C8.2 (pixels of the product image, the price text, the cart total and the feedback input all black: mean brightness 0 to 0.0012), C8.3, C9.1, C10.1, C11.1, C11.2 pass; C2.2 runs and fails as expected (pending, W9 part 2), C2.3, C3.1, C3.2 pending and not run. Row: C1 L2, C2 L1, C3 L0, C4 L2, C5–C11 L2.
+- `./gradlew :replay:connectedAndroidTest` on the emulator `ouo-w9` (API 35, arm64): the pixel test (`MaskPixelTest`) walks, plans, copies with `PixelCopy` into RGB_565, encodes, decodes the JPEG and measures: both lines of a label black where their text is, white beside the short second line (per-line masks), an `EditText` and an `ImageView` black, an `ouo-unmask` label readable. Passes, with the settled-tree test added in review (2 instrumented tests).
+- `tests/e2e/mobile-android/run.sh w9-android emulator-5580` against my own env (released images, `ouo-env up w9-android --images`), Release APK, four full runs (the last after the review fixes): C1.1, C2.1, C4.1, C4.2, C5.1, C6.1, C7.1, C8.1, C8.2 (pixels of the product image, the price text, the cart total and the feedback input all black: mean brightness 0 to 0.0012), C8.3, C9.1, C10.1, C11.1, C11.2 pass; C2.2 runs and fails as expected (pending, W9 part 2), C2.3, C3.1, C3.2 pending and not run. Row: C1 L2, C2 L1, C3 L0, C4 L2, C5–C11 L2.
 - Frames looked at by eye (decoded from rum-api): per-line black boxes on the product list, the `ouo-unmask` title readable, the product image masked, viewport 411 x 914 dp at scale 1.09 (450 x 1000 px frames), full frames on navigation, a static screen sends nothing.
 - `npm run -w sdk/react-native typecheck` and `test` (192 tests) pass; `examples/ouo-mobile` `tsc --noEmit` passes; `lychee --offline` clean.
 
+## Review (PR #141) and what changed
+
+The reviewer session asked for changes; all eleven findings were taken:
+
+1. Masks could lag the screen: the walk reads the views now, `PixelCopy` the last frame drawn. When a layout or an invalidation waits for a draw (`root.isLayoutRequested || root.isDirty`), the walk now runs in the next draw's `OnDrawListener` and the copy is requested at the front of the queue right after it (so a spinner does not stop capture); a second instrumented test checks the settled rule after a `setText`.
+2. The foreground count started at 1 whenever Expo had an activity; it now asks `ActivityManager.getMyMemoryState` (a start from a background task does not capture).
+3. Frame duration follows refresh-rate changes through a `DisplayListener` (not observable on the emulator's fixed 60 Hz).
+4. Rebased on main (#140); checklist ids renumbered N85–N87.
+5. The `android` path filter covers the sync script, the package manifests, the example's config and plugins, and the root lockfile.
+6. `TextureView` and `SurfaceView` are masked with images.
+7. Transparent React Native modals (only their own window is recorded) documented in N86 and the README.
+8. Rotation no longer resets the seq store on Android (a chunk opened after the host switched ids kept 0 and got 0 again); the iOS twin is N87.
+9. The example's journey receiver only listens in conformance and debug builds.
+10. Part 2 notes below (cold start after a receiver-started process, vsync cost of the `Choreographer` counter).
+11. `distributionSha256Sum` pinned in the wrapper properties (checked against services.gradle.org).
+
 ## Left, and what the next session must know
 
+- **W9 part 2** (next PR), also from the review: a cold start must not be measured from a process the system started earlier for a receiver or service (use `ApplicationStartInfo` on API 35 or the first activity's creation); the `Choreographer` counter keeps vsync on every frame, `FrameMetrics` per window would not.
 - **W9 part 2** (next PR): opentelemetry-android base per ADR-0016 for the React Native module and the native package: sessions provider following session-lifecycle.md, crash (C2.2, C2.3), ANR as `hang` (C3.1), `ApplicationExitInfo` terminations (C3.2), jank onto the same `app.jank` counters, disk buffering; remove `pending` from those checks in `tests/e2e/mobile-android/check.mjs`.
 - **Later parts**: Jetpack Compose modifiers and a semantics walk (today Compose content is masked whole), R8 / ProGuard mapping symbolication (W7 extension: `ouo-sourcemaps` upload, rum-api symbolication), the native Android package (Kotlin API, Java smoke target, Maven Central), B3 Android cells, the suite in CI (N85), the replay gaps in N86 (popups, transparent modals).
 - Driving the app: broadcasts, not deep links (a deep link pauses the activity and React Native reports a background). Release builds log `console.log` to logcat; the suite reads notes there.

@@ -148,4 +148,33 @@ class MaskPixelTest {
       assertTrue(mean(s, open[0], open[1], open[2], open[3]) > 0.5)
     }
   }
+
+  /**
+   * The recorder copies only a tree that is drawn as it is (review of #141): after a `setText` the
+   * next copy would still show the old text while the walk sees the new one, so the walk and the
+   * copy wait for the next draw.
+   */
+  @Test
+  fun aTreeChangedSinceItsLastDrawIsNotSettled() {
+    ActivityScenario.launch(MaskActivity::class.java).use { scenario ->
+      Thread.sleep(1000)
+      var activity: MaskActivity? = null
+      scenario.onActivity { activity = it }
+      val root = activity!!.window.decorView
+      val states = mutableListOf<Boolean>()
+      val done = CountDownLatch(1)
+      val main = Handler(Looper.getMainLooper())
+      main.post {
+        states.add(ReplayRecorder.isSettled(root))
+        activity!!.label.text = "Another secret, longer than before"
+        states.add(ReplayRecorder.isSettled(root))
+        main.postDelayed({
+          states.add(ReplayRecorder.isSettled(root))
+          done.countDown()
+        }, 500)
+      }
+      assertTrue(done.await(5, TimeUnit.SECONDS))
+      assertEquals(listOf(true, false, true), states)
+    }
+  }
 }

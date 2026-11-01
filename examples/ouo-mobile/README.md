@@ -94,7 +94,7 @@ stack. The journey's commands reach the app as broadcasts handled by `modules/ou
 
 ```bash
 deploy/envs/ouo-env up mobile-demo --images
-examples/ouo-mobile/scripts/build-android.sh --env mobile-demo
+examples/ouo-mobile/scripts/build-android.sh --env mobile-demo --conformance   # the journey commands need it (or a debug build)
 adb shell am start -n dev.ouo.mobilestore/.MainActivity
 adb shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --es cmd 'screen/Cart'"
 ```

@@ -69,8 +69,12 @@ data class RedactionRules(
       "androidx.compose.ui.platform.AndroidComposeView",
     )
 
-    /** `ImageView` covers React Native's `ReactImageView` (Fresco's `DraweeView` extends it). */
-    val imageClasses = setOf("android.widget.ImageView")
+    /**
+     * `ImageView` covers React Native's `ReactImageView` (Fresco's `DraweeView` extends it).
+     * `TextureView` (video, maps, camera previews) is in the window copy; `SurfaceView` is a hole in
+     * it, masked anyway so a platform that composites it never leaks it.
+     */
+    val imageClasses = setOf("android.widget.ImageView", "android.view.TextureView", "android.view.SurfaceView")
     val webViewClasses = setOf("android.webkit.WebView")
   }
 }

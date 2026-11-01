@@ -65,7 +65,9 @@ internal class ReplayRecorder(private val app: Application, private val config: 
 
   // Main thread from here on.
   private var current = WeakReference(activity)
-  private var started = if (activity != null) 1 else 0
+  // Whether the app is in the foreground now: the host may start replay from the background (a
+  // headless task), when Expo still reports the last activity.
+  private var started = if (activity != null && isVisible()) 1 else 0
   @Volatile var isRecording = false
     private set
   private var pausedByHost = false
@@ -179,6 +181,12 @@ internal class ReplayRecorder(private val app: Application, private val config: 
 
   private fun stopCapture() {
     isRecording = false
+    // A capture waiting for a draw is dropped; `inFlight` clears when it was not requested yet.
+    if (pendingCapture != null) {
+      pendingCapture = null
+      inFlight = false
+    }
+    main.removeCallbacks(drawTimeout)
     main.removeCallbacks(pass)
     main.removeCallbacks(keepAlive)
     observe(null)
@@ -190,6 +198,16 @@ internal class ReplayRecorder(private val app: Application, private val config: 
   }
 
   private fun onDraw() {
+    // A capture waiting for this draw walks the tree now: dispatchOnDraw runs after layout and
+    // before the frame is recorded, so the walk sees what this frame shows. The copy is requested
+    // first thing after the draw, so the RenderThread copies this frame.
+    pendingCapture?.let { p ->
+      pendingCapture = null
+      val start = now()
+      val before = plan(p.target.root)
+      main.postAtFrontOfQueue { copyAndCompose(p.target, p.reason, before, now() - start + p.spent) }
+      return
+    }
     if (dirty) return
     dirty = true
     // Not from inside the draw: the pass walks the tree.
@@ -228,27 +246,57 @@ internal class ReplayRecorder(private val app: Application, private val config: 
       CapturePacer.Decision.Wait -> return schedule()
     }
     dirty = false
+    inFlight = true
+    // The copy shows the last frame drawn, the walk the views as they are now: they must be the
+    // same. With a layout or an invalidation not drawn yet (a setText from a plain Handler message,
+    // a spinner's next frame) the masks would be where the new content is and the old content
+    // unmasked: the walk and the copy wait for the next draw instead.
+    if (!isSettled(target.root)) {
+      pendingCapture = PendingCapture(target, reason, now() - start)
+      main.postDelayed(drawTimeout, DRAW_TIMEOUT_MS)
+      return
+    }
+    copyAndCompose(target, reason, plan(target.root), now() - start)
+  }
+
+  /** The draw a pending capture waits for did not come (the window stopped drawing): drop it. */
+  private val drawTimeout = Runnable {
+    val p = pendingCapture ?: return@Runnable
+    pendingCapture = null
+    inFlight = false
+    pacer.dropped(p.reason, now())
+    dirty = true
+    schedule()
+  }
+
+  private class PendingCapture(val target: WindowSpy.Target, val reason: FrameReason, val spent: Double)
+
+  private var pendingCapture: PendingCapture? = null
+
+  /** Masks of the tree as it is, in window pixels; null when the walk failed (the frame is dropped). */
+  private fun plan(root: View): List<Box>? =
+    runCatching { planner.rects(walker.walk(root), Box(0f, 0f, root.width.toFloat(), root.height.toFloat())) }.getOrNull()
+
+  /** Main thread, `inFlight` set: copies the window, walks again, and hands the frame to the compose thread. */
+  private fun copyAndCompose(target: WindowSpy.Target, reason: FrameReason, before: List<Box>?, spentBefore: Double) {
+    main.removeCallbacks(drawTimeout)
     val root = target.root
-    val window = Box(0f, 0f, root.width.toFloat(), root.height.toFloat())
-    val before = runCatching { planner.rects(walker.walk(root), window) }.getOrNull()
-    if (before == null) {
-      pacer.spent(now() - start, start)
-      pacer.dropped(reason, start)
+    val t0 = now()
+    if (before == null || !isRecording || !root.isAttachedToWindow || root.width <= 0 || root.height <= 0) {
+      pacer.spent(spentBefore, t0)
+      pacer.dropped(reason, t0)
+      inFlight = false
       return schedule()
     }
-    val bitmap = capturer.bitmapFor(root.width, root.height)
-    val scale = bitmap.width.toFloat() / root.width
+    val w = root.width
+    val h = root.height
+    val bitmap = capturer.bitmapFor(w, h)
+    val scale = bitmap.width.toFloat() / w
     val ts = System.currentTimeMillis()
-    val walkTime = now() - start
-    inFlight = true
     capturer.copy(target, bitmap, main) { ok ->
       val t1 = now()
-      val after = if (ok && root.isAttachedToWindow && root.width.toFloat() == window.right && root.height.toFloat() == window.bottom) {
-        runCatching { planner.rects(walker.walk(root), window) }.getOrNull()
-      } else {
-        null
-      }
-      pacer.spent(walkTime + (now() - t1), t1)
+      val after = if (ok && root.isAttachedToWindow && root.width == w && root.height == h) plan(root) else null
+      pacer.spent(spentBefore + (now() - t1), t1)
       if (after == null || !same(before, after)) {
         logger.log("frame ${reason.wire} dropped: ${if (after == null) "copy failed" else "a masked view moved"}")
         inFlight = false
@@ -258,7 +306,7 @@ internal class ReplayRecorder(private val app: Application, private val config: 
         return@copy schedule()
       }
       val density = app.resources.displayMetrics.density
-      val viewport = Viewport(root.width / density.toDouble(), root.height / density.toDouble(), bitmap.width / (root.width / density.toDouble()))
+      val viewport = Viewport(w / density.toDouble(), h / density.toDouble(), bitmap.width / (w / density.toDouble()))
       compose.execute {
         var failed = false
         builder.updateViewport(viewport)
@@ -288,6 +336,9 @@ internal class ReplayRecorder(private val app: Application, private val config: 
     const val SPOOL = "open-chunk.jsonl"
     const val SEQ = "seq.json"
 
+    /** How long a capture waits for the draw of a changed tree before it is dropped. */
+    const val DRAW_TIMEOUT_MS = 1000L
+
     /** Shared by every recorder, so a restarted recorder recovers the spool only after the previous one cut its chunk. */
     val compose = Executors.newSingleThreadExecutor { r -> Thread(r, "ouo-replay-compose").apply { isDaemon = true } }
 
@@ -295,6 +346,16 @@ internal class ReplayRecorder(private val app: Application, private val config: 
     private var recovered = false
 
     fun now(): Double = SystemClock.uptimeMillis() / 1000.0
+
+    /** The window shows its view tree as it is: no layout and no invalidation waits for a draw. */
+    fun isSettled(root: View): Boolean = !root.isLayoutRequested && !root.isDirty
+
+    private fun isVisible(): Boolean =
+      runCatching {
+        val info = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(info)
+        info.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+      }.getOrDefault(true)
 
     fun totalMemory(context: Context): Long =
       runCatching {

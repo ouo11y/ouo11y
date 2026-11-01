@@ -61,7 +61,8 @@ jobs:
           flag collector '^(collector|deploy/compose/collector)/'
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
-          flag android   '^(sdk/android|sdk/react-native/android|examples/ouo-mobile/modules)/'
+          # The Kotlin, the scripts and manifests that vendor and build it into the example app.
+          flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
           flag helm      '^deploy/helm/'
           flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the

@@ -43,9 +43,11 @@ next to a short line stays visible), inputs (`EditText`, whole view, `maskInputs
 is `"ouo-mask"` (React Native `testID="ouo-mask"`) is masked whole; `"ouo-unmask"` leaves its subtree
 alone. Hidden and transparent views are skipped; a subtree deeper than 64 levels is masked whole.
 
+`TextureView` and `SurfaceView` (video, maps, camera previews) are masked whole with the images.
+
 Not recorded yet: popups, toasts and dialogs that do not cover the activity (only the topmost
-full-screen window is captured), `SurfaceView` / `TextureView` content (video, maps) which
-`PixelCopy` of the window does not include. Jetpack Compose content is masked whole while `maskText`
+full-screen window is captured; a React Native `<Modal transparent>` records only its own window,
+so the screen behind it is black in the replay). Jetpack Compose content is masked whole while `maskText`
 is on: Compose draws in one `AndroidComposeView` the view walk cannot see into, so it fails closed
 until the semantics walk of the Compose modifiers work package.
 

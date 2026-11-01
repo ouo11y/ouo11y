@@ -29,7 +29,7 @@ import { Platform, type View } from "react-native";
 import { chaos } from "../modules/ouo-chaos";
 import { addToCart, checkout, getProducts, type PaymentMethod } from "./api";
 import type { RootStackParamList } from "./navigation";
-import { note, rum } from "./rum";
+import { config, note, rum } from "./rum";
 
 /** Views whose rectangles `action/areas` notes for the replay pixel check (C8.2), by name. */
 const areas = new Map<string, View>();
@@ -123,6 +123,9 @@ async function run(cmd: string): Promise<void> {
 
 export function startJourneyMailbox(): () => void {
   if (Platform.OS === "android") {
+    // The receiver is exported (adb sends from the shell user): only the conformance and debug
+    // builds listen, so no other app can drive a demo build.
+    if (!config.conformance && !__DEV__) return () => {};
     const sub = chaos?.addListener?.("onJourneyCommand", (e: { cmd: string }) => {
       note("command", { cmd: e.cmd });
       void run(e.cmd);

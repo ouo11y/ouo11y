@@ -123,11 +123,13 @@ class ChunkBuilder(
     return chunk
   }
 
-  /** Session rotation: flush what belongs to the old session, then restart seq at 0 for the new id. */
-  fun sessionDidRotate(newId: String) {
-    flush()
-    seqStore.reset(newId)
-  }
+  /**
+   * Session rotation: flush what belongs to the old session. The new id's seq starts at 0 because
+   * the id is new ([SeqStore.next]); no reset here: the host may already have switched the id, and a
+   * chunk opened in between holds seq 0 of the new session, which a reset would hand out again.
+   */
+  @Suppress("UNUSED_PARAMETER")
+  fun sessionDidRotate(newId: String) = flush()
 
   /** Reserves the seq and session id when the first item arrives, so a rotation mid-chunk does not relabel it. */
   private fun open(ts: EpochMillis) {

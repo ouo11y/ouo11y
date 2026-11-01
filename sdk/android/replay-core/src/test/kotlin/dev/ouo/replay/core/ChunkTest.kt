@@ -93,6 +93,14 @@ class ChunkTest {
     b.flush()
     assertEquals("s2", out[3].sessionId)
     assertEquals(0, out[3].seq)
+    // The host switched the id before the rotation reached the builder: the chunk opened in that
+    // gap keeps seq 0 of the new session, and the rotation does not hand 0 out again.
+    sid = "s3"
+    b.add(full(4))
+    b.sessionDidRotate("s3")
+    b.add(full(5))
+    b.flush()
+    assertEquals(listOf("s3" to 0, "s3" to 1), out.takeLast(2).map { it.sessionId to it.seq })
   }
 
   @Test

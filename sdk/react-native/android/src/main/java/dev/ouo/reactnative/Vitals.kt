@@ -19,7 +19,9 @@ import android.view.Display
  *   in a live process).
  * - Frames: a `Choreographer` callback per vsync while the app is in the foreground; a frame is slow
  *   when it took longer than the display's frame duration (with 4 ms of tolerance) and frozen from
- *   700 ms (Sentry's and Android vitals' definitions). Paused in the background, where a gap is not
+ *   700 ms (Sentry's and Android vitals' definitions). The frame duration follows the display's
+ *   refresh rate as it changes (a 120 Hz panel that drops to 60 Hz when idle), through a
+ *   `DisplayListener`. Paused in the background, where a gap is not
  *   a frame. The callback only counts: a few nanoseconds per frame on the main thread.
  *
  * W9 part 2 moves both onto opentelemetry-android (ADR-0016) for the native package.
@@ -60,13 +62,26 @@ internal object Vitals {
     return mapOf("processStartMs" to processStart.toDouble(), "type" to "cold", "prewarmed" to false)
   }
 
-  /** Starts counting frames (idempotent); the frame duration comes from the default display. */
+  /** Starts counting frames (idempotent); the frame duration follows the default display. */
   fun startFrameTracking(context: Context) {
     main.post {
       if (!started) {
         started = true
-        val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        display?.refreshRate?.takeIf { it > 1f }?.let { expectedMs = 1000.0 / it }
+        val dm = context.applicationContext.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        val read = { dm?.getDisplay(Display.DEFAULT_DISPLAY)?.refreshRate?.takeIf { it > 1f }?.let { expectedMs = 1000.0 / it } }
+        read()
+        dm?.registerDisplayListener(
+          object : DisplayManager.DisplayListener {
+            override fun onDisplayChanged(displayId: Int) {
+              if (displayId == Display.DEFAULT_DISPLAY) read()
+            }
+
+            override fun onDisplayAdded(displayId: Int) {}
+
+            override fun onDisplayRemoved(displayId: Int) {}
+          },
+          main,
+        )
       }
       resume()
     }

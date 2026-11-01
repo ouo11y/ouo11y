@@ -15,7 +15,9 @@ import expo.modules.kotlin.modules.ModuleDefinition
  *
  * `scripts/journey-android.sh` and the Android conformance suite send commands as broadcasts
  * (`adb shell am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --es cmd 'screen/Cart'`),
- * which reach JS as `onJourneyCommand` events (src/journey.ts). A broadcast does not pause the
+ * which reach JS as `onJourneyCommand` events (src/journey.ts). The receiver is registered only
+ * while JS listens, which src/journey.ts does in the conformance and debug builds: it is exported
+ * (adb's shell user sends it), so a demo build does not take commands from other apps. A broadcast does not pause the
  * activity: an `am start` deep link would, and React Native reports every pause as a background.
  */
 class OuoChaosModule : Module() {

@@ -97,8 +97,12 @@ class DiffAndPlanTest {
     val hidden = node("android.widget.ImageView", Box(0f, 500f, 100f, 600f), hidden = true)
     val offscreen = node("android.widget.ImageView", Box(-200f, 500f, -100f, 600f))
     val clipped = node("android.webkit.WebView", Box(1000f, 2300f, 1200f, 2600f))
-    val root = node("android.widget.FrameLayout", window, children = listOf(forced, unmasked, hidden, offscreen, clipped))
-    assertEquals(listOf(Box(0f, 100f, 300f, 200f), Box(1000f, 2300f, 1080f, 2400f)), RedactionPlanner(RedactionRules(maskText = false)).rects(root, window))
+    val video = node("com.example.VideoView", Box(0f, 700f, 500f, 900f), supers = listOf("android.view.TextureView"))
+    val root = node("android.widget.FrameLayout", window, children = listOf(forced, unmasked, hidden, offscreen, clipped, video))
+    assertEquals(
+      listOf(Box(0f, 100f, 300f, 200f), Box(1000f, 2300f, 1080f, 2400f), Box(0f, 700f, 500f, 900f)),
+      RedactionPlanner(RedactionRules(maskText = false)).rects(root, window),
+    )
     // A truncated subtree is masked whole, whatever the rules.
     val deep = node("android.view.ViewGroup", Box(0f, 0f, 50f, 50f)).copy(truncated = true)
     assertEquals(listOf(Box(0f, 0f, 50f, 50f)), RedactionPlanner(RedactionRules(false, false, false, false)).rects(deep, window))
