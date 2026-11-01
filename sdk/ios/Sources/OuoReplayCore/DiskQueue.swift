@@ -106,7 +106,7 @@ public final class DiskQueue {
     }
 
     /// OTLP/HTTP's retryable answers: 429, 502, 503 and 504. Any other status is final.
-    public static func retryable(_ status: Int) -> Bool {
+    static func retryable(_ status: Int) -> Bool {
         status == 429 || status == 502 || status == 503 || status == 504
     }
 

@@ -13,7 +13,7 @@ Branch `claude/n55-delivery-retries`, checklist N55 and N83. Env `n55-delivery-r
 
 ## Why the narrow set is safe with this backend
 
-The collector's OTLP receiver answers 503 for a retryable pipeline error and 400 for a permanent one; the `ouoreplay` receiver answers 429 or 503 (with `Retry-After`) for retryable consumer errors and 500 only for permanent ones (`statusFromConsumerError`). A proxy in front (Traefik in `ouo-env`, a load balancer) answers 502 to 504 when the collector is down. So a 500 from this stack never gets better on a retry. What is left of head-of-line blocking: a request answered 429 or 502 to 504 every time still waits, retried, until the bound evicts it.
+The collector's OTLP receiver answers 503 for a non-permanent pipeline error (with `Retry-After` only when the error carries `RetryInfo`), 500 for a permanent one and 400 for a body it cannot decode; the `ouoreplay` receiver answers 429 or 503 (with `Retry-After`) for retryable consumer errors and 500 only for permanent ones (`statusFromConsumerError`). A proxy in front (Traefik in `ouo-env`, a load balancer) answers 502 to 504 when the collector is down. So a 500 from this stack never gets better on a retry. What is left of head-of-line blocking: a request answered 429 or 502 to 504 every time still waits, retried, until the bound evicts it.
 
 ## Verified, and how
 
@@ -27,4 +27,4 @@ The collector's OTLP receiver answers 503 for a retryable pipeline error and 400
 
 - The shared checkout `/Users/ziadhassanin/Desktop/personal/ouo` is still mid-merge; `ouo-env up` needs an `npm` shim on `PATH` that adds `--prefix <worktree>` (as in N77). `npm_config_prefix` in the environment does not stop npm's walk up; the flag does.
 - The scratchpad folder is shared by sibling agents of one parent session: name files with the task (`n55-…`), another agent's output landed in a file named `native-run.log`.
-- `OuoReplayCore` API: `DiskQueue.retryable(_:)` is new and public. The React Native `Outbox` no longer takes `maxAgeMs` (internal).
+- `OuoReplayCore`: `DiskQueue.retryable(_:)` is new (internal; tests reach it with `@testable`). The React Native `Outbox` no longer takes `maxAgeMs` (internal).
