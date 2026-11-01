@@ -8,6 +8,8 @@ import { getJSON, GRAFANA, pollUntil, readHeaders, RUM, table } from "../lib.mjs
 
 const [out] = process.argv.slice(2);
 const SERVICE = "ouo-ios-example";
+// C10.1: the frame taken for a feedback follows it within this (docs/specs/mobile-sdk.md C10).
+const FEEDBACK_FRAME_MS = 2000;
 const notes = readFileSync(join(out, "journey.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
 const requests = readFileSync(join(out, "requests.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 const launches = notes.filter((n) => n.kind === "launch");
@@ -133,7 +135,8 @@ const CHECKS = {
     return Boolean(root) && spans.some((x) => x.kind === 3 || x.kind === "SPAN_KIND_CLIENT" ? x.parentSpanId === root.spanId : false) &&
       (logs?.logs ?? []).some((l) => l.body === "golden log line");
   },
-  // The record, the steps before it (ending with the journey's last ones), and the replay around it.
+  // The record, the steps before it (ending with the journey's last ones), the replay around it, and
+  // the frame the recorder took for it (reason `feedback`, N76) within FEEDBACK_FRAME_MS after it.
   "C10.1": async () => {
     const note = noteAfter(main, "feedback");
     const f = named(await detail(main.session), "feedback")[0];
@@ -144,7 +147,8 @@ const CHECKS = {
       attr(f, "ouo.feedback.contact") === "ada@example.com" && attr(f, "ouo.feedback.screenshot") === "true" &&
       // The journey's last steps before it: the error and the log line of the checkout (its request may answer after).
       steps.slice(-3).some((s) => s.startsWith("log golden log line")) && steps.some((s) => s.includes("golden handled error")) &&
-      frames.some((x) => Number(x.ts) <= at) && frames.some((x) => Number(x.ts) > at);
+      frames.some((x) => Number(x.ts) <= at) && frames.some((x) => Number(x.ts) > at) &&
+      feedbackFrame(frames, at);
   },
   "C11.1": async () => named(await detail(offline.session), "offline-step").length === 1,
   "C11.2": async () => {
@@ -154,6 +158,12 @@ const CHECKS = {
 };
 
 let pixelReport = null;
+let feedbackFrameMs = null;
+function feedbackFrame(frames, at) {
+  const f = frames.find((x) => x.reason === "feedback" && Number(x.ts) >= at);
+  feedbackFrameMs = f ? Number(f.ts) - at : null;
+  return f !== undefined && feedbackFrameMs <= FEEDBACK_FRAME_MS;
+}
 const rows = [];
 const levels = {};
 for (const [id, check] of Object.entries(CHECKS)) {
@@ -163,6 +173,7 @@ for (const [id, check] of Object.entries(CHECKS)) {
   levels[cap] = levels[cap] === "L1" || pass !== true ? "L1" : "L2";
 }
 table(rows);
+console.log("C10.1 feedback frame after the record (ms):", feedbackFrameMs);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
 console.log("maturity (native iOS, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
 console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session });

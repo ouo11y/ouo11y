@@ -98,6 +98,12 @@ public enum OuoReplay {
         onMain { recorder?.screenDidChange() }
     }
 
+    /// The user sent feedback (mobile SDK spec C10): a frame of the screen as it is now, in every
+    /// mode, with reason `feedback`, kept even when the screen did not change.
+    public static func frameForFeedback() {
+        onMain { recorder?.frameForFeedback() }
+    }
+
     /// The mode the recorder runs in (`auto` resolved for this device), nil when not started.
     public static var mode: ReplayMode? {
         if Thread.isMainThread { return recorder?.mode }
@@ -132,6 +138,7 @@ public enum OuoReplay {
     public static func sessionDidRotate(newId: String) { warnOnce() }
     public static func recoverPendingChunk(_ config: OuoReplayConfig, crash: (sessionId: String, at: EpochMillis)? = nil) {}
     public static func screenDidChange() { warnOnce() }
+    public static func frameForFeedback() { warnOnce() }
     public static var mode: ReplayMode? { nil }
     public static func stop() { warnOnce() }
     #endif

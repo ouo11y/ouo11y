@@ -1,5 +1,5 @@
-import type { TimelineEvent } from '../api/types';
-import { buildFeedback, LAST_EVENTS, parseLastEvents } from './feedback';
+import type { ReplayFrame, TimelineEvent } from '../api/types';
+import { buildFeedback, FEEDBACK_FRAME_AFTER_MS, LAST_EVENTS, parseLastEvents } from './feedback';
 import { buildMarkers } from './markers';
 
 const T0 = Date.UTC(2026, 9, 30, 10, 0, 0);
@@ -47,6 +47,34 @@ describe('buildFeedback', () => {
     // Malformed attribute: the timeline instead; the earlier feedback and later events are not steps.
     expect(second.steps.map((s) => s.name)).not.toContain('feedback');
     expect(second.steps.every((s) => s.ts <= T0 + 2000)).toBe(true);
+  });
+
+  it('finds the frame the SDK took for a feedback (reason feedback, N76): the screenshot', () => {
+    const frame = (ms: number, reason: string): ReplayFrame => ({ ts: T0 + ms, reason, jpeg: 'x' });
+    const fb = (ms: number) => ev(ms, 'feedback', { ouo_feedback_message: `m${ms}`, ouo_feedback_screenshot: 'true' });
+    const frames = [
+      frame(900, 'feedback'), // 1.1 s before the second one: neither's
+      frame(1950, 'timer'),
+      frame(2040, 'feedback'),
+      frame(5000 + FEEDBACK_FRAME_AFTER_MS + 1, 'feedback'), // too late for the third
+    ];
+    const [a, b, c] = buildFeedback([fb(-3000), fb(2000), fb(5000)], frames);
+    expect(a.frameTs).toBeUndefined();
+    expect(b.frameTs).toBe(T0 + 2040);
+    expect(c.frameTs).toBeUndefined();
+    expect(c.screenshot).toBe(true);
+    expect(buildFeedback([fb(2000)])[0].frameTs).toBeUndefined();
+    // Its own frame first, though another record's lies in the 0.5 s before; one stamped a little
+    // before it (the two clocks) when none follows.
+    const [d, e] = buildFeedback([fb(2000), fb(2300)], [frame(2010, 'feedback'), frame(2310, 'feedback')]);
+    expect([d.frameTs, e.frameTs]).toEqual([T0 + 2010, T0 + 2310]);
+    expect(buildFeedback([fb(2000)], [frame(1700, 'feedback')])[0].frameTs).toBe(T0 + 1700);
+    // A record without a screenshot has none, even next to another's frame.
+    const plain = ev(2050, 'feedback', { ouo_feedback_message: 'no screenshot' });
+    expect(buildFeedback([fb(2000), plain], [frame(2040, 'feedback')]).map((f) => f.frameTs)).toEqual([
+      T0 + 2040,
+      undefined,
+    ]);
   });
 
   it('lists a record sent twice (same ouo.feedback.id) once; records without an id are each listed', () => {

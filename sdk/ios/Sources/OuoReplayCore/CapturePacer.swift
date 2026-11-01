@@ -77,10 +77,12 @@ public struct CapturePacer: Sendable {
         retries = 0
     }
 
-    /// A new screen: in `navigation` mode the frame is taken once the screen settled.
+    /// A new screen: in `navigation` mode the frame is taken once the screen settled. A waiting
+    /// `feedback` frame stays one (a feedback form that dismissed itself): it waits for the new
+    /// screen to settle too, and the frame still says it is the feedback's.
     public mutating func screenDidChange(now: TimeInterval) {
         guard mode == .navigation else { return }
-        requestFrame(.navigation, at: now + settleDelay)
+        requestFrame(pending?.reason == .feedback ? .feedback : .navigation, at: now + settleDelay)
     }
 
     /// Something on screen is moving that the walk does not see (a view controller transition).

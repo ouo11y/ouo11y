@@ -185,13 +185,14 @@ public final class Ouo: NSObject {
 
     /// User feedback (C10): the user's text and how to reach them, as the app passes them. Returns
     /// the feedback's id, nil for an empty message. With `screenshot` and replay recording this
-    /// session, the recorder takes a masked frame of the current screen (the replay is the screenshot).
+    /// session, the recorder takes a masked frame of the current screen, reason `feedback` (the
+    /// replay is the screenshot).
     @objc(feedback:contact:screenshot:)
     @discardableResult
     public static func feedback(_ message: String, contact: String? = nil, screenshot: Bool = false) -> String? {
         guard let c = current else { return nil }
         let recording = screenshot && (lock.withLock { replay }?.isRecording ?? false)
-        if recording { OuoReplay.screenDidChange() }
+        if recording { OuoReplay.frameForFeedback() }
         return c.feedback(message: message, contact: contact, screenshot: recording)
     }
 

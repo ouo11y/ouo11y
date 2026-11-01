@@ -120,7 +120,7 @@ export default function SessionDetail() {
   const activityStart = hasReplay ? bounds.start : sessionStart;
   const activity = useMemo(() => buildActivity(timeline, activityStart, taps), [timeline, activityStart, taps]);
   const showActivity = hasReplay || (!showTimeline && !replayLoading);
-  const feedback = useMemo(() => buildFeedback(timeline), [timeline]);
+  const feedback = useMemo(() => buildFeedback(timeline, frames.data?.frames), [timeline, frames.data]);
   const masking = maskingState(meta.data);
   const contextFields = session ? sessionContextFields(session) : [];
   const previousId = previousSessionId(session?.timeline ?? []);
@@ -347,11 +347,7 @@ export default function SessionDetail() {
                   segments stream through the plugin proxy
                 </div>
               )}
-              <FeedbackList
-                items={feedback}
-                clockStart={clockStart}
-                onSeek={hasReplay ? onLogSeek : undefined}
-              />
+              <FeedbackList items={feedback} clockStart={clockStart} onSeek={hasReplay ? onLogSeek : undefined} />
               {renderer === 'rrweb' && replay.data && replay.data.length === 0 && (
                 <Alert severity="info" title="Replay is empty">
                   rum-api reports a replay for this session but no events were decodable.

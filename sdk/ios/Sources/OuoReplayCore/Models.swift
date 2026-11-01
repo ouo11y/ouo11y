@@ -6,6 +6,9 @@ public enum FrameReason: String, Codable, Sendable {
     case touch
     case navigation
     case resume
+    /// The screen when the user sent feedback (mobile SDK spec C10): taken in every mode, a full
+    /// image even when nothing changed, so the replay holds the screenshot at the feedback.
+    case feedback
 }
 
 public enum TouchPhase: String, Codable, Sendable {

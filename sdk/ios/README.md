@@ -64,7 +64,7 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 | C6 interactions | `ui.tap` per touch: `ouo.ui.target` (the test id, `accessibilityIdentifier`, else the view type; accessibility labels are not read: with VoiceOver or Voice Control on UIKit fills them with the visible title), `ouo.ui.path`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`), `app.screen.name`, a readable body; `taps` and the `tapLabels` kill switch |
 | C7 screens | `navigation` per screen change: every view controller of the app shown on its own or in a navigation, tab bar, split or page controller (named after its class, or `OuoScreenNaming`), SwiftUI's `.ouoScreen`, `trackScreen` |
 | C8 replay | `OuoReplay` for the sampled sessions, rotated with the session; SwiftUI text and symbols masked (`SwiftUI.CGDrawingView`, not inside system bars), `.ouoMask()` / `.ouoUnmask()` |
-| C10 feedback | `feedback` with message, contact, id, `ouo.last_events`, and a masked frame of the screen when replay records |
+| C10 feedback | `feedback` with message, contact, id, `ouo.last_events`, and a masked frame of the screen when replay records (reason `feedback`, a full image, within 2 s; the plugin's "screenshot") |
 | C9 spans and logs | `startSpan`, `withSpan`, `log` |
 | C11 delivery | OTLP/JSON, gzip, Basic credential; every batch on disk before it is sent (`Application Support/ouo/sdk/otlp`, 5 MB, 500 requests, no age limit), retried with backoff, `Retry-After`, sent on the next launch, on foreground and on `flush`; at least once |
 
