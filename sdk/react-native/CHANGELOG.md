@@ -1,23 +1,89 @@
 # Changelog
 
+## Unreleased
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
 
+### Breaking
+
+- On iOS, replay chunks are `frames` **schema 2** (replay tiles, below): they need rum-api >= 0.6.0
+  and collector >= 0.5.0, and plugin 0.10 to play them. Upgrade the server side first
+  (`docs/operations/upgrade.md` section 4); an older collector or rum-api refuses the chunks.
 
 ### Added
 
-* **ios:** hangs, terminations, TTFD and error context (W4) ([aa6da5a](https://github.com/ouo11y/ouo11y/commit/aa6da5aa7dd8275538ee13e7de9adc860ad69e03))
-* **ios:** production-safe replay capture (W1) ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012))
-* **ios:** tiles in frames schema 2, a static screen sends no image bytes (W3a) ([bf5c22d](https://github.com/ouo11y/ouo11y/commit/bf5c22d47925656414f9877b6ba448a32185f942))
-* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
-* **react-native:** gzip OTLP, offline outbox and durable replay chunk queue (W3 delivery) ([8f65408](https://github.com/ouo11y/ouo11y/commit/8f6540800034e658317f61dbfb674cc72be2bc89))
-* **react-native:** screen funnels and readable user steps (W5) ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5))
+- **Delivery and offline** (mobile SDK roadmap W3, spec C11): every OTLP batch is written to
+  AsyncStorage before it is sent and removed once the collector accepts or finally rejects it; one
+  sender, oldest first, backoff 1 s to 30 s with `Retry-After`, drained on the next launch, on
+  foreground, on `rum.flush()` and after the backoff. Bounds 5 MB, 500 requests, 24 h (oldest
+  dropped first); new option `transport.offline` (bounds, or `false`). With the native module the
+  batches are gzipped and posted off the JS thread. iOS replay chunks wait in a folder queue until
+  the receiver accepts them. `replay.keepAtNextLaunch(session)` holds a session's replay on the
+  device and decides at the next launch whether to send or delete it
+  ([8f65408](https://github.com/ouo11y/ouo11y/commit/8f6540800034e658317f61dbfb674cc72be2bc89)).
+- **Readable user steps** (W5, spec C6): `ui.tap` carries `ouo.ui.view_type`, `ouo.ui.gesture`
+  (`tap`, `long_press`, `swipe`) and `app.screen.name`, with the step as its body
+  (`Tap add-to-cart (button) on Product`); a touch is recorded when it ends and stamped at its
+  start; `navigation` carries `ouo.navigation.kind = screen`. New content kill switch
+  `timeline.tapLabels: false`: no label leaves the device
+  ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5)).
+- **User feedback** (W6, spec C10): `rum.feedback({ message, contact?, screenshot? })` sends one
+  `feedback` record on the current session (`ouo.feedback.message`, `ouo.feedback.contact`,
+  `ouo.feedback.id`, returned, and the session's last 20 events in `ouo.last_events`); with replay
+  recording, `screenshot` asks the recorder for a masked frame
+  ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3)).
+- **Hangs, terminations, TTFD and error context** (W4, spec C2 to C4): iOS app hangs of 2 s or
+  more (fully blocking or not, sentry-cocoa's rules) are one non-fatal `hang` exception each, with
+  the duration and the main thread's stack; a kill in the foreground without a crash report (out of
+  memory, the watchdog) is a fatal `termination` exception on the next launch
+  (`ouo.termination.cause`), and its session is `crashed`; `rum.reportFullyDisplayed()` adds
+  `ouo.screen.ttfd_ms` to the screen's `ouo.screen.display` (which now waits for it until the
+  screen is left, the background or 30 s); every `exception` carries `ouo.last_events`,
+  `app.screen.name`, `ouo.device.locale` and, on iOS, memory and `network.connection.type`, and a
+  crash reported by the next launch the crashed run's screen and last events
+  ([aa6da5a](https://github.com/ouo11y/ouo11y/commit/aa6da5aa7dd8275538ee13e7de9adc860ad69e03)).
+- **Replay modes and production-safe capture** (W1): `replay.mode` (`auto` default, `session`,
+  `navigation`); route changes reach the recorder for the navigation-mode frame; the iOS recorder
+  captures after the run loop's UI work within a 100 ms/s main-thread budget, never on touches,
+  drops frames whose masked views move, and sends the chunk a crash left open on the next launch,
+  before the sampling decision (`sdk/ios` CHANGELOG,
+  [986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012)).
+- **Replay tiles** (W3, ADR-0014): the iOS recorder sends `frames` schema 2. A frame is a full
+  image or only the 64 px tiles that changed since the last frame sent, and a static screen sends
+  no image bytes (on the B3 simulator journey, 120 KiB/min masked, down from 235)
+  ([bf5c22d](https://github.com/ouo11y/ouo11y/commit/bf5c22d47925656414f9877b6ba448a32185f942)).
+- **Session start survives an early native crash** (N52): the crash report carries the session's
+  start; a session the storage never saw is ended from it with reason `crash` on the next launch
+  ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012),
+  [aa6da5a](https://github.com/ouo11y/ouo11y/commit/aa6da5aa7dd8275538ee13e7de9adc860ad69e03)).
 
+### Changed
+
+- The OTLP HTTP exporters are replaced by the outbox's own exporter: dependency
+  `@opentelemetry/otlp-transformer` instead of `@opentelemetry/exporter-{logs,trace}-otlp-http`.
 
 ### Fixed
 
-* **ios:** disk queues keep no wall-clock age, names keep put order ([eda5e32](https://github.com/ouo11y/ouo11y/commit/eda5e3206601fc440a61a3dd96d442a92f005a3d))
-* **react-native:** await the outbox drain on uninstall ([e84614c](https://github.com/ouo11y/ouo11y/commit/e84614cdb41cbdf026b0abd0a2828dff77e15df5))
-* **sdk:** keep SDK_VERSION in sync through release-please ([cd65004](https://github.com/ouo11y/ouo11y/commit/cd650047d988ca57584eb5bea50ee2d72e807ca3))
+- Uninstalling the SDK waits for the outbox drain (at most 2 s), so no request of the old instance
+  is still in flight afterwards
+  ([e84614c](https://github.com/ouo11y/ouo11y/commit/e84614cdb41cbdf026b0abd0a2828dff77e15df5)).
+- `ouo.sdk.version` (and the OTel logger and tracer version) reports the package version (0.2.1
+  reported 0.2.0). release-please now bumps `src/version.ts` with `package.json`
+  ([cd65004](https://github.com/ouo11y/ouo11y/commit/cd650047d988ca57584eb5bea50ee2d72e807ca3)).
+- iOS: the vendored replay chunk queue no longer ages entries by the wall clock. A device clock
+  moved more than a day forward dropped every queued chunk, and one moved back put new chunks
+  before old ones; chunks now leave only by the queue's bounds, a final status or when unreadable
+  ([eda5e32](https://github.com/ouo11y/ouo11y/commit/eda5e3206601fc440a61a3dd96d442a92f005a3d)).
+  The JS OTLP outbox still drops requests older than 24 h by `Date.now()` (checklist N83).
+
+### Compatibility
+
+- Needs collector >= 0.5.0 and rum-api >= 0.6.0 (iOS replay schema 2), and plugin >= 0.10.0 to play
+  it; see [`docs/compatibility.md`](../../docs/compatibility.md). The iOS module vendors the
+  `sdk/ios` sources of its release commit: ios 0.3.0 (its changelog lists the native changes, SwiftUI
+  masking included) plus the queue fix above and the iOS feedback frame (`93bc1bd`, used by React
+  Native only after checklist N82);
+  run `pod install` after upgrading.
 
 ## 0.2.1 - 2026-10-24
 
@@ -25,40 +91,19 @@
 
 - Published publicly on npmjs.org (`npm install @ouo11y/react-native`), released from CI through npm trusted publishing. No code changes since 0.2.0.
 
-## Unreleased
+## 0.2.0 - 2026-10-23
 
 Bridge parity (checklist section 3: G2 to G6, Q1). Everything but the native vitals is in the JS
 SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrameStats()`.
 
 ### Added
 
-- **Hangs, terminations, TTFD and error context** (mobile SDK roadmap W4, spec C2 to C4): iOS app
-  hangs of 2 s or more (fully blocking or not, sentry-cocoa's rules) are one non-fatal `hang`
-  exception each, with the duration and the main thread's stack; a kill in the foreground without a
-  crash report (out of memory, the watchdog) is a fatal `termination` exception on the next launch
-  (`ouo.termination.cause`), and its session is `crashed`; `rum.reportFullyDisplayed()` adds
-  `ouo.screen.ttfd_ms` to the screen's `ouo.screen.display` (which now waits for it until the screen
-  is left, the background or 30 s); every `exception` carries `ouo.last_events`, `app.screen.name`,
-  `ouo.device.locale` and, on iOS, memory and `network.connection.type`, and a crash reported by
-  the next launch the crashed run's screen and last events.
-- **Replay modes and production-safe capture** (mobile SDK roadmap W1): `replay.mode`
-  (`auto` default, `session`, `navigation`); route changes reach the recorder for the
-  navigation-mode frame; the iOS recorder captures after the run loop's UI work within a 100 ms/s
-  main-thread budget, never on touches, drops frames whose masked views move, and sends the chunk
-  a crash left open on the next launch, before the sampling decision (`sdk/ios` CHANGELOG).
-- **Replay tiles** (roadmap W3, ADR-0014): the iOS recorder sends `frames` schema 2. A frame is a
-  full image or only the 64 px tiles that changed since the last frame sent, and a static screen
-  sends no image bytes (on the B3 simulator journey, 120 KiB/min masked, down from 235). Needs
-  rum-api and a collector that read schema 2, and plugin 0.10 to play it (`sdk/ios` CHANGELOG).
-- **Session start survives an early native crash** (N52): the crash report carries the session's
-  start; a session the storage never saw is ended from it with reason `crash` on the next launch.
 - **Sampling** (roadmap 8b, `docs/operations/data-lifecycle.md` section 5): `session.sampleRate`
   (sessions outside it send no spans, events, logs or replay), `replay.sampleRate` and
   `replay.onErrorSampleRate` (an unrecorded session starts recording at its first error). The
   decision is deterministic per session id (FNV-1a + fmix32, shared with rum-api's server-side
   per-project cap), exported as `sampled` / `samplingHash`. JS only: the native recorder is
   started, paused and resumed per session.
-
 - **Span API** (G3): `rum.startSpan(name, { attributes, kind, startTime, parent })` and
   `rum.withSpan(name, fn, options)` on the SDK's tracer, with the session attributes. A
   synchronous context manager makes the `withSpan` span active while `fn` runs: requests,
@@ -107,8 +152,6 @@ SDK; the native vitals are the iOS Expo module's `getAppStartInfo()` / `getFrame
   `console.error` of the same object, `captureError`, the Sentry forwarder).
 - Dev builds no longer trace Metro's `/symbolicate` and `/__sentry/…` calls (LogBox and Sentry's
   middleware): they were spans and `http.request` events after a crashed session's `session.end`.
-
-## 0.2.0 (unreleased)
 
 Phase 8a, ADR-0007 (the collector is the edge, project tokens as HTTP Basic). The SDK talks to
 the `ouo-collector` OpenTelemetry Collector distribution only: OTLP/HTTP for traces and events,
