@@ -298,7 +298,7 @@ Phase 8c replaces this with object storage, a rehearsed restore and a runbook.
 - Grafana restarts with `plugin not installed: "ouo11y-rum-app"` (images mode): the
   `grafana-data` volume hides the image's plugin. `compose.images.yaml`'s `grafana-plugin`
   service copies it before Grafana starts; check `docker logs ouo-grafana-plugin-1`
-  (`ouo11y-rum-app <version> installed`). A checkout older than that service needs the
+  (`ouo11y-rum-app <version> installed`, or `already installed` when the volume has the image's plugin). A checkout older than that service needs the
   installer from `main`.
 - rum-api restarts with `mkdir /data/replays: permission denied`: `deploy/data/rum-api` is
   owned by root; `sudo chown -R 65532:65532 /opt/ouo/deploy/data/rum-api` (the installer does

@@ -76,6 +76,13 @@ grafana 0.5.0 / plugin 0.9.0 on `42a2e07`), so the script refused and the quicks
   contributor `compose.yaml` hides this because it bind-mounts `../data/rum-api`.
 - The `grafana-plugin` init container from `compose.images.yaml` is kept: the `grafana-data`
   volume hides the plugin the image ships.
+- `grafana-plugin` copies only when the volume's plugin differs from the image's (`diff -r`,
+  N90, 2026-11-01): compose reruns the one-shot on every `up -d`, and the old `rm -rf` + `cp -a`
+  replaced the folder under a Grafana that kept running. The quickstart's copy (written by
+  `gen-quickstart.sh`) still has the old command until the next grafana release: `--check`
+  compares it with `compose.images.yaml` at the `grafana-v*` tag, so it fails on
+  `grafana-plugin.command` from that tag on; copy the command from `compose.images.yaml` into the
+  script's block then and regenerate.
 
 ## Keeping it in sync
 

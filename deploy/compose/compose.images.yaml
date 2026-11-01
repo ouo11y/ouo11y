@@ -61,18 +61,24 @@ services:
   # ships in /var/lib/grafana/plugins. Docker seeds an empty volume from the image once, so
   # without this a Grafana image upgrade keeps running the plugin of the first install (and
   # 0.2.0 -> 0.3.0, where the plugin id changed, fails with `plugin not installed:
-  # "ouo11y-rum-app"`). Copy it onto the volume before every start, like the Helm chart's
-  # install-plugin init container.
+  # "ouo11y-rum-app"`). Copy it onto the volume before Grafana starts, like the Helm chart's
+  # install-plugin init container. Compose runs this one-shot again on every `up -d`, also
+  # when only another service changed and Grafana keeps running (checklist N90), so it copies
+  # only when the volume's plugin differs from the image's: an unchanged plugin is never
+  # removed under a running Grafana.
   grafana-plugin:
     image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.6.0}
     pull_policy: missing
     entrypoint: ["sh", "-ec"]
     command:
       - |
+        src=/var/lib/grafana/plugins/ouo11y-rum-app dst=/pvc/plugins/ouo11y-rum-app
+        v=$$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' $$src/plugin.json | head -1)
+        if diff -r $$src $$dst >/dev/null 2>&1; then echo "ouo11y-rum-app $$v already installed"; exit 0; fi
         mkdir -p /pvc/plugins
-        rm -rf /pvc/plugins/ouo11y-rum-app
-        cp -a /var/lib/grafana/plugins/ouo11y-rum-app /pvc/plugins/ouo11y-rum-app
-        echo "ouo11y-rum-app $$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /pvc/plugins/ouo11y-rum-app/plugin.json | head -1) installed"
+        rm -rf $$dst
+        cp -a $$src $$dst
+        echo "ouo11y-rum-app $$v installed"
     volumes:
       - grafana-data:/pvc
     restart: "no"

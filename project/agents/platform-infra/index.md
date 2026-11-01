@@ -8,6 +8,7 @@ Owns `deploy/**` except `deploy/helm` (helm agent): named local envs (`deploy/en
   - [2026-10-17-b2-ouo-env.md](summaries/2026-10-17-b2-ouo-env.md) B2 `deploy/envs/ouo-env`: proxy, named envs, gc, tests, what was verified, what waits for the founder
   - [2026-10-10-phase-8a.md](summaries/2026-10-10-phase-8a.md) Phase 8a: collector loopback-only, rum-api gateway env and tokens, smoke through rum-api, VM install with Caddy TLS; what was validated and what awaits the rum-api rebuild
   - [2026-10-23-8a-vm-upgrade-n12.md](summaries/2026-10-23-8a-vm-upgrade-n12.md) 8a: install.sh on fresh Ubuntu VMs (Lima), `--images` mode, upgrade 0.2.0 -> 0.3.0 with replays, rum-api schema guard, N12 Helm paths on kind
+  - [2026-11-01-n90-plugin-oneshot.md](summaries/2026-11-01-n90-plugin-oneshot.md) N90: the `grafana-plugin` one-shot copies only a changed plugin; N91 `@types/node` in ouo-web; env verification
 - `reports/` HTML reports
   - [2026-10-23-8a-vm-upgrade-n12.html](reports/2026-10-23-8a-vm-upgrade-n12.html) verification report for the 2026-10-23 run (VM install, upgrade, guard, N12)
 - `tools/` test tooling
