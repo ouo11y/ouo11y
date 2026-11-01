@@ -2,6 +2,13 @@
 
 All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
+## [0.3.1](https://github.com/ouo11y/ouo11y/compare/browser-v0.3.0...browser-v0.3.1) (2026-11-01)
+
+
+### Fixed
+
+* **sdk:** keep SDK_VERSION in sync through release-please ([cd65004](https://github.com/ouo11y/ouo11y/commit/cd650047d988ca57584eb5bea50ee2d72e807ca3))
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/browser-v0.2.1...browser-v0.3.0) (2026-10-25)
 
 

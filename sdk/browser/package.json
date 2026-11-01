@@ -1,6 +1,6 @@
 {
   "name": "@ouo11y/browser",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "ouo Real User Monitoring SDK for browsers: OpenTelemetry sessions, errors, fetch tracing, Web Vitals and rrweb replay.",
   "license": "Apache-2.0",
   "repository": {
