@@ -17,7 +17,8 @@ would still replace the folder under Grafana on every `up -d`). When the plugin 
 Grafana image changed: compose then stops the old Grafana container before the one-shot runs and
 starts the new one after it exits (seen by the reviewer), so no Grafana runs during the copy.
 `diff` is the busybox one in the Alpine-based grafana image; it exits 0 on a file it cannot
-read, so the test is "no output at all" rather than its exit status (review of #149).
+read and prints nothing (exit 1) for a directory only in the destination, so the test needs
+both a zero exit and no output (review of #149).
 
 Same path everywhere it runs: `ouo-env up --images` and `deploy/vm/install.sh --images` both use
 `compose.images.yaml`; the source build bind-mounts `plugins/ouo11y-rum-app/dist` and has no
@@ -45,10 +46,11 @@ plugin folder read with `stat` from an `alpine` container on the volume:
 | grafana -> 0.6.0, `up` | `0.10.0 installed` | 0.10.0, new tree hash | recreated, serves 0.10.0 |
 | `plugin.json` deleted, `up` | `0.10.0 installed` | repaired | serves 0.10.0 |
 
-After the review's hardening (`[ -z "$(diff -r ...)" ]`), the rendered command run in
-`grafana:0.6.0` on a throwaway volume: empty -> `installed`, again -> `already installed`, a
-`root:root 0600` file in the destination -> `installed` (the exit-status test said `already
-installed` there), an extra file -> `installed`, again -> `already installed`.
+After the review's hardening (`out=$(diff -r ...) && [ -z "$out" ]`), the rendered command run
+under `sh -ec` in `grafana:0.6.0` on a throwaway volume chowned to uid 472 (a bare volume is
+root-owned; in a real `up` Docker seeds it from the grafana container first): copy on first run,
+then `already installed`; `installed` for a `root:root 0600` file, an extra file, an extra empty
+directory and an extra `n/plugin.json` in the destination.
 
 `gen-quickstart.sh --check`: up to date. N91: `examples/ouo-web` copied outside the repo,
 `npm install` and `npm run build` pass.
