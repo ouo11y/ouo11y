@@ -354,7 +354,10 @@ internal class ReplayRecorder(private val app: Application, private val config: 
       runCatching {
         val info = ActivityManager.RunningAppProcessInfo()
         ActivityManager.getMyMemoryState(info)
-        info.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+        // Exactly these two: a foreground service (and the pre-26 / pre-28 states between them)
+        // ranks above VISIBLE with no activity started.
+        info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+          info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
       }.getOrDefault(true)
 
     fun totalMemory(context: Context): Long =
