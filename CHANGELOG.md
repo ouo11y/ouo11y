@@ -47,7 +47,7 @@ combination; a row says when it has not been run yet.
 
 | Date | rum-api | collector | grafana image | chart | plugin | @ouo11y/browser | @ouo11y/react-native | ouo11y-ios | Verified by |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-10-31 to 2026-11-01 (M2/M3 checkpoint) | 0.6.0 | 0.5.0 | 0.6.0 | 0.2.0 | 0.10.0 | 0.3.1 | 0.3.0 | 0.3.0 (tagged, mirror pending) | `release-check` e2e on every release PR (collector, rum-api, plugin built together); CI `quickstart` and `examples` on the released images (#128); chart configs validated against the released images (#129); upgrade procedure not run yet. Summary: `project/agents/release/summaries/2026-10-31-checkpoint-m2-m3.md` |
+| 2026-10-31 to 2026-11-01 (M2/M3 checkpoint) | 0.6.0 | 0.5.0 | 0.6.0 | 0.2.0 | 0.10.0 | 0.3.1 | 0.3.0 | 0.3.0 (tagged, mirror pending) | `release-check` e2e on every release PR (collector, rum-api, plugin built from source together); the released images' versions and digests checked by CI `quickstart` (#128, no stack started); the chart's rendered configs accepted by the released `rum-api:0.6.0` (`-config.verify`) and `collector:0.5.0` (`validate`) (#129); no stack run on the released images and upgrade procedure not run yet. Summary: `project/agents/release/summaries/2026-10-31-checkpoint-m2-m3.md` |
 
 ## Before tags existed
 
