@@ -1,6 +1,6 @@
 # W9 part 1: React Native Android (replay capture, delivery, vitals) and its conformance suite
 
-Date: 2026-10-31. Branch `claude/w9-android`. Roadmap W9 ([roadmap.md](../../../kb/mobile-sdk-research/roadmap.md), lane D), split into PRs that merge on their own; this is the React Native Android one.
+Date: 2026-10-31. Branch `claude/w9-android`, merged as PR #141 (de2b3bc) on 2026-11-01 after review (`Review: approve`, `Author: agreed`, all 17 checks green, main green after the merge). Roadmap W9 ([roadmap.md](../../../kb/mobile-sdk-research/roadmap.md), lane D), split into PRs that merge on their own; this is the React Native Android one.
 
 ## What was done
 

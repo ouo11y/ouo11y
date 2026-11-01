@@ -423,7 +423,7 @@ jobs:
         working-directory: sdk/ios
         run: xcodebuild -quiet -scheme ouo11y-ios-Package -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/xcode build
 
-  # Android (roadmap W9): the replay-core unit tests on the JVM, the Android library and its
+  # Android (roadmap W9): the replay-core and signals-core unit tests on the JVM, the Android libraries and the
   # instrumented tests compiled, and the React Native Expo module compiled inside the example app's
   # Gradle build. On the Mac runner like `swift` (the hosted runners have no budget, the Linux ones
   # no Android SDK); JDK 17 is the system Temurin, the SDK the Homebrew android-commandlinetools.
@@ -445,9 +445,9 @@ jobs:
         with:
           node-version: 24
       - run: java -version
-      - name: replay-core unit tests, the replay library and its instrumented tests compiled
+      - name: replay-core and signals-core unit tests, the replay and signals libraries, the instrumented tests compiled
         working-directory: sdk/android
-        run: ./gradlew --console=plain :replay-core:test :replay:assembleRelease :replay:compileDebugAndroidTestKotlin
+        run: ./gradlew --console=plain :replay-core:test :signals-core:test :replay:assembleRelease :signals:assembleRelease :replay:compileDebugAndroidTestKotlin
       - name: the Expo module compiled inside examples/ouo-mobile (prebuild, no APK)
         env:
           CI: "1"

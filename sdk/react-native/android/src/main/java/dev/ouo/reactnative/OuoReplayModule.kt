@@ -7,6 +7,7 @@ import dev.ouo.replay.core.Gzip
 import dev.ouo.replay.core.HttpRequest
 import dev.ouo.replay.core.ReplayMode
 import dev.ouo.replay.core.UrlConnectionTransport
+import dev.ouo.signals.Signals
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.exception.Exceptions
@@ -56,16 +57,16 @@ private class MissingCredentialException :
 /**
  * Expo bridge for the Android replay of sdk/android (`dev.ouo.replay.OuoReplay`), with the function
  * names of the iOS module (`sdk/react-native/ios/OuoReplayModule.swift`) so the JavaScript is the same
- * on both platforms, plus the OTLP delivery and the vitals measurements ([Vitals]). The recorder is
- * a process singleton. Crash and hang functions are not here yet (roadmap W9 part 2, on
- * opentelemetry-android): the JavaScript checks each one before it calls it.
+ * on both platforms, plus the OTLP delivery and the native signals of sdk/android ([Signals]:
+ * crashes, hangs, foreground terminations, frames and app start). Recorder and signals are process
+ * singletons.
  */
 class OuoReplayModule : Module() {
   @Volatile private var sessionId = ""
 
   /** When this JS runtime's module instance was created (epoch ms): the start of a warm launch. */
   private val createdAtMs = System.currentTimeMillis().toDouble()
-  private val appStart: Map<String, Any> by lazy { Vitals.beginRuntime(createdAtMs) }
+  private val appStart: Map<String, Any> by lazy { Signals.appStart(createdAtMs.toLong()) }
   private val http = Executors.newSingleThreadExecutor { r -> Thread(r, "ouo-otlp").apply { isDaemon = true } }
 
   private val context: Context
@@ -96,13 +97,15 @@ class OuoReplayModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("OuoReplay")
 
-    // Frame counters run from the module's creation (the JS runtime's start), not only while replay
-    // records, so the app start window has frames too.
-    OnCreate { appContext.reactContext?.let { Vitals.startFrameTracking(it) } }
+    /** A main-thread hang is over: `{ report }`, a `hang` report (mobile SDK spec C3.1). */
+    Events("onHang")
 
-    OnActivityEntersForeground { Vitals.resume() }
-
-    OnActivityEntersBackground { Vitals.pause() }
+    // Before JS asks for anything: the previous run's crash or termination is read before this run
+    // writes its own state, and the frame counters run from the JS runtime's start.
+    OnCreate {
+      appContext.reactContext?.let { Signals.init(it) }
+      Signals.attachCurrent(appContext.currentActivity)
+    }
 
     Function("start") { endpoint: String, options: StartOptions ->
       val config = config(endpoint, options)
@@ -175,12 +178,27 @@ class OuoReplayModule : Module() {
 
     Function("stop") { OuoReplay.stop() }
 
+    // ---- native crashes, hangs and terminations (docs/specs/mobile-sdk.md C2, C3) ----
+
+    /**
+     * Installs the uncaught exception handler (chained to React Native's) and the hang watchdog,
+     * whose reports arrive as `onHang` events, and sets the session a crash belongs to.
+     */
+    Function("installCrashReporter") { sessionId: String, startedAtMs: Double ->
+      Signals.install(sessionId, startedAtMs.toLong()) { report -> sendEvent("onHang", mapOf("report" to report)) }
+    }
+
+    Function("setCrashSessionId") { id: String, startedAtMs: Double -> Signals.setSession(id, startedAtMs.toLong()) }
+
+    /** The previous run's crash report (JSON), or a `termination` report when it was killed in the foreground; null otherwise. */
+    Function("takePendingCrash") { Signals.takePendingReport() }
+
     // ---- mobile vitals (docs/specs/mobile-vitals.md) ----
 
     /** Start of this launch for `ouo.app.start`: `{ processStartMs, type, prewarmed }`, resolved once per runtime. */
     Function("getAppStartInfo") { appStart }
 
     /** Cumulative frame counters since the module started; JS diffs two snapshots. */
-    Function("getFrameStats") { Vitals.frameStats() }
+    Function("getFrameStats") { Signals.frameStats() }
   }
 }

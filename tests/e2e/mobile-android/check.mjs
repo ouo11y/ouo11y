@@ -2,9 +2,9 @@
 // docs/specs/mobile-sdk.md section 3, and prints the checks and the maturity row.
 // Usage: node check.mjs <out dir>   (the env's variables set: deploy/envs/ouo-env env)
 //
-// `pending`: the work package whose merge makes the check pass on React Native Android (W9 part 2:
-// the opentelemetry-android base with native crashes and ANR). A pending check
-// runs and reports without failing the run; once it passes the run fails until `pending` is removed.
+// `pending`: the work package whose merge makes the check pass on React Native Android; a pending
+// check runs and reports without failing the run, and once it passes the run fails until `pending`
+// is removed. None is pending since W9 part 2.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -19,9 +19,10 @@ const notes = readFileSync(join(out, "logcat.txt"), "utf8")
   .filter(Boolean)
   .map((j) => JSON.parse(j));
 const requests = readFileSync(join(out, "requests.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-const launches = notes.filter((n) => n.kind === "launch");
-// run.sh: main, taps, crash, the launch after it, offline, the launch after it.
-const [main, tapRun, crash, , offline] = launches;
+// run.sh names every launch (`am start -e ouo_action <name>`); the early crash notes itself.
+const launch = (action) => notes.find((n) => n.kind === "launch" && n.action === action);
+const [main, tapRun, crash, hang, oom, offline, reject] = ["main", "taps", "crash", "hang", "oom", "offline", "reject"].map(launch);
+const early = notes.find((n) => n.kind === "crash" && n.action === "crash-early");
 const rotated = notes.find((n) => n.kind === "active" && n.ts > main.ts && n.ts < tapRun.ts && n.session !== main.session)?.session;
 const noteAfter = (l, kind) => notes.find((n) => n.kind === kind && n.ts >= l.ts && n.session === l.session);
 
@@ -65,18 +66,29 @@ const CHECKS = {
     const e = named(d, "exception").find((x) => attr(x, "exception.message") === "golden handled error");
     return d?.status === "errored" && attr(e, "ouo.exception.handled") === "true" && attr(e, "ouo.exception.fatal") === "false" && Boolean(attr(e, "exception.stacktrace")) && hasContext(e, "Cart");
   },
-  "C2.2": {
-    pending: "W9 part 2",
-    run: async () => {
-      const d = await detail(crash.session);
-      const e = named(d, "exception").find((x) => attr(x, "ouo.exception.kind") === "native");
-      const at = noteAfter(crash, "crash")?.ts;
-      return d?.status === "crashed" && d?.end_reason === "crash" && Math.abs(Date.parse(d.ended_at) - at) <= 1000 && attr(e, "ouo.exception.fatal") === "true" && hasContext(e, "Cart");
-    },
+  "C2.2": async () => {
+    const d = await detail(crash.session);
+    const e = named(d, "exception").find((x) => attr(x, "ouo.exception.kind") === "native");
+    const at = noteAfter(crash, "crash")?.ts;
+    return (
+      d?.status === "crashed" && d?.end_reason === "crash" && Math.abs(Date.parse(d.ended_at) - at) <= 1000 &&
+      attr(e, "ouo.exception.fatal") === "true" && named(d, "session.start").length === 1 && hasContext(e, "Cart")
+    );
   },
-  "C2.3": { pending: "W9 part 2", run: null },
-  "C3.1": { pending: "W9 part 2", run: null },
-  "C3.2": { pending: "W9 part 2", run: null },
+  // N52: nothing was exported before the crash; the session starts when it started, not at the crash.
+  "C2.3": async () => {
+    const d = await detail(early?.session);
+    return d?.status === "crashed" && d?.end_reason === "crash" && Date.parse(d.started_at) <= early.ts && Math.abs(Date.parse(d.ended_at) - (early.ts + 200)) <= 1000;
+  },
+  "C3.1": async () => {
+    const hs = named(await detail(hang.session), "exception").filter((x) => attr(x, "ouo.exception.kind") === "hang");
+    return hs.length === 1 && Number(attr(hs[0], "ouo.hang.duration_ms")) >= 2000 && attr(hs[0], "ouo.exception.fatal") === "false" && hasContext(hs[0], "Cart");
+  },
+  "C3.2": async () => {
+    const d = await detail(oom.session);
+    const e = named(d, "exception").find((x) => attr(x, "ouo.exception.kind") === "termination");
+    return d?.status === "crashed" && d?.end_reason === "crash" && attr(e, "ouo.exception.fatal") === "true" && Boolean(attr(e, "ouo.termination.cause"));
+  },
   "C4.1": async () => {
     const v = await getJSON(`${RUM}/v1/sessions/${main.session}/vitals`).catch(() => null);
     const s = v?.summary ?? {};
@@ -184,6 +196,16 @@ const CHECKS = {
     const otlp = requests.filter((r) => /\/v1\/(logs|traces)$/.test(r.path));
     return otlp.length > 0 && otlp.every((r) => r.encoding === "gzip");
   },
+  // The 500 is sent once and dropped, the 503 again until it arrives, and the step after them is in rum-api.
+  "C11.3": async () => {
+    const sends = (h) => requests.filter((r) => r.body === h);
+    const poison = requests.find((r) => r.injected && r.status === 500)?.body;
+    const flaky = requests.find((r) => r.injected && r.status === 503)?.body;
+    return (
+      Boolean(poison && flaky) && sends(poison).length === 1 && sends(flaky).length >= 2 && sends(flaky).at(-1).status === 200 &&
+      named(await detail(reject.session), "reject-step").length === 1
+    );
+  },
 };
 
 const rows = [];
@@ -212,5 +234,5 @@ for (const [cap, ls] of Object.entries(levels)) levels[cap] = ls.every((l) => l 
 table(rows);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
 console.log("maturity (React Native Android, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
-console.log({ main: main?.session, rotated, taps: tapRun?.session, crash: crash?.session, offline: offline?.session });
+console.log({ main: main?.session, rotated, taps: tapRun?.session, crash: crash?.session, early: early?.session, hang: hang?.session, oom: oom?.session, offline: offline?.session, reject: reject?.session });
 process.exit(failed ? 1 : 0);

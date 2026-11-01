@@ -468,3 +468,57 @@ describe("error context (docs/specs/mobile-sdk.md C2)", () => {
     expect(attr(exc.attributes, "network.connection.type")).toBeUndefined();
   });
 });
+
+describe("Android reports (sdk/android Signals)", () => {
+  const jvm = {
+    version: 1,
+    platform: "android",
+    mechanism: "jvm",
+    timestamp_ms: 1_760_000_000_000,
+    session_id: "s-android",
+    session_started_ms: 1_759_999_990_000,
+    exception: { name: "java.lang.IllegalStateException", reason: "ouo-mobile: native crash\nCaused by: java.io.IOException: disk" },
+    thread: { main: true },
+    frames: [
+      { module: "dev.ouo.chaos.OuoChaosModule", function: "crash", filename: "OuoChaosModule.kt", lineno: 61 },
+      { module: "android.os.Handler", function: "handleCallback" },
+    ],
+    images: [],
+  };
+
+  it("parses a jvm crash and keeps its JVM frames", () => {
+    const r = parseNativeCrash(JSON.stringify(jvm))!;
+    expect(r.mechanism).toBe("jvm");
+    expect(r.frames).toHaveLength(2);
+    const a = nativeCrashAttributes(r);
+    expect(a["ouo.exception.kind"]).toBe("native");
+    expect(a["ouo.exception.fatal"]).toBe(true);
+    expect(a["exception.type"]).toBe("java.lang.IllegalStateException");
+    expect(a["exception.message"]).toContain("Caused by: java.io.IOException: disk");
+    expect(a["ouo.crash.thread_main"]).toBe(true);
+    expect(formatNativeStack(r)).toBe(
+      [
+        "java.lang.IllegalStateException: ouo-mobile: native crash\nCaused by: java.io.IOException: disk",
+        "Thread (main thread) crashed:",
+        "    at dev.ouo.chaos.OuoChaosModule.crash(OuoChaosModule.kt:61)",
+        "    at android.os.Handler.handleCallback(Unknown Source)",
+      ].join("\n"),
+    );
+    expect(isReactNativeFatal(r)).toBe(false);
+  });
+
+  it("treats React Native's JavascriptException as the JS fatal it wraps", () => {
+    const r = parseNativeCrash(JSON.stringify({ ...jvm, exception: { name: "com.facebook.react.common.JavascriptException", reason: "Error: boom" } }))!;
+    expect(isReactNativeFatal(r)).toBe(true);
+  });
+
+  it("reads Android hangs and terminations", () => {
+    const hang = parseNativeCrash(JSON.stringify({ ...jvm, mechanism: "hang", exception: undefined, hang: { duration_ms: 3050, fully_blocking: true } }))!;
+    const h = nativeCrashAttributes(hang);
+    expect([h["ouo.exception.kind"], h["ouo.exception.fatal"], h["ouo.hang.duration_ms"], h["exception.type"]]).toEqual(["hang", false, 3050, "AppHang"]);
+    expect(String(h["exception.stacktrace"])).toContain("Thread (main thread) hung:");
+    const term = parseNativeCrash(JSON.stringify({ ...jvm, mechanism: "termination", exception: undefined, thread: undefined, frames: [], termination: { cause: "memory" } }))!;
+    const t = nativeCrashAttributes(term);
+    expect([t["ouo.exception.kind"], t["ouo.exception.fatal"], t["ouo.termination.cause"], t["exception.stacktrace"]]).toEqual(["termination", true, "memory", undefined]);
+  });
+});

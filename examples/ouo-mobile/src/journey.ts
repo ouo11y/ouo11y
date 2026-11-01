@@ -121,6 +121,13 @@ async function run(cmd: string): Promise<void> {
   }
 }
 
+// The Android suite's C2.3 launch (`am start -e ouo_action crash-early`): a native crash 200 ms
+// after the JS bundle runs, before anything was exported.
+if (config.conformance && chaos?.launchAction?.() === "crash-early") {
+  note("crash", { action: "crash-early" });
+  setTimeout(() => chaos?.crashNatively?.(), 200);
+}
+
 export function startJourneyMailbox(): () => void {
   if (Platform.OS === "android") {
     // The receiver is exported (adb sends from the shell user): only the conformance and debug

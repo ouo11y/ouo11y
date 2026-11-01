@@ -19,3 +19,4 @@ One dated summary per run.
 - [2026-10-31-n76-feedback-frame.md](2026-10-31-n76-feedback-frame.md) N76: `FrameReason.feedback` on iOS, native C10.1 asks for the frame within 2 s, the plugin says "screenshot" and seeks to it
 - [2026-10-31-w9-android-part1.md](2026-10-31-w9-android-part1.md) W9 part 1: React Native Android: `sdk/android` replay capture, the Expo module Android side (replay, gzip delivery, vitals), the emulator suite `tests/e2e/mobile-android`, CI job `android`
 - [2026-11-01-n55-n83-delivery-retries.md](2026-11-01-n55-n83-delivery-retries.md) N55 and N83: C11 retries only 429 and 502–504 (new check C11.3 in both suites), the React Native outbox keeps no age
+- [2026-11-01-w9-android-part2.md](2026-11-01-w9-android-part2.md) W9 part 2: native signals in `sdk/android` (crashes, hangs, `ApplicationExitInfo` terminations, `FrameMetrics`, cold start), ADR-0017, React Native Android at L2 on C1–C11 including C11.3

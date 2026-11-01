@@ -11,6 +11,7 @@ if (__DEV__ && process.env.EXPO_PUBLIC_QUIET_LOGBOX === "1") {
   LogBox.ignoreAllLogs(true);
 }
 import type { RootStackParamList } from "./src/navigation";
+import { chaos } from "./modules/ouo-chaos";
 import { navigationRef, startJourneyMailbox } from "./src/journey";
 import { appVersion, note, rum, shortId } from "./src/rum";
 import { CartScreen } from "./src/screens/CartScreen";
@@ -43,7 +44,7 @@ export default function App() {
   useEffect(() => startJourneyMailbox(), []);
   // Conformance notes (tests/e2e/mobile-android): each launch and each return to the foreground, with the session then.
   useEffect(() => {
-    note("launch");
+    note("launch", { action: chaos?.launchAction?.() ?? "" });
     const sub = AppState.addEventListener("change", (s) => s === "active" && note("active"));
     return () => sub.remove();
   }, []);
