@@ -4,12 +4,14 @@ import FoundationNetworking
 #endif
 
 /// A folder of requests waiting for the collector (mobile SDK spec C11): each body is a file written
-/// before anything is sent and removed when the collector answers 2xx or rejects it (any other
-/// status but 408, 429 and 5xx). Those and network errors leave it in place and retry after a
-/// backoff (at least `Retry-After`), on `drain` and in the next process, so an
-/// outage, a crash or a kill mid-request loses nothing; what arrived just before a kill is sent
-/// again (at least once). Sent oldest first, one request at a time. Bounded by bytes and entries,
-/// the oldest dropped first, never the one in flight nor the newest.
+/// before anything is sent and removed when the collector answers. Network errors and OTLP/HTTP's
+/// retryable answers (429, 502, 503, 504: `retryable`) leave it in place and retry after a backoff
+/// (at least `Retry-After`), on `drain` and in the next process, so an outage, a crash or a kill
+/// mid-request loses nothing; what arrived just before a kill is sent again (at least once). Any
+/// other answer is final: 2xx is sent, the rest is rejected (removed and counted), so a request the
+/// collector answers 500 to every time costs one attempt instead of blocking the queue behind it
+/// (checklist N55). Sent oldest first, one request at a time. Bounded by bytes and entries, the
+/// oldest dropped first, never the one in flight nor the newest.
 ///
 /// No age bound: an age needs a clock that both survives a reboot and cannot be moved, and a phone
 /// has none (the wall clock is the user's to set, a monotonic one restarts at boot). An age on the
@@ -103,7 +105,12 @@ public final class DiskQueue {
         self.queue = DispatchQueue(label: "dev.ouo.disk-queue.\(directory.lastPathComponent)")
     }
 
-    /// Sent (2xx), dropped (bounds, unreadable, `remove`) and rejected (final status) entries.
+    /// OTLP/HTTP's retryable answers: 429, 502, 503 and 504. Any other status is final.
+    public static func retryable(_ status: Int) -> Bool {
+        status == 429 || status == 502 || status == 503 || status == 504
+    }
+
+    /// Sent (2xx), dropped (bounds, unreadable, `remove`) and rejected (a final status but 2xx) entries.
     public var sent: Int { queue.sync { stats.sent } }
     public var dropped: Int { queue.sync { stats.dropped } }
     public var rejected: Int { queue.sync { stats.rejected } }
@@ -265,12 +272,12 @@ public final class DiskQueue {
             failures = 0
             logger.log("sent \(head.tag)")
             pump()
-        case .success(let status) where status == 408 || status == 429 || status >= 500:
+        case .success(let status) where Self.retryable(status):
             retryLater(head, "HTTP \(status)", retryAfter: (try? result.get())?.retryAfter)
         case .success(let status):
             try? FileManager.default.removeItem(at: head.url)
             stats.rejected += 1
-            logger.warn("\(head.tag) rejected: HTTP \(status)")
+            logger.warn("\(head.tag) rejected: HTTP \(status), dropped (not retryable)")
             pump()
         case .failure(let error):
             retryLater(head, "\(error)", retryAfter: nil)

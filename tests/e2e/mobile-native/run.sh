@@ -56,6 +56,9 @@ run offline; sleep 4; stop
 docker start "$COLLECTOR" >/dev/null
 for _ in $(seq 1 30); do curl -sf -o /dev/null "$OUO_COLLECTOR_HEALTH_URL" && break; sleep 2; done
 run idle; sleep 6; stop
+echo "reject: the proxy answers the first OTLP request 500 every time, the second 503 once"
+curl -sf -X POST "http://127.0.0.1:$PROXY_PORT/__reject"
+run reject "http://127.0.0.1:$PROXY_PORT"; sleep 8; stop
 
 cp "$(xcrun simctl get_app_container "$UDID" "$APP" data)/Documents/journey.jsonl" "$OUT/journey.jsonl"
 node "$HERE/check.mjs" "$OUT"

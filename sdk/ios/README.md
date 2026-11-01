@@ -66,7 +66,7 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 | C8 replay | `OuoReplay` for the sampled sessions, rotated with the session; SwiftUI text and symbols masked (`SwiftUI.CGDrawingView`, not inside system bars), `.ouoMask()` / `.ouoUnmask()` |
 | C10 feedback | `feedback` with message, contact, id, `ouo.last_events`, and a masked frame of the screen when replay records (reason `feedback`, a full image, within 2 s; the plugin's "screenshot") |
 | C9 spans and logs | `startSpan`, `withSpan`, `log` |
-| C11 delivery | OTLP/JSON, gzip, Basic credential; every batch on disk before it is sent (`Application Support/ouo/sdk/otlp`, 5 MB, 500 requests, no age limit), retried with backoff, `Retry-After`, sent on the next launch, on foreground and on `flush`; at least once |
+| C11 delivery | OTLP/JSON, gzip, Basic credential; every batch on disk before it is sent (`Application Support/ouo/sdk/otlp`, 5 MB, 500 requests, no age limit), retried with backoff on network errors, 429, 502, 503 and 504 (`Retry-After` honoured), any other answer final (a 500 is dropped and counted, never blocks the queue), sent on the next launch, on foreground and on `flush`; at least once |
 
 Rules worth knowing:
 
@@ -233,9 +233,11 @@ reference so the next frame is always sent.
 base64("<projectId>:<projectToken>")` (`ChunkUploader.basicAuthorization(projectId:projectToken:)`,
 standard base64 of the UTF-8 bytes; the collector's `basicauth` answers 401 without a valid pair),
 `content-type: application/json`, `content-encoding: gzip`, `x-ouo-session-id`, `x-ouo-seq`; sends
-chunks in order from a folder on disk (`DiskQueue`), retries 408, 429, 5xx and network errors with
-a backoff from 1 s to 60 s (at least `Retry-After`), on `drain` and on the next launch, and drops
-the oldest queued chunk beyond 10 MB (no age limit: a clock the user moves does not drop the queue).
+chunks in order from a folder on disk (`DiskQueue`), retries network errors, 429, 502, 503 and 504
+(OTLP/HTTP's retryable answers) with a backoff from 1 s to 60 s (at least `Retry-After`), on `drain`
+and on the next launch, drops a chunk with any other answer (counted as rejected: a 500 given every
+time does not block the queue), and drops the oldest queued chunk beyond 10 MB (no age limit: a
+clock the user moves does not drop the queue).
 Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
 `began|moved|ended`).
 

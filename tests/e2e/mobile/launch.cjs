@@ -15,6 +15,8 @@
  *   terminate    Home, a memory warning, then the system kills the app in the foreground (no
  *                crash report): a simulated out-of-memory kill
  *   offline      Home and a background stay with the collector refused (OUO_E2E_OFFLINE=1)
+ *   reject       Home, then Products, each flushed, while the collector answers the first OTLP
+ *                request 500 every time and the second 503 once (OUO_E2E_REJECT=1)
  *   relaunch     the next launch: takes the previous run's state, then flushes
  * Env: OUO_OTLP_URL, OUO_REPLAY_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
  *      OUO_E2E_SERVICE (service.name of the run), OUO_STORAGE_FILE (the device's AsyncStorage).
@@ -119,6 +121,14 @@ async function main() {
       await sleep(500);
       AppState.__emit("background"); // flush on background, refused
       await sleep(1500);
+      break;
+    case "reject":
+      rum.trackNavigation("/Home");
+      await rum.flush();
+      await sleep(300);
+      rum.trackNavigation("/Products");
+      await rum.flush();
+      await sleep(2500); // the 503's retry, 1 s after it
       break;
     case "relaunch":
       break;

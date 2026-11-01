@@ -5,8 +5,9 @@ import OuoReplayCore
 /// in memory for at most a second (or 64 of a kind), then each batch is written to the outbox, a
 /// `DiskQueue` folder, before it is sent gzip with the project credential. The outbox keeps what the
 /// collector has not accepted across outages, kills and launches: 5 MB of uncompressed JSON and 500
-/// requests, the oldest dropped first (no age: `DiskQueue`); retried after 1 s doubling to 30 s (at least
-/// `Retry-After`), on foreground, on `flush` and on the next launch. Delivery is at least once.
+/// requests, the oldest dropped first (no age: `DiskQueue`); network errors, 429, 502, 503 and 504 are
+/// retried after 1 s doubling to 30 s (at least `Retry-After`), on foreground, on `flush` and on the
+/// next launch, any other answer is final (`DiskQueue.retryable`). Delivery is at least once.
 ///
 /// What is lost: the records of the last second before a crash or a kill (not yet in a batch).
 final class Exporter {

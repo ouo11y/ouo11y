@@ -12,7 +12,7 @@ SIMCTL_CHILD_OUO_OTLP=http://localhost:4318 SIMCTL_CHILD_OUO_ACTION=journey xcru
 ```
 
 Environment: `OUO_OTLP` (collector OTLP/HTTP), `OUO_REPLAY` (its replay receiver), `OUO_BACKEND` (the demo backend), `OUO_ACTION`
-(`journey`, `taps`, `hang`, `crash`, `early`, `oom`, `offline`, `bench`, `dump`), `OUO_OFF=1` (the
+(`journey`, `taps`, `hang`, `crash`, `early`, `oom`, `offline`, `reject`, `bench`, `dump`), `OUO_OFF=1` (the
 SDK not started), `OUO_TAP_LABELS=0`, `OUO_DEBUG=1`. The app writes its steps to
 `Documents/journey.jsonl` for the suite's checker.
 

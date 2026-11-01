@@ -9,6 +9,7 @@
 //      early      native crash 200 ms after launch, then the next launch
 //      terminate  a memory warning, killed in the foreground without a report, then the next launch
 //      offline    a launch with the collector refused, then the next launch online
+//      reject     a launch whose first OTLP request the collector answers 500 every time, the second 503 once
 // 2. Asserts every check of the spec against rum-api (and the stand-in's request log for the
 //    wire checks), polling until the required checks pass or OUO_E2E_TIMEOUT runs out.
 // 3. Prints one line per check and the maturity row of React Native iOS (L0-L2; L3 also needs
@@ -43,7 +44,9 @@ const DEVICES = {
   early: ["early-crash", "relaunch"],
   terminate: ["terminate", "relaunch"],
   offline: ["offline", "relaunch"],
+  reject: ["reject"],
 };
+const LAUNCH_ENV = { offline: { OUO_E2E_OFFLINE: "1" }, reject: { OUO_E2E_REJECT: "1" } };
 
 function launch(dir, name, extraEnv = {}) {
   return new Promise((resolve, reject) => {
@@ -83,7 +86,7 @@ async function runGoldenApp() {
     mkdirSync(dir, { recursive: true });
     golden[device] = { dir, launches: [] };
     for (const name of launches) {
-      const r = await launch(dir, name, device === "offline" && name === "offline" ? { OUO_E2E_OFFLINE: "1" } : {});
+      const r = await launch(dir, name, LAUNCH_ENV[name] ?? {});
       golden[device].launches.push(r);
     }
     golden[device].log = readFileSync(join(dir, "standin.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
@@ -391,6 +394,23 @@ const CHECKS = [
       const otlp = g.main.log.filter((x) => x.kind === "request" && /\/v1\/(logs|traces|metrics)$/.test(x.url));
       const encodings = [...new Set(otlp.map((x) => x.encoding))];
       return result(otlp.length > 0 && encodings.join() === "gzip", otlp.length > 0, { requests: otlp.length, encodings });
+    },
+  },
+  {
+    id: "C11.3",
+    title: "a 500 is final, a 503 is retried, and nothing waits behind the 500",
+    async run(g) {
+      const otlp = g.reject.log.filter((x) => x.kind === "request" && x.body);
+      const sends = (hash) => otlp.filter((x) => x.body === hash);
+      const poison = otlp.find((x) => x.injected && x.status === 500)?.body;
+      const flaky = otlp.find((x) => x.injected && x.status === 503)?.body;
+      const d = await detail(g.reject.launches[0].session);
+      const later = named(d, "navigation").some((e) => attr(e, "url.path") === "/Products");
+      return result(
+        Boolean(poison && flaky) && sends(poison).length === 1 && sends(flaky).length >= 2 && sends(flaky).at(-1).status === 200 && later,
+        Boolean(poison),
+        { sends_of_500: poison ? sends(poison).length : 0, sends_of_503: flaky ? sends(flaky).map((x) => x.status) : [], later_events: later },
+      );
     },
   },
 ];

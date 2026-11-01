@@ -55,8 +55,8 @@ public final class URLSessionTransport: ChunkTransport {
 ///
 /// The queue is a `DiskQueue` folder (docs/specs/mobile-replay.md, "Delivery"): each chunk is
 /// written there as the gzip body it is sent with before anything is sent, and removed on a 2xx or
-/// a rejection; an outage or a kill mid-upload loses nothing. Bounded by `maxQueueBytes` (oldest
-/// dropped first).
+/// a rejection (any status but 429, 502, 503 and 504: `DiskQueue.retryable`); an outage or a kill
+/// mid-upload loses nothing. Bounded by `maxQueueBytes` (oldest dropped first).
 ///
 /// With `hold`, chunks go to `held/` instead and wait for `release(sessionId:keep:)`: the host
 /// decides at the next launch whether a finished session's replay is sent (the keep/drop hook).
