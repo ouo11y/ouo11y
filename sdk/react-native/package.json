@@ -1,7 +1,7 @@
 {
   "name": "@ouo11y/react-native",
   "version": "0.3.0",
-  "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS).",
+  "description": "ouo Real User Monitoring SDK for React Native / Expo: OpenTelemetry sessions, errors, crashes, app version, fetch tracing and native session replay (iOS, Android).",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -19,7 +19,8 @@
     "session-replay",
     "react-native",
     "expo",
-    "ios"
+    "ios",
+    "android"
   ],
   "publishConfig": {
     "access": "public"
@@ -49,11 +50,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "node scripts/sync-ios.mjs && tsup",
+    "build": "node scripts/sync-ios.mjs && node scripts/sync-android.mjs && tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "sync:ios": "node scripts/sync-ios.mjs",
+    "sync:android": "node scripts/sync-android.mjs",
     "prepack": "npm run build"
   },
   "peerDependencies": {

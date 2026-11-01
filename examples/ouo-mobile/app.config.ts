@@ -30,8 +30,9 @@ const config: ExpoConfig = {
     },
   },
   web: { favicon: "./assets/favicon.png" },
-  // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet.
-  plugins: ["./plugins/withUIScene.js"],
+  // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet. The Android
+  // Release build talks plain http to the local stack (10.0.2.2 from the emulator).
+  plugins: ["./plugins/withUIScene.js", "./plugins/withAndroidCleartext.js"],
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
     otlpEndpoint: process.env.EXPO_PUBLIC_OTLP_ENDPOINT ?? "http://localhost:4318",
@@ -39,6 +40,9 @@ const config: ExpoConfig = {
     projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
     projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
+    // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
+    // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
+    conformance: process.env.OUO_CONFORMANCE === "1",
   },
 };
 

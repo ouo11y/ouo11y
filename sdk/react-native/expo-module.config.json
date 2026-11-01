@@ -5,6 +5,6 @@
     "swiftModuleName": "OuoReactNative"
   },
   "android": {
-    "modules": ["dev.ouo.replay.OuoReplayModule"]
+    "modules": ["dev.ouo.reactnative.OuoReplayModule"]
   }
 }

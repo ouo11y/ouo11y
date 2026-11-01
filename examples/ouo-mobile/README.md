@@ -8,7 +8,7 @@ Screens: Products, Product, Cart, Checkout (`card` succeeds, `broken-card` makes
 backend answer 500), Order, Chaos. The header badge shows `v<app version> · <short session id>`
 and updates when the session rotates.
 
-Session replay (iOS, ADR-0006) is enabled in `src/rum.ts` (`replay: { enabled: true }`). The
+Session replay (iOS and Android, ADR-0006) is enabled in `src/rum.ts` (`replay: { enabled: true }`). The
 Checkout screen has a promo-code field with `testID="ouo-mask"` and the Product screen's title
 has `testID="ouo-unmask"` to show the two overrides; the Chaos screen's "Replay pause/resume"
 button toggles the recorder and shows `rum.replay.isRecording()`. Replay only records in a
@@ -83,6 +83,26 @@ Mobile vitals (`docs/specs/mobile-vitals.md`) are checked with `--vitals` once t
 CI cannot run an iOS Simulator on Linux: the `examples` job in `.github/workflows/ci.yml`
 typechecks the app and runs the SDK's built bundle in Node (`sdk/react-native/playground`) against
 the same stack and `verify.py`.
+
+## Android (emulator)
+
+Needs JDK 17, the Android SDK and an emulator ([project/kb/android-setup.md](../../project/kb/android-setup.md)).
+`scripts/build-android.sh` builds the Release APK with the stack's URLs baked in (`--env <name>` uses an
+ouo-env's ports on `10.0.2.2`, the emulator's address of the Mac; `--host <LAN IP>` for a phone) and
+installs it; `plugins/withAndroidCleartext.js` lets the Release build talk plain http to the local
+stack. The journey's commands reach the app as broadcasts handled by `modules/ouo-chaos` (Android side):
+
+```bash
+deploy/envs/ouo-env up mobile-demo --images
+examples/ouo-mobile/scripts/build-android.sh --env mobile-demo --conformance   # the journey commands need it (or a debug build)
+adb shell am start -n dev.ouo.mobilestore/.MainActivity
+adb shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --es cmd 'screen/Cart'"
+```
+
+`--conformance` builds the golden app of the Android conformance suite
+([tests/e2e/mobile-android](../../tests/e2e/mobile-android/README.md)): default replay masking, a 5 s
+background timeout, and `OUO_NOTE` lines in logcat. The Product screen shows an image so the suite can
+check that images are masked.
 
 ## Configuration
 

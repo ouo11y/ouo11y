@@ -1,0 +1,17 @@
+// Demo-only native module of examples/ouo-mobile (Android side): the journey's command channel and
+// what the OS does to an app. Not part of the SDK.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.ouo'
+version = '1.0.0'
+
+android {
+  namespace "dev.ouo.chaos"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

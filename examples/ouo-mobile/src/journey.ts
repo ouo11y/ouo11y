@@ -13,13 +13,34 @@
 //   action/hang?ms=3000          block the main thread (modules/ouo-chaos): one hang exception
 //   action/stutter?ms=1200&times=3  block it three times with a frame between: a hang not fully blocking
 //   action/oom                   a memory warning, then SIGKILL: a termination on the next launch
+//   action/error                 rum.captureError("golden handled error") on the current screen
+//   action/golden                a request inside rum.withSpan("golden.checkout"), then a log line
+//   action/areas                 notes the window rectangles of the views the replay must mask
+//   action/crash                 a native crash (Android: an exception on the main thread)
+//   action/event?name=...        rum.addEvent(name)
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
+//
+// On Android the commands arrive as broadcasts (modules/ouo-chaos, `am broadcast -a
+// dev.ouo.mobilestore.JOURNEY --es cmd <command>`): a release build's files are not writable by adb,
+// and a deep link would pause the activity, which React Native reports as a background.
 import { createNavigationContainerRef } from "@react-navigation/native";
 import { File, Paths } from "expo-file-system";
+import { Platform, type View } from "react-native";
 import { chaos } from "../modules/ouo-chaos";
 import { addToCart, checkout, getProducts, type PaymentMethod } from "./api";
 import type { RootStackParamList } from "./navigation";
-import { rum } from "./rum";
+import { config, note, rum } from "./rum";
+
+/** Views whose rectangles `action/areas` notes for the replay pixel check (C8.2), by name. */
+const areas = new Map<string, View>();
+
+/** `ref={maskedArea("cart-total")}`: registers a view `action/areas` measures while it is mounted. */
+export function maskedArea(name: string): (v: View | null) => void {
+  return (v) => {
+    if (v) areas.set(name, v);
+    else areas.delete(name);
+  };
+}
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -60,7 +81,7 @@ async function run(cmd: string): Promise<void> {
         await rum.flush();
         break;
       case "feedback":
-        rum.feedback({ message: params.get("message") ?? "", contact: params.get("contact") ?? "", screenshot: true });
+        note("feedback", { id: rum.feedback({ message: params.get("message") ?? "", contact: params.get("contact") ?? "", screenshot: true }) });
         break;
       case "hang":
         await chaos?.blockMainThread(Number(params.get("ms") ?? 3000));
@@ -71,6 +92,29 @@ async function run(cmd: string): Promise<void> {
       case "oom":
         chaos?.simulateOutOfMemory();
         break;
+      case "error":
+        try {
+          throw new Error("golden handled error");
+        } catch (err) {
+          rum.captureError(err);
+        }
+        break;
+      case "golden":
+        await rum.withSpan("golden.checkout", () => getProducts());
+        rum.log.info("golden log line");
+        break;
+      case "areas":
+        for (const [name, view] of areas) {
+          view.measureInWindow((x, y, w, h) => note("area", { name, x, y, w, h }));
+        }
+        break;
+      case "event":
+        rum.addEvent(params.get("name") ?? "journey.event");
+        break;
+      case "crash":
+        note("crash");
+        chaos?.crashNatively?.();
+        break;
     }
   } catch {
     // failed requests are the point of some commands; the SDK records them
@@ -78,6 +122,16 @@ async function run(cmd: string): Promise<void> {
 }
 
 export function startJourneyMailbox(): () => void {
+  if (Platform.OS === "android") {
+    // The receiver is exported (adb sends from the shell user): only the conformance and debug
+    // builds listen, so no other app can drive a demo build.
+    if (!config.conformance && !__DEV__) return () => {};
+    const sub = chaos?.addListener?.("onJourneyCommand", (e: { cmd: string }) => {
+      note("command", { cmd: e.cmd });
+      void run(e.cmd);
+    });
+    return () => sub?.remove();
+  }
   const file = new File(Paths.document, "journey-command");
   const timer = setInterval(() => {
     try {

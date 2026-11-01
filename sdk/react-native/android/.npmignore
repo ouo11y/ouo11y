@@ -1,0 +1,5 @@
+# When a directory has an .npmignore, npm stops reading its .gitignore, so the vendored Kotlin
+# copies (vendor/, written by scripts/sync-android.mjs and gitignored) are included in the published
+# tarball. Without them the Expo module would not compile.
+/build/
+/.gradle/

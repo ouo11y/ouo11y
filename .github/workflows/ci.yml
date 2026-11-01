@@ -1,7 +1,7 @@
 # Continuous integration for every pull request and for pushes to main.
 # Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
 # ocb build (collector/), npm build + test across the workspaces (Node 24), the Swift core
-# tests of sdk/ios on macOS, helm lint, an offline link check of the docs, and a build (no
+# tests of sdk/ios on macOS, the Android build and unit tests of sdk/android on the same Mac, helm lint, an offline link check of the docs, and a build (no
 # push) plus a Trivy scan of every released container image. See docs/releasing.md.
 #
 # Actions minutes (free org plan): the `changes` job lists the files a pull request touches
@@ -33,6 +33,7 @@ jobs:
       collector: ${{ steps.paths.outputs.collector }}
       node: ${{ steps.paths.outputs.node }}
       swift: ${{ steps.paths.outputs.swift }}
+      android: ${{ steps.paths.outputs.android }}
       helm: ${{ steps.paths.outputs.helm }}
       quickstart: ${{ steps.paths.outputs.quickstart }}
       images: ${{ steps.paths.outputs.images }}
@@ -60,6 +61,8 @@ jobs:
           flag collector '^(collector|deploy/compose/collector)/'
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
+          # The Kotlin, the scripts and manifests that vendor and build it into the example app.
+          flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
           flag helm      '^deploy/helm/'
           flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
@@ -419,6 +422,43 @@ jobs:
       - name: iOS simulator build (every target, with the UIKit code and the Objective-C smoke)
         working-directory: sdk/ios
         run: xcodebuild -quiet -scheme ouo11y-ios-Package -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/xcode build
+
+  # Android (roadmap W9): the replay-core unit tests on the JVM, the Android library and its
+  # instrumented tests compiled, and the React Native Expo module compiled inside the example app's
+  # Gradle build. On the Mac runner like `swift` (the hosted runners have no budget, the Linux ones
+  # no Android SDK); JDK 17 is the system Temurin, the SDK the Homebrew android-commandlinetools.
+  # The emulator runs (pixel test, tests/e2e/mobile-android) stay local: one job at a time here.
+  android:
+    name: android (sdk/android, React Native module)
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    env:
+      ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: java -version
+      - name: replay-core unit tests, the replay library and its instrumented tests compiled
+        working-directory: sdk/android
+        run: ./gradlew --console=plain :replay-core:test :replay:assembleRelease :replay:compileDebugAndroidTestKotlin
+      - name: the Expo module compiled inside examples/ouo-mobile (prebuild, no APK)
+        env:
+          CI: "1"
+        run: |
+          npm ci
+          npm run -w sdk/react-native build
+          cd examples/ouo-mobile
+          npm ci
+          ./node_modules/.bin/expo prebuild --platform android --no-install
+          cd android
+          ./gradlew --console=plain :ouo11y-react-native:compileReleaseKotlin :ouo-chaos:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a
 
   # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
   # external URLs are not fetched, so the job is fast and never flaky. Always runs.

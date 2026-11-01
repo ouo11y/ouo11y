@@ -46,7 +46,7 @@ export interface UserOptions {
 
 /**
  * Session replay (ADR-0006): native screenshot capture through the `OuoReplay` Expo module
- * (iOS; Android is a no-op stub). Off unless `enabled: true`. Needs a development build
+ * (iOS and Android). Off unless `enabled: true`. Needs a development build
  * (`npx expo prebuild && npx expo run:ios`); in Expo Go and on web it silently stays off.
  */
 /**

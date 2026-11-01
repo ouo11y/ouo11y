@@ -1,8 +1,12 @@
-/** Demo-only native module (ios/OuoChaosModule.swift); undefined in Expo Go and on web. */
+/** Demo-only native module (ios/OuoChaosModule.swift, android/); undefined in Expo Go and on web. */
 export interface OuoChaos {
   blockMainThread(ms: number): Promise<void>;
   stutterMainThread(ms: number, times: number): void;
   simulateOutOfMemory(): void;
+  /** Android only: an uncaught exception on the main thread. */
+  crashNatively?(): void;
+  /** Android only: `onJourneyCommand` carries the journey's broadcast commands (src/journey.ts). */
+  addListener?(event: "onJourneyCommand", listener: (e: { cmd: string }) => void): { remove(): void };
 }
 
 // Expo registers every native module on `globalThis.expo.modules` (as the SDK reads its own).

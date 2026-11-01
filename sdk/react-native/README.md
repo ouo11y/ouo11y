@@ -129,8 +129,12 @@ crash.
 
 The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
 the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,
-gzip frame chunks to `POST /v1/replay/chunks` with the Basic `Authorization` header), `android/`
-is a no-op that logs once. The JS side calls native `start(replayEndpoint, { projectId, projectToken,
+gzip frame chunks to `POST /v1/replay/chunks` with the Basic `Authorization` header), and
+`android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt` the same functions over the Kotlin
+capture of `sdk/android` (`PixelCopy` into RGB_565, per-line text masks, the same schema 2 chunks;
+its sources are vendored into `android/vendor` by `npm run build`, like the Swift ones). On Android
+the crash, hang and vitals functions are not there yet (W9 part 2): the JavaScript checks each one
+and the SDK emits only what JavaScript sees. The JS side calls native `start(replayEndpoint, { projectId, projectToken,
 sessionId, ... })`, forwards every session rotation (`sessionDidRotate`), flushes with
 `rum.flush()`, and is a silent no-op where the native module is absent: Expo Go, web, Jest/Vitest,
 bare apps without `expo-modules-core` (a debug-only warning is logged once).
@@ -173,7 +177,7 @@ honoured). The store keeps at most 5 MB or 500 requests (the oldest dropped firs
 stored queue cannot be read at launch (an AsyncStorage error, or no answer within 5 s), that run
 keeps its requests in memory and leaves the stored ones for the next launch.
 Requests are gzip: the native module compresses and posts them off the JS thread (Hermes has no
-`CompressionStream`); where it is absent (Expo Go, web, the Android stub) they go out through
+`CompressionStream`; iOS and Android); where it is absent (Expo Go, web) they go out through
 `fetch`, uncompressed. Replay chunks have the same guarantee on the native side
 (`docs/specs/mobile-replay.md`).
 
@@ -500,7 +504,7 @@ screen`, `app.screen.name` = the route name, the last segment of the navigation 
 the next navigation or when the app goes to the background. The native measurements are the
 `OuoVitals` Swift target of `sdk/ios`, which the Expo module starts when it is created: one
 `CADisplayLink` callback per frame that only updates counters (main-thread cost in
-`project/kb/ios-vitals.md`). Without the native module (Expo Go, web, Android for now) the SDK
+`project/kb/ios-vitals.md`). Without the native measurements (Expo Go, web, Android until W9 part 2) the SDK
 emits no `ouo.app.start`, no `app.jank` and no first-screen TTID (spec rule 1: nothing that was
 not measured).
 
