@@ -18,3 +18,4 @@ One dated summary per run.
 - [2026-10-31-n77-diskqueue-clock.md](2026-10-31-n77-diskqueue-clock.md) N77: iOS disk queues keep no age (bounds only) and keep `put` order when the clock moves; tests move the clock
 - [2026-10-31-n76-feedback-frame.md](2026-10-31-n76-feedback-frame.md) N76: `FrameReason.feedback` on iOS, native C10.1 asks for the frame within 2 s, the plugin says "screenshot" and seeks to it
 - [2026-10-31-w9-android-part1.md](2026-10-31-w9-android-part1.md) W9 part 1: React Native Android: `sdk/android` replay capture, the Expo module Android side (replay, gzip delivery, vitals), the emulator suite `tests/e2e/mobile-android`, CI job `android`
+- [2026-11-01-n55-n83-delivery-retries.md](2026-11-01-n55-n83-delivery-retries.md) N55 and N83: C11 retries only 429 and 502–504 (new check C11.3 in both suites), the React Native outbox keeps no age

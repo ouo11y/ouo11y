@@ -12,7 +12,9 @@
  *   `termination`, the app hang watchdog (`onHang` events), app start info and cumulative frame
  *   counters;
  * - a `fetch` wrapper that logs every request to the collector (method, URL, content-encoding,
- *   status) and refuses them while `OUO_E2E_OFFLINE=1` (the network is down).
+ *   status, an OTLP body's hash) and refuses them while `OUO_E2E_OFFLINE=1` (the network is down);
+ *   with `OUO_E2E_REJECT=1` it answers the first OTLP body 500 every time it is sent and the
+ *   second one 503 once, without forwarding them (C11.3).
  *
  * The model follows the Swift code: a package that changes what the native module does changes
  * this file in the same PR.
@@ -20,8 +22,9 @@
  * `globalThis.__ouoStandin` lets the journey act as the OS: crash(), memoryWarning(), terminate(),
  * blockMainThread().
  * Env: OUO_E2E_DEVICE_DIR (this device's "disk"), OUO_E2E_COLLECTOR_ORIGINS (comma-separated
- * origins whose requests are logged and refused offline), OUO_E2E_OFFLINE.
+ * origins whose requests are logged and refused offline), OUO_E2E_OFFLINE, OUO_E2E_REJECT.
  */
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
@@ -36,6 +39,7 @@ const RUN_FILE = path.join(DEVICE_DIR, "run.json");
 const SEQ_FILE = path.join(DEVICE_DIR, "replay-seq.json");
 const LOG_FILE = path.join(DEVICE_DIR, "standin.jsonl");
 const OFFLINE = process.env.OUO_E2E_OFFLINE === "1";
+const REJECT = process.env.OUO_E2E_REJECT === "1";
 const COLLECTOR = (process.env.OUO_E2E_COLLECTOR_ORIGINS ?? "").split(",").filter(Boolean);
 
 const record = (entry) => fs.appendFileSync(LOG_FILE, JSON.stringify({ ts: Date.now(), pid: process.pid, ...entry }) + "\n");
@@ -43,14 +47,44 @@ const record = (entry) => fs.appendFileSync(LOG_FILE, JSON.stringify({ ts: Date.
 // ---------------------------------------------------------------- network
 
 const realFetch = globalThis.fetch;
+const OTLP_PATH = /\/v1\/(logs|traces|metrics)$/;
+/** The OTLP bodies the collector answers with a fault (OUO_E2E_REJECT): the first 500 for ever, the second 503 once. */
+const faults = { poison: undefined, flaky: undefined, flakyAnswered: false };
+
+/** sha256 of the uncompressed body, so the suite can tell a resent request from another one. */
+function bodyHash(body, encoding) {
+  if (body === undefined || body === null) return undefined;
+  const bytes = typeof body === "string" ? Buffer.from(body) : Buffer.from(body);
+  return crypto.createHash("sha256").update(encoding === "gzip" ? zlib.gunzipSync(bytes) : bytes).digest("hex").slice(0, 16);
+}
+
+function fault(hash) {
+  if (!REJECT || !hash) return undefined;
+  faults.poison ??= hash;
+  if (hash === faults.poison) return 500;
+  faults.flaky ??= hash;
+  if (hash === faults.flaky && !faults.flakyAnswered) {
+    faults.flakyAnswered = true;
+    return 503;
+  }
+  return undefined;
+}
+
 globalThis.fetch = async function standinFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input.url;
   if (!COLLECTOR.some((o) => url.startsWith(o))) return realFetch(input, init);
   const headers = new Headers(init.headers ?? {});
-  const entry = { kind: "request", method: init.method ?? "GET", url, encoding: headers.get("content-encoding") ?? "identity" };
+  const encoding = headers.get("content-encoding") ?? "identity";
+  const entry = { kind: "request", method: init.method ?? "GET", url, encoding };
+  if (OTLP_PATH.test(url)) entry.body = bodyHash(init.body, encoding);
   if (OFFLINE) {
     record({ ...entry, status: "refused" });
     throw new TypeError("Network request failed");
+  }
+  const injected = fault(entry.body);
+  if (injected) {
+    record({ ...entry, status: injected, injected: true });
+    return new Response(JSON.stringify({ code: injected, message: "injected by the stand-in" }), { status: injected, headers: { "content-type": "application/json" } });
   }
   const res = await realFetch(input, init);
   record({ ...entry, status: res.status });
@@ -125,7 +159,7 @@ function captureIfDue() {
 
 // ChunkUploader (W3): every chunk is written to the queue folder (or `held/` with `holdUploads`)
 // as its gzip body before it is sent, named `<queued ms>-<n>.<session>.<seq>.json.gz`, and removed
-// on 2xx or a final answer (any status but 408, 429, 5xx); a refused upload stays for `drain`, the
+// on 2xx or a final answer (any status but 429, 502, 503, 504); a refused upload stays for `drain`, the
 // next chunk or the next launch. Not modelled: the retry timer and `Retry-After` (a launch is
 // short) and the 10 MB bound.
 const OUTBOX = path.join(DEVICE_DIR, "outbox");
@@ -189,7 +223,7 @@ function drainOutbox(endpoint, options) {
         status = String(err);
       }
       record({ kind: "chunk", session_id: sessionId, seq: Number(seq), status });
-      const final = typeof status === "number" && status !== 408 && status !== 429 && status < 500;
+      const final = typeof status === "number" && ![429, 502, 503, 504].includes(status);
       if (!final) return;
       fs.rmSync(file, { force: true });
     }

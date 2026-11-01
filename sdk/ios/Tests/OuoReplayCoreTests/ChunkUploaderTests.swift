@@ -102,13 +102,13 @@ import Testing
 
     @Test func SendsInOrderAndRetriesWithBackoff() async {
         let transport = FakeTransport()
-        transport.responses = [.failure(TransportError()), .success(500), .success(202), .success(202)]
+        transport.responses = [.failure(TransportError()), .success(502), .success(202), .success(202)]
         let delays = Recorded<Int>()
         let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { n in delays.append(n); return 0 }))
         u.enqueue(chunk(seq: 0))
         u.enqueue(chunk(seq: 1))
         await settle(u)
-        // seq 0: fail, 500, ok. seq 1: ok.
+        // seq 0: fail, 502, ok. seq 1: ok.
         #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "0", "0", "1"])
         #expect(delays.values == [1, 2])
         #expect(u.uploaded == 2)
@@ -161,13 +161,13 @@ import Testing
 
     @Test func RejectedChunksAreDroppedAndTheQueueContinues() async {
         let transport = FakeTransport()
-        // 400 and a 3xx are final; 408 is retried.
-        transport.responses = [.success(400), .success(408), .success(202), .success(304), .success(202)]
+        // N55: only 429, 502, 503 and 504 are retried (OTLP/HTTP); 400, 408, a 3xx and 500 are final.
+        transport.responses = [.success(400), .success(408), .success(503), .success(202), .success(304), .success(500), .success(202)]
         let u = uploader(transport, config: ChunkUploader.Config(retryDelay: { _ in 0 }))
-        for seq in 0..<4 { u.enqueue(chunk(seq: seq)) }
+        for seq in 0..<6 { u.enqueue(chunk(seq: seq)) }
         await settle(u)
-        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "1", "2", "3"])
-        #expect(u.failed == 2)
+        #expect(transport.sent.map { $0.request.value(forHTTPHeaderField: "x-ouo-seq") } == ["0", "1", "2", "2", "3", "4", "5"])
+        #expect(u.failed == 4)
         #expect(u.uploaded == 2)
         #expect(u.queuedCount == 0)
     }

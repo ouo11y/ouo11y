@@ -94,6 +94,9 @@ enum Journey {
             }
         case "offline":
             Ouo.addEvent("offline-step")
+        case "reject":
+            // C11.3: the launch's first batches meet the proxy's 500 and 503; this step comes after them.
+            after(3) { Ouo.addEvent("reject-step") }
         case "dump":
             after(1) { push(Products.controller()) }
             after(3) { note("dump", ["views": dump(nav.view.window!)]) }

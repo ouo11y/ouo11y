@@ -108,10 +108,10 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 ### C11 Delivery
 
 - OTLP/HTTP JSON with `content-encoding: gzip` for logs and traces; replay chunks are gzip already.
-- Retry with backoff on network errors, 408, 429 and 5xx, honouring `Retry-After`; no retry on other 4xx.
-- **Offline store**: every OTLP batch and replay chunk is on disk before it is sent and removed when the collector answers 2xx or another 4xx, so an outage, a crash or a kill mid-request loses nothing; what is left is sent oldest first on the next launch, on foreground, on `flush()` and after a backoff. Bounds, oldest dropped first: OTLP 5 MB (uncompressed JSON), 500 requests; replay chunks 10 MB (gzip) per folder (queued, held) ([mobile-replay.md](mobile-replay.md)). No age bound: the wall clock is the user's to move and a monotonic clock restarts at boot, so an age would drop what is queued when the clock moves forward (N77); the bounds cap the disk and the backend decides what is too old to ingest. The cost: a request the collector answers 5xx to every time blocks the queue until the bound evicts it, no longer at most 24 h (N55). The React Native JS outbox still drops requests older than 24 h (N83). Delivery is at least once. (Sentry keeps 30 envelopes.)
+- Retry with backoff on network errors and OTLP/HTTP's retryable answers, 429, 502, 503 and 504, honouring `Retry-After`. Any other answer is final: 2xx is sent, anything else (a 4xx, 408 included, a 500, 501, 505, a 3xx) is dropped and counted as rejected, apart from the bound's drops. So a request the collector answers 500 to every time costs one attempt and never blocks the requests behind it (N55); the collector's receivers answer 429 or 503 for what may succeed later (the replay receiver always with `Retry-After`, the OTLP receiver only when the pipeline error carries one) and 400 or 500 for what will not.
+- **Offline store**: every OTLP batch and replay chunk is on disk before it is sent and removed when the collector answers it finally (2xx or a rejection), so an outage, a crash or a kill mid-request loses nothing; what is left is sent oldest first on the next launch, on foreground, on `flush()` and after a backoff. Bounds, oldest dropped first: OTLP 5 MB (uncompressed JSON), 500 requests; replay chunks 10 MB (gzip) per folder (queued, held) ([mobile-replay.md](mobile-replay.md)). No age bound, on iOS and in the React Native JS outbox: the wall clock is the user's to move and a monotonic clock restarts at boot, so an age would drop what is queued when the clock moves forward (N77, N83); the bounds cap the disk and the backend decides what is too old to ingest. The order is the order the requests were queued, whatever the clock does. A request answered 429 or 502–504 every time still waits, retried with backoff, until the bound evicts it. Delivery is at least once. (Sentry keeps 30 envelopes.)
 - Flush on background (and on `flush()`).
-- **Checks**: C11.1, C11.2.
+- **Checks**: C11.1, C11.2, C11.3.
 
 ### C12 Cost
 
@@ -119,7 +119,7 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 
 ## 3. Conformance checks
 
-Each check runs on the golden app of the platform's suite (section 5) and asserts rum-api, except C8.2 and C11.2, which read the requests and native calls the suite observed.
+Each check runs on the golden app of the platform's suite (section 5) and asserts rum-api, except C8.2 and C11.2, which read the requests and native calls the suite observed (C11.3 reads both).
 
 | Check | The golden app does | Passes when |
 |---|---|---|
@@ -141,6 +141,7 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | C10.1 | taps on Cart, then sends feedback with a message, a contact and a screenshot while replay records | a `feedback` event on the session with the message, the contact, an id, `ouo.feedback.screenshot = true` and `ouo.last_events` ending with the journey's last steps; the replay covers its time (a frame at or before it and one after); the native iOS suite also asks for a frame with reason `feedback` within 2 s after it |
 | C11.1 | runs with the collector refused; launches again online | the offline run's events are in rum-api |
 | C11.2 | sends OTLP | every OTLP request has `content-encoding: gzip` |
+| C11.3 | sends OTLP while the collector answers its first request 500 every time and its second 503 once, then records a later step | the 500 request is sent once, the 503 request again until it is accepted, and the later step is in rum-api in the same run |
 
 ## 4. Maturity
 
@@ -169,7 +170,7 @@ React Native iOS is measured by the suite (CI, job `examples`). Native iOS and R
 | C8 Replay | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C9 Span and log API | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C10 Feedback | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
-| C11 Delivery | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
+| C11 Delivery | L2 | L2 (native suite) | L1 (Android suite passes C11.1 and C11.2; C11.3 not in it yet, checklist N89) | L0 | L0 |
 | C12 Cost | L1 (B3 simulator cells, gate proposed) | L1 (B3 simulator cells, gate not applied) | L0 | L0 | L0 |
 
 React Native Android (W9 part 1): the JavaScript half is the iOS code; the Expo module's Android side adds replay (`sdk/android`), gzip delivery and the vitals counters. Native crashes, terminations and hangs (C2.2, C2.3, C3) come with the opentelemetry-android base of W9 part 2 and are pending in its suite. The package that changes a cell updates this table in the same PR.

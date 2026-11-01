@@ -170,10 +170,14 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 ### Delivery and offline (C11)
 
 Every OTLP batch is written to AsyncStorage before it is sent and removed when the collector
-answers 2xx (or rejects it with another 4xx than 408 and 429), so an outage, a crash or a kill
-mid-request loses nothing. What is left is sent oldest first on the next launch, when the app comes
-back to the foreground, on `rum.flush()`, and after a backoff (1 s doubling to 30 s, `Retry-After`
-honoured). The store keeps at most 5 MB or 500 requests (the oldest dropped first) for 24 hours. If the
+answers, so an outage, a crash or a kill mid-request loses nothing. A network error, 429, 502, 503
+or 504 (OTLP/HTTP's retryable answers) keeps it: what is left is sent oldest first on the next
+launch, when the app comes back to the foreground, on `rum.flush()`, and after a backoff (1 s
+doubling to 30 s, `Retry-After` honoured). Any other answer is final: 2xx removes it as sent, and a
+4xx or another 5xx (a 500 the collector would give every time) drops it, counted as rejected,
+so it never blocks the requests behind it. The store keeps at most 5 MB or 500 requests (the oldest
+dropped first) and has no age limit: the device clock can be moved, so an age would drop what is
+queued when it jumps forward; what is too old to ingest is the backend's call. If the
 stored queue cannot be read at launch (an AsyncStorage error, or no answer within 5 s), that run
 keeps its requests in memory and leaves the stored ones for the next launch.
 Requests are gzip: the native module compresses and posts them off the JS thread (Hermes has no
@@ -184,7 +188,7 @@ Requests are gzip: the native module compresses and posts them off the JS thread
 ```ts
 initRUM({
   // ...
-  transport: { offline: { maxBytes: 5 * 1024 * 1024 } },  // the default; at most 500 requests, kept 24 h
+  transport: { offline: { maxBytes: 5 * 1024 * 1024 } },  // the default; at most 500 requests
   // transport: { offline: false }  -> retried in this process only, nothing kept for the next launch
 });
 ```

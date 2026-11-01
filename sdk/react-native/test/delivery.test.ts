@@ -118,9 +118,12 @@ describe("outbox", () => {
     expect(clock.pending()).toEqual([]);
   });
 
-  it("drops a rejected request (4xx but 408 and 429) and goes on", async () => {
-    expect([0, 408, 429, 500, 503].every(retryable)).toBe(true);
-    expect([400, 401, 403, 404, 413].some(retryable)).toBe(false);
+  it("N55: retries only no answer, 429, 502, 503 and 504 (OTLP/HTTP); any other status is final", () => {
+    expect([0, 429, 502, 503, 504].every(retryable)).toBe(true);
+    expect([100, 304, 400, 401, 403, 404, 408, 413, 500, 501, 505, 599].some(retryable)).toBe(false);
+  });
+
+  it("drops a rejected request, counts it and goes on", async () => {
     const c = collector([401]);
     const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger });
     await outbox.put("u", "a");
@@ -128,6 +131,40 @@ describe("outbox", () => {
     await settle(outbox);
     expect(c.bodies).toEqual(["a", "b"]);
     expect(outbox.stats).toEqual({ sent: 1, rejected: 1, dropped: 0 });
+  });
+
+  it("N55: a request the collector answers 500 to every time is tried once and does not block the queue", async () => {
+    const storage = new MemoryAsyncStorage();
+    const clock = fakeClock();
+    const bodies: string[] = [];
+    const send = vi.fn(async (_url: string, body: string): Promise<SendResult> => {
+      bodies.push(body);
+      return { status: body === "poison" ? 500 : 200 };
+    });
+    const outbox = new Outbox({ storage, send, logger, clock });
+    for (const b of ["poison", "a", "b"]) await outbox.put("u", b);
+    await settle(outbox);
+    expect(bodies).toEqual(["poison", "a", "b"]);
+    expect(outbox.stats).toEqual({ sent: 2, rejected: 1, dropped: 0 });
+    expect(outbox.size).toBe(0);
+    expect(clock.pending()).toEqual([]);
+    expect(JSON.parse(storage.peek(OUTBOX_KEY)!).items).toEqual([]);
+    expect(storage.peek(`${OUTBOX_KEY}.1`)).toBeNull();
+  });
+
+  it("N55: 502, 503 and 504 keep the request and retry it", async () => {
+    const clock = fakeClock();
+    const c = collector([502, 503, 504]);
+    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock });
+    await outbox.put("u", "a");
+    await outbox.put("u", "b");
+    await settle(outbox);
+    for (const w of [1000, 2000, 4000]) {
+      expect(clock.pending()).toEqual([w]);
+      await clock.advance(w);
+    }
+    expect(c.bodies).toEqual(["a", "a", "a", "a", "b"]);
+    expect(outbox.stats).toEqual({ sent: 2, rejected: 0, dropped: 0 });
   });
 
   it("a kill mid-request resends it on the next launch", async () => {
@@ -161,19 +198,51 @@ describe("outbox", () => {
     expect(up.bodies).toEqual(["3", "4", "5"]);
   });
 
-  it("drops requests older than maxAgeMs unsent", async () => {
+  const DAY = 24 * 3600 * 1000;
+
+  it("N83: a clock moved two days forward drops nothing; the next launch sends it all in order", async () => {
     const storage = new MemoryAsyncStorage();
     const clock = fakeClock();
     const first = new Outbox({ storage, send: collector([0]).send, logger, clock });
-    await first.put("u", "old");
+    await first.put("u", "a");
     await settle(first);
     first.stop();
-    await clock.advance(24 * 3600 * 1000 + 1);
+    await clock.advance(2 * DAY);
     const c = collector();
     const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock });
+    await next.put("u", "b");
     await next.drain();
-    expect(c.send).not.toHaveBeenCalled();
+    expect(c.bodies).toEqual(["a", "b"]);
+    expect(next.stats).toEqual({ sent: 2, rejected: 0, dropped: 0 });
+  });
+
+  it("N83: a clock moved back keeps the order of put, and the bound drops the oldest", async () => {
+    const storage = new MemoryAsyncStorage();
+    const clock = fakeClock();
+    const first = new Outbox({ storage, send: collector(Array(10).fill(0)).send, logger, clock, maxEntries: 3 });
+    await first.put("u", "a");
+    await settle(first);
+    await first.put("u", "b");
+    await clock.advance(-2 * DAY);
+    await first.put("u", "c");
+    first.stop();
+    const c = collector();
+    const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock, maxEntries: 3 });
+    await next.put("u", "d");
+    await next.drain();
+    expect(c.bodies).toEqual(["b", "c", "d"]);
     expect(next.stats.dropped).toBe(1);
+  });
+
+  it("N83: an index an earlier version wrote (items with a queue time) is sent whatever its age", async () => {
+    const storage = new MemoryAsyncStorage();
+    const old = Date.now() - 30 * DAY;
+    await storage.setItem(OUTBOX_KEY, JSON.stringify({ next: 3, items: [{ id: 1, url: "u", bytes: 1, at: old }, { id: 2, url: "u", bytes: 1, at: old + 1 }] }));
+    await storage.setItem(`${OUTBOX_KEY}.1`, "1");
+    await storage.setItem(`${OUTBOX_KEY}.2`, "2");
+    const c = collector();
+    await new Outbox({ storage, send: c.send, logger }).drain();
+    expect(c.bodies).toEqual(["1", "2"]);
   });
 
   it("skips an index entry whose body was never written (killed in between)", async () => {

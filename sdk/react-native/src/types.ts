@@ -91,7 +91,7 @@ export interface ReplayOptions {
    * on the device and, at the next launch, this is called once per finished session with its
    * summary; the chunks are sent when it returns true and deleted otherwise. A throw keeps them.
    * Keep sessions with `feedback > 0` too: their replay is the screenshot of that feedback (C10).
-   * Chunks held longer than 24 hours are deleted unsent. iOS only.
+   * Held chunks beyond 10 MB are deleted unsent, the oldest first. iOS only.
    */
   keepAtNextLaunch?: (session: HeldReplaySession) => boolean | Promise<boolean>;
 }
@@ -123,7 +123,7 @@ export interface TransportOptions {
 }
 
 export interface OfflineOptions {
-  /** Default 5 MB (uncompressed JSON). At most 500 requests are kept, for at most 24 hours. */
+  /** Default 5 MB (uncompressed JSON). At most 500 requests are kept; there is no age limit. */
   maxBytes?: number;
 }
 

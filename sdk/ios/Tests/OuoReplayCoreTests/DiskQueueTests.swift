@@ -75,6 +75,25 @@ import Testing
         #expect(next.entries().last?.queuedAt == clock.now)
     }
 
+    /// N55: OTLP/HTTP's retryable answers only; anything else is final.
+    @Test func RetriesOnlyOTLPRetryableAnswers() {
+        #expect([429, 502, 503, 504].allSatisfy(DiskQueue.retryable))
+        #expect(![100, 200, 304, 400, 401, 408, 413, 500, 501, 505, 599].contains(where: DiskQueue.retryable))
+    }
+
+    /// N55: a request the collector answers 500 to every time is tried once, counted as rejected
+    /// and removed; the entries behind it go out at once instead of waiting for the bound.
+    @Test func AFiveHundredEveryTimeDoesNotBlockTheQueue() async {
+        let d = dir()
+        let t = PoisonTransport(poison: "poison", status: 500)
+        let q = queue(d, t)
+        for tag in ["poison", "a", "b"] { q.put(Data(tag.utf8), tag: tag) }
+        await drain(q)
+        #expect(t.sent == ["poison", "a", "b"])
+        #expect(q.rejected == 1 && q.sent == 2 && q.dropped == 0)
+        #expect(q.count == 0)
+    }
+
     /// During a backoff a new entry waits for the retry: an outage costs one request per backoff.
     @Test func NoSendDuringABackoff() async {
         let t = FakeTransport()
@@ -132,5 +151,27 @@ import Testing
         #expect(!q.put(Data("b".utf8), tag: "b", sendIfRefused: false))
         for _ in 0..<50 where t.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
         #expect(t.sent.map { $0.request.url!.lastPathComponent } == ["a"])
+    }
+}
+
+/// Answers `status` to every request for the entry tagged `poison`, 202 to the others.
+private final class PoisonTransport: ChunkTransport {
+    private let lock = NSLock()
+    private var tags: [String] = []
+    let poison: String
+    let status: Int
+
+    init(poison: String, status: Int) {
+        self.poison = poison
+        self.status = status
+    }
+
+    var sent: [String] { lock.withLock { tags } }
+
+    func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Error>) -> Void) {
+        let tag = request.url!.lastPathComponent
+        lock.withLock { tags.append(tag) }
+        let status = tag == poison ? self.status : 202
+        DispatchQueue.global().async { completion(.success(ChunkResponse(status: status))) }
     }
 }

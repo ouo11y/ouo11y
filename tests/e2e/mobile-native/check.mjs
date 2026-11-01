@@ -14,7 +14,7 @@ const notes = readFileSync(join(out, "journey.jsonl"), "utf8").trim().split("\n"
 const requests = readFileSync(join(out, "requests.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 const launches = notes.filter((n) => n.kind === "launch");
 const [main, tapRun, ...rest] = launches;
-const [hang, crash, , early, , oom, , offline] = rest;
+const [hang, crash, , early, , oom, , offline, , reject] = rest;
 const rotated = notes.filter((n) => n.kind === "active" && n.ts < tapRun.ts).at(-1)?.session;
 const noteAfter = (l, kind) => notes.find((n) => n.kind === kind && n.ts >= l.ts && n.session === l.session);
 
@@ -155,6 +155,14 @@ const CHECKS = {
     const otlp = requests.filter((r) => /\/v1\/(logs|traces)$/.test(r.path));
     return otlp.length > 0 && otlp.every((r) => r.encoding === "gzip");
   },
+  "C11.3": async () => {
+    // The 500 is sent once and dropped, the 503 again until it arrives, and the step after them is in rum-api.
+    const sends = (h) => requests.filter((r) => r.body === h);
+    const poison = requests.find((r) => r.injected && r.status === 500)?.body;
+    const flaky = requests.find((r) => r.injected && r.status === 503)?.body;
+    return Boolean(poison && flaky) && sends(poison).length === 1 && sends(flaky).length >= 2 && sends(flaky).at(-1).status === 200 &&
+      named(await detail(reject.session), "reject-step").length === 1;
+  },
 };
 
 let pixelReport = null;
@@ -176,5 +184,5 @@ table(rows);
 console.log("C10.1 feedback frame after the record (ms):", feedbackFrameMs);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
 console.log("maturity (native iOS, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
-console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session });
+console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session, reject: reject.session });
 process.exit(rows.some((r) => r.result === "FAIL") ? 1 : 0);

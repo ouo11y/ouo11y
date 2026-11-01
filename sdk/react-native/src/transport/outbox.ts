@@ -6,7 +6,6 @@ import type { AsyncKeyValueStorage } from "../types";
 export const OUTBOX_KEY = "ouo.outbox";
 export const DEFAULT_OUTBOX_MAX_BYTES = 5 * 1024 * 1024;
 export const DEFAULT_OUTBOX_MAX_ENTRIES = 500;
-export const DEFAULT_OUTBOX_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** Retry waits double from 1 s up to this. */
 export const MAX_RETRY_DELAY_MS = 30_000;
 /** A stored index that cannot be read within this runs the process memory-only (`persistent` false). */
@@ -27,8 +26,6 @@ interface Item {
   url: string;
   /** Body length in UTF-16 code units: bytes for OTLP JSON, which is ASCII but for user strings. */
   bytes: number;
-  /** Queued at (epoch ms). */
-  at: number;
 }
 
 interface Index {
@@ -43,13 +40,16 @@ export interface OutboxOptions {
   logger: DebugLogger;
   maxBytes?: number;
   maxEntries?: number;
-  maxAgeMs?: number;
   clock?: Clock;
 }
 
-/** 2xx: sent. 408, 429, 5xx and no answer: try again later. Any other status: rejected, never retried. */
+/**
+ * OTLP/HTTP's retryable answers (429, 502, 503, 504) and no answer (0): try again later. Any other
+ * status is final: the request is dropped and counted as `rejected`, so a request the collector
+ * answers 500 to every time costs one attempt instead of blocking the queue (checklist N55).
+ */
 export function retryable(status: number): boolean {
-  return status === 0 || status === 408 || status === 429 || status >= 500;
+  return status === 0 || status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 /**
@@ -57,8 +57,12 @@ export function retryable(status: number): boolean {
  * "Delivery"; checklist N49). Every batch is written to AsyncStorage first and removed when the
  * collector answers 2xx or rejects it, so an outage, a crash or a kill mid-request loses
  * nothing: what is left is sent oldest first on the next launch, on `drain` (foreground,
- * `flush`) and after a backoff. Bounded by bytes and entries, the oldest dropped first;
- * requests older than `maxAgeMs` are dropped unsent.
+ * `flush`) and after a backoff. Bounded by bytes and entries, the oldest dropped first.
+ *
+ * No age bound: the wall clock is the user's to move, and an age on it dropped everything queued
+ * when the clock moved a day forward (checklist N77 on iOS, N83 here); the bounds cap the storage
+ * and the backend decides what is too old to ingest. The order is the order of `put` (the index
+ * array), whatever the clock does.
  *
  * Layout: `ouo.outbox` holds the index (`{ next, items }`), each body is under `ouo.outbox.<id>`.
  * The index is written before a body and after a body is removed, so a kill in between leaves
@@ -75,7 +79,6 @@ export class Outbox {
   private readonly logger: DebugLogger;
   private readonly maxBytes: number;
   private readonly maxEntries: number;
-  private readonly maxAgeMs: number;
   private readonly clock: Clock;
 
   private index: Index = { next: 1, items: [] };
@@ -90,7 +93,10 @@ export class Outbox {
   /** False when the stored index could not be read: nothing is written or removed in storage. */
   private persistent = true;
 
-  /** Counters for tests and the debug log. */
+  /**
+   * Counters for tests and the debug log: `rejected`, dropped for a final answer (any status but
+   * 2xx and the retryable ones); `dropped`, for the bounds or a body missing in storage.
+   */
   readonly stats = { sent: 0, rejected: 0, dropped: 0 };
 
   constructor(opts: OutboxOptions) {
@@ -99,7 +105,6 @@ export class Outbox {
     this.logger = opts.logger;
     this.maxBytes = opts.maxBytes ?? DEFAULT_OUTBOX_MAX_BYTES;
     this.maxEntries = opts.maxEntries ?? DEFAULT_OUTBOX_MAX_ENTRIES;
-    this.maxAgeMs = opts.maxAgeMs ?? DEFAULT_OUTBOX_MAX_AGE_MS;
     this.clock = opts.clock ?? systemClock;
     this.loaded = this.load();
   }
@@ -112,7 +117,7 @@ export class Outbox {
   /** Persists the request, then sends it unless a retry is already scheduled. Never rejects. */
   async put(url: string, body: string): Promise<void> {
     await this.loaded;
-    const item: Item = { id: this.index.next++, url, bytes: body.length, at: this.clock.now() };
+    const item: Item = { id: this.index.next++, url, bytes: body.length };
     this.index.items.push(item);
     this.bodies.set(item.id, body);
     this.enforceBound();
@@ -150,10 +155,6 @@ export class Outbox {
         this.failures = 0;
         return;
       }
-      if (this.clock.now() - head.at > this.maxAgeMs) {
-        this.remove(head, "older than the offline store keeps");
-        continue;
-      }
       // In flight from here: a put's eviction must not drop it while its body is read or sent.
       this.inFlight = head.id;
       let res: SendResult;
@@ -178,7 +179,7 @@ export class Outbox {
       }
       if (!retryable(res.status)) {
         this.stats.rejected++;
-        this.logger.warn(`delivery: ${head.url} rejected with HTTP ${res.status}, dropped`);
+        this.logger.warn(`delivery: ${head.url} rejected with HTTP ${res.status}, dropped (not retryable)`);
         this.forget(head);
         continue;
       }

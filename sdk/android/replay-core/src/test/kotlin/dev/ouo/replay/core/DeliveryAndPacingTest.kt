@@ -69,6 +69,22 @@ class DeliveryAndPacingTest {
     u2.close()
   }
 
+  /** N55: only 429, 502, 503 and 504 are retried; a 500 is final, so it does not block the chunks behind it. */
+  @Test
+  fun aFiveHundredIsFinalAndDoesNotBlock() {
+    assertTrue(listOf(429, 502, 503, 504).all { DiskQueue.retryable(it) })
+    assertTrue(listOf(304, 400, 408, 500, 501, 505).none { DiskQueue.retryable(it) })
+    val t = Recording(mutableListOf(HttpAnswer(500), HttpAnswer(200)))
+    val u = ChunkUploader("http://x", "p", "t", dir(), ChunkUploader.Config(retryDelayMs = { 0 }), transport = t)
+    u.enqueue(chunk("s1", 0))
+    u.enqueue(chunk("s1", 1))
+    drain(u)
+    assertEquals(listOf("0", "1"), t.requests.map { it.headers["x-ouo-seq"] })
+    assertEquals(1, u.failed)
+    assertEquals(0, u.queuedCount)
+    u.close()
+  }
+
   @Test
   fun heldChunksWaitForTheDecision() {
     val d = dir()
