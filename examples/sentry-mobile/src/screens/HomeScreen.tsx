@@ -44,6 +44,7 @@ export function HomeScreen({ navigation }: ScreenProps<"Home">) {
       <ActionButton name="handled-error" />
       <ActionButton name="unhandled-rejection" />
       <ActionButton name="message" />
+      <ActionButton name="feedback" />
       <View style={{ height: 8 }} />
       <ActionButton name="js-fatal" tone="danger" />
       <ActionButton name="native-crash" tone="danger" />

@@ -21,7 +21,8 @@
 #   shop        --shop-rounds x (browse catalog, search, checkout, declined checkout): manually
 #               instrumented transactions whose fetches reach the backend (app + backend spans in
 #               one trace) and Sentry.logger calls (log items)
-#   errors      handled error, breadcrumb + message, unhandled promise rejection
+#   errors      handled error, breadcrumb + message, unhandled promise rejection, an error with user
+#               feedback (captureFeedback and a legacy user_report naming the error)
 #   replay      wait so replay segments flush (one segment about every 5 s)
 #   background  Settings app in front for --bg-seconds (> 30 s), relaunch: session `exited` + new session
 #   js-fatal    (opt-in) fatal JS error from setTimeout, relaunch
@@ -124,6 +125,7 @@ if [[ $ERRORS == 1 ]]; then
   link "action/handled-error"; wait_s 2
   link "action/message"; wait_s 2
   link "action/unhandled-rejection"; wait_s 2
+  link "action/feedback"; wait_s 3
 fi
 
 log "== phase replay"

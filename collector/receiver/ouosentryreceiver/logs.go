@@ -208,10 +208,12 @@ func normTraceID(s string) string {
 	return strings.ToLower(strings.ReplaceAll(s, "-", ""))
 }
 
-// ---- held logs -------------------------------------------------------------
+// ---- held logs and user reports -------------------------------------------
 
 // pendingLogs holds log entries whose session is not known yet: a log can
-// arrive before the transaction or error that carries its trace id. Entries
+// arrive before the transaction or error that carries its trace id. It also
+// holds `user_report` items whose error is not known yet, keyed by that
+// error's event id (section 9c): a report can arrive before its error. Entries
 // are emitted when their session becomes known, or without a session after
 // the hold time.
 type pendingLogs struct {
@@ -219,10 +221,12 @@ type pendingLogs struct {
 	entries []pendingLog
 }
 
+// pendingLog is a held log entry, or a held user report when report is set.
 type pendingLog struct {
-	group *logGroup
-	log   sentryLog
-	until time.Time
+	group  *logGroup
+	log    sentryLog
+	report *userReport
+	until  time.Time
 }
 
 // logGroup is what held logs of one envelope share.
@@ -234,8 +238,9 @@ type logGroup struct {
 	osFallback bool
 }
 
-func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []sentryLog) {
-	if len(logs) == 0 {
+// holdLogs holds the envelope's unresolved log entries and user reports.
+func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []sentryLog, reports []*userReport) {
+	if len(logs) == 0 && len(reports) == 0 {
 		return
 	}
 	hold := r.cfg.State.LogHold
@@ -249,19 +254,28 @@ func (r *sentryReceiver) holdLogs(ctx context.Context, t *translation, logs []se
 	p := &r.pendingLogs
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// Full: emit without a session rather than lose the entry.
+	full := func() bool { return len(p.entries) >= maxPendingLogs }
 	for i := range logs {
-		if len(p.entries) >= maxPendingLogs {
-			// Full: emit without a session rather than lose the log.
+		if full() {
 			t.emitLog(&logs[i], nil, matchNone)
 			r.drop(ctx, t.j.project.OuoProjectID, "log_unresolved_overflow")
 			continue
 		}
 		p.entries = append(p.entries, pendingLog{group: g, log: logs[i], until: until})
 	}
+	for _, u := range reports {
+		if full() {
+			t.emitUserReport(u, nil)
+			r.drop(ctx, t.j.project.OuoProjectID, "user_report_unresolved_overflow")
+			continue
+		}
+		p.entries = append(p.entries, pendingLog{group: g, report: u, until: until})
+	}
 }
 
-// flushPendingLogs emits held logs whose session is known now, and the
-// expired ones (or all of them with force) without a session.
+// flushPendingLogs emits held logs and user reports whose session is known
+// now, and the expired ones (or all of them with force) without a session.
 func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 	p := &r.pendingLogs
 	p.mu.Lock()
@@ -279,16 +293,29 @@ func (r *sentryReceiver) flushPendingLogs(ctx context.Context, force bool) {
 			byGroup[pl.group] = t
 			order = append(order, t)
 		}
+		if pl.report != nil {
+			t.emitUserReport(pl.report, x)
+			return
+		}
 		t.emitLog(&pl.log, x, match)
 	}
 	var keep []pendingLog
 	r.state.withLock(func() {
 		for i := range p.entries {
 			pl := &p.entries[i]
-			x, match := resolveLog(r.state, pl.group.j.project.OuoProjectID, pl.group.j.originKey(), &pl.log)
+			project := pl.group.j.project.OuoProjectID
+			// A report resolves by the error it names (rule event) at its
+			// received time; a log entry by section 8 at its own time.
+			x, match, at := (*sess)(nil), matchEvent, pl.group.j.receivedAt
+			if pl.report != nil {
+				x = r.state.byEventID(project, pl.report.EventID)
+			} else {
+				x, match = resolveLog(r.state, project, pl.group.j.originKey(), &pl.log)
+				at = pl.log.Timestamp.Time
+			}
 			switch {
 			case x != nil:
-				r.state.touch(x, pl.log.Timestamp.Time)
+				r.state.touch(x, at)
 				x.dev.merge(pl.group.dev)
 				emit(pl, x, match)
 			case force || now.After(pl.until):

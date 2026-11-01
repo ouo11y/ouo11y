@@ -294,7 +294,7 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 | session | rules 1 to 4 (with `contexts.feedback.replay_id` as the replay id when `contexts.replay` has none), else rule 6 by `associated_event_id` | rule 6 by `event_id` |
 
 - An item with an empty message is not translated.
-- A `user_report` whose error the bridge does not know (the bridge restarted, its state is in memory with a 4 h TTL; the error was sampled out by Sentry's `sampleRate`; the error arrives later) is emitted without a session (`session_match = none`), so no session page shows it; it is in Loki. Holding reports until their error arrives, as log entries are held (section 7a), is a later item.
+- A `user_report` whose error the bridge does not know yet is held, keyed by that error's event id, as log entries are held (section 7a): up to `log_hold` (default 1 min), retried after every envelope and every 5 s, sharing the 20 000-entry bound (beyond it, emitted at once without a session, drop reason `user_report_unresolved_overflow`). The report can race ahead of its error (both in flight at once). When the error does not arrive in time (the bridge restarted, its state is in memory with a 4 h TTL; the error was sampled out by Sentry's `sampleRate`) or arrives without a session, the report is emitted without a session (`session_match = none`) after the hold or at shutdown, so no session page shows it; it is in Loki.
 - Message and contact are cut at 4096 bytes of UTF-8 with `…`, as the ouo SDK cuts them. They are what the user typed into the feedback form, so they are copied although `user.email` is not (section 12).
 - The `feedback` event's breadcrumbs become timeline events under the rules of section 9b: the steps before the feedback, which the plugin lists with it. The bridge sets neither `ouo.last_events` nor `ouo.feedback.screenshot`: Sentry's screenshot is an attachment, which is not copied; the session's replay, when there is one, shows the screen at the feedback time.
 
@@ -359,7 +359,7 @@ The `ouoreplay` receiver's chunk validation and the `ouoreplay` exporter must ac
 
 Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment until correlation state moves to a shared store (Phase 11). It exports directly to the backends (the main collector requires a Basic project credential). Client-address affinity is not enough for phones that change networks. Operator guide with the failure modes and a Kubernetes manifest: [sentry-bridge-deployment.md](../sentry-bridge-deployment.md).
 
-Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`), `ouo_sentry_session_match_total{rule}`.
+Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`, `log_unresolved_overflow`, `user_report_unresolved_overflow`), `ouo_sentry_session_match_total{rule}`.
 
 ## 11. rum-api: video replay kind
 

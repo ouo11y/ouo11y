@@ -7,6 +7,10 @@ Sentry.init (tracesSampleRate 1.0, propagateTraceparent, tracePropagationTargets
   - a session init and the first screen's `ui.load` transaction (app start, TTID), then per request a `ui.action` transaction whose `http.client` span called the
     backend with `traceparent`, `sentry-trace` and `baggage` (the span id of the http.client span is
     the parent the backend sees), sent to the bridge after the request as the SDK does;
+  - user feedback (bridge spec section 9c): a handled error, then a legacy `user_report` naming it
+    (rule `event`); a second `user_report` sent before the error it names, which the bridge holds
+    until that error arrives (rule `event` again); a `Sentry.captureFeedback` event with the user's
+    id and a navigation breadcrumb (rule `device`);
   - a session `exited` update at the end.
 
 Then writes journey.json for scripts/verify.py. The shapes follow the golden captures in
@@ -47,6 +51,50 @@ def send(bridge: str, body: bytes) -> None:
         "X-Sentry-Auth": f"Sentry sentry_version=7, sentry_client={SDK['name']}/{SDK['version']}, sentry_key={KEY}"})
     with urllib.request.urlopen(req, timeout=10) as r:
         r.read()
+
+
+# What the journey's feedback must become (scripts/verify.py): message, contact, id, allowed rules.
+FEEDBACK = "  The pay button does nothing "
+CONTACT = "qa@example.invalid"
+
+
+def send_feedback(bridge: str, session: dict, did: str, contexts: dict) -> list[dict]:
+    """Errors and feedback as @sentry/react-native sends them; returns verify.py's expectations."""
+    def error(event_id: str, text: str) -> None:
+        # captureException: the event and the session update it changed travel together.
+        session.update({"init": False, "errors": session["errors"] + 1, "timestamp": rfc3339(time.time())})
+        ev = {"event_id": event_id, "timestamp": time.time(), "platform": "javascript", "level": "error", "release": RELEASE,
+              "environment": "development", "user": {"id": did}, "sdk": SDK, "contexts": contexts,
+              "exception": {"values": [{"type": "Error", "value": text, "mechanism": {"type": "generic", "handled": True}}]}}
+        send(bridge, envelope({"event_id": event_id, "sdk": SDK}, ("event", ev), ("session", session)))
+
+    def user_report(event_id: str, comments: str, name: str = "", email: str = "") -> None:
+        # The legacy captureUserFeedback item: no time, user or context, only the error it is about.
+        send(bridge, envelope({"event_id": event_id, "sdk": SDK},
+                              ("user_report", {"event_id": event_id, "name": name, "email": email, "comments": comments})))
+
+    known, early = uuid.uuid4().hex, uuid.uuid4().hex
+    error(known, "payment declined")
+    user_report(known, "It failed when I paid", name="QA", email=CONTACT)
+    # Sent before its error (both in flight at once): held by the bridge, keyed by the event id.
+    user_report(early, "Sent before its error", name="Bo")
+    time.sleep(0.5)
+    error(early, "cart total mismatch")
+    # Sentry.captureFeedback: an event of type feedback; the scope gives it the user, the trace
+    # and the breadcrumbs. No session item travels with it: rule device (user.id = did).
+    fid, now = uuid.uuid4().hex, time.time()
+    fb = {"event_id": fid, "type": "feedback", "timestamp": now, "platform": "javascript", "level": "info", "release": RELEASE,
+          "environment": "development", "user": {"id": did}, "sdk": SDK,
+          "contexts": {**contexts, "trace": {"trace_id": secrets.token_hex(16), "span_id": secrets.token_hex(8)},
+                       "feedback": {"message": FEEDBACK, "contact_email": CONTACT, "name": "QA", "source": "api"}},
+          "breadcrumbs": [{"timestamp": now - 1, "category": "navigation", "type": "navigation",
+                           "data": {"from": "Home", "to": "Cart"}}]}
+    send(bridge, envelope({"event_id": fid, "sdk": SDK, "sent_at": rfc3339(now)}, ("feedback", fb)))
+    return [
+        {"message": FEEDBACK.strip(), "contact": CONTACT, "id": str(uuid.UUID(fid)), "rules": ["device"], "steps": ["Cart"]},
+        {"message": "It failed when I paid", "contact": CONTACT, "id": None, "rules": ["event"]},
+        {"message": "Sent before its error", "contact": "Bo", "id": None, "rules": ["event"]},
+    ]
 
 
 def main():
@@ -98,13 +146,15 @@ def main():
                                  "trace": {"trace_id": trace, "public_key": KEY, "release": RELEASE, "sampled": "true", "sample_rate": "1"}},
                                 ("transaction", tx)))
         time.sleep(0.2)
+    feedback = send_feedback(a.bridge, session, did, contexts)
     time.sleep(2)  # the app goes to the background a moment after the last request
     t1 = time.time()
     session.update({"init": False, "status": "exited", "timestamp": rfc3339(t1),
                     "duration": round(t1 - t0, 3)})
     send(a.bridge, envelope({"sdk": SDK}, ("session", session)))
     end = int(time.time()) + 2
-    json.dump({"start": start, "end": end, "backend": a.backend, "requests": a.requests, "session": sid}, open(a.out, "w"))
+    json.dump({"start": start, "end": end, "backend": a.backend, "requests": a.requests, "session": sid,
+               "feedback": feedback}, open(a.out, "w"))
     print(f"sent {a.requests} requests in session {sid}; wrote {a.out}")
     return 0
 

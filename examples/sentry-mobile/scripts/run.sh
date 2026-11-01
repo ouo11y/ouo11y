@@ -57,7 +57,11 @@ fi
 xcrun simctl launch "$DEVICE" dev.ouo.sentrydemo >/dev/null; sleep 12
 xcrun simctl terminate "$DEVICE" dev.ouo.sentrydemo 2>/dev/null || true
 end=$(( $(date +%s) + 1 ))
-printf '{"start": %d, "end": %d, "backend": "%s", "device": "%s"}\n' "$start" "$end" "$backend" "$DEVICE" > journey.json
+# The errors phase's `feedback` action (bridge spec 9c): captureFeedback resolves like an event
+# (envelope, replay, device or trace rule), the user report through the error it names.
+feedback='[{"message": "The pay button does nothing", "contact": "qa@example.invalid", "rules": ["envelope", "replay", "device", "trace"]},
+  {"message": "It failed when I paid", "contact": "qa@example.invalid", "id": null, "rules": ["event"]}]'
+printf '{"start": %d, "end": %d, "backend": "%s", "device": "%s", "feedback": %s}\n' "$start" "$end" "$backend" "$DEVICE" "$feedback" > journey.json
 log "journey window $start..$end, backend $backend"
 
 if [[ $VERIFY == 1 ]]; then

@@ -86,7 +86,8 @@ type StateConfig struct {
 	MaxSessions int           `mapstructure:"max_sessions"`
 	TTL         time.Duration `mapstructure:"ttl"`
 	ReplayHold  time.Duration `mapstructure:"replay_hold"`
-	// LogHold is how long a Sentry log entry waits for its session (default 1 min).
+	// LogHold is how long a Sentry log entry, or a user report whose error is not
+	// known yet, waits for its session (default 1 min).
 	LogHold time.Duration `mapstructure:"log_hold"`
 }
 

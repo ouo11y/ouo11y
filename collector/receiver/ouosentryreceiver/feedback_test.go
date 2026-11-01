@@ -1,6 +1,7 @@
 package ouosentryreceiver
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,11 @@ func TestUserReport(t *testing.T) {
 	x.send(t, `{"event_id":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"}`, item("user_report", map[string]any{"event_id": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2", "name": "Ana", "email": "ana@example.com", "comments": "It crashed when I paid"}))
 	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "ffffffffffffffffffffffffffffffff", "name": "Bo", "comments": "who am I"}))
 	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2", "comments": " "}))
+	// The unknown error's report is held (section 9c); shutdown emits it.
+	if fs := x.byName("feedback"); len(fs) != 1 {
+		t.Fatalf("records before the hold ends: %d", len(fs))
+	}
+	x.r.flushPendingLogs(context.Background(), true)
 	fs := x.byName("feedback")
 	if len(fs) != 2 {
 		t.Fatalf("records: %d", len(fs))
@@ -125,6 +131,58 @@ func TestUserReport(t *testing.T) {
 	}
 	if b["ouo.feedback.contact"] != "Bo" || b["session.id"] != nil || b["ouo.sentry.session_match"] != "none" {
 		t.Errorf("report on an unknown error: %v", b)
+	}
+}
+
+// A report that arrives before its error is held, keyed by the error's event
+// id, and takes the error's session when the error arrives (section 9c). One
+// whose error never arrives goes out without a session after the hold.
+func TestUserReportHeldUntilItsError(t *testing.T) {
+	x := newTx(t)
+	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "E3E3E3E3-E3E3-E3E3-E3E3-E3E3E3E3E3E3", "email": "ana@example.com", "comments": "early"}))
+	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4", "name": "Bo", "comments": "never"}))
+	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5", "comments": "  "}))
+	if fs := x.byName("feedback"); len(fs) != 0 {
+		t.Fatalf("emitted before the error is known: %+v", fs)
+	}
+	if n := len(x.r.pendingLogs.entries); n != 2 {
+		t.Fatalf("held reports: %d, want 2 (an empty one is not held)", n)
+	}
+	errorEnvelope(t, x, "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3")
+	fs := x.byName("feedback")
+	if len(fs) != 1 {
+		t.Fatalf("records after the error: %d", len(fs))
+	}
+	a := fs[0].attrs
+	if fs[0].body != "early" || a["session.id"] != sid1 || a["ouo.sentry.session_match"] != "event" || a["ouo.feedback.contact"] != "ana@example.com" {
+		t.Errorf("held report: %v", a)
+	}
+	// The hold ends: the next flush (an envelope or the 5 s tick) emits the other without a session.
+	if n := len(x.r.pendingLogs.entries); n != 1 {
+		t.Fatalf("held after the error: %d", n)
+	}
+	x.r.pendingLogs.entries[0].until = time.Now().Add(-time.Second)
+	x.r.flushPendingLogs(context.Background(), false)
+	fs = x.byName("feedback")
+	if len(fs) != 2 || fs[1].body != "never" || fs[1].attrs["session.id"] != nil || fs[1].attrs["ouo.sentry.session_match"] != "none" {
+		t.Fatalf("expired report: %+v", fs)
+	}
+	if n := len(x.r.pendingLogs.entries); n != 0 {
+		t.Errorf("held entries left: %d", n)
+	}
+}
+
+// Beyond maxPendingLogs held entries, a report goes out at once without a session.
+func TestUserReportHoldOverflow(t *testing.T) {
+	x := newTx(t)
+	filler := pendingLog{group: &logGroup{j: job{project: x.p}}, until: time.Now().Add(time.Hour)}
+	for range maxPendingLogs {
+		x.r.pendingLogs.entries = append(x.r.pendingLogs.entries, filler)
+	}
+	x.send(t, `{}`, item("user_report", map[string]any{"event_id": "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6", "comments": "full"}))
+	fs := x.byName("feedback")
+	if len(fs) != 1 || fs[0].attrs["ouo.sentry.session_match"] != "none" || len(x.r.pendingLogs.entries) != maxPendingLogs {
+		t.Fatalf("overflow: %+v, held %d", fs, len(x.r.pendingLogs.entries))
 	}
 }
 
@@ -150,7 +208,7 @@ func TestUUIDOf(t *testing.T) {
 	for in, want := range map[string]string{
 		"0123456789ABCDEF0123456789abcdef":     "01234567-89ab-cdef-0123-456789abcdef",
 		"01234567-89ab-cdef-0123-456789abcdef": "01234567-89ab-cdef-0123-456789abcdef",
-		"e1": "", "": "", "zz23456789abcdef0123456789abcdef": "",
+		"e1":                                   "", "": "", "zz23456789abcdef0123456789abcdef": "",
 	} {
 		if got := uuidOf(in); got != want {
 			t.Errorf("uuidOf(%q) = %q", in, got)
