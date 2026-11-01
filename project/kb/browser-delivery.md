@@ -11,7 +11,8 @@ What `@ouo11y/browser` does so telemetry survives flaky networks, a busy collect
 
 ## Retry
 
-- Retry network errors, timeouts (AbortController, 30 s), 408, 429 and 5xx. Every other status is final (a 4xx will not get better) and counted as `rejected`.
+- Retry network errors, timeouts (AbortController, 30 s), 429, 502, 503 and 504 (OTLP/HTTP's retryable set, since N88; the mobile SDKs since N55). Every other status is final and counted as `rejected`: 408, 500, 501 and 505 included. The collector answers 429 or 503 for what may succeed later and 400 or 500 for what will not ([mobile-delivery.md](mobile-delivery.md), "Head-of-line blocking"), so retrying a 500 only cost the backoff, then a place in the offline store that the next page load retried again. Before N88 a request answered 500 every time was tried `maxAttempts` times, stored, and retried by every drain until its 24 h expiry.
+- The page-hide paths follow the same rule: a keepalive request answered 500 is dropped, not stored for the next page; over the keepalive budget, a plain request answered 500 deletes the copy stored for the next page (as a 2xx does), where a retryable answer keeps it.
 - Backoff is exponential with equal jitter: attempt n waits between half and all of `min(30 s, 1 s * 2^(n-1))`, so no retry is immediate and failed clients spread out. `Retry-After` (seconds or HTTP date) replaces the computed delay. Over 60 s, the request goes to the store with `notBefore` rather than waiting in memory.
 - `send()` resolves after the first attempt; retries continue in the background. That keeps `rum.flush()` and the OTel batcher fast. The replay chunker's own retry now only sees refusals (`ChunkRejectedError`, `retryable: false`) and does not retry them.
 - A retry waiting for its backoff is woken at page hide and goes out on the keepalive path.

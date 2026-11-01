@@ -1,10 +1,15 @@
 /** What to do with an HTTP answer: done, try again later, or give up (the request is wrong). */
 export type StatusClass = "ok" | "retry" | "drop";
 
-/** 2xx is delivered; 408, 429 and 5xx are retried; any other status will not get better. */
+/**
+ * 2xx is delivered; OTLP/HTTP's retryable answers, 429, 502, 503 and 504, are retried; any other
+ * status is final and dropped as `rejected` (408 and 500 included: the collector answers 500 only
+ * for what will not get better, so a retry would cost the backoff and the store for nothing). The
+ * mobile SDKs follow the same rule (checklist N55, N88).
+ */
 export function classifyStatus(status: number): StatusClass {
   if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429 || status >= 500) return "retry";
+  if (status === 429 || status === 502 || status === 503 || status === 504) return "retry";
   return "drop";
 }
 

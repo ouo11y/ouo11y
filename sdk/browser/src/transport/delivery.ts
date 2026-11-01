@@ -83,9 +83,9 @@ function labelOf(url: string): string {
 /**
  * Sends every ingest request and makes losing one the exception (checklist N36, part A):
  *
- * - While the page is visible: gzip, then retry network errors, 408, 429 and 5xx with
- *   exponential backoff and jitter, honouring `Retry-After`, up to `maxAttempts`; any other 4xx
- *   is dropped. What still fails goes to the offline store.
+ * - While the page is visible: gzip, then retry network errors, timeouts, 429, 502, 503 and 504
+ *   with exponential backoff and jitter, honouring `Retry-After`, up to `maxAttempts`; any other
+ *   status is dropped (`rejected`). What still fails goes to the offline store.
  * - Offline (`navigator.onLine` false): straight to the store.
  * - Hidden or unloading (`visibilitychange` to hidden, `pagehide`): no await before the request
  *   leaves (the page may be gone after this task), so no gzip; `keepalive` within the 64 KB

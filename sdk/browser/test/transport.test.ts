@@ -53,11 +53,11 @@ afterEach(() => {
 });
 
 describe("retry policy", () => {
-  it("retries network-level failures, 408, 429 and 5xx, and nothing else", () => {
+  it("N88: retries OTLP/HTTP's retryable answers (429, 502, 503, 504) and nothing else", () => {
     expect(classifyStatus(200)).toBe("ok");
     expect(classifyStatus(204)).toBe("ok");
-    for (const s of [408, 429, 500, 502, 503, 504]) expect(classifyStatus(s)).toBe("retry");
-    for (const s of [400, 401, 403, 404, 413, 415, 302]) expect(classifyStatus(s)).toBe("drop");
+    for (const s of [429, 502, 503, 504]) expect(classifyStatus(s)).toBe("retry");
+    for (const s of [100, 302, 304, 400, 401, 403, 404, 408, 413, 415, 500, 501, 505, 599]) expect(classifyStatus(s)).toBe("drop");
   });
 
   it("reads Retry-After as seconds or as an HTTP date", () => {
@@ -135,8 +135,8 @@ describe("Delivery while the page is visible", () => {
     expect(d.stats.queued).toBe(1);
   });
 
-  it("never retries a 4xx other than 408 and 429, and counts and logs the drop", async () => {
-    for (const status of [400, 401, 404, 413]) {
+  it("never retries an answer but 429 and 502-504, and counts and logs the drop", async () => {
+    for (const status of [400, 401, 404, 408, 413, 500, 501]) {
       const { d, calls, logger } = make([status, 200]);
       expect(await d.send(req(300))).toBe("dropped");
       await d.settled();
@@ -144,10 +144,22 @@ describe("Delivery while the page is visible", () => {
       expect(d.stats).toMatchObject({ dropped: 1, droppedBytes: 300, dropReasons: { rejected: 1 } });
       expect(logger.warns.join()).toContain(`HTTP ${status}`);
     }
-    const { d, calls } = make([408, 200]);
-    await d.send(req());
+    for (const status of [502, 504]) {
+      const { d, calls } = make([status, 200]);
+      await d.send(req());
+      await d.settled();
+      expect(calls).toHaveLength(2);
+      expect(d.stats).toMatchObject({ sent: 1, retried: 1, dropped: 0 });
+    }
+  });
+
+  it("N88: a request the collector answers 500 to every time costs one attempt, not the retries and the store", async () => {
+    const { d, calls, store } = make([500, 500, 500, 500, 500], { maxAttempts: 3 });
+    expect(await d.send(req())).toBe("dropped");
     await d.settled();
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
+    expect(store!.size()).toBe(0);
+    expect(d.stats).toMatchObject({ retried: 0, queued: 0, dropReasons: { rejected: 1 } });
   });
 
   it("stores the request once the attempts are spent, and sends it when the collector is back", async () => {
@@ -232,6 +244,18 @@ describe("Delivery offline", () => {
     expect(d.stats.dropReasons.too_large).toBe(1);
   });
 
+  it("N88: a stored request answered 500 is dropped and the drain goes on to the next", async () => {
+    const store = new MemoryStore(1 << 20);
+    const old = { url: "http://c.test/v1/logs", headers: { Authorization: "Basic eDp5" }, notBefore: 0, attempts: 0, createdAt: Date.now() };
+    await store.put({ ...old, body: new Uint8Array([1]) });
+    await store.put({ ...old, body: new Uint8Array([2]) });
+    const { d, calls } = make([500, 200], { store, drainDelayMs: 0 });
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    await d.settled();
+    await vi.waitFor(() => expect(store.size()).toBe(0));
+    expect(d.stats).toMatchObject({ sent: 1, dropReasons: { rejected: 1 } });
+  });
+
   it("sends the previous page's requests at start, drops expired ones, and stops at the first failure", async () => {
     const store = new MemoryStore(1 << 20);
     const old = { url: "http://c.test/v1/logs", headers: { Authorization: "Basic eDp5" }, notBefore: 0, attempts: 0 };
@@ -281,6 +305,22 @@ describe("Delivery at page hide", () => {
     window.dispatchEvent(new Event("pagehide"));
     expect(await d.send(req(KEEPALIVE_MAX_BYTES + 1000, "replay"))).toBe("queued");
     expect(store!.size()).toBe(1);
+  });
+
+  it("N88: drops a keepalive request answered 500 instead of storing it for the next page", async () => {
+    const { d, calls, store } = make([500, 200]);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(await d.send(req())).toBe("dropped");
+    expect(calls).toHaveLength(1);
+    expect(store!.size()).toBe(0);
+    expect(d.stats.dropReasons).toEqual({ rejected: 1 });
+  });
+
+  it("N88: over the keepalive budget, a plain request answered 500 removes the copy stored for the next page", async () => {
+    const { d, store } = make([500]);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(await d.send(req(KEEPALIVE_MAX_BYTES + 1000, "replay"))).toBe("dropped");
+    expect(store!.size()).toBe(0);
   });
 
   it("stores a failed keepalive request without retrying it", async () => {

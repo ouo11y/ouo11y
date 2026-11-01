@@ -20,7 +20,7 @@ export function replayChunksUrl(replayEndpoint: string): string {
   return `${trimSlash(replayEndpoint)}${REPLAY_CHUNKS_PATH}`;
 }
 
-/** The receiver refused the chunk (a 4xx other than 408 and 429): sending it again cannot help. */
+/** The receiver refused the chunk (any answer but 2xx, 429, 502, 503 and 504): sending it again cannot help. */
 export class ChunkRejectedError extends Error {
   readonly retryable = false;
 }
