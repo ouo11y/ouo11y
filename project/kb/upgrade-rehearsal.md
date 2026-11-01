@@ -32,7 +32,12 @@ intact, on the VM install and on Helm?
   uid 65532 on the PVC).
 - `--reuse-values` keeps the old release's values, image tags included; upgrade with `-f`.
 - The Sentry golden envelopes carry 2026-10-14 timestamps; replays from them play by id, but
-  the sessions fall outside a "last hours" window.
+  the sessions fall outside a "last hours" window. Since 2026-10-21 Loki rejects their
+  log records outright (`reject_old_samples_max_age: 168h` in `deploy/compose/loki/config.yaml`;
+  Loki logs `has timestamp too old`),
+  so the bridged sessions do not exist at all and the plugin's session page answers 404 for them
+  in any time range; check those replays through `/v1/sessions/<id>/replay` or the plugin proxy
+  path `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay`, not the session page.
 - The old e2e scenario fails `has_error <trace id>` when the failed trace id starts with `0`:
   Tempo strips leading zeros and the scenario normalises ids for the list check but not for
   that lookup (1 in 16 runs). The data is right. Fixed by #119: both comparisons use
@@ -42,3 +47,30 @@ intact, on the VM install and on Helm?
 - Empty OTLP requests bypass `ouoratelimit` (N13): a rate-limit test must send a span.
 - Docker Desktop memory: self-hosted Sentry (about 14 GB) next to kind starved the API server
   (`TLS handshake timeout`) and Grafana's probes; check `docker stats` before each install.
+
+## 2026-11-01: compose with released images under ouo-env (M2/M3)
+
+- Old release in an env: a detached worktree at the commit whose `deploy/compose/.env.example`
+  pins the old images (`48fc296` for rum-api 0.5.0 / collector 0.4.0 / grafana 0.5.0), its
+  `.env.example` copied to `.env`, then `ouo-env up <env> --images --src <that worktree>
+  --branch <your branch>`. `--branch` matters: a detached `--src` records branch `HEAD`, which
+  `ouo-env gc` treats as gone. Compose reads `.env` from the `--src` checkout's `deploy/compose/`.
+- Upgrade = edit one `OUO_*_VERSION` in that `.env`, run the same `ouo-env up` again (it is
+  `compose up -d`: recreates only the changed container). Rollback guard check without touching
+  the env: `OUO_RUM_API_VERSION=0.5.0 docker compose -p ouo-<env> -f compose.yaml -f
+  compose.images.yaml -f ~/.local/state/ouo-env/<env>/compose.env.yaml run --rm --no-deps rum-api`
+  from `deploy/compose/` (exit 1, marker untouched).
+- The replay ids for `upgrade-replays.py check --ids`: rum-api's data is a named volume under
+  ouo-env, `docker run --rm -v ouo-<env>_rum-api-data:/d:ro alpine:3.22 ls /d/replays`.
+- `smoke.sh` always uses the session id `smoke-session`: a smoke run inside the fixed check
+  window adds a trace to that session, so the before / after diff shows it. End the window before
+  the post-upgrade smoke, or ignore that one entry.
+- A released SDK from npm: copy `examples/ouo-web` outside the workspace (scratchpad), `npm
+  install` there (it then resolves `@ouo11y/browser` from npmjs.org, check `resolved` in the
+  lockfile) plus `-D @types/node` (the example relies on the workspace's hoisted copy, N91), build
+  the source-map CLI from a copy of `sdk/sourcemaps` the same way, then the steps of
+  `scripts/run.sh` by hand. React Native: copy the npm package's `dist/` into
+  `sdk/react-native/dist` (gitignored) and run `tests/e2e/mobile/conformance.mjs`.
+- `@ouo11y/browser` 0.3.0 reports `ouo.sdk.version` 0.2.0 (fixed in 0.3.1, #130): use the
+  journey's session id, not the version attribute, to tell old and new sessions apart.
+
