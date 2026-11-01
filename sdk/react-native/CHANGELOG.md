@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
+
+
+### Added
+
+* **ios:** hangs, terminations, TTFD and error context (W4) ([aa6da5a](https://github.com/ouo11y/ouo11y/commit/aa6da5aa7dd8275538ee13e7de9adc860ad69e03))
+* **ios:** production-safe replay capture (W1) ([986c37a](https://github.com/ouo11y/ouo11y/commit/986c37a2c175f85c922fdc383758d0066b84b012))
+* **ios:** tiles in frames schema 2, a static screen sends no image bytes (W3a) ([bf5c22d](https://github.com/ouo11y/ouo11y/commit/bf5c22d47925656414f9877b6ba448a32185f942))
+* **react-native:** feedback primitive with plugin view and Sentry mapping (W6) ([b94514f](https://github.com/ouo11y/ouo11y/commit/b94514f3448af04b71d41d53c3bf365df02177b3))
+* **react-native:** gzip OTLP, offline outbox and durable replay chunk queue (W3 delivery) ([8f65408](https://github.com/ouo11y/ouo11y/commit/8f6540800034e658317f61dbfb674cc72be2bc89))
+* **react-native:** screen funnels and readable user steps (W5) ([a50e3e6](https://github.com/ouo11y/ouo11y/commit/a50e3e6858c19f047febf6ccc915114131a17fe5))
+
+
+### Fixed
+
+* **ios:** disk queues keep no wall-clock age, names keep put order ([eda5e32](https://github.com/ouo11y/ouo11y/commit/eda5e3206601fc440a61a3dd96d442a92f005a3d))
+* **react-native:** await the outbox drain on uninstall ([e84614c](https://github.com/ouo11y/ouo11y/commit/e84614cdb41cbdf026b0abd0a2828dff77e15df5))
+* **sdk:** keep SDK_VERSION in sync through release-please ([cd65004](https://github.com/ouo11y/ouo11y/commit/cd650047d988ca57584eb5bea50ee2d72e807ca3))
+
 ## 0.2.1 - 2026-10-24
 
 ### Changed
