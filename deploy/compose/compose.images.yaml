@@ -74,7 +74,8 @@ services:
       - |
         src=/var/lib/grafana/plugins/ouo11y-rum-app dst=/pvc/plugins/ouo11y-rum-app
         v=$$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' $$src/plugin.json | head -1)
-        if diff -r $$src $$dst >/dev/null 2>&1; then echo "ouo11y-rum-app $$v already installed"; exit 0; fi
+        # busybox diff exits 0 on an unreadable file; any output (a difference or an error) copies.
+        if [ -z "$$(diff -r $$src $$dst 2>&1)" ]; then echo "ouo11y-rum-app $$v already installed"; exit 0; fi
         mkdir -p /pvc/plugins
         rm -rf $$dst
         cp -a $$src $$dst
