@@ -171,11 +171,18 @@ when the variable is set; the plugin must add it without exposing it to the brow
   running). Locally the test took 0.2 s; on a busy shared runner every plugin file ran 3-10x slower.
 - **Cause, from a `node --cpu-prof` run**: over half the file's CPU was jsdom's `getComputedStyle`
   (`forEachMatchingSheetRuleOfElement`, nwsapi matching every emotion rule, about 1 ms a call),
-  called by floating-ui's `autoUpdate` → `getOverflowAncestors`. Grafana's `Combobox`
-  (`useComboboxFloat`) passes `whileElementsMounted: autoUpdate` with a new middleware array every
-  render, so it re-subscribes and walks all ancestors again on each render; three Comboboxes cost
-  ~140 calls in the first test.
-- **Fix**: `jest-setup.js` mocks `@floating-ui/dom`'s `autoUpdate` to a no-op (jsdom has no layout,
-  scroll or resize to follow). First Funnels test: 1.29 s → 0.39 s with 30 busy loops on the Mac,
+  called through floating-ui's `autoUpdate`. Grafana's `Combobox` (`useComboboxFloat`) passes
+  `whileElementsMounted: autoUpdate`; it subscribes once per Combobox (floating-ui/react-dom's
+  `deepEqual` compares middleware functions by `toString`, so the inline array is not a change) and
+  runs one `computePosition` on subscribe: `autoPlacement` and `size` each detect overflow
+  (`getClippingRect`), about 35 calls per Combobox, plus the `getOverflowAncestors` walk for scroll
+  listeners. In the first test 105 of 138 calls come from that first position computation, 33 from
+  the walk (counts by the PR #153 reviewer).
+- **Fix**: `jest-setup.js` mocks `@floating-ui/dom`'s `autoUpdate` to a no-op. Keeping the first
+  `update()` in the stub only gets the test to about 1 s under load: the no-op is fast because it
+  also skips that first positioning. Consequence: floating elements are never positioned in tests
+  (initial `floatingStyles`, Combobox menu `maxWidth`/`maxHeight` 0, `isPositioned` false). Harmless
+  today (no test opens a menu, `@grafana/ui` does not read `isPositioned`); a test that asserts
+  placement or menu size must unmock `autoUpdate` in its own file. First Funnels test: 1.29 s → 0.39 s with 30 busy loops on the Mac,
   0.22 s → 0.09 s idle. Count calls by wrapping `window.getComputedStyle` in a test if a new page
   is slow.
