@@ -80,7 +80,14 @@ export default function AppConfig({ plugin, onSaved = reloadPage }: AppConfigPro
 
   const settingsBody = (over: Partial<PluginSettingsBody> = {}): PluginSettingsBody => {
     // Keep every other jsonData key (featureToggles, provisioned keys this page does not edit).
-    const body: PluginSettingsBody = { enabled, pinned, jsonData: { ...jsonData, rumApiUrl }, ...over };
+    // No trailing slash: the POST and DELETE routes in plugin.json append `/v1/...` to the URL, and
+    // `http://rum-api:8080//v1/...` would be redirected by rum-api's mux instead of served.
+    const body: PluginSettingsBody = {
+      enabled,
+      pinned,
+      jsonData: { ...jsonData, rumApiUrl: rumApiUrl.replace(/\/+$/, '') },
+      ...over,
+    };
     if (tokenDirty) {
       // Only send the secret when the user typed one (or reset a stored one); Grafana keeps the
       // stored value for every key that is absent from secureJsonData.

@@ -65,9 +65,33 @@
   "routes": [
     {
       "path": "rum/*",
-      "method": "*",
+      "method": "GET",
       "reqRole": "Viewer",
       "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}",
+      "headers": [
+        {
+          "name": "Authorization",
+          "content": "Bearer {{ .SecureJsonData.readToken }}"
+        }
+      ]
+    },
+    {
+      "path": "rum/v1/funnels/*",
+      "method": "POST",
+      "reqRole": "Viewer",
+      "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}/v1/funnels",
+      "headers": [
+        {
+          "name": "Authorization",
+          "content": "Bearer {{ .SecureJsonData.readToken }}"
+        }
+      ]
+    },
+    {
+      "path": "rum/v1/sessions/*",
+      "method": "DELETE",
+      "reqRole": "Admin",
+      "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}/v1/sessions",
       "headers": [
         {
           "name": "Authorization",
