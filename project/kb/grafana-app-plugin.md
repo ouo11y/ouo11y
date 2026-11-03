@@ -183,6 +183,7 @@ when the variable is set; the plugin must add it without exposing it to the brow
   also skips that first positioning. Consequence: floating elements are never positioned in tests
   (initial `floatingStyles`, Combobox menu `maxWidth`/`maxHeight` 0, `isPositioned` false). Harmless
   today (no test opens a menu, `@grafana/ui` does not read `isPositioned`); a test that asserts
-  placement or menu size must unmock `autoUpdate` in its own file. First Funnels test: 1.29 s → 0.39 s with 30 busy loops on the Mac,
+  placement or menu size must unmock `autoUpdate` in its own file.
+- **Result**: first Funnels test 1.29 s → 0.39 s with 30 busy loops on the Mac,
   0.22 s → 0.09 s idle. Count calls by wrapping `window.getComputedStyle` in a test if a new page
   is slow.
