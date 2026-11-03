@@ -163,3 +163,19 @@ when the variable is set; the plugin must add it without exposing it to the brow
 - **Versioning rule**: every user-visible change bumps `package.json` `version` and gets a line in
   `plugins/ouo11y-rum-app/CHANGELOG.md`; the version ends up in `dist/plugin.json` through the
   `%VERSION%` replacement in `.config/webpack/webpack.config.ts`.
+
+## Slow Jest tests from floating-ui in jsdom (2026-11-03)
+
+- **Symptom**: `Funnels.test.tsx` failed CI once with "Exceeded timeout of 5000 ms" on its first
+  test and "A worker process has failed to exit gracefully" (the timed-out test's work still
+  running). Locally the test took 0.2 s; on a busy shared runner every plugin file ran 3-10x slower.
+- **Cause, from a `node --cpu-prof` run**: over half the file's CPU was jsdom's `getComputedStyle`
+  (`forEachMatchingSheetRuleOfElement`, nwsapi matching every emotion rule, about 1 ms a call),
+  called by floating-ui's `autoUpdate` → `getOverflowAncestors`. Grafana's `Combobox`
+  (`useComboboxFloat`) passes `whileElementsMounted: autoUpdate` with a new middleware array every
+  render, so it re-subscribes and walks all ancestors again on each render; three Comboboxes cost
+  ~140 calls in the first test.
+- **Fix**: `jest-setup.js` mocks `@floating-ui/dom`'s `autoUpdate` to a no-op (jsdom has no layout,
+  scroll or resize to follow). First Funnels test: 1.29 s → 0.39 s with 30 busy loops on the Mac,
+  0.22 s → 0.09 s idle. Count calls by wrapping `window.getComputedStyle` in a test if a new page
+  is slow.
