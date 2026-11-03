@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { defineConfig, type Options } from "tsup";
 
 /**
- * Build-time patch of the bundled rrweb (2.1.7, the latest): its snapshot loads and observes an
+ * Build-time patch of the bundled rrweb recorder (`@rrweb/record` 2.2.0, the latest; the fix,
+ * rrweb-io/rrweb#1964, is not released): its snapshot loads and observes an
  * iframe's document even when the iframe is blocked. rrweb's prototype check always fails on
  * Safari (it requires `ShadowRoot.prototype.getSelection` and lists Element methods as
  * accessors), so on Safari rrweb keeps two hidden helper iframes in the page; at every checkout
@@ -12,13 +13,13 @@ import { defineConfig, type Options } from "tsup";
  * is also what blocking means for privacy. Fails the build if the patched code changes.
  */
 const RRWEB_BLOCKED_IFRAME = {
-  find: 'if (serializedNode.type === NodeType$3.Element && serializedNode.tagName === "iframe") {',
-  replace: 'if (recordChild && serializedNode.type === NodeType$3.Element && serializedNode.tagName === "iframe") {',
+  find: 'if (serializedNode.type === NodeType.Element && serializedNode.tagName === "iframe") {',
+  replace: 'if (recordChild && serializedNode.type === NodeType.Element && serializedNode.tagName === "iframe") {',
 };
 const patchRrweb = {
   name: "ouo-rrweb-blocked-iframes",
   setup(build: { onLoad(o: { filter: RegExp }, cb: (a: { path: string }) => Promise<{ contents: string; loader: "js" }>): void }) {
-    build.onLoad({ filter: /[\\/]rrweb[\\/]dist[\\/]rrweb\.js$/ }, async ({ path }) => {
+    build.onLoad({ filter: /[\\/]@rrweb[\\/]record[\\/]dist[\\/]record\.js$/ }, async ({ path }) => {
       const source = await readFile(path, "utf8");
       const count = source.split(RRWEB_BLOCKED_IFRAME.find).length - 1;
       if (count !== 1) throw new Error(`rrweb patch: expected 1 occurrence in ${path}, found ${count}; review tsup.config.ts`);

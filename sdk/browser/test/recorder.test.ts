@@ -7,7 +7,7 @@ const rr = vi.hoisted(() => ({
   stops: 0,
   custom: [] as Array<{ tag: string; payload: unknown }>,
 }));
-vi.mock("rrweb", () => {
+vi.mock("@rrweb/record", () => {
   const record = (opts: { emit: (e: unknown, c?: boolean) => void }) => {
     rr.starts++;
     rr.emit = opts.emit;

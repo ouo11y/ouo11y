@@ -13,9 +13,9 @@ Basic project credentials (ADR-0007). rum-api is internal and never reached from
 npm install @ouo11y/browser
 ```
 
-ESM only, TypeScript types included. The main entry is about 42 KB gzipped; rrweb is a
-separate chunk (about 77 KB gzipped) that is only downloaded when replay is enabled and the
-session is sampled. Supported browsers and what the SDK guarantees about the host page:
+ESM only, TypeScript types included. The main entry is about 44 KB gzipped; the rrweb recorder
+(`@rrweb/record`, without rrweb's replayer) is a separate chunk of about 22 KB gzipped that is only
+downloaded when replay is enabled and the session is sampled. Supported browsers and what the SDK guarantees about the host page:
 "Compatibility and safety" below.
 
 ## Init
@@ -223,7 +223,7 @@ A per-project server-side override is not part of the SDK (roadmap 8b, collector
 
 ## Replay (ADR-0003)
 
-- rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min (30 s while buffering), no canvas or font collection. The bundled rrweb is patched at build time so a blocked iframe's document is neither recorded nor observed (`tsup.config.ts`): rrweb 2.1.7 did both, and on Safari, where rrweb keeps two hidden helper iframes, every checkout added observers that were never released.
+- rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min (30 s while buffering), no canvas or font collection. The bundled rrweb is patched at build time so a blocked iframe's document is neither recorded nor observed (`tsup.config.ts`): rrweb 2.2.0 still does both, and on Safari, where rrweb keeps two hidden helper iframes, every checkout added observers that were never released.
 - Privacy classes: add `ouo-block` to an element to exclude it from the recording (rendered as a placeholder), `ouo-mask` to replace its text with asterisks. Inputs are masked by default.
 - Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip` (bodies of 1 KB or more), `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. Chunks go through the same delivery layer as OTLP (see "Delivery"): on `pagehide` the remaining buffer leaves uncompressed with `keepalive`, and what does not fit the keepalive budget is kept for the next page load.
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.

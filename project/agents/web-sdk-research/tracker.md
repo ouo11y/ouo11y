@@ -12,5 +12,6 @@
 | Appendix F landscape and 25-vendor matrix | done | ~40 `[recall]` cells listed for recheck (F §9 Q10) |
 | Appendix M benchmark | done | harness in `tools/web-bench/`; 9 of 10 rounds (tenth stopped, machine load 85); large-DOM run 5 rounds |
 | Comparison, roadmap, HTML reports, indexes, summary | done | orchestrator; [summary](summaries/2026-10-29-web-sdk-research.md) |
-| Fix `SDK_VERSION` (reports 0.2.0 in 0.3.0) | todo | found by Appendix O; WB1 in the roadmap; not fixed on this research branch |
+| Fix `SDK_VERSION` (reports 0.2.0 in 0.3.0) | done | cd65004 (2026-10-31): release-please `extra-files` and `test/version.test.ts` |
+| WB1 replay chunk from `@rrweb/record` 2.2.0 | done | 77.2 to 22.1 KB gzip; [sdk-browser summary](../sdk-browser/summaries/2026-11-03-wb1-rrweb-record.md) |
 | ADRs proposed in roadmap §8 (budget policy, issue grouping, ADR-0003 rev, vitals names, shared RUM SDK spec) | todo | decisions, not written |
