@@ -58,7 +58,7 @@ describe("chunk uploader", () => {
   });
 
   it("keeps a chunk that fails at pagehide in the store instead of throwing", async () => {
-    const { delivery, store, upload } = setup(500);
+    const { delivery, store, upload } = setup(503);
     await expect(upload(bigChunk(1), { keepalive: true })).resolves.toBeUndefined();
     expect(store.size()).toBe(1);
     delivery.close();

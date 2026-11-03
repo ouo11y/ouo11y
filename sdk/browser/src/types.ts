@@ -114,9 +114,9 @@ export interface TransportOptions {
   /** gzip request bodies of 1 KB or more with `CompressionStream` where the browser has it. Default true. */
   compression?: boolean;
   /**
-   * Attempts per request, the first included, on network errors, 408, 429 and 5xx (exponential
-   * backoff with jitter, `Retry-After` honoured) before the request goes to the offline store.
-   * Other 4xx answers are never retried. Default 5.
+   * Attempts per request, the first included, on network errors, timeouts, 429, 502, 503 and 504
+   * (exponential backoff with jitter, `Retry-After` honoured) before the request goes to the
+   * offline store. Any other answer (another 4xx, 408, 500, 501) is never retried. Default 5.
    */
   maxAttempts?: number;
   /**
@@ -227,7 +227,7 @@ export interface DeliveryStats {
   queued: number;
   dropped: number;
   droppedBytes: number;
-  /** `rejected`: a 4xx other than 408 and 429. `store_full`: evicted from the offline store. `too_large`: larger than the store. `expired`: stored too long. `no_store`: failed with `offline: false`. `queue_full`: the export queue overflowed. */
+  /** `rejected`: an answer that is not 2xx, 429, 502, 503 or 504. `store_full`: evicted from the offline store. `too_large`: larger than the store. `expired`: stored too long. `no_store`: failed with `offline: false`. `queue_full`: the export queue overflowed. */
   dropReasons: Partial<Record<"rejected" | "store_full" | "too_large" | "expired" | "no_store" | "queue_full", number>>;
   rawBytes: number;
   wireBytes: number;

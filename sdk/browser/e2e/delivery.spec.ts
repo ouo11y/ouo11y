@@ -1,7 +1,7 @@
 /**
  * Delivery under network faults (checklist N36, part A) in Chromium, Firefox and WebKit against
  * the collector stub (e2e/server.mjs, POST /__fault): offline then online, offline across a page
- * load (IndexedDB), 429 with Retry-After, 503, a slow collector, gzip, and the same-origin proxy
+ * load (IndexedDB), 429 with Retry-After, 503, 500 (final), a slow collector, gzip, and the same-origin proxy
  * route with a relative endpoint.
  */
 import { expect, test, type Page } from "@playwright/test";
@@ -126,6 +126,23 @@ test("400 is not retried: dropped and counted", async ({ page }) => {
   await expect.poll(async () => (await stats(page)).dropped, { timeout: 10_000 }).toBe(1);
   await page.waitForTimeout(1500);
   expect((await captured(page)).requests.filter((r) => r.path === "/v1/logs" && r.status === 400)).toHaveLength(1);
+});
+
+test("N88: 500 is final: sent once, dropped and counted, and the next request goes out", async ({ page }) => {
+  await open(page);
+  await settle(page);
+  const armed = (await captured(page)).requests.length;
+  await faults(page, { status: 500, count: 1, paths: ["/v1/logs"] });
+  await mark(page, "answered-500");
+  await expect.poll(async () => (await stats(page)).dropped, { timeout: 10_000 }).toBe(1);
+  await mark(page, "after-500");
+  await expect.poll(async () => (await captured(page)).marks, { timeout: 20_000 }).toContain("after-500");
+  await page.waitForTimeout(1500);
+  const logs = (await captured(page)).requests.slice(armed).filter((r) => r.path === "/v1/logs");
+  expect(logs.filter((r) => r.status === 500)).toHaveLength(1);
+  // Never retried: the dropped batch's mark never arrives, the next one does.
+  expect((await captured(page)).marks).not.toContain("answered-500");
+  expect((await stats(page)).retried).toBe(0);
 });
 
 test("slow collector: the page stays responsive and nothing is sent twice", async ({ page }) => {
