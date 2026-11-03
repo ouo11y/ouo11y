@@ -85,8 +85,32 @@ export interface ReplayOptions {
    * chart) out of the replay's snapshot and mutation cost.
    */
   blockSelector?: string;
-  /** CSS selector of elements whose text is masked, in addition to the `ouo-mask` class. */
+  /**
+   * CSS selector of elements whose text is masked, in addition to the `ouo-mask` class. It masks
+   * inside `ouo-unmask` too.
+   */
   maskTextSelector?: string;
+  /**
+   * Mask every text node of the replay (each non-space character becomes `*`), and the text
+   * attributes `title`, `alt`, `placeholder`, `aria-label`, `aria-description`,
+   * `aria-valuetext`, `label` and the `value` of button inputs, except inside an element with
+   * the class `ouo-unmask` or matching `unmaskTextSelector`. `ouo-mask` and `maskTextSelector`
+   * still mask inside an unmasked area; `ouo-block` wins over both. Click names
+   * (`app.widget.name`) follow the same rule: outside the allow-list a click is named by its
+   * `data-testid` only. Default true (since 0.4.0; ADR-0003 revision 2026-11-03).
+   */
+  maskAllText?: boolean;
+  /** CSS selector of elements whose text is recorded with `maskAllText`, in addition to the `ouo-unmask` class. */
+  unmaskTextSelector?: string;
+  /**
+   * Never-record routes: while `location.pathname` (or the route template given to `setRoute`)
+   * matches one of these, the replay records nothing. A string matches exactly, or as a prefix
+   * when it ends with `*` (`/patients/*`, like funnel `page:` steps); a RegExp is tested. Entering
+   * such a route writes an `ouo.replay.hidden` marker (reason `route`) into the replay and the
+   * timeline; leaving it records again from a full snapshot, 500 ms later (routers change the
+   * URL before they render the next page).
+   */
+  excludeRoutes?: Array<string | RegExp>;
 }
 
 export interface SessionOptions {

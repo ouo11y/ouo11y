@@ -129,3 +129,10 @@ OuoReplay.flush()
 ```
 
 React Native: `initRUM({ replay: { enabled: true, mode: "auto" } })` starts it through the Expo module; `rum.replay.pause()/resume()/isRecording()` mirror the web API; the JS session manager calls `sessionDidRotate` on rotation.
+
+## Never-record screens (React Native, ADR-0006 revision 3)
+
+- `initRUM({ replay: { excludeScreens: ["IdentityCheck", "/Account/Sign*", /^Patient/] } })`: a string equals the screen name (the last segment of the tracked navigation path) or the whole path, or is a prefix when it ends with `*`; a RegExp is tested against both.
+- When the tracked screen matches, the SDK calls the native `pause()` before it emits the `navigation` event and asks for no frame (`screenDidChange` is not called); when it no longer matches, `resume()`, which takes a full frame. `rum.replay.hideScreen()` / `showScreen()` do the same by hand. The host's `pause()`, the sampling pause, `excludeScreens` and `hideScreen()` are independent; capture resumes only when none holds it.
+- The SDK emits an OTel event `ouo.replay.hidden` with `ouo.replay.hidden_reason` `screen` or `manual` when a recorded session's capture is hidden (once per hidden stretch), and for a new session that starts while hidden. Chunks carry no marker; the player keeps the last frame across the gap.
+- Native `pause()` runs on the main thread's next turn: a frame already being captured, or one taken between the screen's mount and the navigation callback on a screen shown without a transition, can still be sent, masked by the capture rules. Hosts call `hideScreen()` before navigating to a screen that must never appear.

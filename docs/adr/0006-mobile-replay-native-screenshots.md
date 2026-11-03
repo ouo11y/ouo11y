@@ -1,6 +1,6 @@
 # ADR-0006 Mobile session replay: native screenshot capture, iOS first
 
-Status: accepted (2026-10-08); revision 2 (2026-10-29, capture scheduling and fail-closed masking, mobile SDK roadmap W1) below
+Status: accepted (2026-10-08); revision 2 (2026-10-29, capture scheduling and fail-closed masking, mobile SDK roadmap W1) and revision 3 (2026-11-03, never-record screens) below
 
 ## Context
 
@@ -37,3 +37,18 @@ Decision (normative text in `docs/specs/mobile-replay.md`, "Capture rules"):
 
 Consequences: a tap's result can show up to 1 s later in the replay, as in Sentry; a screen with a masked view that never stops moving records no frames rather than an unmasked one; with the default masking nearly every list holds masked text, so session mode records no frames while a list is dragged or decelerating (including a finger resting on it) and the next frame comes after the scroll ends: the screen shows the previous scroll offset, so a mask would trail the text by up to a line; frames at 1x are downscaled on a background queue from a transient bitmap at the screen's scale (about 15 MB on a Pro Max, one at a time).
 
+
+## Revision 3 (2026-11-03): never-record screens
+
+Context: directed by the founder on 2026-11-03 at the request of the client JUHI (a care company; its React Native app shows identity checks, signatures and addresses, data concerning health under GDPR Art. 9). Masking already redacts text, images and web views by default, but the layout of a screen is still recorded; some screens must not appear in a replay at all, including third-party native UI such as Stripe Identity. The web side is ADR-0003, revision 2026-11-03.
+
+Decision:
+
+- **`replay.excludeScreens`** in the React Native SDK: screen names (the last segment of the navigation path the SDK tracks), whole paths, `*` prefixes or RegExps. While the current screen matches, the JS controller pauses the native recorder; leaving it resumes with a full frame.
+- **`rum.replay.hideScreen()` / `showScreen()`** for what the SDK does not see as a route (a third-party SDK's view controller or activity). Host pause, sampling pause and the two hide sources are independent: capture resumes when none holds it. Native `pausedByHost` already survives foregrounding and new activities or view controllers, so nothing changes in `sdk/ios` or `sdk/android`: the RN path drives the existing `pause()` / `resume()` of both.
+- **Marker**: the frame chunk has no event channel, so the gap is an `ouo.replay.hidden` OTel event on the session's timeline (`ouo.replay.hidden_reason`: `screen` or `manual`), once per hidden stretch and for a session that starts while hidden. The player keeps the last frame before the gap until the next one.
+
+Consequences:
+
+- The SDK learns about a route in `onStateChange`, after the screen mounted, and the native pause runs on the main thread's next turn; a screen shown without a native transition can have one (masked) frame captured before the pause. Apps call `hideScreen()` before navigating to a screen that must never appear.
+- Native iOS apps that embed `OuoReplay` without React Native use `OuoReplay.pause()` / `resume()` for the same effect; a native `hideScreen` with a timeline marker needs the native telemetry SDK (mobile roadmap) and is a follow-up.

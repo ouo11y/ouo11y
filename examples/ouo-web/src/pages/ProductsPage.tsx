@@ -21,7 +21,7 @@ export function ProductsPage() {
   }, []);
 
   return (
-    <section className="page">
+    <section className="page ouo-unmask">
       <h1>Products</h1>
       {error && <p className="alert alert-error">Could not load products: {error}</p>}
       {!products && !error && <p className="muted">Loading products…</p>}

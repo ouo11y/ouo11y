@@ -34,7 +34,8 @@ beforeAll(() => {
     projectToken: "pt_test_interactions",
     service: { name: "web-store", version: "1.0.0", environment: "test" },
     tracing: { propagateTo: [new RegExp(`^${API}`)], idleTimeoutMs: 100, documentLoad: false },
-    replay: { enabled: false },
+    // Click names follow replay text masking even with replay off; the buy button is on the allow-list.
+    replay: { enabled: false, unmaskTextSelector: "#buy" },
   });
 });
 

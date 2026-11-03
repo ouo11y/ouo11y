@@ -19,6 +19,13 @@
     <button id="block">Block main thread</button>
     <button id="mutate">Mutate</button>
     <button id="fail">Report an error</button>
+    <div class="ouo-unmask">
+      <p id="public">Public heading</p>
+      <p class="ouo-mask">Unmasked area, masked again</p>
+    </div>
+    <p id="patient" title="Patient Jane Doe">Jane Doe, born 1970</p>
+    <button id="private">Open patient record</button>
+    <button id="leave">Back to the list</button>
     <div id="out"></div>
     <script type="module">
       import { initRUM } from "/dist/index.js";
@@ -39,7 +46,15 @@
         service: { name: "e2e-page", version: "1.0.0", environment: "e2e" },
         tracing: { idleTimeoutMs: num("idle", 300) },
         session: { sampleRate: num("sample", 1) },
-        replay: { enabled: q.get("replay") !== "0", sampleRate: num("replayRate", 1), onErrorSampleRate: num("onError", 0), flushIntervalMs: 500 },
+        // Text is masked by default (ADR-0003 rev. 2026-11-03); #fetch's name is on the allow-list.
+        replay: {
+          enabled: q.get("replay") !== "0",
+          sampleRate: num("replayRate", 1),
+          onErrorSampleRate: num("onError", 0),
+          flushIntervalMs: 500,
+          unmaskTextSelector: "#fetch",
+          excludeRoutes: ["/patients/*"],
+        },
         longTasks: { thresholdMs: 100 },
         transport: { beacon: q.get("beacon") === "1", ...(q.has("attempts") ? { maxAttempts: num("attempts", 5) } : {}) },
         debug: q.get("debug") === "1",
@@ -65,6 +80,17 @@
       });
       document.getElementById("mutate").addEventListener("click", () => (out.textContent = `mutated ${Date.now()}`));
       document.getElementById("fail").addEventListener("click", () => window.rum.captureError(new Error("e2e failure")));
+      // A router that renders the never-record page and updates the URL in one task.
+      document.getElementById("private").addEventListener("click", () => {
+        out.innerHTML = '<p class="ouo-unmask">Diagnosis: confidential</p>';
+        history.pushState({}, "", "/patients/42");
+        setTimeout(() => (out.innerHTML += '<p class="ouo-unmask">Later on the record page</p>'), 50);
+      });
+      // Leaving as React Router does: the URL first, the next page renders after it.
+      document.getElementById("leave").addEventListener("click", () => {
+        history.pushState({}, "", "/");
+        setTimeout(() => (out.innerHTML = '<p class="ouo-unmask">Patient list</p>'), 50);
+      });
       document.getElementById("status").textContent = "ready";
     </script>
   </body>

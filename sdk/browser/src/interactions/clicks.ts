@@ -15,6 +15,10 @@ export interface ClickTrackingOptions {
   spans: boolean;
   rageClicks: RageClickOptions | false;
   deadClicks: boolean;
+  /** With `replay.maskAllText`: the selector outside which no text goes into `app.widget.name`. */
+  unmask?: string | undefined;
+  /** `replay.maskTextSelector`: no text from inside it either. */
+  mask?: string | undefined;
   clock?: Clock;
 }
 
@@ -62,7 +66,7 @@ export function installClickTracking(opts: ClickTrackingOptions): () => void {
     const el = clickTarget(event.target);
     if (!el) return;
     const now = clock.now();
-    const { id, name } = describeElement(el);
+    const { id, name } = describeElement(el, opts.unmask, opts.mask);
     const attrs: Attrs = {
       "app.widget.id": id,
       "app.screen.coordinate.x": Math.round(event.clientX),

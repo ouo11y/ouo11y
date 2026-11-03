@@ -54,6 +54,9 @@ export const rum: RUM = initRUM({
   service: { name: "web-store", version: config.appVersion, environment: "local" },
   tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
   session: { sampleRate: config.sessionSampleRate },
+  // Replay masks every input and all text by default (ADR-0003). The public storefront (header,
+  // catalogue, chaos panel) is marked `ouo-unmask` so its replay stays readable; the cart,
+  // checkout, order and session footer stay masked.
   replay: {
     enabled: true,
     maskAllInputs: true,

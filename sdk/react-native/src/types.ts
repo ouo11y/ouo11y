@@ -75,6 +75,16 @@ export interface ReplayOptions {
   /** Redact WKWebView. Default true. */
   maskWebViews?: boolean;
   /**
+   * Never-record screens: while the screen the SDK tracks (`navigationStateListener` or
+   * `trackNavigation`) matches one of these, native capture is paused and sends no frame. A
+   * string matches the screen name (the path's last segment, `IdentityCheck`) or the whole path
+   * (`/Account/IdentityCheck`) exactly, or as a prefix when it ends with `*`; a RegExp is tested
+   * against both. Hiding writes an `ouo.replay.hidden` event (reason `screen`) to the timeline;
+   * the replay resumes with a full frame when the screen is left. Native screens the SDK cannot
+   * see as routes (Stripe Identity, a document scanner) need `rum.replay.hideScreen()`.
+   */
+  excludeScreens?: Array<string | RegExp>;
+  /**
    * Fraction of (session-sampled) sessions recorded from their start, 0 to 1. Default 1.
    * Deterministic per session id, like `session.sampleRate`.
    */
@@ -319,6 +329,15 @@ export interface RUMReplay {
   pause(): void;
   resume(): void;
   isRecording(): boolean;
+  /**
+   * Never record what shows from now until `showScreen()`: native capture pauses on the next
+   * main-thread turn and an `ouo.replay.hidden` event (reason `manual`) marks the gap. Call it
+   * before navigating to a screen that must never appear, and before presenting a screen the SDK does not see as a route, such as a third-party SDK's
+   * own view controller or activity (Stripe Identity), and `showScreen()` once it is dismissed.
+   * Independent of `pause()` and `excludeScreens`: capture resumes when none of them holds it.
+   */
+  hideScreen(): void;
+  showScreen(): void;
 }
 
 /** `rum.feedback(...)` (docs/specs/mobile-sdk.md C10): what the user wrote, as the app passes it. */

@@ -19,7 +19,7 @@ import { createLogger } from "./logger";
 import { installNavigation } from "./navigation";
 import { createNetworkInstrumentations } from "./network";
 import { ReplayChunker } from "./replay/chunker";
-import { ReplayRecorder } from "./replay/recorder";
+import { ReplayRecorder, UNMASK_CLASS } from "./replay/recorder";
 import { createChunkUploader } from "./replay/uploader";
 import { loadDeviceId } from "./session/device";
 import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
@@ -256,6 +256,9 @@ function install(
       spans: options.tracing?.interactions !== false,
       rageClicks: options.clicks?.rageClicks ?? {},
       deadClicks: options.clicks?.deadClicks !== false,
+      // Click labels follow the replay's text masking (ADR-0003 revision 2026-11-03).
+      unmask: options.replay?.maskAllText === false ? undefined : `.${UNMASK_CLASS}${options.replay?.unmaskTextSelector ? `,${options.replay.unmaskTextSelector}` : ""}`,
+      mask: options.replay?.maskTextSelector,
     }),
   );
   // Optional platform features: a browser without them gets the rest of the SDK.
@@ -288,12 +291,12 @@ function install(
   cleanup.push(() => chunker.stop());
   recorder = new ReplayRecorder({
     enabled: replayEnabled,
-    maskAllInputs: options.replay?.maskAllInputs !== false,
     sampleRate: options.replay?.sampleRate ?? 1,
     onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
-    blockSelector: options.replay?.blockSelector,
     onSkip: (reason, bytes) => events.emit("ouo.replay.skipped", { "ouo.replay.skip_reason": reason, "ouo.replay.snapshot_bytes": bytes }, "warn"),
-    maskTextSelector: options.replay?.maskTextSelector,
+    privacy: options.replay,
+    routeName: () => route.name,
+    onHidden: () => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": "route" }),
     session,
     chunker,
     logger,
@@ -302,8 +305,10 @@ function install(
   cleanup.push(() => rec.shutdown());
   void quiet(recorder.start());
   // Error-triggered replay: the first error of a buffering session uploads its replay.
+  // Never-record routes: a navigation is emitted synchronously from the history call.
   cleanup.push(
     events.subscribe((name, _attrs, severity) => {
+      if (name === "navigation") recorder?.onRoute();
       if (name === "exception" && severity === "error") recorder?.onError();
     }),
   );
@@ -391,6 +396,7 @@ function install(
       attempt(() => {
         route.name = name || undefined;
         if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
+        recorder?.onRoute();
       });
     },
     replay: {

@@ -64,10 +64,10 @@ export function Layout() {
   return (
     <div className="app">
       <header className="header">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand ouo-unmask">
           web-store
         </Link>
-        <nav className="nav">
+        <nav className="nav ouo-unmask">
           <NavLink to="/">Products</NavLink>
           <NavLink to="/cart">
             Cart{cart && cart.itemCount > 0 ? ` (${cart.itemCount})` : ""}
@@ -84,7 +84,7 @@ export function Layout() {
         <>
           <button
             type="button"
-            className="chaos-fab"
+            className="chaos-fab ouo-unmask"
             aria-expanded={chaosOpen}
             onClick={() => setChaosOpen((o) => !o)}
             title="Chaos panel"
