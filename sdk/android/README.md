@@ -73,6 +73,10 @@ until the semantics walk of the Compose modifiers work package.
   foreground or visible importance by the low-memory killer, an ANR, excessive resource use, a native
   crash or a `SIGKILL` is a termination (cause `memory`, `watchdog`, `cpu` or `unknown`). Force stops,
   `exit()`, updates and background deaths are not.
+- **Not captured: NDK (C/C++) crashes.** There is no native signal handler, so a crash in native
+  code writes no `crash.json`; on Android 11+ it shows up only as a termination with cause `unknown`
+  (`REASON_CRASH_NATIVE`). Next: read its tombstone from `ApplicationExitInfo.getTraceInputStream()`
+  (Android 12+) at the next launch and report it as a crash with native frames.
 - **Frames and app start** (C4): `FrameMetrics` of every resumed activity window counts rendered
   frames, slow (past the frame's deadline) and frozen (700 ms or more). The app start is cold from
   the process start only when the process was started to show the app (`ApplicationStartInfo` on

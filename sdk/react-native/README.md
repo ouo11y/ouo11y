@@ -295,7 +295,7 @@ await rum.flush();                              // force export of spans and log
 | `console.error` | `exception` | false | true |
 | `rum.captureError` | `exception` | false | true |
 | `Sentry.captureException` and other Sentry error events, with `errors.forwardSentryErrors` | `exception`, `ouo.exception.kind = sentry` | `level == fatal` | Sentry's `mechanism.handled` (default true) |
-| native crash (iOS: signal, uncaught NSException; Android: uncaught Java or Kotlin exception), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
+| native crash (iOS: signal, uncaught NSException; Android: uncaught Java or Kotlin exception, not NDK C/C++ crashes), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
 | app hang: the main thread could not draw (iOS) or answer (Android) for 2 s or more, sent when it is over | `exception`, `ouo.exception.kind = hang` | false | false |
 | foreground termination (out of memory, watchdog or ANR: killed in the foreground without a crash report; Android from `ApplicationExitInfo`, 11+), sent on the next launch | `exception`, `ouo.exception.kind = termination` | true | false |
 
@@ -319,12 +319,14 @@ and emits a fatal `exception` stamped with that time and the crashed `session.id
 so the stack can be symbolicated later (`atos -o App.dSYM -l <image_addr> <instruction_addr>`). A
 JS fatal that React Native turns into `RCTFatalException` in Release is not reported twice: the
 JS handler already sent it, the native report only gives the end time. Turn it off with
-`errors: { nativeCrashes: false }` (which also turns off hangs and terminations).
+`errors: { nativeCrashes: false }` (which also turns off hangs and terminations). Only the
+crashed thread is recorded, from its frame pointers.
 **Android** (`sdk/android` `signals`, ADR-0017): an uncaught exception handler chained to React
 Native's writes the report (mechanism `jvm`, Java frames `module.function(file:line)`), a watchdog
 reports main-thread hangs, and the next launch reads `ApplicationExitInfo` for foreground
-terminations; React Native's `JavascriptException` is the JS fatal and only gives the end time. Only the
-crashed thread is recorded, from its frame pointers.
+terminations; React Native's `JavascriptException` is the JS fatal and only gives the end time.
+**Android NDK (C/C++) crashes are not captured**: no `native` exception and no stack is sent; on
+Android 11+ the next launch reports a termination with cause `unknown`, before that nothing.
 
 **App hangs (iOS).** A watchdog thread reads the same `CADisplayLink` frames as the vitals every
 400 ms (sentry-cocoa's rules, mobile SDK spec C3): when the main thread drew no frame for 2 s
