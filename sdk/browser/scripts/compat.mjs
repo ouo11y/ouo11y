@@ -11,7 +11,7 @@ import { SourceMapConsumer } from "source-map";
 const KNOWN = [
   [/^index\.js$/, "ouo.replay.skipped", /src\/index\.ts$/],
   [/^react\.js$/, "react.error_boundary", /src\/react\/index\.ts$/],
-  [/^rrweb-.*\.js$/, "takeFullSnapshot", /rrweb/],
+  [/^record-.*\.js$/, "takeFullSnapshot", /rrweb/],
 ];
 for (const file of readdirSync("dist").filter((f) => f.endsWith(".js"))) {
   const [, needle, source] = KNOWN.find(([re]) => re.test(file)) ?? [];

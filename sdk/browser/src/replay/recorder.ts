@@ -106,7 +106,7 @@ export class ReplayRecorder {
       if (this.unavailable) return;
       if (!this.loading) {
         // Never rejects: a failed chunk load must not become an unhandledrejection on the page.
-        this.loading = import("rrweb").then(
+        this.loading = import("@rrweb/record").then(
           (mod) => {
             this.rrweb = mod as unknown as RrwebModule;
           },

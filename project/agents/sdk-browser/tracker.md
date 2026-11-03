@@ -14,4 +14,5 @@
 | 2026-10-23 | CI bundle-size budget; cross-browser Playwright matrix; interaction and soft-navigation spans; long tasks; rage / dead clicks; React subpath; meta traceparent docs; session and error-triggered replay sampling | done, checklist N25, 8b (browser) |
 | 2026-10-24 | N36 part B: page safety (guards, shutdown / re-init, SSR, CSP + Trusted Types, storage), browser support and es-check, fault-injection e2e, 1 h soak, rrweb cost | done, checklist N42, N43 (see summaries/2026-10-24-n36b-safety-long-sessions.md) |
 | 2026-10-24 | Session lifecycle: `user_change` rotation, `endSession`, `clearUser`, `device.id` (+ rum-api `device_id`) | done, checklist N45 (see summaries/2026-10-24-session-lifecycle.md) |
+| 2026-11-03 | WB1 (web roadmap): replay chunk from `@rrweb/record` 2.2.0 (77.2 to 22.1 KB gzip), build patch moved, budget 23 KB, plugin `rrweb-player` 2.2.0 | done (see summaries/2026-11-03-wb1-rrweb-record.md) |
 | open | Plugin looks for the new `ouo.*` events; rum-api known event names; server-side sampling override | other owners |

@@ -99,7 +99,7 @@ specs `e2e/faults.spec.ts`, `e2e/csp.spec.ts`, `e2e/soak.spec.ts`, `e2e/rrweb-co
 - **Found by the first 1 h run (WebKit only): +2 listeners and +2 observers every 5 minutes.** A
   stack-recording probe (`new Error().stack` at each add / observe, kept until remove / disconnect,
   then mapped through the rrweb chunk's source map) pointed at rrweb's iframe manager:
-  - rrweb 2.1.7's `getUntaintedPrototype` decides a prototype is patched when a listed getter or
+  - rrweb's `getUntaintedPrototype` (2.1.7, unchanged in 2.2.0) decides a prototype is patched when a listed getter or
     method is not `[native code]`. Its lists are wrong for real browsers: `Element` "accessors"
     `querySelector` / `querySelectorAll` are methods (no getter: always "tainted"), and Safari has
     no `ShadowRoot.prototype.getSelection`. So rrweb always takes clean prototypes from a hidden

@@ -79,7 +79,7 @@ npm install /absolute/path/to/ouo/sdk/browser
 
 Option B, install from a tarball. Verified with `npm pack --dry-run` in `sdk/browser`:
 the tarball is named `ouo11y-browser-0.2.0.tgz` and contains `dist/index.js`,
-`dist/index.d.ts`, the lazily loaded `dist/rrweb-*.js` chunk (plus source maps),
+`dist/index.d.ts`, the lazily loaded `dist/record-*.js` chunk (the rrweb recorder) (plus source maps),
 `package.json`, `README.md`, `CHANGELOG.md` and `LICENSE` (614 kB packed, 9 files). Build the tarball inside the ouo repository:
 
 ```bash
@@ -92,10 +92,10 @@ Then install it in your app:
 npm install /tmp/ouo11y-browser-0.2.0.tgz
 ```
 
-Both methods also pull the `@opentelemetry/*`, `rrweb` and `web-vitals` packages listed in
+Both methods also pull the `@opentelemetry/*`, `@rrweb/record` and `web-vitals` packages listed in
 `sdk/browser/package.json` into your `node_modules`. They are not used at runtime: the
 build bundles everything (`noExternal` in `sdk/browser/tsup.config.ts`), so your app loads
-one ESM entry of about 40 KB gzipped and downloads rrweb (about 80 KB gzipped) only when
+one ESM entry of about 44 KB gzipped and downloads the rrweb recorder (about 22 KB gzipped) only when
 replay is enabled and the session is sampled.
 
 If you are starting a React app from nothing, this is what the demo uses (Node 24, ESM,
@@ -560,7 +560,7 @@ Where to look when you want to know what a signal contains.
 - `navigation.ts`: patches `history.pushState` / `replaceState`, listens to `popstate`,
   emits `navigation`.
 - `vitals.ts`: `web-vitals` callbacks to `web_vital` records.
-- `replay/recorder.ts`: lazy `import("rrweb")`, `maskAllInputs`, `ouo-block` /
+- `replay/recorder.ts`: lazy `import("@rrweb/record")`, `maskAllInputs`, `ouo-block` /
   `ouo-mask` classes, full snapshot every 5 min, pause / resume, sampling.
 - `replay/chunker.ts`: buffers rrweb events, cuts a chunk every 5 s or at 256 KB,
   sequential upload queue with 3 retries and a 2 MB cap.
