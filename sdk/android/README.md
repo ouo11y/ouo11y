@@ -65,14 +65,15 @@ until the semantics walk of the Compose modifiers work package.
   stack and uses only the time.
 - **Hang** (C3.1): a watchdog thread posts to the main looper every 200 ms. A post that waits 2 s
   starts a hang (from the main thread's last answer; the main thread's stack is read then); the hang
-  is over when the post runs. One report per hang, none for 2 s after one, none in the background or
-  under a debugger. Android draws no frames on an idle screen, so the iOS frame-delay rules do not
-  apply.
+  is over when the post runs. One report per hang, none for 2 s after one, none under a debugger. In
+  the background the watchdog is parked (no wake-ups) until an activity starts; a hang in progress
+  when the app leaves the foreground ends then and is reported. Android draws no frames on an idle
+  screen, so the iOS frame-delay rules do not apply.
 - **Termination** (C3.2): `run.json` holds this run's pid, session, last memory warning and hang in
   progress. The next launch asks `ApplicationExitInfo` (Android 11+) how that pid died; a death at
-  foreground or visible importance by the low-memory killer, an ANR, excessive resource use, a native
-  crash or a `SIGKILL` is a termination (cause `memory`, `watchdog`, `cpu` or `unknown`). Force stops,
-  `exit()`, updates and background deaths are not.
+  foreground or visible importance (not a foreground service, 125) by the low-memory killer, an ANR,
+  excessive resource use, a native crash or a `SIGKILL` is a termination (cause `memory`,
+  `watchdog`, `cpu` or `unknown`). Force stops, `exit()`, updates and background deaths are not.
 - **Not captured: NDK (C/C++) crashes.** There is no native signal handler, so a crash in native
   code writes no `crash.json`; on Android 11+ it shows up only as a termination with cause `unknown`
   (`REASON_CRASH_NATIVE`). Next: read its tombstone from `ApplicationExitInfo.getTraceInputStream()`

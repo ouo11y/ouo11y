@@ -69,6 +69,7 @@ object Termination {
   const val REASON_FREEZER = 14
   const val REASON_PACKAGE_STATE_CHANGE = 15
   const val REASON_PACKAGE_UPDATED = 16
+  const val IMPORTANCE_FOREGROUND = 100
   const val IMPORTANCE_VISIBLE = 200
   const val SIGKILL = 9
 
@@ -80,15 +81,16 @@ object Termination {
    * exit record of the previous run's process ([previous] names its pid); [crashReported]: the run
    * left a crash report, which wins.
    *
-   * A termination is a death while the app was in the foreground (importance foreground or visible)
-   * that no handler saw: the low-memory killer (`memory`), an ANR (`watchdog`), excessive resource
-   * use (`cpu`), a native crash ouo does not capture yet and a `SIGKILL` (`memory` after a memory
-   * warning in the last minute, else `unknown`). A user's force stop or swipe, `exit()`, a package
-   * update, a permission change and any death in the background are not.
+   * A termination is a death while the app was in the foreground (importance foreground or visible,
+   * nothing else: a foreground service of a backgrounded app is 125) that no handler saw: the
+   * low-memory killer (`memory`), an ANR (`watchdog`), excessive resource use (`cpu`), an NDK crash,
+   * which ouo does not capture (`unknown`), and a `SIGKILL` (`memory` after a memory warning in the
+   * last minute, `watchdog` during a hang, else `unknown`). A user's force stop or swipe, `exit()`, a
+   * package update, a permission change and any death in the background are not.
    */
   fun decide(previous: RunState?, exit: Exit?, crashReported: Boolean): Report? {
     if (previous == null || exit == null || crashReported || exit.pid != previous.pid) return null
-    if (exit.importance > IMPORTANCE_VISIBLE) return null
+    if (exit.importance != IMPORTANCE_FOREGROUND && exit.importance != IMPORTANCE_VISIBLE) return null
     val cause = when (exit.reason) {
       REASON_LOW_MEMORY -> "memory"
       REASON_ANR -> "watchdog"

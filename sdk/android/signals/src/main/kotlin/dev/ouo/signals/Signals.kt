@@ -27,6 +27,8 @@ import dev.ouo.signals.core.Report
 import dev.ouo.signals.core.RunState
 import dev.ouo.signals.core.Termination
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.Executors
 
 /**
@@ -58,9 +60,19 @@ object Signals {
   private var onHang: ((String) -> Unit)? = null
 
   private val frames = FrameCounter()
-  /** Started activities (main thread); the watchdog reads it. */
-  @Volatile private var started = 0
-  private val foreground: Boolean get() = started > 0
+  /** Started activities whose `onStart` was seen (main thread only). */
+  private val started = Collections.newSetFromMap(IdentityHashMap<Activity, Boolean>())
+  /**
+   * Seeded at [init] from the process importance, since an activity may have started before the
+   * lifecycle callbacks were registered; from then on each `onStart` / `onStop` sets it from
+   * [started] (an `onStop` of an activity started before [init] makes it false unless another one
+   * started since). Written on the main thread, which then wakes the watchdog ([wake]).
+   */
+  @Volatile private var foreground = false
+  /** The watchdog parks on it while the app is in the background. */
+  private val wake = Object()
+  /** When the main thread last saw the app leave the foreground (uptime ms). */
+  @Volatile private var leftForegroundAt = 0L
   private var runtimes = 0
   @Volatile private var hangFrames = emptyList<JvmFrame>()
 
@@ -80,8 +92,8 @@ object Signals {
     crashFile.delete()
     val previous = RunState.parse(runCatching { File(dir, RUN).readText() }.getOrNull())
     pending = crash ?: Termination.decide(previous, lastExit(previous?.pid), crashReported = false)?.toJson()
-    writeRun(RunState(Process.myPid()))
-    started = if (isVisible(app)) 1 else 0
+    updateRun { RunState(Process.myPid()) }
+    foreground = isVisible(app)
     app.registerActivityLifecycleCallbacks(lifecycle)
     app.registerComponentCallbacks(memory)
   }
@@ -117,7 +129,7 @@ object Signals {
   /** The session a crash, hang or termination belongs to, and its start (epoch ms). */
   fun setSession(sessionId: String, sessionStartedMs: Long) {
     if (!initialized || sessionId.isEmpty()) return
-    writeRun(run.copy(sessionId = sessionId, sessionStartedMs = sessionStartedMs))
+    updateRun { it.copy(sessionId = sessionId, sessionStartedMs = sessionStartedMs) }
   }
 
   /** Cumulative frame counters since [init], null before the first rendered frame. */
@@ -160,17 +172,27 @@ object Signals {
 
   // ---- run state and terminations ----
 
-  private fun writeRun(state: RunState) {
-    run = state
-    val text = state.toJson()
-    io.execute {
-      runCatching {
-        val tmp = File(dir, "$RUN.tmp")
-        tmp.writeText(text)
-        tmp.renameTo(File(dir, RUN))
+  private val runLock = Any()
+
+  /**
+   * Changes the run state and queues its write. The JS thread (session), the watchdog (hang) and the
+   * main thread (memory warning) all change it: under one lock, so no change is lost and the single
+   * io thread writes the states in the order they were made.
+   */
+  private fun updateRun(change: (RunState) -> RunState): RunState =
+    synchronized(runLock) {
+      val state = change(run)
+      run = state
+      val text = state.toJson()
+      io.execute {
+        runCatching {
+          val tmp = File(dir, "$RUN.tmp")
+          tmp.writeText(text)
+          tmp.renameTo(File(dir, RUN))
+        }
       }
+      state
     }
-  }
 
   private fun lastExit(pid: Int?): Exit? {
     if (pid == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
@@ -196,7 +218,7 @@ object Signals {
   }
 
   private fun memoryWarning() {
-    if (initialized) writeRun(run.copy(memoryWarningMs = System.currentTimeMillis()))
+    if (initialized) updateRun { it.copy(memoryWarningMs = System.currentTimeMillis()) }
   }
 
   // ---- hangs ----
@@ -213,19 +235,26 @@ object Signals {
       isDaemon = true
     }
 
+    private val detector = HangDetector()
+    private var startedAtEpoch = 0L
+    private var framesAtStart = 0.0
+
     override fun run() {
-      val detector = HangDetector()
-      var startedAtEpoch = 0L
-      var framesAtStart = 0.0
       while (true) {
         try {
+          // Not measured in the background: parked until an activity starts (no wake-ups there).
+          if (!foreground) {
+            stop(leftForegroundAt, report = true)
+            synchronized(wake) { while (!foreground) wake.wait() }
+            lastAnswer = SystemClock.uptimeMillis()
+          }
           sleep(TICK_MS)
         } catch (e: InterruptedException) {
           return
         }
-        // Not measured in the background, nor while a debugger can stop the main thread.
-        if (!foreground || Debug.isDebuggerConnected()) {
-          detector.reset()
+        // Nor while a debugger can stop the main thread: a hang in progress is dropped.
+        if (Debug.isDebuggerConnected()) {
+          stop(SystemClock.uptimeMillis(), report = false)
           lastAnswer = SystemClock.uptimeMillis()
           continue
         }
@@ -241,28 +270,35 @@ object Signals {
             // The stack while the main thread is still blocked; a termination during the hang carries it.
             val stack = Report.frames(Looper.getMainLooper().thread.stackTrace)
             hangFrames = stack
-            writeRun(run.copy(hangStartedMs = startedAtEpoch, hangFrames = stack))
+            updateRun { it.copy(hangStartedMs = startedAtEpoch, hangFrames = stack) }
           }
-          is HangDetector.Event.Ended -> {
-            val drew = (frames.snapshot()?.get("total") ?: 0.0) > framesAtStart
-            val r = run
-            val report = Report(
-              mechanism = "hang",
-              timestampMs = startedAtEpoch,
-              sessionId = r.sessionId,
-              sessionStartedMs = r.sessionStartedMs.takeIf { it > 0 },
-              mainThread = true,
-              frames = hangFrames,
-              hangDurationMs = e.durationMs,
-              hangFullyBlocking = !drew,
-            )
-            writeRun(r.copy(hangStartedMs = null, hangFrames = emptyList()))
-            val cb = onHang
-            if (cb != null) main.post { cb(report.toJson()) }
-          }
+          is HangDetector.Event.Ended -> ended(e)
           null -> {}
         }
       }
+    }
+
+    /** Measuring stops at [now] (uptime): a hang in progress ends there, reported when [report]. */
+    private fun stop(now: Long, report: Boolean) {
+      val e = detector.interrupt(now, lastAnswer) ?: return
+      if (report) ended(e) else updateRun { it.copy(hangStartedMs = null, hangFrames = emptyList()) }
+    }
+
+    private fun ended(e: HangDetector.Event.Ended) {
+      val drew = (frames.snapshot()?.get("total") ?: 0.0) > framesAtStart
+      val r = updateRun { it.copy(hangStartedMs = null, hangFrames = emptyList()) }
+      val report = Report(
+        mechanism = "hang",
+        timestampMs = startedAtEpoch,
+        sessionId = r.sessionId,
+        sessionStartedMs = r.sessionStartedMs.takeIf { it > 0 },
+        mainThread = true,
+        frames = hangFrames,
+        hangDurationMs = e.durationMs,
+        hangFullyBlocking = !drew,
+      )
+      val cb = onHang
+      if (cb != null) main.post { cb(report.toJson()) }
     }
   }
 
@@ -274,11 +310,13 @@ object Signals {
 
   private val lifecycle = object : Application.ActivityLifecycleCallbacks {
     override fun onActivityStarted(a: Activity) {
-      started++
+      started.add(a)
+      setForeground(true)
     }
 
     override fun onActivityStopped(a: Activity) {
-      started = maxOf(0, started - 1)
+      started.remove(a)
+      setForeground(started.isNotEmpty())
     }
 
     override fun onActivityResumed(a: Activity) = attachFrames(a)
@@ -290,6 +328,15 @@ object Signals {
     override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
 
     override fun onActivityDestroyed(a: Activity) {}
+  }
+
+  private fun setForeground(value: Boolean) {
+    if (value == foreground) return
+    if (!value) leftForegroundAt = SystemClock.uptimeMillis()
+    synchronized(wake) {
+      foreground = value
+      wake.notifyAll()
+    }
   }
 
   /** The host's current activity, for a module created after the first `onResume`. */
@@ -336,7 +383,7 @@ object Signals {
     if (Build.VERSION.SDK_INT < 35) return null
     return runCatching {
       val am = app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-      val info = am.getHistoricalProcessStartReasons(1).firstOrNull() ?: return null
+      val info = am.getHistoricalProcessStartReasons(1).firstOrNull()?.takeIf { it.pid == Process.myPid() } ?: return null
       info.reason == ApplicationStartInfo.START_REASON_LAUNCHER ||
         info.reason == ApplicationStartInfo.START_REASON_LAUNCHER_RECENTS ||
         info.reason == ApplicationStartInfo.START_REASON_START_ACTIVITY

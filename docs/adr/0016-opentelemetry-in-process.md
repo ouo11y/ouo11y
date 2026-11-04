@@ -1,6 +1,6 @@
 # ADR-0016 OpenTelemetry in process: opentelemetry-android on Android, a dependency-free Swift package on iOS
 
-Status: accepted (2026-10-29, roadmap agreed by the founder)
+Status: accepted (2026-10-29, roadmap agreed by the founder); refined by [ADR-0017](0017-android-signals-and-opentelemetry-android.md) for the React Native Android module
 
 ## Context
 

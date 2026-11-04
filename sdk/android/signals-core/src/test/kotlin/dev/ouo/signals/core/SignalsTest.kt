@@ -62,6 +62,9 @@ class SignalsTest {
       assertNull("reason $reason", Termination.decide(run, exit(reason), false))
     }
     assertNull("background", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY, importance = 400), false))
+    assertNull("a foreground service of a backgrounded app", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY, importance = 125), false))
+    assertNull("perceptible", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY, importance = 230), false))
+    assertEquals("visible", "memory", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY, importance = 200), false)?.terminationCause)
     assertNull("another process", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY, pid = 7), false))
     assertNull("the crash wins", Termination.decide(run, exit(Termination.REASON_LOW_MEMORY), true))
     assertNull("another signal", Termination.decide(run, exit(Termination.REASON_SIGNALED, signal = 15), false))
@@ -88,6 +91,26 @@ class SignalsTest {
     // Blocked again right away: nothing within the 2 s quiet period, then the new block from its start.
     assertNull(d.tick(6000, answer))
     assertEquals(HangDetector.Event.Started(4050), d.tick(6200, answer))
+  }
+
+  @Test
+  fun aHangTheUserLeavesTheAppDuringIsReported() {
+    // The main thread answers at 1000, then blocks; the watchdog ticks every 200 ms.
+    fun hung() = HangDetector().also { h ->
+      for (t in 1000L..2800L step 200) assertNull(h.tick(t, 1000))
+      assertEquals(HangDetector.Event.Started(1000), h.tick(3000, 1000))
+    }
+    val d = hung()
+    // Home pressed: onStop ran on the main thread at 4100, before the watchdog's message.
+    assertEquals(HangDetector.Event.Ended(1000, 4100), d.interrupt(4100, 1000))
+    assertTrue(!d.inHang)
+    // The watchdog's message ran first: the hang ends at that answer.
+    val e = hung()
+    assertEquals(HangDetector.Event.Ended(1000, 3900), e.interrupt(4100, 3900))
+    // No hang in progress: nothing, and measuring restarts (no gap is seen as a frozen watchdog).
+    assertNull(e.interrupt(9000, 9000))
+    assertNull(e.tick(60_000, 60_000))
+    assertNull(e.tick(60_200, 60_200))
   }
 
   @Test

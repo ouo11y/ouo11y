@@ -59,9 +59,18 @@ class HangDetector(val thresholdMs: Long = 2_000, val quietMs: Long = 2_000) {
     return null
   }
 
-  /** The app left the foreground: no hang is measured there; one in progress is dropped. */
-  fun reset() {
-    hangStartedAt = null
+  /**
+   * Measuring stops at [now] (the app left the foreground, a debugger attached); it restarts with
+   * the next [tick]. A hang in progress ends: at the main thread's answer after it ([lastAnswer])
+   * when there was one, else at [now], since leaving the foreground ran on the main thread. As on
+   * iOS, a hang the user left the app during is still reported.
+   */
+  fun interrupt(now: Long, lastAnswer: Long): Event.Ended? {
     lastTick = null
+    val start = hangStartedAt ?: return null
+    hangStartedAt = null
+    val end = if (lastAnswer > start) lastAnswer else maxOf(start, now)
+    quietUntil = end + quietMs
+    return Event.Ended(start, end)
   }
 }
