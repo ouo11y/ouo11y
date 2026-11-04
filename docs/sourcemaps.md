@@ -1,4 +1,4 @@
-# Source maps: readable stacks from minified web apps
+# Source maps: readable stacks from minified web and React Native apps
 
 A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` into `at o (https://shop.example/assets/index-B3x9.js:40:1234)`. With source maps uploaded to ouo, the session page and rum-api's API show the original file, line, column and function, and the source line that threw. The raw stack stays available behind a toggle. The design is [ADR-0011](adr/0011-source-maps-and-symbolication.md).
 
@@ -115,6 +115,131 @@ Run `inject` before `next start` or before you copy `.next` into your image. The
 
 Rollup's `output.sourcemapDebugIds: true` already writes `//# debugId=`. `ouo-sourcemaps inject` keeps that id and adds only the runtime snippet, so run it anyway.
 
+## React Native (Hermes)
+
+A Hermes release build prints `at chargeCard (address at index.android.bundle:1:11313)`: the column is a bytecode offset, and the file is the same name for the store build and for every over-the-air (OTA) bundle of that version. So React Native needs the debug id even more than the web: it is the only thing that tells two OTA bundles of `1.4.0` apart.
+
+How the pieces fit:
+
+1. **Metro adds the debug id** while it writes the bundle (`@ouo11y/sourcemaps/metro`). Hermes compiles the bundle to bytecode right after Metro, so nothing can be appended later. The snippet holds the id as one string literal, which survives `hermesc`, and registers it at runtime in `globalThis.__ouoDebugIds`.
+2. **The build composes the maps.** Metro's map (bundle to sources) and hermesc's map (bytecode to bundle) become the map of the bytecode. The Gradle plugin, `react-native-xcode.sh` and hot-updater do this themselves; `ouo-sourcemaps compose` does it for a hand-written pipeline.
+3. **`ouo-sourcemaps upload`** reads the id from the map, or from the bundle itself (text or bytecode), and uploads the map under it.
+4. **`@ouo11y/react-native`** adds `ouo.exception.debug_ids` (`{"app:///index.android.bundle": "<id>"}`) to every JavaScript exception: uncaught and fatal, unhandled rejections, `console.error`, `captureException`, and errors forwarded from Sentry. It reads the id when the error is captured.
+5. **rum-api** looks the map up by that id first, then by `service.version` + bundle name, and reads a Hermes column as the bytecode offset it is.
+
+Native crashes (signals, NSException, Java) have no JavaScript frames; they use dSYMs ([symbolication.md](symbolication.md)).
+
+### 1. Add the debug id in Metro
+
+Install the CLI in the app: `npm install --save-dev @ouo11y/sourcemaps`.
+
+Bare React Native (`react-native bundle`, the Gradle plugin, Xcode, hot-updater's `bare` plugin all read `metro.config.js`):
+
+```js
+// metro.config.js
+const { getDefaultConfig, mergeConfig } = require("@react-native/metro-config");
+const { withOuoDebugIds } = require("@ouo11y/sourcemaps/metro");
+
+module.exports = withOuoDebugIds(mergeConfig(getDefaultConfig(__dirname), {}));
+```
+
+Expo (SDK 50 or later; `expo export`, `expo export:embed`, EAS Build and EAS Update use Expo's own serializer, which already computes a debug id per bundle):
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require("expo/metro-config");
+const { ouoExpoDebugIdPlugin } = require("@ouo11y/sourcemaps/metro");
+
+module.exports = getDefaultConfig(__dirname, {
+  unstable_beforeAssetSerializationPlugins: [ouoExpoDebugIdPlugin],
+});
+```
+
+`examples/ouo-mobile/metro.config.js` does this. The snippet goes on the line of Metro's prelude (bare) or right after it (Expo), runs before any module, and adds about 200 bytes of bytecode. Development bundles get no id.
+
+An app that already uses Sentry's Metro plugin (`withSentryConfig`, `getSentryExpoConfig`) can keep it: the SDK reads Sentry's registry when no ouo id is registered, and the CLI finds Sentry's id in the bytecode. Use one of the two, not both.
+
+### 2. Upload after a release build
+
+Pass the app's version (the SDK's `service.version`) as `--release`. With debug ids it only labels the upload.
+
+Android (Gradle plugin, `./gradlew assembleRelease` or `bundleRelease`). The bundle is bytecode, its composed map is in another folder:
+
+```bash
+npx ouo-sourcemaps upload \
+  --bundle android/app/build/generated/assets/react/release/index.android.bundle \
+  --sourcemap android/app/build/generated/sourcemaps/react/release/index.android.bundle.map \
+  --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --release "$APP_VERSION"
+```
+
+iOS (Xcode, `react-native-xcode.sh`). Xcode writes a map only when `SOURCEMAP_FILE` is set; add it to `ios/.xcode.env` (the "Bundle React Native code and images" phase reads it):
+
+```bash
+# ios/.xcode.env
+export SOURCEMAP_FILE="$DERIVED_FILE_DIR/main.jsbundle.map"
+```
+
+Then, in a Run Script phase after that one, or from CI with the paths of the build:
+
+```bash
+npx ouo-sourcemaps upload \
+  --bundle "$CONFIGURATION_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/main.jsbundle" \
+  --sourcemap "$DERIVED_FILE_DIR/main.jsbundle.map" \
+  --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --release "$APP_VERSION"
+```
+
+Expo prebuild projects run the same Gradle plugin and Xcode script, so the same two commands apply. The maps never ship in the app: they are build outputs, not bundled assets.
+
+### Without the Metro plugin: bundle, inject, compile, compose
+
+A pipeline that runs the steps itself can inject between Metro and hermesc instead:
+
+```bash
+npx react-native bundle --platform android --dev false --entry-file index.js \
+  --bundle-output out/index.android.bundle --sourcemap-output out/index.android.bundle.map
+npx ouo-sourcemaps inject out                         # snippet + id into the JavaScript and its map
+node_modules/hermes-compiler/hermesc/osx-bin/hermesc -O -emit-binary -output-source-map \
+  -out out/index.android.bundle.hbc out/index.android.bundle   # linux64-bin on Linux
+npx ouo-sourcemaps compose out/index.android.bundle.map out/index.android.bundle.hbc.map \
+  -o out/index.android.bundle.hbc.map
+npx ouo-sourcemaps upload out --release "$APP_VERSION"  # uploads the .hbc and its composed map
+```
+
+`hermesc` is `node_modules/hermes-compiler/hermesc/<os>-bin/hermesc` from React Native 0.83 on, `node_modules/react-native/sdks/hermesc/<os>-bin/hermesc` before. When a folder holds both `index.android.bundle` and `index.android.bundle.hbc` with their maps, `upload` sends only the bytecode's map, under the name `index.android.bundle`. `inject` refuses a bundle that is already bytecode without an id: inject before hermesc.
+
+### OTA updates
+
+Every OTA bundle has its own debug id, so its own map, even though all of them are `index.android.bundle` of the same store version. Upload each bundle's map when you publish it; rum-api keeps every one, and an error from a device that still runs an older OTA bundle resolves against that bundle's map.
+
+**hot-updater.** Wrap the build plugin, like hot-updater's own Sentry plugin does. The upload runs after each platform's build, before the bundle is deployed; a failed upload stops the deploy (`failOnError: false` only warns):
+
+```ts
+// hot-updater.config.ts
+import { bare } from "@hot-updater/bare";
+import { defineConfig } from "hot-updater";
+import { withOuoSourcemaps } from "@ouo11y/sourcemaps/hot-updater";
+
+export default defineConfig({
+  build: withOuoSourcemaps(bare({ enableHermes: true, sourcemap: true }), {
+    release: process.env.APP_VERSION, // the store version the update targets
+    deleteAfter: true, // keep the maps out of the OTA bundle
+  }),
+  // storage, database, ...
+});
+```
+
+`url`, `token` and `project` default to `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN` and `OUO_PROJECT_ID`. `metro.config.js` needs `withOuoDebugIds` (step 1): hot-updater runs `react-native bundle`, which reads it.
+
+**expo-updates (EAS Update).** With `ouoExpoDebugIdPlugin` in `metro.config.js`, export with maps, upload, then publish the same export:
+
+```bash
+npx expo export --platform all --source-maps --output-dir dist
+npx ouo-sourcemaps upload dist/_expo/static/js --release "$APP_VERSION" --delete-after
+npx eas-cli update --skip-bundler --input-dir dist --branch production --message "$MESSAGE"
+```
+
+**CodePush-style tools** (`react-native bundle` + Hermes into a folder that is then released): run the pipeline above, upload the folder, then release it.
+
 ## What you see
 
 - **Session page** (plugin): an exception with mapped frames shows a `source mapped` badge. Its stack opens on the original frames and source lines, and an **Original / Raw** toggle switches to the stack as recorded. Frames without a map are greyed and keep their minified position.
@@ -141,5 +266,7 @@ Maps are kept `retention.sourcemaps` (default 90 days) from their upload, per pr
 ## Limits
 
 - Uploads go to rum-api directly. A public upload path through `ouo-collector`, for CI on hosted runners, is planned (checklist N41).
-- React Native / Hermes maps use the same store and CLI (release + bundle name). Their frame parsing is in place, but the RN SDK does not send debug ids yet (ADR-0011 section 6).
+- React Native without a debug id (no Metro plugin, no `inject`) falls back to release + bundle name, which holds one map: the last OTA bundle uploaded for a store version replaces the one before, and errors from devices on an older OTA bundle map to the wrong lines.
+- Expo's `expo export` for web and server bundles, and the JSON-list output of its static export, are not React Native bundles: the web ones take the [web setup](#3-build-with-maps-inject-upload-delete).
+- RAM bundles (`x_facebook_offsets`) and Hermes bytecode bundles split into segments are not supported; React Native has not built them by default for years.
 - One map is limited to 64 MiB decompressed (`MAX_SOURCEMAP_BYTES`).

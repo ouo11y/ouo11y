@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact, type UploadOptions } from "./index.js";
+import { artifactOf, composeHermesMaps, deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact, type InjectResult, type UploadOptions } from "./index.js";
 
 const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to rum-api (ADR-0011)
 
-  ouo-sourcemaps inject <dir>... [--dry-run]
-      Appends a debug id (and the snippet the ouo browser SDK reads) to every bundle that has a
-      map, and writes it into the map. Idempotent: run it after every build, before deploying.
+  ouo-sourcemaps inject <dir>... [--bundle <file> --sourcemap <map>] [--react-native] [--dry-run]
+      Appends a debug id (and the snippet the ouo SDK reads) to every bundle that has a map, and
+      writes it into the map. Idempotent: run it after every build, before deploying. React Native
+      bundles (.bundle, .jsbundle, or any file with --react-native) get the React Native snippet:
+      run it before hermesc, or use withOuoDebugIds from @ouo11y/sourcemaps/metro instead.
 
   ouo-sourcemaps upload <dir>... --url <rum-api> --token <upload token> [options]
-      PUTs every map to <rum-api>/v1/sourcemaps.
+      PUTs every map to <rum-api>/v1/sourcemaps, keyed by the bundle's debug id (from the map,
+      the //# debugId= comment, or the id a React Native bundle, text or Hermes bytecode, holds).
+      Bundles: .js .mjs .cjs .bundle .jsbundle .hbc with <file>.map or a sourceMappingURL.
+      --bundle <file>      a bundle whose map is elsewhere, with --sourcemap (repeatable)
+      --sourcemap <file>   the map of the --bundle at the same position
       --url <url>          rum-api base URL                         [OUO_SOURCEMAPS_URL]
       --token <token>      the project's upload token (a CI secret)  [OUO_UPLOAD_TOKEN]
       --project <id>       fail unless the token is this project's    [OUO_PROJECT_ID]
@@ -19,6 +25,10 @@ const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and 
       --dry-run            list what would be uploaded
 
   ouo-sourcemaps inject-and-upload <dir>... (same options as upload)
+
+  ouo-sourcemaps compose <packager.map> <hermes.map> -o <out.map> [--bundle <file>]
+      Composes Metro's map with hermesc's (-output-source-map) into the map of the bytecode, with
+      the app's metro-source-map, and keeps the debug id (of the packager map, or of --bundle).
 
   ouo-sourcemaps upload-dsym <path>... --url <rum-api> --token <upload token> [--project] [--release] [--dry-run]
       PUTs every DWARF file of the .dSYM bundles under each path (or the path itself when it is a
@@ -66,6 +76,10 @@ async function main(): Promise<number> {
       "url-prefix": { type: "string" },
       "delete-after": { type: "boolean" },
       "dry-run": { type: "boolean" },
+      bundle: { type: "string", multiple: true },
+      sourcemap: { type: "string", multiple: true },
+      "react-native": { type: "boolean" },
+      output: { type: "string", short: "o" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -81,17 +95,40 @@ async function main(): Promise<number> {
     return uploadDSYMs(dirs, uploadOptions(values, dryRun), dryRun);
   }
 
+  if (cmd === "compose") {
+    const [packager, hermes] = dirs;
+    if (!packager || !hermes || !values.output) fail("compose <packager.map> <hermes.map> -o <out.map>\n\n" + usage);
+    const bundle = values.bundle?.[0];
+    const r = await composeHermesMaps(packager, hermes, values.output, bundle ? { bundle } : {});
+    process.stdout.write(`composed ${r.debugId ?? "(no debug id)"}  ${values.output}\n`);
+    return 0;
+  }
+
+  // Directories, and bundles whose map is in another folder (--bundle / --sourcemap pairs).
+  const bundles = values.bundle ?? [];
+  const maps = values.sourcemap ?? [];
+  if (bundles.length !== maps.length) fail("give one --sourcemap per --bundle");
+  const collect = async (): Promise<Artifact[]> => [
+    ...(dirs.length > 0 || bundles.length === 0 ? await artifactsOf(dirs) : []),
+    ...bundles.map((b, i) => artifactOf(b, maps[i]!)),
+  ];
+
   let artifacts: Artifact[] = [];
   if (cmd === "inject" || cmd === "inject-and-upload") {
-    artifacts = await artifactsOf(dirs);
+    artifacts = await collect();
     for (const a of artifacts) {
-      const r = await inject(a, { dryRun });
+      let r: InjectResult;
+      try {
+        r = await inject(a, { dryRun, ...(values["react-native"] ? { reactNative: true } : {}) });
+      } catch (e) {
+        fail((e as Error).message);
+      }
       process.stdout.write(`${r.changed ? "injected" : "kept    "} ${r.debugId}  ${a.rel}\n`);
     }
     if (artifacts.length === 0) process.stderr.write("ouo-sourcemaps: no bundle with a source map found\n");
     if (cmd === "inject") return 0;
   } else if (cmd === "upload") {
-    artifacts = await artifactsOf(dirs);
+    artifacts = await collect();
   } else {
     fail(`unknown command ${cmd}\n\n${usage}`);
   }

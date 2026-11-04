@@ -1,7 +1,7 @@
 {
   "name": "@ouo11y/sourcemaps",
   "version": "0.1.0",
-  "description": "ouo source-map CLI: inject debug ids into built JavaScript and upload the maps to rum-api for symbolication.",
+  "description": "ouo source-map CLI: inject debug ids into built JavaScript and React Native (Hermes) bundles and upload the maps to rum-api for symbolication.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -14,7 +14,10 @@
     "rum",
     "source-maps",
     "debug-id",
-    "symbolication"
+    "symbolication",
+    "react-native",
+    "hermes",
+    "metro"
   ],
   "publishConfig": {
     "access": "public"
@@ -29,6 +32,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./metro": {
+      "types": "./dist/metro.d.ts",
+      "import": "./dist/metro.js",
+      "require": "./dist/metro.cjs"
+    },
+    "./hot-updater": {
+      "types": "./dist/hot-updater.d.ts",
+      "import": "./dist/hot-updater.js",
+      "require": "./dist/hot-updater.cjs"
     }
   },
   "files": [
