@@ -73,6 +73,7 @@ Phase 8 ships as four stacked PRs (8a to 8d). 8a design: ADR-0007.
 
 - [ ] ClickHouse session store behind existing rum-api contracts; sessionizer; migration path from Loki folding documented
 - [ ] Projects and tokens in Postgres; per-project retention and sampling; Grafana organisation or folder mapping
+  - [R1 2026-11-04: the view side exists: `?project=` / `?service=` on every rum-api read, `GET /v1/projects`, the plugin's Project / App selector and cross-project Overview (`docs/specs/rum-api-scope.md`). It narrows views only; tokens and access isolation remain this item]
 - [ ] Audit log of configuration changes and deletions
 - [ ] Load test at one million sessions per day, published with cluster size and cost per million sessions
 - [ ] rum-api API versioning and OpenAPI document

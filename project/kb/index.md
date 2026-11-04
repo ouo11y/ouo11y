@@ -12,6 +12,7 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [otel-react-native.md](otel-react-native.md) | What the OTel JS SDK needs to run inside React Native / Expo (filled in Phase 5) |
 | [collector-lgtm.md](collector-lgtm.md) | Collector config that forwards OTLP to Loki, Tempo and Mimir with browser CORS (filled in Phase 1) |
 | [existing-lgtm.md](existing-lgtm.md) | ouo on a customer's shared Loki / Tempo / Mimir: additive `otlp_config` appends to Loki's defaults (labels kept), `ignore_defaults` drops them, delete `end` in the future 400, delete scoping without a project, collector `--config` merge, compose `required: false`, empty tenant header (R4) |
+| [project-scope.md](project-scope.md) | Project / app scope on every rum-api read and the plugin selector (R1): `ouo_project_id` label, `GET /v1/projects` metric query, round `to` up, stale data under a new scope, Combobox in Jest, Grafana basic auth in Playwright, two projects in one stack |
 | [loki-session-queries.md](loki-session-queries.md) | LogQL used by rum-api to fold session events (filled in Phase 3) |
 | [tempo-session-search.md](tempo-session-search.md) | TraceQL and Tempo API used to list traces per session (filled in Phase 3) |
 | [rrweb-chunking.md](rrweb-chunking.md) | rrweb record/replay settings, chunk sizes, privacy classes (filled in Phase 2) |

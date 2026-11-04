@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project and app selector</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --warn: #b26a00; --bad: #c62828; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --warn: #f0b252; --bad: #ff7b7b; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); margin: 0 auto; }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Project and app selector (JUHI gap R1)</h1>
+<p class="lead">grafana-plugin and rum-api, 2026-11-04. Branch <code>claude/r1-project-selector</code>. Isolated compose project
+<code>r1scope</code> (Grafana 13.2.5 on :24700, rum-api :24710, collector OTLP :24705), with rum-api, the collector and the plugin built from the branch.
+Data: <code>deploy/scripts/e2e.sh</code> run twice, as project <code>demo</code> (<code>mw1h75px</code>) and as project <code>internal</code>
+(<code>mw1h8r6m</code>). Each run is 40 synthetic sessions over the apps <code>qa-web</code> and <code>qa-mobile</code>, sent as OTLP through the collector with the
+project's Basic credential, so <code>ouo.project.id</code> was stamped by the collector. Browser: Playwright Chromium, headless.</p>
+
+<h2>Checks</h2>
+<div class="scroll"><table>
+<tr><th>Check</th><th>How</th><th>Result</th></tr>
+<tr><td>e2e scenario with the new contract (<code>project_id</code> on buckets and records, <code>apps</code>, <code>?project=</code> narrows, another project returns 0, <code>GET /v1/projects</code>)</td><td><code>deploy/scripts/e2e.sh</code> for each project</td><td class="ok">E2E OK twice, 0 mismatches</td></tr>
+<tr><td>Overview with all projects shows one card per project side by side</td><td>Playwright: <code>project-demo</code> and <code>project-internal</code> visible, comboboxes read "All projects" / "All apps"</td><td class="ok">2 cards</td></tr>
+<tr><td>Picking a project scopes the page and the URL</td><td>Project combobox → internal</td><td class="ok"><code>?…&amp;project=internal</code>, "Apps of internal", demo card gone</td></tr>
+<tr><td>The App menu lists only the picked project's apps</td><td>App combobox opened</td><td class="ok">All apps, qa-mobile, qa-web (20 sessions each)</td></tr>
+<tr><td>Links keep the scope: Overview → Sessions → detail → back</td><td>Click "All web sessions", then a row</td><td class="ok">Sessions URL and back link carry <code>project=internal&amp;service=qa-web</code>; every row reads internal</td></tr>
+<tr><td>Every rum-api call carries the scope</td><td>Requests through <code>/api/plugin-proxy/ouo11y-rum-app/rum/</code> recorded</td><td class="ok">health, sessions, session, logs all with <code>project=internal&amp;service=qa-web</code></td></tr>
+<tr><td>A session read under another project is not found</td><td>Same detail URL with <code>project=demo</code></td><td class="ok">"session not found"</td></tr>
+<tr><td>Scope change while loading</td><td>First run of the script</td><td class="warn">Found and fixed: the previous scope's numbers showed under the new labels until the response arrived. Overview and Sessions now hide data from another scope (<code>isOtherScope</code>).</td></tr>
+<tr><td>Project selector lists a session started in the last minute</td><td>e2e <code>projects</code> check, first run</td><td class="warn">Found and fixed: <code>to</code> was rounded down to the minute. It now rounds up.</td></tr>
+</table></div>
+
+<h2>Screenshots</h2>
+<figure><img src="r1-1-overview-all.jpg" alt="Overview with all projects: demo and internal cards side by side, then the platform sections with a Project column"><figcaption>Overview, All projects / All apps. Health per project and app side by side; the version tables name the project because they mix projects.</figcaption></figure>
+<figure><img src="r1-3-app-menu.jpg" alt="Project internal picked, App menu open with qa-mobile and qa-web"><figcaption>Project <code>internal</code> picked. The App menu lists only that project's apps, with platforms and session counts.</figcaption></figure>
+<figure><img src="r1-5-sessions-internal.jpg" alt="Sessions page scoped to internal / qa-web, every row shows project internal"><figcaption>Sessions page after following "All web sessions". The scope is kept, and the free-text Service filter is replaced by the App selector.</figcaption></figure>
+<figure><img src="r1-6-detail.jpg" alt="Session detail with Project internal"><figcaption>Session detail shows the session's project. Every call carries the scope, and so does the back link.</figcaption></figure>
+
+<h2>Not covered</h2>
+<ul>
+<li>The Grafana side-menu links (Sessions, Funnels) are static in <code>plugin.json</code> and open with "all". Only in-app links keep the scope. <code>plugin.json</code> was left alone because PR #155 edits it.</li>
+<li>Replay and video segment reads with a scope are covered by Go and Jest tests only. The seeded sessions had one rrweb replay, and it was not opened in the browser.</li>
+<li>The scope is not access control. One read token reads every project; that is Phase 11.</li>
+</ul>
+</body>
+</html>
