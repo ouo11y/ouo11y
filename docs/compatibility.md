@@ -42,7 +42,7 @@ their rum-api bound is what stores and serves what they send.
 | grafana | 0.6 | - | >= 0.4.0 | >= 0.10.0 | - | - | ships Grafana 13.2.5 with plugin 0.10.0 inside; schema 2 replays and native symbolicated frames need rum-api >= 0.6.0 |
 | grafana | 0.5 | - | >= 0.4.0 | >= 0.9.0 | - | - | ships Grafana 13.2.1 with plugin 0.9.0 inside (0.5.1 was never released; its 13.2.5 base ships in 0.6.0); funnels and source-mapped stacks need rum-api >= 0.5.0 |
 | grafana | 0.4 | - | >= 0.4.0 | >= 0.8.0 | - | - | ships Grafana 13.2.1 with plugin 0.8.0 inside |
-| chart | 0.2 | >= 0.5.0 | >= 0.6.0 | - | - | - | first published chart; defaults to rum-api 0.6.0, collector 0.5.0 and the grafana image 0.6.0 (plugin 0.10.0); roll forward only, no rollback to chart 0.1.x once rum-api 0.6.0 has run; Kubernetes >= 1.25 |
+| chart | 0.2 | >= 0.5.0 | >= 0.6.0 | - | - | - | first published chart; defaults to rum-api 0.6.0, collector 0.5.0 and the grafana image 0.6.0 (plugin 0.10.0); roll forward only, no rollback to chart 0.1.x once rum-api 0.6.0 has run; `lgtm.external.tenantId` / `lokiDeleteUrl` reach rum-api as `loki.tenant_id`, `tempo.tenant_id`, `loki.delete_url`, keys rum-api 0.6.0 rejects: the chart refuses them with a rum-api tag <= 0.6.0 (needs the next rum-api release, operations/existing-lgtm.md); Kubernetes >= 1.25 |
 | chart | 0.1 | >= 0.3.0 | >= 0.3.0 | - | - | - | defaults to the grafana image 0.3.0; Kubernetes >= 1.25 |
 
 ## Replay schema

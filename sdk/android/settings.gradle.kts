@@ -1,5 +1,6 @@
-// ouo11y native Android SDK (roadmap W9). replay-core is plain Kotlin on the JVM (chunks, tile diff,
-// pacing, spool, disk queue, upload), unit tested without Android; replay is the Android capture.
+// ouo11y native Android SDK (roadmap W9). replay-core and signals-core are plain Kotlin on the JVM,
+// unit tested without Android; replay (the screen capture) and signals (crashes, hangs,
+// terminations, frames, app start) are their Android halves.
 // The React Native module compiles the same sources (sdk/react-native/scripts/sync-android.mjs).
 pluginManagement {
   repositories {
@@ -15,4 +16,4 @@ dependencyResolutionManagement {
   }
 }
 rootProject.name = "ouo11y-android"
-include(":replay-core", ":replay")
+include(":replay-core", ":replay", ":signals-core", ":signals")

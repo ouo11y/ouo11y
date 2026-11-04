@@ -12,7 +12,18 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // or to the monorepo root node_modules.
 const PEERS = ["react", "react-native", "@react-native-async-storage/async-storage", "promise", "expo-modules-core"];
 
-const config = getDefaultConfig(projectRoot);
+// 0. Debug ids in release bundles, so Hermes stacks map back to the sources of the exact bundle
+//    that threw, embedded or OTA (docs/sourcemaps.md, "React Native"). An app installs
+//    @ouo11y/sourcemaps and requires "@ouo11y/sourcemaps/metro"; this example uses the monorepo
+//    copy and still runs when it is not built (npm run build -w @ouo11y/sourcemaps).
+const beforeAssetSerialization = [];
+try {
+  beforeAssetSerialization.push(require("../../sdk/sourcemaps/dist/metro.cjs").ouoExpoDebugIdPlugin);
+} catch {
+  console.warn("ouo: sdk/sourcemaps is not built; release bundles get no debug id");
+}
+
+const config = getDefaultConfig(projectRoot, { unstable_beforeAssetSerializationPlugins: beforeAssetSerialization });
 
 // 1. Metro only serves files under its watch folders; the symlink target lives outside the app.
 config.watchFolders = [...(config.watchFolders ?? []), sdkRoot];

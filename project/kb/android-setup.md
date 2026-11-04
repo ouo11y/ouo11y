@@ -80,6 +80,30 @@ emulator, and what the Android capture code ran into.
 - Kotlin interface delegation (`Window.Callback by delegate`) does not forward Java default methods
   (`onProvideKeyboardShortcuts`, `onPointerCaptureChanged`): the touch wrapper overrides them.
 
+## Native signals (W9 part 2, 2026-11-01)
+
+- opentelemetry-android 1.8.0 (`io.opentelemetry.android:core`, `session`; instrumentations moved to
+  the group `io.opentelemetry.android.instrumentation`: `crash`, `anr`, `slowrendering`, `startup`,
+  `sessions`, `native-crash`, ...) was read against the React Native module's needs: its ANR waits 5 s
+  and reports at detection, it has no foreground-termination detector, its crash and slow-rendering
+  instrumentations emit through their own SDK. ADR-0017 keeps it for the native package.
+- `ApplicationExitInfo` (API 30): `getHistoricalProcessExitReasons(pkg, pid, 1)` filters by the
+  previous run's pid (kept in `run.json`). `Process.killProcess(myPid())` in the foreground reads as
+  `REASON_SIGNALED`, status 9, importance 100. `am force-stop` reads as `REASON_USER_REQUESTED`.
+- `Application.onTrimMemory(level)` dispatches to every registered `ComponentCallbacks2`, so a demo
+  can deliver a memory warning the way the system does (`adb shell am send-trim-memory` works too).
+- `ApplicationStartInfo` (API 35): `getHistoricalProcessStartReasons(1)`; `START_REASON_LAUNCHER`,
+  `LAUNCHER_RECENTS` and `START_ACTIVITY` mean the process was started to show the app.
+- `Window.addOnFrameMetricsAvailableListener` (API 24) reports rendered frames only; `FrameMetrics.DEADLINE`
+  (API 31) is the frame's budget. Skip `FIRST_DRAW_FRAME == 1` (the window's inflation is TTID, not jank).
+- React Native's JS fatal in a Release build reaches the uncaught exception handler as
+  `com.facebook.react.common.JavascriptException`.
+- A replay pitfall found by C10.1: the Android pacer waits for a draw in `session` mode; iOS takes an
+  interval frame even on a static screen. `screenDidChange()` (which `rum.feedback({ screenshot })`
+  calls) now marks the window dirty, so the next interval frame is a full image as on iOS.
+- Two sessions shared one scratchpad folder: another session rewrote this session's npm shim. Keep
+  shims in a folder named after the task.
+
 ## npm in this worktree
 
 The shared checkout's `package.json` had merge-conflict markers on 2026-10-31; npm walks up from a

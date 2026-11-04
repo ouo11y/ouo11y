@@ -35,13 +35,16 @@ func TestParseFrame(t *testing.T) {
 		want RawFrame
 		ok   bool
 	}{
-		{"    at o (https://a.example/x.js:1:64)", RawFrame{"o", "https://a.example/x.js", 1, 64}, true},
-		{"    at https://a.example/x.js:2:5", RawFrame{"", "https://a.example/x.js", 2, 5}, true},
-		{"    at async load (http://localhost:4173/assets/index.js:3:9)", RawFrame{"load", "http://localhost:4173/assets/index.js", 3, 9}, true},
-		{"    at new Cart (https://a.example/x.js:1:1)", RawFrame{"new Cart", "https://a.example/x.js", 1, 1}, true},
-		{"    at render (address at index.android.bundle:1:9123)", RawFrame{"render", "index.android.bundle", 1, 9123}, true},
-		{"o@https://a.example/x.js:1:64", RawFrame{"o", "https://a.example/x.js", 1, 64}, true},
-		{"@http://localhost:4173/assets/index.js:40:1234", RawFrame{"", "http://localhost:4173/assets/index.js", 40, 1234}, true},
+		{"    at o (https://a.example/x.js:1:64)", RawFrame{"o", "https://a.example/x.js", 1, 64, false}, true},
+		{"    at https://a.example/x.js:2:5", RawFrame{"", "https://a.example/x.js", 2, 5, false}, true},
+		{"    at async load (http://localhost:4173/assets/index.js:3:9)", RawFrame{"load", "http://localhost:4173/assets/index.js", 3, 9, false}, true},
+		{"    at new Cart (https://a.example/x.js:1:1)", RawFrame{"new Cart", "https://a.example/x.js", 1, 1, false}, true},
+		{"    at render (address at index.android.bundle:1:9123)", RawFrame{"render", "index.android.bundle", 1, 9123, true}, true},
+		{"o@https://a.example/x.js:1:64", RawFrame{"o", "https://a.example/x.js", 1, 64, false}, true},
+		{"@http://localhost:4173/assets/index.js:40:1234", RawFrame{"", "http://localhost:4173/assets/index.js", 40, 1234, false}, true},
+		// The React Native SDK's normalised form: Hermes' "address at" dropped, app frames marked.
+		{"  at onPress (app:///index.android.bundle:1:9123) [in app]", RawFrame{"onPress", "app:///index.android.bundle", 1, 9123, false}, true},
+		{"  at anonymous (app:///main.jsbundle:1:5)", RawFrame{"anonymous", "app:///main.jsbundle", 1, 5, false}, true},
 		{"TypeError: x is undefined", RawFrame{}, false},
 		{"    at native", RawFrame{}, false},
 		{"    at eval (eval at <anonymous> (https://a.example/x.js:1:1), <anonymous>:1:1)", RawFrame{}, false},

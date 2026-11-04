@@ -401,9 +401,13 @@ lgtm:
     lokiOtlpUrl: ""
     mimirOtlpUrl: ""
     mimirPrometheusUrl: ""
-    # Tenant id sent by the collector and Grafana when the external stack has
-    # multitenancy enabled (X-Scope-OrgID). Empty: no header.
+    # Tenant id sent by the collector, rum-api and Grafana when the external stack has
+    # multitenancy enabled (X-Scope-OrgID). Empty: no header (single-tenant stack).
     tenantId: ""
+    # Base URL of POST /loki/api/v1/delete (Loki's compactor / backend target) when the
+    # gateway at lokiUrl does not route it there; rum-api's delete-by-user / -project
+    # posts there. Empty: lokiUrl. docs/operations/existing-lgtm.md.
+    lokiDeleteUrl: ""
   bundled:
     loki:
       image:

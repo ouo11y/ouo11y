@@ -39,12 +39,26 @@ loki:
   # deletion. Needs Loki's compactor with retention_enabled and a delete_request_store.
   delete_api: true                        # [LOKI_DELETE_API]
   funnel_cache_ttl: 60s                   # [LOKI_FUNNEL_CACHE_TTL] funnel results per definition + range; 0 disables
+  # An existing, shared Loki (docs/operations/existing-lgtm.md). Sent on every request.
+  tenant_id: ""                           # [LOKI_TENANT_ID] X-Scope-OrgID; empty: no header
+  headers: {}                             # extra headers, e.g. {X-Api-Key: "${LOKI_API_KEY}"}; values are redacted in -config.verify
+  basic_auth:                             # an authenticating gateway; empty username: none
+    username: ""                          # [LOKI_BASIC_AUTH_USERNAME]
+    password: ""                          # [LOKI_BASIC_AUTH_PASSWORD]
+  # Base URL of POST /loki/api/v1/delete (the compactor) when url's gateway does not
+  # route it there; empty: url.
+  delete_url: ""                          # [LOKI_DELETE_URL]
 
 tempo:
   url: http://tempo:3200                  # [TEMPO_URL]
   datasource_uid: tempo                   # [GRAFANA_TEMPO_DATASOURCE_UID] trace links
   concurrency: 8                          # [TEMPO_CONCURRENCY] parallel searches
   cache_ttl: 60s                          # [TEMPO_CACHE_TTL] per session + range
+  tenant_id: ""                           # [TEMPO_TENANT_ID] X-Scope-OrgID; empty: no header
+  headers: {}                             # extra headers on every request
+  basic_auth:
+    username: ""                          # [TEMPO_BASIC_AUTH_USERNAME]
+    password: ""                          # [TEMPO_BASIC_AUTH_PASSWORD]
 
 grafana:
   url: http://localhost:3000              # [GRAFANA_URL] browser-facing, for deep links
