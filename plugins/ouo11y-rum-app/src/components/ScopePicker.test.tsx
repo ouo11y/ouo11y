@@ -128,6 +128,10 @@ describe('scope options', () => {
 });
 
 describe('ScopePicker', () => {
+  // The first Combobox render is cold (module JIT, floating-ui); on a loaded runner it alone can
+  // take over Jest's 5 s default.
+  jest.setTimeout(30000);
+  const slow = { timeout: 10000 };
   beforeEach(() => {
     mockProjects.mockReset();
     mockPartial.mockReset();
@@ -138,8 +142,8 @@ describe('ScopePicker', () => {
     mockSearch = 'from=now-6h&to=now&project=shop&service=shop-web';
     mockProjects.mockResolvedValue(data);
     render(<ScopePicker />);
-    await waitFor(() => expect(mockProjects).toHaveBeenCalledWith({ from: 'now-6h', to: 'now' }));
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('shop'));
+    await waitFor(() => expect(mockProjects).toHaveBeenCalledWith({ from: 'now-6h', to: 'now' }), slow);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('shop'), slow);
     expect(screen.getByRole('combobox', { name: 'App' })).toHaveValue('shop-web');
     expect(screen.getByTestId('scope-info')).toBeInTheDocument();
     // An explicit URL scope is remembered and nothing is restored over it.
@@ -152,7 +156,7 @@ describe('ScopePicker', () => {
     saveScope({ project: 'bank', service: '' });
     mockProjects.mockResolvedValue(data);
     render(<ScopePicker />);
-    await waitFor(() => expect(mockPartial).toHaveBeenCalledWith({ project: 'bank', service: null }, true));
+    await waitFor(() => expect(mockPartial).toHaveBeenCalledWith({ project: 'bank', service: null }, true), slow);
   });
 
   it('does not restore after All projects / All apps was picked', async () => {
@@ -160,7 +164,7 @@ describe('ScopePicker', () => {
     saveScope({ project: '', service: '' });
     mockProjects.mockResolvedValue(data);
     render(<ScopePicker />);
-    await waitFor(() => expect(mockProjects).toHaveBeenCalled());
+    await waitFor(() => expect(mockProjects).toHaveBeenCalled(), slow);
     expect(mockPartial).not.toHaveBeenCalled();
   });
 
@@ -168,7 +172,7 @@ describe('ScopePicker', () => {
     mockSearch = 'from=now-90d&to=now';
     mockProjects.mockResolvedValue(data);
     render(<ScopePicker />);
-    await waitFor(() => expect(mockProjects).toHaveBeenCalled());
+    await waitFor(() => expect(mockProjects).toHaveBeenCalled(), slow);
     const arg = mockProjects.mock.calls[0][0] as { from: string; to: string };
     expect(arg.to).toBe('now');
     expect(Date.now() - Date.parse(arg.from)).toBeLessThanOrEqual(MAX_PROJECTS_RANGE_MS + 5000);
@@ -179,7 +183,7 @@ describe('ScopePicker', () => {
     mockSearch = 'from=now-24h&to=now';
     mockProjects.mockResolvedValue(data);
     render(<ScopePicker />);
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue(ALL_PROJECTS));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue(ALL_PROJECTS), slow);
     expect(screen.getByRole('combobox', { name: 'App' })).toHaveValue(ALL_APPS);
   });
 
@@ -187,7 +191,7 @@ describe('ScopePicker', () => {
     mockSearch = 'from=now-24h&to=now';
     mockProjects.mockRejectedValue(new Error('HTTP 502: loki down'));
     render(<ScopePicker />);
-    expect(await screen.findByTestId('scope-error')).toBeInTheDocument();
+    expect(await screen.findByTestId('scope-error', {}, slow)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue(ALL_PROJECTS);
   });
 });

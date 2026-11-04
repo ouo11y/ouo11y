@@ -103,7 +103,9 @@ export const MAX_PROJECTS_RANGE_MS = 30 * 24 * 3600 * 1000;
 export function projectsRange(raw: RawRange): RawRange {
   const r = toTimeRange(raw);
   const to = r.to.valueOf();
-  if (to - r.from.valueOf() <= MAX_PROJECTS_RANGE_MS) {
+  // A minute of slack: "now-30d".."now" is resolved with two clock reads, and rum-api accepts
+  // it as sent.
+  if (to - r.from.valueOf() <= MAX_PROJECTS_RANGE_MS + 60_000) {
     return raw;
   }
   return { from: new Date(to - MAX_PROJECTS_RANGE_MS).toISOString(), to: raw.to };
