@@ -40,6 +40,7 @@ jobs:
       ex-web: ${{ steps.paths.outputs.ex-web }}
       ex-ouo-mobile: ${{ steps.paths.outputs.ex-ouo-mobile }}
       ex-sentry-mobile: ${{ steps.paths.outputs.ex-sentry-mobile }}
+      bare-rn: ${{ steps.paths.outputs.bare-rn }}
     steps:
       - name: Match changed files against each job's paths
         id: paths
@@ -63,6 +64,9 @@ jobs:
           flag swift     '^sdk/ios/'
           # The Kotlin, the scripts and manifests that vendor and build it into the example app.
           flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
+          # The bare React Native 0.82 example: the native code it links (the Expo module, the vendored
+          # sdk/ios and sdk/android sources, the golden app's demo module and screens) and itself.
+          flag bare-rn   '^(examples/ouo-bare-rn|sdk/android|sdk/ios/Sources|sdk/react-native/(ios|android|scripts|src)|examples/ouo-mobile/(modules|src))/|^(sdk/react-native/(package\.json|expo-module\.config\.json)|examples/ouo-mobile/App\.tsx)$'
           flag helm      '^deploy/helm/'
           flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
@@ -459,6 +463,51 @@ jobs:
           ./node_modules/.bin/expo prebuild --platform android --no-install
           cd android
           ./gradlew --console=plain :ouo11y-react-native:compileReleaseKotlin :ouo-chaos:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a
+
+  # The bare React Native 0.82 app (examples/ouo-bare-rn): a @react-native-community/cli app with
+  # Expo modules added by install-expo-modules (Expo SDK 54 + the expo-modules-core patch), static
+  # frameworks and Firebase pods, built in Release for Android and the iOS Simulator with
+  # @ouo11y/react-native linked. Build only: the Mac runner runs one job at a time and has no stack;
+  # the emulator suite and scripts/verify-ios.sh run locally (examples/ouo-bare-rn/README.md).
+  bare-rn:
+    name: bare-rn (React Native 0.82 + install-expo-modules, iOS and Android builds)
+    needs: changes
+    if: needs.changes.outputs.bare-rn == 'true'
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 75
+    env:
+      ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Tools
+        run: |
+          [[ -d /opt/homebrew/bin ]] && echo /opt/homebrew/bin >> "$GITHUB_PATH"   # pod on the Mac runner
+          export PATH="/opt/homebrew/bin:$PATH"
+          java -version
+          xcodebuild -version
+          pod --version
+      - name: Install (the SDK, then the app with its patch-package postinstall)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run -w sdk/react-native build
+          cd examples/ouo-bare-rn
+          npm ci --no-audit --no-fund
+      - name: Android Release APK
+        run: examples/ouo-bare-rn/scripts/build-android.sh --no-install
+      - name: iOS Simulator Release app (static frameworks, Firebase pods)
+        run: examples/ouo-bare-rn/scripts/build-ios.sh --no-install
+      - name: Build logs on failure
+        if: failure()
+        run: |
+          tail -80 examples/ouo-bare-rn/android/build/gradle.log 2>/dev/null || true
+          tail -40 examples/ouo-bare-rn/ios/build/pod-install.log 2>/dev/null || true
+          grep -E ' error:' examples/ouo-bare-rn/ios/build/xcodebuild.log 2>/dev/null | sort -u | head -40 || true
 
   # Every relative link in tracked Markdown and HTML must resolve (ADR-0010). Offline:
   # external URLs are not fetched, so the job is fast and never flaky. Always runs.

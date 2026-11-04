@@ -31,6 +31,17 @@ Every check of section 3 runs and is required (no `pending` since W9 part 2). C3
 `ApplicationExitInfo` reports a `SIGKILL` at foreground importance with a memory warning a second
 before: cause `memory`.
 
+The emulator needs `hw.ramSize=4096` (project/kb/android-setup.md): with the default 2 GB replay's
+`auto` mode picks `navigation` (under 3.5 GiB of RAM), one frame per screen: on a 2 GB AVD the journey
+had 4 frames and C8.2 failed (the cart total and the typed feedback were not black in them).
+
+`OUO_ANDROID_APP=ouo-bare-rn` runs everything on [examples/ouo-bare-rn](../../../examples/ouo-bare-rn/README.md)
+instead (bare React Native 0.82 with `install-expo-modules`, the same screens and demo module, package
+`dev.ouo.bare`). C8.2's rectangles are relative to the app's root view (`action/areas`), compared with
+frames of the whole window: the app must draw edge to edge (`edgeToEdgeEnabled=true`, as both examples
+do). Relative to the root because React Native before 0.86 subtracts the status bar from
+`measureInWindow` on Android even edge to edge.
+
 About 6 minutes plus the build (the first one downloads the NDK and takes about 15 minutes).
 
 **Not in CI** (like the native iOS suite, checklist N78): the Mac runner runs one job at a time and

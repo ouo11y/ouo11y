@@ -28,7 +28,7 @@ done
 [[ -n $ENV_NAME && -n $DEVICE ]] || { echo "--env and --device are required" >&2; exit 2; }
 root="$(cd "$(dirname "$0")/../../../.." && pwd)"
 eval "$("$root/deploy/envs/ouo-env" env "$ENV_NAME")"
-BUNDLE=dev.ouo.mobilestore
+BUNDLE=${OUO_IOS_BUNDLE:-dev.ouo.mobilestore}   # dev.ouo.bare: examples/ouo-bare-rn
 log() { printf '%s [w4] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 cmd() {
   log "command $1"

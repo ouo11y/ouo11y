@@ -10,7 +10,7 @@
 # background (Home) so the SDK exports, terminate.
 set -euo pipefail
 DEVICE="${SIM_UDID:-}"
-BUNDLE=dev.ouo.mobilestore
+BUNDLE=${OUO_IOS_BUNDLE:-dev.ouo.mobilestore}   # dev.ouo.bare: examples/ouo-bare-rn
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift ;;

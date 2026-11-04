@@ -59,6 +59,31 @@ upgrade note in [`operations/upgrade.md`](operations/upgrade.md), section 4).
 | collector Sentry bridge emits (video, stays 1 per ADR-0014) | 1 | `collector/receiver/ouosentryreceiver/replay.go` |
 | iOS and React Native emit (frames) | 2 | `sdk/ios/Sources/OuoReplayCore/Models.swift` |
 
+## React Native hosts
+
+The app-side versions `@ouo11y/react-native` (0.3 line) runs in. The JavaScript side (sessions, JS
+errors, OTLP, network, taps, feedback) needs only `react-native` >= 0.74; the native side (replay,
+native crashes, hangs, terminations, vitals, gzip delivery) is an Expo module and needs
+`expo-modules-core` >= 2.0 (Expo SDK 52 and later: `expo-module-gradle-plugin`). Bare apps add Expo
+modules with `npx install-expo-modules` ([`sdk/react-native/README.md`](../sdk/react-native/README.md#bare-react-native),
+"Bare React Native"). Not in the release check's tables: it reads `compat:` markers only.
+
+| Host | React Native | Expo SDK / `expo-modules-core` | iOS min / Xcode | Android: AGP / Kotlin / Gradle / JDK / compileSdk / minSdk | Status | Evidence |
+|---|---|---|---|---|---|---|
+| Expo (managed, prebuild) | 0.86.3 | 57 / 57.0.x | 15.1 / Xcode 27 | 8.12 / 2.1.20 / 9.3.1 / 17 / 36 / 24 | **built and tested** (the SDK's own target) | `examples/ouo-mobile`, the conformance suites, CI jobs `examples` and `android` |
+| Bare + `install-expo-modules`, Firebase pods, static frameworks | 0.82.1 | 54 (`--sdk-version 54.0.0`) / 3.0.30 with a two-line patch | 15.1 / Xcode 27 | 8.12.0 / 2.1.20 / 9.0.0 (React Native 0.82's) / 17 / 36 / 24 | **built and tested** | `examples/ouo-bare-rn` (iOS Simulator `scripts/verify-ios.sh`, Android emulator API 35 conformance suite), CI job `bare-rn` (build) |
+| Bare + `install-expo-modules` | 0.81, 0.83 to 0.85 | 54, 55, 56 (the installer's default) | 15.1 (SDK 54, 55), 16.4 (SDK 56) | the React Native version's | expected to work, untested | same path as 0.82 without the patch |
+| Expo or bare | 0.76 to 0.80 | 52, 53 / 2.x | 15.1 | the React Native version's | untested | `expo-modules-core` >= 2.0 is the peer range |
+| Bare without Expo modules | >= 0.74 | none | - | - | JavaScript side only; native capabilities are no-ops | `sdk/react-native/README.md`, "Session replay" |
+
+Expo SDK 55 does not build on React Native 0.82 (it uses `RCTDevMenuConfiguration`, added in 0.83),
+and SDK 54's `expo-modules-core` 3.0.30 needs `#import <ReactCommon/CallInvoker.h>` and
+`#import <react/bridging/CallbackWrapper.h>` in `ios/JSI/EXJSIUtils.h` on 0.82
+(`examples/ouo-bare-rn/patches/`). The SDK's own native code needed no change for these versions.
+Known issues of the 0.82 toolchain under Xcode 27 that are not ouo's (the `fmt` pod, pod
+deployment targets, the UIScene life cycle) are in
+[`project/kb/rn-bare-install-expo-modules.md`](../project/kb/rn-bare-install-expo-modules.md).
+
 ## Sentry SDKs through the bridge
 
 Which Sentry SDK versions the `ouosentry` bridge (collector) is tested against

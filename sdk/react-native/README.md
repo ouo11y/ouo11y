@@ -70,6 +70,86 @@ to resolve their `browser` field remaps.
    `@react-native-async-storage/async-storage`, `promise`) to the app's `node_modules`.
    A published npm install needs none of this.
 
+### Bare React Native
+
+A bare app (`@react-native-community/cli` template, no Expo) gets the JavaScript side as is:
+sessions, JS errors, OTLP traces and logs, network, taps, feedback. The native side (replay, native
+crashes, hangs and terminations, vitals, gzip delivery) is an Expo module, so the app adds Expo
+modules first with Expo's own installer. That is the supported path; the modules are not rewritten
+as TurboModules. Without Expo modules those capabilities are silent no-ops (a debug-only warning is
+logged once). Verified on React Native 0.82.1 with Firebase pods and static frameworks
+(`examples/ouo-bare-rn`, versions in `docs/compatibility.md`, section "React Native hosts").
+
+1. Add Expo modules. `install-expo-modules` picks the Expo SDK from the React Native version, and
+   no Expo SDK maps to 0.82 (SDK 54 is 0.81, SDK 55 is 0.83), so name it:
+
+   | React Native | `install-expo-modules` | Extra step |
+   |---|---|---|
+   | 0.81 | `npx install-expo-modules@latest` (SDK 54) | none |
+   | **0.82** | `npx install-expo-modules@latest --sdk-version 54.0.0` | the `expo-modules-core` patch below |
+   | 0.83 | `npx install-expo-modules@latest` (SDK 55) | none |
+   | 0.86 | `npx install-expo-modules@latest` (SDK 57) | none (the version the SDK is built and tested on) |
+
+   SDK 55 needs React Native 0.83 (it calls `RCTDevMenuConfiguration`, which 0.82 does not have).
+   SDK 54's `expo-modules-core` 3.0.30 does not compile on 0.82 because 0.82's `TurboModuleUtils.h`
+   stopped including two headers. Add them with `patch-package` (`npm i -D patch-package`,
+   `"postinstall": "patch-package"`), as `patches/expo-modules-core+3.0.30.patch`:
+
+   ```diff
+   diff --git a/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h b/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   --- a/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   +++ b/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   @@ -6,7 +6,9 @@
+    
+    #import <jsi/jsi.h>
+    #import <React/RCTBridgeModule.h>
+   +#import <ReactCommon/CallInvoker.h>
+    #import <ReactCommon/TurboModuleUtils.h>
+   +#import <react/bridging/CallbackWrapper.h>
+    #import <ExpoModulesCore/ObjectDeallocator.h>
+    
+    namespace jsi = facebook::jsi;
+   ```
+
+   Pin `"expo-modules-core": "3.0.30"` in `package.json` so the patch keeps applying.
+
+2. Fix what `install-expo-modules` writes for SDK 54 into a 0.82 project (the three are in
+   `examples/ouo-bare-rn`, commented):
+   - `MainApplication.kt`: it calls `ReactNativeHostWrapper.createReactHost(context = ..., packageList = ...)`,
+     which SDK 54 does not have (`Unresolved reference 'ReactNativeHostWrapper'`). Use the SDK 54
+     template's shape: a `ReactNativeHostWrapper` around a `DefaultReactNativeHost` as
+     `reactNativeHost`, and `reactHost` from `ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)`.
+   - `AppDelegate.swift`: add `bindReactNativeFactory(factory)` after creating the
+     `ExpoReactNativeFactory`, or the first root view traps in `ExpoAppDelegate.recreateRootView`
+     ("Missing factory in ExpoAppDelegate").
+   - `@expo/cli`: `require.resolve('@expo/cli')` in `android/app/build.gradle` (`cliFile`) and in
+     the "Bundle React Native code and images" phase of the Xcode project fails when npm nests
+     `@expo/cli` under `node_modules/expo/node_modules`. The Android release build then fails
+     (`createBundleReleaseJsAndAssets` "uses this output of task ':app:generateReactNativeEntryPoint'
+     without declaring an explicit or implicit dependency") and iOS quietly falls back to the React
+     Native CLI. In both places use
+     `require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })`.
+
+3. Install the SDK and its storage peer, then the pods:
+
+   ```bash
+   npm install @ouo11y/react-native @react-native-async-storage/async-storage
+   cd ios && pod install
+   ```
+
+   `use_expo_modules!` (added to the `Podfile` by step 1) links `OuoReactNative` and the pods it
+   depends on; Gradle links the Android module through `expoAutolinking.useExpoModules()` in
+   `settings.gradle`. Static frameworks (`use_frameworks! :linkage => :static`, what Firebase and
+   `@react-native-firebase` need) work as they are.
+
+4. Call `initRUM` in `index.js` before `AppRegistry.registerComponent`, as in the Expo setup above
+   (pass the endpoint and credential directly; `expo-constants` is optional).
+
+Xcode 27 also needs, whether or not ouo is installed: the `fmt` pod of React Native 0.82 compiled as
+C++17, pod deployment targets of at least 15.0, and the UIScene life cycle in the app (see the
+comments in `examples/ouo-bare-rn/ios/Podfile` and `AppDelegate.swift`). Details and error messages:
+`project/kb/rn-bare-install-expo-modules.md`.
+
 ### Shims
 
 The SDK installs, only when missing: `performance.timeOrigin` (Hermes exposes
