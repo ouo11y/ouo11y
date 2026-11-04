@@ -53,7 +53,10 @@ iOS: `Ouo.setUser(_ id: String, attributes: [String: Any]? = nil)`, `Ouo.setAttr
   record (at emit) after the call, next to `user.id`. Example: `setAttributes({ tenant: "acme" })`
   gives `ouo.attr.tenant = "acme"`.
 - Records about a named session (`session.start`, `session.end`) carry the sets current at their
-  emission (see the rotation rule in section 2).
+  emission (see the rotation rule in section 2). React Native leaves this run's sets (and bundle)
+  off records about a previous run's session (its crash or `session.end`, emitted at this launch);
+  native iOS stamps them with the persisted user set and the app set of that moment. rum-api's
+  latest-value rule may then show this launch's app values on the previous session.
 - They are **never Loki index labels**: the collector and Loki config promote a fixed label set
   (`deploy/compose/loki/config.yaml`, `otlp_config`), so `ouo.attr.*` lands in structured
   metadata as `ouo_attr_<key>`. Do not add them to that list: one stream per tenant, plan and
