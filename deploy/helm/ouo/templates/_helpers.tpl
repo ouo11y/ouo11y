@@ -180,6 +180,16 @@ S3 keys are environment variables from Secrets.
   "retention" (dict "replays" (toString .Values.retention.replays) "logs" (toString .Values.retention.logs)
                     "sweep_interval" (toString .Values.retention.sweepInterval))
 -}}
+{{- if eq .Values.lgtm.mode "external" -}}
+{{- /* An existing stack: rum-api sends the tenant like the collector and Grafana, and posts deletes to lokiDeleteUrl when set. */ -}}
+{{- with .Values.lgtm.external.tenantId -}}
+{{- $_ := set $cfg.loki "tenant_id" . -}}
+{{- $_ := set $cfg.tempo "tenant_id" . -}}
+{{- end -}}
+{{- with .Values.lgtm.external.lokiDeleteUrl -}}
+{{- $_ := set $cfg.loki "delete_url" (. | trimSuffix "/") -}}
+{{- end -}}
+{{- end -}}
 {{- $projects := dict -}}
 {{- range $id, $p := .Values.retention.projects -}}
 {{- if $p.replays -}}

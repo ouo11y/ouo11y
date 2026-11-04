@@ -1,0 +1,81 @@
+# Opt-in: run ouo against an EXISTING Loki, Tempo and Mimir (yours, already running) instead
+# of the bundled ones. docs/operations/existing-lgtm.md lists what those backends need.
+#
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.external.yaml up -d
+#
+# (add -f deploy/compose/compose.images.yaml for the released images, -f compose.s3.yaml for
+# the s3 replay store). Loki, Tempo and Mimir of compose.yaml are moved to the profile
+# `bundled-lgtm` and do not start. The ouo collector stays the public ingest edge (ADR-0007)
+# and exports OTLP to your endpoints: your Loki / Tempo / Mimir directly, or your own OTel
+# collector in front of them. rum-api and Grafana read your Loki, Tempo and Mimir.
+#
+# Set the endpoints in deploy/compose/.env (.env.example, section "Existing LGTM"):
+#   OUO_EXTERNAL_LOKI_URL         Loki query base, e.g. http://loki-gateway.example:80 (rum-api, Grafana)
+#   OUO_EXTERNAL_TEMPO_URL        Tempo query base, e.g. http://tempo-query-frontend.example:3200
+#   OUO_EXTERNAL_MIMIR_URL        Mimir Prometheus API base, e.g. http://mimir.example/prometheus (Grafana)
+#   OUO_EXTERNAL_OTLP_TRACES      traces, OTLP gRPC host:port (Tempo distributor or your collector :4317)
+#   OUO_EXTERNAL_OTLP_LOGS        logs, OTLP/HTTP base (http://loki:3100/otlp, or your collector http://otelcol:4318)
+#   OUO_EXTERNAL_OTLP_METRICS     metrics, OTLP/HTTP base (http://mimir/otlp, or your collector http://otelcol:4318)
+# Optional:
+#   OUO_LGTM_TENANT_ID            X-Scope-OrgID sent by the collector, rum-api and Grafana
+#                                 (multi-tenant backends). Leave unset for a single-tenant stack.
+#   OUO_EXTERNAL_OTLP_INSECURE    true (default): plain gRPC to OUO_EXTERNAL_OTLP_TRACES; false: TLS
+#   OUO_EXTERNAL_LOKI_DELETE_URL  base of POST /loki/api/v1/delete (the compactor) when the Loki
+#                                 URL above does not route it there
+#   OUO_LOKI_DELETE_API           false when your Loki has no compactor deletion (delete-by-user
+#                                 then removes replays only; docs/operations/existing-lgtm.md)
+# The OUO_RETENTION_LOGS / _REPLAYS values must match your Loki's retention (rum-api searches that
+# far back on delete-by-user and keeps replays that long).
+#
+# Put this file after compose.images.yaml (whose `volumes: !override` on grafana would drop
+# the datasources mount below). Needs Docker Compose >= 2.24.
+
+services:
+  loki:
+    profiles: [bundled-lgtm]
+  tempo:
+    profiles: [bundled-lgtm]
+  mimir:
+    profiles: [bundled-lgtm]
+
+  grafana:
+    # The bundled backends do not start; `required: false` drops the dependency on them and
+    # keeps every other one (compose.images.yaml's grafana-plugin).
+    depends_on: &no-bundled-lgtm
+      loki: { condition: service_started, required: false }
+      tempo: { condition: service_started, required: false }
+      mimir: { condition: service_started, required: false }
+    environment:
+      OUO_EXTERNAL_LOKI_URL: ${OUO_EXTERNAL_LOKI_URL:?set OUO_EXTERNAL_LOKI_URL (docs/operations/existing-lgtm.md)}
+      OUO_EXTERNAL_TEMPO_URL: ${OUO_EXTERNAL_TEMPO_URL:?set OUO_EXTERNAL_TEMPO_URL}
+      OUO_EXTERNAL_MIMIR_URL: ${OUO_EXTERNAL_MIMIR_URL:?set OUO_EXTERNAL_MIMIR_URL}
+      OUO_LGTM_TENANT_ID: ${OUO_LGTM_TENANT_ID:-}
+    volumes:
+      # Same datasources (uids loki, tempo, mimir) with your URLs and tenant.
+      - ./external/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+
+  otel-collector:
+    depends_on: *no-bundled-lgtm
+    # Two config files: config.yaml, then external/collector.yaml merged over it (maps merge,
+    # lists are replaced), which only swaps the three exporters and the self-metrics push.
+    command: ["--config=/etc/otelcol/config.yaml", "--config=/etc/otelcol/external.yaml"]
+    environment:
+      OUO_EXTERNAL_OTLP_TRACES: ${OUO_EXTERNAL_OTLP_TRACES:?set OUO_EXTERNAL_OTLP_TRACES (host:port, OTLP gRPC)}
+      OUO_EXTERNAL_OTLP_LOGS: ${OUO_EXTERNAL_OTLP_LOGS:?set OUO_EXTERNAL_OTLP_LOGS (OTLP/HTTP base URL)}
+      OUO_EXTERNAL_OTLP_METRICS: ${OUO_EXTERNAL_OTLP_METRICS:?set OUO_EXTERNAL_OTLP_METRICS (OTLP/HTTP base URL)}
+      OUO_EXTERNAL_OTLP_INSECURE: ${OUO_EXTERNAL_OTLP_INSECURE:-true}
+      OUO_LGTM_TENANT_ID: ${OUO_LGTM_TENANT_ID:-}
+    volumes:
+      - ./external/collector.yaml:/etc/otelcol/external.yaml:ro
+
+  rum-api:
+    depends_on:
+      loki: { condition: service_started, required: false }
+      tempo: { condition: service_started, required: false }
+    environment:
+      LOKI_URL: ${OUO_EXTERNAL_LOKI_URL:?set OUO_EXTERNAL_LOKI_URL}
+      TEMPO_URL: ${OUO_EXTERNAL_TEMPO_URL:?set OUO_EXTERNAL_TEMPO_URL}
+      LOKI_TENANT_ID: ${OUO_LGTM_TENANT_ID:-}
+      TEMPO_TENANT_ID: ${OUO_LGTM_TENANT_ID:-}
+      LOKI_DELETE_URL: ${OUO_EXTERNAL_LOKI_DELETE_URL:-}
+      LOKI_DELETE_API: ${OUO_LOKI_DELETE_API:-true}

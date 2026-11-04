@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -60,10 +61,50 @@ type Auth struct {
 	AdminToken  string `yaml:"admin_token"`  // OUO_ADMIN_TOKEN: bearer of /v1/admin/* (deletions, audit, sweep); empty disables the admin API
 }
 
-// Backend is a query backend and its Grafana datasource (deep links).
+// Backend is a query backend and its Grafana datasource (deep links), plus
+// what an existing, shared Loki or Tempo may require on every request
+// (docs/operations/existing-lgtm.md): a tenant, extra headers, basic auth.
 type Backend struct {
 	URL           string `yaml:"url"`            // LOKI_URL / TEMPO_URL
 	DatasourceUID string `yaml:"datasource_uid"` // GRAFANA_LOKI_DATASOURCE_UID / GRAFANA_TEMPO_DATASOURCE_UID
+	// TenantID is sent as X-Scope-OrgID on every request (multi-tenant Loki /
+	// Tempo, auth_enabled: true). Empty: no header.
+	TenantID string `yaml:"tenant_id"` // LOKI_TENANT_ID / TEMPO_TENANT_ID
+	// Headers are added to every request, e.g. a gateway's API key. They
+	// override X-Scope-OrgID from tenant_id; Authorization conflicts with
+	// basic_auth.
+	Headers map[string]string `yaml:"headers"`
+	// BasicAuth is sent as Authorization: Basic (an authenticating gateway in
+	// front of the backend). Empty username: none.
+	BasicAuth BasicAuth `yaml:"basic_auth"`
+}
+
+// BasicAuth is an HTTP basic credential.
+type BasicAuth struct {
+	Username string `yaml:"username"` // LOKI_BASIC_AUTH_USERNAME / TEMPO_BASIC_AUTH_USERNAME
+	Password string `yaml:"password"` // LOKI_BASIC_AUTH_PASSWORD / TEMPO_BASIC_AUTH_PASSWORD
+}
+
+// RequestHeaders are the headers sent on every request to the backend
+// (nil when there are none): X-Scope-OrgID, then Headers, then
+// Authorization from BasicAuth.
+func (b Backend) RequestHeaders() http.Header {
+	h := http.Header{}
+	if b.TenantID != "" {
+		h.Set("X-Scope-OrgID", b.TenantID)
+	}
+	for k, v := range b.Headers {
+		h.Set(k, v)
+	}
+	if b.BasicAuth.Username != "" {
+		r := http.Request{Header: http.Header{}}
+		r.SetBasicAuth(b.BasicAuth.Username, b.BasicAuth.Password)
+		h.Set("Authorization", r.Header.Get("Authorization"))
+	}
+	if len(h) == 0 {
+		return nil
+	}
+	return h
 }
 
 // Loki adds the delete API switch and the funnel cache.
@@ -73,6 +114,11 @@ type Loki struct {
 	// every user or project deletion. Needs the compactor with retention and a
 	// delete request store (docs/operations/data-lifecycle.md).
 	DeleteAPI bool `yaml:"delete_api"` // LOKI_DELETE_API, default true
+	// DeleteURL is the base URL the delete requests go to when the read path
+	// (url) does not route POST /loki/api/v1/delete to the compactor, e.g.
+	// http://loki-backend:3100 behind a gateway that only serves queries.
+	// Empty: url. Same tenant, headers and basic auth as url.
+	DeleteURL string `yaml:"delete_url"` // LOKI_DELETE_URL
 	// FunnelCacheTTL caches funnel results per definition, filters and
 	// range (docs/specs/funnels.md); 0 disables the cache.
 	FunnelCacheTTL time.Duration `yaml:"funnel_cache_ttl"` // LOKI_FUNNEL_CACHE_TTL, default 60s
@@ -251,6 +297,9 @@ func (c *Config) parseYAML(raw []byte, expandEnv bool, lookup func(string) (stri
 	return nil
 }
 
+// headerNameRe is an HTTP header field name (RFC 9110 token).
+var headerNameRe = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+
 // projectIDRe is the project id syntax the replay sink accepts.
 var projectIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
@@ -333,10 +382,17 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	str("OUO_ADMIN_TOKEN", &c.Auth.AdminToken)
 	str("LOKI_URL", &c.Loki.URL)
 	boolean("LOKI_DELETE_API", &c.Loki.DeleteAPI)
+	str("LOKI_DELETE_URL", &c.Loki.DeleteURL)
+	str("LOKI_TENANT_ID", &c.Loki.TenantID)
+	str("LOKI_BASIC_AUTH_USERNAME", &c.Loki.BasicAuth.Username)
+	str("LOKI_BASIC_AUTH_PASSWORD", &c.Loki.BasicAuth.Password)
 	dur("LOKI_FUNNEL_CACHE_TTL", &c.Loki.FunnelCacheTTL)
 	str("GRAFANA_LOKI_DATASOURCE_UID", &c.Loki.DatasourceUID)
 	str("TEMPO_URL", &c.Tempo.URL)
 	str("GRAFANA_TEMPO_DATASOURCE_UID", &c.Tempo.DatasourceUID)
+	str("TEMPO_TENANT_ID", &c.Tempo.TenantID)
+	str("TEMPO_BASIC_AUTH_USERNAME", &c.Tempo.BasicAuth.Username)
+	str("TEMPO_BASIC_AUTH_PASSWORD", &c.Tempo.BasicAuth.Password)
 	if v, ok := get("TEMPO_CONCURRENCY"); ok {
 		n, err := strconv.Atoi(v)
 		if err != nil {
@@ -412,6 +468,9 @@ func (c *Config) normalize() {
 		}
 	}
 	c.Server.CORSAllowedOrigins = origins
+	c.Loki.TenantID = strings.TrimSpace(c.Loki.TenantID)
+	c.Tempo.TenantID = strings.TrimSpace(c.Tempo.TenantID)
+	c.Loki.DeleteURL = strings.TrimSpace(c.Loki.DeleteURL)
 	c.Storage.Backend = strings.ToLower(strings.TrimSpace(c.Storage.Backend))
 	c.Storage.S3.Prefix = strings.Trim(c.Storage.S3.Prefix, "/")
 	// The frames and video limits are never below the rrweb limit.
@@ -429,6 +488,30 @@ func (c Config) Validate() error {
 	for name, u := range map[string]string{"loki.url": c.Loki.URL, "tempo.url": c.Tempo.URL, "grafana.url": c.Grafana.URL} {
 		if p, err := url.Parse(u); err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
 			bad("%s %q is not an http(s) URL", name, u)
+		}
+	}
+	if c.Loki.DeleteURL != "" {
+		if p, err := url.Parse(c.Loki.DeleteURL); err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
+			bad("loki.delete_url %q is not an http(s) URL", c.Loki.DeleteURL)
+		}
+	}
+	for name, b := range map[string]Backend{"loki": c.Loki.Backend, "tempo": c.Tempo.Backend} {
+		for k, v := range b.Headers {
+			if !headerNameRe.MatchString(k) {
+				bad("%s.headers: %q is not a header name", name, k)
+			}
+			if strings.ContainsAny(v, "\r\n") {
+				bad("%s.headers.%s must not contain a line break", name, k)
+			}
+			if b.BasicAuth.Username != "" && http.CanonicalHeaderKey(k) == "Authorization" {
+				bad("%s.headers.Authorization and %s.basic_auth are both set", name, name)
+			}
+		}
+		if b.BasicAuth.Username == "" && b.BasicAuth.Password != "" {
+			bad("%s.basic_auth.password is set without a username", name)
+		}
+		if strings.ContainsAny(b.TenantID, "\r\n") {
+			bad("%s.tenant_id must not contain a line break", name)
 		}
 	}
 	if c.Tempo.Concurrency < 1 {
@@ -516,6 +599,22 @@ func (c Config) Redacted() Config {
 	mask(&c.Auth.AdminToken)
 	mask(&c.Storage.S3.SecretAccessKey)
 	mask(&c.Storage.S3.SessionToken)
+	mask(&c.Loki.BasicAuth.Password)
+	mask(&c.Tempo.BasicAuth.Password)
+	// Header values are often credentials (API keys): all of them are masked.
+	maskHeaders := func(h map[string]string) map[string]string {
+		if len(h) == 0 {
+			return h
+		}
+		out := make(map[string]string, len(h))
+		for k, v := range h {
+			mask(&v)
+			out[k] = v
+		}
+		return out
+	}
+	c.Loki.Headers = maskHeaders(c.Loki.Headers)
+	c.Tempo.Headers = maskHeaders(c.Tempo.Headers)
 	if len(c.Projects) > 0 {
 		projects := make(map[string]Project, len(c.Projects))
 		for id, p := range c.Projects {

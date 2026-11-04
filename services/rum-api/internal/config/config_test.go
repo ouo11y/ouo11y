@@ -315,3 +315,70 @@ projects:
 		t.Errorf("short token: %v", err)
 	}
 }
+
+func TestBackendTenantHeadersBasicAuth(t *testing.T) {
+	p := writeFile(t, `
+loki:
+  url: http://loki-gateway:80
+  tenant_id: juhi
+  delete_url: http://loki-backend:3100
+  headers:
+    X-Api-Key: ${LOKI_KEY}
+tempo:
+  url: http://tempo:3200
+  basic_auth:
+    username: ouo
+    password: ${TEMPO_PW}
+`)
+	c, err := Load(p, true, envMap(map[string]string{"LOKI_KEY": "k_secret", "TEMPO_PW": "pw_secret"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lh := c.Loki.RequestHeaders()
+	if lh.Get("X-Scope-OrgID") != "juhi" || lh.Get("X-Api-Key") != "k_secret" || lh.Get("Authorization") != "" || c.Loki.DeleteURL != "http://loki-backend:3100" {
+		t.Fatalf("loki headers %v, delete url %q", lh, c.Loki.DeleteURL)
+	}
+	th := c.Tempo.RequestHeaders()
+	if th.Get("Authorization") != "Basic b3VvOnB3X3NlY3JldA==" || th.Get("X-Scope-OrgID") != "" {
+		t.Fatalf("tempo headers %v", th)
+	}
+	if Defaults().Loki.RequestHeaders() != nil || Defaults().Tempo.RequestHeaders() != nil {
+		t.Fatal("defaults must send no extra headers")
+	}
+
+	// Environment overrides: tenant and basic auth per backend.
+	c, err = Load(p, true, envMap(map[string]string{"LOKI_KEY": "k", "TEMPO_PW": "p", "LOKI_TENANT_ID": "other",
+		"TEMPO_TENANT_ID": "t2", "LOKI_BASIC_AUTH_USERNAME": "u", "LOKI_BASIC_AUTH_PASSWORD": "pw", "LOKI_DELETE_URL": "https://c.test"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Loki.TenantID != "other" || c.Tempo.TenantID != "t2" || c.Loki.RequestHeaders().Get("Authorization") != "Basic dTpwdw==" || c.Loki.DeleteURL != "https://c.test" {
+		t.Fatalf("env: %+v %+v", c.Loki, c.Tempo)
+	}
+
+	// Secrets are masked in the rendered config.
+	out, err := c.Redacted().YAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "password: pw") || strings.Contains(string(out), "password: p\n") || strings.Contains(string(out), "X-Api-Key: k\n") {
+		t.Fatalf("secret in %s", out)
+	}
+	if !strings.Contains(string(out), "tenant_id: other") || !strings.Contains(string(out), "X-Api-Key: <redacted>") || strings.Count(string(out), "password: <redacted>") != 2 {
+		t.Fatalf("yaml: %s", out)
+	}
+}
+
+func TestBackendHeadersInvalid(t *testing.T) {
+	for name, body := range map[string]string{
+		"bad header name":       "loki:\n  headers:\n    \"Bad Name\": x\n",
+		"header line break":     "tempo:\n  headers:\n    X-A: \"a\\r\\nX-B: b\"\n",
+		"auth twice":            "loki:\n  headers:\n    authorization: Bearer x\n  basic_auth:\n    username: u\n    password: p\n",
+		"password without user": "tempo:\n  basic_auth:\n    password: p\n",
+		"delete url":            "loki:\n  delete_url: loki-backend:3100\n",
+	} {
+		if _, err := Load(writeFile(t, body), false, envMap(nil)); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+}

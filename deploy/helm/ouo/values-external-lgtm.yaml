@@ -1,5 +1,5 @@
 # Install ouo next to an existing Grafana LGTM stack (the customer's Loki, Tempo and
-# Mimir). Nothing LGTM is deployed; the collector, rum-api and Grafana point at the URLs
+# Mimir). What those backends need: docs/operations/existing-lgtm.md. Nothing LGTM is deployed; the collector, rum-api and Grafana point at the URLs
 # below. Replace the hosts with your Services (the defaults match the upstream
 # grafana/loki, grafana/tempo-distributed and grafana/mimir-distributed charts installed
 # in namespace `observability`).
@@ -23,6 +23,20 @@ lgtm:
     # mimirOtlpUrl: http://mimir-distributor.observability.svc:8080/otlp
     # mimirPrometheusUrl: http://mimir-query-frontend.observability.svc:8080/prometheus
     # tenantId: ouo
+    # Your own OTel collector in front of Loki / Tempo / Mimir: send the three writes to it
+    # (OTLP gRPC for traces, OTLP/HTTP base for logs and metrics) and keep the read URLs above.
+    # tempoOtlpGrpcEndpoint: otel-gateway.observability.svc:4317
+    # lokiOtlpUrl: http://otel-gateway.observability.svc:4318
+    # mimirOtlpUrl: http://otel-gateway.observability.svc:4318
+    # The gateway at lokiUrl does not route POST /loki/api/v1/delete to the compactor:
+    # lokiDeleteUrl: http://loki-backend.observability.svc:3100
+
+# Align with your stack's retention (docs/operations/existing-lgtm.md): retention.logs is how
+# far back rum-api's delete-by-user searches, retention.replays how long rum-api keeps replays.
+# Loki, Tempo and Mimir are not deployed, so the other entries change nothing there.
+retention:
+  logs: 336h
+  replays: 336h
 
 # Public project identifiers (they ship in browser bundles): --set projects[0].token=pt_...
 projects: []
@@ -31,10 +45,10 @@ projects: []
 ingestToken: ""      # --set ingestToken=it_...   (secret: collector -> rum-api)
 readToken: ""        # --set readToken=rt_...     (secret: Grafana -> rum-api)
 
+# Images: the chart's defaults (values.yaml, the release this chart version ships with);
+# pin <component>.image.tag only for a private mirror or a deliberate hold-back.
+
 collector:
-  image:
-    repository: ghcr.io/ouo11y/collector
-    tag: "0.3.0"
   # Union of every project's browser origins.
   allowedOrigins:
     - https://shop.example.com
@@ -51,17 +65,11 @@ collector:
       secretName: ouo-collector-tls
 
 rumApi:
-  image:
-    repository: ghcr.io/ouo11y/rum-api
-    tag: "0.3.0"
   persistence:
     size: 50Gi
     storageClass: ""           # cluster default
 
 grafana:
-  image:
-    repository: ghcr.io/ouo11y/grafana
-    tag: "0.3.0"
   adminPassword: ""  # --set grafana.adminPassword=...  or grafana.existingSecret
   ingress:
     enabled: true
