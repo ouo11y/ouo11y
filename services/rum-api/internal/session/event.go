@@ -6,6 +6,7 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -92,6 +93,39 @@ var noiseKeys = map[string]bool{
 	"user_agent_original": true, "browser_brands": true, "browser_language": true,
 	"browser_mobile": true, "browser_platform": true, "os_name": true, "os_version": true,
 	"severity_number": true, "ouo_user_anonymous": true,
+}
+
+// Retained reports whether events keep the value of a Loki label or
+// structured-metadata key (Value can read it): every key except the noise
+// keys outside ContextKeys.
+func Retained(key string) bool {
+	return !noiseKeys[key] || slices.Contains(ContextKeys, key)
+}
+
+// Value returns the value of a Loki label or structured-metadata key (Loki
+// name, e.g. payment_method) as a LogQL label filter sees it: "" when the
+// event does not carry it. Identifier keys read the Event fields.
+func (e Event) Value(key string) string {
+	switch key {
+	case "event_name":
+		return e.Name
+	case "session_id":
+		return e.SessionID
+	case "user_id":
+		return e.UserID
+	case "device_id":
+		return e.DeviceID
+	case "ouo_platform":
+		return e.Platform
+	case "service_name":
+		return e.ServiceName
+	case "service_version":
+		return e.ServiceVersion
+	}
+	if v, ok := e.Attrs[key]; ok {
+		return v
+	}
+	return e.Context[key]
 }
 
 // ContextKeys are the resource attributes (Loki names) the session detail

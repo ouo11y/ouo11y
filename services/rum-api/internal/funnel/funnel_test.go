@@ -2,6 +2,7 @@ package funnel
 
 import (
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,14 +122,14 @@ func TestReportAndDropped(t *testing.T) {
 		t.Errorf("label %q", rows[1].Label)
 	}
 
-	dropped := Dropped(paths, 2)
+	dropped := Dropped(paths, 2, OutcomeAny)
 	if len(dropped) != 2 || dropped[0].SessionID != "d" || dropped[1].SessionID != "f" {
 		t.Fatalf("dropped at 2: %+v", dropped)
 	}
 	if dropped[0].LastPath != "/about" {
 		t.Errorf("last path %q", dropped[0].LastPath)
 	}
-	if got := Dropped(paths, 4); len(got) != 1 || got[0].SessionID != "b" {
+	if got := Dropped(paths, 4, OutcomeAny); len(got) != 1 || got[0].SessionID != "b" {
 		t.Errorf("dropped at 4: %+v", got)
 	}
 }
@@ -180,7 +181,7 @@ func TestParseStep(t *testing.T) {
 		"event:a:b":         {Kind: KindEvent, Value: "a:b"},
 	} {
 		got, err := ParseStep(in)
-		if err != nil || got != want {
+		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: got %+v, %v", in, got, err)
 		}
 		if got.String() != in {

@@ -107,13 +107,22 @@ func (c *Client) Events(ctx context.Context, f Filters, start, end time.Time) ([
 
 // EventsQuery is Events with a raw LogQL query.
 func (c *Client) EventsQuery(ctx context.Context, query string, start, end time.Time) ([]session.Event, error) {
+	evs, _, err := c.EventsQueryCapped(ctx, query, start, end)
+	return evs, err
+}
+
+// EventsQueryCapped is EventsQuery that also reports whether the read was cut
+// at PageLimit × MaxPages events: the last page was full and no page was
+// left, so events after the last one returned were not read.
+func (c *Client) EventsQueryCapped(ctx context.Context, query string, start, end time.Time) ([]session.Event, bool, error) {
 	var all []session.Event
+	truncated := false
 	seen := map[string]bool{}
 	cursor := start
 	for page := 0; page < c.MaxPages; page++ {
 		evs, err := c.page(ctx, query, cursor, end)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for _, ev := range evs {
 			k := ev.Key()
@@ -124,6 +133,10 @@ func (c *Client) EventsQuery(ctx context.Context, query string, start, end time.
 			all = append(all, ev)
 		}
 		if len(evs) < c.PageLimit {
+			break
+		}
+		if page == c.MaxPages-1 {
+			truncated = true
 			break
 		}
 		// Page was full: continue from the last timestamp (inclusive, so
@@ -137,7 +150,7 @@ func (c *Client) EventsQuery(ctx context.Context, query string, start, end time.
 		slog.Debug("loki page full, continuing", "query", query, "from", cursor)
 	}
 	session.SortEvents(all)
-	return all, nil
+	return all, truncated, nil
 }
 
 func (c *Client) page(ctx context.Context, query string, start, end time.Time) ([]session.Event, error) {
@@ -221,3 +234,6 @@ func parseCounts(body []byte, by string) (map[string]int, error) {
 	}
 	return out, nil
 }
+
+// ReadLimit is the most events one EventsQuery returns: PageLimit × MaxPages.
+func (c *Client) ReadLimit() int { return c.PageLimit * c.MaxPages }

@@ -95,3 +95,44 @@ func TestEventsError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+// TestEventsQueryCapped: a read that ends on a full last page reports that it
+// was cut at PageLimit × MaxPages (docs/specs/funnels.md, truncated).
+func TestEventsQueryCapped(t *testing.T) {
+	base := time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC)
+	total := 7
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		start, _ := strconv.ParseInt(q.Get("start"), 10, 64)
+		limit, _ := strconv.Atoi(q.Get("limit"))
+		var streams []session.LokiStream
+		for i := 0; i < total && len(streams) < limit; i++ {
+			ts := base.Add(time.Duration(i) * time.Second).UnixNano()
+			if ts < start {
+				continue
+			}
+			streams = append(streams, session.LokiStream{
+				Stream: map[string]string{"event_name": "navigation", "session_id": "s"},
+				Values: [][2]string{{strconv.FormatInt(ts, 10), fmt.Sprintf("line %d", i)}},
+			})
+		}
+		json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"resultType": "streams", "result": streams}})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, srv.Client())
+	c.PageLimit = 3
+	for _, tc := range []struct {
+		pages, events int
+		truncated     bool
+	}{{2, 5, true}, {4, 7, false}, {9, 7, false}} {
+		c.MaxPages = tc.pages
+		evs, truncated, err := c.EventsQueryCapped(context.Background(), `{event_name="navigation"}`, base, base.Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(evs) != tc.events || truncated != tc.truncated {
+			t.Errorf("MaxPages %d: %d events truncated %v, want %d %v", tc.pages, len(evs), truncated, tc.events, tc.truncated)
+		}
+	}
+}

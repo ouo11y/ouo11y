@@ -3,9 +3,12 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -17,13 +20,26 @@ import (
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/session"
 )
 
-// funnelEvents answers each step query with the matching kind of events
-// (navigation or not), like Loki would, and records the queries.
+// funnelEvents answers each step query with the events whose name matches the
+// query's event_name matcher, like Loki would (label filters are left to the
+// engine, which re-checks every condition), and records the queries. With
+// capAt > 0 it returns at most capAt events per query and reports the cut.
 type funnelEvents struct {
 	events  []session.Event
 	mu      sync.Mutex
 	queries []string
 	counts  []string
+	capAt   int
+}
+
+var eventNameMatcher = regexp.MustCompile(`event_name(=~|=)("(?:[^"\\]|\\.)*")`)
+
+func (f *funnelEvents) EventsQueryCapped(ctx context.Context, q string, start, end time.Time) ([]session.Event, bool, error) {
+	evs, err := f.EventsQuery(ctx, q, start, end)
+	if f.capAt > 0 && len(evs) > f.capAt {
+		return evs[:f.capAt], true, err
+	}
+	return evs, false, err
 }
 
 func (f *funnelEvents) Events(ctx context.Context, fl loki.Filters, start, end time.Time) ([]session.Event, error) {
@@ -34,13 +50,26 @@ func (f *funnelEvents) EventsQuery(ctx context.Context, q string, start, end tim
 	f.mu.Lock()
 	f.queries = append(f.queries, q)
 	f.mu.Unlock()
-	nav := strings.Contains(q, `event_name="navigation"`)
+	m := eventNameMatcher.FindStringSubmatch(q) // the selector's comes first
+	if m == nil {
+		return nil, fmt.Errorf("no event_name matcher in %s", q)
+	}
+	v, err := strconv.Unquote(m[2])
+	if err != nil {
+		return nil, err
+	}
+	match := func(n string) bool { return n == v }
+	if m[1] == "=~" {
+		re := regexp.MustCompile("^(?:" + v + ")$")
+		match = re.MatchString
+	}
 	var out []session.Event
 	for _, ev := range f.events {
-		if (ev.Name == "navigation") == nav && !ev.TS.Before(start) && !ev.TS.After(end) {
+		if match(ev.Name) && !ev.TS.Before(start) && !ev.TS.After(end) {
 			out = append(out, ev)
 		}
 	}
+	session.SortEvents(out)
 	return out, nil
 }
 func (f *funnelEvents) Counts(ctx context.Context, q, by string, start, end time.Time) (map[string]int, error) {
@@ -128,24 +157,35 @@ func TestFunnelQuery(t *testing.T) {
 	if *fr.Steps[1].MedianMs != 60000 || *fr.Steps[1].P75Ms != 120000 {
 		t.Errorf("times %d %d", *fr.Steps[1].MedianMs, *fr.Steps[1].P75Ms)
 	}
-	if len(fe.queries) != 2 {
+	// Pages, events and the default failure event (exception).
+	if len(fe.queries) != 3 {
 		t.Fatalf("queries %v", fe.queries)
 	}
-	nav, ev := fe.queries[0], fe.queries[1]
-	if !strings.Contains(nav, `event_name="navigation"`) {
-		nav, ev = ev, nav
-	}
-	for _, want := range []string{`service_name="tiny-shop-web"`, `deployment_environment_name="local"`, `ouo_project_id="demo"`, `| service_version="1.0.0"`} {
-		if !strings.Contains(nav, want) || !strings.Contains(ev, want) {
-			t.Errorf("queries miss %s:\n%s\n%s", want, nav, ev)
+	var nav, ev, fail string
+	for _, q := range fe.queries {
+		switch {
+		case strings.Contains(q, `event_name="navigation"`):
+			nav = q
+		case strings.Contains(q, `event_name="exception"`):
+			fail = q
+		default:
+			ev = q
 		}
 	}
-	if !strings.HasSuffix(nav, `| url_path=~"/|/products/.*"`) || !strings.Contains(ev, `event_name=~"add_to_cart|order_paid"`) {
+	for _, want := range []string{`service_name="tiny-shop-web"`, `deployment_environment_name="local"`, `ouo_project_id="demo"`, `| service_version="1.0.0"`} {
+		if !strings.Contains(nav, want) || !strings.Contains(ev, want) || !strings.Contains(fail, want) {
+			t.Errorf("queries miss %s:\n%s\n%s\n%s", want, nav, ev, fail)
+		}
+	}
+	if !strings.HasSuffix(nav, `| url_path=~"/|/products/.*"`) || !strings.HasSuffix(ev, `event_name=~"add_to_cart|order_paid", ouo_project_id="demo"} | service_version="1.0.0"`) {
 		t.Errorf("step filters:\n%s\n%s", nav, ev)
+	}
+	if fr.Failure == nil || fr.Failure.Value != "exception" || fr.Truncated || len(fr.TruncatedReads) != 0 {
+		t.Errorf("failure %+v truncated %v %v", fr.Failure, fr.Truncated, fr.TruncatedReads)
 	}
 	// Cached: a second identical query reads Loki no more.
 	postFunnel(t, ts, shopBody)
-	if len(fe.queries) != 2 {
+	if len(fe.queries) != 3 {
 		t.Errorf("cache miss: %d queries", len(fe.queries))
 	}
 }

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,7 +20,7 @@ import (
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/timerange"
 )
 
-// Funnel reports (docs/specs/funnels.md, ADR-0012).
+// Funnel reports (docs/specs/funnels.md, ADR-0012, ADR-0019).
 
 const (
 	defaultFunnelRange = 24 * time.Hour
@@ -31,6 +32,13 @@ const (
 	maxSuggestions    = 200
 	maxFunnelBodySize = 64 << 10
 )
+
+// CappedSource is the optional Loki capability that reports whether a read
+// was cut at the client's event cap (loki.Client implements it). Without it
+// a funnel is never marked truncated.
+type CappedSource interface {
+	EventsQueryCapped(ctx context.Context, query string, start, end time.Time) ([]session.Event, bool, error)
+}
 
 // CountSource is the optional Loki capability the step suggestions use
 // (loki.Client implements it).
@@ -49,6 +57,17 @@ type FunnelFilters struct {
 	Project     string `json:"project,omitempty"`
 }
 
+// failureSpec is the failure event of a request: an event name with optional
+// conditions, or off. Absent: funnel.DefaultFailure (any exception).
+type failureSpec struct {
+	Event string             `json:"event,omitempty"`
+	Where []funnel.Condition `json:"where,omitempty"`
+	Off   bool               `json:"off,omitempty"`
+}
+
+// failureOff is the compact form that turns failure tracking off.
+const failureOff = "off"
+
 // funnelRequest is the body of POST /v1/funnels/query.
 type funnelRequest struct {
 	Steps   []funnel.Step `json:"steps"`
@@ -56,6 +75,7 @@ type funnelRequest struct {
 	To      string        `json:"to"`
 	Within  string        `json:"within"` // Go duration plus d/w, e.g. "30m", "1d"; empty: no bound
 	Filters FunnelFilters `json:"filters"`
+	Failure *failureSpec  `json:"failure,omitempty"`
 }
 
 type funnelQuery struct {
@@ -64,13 +84,42 @@ type funnelQuery struct {
 	filters  FunnelFilters
 }
 
+// funnelRead is one Loki query of a funnel; kind names it in truncated.
+type funnelRead struct {
+	kind  string // pages, events, failures
+	query string
+}
+
+// funnelResult is what one evaluation of a funnel query yields (cached).
+type funnelResult struct {
+	paths []funnel.Path
+	// truncated lists the reads cut at the event cap; completeUntil is the
+	// earliest last event of those reads: the funnel saw every event up to
+	// there.
+	truncated     []string
+	completeUntil *time.Time
+}
+
+// truncation is the part of a response that reports a read cut at the cap.
+type truncation struct {
+	Truncated       bool       `json:"truncated"`
+	TruncatedReads  []string   `json:"truncated_reads"`
+	EventsReadLimit int        `json:"events_read_limit"`
+	CompleteUntil   *time.Time `json:"complete_until"`
+}
+
 type funnelResponse struct {
 	Steps    []funnel.StepResult `json:"steps"`
 	Sessions int                 `json:"sessions"` // sessions that entered step 1
 	Users    int                 `json:"users"`
-	Within   *int64              `json:"within_ms"`
-	From     time.Time           `json:"from"`
-	To       time.Time           `json:"to"`
+	// Failed is the sessions that stopped after a failure event, over all
+	// steps; Failure is the failure event used (null: off).
+	Failed  int          `json:"failed"`
+	Failure *funnel.Step `json:"failure"`
+	Within  *int64       `json:"within_ms"`
+	From    time.Time    `json:"from"`
+	To      time.Time    `json:"to"`
+	truncation
 }
 
 type droppedSession struct {
@@ -79,12 +128,19 @@ type droppedSession struct {
 	EnteredAt  time.Time `json:"entered_at"`   // step 1
 	LastStepAt time.Time `json:"last_step_at"` // the last step reached (step N-1)
 	LastPath   string    `json:"last_path,omitempty"`
-	HasReplay  bool      `json:"has_replay"`
-	ReplayKind *string   `json:"replay_kind"`
+	// Outcome is failed or abandoned; the failure fields describe the first
+	// failure event after the last step reached.
+	Outcome        funnel.Outcome `json:"outcome"`
+	FailedAt       *time.Time     `json:"failed_at,omitempty"`
+	FailureEvent   string         `json:"failure_event,omitempty"`
+	FailureMessage string         `json:"failure_message,omitempty"`
+	HasReplay      bool           `json:"has_replay"`
+	ReplayKind     *string        `json:"replay_kind"`
 }
 
 type droppedResponse struct {
 	Step       int              `json:"step"`
+	Outcome    funnel.Outcome   `json:"outcome"`
 	Sessions   []droppedSession `json:"sessions"`
 	Total      int              `json:"total"`
 	Offset     int              `json:"offset"`
@@ -92,6 +148,7 @@ type droppedResponse struct {
 	NextOffset *int             `json:"next_offset"`
 	From       time.Time        `json:"from"`
 	To         time.Time        `json:"to"`
+	truncation
 }
 
 type suggestion struct {
@@ -106,8 +163,44 @@ type suggestionsResponse struct {
 	To     time.Time    `json:"to"`
 }
 
-func (s *Server) resolveFunnel(steps []funnel.Step, from, to, within string, f FunnelFilters) (funnelQuery, error) {
-	fq := funnelQuery{def: funnel.Definition{Steps: steps}, filters: f}
+// failureStep is the failure event of a spec: nil when off, the default when
+// the spec is absent or names no event.
+func (fs *failureSpec) step() *funnel.Step {
+	switch {
+	case fs == nil:
+		d := funnel.DefaultFailure
+		return &d
+	case fs.Off:
+		return nil
+	case fs.Event == "":
+		d := funnel.DefaultFailure
+		d.Where = fs.Where
+		return &d
+	}
+	return &funnel.Step{Kind: funnel.KindEvent, Value: fs.Event, Where: fs.Where}
+}
+
+// parseFailure reads the compact failure parameter: event:<name>[ where …]
+// or off; empty is the default.
+func parseFailure(v string) (*failureSpec, error) {
+	switch v {
+	case "":
+		return nil, nil
+	case failureOff:
+		return &failureSpec{Off: true}, nil
+	}
+	st, err := funnel.ParseStep(v)
+	if err != nil {
+		return nil, fmt.Errorf("failure: %w", err)
+	}
+	if st.Kind != funnel.KindEvent {
+		return nil, errors.New("failure: want event:<name> or off")
+	}
+	return &failureSpec{Event: st.Value, Where: st.Where}, nil
+}
+
+func (s *Server) resolveFunnel(steps []funnel.Step, from, to, within string, f FunnelFilters, failure *failureSpec) (funnelQuery, error) {
+	fq := funnelQuery{def: funnel.Definition{Steps: steps, Failure: failure.step()}, filters: f}
 	if within != "" {
 		d, err := timerange.ParseDuration(within)
 		if err != nil {
@@ -154,10 +247,15 @@ func (f FunnelFilters) selector(eventNames string) string {
 }
 
 // funnelQueries returns one LogQL query per step kind present: navigation
-// events narrowed to the step paths, and the step event names.
-func funnelQueries(def funnel.Definition, f FunnelFilters) []string {
+// events narrowed to the step paths, the step event names (with their
+// conditions as label filters, ADR-0019), and the failure event.
+func funnelQueries(def funnel.Definition, f FunnelFilters) []funnelRead {
 	var paths, names []string
 	seen := map[string]bool{}
+	// Per event name: the condition sets of its steps; a step without
+	// conditions makes the name unconditional.
+	conds := map[string][][]funnel.Condition{}
+	plain := map[string]bool{}
 	for _, st := range def.Steps {
 		if seen[st.String()] {
 			continue
@@ -171,21 +269,84 @@ func funnelQueries(def funnel.Definition, f FunnelFilters) []string {
 			}
 			paths = append(paths, p)
 		case funnel.KindEvent:
-			names = append(names, regexp.QuoteMeta(st.Value))
+			if !plain[st.Value] && conds[st.Value] == nil {
+				names = append(names, st.Value)
+			}
+			if len(st.Where) == 0 {
+				plain[st.Value] = true
+			} else {
+				conds[st.Value] = append(conds[st.Value], st.Where)
+			}
 		}
 	}
-	var out []string
+	var out []funnelRead
 	if len(paths) > 0 {
-		out = append(out, f.selector(`="navigation"`)+` | url_path=~`+strconv.Quote(strings.Join(paths, "|")))
+		out = append(out, funnelRead{"pages", f.selector(`="navigation"`) + ` | url_path=~` + strconv.Quote(strings.Join(paths, "|"))})
 	}
 	if len(names) > 0 {
-		out = append(out, f.selector(`=~`+strconv.Quote(strings.Join(names, "|"))))
+		quoted := make([]string, len(names))
+		for i, n := range names {
+			quoted[i] = regexp.QuoteMeta(n)
+		}
+		q := f.selector(`=~` + strconv.Quote(strings.Join(quoted, "|")))
+		if filter := eventsFilter(names, plain, conds); filter != "" {
+			q += " | " + filter
+		}
+		out = append(out, funnelRead{"events", q})
+	}
+	if fs := def.Failure; fs != nil {
+		q := f.selector(`=` + strconv.Quote(fs.Value))
+		if len(fs.Where) > 0 {
+			q += " | " + funnel.ConditionsLogQL(fs.Where)
+		}
+		out = append(out, funnelRead{"failures", q})
 	}
 	return out
 }
 
+// eventsFilter is the label filter expression of the events query: empty
+// when no event step has conditions, else one alternative per event name,
+// either the bare name or the name and its steps' condition sets:
+//
+//	(event_name="a") or (event_name="b" and ((k="v" and k2!="w") or (k="x")))
+//
+// With a single conditional name and nothing else, the name test is left
+// out (the selector already narrows to it). Every operand is parenthesised,
+// so LogQL's and/or precedence does not matter.
+func eventsFilter(names []string, plain map[string]bool, conds map[string][][]funnel.Condition) string {
+	conditional := 0
+	for _, n := range names {
+		if !plain[n] {
+			conditional++
+		}
+	}
+	if conditional == 0 {
+		return ""
+	}
+	sets := func(n string) string {
+		alts := make([]string, 0, len(conds[n]))
+		for _, cs := range conds[n] {
+			alts = append(alts, "("+funnel.ConditionsLogQL(cs)+")")
+		}
+		return strings.Join(alts, " or ")
+	}
+	if len(names) == 1 {
+		return sets(names[0])
+	}
+	alts := make([]string, 0, len(names))
+	for _, n := range names {
+		test := "event_name=" + strconv.Quote(n)
+		if plain[n] {
+			alts = append(alts, "("+test+")")
+		} else {
+			alts = append(alts, "("+test+" and ("+sets(n)+"))")
+		}
+	}
+	return strings.Join(alts, " or ")
+}
+
 type funnelCacheEntry struct {
-	paths   []funnel.Path
+	result  funnelResult
 	expires time.Time
 }
 
@@ -195,14 +356,14 @@ type funnelCache struct {
 }
 
 func (fq funnelQuery) key() string {
-	b, _ := json.Marshal([]any{fq.def.Steps, fq.def.Within, fq.filters, fq.from.UnixNano(), fq.to.UnixNano()})
+	b, _ := json.Marshal([]any{fq.def.Steps, fq.def.Within, fq.def.Failure, fq.filters, fq.from.UnixNano(), fq.to.UnixNano()})
 	return string(b)
 }
 
-// paths runs the step queries concurrently, joins the events per session and
-// walks them. Results are cached for FunnelCacheTTL so the report and its
-// drop-off lists share one Loki read.
-func (s *Server) funnelPaths(ctx context.Context, fq funnelQuery) ([]funnel.Path, error) {
+// funnelPaths runs the step queries concurrently, joins the events per
+// session and walks them. Results are cached for FunnelCacheTTL so the report
+// and its drop-off lists share one Loki read.
+func (s *Server) funnelPaths(ctx context.Context, fq funnelQuery) (funnelResult, error) {
 	key := fq.key()
 	ttl := s.opts.FunnelCacheTTL
 	if ttl > 0 {
@@ -210,29 +371,55 @@ func (s *Server) funnelPaths(ctx context.Context, fq funnelQuery) ([]funnel.Path
 		e, ok := s.funnels.entries[key]
 		s.funnels.mu.Unlock()
 		if ok && time.Now().Before(e.expires) {
-			return e.paths, nil
+			return e.result, nil
 		}
 	}
-	queries := funnelQueries(fq.def, fq.filters)
-	results := make([][]session.Event, len(queries))
-	errs := make([]error, len(queries))
+	reads := funnelQueries(fq.def, fq.filters)
+	results := make([][]session.Event, len(reads))
+	capped := make([]bool, len(reads))
+	errs := make([]error, len(reads))
 	var wg sync.WaitGroup
-	for i, q := range queries {
+	for i, rd := range reads {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i], errs[i] = s.events.EventsQuery(ctx, q, fq.from, fq.to)
+			if c, ok := s.events.(CappedSource); ok {
+				results[i], capped[i], errs[i] = c.EventsQueryCapped(ctx, rd.query, fq.from, fq.to)
+				return
+			}
+			results[i], errs[i] = s.events.EventsQuery(ctx, rd.query, fq.from, fq.to)
 		}()
 	}
 	wg.Wait()
+	var res funnelResult
 	var all []session.Event
-	for i := range queries {
+	seen := map[string]bool{}
+	for i, rd := range reads {
 		if errs[i] != nil {
-			return nil, errs[i]
+			return funnelResult{}, errs[i]
 		}
-		all = append(all, results[i]...)
+		// The failure read can return events the events read also has
+		// (failure event = a step event).
+		for _, ev := range results[i] {
+			if k := ev.Key(); !seen[k] {
+				seen[k] = true
+				all = append(all, ev)
+			}
+		}
+		if capped[i] {
+			res.truncated = append(res.truncated, rd.kind)
+			if n := len(results[i]); n > 0 {
+				last := results[i][n-1].TS
+				if res.completeUntil == nil || last.Before(*res.completeUntil) {
+					res.completeUntil = &last
+				}
+			}
+		}
 	}
-	paths := funnel.Paths(fq.def, all)
+	if res.truncated != nil {
+		slog.Warn("funnel read cut at the event cap", "reads", res.truncated, "from", fq.from, "to", fq.to)
+	}
+	res.paths = funnel.Paths(fq.def, all)
 	if ttl > 0 {
 		s.funnels.mu.Lock()
 		now := time.Now()
@@ -241,10 +428,28 @@ func (s *Server) funnelPaths(ctx context.Context, fq funnelQuery) ([]funnel.Path
 				delete(s.funnels.entries, k)
 			}
 		}
-		s.funnels.entries[key] = funnelCacheEntry{paths: paths, expires: now.Add(ttl)}
+		s.funnels.entries[key] = funnelCacheEntry{result: res, expires: now.Add(ttl)}
 		s.funnels.mu.Unlock()
 	}
-	return paths, nil
+	return res, nil
+}
+
+// truncation reports the reads cut at the cap, if any.
+func (s *Server) truncation(res funnelResult) truncation {
+	t := truncation{Truncated: len(res.truncated) > 0, TruncatedReads: res.truncated, EventsReadLimit: s.eventsReadLimit(), CompleteUntil: res.completeUntil}
+	if t.TruncatedReads == nil {
+		t.TruncatedReads = []string{}
+	}
+	return t
+}
+
+// eventsReadLimit is the per-read event cap of the Loki client, 0 when the
+// event source has none.
+func (s *Server) eventsReadLimit() int {
+	if l, ok := s.events.(interface{ ReadLimit() int }); ok {
+		return l.ReadLimit()
+	}
+	return 0
 }
 
 // postFunnelQuery: POST /v1/funnels/query.
@@ -256,18 +461,22 @@ func (s *Server) postFunnelQuery(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body: "+err.Error())
 		return
 	}
-	fq, err := s.resolveFunnel(req.Steps, req.From, req.To, req.Within, req.Filters)
+	fq, err := s.resolveFunnel(req.Steps, req.From, req.To, req.Within, req.Filters, req.Failure)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	paths, err := s.funnelPaths(r.Context(), fq)
+	res, err := s.funnelPaths(r.Context(), fq)
 	if err != nil {
 		s.lokiError(w, err)
 		return
 	}
-	rows := funnel.Report(fq.def, paths)
-	resp := funnelResponse{Steps: rows, Sessions: rows[0].Sessions, Users: rows[0].Users, From: fq.from, To: fq.to}
+	rows := funnel.Report(fq.def, res.paths)
+	resp := funnelResponse{Steps: rows, Sessions: rows[0].Sessions, Users: rows[0].Users, Failure: fq.def.Failure,
+		From: fq.from, To: fq.to, truncation: s.truncation(res)}
+	for _, row := range rows {
+		resp.Failed += row.Failed
+	}
 	if fq.def.Within > 0 {
 		ms := fq.def.Within.Milliseconds()
 		resp.Within = &ms
@@ -276,7 +485,7 @@ func (s *Server) postFunnelQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseFunnelURL reads a funnel from query parameters: steps=page:/,event:x
-// (comma separated, or repeated), from, to, within and the filters.
+// (comma separated, or repeated), from, to, within, failure and the filters.
 func (s *Server) parseFunnelURL(q url.Values) (funnelQuery, error) {
 	var steps []funnel.Step
 	for _, v := range q["steps"] {
@@ -288,10 +497,14 @@ func (s *Server) parseFunnelURL(q url.Values) (funnelQuery, error) {
 			steps = append(steps, st)
 		}
 	}
+	failure, err := parseFailure(q.Get("failure"))
+	if err != nil {
+		return funnelQuery{}, badRequest{err}
+	}
 	return s.resolveFunnel(steps, q.Get("from"), q.Get("to"), q.Get("within"), FunnelFilters{
 		Service: q.Get("service"), Environment: q.Get("environment"), Release: q.Get("release"),
 		Platform: q.Get("platform"), Project: q.Get("project"),
-	})
+	}, failure)
 }
 
 // splitSteps splits on commas that start a new step ("page:" or "event:"),
@@ -316,7 +529,8 @@ func splitSteps(v string) []string {
 }
 
 // getFunnelDropped: GET /v1/funnels/dropped?step=N&steps=...: the sessions
-// that reached step N-1 but not step N, latest first, paginated by offset.
+// that reached step N-1 but not step N, latest first, paginated by offset;
+// outcome=failed|abandoned narrows them.
 func (s *Server) getFunnelDropped(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	fq, err := s.parseFunnelURL(q)
@@ -327,6 +541,11 @@ func (s *Server) getFunnelDropped(w http.ResponseWriter, r *http.Request) {
 	step, err := strconv.Atoi(q.Get("step"))
 	if err != nil || step < 2 || step > len(fq.def.Steps) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("step must be between 2 and %d", len(fq.def.Steps)))
+		return
+	}
+	outcome, err := funnel.ParseOutcome(q.Get("outcome"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	limit, offset := defaultDropLimit, 0
@@ -343,16 +562,22 @@ func (s *Server) getFunnelDropped(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	paths, err := s.funnelPaths(r.Context(), fq)
+	res, err := s.funnelPaths(r.Context(), fq)
 	if err != nil {
 		s.lokiError(w, err)
 		return
 	}
-	dropped := funnel.Dropped(paths, step)
-	resp := droppedResponse{Step: step, Sessions: []droppedSession{}, Total: len(dropped), Offset: offset, Limit: limit, From: fq.from, To: fq.to}
+	dropped := funnel.Dropped(res.paths, step, outcome)
+	resp := droppedResponse{Step: step, Outcome: outcome, Sessions: []droppedSession{}, Total: len(dropped), Offset: offset, Limit: limit,
+		From: fq.from, To: fq.to, truncation: s.truncation(res)}
 	end := min(offset+limit, len(dropped))
 	for _, p := range dropped[min(offset, len(dropped)):end] {
-		ds := droppedSession{SessionID: p.SessionID, UserID: p.UserID, EnteredAt: p.At[0], LastStepAt: p.At[len(p.At)-1], LastPath: p.LastPath}
+		ds := droppedSession{SessionID: p.SessionID, UserID: p.UserID, EnteredAt: p.At[0], LastStepAt: p.At[len(p.At)-1], LastPath: p.LastPath,
+			Outcome: funnel.OutcomeAbandoned}
+		if p.Failed {
+			at := p.FailedAt
+			ds.Outcome, ds.FailedAt, ds.FailureEvent, ds.FailureMessage = funnel.OutcomeFailed, &at, p.FailureEvent, p.FailureMessage
+		}
 		if s.store.Has(r.Context(), p.SessionID) {
 			if m, err := s.store.Meta(r.Context(), p.SessionID); err == nil {
 				kind := m.Kind
