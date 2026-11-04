@@ -16,10 +16,13 @@ interface Props {
 export function VersionTable({ buckets, sessionsHref }: Props) {
   const styles = useStyles2(getStyles);
   const colors = useStyles2(healthColors);
+  // Buckets of more than one project (the all-projects view): name the project per row.
+  const showProject = new Set(buckets.map((b) => b.project_id ?? '')).size > 1;
   return (
     <table className={styles.table} data-testid="version-table">
       <thead>
         <tr>
+          {showProject && <th>Project</th>}
           <th>Service</th>
           <th>Version</th>
           <th className={styles.num}>Total</th>
@@ -31,7 +34,8 @@ export function VersionTable({ buckets, sessionsHref }: Props) {
       </thead>
       <tbody>
         {buckets.map((b) => (
-          <tr key={`${b.platform}|${b.service_name}|${b.service_version}`}>
+          <tr key={`${b.project_id ?? ''}|${b.platform}|${b.service_name}|${b.service_version}`}>
+            {showProject && <td>{b.project_id || '–'}</td>}
             <td>
               <Link className={styles.link} to={sessionsHref(b)}>
                 {b.service_name || '–'}

@@ -33,7 +33,7 @@ const COLUMNS: Column[] = [
   { key: 'started', label: 'Started' },
   { key: 'status', label: 'Status' },
   { key: 'platform', label: 'Platform' },
-  { key: 'service', label: 'Service / version' },
+  { key: 'service', label: 'App / version / project' },
   { key: 'user', label: 'User' },
   { key: 'session', label: 'Session' },
   { key: 'duration', label: 'Duration', num: true },
@@ -115,6 +115,11 @@ export function SessionsTable({ sessions, onOpen, initialSort = DEFAULT_SORT }: 
               </td>
               <td>
                 {s.service_name} <span className={styles.muted}>{s.service_version}</span>
+                {s.project_id && (
+                  <div className={styles.muted} data-testid="session-project">
+                    {s.project_id}
+                  </div>
+                )}
               </td>
               <td>{s.user_id || <span className={styles.muted}>anonymous</span>}</td>
               <td>

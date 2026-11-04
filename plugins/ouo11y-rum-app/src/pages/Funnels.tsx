@@ -21,6 +21,7 @@ import type { FunnelStep, StepSuggestion } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
 import { DroppedSessions } from '../components/DroppedSessions';
 import { FunnelChart } from '../components/FunnelChart';
+import { ScopePicker } from '../components/ScopePicker';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
@@ -47,7 +48,8 @@ const PLATFORM_OPTIONS: Array<SelectableValue<string>> = [
   { label: 'web', value: 'web' },
   { label: 'mobile', value: 'mobile' },
 ];
-const TEXT_FILTERS = ['service', 'environment', 'release', 'project'] as const;
+// project and service (app) come from the shared ScopePicker (same URL keys).
+const TEXT_FILTERS = ['environment', 'release'] as const;
 type TextFilter = (typeof TEXT_FILTERS)[number];
 
 export const DEFAULT_FUNNEL: FunnelStep[] = [
@@ -116,7 +118,12 @@ export default function Funnels() {
 
   return (
     <PluginPage
-      actions={<TimeRangeBar />}
+      actions={
+        <Stack gap={1} alignItems="center" wrap="wrap">
+          <ScopePicker />
+          <TimeRangeBar />
+        </Stack>
+      }
       subTitle="How many sessions go through the steps in order. A step is a page path or a custom event; the URL holds the funnel, so copy it to share."
     >
       <div className={styles.section}>
@@ -275,10 +282,8 @@ export default function Funnels() {
 
 function textFrom(f: Partial<Record<TextFilter, string>>): Record<TextFilter, string> {
   return {
-    service: f.service ?? '',
     environment: f.environment ?? '',
     release: f.release ?? '',
-    project: f.project ?? '',
   };
 }
 

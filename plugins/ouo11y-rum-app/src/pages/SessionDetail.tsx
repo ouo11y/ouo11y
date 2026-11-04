@@ -4,8 +4,8 @@ import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
 import { Alert, Badge, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2, useTheme2 } from '@grafana/ui';
 import { useParams } from 'react-router-dom';
-import { rumApi } from '../api/client';
-import type { TimelineEvent } from '../api/types';
+import { rumApi, videoSegmentUrl } from '../api/client';
+import type { TimelineEvent, VideoSegment } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
 import { FeedbackList } from '../components/FeedbackList';
 import { FramePlayer } from '../components/FramePlayer';
@@ -21,6 +21,8 @@ import { VideoPlayer } from '../components/VideoPlayer';
 import { useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
+import { scopeParams, useScope, withScope } from '../hooks/useScope';
+import { sessionHref } from './Sessions';
 import { formatDateTime, formatDuration, formatTraceCount, parseTs, sessionDurationMs } from '../utils/format';
 import { framesBounds, replayRenderer } from '../utils/frames';
 import { totalFrames, videoBounds } from '../utils/video';
@@ -37,36 +39,47 @@ export default function SessionDetail() {
   const styles = useStyles2(getStyles);
   const { id = '' } = useParams<{ id: string }>();
   const range = useRawRange();
+  // The page's project / app scope (ScopePicker): every call carries it, so a session of another
+  // project is "not found" here, and the links back keep it.
+  const scope = useScope();
+  const sp = useMemo(() => scopeParams(scope), [scope]);
+  const scopeKey = `${scope.project}|${scope.service}`;
+  const sessionsUrl = `${PLUGIN_BASE_URL}/${ROUTES.Sessions}?${withScope(new URLSearchParams({ from: range.from, to: range.to }), scope).toString()}`;
 
   const detail = useRumQuery(
-    () => rumApi.session(id, { from: range.from, to: range.to }),
-    `${id}|${range.from}|${range.to}`,
+    () => rumApi.session(id, { from: range.from, to: range.to, ...sp }),
+    `${id}|${range.from}|${range.to}|${scopeKey}`,
     Boolean(id)
   );
   const session = detail.data;
   // Logs load after the session is known (the endpoint searches the session's window and traces).
   const logs = useRumQuery(
-    () => rumApi.logs(id, { from: range.from, to: range.to }),
-    `${id}|logs|${range.from}|${range.to}`,
+    () => rumApi.logs(id, { from: range.from, to: range.to, ...sp }),
+    `${id}|logs|${range.from}|${range.to}|${scopeKey}`,
     Boolean(session)
   );
   // Mobile vitals (docs/specs/mobile-vitals.md): only asked for when the timeline has vital records.
   const hasVitals = Boolean(session?.timeline.some(isVitalEvent));
   const vitals = useRumQuery(
-    () => rumApi.vitals(id, { from: range.from, to: range.to }),
-    `${id}|vitals|${range.from}|${range.to}`,
+    () => rumApi.vitals(id, { from: range.from, to: range.to, ...sp }),
+    `${id}|vitals|${range.from}|${range.to}|${scopeKey}`,
     hasVitals
   );
   const vitalsItems = hasVitals ? vitalsHeaderItems(vitals.data) : [];
   const wantsReplay = Boolean(session?.has_replay);
   // The renderer comes from `replay_kind` on the record (older records need the replay meta); the
   // meta is loaded for every replay anyway, for its `masked` flag.
-  const meta = useRumQuery(() => rumApi.replayMeta(id), `${id}|replay-meta`, wantsReplay);
+  const meta = useRumQuery(() => rumApi.replayMeta(id, sp), `${id}|replay-meta|${scopeKey}`, wantsReplay);
   const showTimeline = useFeatureToggle('sessionTimelinePanel');
   const renderer = replayRenderer(session, meta.data);
-  const replay = useRumQuery(() => rumApi.replayEvents(id), `${id}|replay`, renderer === 'rrweb');
-  const frames = useRumQuery(() => rumApi.replayFrames(id), `${id}|replay-frames`, renderer === 'frames');
-  const video = useRumQuery(() => rumApi.replayVideo(id), `${id}|replay-video`, renderer === 'video');
+  const replay = useRumQuery(() => rumApi.replayEvents(id, sp), `${id}|replay|${scopeKey}`, renderer === 'rrweb');
+  const frames = useRumQuery(
+    () => rumApi.replayFrames(id, sp),
+    `${id}|replay-frames|${scopeKey}`,
+    renderer === 'frames'
+  );
+  const video = useRumQuery(() => rumApi.replayVideo(id, sp), `${id}|replay-video|${scopeKey}`, renderer === 'video');
+  const segmentUrl = useCallback((seg: VideoSegment) => videoSegmentUrl(id, seg, sp), [id, sp]);
 
   const playerRef = useRef<ReplayHandle | null>(null);
   const [currentMs, setCurrentMs] = useState(0);
@@ -154,18 +167,14 @@ export default function SessionDetail() {
   const pageNav = {
     text: session ? `Session ${id.slice(0, 8)}…` : 'Session',
     subTitle: id,
-    parentItem: { text: 'Sessions', url: `${PLUGIN_BASE_URL}/${ROUTES.Sessions}?from=${range.from}&to=${range.to}` },
+    parentItem: { text: 'Sessions', url: sessionsUrl },
   };
 
   return (
     <PluginPage
       pageNav={pageNav}
       actions={
-        <LinkButton
-          variant="secondary"
-          icon="arrow-left"
-          href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}?from=${range.from}&to=${range.to}`}
-        >
+        <LinkButton variant="secondary" icon="arrow-left" href={sessionsUrl}>
           Back to sessions
         </LinkButton>
       }
@@ -193,7 +202,7 @@ export default function SessionDetail() {
                   <dd>
                     <a
                       className={styles.link}
-                      href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}/${encodeURIComponent(previousId)}?from=${range.from}&to=${range.to}`}
+                      href={sessionHref(previousId, range, scope)}
                       data-testid="session-previous"
                     >
                       <code>{previousId.slice(0, 8)}…</code>
@@ -211,6 +220,12 @@ export default function SessionDetail() {
               <dd>
                 {session.service_name} <span className={styles.muted}>{session.service_version}</span>
               </dd>
+              {session.project_id && (
+                <>
+                  <dt>Project</dt>
+                  <dd data-testid="session-project">{session.project_id}</dd>
+                </>
+              )}
               <dt>Started</dt>
               <dd>{formatDateTime(session.started_at)}</dd>
               <dt>{session.ended_at ? 'Ended' : 'Last signal'}</dt>
@@ -303,6 +318,7 @@ export default function SessionDetail() {
                           durationMs={bounds.durationMs}
                           onTime={setCurrentMs}
                           clockOffsetMs={clockOffsetMs}
+                          segmentUrl={segmentUrl}
                         />
                       )}
                     </div>

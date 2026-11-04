@@ -10,6 +10,8 @@ export type SessionState = 'active' | 'ended';
 export interface SessionRecord {
   session_id: string;
   user_id: string | null;
+  /** rum-api after 0.6.0: the session's ouo.project.id ("" without one). */
+  project_id?: string;
   platform: Platform | string;
   service_name: string;
   service_version: string;
@@ -198,6 +200,8 @@ export interface TracesResponse {
 }
 
 export interface HealthBucket {
+  /** rum-api after 0.6.0: the bucket's ouo.project.id ("" without one). */
+  project_id?: string;
   platform: string;
   service_name: string;
   service_version: string;
@@ -212,6 +216,8 @@ export interface HealthBucket {
 
 export interface HealthResponse {
   buckets: HealthBucket[];
+  /** rum-api after 0.6.0: health per (project, app); absent on older rum-api. */
+  apps?: HealthApp[];
   totals: HealthBucket;
   from: string;
   to: string;
@@ -355,6 +361,8 @@ export interface SessionFilters {
   status?: string;
   version?: string;
   user?: string;
+  /** Project scope (ouo.project.id), from the shared selector. */
+  project?: string;
   service?: string;
   limit?: number;
 }
@@ -439,4 +447,42 @@ export interface StepSuggestionsResponse {
   events: StepSuggestion[];
   from: string;
   to: string;
+}
+
+/** One app (service.name) of a project in GET /v1/projects. */
+export interface ProjectApp {
+  service_name: string;
+  platforms: string[];
+  /** Sessions started in the range. */
+  sessions: number;
+}
+
+/** One project (ouo.project.id) in GET /v1/projects. */
+export interface ProjectEntry {
+  project_id: string;
+  sessions: number;
+  apps: ProjectApp[];
+}
+
+/** GET /v1/projects: the options of the project and app selector. */
+export interface ProjectsResponse {
+  projects: ProjectEntry[];
+  /** Sessions without ouo.project.id; the selector cannot narrow to them. */
+  unscoped_sessions: number;
+  from: string;
+  to: string;
+}
+
+/** One (project, app) row of GET /v1/stats/health `apps`: an app's health across versions and platforms. */
+export interface HealthApp {
+  project_id: string;
+  service_name: string;
+  platforms: string[];
+  total: number;
+  healthy: number;
+  errored: number;
+  crashed: number;
+  healthy_pct: number;
+  errored_pct: number;
+  crashed_pct: number;
 }

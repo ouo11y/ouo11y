@@ -6,10 +6,12 @@ import { Button, EmptyState, Field, Input, LoadingPlaceholder, Select, Stack, us
 import { rumApi } from '../api/client';
 import type { SessionRecord } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
+import { ScopePicker } from '../components/ScopePicker';
 import { SessionsTable } from '../components/SessionsTable';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
+import { scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
 import { setSearchParams, useSearchParams } from '../hooks/useSearchParams';
 
 const PLATFORM_OPTIONS: Array<SelectableValue<string>> = [
@@ -28,8 +30,11 @@ const LIMIT_OPTIONS: Array<SelectableValue<number>> = [50, 100, 250, 500, 1000].
   value: n,
 }));
 
-export function sessionHref(id: string, range: { from: string; to: string }): string {
+export function sessionHref(id: string, range: { from: string; to: string }, scope?: Scope): string {
   const q = new URLSearchParams({ from: range.from, to: range.to });
+  if (scope) {
+    withScope(q, scope);
+  }
   return `${PLUGIN_BASE_URL}/${ROUTES.Sessions}/${encodeURIComponent(id)}?${q.toString()}`;
 }
 
@@ -37,44 +42,49 @@ export default function Sessions() {
   const styles = useStyles2(getStyles);
   const search = useSearchParams();
   const range = useRawRange();
+  const scope = useScope();
   const filters = useMemo(
     () => ({
       platform: search.get('platform') ?? '',
       status: search.get('status') ?? '',
       version: search.get('version') ?? '',
       user: search.get('user') ?? '',
-      service: search.get('service') ?? '',
       limit: Number(search.get('limit') ?? 100) || 100,
     }),
     [search]
   );
-  const key = JSON.stringify({ ...filters, ...range });
+  const key = JSON.stringify({ ...filters, ...range, ...scope });
   const { data, error, loading, reload } = useRumQuery(
-    () => rumApi.sessions({ from: range.from, to: range.to, ...filters }),
+    () => rumApi.sessions({ from: range.from, to: range.to, ...filters, ...scopeParams(scope) }),
     key
   );
 
   // Free-text inputs are committed to the URL on blur / Enter; when the URL changes
   // (back button, Overview link) the inputs are re-synced during render.
-  const urlText = `${filters.version}|${filters.user}|${filters.service}`;
-  const [text, setText] = useState({ version: filters.version, user: filters.user, service: filters.service });
+  const urlText = `${filters.version}|${filters.user}`;
+  const [text, setText] = useState({ version: filters.version, user: filters.user });
   const [syncedFrom, setSyncedFrom] = useState(urlText);
   if (syncedFrom !== urlText) {
     setSyncedFrom(urlText);
-    setText({ version: filters.version, user: filters.user, service: filters.service });
+    setText({ version: filters.version, user: filters.user });
   }
 
-  const commitText = () => setSearchParams({ version: text.version, user: text.user, service: text.service });
+  const commitText = () => setSearchParams({ version: text.version, user: text.user });
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       commitText();
     }
   };
-  const open = (s: SessionRecord) => locationService.push(sessionHref(s.session_id, range));
+  const open = (s: SessionRecord) => locationService.push(sessionHref(s.session_id, range, scope));
 
   return (
     <PluginPage
-      actions={<TimeRangeBar />}
+      actions={
+        <Stack gap={1} alignItems="center" wrap="wrap">
+          <ScopePicker />
+          <TimeRangeBar />
+        </Stack>
+      }
       subTitle="Sessions whose start falls inside the time range, newest first. Click a column header to sort the loaded page (up to the Limit filter) client-side; click a row for the timeline, traces and replay."
     >
       <div className={styles.filters}>
@@ -93,16 +103,6 @@ export default function Sessions() {
               options={STATUS_OPTIONS}
               value={filters.status}
               onChange={(v) => setSearchParams({ status: v.value })}
-            />
-          </Field>
-          <Field label="Service" className={styles.field}>
-            <Input
-              width={20}
-              placeholder="any service"
-              value={text.service}
-              onChange={(e) => setText({ ...text, service: e.currentTarget.value })}
-              onBlur={commitText}
-              onKeyDown={onKey}
             />
           </Field>
           <Field label="Version" className={styles.field}>
@@ -141,9 +141,7 @@ export default function Sessions() {
               <Button
                 variant="secondary"
                 fill="text"
-                onClick={() =>
-                  setSearchParams({ platform: null, status: null, version: null, user: null, service: null })
-                }
+                onClick={() => setSearchParams({ platform: null, status: null, version: null, user: null })}
               >
                 Clear filters
               </Button>

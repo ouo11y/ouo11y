@@ -39,7 +39,8 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
     offset,
   };
   const { data, error, loading, reload } = useRumQuery(() => rumApi.funnelDropped(params), JSON.stringify(params));
-  const open = (id: string) => locationService.push(sessionHref(id, range));
+  const scope = { project: filters.project ?? '', service: filters.service ?? '' };
+  const open = (id: string) => locationService.push(sessionHref(id, range, scope));
 
   return (
     <div className={styles.panel} aria-label={`Sessions dropped before step ${step}`}>
@@ -69,7 +70,11 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
               {data.sessions.map((s) => (
                 <tr key={s.session_id} className={styles.row} onClick={() => open(s.session_id)}>
                   <td>
-                    <a href={sessionHref(s.session_id, range)} onClick={(e) => e.preventDefault()} title={s.session_id}>
+                    <a
+                      href={sessionHref(s.session_id, range, scope)}
+                      onClick={(e) => e.preventDefault()}
+                      title={s.session_id}
+                    >
                       {shortId(s.session_id)}
                     </a>
                   </td>

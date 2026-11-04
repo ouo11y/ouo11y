@@ -7,6 +7,7 @@ import type {
   FunnelResponse,
   HealthResponse,
   LogsResponse,
+  ProjectsResponse,
   ReplayFramesResponse,
   ReplayMeta,
   RrwebEvent,
@@ -122,17 +123,24 @@ export const rumApi = {
   /** Liveness probe, open without a token; proves the proxy reaches rum-api at jsonData.rumApiUrl. */
   healthz: () => rumGet<unknown>('/healthz'),
   health: (params: Params) => rumGet<HealthResponse>('/v1/stats/health', params),
+  /** Projects and their apps that started sessions in the range: the scope selector's options. */
+  projects: (params: Params) => rumGet<ProjectsResponse>('/v1/projects', params),
   sessions: (filters: SessionFilters) => rumGet<SessionsResponse>('/v1/sessions', { ...filters }),
   session: (id: string, params: Params = {}) => rumGet<SessionDetail>(`/v1/sessions/${encodeURIComponent(id)}`, params),
-  traces: (id: string) => rumGet<TracesResponse>(`/v1/sessions/${encodeURIComponent(id)}/traces`),
+  traces: (id: string, params: Params = {}) =>
+    rumGet<TracesResponse>(`/v1/sessions/${encodeURIComponent(id)}/traces`, params),
   logs: (id: string, params: Params = {}) =>
     rumGet<LogsResponse>(`/v1/sessions/${encodeURIComponent(id)}/logs`, params),
   vitals: (id: string, params: Params = {}) =>
     rumGet<VitalsResponse>(`/v1/sessions/${encodeURIComponent(id)}/vitals`, params),
-  replayMeta: (id: string) => rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`),
-  replayEvents: (id: string) => rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`),
-  replayFrames: (id: string) => rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`),
-  replayVideo: (id: string) => rumGet<VideoManifest>(`/v1/sessions/${encodeURIComponent(id)}/replay/video`),
+  replayMeta: (id: string, params: Params = {}) =>
+    rumGet<ReplayMeta>(`/v1/sessions/${encodeURIComponent(id)}/replay`, params),
+  replayEvents: (id: string, params: Params = {}) =>
+    rumGet<RrwebEvent[]>(`/v1/sessions/${encodeURIComponent(id)}/replay/events`, params),
+  replayFrames: (id: string, params: Params = {}) =>
+    rumGet<ReplayFramesResponse>(`/v1/sessions/${encodeURIComponent(id)}/replay/frames`, params),
+  replayVideo: (id: string, params: Params = {}) =>
+    rumGet<VideoManifest>(`/v1/sessions/${encodeURIComponent(id)}/replay/video`, params),
   funnel: (req: FunnelRequest) => rumPost<FunnelResponse>('/v1/funnels/query', req),
   /** `steps` is the compact form (`page:/,page:/products/*,event:add_to_cart`). */
   funnelDropped: (params: Params) => rumGet<DroppedResponse>('/v1/funnels/dropped', params),
@@ -146,10 +154,22 @@ export const rumApi = {
  * through (206), so the element can stream and seek. Falls back to the canonical path when the
  * manifest has none or it is not a `/v1/` path.
  */
-export function videoSegmentUrl(sessionId: string, segment: Pick<VideoSegment, 'seq' | 'path'>): string {
+export function videoSegmentUrl(
+  sessionId: string,
+  segment: Pick<VideoSegment, 'seq' | 'path'>,
+  params: Params = {}
+): string {
   const path =
     typeof segment.path === 'string' && segment.path.startsWith('/v1/')
       ? segment.path
       : `/v1/sessions/${encodeURIComponent(sessionId)}/replay/video/${segment.seq}`;
-  return `${RUM_PROXY_BASE}${path}`;
+  const url = `${RUM_PROXY_BASE}${path}`;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '' && value !== null) {
+      search.set(key, String(value));
+    }
+  }
+  const query = search.toString();
+  return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url;
 }

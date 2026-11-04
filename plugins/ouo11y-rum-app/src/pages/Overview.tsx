@@ -7,10 +7,13 @@ import { rumApi } from '../api/client';
 import type { HealthBucket } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
 import { HealthTiles } from '../components/HealthTiles';
+import { ProjectHealthGrid } from '../components/ProjectHealthGrid';
+import { ScopePicker } from '../components/ScopePicker';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { VersionTable } from '../components/VersionTable';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
+import { scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
 import { pct } from '../utils/format';
 
 const PLATFORMS: Array<{ id: 'web' | 'mobile'; title: string; icon: 'globe' | 'mobile-android' }> = [
@@ -42,8 +45,15 @@ export function platformTotals(platform: string, buckets: HealthBucket[]): Healt
   };
 }
 
-export function sessionsLink(b: HealthBucket, range: { from: string; to: string }): string {
+export function sessionsLink(b: HealthBucket, range: { from: string; to: string }, scope?: Scope): string {
   const q = new URLSearchParams({ from: range.from, to: range.to, platform: b.platform });
+  if (scope) {
+    withScope(q, scope);
+  }
+  // A bucket of one project narrows to it; the platform rows carry the page's scope.
+  if (b.project_id) {
+    q.set('project', b.project_id);
+  }
   if (b.service_name) {
     q.set('service', b.service_name);
   }
@@ -53,21 +63,35 @@ export function sessionsLink(b: HealthBucket, range: { from: string; to: string 
   return `${PLUGIN_BASE_URL}/${ROUTES.Sessions}?${q.toString()}`;
 }
 
+/** Overview link with the time range and another scope. */
+export function overviewLink(range: { from: string; to: string }, scope: Scope): string {
+  const q = withScope(new URLSearchParams({ from: range.from, to: range.to }), scope);
+  return `${PLUGIN_BASE_URL}/${ROUTES.Overview}?${q.toString()}`;
+}
+
 export default function Overview() {
   const styles = useStyles2(getStyles);
   const range = useRawRange();
-  const key = `${range.from}|${range.to}`;
-  const { data, error, loading, reload } = useRumQuery(() => rumApi.health({ from: range.from, to: range.to }), key);
+  const scope = useScope();
+  const key = `${range.from}|${range.to}|${scope.project}|${scope.service}`;
+  const { data, error, loading, reload } = useRumQuery(
+    () => rumApi.health({ from: range.from, to: range.to, ...scopeParams(scope) }),
+    key
+  );
   const buckets = useMemo(() => data?.buckets ?? [], [data]);
+  // The cross-project view: every project's apps side by side (one app selected: nothing to compare).
+  const apps = useMemo(() => data?.apps ?? [], [data]);
+  const showApps = !scope.service && apps.length > 0;
 
   return (
     <PluginPage
       actions={
-        <Stack gap={1} alignItems="center">
+        <Stack gap={1} alignItems="center" wrap="wrap">
+          <ScopePicker />
           <TimeRangeBar />
         </Stack>
       }
-      subTitle="Healthy, errored and crashed sessions by platform and version, as classified by rum-api."
+      subTitle="Healthy, errored and crashed sessions per project and app, then by platform and version, as classified by rum-api."
     >
       {error && <ApiErrorAlert error={error} onRetry={reload} />}
       {loading && !data && <LoadingPlaceholder text="Loading session health…" />}
@@ -78,6 +102,18 @@ export default function Overview() {
       )}
       {data && data.totals.total > 0 && (
         <div className={styles.platforms}>
+          {showApps && (
+            <section data-testid="apps-overview">
+              <h3 className={styles.h3}>
+                <Icon name="apps" size="lg" /> {scope.project ? `Apps of ${scope.project}` : 'Projects and apps'}
+              </h3>
+              <div className={styles.hint}>
+                Click a project or app to scope every page to it. The selector narrows what you see; it is not an access
+                boundary.
+              </div>
+              <ProjectHealthGrid apps={apps} scopeHref={(s) => overviewLink(range, s)} />
+            </section>
+          )}
           {PLATFORMS.map((p) => {
             const totals = platformTotals(p.id, buckets);
             const rows = buckets.filter((b) => b.platform === p.id);
@@ -93,7 +129,7 @@ export default function Overview() {
                   <LinkButton
                     size="sm"
                     variant="secondary"
-                    href={sessionsLink({ ...totals, service_name: '', service_version: '' }, range)}
+                    href={sessionsLink({ ...totals, service_name: '', service_version: '' }, range, scope)}
                   >
                     All {p.id} sessions
                   </LinkButton>
@@ -103,14 +139,17 @@ export default function Overview() {
                 ) : (
                   <>
                     <HealthTiles bucket={totals} total={totals.total} />
-                    <VersionTable buckets={rows} sessionsHref={(b) => sessionsLink(b, range)} />
+                    <VersionTable buckets={rows} sessionsHref={(b) => sessionsLink(b, range, scope)} />
                   </>
                 )}
               </section>
             );
           })}
           <div className={styles.footer}>
-            All platforms: {data.totals.total} sessions, {data.totals.healthy} healthy / {data.totals.errored} errored /{' '}
+            {scope.project || scope.service
+              ? `Scope ${[scope.project || 'all projects', scope.service || 'all apps'].join(' / ')}: `
+              : 'All projects, all platforms: '}{' '}
+            {data.totals.total} sessions, {data.totals.healthy} healthy / {data.totals.errored} errored /{' '}
             {data.totals.crashed} crashed ({data.from} → {data.to}).
           </div>
         </div>
@@ -142,5 +181,10 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   count: css({ color: theme.colors.text.secondary, fontSize: theme.typography.body.fontSize, fontWeight: 'normal' }),
   none: css({ color: theme.colors.text.secondary }),
+  hint: css({
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.bodySmall.fontSize,
+    margin: theme.spacing(0.5, 0, 1.5),
+  }),
   footer: css({ color: theme.colors.text.secondary, fontSize: theme.typography.bodySmall.fontSize }),
 });
