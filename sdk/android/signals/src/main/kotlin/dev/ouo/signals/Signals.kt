@@ -101,8 +101,14 @@ object Signals {
     val info = lastExitInfo(previous?.pid)
     val exit = if (info != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Exit(info.pid, info.reason, info.importance, info.status, info.timestamp) else null
     // One exit, one record: a JVM crash report wins, then the NDK crash from the tombstone, then the termination rule.
-    val native = if (crash == null) NativeCrash.decide(previous, exit, tombstone(info), crashReported = false) else null
-    pending = crash ?: native?.toJson() ?: Termination.decide(previous, exit, crashReported = native != null)?.toJson()
+    // Guarded as a whole: init runs at every launch while the system keeps that exit record, so a
+    // failure here must fall back to the termination rule, never crash the app.
+    val native = if (crash == null) {
+      runCatching { NativeCrash.decide(previous, exit, tombstone(info), crashReported = false)?.toJson() }
+        .onFailure { Log.w(TAG, "[signals] native crash report failed: $it") }
+        .getOrNull()
+    } else null
+    pending = crash ?: native ?: Termination.decide(previous, exit, crashReported = native != null)?.toJson()
     updateRun { RunState(Process.myPid()) }
     foreground = isVisible(app)
     app.registerActivityLifecycleCallbacks(lifecycle)

@@ -75,6 +75,11 @@ Quirks:
   (`code_id`, `debug_id`).
 - **Size**: the toybox tombstone is 17 KB; the example app's are 375–379 KB (every thread, memory
   near registers, 700 mappings, logcat). ouo reads at most 8 MB and skips every field it does not use.
+- **Cut short is still a crash**: debuggerd serializes the fields in number order, so everything ouo
+  reads (up to 17) precedes the big log buffers (18) and fds (19). The top-level parse is lenient:
+  a tombstone cut past MAX_BYTES or truncated keeps what came before the cut, and counts when pid,
+  tid, the signal and the crashing thread were read (`truncatedTombstones` cuts the three real
+  fixtures at every byte). A cut before the end of the crashing thread is no tombstone.
 - **Libraries inside the APK** map a few pages each at offsets into `base.apk` (`libouochaos.so`:
   three 4 KB mappings at APK offset `0xecc000`, `file_map_offset` in the frame), and the next mapping
   belongs to another file, which ends the image's run.

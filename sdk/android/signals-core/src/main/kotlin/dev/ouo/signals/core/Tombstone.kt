@@ -132,26 +132,35 @@ data class Tombstone(
       val threads = HashMap<Int, RawThread>()
       val mappings = ArrayList<Mapping>()
       val r = ProtoReader(bytes)
-      r.fields { n, w ->
-        when {
-          n == 1 && w == ProtoReader.WIRE_VARINT -> arch = r.varint()
-          n == 4 && w == ProtoReader.WIRE_LEN -> timestamp = r.string()
-          n == 5 && w == ProtoReader.WIRE_VARINT -> pid = r.varint().toInt()
-          n == 6 && w == ProtoReader.WIRE_VARINT -> tid = r.varint().toInt()
-          n == 10 && w == ProtoReader.WIRE_LEN -> signal = signal(r.message())
-          n == 14 && w == ProtoReader.WIRE_LEN -> abort = r.string()
-          n == 15 && w == ProtoReader.WIRE_LEN -> { val c = cause(r.message()); if (cause == null) cause = c }
-          // map<uint32, Thread> threads: entries { 1: key, 2: Thread }.
-          n == 16 && w == ProtoReader.WIRE_LEN -> threadEntry(r.message())?.let { threads[it.id] = it }
-          n == 17 && w == ProtoReader.WIRE_LEN -> mapping(r.message())?.let(mappings::add)
-          else -> return@fields false
+      // Lenient at the top level: debuggerd writes the fields in number order, so everything ouo
+      // reads (up to 17) precedes the log buffers (18) and fds (19) that make a tombstone big. A
+      // tombstone cut short (past MAX_BYTES, a partial file) keeps what was read before the cut,
+      // and is a tombstone when the checks below hold.
+      try {
+        r.fields { n, w ->
+          when {
+            n == 1 && w == ProtoReader.WIRE_VARINT -> arch = r.varint()
+            n == 4 && w == ProtoReader.WIRE_LEN -> timestamp = r.string()
+            n == 5 && w == ProtoReader.WIRE_VARINT -> pid = r.varint().toInt()
+            n == 6 && w == ProtoReader.WIRE_VARINT -> tid = r.varint().toInt()
+            n == 10 && w == ProtoReader.WIRE_LEN -> signal = signal(r.message())
+            n == 14 && w == ProtoReader.WIRE_LEN -> abort = r.string()
+            n == 15 && w == ProtoReader.WIRE_LEN -> { val c = cause(r.message()); if (cause == null) cause = c }
+            // map<uint32, Thread> threads: entries { 1: key, 2: Thread }.
+            n == 16 && w == ProtoReader.WIRE_LEN -> threadEntry(r.message())?.let { threads[it.id] = it }
+            n == 17 && w == ProtoReader.WIRE_LEN -> mapping(r.message())?.let(mappings::add)
+            else -> return@fields false
+          }
+          true
         }
-        true
+      } catch (e: IllegalArgumentException) {
+        // Cut short: what precedes the cut counts (the checks below decide whether it is enough).
       }
-      // A message with none of the fields every tombstone has is not a tombstone (a text one parses as garbage or fails).
+      // A message without the fields every tombstone has (the crashing thread included) is not one:
+      // a text tombstone parses as garbage or fails, a cut before the thread has no stack.
       if (pid <= 0 || tid <= 0 || signal == null) return null
-      val crashed = threads[tid]
-      val frames = crashed?.frames.orEmpty().take(Report.MAX_FRAMES)
+      val crashed = threads[tid] ?: return null
+      val frames = crashed.frames.take(Report.MAX_FRAMES)
       return Tombstone(
         arch = ARCH[arch],
         pid = pid,
@@ -160,7 +169,7 @@ data class Tombstone(
         signal = signal,
         abortMessage = abort.ifEmpty { null },
         cause = cause,
-        threadName = crashed?.name?.ifEmpty { null },
+        threadName = crashed.name.ifEmpty { null },
         frames = frames,
         images = images(frames, mappings),
       )

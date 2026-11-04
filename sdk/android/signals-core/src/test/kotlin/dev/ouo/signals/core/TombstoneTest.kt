@@ -147,9 +147,64 @@ class TombstoneTest {
     assertNull(Tombstone.parse(ByteArray(0)))
     // A text tombstone (what Android 11 kept on disk) is not a protobuf.
     assertNull(Tombstone.parse("*** *** *** *** ***\nBuild fingerprint: 'x'\npid: 1, tid: 1".toByteArray()))
-    val real = fixture("api35-toybox-sigsegv-si-user.pb")
-    assertNull(Tombstone.parse(real.copyOf(real.size / 2)))
     assertNull(Tombstone.parse(ByteArray(64) { 0xff.toByte() }))
+  }
+
+  /**
+   * A tombstone cut short (past MAX_BYTES, a partial file) keeps the crash when the cut comes after
+   * the crashing thread: debuggerd writes fields in number order, and the big ones (mappings 17,
+   * logcat 18, fds 19) come last. Cut before or inside the thread, it is not a tombstone.
+   */
+  @Test
+  fun truncatedTombstones() {
+    for (name in listOf("api35-toybox-sigsegv-si-user.pb", "api35-app-sigsegv-libouochaos.pb", "api35-app-sigabrt-abort-message.pb")) {
+      val real = fixture(name)
+      val full = Tombstone.parse(real)!!
+      val threadEnd = endOfField(real, 16)
+      assertTrue(threadEnd in 1 until real.size)
+      var kept = 0
+      for (cut in 1 until real.size) {
+        val t = Tombstone.parse(real.copyOf(cut))
+        if (cut < threadEnd) {
+          assertNull("$name cut at $cut", t)
+        } else {
+          assertEquals("$name cut at $cut", full.frames, t!!.frames)
+          assertEquals(full.signal to full.abortMessage, t.signal to t.abortMessage)
+          kept++
+        }
+      }
+      assertTrue(kept > 0)
+    }
+  }
+
+  /** The offset just past the last top-level field number [n] (the crashing thread's entry for 16 in these fixtures). */
+  private fun endOfField(b: ByteArray, n: Int): Int {
+    var pos = 0
+    var end = -1
+    fun varint(): Long {
+      var r = 0L
+      var s = 0
+      while (true) {
+        val c = b[pos++].toInt()
+        r = r or ((c and 0x7f).toLong() shl s)
+        if (c and 0x80 == 0) return r
+        s += 7
+      }
+    }
+    while (pos < b.size) {
+      val t = varint().toInt()
+      when (t and 7) {
+        0 -> varint()
+        1 -> pos += 8
+        2 -> {
+          val len = varint().toInt()
+          pos += len
+        }
+        5 -> pos += 4
+      }
+      if (t ushr 3 == n) end = pos
+    }
+    return end
   }
 
   @Test
