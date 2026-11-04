@@ -125,6 +125,22 @@ variable `OUO_FEATURE_TOGGLES_ENABLE`, comma separated like Grafana's `GF_FEATUR
 Provisioning is applied on every Grafana start and overwrites settings saved from the configuration
 page, so in a provisioned install the token is rotated in `.env` and Grafana is restarted.
 
+## Embedding in other plugins
+
+Session detail (with the replay player), the sessions list and the session health panels are Grafana
+exposed components, so another app plugin can mount them with `usePluginComponent` (ADR-0019):
+
+| Id | Props |
+|---|---|
+| `ouo11y-rum-app/session-detail/v1` | `sessionId` (required), `timeRange`, `project`, `app` |
+| `ouo11y-rum-app/sessions-list/v1` | `timeRange`, `project`, `app`, `filters`, `limit`, `onSessionClick` |
+| `ouo11y-rum-app/overview-health/v1` | `timeRange`, `project`, `app` |
+
+The components call rum-api through this plugin's proxy route, so the host needs no token. The guide is
+[docs/embedding.md](../../docs/embedding.md); the props contract is `src/exposed/types.ts`, and its
+`/v1` stability rule is in the ADR. `examples/embed-host-plugin` with
+`deploy/compose/compose.embed-host.yaml` is a host plugin to try it with.
+
 ## Build, test, run
 
 ```bash
@@ -147,7 +163,9 @@ provisioning file above enables the app. Grafana must allow the unsigned plugin
 
 ```
 src/plugin.json              id, includes (nav pages), routes (rum/* -> rumApiUrl + Authorization header)
-src/module.tsx               AppPlugin root + config page
+src/module.tsx               AppPlugin root + config page + exposed components
+src/exposed/                 exposed components for host plugins (ADR-0019): ids and props, EmbedRoot, SessionsList
+src/embed/                   EmbedContext: the props-built query embedded pages read instead of the URL
 src/api/                     rum-api types and fetch client (getBackendSrv through the proxy; 401 -> unauthorized)
 src/components/AppConfig     configuration page (rumApiUrl, readToken SecretInput, Test connection)
 src/components/ApiErrorAlert one banner per failed call; dedicated wording + settings link on 401

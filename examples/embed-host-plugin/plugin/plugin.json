@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "app",
+  "name": "ouo embed host (fixture)",
+  "id": "ouo11y-embedhost-app",
+  "autoEnabled": true,
+  "info": {
+    "keywords": ["fixture", "exposed components"],
+    "description": "Test fixture: a host app plugin that mounts ouo's exposed components with usePluginComponent (ADR-0019). Not for production.",
+    "author": {
+      "name": "ouo11y"
+    },
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "screenshots": [],
+    "version": "1.0.0",
+    "updated": "2026-11-04"
+  },
+  "includes": [
+    {
+      "type": "page",
+      "name": "Embedded ouo",
+      "icon": "apps",
+      "path": "/a/ouo11y-embedhost-app/embedded",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": true
+    }
+  ],
+  "dependencies": {
+    "grafanaDependency": ">=13.0.0",
+    "plugins": [],
+    "extensions": {
+      "exposedComponents": [
+        "ouo11y-rum-app/session-detail/v1",
+        "ouo11y-rum-app/sessions-list/v1",
+        "ouo11y-rum-app/overview-health/v1"
+      ]
+    }
+  }
+}

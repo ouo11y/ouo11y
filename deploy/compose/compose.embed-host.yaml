@@ -1,0 +1,19 @@
+# Opt-in test fixture: a second app plugin (examples/embed-host-plugin) that mounts ouo's exposed
+# components with usePluginComponent, the way a customer's own Grafana plugin embeds ouo views
+# (ADR-0019, docs/embedding.md). Not part of the default stack.
+#
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.embed-host.yaml up -d
+#
+# Then open Grafana > Apps > ouo embed host (fixture), or
+# http://localhost:3000/a/ouo11y-embedhost-app/embedded?sessionId=<id>&from=now-24h&to=now
+#
+# The fixture is unsigned and auto-enabled (plugin.json autoEnabled), so the two plugin lists below
+# repeat compose.yaml's ouo11y-rum-app and add it.
+
+services:
+  grafana:
+    environment:
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app,ouo11y-embedhost-app
+      GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo11y-rum-app,ouo11y-embedhost-app
+    volumes:
+      - ../../examples/embed-host-plugin/plugin:/var/lib/grafana/plugins/ouo11y-embedhost-app:ro

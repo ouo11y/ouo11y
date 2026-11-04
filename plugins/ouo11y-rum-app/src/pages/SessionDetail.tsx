@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
-import { PluginPage } from '@grafana/runtime';
 import { Alert, Badge, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2, useTheme2 } from '@grafana/ui';
 import { useParams } from 'react-router-dom';
 import { rumApi } from '../api/client';
 import type { TimelineEvent } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
+import { PageShell } from '../components/PageShell';
 import { FeedbackList } from '../components/FeedbackList';
 import { FramePlayer } from '../components/FramePlayer';
 import { LogsPanel } from '../components/LogsPanel';
@@ -33,9 +33,11 @@ import { maskingState, type MaskingState } from '../utils/masking';
 import { clampToSessionStart, previousSessionId, sessionContextFields } from '../utils/session';
 import { isVitalEvent, vitalsHeaderItems } from '../utils/vitals';
 
-export default function SessionDetail() {
+/** `sessionId` is set when the page is embedded (ADR-0019); on ouo's own route it is the `:id` param. */
+export default function SessionDetail({ sessionId }: { sessionId?: string } = {}) {
   const styles = useStyles2(getStyles);
-  const { id = '' } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = sessionId ?? params.id ?? '';
   const range = useRawRange();
 
   const detail = useRumQuery(
@@ -158,7 +160,7 @@ export default function SessionDetail() {
   };
 
   return (
-    <PluginPage
+    <PageShell
       pageNav={pageNav}
       actions={
         <LinkButton
@@ -389,7 +391,7 @@ export default function SessionDetail() {
           </section>
         </>
       )}
-    </PluginPage>
+    </PageShell>
   );
 }
 

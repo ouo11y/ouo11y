@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
-import { PluginPage } from '@grafana/runtime';
 import { EmptyState, Icon, LinkButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
 import { rumApi } from '../api/client';
 import type { HealthBucket } from '../api/types';
 import { ApiErrorAlert } from '../components/ApiErrorAlert';
+import { PageShell } from '../components/PageShell';
 import { HealthTiles } from '../components/HealthTiles';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { VersionTable } from '../components/VersionTable';
@@ -61,7 +61,7 @@ export default function Overview() {
   const buckets = useMemo(() => data?.buckets ?? [], [data]);
 
   return (
-    <PluginPage
+    <PageShell
       actions={
         <Stack gap={1} alignItems="center">
           <TimeRangeBar />
@@ -115,7 +115,7 @@ export default function Overview() {
           </div>
         </div>
       )}
-    </PluginPage>
+    </PageShell>
   );
 }
 

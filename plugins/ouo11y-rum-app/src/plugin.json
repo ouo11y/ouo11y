@@ -100,6 +100,25 @@
       ]
     }
   ],
+  "extensions": {
+    "exposedComponents": [
+      {
+        "id": "ouo11y-rum-app/session-detail/v1",
+        "title": "ouo session detail",
+        "description": "One session: header, replay player with its activity list, traces and logs."
+      },
+      {
+        "id": "ouo11y-rum-app/sessions-list/v1",
+        "title": "ouo sessions list",
+        "description": "Sessions in a time range, filtered by project, app, platform, status, version and user."
+      },
+      {
+        "id": "ouo11y-rum-app/overview-health/v1",
+        "title": "ouo session health",
+        "description": "Healthy, errored and crashed sessions per platform and version."
+      }
+    ]
+  },
   "dependencies": {
     "grafanaDependency": ">=13.0.0",
     "plugins": []

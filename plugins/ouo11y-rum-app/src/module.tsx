@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { AppPlugin } from '@grafana/data';
 import { LoadingPlaceholder } from '@grafana/ui';
 import type { AppConfigProps, AppSettings } from './components/AppConfig';
+import { registerExposedComponents } from './exposed/register';
 
 const App = lazy(() => import('./components/App'));
 const LazyAppConfig = lazy(() => import('./components/AppConfig'));
@@ -18,3 +19,6 @@ export const plugin = new AppPlugin<AppSettings>().setRootPage(App).addConfigPag
   body: AppConfig,
   id: 'configuration',
 });
+
+// Components other plugins embed with usePluginComponent (ADR-0019, docs/embedding.md).
+registerExposedComponents(plugin);

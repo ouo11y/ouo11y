@@ -223,6 +223,7 @@ deploy/compose/collector/config.yaml             ouo-collector config: basicauth
 deploy/compose/collector/projects.htpasswd       development project registry (demo); one `{SHA}` line per project token
 deploy/compose/compose.s3.yaml                   opt-in override: MinIO + bucket init, rum-api on storage.backend s3
 deploy/compose/compose.external.yaml             opt-in override: your existing Loki / Tempo / Mimir (or your OTel collector) instead of the bundled ones
+deploy/compose/compose.embed-host.yaml           opt-in test fixture: a second app plugin mounting ouo's exposed components (docs/embedding.md)
 deploy/compose/external/                         collector exporters merged over collector/config.yaml, Grafana datasources for compose.external.yaml
 deploy/compose/rum-api/config.yaml               rum-api config file (-config.file, ${VAR} expansion for the tokens / S3 keys)
 deploy/compose/loki/config.yaml                  single binary, tsdb v13, OTLP label promotion
