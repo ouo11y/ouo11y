@@ -10,6 +10,7 @@ Owns `plugins/ouo11y-rum-app` (Grafana app plugin: Overview, Sessions, Session d
   - [2026-10-14-video-player.md](summaries/2026-10-14-video-player.md) Sentry bridge S4 part 1: video replay player (mp4 segments via the plugin proxy, Range passes through), plugin 0.4.0
   - [2026-10-16-sentry-taps.md](summaries/2026-10-16-sentry-taps.md) taps in Sentry replays: root cause, tap indicator, tap markers, activity list beside the player, plugin 0.6.0
   - [2026-10-23-bridge-parity.md](summaries/2026-10-23-bridge-parity.md) plugin 0.8.0: C1 to C8, B1 Timeline toggle, F4 seek and one clock; rum-api `masked`, `context`, `root_url_path`
+  - [2026-11-04-n30-viewer-delete.md](summaries/2026-11-04-n30-viewer-delete.md) N30: proxy routes split per method, replay DELETE for org Admins only, unrouted methods 404
   - [2026-11-04-r1-project-selector.md](summaries/2026-11-04-r1-project-selector.md) JUHI R1: project and app selector on every page, cross-project Overview; rum-api `?project=` / `?service=` on every read, `GET /v1/projects`
 - `project/reports/`
   - [phase-4-verification.html](reports/phase-4-verification.html) browser verification with screenshots (overview numbers, sessions, detail, replay seek and masking, Explore link, error and empty states)
