@@ -28,11 +28,13 @@ No new dependency: Metro internals and `metro-source-map` are resolved from the 
 - sdk/react-native: 202 vitest tests (5 new in `test/debugids.test.ts`), `tsc --noEmit`.
 - Bare path in a real Metro 0.84 (`metro-config` defaults, `Metro.runBuild`, no Expo): snippet at the end of the prelude line, `//# debugId=` before Metro's `sourceMappingURL`.
 - Real `expo export --platform android --source-maps` of examples/ouo-mobile: `index-<hash>.hbc` + `.hbc.map`, the marker in the bytecode equals the map's `debugId`, the map is the composed Hermes map; `ouo-sourcemaps upload --dry-run` pairs them.
-- Hermes column semantics from Hermes' source (`lib/VM/JSError.cpp`, `appendBytecodeFrame`), not from a running VM: there is no Hermes VM binary on this Mac.
+- Hermes column semantics from Hermes' source (`lib/VM/JSError.cpp`, `appendBytecodeFrame`), then confirmed on a running Hermes:
+- **End to end on the iOS Simulator** (own simulator `b3-hermes`, iPhone 18 Pro, iOS 27, deleted afterwards): `scripts/build-ios.sh` Release build of examples/ouo-mobile with `SOURCEMAP_FILE` set and OTLP pointed at a local JSON sink. Xcode's composed map had **no `debugId`** (composition drops it) while `main.jsbundle` (Hermes bytecode) carried `ouo-debug-id:0b8ffd76-...`; `ouo-sourcemaps upload --bundle ... --sourcemap ...` stored it under that id (release 1.0.0, while the app reports `service.version` 2.3.0, so only the id can match). `action/error` from the journey mailbox: the SDK's exception record had `ouo.exception.debug_ids = {"app:///main.jsbundle":"0b8ffd76-..."}` and frames `app:///main.jsbundle:1:1079094`; rum-api's `POST /v1/symbolicate` mapped it to `src/journey.ts:97` `throw new Error("golden handled error");` (the exact throw line), function `run`, and the two callers; Hermes' own `InternalBytecode.js` frames stay `no_map`.
 
 ## Not done / next agent
 
-- See the PR for whether the simulator end-to-end run (release build of examples/ouo-mobile, thrown JS error symbolicated by rum-api) was done.
+- Expo maps name sources from the project root with a leading slash (`/src/journey.ts`); rum-api shows them so. Cosmetic.
+- Android release build not run (the iOS run covers the same Metro + hermesc + compose path; the Gradle output paths come from the RN 0.86 Gradle plugin source).
 - hot-updater was not run (not installed anywhere here); `withOuoSourcemaps` follows the shape of hot-updater's own Sentry plugin (read from its source) and is tested with a stand-in build plugin.
 - EAS Update `eas-cli update --skip-bundler --input-dir` was not run (needs an Expo account).
 - The bare `withOuoDebugIds` depends on `metro/private/DeltaBundler/Serializers/baseJSBundle` and `metro/private/lib/bundleToString`; a Metro release that moves them fails the bundle step.
