@@ -7,11 +7,14 @@ import {
   ALL_PROJECTS_VALUE,
   appOptions,
   appValue,
+  MAX_PROJECTS_RANGE_MS,
   pickApp,
   pickProject,
   projectOptions,
+  projectsRange,
   ScopePicker,
 } from './ScopePicker';
+import { loadScope, saveScope } from '../hooks/useScope';
 
 // jsdom has no canvas; Grafana's Combobox measures option text with one.
 HTMLCanvasElement.prototype.getContext = (() => ({
@@ -22,6 +25,7 @@ HTMLCanvasElement.prototype.getContext = (() => ({
 let mockSearch = 'from=now-6h&to=now';
 const mockPartial = jest.fn();
 jest.mock('@grafana/runtime', () => ({
+  config: { bootData: { user: { orgId: 1 } } },
   locationService: {
     getSearch: () => new URLSearchParams(mockSearch),
     getLocationObservable: () => ({ subscribe: () => ({ unsubscribe: () => undefined }) }),
@@ -53,6 +57,16 @@ const data: ProjectsResponse = {
   from: '',
   to: '',
 };
+
+describe('projectsRange', () => {
+  it('keeps ranges up to 30 days and caps longer ones', () => {
+    expect(projectsRange({ from: 'now-30d', to: 'now' })).toEqual({ from: 'now-30d', to: 'now' });
+    expect(projectsRange({ from: '2026-01-01T00:00:00.000Z', to: '2026-03-01T00:00:00.000Z' })).toEqual({
+      from: '2026-01-30T00:00:00.000Z',
+      to: '2026-03-01T00:00:00.000Z',
+    });
+  });
+});
 
 describe('scope options', () => {
   it('lists all projects first, then each project with its app and session counts', () => {
@@ -117,6 +131,7 @@ describe('ScopePicker', () => {
   beforeEach(() => {
     mockProjects.mockReset();
     mockPartial.mockReset();
+    window.localStorage.clear();
   });
 
   it('loads the options for the page time range and shows the URL scope', async () => {
@@ -127,6 +142,37 @@ describe('ScopePicker', () => {
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('shop'));
     expect(screen.getByRole('combobox', { name: 'App' })).toHaveValue('shop-web');
     expect(screen.getByTestId('scope-info')).toBeInTheDocument();
+    // An explicit URL scope is remembered and nothing is restored over it.
+    expect(loadScope()).toEqual({ project: 'shop', service: 'shop-web' });
+    expect(mockPartial).not.toHaveBeenCalled();
+  });
+
+  it('restores the remembered scope when the page opens without one (nav menu link)', async () => {
+    mockSearch = 'from=now-24h&to=now';
+    saveScope({ project: 'bank', service: '' });
+    mockProjects.mockResolvedValue(data);
+    render(<ScopePicker />);
+    await waitFor(() => expect(mockPartial).toHaveBeenCalledWith({ project: 'bank', service: null }, true));
+  });
+
+  it('does not restore after All projects / All apps was picked', async () => {
+    mockSearch = 'from=now-24h&to=now';
+    saveScope({ project: '', service: '' });
+    mockProjects.mockResolvedValue(data);
+    render(<ScopePicker />);
+    await waitFor(() => expect(mockProjects).toHaveBeenCalled());
+    expect(mockPartial).not.toHaveBeenCalled();
+  });
+
+  it('asks for at most the last 30 days of projects', async () => {
+    mockSearch = 'from=now-90d&to=now';
+    mockProjects.mockResolvedValue(data);
+    render(<ScopePicker />);
+    await waitFor(() => expect(mockProjects).toHaveBeenCalled());
+    const arg = mockProjects.mock.calls[0][0] as { from: string; to: string };
+    expect(arg.to).toBe('now');
+    expect(Date.now() - Date.parse(arg.from)).toBeLessThanOrEqual(MAX_PROJECTS_RANGE_MS + 5000);
+    expect(Date.now() - Date.parse(arg.from)).toBeGreaterThanOrEqual(MAX_PROJECTS_RANGE_MS - 5000);
   });
 
   it('defaults to all projects and all apps', async () => {

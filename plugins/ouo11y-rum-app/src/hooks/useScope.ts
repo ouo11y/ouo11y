@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { config } from '@grafana/runtime';
 import { useSearchParams } from './useSearchParams';
 
 /**
@@ -69,4 +70,53 @@ export function scopeKeyTag(scope: Scope): string {
  */
 export function isOtherScope(dataKey: string | undefined, scope: Scope): boolean {
   return dataKey !== undefined && !dataKey.endsWith(scopeKeyTag(scope));
+}
+
+/**
+ * localStorage key of the remembered scope, one per Grafana organisation (project ids of one
+ * org mean nothing in another).
+ */
+export function scopeStorageKey(orgId: number | undefined = config?.bootData?.user?.orgId): string {
+  return `ouo11y-rum-app.scope.${orgId ?? 0}`;
+}
+
+/** The scope last used in this org, or undefined (nothing stored, storage unavailable or garbage). */
+export function loadScope(key = scopeStorageKey()): Scope | undefined {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return undefined;
+    }
+    const v = JSON.parse(raw) as Partial<Scope>;
+    return {
+      project: typeof v.project === 'string' ? v.project : '',
+      service: typeof v.service === 'string' ? v.service : '',
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Remembers the scope; "all" is stored too, so picking All projects / All apps sticks. */
+export function saveScope(scope: Scope, key = scopeStorageKey()): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ project: scope.project, service: scope.service }));
+  } catch {
+    // Private mode or storage disabled: the scope still works through the URL.
+  }
+}
+
+/**
+ * What to do with the remembered scope when a page opens: the URL's scope wins and is
+ * remembered; a URL without one (Grafana's nav menu links, a bookmark of the bare page) gets the
+ * remembered scope back, unless that is "all".
+ */
+export function reconcileScope(url: Scope, saved: Scope | undefined): { save?: Scope; restore?: Scope } {
+  if (!isAllScope(url)) {
+    return { save: url };
+  }
+  if (saved && !isAllScope(saved)) {
+    return { restore: saved };
+  }
+  return {};
 }

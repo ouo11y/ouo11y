@@ -42,7 +42,7 @@ This endpoint provides the selector's options: every project and app that starte
 
 `GET /v1/projects?from=now-7d&to=now` (read token). Rules:
 
-- The default range is 7 days and the maximum is 720 h. A longer range is `400`, so the query stays under Loki's default `max_query_length`.
+- The default range is 7 days and the maximum is 720 h (Grafana's "Last 30 days"). A longer range is `400`, so the query stays under Loki's default `max_query_length`. The limit is checked on the range as asked, before rounding.
 - `from` is rounded down and `to` up to the minute, so a session that just started is still counted.
 
 ```json
@@ -69,6 +69,12 @@ How the response is built:
   - The state lives in the URL query (`project`, `service`), so every in-app link carries it: Overview → Sessions → Session detail → back.
   - Changing the scope drops `dropped` and `offset`, because those belong to the old scope.
   - The default is "All projects" / "All apps", which is the cross-project view.
+  - The last scope is remembered in the browser's localStorage, one entry per Grafana organisation (`ouo11y-rum-app.scope.<orgId>`).
+    - A page opened without `project` or `service` in the URL gets the remembered scope back with a replace navigation. Grafana's nav menu links and bare bookmarks are such pages.
+    - An explicit URL scope wins and becomes the remembered one.
+    - Picking "All projects" / "All apps" remembers "all", so nothing is restored.
+    - Session detail never restores, so a shared session link keeps working.
+  - When the page range is longer than 30 days, the options are counted over its last 30 days.
 - **Session detail.** It has no selector of its own. It sends the URL scope on every call, shows the session's project, and keeps the scope in its links.
 - **Overview.**
   - Without an app selected, it opens with **Projects and apps**: one card per project, side by side, with the project's healthy / errored / crashed shares and one row per app.

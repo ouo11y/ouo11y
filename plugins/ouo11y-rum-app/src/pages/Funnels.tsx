@@ -25,6 +25,7 @@ import { ScopePicker } from '../components/ScopePicker';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
+import { isOtherScope, scopeKeyTag, useScope } from '../hooks/useScope';
 import { setSearchParams, useSearchParams } from '../hooks/useSearchParams';
 import { filtersFromSearch, stepsFromSearch, stepsParam, stepsProblem, withSteps } from '../utils/funnel';
 
@@ -93,18 +94,22 @@ export default function Funnels() {
     setSteps(next);
   };
 
-  const suggestKey = JSON.stringify({ ...range, ...filters, release: undefined });
-  const suggestions = useRumQuery(
+  // Never show another scope's numbers under the new scope while its request is in flight.
+  const scope = useScope();
+  const suggestKey = JSON.stringify({ ...range, ...filters, release: undefined }) + scopeKeyTag(scope);
+  const suggestQuery = useRumQuery(
     () => rumApi.funnelSteps({ from: range.from, to: range.to, ...filters, release: undefined }),
     suggestKey
   );
+  const suggestions = isOtherScope(suggestQuery.dataKey, scope) ? { ...suggestQuery, data: undefined } : suggestQuery;
 
-  const queryKey = JSON.stringify({ steps, range, filters, within });
-  const funnel = useRumQuery(
+  const queryKey = JSON.stringify({ steps, range, filters, within }) + scopeKeyTag(scope);
+  const funnelQuery = useRumQuery(
     () => rumApi.funnel({ steps, from: range.from, to: range.to, within: within || undefined, filters }),
     queryKey,
     !problem
   );
+  const funnel = isOtherScope(funnelQuery.dataKey, scope) ? { ...funnelQuery, data: undefined } : funnelQuery;
 
   // Free-text filters are committed on blur / Enter (Sessions page pattern).
   const urlText = TEXT_FILTERS.map((k) => filters[k] ?? '').join('|');

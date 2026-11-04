@@ -25,7 +25,9 @@ without a route with 404 and a role below the route's `reqRole` with 403):
 
 Overview, Sessions and Funnels have a **Project** and **App** selector next to the time range
 (`ScopePicker`, options from `GET /v1/projects`). The scope lives in the URL (`project`, `service`)
-so links keep it; "All projects" / "All apps" is the cross-project view. Every rum-api call,
+so links keep it; "All projects" / "All apps" is the cross-project view. The last scope is
+remembered per Grafana org (localStorage) and comes back on a page opened without one, such as
+the nav menu's Sessions or Funnels. Every rum-api call,
 Session detail included, carries it ([docs/specs/rum-api-scope.md](../../docs/specs/rum-api-scope.md)).
 The selector narrows what you see; it is **not an access boundary**: one read token reads every
 project, so anyone with the plugin can pick any project (per-project tokens are Phase 11).

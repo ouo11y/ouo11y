@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Combobox, type ComboboxOption, Icon, Stack, Tooltip } from '@grafana/ui';
 import { rumApi } from '../api/client';
 import type { ProjectsResponse } from '../api/types';
 import { useRumQuery } from '../hooks/useRumQuery';
 import { setSearchParams } from '../hooks/useSearchParams';
-import { useScope, type Scope } from '../hooks/useScope';
+import { loadScope, reconcileScope, saveScope, useScope, type Scope } from '../hooks/useScope';
+import { toTimeRange, type RawRange } from '../utils/timerange';
 import { useRawRange } from './TimeRangeBar';
 
 export const ALL_PROJECTS = 'All projects';
@@ -91,7 +92,21 @@ export function pickApp(value: string): Scope {
 
 /** URL updates when the scope changes; paging and funnel drop-off state belong to the old scope. */
 function applyScope(next: Scope) {
+  // Stored before the URL changes, so picking All projects / All apps is not undone by the restore.
+  saveScope(next);
   setSearchParams({ project: next.project, service: next.service, dropped: null, offset: null });
+}
+
+/** rum-api's GET /v1/projects allows 720 h; a longer page range asks for its last 30 days. */
+export const MAX_PROJECTS_RANGE_MS = 30 * 24 * 3600 * 1000;
+
+export function projectsRange(raw: RawRange): RawRange {
+  const r = toTimeRange(raw);
+  const to = r.to.valueOf();
+  if (to - r.from.valueOf() <= MAX_PROJECTS_RANGE_MS) {
+    return raw;
+  }
+  return { from: new Date(to - MAX_PROJECTS_RANGE_MS).toISOString(), to: raw.to };
 }
 
 /**
@@ -103,9 +118,18 @@ export function ScopePicker() {
   const scope = useScope();
   const range = useRawRange();
   const { data, loading, error } = useRumQuery(
-    () => rumApi.projects({ from: range.from, to: range.to }),
+    () => rumApi.projects({ ...projectsRange(range) }),
     `${range.from}|${range.to}|projects`
   );
+  // Remember the scope per org, and bring it back on a page opened without one (nav menu links).
+  useEffect(() => {
+    const { save, restore } = reconcileScope(scope, loadScope());
+    if (save) {
+      saveScope(save);
+    } else if (restore) {
+      setSearchParams({ project: restore.project, service: restore.service }, true);
+    }
+  }, [scope]);
   const projects = useMemo(() => projectOptions(data, scope), [data, scope]);
   const apps = useMemo(() => appOptions(data, scope), [data, scope]);
 

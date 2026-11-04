@@ -241,6 +241,20 @@ func TestListProjects(t *testing.T) {
 	if code := getJSON(t, ts.URL+"/v1/projects?from=now-31d", nil); code != 400 {
 		t.Fatalf("31d range: %d", code)
 	}
+	// Exactly 720h (Grafana's "Last 30 days") is accepted even when now is
+	// not on a minute, and the rounded range stays under Loki's 721h.
+	ce.ranges = nil
+	off := scopeBase.Add(10*time.Minute + 30*time.Second)
+	q := "?from=" + off.Add(-maxProjectsRange).Format(time.RFC3339) + "&to=" + off.Format(time.RFC3339)
+	if code := getJSON(t, ts.URL+"/v1/projects"+q, nil); code != 200 {
+		t.Fatalf("720h range: %d, want 200", code)
+	}
+	if d := ce.ranges[0][1].Sub(ce.ranges[0][0]); d != maxProjectsRange+time.Minute || d >= 721*time.Hour {
+		t.Fatalf("rounded 720h range is %v", d)
+	}
+	if code := getJSON(t, ts.URL+"/v1/projects?from=now-30d&to=now", nil); code != 200 {
+		t.Fatalf("now-30d: %d, want 200", code)
+	}
 	if code := getJSON(t, ts.URL+"/v1/projects?from=garbage", nil); code != 400 {
 		t.Fatalf("bad from: %d", code)
 	}

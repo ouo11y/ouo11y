@@ -18,7 +18,8 @@ import (
 
 const (
 	defaultProjectsRange = 7 * 24 * time.Hour
-	// maxProjectsRange stays under Loki's default max_query_length (721h).
+	// maxProjectsRange stays under Loki's default max_query_length (721h),
+	// also after rounding (two grains at most).
 	maxProjectsRange = 30 * 24 * time.Hour
 	// projectsTimeGrain rounds from down and to up (a superset of the range)
 	// so the Loki query results cache hits and a session that just started
@@ -68,13 +69,15 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	from = from.Truncate(projectsTimeGrain)
-	if t := to.Truncate(projectsTimeGrain); !t.Equal(to) {
-		to = t.Add(projectsTimeGrain)
-	}
+	// The limit applies to the range asked for: rounding adds at most two
+	// grains, which still fits Loki's 721h (so "now-30d" is accepted).
 	if to.Sub(from) > maxProjectsRange {
 		writeError(w, http.StatusBadRequest, "range is at most 720h")
 		return
+	}
+	from = from.Truncate(projectsTimeGrain)
+	if t := to.Truncate(projectsTimeGrain); !t.Equal(to) {
+		to = t.Add(projectsTimeGrain)
 	}
 	groups, err := counter.CountsBy(r.Context(), projectsQuery, []string{"ouo_project_id", "service_name", "ouo_platform"}, from, to)
 	if err != nil {

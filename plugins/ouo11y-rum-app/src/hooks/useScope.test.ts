@@ -1,4 +1,17 @@
-import { isAllScope, isOtherScope, scopeFromSearch, scopeKeyTag, scopeParams, withScope } from './useScope';
+import {
+  isAllScope,
+  isOtherScope,
+  loadScope,
+  reconcileScope,
+  saveScope,
+  scopeFromSearch,
+  scopeKeyTag,
+  scopeParams,
+  scopeStorageKey,
+  withScope,
+} from './useScope';
+
+jest.mock('@grafana/runtime', () => ({ config: { bootData: { user: { orgId: 3 } } } }));
 
 describe('scope helpers', () => {
   it('reads project and service from the URL; missing means all', () => {
@@ -34,5 +47,39 @@ describe('isOtherScope', () => {
     expect(isOtherScope(key('now-6h|now', shop), shop)).toBe(false);
     expect(isOtherScope(key('now-1h|now', { project: '', service: '' }), shop)).toBe(true);
     expect(isOtherScope(key('now-1h|now', { project: 'shop', service: 'web' }), shop)).toBe(true);
+  });
+});
+
+describe('remembered scope', () => {
+  beforeEach(() => window.localStorage.clear());
+  const shop = { project: 'shop', service: 'shop-web' };
+  const all = { project: '', service: '' };
+
+  it('is stored per Grafana org', () => {
+    expect(scopeStorageKey()).toBe('ouo11y-rum-app.scope.3');
+    expect(scopeStorageKey(1)).toBe('ouo11y-rum-app.scope.1');
+    saveScope(shop);
+    expect(loadScope()).toEqual(shop);
+    expect(loadScope(scopeStorageKey(1))).toBeUndefined();
+  });
+
+  it('survives garbage and missing fields', () => {
+    window.localStorage.setItem(scopeStorageKey(), 'not json');
+    expect(loadScope()).toBeUndefined();
+    window.localStorage.setItem(scopeStorageKey(), '{"project":"bank","service":7}');
+    expect(loadScope()).toEqual({ project: 'bank', service: '' });
+  });
+
+  it('restores the remembered scope on a page opened without one', () => {
+    expect(reconcileScope(all, shop)).toEqual({ restore: shop });
+  });
+
+  it('lets an explicit URL scope win and remembers it', () => {
+    expect(reconcileScope({ project: 'bank', service: '' }, shop)).toEqual({ save: { project: 'bank', service: '' } });
+  });
+
+  it('does nothing when the remembered scope is all (All projects / All apps was picked) or nothing is stored', () => {
+    expect(reconcileScope(all, all)).toEqual({});
+    expect(reconcileScope(all, undefined)).toEqual({});
   });
 });
