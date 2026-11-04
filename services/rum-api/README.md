@@ -529,10 +529,13 @@ Buckets are sorted by platform, service, version; percentages are rounded to two
 
 ### Funnels
 
-Spec: [docs/specs/funnels.md](../../docs/specs/funnels.md) (ADR-0012). A step is a page path
-(`navigation` events, exact or prefix match on `url.path`) or a custom event name; sessions are
-counted in strict step order, only events inside `[from, to]` are seen (default `now-24h`, at
-most 31 days), and results are cached for `LOKI_FUNNEL_CACHE_TTL`.
+Spec: [docs/specs/funnels.md](../../docs/specs/funnels.md) (ADR-0012, ADR-0019). A step is a page
+path (`navigation` events, exact or prefix match on `url.path`) or an event name with optional
+`where` conditions on its attributes (`=`, `!=`, `=~`, LogQL label filters); sessions are counted
+in strict step order, only events inside `[from, to]` are seen (default `now-24h`, at most 31
+days), and results are cached for `LOKI_FUNNEL_CACHE_TTL`. A session that stops before the last
+step is **failed** when a failure event (default `exception`) follows the last step it reached,
+**abandoned** otherwise.
 
 `POST /v1/funnels/query`
 
@@ -540,40 +543,57 @@ most 31 days), and results are cached for `LOKI_FUNNEL_CACHE_TTL`.
 {"steps":[
    {"kind":"page","value":"/"},
    {"kind":"page","match":"prefix","value":"/products/"},
-   {"kind":"event","value":"add_to_cart"},
+   {"kind":"event","value":"checkout.submit","where":[{"key":"payment.method","op":"=","value":"card"}]},
    {"kind":"event","value":"order_paid"}],
  "from":"now-24h","to":"now",
  "within":"30m",
+ "failure":{"event":"payment.failed","where":[{"key":"reason","op":"=~","value":"declined|timeout"}]},
  "filters":{"service":"tiny-shop-web","environment":"local","release":"1.0.0","platform":"web","project":"demo"}}
 ```
 
 `within` (optional, Go duration or `1d`, at most 7 days) bounds the time from step 1 to the last
-step; every filter is optional. Unknown fields are rejected. Answer:
+step; every filter is optional. `where` takes up to 5 conditions (`op` defaults to `=`; the key is
+the attribute name as sent, `payment.method`). `failure` is optional: absent means
+`{"event":"exception"}`, `{"off":true}` turns failure tracking off. Unknown fields are rejected.
+Answer:
 
 ```json
 {"steps":[
    {"step":{"kind":"page","match":"exact","value":"/"},"label":"page:/","sessions":50,"users":44,
-    "conversion_from_first":100,"conversion_from_previous":0,"dropped_off":0,"median_ms":null,"p75_ms":null},
+    "conversion_from_first":100,"conversion_from_previous":0,"dropped_off":0,"failed":0,"failure_rate":0,
+    "median_ms":null,"p75_ms":null},
    {"step":{"kind":"page","match":"prefix","value":"/products/"},"label":"page:/products/*","sessions":38,"users":34,
-    "conversion_from_first":76,"conversion_from_previous":76,"dropped_off":12,"median_ms":2140,"p75_ms":4010}],
- "sessions":50,"users":44,"within_ms":1800000,"from":"...","to":"..."}
+    "conversion_from_first":76,"conversion_from_previous":76,"dropped_off":12,"failed":3,"failure_rate":6,
+    "median_ms":2140,"p75_ms":4010}],
+ "sessions":50,"users":44,"failed":3,"failure":{"kind":"event","value":"exception"},
+ "within_ms":1800000,"from":"...","to":"...",
+ "truncated":false,"truncated_reads":[],"events_read_limit":100000,"complete_until":null}
 ```
 
 `sessions` / `users` per step are the sessions that reached it and their distinct `user.id`;
-`dropped_off` = previous step's sessions minus this step's; `median_ms` / `p75_ms` are the time
-from the previous step (nearest rank), `null` for step 1.
+`dropped_off` = previous step's sessions minus this step's; `failed` is the part of `dropped_off`
+that hit the failure event after the previous step, and `failure_rate` is `failed` over the
+previous step's sessions (%); `median_ms` / `p75_ms` are the time from the previous step (nearest
+rank), `null` for step 1. `failure` echoes the failure event (`null` when off). `truncated` is
+true when a Loki read stopped at `events_read_limit` events: `truncated_reads` names it (`pages`,
+`events`, `failures`) and the funnel saw every event up to `complete_until`.
 
-`GET /v1/funnels/dropped?steps=page:/,page:/products/*,event:add_to_cart&step=3&from=&to=&within=&service=&environment=&release=&platform=&project=&limit=50&offset=0`
+`GET /v1/funnels/dropped?steps=page:/,page:/products/*,event:add_to_cart&step=3&outcome=failed&failure=&from=&to=&within=&service=&environment=&release=&platform=&project=&limit=50&offset=0`
 
 The sessions that reached step `step - 1` but not `step` (2..number of steps), latest drop first.
-`steps` is the compact form, comma separated (a trailing `*` makes a page step a prefix match).
-`limit` defaults to 50 (at most 500); follow `next_offset` (null on the last page).
+`steps` is the compact form, comma separated (a trailing `*` makes a page step a prefix match,
+` where ` starts conditions: `event:checkout.submit where payment.method=card and note="a b"`).
+`outcome` (`failed` or `abandoned`, empty for both) narrows the list; `failure` is the failure
+event in the same compact form (`event:payment.failed where reason=declined`) or `off`, empty for
+`exception`. `limit` defaults to 50 (at most 500); follow `next_offset` (null on the last page).
 
 ```json
-{"step":3,"sessions":[
+{"step":3,"outcome":"failed","sessions":[
    {"session_id":"b1c…","user_id":"u-17","entered_at":"…","last_step_at":"…","last_path":"/products/4",
+    "outcome":"failed","failed_at":"…","failure_event":"exception","failure_message":"PaymentError: card declined",
     "has_replay":true,"replay_kind":"rrweb"}],
- "total":12,"offset":0,"limit":50,"next_offset":null,"from":"…","to":"…"}
+ "total":12,"offset":0,"limit":50,"next_offset":null,"from":"…","to":"…",
+ "truncated":false,"truncated_reads":[],"events_read_limit":100000,"complete_until":null}
 ```
 
 `GET /v1/funnels/steps?from=&to=&service=&environment=&platform=&project=&q=`

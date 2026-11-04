@@ -1,6 +1,6 @@
 # ADR-0012 Funnel reports: page and custom-event steps, session-counted, computed by rum-api from Loki
 
-Status: accepted (2026-10-24, step kinds decided by the founder).
+Status: accepted (2026-10-24, step kinds decided by the founder). Amended by [ADR-0019](0019-funnel-step-conditions-and-failed-outcome.md): event-step conditions, a failed outcome per step, a truncated flag.
 
 ## Context
 
