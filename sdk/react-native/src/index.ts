@@ -142,6 +142,8 @@ export function initRUM(options: RUMOptions): RUM {
     options: options.replay,
     sessionSampleRate,
     storage,
+    // The gap in the replay, on the session's timeline (the frame chunks have no event channel).
+    onHidden: (reason) => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": reason }),
     logger,
   });
 
@@ -376,6 +378,8 @@ export function initRUM(options: RUMOptions): RUM {
   });
 
   const navigation = createNavigationTracker((attrs) => {
+    // First: a never-record screen pauses capture before anything else runs for it.
+    replay.setScreen(String(attrs["url.path"] ?? ""));
     events.emit("navigation", { ...attrs, "ouo.navigation.kind": "screen" });
     onActivity();
     replay.screenDidChange();
@@ -476,6 +480,8 @@ export function initRUM(options: RUMOptions): RUM {
       pause: () => replay.pause(),
       resume: () => replay.resume(),
       isRecording: () => replay.isRecording(),
+      hideScreen: () => replay.hideScreen(),
+      showScreen: () => replay.showScreen(),
     },
     session: {
       id: () => session.id(),

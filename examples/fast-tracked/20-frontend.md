@@ -293,6 +293,8 @@ Names, defaults and meanings are taken from `sdk/browser/src/types.ts` and
 | `tracing.documentLoad` | `true` | Emit the `documentLoad` span. |
 | `replay.enabled` | `true` | When `false` rrweb is never downloaded. |
 | `replay.maskAllInputs` | `true` | Every input value is recorded as asterisks. Keep it on unless you have a reason. Add class `ouo-mask` to mask an element's text, `ouo-block` to leave an element out of the recording entirely. |
+| `replay.maskAllText` | `true` | Every text node (and `title`, `alt`, `placeholder`, `aria-label`) is recorded as asterisks except inside an element with class `ouo-unmask`; `ouo-mask` masks again inside it. Click names follow it. `false` records text as 0.3 did. |
+| `replay.excludeRoutes` | none | Paths (`/account`), prefixes (`/account/*`) or RegExps where nothing is recorded; the replay shows an `ouo.replay.hidden` marker for the gap. |
 | `replay.sampleRate` | `1` | Fraction of sessions that get a replay, decided once per session and persisted with it. |
 | `replay.flushIntervalMs` | `5000` | Upload a chunk at least this often. |
 | `replay.maxChunkBytes` | `262144` | Upload a chunk when the buffer reaches this size. |

@@ -75,13 +75,16 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `longTasks` | `{ thresholdMs: 100, maxPerPage: 50 }` | `ouo.long_animation_frame` (Chromium 123+) or `ouo.long_task` (older Chromium) events; `false` turns them off. Firefox and Safari have neither API. |
 
 | `replay.enabled` | `true` | When false rrweb is never downloaded. |
-| `replay.maskAllInputs` | `true` | Mask every input value in the recording. |
+| `replay.maskAllInputs` | `true` | Mask the value of every form control (radios, checkboxes, hidden inputs, options and buttons too) and leave out checked / selected state. |
 | `replay.sampleRate` | `1` | Fraction of (sampled) sessions that get a full replay, decided once per session and persisted. |
 | `replay.onErrorSampleRate` | `0` | Fraction of the other sessions that keep the last 30 to 60 s of replay in memory and upload it, and the rest of the session, after the first error (error-triggered replay). |
 | `replay.flushIntervalMs` | `5000` | Upload a chunk at least this often. |
 | `replay.maxChunkBytes` | `262144` | Upload a chunk when the buffer reaches this size. |
 | `replay.blockSelector` | none | CSS selector of elements recorded as an empty box of the same size, in addition to the `ouo-block` class. The cheapest way to keep a big widget (a data grid, a map) out of the replay's cost. |
-| `replay.maskTextSelector` | none | CSS selector of elements whose text is masked, in addition to the `ouo-mask` class. |
+| `replay.maskTextSelector` | none | CSS selector of elements whose text is masked, in addition to the `ouo-mask` class; it masks inside `ouo-unmask` too. |
+| `replay.maskAllText` | `true` (since 0.4.0) | Mask every text node and the text attributes (`title`, `alt`, `placeholder`, `aria-label`, `aria-description`, `aria-valuetext`, `label`, `value` outside form controls) except inside `ouo-unmask` / `unmaskTextSelector`. Click names follow it. `false` restores the 0.3 behaviour (text recorded unless `ouo-mask`). See "Replay privacy". |
+| `replay.unmaskTextSelector` | none | CSS selector of elements whose text is recorded with `maskAllText`, in addition to the `ouo-unmask` class. |
+| `replay.excludeRoutes` | none | Never-record routes: paths (`/patients`), prefixes (`/patients/*`) or RegExps, matched against `location.pathname`. Nothing is recorded while one matches; also put `ouo-block` on the page's root. See "Replay privacy". |
 | `session.inactivityTimeoutMs` | `1800000` (30 min) | Session ends after this much inactivity. |
 | `session.maxDurationMs` | `14400000` (4 h) | Session ends after this total duration. |
 | `session.sampleRate` | `1` | Fraction of sessions that send anything (spans, events, replay), decided from the session id (see "Sampling") and persisted. Unsampled sessions send `traceparent` with the sampled flag off, so the backend drops its side too. |
@@ -137,6 +140,7 @@ attribute (once per export, not per record).
 | `ouo.long_animation_frame` | a Long Animation Frame of `longTasks.thresholdMs` or more (Chromium 123+) | `ouo.long_task.duration_ms`, `.blocking_duration_ms`, `.render_start_ms`, `.script_count`, and the longest script: `ouo.long_task.script.duration_ms`, `.invoker`, `.invoker_type`, `.char_position`, `code.file.path`, `code.function.name`; `url.path` |
 | `ouo.long_task` | a Long Task, in Chromium without Long Animation Frames | `ouo.long_task.duration_ms`, `ouo.long_task.container_type`, `ouo.long_task.container_src`, `url.path` |
 | `ouo.replay.skipped` | replay stopped for the page view because its full snapshot is larger than the 2 MB replay buffer (it could never be uploaded) | `ouo.replay.skip_reason` (`snapshot_too_large`), `ouo.replay.snapshot_bytes` |
+| `ouo.replay.hidden` | a recording session entered a never-record route (`replay.excludeRoutes`); once per hidden stretch and session | `ouo.replay.hidden_reason` (`route`) |
 | custom | `rum.addEvent(name, attrs)` | your attributes plus `ouo.event.custom=true` |
 
 Spans: `documentLoad` (and its resource fetches), one `CLIENT` span per fetch/XHR
@@ -169,8 +173,13 @@ an `await` in a click handler would start a new trace. The SDK opens an "idle sp
   it; continuous DOM animation keeps a span open until the 15 s cap. An explicit
   `context.with(span, ...)` always wins over the fallback.
 
-Element names never read input values, and never the text of elements inside `ouo-mask` or
-`ouo-block`; text is only read from buttons and links (`aria-label` and `data-testid` win).
+Element names (`app.widget.name`) follow the replay's text masking, whether or not replay is on:
+with `replay.maskAllText` (the default) a click outside `ouo-unmask` / `unmaskTextSelector`, or
+inside `ouo-mask`, `maskTextSelector` or `ouo-block`, is named by its `data-testid` only (no
+text, `aria-label`, `title` or `name`); add `data-testid` to the buttons you want named in
+telemetry. Where text may be read, `aria-label` and `data-testid` win, then the text of a button
+or link, then `title` or `name`. Input values are never read. `app.widget.id` (tag, id, two
+classes, `data-testid`) is structural and always set.
 
 ## Linking the page load (`<meta name="traceparent">`)
 
@@ -224,13 +233,61 @@ A per-project server-side override is not part of the SDK (roadmap 8b, collector
 ## Replay (ADR-0003)
 
 - rrweb `record` with `maskAllInputs` (default true), `checkoutEveryNms` 5 min (30 s while buffering), no canvas or font collection. The bundled rrweb is patched at build time so a blocked iframe's document is neither recorded nor observed (`tsup.config.ts`): rrweb 2.1.7 did both, and on Safari, where rrweb keeps two hidden helper iframes, every checkout added observers that were never released.
-- Privacy classes: add `ouo-block` to an element to exclude it from the recording (rendered as a placeholder), `ouo-mask` to replace its text with asterisks. Inputs are masked by default.
+- Privacy: all text and every input are masked by default; see "Replay privacy" below.
 - Chunks: `{ session_id, seq, started_at, ended_at, events }` (timestamps are epoch milliseconds), flushed every 5 s or at 256 KB, `POST ${replayEndpoint}/v1/replay/chunks` with headers `content-type: application/json`, `content-encoding: gzip` (bodies of 1 KB or more), `authorization: Basic ...`, `x-ouo-session-id`, `x-ouo-seq`. Chunks go through the same delivery layer as OTLP (see "Delivery"): on `pagehide` the remaining buffer leaves uncompressed with `keepalive`, and what does not fit the keepalive budget is kept for the next page load.
 - `seq` is stored with the session, so a reload continues the sequence; every page load starts with a full snapshot. A new session resets `seq` to 0 and takes a fresh full snapshot.
 - Failed uploads are retried, then kept offline, by the delivery layer; a chunk the receiver refuses (4xx) is dropped and counted. Pending data in memory is capped at 2 MB (oldest chunks dropped).
 - `rum.replay.pause()` stops recording and flushes; `resume()` starts a new recording with a full snapshot.
 - Multi-tab: tabs of one origin share the session, and two recordings in one chunk sequence would interleave two DOMs. Only one tab records: the visible tab the user last focused, clicked or typed in. It claims a lease on the `BroadcastChannel` `ouo.replay` and starts with a full snapshot and an rrweb custom event `ouo.tab` (`tab_id`, `url`); the tab that loses the lease, or is hidden, stops and flushes. The replay is what the user looked at, one tab after the other. Without `BroadcastChannel` (Safari before 15.4) a tab only stops when hidden.
 - The collector's replay receiver must answer CORS preflights allowing the headers above (`Authorization`, `Content-Type`, `Content-Encoding`, `X-Ouo-Session-Id`, `X-Ouo-Seq`) for your origin; the OTLP receiver needs `Authorization` and `Content-Type` (ADR-0007 section 4).
+
+### Replay privacy (ADR-0003, revision 2026-11-03)
+
+Masked by default, since 0.4.0 (a breaking change: 0.3 recorded text unless it was in `ouo-mask`):
+
+| What | Default | Opt out / in |
+|---|---|---|
+| Form controls: the value of every input (radios, checkboxes, hidden inputs too), `<select>`, `<option>`, `<button>`; the checked / selected state of radios, checkboxes and options | values masked (`*`), state left out (a radio shows unchecked), `ouo-unmask` included | `replay.maskAllInputs: false` (rrweb's own rules then: passwords stay masked) |
+| Text nodes, and the attributes `title`, `alt`, `placeholder`, `aria-label`, `aria-description`, `aria-valuetext`, `label`, `value` (on other elements: `<li>`, `<data>`, `<meter>`) | masked: every non-space character becomes `*`, so the layout keeps its shape | `ouo-unmask` class or `replay.unmaskTextSelector` on an element: its subtree is recorded as written. `replay.maskAllText: false` turns the default off |
+| `ouo-mask` / `replay.maskTextSelector` | masks its subtree | wins inside an unmasked area, and an `ouo-unmask` inside it stays masked |
+| `ouo-block` / `replay.blockSelector` | the element is an empty box of the same size, nothing inside is recorded | wins over everything |
+| Click names (`app.widget.name`) | follow the text rule above | `data-testid` is always used |
+| Never-record routes | none | `replay.excludeRoutes` |
+
+```html
+<header class="ouo-unmask">Appointments · Settings</header>   <!-- recorded as written -->
+<main>Jane Doe, born 1970</main>                               <!-- **** **** **** **** -->
+<div class="ouo-unmask"><span class="ouo-mask">Room 4</span></div> <!-- still masked -->
+```
+
+Text in a shadow root is masked even under an `ouo-unmask` host (`closest()` does not cross the
+boundary): put `ouo-unmask` inside the shadow tree. A `<title>` in `<head>` is a text node too.
+The URL in the `ouo.tab` marker and in `url.full` is not masked; keep personal data out of URLs.
+Other attributes are recorded as written: `class`, `id`, `href`, `src`, `style` and `data-*`
+(styling depends on them); keep personal data out of them, or `ouo-block` the element.
+
+**Never-record routes.** `excludeRoutes: ["/patients/*", "/identity", /^\/sign\//]`. A string
+matches `location.pathname` exactly, or as a prefix when it ends with `*` (like a funnel `page:`
+step); a RegExp is tested. Only the path: a template given to `rum.setRoute()` arrives after the
+page rendered, too late to keep it out. The SDK checks on page load, on every `pushState` /
+`replaceState` / `popstate` it already tracks, and for every event rrweb hands over, so a render
+that reaches rrweb before the SDK hears of the navigation (a router's `popstate` listener
+registered before `initRUM`, a router holding the unpatched `pushState`) is dropped too. Entering such a route writes an rrweb custom
+event `ouo.replay.hidden` (`{ reason: "route" }`) and an `ouo.replay.hidden` event on the timeline
+(`ouo.replay.hidden_reason: route`), then stops recording and flushes; nothing of the page is
+recorded until the route is left. Recording restarts 500 ms after leaving, with a full
+snapshot: routers such as React Router change the URL first and render the next page after it,
+and a snapshot taken at once would hold the never-record page. A page
+loaded on an excluded route records nothing from the start.
+
+Limits, and the hard guarantee: a router that renders the new page in one task and changes the
+URL in a later one records that render; leaving a route, a page kept on screen longer than 500 ms
+(a React transition, a Suspense lazy route) can be in the next snapshot; a page whose path
+carries no route (a modal over the same URL) is not matched; hash routers (`/#/patients`) are
+not matched (the SDK reads `pathname`). **Put `ouo-block` on the root element of every
+never-record page as well**: every timing gap then records an empty box, nothing of the page.
+For a page without its own path, call `rum.replay.pause()` before showing it and `resume()`
+after.
 
 ## Compatibility and safety
 

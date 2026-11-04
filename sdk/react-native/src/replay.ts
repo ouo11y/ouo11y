@@ -55,6 +55,9 @@ export interface NativeStartOptions {
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
 
+/** Capture comes back this long after a never-record screen was left (or `showScreen()`), when the transition is over. */
+export const SHOW_DELAY_MS = 500;
+
 /**
  * Loads the Expo native module. Returns undefined in Expo Go, on web, in Node and in tests
  * (anywhere `expo-modules-core` is missing or the module is not linked); the caller then runs
@@ -120,7 +123,27 @@ export interface ReplayControllerOptions {
   native?: NativeReplayModule | null;
   /** Where the error counts of held sessions persist (`replay.keepAtNextLaunch`). */
   storage?: AsyncKeyValueStorage;
+  /** Capture stopped for a never-record screen (`screen`) or `hideScreen()` (`manual`) while the session records. */
+  onHidden?: (reason: "screen" | "manual") => void;
   logger: DebugLogger;
+}
+
+/**
+ * Whether a navigation `path` (`/Account/IdentityCheck`) or its screen name (the last segment)
+ * matches one of `replay.excludeScreens`: exact, a prefix when the string ends with `*`, or a RegExp.
+ */
+export function screenExcluded(patterns: Array<string | RegExp> | undefined, path: string): boolean {
+  if (!patterns || !path) return false;
+  const values = [path, path.slice(path.lastIndexOf("/") + 1)];
+  return patterns.some((p) =>
+    values.some((v) => {
+      if (typeof p !== "string") {
+        p.lastIndex = 0;
+        return p.test(v);
+      }
+      return p.endsWith("*") ? v.startsWith(p.slice(0, -1)) : v === p;
+    }),
+  );
 }
 
 /** What `initRUM` drives; `RUMReplay` is the public subset exposed as `rum.replay`. */
@@ -131,6 +154,8 @@ export interface ReplayController extends RUMReplay {
   sessionDidRotate(id: string): void;
   /** A new screen is showing: the frame for it in `navigation` mode. */
   screenDidChange(): void;
+  /** The navigation path of the screen now showing: capture stops while it matches `replay.excludeScreens`. */
+  setScreen(path: string): void;
   /** A feedback in the current session (C10): counted for `keepAtNextLaunch`. */
   onFeedback(): void;
   /** An error in the current session: starts an error-triggered recording when sampled. */
@@ -204,6 +229,16 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   let samplePaused = false;
   /** The current session started recording at an error. */
   let errorTriggered = false;
+  /** The screen showing matches `excludeScreens`. */
+  let screenHidden = false;
+  /** The host called `rum.replay.hideScreen()`. */
+  let manualHidden = false;
+  /** Pending end of a hidden stretch (`SHOW_DELAY_MS`): capture stays paused until it fires. */
+  let showing: ReturnType<typeof setTimeout> | undefined;
+  /** The session to start the native recorder for once nothing hides the screen. */
+  let pendingStart: string | undefined;
+  const hidden = (): boolean => screenHidden || manualHidden || showing !== undefined;
+  const excludeScreens = opts.options?.excludeScreens;
   const keepHook = opts.options?.keepAtNextLaunch;
   const hold = typeof keepHook === "function";
   const tally = sessionTally(hold ? opts.storage : undefined, REPLAY_ERRORS_KEY);
@@ -246,8 +281,17 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     call("recoverPendingChunk", () => native.recoverPendingChunk!(endpoint, nativeOptions("")));
   }
 
+  const hiddenReason = (): "screen" | "manual" => (screenHidden ? "screen" : "manual");
+
   const startNative = (sessionId: string): void => {
     if (!native || !endpoint || active) return;
+    // Native start takes a frame at once: on a hidden screen, start once it is shown.
+    if (hidden()) {
+      if (pendingStart !== sessionId && !userPaused) opts.onHidden?.(hiddenReason());
+      pendingStart = sessionId;
+      return;
+    }
+    pendingStart = undefined;
     const startOptions = nativeOptions(sessionId);
     call("start", () => {
       native.setSessionId(sessionId);
@@ -256,6 +300,50 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
     });
     if (active && userPaused) call("pause", () => native.pause());
+  };
+
+  /** The hidden stretch is over: start or resume what it held back. */
+  const show = (): void => {
+    if (hidden() || !native) return;
+    if (!active) {
+      if (pendingStart !== undefined) startNative(pendingStart);
+      return;
+    }
+    if (samplePaused || userPaused) return;
+    call("resume", () => native.resume());
+    logger.log("replay: shown");
+  };
+
+  /**
+   * Never-record screens and `hideScreen()`: a third pause source next to the host's pause and
+   * the sampling pause. Native pause runs on the main thread's next turn (the open chunk is cut).
+   * Capture comes back `SHOW_DELAY_MS` after nothing hides the screen any more, with a full frame:
+   * a JS-driven stack transition (and any transition on Android, which has no transition check)
+   * would otherwise capture the never-record screen sliding out.
+   */
+  const setHidden = (screen: boolean, manual: boolean, reason: "screen" | "manual"): void => {
+    const was = screenHidden || manualHidden;
+    screenHidden = screen;
+    manualHidden = manual;
+    const now = screenHidden || manualHidden;
+    if (was === now) return;
+    if (!now) {
+      showing = setTimeout(() => {
+        showing = undefined;
+        show();
+      }, SHOW_DELAY_MS);
+      return;
+    }
+    if (showing !== undefined) {
+      // Hidden again before the delay ran out: still the same paused stretch.
+      clearTimeout(showing);
+      showing = undefined;
+      return;
+    }
+    if (!native || !active || samplePaused || userPaused) return;
+    call("pause", () => native.pause());
+    logger.log(`replay: hidden (${reason})`);
+    opts.onHidden?.(reason);
   };
 
   return {
@@ -278,23 +366,37 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       currentId = id;
       errorTriggered = false;
       if (!active) {
+        pendingStart = undefined;
         if (recorded(id)) startNative(id);
         return;
       }
       call("sessionDidRotate", () => native.sessionDidRotate(id));
       logger.log("replay: session rotated", id);
       if (!recorded(id)) {
-        if (!samplePaused && !userPaused) call("pause", () => native.pause());
+        if (!samplePaused && !userPaused && !hidden()) call("pause", () => native.pause());
         samplePaused = true;
         logger.log("replay: session not in the replay sample", id);
-      } else if (samplePaused) {
-        samplePaused = false;
-        if (!userPaused) call("resume", () => native.resume());
+        return;
       }
+      if (samplePaused) {
+        samplePaused = false;
+        if (!userPaused && !hidden()) call("resume", () => native.resume());
+      }
+      // The new session starts on a hidden screen: its timeline gets the marker too.
+      if (hidden() && !userPaused) opts.onHidden?.(hiddenReason());
     },
     screenDidChange(): void {
-      if (!native || !active || !native.screenDidChange) return;
+      if (!native || !active || !native.screenDidChange || hidden()) return;
       call("screenDidChange", () => native.screenDidChange!());
+    },
+    setScreen(path: string): void {
+      setHidden(screenExcluded(excludeScreens, path), manualHidden, "screen");
+    },
+    hideScreen(): void {
+      setHidden(screenHidden, true, "manual");
+    },
+    showScreen(): void {
+      setHidden(screenHidden, false, "manual");
     },
     onFeedback(): void {
       if (hold && currentId !== undefined) feedbackTally.add(currentId);
@@ -310,17 +412,17 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         startNative(id);
       } else if (samplePaused) {
         samplePaused = false;
-        if (!userPaused) call("resume", () => native.resume());
+        if (!userPaused && !hidden()) call("resume", () => native.resume());
       }
     },
     pause(): void {
       userPaused = true;
-      if (!native || !active || samplePaused) return;
+      if (!native || !active || samplePaused || hidden()) return;
       call("pause", () => native.pause());
     },
     resume(): void {
       userPaused = false;
-      if (!native || !active || samplePaused) return;
+      if (!native || !active || samplePaused || hidden()) return;
       call("resume", () => native.resume());
     },
     isRecording(): boolean {
@@ -340,6 +442,9 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       }
     },
     stop(): void {
+      clearTimeout(showing);
+      showing = undefined;
+      pendingStart = undefined;
       if (!native || !active) return;
       active = false;
       call("stop", () => (native.stop ? native.stop() : native.pause()));

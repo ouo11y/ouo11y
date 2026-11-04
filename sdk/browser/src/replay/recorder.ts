@@ -2,21 +2,24 @@ import { attempt, guard } from "../guard";
 import type { SessionManager, SessionRecord } from "../session/manager";
 import type { DebugLogger } from "../logger";
 import { DEFAULT_MAX_BUFFER_BYTES, estimateBytes, type ReplayChunker } from "./chunker";
+import type { Privacy, PrivacyOptions } from "./rrweb";
 import { TabLease } from "./tabs";
 
 export interface RecorderOptions {
   enabled: boolean;
-  maskAllInputs: boolean;
   sampleRate: number;
   /** Fraction of the sessions without a full replay that buffer one and upload it after an error. */
   onErrorSampleRate: number;
   session: SessionManager;
   chunker: ReplayChunker;
   logger: DebugLogger;
-  /** Elements matching this CSS selector are recorded as an empty box of the same size (rrweb `blockSelector`). */
-  blockSelector?: string | undefined;
-  /** Text inside elements matching this CSS selector is masked (rrweb `maskTextSelector`). */
-  maskTextSelector?: string | undefined;
+  /**
+   * The `replay` options that shape what rrweb records (`maskAllInputs`, `maskAllText`, the
+   * selectors, `excludeRoutes`): read by the lazy chunk, src/replay/rrweb.ts.
+   */
+  privacy?: PrivacyOptions | undefined;
+  /** Called when replay is hidden on a never-record route (once per session and stretch). */
+  onHidden?: () => void;
   /** Called when replay stops for the rest of the page view, with the reason and its size. */
   onSkip?: (reason: "snapshot_too_large", bytes: number) => void;
   /** Largest full snapshot recorded; a larger one could never be uploaded. Default the chunker's buffer bound. */
@@ -32,28 +35,36 @@ interface RrwebModule {
     takeFullSnapshot?: (isCheckout?: boolean) => void;
     addCustomEvent?: (tag: string, payload: unknown) => void;
   };
+  createPrivacy(o?: PrivacyOptions): Privacy;
 }
 
-/** Privacy classes (ADR-0003). */
-export const BLOCK_CLASS = "ouo-block";
 /**
- * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
- * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
- * in the DOM with the class `rr-block`; it is not part of the page the user saw. (rrweb still
- * attaches observers to its idle document at every checkout: project/kb/browser-sdk-safety.md.)
+ * Privacy classes (ADR-0003). src/replay/rrweb.ts, which applies them to the recording, has its
+ * own copies: the lazy chunk shares no module with the core.
  */
-export const ALWAYS_BLOCKED = "iframe.rr-block";
+export const BLOCK_CLASS = "ouo-block";
 export const MASK_TEXT_CLASS = "ouo-mask";
+/** With `replay.maskAllText`, text inside it is recorded. */
+export const UNMASK_CLASS = "ouo-unmask";
 /** Periodic full snapshots keep seeking cheap (ADR-0003). */
 export const CHECKOUT_EVERY_MS = 5 * 60 * 1000;
 /** In buffer mode a full snapshot every 30 s; the buffer keeps the last two, 30 to 60 s of replay. */
 export const BUFFER_CHECKOUT_EVERY_MS = 30 * 1000;
 /** rrweb custom event marking the tab a stretch of replay was recorded in. */
 export const TAB_EVENT_TAG = "ouo.tab";
+/** rrweb custom event: recording stopped on a never-record route; the replay resumes at the next full snapshot. */
+export const HIDDEN_EVENT_TAG = "ouo.replay.hidden";
+/**
+ * After leaving a never-record route, recording restarts this much later: routers change the URL
+ * before they render the next page (React Router), and a full snapshot taken at once would hold
+ * the never-record page's DOM.
+ */
+export const SHOW_DELAY_MS = 500;
 
 /** rrweb event types the recorder looks at. */
 const META = 4;
 const FULL_SNAPSHOT = 2;
+const CUSTOM = 5;
 
 export type ReplayMode = "off" | "buffer" | "full";
 
@@ -73,6 +84,11 @@ export type ReplayMode = "off" | "buffer" | "full";
  */
 export class ReplayRecorder {
   private rrweb: RrwebModule | null = null;
+  private privacy: Privacy | null = null;
+  /** The session the hidden marker was written for, while on a never-record route. */
+  private hiddenFor: string | undefined;
+  /** Pending restart after leaving a never-record route (`SHOW_DELAY_MS`); nothing records meanwhile. */
+  private showing: ReturnType<typeof setTimeout> | undefined;
   private stopFn: StopFn | null = null;
   private loading: Promise<void> | null = null;
   /** rrweb could not be loaded (chunk blocked by CSP, offline, an ad blocker): replay stays off. */
@@ -106,9 +122,10 @@ export class ReplayRecorder {
       if (this.unavailable) return;
       if (!this.loading) {
         // Never rejects: a failed chunk load must not become an unhandledrejection on the page.
-        this.loading = import("rrweb").then(
+        this.loading = import("./rrweb").then(
           (mod) => {
             this.rrweb = mod as unknown as RrwebModule;
+            this.privacy = this.rrweb.createPrivacy(this.opts.privacy);
           },
           (err: unknown) => {
             this.unavailable = true;
@@ -134,6 +151,30 @@ export class ReplayRecorder {
     this.paused = false;
     // A new record() call starts with a fresh full snapshot.
     void this.start();
+  }
+
+  /**
+   * The route changed (the SDK's history patch and `popstate` listener). On a never-record route
+   * recording stops before the new route's DOM reaches the stream: a router's mutations of the
+   * same task still wait in rrweb's observer, which stop drops. The emit callback checks the route
+   * too, for what is handed over before this runs (a router's `popstate` listener registered
+   * first, a router holding the unpatched `pushState`). Leaving the route records again from a
+   * full snapshot, `SHOW_DELAY_MS` later.
+   */
+  onRoute(): void {
+    if (this.stopFn) this.hide();
+    else if (this.hiddenFor && !this.showing && !this.isHidden()) {
+      this.showing = setTimeout(
+        guard(() => {
+          this.showing = undefined;
+          // record() checks the route again: back on a hidden one, it does nothing.
+          if (!this.isActiveTab()) return;
+          this.lease.claim(this.opts.session.id());
+          this.record();
+        }),
+        SHOW_DELAY_MS,
+      );
+    }
   }
 
   isRecording(): boolean {
@@ -199,6 +240,8 @@ export class ReplayRecorder {
 
   /** Stops recording and listening (SDK uninstall). */
   shutdown(): void {
+    clearTimeout(this.showing);
+    this.showing = undefined;
     this.stop("replay stopped");
     this.uninstallTabs?.();
     this.uninstallTabs = null;
@@ -212,6 +255,27 @@ export class ReplayRecorder {
     if (!s.sampled()) return "off";
     if (s.replaySampled(this.opts.sampleRate) || s.replayTriggered()) return "full";
     return this.opts.onErrorSampleRate > 0 && s.replayOnError(this.opts.onErrorSampleRate) ? "buffer" : "off";
+  }
+
+  private isHidden(): boolean {
+    return this.privacy?.hidden(location.pathname) === true;
+  }
+
+  /** On a never-record route: marks the replay and stops. True when hidden. */
+  private hide(): boolean {
+    if (!this.isHidden()) return false;
+    this.markHidden();
+    this.stop("replay hidden: route");
+    return true;
+  }
+
+  /** Marks the start of a hidden stretch in the replay and on the timeline, once per session. */
+  private markHidden(): void {
+    const id = this.opts.session.id();
+    if (this.hiddenFor === id) return;
+    this.hiddenFor = id;
+    this.emit({ type: CUSTOM, timestamp: Date.now(), data: { tag: HIDDEN_EVENT_TAG, payload: { reason: "route" } } });
+    this.opts.onHidden?.();
   }
 
   private isActiveTab(): boolean {
@@ -296,23 +360,24 @@ export class ReplayRecorder {
   }
 
   private record(): void {
-    if (this.stopFn || !this.rrweb || this.paused || this.unavailable || this.mode === "off") return;
+    if (this.stopFn || !this.rrweb || this.paused || this.unavailable || this.mode === "off" || this.showing) return;
+    if (this.isHidden()) {
+      this.markHidden();
+      return;
+    }
+    this.hiddenFor = undefined;
     const rrweb = this.rrweb;
+    // Loaded with rrweb.
+    const privacy = this.privacy!;
     // rrweb guards its own observers with errorHandler; record() itself (the first full snapshot)
     // and our emit callback are guarded here.
     const stop = attempt(() =>
       rrweb.record({
-        emit: guard((event: unknown, isCheckout?: boolean) => this.emit(event, isCheckout)),
-        maskAllInputs: this.opts.maskAllInputs,
-        blockClass: BLOCK_CLASS,
-        maskTextClass: MASK_TEXT_CLASS,
-        blockSelector: this.opts.blockSelector ? `${ALWAYS_BLOCKED}, ${this.opts.blockSelector}` : ALWAYS_BLOCKED,
-        ...(this.opts.maskTextSelector ? { maskTextSelector: this.opts.maskTextSelector } : {}),
+        // An event handed over once the URL is on a never-record route is dropped, and recording stops.
+        emit: guard((event: unknown, isCheckout?: boolean) => this.hide() || this.emit(privacy.scrub(event), isCheckout)),
+        // Masking, blocking and what is left out of the recording (src/replay/rrweb.ts).
+        ...privacy.options,
         checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
-        recordCanvas: false,
-        collectFonts: false,
-        inlineImages: false,
-        slimDOMOptions: { script: true, comment: true },
         errorHandler: (err: unknown) => {
           this.opts.logger.warn("rrweb error", err);
           // Handled: rrweb does not rethrow into the page.

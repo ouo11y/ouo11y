@@ -59,6 +59,13 @@ describe('buildMarkers', () => {
     expect(markers[2].label).toBe('POST http://x/api/checkout → 500');
     expect(markers[3].offsetMs).toBe(10_000);
   });
+
+  it('marks where the SDK hid the replay (never-record route or screen)', () => {
+    const hidden: TimelineEvent = { ...ev(4_000, 'custom', { ouo_replay_hidden_reason: 'route' }), name: 'ouo.replay.hidden' };
+    const markers = buildMarkers([ev(0, 'session.start'), hidden], start, 10_000);
+    expect(markers.map((m) => [m.index, m.kind, m.leftPct])).toEqual([[1, 'hidden', 40]]);
+    expect(markers[0].label).toBe('Replay hidden (route): nothing recorded until the next frame');
+  });
 });
 
 describe('latestEventIndex', () => {

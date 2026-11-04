@@ -2,17 +2,43 @@
 
 What ouo's session replay records of the screen a user sees, shown side by side: the live
 screen, then the same moment as stored by rum-api and played in the Grafana app. Captured on
-2026-10-23 on `ouo-env 8b-retention-deletion` from this repository's SDKs and example apps
+2026-10-23 (web text masking updated 2026-11-03, see below) on `ouo-env 8b-retention-deletion` from this repository's SDKs and example apps
 (`@ouo11y/browser`, `@ouo11y/react-native` with the `OuoReplay` iOS module), with fake data typed
 by hand. Masking happens on the device, before anything is sent: what is masked never leaves
 the browser or the phone, so neither the collector, rum-api nor Grafana ever holds it.
 
 ## Web (`@ouo11y/browser`, rrweb)
 
-Defaults: every `<input>`, `<textarea>` and `<select>` value is masked (`replay.maskAllInputs: true`).
-Elements with class `ouo-mask` have their text replaced by asterisks, elements with class
-`ouo-block` are not recorded at all (a placeholder of the same size). Page text that is not
-user input (headings, product names, prices, placeholders) is recorded.
+**Since 0.4.0 (ADR-0003, revision 2026-11-03) all text is masked by default.** Every input value
+(`replay.maskAllInputs: true`) and every text node (`replay.maskAllText: true`) is recorded with
+each character replaced by `*`, and so are the attributes `title`, `alt`, `placeholder`,
+`aria-label`, `aria-description`, `aria-valuetext`, `label` and `value` outside form controls.
+Every form control's value (radios, checkboxes, hidden inputs, options and buttons included) is
+masked and its checked / selected state left out (`maskAllInputs`). Text is
+recorded as written only inside an element with class `ouo-unmask` (or matching
+`replay.unmaskTextSelector`); `ouo-mask` masks again inside it, and `ouo-block` elements are not
+recorded at all (a placeholder of the same size). Routes in `replay.excludeRoutes` record
+nothing; the replay carries an `ouo.replay.hidden` marker for the gap.
+
+Proof of the 0.4 default, in Chromium, Firefox and WebKit (2026-11-03,
+`sdk/browser/e2e/sdk.spec.ts`, "replay masks all text outside ouo-unmask and records nothing on a
+never-record route", run against the e2e collector stub): the page shows `Jane Doe, born 1970`
+with a `title="Patient Jane Doe"`, a button `Open patient record`, an `ouo-unmask` block with an
+`ouo-mask` line inside, and a never-record route `/patients/*` whose page (rendered in the same
+task as the `pushState`, plus a line added 50 ms later) reads `Diagnosis: confidential` and
+`Later on the record page`, both inside `ouo-unmask`. In the uploaded rrweb chunks, `Jane`,
+`1970`, `Open patient record`, the masked line, `Diagnosis` and `Later on the record page` occur
+nowhere; `Public heading` (in `ouo-unmask`) and `Patient list` (the page after leaving the route)
+do; the `ouo.replay.hidden` marker is followed by a fresh full snapshot; and the timeline has one
+`ouo.replay.hidden` event with `ouo.replay.hidden_reason: route`. The jsdom tests
+`sdk/browser/test/privacy.test.ts` and `privacy.integration.test.ts` check the same rules with
+rrweb's real recorder, including added nodes, text changes and attribute changes.
+
+The screenshots below were captured on 2026-10-23 with 0.3, which recorded page text (headings,
+product names, prices); they still show the input masking, which is unchanged. With 0.4 the
+same replay shows asterisks for the checkout's labels too; `examples/ouo-web` now marks its public
+header, catalogue and chaos panel `ouo-unmask` and keeps the cart, checkout and account footer
+masked. A Grafana re-capture of the 0.4 default is a follow-up.
 
 | Live page (what the user saw) | Replay in Grafana (end of the session) |
 |---|---|
@@ -84,8 +110,12 @@ replays stay readable. Inputs and images stay masked, and `ouo-mask` still appli
 - Masking is by view class and test id. A custom view that draws text itself (a chart, a
   canvas, a custom-drawn label) is not a known class: add its class to `maskClasses` or mark it
   `ouo-mask`. On the web, text rendered into a `<canvas>` is not recorded (canvas recording is
-  off), but text in ordinary elements is, unless it carries `ouo-mask` or `ouo-block`.
+  off); text in ordinary elements is masked unless it is inside `ouo-unmask` (0.4 default), and
+  text in a shadow root stays masked even under an `ouo-unmask` host.
 - Telemetry other than replay (event attributes, URLs, span attributes) is not masked by these
-  options; what the app puts there is what is sent.
+  options; what the app puts there is what is sent. The one exception: web click names
+  (`app.widget.name`) follow `maskAllText` (only `data-testid` outside `ouo-unmask`).
+- React Native never-record screens (`replay.excludeScreens`, `rum.replay.hideScreen()`) are
+  covered by unit tests of the JS controller, not by a simulator capture in this proof.
 
 A data processing agreement template is legal material and lives outside this repository.
