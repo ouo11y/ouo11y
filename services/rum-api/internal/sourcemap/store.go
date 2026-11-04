@@ -183,7 +183,16 @@ func (s *Store) Put(ctx context.Context, u Upload) (Meta, error) {
 	if m.DebugID == "" && (m.Release == "" || m.File == "") {
 		return Meta{}, fmt.Errorf("%w: a debug id, or a release and a file, is required", ErrInvalid)
 	}
-	gz := gzipBytes(u.Map)
+	body := u.Map
+	if m.DebugID != "" && head.DebugID == "" && head.DebugID2 == "" {
+		// The id came with the request only (a composed Hermes map has none:
+		// React Native's compose drops it). Write it into the stored map, so
+		// the copy in the release index says which bundle it belongs to.
+		if b, err := withDebugID(u.Map, m.DebugID); err == nil {
+			body = b
+		}
+	}
+	gz := gzipBytes(body)
 	meta, _ := json.Marshal(m)
 	var keys []string
 	if m.DebugID != "" {
@@ -198,6 +207,36 @@ func (s *Store) Put(ctx context.Context, u Upload) (Meta, error) {
 		}
 	}
 	return m, nil
+}
+
+// withDebugID returns the map JSON with "debugId" set. Only the top level is
+// decoded (the mappings stay raw), so a large map costs one scan.
+func withDebugID(mapJSON []byte, id string) ([]byte, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(mapJSON, &top); err != nil {
+		return nil, err
+	}
+	v, _ := json.Marshal(id)
+	top["debugId"] = v
+	return json.Marshal(top)
+}
+
+// mapDebugID is the debug id a stored map names ("debugId", else "debug_id"),
+// normalised; empty when it has none.
+func mapDebugID(mapJSON []byte) string {
+	var head struct {
+		DebugID  string `json:"debugId"`
+		DebugID2 string `json:"debug_id"`
+	}
+	if json.Unmarshal(mapJSON, &head) != nil {
+		return ""
+	}
+	id := head.DebugID
+	if id == "" {
+		id = head.DebugID2
+	}
+	norm, _ := NormalizeDebugID(id)
+	return norm
 }
 
 // putObject writes the data object first and the meta second: the sweeper and

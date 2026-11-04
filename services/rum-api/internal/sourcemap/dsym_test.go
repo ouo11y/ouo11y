@@ -236,7 +236,12 @@ func TestNativeBackendErrorAndCacheBytes(t *testing.T) {
 	if c, err := sym.consumer(ctx, Ref{ProjectID: "web-store", DebugID: testDebugID}); err != nil || c == nil {
 		t.Fatal(c, err)
 	}
-	if n := sym.lru.Len(); n != 1 || sym.bytes != int64(len(fixture(t, "app.min.js.map"))) {
+	// The stored map (the upload with the request's debug id written in) is what the cache counts.
+	stored, err := st.Load(ctx, Ref{ProjectID: "web-store", DebugID: testDebugID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := sym.lru.Len(); n != 1 || sym.bytes != int64(len(stored)) {
 		t.Errorf("after the map: %d entries, %d bytes", n, sym.bytes)
 	}
 

@@ -255,7 +255,7 @@ curl -s -H "Authorization: Bearer $OUO_READ_TOKEN" "$RUM_API/v1/sourcemaps?proje
 If a stack still shows minified frames:
 
 - **No `ouo_exception_debug_ids` on the record.** The deployed bundle was not injected (inject runs after every build), or the error came from a script you did not upload, such as a third-party CDN script.
-- **`no_map` with a debug id.** Nothing was uploaded under that id for this project. Check the token's project and the upload output.
+- **`no_map` with a debug id.** Nothing was uploaded under that id for this project. Check the token's project and the upload output. rum-api then tries the release index, but never with a map that names another debug id: for an OTA bundle whose map was not uploaded, that map is another bundle's, and its lines would be wrong.
 - **`no_map` without a debug id.** The release fallback needs the same `--release` as the SDK's `service.version`, and the same URL path (check `--url-prefix`).
 - **Function names.** The function name comes from the original source around the line when the map embeds `sourcesContent`, which is the default in Vite, webpack and esbuild. Otherwise it comes from the caller's call site. That second method is a heuristic and can name a wrapper.
 

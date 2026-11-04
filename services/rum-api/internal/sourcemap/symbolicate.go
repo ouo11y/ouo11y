@@ -225,7 +225,8 @@ func (s *Symbolicator) cached(ctx context.Context, ref Ref, parse func([]byte) (
 // segment) and the bytecode offset as a 0-based column.
 type jsMap struct {
 	*gosm.Consumer
-	hermes bool
+	hermes  bool
+	debugID string // the id the map names (normalised), empty when it names none
 }
 
 // lookup maps a stack frame. A browser or JSC frame prints a 1-based column;
@@ -250,7 +251,7 @@ func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*jsMap, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &jsMap{Consumer: c, hermes: bytes.Contains(b, hermesMapKey)}, nil
+		return &jsMap{Consumer: c, hermes: bytes.Contains(b, hermesMapKey), debugID: mapDebugID(b)}, nil
 	})
 	c, _ := v.(*jsMap)
 	return c, err
@@ -293,8 +294,15 @@ func (s *Symbolicator) Symbolicate(ctx context.Context, req Request) (Result, er
 			continue
 		}
 		if c == nil && ref.DebugID != "" && req.Release != "" {
-			// A debug id the store does not know: try the release index.
+			// A debug id the store does not know: try the release index, but
+			// only a map that belongs to no other build. Every OTA bundle of a
+			// store version has the same path, so the release map of
+			// /index.android.bundle is usually another bundle's, and mapping
+			// with it would show confident, wrong lines.
 			if c, err = s.consumer(ctx, Ref{ProjectID: req.ProjectID, Release: req.Release, URL: f.URL}); err != nil {
+				c = nil
+			}
+			if c != nil && c.debugID != "" && c.debugID != parsed[i].id {
 				c = nil
 			}
 		}

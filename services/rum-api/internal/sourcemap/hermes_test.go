@@ -103,6 +103,72 @@ func TestHermesOTABundles(t *testing.T) {
 	}
 }
 
+// withoutDebugID is a fixture map as React Native's compose writes it: no
+// debugId (the CLI then sends the id in the request).
+func withoutDebugID(t *testing.T, name string) []byte {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(fixture(t, name), &m); err != nil {
+		t.Fatal(err)
+	}
+	delete(m, "debugId")
+	delete(m, "debug_id")
+	b, _ := json.Marshal(m)
+	return b
+}
+
+// One OTA deploy without an upload: v1's frames carry v1's id, only v2 is in
+// the store. The release index has v2's map under the same path; serving it
+// would map v1's frames to v2's lines and call them mapped.
+func TestHermesUnknownDebugIDDoesNotTakeAnotherBundlesMap(t *testing.T) {
+	exp := hermesFixture(t)
+	store := newStore(t)
+	ctx := context.Background()
+	// The id comes with the request only, as ouo-sourcemaps sends a composed map.
+	m, err := store.Put(ctx, Upload{ProjectID: "juhi", DebugID: exp["v2"].DebugID, Release: "1.4.0", File: "/index.android.bundle",
+		Map: withoutDebugID(t, "hermes/v2/index.android.bundle.hbc.map")})
+	if err != nil || m.DebugID != exp["v2"].DebugID {
+		t.Fatalf("%+v %v", m, err)
+	}
+	sym := NewSymbolicator(store, Options{})
+	res, err := sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
+		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v1"].DebugID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != StatusNoMaps || res.Mapped != 0 {
+		t.Fatalf("v1 stack with v1's unknown id: %s, %d mapped: %+v", res.Status, res.Mapped, res.Frames)
+	}
+	for _, f := range res.Frames {
+		if f.Status != FrameNoMap || f.DebugID != exp["v1"].DebugID {
+			t.Errorf("frame %+v", f)
+		}
+	}
+	// v2's own stack still maps, by its id.
+	res, _ = sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v2"]),
+		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v2"].DebugID}})
+	if res.Status != StatusOK {
+		t.Errorf("v2: %+v", res)
+	}
+}
+
+// A map uploaded with no debug id at all (release + path only) names no
+// build, so an unknown id still falls back to it, as before.
+func TestHermesUnknownDebugIDFallsBackToAnIDlessMap(t *testing.T) {
+	exp := hermesFixture(t)
+	store := newStore(t)
+	ctx := context.Background()
+	if _, err := store.Put(ctx, Upload{ProjectID: "juhi", Release: "1.4.0", File: "/index.android.bundle",
+		Map: withoutDebugID(t, "hermes/v1/index.android.bundle.hbc.map")}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := NewSymbolicator(store, Options{}).Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
+		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v1"].DebugID}})
+	if err != nil || res.Status != StatusOK {
+		t.Fatalf("%+v %v", res, err)
+	}
+}
+
 // A Hermes column is the bytecode offset itself. Reading it as a 1-based
 // column (offset-1) lands on the instruction before, which for these frames
 // is on another line or in another function.
