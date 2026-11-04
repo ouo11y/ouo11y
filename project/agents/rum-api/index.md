@@ -14,4 +14,6 @@ JSON API for the Grafana plugin.
 - `summaries/2026-10-23-8b-data-lifecycle.md` 8b: retention per signal, replay sweeper and S3 lifecycle rules, delete by user / project with audit log, sampling, masking proof
 - `summaries/2026-10-24-web-sourcemaps.md` N36 part C / A10 web: source maps (ADR-0011), upload CLI, symbolication on read, plugin stack view, ouo-web verify
 - `summaries/2026-10-24-funnels.md` funnel reports (N46, ADR-0012): `internal/funnel`, `/v1/funnels/{query,dropped,steps}`, plugin Funnels page, live check against generated sessions
+- `summaries/2026-11-04-r3-funnel-conditions.md` R3 (JUHI, ADR-0019): funnel step conditions, failed outcome per step, truncated flag, live check
 - `scripts/8b-lifecycle-live.mjs` ingest and status script of the 8b live check (`docs/operations/data-lifecycle.md` section 7)
+- `scripts/r3-funnel-journeys.mjs` OTLP payment journeys with known outcomes for the R3 live check

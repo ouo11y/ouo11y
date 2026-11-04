@@ -2,9 +2,9 @@ import React from 'react';
 import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { locationService } from '@grafana/runtime';
-import { Button, IconButton, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
+import { Badge, Button, IconButton, LoadingPlaceholder, RadioButtonGroup, Stack, useStyles2 } from '@grafana/ui';
 import { rumApi } from '../api/client';
-import type { FunnelFilters } from '../api/types';
+import type { FunnelFilters, FunnelOutcome } from '../api/types';
 import { useRumQuery } from '../hooks/useRumQuery';
 import { sessionHref } from '../pages/Sessions';
 import { formatDateTime, formatDuration, parseTs, shortId } from '../utils/format';
@@ -13,6 +13,12 @@ import { ApiErrorAlert } from './ApiErrorAlert';
 
 export const DROPPED_PAGE_SIZE = 25;
 
+const OUTCOME_OPTIONS = [
+  { label: 'All', value: '' },
+  { label: 'Failed', value: 'failed', description: 'a failure event followed the last step reached' },
+  { label: 'Abandoned', value: 'abandoned', description: 'no failure event' },
+];
+
 interface Props {
   /** 1-based step the sessions did not reach. */
   step: number;
@@ -20,13 +26,35 @@ interface Props {
   range: RawRange;
   within: string;
   filters: FunnelFilters;
+  /** Compact failure event (`failure` parameter); undefined for rum-api's default. */
+  failure?: string;
+  /** Failure tracking is off: no outcome filter or column. */
+  failureOff?: boolean;
+  outcome?: FunnelOutcome;
+  onOutcome: (outcome: FunnelOutcome | undefined) => void;
   offset: number;
   onPage: (offset: number) => void;
   onClose: () => void;
 }
 
-/** Sessions that reached step N-1 but not step N, latest first; a row opens the session and its replay. */
-export function DroppedSessions({ step, stepsParam, range, within, filters, offset, onPage, onClose }: Props) {
+/**
+ * Sessions that reached step N-1 but not step N, latest first, all or only the failed / abandoned ones;
+ * a row opens the session and its replay. A failed row shows the failure event and its message.
+ */
+export function DroppedSessions({
+  step,
+  stepsParam,
+  range,
+  within,
+  filters,
+  failure,
+  failureOff,
+  outcome,
+  onOutcome,
+  offset,
+  onPage,
+  onClose,
+}: Props) {
   const styles = useStyles2(getStyles);
   const params = {
     steps: stepsParam,
@@ -34,6 +62,8 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
     from: range.from,
     to: range.to,
     within: within || undefined,
+    failure,
+    outcome,
     ...filters,
     limit: DROPPED_PAGE_SIZE,
     offset,
@@ -45,10 +75,20 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
     <div className={styles.panel} aria-label={`Sessions dropped before step ${step}`}>
       <Stack justifyContent="space-between" alignItems="center">
         <h4 className={styles.title}>
-          Dropped before step {step}
+          {outcome === 'failed' ? 'Failed' : outcome === 'abandoned' ? 'Abandoned' : 'Dropped'} before step {step}
           {data ? ` · ${data.total} sessions` : ''}
         </h4>
-        <IconButton name="times" tooltip="Close" onClick={onClose} />
+        <Stack gap={1} alignItems="center">
+          {!failureOff && (
+            <RadioButtonGroup
+              size="sm"
+              options={OUTCOME_OPTIONS}
+              value={outcome ?? ''}
+              onChange={(v) => onOutcome(v === 'failed' || v === 'abandoned' ? v : undefined)}
+            />
+          )}
+          <IconButton name="times" tooltip="Close" onClick={onClose} />
+        </Stack>
       </Stack>
       {error && <ApiErrorAlert error={error} onRetry={reload} />}
       {loading && !data && <LoadingPlaceholder text="Loading sessions…" />}
@@ -62,6 +102,7 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
                 <th>Entered</th>
                 <th>Stuck for</th>
                 <th>Last page</th>
+                {!failureOff && <th>Outcome</th>}
                 <th>Replay</th>
               </tr>
             </thead>
@@ -79,6 +120,23 @@ export function DroppedSessions({ step, stepsParam, range, within, filters, offs
                     {formatDuration(parseTs(s.last_step_at) - parseTs(s.entered_at))}
                   </td>
                   <td>{s.last_path ?? '–'}</td>
+                  {!failureOff && (
+                    <td className={styles.outcome}>
+                      {s.outcome === 'failed' ? (
+                        <span title={s.failure_message}>
+                          <Badge color="red" icon="exclamation-triangle" text={`failed: ${s.failure_event ?? ''}`} />{' '}
+                          {s.failed_at && (
+                            <span className={styles.muted}>
+                              +{formatDuration(parseTs(s.failed_at) - parseTs(s.last_step_at))}
+                            </span>
+                          )}{' '}
+                          {s.failure_message && <span className={styles.message}>{s.failure_message}</span>}
+                        </span>
+                      ) : (
+                        <span className={styles.muted}>abandoned</span>
+                      )}
+                    </td>
+                  )}
                   <td>
                     {s.has_replay ? (
                       <Button size="sm" variant="secondary" icon="play" onClick={() => open(s.session_id)}>
@@ -140,4 +198,14 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   row: css({ cursor: 'pointer', '&:hover': { background: theme.colors.action.hover } }),
   muted: css({ color: theme.colors.text.secondary }),
+  outcome: css({ maxWidth: 420 }),
+  message: css({
+    display: 'inline-block',
+    maxWidth: 260,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    verticalAlign: 'bottom',
+    color: theme.colors.text.secondary,
+  }),
 });

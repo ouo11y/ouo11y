@@ -2,7 +2,7 @@ import React from 'react';
 import { css, cx } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { Icon, Tooltip, useStyles2 } from '@grafana/ui';
-import type { FunnelStepResult } from '../api/types';
+import type { FunnelOutcome, FunnelStepResult } from '../api/types';
 import { formatDuration } from '../utils/format';
 import { stepLabel } from '../utils/funnel';
 
@@ -10,8 +10,10 @@ interface Props {
   steps: FunnelStepResult[];
   /** 1-based step whose drop-off list is open. */
   selected?: number;
-  /** Called with the 1-based step (2..n) whose drop-off segment was clicked. */
-  onDropOff: (step: number) => void;
+  /** Called with the 1-based step (2..n) whose drop-off segment (or failed count: 'failed') was clicked. */
+  onDropOff: (step: number, outcome?: FunnelOutcome) => void;
+  /** Failure tracking is on: show the failed part of each drop-off. */
+  showFailed?: boolean;
 }
 
 const CHART_HEIGHT = 220;
@@ -19,9 +21,11 @@ const CHART_HEIGHT = 220;
 /**
  * Vertical funnel: one column per step. The solid bar is the sessions that reached the step (height
  * relative to step 1); the hatched segment above it is the sessions lost since the previous step,
- * clickable to list them. Between columns: median / p75 time from the previous step.
+ * clickable to list them, with its failed part (a failure event followed the previous step) solid at
+ * its foot. Under each column: conversion, failed count and rate, median / p75 time from the previous
+ * step.
  */
-export function FunnelChart({ steps, selected, onDropOff }: Props) {
+export function FunnelChart({ steps, selected, onDropOff, showFailed }: Props) {
   const styles = useStyles2(getStyles);
   const first = steps[0]?.sessions ?? 0;
   const h = (n: number) => (first > 0 ? Math.round((n / first) * CHART_HEIGHT) : 0);
@@ -36,7 +40,9 @@ export function FunnelChart({ steps, selected, onDropOff }: Props) {
             <div className={styles.bars} style={{ height: CHART_HEIGHT }}>
               {i > 0 && s.dropped_off > 0 && (
                 <Tooltip
-                  content={`${s.dropped_off} sessions reached step ${i} but not step ${stepNo}: click to list them`}
+                  content={`${s.dropped_off} sessions reached step ${i} but not step ${stepNo}${
+                    showFailed ? `, ${s.failed} of them after a failure` : ''
+                  }: click to list them`}
                 >
                   <button
                     type="button"
@@ -46,6 +52,12 @@ export function FunnelChart({ steps, selected, onDropOff }: Props) {
                     aria-label={`Show ${s.dropped_off} sessions dropped before step ${stepNo}`}
                   >
                     <span className={styles.dropText}>−{s.dropped_off}</span>
+                    {showFailed && s.failed > 0 && (
+                      <span
+                        className={styles.failedPart}
+                        style={{ height: `${Math.round((s.failed / s.dropped_off) * 100)}%` }}
+                      />
+                    )}
                   </button>
                 </Tooltip>
               )}
@@ -64,6 +76,23 @@ export function FunnelChart({ steps, selected, onDropOff }: Props) {
               {i > 0 && (
                 <>
                   <div className={styles.small}>{s.conversion_from_previous.toFixed(1)}% of previous step</div>
+                  {showFailed && (
+                    <div className={styles.small}>
+                      {s.failed > 0 ? (
+                        <button
+                          type="button"
+                          className={styles.failedLink}
+                          onClick={() => onDropOff(stepNo, 'failed')}
+                          aria-label={`Show ${s.failed} sessions failed before step ${stepNo}`}
+                        >
+                          <Icon name="exclamation-triangle" size="xs" /> {s.failed} failed
+                        </button>
+                      ) : (
+                        '0 failed'
+                      )}{' '}
+                      · {s.failure_rate.toFixed(1)}% failure rate
+                    </div>
+                  )}
                   <div className={styles.small}>
                     <Icon name="clock-nine" size="xs" /> median {formatDuration(s.median_ms)} · p75{' '}
                     {formatDuration(s.p75_ms)}
@@ -108,13 +137,32 @@ const getStyles = (theme: GrafanaTheme2) => ({
     cursor: 'pointer',
     width: '100%',
     padding: 0,
+    position: 'relative',
+    overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     '&:hover': { background: theme.colors.error.transparent },
   }),
   dropSelected: css({ borderStyle: 'solid', borderWidth: 2, background: theme.colors.error.transparent }),
-  dropText: css({ color: theme.colors.error.text, fontSize: theme.typography.bodySmall.fontSize }),
+  dropText: css({ color: theme.colors.error.text, fontSize: theme.typography.bodySmall.fontSize, zIndex: 1 }),
+  failedPart: css({
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: theme.colors.error.main,
+    opacity: 0.45,
+  }),
+  failedLink: css({
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    color: theme.colors.error.text,
+    cursor: 'pointer',
+    fontSize: 'inherit',
+    '&:hover': { textDecoration: 'underline' },
+  }),
   meta: css({ marginTop: theme.spacing(1) }),
   label: css({
     fontWeight: theme.typography.fontWeightMedium,

@@ -359,16 +359,48 @@ export interface SessionFilters {
   limit?: number;
 }
 
-/** A funnel step (docs/specs/funnels.md): a page path (exact or prefix) or a custom event name. */
+/**
+ * A funnel step (docs/specs/funnels.md): a page path (exact or prefix) or an event name with optional
+ * attribute conditions (ADR-0019).
+ */
 export type FunnelStepKind = 'page' | 'event';
 export type FunnelMatch = 'exact' | 'prefix';
+export type FunnelConditionOp = '=' | '!=' | '=~';
+
+/** `key op value` on an event attribute; `key` is the attribute name as sent (`payment.method`). */
+export interface FunnelCondition {
+  key: string;
+  /** `=` when absent. */
+  op?: FunnelConditionOp;
+  value: string;
+}
 
 export interface FunnelStep {
   kind: FunnelStepKind;
   /** Page steps only; exact when absent. */
   match?: FunnelMatch;
   value: string;
+  /** Event steps only: every condition must hold. */
+  where?: FunnelCondition[];
 }
+
+/** The failure event of a funnel: absent = `exception`; `off` turns failure tracking off. */
+export interface FunnelFailure {
+  event?: string;
+  where?: FunnelCondition[];
+  off?: boolean;
+}
+
+/** Reads cut at the Loki event cap (ADR-0019). */
+export interface FunnelTruncation {
+  truncated: boolean;
+  truncated_reads: string[];
+  events_read_limit: number;
+  /** Every event up to this time was seen. */
+  complete_until: string | null;
+}
+
+export type FunnelOutcome = 'failed' | 'abandoned';
 
 export interface FunnelFilters {
   service?: string;
@@ -385,6 +417,7 @@ export interface FunnelRequest {
   /** Max time from step 1 to the last step, e.g. `30m`; empty for none. */
   within?: string;
   filters?: FunnelFilters;
+  failure?: FunnelFailure;
 }
 
 export interface FunnelStepResult {
@@ -395,14 +428,21 @@ export interface FunnelStepResult {
   conversion_from_first: number;
   conversion_from_previous: number;
   dropped_off: number;
+  /** The part of dropped_off that hit the failure event after the previous step. */
+  failed: number;
+  /** failed / previous step's sessions, percent. */
+  failure_rate: number;
   median_ms: number | null;
   p75_ms: number | null;
 }
 
-export interface FunnelResponse {
+export interface FunnelResponse extends FunnelTruncation {
   steps: FunnelStepResult[];
   sessions: number;
   users: number;
+  failed: number;
+  /** The failure event used; null when off. */
+  failure: FunnelStep | null;
   within_ms: number | null;
   from: string;
   to: string;
@@ -414,12 +454,17 @@ export interface DroppedSession {
   entered_at: string;
   last_step_at: string;
   last_path?: string;
+  outcome: FunnelOutcome;
+  failed_at?: string;
+  failure_event?: string;
+  failure_message?: string;
   has_replay: boolean;
   replay_kind: ReplayKind | null;
 }
 
-export interface DroppedResponse {
+export interface DroppedResponse extends FunnelTruncation {
   step: number;
+  outcome: FunnelOutcome | '';
   sessions: DroppedSession[];
   total: number;
   offset: number;

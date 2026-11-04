@@ -89,3 +89,32 @@ Context: roadmap W5, spec C6 and C7 (`docs/specs/mobile-sdk.md`), quickstart
   reads its workspace `package.json` files, which held merge-conflict markers. `--prefix` from
   outside avoids the walk.
 - **`npm pack` + `file:` tarball in an app**: packing again under the same name (`ouo11y-react-native-0.2.1.tgz`) and running `npm install` keeps the copy the lockfile pinned; delete the app's `package-lock.json` and `node_modules/@ouo11y` first, and `grep` the installed `dist` for a new symbol before trusting a device run.
+
+## Step conditions and the failed outcome (R3, ADR-0019, 2026-11-04)
+
+Context: JUHI gap R3, `docs/specs/funnels.md`, `services/rum-api/internal/funnel/condition.go`.
+
+- **Attribute keys change name in Loki.** Loki's OTLP ingest stores `payment.method` as the
+  structured-metadata key `payment_method` (every character outside `[A-Za-z0-9_]` becomes `_`).
+  Conditions take the OTel name and rum-api maps it (`Condition.LokiKey`); the mapped key needs no
+  quoting, which is what makes keys injection-safe.
+- **Label filters can test stream labels too.** One events query serves every event step:
+  `{event_name=~"a|b"} | (event_name="a") or (event_name="b" and ((payment_method="card")))`.
+  Parenthesise every operand rather than rely on LogQL's and/or precedence.
+- **Values: `strconv.Quote` is enough** once control characters and invalid UTF-8 are refused;
+  LogQL unquotes Go escapes. Tests assert one literal per value (`strconv.QuotedPrefix(lit) == lit`)
+  and balanced quotes / a single selector per query for hostile names and values.
+- **`session.Event` drops "noise" keys** (`telemetry_sdk_*`, `browser_*`, `user_agent_original`):
+  LogQL could filter on them but the in-memory re-check could not see them, so conditions on them
+  are refused (`session.Retained`). Context keys (`os_name`…) and identifiers are readable through
+  `Event.Value`.
+- **Failure needs the index, not just the time,** of the last reached step's event: with a failure
+  event equal to a step event, or several events in the same millisecond, skip that event itself
+  and accept the rest at or after its timestamp.
+- **Detecting the Loki cap**: the read is cut when the last allowed page (`MaxPages`) came back
+  full (`loki.Client.EventsQueryCapped`). A read that ends exactly on a full last page is a false
+  positive, accepted over a silent undercount. `complete_until` = earliest last event of the cut
+  reads.
+- **The app blocks Write/Edit in a second worktree** created by the session itself (a hook: "belongs
+  to a different worktree"); Bash is not blocked. Reset the session's own worktree onto a new
+  branch from `origin/main` instead (R1 hit the same).
