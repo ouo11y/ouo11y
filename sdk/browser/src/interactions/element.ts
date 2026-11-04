@@ -21,6 +21,17 @@ export function clickTarget(target: EventTarget | null): Element | null {
   return el.closest(ACTIONABLE) ?? el;
 }
 
+/** `app.widget.id` (and the INP target): tag, `#id`, the first two classes, `[data-testid=…]`. No text. */
+export function elementId(el: Element): string {
+  let id = el.tagName.toLowerCase();
+  if (el.id) id += `#${el.id}`;
+  const classes = typeof el.className === "string" ? el.className.split(/\s+/).filter(Boolean).slice(0, 2) : [];
+  for (const c of classes) id += `.${c}`;
+  const testId = el.getAttribute("data-testid");
+  if (testId) id += `[data-testid=${testId}]`;
+  return id;
+}
+
 /**
  * Pure description of an element for click spans and rage / dead click events. Text is only
  * read from buttons and links; input values are never read. Where replay masks the text
@@ -29,12 +40,8 @@ export function clickTarget(target: EventTarget | null): Element | null {
  */
 export function describeElement(el: Element, unmask?: string, mask?: string): ElementDescription {
   const tag = el.tagName.toLowerCase();
-  let id = tag;
-  if (el.id) id += `#${el.id}`;
-  const classes = typeof el.className === "string" ? el.className.split(/\s+/).filter(Boolean).slice(0, 2) : [];
-  for (const c of classes) id += `.${c}`;
+  const id = elementId(el);
   const testId = el.getAttribute("data-testid");
-  if (testId) id += `[data-testid=${testId}]`;
 
   // An invalid host selector fails closed.
   const masked = attempt(() => el.closest(`.${MASK_TEXT_CLASS},.${BLOCK_CLASS}${mask ? `,${mask}` : ""}`) !== null || (unmask !== undefined && !el.closest(unmask)), true);

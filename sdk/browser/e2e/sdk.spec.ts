@@ -142,6 +142,39 @@ test("long animation frames (Chromium) with the script that caused them", async 
   expect(String(f.attributes["ouo.long_task.script.invoker"])).toContain("BUTTON#block");
 });
 
+test("INP of a slow click carries its target, phases and the Long Animation Frame script", async ({ page, browserName }) => {
+  await open(page);
+  const { inp, loaf } = await page.evaluate(() => ({
+    inp: typeof PerformanceEventTiming !== "undefined" && "interactionId" in PerformanceEventTiming.prototype,
+    loaf: (PerformanceObserver.supportedEntryTypes ?? []).includes("long-animation-frame"),
+  }));
+  test.skip(!inp, `${browserName} has no Event Timing interactionId (no INP)`);
+  await page.waitForTimeout(300);
+  await page.locator("#block").click(); // a 250 ms busy loop in the click handler
+  await expect(page.locator("#out")).toHaveText("blocked");
+  await page.waitForTimeout(500);
+  await page.goto("about:blank"); // INP is reported when the page is hidden
+  let attrs: Record<string, unknown> = {};
+  await expect
+    .poll(async () => {
+      const ev = (await captured(page)).logs.filter((l) => l.eventName === "web_vital" && l.attributes["ouo.web_vital.name"] === "INP").at(-1);
+      attrs = ev?.attributes ?? {};
+      return Number(attrs["ouo.web_vital.value"] ?? 0);
+    }, { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(250);
+  // The element a click event names (app.widget.id): no text, the button reads "Block main thread".
+  expect(attrs["ouo.web_vital.inp.target"]).toBe("button#block");
+  expect(attrs["ouo.web_vital.inp.interaction_type"]).toBe("pointer");
+  expect(Number(attrs["ouo.web_vital.inp.processing_duration_ms"])).toBeGreaterThanOrEqual(240);
+  for (const k of ["input_delay_ms", "presentation_delay_ms"]) expect(Number(attrs[`ouo.web_vital.inp.${k}`])).toBeGreaterThanOrEqual(0);
+  expect(JSON.stringify(attrs)).not.toContain("Block main thread");
+  if (loaf) {
+    expect(String(attrs["ouo.web_vital.inp.script.invoker"])).toContain("BUTTON#block");
+    expect(attrs["ouo.web_vital.inp.script.subpart"]).toBe("processing-duration");
+    expect(Number(attrs["ouo.web_vital.inp.script.duration_ms"])).toBeGreaterThanOrEqual(240);
+  }
+});
+
 test("document load joins the server's trace from <meta name=traceparent>", async ({ page }) => {
   const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
   const spanId = "00f067aa0ba902b7";

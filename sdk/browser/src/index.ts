@@ -273,7 +273,7 @@ function install(
     // A tab opened in the background (and every tab of an automation pane) is hidden from the
     // start: web-vitals then rightly reports no FCP, LCP, CLS or INP for this page view.
     if (document.visibilityState === "hidden") logger.log("page loaded hidden: only TTFB is reported for this page view");
-    cleanup.push(installWebVitals(events));
+    cleanup.push(installWebVitals(events, route));
   } catch (err) {
     logger.warn("web-vitals unavailable", err);
   }

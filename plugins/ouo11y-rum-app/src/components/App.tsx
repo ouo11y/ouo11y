@@ -9,6 +9,7 @@ const Overview = React.lazy(() => import('../pages/Overview'));
 const Sessions = React.lazy(() => import('../pages/Sessions'));
 const SessionDetail = React.lazy(() => import('../pages/SessionDetail'));
 const Funnels = React.lazy(() => import('../pages/Funnels'));
+const Performance = React.lazy(() => import('../pages/Performance'));
 
 export default function App({ meta }: AppRootProps<AppSettings>) {
   const toggles = useMemo(() => parseFeatureToggles(meta?.jsonData?.featureToggles), [meta?.jsonData?.featureToggles]);
@@ -19,6 +20,7 @@ export default function App({ meta }: AppRootProps<AppSettings>) {
         <Route path={ROUTES.Sessions} element={<Sessions />} />
         <Route path={`${ROUTES.Sessions}/:id`} element={<SessionDetail />} />
         <Route path={ROUTES.Funnels} element={<Funnels />} />
+        <Route path={ROUTES.Performance} element={<Performance />} />
         <Route path="*" element={<Navigate to={ROUTES.Overview} replace />} />
       </Routes>
     </FeatureTogglesContext.Provider>

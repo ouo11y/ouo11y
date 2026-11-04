@@ -588,6 +588,23 @@ autocomplete; `q` keeps values containing it. Two Loki metric queries (`sum by (
  "events":[{"value":"add_to_cart","count":27},{"value":"checkout","count":15}],"from":"…","to":"…"}
 ```
 
+`GET /v1/vitals/inp/targets?from=&to=&service=&environment=&release=&platform=&project=&page=&limit=`
+
+Slowest interactions by element: the range's INP `web_vital` events, one value per page view (the
+largest per `session.id` and `ouo.web_vital.id`), grouped by `ouo.web_vital.inp.target` and page
+(`app.screen.name`, else `url.path`; `page` filters on either), sorted by p75 (nearest rank),
+slowest first, with the p75 of each phase and the Long Animation Frame script seen most often.
+`limit` defaults to 50 (at most 500); the range to 24 hours (at most 31 days).
+[docs/specs/web-vitals.md](../../docs/specs/web-vitals.md) section 3.
+
+```json
+{"groups":[{"target":"button#save","page":"/patients/:id","interaction_type":"pointer","count":4,"sessions":3,
+   "p75_ms":480,"max_ms":620,"rating":"needs-improvement","input_delay_p75_ms":8,"processing_duration_p75_ms":440,
+   "presentation_delay_p75_ms":30,"script":{"invoker":"BUTTON#save.onclick","invoker_type":"event-listener",
+   "file":"https://shop.example/app.js","function":"save","count":4}}],
+ "total":3,"page_views":7,"from":"…","to":"…"}
+```
+
 ## curl examples
 
 Development values (`deploy/compose/.env.example`): ingest token `it_dev_0000000000000000`,

@@ -12,6 +12,7 @@ const KNOWN = [
   [/^index\.js$/, "ouo.replay.skipped", /src\/index\.ts$/],
   [/^react\.js$/, "react.error_boundary", /src\/react\/index\.ts$/],
   [/^rrweb-.*\.js$/, "takeFullSnapshot", /rrweb/],
+  [/^attribution-.*\.js$/, "ouo.web_vital.inp.target", /src\/vitals\/attribution\.ts$/],
 ];
 for (const file of readdirSync("dist").filter((f) => f.endsWith(".js"))) {
   const [, needle, source] = KNOWN.find(([re]) => re.test(file)) ?? [];

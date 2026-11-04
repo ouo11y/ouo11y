@@ -116,6 +116,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/funnels/query", s.postFunnelQuery)
 	mux.HandleFunc("GET /v1/funnels/dropped", s.getFunnelDropped)
 	mux.HandleFunc("GET /v1/funnels/steps", s.getFunnelSteps)
+	mux.HandleFunc("GET /v1/vitals/inp/targets", s.getINPTargets)
 	mux.HandleFunc("DELETE /v1/admin/users/{user}", s.adminAuth(s.deleteUser))
 	mux.HandleFunc("DELETE /v1/admin/projects/{project}", s.adminAuth(s.deleteProject))
 	mux.HandleFunc("GET /v1/admin/audit", s.adminAuth(s.getAudit))

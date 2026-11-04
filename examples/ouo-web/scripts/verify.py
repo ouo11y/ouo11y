@@ -77,7 +77,38 @@ def check_browser_signals(a, j, sid, res):
         loaf = [attrs for name, attrs in events if name == "ouo.long_animation_frame"]
         res.add("long animation frame from the 300 ms task", any(float(attrs.get("ouo_long_task_duration_ms", 0)) >= 250 for attrs in loaf),
                 f"{len(loaf)} ouo.long_animation_frame")
+    if "INP" in want_vitals:
+        # The visit's INP is its slowest interaction: the 300 ms long task (`button.btn.chaos-btn`, the
+        # click events' app.widget.id; no text), mostly processing time, with its LoAF script in Chromium.
+        inp = [attrs for name, attrs in events if name == "web_vital" and attrs.get("ouo_web_vital_name") == "INP"]
+        slow = max(inp, key=lambda x: float(x.get("ouo_web_vital_value", 0)), default={})
+        res.add("INP attributed to the long-task button (target, phases)",
+                slow.get("ouo_web_vital_inp_target") == CHAOS_BUTTON and float(slow.get("ouo_web_vital_inp_processing_duration_ms", 0)) >= 250
+                and "ouo_web_vital_inp_input_delay_ms" in slow and "ouo_web_vital_inp_presentation_delay_ms" in slow,
+                f"INP {slow.get('ouo_web_vital_value')} target {slow.get('ouo_web_vital_inp_target')} processing {slow.get('ouo_web_vital_inp_processing_duration_ms')}")
+        if j.get("loaf"):
+            res.add("INP carries the Long Animation Frame script", "BUTTON" in slow.get("ouo_web_vital_inp_script_invoker", ""),
+                    f"invoker {slow.get('ouo_web_vital_inp_script_invoker')}, subpart {slow.get('ouo_web_vital_inp_script_subpart')}")
     print(f"  events: {', '.join(sorted(set(names)))}", flush=True)
+
+
+# The chaos buttons' INP target (and app.widget.id): tag and classes, no id or data-testid.
+CHAOS_BUTTON = "button.btn.chaos-btn"
+
+
+def check_inp_targets(a, j, res):
+    print("slowest interactions (rum-api /v1/vitals/inp/targets)", flush=True)
+    q = urllib.parse.urlencode({"service": CLIENT, "from": j["start"], "to": j["end"] + 120, "page": "/chaos"})
+    groups, deadline = [], time.time() + 60
+    while time.time() < deadline:
+        groups = rum_get(a.rum_api, f"/v1/vitals/inp/targets?{q}", a.read_token).get("groups", [])
+        if any(g["target"] == CHAOS_BUTTON for g in groups):
+            break
+        time.sleep(5)
+    g = next((g for g in groups if g["target"] == CHAOS_BUTTON), None)
+    res.add("p75 INP of the long-task button on /chaos",
+            bool(g) and g["page"] == "/chaos" and g["p75_ms"] >= 250 and (g["processing_duration_p75_ms"] or 0) >= 250,
+            f"{g}" if g else f"{len(groups)} groups: {[x['target'] for x in groups]}")
 
 
 # Where ChaosPanel's RenderBomb throws (src/components/ChaosPanel.tsx).
@@ -164,6 +195,8 @@ def main():
         check_browser_signals(a, j, sid, res)
         check_symbolication(a, rum_get(a.rum_api, f"/v1/sessions/{sid}", a.read_token), res)
         check_interactions(a, j, sid, res)
+        if "INP" in (j.get("vitals") or []):
+            check_inp_targets(a, j, res)
 
     tracecheck.run(tempo=a.tempo.rstrip("/"), backend_url=j["backend"], clients=[CLIENT], path="ouo",
                    start=j["start"], end=j["end"], expect_requests=j["requests"], expect_traces=j.get("traces", j["requests"]),

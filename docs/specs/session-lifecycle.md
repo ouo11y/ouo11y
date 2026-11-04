@@ -85,7 +85,7 @@ All configurable in the SDK init options.
 | `exception` | identifiers, `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal` (bool), `ouo.exception.handled` (bool) |
 | `http.request.failed` | identifiers, `http.request.method`, `url.full`, `http.response.status_code` |
 | `navigation` | identifiers, `url.path`, `ouo.navigation.from` |
-| `web_vital` | identifiers, `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating` |
+| `web_vital` | identifiers, `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating`; INP attribution in [web-vitals.md](web-vitals.md) |
 
 Event names and attribute names follow OTel semantic conventions where they exist; everything else is prefixed `ouo.`.
 

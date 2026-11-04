@@ -47,6 +47,15 @@
     },
     {
       "type": "page",
+      "name": "Performance",
+      "icon": "tachometer-fast",
+      "path": "/a/%PLUGIN_ID%/performance",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": false
+    },
+    {
+      "type": "page",
       "name": "Session detail",
       "path": "/a/%PLUGIN_ID%/sessions/:id",
       "role": "Viewer",

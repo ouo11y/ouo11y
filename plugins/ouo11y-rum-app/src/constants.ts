@@ -17,4 +17,5 @@ export enum ROUTES {
   Overview = 'overview',
   Sessions = 'sessions',
   Funnels = 'funnels',
+  Performance = 'performance',
 }

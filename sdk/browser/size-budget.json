@@ -3,6 +3,7 @@
   "files": {
     "index.js": 44.2,
     "react.js": 1.0,
-    "rrweb-*.js": 60.0
+    "rrweb-*.js": 60.0,
+    "attribution-*.js": 6.0
   }
 }

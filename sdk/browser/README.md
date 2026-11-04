@@ -13,10 +13,10 @@ Basic project credentials (ADR-0007). rum-api is internal and never reached from
 npm install @ouo11y/browser
 ```
 
-ESM only, TypeScript types included. The main entry is about 42 KB gzipped; rrweb is a
-separate chunk (about 77 KB gzipped) that is only downloaded when replay is enabled and the
-session is sampled. Supported browsers and what the SDK guarantees about the host page:
-"Compatibility and safety" below.
+ESM only, TypeScript types included. The main entry is about 41 KB gzipped. Two chunks load
+lazily: Web Vitals with INP attribution (about 6 KB, at `initRUM`), and rrweb (about 55 KB),
+only downloaded when replay is enabled and the session is sampled. Supported browsers and what
+the SDK guarantees about the host page: "Compatibility and safety" below.
 
 ## Init
 
@@ -134,7 +134,7 @@ attribute (once per export, not per record).
 | `exception` | uncaught error, unhandled rejection (fatal), `captureError`, `console.error`, resource load failure, React error boundary (non-fatal) | `exception.type`, `exception.message`, `exception.stacktrace`, `ouo.exception.fatal`, `ouo.exception.handled`, `ouo.exception.kind` (`uncaught`, `unhandledrejection`, `captured`, `console`, `resource`, `react.error_boundary` with `ouo.react.component_stack`). A `console.error` of an object `captureError` reports in the same task is not reported twice. |
 | `http.request.failed` | fetch/XHR with status 5xx or a network failure (status 0). 4xx is not an error. | `http.request.method`, `url.full`, `http.response.status_code` |
 | `navigation` | page load and `pushState` / `replaceState` / `popstate` | `url.path`, `url.full`, `ouo.navigation.from`, `ouo.navigation.kind` (`load`, `push`, `replace`, `pop`) |
-| `web_vital` | web-vitals callbacks (TTFB, FCP, LCP, CLS, INP); CLS and the final INP when the page is hidden or left | `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating`, `ouo.web_vital.id`, `ouo.web_vital.delta`, `ouo.web_vital.navigation_type`, `url.path` |
+| `web_vital` | web-vitals callbacks (TTFB, FCP, LCP, CLS, INP); CLS and the final INP when the page is hidden or left | `ouo.web_vital.name`, `ouo.web_vital.value`, `ouo.web_vital.rating`, `ouo.web_vital.id`, `ouo.web_vital.delta`, `ouo.web_vital.navigation_type`, `url.path`; INP adds its attribution: `ouo.web_vital.inp.target` (the element as `app.widget.id`, no text), `.interaction_type`, `.input_delay_ms`, `.processing_duration_ms`, `.presentation_delay_ms`, `.load_state`, and the longest Long Animation Frame script (`.script.invoker`, `.script.invoker_type`, `.script.subpart`, `.script.duration_ms`, `code.file.path`, `code.function.name`), [docs/specs/web-vitals.md](../../docs/specs/web-vitals.md) |
 | `ouo.rage_click` | 3 or more clicks on one element or spot within 1 s (one event per burst, at its first click) | `app.widget.id`, `app.widget.name`, `app.screen.coordinate.x` / `.y`, `url.path`, `ouo.click.count`, `ouo.click.duration_ms` |
 | `ouo.dead_click` | a click on a button, link or `role=button` after which no request, DOM mutation or navigation happened before the interaction went idle. Form fields, labels, disabled buttons and links or submit buttons that leave the page never count. | `app.widget.id`, `app.widget.name`, `app.screen.coordinate.x` / `.y`, `url.path` |
 | `ouo.long_animation_frame` | a Long Animation Frame of `longTasks.thresholdMs` or more (Chromium 123+) | `ouo.long_task.duration_ms`, `.blocking_duration_ms`, `.render_start_ms`, `.script_count`, and the longest script: `ouo.long_task.script.duration_ms`, `.invoker`, `.invoker_type`, `.char_position`, `code.file.path`, `code.function.name`; `url.path` |

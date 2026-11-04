@@ -48,6 +48,10 @@ fast clicks on it, a 300 ms long task and a render error) and then `scripts/veri
 - Loki: every Web Vital the browser supports, `ouo.dead_click`, `ouo.rage_click`, the error
   boundary's `exception` (`react.error_boundary`), route names (`app.screen.name`) and, in
   Chromium, `ouo.long_animation_frame`;
+- INP where the browser has it: the visit's INP is the long-task click, attributed to
+  `button.btn.chaos-btn` with its three phases (and, in Chromium, the Long Animation Frame script),
+  and rum-api's `GET /v1/vitals/inp/targets?page=/chaos` has that button with a p75 of 250 ms or
+  more (the Performance page of the plugin);
 - Tempo: `click` spans parent the backend requests they cause, `soft-navigation` spans exist;
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
