@@ -68,11 +68,17 @@ native crashes, hangs, terminations, vitals, gzip delivery) is an Expo module an
 modules with `npx install-expo-modules` ([`sdk/react-native/README.md`](../sdk/react-native/README.md#bare-react-native),
 "Bare React Native"). Not in the release check's tables: it reads `compat:` markers only.
 
-| Host | React Native | Expo SDK / `expo-modules-core` | iOS min / Xcode | Android: AGP / Kotlin / Gradle / JDK / compileSdk / minSdk | Status | Evidence |
+"App iOS min" is the lowest deployment target the app can have: the higher of `ExpoModulesCore`'s
+(15.1 for SDK 52 to 55, 16.4 for SDK 56 to 58) and the ouo pods' (`OuoReactNative` 15.1).
+`install-expo-modules@0.18.3` maps 54 to `~0.81`, 55 to `~0.83`, 56 to `~0.85`, 57 to `~0.86`, 58 to
+`~0.88`; any other React Native version needs `--sdk-version`.
+
+| Host | React Native | Expo SDK / `expo-modules-core` | App iOS min / Xcode | Android: AGP / Kotlin / Gradle / JDK / compileSdk / minSdk | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Expo (managed, prebuild) | 0.86.3 | 57 / 57.0.x | 15.1 / Xcode 27 | 8.12 / 2.1.20 / 9.3.1 / 17 / 36 / 24 | **built and tested** (the SDK's own target) | `examples/ouo-mobile`, the conformance suites, CI jobs `examples` and `android` |
+| Expo (managed, prebuild) | 0.86.3 | 57 / 57.0.x | 16.4 / Xcode 27 | 8.12 / 2.1.20 / 9.3.1 / 17 / 36 / 24 | **built and tested** (the SDK's own target) | `examples/ouo-mobile`, the conformance suites, CI jobs `examples` and `android` |
 | Bare + `install-expo-modules`, Firebase pods, static frameworks | 0.82.1 | 54 (`--sdk-version 54.0.0`) / 3.0.30 with a two-line patch | 15.1 / Xcode 27 | 8.12.0 / 2.1.20 / 9.0.0 (React Native 0.82's) / 17 / 36 / 24 | **built and tested** | `examples/ouo-bare-rn` (iOS Simulator `scripts/verify-ios.sh`, Android emulator API 35 conformance suite), CI job `bare-rn` (build) |
-| Bare + `install-expo-modules` | 0.81, 0.83 to 0.85 | 54, 55, 56 (the installer's default) | 15.1 (SDK 54, 55), 16.4 (SDK 56) | the React Native version's | expected to work, untested | same path as 0.82 without the patch |
+| Bare + `install-expo-modules` | 0.81, 0.83, 0.85 | 54, 55, 56 (the installer's default) | 15.1 (SDK 54, 55), 16.4 (SDK 56) | the React Native version's | expected to work, untested | same path as 0.82 without the patch |
+| Bare + `install-expo-modules` | 0.84 | no mapping: `--sdk-version` (55 or 56, neither tried) | 15.1 or 16.4 | the React Native version's | untested | like 0.82, an SDK built for the version before or after it |
 | Expo or bare | 0.76 to 0.80 | 52, 53 / 2.x | 15.1 | the React Native version's | untested | `expo-modules-core` >= 2.0 is the peer range |
 | Bare without Expo modules | >= 0.74 | none | - | - | JavaScript side only; native capabilities are no-ops | `sdk/react-native/README.md`, "Session replay" |
 

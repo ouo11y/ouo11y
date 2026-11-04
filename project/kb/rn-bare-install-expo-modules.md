@@ -12,8 +12,9 @@ else below is a gap in `install-expo-modules` or the 0.82 / Xcode 27 toolchain.
 
 - `install-expo-modules@0.18.3` maps React Native versions to SDKs with semver ranges (in its bundled
   `build/index.js`): SDK 54 `~0.81.0`, SDK 55 `~0.83.0`, SDK 56 `~0.85.0`, SDK 57 `~0.86.0`. Nothing
-  covers 0.82, so a plain run fails with "Unable to find compatible Expo SDK version"; pass
-  `--sdk-version 54.0.0` (or 55.0.0). `--non-interactive` skips its prompts.
+  covers 0.82 (nor 0.84), so a plain run fails with "Unable to find compatible Expo SDK version";
+  pass `--sdk-version 54.0.0` (the only one that builds on 0.82, below). `--non-interactive` skips
+  its prompts.
 - **SDK 55 does not build on 0.82**: `EXReactRootViewFactory.h` uses `RCTDevMenuConfiguration`, which
   React Native added in 0.83 ("expected a type", then the Swift module `Expo` fails to precompile).
 - **SDK 54 builds on 0.82 with a patch**: `expo-modules-core` 3.0.30 `ios/JSI/EXJSIUtils.h` relied on
@@ -21,7 +22,9 @@ else below is a gap in `install-expo-modules` or the 0.82 / Xcode 27 toolchain.
   trimmed those includes ("no member named 'CallInvoker' in namespace 'facebook::react'", then
   "'CallbackWrapper'" in `EXJSIUtils.mm`). Adding `#import <ReactCommon/CallInvoker.h>` and
   `#import <react/bridging/CallbackWrapper.h>` (exactly what SDK 55's header has) fixes it:
-  `patches/expo-modules-core+3.0.30.patch` with `patch-package`, `expo-modules-core` pinned. Android
+  `patches/expo-modules-core+3.0.30.patch` with `patch-package`, `expo` pinned at 54.0.38 and
+  `expo-modules-core` at 3.0.30 (exactly what 54.0.38 depends on: with `~54.0.0` a later 54.0.x on
+  another core version would nest an unpatched copy under `expo/node_modules`). Android
   needed no patch. Expo canaries of autumn 2025 targeted 0.82 but are not something to ship.
 
 ## install-expo-modules gaps (SDK 54 into a 0.82 template)

@@ -65,8 +65,10 @@ jobs:
           # The Kotlin, the scripts and manifests that vendor and build it into the example app.
           flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
           # The bare React Native 0.82 example: the native code it links (the Expo module, the vendored
-          # sdk/ios and sdk/android sources, the golden app's demo module and screens) and itself.
-          flag bare-rn   '^(examples/ouo-bare-rn|sdk/android|sdk/ios/Sources|sdk/react-native/(ios|android|scripts|src)|examples/ouo-mobile/(modules|src))/|^(sdk/react-native/(package\.json|expo-module\.config\.json)|examples/ouo-mobile/App\.tsx)$'
+          # sdk/ios and sdk/android sources, the golden app's demo module) and itself. Not the JavaScript
+          # (sdk/react-native/src, the golden screens): it cannot break the native link, the Mac runner
+          # is single-job, and bundling is covered by the other jobs.
+          flag bare-rn   '^(examples/ouo-bare-rn|sdk/android|sdk/ios/Sources|sdk/react-native/(ios|android|scripts)|examples/ouo-mobile/modules)/|^sdk/react-native/(package\.json|expo-module\.config\.json)$'
           flag helm      '^deploy/helm/'
           flag quickstart '^deploy/(compose/|scripts/gen-quickstart\.sh$)|^examples/quickstarts/'
           # Example smoke tests (job `examples`): the example, the shared backend and checks, the
