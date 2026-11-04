@@ -5,6 +5,8 @@ export interface OuoChaos {
   simulateOutOfMemory(): void;
   /** Android only: an uncaught exception on the main thread. */
   crashNatively?(): void;
+  /** Android only: the `ouo_action` extra the activity was started with (the conformance suite's launches). */
+  launchAction?(): string;
   /** Android only: `onJourneyCommand` carries the journey's broadcast commands (src/journey.ts). */
   addListener?(event: "onJourneyCommand", listener: (e: { cmd: string }) => void): { remove(): void };
 }

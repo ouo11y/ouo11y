@@ -465,15 +465,16 @@ export function initRUM(options: RUMOptions): RUM {
       // First: after an idle timeout this rotates the session, so the frame, the last events and
       // the record all belong to the session the feedback lands on.
       onActivity();
-      // A masked frame of the screen the user reports on: `navigation` mode takes one once the screen
-      // settled; `session` mode's interval frames already show it.
-      if (input.screenshot === true && replay.isRecording()) {
-        replay.screenDidChange();
-        record.attrs["ouo.feedback.screenshot"] = true;
-      }
+      const screenshot = input.screenshot === true && replay.isRecording();
+      if (screenshot) record.attrs["ouo.feedback.screenshot"] = true;
       replay.onFeedback();
       record.attrs["ouo.last_events"] = lastEventsAttribute(recent.read(session.id()));
       events.emit("feedback", record.attrs, "info", Date.now(), { body: record.body });
+      // Then a masked frame of the screen the user reports on (`navigation` mode: once it settled;
+      // `session` mode: the next interval frame, drawn or not). Asked for after the record is
+      // stamped, so the frame lands after it: on a still screen it is the replay's frame after the
+      // feedback (C10.1), which a request made before could take in the same millisecond.
+      if (screenshot) replay.screenDidChange();
       return id;
     },
     replay: {

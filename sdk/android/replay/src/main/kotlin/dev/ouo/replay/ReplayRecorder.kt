@@ -162,10 +162,15 @@ internal class ReplayRecorder(private val app: Application, private val config: 
     }
   }
 
-  /** A new screen: its frame in `navigation` mode; in either mode that frame is a full image. */
+  /**
+   * A new screen (or a feedback asking for the screen): its frame in `navigation` mode; in
+   * `session` mode the next interval frame, even when nothing drew since the last one (as on iOS,
+   * whose interval frames do not wait for a draw). Either way that frame is a full image.
+   */
   fun screenDidChange() {
     compose.execute { differ.reset() }
     pacer.screenDidChange(now())
+    dirty = true
     schedule()
   }
 

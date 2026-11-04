@@ -42,7 +42,8 @@ LOGCAT=$!
 # The offline run stops the collector: whatever happens, it is started again.
 trap 'kill $PROXY $LOGCAT 2>/dev/null || true; docker start "$COLLECTOR" >/dev/null 2>&1 || true' EXIT
 
-launch() { "${ADB[@]}" shell am start -W -n "$APP/.MainActivity" >/dev/null; }
+# `launch <action>`: the action names the launch in the app's notes (check.mjs finds it by name).
+launch() { "${ADB[@]}" shell am start -W -n "$APP/.MainActivity" -e ouo_action "${1:-relaunch}" >/dev/null; }
 cmd() {
   log "command $1"
   "${ADB[@]}" shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p $APP --es cmd '$1'" >/dev/null
@@ -63,7 +64,7 @@ x0, y0, x1, y1 = map(int, m.groups()); print((x0 + x1) // 2, (y0 + y1) // 2)' "$
 }
 
 log "main: journey Products, Product, Cart (error, span and log, feedback), background past the 5 s timeout, back"
-launch; sleep 8
+launch main; sleep 8
 cmd "screen/Product?id=p-1001" 3
 cmd "action/areas" 2
 cmd "action/add?id=p-1001" 1
@@ -72,24 +73,37 @@ cmd "action/areas" 2
 cmd "action/error" 1
 cmd "action/golden" 2
 cmd "action/feedback?message=golden%20feedback&contact=qa%40example.invalid" 4
-background; sleep 10; launch; sleep 6; cmd "action/flush" 3; stop
+background; sleep 10; launch resume; sleep 6; cmd "action/flush" 3; stop
 
 log "taps: tap a product on Products, long-press Add to cart on Product, swipe the items on Cart"
-launch; sleep 8
+launch taps; sleep 8
 read -r x y <<<"$(center product-p-1002)"; "${ADB[@]}" shell input tap "$x" "$y"; sleep 4
 read -r x y <<<"$(center 'btn-Add to cart')"; "${ADB[@]}" shell input swipe "$x" "$y" "$x" "$y" 900; sleep 4
 read -r x y <<<"$(center cart-items)"; "${ADB[@]}" shell input swipe "$x" "$y" "$x" "$((y - 300))" 300; sleep 2
 cmd "action/flush" 3; stop
 
 log "crash: a native crash on Cart while recording, next launch"
-launch; sleep 7; cmd "screen/Cart" 2; cmd "action/crash" 4; launch; sleep 8; stop
+launch crash; sleep 7; cmd "screen/Cart" 2; cmd "action/crash" 4; launch; sleep 8; stop
+
+log "hang: the main thread blocked for 3 s on Cart"
+launch hang; sleep 7; cmd "screen/Cart" 2; cmd "action/hang?ms=3000" 7; cmd "action/flush" 3; stop
+
+log "early crash: a native crash 200 ms after the JS bundle runs, next launch"
+launch crash-early; sleep 5; launch; sleep 8; stop
+
+log "memory kill: a memory warning, then SIGKILL in the foreground on Cart, next launch"
+launch oom; sleep 7; cmd "screen/Cart" 2; cmd "action/oom" 4; launch; sleep 8; stop
 
 log "offline run, next launch online"
 docker stop "$COLLECTOR" >/dev/null
-launch; sleep 6; cmd "action/event?name=offline-step" 2; stop
+launch offline; sleep 6; cmd "action/event?name=offline-step" 2; stop
 docker start "$COLLECTOR" >/dev/null
 for _ in $(seq 1 30); do curl -sf -o /dev/null "$OUO_COLLECTOR_HEALTH_URL" && break; sleep 2; done
 launch; sleep 10; stop
+
+log "reject: the proxy answers the first OTLP request 500 every time, the second 503 once"
+curl -sf -X POST "http://127.0.0.1:$PROXY_PORT/__reject"
+launch reject; sleep 6; cmd "action/event?name=reject-step" 2; cmd "action/flush" 6; stop
 
 kill $LOGCAT 2>/dev/null || true
 node "$HERE/check.mjs" "$OUT"

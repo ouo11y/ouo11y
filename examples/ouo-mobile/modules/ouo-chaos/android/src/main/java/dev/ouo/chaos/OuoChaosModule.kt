@@ -63,10 +63,19 @@ class OuoChaosModule : Module() {
       main.post { throw IllegalStateException("ouo-mobile: native crash from the Chaos module") }
     }
 
-    /** What the low-memory killer does: the process is killed without a crash report. */
+    /**
+     * What the low-memory killer does to a foreground app: a memory warning (`onTrimMemory`
+     * RUNNING_CRITICAL, delivered to the app's registered callbacks), then a SIGKILL without a
+     * crash report a second later.
+     */
     Function("simulateOutOfMemory") {
+      val app = appContext.reactContext?.applicationContext as? android.app.Application
+      main.post { app?.onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) }
       main.postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 1000)
     }
+
+    /** The `ouo_action` extra of the intent that started the activity (`am start -e ouo_action <name>`), or "". */
+    Function("launchAction") { appContext.currentActivity?.intent?.getStringExtra("ouo_action") ?: "" }
   }
 
   companion object {

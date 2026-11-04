@@ -49,7 +49,9 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8   # CocoaPods refuses non-UTF-8 terminals
 export CI=1                                   # non-interactive expo CLI
 
-[[ -f "$root/sdk/react-native/dist/index.js" ]] || { log "build @ouo11y/react-native"; (cd "$root" && npm run -w sdk/react-native build >/dev/null); }
+# Always (about 2 s): the app compiles the SDK's dist and its copy of the sdk/ios sources (sdk/react-native/ios), and a copy
+# left from an earlier checkout builds an app without the source's changes.
+log "build @ouo11y/react-native (dist, sdk/ios sources)"; (cd "$root" && npm run -w sdk/react-native build >/dev/null)
 [[ -d node_modules ]] || { log "npm ci"; npm ci; }
 log "OTLP ${EXPO_PUBLIC_OTLP_ENDPOINT:-<default>}, replay ${EXPO_PUBLIC_OUO_REPLAY_ENDPOINT:-<derived>}, backend ${BACKEND_URL:-<default>}"
 if [[ $CLEAN == 1 || ! -d ios ]]; then

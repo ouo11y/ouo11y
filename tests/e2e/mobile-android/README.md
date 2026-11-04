@@ -15,7 +15,7 @@ tests/e2e/mobile-android/run.sh <env> emulator-5580
 
 | File | What it does |
 |---|---|
-| [run.sh](run.sh) | builds the golden app (`examples/ouo-mobile/scripts/build-android.sh --conformance`, OTLP through `../mobile-native/proxy.mjs` for C11.2), then the launches: the journey with a background stay past the 5 s timeout, the taps, a native crash on Cart and the launch after it, an offline run with the collector stopped and the launch after it |
+| [run.sh](run.sh) | builds the golden app (`examples/ouo-mobile/scripts/build-android.sh --conformance`, OTLP through `../mobile-native/proxy.mjs` for C11.2 and C11.3), then the launches, each named with `am start -e ouo_action <name>`: the journey with a background stay past the 5 s timeout, the taps, a native (Kotlin exception) crash on Cart, a 3 s main-thread block on Cart, a native (Kotlin exception) crash 200 ms after the JS bundle runs, a memory warning and a SIGKILL on Cart (each crash or kill followed by the launch that reports it), an offline run with the collector stopped and the launch after it, and a run whose first OTLP request the proxy answers 500 every time and second 503 once |
 | [check.mjs](check.mjs) | reads the app's notes from logcat and asserts rum-api (and Tempo through Grafana) per check, prints the checks and the maturity row |
 
 Commands reach the app as broadcasts (`am broadcast -a dev.ouo.mobilestore.JOURNEY --es cmd ...`,
@@ -26,11 +26,12 @@ C6.1's taps are `adb shell input tap` / `swipe` on the views `uiautomator dump` 
 `../mobile-native/pixels.swift` on the areas the app notes (`measureInWindow`, in dp, the viewport's
 points).
 
-Checks that need W9 part 2 (native crashes, ANR, app start and frame counts on opentelemetry-android)
-are `pending`: C2.2 and C4.1 run and report, C2.3, C3.1 and C3.2 are not run yet. A pending check
-that passes fails the run until its `pending` is removed.
+Every check of section 3 runs and is required (no `pending` since W9 part 2). C3.2's kill is
+`Process.killProcess` after an `onTrimMemory(RUNNING_CRITICAL)` the demo module delivers, so
+`ApplicationExitInfo` reports a `SIGKILL` at foreground importance with a memory warning a second
+before: cause `memory`.
 
-About 3 minutes plus the build (the first one downloads the NDK and takes about 15 minutes).
+About 6 minutes plus the build (the first one downloads the NDK and takes about 15 minutes).
 
 **Not in CI** (like the native iOS suite, checklist N78): the Mac runner runs one job at a time and
 has no stack. CI builds the library, runs its unit tests and compiles the Expo module (`ci.yml`, job
