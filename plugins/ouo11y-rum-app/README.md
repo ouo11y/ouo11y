@@ -49,7 +49,7 @@ Administration > Plugins and data > Plugins > ouo11y RUM > Configuration (`/plug
 
 | Setting | Stored as | Meaning |
 |---|---|---|
-| rum-api URL | `jsonData.rumApiUrl` | rum-api base URL as reachable **from the Grafana server**. Empty means `http://rum-api:8080` (the compose service). |
+| rum-api URL | `jsonData.rumApiUrl` | rum-api base URL as reachable **from the Grafana server**, with no trailing `/`. Empty means `http://rum-api:8080` (the compose service). The page trims a trailing `/` on save; a provisioning file must not have one, because the narrowed routes append `/v1/...` and a doubled `//` gets a 307 from rum-api. |
 | Read token | `secureJsonData.readToken` | The value of rum-api's `OUO_READ_TOKEN` (ADR-0007 section 6). Grafana stores it encrypted and only reports `secureJsonFields.readToken: true` back, so the field shows "configured" with a Reset button. Leave it empty when rum-api runs without `OUO_READ_TOKEN`. |
 
 Both are saved with `POST /api/plugins/ouo11y-rum-app/settings` (`{ enabled, pinned, jsonData, secureJsonData }`).

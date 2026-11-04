@@ -206,6 +206,13 @@ Read in `pkg/api/pluginproxy/pluginproxy.go` at Grafana v13.2.5 and verified liv
   `url`, so a narrowed route's `url` must end with the same rum-api prefix
   (`{{ ... }}/v1/funnels`). A `rumApiUrl` with a trailing slash then yields `//v1/funnels/...`,
   which Go's `ServeMux` redirects instead of serving; the config page and the chart trim it.
+- The `*` part is forwarded **as is**: Grafana does not clean `..` or `%2e%2e` in it. A Viewer
+  `POST rum/v1/funnels/%2e%2e/symbolicate` reaches rum-api as `/v1/funnels/../symbolicate`, and
+  only Go's `ServeMux` path cleaning (307 to the clean path, no handler runs) keeps it from
+  reaching another endpoint. Measured on 13.2.5 by the PR #155 reviewer; `edge-qa viewer` asserts
+  it is not 2xx. Never put path-normalising middleware in front of rum-api's mux.
+- A stored `rumApiUrl` ending in `/` (provisioning file, older save) is not fixed by the upgrade:
+  GET still works, the narrowed POST/DELETE routes get 307 until it is re-saved.
 - The ouo routes: `GET rum/*` Viewer, `POST rum/v1/funnels/*` Viewer (funnel queries are reads
   with a JSON body), `DELETE rum/v1/sessions/*` Admin (replay erasure). rum-api's `readAuth`
   accepts the read token for `DELETE /v1/sessions/{id}/replay`, so Grafana's role check is the

@@ -17,7 +17,8 @@
 //   viewer          a Grafana Viewer opens the plugin pages, reads (GET, POST funnel queries)
 //                   through the plugin proxy, cannot change the plugin settings or open its
 //                   configuration page; a Viewer or Editor cannot DELETE a replay (403), methods
-//                   without a route are 404, an Admin's DELETE works (N30)
+//                   without a route are 404, a `..` out of the funnel POST route runs no
+//                   handler, an Admin's DELETE works (N30)
 //   background      the React Native SDK (its own code, simulated AppState) ends a session with
 //                   end_reason background after backgroundTimeoutMs; rum-api reports it
 // Profile `limits` (collector started with OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for,
@@ -420,6 +421,12 @@ checks.viewer = async () => {
       const r = await fetch(proxy + path, { method, headers: { ...json, ...v }, body: "{}" });
       assert(`Viewer ${method} ${path.split("?")[0]} through the plugin proxy is refused (404, no route)`, r.status === 404, r.status);
     }
+    // Grafana forwards the `*` part of a route as is, so a traversal out of the Viewer POST route
+    // reaches rum-api; only ServeMux path cleaning (a redirect, no handler) stops it there. Node's
+    // URL parser folds `..` and `%2e%2e` segments, so the `/` is encoded too to keep it one segment.
+    const trav = await fetch(`${proxy}/v1/funnels/%2e%2e%2fsymbolicate`, { method: "POST", headers: { ...json, ...v }, body: "{}", redirect: "manual" });
+    note("funnels_traversal", { status: trav.status, location: trav.headers.get("location") });
+    assert("Viewer POST /v1/funnels/../symbolicate through the plugin proxy runs no rum-api handler (not 2xx)", trav.status < 200 || trav.status >= 300, trav.status);
     const ad = await del(grafana());
     assert("Admin DELETEs the replay through the plugin proxy (204)", ad.status === 204, ad.status);
     assert("the replay is gone after the Admin's DELETE (404)", (await replayStatus(sid)) === 404);
