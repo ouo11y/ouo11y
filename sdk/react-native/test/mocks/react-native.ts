@@ -31,3 +31,8 @@ export type AppStateStatus = Status;
 export function View(): null {
   return null;
 }
+
+/** React Native requires its renderer behind this getter; the stand-in has none. */
+export function findNodeHandle(): null {
+  return null;
+}

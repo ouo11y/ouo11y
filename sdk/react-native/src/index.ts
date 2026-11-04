@@ -11,7 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
-import { installCommitProbe } from "./commits";
+import { installCommitProbe, NO_COMMITS } from "./commits";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
@@ -101,7 +101,7 @@ export function initRUM(options: RUMOptions): RUM {
   // Configuration errors throw: a missing credential means 401 on every request (ADR-0007).
   const endpoints = resolveEndpoints(options);
   // Before the first render: Fabric's renderer reads the commit function when it loads (commits.ts).
-  const commits = options.timeline?.deadTaps === false ? { count: () => 0, live: () => false, uninstall: () => {} } : installCommitProbe();
+  const commits = options.timeline?.deadTaps === false ? NO_COMMITS : installCommitProbe();
   const { projectId, projectToken } = requireCredentials(options);
   const authorization = basicAuthorization(projectId, projectToken);
   const logger = createLogger(options.debug === true);
@@ -510,7 +510,6 @@ export function initRUM(options: RUMOptions): RUM {
     _rootMounted: () => vitals.rootMounted(),
     async _uninstall(): Promise<void> {
       frustration.dispose();
-      commits.uninstall();
       vitals.stop();
       nativeCrash.stop();
       uninstallFetch();

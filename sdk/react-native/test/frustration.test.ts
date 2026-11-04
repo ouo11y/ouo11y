@@ -4,7 +4,7 @@
  */
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installCommitProbe } from "../src/commits";
+import { _resetCommitProbe, installCommitProbe } from "../src/commits";
 import { createTapFrustration, DEAD_CLICK_EVENT, RAGE_CLICK_EVENT, type Tap } from "../src/frustration";
 import { initRUM, RUMProvider, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
@@ -145,22 +145,43 @@ describe("dead taps", () => {
 });
 
 describe("commit probe", () => {
-  afterEach(() => delete (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager);
+  type Manager = { completeRoot: (...a: unknown[]) => unknown; createNode: () => string };
+  const ui = () => (g as { nativeFabricUIManager?: Manager }).nativeFabricUIManager;
+  afterEach(() => {
+    delete (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager;
+    _resetCommitProbe();
+  });
 
-  it("counts completeRoot calls through the global, passes everything else through, and uninstalls", () => {
+  it("the renderer loading meanwhile keeps a counting completeRoot; the global is the original again", () => {
     const calls: unknown[][] = [];
-    const manager = { completeRoot: (...a: unknown[]) => calls.push(a), createNode: () => "node" };
+    const manager: Manager = { completeRoot: (...a) => calls.push(a), createNode: () => "node" };
     (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager = manager;
-    const probe = installCommitProbe();
+    // What ReactFabric does when it loads: destructure the global.
+    let renderer: Pick<Manager, "completeRoot" | "createNode"> | undefined;
+    const probe = installCommitProbe(() => {
+      const { completeRoot, createNode } = ui()!;
+      renderer = { completeRoot, createNode };
+    });
+    expect(ui()).toBe(manager); // native code reads the host object back (NativeDOM)
     expect(probe.live()).toBe(false);
-    const ui = (g as { nativeFabricUIManager: typeof manager }).nativeFabricUIManager;
-    expect(ui.createNode()).toBe("node");
-    ui.completeRoot(1, "children");
+    expect(renderer!.createNode()).toBe("node");
+    renderer!.completeRoot(1, "children");
     expect(calls).toEqual([[1, "children"]]);
     expect([probe.count(), probe.live()]).toEqual([1, true]);
-    expect(installCommitProbe()).toBe(probe); // once
-    probe.uninstall();
-    expect((g as { nativeFabricUIManager: unknown }).nativeFabricUIManager).toBe(manager);
+    manager.completeRoot(2); // a direct call is not the renderer's
+    expect(probe.count()).toBe(1);
+    expect(installCommitProbe(() => expect.unreachable())).toBe(probe); // once per runtime
+  });
+
+  it("a renderer that loaded before, or one that throws, leaves no signal and the global intact", () => {
+    const manager: Manager = { completeRoot: () => {}, createNode: () => "node" };
+    (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager = manager;
+    const probe = installCommitProbe(() => {
+      throw new Error("renderer failed");
+    });
+    expect(ui()).toBe(manager);
+    manager.completeRoot();
+    expect([probe.count(), probe.live()]).toEqual([0, false]);
   });
 
   it("no Fabric (old architecture, tests): no signal", () => {
@@ -182,18 +203,23 @@ describe("rage and dead taps through initRUM", () => {
     delete g.ErrorUtils;
     delete g.__ouoSessionProcessState;
     delete (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager;
+    _resetCommitProbe();
   });
 
   type Handlers = { onTouchStart: (e: object) => void; onTouchEnd: (e: object) => void };
   const fiber = (props: Record<string, unknown>) => ({ elementType: "RCTView", memoizedProps: props, return: { elementType: { displayName: "Pressable" }, memoizedProps: props, return: null } });
 
   it("a rage burst and a dead tap from the provider's touches; a commit or a request answers a tap", async () => {
-    const manager = { completeRoot: () => {} };
-    (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager = manager;
+    (g as { nativeFabricUIManager?: unknown }).nativeFabricUIManager = { completeRoot: () => {} };
+    // The renderer loads while the probe is in (on a device, initRUM makes it load).
+    let renderer: { completeRoot: () => void } | undefined;
+    installCommitProbe(() => {
+      renderer = { completeRoot: (g as { nativeFabricUIManager: { completeRoot: () => void } }).nativeFabricUIManager.completeRoot };
+    });
     const captured = installFetchStub();
     const rum = initRUM(baseOptions()) as RUMInternal;
     await rum.ready;
-    (g as { nativeFabricUIManager: typeof manager }).nativeFabricUIManager.completeRoot(); // the first render
+    renderer!.completeRoot(); // the first render
     const el = RUMProvider({ rum }) as ReactElement<Handlers>;
     const touch = (props: Record<string, unknown>, x = 10, y = 20) => {
       el.props.onTouchStart({ _targetInst: fiber(props), nativeEvent: { pageX: x, pageY: y } });
@@ -211,7 +237,7 @@ describe("rage and dead taps through initRUM", () => {
     expect(captured.byName(DEAD_CLICK_EVENT).map((l) => attr(l.attributes, "app.widget.id"))).toEqual(["pay", "pay", "pay", "dead-button"]);
 
     touch({ testID: "save", role: "button" });
-    (g as { nativeFabricUIManager: typeof manager }).nativeFabricUIManager.completeRoot();
+    renderer!.completeRoot();
     touch({ testID: "load", role: "button" });
     await fetch("http://backend.test/api/products");
     await new Promise((r) => setTimeout(r, 1100));
