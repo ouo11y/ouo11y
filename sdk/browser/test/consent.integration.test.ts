@@ -225,6 +225,7 @@ describe("other tabs", () => {
     rum.addEvent("batched.here");
     // What the other tab's wipe looks like from here: storage events never reach the tab that wrote.
     const device = localStorage.getItem("ouo.device");
+    const oldSession = localStorage.getItem("ouo.session")!;
     localStorage.removeItem("ouo.device");
     localStorage.removeItem("ouo.session");
     localStorage.removeItem("ouo.user");
@@ -237,7 +238,7 @@ describe("other tabs", () => {
     expect(rum.session.id()).toBe("");
 
     // A tab that wrote the old session back before it stopped does not make the next grant resume it.
-    localStorage.setItem("ouo.session", JSON.stringify({ id: session, startedAt: Date.now(), lastActivity: Date.now(), replaySeq: 0 }));
+    localStorage.setItem("ouo.session", oldSession);
     await rum.setConsent({ telemetry: true, replay: false });
     expect(rum.session.id()).not.toBe("");
     expect(rum.session.id()).not.toBe(session);
@@ -249,6 +250,33 @@ describe("other tabs", () => {
     globalThis.dispatchEvent(new StorageEvent("storage", { key: "ouo.demo.user_id", oldValue: "u", newValue: null }));
     await wait(50);
     expect(rum.getConsent().status).toBe("granted");
+  });
+});
+
+describe("tabs granted again one after the other", () => {
+  it("join the first new session instead of wiping each other (no second wipe at a grant)", async () => {
+    // This page is tab B; tab A is played through localStorage and storage events.
+    rum = initRUM(options());
+    const before = rum.session.id();
+    const device = localStorage.getItem("ouo.device");
+    const old = localStorage.getItem("ouo.session")!;
+    // A revokes: its wipe, as B sees it.
+    for (const k of ["ouo.device", "ouo.session", "ouo.user"]) localStorage.removeItem(k);
+    globalThis.dispatchEvent(new StorageEvent("storage", { key: "ouo.device", oldValue: device, newValue: null }));
+    await vi.waitFor(() => expect(rum!.getConsent().status).toBe("denied"));
+    await wait(5);
+    // A is granted again and starts a new session.
+    const fresh = { id: "a-new-session", startedAt: Date.now(), lastActivity: Date.now(), replaySeq: 0 };
+    localStorage.setItem("ouo.device", JSON.stringify({ id: "a-new-device" }));
+    localStorage.setItem("ouo.session", JSON.stringify(fresh));
+    // Then B is granted: it joins A's new session and removes nothing A wrote.
+    const removed = vi.spyOn(Storage.prototype, "removeItem");
+    await rum.setConsent({ telemetry: true, replay: false });
+    expect(rum.getConsent().status).toBe("granted");
+    expect(rum.session.id()).toBe("a-new-session");
+    expect(rum.session.deviceId()).toBe("a-new-device");
+    expect(removed.mock.calls.filter(([k]) => k === "ouo.device")).toEqual([]);
+    expect(old).toContain(before);
   });
 });
 

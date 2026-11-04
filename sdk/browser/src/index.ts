@@ -98,10 +98,10 @@ export function initRUM(options: RUMOptions): RUM {
   // Server rendering (Next.js, Remix, Node): nothing to observe, nothing installed.
   if (typeof window === "undefined" || typeof document === "undefined") return noopRUM();
 
-  const start = (replay: boolean): Installed | undefined => {
+  const start = (replay: boolean, notBefore?: number): Installed | undefined => {
     const cleanup: Array<() => unknown> = [];
     try {
-      return install(options, urls, authorization, cleanup, replay, () => gate?._revokedElsewhere?.());
+      return install(options, urls, authorization, cleanup, replay, () => gate?._revokedElsewhere?.(), notBefore);
     } catch (err) {
       console.warn("[ouo] could not start, the SDK is off", err);
       for (const off of cleanup.reverse()) attempt(off);
@@ -139,6 +139,8 @@ function install(
   replayAllowed: boolean,
   /** Another tab revoked consent (it removed `ouo.device`). */
   onRevokedElsewhere: () => void,
+  /** When consent was last revoked: no session from before it is resumed. */
+  notBefore: number | undefined,
 ): Installed {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
@@ -184,6 +186,7 @@ function install(
 
   const session = new SessionManager({
     storage,
+    ...(notBefore !== undefined ? { notBefore } : {}),
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
     ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),

@@ -135,7 +135,7 @@ test("revoked: export stops, the ids and the IndexedDB outbox are removed", asyn
   expect(await databases(page)).not.toContain("ouo-delivery");
 });
 
-test("two tabs: a revocation in one stops the other, and the next grant starts a new session", async ({ context, page }) => {
+test("two tabs: a revocation in one stops the other; granted again one after the other, both join one new session", async ({ context, page }) => {
   await open(page, "/?replay=0");
   const other = await context.newPage();
   await other.goto("/?replay=0");
@@ -160,9 +160,18 @@ test("two tabs: a revocation in one stops the other, and the next grant starts a
   expect(fromOther).toEqual([]);
   expect(await ouoKeys(page)).toEqual([]);
 
+  // The CMP grants again in every tab, one after the other: no tab's grant revokes another.
   await setConsent(page, true, false);
   const after = await sessionOf(page);
   expect(after).not.toBe("");
   expect(after).not.toBe(before);
+  await page.waitForTimeout(300);
+  await setConsent(other, true, false);
+  await page.waitForTimeout(500);
+  const statusOf = (p: Page) => p.evaluate(() => (window as unknown as { rum: { getConsent(): { status: string } } }).rum.getConsent().status);
+  expect(await statusOf(page)).toBe("granted");
+  expect(await statusOf(other)).toBe("granted");
+  expect(await sessionOf(page)).toBe(after);
+  expect(await sessionOf(other)).toBe(after);
   await other.close();
 });

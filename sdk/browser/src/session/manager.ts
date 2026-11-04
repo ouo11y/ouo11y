@@ -52,6 +52,12 @@ export interface SessionEvent {
 
 export interface SessionManagerOptions {
   storage: KeyValueStorage;
+  /**
+   * Consent was revoked at this time (epoch ms): a persisted session that started before it is
+   * never resumed nor ended from here (another tab may have written it back while it stopped);
+   * a new one starts. Sessions started since, by a tab that was granted again, are joined.
+   */
+  notBefore?: number;
   clock?: Clock;
   inactivityTimeoutMs?: number;
   maxDurationMs?: number;
@@ -96,6 +102,7 @@ export class SessionManager {
   private readonly onRotate: ((next: SessionRecord, previousId: string | undefined) => void) | undefined;
   private readonly logger: DebugLogger | undefined;
   private readonly sessionSampleRate: number;
+  private readonly notBefore: number | undefined;
   private readonly initialUserId: string | undefined;
   private readonly deviceId: string | undefined;
 
@@ -115,6 +122,7 @@ export class SessionManager {
     this.onRotate = options.onRotate;
     this.logger = options.logger;
     this.sessionSampleRate = options.sessionSampleRate ?? 1;
+    this.notBefore = options.notBefore;
     this.initialUserId = options.initialUserId;
     this.deviceId = options.deviceId;
     this.user = this.loadUser();
@@ -125,7 +133,11 @@ export class SessionManager {
     if (this.started) return;
     this.started = true;
     const now = this.clock.now();
-    const persisted = this.readPersisted();
+    let persisted = this.readPersisted();
+    if (persisted && this.notBefore !== undefined && persisted.startedAt < this.notBefore) {
+      this.logger?.log("session from before the consent revocation ignored", persisted.id);
+      persisted = null;
+    }
     if (persisted) {
       const reason = persisted.endedAt ? undefined : this.expiredReason(persisted, now);
       if (!persisted.endedAt && !reason) {

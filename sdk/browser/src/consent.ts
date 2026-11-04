@@ -38,7 +38,8 @@ const noStats = (): DeliveryStats => ({ sent: 0, retried: 0, queued: 0, dropped:
  * from the app's own `replay.pause()`.
  */
 export function createConsentGate(
-  start: (replay: boolean) => Installed | undefined,
+  /** `notBefore`: when consent was last revoked (no session from before it is resumed). */
+  start: (replay: boolean, notBefore?: number) => Installed | undefined,
   logger: DebugLogger,
   onShutdown: () => void,
   /** Started already: consent granted at `initRUM`. Undefined: pending. */
@@ -50,8 +51,12 @@ export function createConsentGate(
   let closed = false;
   /** The grant's install failed: the SDK is off, calls are dropped rather than queued. */
   let failed = false;
-  /** A revocation happened: the next grant wipes first, so it never resumes a pre-revocation session. */
-  let revoked = false;
+  /**
+   * When consent was last revoked. The next grant resumes no session from before it, but joins
+   * one another tab started since. (Not a second wipe: it would remove the ids a tab granted
+   * again just wrote, and that removal reads as a revocation there.)
+   */
+  let revokedAt: number | undefined;
   let queue: Array<(rum: Installed) => void> = [];
   let dropped = 0;
   /** The last revocation or grant: the next one runs after it (the old instance persists its session while it stops). */
@@ -75,7 +80,7 @@ export function createConsentGate(
     dropped = 0;
     replayAllowed = false;
     status = "denied";
-    revoked = true;
+    revokedAt = Date.now();
     failed = false;
     const prev = inner;
     inner = undefined;
@@ -102,26 +107,23 @@ export function createConsentGate(
     // Granted already, its start waiting for a revocation to finish: it reads `replayAllowed` then.
     if (status === "granted") return chain;
     status = "granted";
-    return (chain = chain
-      // Another tab may have written the old session back before it stopped: never resume it.
-      .then(() => (revoked ? wipe() : undefined))
-      .then(() => {
-        if (closed || status !== "granted" || inner) return;
-        logger.log("consent granted", { replay: replayAllowed, queued: queue.length, dropped });
-        inner = start(replayAllowed && !appPaused);
-        if (!inner) {
-          failed = true;
-          queue = [];
-          return;
-        }
-        const pending = queue;
+    return (chain = chain.then(() => {
+      if (closed || status !== "granted" || inner) return;
+      logger.log("consent granted", { replay: replayAllowed, queued: queue.length, dropped });
+      inner = start(replayAllowed && !appPaused, revokedAt);
+      if (!inner) {
+        failed = true;
         queue = [];
-        dropped = 0;
-        for (const fn of pending) {
-          const rum = inner;
-          if (rum) attempt(() => fn(rum));
-        }
-      }));
+        return;
+      }
+      const pending = queue;
+      queue = [];
+      dropped = 0;
+      for (const fn of pending) {
+        const rum = inner;
+        if (rum) attempt(() => fn(rum));
+      }
+    }));
   };
 
   const gated: Gated = {
