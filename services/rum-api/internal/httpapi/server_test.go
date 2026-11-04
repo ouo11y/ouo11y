@@ -57,7 +57,7 @@ func (f *fakeEvents) Events(ctx context.Context, fl loki.Filters, start, end tim
 	for _, ev := range f.events {
 		if (fl.SessionID != "" && ev.SessionID != fl.SessionID) || (fl.Platform != "" && ev.Platform != fl.Platform) ||
 			(fl.Service != "" && ev.ServiceName != fl.Service) || (fl.Version != "" && ev.ServiceVersion != fl.Version) ||
-			(fl.User != "" && ev.UserID != fl.User) {
+			(fl.User != "" && ev.UserID != fl.User) || (fl.Project != "" && ev.ProjectID != fl.Project) {
 			continue
 		}
 		out = append(out, ev)

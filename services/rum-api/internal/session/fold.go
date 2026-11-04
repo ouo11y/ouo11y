@@ -29,7 +29,10 @@ type Record struct {
 	UserID    string `json:"user_id"`
 	// DeviceID is the browser's or install's device.id: the same across the sessions and users
 	// of one device (docs/specs/session-lifecycle.md). Omitted when the SDK sends none.
-	DeviceID           string     `json:"device_id,omitempty"`
+	DeviceID string `json:"device_id,omitempty"`
+	// ProjectID is the session's ouo.project.id (the ouo_project_id Loki
+	// label); "" for telemetry ingested without one.
+	ProjectID          string     `json:"project_id"`
 	Platform           string     `json:"platform"`
 	ServiceName        string     `json:"service_name"`
 	ServiceVersion     string     `json:"service_version"`
@@ -129,6 +132,9 @@ func FoldOne(id string, events []Event, now time.Time, opts Options) Record {
 		ev := &evs[i]
 		if rec.Platform == "" {
 			rec.Platform = ev.Platform
+		}
+		if rec.ProjectID == "" {
+			rec.ProjectID = ev.ProjectID
 		}
 		if rec.ServiceName == "" {
 			rec.ServiceName = ev.ServiceName

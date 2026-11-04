@@ -109,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sessions/{id}/replay/video/{seq}", s.getReplayVideoSegment)
 	mux.HandleFunc("DELETE /v1/sessions/{id}/replay", s.deleteReplay)
 	mux.HandleFunc("GET /v1/stats/health", s.statsHealth)
+	mux.HandleFunc("GET /v1/projects", s.listProjects)
 	mux.HandleFunc("PUT /v1/sourcemaps", s.putSourceMap)
 	mux.HandleFunc("PUT /v1/dsyms", s.putDSYM)
 	mux.HandleFunc("GET /v1/sourcemaps", s.listSourceMaps)

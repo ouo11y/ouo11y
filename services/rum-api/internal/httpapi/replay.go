@@ -186,6 +186,11 @@ func (s *Server) postChunk(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getReplay(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	sc, err := parseScope(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	meta, err := s.store.Meta(r.Context(), id)
 	if err != nil {
 		if isNotFound(err) {
@@ -194,6 +199,10 @@ func (s *Server) getReplay(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Error("read replay meta", "session_id", id, "error", err)
 		writeError(w, http.StatusInternalServerError, "read replay")
+		return
+	}
+	if !sc.replayInScope(meta.ProjectID) {
+		writeError(w, http.StatusNotFound, "no replay for session "+id)
 		return
 	}
 	if meta.Chunks == nil {
@@ -265,8 +274,23 @@ func (s *Server) getReplayVideoSegment(w http.ResponseWriter, r *http.Request) {
 type replayWriter func(ctx context.Context, st replay.Store, sessionID string, w io.Writer) error
 
 // checkKind writes 404 when the session has no replay and 409 when its kind
-// is not want, and reports whether the request may go on.
+// is not want, and reports whether the request may go on. With ?project= it
+// also writes 404 when the replay was recorded for another project (the
+// plugin's selector, see scope).
 func (s *Server) checkKind(w http.ResponseWriter, r *http.Request, id, want string) bool {
+	sc, err := parseScope(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return false
+	}
+	if sc.project != "" {
+		meta, err := s.store.Meta(r.Context(), id)
+		if err == nil && !sc.replayInScope(meta.ProjectID) {
+			writeError(w, http.StatusNotFound, "no replay for session "+id)
+			return false
+		}
+		// Other errors fall through to Kind, which reports them.
+	}
 	kind, err := s.store.Kind(r.Context(), id)
 	if err != nil {
 		if isNotFound(err) {

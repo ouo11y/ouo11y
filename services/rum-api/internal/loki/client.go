@@ -57,11 +57,14 @@ func (c *Client) Ready(ctx context.Context) error {
 	return nil
 }
 
-// Filters narrow the session-event query. Platform and Service are stream
-// labels; Version, User and SessionID are structured metadata filters.
+// Filters narrow the session-event query. Platform, Service and Project are
+// stream labels; Version, User and SessionID are structured metadata filters.
 type Filters struct {
-	Platform  string
-	Service   string
+	Platform string
+	Service  string
+	// Project is the ouo_project_id stream label (resource ouo.project.id,
+	// stamped by the collector from the ingest credential, ADR-0007).
+	Project   string
 	Version   string
 	User      string
 	SessionID string
@@ -82,6 +85,9 @@ func (f Filters) Query() string {
 	}
 	if f.Platform != "" {
 		sel = append(sel, `ouo_platform=`+quote(f.Platform))
+	}
+	if f.Project != "" {
+		sel = append(sel, `ouo_project_id=`+quote(f.Project))
 	}
 	q := "{" + strings.Join(sel, ", ") + "}"
 	if f.SessionID != "" {
@@ -170,6 +176,16 @@ func (c *Client) page(ctx context.Context, query string, start, end time.Time) (
 // instant query at end and returns the count per value of `by` (entries
 // without the label are dropped).
 func (c *Client) Counts(ctx context.Context, query, by string, start, end time.Time) (map[string]int, error) {
+	body, err := c.instantCount(ctx, query, by, start, end)
+	if err != nil {
+		return nil, err
+	}
+	return parseCounts(body, by)
+}
+
+// instantCount runs `sum by (<by>) (count_over_time(<query> [<range>]))` at
+// end and returns the raw response body.
+func (c *Client) instantCount(ctx context.Context, query, by string, start, end time.Time) ([]byte, error) {
 	secs := max(int64(end.Sub(start).Seconds()), 1)
 	q := url.Values{}
 	q.Set("query", fmt.Sprintf("sum by (%s) (count_over_time(%s [%ds]))", by, query, secs))
@@ -190,17 +206,53 @@ func (c *Client) Counts(ctx context.Context, query, by string, start, end time.T
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("loki query: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
-	return parseCounts(body, by)
+	return body, nil
 }
 
-func parseCounts(body []byte, by string) (map[string]int, error) {
+// GroupCount is one series of CountsBy: the values of the grouping labels
+// (a label the series lacks is "") and its count.
+type GroupCount struct {
+	Labels map[string]string
+	Count  int
+}
+
+// CountsBy is Counts grouped by several labels: `sum by (<by...>)
+// (count_over_time(<query> [<range>]))` as an instant query at end.
+func (c *Client) CountsBy(ctx context.Context, query string, by []string, start, end time.Time) ([]GroupCount, error) {
+	body, err := c.instantCount(ctx, query, strings.Join(by, ", "), start, end)
+	if err != nil {
+		return nil, err
+	}
+	res, err := decodeVector(body)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupCount, 0, len(res))
+	for _, s := range res {
+		v, _ := s.Value[1].(string)
+		n, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			continue
+		}
+		labels := make(map[string]string, len(by))
+		for _, l := range by {
+			labels[l] = s.Metric[l]
+		}
+		out = append(out, GroupCount{Labels: labels, Count: int(n)})
+	}
+	return out, nil
+}
+
+type vectorSample struct {
+	Metric map[string]string `json:"metric"`
+	Value  [2]any            `json:"value"`
+}
+
+func decodeVector(body []byte) ([]vectorSample, error) {
 	var r struct {
 		Status string `json:"status"`
 		Data   struct {
-			Result []struct {
-				Metric map[string]string `json:"metric"`
-				Value  [2]any            `json:"value"`
-			} `json:"result"`
+			Result []vectorSample `json:"result"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &r); err != nil {
@@ -209,8 +261,16 @@ func parseCounts(body []byte, by string) (map[string]int, error) {
 	if r.Status != "success" {
 		return nil, fmt.Errorf("loki status %q", r.Status)
 	}
+	return r.Data.Result, nil
+}
+
+func parseCounts(body []byte, by string) (map[string]int, error) {
+	res, err := decodeVector(body)
+	if err != nil {
+		return nil, err
+	}
 	out := map[string]int{}
-	for _, s := range r.Data.Result {
+	for _, s := range res {
 		k := s.Metric[by]
 		v, _ := s.Value[1].(string)
 		n, err := strconv.ParseFloat(v, 64)

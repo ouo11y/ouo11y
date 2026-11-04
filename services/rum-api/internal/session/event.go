@@ -26,6 +26,10 @@ type Event struct {
 	Platform       string
 	ServiceName    string
 	ServiceVersion string
+	// ProjectID is the ouo_project_id stream label (resource ouo.project.id,
+	// stamped by the collector from the ingest credential). It also stays in
+	// Attrs, where the timeline and log lines have always shown it.
+	ProjectID string
 	// Attrs holds every label / metadata key except the identifiers above.
 	Attrs map[string]string
 	// Context holds the event's device, OS, build and environment keys
@@ -187,6 +191,7 @@ func eventFromLabels(ts time.Time, labels map[string]string, line string) Event 
 		Platform:       labels["ouo_platform"],
 		ServiceName:    labels["service_name"],
 		ServiceVersion: labels["service_version"],
+		ProjectID:      labels["ouo_project_id"],
 		Attrs:          map[string]string{},
 	}
 	for k, v := range labels {

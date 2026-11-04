@@ -83,11 +83,16 @@ func (s *Server) parseListQuery(r *http.Request) (listQuery, error) {
 	if err != nil {
 		return listQuery{}, badRequest{err}
 	}
+	sc, err := parseScope(q)
+	if err != nil {
+		return listQuery{}, err
+	}
 	lq := listQuery{
 		from: from, to: to,
 		filters: loki.Filters{
 			Platform: q.Get("platform"),
-			Service:  q.Get("service"),
+			Project:  sc.project,
+			Service:  sc.service,
 			Version:  q.Get("version"),
 			User:     q.Get("user"),
 		},
@@ -232,7 +237,9 @@ func (s *Server) traceWindow(rec *session.Record) (time.Time, time.Time) {
 	return start, end
 }
 
-// lookupSession finds one session's record (events included) in Loki.
+// lookupSession finds one session's record (events included) in Loki. With
+// ?project= / ?service= (the plugin's selector) only a session of that scope
+// is found: one of another project is not found (nil, nil).
 func (s *Server) lookupSession(r *http.Request, id string) (*session.Record, error) {
 	q := r.URL.Query()
 	now := s.opts.Now()
@@ -240,13 +247,17 @@ func (s *Server) lookupSession(r *http.Request, id string) (*session.Record, err
 	if err != nil {
 		return nil, badRequest{err}
 	}
-	evs, err := s.events.Events(r.Context(), loki.Filters{SessionID: id}, from, to)
+	sc, err := parseScope(q)
+	if err != nil {
+		return nil, err
+	}
+	evs, err := s.events.Events(r.Context(), loki.Filters{SessionID: id, Project: sc.project, Service: sc.service}, from, to)
 	if err != nil {
 		return nil, err
 	}
 	var own []session.Event
 	for _, ev := range evs {
-		if ev.SessionID == id {
+		if ev.SessionID == id && sc.contains(ev) {
 			own = append(own, ev)
 		}
 	}
@@ -305,6 +316,14 @@ func (s *Server) getSessionTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var start, end time.Time
+	if rec == nil {
+		// A scoped request for a session outside the scope finds nothing
+		// rather than the session's traces.
+		if sc, _ := parseScope(r.URL.Query()); !sc.all() {
+			writeError(w, http.StatusNotFound, "session not found: "+id)
+			return
+		}
+	}
 	if rec != nil {
 		start, end = s.traceWindow(rec)
 	} else {
