@@ -12,5 +12,6 @@ Owns `sdk/browser` (`@ouo11y/browser`).
   - [2026-10-24-session-lifecycle.md](summaries/2026-10-24-session-lifecycle.md) N45: rotation on user change, `endSession`, `clearUser`, `device.id`, rum-api `device_id`
   - [2026-10-24-n36a-delivery.md](summaries/2026-10-24-n36a-delivery.md) N36 part A: delivery layer (retry, gzip, keepalive split, IndexedDB offline store), first-party endpoint docs, network-fault e2e in three engines
   - [2026-11-03-p1-privacy-defaults.md](summaries/2026-11-03-p1-privacy-defaults.md) P1 (client JUHI): `maskAllText` default on with `ouo-unmask`, click names masked, `excludeRoutes`, RN `excludeScreens` / `hideScreen()`, hidden marker in the plugin, ADR-0003 revision
+  - [2026-11-04-p2-consent.md](summaries/2026-11-04-p2-consent.md) P2 (client JUHI): consent API in browser and React Native (`consent: "pending"`, `setConsent`, `getConsent`), ADR-0018, spec, PWA note, demo banner
 - `reports/` HTML reports
   - [long-sessions-2026-10-24.html](reports/long-sessions-2026-10-24.html) 1 h soak (Chromium, WebKit) and rrweb cost on 10k / 50k elements

@@ -203,6 +203,29 @@ export interface RUMOptions {
   transport?: TransportOptions;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */
   debug?: boolean;
+  /**
+   * Consent at start (README, "Consent"). `"granted"`, the default, starts at once with replay
+   * allowed. `"pending"` stores nothing (no `localStorage`, IndexedDB or cookie), opens no
+   * BroadcastChannel, sends nothing, installs no instrumentation and creates no session until
+   * `setConsent({ telemetry: true, ... })`; calls to `setUser`, `clearUser`, `captureError`,
+   * `addEvent` and `setRoute` meanwhile wait in memory (at most {@link CONSENT_QUEUE_LIMIT},
+   * oldest dropped first) and run at the grant. The SDK never stores the consent itself: pass
+   * what the app's consent manager decided on every page load.
+   */
+  consent?: "pending" | "granted";
+}
+
+/** What the user agreed to. `replay` without `telemetry` means nothing. */
+export interface Consent {
+  /** Sessions, spans, events and errors. */
+  telemetry: boolean;
+  /** Session replay (rrweb), on top of `telemetry`. */
+  replay: boolean;
+}
+
+export interface ConsentState extends Consent {
+  /** `pending`: not decided yet. `granted`: `telemetry` is on. `denied`: revoked or refused. */
+  status: "pending" | "granted" | "denied";
 }
 
 export interface RUMReplay {
@@ -246,6 +269,17 @@ export interface RUM {
    * restores patched globals. `initRUM` can be called again afterwards. Never rejects.
    */
   shutdown(): Promise<void>;
+  /**
+   * Apply the user's choice (README, "Consent"). Granting `telemetry` starts a session and runs
+   * the calls queued while pending. `replay` starts or stops the recorder on its own. Revoking
+   * `telemetry` stops recording and export at once (what is still buffered is dropped, not
+   * sent), removes the SDK's ids from `localStorage`, deletes the IndexedDB outbox and closes
+   * its channels; a later grant starts a new device id and session. Resolves once applied.
+   * Never rejects.
+   */
+  setConsent(consent: Consent): Promise<void>;
+  /** The consent the SDK runs under now. */
+  getConsent(): ConsentState;
   /** Counters of the delivery layer since `initRUM`: sent, retried, kept offline, dropped (and why), bytes before and after gzip. */
   deliveryStats(): DeliveryStats;
 }

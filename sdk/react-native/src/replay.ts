@@ -168,6 +168,13 @@ export interface ReplayController extends RUMReplay {
    * nothing stays behind after the hook is removed). `crashedId` is the session that crashed.
    */
   decideHeld(currentId: string, crashedId: string | undefined): Promise<void>;
+  /**
+   * Replay consent (README, "Consent"): withheld, the native recorder is never started, or is
+   * paused, whatever sampling, `resume()` or `showScreen()` say. Default given.
+   */
+  setAllowed(allowed: boolean): void;
+  /** Consent revoked: deletes the replay chunks the device holds (`keepAtNextLaunch`) unsent. */
+  discardHeld(): Promise<void>;
 }
 
 export const REPLAY_ERRORS_KEY = "ouo.replay.errors";
@@ -225,6 +232,10 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   let currentId: string | undefined;
   /** The host called `rum.replay.pause()`. */
   let userPaused = false;
+  /** Replay consent (`setAllowed`): withheld, the recorder is never started, or is paused. */
+  let allowed = true;
+  /** Held by the host: `pause()` or no replay consent. */
+  const stopped = (): boolean => userPaused || !allowed;
   /** Paused because the current session is not recorded. */
   let samplePaused = false;
   /** The current session started recording at an error. */
@@ -285,9 +296,14 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
 
   const startNative = (sessionId: string): void => {
     if (!native || !endpoint || active) return;
+    // No replay consent: started once it is given (`setAllowed`).
+    if (!allowed) {
+      pendingStart = sessionId;
+      return;
+    }
     // Native start takes a frame at once: on a hidden screen, start once it is shown.
     if (hidden()) {
-      if (pendingStart !== sessionId && !userPaused) opts.onHidden?.(hiddenReason());
+      if (pendingStart !== sessionId && !stopped()) opts.onHidden?.(hiddenReason());
       pendingStart = sessionId;
       return;
     }
@@ -299,7 +315,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       active = true;
       logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
     });
-    if (active && userPaused) call("pause", () => native.pause());
+    if (active && stopped()) call("pause", () => native.pause());
   };
 
   /** The hidden stretch is over: start or resume what it held back. */
@@ -309,7 +325,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (pendingStart !== undefined) startNative(pendingStart);
       return;
     }
-    if (samplePaused || userPaused) return;
+    if (samplePaused || stopped()) return;
     call("resume", () => native.resume());
     logger.log("replay: shown");
   };
@@ -340,7 +356,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       showing = undefined;
       return;
     }
-    if (!native || !active || samplePaused || userPaused) return;
+    if (!native || !active || samplePaused || stopped()) return;
     call("pause", () => native.pause());
     logger.log(`replay: hidden (${reason})`);
     opts.onHidden?.(reason);
@@ -373,17 +389,17 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       call("sessionDidRotate", () => native.sessionDidRotate(id));
       logger.log("replay: session rotated", id);
       if (!recorded(id)) {
-        if (!samplePaused && !userPaused && !hidden()) call("pause", () => native.pause());
+        if (!samplePaused && !stopped() && !hidden()) call("pause", () => native.pause());
         samplePaused = true;
         logger.log("replay: session not in the replay sample", id);
         return;
       }
       if (samplePaused) {
         samplePaused = false;
-        if (!userPaused && !hidden()) call("resume", () => native.resume());
+        if (!stopped() && !hidden()) call("resume", () => native.resume());
       }
       // The new session starts on a hidden screen: its timeline gets the marker too.
-      if (hidden() && !userPaused) opts.onHidden?.(hiddenReason());
+      if (hidden() && !stopped()) opts.onHidden?.(hiddenReason());
     },
     screenDidChange(): void {
       if (!native || !active || !native.screenDidChange || hidden()) return;
@@ -412,18 +428,41 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         startNative(id);
       } else if (samplePaused) {
         samplePaused = false;
-        if (!userPaused && !hidden()) call("resume", () => native.resume());
+        if (!stopped() && !hidden()) call("resume", () => native.resume());
       }
     },
     pause(): void {
       userPaused = true;
-      if (!native || !active || samplePaused || hidden()) return;
+      if (!native || !active || samplePaused || hidden() || !allowed) return;
       call("pause", () => native.pause());
     },
     resume(): void {
       userPaused = false;
-      if (!native || !active || samplePaused || hidden()) return;
+      if (!native || !active || samplePaused || hidden() || !allowed) return;
       call("resume", () => native.resume());
+    },
+    setAllowed(next: boolean): void {
+      if (next === allowed) return;
+      const wasStopped = stopped();
+      allowed = next;
+      logger.log(`replay: consent ${next ? "given" : "withdrawn"}`);
+      if (!native || !endpoint) return;
+      if (!active) {
+        if (next && pendingStart !== undefined) startNative(pendingStart);
+        return;
+      }
+      if (samplePaused || hidden() || wasStopped === stopped()) return;
+      if (next) call("resume", () => native.resume());
+      else call("pause", () => native.pause());
+    },
+    async discardHeld(): Promise<void> {
+      if (!native || !endpoint || typeof native.heldReplaySessions !== "function" || typeof native.releaseHeldReplay !== "function") return;
+      try {
+        const held = await native.heldReplaySessions(endpoint, nativeOptions(""));
+        for (const h of held) call("releaseHeldReplay", () => native.releaseHeldReplay!(endpoint, nativeOptions(""), h.sessionId, false));
+      } catch (err) {
+        logger.warn("replay: native heldReplaySessions failed", err);
+      }
     },
     isRecording(): boolean {
       if (!native || !active) return false;

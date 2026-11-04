@@ -25,6 +25,12 @@ export interface RUMConfig {
   replay?: { enabled?: boolean; maskAllInputs?: boolean };
   user?: { id: string };
   debug?: boolean;
+  consent?: "pending" | "granted";
+}
+
+export interface Consent {
+  telemetry: boolean;
+  replay: boolean;
 }
 
 export interface RUMReplay {
@@ -46,6 +52,8 @@ export interface RUM {
   replay: RUMReplay;
   session: RUMSession;
   flush(): Promise<void>;
+  setConsent(consent: Consent): Promise<void>;
+  getConsent(): Consent & { status: "pending" | "granted" | "denied" };
 }
 
 function uuid(): string {
@@ -59,6 +67,8 @@ export function initRUM(config: RUMConfig): RUM {
   const sessionId = uuid();
   let userId: string = config.user?.id ?? "anon-" + uuid().slice(0, 8);
   let recording = config.replay?.enabled !== false;
+  let consent: ReturnType<RUM["getConsent"]> =
+    config.consent === "pending" ? { status: "pending", telemetry: false, replay: false } : { status: "granted", telemetry: true, replay: true };
   const log = (...args: unknown[]) => console.info("[ouo stub]", ...args);
   log("initRUM", { ...config, projectToken: "<redacted>" });
   return {
@@ -93,5 +103,10 @@ export function initRUM(config: RUMConfig): RUM {
     async flush() {
       log("flush");
     },
+    async setConsent(c) {
+      consent = c.telemetry ? { status: "granted", telemetry: true, replay: c.replay } : { status: "denied", telemetry: false, replay: false };
+      log("setConsent", c);
+    },
+    getConsent: () => consent,
   };
 }

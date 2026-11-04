@@ -322,6 +322,29 @@ export interface RUMOptions {
   storage?: AsyncKeyValueStorage;
   /** Log SDK decisions to the console with the `[ouo]` prefix. */
   debug?: boolean;
+  /**
+   * Consent at start (README, "Consent"). `"granted"`, the default, starts at once with replay
+   * allowed. `"pending"` reads and writes nothing in `storage`, calls nothing in the native module
+   * (no replay, no crash handlers, no upload), sends nothing, installs no instrumentation and
+   * creates no session until `setConsent({ telemetry: true, ... })`. Calls to `setUser`,
+   * `captureError`, `addEvent`, `log.*` and `trackNavigation` (the last one only) meanwhile
+   * wait in memory (at most 100, oldest dropped first) and run at the grant. The SDK never stores
+   * the consent itself: pass what the app's consent manager decided at every launch.
+   */
+  consent?: "pending" | "granted";
+}
+
+/** What the user agreed to. `replay` without `telemetry` means nothing. */
+export interface Consent {
+  /** Sessions, spans, events, errors and crashes. */
+  telemetry: boolean;
+  /** Session replay, on top of `telemetry`. */
+  replay: boolean;
+}
+
+export interface ConsentState extends Consent {
+  /** `pending`: not decided yet. `granted`: `telemetry` is on. `denied`: revoked or refused. */
+  status: "pending" | "granted" | "denied";
 }
 
 /** Mirrors the browser SDK's `rum.replay`. No-ops when replay is disabled or the native module is absent. */
@@ -406,8 +429,21 @@ export interface RUM {
   feedback(input: FeedbackInput): string | undefined;
   replay: RUMReplay;
   session: RUMSession;
-  /** Resolves once the persisted session state was read and `session.start` was emitted. */
+  /**
+   * Resolves once the persisted session state was read and `session.start` was emitted. With
+   * consent pending, after the grant.
+   */
   ready: Promise<void>;
+  /**
+   * Apply the user's choice (README, "Consent"). Granting `telemetry` starts a session and runs the
+   * calls queued while pending; `replay` starts or pauses the native recorder on its own. Revoking
+   * `telemetry` stops capture and export (what is still batched is dropped, not sent), deletes the
+   * SDK's `storage` keys, the stored requests and the replay chunks held on the device; a later
+   * grant starts a new session. Resolves once applied. Never rejects.
+   */
+  setConsent(consent: Consent): Promise<void>;
+  /** The consent the SDK runs under now. */
+  getConsent(): ConsentState;
   /** Force export of pending spans, log records and replay chunks. */
   flush(): Promise<void>;
 }

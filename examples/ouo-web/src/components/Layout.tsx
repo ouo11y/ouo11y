@@ -33,6 +33,33 @@ function UserControl() {
   );
 }
 
+/**
+ * Shown while consent is pending (`?consent=pending`): until a choice the SDK stores nothing in
+ * localStorage or IndexedDB and sends nothing (@ouo11y/browser README, "Consent"). A real app
+ * keeps the choice in its consent manager and passes it to `initRUM` on the next load.
+ */
+function ConsentBanner() {
+  const [status, setStatus] = useState(rum.getConsent().status);
+  if (status !== "pending") return null;
+  const choose = (telemetry: boolean, replay: boolean) => {
+    void rum.setConsent({ telemetry, replay }).then(() => setStatus(rum.getConsent().status));
+  };
+  return (
+    <aside className="consent ouo-unmask" aria-label="Consent" data-testid="consent-banner">
+      <span>This store records how the site performs (sessions, errors, a masked replay) once you agree.</span>
+      <button type="button" className="btn btn-small" data-testid="consent-all" onClick={() => choose(true, true)}>
+        Accept all
+      </button>
+      <button type="button" className="btn btn-small" data-testid="consent-telemetry" onClick={() => choose(true, false)}>
+        No replay
+      </button>
+      <button type="button" className="btn btn-small" data-testid="consent-decline" onClick={() => choose(false, false)}>
+        Decline
+      </button>
+    </aside>
+  );
+}
+
 function SessionFooter() {
   const [session, setSession] = useState({ id: rum.session.id(), user: rum.session.userId() });
   useEffect(() => {
@@ -80,6 +107,7 @@ export function Layout() {
         <Outlet />
       </main>
       <SessionFooter />
+      <ConsentBanner />
       {!onChaosPage && (
         <>
           <button

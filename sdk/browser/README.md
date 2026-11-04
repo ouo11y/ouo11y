@@ -94,6 +94,7 @@ htpasswd file, like every RUM vendor's key. Every request carries
 | `transport.offline` | `{ maxBytes: 5242880, maxAgeMs: 86400000 }` | Keep unsent requests (IndexedDB, memory where storage is unavailable), at most `maxBytes` (oldest evicted first) and `maxAgeMs` old, and send them when back online or on the next page load. `false` drops them instead. |
 | `transport.beacon` | `false` | At page hide, use `navigator.sendBeacon` when the keepalive budget is spent. A beacon cannot carry `Authorization`: only for a first-party route whose proxy adds it. |
 | `debug` | `false` | Log SDK decisions to the console with the `[ouo]` prefix. |
+| `consent` | `"granted"` | `"pending"`: nothing is stored, opened or sent and no session exists until `rum.setConsent({ telemetry: true, ... })`. See "Consent". |
 
 ## Sessions
 
@@ -365,6 +366,31 @@ and WebKit on each PR.
   a blocked 10,000-cell table costs nothing to record (1 KB snapshot); `replay.sampleRate` below 1;
   `replay.onErrorSampleRate` with `sampleRate: 0` to record only sessions with an error (the buffer
   still pays the recording cost, not the upload); `rum.replay.pause()` around a heavy view.
+
+## Consent
+
+For a site that must ask before it stores an identifier or sends telemetry (ePrivacy, GDPR), start the SDK pending and pass the user's choice when you have it:
+
+```ts
+const rum = initRUM({ ...options, consent: cmp.decided() ? "granted" : "pending" });
+
+// The consent banner or CMP callback, on this and every later page load:
+await rum.setConsent({ telemetry: true, replay: false }); // a session starts; no replay
+await rum.setConsent({ telemetry: true, replay: true });  // replay starts in the same session
+await rum.setConsent({ telemetry: false, replay: false }); // revoke: stop and wipe
+rum.getConsent(); // { status: "pending" | "granted" | "denied", telemetry, replay }
+```
+
+- **Pending** (`consent: "pending"`): `initRUM` checks its options and installs nothing else. No `localStorage` key, no IndexedDB database, no cookie, no BroadcastChannel, no request to the collector, no `fetch` / XHR / history / error instrumentation, no session (`rum.session.id()` is `""`). `setUser`, `clearUser`, `captureError`, `addEvent` and `setRoute` wait in memory, at most `CONSENT_QUEUE_LIMIT` (100) calls, the oldest dropped first; they run at the grant, stamped at that time. Page activity, clicks, errors the SDK would catch itself, vitals and spans before the grant are not recorded.
+- **Granting `telemetry`** installs the SDK: the session starts (or resumes, from a granted earlier visit), `session.start` and the page view are sent, then the queued calls run.
+- **`replay`** is its own switch on top of `telemetry`. Without it rrweb is never downloaded and nothing is recorded, whatever `replay.sampleRate` or `rum.replay.resume()` say; granting it later starts recording in the same session with a full snapshot, withdrawing it stops the recorder (the chunk recorded until then is uploaded). `replay` without `telemetry` means nothing. `replay.enabled: false` still wins.
+- **Revoking `telemetry`** (or refusing it) stops at once: buffered spans, events and replay are dropped, not sent and not written to the offline store; then the SDK removes `ouo.device`, `ouo.session` and `ouo.user` from `localStorage` (only those: your own `ouo.*` keys stay), deletes the IndexedDB database `ouo-delivery` (other tabs' connections to it close), and closes its BroadcastChannel. Later calls are dropped. A new grant starts a new `device.id` and session.
+- **The SDK does not store the consent.** Your consent manager does; pass its answer to `initRUM` on every page load. Other open tabs keep running until your CMP tells them (its `storage` event, for example).
+- The default, `consent: "granted"`, is the behaviour of earlier versions: the SDK starts at once with replay allowed.
+
+### Progressive web apps and service workers
+
+The SDK registers no service worker and needs none: delivery uses `fetch` with `keepalive`, IndexedDB and, optionally, `sendBeacon` from the page. Your app's service worker must leave the collector alone: do not cache, precache or intercept requests to the `endpoint` / `replayEndpoint` origin (or the first-party `/otel/*` route). A `fetch` handler that answers them from cache, or a Workbox `NetworkFirst` / `StaleWhileRevalidate` route that matches them, would hide failures from the delivery layer's retries, could keep telemetry in the Cache API where a consent revocation does not reach it, and breaks `keepalive` at page hide. In Workbox, keep the collector origin out of every route's match (`({ url }) => url.origin !== COLLECTOR_ORIGIN && ...`); with a hand-written worker, `return` early from the `fetch` handler for those URLs so the browser handles them itself. Nothing in the SDK reads the consent from, or stores it in, the worker.
 
 ## Delivery
 

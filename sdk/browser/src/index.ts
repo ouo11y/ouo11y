@@ -12,6 +12,7 @@ import { FilteringSpanProcessor, InteractionTracker } from "./interactions/track
 import { installLongTasks } from "./longtasks";
 import { exceptionAttributes } from "./errors/classify";
 import { claimError, installErrorCapture } from "./errors/install";
+import { createConsentGate, type Gated, type Installed } from "./consent";
 import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
 import { attempt, guard, quiet, setGuardReporter } from "./guard";
 import { createDelivery, createLogExporter, createTraceExporter } from "./transport";
@@ -38,8 +39,9 @@ export type * from "./types";
 export { SDK_VERSION } from "./version";
 export type { ReplayChunk } from "./replay/chunker";
 export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
+export { CONSENT_QUEUE_LIMIT } from "./consent";
 
-let instance: (RUM & { _uninstall(): Promise<void> }) | undefined;
+let instance: Gated | undefined;
 
 /** The instance `initRUM` returned, or undefined before it was called (framework integrations use it). */
 export function getRUM(): RUM | undefined {
@@ -51,9 +53,11 @@ function escapeRegExp(s: string): string {
 }
 
 /** What `initRUM` returns where it cannot run (no `window`, server rendering) or failed to start. */
-function noopRUM(): RUM & { _uninstall(): Promise<void> } {
+function noopRUM(): Gated {
   const done = (): Promise<void> => Promise.resolve();
   return {
+    setConsent: done,
+    getConsent: () => ({ status: "pending", telemetry: false, replay: false }),
     setUser: () => undefined,
     clearUser: () => undefined,
     endSession: () => undefined,
@@ -94,17 +98,33 @@ export function initRUM(options: RUMOptions): RUM {
   // Server rendering (Next.js, Remix, Node): nothing to observe, nothing installed.
   if (typeof window === "undefined" || typeof document === "undefined") return noopRUM();
 
-  const cleanup: Array<() => unknown> = [];
-  try {
-    instance = install(options, urls, authorization, cleanup);
-    return instance;
-  } catch (err) {
-    console.warn("[ouo] could not start, the SDK is off", err);
-    for (const off of cleanup.reverse()) attempt(off);
-    setGuardReporter(undefined);
-    instance = undefined;
-    return noopRUM();
+  const start = (replay: boolean): Installed | undefined => {
+    const cleanup: Array<() => unknown> = [];
+    try {
+      return install(options, urls, authorization, cleanup, replay);
+    } catch (err) {
+      console.warn("[ouo] could not start, the SDK is off", err);
+      for (const off of cleanup.reverse()) attempt(off);
+      setGuardReporter(undefined);
+      return undefined;
+    }
+  };
+  // Consent pending: nothing below `install` runs, so nothing is stored, opened or sent (README, "Consent").
+  let running: Installed | undefined;
+  if (options.consent !== "pending") {
+    running = start(true);
+    if (!running) return noopRUM();
   }
+  const gate: Gated = createConsentGate(
+    start,
+    createLogger(options.debug === true),
+    () => {
+      if (instance === gate) instance = undefined;
+    },
+    running,
+  );
+  instance = gate;
+  return gate;
 }
 
 function install(
@@ -112,7 +132,9 @@ function install(
   urls: ReturnType<typeof deriveIngestUrls>,
   authorization: string,
   cleanup: Array<() => unknown>,
-): RUM & { _uninstall(): Promise<void> } {
+  /** Replay consent: without it the recorder starts paused and rrweb is never loaded. */
+  replayAllowed: boolean,
+): Installed {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
   setGuardReporter((err) => logger.warn("contained", err));
@@ -302,6 +324,7 @@ function install(
   });
   const rec = recorder;
   cleanup.push(() => rec.shutdown());
+  if (!replayAllowed) recorder.pause();
   void quiet(recorder.start());
   // Error-triggered replay: the first error of a buffering session uploads its replay.
   // Never-record routes: a navigation is emitted synchronously from the history call.
@@ -359,13 +382,12 @@ function install(
       for (const off of cleanup.reverse()) pending.push(attempt(off));
       await quiet(Promise.all(pending));
       setGuardReporter(undefined);
-      if (instance === rum) instance = undefined;
       logger.log("shut down");
     })();
     return stopped;
   };
 
-  const rum: RUM & { _uninstall(): Promise<void> } = {
+  const rum: Installed = {
     // Public methods are called by the app: they never throw into it.
     setUser(user: UserOptions): void {
       attempt(() => {
@@ -410,6 +432,11 @@ function install(
     flush,
     shutdown,
     _uninstall: shutdown,
+    _revoke: () => {
+      // Before the shutdown's flush: what is still buffered is dropped, not sent or stored.
+      delivery.halt();
+      return shutdown();
+    },
     deliveryStats: () => ({ ...delivery.stats, dropReasons: { ...delivery.stats.dropReasons } }),
   };
   return rum;

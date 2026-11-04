@@ -30,6 +30,9 @@ export const config = {
   sessionSampleRate: rate(env.VITE_OUO_SESSION_SAMPLE_RATE, 1),
   replaySampleRate: rate(env.VITE_OUO_REPLAY_SAMPLE_RATE, 1),
   replayOnErrorSampleRate: rate(env.VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE, 0),
+  // Consent first (a public portal, a PWA): `?consent=pending` on the first page, or VITE_OUO_CONSENT=pending.
+  // The SDK then stores and sends nothing until the banner (components/Layout.tsx) records a choice.
+  consentPending: env.VITE_OUO_CONSENT === "pending" || new URLSearchParams(location.search).get("consent") === "pending",
 } as const;
 
 export function storedUserId(): string | undefined {
@@ -65,6 +68,7 @@ export const rum: RUM = initRUM({
   },
   ...(initialUser ? { user: { id: initialUser } } : {}),
   debug: config.debug,
+  consent: config.consentPending ? "pending" : "granted",
 });
 
 export function setUser(id: string): void {
