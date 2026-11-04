@@ -1,0 +1,92 @@
+# Grafana datasources for compose.external.yaml: the same three datasources as
+# ../grafana/provisioning/datasources/datasources.yaml (uids loki, tempo, mimir; rum-api's deep
+# links use these uids) pointed at an existing Loki / Tempo / Mimir. Keep the two files in step.
+# X-Scope-OrgID is OUO_LGTM_TENANT_ID; unset it goes out empty, which a single-tenant backend
+# ignores. `$$` escapes Grafana's own ${ENV} expansion.
+apiVersion: 1
+
+deleteDatasources:
+  - name: Loki
+    orgId: 1
+  - name: Tempo
+    orgId: 1
+  - name: Mimir
+    orgId: 1
+
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: ${OUO_EXTERNAL_LOKI_URL}
+    editable: false
+    jsonData:
+      httpHeaderName1: X-Scope-OrgID
+      maxLines: 1000
+      derivedFields:
+        # OTLP log records carry the trace id as structured metadata `trace_id`.
+        - name: TraceID
+          datasourceUid: tempo
+          matcherType: label
+          matcherRegex: trace_id
+          url: "$${__value.raw}"
+          urlDisplayLabel: View trace
+    secureJsonData:
+      httpHeaderValue1: ${OUO_LGTM_TENANT_ID}
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: ${OUO_EXTERNAL_TEMPO_URL}
+    editable: false
+    jsonData:
+      httpHeaderName1: X-Scope-OrgID
+      streamingEnabled:
+        search: true
+      nodeGraph:
+        enabled: true
+      serviceMap:
+        datasourceUid: mimir
+      tracesToMetrics:
+        datasourceUid: mimir
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+      lokiSearch:
+        datasourceUid: loki
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-30m"
+        spanEndTimeShift: "30m"
+        filterByTraceID: false
+        filterBySpanID: false
+        customQuery: true
+        # `${__span.tags[...]}` resolves both span attributes (session.id) and resource
+        # attributes (service.name): Grafana merges process tags into __span.tags and the
+        # field path goes through lodash `property`, so bracket keys with dots work.
+        # session.id is structured metadata in Loki, so it is a `|` filter, never a
+        # stream selector. `$$` escapes the provisioner's own ${ENV} expansion.
+        tags:
+          - key: service.name
+            value: service_name
+        query: '{service_name="$${__span.tags["service.name"]}"} | session_id="$${__span.tags["session.id"]}"'
+    secureJsonData:
+      httpHeaderValue1: ${OUO_LGTM_TENANT_ID}
+
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    access: proxy
+    url: ${OUO_EXTERNAL_MIMIR_URL}
+    editable: false
+    jsonData:
+      httpHeaderName1: X-Scope-OrgID
+      httpMethod: POST
+      prometheusType: Mimir
+      prometheusVersion: "2.9.1"
+      timeInterval: 15s
+      exemplarTraceIdDestination:
+        - name: trace_id
+          datasourceUid: tempo
+    secureJsonData:
+      httpHeaderValue1: ${OUO_LGTM_TENANT_ID}

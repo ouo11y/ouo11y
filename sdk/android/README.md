@@ -1,6 +1,9 @@
 # ouo11y Android (sdk/android)
 
-The Android half of ouo mobile replay (roadmap W9, [ADR-0006](../../docs/adr/0006-mobile-replay-native-screenshots.md),
+The Android half of the ouo mobile SDK: session replay and the native signals (crashes, hangs,
+foreground terminations, frames, app start; [ADR-0017](../../docs/adr/0017-android-signals-and-opentelemetry-android.md)).
+
+Replay is the Android half of ouo mobile replay (roadmap W9, [ADR-0006](../../docs/adr/0006-mobile-replay-native-screenshots.md),
 [ADR-0014](../../docs/adr/0014-replay-tiles-in-frames.md)), the Kotlin twin of the Swift `OuoReplay`
 in [sdk/ios](../ios/README.md). It sends the same `frames` chunks (schema 2, [mobile-replay.md](../../docs/specs/mobile-replay.md))
 to the collector's replay receiver, so rum-api and the Grafana player do not care which platform
@@ -14,6 +17,8 @@ is W9 part 2.
 | Module | What it holds | Tests |
 |---|---|---|
 | `replay-core` | Plain Kotlin on the JVM: chunk model and JSON, `ChunkBuilder` (5 s / 1 MiB cuts, first frame full), `TileDiffer` (64 px tile hashes, patches, half-area rule), `CapturePacer` (interval, dirty flag, navigation mode, retries, 100 ms/s time bank), `RedactionPlanner` (Android view classes, per-line text masks, `ouo-mask` / `ouo-unmask` tags), `ChunkSpool`, `DiskQueue`, `ChunkUploader` | JUnit on the JVM, no Android |
+| `signals-core` | Plain Kotlin on the JVM: the native report (`jvm`, `hang`, `termination`, JVM frames, the format the React Native SDK reads), `RunState`, the foreground-termination decision from `ApplicationExitInfo` facts, the hang rules (`HangDetector`), slow and frozen frame counting, the app start rule | JUnit on the JVM |
+| `signals` | `Signals`: the uncaught exception handler (chained, writes `crash.json` at crash time), the main-thread watchdog (200 ms ping, 2 s), memory warnings, `ApplicationExitInfo` at the next launch, `FrameMetrics` per activity window, `ApplicationStartInfo` (Android 15) for the cold start | through the React Native suite on an emulator |
 | `replay` | The Android capture: `WindowSpy` (root views from `WindowManagerGlobal`, the full-screen window on top), `ViewWalker` (bounds through offsets, scroll and transforms; line boxes of `TextView` and React Native's `PreparedLayoutTextView`), `ScreenCapturer` (`PixelCopy` into RGB_565, masks, JPEG), `TouchRecorder` (`Window.Callback` wrapper), `ReplayRecorder`, the `OuoReplay` facade | instrumented pixel test on an emulator |
 
 ## How a frame is taken
@@ -51,6 +56,34 @@ so the screen behind it is black in the replay). Jetpack Compose content is mask
 is on: Compose draws in one `AndroidComposeView` the view walk cannot see into, so it fails closed
 until the semantics walk of the Compose modifiers work package.
 
+## Signals
+
+- **Crash** (C2): an uncaught exception on any thread is written to `noBackupFilesDir/ouo/signals/crash.json`
+  before the previous handler runs (React Native's, the system's, another SDK's), with the session
+  and its start; the next launch hands it to the host. A React Native JS fatal arrives here as
+  `com.facebook.react.common.JavascriptException`; the JavaScript already reported it with its JS
+  stack and uses only the time.
+- **Hang** (C3.1): a watchdog thread posts to the main looper every 200 ms. A post that waits 2 s
+  starts a hang (from the main thread's last answer; the main thread's stack is read then); the hang
+  is over when the post runs. One report per hang, none for 2 s after one, none under a debugger. In
+  the background the watchdog is parked (no wake-ups) until an activity starts; a hang in progress
+  when the app leaves the foreground ends then and is reported. Android draws no frames on an idle
+  screen, so the iOS frame-delay rules do not apply.
+- **Termination** (C3.2): `run.json` holds this run's pid, session, last memory warning and hang in
+  progress. The next launch asks `ApplicationExitInfo` (Android 11+) how that pid died; a death at
+  foreground or visible importance (not a foreground service, 125) by the low-memory killer, an ANR,
+  excessive resource use, a native crash or a `SIGKILL` is a termination (cause `memory`,
+  `watchdog`, `cpu` or `unknown`). Force stops, `exit()`, updates and background deaths are not.
+- **Not captured: NDK (C/C++) crashes.** There is no native signal handler, so a crash in native
+  code writes no `crash.json`; on Android 11+ it shows up only as a termination with cause `unknown`
+  (`REASON_CRASH_NATIVE`). Next: read its tombstone from `ApplicationExitInfo.getTraceInputStream()`
+  (Android 12+) at the next launch and report it as a crash with native frames.
+- **Frames and app start** (C4): `FrameMetrics` of every resumed activity window counts rendered
+  frames, slow (past the frame's deadline) and frozen (700 ms or more). The app start is cold from
+  the process start only when the process was started to show the app (`ApplicationStartInfo` on
+  Android 15, else a process at most 10 s older than the JS runtime); a process started earlier for
+  a receiver or a service makes the launch warm.
+
 ## Use (React Native)
 
 Nothing to do: `initRUM({ replay: { enabled: true } })` starts it through the Expo module on both
@@ -64,7 +97,7 @@ Needs JDK 17 and the Android SDK (`ANDROID_HOME`, platform 35, build-tools 35); 
 
 ```bash
 cd sdk/android
-./gradlew :replay-core:test                    # JVM unit tests, seconds
+./gradlew :replay-core:test :signals-core:test  # JVM unit tests, seconds
 ./gradlew :replay:assembleRelease              # the Android library
 ./gradlew :replay:connectedAndroidTest         # pixel test on a running emulator (ANDROID_SERIAL)
 ```

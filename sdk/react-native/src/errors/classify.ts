@@ -1,4 +1,5 @@
 import type { Attrs } from "../types";
+import { debugIdAttribute } from "./debugids";
 import { normalizeStack } from "./stack";
 
 export type ExceptionKind = "uncaught" | "unhandledrejection" | "console" | "captured" | "sentry";
@@ -40,13 +41,17 @@ export function serializeError(err: unknown): SerializedError {
 export function exceptionAttributes(err: unknown, kind: ExceptionKind, fatal: boolean, extra: Attrs = {}, handledOverride?: boolean): Attrs {
   const s = serializeError(err);
   const handled = handledOverride ?? (kind === "console" || kind === "captured" || kind === "sentry");
+  const stacktrace = normalizeStack(s.stacktrace).stacktrace;
   return {
     "exception.type": s.type,
     "exception.message": s.message,
-    "exception.stacktrace": normalizeStack(s.stacktrace).stacktrace,
+    "exception.stacktrace": stacktrace,
     "ouo.exception.fatal": fatal,
     "ouo.exception.handled": handled,
     "ouo.exception.kind": kind,
+    // Read when the error is captured, so a record sent later (persisted, retried after a
+    // restart that applied an OTA update) still names the bundle that threw.
+    ...debugIdAttribute(stacktrace),
     ...extra,
   };
 }

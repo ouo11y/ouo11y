@@ -68,12 +68,23 @@ helm install ouo deploy/helm/ouo -n ouo --create-namespace \
   --set collector.ingress.host=otel.example.com --set grafana.ingress.host=grafana.example.com
 ```
 
-Requirements on the external stack: Loki with `allow_structured_metadata: true` and the ouo
-OTLP label promotion (`project/kb/collector-lgtm.md`), Tempo with `stream_over_http_enabled: true`
-and an OTLP gRPC receiver, Mimir with OTLP ingestion. Multi-tenant stacks: set
-`lgtm.external.tenantId`; the collector and the Grafana datasources then send
-`X-Scope-OrgID`. Separate read and write paths: `lgtm.external.lokiOtlpUrl`,
-`mimirOtlpUrl`, `mimirPrometheusUrl`.
+Requirements on the external stack are in
+[docs/operations/existing-lgtm.md](../../../docs/operations/existing-lgtm.md). In short:
+- Loki: schema v13 / tsdb, `allow_structured_metadata: true`, and ouo's OTLP label promotion
+  added to Loki's defaults (`ouo.platform`, `ouo.project.id`, log attributes `event.name`,
+  `ouo.platform`). Never `ignore_defaults: true` in a shared Loki: it drops the other senders'
+  labels.
+- Delete by user: compactor deletion, with `/loki/api/v1/delete` routed to the compactor
+  (or `lgtm.external.lokiDeleteUrl`).
+- Tempo: `stream_over_http_enabled: true` and an OTLP gRPC receiver.
+- Mimir: OTLP ingestion.
+
+Multi-tenant stacks: set `lgtm.external.tenantId`. The collector, rum-api and the Grafana
+datasources then send `X-Scope-OrgID`; rum-api needs a release newer than 0.6.0 for that.
+Separate read and write paths: `lgtm.external.lokiOtlpUrl`, `mimirOtlpUrl`,
+`mimirPrometheusUrl`. Your own OTel collector in front: point `tempoOtlpGrpcEndpoint`,
+`lokiOtlpUrl` and `mimirOtlpUrl` at it. Set `retention.logs` and `retention.replays` to
+your Loki's retention (`values-external-lgtm.yaml` has 336h).
 
 Verified 2026-10-23 with `values-external-lgtm.yaml` and the four URLs pointed at a second
 release of this chart that ran only the bundled Loki, Tempo and Mimir (`collector.enabled=false`,

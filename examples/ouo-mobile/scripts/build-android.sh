@@ -49,7 +49,9 @@ fi
 export ANDROID_HOME CI=1 NODE_ENV=production
 ADB="$ANDROID_HOME/platform-tools/adb"
 
-[[ -f "$root/sdk/react-native/dist/index.js" && -d "$root/sdk/react-native/android/vendor" ]] || { log "build @ouo11y/react-native"; (cd "$root" && npm run -w sdk/react-native build >/dev/null); }
+# Always (about 2 s): the app compiles the SDK's dist and its vendored copy of sdk/android, and a copy
+# left from an earlier checkout builds an app without the source's changes.
+log "build @ouo11y/react-native (dist, vendored sdk/android)"; (cd "$root" && npm run -w sdk/react-native build >/dev/null)
 [[ -d node_modules ]] || { log "npm ci"; npm ci; }
 log "OTLP ${EXPO_PUBLIC_OTLP_ENDPOINT:-<default>}, replay ${EXPO_PUBLIC_OUO_REPLAY_ENDPOINT:-<derived>}, backend ${BACKEND_URL:-<default>}, conformance ${OUO_CONFORMANCE:-0}"
 if [[ $CLEAN == 1 || ! -d android ]]; then

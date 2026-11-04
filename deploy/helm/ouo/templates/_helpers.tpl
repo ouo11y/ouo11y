@@ -180,6 +180,16 @@ S3 keys are environment variables from Secrets.
   "retention" (dict "replays" (toString .Values.retention.replays) "logs" (toString .Values.retention.logs)
                     "sweep_interval" (toString .Values.retention.sweepInterval))
 -}}
+{{- if eq .Values.lgtm.mode "external" -}}
+{{- /* An existing stack: rum-api sends the tenant like the collector and Grafana, and posts deletes to lokiDeleteUrl when set. */ -}}
+{{- with .Values.lgtm.external.tenantId -}}
+{{- $_ := set $cfg.loki "tenant_id" . -}}
+{{- $_ := set $cfg.tempo "tenant_id" . -}}
+{{- end -}}
+{{- with .Values.lgtm.external.lokiDeleteUrl -}}
+{{- $_ := set $cfg.loki "delete_url" (. | trimSuffix "/") -}}
+{{- end -}}
+{{- end -}}
 {{- $projects := dict -}}
 {{- range $id, $p := .Values.retention.projects -}}
 {{- if $p.replays -}}
@@ -236,6 +246,15 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- end -}}
 {{- if and (eq .Values.rumApi.storage.backend "s3") (not .Values.rumApi.storage.s3.bucket) -}}
 {{- fail "ouo: rumApi.storage.s3.bucket is required with rumApi.storage.backend s3 (rum-api never creates the bucket)" -}}
+{{- end -}}
+{{- /* lgtm.external.tenantId / lokiDeleteUrl render loki.tenant_id, tempo.tenant_id and loki.delete_url into
+rum-api's config; rum-api 0.6.0 and older reject unknown keys and would crashloop (and with it the replay sink).
+Only a plain release tag is compared: digests, main / sha builds pass. */ -}}
+{{- if and (eq .Values.lgtm.mode "external") (or .Values.lgtm.external.tenantId .Values.lgtm.external.lokiDeleteUrl) -}}
+{{- $tag := toString .Values.rumApi.image.tag -}}
+{{- if and (regexMatch "^v?[0-9]+\\.[0-9]+\\.[0-9]+$" $tag) (semverCompare "<=0.6.0" $tag) -}}
+{{- fail (printf "ouo: lgtm.external.tenantId and lgtm.external.lokiDeleteUrl need rum-api newer than 0.6.0 (rumApi.image.tag is %q; 0.6.0 rejects the loki.tenant_id / tempo.tenant_id / loki.delete_url config keys and would not start). Use a newer rum-api image or leave both empty (docs/operations/existing-lgtm.md, section 6)" $tag) -}}
+{{- end -}}
 {{- end -}}
 {{- if and .Values.rumApi.storage.s3.existingSecret (or .Values.rumApi.storage.s3.accessKeyId .Values.rumApi.storage.s3.secretAccessKey) -}}
 {{- fail "ouo: set rumApi.storage.s3.existingSecret or accessKeyId/secretAccessKey, not both" -}}

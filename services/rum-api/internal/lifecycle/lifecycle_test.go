@@ -278,7 +278,7 @@ func TestDeletionRefusedWithoutAudit(t *testing.T) {
 	clock := t0
 	st := store(t, &clock)
 	put(t, st, "demo", "u1-a")
-	lk := &fakeLoki{sessions: map[string][]string{`{service_name=~".+"} | user_id="u1"`: {"u1-a"}}}
+	lk := &fakeLoki{sessions: map[string][]string{`{service_name=~".+"} | ouo_project_id!="" | user_id="u1"`: {"u1-a"}}}
 	d := newDeleter(t, st, lk, brokenLog{})
 	if _, err := d.DeleteUser(context.Background(), Request{UserID: "u1"}); !errors.Is(err, ErrAudit) {
 		t.Fatalf("err = %v, want ErrAudit", err)
@@ -297,7 +297,7 @@ func TestDeleteUserLokiFailureIsAudited(t *testing.T) {
 	st := store(t, &clock)
 	put(t, st, "demo", "u1-a")
 	log, _ := audit.NewFile(t.TempDir())
-	lk := &fakeLoki{sessions: map[string][]string{`{service_name=~".+"} | user_id="u1"`: {"u1-a"}},
+	lk := &fakeLoki{sessions: map[string][]string{`{service_name=~".+"} | ouo_project_id!="" | user_id="u1"`: {"u1-a"}},
 		deleteErr: errors.New("400 Bad Request: Retention is not enabled")}
 	d := newDeleter(t, st, lk, log)
 	e, err := d.DeleteUser(ctx, Request{UserID: "u1"})

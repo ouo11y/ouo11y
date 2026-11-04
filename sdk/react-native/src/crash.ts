@@ -13,6 +13,9 @@ import type { Attrs } from "./types";
  * what the next launch takes when the previous run died in the foreground without a crash report
  * (handled like a crash, fatal), and the native module sends a `hang` report as the `onHang`
  * event when a main-thread hang is over (non-fatal, on the current session).
+ *
+ * On Android (sdk/android `Signals`) a crash is an uncaught Java or Kotlin exception (`jvm`) and
+ * frames are JVM frames (`module`, `function`, `filename`, `lineno`) instead of addresses.
  */
 export interface NativeCrashModule {
   /**
@@ -26,9 +29,14 @@ export interface NativeCrashModule {
   addListener?(event: "onHang", listener: (payload: { report?: string }) => void): { remove(): void } | undefined;
 }
 
+/** A frame: an address in a binary image (iOS), or a JVM method (Android, Sentry's Java frame fields). */
 export interface NativeCrashFrame {
-  instruction_addr: string;
+  instruction_addr?: string;
   image_addr?: string;
+  module?: string;
+  function?: string;
+  filename?: string;
+  lineno?: number;
 }
 
 export interface NativeCrashImage {
@@ -39,8 +47,8 @@ export interface NativeCrashImage {
   image_vmaddr: string;
 }
 
-export type NativeMechanism = "signal" | "nsexception" | "hang" | "termination";
-const MECHANISMS: readonly string[] = ["signal", "nsexception", "hang", "termination"];
+export type NativeMechanism = "signal" | "nsexception" | "jvm" | "hang" | "termination";
+const MECHANISMS: readonly string[] = ["signal", "nsexception", "jvm", "hang", "termination"];
 
 export interface NativeCrashReport {
   version: number;
@@ -74,7 +82,7 @@ export function parseNativeCrash(raw: string): NativeCrashReport | undefined {
       mechanism: r.mechanism,
       timestamp_ms: r.timestamp_ms,
       session_id: typeof r.session_id === "string" ? r.session_id : "",
-      frames: Array.isArray(r.frames) ? r.frames.filter((f) => f && typeof f.instruction_addr === "string") : [],
+      frames: Array.isArray(r.frames) ? r.frames.filter((f) => f && (typeof f.instruction_addr === "string" || (typeof f.module === "string" && typeof f.function === "string"))) : [],
       images: Array.isArray(r.images) ? r.images.filter((i) => i && typeof i.image_addr === "string") : [],
     };
     if (!(typeof r.session_started_ms === "number" && r.session_started_ms > 0)) delete report.session_started_ms;
@@ -85,12 +93,15 @@ export function parseNativeCrash(raw: string): NativeCrashReport | undefined {
 }
 
 /**
- * React Native turns a JS fatal into `RCTFatalException: <message>` in Release builds. The JS
- * global handler already emitted that error (with its JS stack) and wrote the JS crash marker, so
- * the native report only supplies the end time.
+ * React Native turns a JS fatal into `RCTFatalException: <message>` (iOS) or a
+ * `com.facebook.react.common.JavascriptException` (Android) in Release builds. The JS global
+ * handler already emitted that error (with its JS stack) and wrote the JS crash marker, so the
+ * native report only supplies the end time.
  */
 export function isReactNativeFatal(report: NativeCrashReport): boolean {
-  return report.mechanism === "nsexception" && (report.exception?.name ?? "").startsWith("RCTFatalException");
+  const name = report.exception?.name ?? "";
+  if (report.mechanism === "nsexception") return name.startsWith("RCTFatalException");
+  return report.mechanism === "jvm" && name === "com.facebook.react.common.JavascriptException";
 }
 
 const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1) || path;
@@ -112,8 +123,8 @@ function crashTitle(r: NativeCrashReport): { type: string; message: string } {
   if (r.mechanism === "termination") {
     return { type: "WatchdogTermination", message: `The app was terminated in the foreground without a crash report (cause: ${terminationCause(r)})` };
   }
-  if (r.mechanism === "nsexception") {
-    const name = r.exception?.name || "NSException";
+  if (r.mechanism === "nsexception" || r.mechanism === "jvm") {
+    const name = r.exception?.name || (r.mechanism === "jvm" ? "java.lang.Throwable" : "NSException");
     return { type: name, message: r.exception?.reason ?? "" };
   }
   const s = r.signal;
@@ -136,6 +147,14 @@ export function formatNativeStack(r: NativeCrashReport): string {
   // A hang's stack (and a termination's, when it died during a hang) is the main thread's when the hang was detected.
   const what = r.mechanism === "hang" || r.mechanism === "termination" ? "hung" : "crashed";
   const lines = [`${type}: ${message}`.trim(), `Thread (${thread}) ${what}${r.arch ? `, ${r.arch}` : ""}:`];
+  // JVM frames (Android) read like a Java stack trace; R8 / ProGuard mappings retrace them.
+  if (r.frames.some((f) => f.instruction_addr === undefined)) {
+    for (const f of r.frames) {
+      const where = f.filename ? `${f.filename}${typeof f.lineno === "number" ? `:${f.lineno}` : ""}` : "Unknown Source";
+      lines.push(`    at ${f.module ?? "?"}.${f.function ?? "?"}(${where})`);
+    }
+    return lines.join("\n");
+  }
   r.frames.forEach((f, i) => {
     const img = f.image_addr ? images.get(f.image_addr) : undefined;
     const name = img ? basename(img.code_file) : "???";

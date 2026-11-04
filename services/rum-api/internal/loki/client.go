@@ -20,7 +20,10 @@ import (
 // Client queries one Loki instance.
 type Client struct {
 	BaseURL string
-	HTTP    *http.Client
+	// DeleteURL is the base of POST /loki/api/v1/delete (the compactor)
+	// when it differs from BaseURL; empty: BaseURL.
+	DeleteURL string
+	HTTP      *http.Client
 	// PageLimit is the per-request limit (Loki's max_entries_limit_per_query
 	// defaults to 5000). Pagination moves start forward when a page is full.
 	PageLimit int

@@ -1,0 +1,43 @@
+# Merged over ../collector/config.yaml by compose.external.yaml (`--config` twice): the ouo
+# collector keeps its receivers, auth, rate limits and project stamping, and exports to an
+# existing Loki / Tempo / Mimir, or to your own OTel collector in front of them
+# (docs/operations/existing-lgtm.md). Only the keys below change.
+#
+# X-Scope-OrgID: OUO_LGTM_TENANT_ID. Unset, the header goes out empty, which a single-tenant
+# backend (auth_enabled: false, multitenancy_enabled: false) ignores.
+exporters:
+  otlp_grpc/tempo:
+    endpoint: ${env:OUO_EXTERNAL_OTLP_TRACES}
+    tls:
+      insecure: ${env:OUO_EXTERNAL_OTLP_INSECURE}
+    headers:
+      X-Scope-OrgID: ${env:OUO_LGTM_TENANT_ID}
+  otlp_http/loki:
+    endpoint: ${env:OUO_EXTERNAL_OTLP_LOGS}
+    headers:
+      X-Scope-OrgID: ${env:OUO_LGTM_TENANT_ID}
+  otlp_http/mimir:
+    endpoint: ${env:OUO_EXTERNAL_OTLP_METRICS}
+    headers:
+      X-Scope-OrgID: ${env:OUO_LGTM_TENANT_ID}
+
+service:
+  telemetry:
+    metrics:
+      # The whole list is replaced (lists do not merge): same readers as config.yaml, the
+      # push goes to OUO_EXTERNAL_OTLP_METRICS.
+      readers:
+        - periodic:
+            interval: 15000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: ${env:OUO_EXTERNAL_OTLP_METRICS}/v1/metrics
+                headers:
+                  - name: X-Scope-OrgID
+                    value: ${env:OUO_LGTM_TENANT_ID}
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

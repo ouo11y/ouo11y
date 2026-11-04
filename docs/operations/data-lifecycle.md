@@ -143,7 +143,9 @@ What happens, in order:
    before anything is deleted and recorded in the entry (`tempo.trace_ids`).
 4. **Replays.** Each session's replay folder / prefix is deleted at once.
 5. **Loki.** A delete request is submitted: `{service_name=~".+"} | ouo_project_id="<p>" | user_id="<u>"`
-   over the log retention plus a day (Loki refuses a zero start and splits a request into
+   (without `?project=`: `| ouo_project_id!=""`, so only lines that came through the ouo
+   collector match, which matters in a Loki shared with other senders,
+   [existing-lgtm.md](existing-lgtm.md)) over the log retention plus a day (Loki refuses a zero start and splits a request into
    24-hour shards, so an all-time range is not an option). Loki applies it after `compactor.delete_request_cancel_period`
    (24h by default: the window in which `DELETE /loki/api/v1/delete?request_id=` can cancel
    it); from then on queries no longer return the lines, and the next compaction rewrites

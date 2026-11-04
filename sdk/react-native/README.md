@@ -348,9 +348,9 @@ rum.getConsent();                               // { status, telemetry, replay }
 | `console.error` | `exception` | false | true |
 | `rum.captureError` | `exception` | false | true |
 | `Sentry.captureException` and other Sentry error events, with `errors.forwardSentryErrors` | `exception`, `ouo.exception.kind = sentry` | `level == fatal` | Sentry's `mechanism.handled` (default true) |
-| native crash on iOS (signal, uncaught NSException), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
-| app hang on iOS: the main thread could not draw for 2 s or more, sent when it is over | `exception`, `ouo.exception.kind = hang` | false | false |
-| foreground termination on iOS (out of memory, watchdog: killed while active without a crash report), sent on the next launch | `exception`, `ouo.exception.kind = termination` | true | false |
+| native crash (iOS: signal, uncaught NSException; Android: uncaught Java or Kotlin exception, not NDK C/C++ crashes), sent on the next launch | `exception`, `ouo.exception.kind = native` | true | false |
+| app hang: the main thread could not draw (iOS) or answer (Android) for 2 s or more, sent when it is over | `exception`, `ouo.exception.kind = hang` | false | false |
+| foreground termination (out of memory, watchdog or ANR: killed in the foreground without a crash report; Android from `ApplicationExitInfo`, 11+), sent on the next launch | `exception`, `ouo.exception.kind = termination` | true | false |
 
 A fatal error writes the crash marker, waits for it and for a flush (bounded by
 `fatalFlushTimeoutMs`), then calls the previous global handler, so the red box (dev) or the
@@ -374,6 +374,12 @@ JS fatal that React Native turns into `RCTFatalException` in Release is not repo
 JS handler already sent it, the native report only gives the end time. Turn it off with
 `errors: { nativeCrashes: false }` (which also turns off hangs and terminations). Only the
 crashed thread is recorded, from its frame pointers.
+**Android** (`sdk/android` `signals`, ADR-0017): an uncaught exception handler chained to React
+Native's writes the report (mechanism `jvm`, Java frames `module.function(file:line)`), a watchdog
+reports main-thread hangs, and the next launch reads `ApplicationExitInfo` for foreground
+terminations; React Native's `JavascriptException` is the JS fatal and only gives the end time.
+**Android NDK (C/C++) crashes are not captured**: no `native` exception and no stack is sent; on
+Android 11+ the next launch reports a termination with cause `unknown`, before that nothing.
 
 **App hangs (iOS).** A watchdog thread reads the same `CADisplayLink` frames as the vitals every
 400 ms (sentry-cocoa's rules, mobile SDK spec C3): when the main thread drew no frame for 2 s
@@ -588,7 +594,7 @@ const id = rum.feedback({ message: text, contact: email, screenshot: true });
 | body, `ouo.feedback.message` | the message, trimmed; above 4096 bytes of UTF-8 cut to whole characters plus `…` (as the Sentry bridge cuts); an empty message sends nothing and returns `undefined` |
 | `ouo.feedback.contact` | the contact, when not empty (same cut) |
 | `ouo.feedback.id` | a UUID, also the return value |
-| `ouo.feedback.screenshot` | `true` when `screenshot: true` and replay was recording: the recorder was asked for a frame of the current screen, masked like every frame, so the session's replay at the feedback time shows it. No separate image is sent |
+| `ouo.feedback.screenshot` | `true` when `screenshot: true` and replay was recording: the recorder was asked, right after the record, for a frame of the current screen, masked like every frame, so the session's replay shows it just after the feedback time. No separate image is sent |
 | `ouo.last_events` | JSON array, by time oldest first, of the session's last 20 events and log lines before the feedback: `{"ts": <epoch ms>, "name": "ui.tap", "body": "Tap pay (button) on Cart"}`; the body is the readable step (the path of a navigation, `Type: message` of an error, `METHOD url status` of a request), cut at 200 bytes the same way |
 
 The feedback follows the session's sampling like every record. With `replay.keepAtNextLaunch`,
