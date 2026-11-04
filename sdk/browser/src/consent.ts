@@ -21,7 +21,11 @@ export interface Installed extends Omit<RUM, "setConsent" | "getConsent"> {
   _uninstall(): Promise<void>;
 }
 
-export type Gated = RUM & { _uninstall(): Promise<void> };
+export type Gated = RUM & {
+  _uninstall(): Promise<void>;
+  /** Another tab revoked consent: stop here too, without a second wipe. */
+  _revokedElsewhere?(): void;
+};
 
 const noStats = (): DeliveryStats => ({ sent: 0, retried: 0, queued: 0, dropped: 0, droppedBytes: 0, dropReasons: {}, rawBytes: 0, wireBytes: 0 });
 
@@ -44,6 +48,10 @@ export function createConsentGate(
   let replayAllowed = running !== undefined;
   let appPaused = false;
   let closed = false;
+  /** The grant's install failed: the SDK is off, calls are dropped rather than queued. */
+  let failed = false;
+  /** A revocation happened: the next grant wipes first, so it never resumes a pre-revocation session. */
+  let revoked = false;
   let queue: Array<(rum: Installed) => void> = [];
   let dropped = 0;
   /** The last revocation or grant: the next one runs after it (the old instance persists its session while it stops). */
@@ -52,29 +60,36 @@ export function createConsentGate(
 
   const call = (fn: (rum: Installed) => void): void => {
     if (inner) return fn(inner);
-    if (closed || status === "denied") return;
+    if (closed || failed || status === "denied") return;
     // Pending, or granted while a revocation finishes: kept for the instance about to start.
     if (queue.length >= CONSENT_QUEUE_LIMIT) {
       queue.shift();
-      if (dropped++ === 0) logger.warn(`consent pending: over ${CONSENT_QUEUE_LIMIT} calls, dropping the oldest`);
+      if (dropped++ === 0) logger.warn("consent pending: queue full, oldest dropped");
     }
     queue.push(fn);
+  };
+
+  /** Stops the running instance; `wipeAfter` removes what the SDK stored (not when another tab did). */
+  const revoke = (wipeAfter: boolean): Promise<void> => {
+    queue = [];
+    dropped = 0;
+    replayAllowed = false;
+    status = "denied";
+    revoked = true;
+    failed = false;
+    const prev = inner;
+    inner = undefined;
+    logger.log("consent revoked", wipeAfter ? "here" : "in another tab");
+    chain = chain.then(() => quiet(prev?._revoke()));
+    if (wipeAfter) chain = chain.then(wipe);
+    return chain;
   };
 
   const setConsent = (consent: Consent): Promise<void> => {
     if (closed) return chain;
     const telemetry = consent?.telemetry === true;
     const replay = telemetry && consent.replay === true;
-    if (!telemetry) {
-      queue = [];
-      dropped = 0;
-      replayAllowed = false;
-      status = "denied";
-      const prev = inner;
-      inner = undefined;
-      logger.log("consent revoked: stopping, removing the stored ids and the outbox");
-      return (chain = chain.then(() => quiet(prev?._revoke())).then(wipe));
-    }
+    if (!telemetry) return revoke(true);
     const replayChanged = replay !== replayAllowed;
     replayAllowed = replay;
     if (inner) {
@@ -87,18 +102,26 @@ export function createConsentGate(
     // Granted already, its start waiting for a revocation to finish: it reads `replayAllowed` then.
     if (status === "granted") return chain;
     status = "granted";
-    return (chain = chain.then(() => {
-      if (closed || status !== "granted" || inner) return;
-      logger.log("consent granted", { replay: replayAllowed, queued: queue.length, dropped });
-      inner = start(replayAllowed && !appPaused);
-      const pending = queue;
-      queue = [];
-      dropped = 0;
-      for (const fn of pending) {
-        const rum = inner;
-        if (rum) attempt(() => fn(rum));
-      }
-    }));
+    return (chain = chain
+      // Another tab may have written the old session back before it stopped: never resume it.
+      .then(() => (revoked ? wipe() : undefined))
+      .then(() => {
+        if (closed || status !== "granted" || inner) return;
+        logger.log("consent granted", { replay: replayAllowed, queued: queue.length, dropped });
+        inner = start(replayAllowed && !appPaused);
+        if (!inner) {
+          failed = true;
+          queue = [];
+          return;
+        }
+        const pending = queue;
+        queue = [];
+        dropped = 0;
+        for (const fn of pending) {
+          const rum = inner;
+          if (rum) attempt(() => fn(rum));
+        }
+      }));
   };
 
   const gated: Gated = {
@@ -139,6 +162,9 @@ export function createConsentGate(
       return chain;
     },
     _uninstall: () => gated.shutdown(),
+    _revokedElsewhere: () => {
+      if (!closed && inner) void revoke(false);
+    },
     deliveryStats: () => inner?.deliveryStats() ?? noStats(),
   };
   return gated;

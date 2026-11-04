@@ -216,6 +216,59 @@ describe("consent revoked", () => {
   });
 });
 
+describe("other tabs", () => {
+  it("a revocation in another tab (ouo.device removed) stops this one without writing the ids back", async () => {
+    rum = initRUM(options());
+    const session = rum.session.id();
+    await rum.flush();
+    const sent = captured.length;
+    rum.addEvent("batched.here");
+    // What the other tab's wipe looks like from here: storage events never reach the tab that wrote.
+    const device = localStorage.getItem("ouo.device");
+    localStorage.removeItem("ouo.device");
+    localStorage.removeItem("ouo.session");
+    localStorage.removeItem("ouo.user");
+    globalThis.dispatchEvent(new StorageEvent("storage", { key: "ouo.device", oldValue: device, newValue: null }));
+    await vi.waitFor(() => expect(rum!.getConsent().status).toBe("denied"));
+    await rum.flush();
+    await wait(1200);
+    expect(captured.length).toBe(sent);
+    expect(ouoKeys()).toEqual([]);
+    expect(rum.session.id()).toBe("");
+
+    // A tab that wrote the old session back before it stopped does not make the next grant resume it.
+    localStorage.setItem("ouo.session", JSON.stringify({ id: session, startedAt: Date.now(), lastActivity: Date.now(), replaySeq: 0 }));
+    await rum.setConsent({ telemetry: true, replay: false });
+    expect(rum.session.id()).not.toBe("");
+    expect(rum.session.id()).not.toBe(session);
+  });
+
+  it("a key removed by the app, or localStorage.clear(), is not a revocation", async () => {
+    rum = initRUM(options());
+    globalThis.dispatchEvent(new StorageEvent("storage", { key: null }));
+    globalThis.dispatchEvent(new StorageEvent("storage", { key: "ouo.demo.user_id", oldValue: "u", newValue: null }));
+    await wait(50);
+    expect(rum.getConsent().status).toBe("granted");
+  });
+});
+
+describe("a grant whose start fails", () => {
+  it("leaves the SDK off and drops later calls instead of queuing them", async () => {
+    rum = initRUM(options({ consent: "pending" }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const add = vi.spyOn(globalThis, "addEventListener").mockImplementation(() => {
+      throw new Error("no listeners here");
+    });
+    await rum.setConsent({ telemetry: true, replay: false });
+    add.mockRestore();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("could not start"), expect.anything());
+    rum.addEvent("dropped");
+    expect(rum.session.id()).toBe("");
+    await rum.flush();
+    expect(captured).toEqual([]);
+  });
+});
+
 describe("replay consent", () => {
   const replay = { enabled: true, sampleRate: 1, flushIntervalMs: 100 };
   const chunks = (): number => captured.filter((c) => c.url === `${BASE}/v1/replay/chunks`).length;

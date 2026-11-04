@@ -371,10 +371,14 @@ export class ReplayRecorder {
     const privacy = this.privacy!;
     // rrweb guards its own observers with errorHandler; record() itself (the first full snapshot)
     // and our emit callback are guarded here.
+    // rrweb's throttled callbacks (mousemove, scroll) can still fire from a timer after its stop:
+    // an event of a stopped recording is dropped, or it would reach the chunker after a pause,
+    // a withdrawn replay consent or a shutdown (and persist the session's replay seq).
+    let live = true;
     const stop = attempt(() =>
       rrweb.record({
         // An event handed over once the URL is on a never-record route is dropped, and recording stops.
-        emit: guard((event: unknown, isCheckout?: boolean) => this.hide() || this.emit(privacy.scrub(event), isCheckout)),
+        emit: guard((event: unknown, isCheckout?: boolean) => live && (this.hide() || this.emit(privacy.scrub(event), isCheckout))),
         // Masking, blocking and what is left out of the recording (src/replay/rrweb.ts).
         ...privacy.options,
         checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,
@@ -385,7 +389,12 @@ export class ReplayRecorder {
         },
       }),
     );
-    this.stopFn = stop ?? null;
+    this.stopFn = stop
+      ? () => {
+          live = false;
+          stop();
+        }
+      : null;
     // The first full snapshot is emitted inside record(): it may have been too large.
     if (this.unavailable && this.stopFn) {
       attempt(this.stopFn);

@@ -193,6 +193,28 @@ describe("consent pending", () => {
     expect(rum.getConsent()).toEqual({ status: "denied", telemetry: false, replay: false });
     expect(store.keys()).toEqual(["app.theme"]);
     expect(fake.posts).toEqual([]);
+    // What an earlier granted run left natively: the pending crash report and the held replay chunks.
+    expect(fake.native.takePendingCrash).toHaveBeenCalled();
+    expect(fake.native.releaseHeldReplay).toHaveBeenCalledWith(expect.any(String), expect.anything(), "held-1", false);
+    expect(fake.native.start).not.toHaveBeenCalled();
+    expect(fake.native.recoverPendingChunk).not.toHaveBeenCalled();
+  });
+
+  it("a grant whose start fails leaves the SDK off and drops later calls", async () => {
+    const opts = options({ consent: "pending" });
+    Object.defineProperty(opts, "resource", {
+      get() {
+        throw new Error("broken options");
+      },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const rum = initRUM(opts);
+    await rum.setConsent({ telemetry: true, replay: false });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("could not start"), expect.anything());
+    rum.addEvent("dropped");
+    expect(rum.session.id()).toBe("");
+    await rum.flush();
+    expect(fake.posts).toEqual([]);
   });
 });
 

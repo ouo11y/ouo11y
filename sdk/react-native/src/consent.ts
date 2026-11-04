@@ -1,7 +1,8 @@
 import { INVALID_SPAN_CONTEXT, trace } from "@opentelemetry/api";
 import type { RUMInternal } from "./index";
 import type { DebugLogger } from "./logger";
-import { REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY } from "./replay";
+import type { NativeCrashModule } from "./crash";
+import { REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY, type NativeReplayModule, type NativeStartOptions } from "./replay";
 import { CONTEXT_STORAGE_KEY } from "./errors/context";
 import { CRASH_STORAGE_KEY, resetProcessState, SESSION_STORAGE_KEY, USER_STORAGE_KEY } from "./session/manager";
 import { Outbox } from "./transport/outbox";
@@ -52,6 +53,8 @@ export function createConsentGate(opts: {
   let paused = false;
   let hidden = false;
   let closed = false;
+  /** The grant's install failed: the SDK is off, calls are dropped rather than queued. */
+  let failed = false;
   let queue: Array<{ nav: boolean; run: (rum: Installed) => void }> = [];
   let dropped = 0;
   let chain: Promise<void> = Promise.resolve();
@@ -60,7 +63,7 @@ export function createConsentGate(opts: {
 
   const call = (run: (rum: Installed) => void, nav = false): void => {
     if (inner) return run(inner);
-    if (closed || status === "denied") return;
+    if (closed || failed || status === "denied") return;
     if (nav) queue = queue.filter((q) => !q.nav);
     if (queue.length >= CONSENT_QUEUE_LIMIT) {
       queue.shift();
@@ -85,6 +88,7 @@ export function createConsentGate(opts: {
       dropped = 0;
       replayAllowed = false;
       status = "denied";
+      failed = false;
       const prev = inner;
       inner = undefined;
       logger.log("consent revoked: stopping, deleting the stored session, requests and held replay");
@@ -111,7 +115,10 @@ export function createConsentGate(opts: {
       queue = [];
       dropped = 0;
       const rum = inner;
-      if (!rum) return;
+      if (!rum) {
+        failed = true;
+        return;
+      }
       void rum.ready.then(readyResolve, readyResolve);
       for (const q of pending) safely(() => q.run(rum));
     }));
@@ -193,11 +200,36 @@ export function createConsentGate(opts: {
 
 /**
  * Deletes what the SDK stored in `storage`: the session, the user, the crash marker, the error
- * context, the replay tallies and every stored request (read from the outbox's index). Native
- * held replay chunks are deleted by the running instance (`_revoke`). Never rejects.
+ * context, the replay tallies and every stored request (read from the outbox's index). Never rejects.
  */
 export async function wipeStorage(storage: AsyncKeyValueStorage, logger: DebugLogger): Promise<void> {
   resetProcessState();
   const outbox = new Outbox({ storage, send: () => Promise.resolve({ status: 0 }), logger });
   await Promise.all([outbox.clear(), ...STORAGE_KEYS.map((k) => storage.removeItem(k).catch(() => undefined))]);
+}
+
+/**
+ * Deletes what the native module keeps from an earlier run, unsent: the pending crash or
+ * termination report (taken and dropped) and the replay chunks held for `keepAtNextLaunch`. Runs
+ * at every revocation, including a refusal at launch when no instance ever ran. The chunk a crash
+ * left open has no native discard call yet (project/kb/consent.md, "Remainder"). Never rejects.
+ */
+export async function wipeNative(
+  native: (NativeReplayModule & NativeCrashModule) | undefined,
+  endpoint: string | undefined,
+  options: NativeStartOptions,
+  logger: DebugLogger,
+): Promise<void> {
+  if (!native) return;
+  try {
+    native.takePendingCrash?.();
+  } catch (err) {
+    logger.warn("consent: takePendingCrash failed", err);
+  }
+  if (!endpoint || typeof native.heldReplaySessions !== "function" || typeof native.releaseHeldReplay !== "function") return;
+  try {
+    for (const h of await native.heldReplaySessions(endpoint, options)) native.releaseHeldReplay(endpoint, options, h.sessionId, false);
+  } catch (err) {
+    logger.warn("consent: deleting held replay failed", err);
+  }
 }

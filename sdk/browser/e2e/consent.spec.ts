@@ -134,3 +134,35 @@ test("revoked: export stops, the ids and the IndexedDB outbox are removed", asyn
   expect(await ouoKeys(page)).toEqual([]);
   expect(await databases(page)).not.toContain("ouo-delivery");
 });
+
+test("two tabs: a revocation in one stops the other, and the next grant starts a new session", async ({ context, page }) => {
+  await open(page, "/?replay=0");
+  const other = await context.newPage();
+  await other.goto("/?replay=0");
+  await expect(other.locator("#status")).toHaveText("ready");
+  const sessionOf = (p: Page) => p.evaluate(() => (window as unknown as { rum: { session: { id(): string } } }).rum.session.id());
+  const before = await sessionOf(page);
+  expect(await sessionOf(other)).toBe(before); // tabs share the session
+
+  const fromOther: string[] = [];
+  other.on("request", (r) => {
+    if (r.url().startsWith(COLLECTOR)) fromOther.push(r.url());
+  });
+  await setConsent(page, false, false);
+  await expect
+    .poll(() => other.evaluate(() => (window as unknown as { rum: { getConsent(): { status: string } } }).rum.getConsent().status))
+    .toBe("denied");
+  fromOther.length = 0;
+  await other.click("#mutate");
+  await other.click("#fail");
+  await other.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await other.waitForTimeout(1500);
+  expect(fromOther).toEqual([]);
+  expect(await ouoKeys(page)).toEqual([]);
+
+  await setConsent(page, true, false);
+  const after = await sessionOf(page);
+  expect(after).not.toBe("");
+  expect(after).not.toBe(before);
+  await other.close();
+});

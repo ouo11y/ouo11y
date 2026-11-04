@@ -11,7 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
-import { createConsentGate, wipeStorage, type Installed, type ReplayIntent } from "./consent";
+import { createConsentGate, wipeNative, wipeStorage, type Installed, type ReplayIntent } from "./consent";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
@@ -33,7 +33,7 @@ import { activeRoutePath, createNavigationTracker, type NavigationStateLike } fr
 import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
-import { createReplayController, loadNativeReplayModule } from "./replay";
+import { createReplayController, loadNativeReplayModule, nativeStartOptions } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
 import { uuidv4 } from "./session/ids";
 import { SessionManager } from "./session/manager";
@@ -115,7 +115,12 @@ export function initRUM(options: RUMOptions): RUM {
         return undefined;
       }
     },
-    wipe: () => wipeStorage(safeStorage(options.storage ?? AsyncStorage, (err) => logger.warn("storage error", err)), logger),
+    wipe: () =>
+      Promise.all([
+        wipeStorage(safeStorage(options.storage ?? AsyncStorage, (err) => logger.warn("storage error", err)), logger),
+        // Also with no instance (refused at launch): what an earlier granted run left natively.
+        wipeNative(loadNativeReplayModule(), endpoints.replayEndpoint, nativeStartOptions({ ...credentials, options: options.replay }, logger.enabled, ""), logger),
+      ]).then(() => undefined),
     logger,
     onShutdown: () => {
       if (getRUM() === gate) setRUM(undefined);

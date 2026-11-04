@@ -22,9 +22,9 @@ import { createNetworkInstrumentations } from "./network";
 import { ReplayChunker } from "./replay/chunker";
 import { ReplayRecorder, UNMASK_CLASS } from "./replay/recorder";
 import { createChunkUploader } from "./replay/uploader";
-import { loadDeviceId } from "./session/device";
+import { DEVICE_STORAGE_KEY, loadDeviceId } from "./session/device";
 import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
-import { LocalStorage } from "./session/storage";
+import { LocalStorage, type KeyValueStorage } from "./session/storage";
 import { PageLogRecordProcessor, PageSpanProcessor } from "./telemetry/batch";
 import { RouteState, SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
@@ -101,7 +101,7 @@ export function initRUM(options: RUMOptions): RUM {
   const start = (replay: boolean): Installed | undefined => {
     const cleanup: Array<() => unknown> = [];
     try {
-      return install(options, urls, authorization, cleanup, replay);
+      return install(options, urls, authorization, cleanup, replay, () => gate?._revokedElsewhere?.());
     } catch (err) {
       console.warn("[ouo] could not start, the SDK is off", err);
       for (const off of cleanup.reverse()) attempt(off);
@@ -111,20 +111,23 @@ export function initRUM(options: RUMOptions): RUM {
   };
   // Consent pending: nothing below `install` runs, so nothing is stored, opened or sent (README, "Consent").
   let running: Installed | undefined;
+  // Assigned below; the cross-tab revocation callback runs long after.
+  let gate: Gated | undefined;
   if (options.consent !== "pending") {
     running = start(true);
     if (!running) return noopRUM();
   }
-  const gate: Gated = createConsentGate(
+  const created = createConsentGate(
     start,
     createLogger(options.debug === true),
     () => {
-      if (instance === gate) instance = undefined;
+      if (instance === created) instance = undefined;
     },
     running,
   );
-  instance = gate;
-  return gate;
+  gate = created;
+  instance = created;
+  return created;
 }
 
 function install(
@@ -134,6 +137,8 @@ function install(
   cleanup: Array<() => unknown>,
   /** Replay consent: without it the recorder starts paused and rrweb is never loaded. */
   replayAllowed: boolean,
+  /** Another tab revoked consent (it removed `ouo.device`). */
+  onRevokedElsewhere: () => void,
 ): Installed {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
@@ -156,7 +161,21 @@ function install(
   cleanup.push(() => delivery.close());
 
   const serviceVersion = options.service.version;
-  const storage = new LocalStorage();
+  // Nothing is written once the SDK is shut down, by any late callback (a timer, rrweb's
+  // throttled events): after a consent revocation that would bring back the ids just wiped.
+  // Pushed early, so it runs after the session's final persist (cleanup runs in reverse).
+  const local = new LocalStorage();
+  let storageClosed = false;
+  const storage: KeyValueStorage = {
+    get: (key) => local.get(key),
+    set: (key, value) => {
+      if (!storageClosed) local.set(key, value);
+    },
+    remove: (key) => {
+      if (!storageClosed) local.remove(key);
+    },
+  };
+  cleanup.push(() => (storageClosed = true));
   const deviceId = loadDeviceId(storage);
 
   // Late-bound: the session manager emits session.start inside start(), after these exist.
@@ -239,6 +258,9 @@ function install(
   cleanup.push(installActivityListeners(onActivity));
   const onStorage = guard((e: StorageEvent): void => {
     if (e.key === SESSION_STORAGE_KEY) session.handleStorageEvent(e.newValue);
+    // Only a consent revocation removes `ouo.device` (src/consent.ts `wipe`): another tab of the
+    // origin revoked, and this one stops too rather than export and re-write the ids.
+    if (e.key === DEVICE_STORAGE_KEY && e.newValue === null && e.oldValue !== null) onRevokedElsewhere();
   });
   globalThis.addEventListener("storage", onStorage);
   cleanup.push(() => globalThis.removeEventListener("storage", onStorage));
@@ -433,7 +455,9 @@ function install(
     shutdown,
     _uninstall: shutdown,
     _revoke: () => {
-      // Before the shutdown's flush: what is still buffered is dropped, not sent or stored.
+      // Before the shutdown's flush: what is still buffered is dropped, not sent or stored, and
+      // the session's final persist does not happen (the ids are about to be, or were, wiped).
+      storageClosed = true;
       delivery.halt();
       return shutdown();
     },

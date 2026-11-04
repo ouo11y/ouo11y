@@ -220,6 +220,27 @@ function sessionTally(storage: AsyncKeyValueStorage | undefined, key: string): {
  * the on-error sample (`replay.onErrorSampleRate`). The native recorder is started for the
  * first recorded session and paused for sessions that are not recorded.
  */
+/** What the native `start` (and the held-chunk calls) receive for `sessionId`. */
+export function nativeStartOptions(
+  opts: Pick<ReplayControllerOptions, "projectId" | "projectToken" | "options">,
+  debug: boolean,
+  sessionId: string,
+): NativeStartOptions {
+  return {
+    sessionId,
+    projectId: opts.projectId,
+    projectToken: opts.projectToken,
+    mode: opts.options?.mode ?? "auto",
+    frameInterval: opts.options?.frameInterval ?? 1,
+    maskText: opts.options?.maskText !== false,
+    maskInputs: opts.options?.maskInputs !== false,
+    maskImages: opts.options?.maskImages !== false,
+    maskWebViews: opts.options?.maskWebViews !== false,
+    debug,
+    holdUploads: typeof opts.options?.keepAtNextLaunch === "function",
+  };
+}
+
 export function createReplayController(opts: ReplayControllerOptions): ReplayController {
   const { logger } = opts;
   const enabled = opts.options?.enabled === true;
@@ -273,19 +294,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   const inSessionSample = (id: string): boolean => sampled(id, sessionRate, SAMPLING_SALT.session);
   const recorded = (id: string): boolean => inSessionSample(id) && sampled(id, replayRate, SAMPLING_SALT.replay);
 
-  const nativeOptions = (sessionId: string): NativeStartOptions => ({
-    sessionId,
-    projectId: opts.projectId,
-    projectToken: opts.projectToken,
-    mode: opts.options?.mode ?? "auto",
-    frameInterval: opts.options?.frameInterval ?? 1,
-    maskText: opts.options?.maskText !== false,
-    maskInputs: opts.options?.maskInputs !== false,
-    maskImages: opts.options?.maskImages !== false,
-    maskWebViews: opts.options?.maskWebViews !== false,
-    debug: logger.enabled,
-    holdUploads: hold,
-  });
+  const nativeOptions = (sessionId: string): NativeStartOptions => nativeStartOptions(opts, logger.enabled, sessionId);
 
   // The chunk a crash left open goes out whatever this launch's sampling decides.
   if (native && endpoint && typeof native.recoverPendingChunk === "function") {

@@ -1,7 +1,7 @@
 {
   "_comment": "Gzip (level 9) budget per built file in KB, checked by `npm run size:check` in CI (checklist N10). Raise a budget only in a PR that says why.",
   "files": {
-    "index.js": 45.0,
+    "index.js": 45.2,
     "react.js": 1.0,
     "rrweb-*.js": 60.0
   }

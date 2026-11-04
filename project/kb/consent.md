@@ -21,8 +21,12 @@ What was learnt building `consent: "pending"` / `setConsent` in `@ouo11y/browser
 - **Demo verification gotcha**: the replay endpoint is derived (4318 → 4319) only when the OTLP endpoint uses port 4318. On an isolated stack with other ports set `VITE_OUO_REPLAY_ENDPOINT`, or chunks go to the OTLP port and fail CORS.
 - **`?consent=pending` in ouo-web is read at page load only**: a full reload without it starts granted. A real app reads its CMP on every load.
 
+- **rrweb emits after its stop.** Its throttled mousemove / scroll callbacks fire from a `setTimeout` after `stopFn()`; the event reached the chunker, whose `nextSeq()` force-persists `ouo.session`, after the wipe (Firefox flake, review round 1). The recorder now wraps `stopFn` to clear a `live` flag the emit checks, and `install()` hands the session manager a storage that is closed at shutdown (a plain "stopped" flag in `SessionManager.stop()` would break bfcache: `pagehide` calls `stop()` and the page can come back).
+- **Cross-tab revocation** is detected by the `storage` event for `ouo.device` with `newValue === null` (only the wipe removes it; `localStorage.clear()` sends `key: null`). The other tab stops without wiping, otherwise its late wipe would remove the ids of a tab that re-granted meanwhile (and that removal would revoke that tab in turn).
+- **RN `takePendingCrash()` twice is safe**: a second call returns nil unless a new `report.json` exists, so the wipe calls it at every revocation; at a refusal it also consumes the previous run's state (no termination reported later).
+
 ## Remainder (not in this PR)
 
-- RN native: a `discard()` in `OuoReplayModule` (Swift and Kotlin) that drops the open chunk and the disk queue instead of flushing them at revocation; a way to stop the crash / hang handlers (signal handlers cannot be safely removed; at least clear the crash session so a crash after revocation is not reported at the next granted launch).
+- RN native: a `discard()` in `OuoReplayModule` (Swift and Kotlin) that drops the open chunk and the disk queue instead of flushing them at revocation, and the chunk a crash left open in an earlier run (today only `recoverPendingChunk`, which sends it); a way to stop the crash / hang handlers (signal handlers cannot be safely removed; at least clear the crash session so a crash after revocation is not reported at the next granted launch).
 - Native iOS SDK (`sdk/ios`, `Ouo.start`): the same API (`consent: .pending`, `Ouo.setConsent(telemetry:replay:)`), gating `SessionManager` persistence, `OuoCrash.install`, `OuoReplay.start`, the exporter's disk queue; wipe of its files under Application Support. Not started: it is its own reviewable PR.
 - Android native SDK (#151 in flight) likewise.
