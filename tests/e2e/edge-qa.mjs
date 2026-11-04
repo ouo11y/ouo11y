@@ -426,7 +426,8 @@ checks.viewer = async () => {
     // URL parser folds `..` and `%2e%2e` segments, so the `/` is encoded too to keep it one segment.
     const trav = await fetch(`${proxy}/v1/funnels/%2e%2e%2fsymbolicate`, { method: "POST", headers: { ...json, ...v }, body: "{}", redirect: "manual" });
     note("funnels_traversal", { status: trav.status, location: trav.headers.get("location") });
-    assert("Viewer POST /v1/funnels/../symbolicate through the plugin proxy runs no rum-api handler (not 2xx)", trav.status < 200 || trav.status >= 300, trav.status);
+    const travTo = trav.headers.get("location") ?? "";
+    assert("Viewer POST /v1/funnels/../symbolicate through the plugin proxy gets rum-api's ServeMux redirect to the clean path (301/307/308 to /v1/symbolicate), so no handler runs", [301, 307, 308].includes(trav.status) && travTo.endsWith("/v1/symbolicate"), `${trav.status} ${travTo}`);
     const ad = await del(grafana());
     assert("Admin DELETEs the replay through the plugin proxy (204)", ad.status === 204, ad.status);
     assert("the replay is gone after the Admin's DELETE (404)", (await replayStatus(sid)) === 404);
