@@ -33,7 +33,23 @@ third-party `.so`) on the React Native Android module was only a termination wit
 
 ## Verified, and how
 
-(filled in below)
+- Proto field numbers: a raw protobuf dump of a real tombstone (`kill -SEGV` of toybox `sleep`, API 35
+  arm64 emulator, `adb root`) compared with its text twin; then the app's own SIGSEGV and abort tombstones.
+- `sdk/android`: CI's command `./gradlew :replay-core:test :signals-core:test :replay:assembleRelease
+  :signals:assembleRelease :replay:compileDebugAndroidTestKotlin`: green; signals-core 18 tests
+  (10 `TombstoneTest`, against the three real tombstones, trimmed, and synthetic ones: abort message,
+  APK-embedded library, anonymous frames, truncated / text / garbage input, timestamps with offsets,
+  debug ids, every `NativeCrash.decide` case).
+- `sdk/react-native`: vitest 213 pass (new: the Android NDK report's attributes, title and stack), `tsc
+  --noEmit` clean; `examples/ouo-mobile` `tsc --noEmit` clean. `lychee --offline` on the changed docs: 0 errors.
+- Emulator suite `tests/e2e/mobile-android/run.sh b1b-ndk emulator-5596` (own AVD `ouo-b1b`, API 35,
+  env `b1b-ndk`): run 1 found the capture right and the check wrong (the note's `kind` was overwritten
+  by a field named `kind`; fixed), run 2 C2.4 pass and C2.3 FAIL (the JVM crash 200 ms after launch came
+  1.21 s after its note, a busy cold-start main thread; no B1b code runs in that launch), run 3 (same
+  APK) **20/20, React Native Android L2 on C1–C11**. C2.4's records: `SIGSEGV (SEGV_MAPERR) at 0x0: null
+  pointer dereference`, top frame `ouo_chaos_segv+12`, image `base.apk!libouochaos.so` 0x3000 bytes with
+  build id `d98bdee3...`, one fatal record per exit, the session ended at the tombstone time (63 ms
+  after the note); `SIGABRT (SI_QUEUE): ouo-mobile: native abort from the Chaos module`.
 
 ## Left, and what the next session must know
 
