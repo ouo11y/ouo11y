@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R5 exposed components</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #2e7d32; --card: #f7f7f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --fg: #e8e8e8; --muted: #a0a0a0; --line: #333; --ok: #7bd389; --card: #1f2026; } }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 1100px; margin-inline: auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); margin: 0 auto; }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--card); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+</style>
+</head>
+<body>
+<h1>R5: ouo views embedded in a host plugin</h1>
+<p class="lead">2026-11-04 · PR #165 · ADR-0019 · Grafana 13.2.5, compose project <code>r5embed</code> with <code>compose.embed-host.yaml</code>, data from <code>deploy/scripts/e2e.sh</code> (40 sessions, one rrweb replay)</p>
+
+<h2>Checks (Playwright, Basic auth admin)</h2>
+<div class="scroll"><table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td><code>overview-health/v1</code> renders in the host page (web and mobile tiles, version tables)</td><td class="ok">pass</td></tr>
+<tr><td><code>sessions-list/v1</code> renders with <code>limit: 20</code> from props</td><td class="ok">pass: 20 rows, "limit 20 reached"</td></tr>
+<tr><td>Only one page header, the host's (<code>PageShell</code> drops ouo's chrome)</td><td class="ok">pass: <code>["ouo embed host (fixture)"]</code></td></tr>
+<tr><td>Row click reaches the host's <code>onSessionClick</code>, which mounts <code>session-detail/v1</code></td><td class="ok">pass: <code>?sessionId=qa-mw1vbqu3-m-110-c1</code></td></tr>
+<tr><td><code>session-detail/v1</code> for the rrweb session: header, rrweb player iframe, activity list, traces, logs</td><td class="ok">pass</td></tr>
+<tr><td>Every rum-api call goes through ouo's own proxy route</td><td class="ok">pass: 12/12 under <code>/api/plugin-proxy/ouo11y-rum-app/rum/</code></td></tr>
+<tr><td>No console errors</td><td class="ok">pass</td></tr>
+<tr><td>Grafana backend sees both declarations (<code>/api/frontend/settings</code>): ouo's <code>extensions.exposedComponents</code> and the host's <code>dependencies.extensions.exposedComponents</code></td><td class="ok">pass</td></tr>
+</table></div>
+
+<h2>Screenshots</h2>
+<figure><img src="r5-1-host-overview-list.jpg" alt="Host page with ouo health tiles and sessions list"><figcaption>The host page (its own title and nav entry). The dashed boxes are ouo's <code>overview-health/v1</code> and <code>sessions-list/v1</code>.</figcaption></figure>
+<figure><img src="r5-3-detail-slot.jpg" alt="Session detail with rrweb player inside the host"><figcaption><code>session-detail/v1</code> for <code>qa-mw1vbqu3-w-110-c0</code>: the rrweb player and activity list, traces, logs. The e2e replay holds only 2 rrweb events, so the player frame is empty by design of the fixture data.</figcaption></figure>
+<figure><img src="r5-2-host-session-replay.jpg" alt="Full host page with session detail"><figcaption>The whole host page with the session detail mounted.</figcaption></figure>
+
+<h2>Notes</h2>
+<p>The Mac ran about 150 containers (load average around 900) during the run. Grafana took more than 15 minutes to start, and Loki needed retries before rum-api answered. The e2e scenario's own assertions were cut short by the alarm after the data was sent. None of this involves the plugin.</p>
+</body>
+</html>
