@@ -110,6 +110,9 @@ describe("interaction tracing", () => {
   });
 
   it("three quick clicks on one element are one rage click", async () => {
+    // jsdom puts every click at (0, 0): the previous test's click joins the burst unless its
+    // 1000 ms window is over (settle() alone is 700 ms plus a flush, often less on a fast run).
+    await wait(1100);
     const b = button("rage");
     b.click();
     b.click();
