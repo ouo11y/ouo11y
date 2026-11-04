@@ -1,3 +1,4 @@
+import { attempt } from "../guard";
 import { BLOCK_CLASS, MASK_TEXT_CLASS } from "../replay/recorder";
 
 /** Elements a user clicks on purpose; a click inside one is attributed to it. */
@@ -22,10 +23,11 @@ export function clickTarget(target: EventTarget | null): Element | null {
 
 /**
  * Pure description of an element for click spans and rage / dead click events. Text is only
- * read from buttons and links, and never inside the replay privacy classes (`ouo-mask`,
- * `ouo-block`); input values are never read.
+ * read from buttons and links; input values are never read. Where replay masks the text
+ * (`ouo-mask`, `ouo-block`, `mask`, or outside `unmask` with `replay.maskAllText`) the name is
+ * the `data-testid` alone: no text, aria-label, title or name attribute.
  */
-export function describeElement(el: Element): ElementDescription {
+export function describeElement(el: Element, unmask?: string, mask?: string): ElementDescription {
   const tag = el.tagName.toLowerCase();
   let id = tag;
   if (el.id) id += `#${el.id}`;
@@ -34,14 +36,15 @@ export function describeElement(el: Element): ElementDescription {
   const testId = el.getAttribute("data-testid");
   if (testId) id += `[data-testid=${testId}]`;
 
-  const masked = el.closest(`.${MASK_TEXT_CLASS},.${BLOCK_CLASS}`) !== null;
+  // An invalid host selector fails closed.
+  const masked = attempt(() => el.closest(`.${MASK_TEXT_CLASS},.${BLOCK_CLASS}${mask ? `,${mask}` : ""}`) !== null || (unmask !== undefined && !el.closest(unmask)), true);
   const attr = (n: string): string => (el.getAttribute(n) ?? "").trim();
-  let name = attr("aria-label") || testId || "";
-  if (!name && !masked && isTextLabelled(el, tag)) {
-    name = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+  let name = testId ?? "";
+  if (!masked) {
+    name = attr("aria-label") || name;
+    if (!name && isTextLabelled(el, tag)) name = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (!name) name = attr("title") || attr("name");
   }
-  if (!name) name = attr("title") || attr("name");
-  if (masked && name && !testId) name = "";
   return { id, name: name.length > MAX_NAME ? `${name.slice(0, MAX_NAME - 1)}…` : name };
 }
 

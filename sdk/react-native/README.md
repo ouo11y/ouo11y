@@ -116,6 +116,7 @@ initRUM({
   // ...
 });
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
+rum.replay.hideScreen(); rum.replay.showScreen();   // never-record screens, see below
 ```
 
 `mode`: `session` records a frame at most every `frameInterval` seconds while the screen changes;
@@ -158,6 +159,46 @@ and `testID="ouo-mask"` redacts a view (its rectangle covers the subtree); both 
 combination of the options above. Extra class names can be masked with `maskClasses` on the
 Swift config (`extraClasses` in the planner) when embedding the package directly. Details and the
 class lists are in `sdk/ios/README.md`.
+
+### Never-record screens
+
+Masking hides content but still records the layout. For screens that must not appear in a
+replay at all (identity checks, signatures, health records):
+
+```ts
+initRUM({ replay: { enabled: true, excludeScreens: ["IdentityCheck", "/Account/Sign*", /^Patient/] } });
+
+// A screen the SDK does not see as a route: a third-party SDK's own UI.
+rum.replay.hideScreen();
+await stripeIdentity.present();   // Stripe Identity's view controller / activity
+rum.replay.showScreen();
+```
+
+- `excludeScreens` matches the screen the SDK tracks (`navigationStateListener(rum)` or
+  `rum.trackNavigation(path)`): a string equals the screen name (the path's last segment) or the
+  whole path, or is a prefix when it ends with `*`; a RegExp is tested against both. On such a
+  screen native capture is paused (the open chunk is cut and sent, no frame is taken), and it
+  resumes with a full frame 500 ms after the screen is left, once the transition out of it is
+  over. A recorder that would start on a hidden screen starts when it is shown.
+- `hideScreen()` / `showScreen()` do the same by hand. They, `excludeScreens` and `pause()` are
+  independent: capture resumes only when none of them holds it. They survive backgrounding, a
+  new activity or view controller and session rotation.
+- Hiding writes an `ouo.replay.hidden` event (`ouo.replay.hidden_reason`: `screen` or `manual`)
+  to the session's timeline, once per hidden stretch, and again for a session that starts while
+  hidden; the player keeps the last frame before the gap.
+- **Timing.** The SDK learns about a route from `onStateChange`, after the screen mounted, and
+  the native pause runs on the next main-thread turn. A screen pushed with a native transition is
+  safe (no frame is taken during a transition), but one shown without one (a tab switch, a
+  `Modal` with `animationType="none"`) can have one frame captured first, masked like any other.
+  For a screen that must never appear, call `hideScreen()` **before** navigating to it, and
+  `showScreen()` after leaving it.
+- **Third-party native UI.** What a third-party SDK presents is in your app's process, so the
+  recorder sees it: on iOS a view controller presented in the key window (Stripe Identity's
+  flow) is captured like your own screens, on Android its activity's window is the topmost one and
+  is captured. Its text, images and camera preview (`SurfaceView` / `TextureView` on Android) are
+  masked by the class rules, but the layout is recorded, so wrap it in `hideScreen()` /
+  `showScreen()`. (Not verified against the Stripe Identity SDK itself: the example apps do not
+  embed it.)
 
 Requirements: `expo-modules-core` (peer, optional), a development build instead of Expo Go
 (`npx expo prebuild --platform ios && npx expo run:ios`, needs Xcode + CocoaPods), and
@@ -547,7 +588,7 @@ feedback beside its replay, with these events and a link to the replay at the fe
 `session.start`, `session.end` (`ouo.session.end_reason`, `ouo.session.duration_ms`,
 `ouo.session.started_at`, `ouo.session.ended_at`), `exception`, `http.request.failed`,
 `navigation` (`url.path`, `ouo.navigation.from`, `ouo.navigation.kind = screen`), `ui.tap`, `app.lifecycle`, `http.request`,
-`log`, `feedback`, the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
+`log`, `feedback`, `ouo.replay.hidden` (`ouo.replay.hidden_reason`: `screen`, `manual`), the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
 from `addEvent` (`ouo.event.custom=true`). Every span and log record carries `session.id`,
 `session.previous_id` (when set), `user.id`, `ouo.user.anonymous`, `ouo.platform=mobile`
 and `service.version`. Resource: `service.name`, `service.version`,

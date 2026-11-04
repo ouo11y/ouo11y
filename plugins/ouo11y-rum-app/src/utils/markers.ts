@@ -3,7 +3,10 @@ import { isFeedbackEvent } from './feedback';
 import { parseTs } from './format';
 import { isTapEvent, tapLabel, type ReplayTap } from './taps';
 
-export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap' | 'feedback';
+export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap' | 'feedback' | 'hidden';
+
+/** The SDKs' marker of a never-record route or screen (ADR-0003 revision 2026-11-03, ADR-0006 revision 3). */
+export const REPLAY_HIDDEN_EVENT = 'ouo.replay.hidden';
 
 export interface ReplayMarker {
   /** Index into the timeline array; -1 for a tap known only from a recorded touch. */
@@ -47,6 +50,9 @@ export function markerKind(ev: TimelineEvent): MarkerKind | null {
     case 'navigation':
       return 'navigation';
     case 'custom':
+      if (ev.name === REPLAY_HIDDEN_EVENT) {
+        return 'hidden';
+      }
       return isTapEvent(ev) ? 'tap' : isFeedbackEvent(ev) ? 'feedback' : null;
     default:
       return null;
@@ -69,6 +75,9 @@ export function markerLabel(ev: TimelineEvent): string {
       if (isFeedbackEvent(ev)) {
         return `Feedback: ${a.ouo_feedback_message ?? ''}`.trim();
       }
+      if (ev.name === REPLAY_HIDDEN_EVENT) {
+        return `Replay hidden (${a.ouo_replay_hidden_reason ?? 'unknown'}): nothing recorded until the next frame`;
+      }
       return ev.name;
     default:
       return ev.name;
@@ -76,7 +85,7 @@ export function markerLabel(ev: TimelineEvent): string {
 }
 
 /**
- * Builds replay markers (errors, failed requests, navigations, taps, feedback) from a timeline. With `taps`
+ * Builds replay markers (errors, failed requests, navigations, taps, feedback, hidden stretches) from a timeline. With `taps`
  * (`buildTaps` of a video replay's touches and the timeline), taps come from that list instead of
  * the timeline's `ui.tap` events, so a touch without a breadcrumb gets a marker too. Taps are
  * listed first so the other kinds are drawn on top of them.

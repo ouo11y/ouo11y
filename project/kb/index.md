@@ -14,6 +14,7 @@ One file per topic. Add a line here whenever you add a file. Each entry answers 
 | [loki-session-queries.md](loki-session-queries.md) | LogQL used by rum-api to fold session events (filled in Phase 3) |
 | [tempo-session-search.md](tempo-session-search.md) | TraceQL and Tempo API used to list traces per session (filled in Phase 3) |
 | [rrweb-chunking.md](rrweb-chunking.md) | rrweb record/replay settings, chunk sizes, privacy classes (filled in Phase 2) |
+| [replay-privacy.md](replay-privacy.md) | Mask all text with rrweb 2.1.7 hooks (`maskTextSelector: "*"` + `maskTextFn`), what rrweb does not mask (attributes), why stopping in the `pushState` patch drops the new page's mutations, `{ record }` import shrinking the rrweb chunk 77 to 55 KB, RN never-record screens over native pause (P1, 2026-11-03) |
 | [grafana-app-plugin.md](grafana-app-plugin.md) | Scaffold, unsigned plugin loading, route proxy and how Grafana 13 matches routes per method and role (N30), embedding rrweb-player |
 | [data-lifecycle.md](data-lifecycle.md) | Loki retention and delete API quirks, Tempo 3.0 retention keys and `tempo-cli redact`, Mimir retention, S3 lifecycle by object tag, the sampling hash (8b) |
 | [competitors.md](competitors.md) | Notes on how Sentry, Datadog, Grafana Faro, PostHog and OpenReplay model sessions and replay |

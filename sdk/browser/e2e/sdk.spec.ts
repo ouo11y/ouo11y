@@ -118,6 +118,8 @@ test("rage clicks and dead clicks", async ({ page }) => {
   expect(rage).toHaveLength(1);
   expect(rage[0]!.attributes["ouo.click.count"]).toBe(4);
   expect(rage[0]!.attributes["app.widget.id"]).toBe("button#rage");
+  // Outside ouo-unmask a click carries no text (replay.maskAllText, the default).
+  expect(rage[0]!.attributes["app.widget.name"]).toBeUndefined();
   const dead = logs.filter((l) => l.eventName === "ouo.dead_click").map((l) => l.attributes["app.widget.id"]);
   expect(dead).toContain("button#dead");
   // Clicks that caused no request are not exported as spans.
@@ -210,4 +212,53 @@ test("multi-tab replay: only the tab the user is in records; each stretch starts
   expect(tabs[0]).toBe(tabs[2]);
   expect(tabs[1]).not.toBe(tabs[0]);
   await second.close();
+});
+
+test("replay masks all text outside ouo-unmask and records nothing on a never-record route", async ({ page }) => {
+  await open(page);
+  const isRecording = () => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
+  await expect.poll(isRecording).toBe(true);
+  await page.locator("#private").click();
+  expect(await isRecording()).toBe(false);
+  await page.waitForTimeout(200);
+  await page.locator("#leave").click();
+  await expect.poll(isRecording).toBe(true);
+  await page.waitForTimeout(200);
+  await flush(page);
+  const { replay, logs } = await captured(page);
+  const events = replay.sort((a, b) => a.seq - b.seq).flatMap((c) => c.events);
+  const text = JSON.stringify(events);
+  expect(text).toContain("Public heading");
+  expect(text).toContain("Patient list");
+  for (const secret of ["Jane", "1970", "Unmasked area", "Diagnosis", "Later on the record page", "Open patient record"]) expect(text, secret).not.toContain(secret);
+  // The hidden marker, then a fresh full snapshot when the route is left.
+  const hidden = events.findIndex((e) => e.type === 5 && e.data?.tag === "ouo.replay.hidden");
+  expect(hidden).toBeGreaterThan(0);
+  expect(events.slice(hidden + 1).some((e) => e.type === 2)).toBe(true);
+  expect(logs.filter((l) => l.eventName === "ouo.replay.hidden").map((l) => l.attributes["ouo.replay.hidden_reason"])).toEqual(["route"]);
+});
+
+test("back onto a never-record route records nothing when the router's popstate listener runs before the SDK's", async ({ page }) => {
+  // A router registered before initRUM (consent-gated init) renders in its popstate listener; the
+  // microtask checkpoint between listeners lets rrweb emit that render before the SDK's listener.
+  await page.addInitScript(() => {
+    addEventListener("popstate", () => {
+      const out = document.getElementById("out");
+      if (out && location.pathname.startsWith("/patients/")) out.innerHTML = '<p class="ouo-unmask">SECRETPOP</p>';
+    });
+  });
+  await open(page);
+  const isRecording = () => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
+  await expect.poll(isRecording).toBe(true);
+  await page.evaluate(() => history.pushState({}, "", "/patients/9"));
+  expect(await isRecording()).toBe(false);
+  await page.evaluate(() => history.pushState({}, "", "/"));
+  await expect.poll(isRecording).toBe(true);
+  await page.evaluate(() => history.back());
+  await expect.poll(() => page.url()).toContain("/patients/9");
+  await page.waitForTimeout(200);
+  expect(await isRecording()).toBe(false);
+  await flush(page);
+  const { replay } = await captured(page);
+  expect(JSON.stringify(replay)).not.toContain("SECRETPOP");
 });
