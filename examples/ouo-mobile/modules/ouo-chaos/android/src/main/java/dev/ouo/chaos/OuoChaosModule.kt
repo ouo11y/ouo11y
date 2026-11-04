@@ -64,6 +64,15 @@ class OuoChaosModule : Module() {
     }
 
     /**
+     * An NDK crash in C code (`libouochaos.so`) on the JS thread, where a crash in Hermes or a
+     * third-party library's JSI code happens: `abort` true is `abort()` with an abort message, else
+     * a SIGSEGV at address 0. No handler runs; Android 12+ keeps the tombstone for the next launch.
+     */
+    Function("crashInNativeCode") { abort: Boolean ->
+      NativeCrash.crash(if (abort) NativeCrash.ABORT else NativeCrash.SEGV)
+    }
+
+    /**
      * What the low-memory killer does to a foreground app: a memory warning (`onTrimMemory`
      * RUNNING_CRITICAL, delivered to the app's registered callbacks), then a SIGKILL without a
      * crash report a second later.

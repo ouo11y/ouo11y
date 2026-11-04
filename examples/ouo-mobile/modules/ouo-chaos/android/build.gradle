@@ -14,4 +14,13 @@ android {
     versionCode 1
     versionName '1.0.0'
   }
+  // libouochaos.so, the deliberate NDK crashes (src/main/cpp), with the app's NDK.
+  if (rootProject.ext.has('ndkVersion')) {
+    ndkVersion rootProject.ext.ndkVersion
+  }
+  externalNativeBuild {
+    cmake {
+      path 'src/main/cpp/CMakeLists.txt'
+    }
+  }
 }

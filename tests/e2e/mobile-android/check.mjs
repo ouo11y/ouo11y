@@ -21,7 +21,7 @@ const notes = readFileSync(join(out, "logcat.txt"), "utf8")
 const requests = readFileSync(join(out, "requests.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 // run.sh names every launch (`am start -e ouo_action <name>`); the early crash notes itself.
 const launch = (action) => notes.find((n) => n.kind === "launch" && n.action === action);
-const [main, tapRun, crash, hang, oom, offline, reject] = ["main", "taps", "crash", "hang", "oom", "offline", "reject"].map(launch);
+const [main, tapRun, crash, ndk, abort, hang, oom, offline, reject] = ["main", "taps", "crash", "crash-ndk", "crash-abort", "hang", "oom", "offline", "reject"].map(launch);
 const early = notes.find((n) => n.kind === "crash" && n.action === "crash-early");
 const rotated = notes.find((n) => n.kind === "active" && n.ts > main.ts && n.ts < tapRun.ts && n.session !== main.session)?.session;
 const noteAfter = (l, kind) => notes.find((n) => n.kind === kind && n.ts >= l.ts && n.session === l.session);
@@ -54,6 +54,7 @@ async function traceSpans(traceId) {
 const tracesOf = async (id) => Promise.all(((await detail(id))?.traces ?? []).map((t) => traceSpans(t.trace_id)));
 
 let pixelReport = null;
+let ndkReport = null;
 /** Areas the app notes around a Text (examples/ouo-mobile `maskedArea`), left-aligned. */
 const TEXT_AREAS = new Set(["product-price", "cart-total"]);
 const CHECKS = {
@@ -79,6 +80,32 @@ const CHECKS = {
   "C2.3": async () => {
     const d = await detail(early?.session);
     return d?.status === "crashed" && d?.end_reason === "crash" && Date.parse(d.started_at) <= early.ts && Math.abs(Date.parse(d.ended_at) - (early.ts + 200)) <= 1000;
+  },
+  // An NDK crash, read from the tombstone at the next launch: one fatal `signal` record (no
+  // termination record for the same exit) with the C frames, the .so's build id and the error context.
+  "C2.4": async () => {
+    const [d, a] = await Promise.all([detail(ndk?.session), detail(abort?.session)]);
+    const fatal = (x) => named(x, "exception").filter((e) => ["native", "termination"].includes(attr(e, "ouo.exception.kind")));
+    const [e] = fatal(d);
+    const [ea] = fatal(a);
+    const at = noteAfter(ndk, "crash")?.ts;
+    let frames = [];
+    let images = [];
+    try {
+      frames = JSON.parse(attr(e, "ouo.crash.frames") ?? "[]");
+      images = JSON.parse(attr(e, "ouo.crash.images") ?? "[]");
+    } catch {}
+    const lib = images.find((i) => i.code_file?.endsWith("libouochaos.so"));
+    ndkReport = { segv: e && { message: attr(e, "exception.message"), top: frames[0], lib }, abort: ea && attr(ea, "exception.message") };
+    return (
+      d?.status === "crashed" && d?.end_reason === "crash" && Math.abs(Date.parse(d.ended_at) - at) <= 1000 &&
+      fatal(d).length === 1 && attr(e, "ouo.exception.kind") === "native" && attr(e, "ouo.exception.fatal") === "true" &&
+      attr(e, "ouo.crash.mechanism") === "signal" && attr(e, "ouo.crash.signal") === "SIGSEGV" && attr(e, "ouo.crash.address") === "0x0" &&
+      frames[0]?.function === "ouo_chaos_segv" && frames[0]?.image_addr === lib?.image_addr && /^[0-9a-f]{40}$/.test(lib?.code_id ?? "") &&
+      String(attr(e, "exception.stacktrace")).includes("libouochaos.so") && hasContext(e, "Cart") &&
+      a?.status === "crashed" && fatal(a).length === 1 && attr(ea, "ouo.crash.signal") === "SIGABRT" &&
+      String(attr(ea, "exception.message")).endsWith("ouo-mobile: native abort from the Chaos module")
+    );
   },
   "C3.1": async () => {
     const hs = named(await detail(hang.session), "exception").filter((x) => attr(x, "ouo.exception.kind") === "hang");
@@ -233,6 +260,7 @@ for (const [id, def] of Object.entries(CHECKS)) {
 for (const [cap, ls] of Object.entries(levels)) levels[cap] = ls.every((l) => l === 2) ? "L2" : ls.some((l) => l > 0) ? "L1" : "L0";
 table(rows);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
+if (ndkReport) console.log("C2.4 NDK crashes:", JSON.stringify(ndkReport));
 console.log("maturity (React Native Android, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
-console.log({ main: main?.session, rotated, taps: tapRun?.session, crash: crash?.session, early: early?.session, hang: hang?.session, oom: oom?.session, offline: offline?.session, reject: reject?.session });
+console.log({ main: main?.session, rotated, taps: tapRun?.session, crash: crash?.session, ndk: ndk?.session, abort: abort?.session, early: early?.session, hang: hang?.session, oom: oom?.session, offline: offline?.session, reject: reject?.session });
 process.exit(failed ? 1 : 0);

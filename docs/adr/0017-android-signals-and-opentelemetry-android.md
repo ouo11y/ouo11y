@@ -22,3 +22,13 @@ ADR-0016 decided that Android builds on opentelemetry-android, and that "the nat
 - ouo owns the Android hang and termination rules, as it owns them on iOS; they are written down in [mobile-sdk.md](../specs/mobile-sdk.md) C3 and tested in `signals-core`.
 - The native package (a later part of W9) still saves what ADR-0016 counted on: sessions, export, disk buffering and network instrumentation come from opentelemetry-android; only the signals that must follow the spec are ouo's.
 - A version bump of opentelemetry-android touches only the native package.
+
+## Addendum (2026-11-04, B1b): NDK crashes from the tombstone, no signal handler
+
+NDK (C/C++) crashes are read at the next launch from the tombstone `ApplicationExitInfo` keeps for a `REASON_CRASH_NATIVE` exit (Android 12+, a protobuf parsed in `signals-core` `Tombstone`, without a protobuf dependency) and sent as the report mechanism `signal` that iOS uses (mobile-sdk.md C2). This stays inside the decision above: an ouo detector in `sdk/android`, no opentelemetry-android, nothing new in the report contract the JavaScript reads.
+
+ouo installs **no native signal handler** on Android, for any API level, and does not ship native code in `@ouo11y/react-native`:
+
+- Android 12+ already has the whole crash from the system, unwound by debuggerd (libunwindstack, every ABI, JIT and APK-embedded libraries), with the abort message and the build ids. An in-process handler would add nothing there and would run ahead of or behind Crashlytics, Sentry, Bugsnag, debuggerd's own handler and ART's fault handler (which uses SIGSEGV for null checks and stack overflows, through libsigchain): the chaining iOS gets right with `sigaction` alone needs, on Android, `sigchain`'s special-handler rules, an alternate stack per thread and an async-signal-safe unwinder, which the NDK does not offer (libunwindstack is not an NDK API, `_Unwind_Backtrace` is not async-signal-safe).
+- It would make every React Native app compile and package C code for four ABIs, and its failure mode (a handler that corrupts the crash, or a second crash in the handler) loses the other SDKs' reports too.
+- Below Android 12 the gap is documented instead: on Android 11 such a crash is a termination with cause `unknown` (the session still ends, without a stack); Android 10 and older report nothing. A handler for API 24–30 is a follow-up only if a client's device mix needs it (the parts the native Android package will need anyway: `sigaction` through `sigchain`, a frame-pointer unwinder on arm64 only, chaining tests next to Crashlytics and Sentry).

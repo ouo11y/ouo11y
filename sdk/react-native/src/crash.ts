@@ -14,8 +14,11 @@ import type { Attrs } from "./types";
  * (handled like a crash, fatal), and the native module sends a `hang` report as the `onHang`
  * event when a main-thread hang is over (non-fatal, on the current session).
  *
- * On Android (sdk/android `Signals`) a crash is an uncaught Java or Kotlin exception (`jvm`) and
- * frames are JVM frames (`module`, `function`, `filename`, `lineno`) instead of addresses.
+ * On Android (sdk/android `Signals`) a crash is an uncaught Java or Kotlin exception (`jvm`), whose
+ * frames are JVM frames (`module`, `function`, `filename`, `lineno`) instead of addresses, or an NDK
+ * crash (`signal`, Android 12+, read from the tombstone at the next launch), whose frames are
+ * addresses with the symbol the tombstone found (`function`, `function_offset`) and whose images
+ * carry the ELF build id (`code_id`; project/kb/android-ndk-tombstones.md).
  */
 export interface NativeCrashModule {
   /**
@@ -29,12 +32,16 @@ export interface NativeCrashModule {
   addListener?(event: "onHang", listener: (payload: { report?: string }) => void): { remove(): void } | undefined;
 }
 
-/** A frame: an address in a binary image (iOS), or a JVM method (Android, Sentry's Java frame fields). */
+/**
+ * A frame: an address in a binary image (iOS; Android NDK, with `function` / `function_offset` when
+ * the tombstone named the symbol), or a JVM method (Android, Sentry's Java frame fields).
+ */
 export interface NativeCrashFrame {
   instruction_addr?: string;
   image_addr?: string;
   module?: string;
   function?: string;
+  function_offset?: number;
   filename?: string;
   lineno?: number;
 }
@@ -42,6 +49,8 @@ export interface NativeCrashFrame {
 export interface NativeCrashImage {
   code_file: string;
   debug_id?: string;
+  /** Android: the ELF's GNU build id (hex); `debug_id` is derived from it (Sentry's rule). */
+  code_id?: string;
   image_addr: string;
   image_size: number;
   image_vmaddr: string;
@@ -57,9 +66,15 @@ export interface NativeCrashReport {
   session_id: string;
   /** When the crashed session started (epoch ms), so its start survives a crash in its first second. */
   session_started_ms?: number;
+  /** `android` for sdk/android reports; absent on iOS. */
+  platform?: string;
   arch?: string;
-  thread?: { main?: boolean };
+  thread?: { main?: boolean; name?: string };
   signal?: { number: number; name: string; mach_exception?: string; code?: number; code_name?: string; address?: string };
+  /** Android NDK `signal`: the abort message the process set (`abort()` with a message, Hermes' fatal errors). */
+  abort_message?: string;
+  /** Android NDK `signal`: debuggerd's diagnosis (`null pointer dereference`, ...). */
+  cause?: string;
   exception?: { name: string; reason: string };
   /** `hang`: the whole blocked time, and whether no frame was drawn at all. */
   hang?: { duration_ms: number; fully_blocking: boolean };
@@ -104,7 +119,8 @@ export function isReactNativeFatal(report: NativeCrashReport): boolean {
   return report.mechanism === "jvm" && name === "com.facebook.react.common.JavascriptException";
 }
 
-const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1) || path;
+/** The file's name; for an Android library loaded from the APK (`.../base.apk!libfoo.so`), the library's. */
+const basename = (path: string): string => path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("!")) + 1) || path;
 
 function hexToBigInt(h: string | undefined): bigint | undefined {
   if (!h || !/^0x[0-9a-f]+$/i.test(h)) return undefined;
@@ -129,6 +145,13 @@ function crashTitle(r: NativeCrashReport): { type: string; message: string } {
   }
   const s = r.signal;
   const name = s?.name ?? "signal";
+  if (r.platform === "android") {
+    // `SIGSEGV (SEGV_MAPERR) at 0x0: null pointer dereference`, `SIGABRT (SI_QUEUE): <abort message>`.
+    let message = s?.code_name ? `${name} (${s.code_name})` : name;
+    if (s?.address && (name === "SIGSEGV" || name === "SIGBUS")) message += ` at ${s.address}`;
+    const detail = r.abort_message || r.cause;
+    return { type: name, message: detail ? `${message}: ${detail}` : message };
+  }
   const parts = [`${s?.mach_exception ?? "EXC_CRASH"} (${name})`];
   if (s?.code_name) parts.push(s.code_name);
   if (s?.address && (name === "SIGSEGV" || name === "SIGBUS")) parts.push(`at ${s.address}`);
@@ -146,7 +169,9 @@ export function formatNativeStack(r: NativeCrashReport): string {
   const thread = r.thread?.main === true ? "main thread" : r.thread?.main === false ? "background thread" : "crashed thread";
   // A hang's stack (and a termination's, when it died during a hang) is the main thread's when the hang was detected.
   const what = r.mechanism === "hang" || r.mechanism === "termination" ? "hung" : "crashed";
-  const lines = [`${type}: ${message}`.trim(), `Thread (${thread}) ${what}${r.arch ? `, ${r.arch}` : ""}:`];
+  // Android names the thread (`mqt_js` is React Native's JS thread, `hermes-...` Hermes' own).
+  const named = r.thread?.name ? ` ${JSON.stringify(r.thread.name)}` : "";
+  const lines = [`${type}: ${message}`.trim(), `Thread${named} (${thread}) ${what}${r.arch ? `, ${r.arch}` : ""}:`];
   // JVM frames (Android) read like a Java stack trace; R8 / ProGuard mappings retrace them.
   if (r.frames.some((f) => f.instruction_addr === undefined)) {
     for (const f of r.frames) {
@@ -162,14 +187,17 @@ export function formatNativeStack(r: NativeCrashReport): string {
     const base = hexToBigInt(f.image_addr);
     const offset = addr !== undefined && base !== undefined ? ` ${f.image_addr} + ${(addr - base).toString()}` : "";
     const padded = addr !== undefined ? `0x${addr.toString(16).padStart(16, "0")}` : f.instruction_addr;
-    lines.push(`${String(i).padEnd(4)}${name.padEnd(32)}${padded}${offset}`);
+    // Android NDK: the symbol the tombstone read from the ELF, as debuggerd prints it (`abort+164`).
+    const symbol = f.function ? ` (${f.function}${typeof f.function_offset === "number" ? `+${f.function_offset}` : ""})` : "";
+    lines.push(`${String(i).padEnd(4)}${name.padEnd(32)}${padded}${offset}${symbol}`);
   });
   if (r.images.length > 0) {
     lines.push("", "Binary Images:");
     for (const img of r.images) {
       const start = hexToBigInt(img.image_addr);
       const end = start !== undefined ? `0x${(start + BigInt(Math.max(0, img.image_size - 1))).toString(16)}` : "?";
-      lines.push(`${img.image_addr} - ${end} ${basename(img.code_file)} ${r.arch ?? ""} <${(img.debug_id ?? "").toLowerCase()}> ${img.code_file}`);
+      // Android: the GNU build id (what `readelf -n` prints for the unstripped .so), else the debug id.
+      lines.push(`${img.image_addr} - ${end} ${basename(img.code_file)} ${r.arch ?? ""} <${(img.code_id ?? img.debug_id ?? "").toLowerCase()}> ${img.code_file}`);
     }
   }
   return lines.join("\n");

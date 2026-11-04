@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatNativeStack, isReactNativeFatal, nativeCrashAttributes, parseNativeCrash, type NativeCrashReport } from "../src/crash";
+import { crashMarker, formatNativeStack, isReactNativeFatal, nativeCrashAttributes, parseNativeCrash, type NativeCrashReport } from "../src/crash";
 import { initRUM, type RUMInternal } from "../src/index";
 import { SESSION_STORAGE_KEY } from "../src/session/manager";
 import { MemoryAsyncStorage } from "../src/session/storage";
@@ -520,5 +520,57 @@ describe("Android reports (sdk/android Signals)", () => {
     const term = parseNativeCrash(JSON.stringify({ ...jvm, mechanism: "termination", exception: undefined, thread: undefined, frames: [], termination: { cause: "memory" } }))!;
     const t = nativeCrashAttributes(term);
     expect([t["ouo.exception.kind"], t["ouo.exception.fatal"], t["ouo.termination.cause"], t["exception.stacktrace"]]).toEqual(["termination", true, "memory", undefined]);
+  });
+
+  // What sdk/android's Tombstone.toReport writes for an NDK crash (signals-core TombstoneTest).
+  const ndk = {
+    version: 1,
+    platform: "android",
+    mechanism: "signal",
+    timestamp_ms: 1_760_000_000_000,
+    session_id: "s-android",
+    arch: "arm64",
+    pid: 5,
+    thread: { main: false, name: "mqt_js" },
+    signal: { number: 11, name: "SIGSEGV", code: 1, code_name: "SEGV_MAPERR", address: "0x0" },
+    cause: "null pointer dereference",
+    frames: [
+      { instruction_addr: "0x7a10001234", image_addr: "0x7a10000000", function: "ouo_chaos_segv", function_offset: 20 },
+      { instruction_addr: "0x7a20000abc", image_addr: "0x7a20000000" },
+      { instruction_addr: "0x7fff0000" },
+    ],
+    images: [
+      { code_file: "/data/app/~~a/dev.ouo.mobilestore-b/base.apk!libouochaos.so", code_id: "1b9fecf834d610f77e641f026ca7269b", debug_id: "f8ec9f1b-d634-f710-7e64-1f026ca7269b", image_addr: "0x7a10000000", image_size: 16384, image_vmaddr: "0x0" },
+      { code_file: "/apex/com.android.runtime/lib64/bionic/libc.so", image_addr: "0x7a20000000", image_size: 8192, image_vmaddr: "0x0" },
+    ],
+  };
+
+  it("reads an NDK crash from the tombstone like an iOS signal crash", () => {
+    const r = parseNativeCrash(JSON.stringify(ndk))!;
+    expect(r.frames).toHaveLength(3);
+    const a = nativeCrashAttributes(r);
+    expect([a["ouo.exception.kind"], a["ouo.exception.fatal"], a["ouo.crash.mechanism"], a["ouo.crash.signal"], a["ouo.crash.address"], a["ouo.crash.arch"], a["ouo.crash.thread_main"]]).toEqual([
+      "native",
+      true,
+      "signal",
+      "SIGSEGV",
+      "0x0",
+      "arm64",
+      false,
+    ]);
+    expect(a["exception.type"]).toBe("SIGSEGV");
+    expect(a["exception.message"]).toBe("SIGSEGV (SEGV_MAPERR) at 0x0: null pointer dereference");
+    expect(a["ouo.crash.mach_exception"]).toBeUndefined();
+    expect(JSON.parse(a["ouo.crash.images"] as string)[0].code_id).toBe("1b9fecf834d610f77e641f026ca7269b");
+    const lines = formatNativeStack(r).split("\n");
+    expect(lines[1]).toBe('Thread "mqt_js" (background thread) crashed, arm64:');
+    expect(lines[2]).toMatch(/^0   libouochaos\.so\s+0x0000007a10001234 0x7a10000000 \+ 4660 \(ouo_chaos_segv\+20\)$/);
+    expect(lines[3]).toMatch(/^1   libc\.so\s+0x0000007a20000abc 0x7a20000000 \+ 2748$/);
+    expect(lines[4]).toMatch(/^2   \?\?\?\s+0x000000007fff0000$/);
+    expect(formatNativeStack(r)).toContain("0x7a10000000 - 0x7a10003fff libouochaos.so arm64 <1b9fecf834d610f77e641f026ca7269b> /data/app/~~a/dev.ouo.mobilestore-b/base.apk!libouochaos.so");
+    // An abort: the abort message is what the developer reads first.
+    const abort = parseNativeCrash(JSON.stringify({ ...ndk, signal: { number: 6, name: "SIGABRT", code: -1, code_name: "SI_QUEUE" }, abort_message: "Hermes fatal: boom", cause: undefined }))!;
+    expect(nativeCrashAttributes(abort)["exception.message"]).toBe("SIGABRT (SI_QUEUE): Hermes fatal: boom");
+    expect(crashMarker(abort).type).toBe("SIGABRT");
   });
 });

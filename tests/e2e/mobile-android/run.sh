@@ -85,6 +85,10 @@ cmd "action/flush" 3; stop
 log "crash: a native crash on Cart while recording, next launch"
 launch crash; sleep 7; cmd "screen/Cart" 2; cmd "action/crash" 4; launch; sleep 8; stop
 
+log "NDK crash: a SIGSEGV in C code (libouochaos.so) on Cart, next launch; then an abort() with a message"
+launch crash-ndk; sleep 7; cmd "screen/Cart" 2; cmd "action/crash-ndk" 4; launch; sleep 8; stop
+launch crash-abort; sleep 7; cmd "action/crash-ndk?abort=1" 4; launch; sleep 8; stop
+
 log "hang: the main thread blocked for 3 s on Cart"
 launch hang; sleep 7; cmd "screen/Cart" 2; cmd "action/hang?ms=3000" 7; cmd "action/flush" 3; stop
 

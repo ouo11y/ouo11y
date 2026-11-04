@@ -72,12 +72,17 @@ until the semantics walk of the Compose modifiers work package.
 - **Termination** (C3.2): `run.json` holds this run's pid, session, last memory warning and hang in
   progress. The next launch asks `ApplicationExitInfo` (Android 11+) how that pid died; a death at
   foreground or visible importance (not a foreground service, 125) by the low-memory killer, an ANR,
-  excessive resource use, a native crash or a `SIGKILL` is a termination (cause `memory`,
+  excessive resource use, a native crash without a readable tombstone (Android 11) or a `SIGKILL` is a termination (cause `memory`,
   `watchdog`, `cpu` or `unknown`). Force stops, `exit()`, updates and background deaths are not.
-- **Not captured: NDK (C/C++) crashes.** There is no native signal handler, so a crash in native
-  code writes no `crash.json`; on Android 11+ it shows up only as a termination with cause `unknown`
-  (`REASON_CRASH_NATIVE`). Next: read its tombstone from `ApplicationExitInfo.getTraceInputStream()`
-  (Android 12+) at the next launch and report it as a crash with native frames.
+- **NDK (C/C++) crash** (C2.4, Android 12+): no native signal handler runs (ADR-0017 addendum); the
+  next launch reads the tombstone debuggerd wrote for the previous run's `REASON_CRASH_NATIVE` exit
+  from `ApplicationExitInfo.getTraceInputStream()` (a protobuf, parsed by `signals-core` `Tombstone`
+  without a protobuf dependency) and reports it as a crash, mechanism `signal`: the signal, the fault
+  address, the abort message, the crashing thread's frames (pc, the ELF's relative pc, the symbol
+  where the tombstone named one) and the images with their GNU build ids, ready for `.so`
+  symbolication (B3b). It replaces the termination of the same exit. On Android 11 a native crash is
+  still a termination with cause `unknown`; before that nothing is reported. Quirks:
+  [android-ndk-tombstones.md](../../project/kb/android-ndk-tombstones.md).
 - **Frames and app start** (C4): `FrameMetrics` of every resumed activity window counts rendered
   frames, slow (past the frame's deadline) and frozen (700 ms or more). The app start is cold from
   the process start only when the process was started to show the app (`ApplicationStartInfo` on
