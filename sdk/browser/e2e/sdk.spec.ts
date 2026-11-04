@@ -237,3 +237,28 @@ test("replay masks all text outside ouo-unmask and records nothing on a never-re
   expect(events.slice(hidden + 1).some((e) => e.type === 2)).toBe(true);
   expect(logs.filter((l) => l.eventName === "ouo.replay.hidden").map((l) => l.attributes["ouo.replay.hidden_reason"])).toEqual(["route"]);
 });
+
+test("back onto a never-record route records nothing when the router's popstate listener runs before the SDK's", async ({ page }) => {
+  // A router registered before initRUM (consent-gated init) renders in its popstate listener; the
+  // microtask checkpoint between listeners lets rrweb emit that render before the SDK's listener.
+  await page.addInitScript(() => {
+    addEventListener("popstate", () => {
+      const out = document.getElementById("out");
+      if (out && location.pathname.startsWith("/patients/")) out.innerHTML = '<p class="ouo-unmask">SECRETPOP</p>';
+    });
+  });
+  await open(page);
+  const isRecording = () => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
+  await expect.poll(isRecording).toBe(true);
+  await page.evaluate(() => history.pushState({}, "", "/patients/9"));
+  expect(await isRecording()).toBe(false);
+  await page.evaluate(() => history.pushState({}, "", "/"));
+  await expect.poll(isRecording).toBe(true);
+  await page.evaluate(() => history.back());
+  await expect.poll(() => page.url()).toContain("/patients/9");
+  await page.waitForTimeout(200);
+  expect(await isRecording()).toBe(false);
+  await flush(page);
+  const { replay } = await captured(page);
+  expect(JSON.stringify(replay)).not.toContain("SECRETPOP");
+});

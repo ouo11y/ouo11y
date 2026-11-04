@@ -55,6 +55,9 @@ export interface NativeStartOptions {
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
 
+/** Capture comes back this long after a never-record screen was left (or `showScreen()`), when the transition is over. */
+export const SHOW_DELAY_MS = 500;
+
 /**
  * Loads the Expo native module. Returns undefined in Expo Go, on web, in Node and in tests
  * (anywhere `expo-modules-core` is missing or the module is not linked); the caller then runs
@@ -230,7 +233,11 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   let screenHidden = false;
   /** The host called `rum.replay.hideScreen()`. */
   let manualHidden = false;
-  const hidden = (): boolean => screenHidden || manualHidden;
+  /** Pending end of a hidden stretch (`SHOW_DELAY_MS`): capture stays paused until it fires. */
+  let showing: ReturnType<typeof setTimeout> | undefined;
+  /** The session to start the native recorder for once nothing hides the screen. */
+  let pendingStart: string | undefined;
+  const hidden = (): boolean => screenHidden || manualHidden || showing !== undefined;
   const excludeScreens = opts.options?.excludeScreens;
   const keepHook = opts.options?.keepAtNextLaunch;
   const hold = typeof keepHook === "function";
@@ -274,8 +281,17 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     call("recoverPendingChunk", () => native.recoverPendingChunk!(endpoint, nativeOptions("")));
   }
 
+  const hiddenReason = (): "screen" | "manual" => (screenHidden ? "screen" : "manual");
+
   const startNative = (sessionId: string): void => {
     if (!native || !endpoint || active) return;
+    // Native start takes a frame at once: on a hidden screen, start once it is shown.
+    if (hidden()) {
+      if (pendingStart !== sessionId && !userPaused) opts.onHidden?.(hiddenReason());
+      pendingStart = sessionId;
+      return;
+    }
+    pendingStart = undefined;
     const startOptions = nativeOptions(sessionId);
     call("start", () => {
       native.setSessionId(sessionId);
@@ -283,29 +299,51 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       active = true;
       logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
     });
-    if (active && (userPaused || hidden())) call("pause", () => native.pause());
-    if (active && hidden() && !userPaused) opts.onHidden?.(screenHidden ? "screen" : "manual");
+    if (active && userPaused) call("pause", () => native.pause());
+  };
+
+  /** The hidden stretch is over: start or resume what it held back. */
+  const show = (): void => {
+    if (hidden() || !native) return;
+    if (!active) {
+      if (pendingStart !== undefined) startNative(pendingStart);
+      return;
+    }
+    if (samplePaused || userPaused) return;
+    call("resume", () => native.resume());
+    logger.log("replay: shown");
   };
 
   /**
    * Never-record screens and `hideScreen()`: a third pause source next to the host's pause and
-   * the sampling pause. Native pause runs on the main thread's next turn (the open chunk is cut);
-   * resume takes a fresh full frame, once nothing hides the screen any more.
+   * the sampling pause. Native pause runs on the main thread's next turn (the open chunk is cut).
+   * Capture comes back `SHOW_DELAY_MS` after nothing hides the screen any more, with a full frame:
+   * a JS-driven stack transition (and any transition on Android, which has no transition check)
+   * would otherwise capture the never-record screen sliding out.
    */
   const setHidden = (screen: boolean, manual: boolean, reason: "screen" | "manual"): void => {
-    const was = hidden();
+    const was = screenHidden || manualHidden;
     screenHidden = screen;
     manualHidden = manual;
-    const now = hidden();
-    if (was === now || !native || !active || samplePaused || userPaused) return;
-    if (now) {
-      call("pause", () => native.pause());
-      logger.log(`replay: hidden (${reason})`);
-      opts.onHidden?.(reason);
-    } else {
-      call("resume", () => native.resume());
-      logger.log("replay: shown");
+    const now = screenHidden || manualHidden;
+    if (was === now) return;
+    if (!now) {
+      showing = setTimeout(() => {
+        showing = undefined;
+        show();
+      }, SHOW_DELAY_MS);
+      return;
     }
+    if (showing !== undefined) {
+      // Hidden again before the delay ran out: still the same paused stretch.
+      clearTimeout(showing);
+      showing = undefined;
+      return;
+    }
+    if (!native || !active || samplePaused || userPaused) return;
+    call("pause", () => native.pause());
+    logger.log(`replay: hidden (${reason})`);
+    opts.onHidden?.(reason);
   };
 
   return {
@@ -328,6 +366,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       currentId = id;
       errorTriggered = false;
       if (!active) {
+        pendingStart = undefined;
         if (recorded(id)) startNative(id);
         return;
       }
@@ -344,7 +383,7 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
         if (!userPaused && !hidden()) call("resume", () => native.resume());
       }
       // The new session starts on a hidden screen: its timeline gets the marker too.
-      if (hidden() && !userPaused) opts.onHidden?.(screenHidden ? "screen" : "manual");
+      if (hidden() && !userPaused) opts.onHidden?.(hiddenReason());
     },
     screenDidChange(): void {
       if (!native || !active || !native.screenDidChange || hidden()) return;
@@ -403,6 +442,9 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       }
     },
     stop(): void {
+      clearTimeout(showing);
+      showing = undefined;
+      pendingStart = undefined;
       if (!native || !active) return;
       active = false;
       call("stop", () => (native.stop ? native.stop() : native.pause()));

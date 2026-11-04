@@ -295,7 +295,6 @@ function install(
     onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
     onSkip: (reason, bytes) => events.emit("ouo.replay.skipped", { "ouo.replay.skip_reason": reason, "ouo.replay.snapshot_bytes": bytes }, "warn"),
     privacy: options.replay,
-    routeName: () => route.name,
     onHidden: () => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": "route" }),
     session,
     chunker,
@@ -396,7 +395,6 @@ function install(
       attempt(() => {
         route.name = name || undefined;
         if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
-        recorder?.onRoute();
       });
     },
     replay: {

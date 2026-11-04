@@ -80,7 +80,7 @@ export interface ReplayOptions {
    * string matches the screen name (the path's last segment, `IdentityCheck`) or the whole path
    * (`/Account/IdentityCheck`) exactly, or as a prefix when it ends with `*`; a RegExp is tested
    * against both. Hiding writes an `ouo.replay.hidden` event (reason `screen`) to the timeline;
-   * the replay resumes with a full frame when the screen is left. Native screens the SDK cannot
+   * the replay resumes with a full frame 500 ms after the screen is left. Native screens the SDK cannot
    * see as routes (Stripe Identity, a document scanner) need `rum.replay.hideScreen()`.
    */
   excludeScreens?: Array<string | RegExp>;

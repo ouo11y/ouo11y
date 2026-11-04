@@ -15,10 +15,15 @@ screen (ADR-0003 revision 2026-11-03, ADR-0006 revision 3; P1 for the client JUH
   `<script>` text never reaches it.
 - **rrweb masks no attributes** (`transformAttribute` only absolutifies URLs; there is no
   `maskAttributeFn` upstream, it is in Sentry's fork). `title`, `alt`, `placeholder`,
-  `aria-label` and a submit button's `value` would go out verbatim. The SDK masks them in its emit
-  callback: walk `FullSnapshot` `data.node` and mutation `adds[].node`, and mutation
-  `attributes[]`, looking each id up with `record.mirror.getNode(id)` (filled before emit) to run
-  the same `closest()` decision. `maskAllInputs: true` does not cover `input[type=button|submit|reset]`.
+  `aria-label` and `value` would go out verbatim. The SDK masks them in its emit callback: walk
+  `FullSnapshot` `data.node` and mutation `adds[].node`, and mutation `attributes[]`, looking each
+  id up with `record.mirror.getNode(id)` (filled before emit) to run the same `closest()` decision.
+- **rrweb's `maskAllInputs` covers text-like inputs only.** `serializeElementNode` records a
+  radio's or checkbox's `checked` and `value`, an `<option>`'s `value`, a hidden input's and a
+  button's `value` as written, and the input observer's Input event for a radio or checkbox
+  carries `text: target.value` and `isChecked`. The SDK masks every control's `value`, deletes
+  `checked` / `selected`, and masks `text` / zeroes `isChecked` of Input events (reviewer probe,
+  PR #154: a checked `value="depression"` radio reached the replay).
 - `closest()` does not cross a shadow root: text inside one stays masked even under an
   `ouo-unmask` host (fail closed). An invalid host selector throws in `closest()`: catch and mask.
 - Verified with the real recorder in jsdom (`sdk/browser/test/privacy.test.ts`) and in
@@ -32,6 +37,13 @@ observer and never calls `takeRecords()`. A router that renders the new page and
 effect) therefore loses those records when the SDK stops synchronously inside its `pushState`
 patch. Proven in jsdom (`privacy.integration.test.ts`) and three engines (e2e). A router that
 renders in one task and changes the URL in a later one records that render.
+
+It does not cover `popstate` ordering: listeners on `window` run in registration order with a
+microtask checkpoint after each, so a router listener registered before `initRUM` that renders
+synchronously or in a microtask has rrweb emit the render before the SDK's listener runs. The fix
+is a route check in the emit callback (drop the event, stop), which also covers a router holding
+the unpatched `pushState`. Matching a `setRoute` template cannot work: `useOuoRoute` calls it in
+an effect, after the page committed and rrweb emitted it.
 
 A custom event can be pushed into the chunk stream without rrweb recording
 (`{ type: 5, timestamp, data: { tag, payload } }`): `record.addCustomEvent` throws when not
@@ -53,6 +65,9 @@ recording, and the page may load on an excluded route.
   (`sdk/react-native/src/replay.ts`) driving the existing native `pause()` / `resume()`; both
   natives keep `pausedByHost` across foreground (`didBecomeActive`, `onActivityStarted`) and new
   activities, so a third-party activity or view controller (Stripe Identity) stays unrecorded.
+- Leaving a hidden screen resumes 500 ms later (JS stack transitions are not UIKit transitions;
+  Android has no transition check), and the native recorder is never started on a hidden screen
+  (`start` takes a frame before a following `pause` reaches the main thread).
 - Native `pause()` is `onMain { }` on iOS and Android: from the JS thread it is posted, so it
   takes effect on the main thread's next turn. `onStateChange` arrives after the screen mounted:
   a screen shown without a transition can lose one masked frame first; call `hideScreen()`

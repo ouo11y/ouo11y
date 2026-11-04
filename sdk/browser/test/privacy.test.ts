@@ -140,6 +140,45 @@ describe("rrweb recording with mask-all-text", () => {
     expect(mutations).toContain("**** ***");
   });
 
+  it("masks every form control's value and checked / selected state, in snapshots, mutations and input events", async () => {
+    // The reviewer's probe D: rrweb masks only text-like input values.
+    html(
+      '<form class="ouo-unmask"><label><input type="radio" name="dx" value="depression" checked> x</label>' +
+        '<label><input type="checkbox" name="hiv" value="hiv-positive" checked> y</label>' +
+        '<select><option value="schizophrenia" selected>z</option></select>' +
+        '<input type="hidden" name="patient" value="Jane Doe 1970-01-01"><button value="delete-jane">b</button>' +
+        '<input type="radio" name="dx" value="anxiety" id="other"></form>' +
+        '<ol><li value="1970">l</li></ol><meter value="0.83"></meter>',
+    );
+    const { events, stop } = recordPage();
+    const other = document.getElementById("other") as HTMLInputElement;
+    other.click();
+    document.querySelector("button")!.setAttribute("value", "delete-john");
+    await tick();
+    stop();
+    const json = JSON.stringify(events);
+    for (const secret of ["depression", "hiv-positive", "schizophrenia", "Jane Doe", "delete-jane", "anxiety", "delete-john", "1970", "0.83"]) expect(json, secret).not.toContain(secret);
+    const root = snapshotRoot(events);
+    for (const e of elements(root)) {
+      expect(e.attributes?.checked, e.tagName).toBeUndefined();
+      expect(e.attributes?.selected, e.tagName).toBeUndefined();
+    }
+    // The click on the other radio is an Input event: its value masked, its state not recorded.
+    const inputs = events.filter((e) => e.type === 3 && e.data.source === 5);
+    expect(inputs.length).toBeGreaterThan(0);
+    for (const i of inputs) expect(i.data.isChecked).toBe(false);
+  });
+
+  it("with maskAllInputs false, form values and state follow rrweb (and maskAllText for `value` outside controls)", () => {
+    html('<input type="radio" value="depression" checked><ol><li value="1970">l</li></ol>');
+    const { events, stop } = recordPage({ maskAllInputs: false });
+    stop();
+    const json = JSON.stringify(events);
+    expect(json).toContain("depression");
+    expect(json).toContain('"checked":true');
+    expect(json).not.toContain("1970");
+  });
+
   it("records text as before with maskAllText false", () => {
     html("<h1>Jane Doe</h1><p class=\"ouo-mask\">Room 4</p>");
     const { events, stop } = recordPage({ maskAllText: false });
@@ -151,7 +190,7 @@ describe("rrweb recording with mask-all-text", () => {
 });
 
 describe("routeExcluded", () => {
-  it("matches exact paths, `*` prefixes, RegExps and the route template", () => {
+  it("matches the path exactly, by `*` prefix or by RegExp, never a route template", () => {
     const routes = ["/patients", "/patients/*", /^\/sign\/[0-9]+$/g, "/identity/:step"];
     expect(routeExcluded(routes, "/patients")).toBe(true);
     expect(routeExcluded(routes, "/patients/42/notes")).toBe(true);
@@ -160,7 +199,6 @@ describe("routeExcluded", () => {
     expect(routeExcluded(routes, "/sign/7")).toBe(true);
     expect(routeExcluded(routes, "/sign/7")).toBe(true);
     expect(routeExcluded(routes, "/identity/selfie")).toBe(false);
-    expect(routeExcluded(routes, "/identity/selfie", "/identity/:step")).toBe(true);
     expect(routeExcluded(undefined, "/patients")).toBe(false);
     expect(routeExcluded(["/"], "/home")).toBe(false);
   });

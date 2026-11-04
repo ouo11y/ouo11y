@@ -34,27 +34,33 @@ export interface PrivacyOptions {
 
 /**
  * Attributes that carry text a person reads (tooltips, alternative text, accessible names,
- * placeholders). With `maskAllText` they are masked like text nodes outside `ouo-unmask`.
+ * placeholders) or a value (`value` of any element: `<li>`, `<data>`, `<meter>`). With
+ * `maskAllText` they are masked like text nodes outside `ouo-unmask`.
  */
-const TEXT_ATTRIBUTES = new Set(["title", "alt", "placeholder", "aria-label", "aria-description", "aria-valuetext", "label"]);
-/** Buttons made of inputs show their `value` as text; rrweb's input masking leaves these types out. */
-const BUTTON_INPUTS = new Set(["button", "submit", "reset"]);
+const TEXT_ATTRIBUTES = new Set(["title", "alt", "placeholder", "aria-label", "aria-description", "aria-valuetext", "label", "value"]);
+/**
+ * Form controls. rrweb's `maskAllInputs` masks the value of text-like inputs only: a radio's or
+ * checkbox's `value` and `checked`, an `<option>`'s `value`, a hidden input and a button go out as
+ * written, and so does the `text` of a radio or checkbox Input event. With `maskAllInputs` the SDK
+ * masks every control's value and drops its checked / selected state, wherever it is.
+ */
+const FORM_CONTROLS = new Set(["input", "textarea", "select", "option", "button"]);
 
 const mask = (text: string): string => text.replace(/\S/g, "*");
 
-/** Whether `path` (or the route template `name`) matches one of `excludeRoutes`. */
-export function routeExcluded(patterns: RoutePattern[] | undefined, path: string, name?: string): boolean {
+/**
+ * Whether `path` (`location.pathname`) matches one of `excludeRoutes`. Only the path: a route
+ * template arrives through `setRoute` after the page rendered, too late to keep it out.
+ */
+export function routeExcluded(patterns: RoutePattern[] | undefined, path: string): boolean {
   if (!patterns) return false;
-  const values = name ? [path, name] : [path];
-  return patterns.some((p) =>
-    values.some((v) => {
-      if (typeof p !== "string") {
-        p.lastIndex = 0;
-        return p.test(v);
-      }
-      return p.endsWith("*") ? v.startsWith(p.slice(0, -1)) : v === p;
-    }),
-  );
+  return patterns.some((p) => {
+    if (typeof p !== "string") {
+      p.lastIndex = 0;
+      return p.test(path);
+    }
+    return p.endsWith("*") ? path.startsWith(p.slice(0, -1)) : path === p;
+  });
 }
 
 export interface Privacy {
@@ -62,10 +68,10 @@ export interface Privacy {
   options: Record<string, unknown>;
   /** Whether the text of `el` is masked: `ouo-mask`, or outside `ouo-unmask` with `maskAllText`; no element fails closed. */
   textMasked(el: Element | null): boolean;
-  /** Masks the text attributes of the nodes an rrweb event serializes, in place; returns the event. */
+  /** Masks the text attributes and form values an rrweb event carries, in place; returns the event. */
   scrub<E>(event: E): E;
-  /** Whether replay is hidden on this route (`excludeRoutes`). */
-  hidden(path: string, name?: string): boolean;
+  /** Whether replay is hidden on this path (`excludeRoutes`). */
+  hidden(path: string): boolean;
 }
 
 interface SerializedNode {
@@ -83,17 +89,21 @@ interface ReplayEvent {
     source?: number;
     adds?: Array<{ node: SerializedNode }>;
     attributes?: Array<{ id: number; attributes: Record<string, unknown> }>;
+    text?: string;
+    isChecked?: boolean;
   };
 }
 
-/** rrweb-snapshot `NodeType.Element`, rrweb `EventType.FullSnapshot` / `IncrementalSnapshot`, `IncrementalSource.Mutation`. */
+/** rrweb-snapshot `NodeType.Element`, rrweb `EventType.FullSnapshot` / `IncrementalSnapshot`, `IncrementalSource.Mutation` / `Input`. */
 const ELEMENT_NODE = 2;
 const FULL_SNAPSHOT = 2;
 const INCREMENTAL = 3;
 const MUTATION = 0;
+const INPUT = 5;
 
 export function createPrivacy(o: PrivacyOptions = {}): Privacy {
   const maskAll = o.maskAllText !== false;
+  const maskInputs = o.maskAllInputs !== false;
   const maskSelector = o.maskTextSelector ? `.${MASK_TEXT_CLASS},${o.maskTextSelector}` : `.${MASK_TEXT_CLASS}`;
   const unmaskSelector = o.unmaskTextSelector ? `.${UNMASK_CLASS},${o.unmaskTextSelector}` : `.${UNMASK_CLASS}`;
 
@@ -116,12 +126,21 @@ export function createPrivacy(o: PrivacyOptions = {}): Privacy {
 
   const scrubAttributes = (id: number, tag: string | undefined, attrs: Record<string, unknown> | undefined): void => {
     if (!attrs) return;
+    // A control's value and state follow `maskAllInputs` alone.
+    const control = FORM_CONTROLS.has(tag ?? "");
     let masked: boolean | undefined;
     for (const name of Object.keys(attrs)) {
       const v = attrs[name];
+      if (control && maskInputs && (name === "checked" || name === "selected")) {
+        delete attrs[name];
+        continue;
+      }
       if (typeof v !== "string" || !v) continue;
-      const buttonValue = name === "value" && tag === "input" && BUTTON_INPUTS.has(String(attrs.type ?? element(id)?.getAttribute("type") ?? ""));
-      if (!TEXT_ATTRIBUTES.has(name) && !buttonValue) continue;
+      if (control && name === "value") {
+        if (maskInputs) attrs[name] = mask(v);
+        continue;
+      }
+      if (!maskAll || !TEXT_ATTRIBUTES.has(name)) continue;
       masked ??= textMasked(element(id));
       if (masked) attrs[name] = mask(v);
     }
@@ -151,15 +170,19 @@ export function createPrivacy(o: PrivacyOptions = {}): Privacy {
     options,
     textMasked,
     scrub(event) {
-      if (!maskAll) return event;
       const e = event as ReplayEvent;
-      if (e.type === FULL_SNAPSHOT) walk(e.data?.node);
-      else if (e.type === INCREMENTAL && e.data?.source === MUTATION) {
-        for (const a of e.data.adds ?? []) walk(a.node);
-        for (const a of e.data.attributes ?? []) scrubAttributes(a.id, element(a.id)?.tagName.toLowerCase(), a.attributes);
+      const d = e.data;
+      if (e.type === FULL_SNAPSHOT) walk(d?.node);
+      else if (e.type === INCREMENTAL && d?.source === MUTATION) {
+        for (const a of d.adds ?? []) walk(a.node);
+        for (const a of d.attributes ?? []) scrubAttributes(a.id, element(a.id)?.tagName.toLowerCase(), a.attributes);
+      } else if (e.type === INCREMENTAL && d?.source === INPUT && maskInputs) {
+        // A radio's or checkbox's value and state; text-like values are already `*`.
+        if (d.text) d.text = mask(d.text);
+        d.isChecked = false;
       }
       return event;
     },
-    hidden: (path, name) => routeExcluded(o.excludeRoutes, path, name),
+    hidden: (path) => routeExcluded(o.excludeRoutes, path),
   };
 }

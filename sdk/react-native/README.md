@@ -178,7 +178,8 @@ rum.replay.showScreen();
   `rum.trackNavigation(path)`): a string equals the screen name (the path's last segment) or the
   whole path, or is a prefix when it ends with `*`; a RegExp is tested against both. On such a
   screen native capture is paused (the open chunk is cut and sent, no frame is taken), and it
-  resumes with a full frame when the screen is left.
+  resumes with a full frame 500 ms after the screen is left, once the transition out of it is
+  over. A recorder that would start on a hidden screen starts when it is shown.
 - `hideScreen()` / `showScreen()` do the same by hand. They, `excludeScreens` and `pause()` are
   independent: capture resumes only when none of them holds it. They survive backgrounding, a
   new activity or view controller and session rotation.

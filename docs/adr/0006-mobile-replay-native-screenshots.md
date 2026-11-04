@@ -44,7 +44,7 @@ Context: directed by the founder on 2026-11-03 at the request of the client JUHI
 
 Decision:
 
-- **`replay.excludeScreens`** in the React Native SDK: screen names (the last segment of the navigation path the SDK tracks), whole paths, `*` prefixes or RegExps. While the current screen matches, the JS controller pauses the native recorder; leaving it resumes with a full frame.
+- **`replay.excludeScreens`** in the React Native SDK: screen names (the last segment of the navigation path the SDK tracks), whole paths, `*` prefixes or RegExps. While the current screen matches, the JS controller pauses the native recorder; leaving it resumes with a full frame 500 ms later (`SHOW_DELAY_MS`), because a JS-driven stack transition is not a UIKit transition and Android has no transition check, so an immediate frame would show the never-record screen sliding out. The native recorder is never started on a hidden screen: a session that starts while hidden starts native capture once shown.
 - **`rum.replay.hideScreen()` / `showScreen()`** for what the SDK does not see as a route (a third-party SDK's view controller or activity). Host pause, sampling pause and the two hide sources are independent: capture resumes when none holds it. Native `pausedByHost` already survives foregrounding and new activities or view controllers, so nothing changes in `sdk/ios` or `sdk/android`: the RN path drives the existing `pause()` / `resume()` of both.
 - **Marker**: the frame chunk has no event channel, so the gap is an `ouo.replay.hidden` OTel event on the session's timeline (`ouo.replay.hidden_reason`: `screen` or `manual`), once per hidden stretch and for a session that starts while hidden. The player keeps the last frame before the gap until the next one.
 

@@ -12,7 +12,9 @@ the browser or the phone, so neither the collector, rum-api nor Grafana ever hol
 **Since 0.4.0 (ADR-0003, revision 2026-11-03) all text is masked by default.** Every input value
 (`replay.maskAllInputs: true`) and every text node (`replay.maskAllText: true`) is recorded with
 each character replaced by `*`, and so are the attributes `title`, `alt`, `placeholder`,
-`aria-label`, `aria-description`, `aria-valuetext`, `label` and a button input's `value`. Text is
+`aria-label`, `aria-description`, `aria-valuetext`, `label` and `value` outside form controls.
+Every form control's value (radios, checkboxes, hidden inputs, options and buttons included) is
+masked and its checked / selected state left out (`maskAllInputs`). Text is
 recorded as written only inside an element with class `ouo-unmask` (or matching
 `replay.unmaskTextSelector`); `ouo-mask` masks again inside it, and `ouo-block` elements are not
 recorded at all (a placeholder of the same size). Routes in `replay.excludeRoutes` record

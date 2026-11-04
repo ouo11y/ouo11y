@@ -18,8 +18,6 @@ export interface RecorderOptions {
    * selectors, `excludeRoutes`): read by the lazy chunk, src/replay/rrweb.ts.
    */
   privacy?: PrivacyOptions | undefined;
-  /** The route template (`setRoute`); `excludeRoutes` match it as well as the path. */
-  routeName?: () => string | undefined;
   /** Called when replay is hidden on a never-record route (once per session and stretch). */
   onHidden?: () => void;
   /** Called when replay stops for the rest of the page view, with the reason and its size. */
@@ -156,17 +154,16 @@ export class ReplayRecorder {
   }
 
   /**
-   * The route changed (navigation, `setRoute`). On a never-record route recording stops before
-   * the new route's DOM reaches the stream: a router's mutations of the same task still wait in
-   * rrweb's observer, which stop drops. Leaving the route records again from a full snapshot,
-   * `SHOW_DELAY_MS` later.
+   * The route changed (the SDK's history patch and `popstate` listener). On a never-record route
+   * recording stops before the new route's DOM reaches the stream: a router's mutations of the
+   * same task still wait in rrweb's observer, which stop drops. The emit callback checks the route
+   * too, for what is handed over before this runs (a router's `popstate` listener registered
+   * first, a router holding the unpatched `pushState`). Leaving the route records again from a
+   * full snapshot, `SHOW_DELAY_MS` later.
    */
   onRoute(): void {
-    if (this.stopFn) {
-      if (!this.isHidden()) return;
-      this.markHidden();
-      this.stop("replay hidden: route");
-    } else if (this.hiddenFor && !this.showing && !this.isHidden()) {
+    if (this.stopFn) this.hide();
+    else if (this.hiddenFor && !this.showing && !this.isHidden()) {
       this.showing = setTimeout(
         guard(() => {
           this.showing = undefined;
@@ -261,7 +258,15 @@ export class ReplayRecorder {
   }
 
   private isHidden(): boolean {
-    return this.privacy?.hidden(location.pathname, this.opts.routeName?.()) === true;
+    return this.privacy?.hidden(location.pathname) === true;
+  }
+
+  /** On a never-record route: marks the replay and stops. True when hidden. */
+  private hide(): boolean {
+    if (!this.isHidden()) return false;
+    this.markHidden();
+    this.stop("replay hidden: route");
+    return true;
   }
 
   /** Marks the start of a hidden stretch in the replay and on the timeline, once per session. */
@@ -368,7 +373,8 @@ export class ReplayRecorder {
     // and our emit callback are guarded here.
     const stop = attempt(() =>
       rrweb.record({
-        emit: guard((event: unknown, isCheckout?: boolean) => this.emit(privacy.scrub(event), isCheckout)),
+        // An event handed over once the URL is on a never-record route is dropped, and recording stops.
+        emit: guard((event: unknown, isCheckout?: boolean) => this.hide() || this.emit(privacy.scrub(event), isCheckout)),
         // Masking, blocking and what is left out of the recording (src/replay/rrweb.ts).
         ...privacy.options,
         checkoutEveryNms: this.mode === "buffer" ? BUFFER_CHECKOUT_EVERY_MS : CHECKOUT_EVERY_MS,

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLogger } from "../src/logger";
-import { _setExpoModulesCore, createReplayController, loadNativeReplayModule, screenExcluded, type NativeReplayModule } from "../src/replay";
+import { _setExpoModulesCore, createReplayController, loadNativeReplayModule, screenExcluded, SHOW_DELAY_MS, type NativeReplayModule } from "../src/replay";
 import { MemoryAsyncStorage } from "../src/session/storage";
 import { initRUM, type RUMInternal } from "../src/index";
 import { getRUM } from "../src/instance";
@@ -227,7 +227,10 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
     expect(screenExcluded(undefined, "/Account/IdentityCheck")).toBe(false);
   });
 
-  it("pauses capture on an excluded screen, marks it once and resumes on leaving it", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("pauses capture on an excluded screen, marks it once and resumes SHOW_DELAY_MS after leaving it", () => {
     const { native, onHidden, c } = setup(["IdentityCheck"]);
     c.setScreen("/Home");
     expect(native.pause).not.toHaveBeenCalled();
@@ -239,10 +242,28 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
     expect(native.screenDidChange).not.toHaveBeenCalled();
     c.setScreen("/Account/IdentityCheck");
     expect(onHidden).toHaveBeenCalledTimes(1);
+    // Leaving: the never-record screen may still be sliding out; nothing until the delay ran out.
     c.setScreen("/Home");
+    c.screenDidChange();
+    c.resume();
+    expect(native.resume).not.toHaveBeenCalled();
+    expect(native.screenDidChange).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
     expect(native.resume).toHaveBeenCalledTimes(1);
     c.screenDidChange();
     expect(native.screenDidChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("going back to a hidden screen within the delay keeps capture paused, one stretch", () => {
+    const { native, onHidden, c } = setup(["IdentityCheck"]);
+    c.setScreen("/Account/IdentityCheck");
+    c.setScreen("/Home");
+    vi.advanceTimersByTime(SHOW_DELAY_MS / 2);
+    c.setScreen("/Account/IdentityCheck");
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
+    expect(native.resume).not.toHaveBeenCalled();
+    expect(native.pause).toHaveBeenCalledTimes(1);
+    expect(onHidden).toHaveBeenCalledTimes(1);
   });
 
   it("hideScreen and showScreen stack with excludeScreens and the host's pause", () => {
@@ -253,35 +274,53 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
     // Still hidden by hideScreen: neither leaving an excluded screen nor the host's resume records.
     c.setScreen("/Sign");
     c.setScreen("/Home");
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
     c.pause();
     c.resume();
     expect(native.resume).not.toHaveBeenCalled();
     expect(native.pause).toHaveBeenCalledTimes(1);
     c.showScreen();
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
     expect(native.resume).toHaveBeenCalledTimes(1);
     // The host paused: showScreen leaves it paused.
     c.pause();
     c.hideScreen();
     c.showScreen();
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
     expect(native.resume).toHaveBeenCalledTimes(1);
     c.resume();
     expect(native.resume).toHaveBeenCalledTimes(2);
   });
 
-  it("a recorder started or a session rotated on a hidden screen stays paused and marks the new session", () => {
+  it("never starts the native recorder on a hidden screen: it starts once shown, for the current session", () => {
     const native = fakeNative();
     const onHidden = vi.fn();
     const c = createReplayController({ endpoint: REPLAY_ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, onHidden, logger });
     c.hideScreen();
     expect(onHidden).not.toHaveBeenCalled();
     c.start("sess-1");
-    expect(native.start).toHaveBeenCalledTimes(1);
-    expect(native.pause).toHaveBeenCalledTimes(1);
+    expect(native.start).not.toHaveBeenCalled();
     expect(onHidden).toHaveBeenCalledTimes(1);
+    c.sessionDidRotate("sess-2");
+    expect(native.start).not.toHaveBeenCalled();
+    expect(onHidden).toHaveBeenCalledTimes(2);
+    c.onError();
+    c.showScreen();
+    expect(native.start).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
+    expect(native.start).toHaveBeenCalledTimes(1);
+    expect(native.setSessionId).toHaveBeenCalledWith("sess-2");
+    expect(native.pause).not.toHaveBeenCalled();
+  });
+
+  it("a session rotated while hidden and active stays paused and is marked", () => {
+    const { native, onHidden, c } = setup();
+    c.hideScreen();
     c.sessionDidRotate("sess-2");
     expect(native.resume).not.toHaveBeenCalled();
     expect(onHidden).toHaveBeenCalledTimes(2);
-    c.onError();
+    c.stop();
+    vi.advanceTimersByTime(SHOW_DELAY_MS);
     expect(native.resume).not.toHaveBeenCalled();
   });
 });
@@ -391,11 +430,11 @@ describe("initRUM({ replay })", () => {
     rum.trackNavigation("/Account/IdentityCheck");
     expect(nativeReplay.pause).toHaveBeenCalledTimes(1);
     rum.trackNavigation("/Home");
-    expect(nativeReplay.resume).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(nativeReplay.resume).toHaveBeenCalledTimes(1), { timeout: SHOW_DELAY_MS + 1000 });
     rum.replay.hideScreen();
     expect(nativeReplay.pause).toHaveBeenCalledTimes(2);
     rum.replay.showScreen();
-    expect(nativeReplay.resume).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(nativeReplay.resume).toHaveBeenCalledTimes(2), { timeout: SHOW_DELAY_MS + 1000 });
     await rum.flush();
     const sent = bodies.join("\n");
     expect(sent).toContain("ouo.replay.hidden");

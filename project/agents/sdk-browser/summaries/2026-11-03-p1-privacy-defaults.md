@@ -20,8 +20,9 @@ Web (`@ouo11y/browser`, breaking, ships as 0.4.0):
   (or inside a mask / block) `app.widget.name` is the `data-testid` alone; this applies to
   `click` spans, `ouo.rage_click` and `ouo.dead_click`, with or without replay. Fixed on the way:
   inside `ouo-mask` an `aria-label` used to win over the masking when a `data-testid` was set.
-- `replay.excludeRoutes` (exact, `*` prefix, RegExp; path and `setRoute` template): recorder
-  `onRoute()` from the `navigation` event (synchronous in the history patch) and `setRoute`.
+- `replay.excludeRoutes` (exact, `*` prefix, RegExp; `location.pathname` only): recorder
+  `onRoute()` from the `navigation` event (synchronous in the history patch and `popstate`), and
+  a route check in rrweb's emit callback.
   Entering: rrweb custom event `ouo.replay.hidden` `{reason: "route"}` pushed into the stream,
   OTel event `ouo.replay.hidden` (`ouo.replay.hidden_reason: route`), stop + flush. Leaving: new
   recording with a full snapshot `SHOW_DELAY_MS` (500 ms) later, because React Router changes the
@@ -88,3 +89,26 @@ session footer stay masked.
   `ouo-unmask` (or `maskAllText: false`) when bumped to 0.4; a native `OuoReplay.hideScreen()`
   with a marker for apps without React Native; hash-route matching for `excludeRoutes`.
 - Dependencies: none added.
+
+## Review round 1 (2026-11-04, reviewer session review-pr154)
+
+Findings and what changed:
+
+- A (popstate ordering leak): fixed. Every event rrweb hands over is checked against the route in
+  the emit callback (`hide()`: marker, stop, drop). New e2e test with a router `popstate`
+  listener registered before `initRUM` (the reviewer's probe A), three engines; unit test in
+  `recorder.test.ts`.
+- B (template matching after render, stale `route.name`): template matching removed; pathname
+  only. `routeName` option and the `setRoute` hook are gone.
+- C (form `value` / state leaks): with `maskAllInputs` every form control's `value` is masked,
+  `checked` / `selected` dropped, Input events masked (`text`, `isChecked: false`); with
+  `maskAllText`, `value` on other elements is masked outside the allow-list. Test with the
+  reviewer's probe D markup plus a radio click and a value mutation; a `maskAllInputs: false`
+  test keeps rrweb's behaviour for controls.
+- D: README and ADR now ask for `ouo-block` on a never-record page's root as the hard guarantee,
+  and list what stays unmasked (`class`, `id`, `href`, `src`, `style`, `data-*`).
+- E, F (RN): leaving a hidden screen resumes `SHOW_DELAY_MS` (500 ms) later; the native recorder is
+  never started while hidden (started once shown, for the current session). Fake-timer tests.
+- G/H: noted; PR #152 must move its import change into `src/replay/rrweb.ts`.
+
+Sizes after the round: core 45,218 B gzip (budget 45,261), rrweb chunk 55.3 KB.

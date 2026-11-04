@@ -65,7 +65,11 @@ export interface LongTaskOptions {
 export interface ReplayOptions {
   /** When false rrweb is never loaded. Default true. */
   enabled?: boolean;
-  /** Mask every input value. Default true. */
+  /**
+   * Mask the value of every form control (text-like inputs, radios, checkboxes, hidden inputs,
+   * `<select>` / `<option>`, `<button>`) and leave out radio / checkbox / option state, everywhere,
+   * `ouo-unmask` included. Default true.
+   */
   maskAllInputs?: boolean;
   /** Fraction of (sampled) sessions that get a replay: `sampled(id, rate, "replay")`, persisted. Default 1. */
   sampleRate?: number;
@@ -91,9 +95,10 @@ export interface ReplayOptions {
    */
   maskTextSelector?: string;
   /**
-   * Mask every text node of the replay (each non-space character becomes `*`), and the text
+   * Mask every text node of the replay (each non-space character becomes `*`), and the
    * attributes `title`, `alt`, `placeholder`, `aria-label`, `aria-description`,
-   * `aria-valuetext`, `label` and the `value` of button inputs, except inside an element with
+   * `aria-valuetext`, `label` and `value` (of elements that are not form controls, whose values
+   * follow `maskAllInputs`), except inside an element with
    * the class `ouo-unmask` or matching `unmaskTextSelector`. `ouo-mask` and `maskTextSelector`
    * still mask inside an unmasked area; `ouo-block` wins over both. Click names
    * (`app.widget.name`) follow the same rule: outside the allow-list a click is named by its
@@ -103,8 +108,8 @@ export interface ReplayOptions {
   /** CSS selector of elements whose text is recorded with `maskAllText`, in addition to the `ouo-unmask` class. */
   unmaskTextSelector?: string;
   /**
-   * Never-record routes: while `location.pathname` (or the route template given to `setRoute`)
-   * matches one of these, the replay records nothing. A string matches exactly, or as a prefix
+   * Never-record routes: while `location.pathname` matches one of these, the replay records
+   * nothing (route templates from `setRoute` arrive after the page rendered and are not matched). A string matches exactly, or as a prefix
    * when it ends with `*` (`/patients/*`, like funnel `page:` steps); a RegExp is tested. Entering
    * such a route writes an `ouo.replay.hidden` marker (reason `route`) into the replay and the
    * timeline; leaving it records again from a full snapshot, 500 ms later (routers change the

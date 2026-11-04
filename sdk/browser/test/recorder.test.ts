@@ -33,7 +33,7 @@ const logger = { enabled: false, log: () => undefined, warn: () => undefined };
 function setup(
   opts: { sampleRate: number; onErrorSampleRate: number; channel?: BroadcastChannel | null; maxSnapshotBytes?: number; onSkip?: (r: string, b: number) => void } & Pick<
     RecorderOptions,
-    "privacy" | "routeName" | "onHidden"
+    "privacy" | "onHidden"
   >,
 ) {
   const session = new SessionManager({ storage: new MemoryStorage(), onEvent: () => undefined });
@@ -52,7 +52,6 @@ function setup(
     ...(opts.maxSnapshotBytes !== undefined ? { maxSnapshotBytes: opts.maxSnapshotBytes } : {}),
     ...(opts.onSkip ? { onSkip: opts.onSkip } : {}),
     privacy: opts.privacy,
-    ...(opts.routeName ? { routeName: opts.routeName } : {}),
     ...(opts.onHidden ? { onHidden: opts.onHidden } : {}),
   });
   return { session, pushed, chunker, recorder, lease };
@@ -264,15 +263,19 @@ describe("never-record routes", () => {
     recorder.shutdown();
   });
 
-  it("matches the route template given to setRoute", async () => {
-    let name: string | undefined;
-    go("/identity/abc");
-    const { recorder } = setup({ sampleRate: 1, onErrorSampleRate: 0, privacy: { excludeRoutes: ["/identity/:id"] }, routeName: () => name });
+  it("drops an event rrweb hands over after the URL moved to an excluded route, before onRoute runs", async () => {
+    // A router's popstate listener registered before the SDK's renders first; the microtask
+    // checkpoint between listeners lets rrweb emit the new page before the SDK hears of it.
+    const { pushed, recorder } = setup({ sampleRate: 1, onErrorSampleRate: 0, privacy: { excludeRoutes: ["/patients/*"] } });
     await recorder.start();
-    expect(recorder.isRecording()).toBe(true);
-    name = "/identity/:id";
-    recorder.onRoute();
+    const before = pushed.length;
+    go("/patients/9");
+    rr.emit!({ type: 3, timestamp: Date.now(), data: { source: 0, adds: [{ node: { type: 3, id: 99, textContent: "SECRETPOP" } }] } });
+    expect(JSON.stringify(pushed)).not.toContain("SECRETPOP");
+    expect(pushed.slice(before)).toEqual([expect.objectContaining({ type: 5, data: { tag: HIDDEN_EVENT_TAG, payload: { reason: "route" } } })]);
     expect(recorder.isRecording()).toBe(false);
+    recorder.onRoute();
+    expect(markers(pushed as Pushed)).toHaveLength(1);
     recorder.shutdown();
   });
 
