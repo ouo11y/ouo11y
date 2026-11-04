@@ -152,7 +152,7 @@ headers:
 
 {{/* In-cluster rum-api URL (what the Grafana plugin proxies to) */}}
 {{- define "ouo.rumApiUrl" -}}
-{{- if .Values.grafana.plugin.rumApiUrl -}}{{ .Values.grafana.plugin.rumApiUrl }}{{- else -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
+{{- if .Values.grafana.plugin.rumApiUrl -}}{{ trimSuffix "/" .Values.grafana.plugin.rumApiUrl }}{{- else -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
 {{- end -}}
 
 {{/* rum-api replay store on the filesystem (PVC at /data) */}}

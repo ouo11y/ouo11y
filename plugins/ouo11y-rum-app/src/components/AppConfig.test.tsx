@@ -78,6 +78,14 @@ describe('AppConfig', () => {
     });
   });
 
+  it('saves rumApiUrl without a trailing slash (the POST and DELETE routes append /v1/...)', async () => {
+    const onSaved = renderConfig(meta());
+    fireEvent.change(input('rum-api-url'), { target: { value: 'http://rum-api:9090//' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(postedBody().data.jsonData).toEqual({ rumApiUrl: 'http://rum-api:9090' });
+  });
+
   it('does not send secureJsonData when no token was typed', async () => {
     const onSaved = renderConfig(meta());
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));

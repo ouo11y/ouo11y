@@ -146,7 +146,9 @@ and restores the stock collector on exit. About 6 minutes, mostly Mimir's 15 s s
   `new OTLPTraceExporter()` with no options reads `OTEL_EXPORTER_OTLP_ENDPOINT` and
   `OTEL_EXPORTER_OTLP_HEADERS` (`%20` decoded); a wrong credential surfaces as
   `OTLPExporterError: Unauthorized` with code 401.
-- A Grafana user created through `/api/admin/users` gets the org role Viewer. The plugin route
-  `rum/*` has `method: "*"` and `reqRole: Viewer`, so a Viewer can `DELETE` a replay through
-  `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay` (finding V1, 2026-10-23); the
-  check records it as a finding until the route is split.
+- A Grafana user created through `/api/admin/users` gets the org role Viewer; `PATCH
+  /api/org/users/<id>` with `{"role": "Editor"}` makes an Editor. Until N30 (2026-11-04) the plugin
+  route `rum/*` had `method: "*"` and `reqRole: Viewer`, so a Viewer could `DELETE` a replay
+  through `/api/plugin-proxy/ouo11y-rum-app/rum/v1/sessions/<id>/replay` (finding V1). The routes
+  are split per method now and the `viewer` check asserts it: Viewer and Editor DELETE 403, PUT /
+  PATCH / other POSTs 404, Admin DELETE 204 (`project/kb/grafana-app-plugin.md`, "Route roles").

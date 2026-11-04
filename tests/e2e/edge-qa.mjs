@@ -14,8 +14,11 @@
 //                   401; the demo backend (stock OTel Go SDK, same variables) lands as `internal`
 //   cors_browser    headless Chromium (Playwright): fetch from an allowed origin works, from a
 //                   foreign origin it is blocked by CORS and nothing is ingested
-//   viewer          a Grafana Viewer opens the plugin pages and reads through the plugin proxy,
-//                   cannot change the plugin settings or open its configuration page
+//   viewer          a Grafana Viewer opens the plugin pages, reads (GET, POST funnel queries)
+//                   through the plugin proxy, cannot change the plugin settings or open its
+//                   configuration page; a Viewer or Editor cannot DELETE a replay (403), methods
+//                   without a route are 404, a `..` out of the funnel POST route runs no
+//                   handler, an Admin's DELETE works (N30)
 //   background      the React Native SDK (its own code, simulated AppState) ends a session with
 //                   end_reason background after backgroundTimeoutMs; rum-api reports it
 // Profile `limits` (collector started with OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for,
@@ -341,48 +344,95 @@ checks.cors_browser = async () => {
   }
 };
 
-checks.viewer = async () => {
-  const login = `qa-viewer-${RUN}`;
-  const password = `qa-viewer-${RUN}-pw`;
+/** Creates a Grafana user in org 1 with `role`; returns { id, headers } (basic auth as that user). */
+async function grafanaUser(role) {
+  const login = `qa-${role.toLowerCase()}-${RUN}`;
+  const password = `${login}-pw`;
   const created = await fetch(`${GRAFANA}/api/admin/users`, {
     method: "POST",
     headers: { ...json, ...grafana() },
     body: JSON.stringify({ name: login, login, password, email: `${login}@example.invalid` }),
   });
   const { id } = await created.json();
-  assert("Grafana user created (org role Viewer by default)", created.ok, created.status);
-  const v = grafana(`${login}:${password}`);
+  assert(`Grafana user ${login} created`, created.ok, created.status);
+  if (id && role !== "Viewer") {
+    const set = await fetch(`${GRAFANA}/api/org/users/${id}`, { method: "PATCH", headers: { ...json, ...grafana() }, body: JSON.stringify({ role }) });
+    assert(`${login} gets the org role ${role}`, set.ok, set.status);
+  }
+  return { id, headers: grafana(`${login}:${password}`) };
+}
+
+/** Stores one replay chunk for a throwaway session through the collector; true once rum-api has it. */
+async function replayFor(sid) {
+  const chunk = await post(`${REPLAY}/v1/replay/chunks`, {
+    headers: { ...json, authorization: basic(PROJECT_ID, PROJECT_TOKEN), "x-ouo-session-id": sid, "x-ouo-seq": "0" },
+    body: JSON.stringify({ session_id: sid, seq: 0, started_at: Date.now(), ended_at: Date.now() + 1000, events: [{ type: 4, timestamp: Date.now(), data: { href: "http://qa/" } }, { type: 2, timestamp: Date.now() + 1, data: {} }] }),
+  });
+  const stored = await until(() => replayStatus(sid).then((s) => s === 200), 30, 1000);
+  return { chunk: chunk.status, stored };
+}
+const replayStatus = (sid) => fetch(`${RUM}/v1/sessions/${sid}/replay`, { headers: { authorization: `Bearer ${READ_TOKEN}` } }).then((r) => r.status);
+
+checks.viewer = async () => {
+  const users = [];
   try {
+    const viewer = await grafanaUser("Viewer");
+    users.push(viewer.id);
+    const v = viewer.headers;
     const user = await fetch(`${GRAFANA}/api/user/orgs`, { headers: v }).then((r) => r.json());
-    assert("its org role is Viewer", user[0]?.role === "Viewer", user[0]?.role);
-    for (const p of ["overview", "sessions"]) {
+    assert("a user created through /api/admin/users has the org role Viewer", user[0]?.role === "Viewer", user[0]?.role);
+    for (const p of ["overview", "sessions", "funnels"]) {
       const r = await fetch(`${GRAFANA}/a/${PLUGIN}/${p}`, { headers: v, redirect: "manual" });
       assert(`Viewer opens /a/${PLUGIN}/${p} (200)`, r.status === 200, r.status);
     }
     const proxy = `${GRAFANA}/api/plugin-proxy/${PLUGIN}/rum`;
-    for (const p of ["/v1/stats/health?from=now-1h", "/v1/sessions?from=now-1h&limit=5"]) {
+    for (const p of ["/healthz", "/v1/stats/health?from=now-1h", "/v1/sessions?from=now-1h&limit=5", "/v1/funnels/steps?from=now-1h"]) {
       const r = await fetch(proxy + p, { headers: v });
-      assert(`Viewer reads ${p.split("?")[0]} through the plugin proxy (200)`, r.status === 200, r.status);
+      assert(`Viewer reads GET ${p.split("?")[0]} through the plugin proxy (200)`, r.status === 200, r.status);
     }
+    const funnel = await fetch(`${proxy}/v1/funnels/query`, {
+      method: "POST",
+      headers: { ...json, ...v },
+      body: JSON.stringify({ steps: [{ kind: "page", value: "/" }, { kind: "page", match: "prefix", value: "/products/" }], from: "now-1h", to: "now" }),
+    });
+    assert("Viewer runs a funnel query: POST /v1/funnels/query through the plugin proxy (200, the POST route maps back onto /v1/funnels/)", funnel.status === 200, funnel.status === 200 ? funnel.status : `${funnel.status} ${(await funnel.text()).slice(0, 160)}`);
     const settings = await fetch(`${GRAFANA}/api/plugins/${PLUGIN}/settings`, { headers: v }).then((r) => r.json());
     assert("Viewer sees the settings without the read token (secureJsonData absent)", !("secureJsonData" in settings) && settings.secureJsonFields?.readToken === true, Object.keys(settings.secureJsonFields ?? {}));
     const write = await fetch(`${GRAFANA}/api/plugins/${PLUGIN}/settings`, { method: "POST", headers: { ...json, ...v }, body: JSON.stringify({ enabled: true, jsonData: { rumApiUrl: "http://example.invalid" } }) });
     assert("Viewer cannot change the plugin settings (403)", write.status === 403, write.status);
     const cfg = await fetch(`${GRAFANA}/plugins/${PLUGIN}`, { headers: v, redirect: "manual" });
     assert("Viewer cannot open the Configuration page (302 away)", cfg.status === 302 || cfg.status === 403, cfg.status);
-    // Destructive call through the proxy, on a throwaway session that gets one replay chunk.
+
+    // N30 (was finding V1): replay erasure through the proxy is for org Admins only.
     const sid = `qa-viewer-delete-${RUN}`;
-    const chunk = await post(`${REPLAY}/v1/replay/chunks`, {
-      headers: { ...json, authorization: basic(PROJECT_ID, PROJECT_TOKEN), "x-ouo-session-id": sid, "x-ouo-seq": "0" },
-      body: JSON.stringify({ session_id: sid, seq: 0, started_at: Date.now(), ended_at: Date.now() + 1000, events: [{ type: 4, timestamp: Date.now(), data: { href: "http://qa/" } }, { type: 2, timestamp: Date.now() + 1, data: {} }] }),
-    });
-    const stored = await until(() => fetch(`${RUM}/v1/sessions/${sid}/replay`, { headers: { authorization: `Bearer ${READ_TOKEN}` } }).then((r) => r.status === 200), 30, 1000);
-    note("delete_target", { session: sid, chunk: chunk.status, stored });
-    const del = await fetch(`${proxy}/v1/sessions/${sid}/replay`, { method: "DELETE", headers: v });
-    if (del.status === 403) assert("Viewer cannot DELETE a replay through the plugin proxy (403)", true, del.status);
-    else finding("V1", "Viewer can DELETE a replay through the plugin proxy (route `rum/*`, method `*`, reqRole Viewer)", `DELETE -> ${del.status}`);
+    const target = await replayFor(sid);
+    note("delete_target", { session: sid, ...target });
+    assert("a throwaway replay is stored for the delete checks", target.stored, target);
+    const del = (h) => fetch(`${proxy}/v1/sessions/${sid}/replay`, { method: "DELETE", headers: h });
+    const vd = await del(v);
+    assert("Viewer cannot DELETE a replay through the plugin proxy (403)", vd.status === 403, vd.status);
+    const editor = await grafanaUser("Editor");
+    users.push(editor.id);
+    const ed = await del(editor.headers);
+    assert("Editor cannot DELETE a replay through the plugin proxy either (403, the route needs Admin)", ed.status === 403, ed.status);
+    assert("the replay is still there after both refusals (200)", (await replayStatus(sid)) === 200);
+    // Methods without a route: Grafana answers 404 "plugin route match not found" and never calls rum-api.
+    for (const [method, path] of [["PUT", "/v1/sourcemaps?release=qa&file=a.js"], ["PATCH", `/v1/sessions/${sid}/replay`], ["POST", "/v1/replay/chunks"], ["POST", "/v1/symbolicate"], ["DELETE", "/v1/admin/projects/demo"]]) {
+      const r = await fetch(proxy + path, { method, headers: { ...json, ...v }, body: "{}" });
+      assert(`Viewer ${method} ${path.split("?")[0]} through the plugin proxy is refused (404, no route)`, r.status === 404, r.status);
+    }
+    // Grafana forwards the `*` part of a route as is, so a traversal out of the Viewer POST route
+    // reaches rum-api; only ServeMux path cleaning (a redirect, no handler) stops it there. Node's
+    // URL parser folds `..` and `%2e%2e` segments, so the `/` is encoded too to keep it one segment.
+    const trav = await fetch(`${proxy}/v1/funnels/%2e%2e%2fsymbolicate`, { method: "POST", headers: { ...json, ...v }, body: "{}", redirect: "manual" });
+    note("funnels_traversal", { status: trav.status, location: trav.headers.get("location") });
+    const travTo = trav.headers.get("location") ?? "";
+    assert("Viewer POST /v1/funnels/../symbolicate through the plugin proxy gets rum-api's ServeMux redirect to the clean path (301/307/308 to /v1/symbolicate), so no handler runs", [301, 307, 308].includes(trav.status) && travTo.endsWith("/v1/symbolicate"), `${trav.status} ${travTo}`);
+    const ad = await del(grafana());
+    assert("Admin DELETEs the replay through the plugin proxy (204)", ad.status === 204, ad.status);
+    assert("the replay is gone after the Admin's DELETE (404)", (await replayStatus(sid)) === 404);
   } finally {
-    if (id) await fetch(`${GRAFANA}/api/admin/users/${id}`, { method: "DELETE", headers: grafana() });
+    for (const id of users) if (id) await fetch(`${GRAFANA}/api/admin/users/${id}`, { method: "DELETE", headers: grafana() });
   }
 };
 
