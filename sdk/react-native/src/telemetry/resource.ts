@@ -69,9 +69,11 @@ export function deviceAttributes(device: DeviceOptions = {}, expo: ExpoDeviceCon
   return attrs;
 }
 
-export function buildResource(service: ServiceOptions, device: DeviceOptions = {}, extra: Attrs = {}): Resource {
+/** `bundle`: `ouo.app.bundle.*` of the OTA bundle given at init (src/attributes.ts), next to `service.version`. */
+export function buildResource(service: ServiceOptions, device: DeviceOptions = {}, extra: Attrs = {}, bundle: Attrs = {}): Resource {
   const attrs: Record<string, string | number | boolean> = {
     ...extra,
+    ...bundle,
     "service.name": service.name,
     "service.version": service.version,
     "deployment.environment.name": service.environment,

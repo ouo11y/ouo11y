@@ -14,6 +14,11 @@ interface Extra {
   environment: string;
   /** The golden app of the Android conformance suite (OUO_CONFORMANCE=1, app.config.ts). */
   conformance?: boolean;
+  /** OTA bundle id and channel (EXPO_PUBLIC_OUO_BUNDLE_ID / _CHANNEL), unset without one. */
+  otaBundleId?: string;
+  otaChannel?: string;
+  /** `ouo.attr.tenant` (EXPO_PUBLIC_OUO_TENANT, default acme). */
+  tenant?: string;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -26,6 +31,9 @@ export const config: Extra = {
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
   conformance: extra.conformance === true,
+  ...(extra.otaBundleId ? { otaBundleId: extra.otaBundleId } : {}),
+  ...(extra.otaChannel ? { otaChannel: extra.otaChannel } : {}),
+  tenant: extra.tenant ?? "acme",
 };
 
 /** `service.version` is the app version from app.config.ts (APP_VERSION env). */
@@ -59,8 +67,14 @@ export const rum: RUM = initRUM({
   // masked) and ends a session after 5 s in the background (C1.1 without a 30 s wait).
   replay: config.conformance ? { enabled: true } : { enabled: true, maskText: false },
   ...(config.conformance ? { session: { backgroundTimeoutMs: 5000 } } : {}),
+  // The OTA bundle: hot-updater would be `{ id: HotUpdater.getBundleId() }`, expo-updates
+  // `{ id: Updates.updateId ?? "embedded" }` (README "OTA bundle id").
+  ...(config.otaBundleId ? { bundle: { id: config.otaBundleId, ...(config.otaChannel ? { channel: config.otaChannel } : {}) } } : {}),
   debug: __DEV__,
 });
+
+// The app's attributes on every later signal (ouo.attr.*): filter by them on the Sessions page.
+rum.setAttributes({ tenant: config.tenant ?? "acme" });
 
 /**
  * A line for the Android conformance suite (tests/e2e/mobile-android/check.mjs), which reads them from

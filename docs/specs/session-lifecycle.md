@@ -25,6 +25,10 @@ Every span, log record and metric data point emitted by an SDK carries:
 
 Spans get these through a SpanProcessor. Log records get them as attributes. Session attributes are **not** resource attributes because a session can rotate while the process lives.
 
+After the app sets them, every signal also carries the app's attributes as `ouo.attr.<key>`
+(`setUser({ attributes })`, `setAttributes`) and, on React Native, the OTA bundle as
+`ouo.app.bundle.id` / `.channel`: [attributes.md](attributes.md).
+
 ## Start rules
 
 ### Web

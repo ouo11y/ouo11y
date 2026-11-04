@@ -24,6 +24,20 @@ struct SessionRecord: Codable, Equatable {
 struct UserRecord: Codable, Equatable {
     var id: String
     var anonymous: Bool
+    /// The user's attribute set (`setUser(_:attributes:)`, docs/specs/attributes.md), keys without
+    /// `ouo.attr.`; nil when empty. Persisted with the id and swapped with it.
+    var attributes: Attributes? = nil
+}
+
+extension UserRecord {
+    /// A set this version cannot read is dropped, never the user (or the session file with it).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        anonymous = try c.decode(Bool.self, forKey: .anonymous)
+        let a = (try? c.decodeIfPresent(Attributes.self, forKey: .attributes)) ?? nil
+        attributes = a?.isEmpty == false ? a : nil
+    }
 }
 
 /// Everything the session manager keeps across launches, in one small file.
@@ -202,19 +216,39 @@ final class SessionManager {
     }
 
     /// Anonymous to identified keeps the session; one identified user to another ends it with
-    /// `user_change` and starts a new one.
-    func setUser(_ id: String) {
-        guard !id.isEmpty, !(user.id == id && !user.anonymous) else { return }
+    /// `user_change` and starts a new one. `attributes` (already validated), when given, replaces the
+    /// user's attribute set; nil keeps it for the same user and empties it for another. The set is
+    /// swapped with the user: the old session's `session.end` is emitted before the swap, the new
+    /// one's `session.start` after it.
+    func setUser(_ id: String, attributes: Attributes? = nil) {
+        guard !id.isEmpty else { return }
+        let set = attributes?.isEmpty == false ? attributes : nil
+        if user.id == id && !user.anonymous {
+            guard attributes != nil, user.attributes != set else { return }
+            user.attributes = set
+            persist(force: true)
+            return
+        }
+        let next = UserRecord(id: id, anonymous: false, attributes: set)
         if user.anonymous {
-            user = UserRecord(id: id, anonymous: false)
+            user = next
             current?.userId = id
             persist(force: true)
             return
         }
-        changeUser(to: UserRecord(id: id, anonymous: false))
+        changeUser(to: next)
     }
 
-    /// Logout: a fresh anonymous id, in a new session (`user_change`). Nothing when already anonymous.
+    /// Removes `key` from the user's attribute set.
+    func removeUserAttribute(_ key: String) {
+        guard user.attributes?[key] != nil else { return }
+        user.attributes?[key] = nil
+        if user.attributes?.isEmpty == true { user.attributes = nil }
+        persist(force: true)
+    }
+
+    /// Logout: a fresh anonymous id, without attributes, in a new session (`user_change`). Nothing
+    /// when already anonymous.
     func clearUser() {
         guard !user.anonymous else { return }
         changeUser(to: UserRecord(id: UUID().uuidString.lowercased(), anonymous: true))

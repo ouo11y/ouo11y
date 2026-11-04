@@ -43,6 +43,13 @@ const config: ExpoConfig = {
     // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
     // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
     conformance: process.env.OUO_CONFORMANCE === "1",
+    // The OTA bundle id (docs/specs/attributes.md section 5). A real app passes its OTA library's
+    // id (HotUpdater.getBundleId(), Updates.updateId, a CodePush label); the demo takes it from the
+    // environment so a second "bundle" can be shown without an OTA server. Unset: no bundle.
+    otaBundleId: process.env.EXPO_PUBLIC_OUO_BUNDLE_ID || undefined,
+    otaChannel: process.env.EXPO_PUBLIC_OUO_BUNDLE_CHANNEL || undefined,
+    // The app's attributes (ouo.attr.*): the demo's tenant.
+    tenant: process.env.EXPO_PUBLIC_OUO_TENANT || "acme",
   },
 };
 

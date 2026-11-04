@@ -67,6 +67,9 @@ final class Core {
     private var contextSeq = 0
     private var pendingContext: (Int, ScreenContext)?
     private var publishedDevice = ""
+    /// The app's attribute set (`setAttributes`, docs/specs/attributes.md): for the process, never
+    /// persisted; it wins over the user's set (`SessionManager.user`) on a key in both.
+    private var appAttributes: Attributes = [:]
     /// Writes `context.json` in order, off the caller's thread and out of the lock.
     let io = DispatchQueue(label: "dev.ouo.context", qos: .utility)
     private var writtenSeq = 0 // `io` only
@@ -312,7 +315,43 @@ final class Core {
 
     var sessionId: String { locked { session.ensure().id } }
     var userId: String { locked { session.user.id } }
-    func setUser(_ id: String) { locked { session.setUser(id) } }
+    /// `attributes`, when given, replaces the user's attribute set (docs/specs/attributes.md).
+    func setUser(_ id: String, attributes: [String: Any]? = nil) {
+        // The app's values are read here, out of the lock; the cap needs the sets, under it.
+        let clean = attributes.map(CustomAttributes.clean)
+        let dropped: [String] = locked {
+            guard let (entries, invalid) = clean else {
+                session.setUser(id)
+                return []
+            }
+            let (kept, over) = CustomAttributes.capped(entries, existing: Set(appAttributes.keys))
+            session.setUser(id, attributes: kept)
+            return invalid + over
+        }
+        CustomAttributes.report(dropped, "setUser", log)
+    }
+
+    /// Merges `attributes` into the app's set.
+    func setAttributes(_ attributes: [String: Any]) {
+        let (entries, invalid) = CustomAttributes.clean(attributes)
+        let over: [String] = locked {
+            var existing = Set(appAttributes.keys)
+            if let user = session.user.attributes { existing.formUnion(user.keys) }
+            let (kept, over) = CustomAttributes.capped(entries, existing: existing)
+            appAttributes.merge(kept) { _, new in new }
+            return over
+        }
+        CustomAttributes.report(invalid + over, "setAttributes", log)
+    }
+
+    /// Removes `key` from the app's set and the user's.
+    func removeAttribute(_ key: String) {
+        locked {
+            appAttributes[key] = nil
+            session.removeUserAttribute(key)
+        }
+    }
+
     func clearUser() { locked { session.clearUser() } }
     func endSession() { locked { session.endSession() } }
 
@@ -370,12 +409,19 @@ final class Core {
         }
     }
 
-    /// Session attributes on every record (mobile SDK spec rule 2). A record that names its session
-    /// (`session.start`, `session.end`, a previous run's crash) keeps it and gets only the user.
+    /// Session attributes on every record (mobile SDK spec rule 2), and the user's and app's
+    /// attributes as `ouo.attr.<key>`. A record that names its session (`session.start`,
+    /// `session.end`, a previous run's crash) keeps it and gets only the user and the attributes.
     private func stampLocked(_ a: inout Attributes) {
         func set(_ k: String, _ v: AttributeValue) { if a[k] == nil { a[k] = v } }
         set("ouo.platform", .string(Self.platform))
         set("service.version", .string(settings.serviceVersion))
+        // The user's set and the app's (which wins), as they are now: a `session.end` of a
+        // `user_change` is emitted before the user is swapped, the new `session.start` after.
+        if let user = session.user.attributes {
+            for (k, v) in user where appAttributes[k] == nil { set(CustomAttributes.prefix + k, v) }
+        }
+        for (k, v) in appAttributes { set(CustomAttributes.prefix + k, v) }
         if case .string(let named)? = a["session.id"] {
             set("user.id", .string(session.user.id))
             set("ouo.user.anonymous", .bool(session.user.anonymous))

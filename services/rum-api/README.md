@@ -318,7 +318,7 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
 
 ### Sessions
 
-`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&service=web-store&limit=100`
+`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&service=web-store&bundle=<id>&attr.tenant=acme&limit=100`
 
 `device_id` is the SDK's `device.id` (the same for every session of one browser or install), omitted when the SDK sends none.
 
@@ -357,6 +357,17 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
 - `app_start_ms` / `app_start_type`: duration (ms) and type (`cold` or `warm`) of the session's
   `ouo.app.start` record ([mobile vitals spec](../../docs/specs/mobile-vitals.md)); omitted when
   the session has none (web sessions, older SDKs).
+- `attributes`: the app's `ouo.attr.*` values (`setUser({ attributes })`, `setAttributes`), the
+  latest value of each key over the session, e.g. `{"tenant":"acme","plan":"pro"}`; omitted when
+  there are none. They are taken out of each timeline item's `attrs`
+  ([attributes spec](../../docs/specs/attributes.md)).
+- `bundle_id` / `bundle_channel`: the React Native OTA bundle (`ouo.app.bundle.*`), the
+  session's first value (like `service_version`); omitted without one.
+- `attr.<key>=<value>` (any number, at most 10, all must match) and `bundle=<id>` filter on the
+  folded record, after the Loki read, so an attribute set after `session.start` still selects
+  the whole session. They never enter LogQL. A key that is not a letter followed by letters,
+  digits or `_` (at most 40), an empty value, a value over 128 characters or with a control
+  character, or a repeated key is a `400`.
 
 `GET /v1/sessions/{id}[?from&to]` -> the record plus `context`, `timeline` and `traces`.
 `context` is the session's device, OS, build and environment: the latest non-empty value of
@@ -513,7 +524,7 @@ project.
 
 ### Stats
 
-`GET /v1/stats/health?from=now-24h&to=now&platform=&service=&version=&user=`
+`GET /v1/stats/health?from=now-24h&to=now&platform=&service=&version=&user=&bundle=&attr.<key>=`
 
 ```json
 {"buckets":[
@@ -524,8 +535,10 @@ project.
  "from":"...","to":"..."}
 ```
 
-Buckets are sorted by platform, service, version; percentages are rounded to two decimals
-(the integer counts always add up to `total`).
+Buckets are one per platform, service, version and OTA bundle (`bundle_id`, `""` for sessions
+without one, so web and native buckets are one per version), sorted in that order; percentages
+are rounded to two decimals (the integer counts always add up to `total`). `bundle` and
+`attr.<key>` filter the sessions counted, as on the list.
 
 ### Funnels
 

@@ -31,6 +31,7 @@ import { buildTaps } from '../utils/taps';
 import { useFeatureToggle } from '../featureToggles';
 import { maskingState, type MaskingState } from '../utils/masking';
 import { clampToSessionStart, previousSessionId, sessionContextFields } from '../utils/session';
+import { attributeSessionsSearch } from '../utils/attributes';
 import { isVitalEvent, vitalsHeaderItems } from '../utils/vitals';
 
 export default function SessionDetail() {
@@ -211,6 +212,36 @@ export default function SessionDetail() {
               <dd>
                 {session.service_name} <span className={styles.muted}>{session.service_version}</span>
               </dd>
+              {session.bundle_id && (
+                <>
+                  <dt>Bundle</dt>
+                  <dd data-testid="session-bundle">
+                    <code>{session.bundle_id}</code>
+                    {session.bundle_channel && <span className={styles.muted}> · {session.bundle_channel}</span>}
+                  </dd>
+                </>
+              )}
+              {session.attributes && Object.keys(session.attributes).length > 0 && (
+                <>
+                  <dt>Attributes</dt>
+                  <dd data-testid="session-attributes">
+                    {Object.entries(session.attributes)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([k, v], i) => (
+                        <React.Fragment key={k}>
+                          {i > 0 && <span className={styles.muted}> · </span>}
+                          <a
+                            className={styles.link}
+                            href={`${PLUGIN_BASE_URL}/${ROUTES.Sessions}?${attributeSessionsSearch(k, v, range)}`}
+                            title={`Sessions with ${k} = ${v}`}
+                          >
+                            {k}={v}
+                          </a>
+                        </React.Fragment>
+                      ))}
+                  </dd>
+                </>
+              )}
               <dt>Started</dt>
               <dd>{formatDateTime(session.started_at)}</dd>
               <dt>{session.ended_at ? 'Ended' : 'Last signal'}</dt>

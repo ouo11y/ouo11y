@@ -50,6 +50,9 @@ export function sessionsLink(b: HealthBucket, range: { from: string; to: string 
   if (b.service_version) {
     q.set('version', b.service_version);
   }
+  if (b.bundle_id) {
+    q.set('bundle', b.bundle_id);
+  }
   return `${PLUGIN_BASE_URL}/${ROUTES.Sessions}?${q.toString()}`;
 }
 
@@ -67,7 +70,7 @@ export default function Overview() {
           <TimeRangeBar />
         </Stack>
       }
-      subTitle="Healthy, errored and crashed sessions by platform and version, as classified by rum-api."
+      subTitle="Healthy, errored and crashed sessions by platform, version and OTA bundle, as classified by rum-api."
     >
       {error && <ApiErrorAlert error={error} onRetry={reload} />}
       {loading && !data && <LoadingPlaceholder text="Loading session health…" />}

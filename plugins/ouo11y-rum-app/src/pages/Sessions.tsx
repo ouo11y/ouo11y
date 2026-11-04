@@ -11,6 +11,7 @@ import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
 import { setSearchParams, useSearchParams } from '../hooks/useSearchParams';
+import { ATTR_PARAM_PREFIX, attributeFilters, attributeParams, parseAttributeInput } from '../utils/attributes';
 
 const PLATFORM_OPTIONS: Array<SelectableValue<string>> = [
   { label: 'Any platform', value: '' },
@@ -44,27 +45,53 @@ export default function Sessions() {
       version: search.get('version') ?? '',
       user: search.get('user') ?? '',
       service: search.get('service') ?? '',
+      bundle: search.get('bundle') ?? '',
       limit: Number(search.get('limit') ?? 100) || 100,
     }),
     [search]
   );
-  const key = JSON.stringify({ ...filters, ...range });
+  const attrs = useMemo(() => attributeFilters(search), [search]);
+  const key = JSON.stringify({ ...filters, ...range, attrs });
   const { data, error, loading, reload } = useRumQuery(
-    () => rumApi.sessions({ from: range.from, to: range.to, ...filters }),
+    () => rumApi.sessions({ from: range.from, to: range.to, ...filters, ...attributeParams(attrs) }),
     key
   );
 
   // Free-text inputs are committed to the URL on blur / Enter; when the URL changes
   // (back button, Overview link) the inputs are re-synced during render.
-  const urlText = `${filters.version}|${filters.user}|${filters.service}`;
-  const [text, setText] = useState({ version: filters.version, user: filters.user, service: filters.service });
+  const urlText = `${filters.version}|${filters.user}|${filters.service}|${filters.bundle}`;
+  const [text, setText] = useState({
+    version: filters.version,
+    user: filters.user,
+    service: filters.service,
+    bundle: filters.bundle,
+  });
   const [syncedFrom, setSyncedFrom] = useState(urlText);
   if (syncedFrom !== urlText) {
     setSyncedFrom(urlText);
-    setText({ version: filters.version, user: filters.user, service: filters.service });
+    setText({ version: filters.version, user: filters.user, service: filters.service, bundle: filters.bundle });
   }
 
-  const commitText = () => setSearchParams({ version: text.version, user: text.user, service: text.service });
+  const commitText = () =>
+    setSearchParams({ version: text.version, user: text.user, service: text.service, bundle: text.bundle });
+  // Attribute filter: `key=value` typed, added to the URL as attr.<key>=<value> (one per key).
+  const [attrText, setAttrText] = useState('');
+  const [attrError, setAttrError] = useState<string | undefined>();
+  const commitAttr = () => {
+    if (!attrText.trim()) {
+      setAttrError(undefined);
+      return;
+    }
+    const parsed = parseAttributeInput(attrText);
+    if ('error' in parsed) {
+      setAttrError(parsed.error);
+      return;
+    }
+    setAttrError(undefined);
+    setAttrText('');
+    setSearchParams({ [`${ATTR_PARAM_PREFIX}${parsed.key}`]: parsed.value });
+  };
+  const clearAttrs = Object.fromEntries(Object.keys(attrs).map((k) => [`${ATTR_PARAM_PREFIX}${k}`, null]));
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       commitText();
@@ -125,6 +152,36 @@ export default function Sessions() {
               onKeyDown={onKey}
             />
           </Field>
+          <Field label="Bundle" className={styles.field}>
+            <Input
+              width={18}
+              placeholder="any OTA bundle"
+              value={text.bundle}
+              onChange={(e) => setText({ ...text, bundle: e.currentTarget.value })}
+              onBlur={commitText}
+              onKeyDown={onKey}
+            />
+          </Field>
+          <Field
+            label="Attribute"
+            className={styles.field}
+            invalid={!!attrError}
+            error={attrError}
+          >
+            <Input
+              width={22}
+              placeholder="tenant=acme"
+              aria-label="Attribute filter"
+              value={attrText}
+              onChange={(e) => setAttrText(e.currentTarget.value)}
+              onBlur={commitAttr}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  commitAttr();
+                }
+              }}
+            />
+          </Field>
           <Field label="Limit" className={styles.field}>
             <Select
               width={12}
@@ -142,7 +199,15 @@ export default function Sessions() {
                 variant="secondary"
                 fill="text"
                 onClick={() =>
-                  setSearchParams({ platform: null, status: null, version: null, user: null, service: null })
+                  setSearchParams({
+                    platform: null,
+                    status: null,
+                    version: null,
+                    user: null,
+                    service: null,
+                    bundle: null,
+                    ...clearAttrs,
+                  })
                 }
               >
                 Clear filters
@@ -150,6 +215,22 @@ export default function Sessions() {
             </Stack>
           </Field>
         </Stack>
+        {Object.keys(attrs).length > 0 && (
+          <div className={styles.attrs} data-testid="attribute-filters">
+            {Object.entries(attrs).map(([k, v]) => (
+              <Button
+                key={k}
+                size="sm"
+                variant="secondary"
+                icon="times"
+                aria-label={`Remove filter ${k}=${v}`}
+                onClick={() => setSearchParams({ [`${ATTR_PARAM_PREFIX}${k}`]: null })}
+              >
+                {k} = {v}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && <ApiErrorAlert error={error} onRetry={reload} />}
@@ -175,6 +256,7 @@ export default function Sessions() {
 const getStyles = (theme: GrafanaTheme2) => ({
   filters: css({ marginBottom: theme.spacing(2) }),
   field: css({ marginBottom: 0 }),
+  attrs: css({ display: 'flex', flexWrap: 'wrap', gap: theme.spacing(1), marginTop: theme.spacing(1) }),
   count: css({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.bodySmall.fontSize,

@@ -74,6 +74,8 @@ type listQuery struct {
 	filters  loki.Filters
 	status   session.Status
 	limit    int
+	// records is the attr.* / bundle filter on folded records (attrfilter.go).
+	records recordFilter
 }
 
 func (s *Server) parseListQuery(r *http.Request) (listQuery, error) {
@@ -100,6 +102,9 @@ func (s *Server) parseListQuery(r *http.Request) (listQuery, error) {
 		default:
 			return lq, errorf("status must be healthy, errored or crashed")
 		}
+	}
+	if lq.records, err = parseRecordFilter(q); err != nil {
+		return lq, err
 	}
 	if l := q.Get("limit"); l != "" {
 		n, err := strconv.Atoi(l)
@@ -133,6 +138,9 @@ func (s *Server) foldRange(r *http.Request, lq listQuery) ([]session.Record, err
 			continue
 		}
 		if lq.status != "" && rec.Status != lq.status {
+			continue
+		}
+		if !lq.records.empty() && !lq.records.match(&rec) {
 			continue
 		}
 		out = append(out, rec)

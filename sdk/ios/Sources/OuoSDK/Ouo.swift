@@ -127,9 +127,29 @@ public final class Ouo: NSObject {
     public static var userId: String? { current?.userId }
 
     /// Identifies the user. Anonymous to identified keeps the session; another identified user ends it
-    /// (`user_change`) and starts a new one.
+    /// (`user_change`) and starts a new one. The user's attributes are kept for the same user and
+    /// emptied for another.
     public static func setUser(_ userId: String) { current?.setUser(userId) }
-    /// Logout: a fresh anonymous id, in a new session.
+
+    /// Identifies the user, as `setUser(_:)`, with the user's attributes (docs/specs/attributes.md):
+    /// `attributes`, when given, replaces the user's set (persisted with the id, sent as
+    /// `ouo.attr.<key>` on every later span and log record); nil keeps it for the same user and
+    /// empties it for another. Keys `^[A-Za-z][A-Za-z0-9_]{0,39}$`, values a string (cut to 128
+    /// characters), a finite number or a boolean, at most 20 keys with `setAttributes`'s; anything
+    /// else is dropped (and logged with `debug`). App-controlled and may contain personal data: no
+    /// names, e-mail addresses, phone numbers or free text.
+    @objc(setUser:attributes:)
+    public static func setUser(_ id: String, attributes: [String: Any]? = nil) { current?.setUser(id, attributes: attributes) }
+
+    /// Merges `attributes` into the app's attribute set, for this launch (not persisted; set them
+    /// after `start`): `ouo.attr.<key>` on every later span and log record. They win over the user's
+    /// on a key in both; same rules as `setUser(_:attributes:)`.
+    public static func setAttributes(_ attributes: [String: Any]) { current?.setAttributes(attributes) }
+
+    /// Removes `key` from the app's attributes and the user's.
+    public static func removeAttribute(_ key: String) { current?.removeAttribute(key) }
+
+    /// Logout: a fresh anonymous id, in a new session; the user's attributes are emptied.
     public static func clearUser() { current?.clearUser() }
     /// Ends the session now (`manual`); the next record starts a new one.
     public static func endSession() { current?.endSession() }

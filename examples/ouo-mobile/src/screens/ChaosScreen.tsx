@@ -60,7 +60,8 @@ export function ChaosScreen() {
   };
   const setUser = () => {
     const id = `user-${Math.floor(Math.random() * 1000)}`;
-    rum.setUser({ id });
+    // The user's attributes (ouo.attr.plan), persisted with the user.
+    rum.setUser({ id, attributes: { plan: Number(id.slice(5)) % 2 ? "pro" : "free" } });
     note(`setUser ${id}`);
   };
   const flush = async () => {

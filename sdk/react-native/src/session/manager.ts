@@ -46,6 +46,8 @@ export interface CrashMarker {
 interface UserRecord {
   id: string;
   anonymous: boolean;
+  /** The user's attribute set (`setUser({ attributes })`, docs/specs/attributes.md), validated by the caller. */
+  attrs?: Attrs;
 }
 
 export interface SessionEvent {
@@ -93,6 +95,11 @@ export interface SessionManagerOptions {
    */
   nativeCrash?: CrashMarker;
   logger?: DebugLogger;
+}
+
+/** `{ attrs }` of a stored user record when it has a set, else `{}`. */
+function userAttrs(u: UserRecord | null | undefined): { attrs?: Attrs } {
+  return u?.attrs && typeof u.attrs === "object" ? { attrs: u.attrs } : {};
 }
 
 function parse<T>(raw: string | null): T | null {
@@ -202,8 +209,15 @@ export class SessionManager {
     return this.user.anonymous;
   }
 
-  setUser(id: string): void {
-    this.user = { id, anonymous: false };
+  /** The user's attribute set; empty when none was given. */
+  userAttributes(): Attrs {
+    return this.user.attrs ?? {};
+  }
+
+  /** `attrs` replaces the user's attribute set; without it the same user keeps the set, another starts empty. */
+  setUser(id: string, attrs?: Attrs): void {
+    const keep = attrs ?? (id === this.user.id && !this.user.anonymous ? this.user.attrs : undefined);
+    this.user = keep ? { id, anonymous: false, attrs: keep } : { id, anonymous: false };
     this.process.user = this.user;
     void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
     if (this.current) {
@@ -298,12 +312,19 @@ export class SessionManager {
     if (this.user.anonymous) {
       if (persistedUser && typeof persistedUser.id === "string") {
         // No user given at init: keep the device's persisted identity (anonymous or last known user).
-        this.user = { id: persistedUser.id, anonymous: persistedUser.anonymous !== false };
+        this.user = { id: persistedUser.id, anonymous: persistedUser.anonymous !== false, ...userAttrs(persistedUser) };
         this.process.user = this.user;
         rec.userId = this.user.id;
       } else {
         void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
       }
+    } else {
+      // The user given at init (or set since) keeps its persisted attributes unless it brought its own.
+      if (!this.user.attrs && persistedUser?.id === this.user.id) {
+        this.user = { ...this.user, ...userAttrs(persistedUser) };
+        this.process.user = this.user;
+      }
+      void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
     }
 
     const crash = this.pickCrash(jsCrash, persisted);
@@ -527,9 +548,11 @@ export class SessionManager {
 
   private initialUser(initialUserId: string | undefined): UserRecord {
     if (initialUserId) {
-      const user = { id: initialUserId, anonymous: false };
+      const warm = this.process.user;
+      const user: UserRecord = { id: initialUserId, anonymous: false, ...(warm?.id === initialUserId ? userAttrs(warm) : {}) };
       this.process.user = user;
-      void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+      // A cold start persists it after reading the stored user, whose attributes it may keep.
+      if (warm) void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       return user;
     }
     if (this.process.user) return this.process.user;

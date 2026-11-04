@@ -35,6 +35,8 @@ const rum: RUM = initRUM({
 });
 
 rum.setUser({ id: "user-42" });                 // login keeps the session; another identified user rotates it
+rum.setUser({ id: "user-42", attributes: { tenant: "acme" } }); // the user's attributes (ouo.attr.*)
+rum.setAttributes({ plan: "pro" }); rum.removeAttribute("plan"); // the app's attributes
 rum.clearUser();                                // logout: fresh anonymous id, new session
 rum.endSession();                               // session.end (manual); the next activity starts a new one
 rum.captureError(new Error("payment declined"), { "cart.id": "c-1" });
@@ -120,10 +122,37 @@ Implements `docs/specs/session-lifecycle.md` for the web:
 
 Every span and log record carries `session.id`, `user.id`, `ouo.user.anonymous`,
 `ouo.platform=web`, `service.version` and, for sessions that replaced an expired one,
-`session.previous_id`, and `app.screen.name` once a route is named with `rum.setRoute` (not on
+`session.previous_id`, the `ouo.attr.*` attributes (see below), and `app.screen.name` once a route is named with `rum.setRoute` (not on
 the `navigation` event, which is written before the new route renders). Outbound requests to `tracing.propagateTo` origins carry
 `traceparent` and `baggage: session.id=…,user.id=…,ouo.platform=web`. `device.id` is a resource
 attribute (once per export, not per record).
+
+## User and session attributes
+
+```ts
+rum.setUser({ id: "user-42", attributes: { tenant: "acme", plan: "pro" } }); // the user's set
+rum.setAttributes({ cohort: "checkout-b", beta: true });                      // the app's set
+rum.removeAttribute("cohort");
+```
+
+Every later span and event carries each attribute as `ouo.attr.<key>` (`ouo.attr.tenant=acme`).
+rum-api keeps the latest value of each key on the session record, the Sessions page filters by
+them (`attr.tenant=acme`) and the session page lists them ([spec](../../docs/specs/attributes.md)).
+
+- For a few low-cardinality facts the app owns: tenant, plan, cohort, A/B arm. **They are
+  app-controlled and may contain personal data**: the SDK sends what the app passes, so never put
+  names, e-mail addresses or free text in them.
+- Keys: a letter, then letters, digits and `_`, at most 40 characters (no dots: Loki would
+  rewrite them). Values: string (cut to 128 characters), finite number or boolean. At most 20 keys
+  in both sets together. Anything else is dropped (logged with `debug: true`); the calls never throw.
+- The user's set (`setUser({ attributes })`, or `user.attributes` in the options) is persisted with
+  `user.id`: `attributes` replaces it, a `setUser` without them keeps it for the same user and
+  empties it for another, `clearUser()` empties it. In a `user_change` rotation the old session's
+  `session.end` carries the old user's set and the new `session.start` the new one's.
+- The app's set lives for the page: call `setAttributes` at start, like `initRUM`. It wins over
+  the user's set on the same key.
+- They are structured metadata in Loki, never index labels (one stream per tenant would explode
+  cardinality).
 
 ## Events emitted (OTel log records, `event.name`)
 

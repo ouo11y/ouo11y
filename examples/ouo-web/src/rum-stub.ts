@@ -39,7 +39,9 @@ export interface RUMSession {
 }
 
 export interface RUM {
-  setUser(user: { id: string }): void;
+  setUser(user: { id: string; attributes?: Attrs }): void;
+  setAttributes(attrs: Attrs): void;
+  removeAttribute(key: string): void;
   captureError(err: unknown, ctx?: Attrs): void;
   addEvent(name: string, attrs?: Attrs): void;
   setRoute(name: string): void;
@@ -65,6 +67,12 @@ export function initRUM(config: RUMConfig): RUM {
     setUser(user) {
       userId = user.id;
       log("setUser", user);
+    },
+    setAttributes(attrs) {
+      log("setAttributes", attrs);
+    },
+    removeAttribute(key) {
+      log("removeAttribute", key);
     },
     captureError(err, ctx) {
       log("captureError", err, ctx);

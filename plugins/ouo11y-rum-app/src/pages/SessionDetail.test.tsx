@@ -297,4 +297,28 @@ describe('SessionDetail', () => {
     expect(within(list).getByText('App start (cold) 3.06 s')).toBeInTheDocument();
     expect(within(list).getByText('Janky frames 5 / 120 (1 frozen)')).toBeInTheDocument();
   });
+
+  it('shows the OTA bundle and the attributes, each linking to the sessions with that value (F1, F2)', async () => {
+    api.session.mockResolvedValue({
+      ...detail,
+      bundle_id: '0193f1c2-bundle',
+      bundle_channel: 'production',
+      attributes: { tenant: 'acme', plan: 'pro' },
+    });
+    renderPage();
+    expect(await screen.findByTestId('session-bundle')).toHaveTextContent('0193f1c2-bundle · production');
+    const attrs = screen.getByTestId('session-attributes');
+    expect(attrs).toHaveTextContent('plan=pro · tenant=acme');
+    expect(within(attrs).getByText('tenant=acme')).toHaveAttribute(
+      'href',
+      '/a/ouo11y-rum-app/sessions?from=now-7d&to=now&attr.tenant=acme'
+    );
+  });
+
+  it('shows no bundle or attributes row for a session without them', async () => {
+    renderPage();
+    await screen.findByTestId('session-header');
+    expect(screen.queryByTestId('session-bundle')).toBeNull();
+    expect(screen.queryByTestId('session-attributes')).toBeNull();
+  });
 });

@@ -11,6 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
+import { bundleAttributes, mergeAttributes, signalAttributes } from "./attributes";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
@@ -172,7 +173,18 @@ export function initRUM(options: RUMOptions): RUM {
     },
   });
 
-  const resource = buildResource(options.service, options.device, options.resource);
+  // ---- user and session attributes, OTA bundle (docs/specs/attributes.md) ----
+  let appAttrs: Attrs = {};
+  const userAttrs = (attrs: unknown): Attrs | undefined =>
+    attrs === undefined ? undefined : mergeAttributes({}, attrs, appAttrs, logger.warn);
+  // Before the cold start emits session.start, so it carries them.
+  if (options.user?.id && options.user.attributes) session.setUser(options.user.id, userAttrs(options.user.attributes));
+  const initialBundle = bundleAttributes(options.bundle);
+  if (options.bundle && !initialBundle) logger.warn("bundle ignored: invalid id", options.bundle);
+  let bundle = initialBundle;
+  const custom = (): Attrs => ({ ...signalAttributes(session.userAttributes(), appAttrs), ...bundle });
+
+  const resource = buildResource(options.service, options.device, options.resource, initialBundle);
 
   // ---- logs (events) ----
   const logExporter = createLogExporter(endpoints.logs, outbox);
@@ -190,7 +202,7 @@ export function initRUM(options: RUMOptions): RUM {
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
-      new SessionLogProcessor(session, serviceVersion),
+      new SessionLogProcessor(session, serviceVersion, custom),
       recent,
       contextPersister,
       // Session sampling (8b): records of a session outside the sample are never exported.
@@ -214,7 +226,7 @@ export function initRUM(options: RUMOptions): RUM {
   const tracerProvider = new BasicTracerProvider({
     resource,
     spanProcessors: [
-      new SessionSpanProcessor(session, serviceVersion),
+      new SessionSpanProcessor(session, serviceVersion, custom),
       new SampledSpanProcessor(
         new BatchSpanProcessor(traceExporter, {
           scheduledDelayMillis: 2000,
@@ -416,8 +428,28 @@ export function initRUM(options: RUMOptions): RUM {
 
   const rum: RUMInternal = {
     setUser(user: UserOptions): void {
-      session.setUser(user.id);
+      session.setUser(user.id, userAttrs(user.attributes));
       logger.log("user set", user.id);
+    },
+    setAttributes(attrs: Attrs): void {
+      // A new object: records stamped earlier keep the set of their time.
+      appAttrs = mergeAttributes({ ...appAttrs }, attrs, session.userAttributes(), logger.warn);
+    },
+    removeAttribute(key: string): void {
+      if (Object.prototype.hasOwnProperty.call(appAttrs, key)) {
+        const { [key]: _removed, ...rest } = appAttrs;
+        appAttrs = rest;
+      }
+      const user = session.userAttributes();
+      if (Object.prototype.hasOwnProperty.call(user, key)) {
+        const { [key]: _old, ...kept } = user;
+        session.setUser(session.userId(), kept);
+      }
+    },
+    setBundle(next): void {
+      const attrs = bundleAttributes(next);
+      if (next && !attrs) logger.warn("bundle ignored: invalid id", next);
+      else bundle = attrs;
     },
     captureError(err: unknown, context?: Attrs): void {
       reported.add(err);

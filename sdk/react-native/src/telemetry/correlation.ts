@@ -2,7 +2,11 @@ import type { Context, Span } from "@opentelemetry/api";
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { SessionManager } from "../session/manager";
-import type { AttrValue } from "../types";
+import type { Attrs, AttrValue } from "../types";
+
+/** The app's `ouo.attr.*` and `ouo.app.bundle.*` attributes of the moment (docs/specs/attributes.md). */
+export type CustomAttributes = () => Attrs;
+const none: CustomAttributes = () => ({});
 
 export const PLATFORM = "mobile";
 
@@ -25,10 +29,12 @@ export class SessionSpanProcessor implements SpanProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly custom: CustomAttributes = none,
   ) {}
 
   onStart(span: Span, _parentContext: Context): void {
     span.setAttributes(correlationAttributes(this.session, this.serviceVersion));
+    span.setAttributes(this.custom());
   }
 
   onEnd(_span: ReadableSpan): void {}
@@ -52,6 +58,7 @@ export class SessionLogProcessor implements LogRecordProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly custom: CustomAttributes = none,
   ) {}
 
   onEmit(record: SdkLogRecord): void {
@@ -61,16 +68,26 @@ export class SessionLogProcessor implements LogRecordProcessor {
     };
     set("ouo.platform", PLATFORM);
     set("service.version", this.serviceVersion);
+    const stampCustom = (): void => {
+      const custom = this.custom();
+      for (const key of Object.keys(custom)) set(key, custom[key]!);
+    };
     if (existing["session.id"] !== undefined) {
       // Record about a named session (session.start / session.end): fill only user fields.
       set("user.id", this.session.userId());
       set("ouo.user.anonymous", this.session.isAnonymousUser());
       const current = this.session.peek();
-      if (current && current.id === existing["session.id"] && current.previousId) set("session.previous_id", current.previousId);
+      if (current && current.id === existing["session.id"]) {
+        if (current.previousId) set("session.previous_id", current.previousId);
+        // Only the live session's: a previous run's crash or session.end must not take this run's
+        // attributes or OTA bundle.
+        stampCustom();
+      }
       return;
     }
     const attrs = correlationAttributes(this.session, this.serviceVersion);
     for (const key of Object.keys(attrs)) set(key, attrs[key]!);
+    stampCustom();
   }
 
   forceFlush(): Promise<void> {

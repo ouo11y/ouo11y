@@ -11,6 +11,9 @@ void OuoObjCSmokeRun(void) {
     config.tapLabels = NO;
     [Ouo start:config];
     [Ouo setUser:@"u1"];
+    [Ouo setUser:@"u1" attributes:@{@"plan": @"pro", @"seats": @3}];
+    [Ouo setAttributes:@{@"cohort": @"b", @"beta": @YES}];
+    [Ouo removeAttribute:@"cohort"];
     [Ouo trackScreen:@"Home"];
     [Ouo trackTap:@"buy"];
     [Ouo addEvent:@"checkout" attributes:@{@"items": @3, @"express": @YES}];

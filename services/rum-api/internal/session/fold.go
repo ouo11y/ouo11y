@@ -60,6 +60,18 @@ type Record struct {
 	AppStartMs   *float64 `json:"app_start_ms,omitempty"`
 	AppStartType string   `json:"app_start_type,omitempty"`
 
+	// BundleID and BundleChannel are the session's OTA bundle (React Native
+	// `bundle` / `setBundle`): the first non-empty value, like
+	// service_version, so a crash reported on the next launch under another
+	// bundle does not move the session. Omitted when the SDK sends none.
+	BundleID      string `json:"bundle_id,omitempty"`
+	BundleChannel string `json:"bundle_channel,omitempty"`
+
+	// Attributes are the app's ouo.attr.* values (setUser attributes,
+	// setAttributes): the latest value of each key over the session's
+	// events. Omitted when there are none (docs/specs/attributes.md).
+	Attributes map[string]string `json:"attributes,omitempty"`
+
 	// Events is the session's events in time order (not serialised; the
 	// API builds the timeline from it).
 	Events []Event `json:"-"`
@@ -135,6 +147,15 @@ func FoldOne(id string, events []Event, now time.Time, opts Options) Record {
 		}
 		if rec.ServiceVersion == "" {
 			rec.ServiceVersion = ev.ServiceVersion
+		}
+		if rec.BundleID == "" && ev.BundleID != "" {
+			rec.BundleID, rec.BundleChannel = ev.BundleID, ev.BundleChannel
+		}
+		for k, v := range ev.Attributes {
+			if rec.Attributes == nil {
+				rec.Attributes = map[string]string{}
+			}
+			rec.Attributes[k] = v
 		}
 		// Latest non-empty user id wins: setUser() can arrive after session.start.
 		if ev.UserID != "" {
