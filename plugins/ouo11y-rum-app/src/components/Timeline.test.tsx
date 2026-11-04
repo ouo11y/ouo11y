@@ -53,6 +53,22 @@ describe('eventLook', () => {
     ]);
   });
 
+  it('titles rage and dead taps and clicks by platform (ADR-0019)', () => {
+    const rage = ev('ouo.rage_click', {
+      ouo_platform: 'mobile',
+      app_widget_id: 'btn-coupon',
+      ouo_ui_view_type: 'TouchableOpacity',
+      app_screen_name: 'Cart',
+      ouo_click_count: '4',
+    });
+    expect([eventLook(rage).title(rage), eventLook(rage).detail(rage)]).toEqual([
+      'Rage tap',
+      'btn-coupon (TouchableOpacity) on Cart: 4 taps',
+    ]);
+    const dead = ev('ouo.dead_click', { ouo_platform: 'web', app_widget_id: '#pay', url_path: '/checkout' });
+    expect([eventLook(dead).title(dead), eventLook(dead).detail(dead)]).toEqual(['Dead click', '#pay /checkout']);
+  });
+
   it('keeps the generic look for other custom events and the typed looks', () => {
     const custom = ev('cart.added', { sku: 'sku-1' });
     expect(eventLook(custom).title(custom)).toBe('cart.added');

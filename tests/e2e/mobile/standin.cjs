@@ -514,6 +514,11 @@ require("react-native").AppState.addEventListener("change", (state) => {
   }
 });
 
+// Fabric's UI manager: React Native's renderer hands it every committed UI change (completeRoot),
+// which is the dead taps' "the screen changed" (sdk/react-native/src/commits.ts). The SDK wraps the
+// global at initRUM; commit() calls it the way the renderer would after the first render.
+globalThis.nativeFabricUIManager = { completeRoot() {} };
+
 // ---------------------------------------------------------------- the OS
 
 globalThis.__ouoStandin = {
@@ -546,6 +551,10 @@ globalThis.__ouoStandin = {
     record({ kind: "os.terminate" });
     dying = true;
     process.exit(0);
+  },
+  /** React commits a UI change (a render that changed the screen). */
+  commit() {
+    globalThis.nativeFabricUIManager.completeRoot();
   },
   /** The main thread blocks for `ms` (the JS thread runs on); the hang watchdog reports it once it is over. */
   blockMainThread(ms) {

@@ -286,7 +286,7 @@ const rum: RUM = initRUM({
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
   errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000, forwardSentryErrors: undefined },
-  timeline: { taps: true, tapLabels: true, appLifecycle: true, requests: true },
+  timeline: { taps: true, tapLabels: true, appLifecycle: true, requests: true, rageTaps: { threshold: 3, windowMs: 1000, radiusPt: 30 }, deadTaps: { timeoutMs: 1000 } },
   vitals: { enabled: true, stalls: true },
   storage: AsyncStorageLike,       // optional, defaults to @react-native-async-storage/async-storage
   debug: false,
@@ -538,6 +538,28 @@ buttons a `testID` or an `accessibilityLabel`, and a `role` for a readable view 
 labels must stay on the device, `timeline: { tapLabels: false }` records taps without them:
 `ouo.ui.target` is the view type (`Long press button on Cart`) and there is no `ouo.ui.path`. `http.request.failed` keeps its rules and now
 carries its span's trace id and span id too.
+
+**Rage and dead taps** ([ADR-0019](../../docs/adr/0019-rage-and-dead-taps.md), spec C6), the
+browser SDK's records under the same names, from `RUMProvider`'s touches (`WARN`, identity only,
+never text):
+
+| Event | When | Attributes |
+|---|---|---|
+| `ouo.rage_click` | 3 or more taps on one control, or within 30 pt of the first, within 1 s (one event per burst, at its first tap) | `app.widget.id` (the tap's target), `app.screen.coordinate.x` / `.y`, `ouo.ui.view_type`, `app.screen.name`, `ouo.click.count`, `ouo.click.duration_ms` |
+| `ouo.dead_click` | a tap on a control (a button-like `role` or a React Native touchable) after which nothing answered within 1 s of the finger lifting: no navigation, no request, no move to the background and no UI commit (Fabric) | the same, without the counts |
+
+A UI commit is React changing what is on screen; a native press highlight (`TouchableOpacity`) is
+not one, a `Pressable` whose style depends on `pressed` re-renders on every press and so never has
+dead taps. Dead taps need the new architecture (Fabric) and `initRUM` before the first render;
+otherwise they stay off. A control whose only answer is a haptic or a native-driven animation, or
+one tapped quickly on purpose (a stepper), opts out of both with `ouo-frustration={false}` on it or
+on an ancestor:
+
+```tsx
+<Pressable testID="qty-plus" ouo-frustration={false} onPress={increment} />
+```
+
+`timeline: { rageTaps: false }` and `timeline: { deadTaps: false }` turn them off.
 
 ## Vitals
 

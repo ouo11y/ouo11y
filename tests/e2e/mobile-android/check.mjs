@@ -124,6 +124,21 @@ const CHECKS = {
     }
     return i === want.length;
   },
+  "C6.2": async () => {
+    const rage = named(await detail(tapRun.session), "ouo.rage_click");
+    return (
+      rage.length === 1 &&
+      attr(rage[0], "app.widget.id") === "btn-coupon" &&
+      Number(attr(rage[0], "ouo.click.count")) >= 3 &&
+      Number(attr(rage[0], "ouo.click.duration_ms")) < 1000 &&
+      attr(rage[0], "app.screen.name") === "Cart"
+    );
+  },
+  "C6.3": async () => {
+    // The coupon's taps are dead; the product's tap opened a screen, the others were no taps.
+    const dead = named(await detail(tapRun.session), "ouo.dead_click").map((e) => [attr(e, "app.widget.id"), attr(e, "ouo.ui.view_type"), attr(e, "app.screen.name")].join(" "));
+    return dead.length > 0 && dead.every((x) => x === "btn-coupon button Cart");
+  },
   "C7.1": async () => {
     const nav = named(await detail(main.session), "navigation");
     const res = await fetch(`${RUM}/v1/funnels/query`, {

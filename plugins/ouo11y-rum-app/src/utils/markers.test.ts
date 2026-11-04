@@ -1,5 +1,5 @@
 import type { TimelineEvent } from '../api/types';
-import { buildMarkers, latestEventIndex, markerPosition, replayBounds, seekOffset } from './markers';
+import { buildMarkers, frustrationLabel, latestEventIndex, markerPosition, replayBounds, seekOffset } from './markers';
 
 const start = Date.parse('2026-10-06T05:06:20.000Z');
 const ev = (offsetMs: number, type: string, attrs: Record<string, string> = {}): TimelineEvent => ({
@@ -61,10 +61,41 @@ describe('buildMarkers', () => {
   });
 
   it('marks where the SDK hid the replay (never-record route or screen)', () => {
-    const hidden: TimelineEvent = { ...ev(4_000, 'custom', { ouo_replay_hidden_reason: 'route' }), name: 'ouo.replay.hidden' };
+    const hidden: TimelineEvent = {
+      ...ev(4_000, 'custom', { ouo_replay_hidden_reason: 'route' }),
+      name: 'ouo.replay.hidden',
+    };
     const markers = buildMarkers([ev(0, 'session.start'), hidden], start, 10_000);
     expect(markers.map((m) => [m.index, m.kind, m.leftPct])).toEqual([[1, 'hidden', 40]]);
     expect(markers[0].label).toBe('Replay hidden (route): nothing recorded until the next frame');
+  });
+});
+
+describe('frustration markers (ADR-0019)', () => {
+  const custom = (offsetMs: number, name: string, attrs: Record<string, string>): TimelineEvent => ({
+    ...ev(offsetMs, 'custom', attrs),
+    name,
+  });
+
+  it('marks rage and dead taps and clicks, labelled by platform, identity only', () => {
+    const rage = custom(1_000, 'ouo.rage_click', {
+      ouo_platform: 'mobile',
+      app_widget_id: 'btn-coupon',
+      ouo_ui_view_type: 'TouchableOpacity',
+      app_screen_name: 'Cart',
+      ouo_click_count: '4',
+    });
+    const dead = custom(2_000, 'ouo.dead_click', { ouo_platform: 'web', app_widget_id: '#pay', url_path: '/checkout' });
+    const markers = buildMarkers([rage, dead, custom(3_000, 'ouo.other', {})], start, 10_000);
+    expect(markers.map((m) => [m.kind, m.leftPct, m.label])).toEqual([
+      ['frustration', 10, 'Rage tap on btn-coupon (TouchableOpacity) on Cart: 4 taps'],
+      ['frustration', 20, 'Dead click on #pay /checkout'],
+    ]);
+    expect(
+      frustrationLabel(
+        custom(0, 'ouo.dead_click', { ouo_platform: 'mobile', app_widget_id: 'pay', ouo_ui_view_type: 'pay' })
+      )
+    ).toBe('Dead tap on pay');
   });
 });
 

@@ -71,7 +71,10 @@ This spec is the index. Where a record already has a spec, it is linked, not rep
 - **Native iOS** (W8): `ouo.ui.target` is the test id (`accessibilityIdentifier`) up the view tree, else the name the app passes to `trackTap`, else the view type; `ouo.ui.view_type` is the class of the view with the id, else of the touched control, else of the touched view (`UIButton`, `UIScrollView`). Accessibility labels and traits are not read: with an assistive technology on (VoiceOver, Voice Control) UIKit fills a button's label with its visible title, and the trait appears only then, so a step would differ by user (rule 6).
 - **Body**: the user step as a person reads it: `Tap add-to-cart (button) on Products`, `Swipe cart-items (FlatList) on Cart`.
 - **Kill switches**: `timeline.taps: false` stops the records. `timeline.tapLabels: false` keeps the taps `RUMProvider` records without any label: `ouo.ui.target` is the view type and there is no `ouo.ui.path`; gesture, view type and screen stay. Targets the app passes to `trackTap` are its own and are kept. Text content is never read (rule 6).
-- **Check**: C6.1.
+- **Rage tap** ([ADR-0019](../adr/0019-rage-and-dead-taps.md)): `ouo.rage_click`, the web's record, `WARN`: 3 or more taps (gesture `tap`) on the same target, or within 30 points of the first, within 1 s of the first (`timeline.rageTaps`: `threshold`, `windowMs`, `radiusPt`). One record per burst, stamped at its first tap, with `app.widget.id` (the tap's `ouo.ui.target`), `app.screen.coordinate.x` / `.y` (points), `ouo.ui.view_type`, `app.screen.name`, `ouo.click.count`, `ouo.click.duration_ms` (first to last tap). Body: `Rage tap on add-to-cart (button) on Products: 4 taps in 0.6 s`.
+- **Dead tap**: `ouo.dead_click`, `WARN`: a tap on a control (view type a button-like role, `button`, `link`, `menuitem`, `tab`, `togglebutton`, `imagebutton`, `switch`, `checkbox`, `radio`, or a React Native touchable, `Pressable`, `Touchable*`, `Button`) after which nothing answered within 1 s of the finger lifting (`timeline.deadTaps.timeoutMs`): no navigation, no request, no move to the background and no UI commit (React Native: Fabric's `completeRoot`, so a state change that changes the screen answers, a native-driven press highlight does not). Stamped at the tap, with the rage tap's attributes but the counts. A control that re-renders itself on press (a `Pressable` style that depends on `pressed`) never has dead taps; without the new architecture there are none.
+- **Opt-out**: `ouo-frustration={false}` on a control or an ancestor removes its taps from both (a stepper tapped quickly on purpose, a control that answers only with a haptic or a native animation). `timeline.rageTaps: false` and `timeline.deadTaps: false` turn each off. Only identity is sent, never text (rule 6).
+- **Check**: C6.1, C6.2, C6.3.
 
 ### C7 Screens and navigation
 
@@ -135,6 +138,8 @@ Each check runs on the golden app of the platform's suite (section 5) and assert
 | C4.2 | reports the first screen fully displayed | its `ouo.screen.display` has `ouo.screen.ttfd_ms` |
 | C5.1 | calls the demo backend | one trace holds the app's client span and a backend span carrying the app's `session.id` |
 | C6.1 | taps, long-presses and swipes labelled controls on three screens | three `ui.tap` in order with `ouo.ui.target`, `ouo.ui.view_type`, `ouo.ui.gesture` (`tap`, `long_press`, `swipe`) and `app.screen.name` |
+| C6.2 | taps a control on Cart four times within a second | one `ouo.rage_click` with the control's `app.widget.id`, `ouo.click.count` >= 3, `ouo.click.duration_ms` < 1000 and `app.screen.name = Cart` |
+| C6.3 | taps a control on Cart that does nothing, and controls that open a screen | an `ouo.dead_click` for the first with `app.widget.id`, `ouo.ui.view_type` and `app.screen.name = Cart`; none for the others |
 | C7.1 | visits Home, Products, Cart | one `navigation` per screen with `ouo.navigation.kind = screen`; a funnel `page:/Home`, `page:/Products`, `page:/Cart` counts the session at step 3 |
 | C8.1 | records replay across a background rotation | both sessions have a `frames` replay |
 | C8.2 | starts replay with default options | text, inputs, images and web views masked |
@@ -167,7 +172,7 @@ React Native iOS is measured by the suite (CI, job `examples`). Native iOS and R
 | C3 Hangs and terminations | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C4 Vitals | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C5 Network | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
-| C6 Interactions | L2 | L2 (native suite; test ids only, SwiftUI controls by `trackTap`) | L2 (Android suite) | L0 | L0 |
+| C6 Interactions | L2 | L1 (native suite: C6.1 passes, test ids only, SwiftUI controls by `trackTap`; C6.2 and C6.3 pending, no rage or dead taps yet) | L2 (Android suite) | L0 | L0 |
 | C7 Screens and navigation | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C8 Replay | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |
 | C9 Span and log API | L2 | L2 (native suite) | L2 (Android suite) | L0 | L0 |

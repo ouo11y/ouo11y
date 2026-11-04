@@ -86,6 +86,9 @@ const CHECKS = {
     }
     return i === want.length;
   },
+  // Rage and dead taps (ADR-0019) are React Native's so far: run and reported, not required.
+  "C6.2": { pending: "native iOS rage and dead taps", run: async () => named(await detail(tapRun.session), "ouo.rage_click").length > 0 },
+  "C6.3": { pending: "native iOS rage and dead taps", run: async () => named(await detail(tapRun.session), "ouo.dead_click").length > 0 },
   "C7.1": async () => {
     const d = await detail(main.session);
     const nav = named(d, "navigation");
@@ -174,9 +177,14 @@ function feedbackFrame(frames, at) {
 }
 const rows = [];
 const levels = {};
-for (const [id, check] of Object.entries(CHECKS)) {
-  const pass = await pollUntil(id, async () => ({ done: Boolean(await check()), value: true }), Number(process.env.OUO_CHECK_WAIT ?? 120)).catch(() => false);
-  rows.push({ check: id, result: pass ? "pass" : "FAIL" });
+let pendingPassed = false;
+for (const [id, def] of Object.entries(CHECKS)) {
+  // `pending`: the package whose merge makes the check pass here; it runs and reports, and once it
+  // passes the run fails until `pending` is removed (docs/specs/mobile-sdk.md section 5).
+  const { pending, run } = typeof def === "function" ? { run: def } : def;
+  const pass = await pollUntil(id, async () => ({ done: Boolean(await run()), value: true }), Number(process.env.OUO_CHECK_WAIT ?? (pending ? 20 : 120))).catch(() => false);
+  if (pending && pass) pendingPassed = true;
+  rows.push({ check: id, result: pending && pass ? "pass (remove pending)" : pass ? "pass" : "FAIL", pending: pending ?? "" });
   const cap = id.split(".")[0];
   levels[cap] = levels[cap] === "L1" || pass !== true ? "L1" : "L2";
 }
@@ -185,4 +193,4 @@ console.log("C10.1 feedback frame after the record (ms):", feedbackFrameMs);
 if (pixelReport) console.log("C8.2 pixels (mean brightness, black < 0.15):", pixelReport);
 console.log("maturity (native iOS, manual suite):", Object.entries(levels).map(([c, l]) => `${c} ${l}`).join(", "));
 console.log({ main: main.session, rotated, taps: tapRun.session, hang: hang.session, crash: crash.session, early: early.session, oom: oom.session, offline: offline.session, reject: reject.session });
-process.exit(rows.some((r) => r.result === "FAIL") ? 1 : 0);
+process.exit(pendingPassed || rows.some((r) => r.result === "FAIL" && !r.pending) ? 1 : 0);

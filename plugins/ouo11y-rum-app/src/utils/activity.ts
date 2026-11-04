@@ -32,6 +32,8 @@ export function activityCategory(ev: TimelineEvent): ActivityCategory {
     case 'custom':
       switch (ev.name) {
         case 'ui.tap':
+        case 'ouo.rage_click':
+        case 'ouo.dead_click':
           return 'tap';
         case 'http.request':
           return 'network';

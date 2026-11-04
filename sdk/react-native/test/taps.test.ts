@@ -34,6 +34,12 @@ describe("tap targets (G4)", () => {
     expect(touchedComponent(undefined)).toBeUndefined();
   });
 
+  it("ouo-frustration={false} on the control or an ancestor opts the touch out of rage and dead taps", () => {
+    expect(touchedComponent(chain([undefined, { testID: "plus", "ouo-frustration": false }]))).toMatchObject({ target: "plus", optedOut: true });
+    expect(touchedComponent(chain([undefined, { testID: "plus" }], ["Stepper", { "ouo-frustration": false }]))?.optedOut).toBe(true);
+    expect(touchedComponent(chain([undefined, { testID: "plus", "ouo-frustration": "no" }]))).not.toHaveProperty("optedOut");
+  });
+
   it("skips React context providers and consumers", () => {
     const ctx = { $$typeof: Symbol.for("react.context"), displayName: "ThemeContext", _currentValue: {} };
     const fiber: FiberLike = {

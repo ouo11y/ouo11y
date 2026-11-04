@@ -11,6 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
+import { installCommitProbe } from "./commits";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
@@ -23,6 +24,7 @@ import {
   type NativeErrorContextModule,
 } from "./errors/context";
 import { feedbackRecord } from "./feedback";
+import { createTapFrustration } from "./frustration";
 import { ReportedErrors } from "./errors/dedupe";
 import { installErrorCapture } from "./errors/install";
 import { forwardSentryErrors } from "./errors/sentry";
@@ -98,6 +100,8 @@ export function initRUM(options: RUMOptions): RUM {
   }
   // Configuration errors throw: a missing credential means 401 on every request (ADR-0007).
   const endpoints = resolveEndpoints(options);
+  // Before the first render: Fabric's renderer reads the commit function when it loads (commits.ts).
+  const commits = options.timeline?.deadTaps === false ? { count: () => 0, live: () => false, uninstall: () => {} } : installCommitProbe();
   const { projectId, projectToken } = requireCredentials(options);
   const authorization = basicAuthorization(projectId, projectToken);
   const logger = createLogger(options.debug === true);
@@ -253,6 +257,10 @@ export function initRUM(options: RUMOptions): RUM {
     appLifecycle: options.timeline?.appLifecycle !== false,
     requests: options.timeline?.requests !== false,
   };
+  const rageTaps = options.timeline?.rageTaps === false ? false : { threshold: 3, windowMs: 1000, radiusPt: 30, ...options.timeline?.rageTaps };
+  const deadTapsOption = options.timeline?.deadTaps;
+  const deadTaps = deadTapsOption === false ? false : { timeoutMs: 1000, ...(typeof deadTapsOption === "object" ? deadTapsOption : {}) };
+  const frustration = createTapFrustration({ events, rage: rageTaps, dead: deadTaps, commits });
 
   const flush = async (): Promise<void> => {
     session.persistNow();
@@ -331,7 +339,11 @@ export function initRUM(options: RUMOptions): RUM {
     logger,
     propagateTo: options.tracing?.propagateTo ?? [],
     ignoreUrls,
-    onActivity,
+    // A request answers a tap (dead taps).
+    onActivity: () => {
+      onActivity();
+      frustration.responded();
+    },
     requestEvents: timeline.requests,
     linker,
   };
@@ -364,6 +376,7 @@ export function initRUM(options: RUMOptions): RUM {
       ? { onLifecycle: (state: string) => events.emit("app.lifecycle", { "ouo.app.state": state }, "info", Date.now(), { body: `app ${state}` }) }
       : {}),
     onBackground: () => {
+      frustration.responded();
       vitals.background();
       session.onBackground();
       contextPersister.persistNow();
@@ -381,6 +394,7 @@ export function initRUM(options: RUMOptions): RUM {
     // First: a never-record screen pauses capture before anything else runs for it.
     replay.setScreen(String(attrs["url.path"] ?? ""));
     events.emit("navigation", { ...attrs, "ouo.navigation.kind": "screen" });
+    frustration.responded();
     onActivity();
     replay.screenDidChange();
     vitals.navigated(screenName(String(attrs["url.path"] ?? "")));
@@ -446,8 +460,10 @@ export function initRUM(options: RUMOptions): RUM {
       const p = event.nativeEvent;
       const gesture = gestureOf(Date.now() - t.at, (p?.pageX ?? t.x) - t.x, (p?.pageY ?? t.y) - t.y);
       // Labels off: what was touched (its view type), not what it is called.
+      const target = timeline.tapLabels ? t.touched.target : t.touched.viewType;
       if (timeline.tapLabels) emitTap(t.touched.target, t.touched.path, gesture, t.touched.viewType, t.at, t.screen);
       else emitTap(t.touched.viewType, undefined, gesture, t.touched.viewType, t.at, t.screen);
+      frustration.onTap({ target, viewType: t.touched.viewType, gesture, screen: t.screen, at: t.at, x: t.x, y: t.y, optedOut: t.touched.optedOut === true });
     },
     reportFullyDisplayed(): void {
       vitals.fullyDisplayed();
@@ -493,6 +509,8 @@ export function initRUM(options: RUMOptions): RUM {
     flush,
     _rootMounted: () => vitals.rootMounted(),
     async _uninstall(): Promise<void> {
+      frustration.dispose();
+      commits.uninstall();
       vitals.stop();
       nativeCrash.stop();
       uninstallFetch();

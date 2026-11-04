@@ -75,11 +75,13 @@ cmd "action/golden" 2
 cmd "action/feedback?message=golden%20feedback&contact=qa%40example.invalid" 4
 background; sleep 10; launch resume; sleep 6; cmd "action/flush" 3; stop
 
-log "taps: tap a product on Products, long-press Add to cart on Product, swipe the items on Cart"
+log "taps: tap a product on Products, long-press Add to cart on Product, swipe the items on Cart, rage-tap the broken coupon button"
 launch taps; sleep 8
 read -r x y <<<"$(center product-p-1002)"; "${ADB[@]}" shell input tap "$x" "$y"; sleep 4
 read -r x y <<<"$(center 'btn-Add to cart')"; "${ADB[@]}" shell input swipe "$x" "$y" "$x" "$y" 900; sleep 4
 read -r x y <<<"$(center cart-items)"; "${ADB[@]}" shell input swipe "$x" "$y" "$x" "$((y - 300))" 300; sleep 2
+# C6.2, C6.3: four taps in one shell (each `input` takes about 200 ms), a rage tap, each tap dead.
+read -r x y <<<"$(center btn-coupon)"; "${ADB[@]}" shell "input tap $x $y; input tap $x $y; input tap $x $y; input tap $x $y"; sleep 3
 cmd "action/flush" 3; stop
 
 log "crash: a native crash on Cart while recording, next launch"
