@@ -160,6 +160,11 @@ forwards only queries, either:
 
 On a multi-tenant Loki, rum-api sends its tenant on deletes too.
 
+`GET /loki/api/v1/delete` lists the requests and their status. A request stays `received`
+during `delete_request_cancel_period`, then becomes `processed` at the next compaction. Queries
+stop returning the lines a minute or two after that, once the queriers refresh their cached
+list of delete requests.
+
 The delete query is always scoped to ouo's lines:
 `{service_name=~".+"} | ouo_project_id="<project>" | user_id="<user>"`, or `| ouo_project_id!=""`
 when no project is given. Your own services' logs never match, even when they carry a `user_id`.
@@ -322,14 +327,15 @@ on top of `compose.images.yaml`.
    ouo_project_id, service_name}`.
 5. **Delete by user** (`qa-user-w-0`, project `demo`):
    - 6 sessions found, 1 replay deleted.
-   - Loki request over `now - 336h` (rum-api `retention.logs`), `processed` 210 s later (the
-     fixture's cancel period is 1m).
+   - Loki request over `now - 336h` (rum-api `retention.logs`), `processed` about 165 s later
+     (the fixture's cancel period is 1m), hidden from queries about 45 s after that.
    - That user's lines went from 16 to 0. Another user's 16 lines and the client's 6 lines were kept.
 6. **Multi-tenant variant** (Loki `auth_enabled: true`, `OUO_LGTM_TENANT_ID=juhi`, logs straight
    to Loki's OTLP):
    - Loki answers 401 without a tenant.
    - `E2E OK` again. All 106 log records of the run are in tenant `juhi`, none in `fake`.
-   - Two delete requests are listed under tenant `juhi`.
+   - A delete by user lands in tenant `juhi` and is processed there: that user's lines go
+     from 12 to 0, and another user's are kept.
 
 Step 6 also found a bug, now fixed: a deletion answered 502 `deletes in the future are not
 allowed` whenever rum-api's session lookup took less than a second, because the request's end

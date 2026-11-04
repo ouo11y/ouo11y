@@ -18,7 +18,9 @@ Operator guide: `docs/operations/existing-lgtm.md`. Reproduce: `tests/e2e/existi
 - `log_attributes` has no defaults; the `event.name` rule applies to every sender's logs.
 - `GET /loki/api/v1/delete` lists the requests per tenant; with `auth_enabled: false` the tenant
   is `fake`. A request is `received` for `delete_request_cancel_period`, then `processed` on the
-  next compaction run (1m / 1m: 210 s end to end).
+  next compaction run (1m / 1m: 165-210 s). The lines can stay visible for a minute or two
+  after `processed`: the querier filters with its cached list of delete requests. Poll the line
+  count, never assert right after `processed` (run.sh's first version did and failed).
 - Loki rejects a delete whose `end` is after its own clock: 400 `deletes in the future are not
   allowed`. rum-api used to send `to.Unix()+1` with `to = now`, so a deletion failed whenever its
   session lookup finished within the same second (fast with few sessions). Fixed: end is clamped

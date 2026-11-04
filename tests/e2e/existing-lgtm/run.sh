@@ -39,6 +39,8 @@ ouo() {
     -f "$TMP/build.yaml" "$@"
 }
 cleanup() {
+  local rc=$?
+  (( rc == 0 )) || echo "existing-lgtm FAILED (exit $rc)" >&2
   if (( KEEP == 0 )); then
     ouo down -v >/dev/null 2>&1 || true
     client down -v >/dev/null 2>&1 || true
@@ -101,6 +103,10 @@ services:
     image: $P/rum-api
 EOF
 
+# Leftovers of an earlier --keep run would change the counts below.
+ouo down -v >/dev/null 2>&1 || true
+client down -v >/dev/null 2>&1 || true
+
 echo "== 1. client Loki with its own defaults"
 OUO_CLIENT_LOKI_CONFIG=./loki.client.yaml client up -d >/dev/null
 wait_loki
@@ -156,10 +162,15 @@ delete_user() { # delete_user <user>: through rum-api, wait until Loki processed
     [[ "$st" == processed ]] && break; sleep 15
   done
   [[ "$st" == processed ]] || fail "delete request for $user not processed ($st)"
-  local after other_after client_lines
-  after="$(count "{service_name=~\".+\"} | ouo_project_id=\"demo\" | user_id=\"$user\"")"
+  # The queriers pick a processed request up from their cached list of delete requests, a
+  # minute or more later: poll until the lines are hidden.
+  local after other_after j
+  for j in $(seq 40); do
+    after="$(count "{service_name=~\".+\"} | ouo_project_id=\"demo\" | user_id=\"$user\"")"
+    [[ "$after" == 0 ]] && break; sleep 15
+  done
   other_after="$(count '{service_name=~".+"} | ouo_project_id="demo" | user_id="qa-user-w-1"')"
-  echo "processed after ~$((i * 15)) s: $user lines $before -> $after, qa-user-w-1 $other -> $other_after"
+  echo "processed after ~$((i * 15)) s, hidden from queries ~$(((j - 1) * 15)) s later: $user lines $before -> $after, qa-user-w-1 $other -> $other_after"
   [[ "$after" == 0 && "$other_after" == "$other" && "$before" != 0 ]] || fail "delete removed the wrong lines"
 }
 echo "== 5. delete by user"

@@ -82,16 +82,28 @@ rum-api are built from the tree; Grafana 0.6.0 comes from `compose.images.yaml`,
 4. The client's logs, sent again, form the same single series with the same labels. ouo's
    streams carry `event_name`, `ouo_platform` and `ouo_project_id`.
 5. Delete-by-user (`qa-user-w-0`, project `demo`): 6 sessions, 1 replay deleted, Loki request
-   from `now - 336h`. It was `processed` after about 210 s. That user's lines went 16 → 0; another
-   user's 16 lines and the client's 6 lines were kept.
+   from `now - 336h`. It was `processed` after about 165 s and hidden from queries about 45 s
+   later. That user's lines went 16 → 0; another user's 16 lines and the client's 6 lines were kept.
 6. Multi-tenant (`auth_enabled: true`, `OUO_LGTM_TENANT_ID=juhi`, logs direct to Loki's OTLP):
    - Loki answers 401 without a tenant.
    - E2E OK again: 106 records in `juhi`, 0 in `fake`.
-   - Delete requests are listed and processed under `juhi`.
+   - Delete of `qa-user-w-2` under `juhi`: processed after about 180 s, lines 12 → 0, and
+     `qa-user-w-1` kept its 16.
+   - Final line: `existing-lgtm OK`.
 
-The first manual pass of steps 1-6 ran before `run.sh` existed. Its step 6 is where fix 1 showed
-up: the delete answered 502 until the clamp went in. The final `run.sh --multitenant` result is
-in the PR description. Both projects were torn down (`down -v`).
+Run history, for the record:
+- A manual pass of steps 1-6 ran before `run.sh` existed. Its step 6 is where fix 1 showed up:
+  the delete answered 502 until the clamp went in.
+- `run.sh` run 1: step 3's e2e reported `E2E FAIL: 4 mismatch(es)` on a cold client stack. The
+  details were lost (the script piped them to `tail -1`; it now prints the whole log on
+  failure). Not reproduced in the three e2e runs since. Possibly ingestion timing on a
+  brand-new Tempo; not explained.
+- Run 2 failed step 5 by asserting the line count right after `processed`. Loki's queriers
+  apply a processed delete about a minute later, so the script now polls.
+- Run 3 hit a container left over from my own teardown.
+- Run 4: everything green.
+
+Both projects were torn down (`down -v`); no `r4*` containers or volumes are left.
 
 ## Dependencies
 
