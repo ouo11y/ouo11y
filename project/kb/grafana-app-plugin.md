@@ -33,8 +33,9 @@ proxies to rum-api and embeds rrweb-player, inside the npm workspace monorepo?
 - **Provisioning**: `deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml`
   (`apiVersion: 1`, `apps: [{type: ouo11y-rum-app, org_id: 1, disabled: false, jsonData: {rumApiUrl: http://rum-api:8080}}]`).
   `GET /api/plugins/ouo11y-rum-app/settings` then shows `enabled: true, pinned: true, jsonData`.
-- **Route proxy**: `plugin.json` `routes: [{ "path": "rum/*", "method": "*", "reqRole": "Viewer",
-  "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}" }]`.
+- **Route proxy**: `plugin.json` `routes: [{ "path": "rum/*", "method": "GET", "reqRole": "Viewer",
+  "url": "{{ if .JsonData.rumApiUrl }}{{ .JsonData.rumApiUrl }}{{ else }}http://rum-api:8080{{ end }}" }, ...]`
+  (one route per method since N30, see "Route roles" below).
   The browser calls `/api/plugin-proxy/ouo11y-rum-app/rum/v1/...` (NOT
   `/api/plugins/<id>/resources/...`, which is the backend-plugin CallResource endpoint and
   returns 500 for a frontend-only app). The URL is a Go `text/template` evaluated per request
@@ -187,3 +188,26 @@ when the variable is set; the plugin must add it without exposing it to the brow
 - **Result**: first Funnels test 1.29 s → 0.39 s with 30 busy loops on the Mac,
   0.22 s → 0.09 s idle. Count calls by wrapping `window.getComputedStyle` in a test if a new page
   is slow.
+
+## Route roles: one route per method (N30, 2026-11-04)
+
+Read in `pkg/api/pluginproxy/pluginproxy.go` at Grafana v13.2.5 and verified live:
+
+- Grafana walks `routes` **in declared order** and takes the first whose `method` and `path` match.
+  `method` is one string compared with `==` to the request method (so upper case); `""` and `"*"`
+  match every method. There is no method list.
+- The first matching route **decides**: when its `reqRole` (or `reqAction`) is not met, Grafana
+  answers 403 `plugin proxy route access denied` and does not try later routes. So a `"*"` route
+  before a narrower one shadows it; give every route one method and the order stops mattering.
+- No matching route: 404 `plugin route match not found`, rum-api is never called. A method you
+  do not list is refused for everyone, Admins included.
+- No `reqRole` and no `reqAction` = every signed-in user (`hasAccessToRoute` returns true).
+- `path: "rum/v1/funnels/*"` strips the whole matched prefix: Grafana appends only the `*` part to
+  `url`, so a narrowed route's `url` must end with the same rum-api prefix
+  (`{{ ... }}/v1/funnels`). A `rumApiUrl` with a trailing slash then yields `//v1/funnels/...`,
+  which Go's `ServeMux` redirects instead of serving; the config page and the chart trim it.
+- The ouo routes: `GET rum/*` Viewer, `POST rum/v1/funnels/*` Viewer (funnel queries are reads
+  with a JSON body), `DELETE rum/v1/sessions/*` Admin (replay erasure). rum-api's `readAuth`
+  accepts the read token for `DELETE /v1/sessions/{id}/replay`, so Grafana's role check is the
+  only thing between a Grafana user and the erasure. `src/plugin.test.ts` pins the table.
+

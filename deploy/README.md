@@ -325,7 +325,8 @@ open http://localhost:${OUO_GRAFANA_PORT:-3000}/a/ouo11y-rum-app/overview
 The provisioner expands `${OUO_READ_TOKEN}` from the Grafana container's environment
 (compose passes it through). The plugin never calls rum-api from the browser: it requests
 `/api/plugin-proxy/ouo11y-rum-app/rum/v1/...` and Grafana forwards to `rumApiUrl` adding
-`Authorization: Bearer <readToken>` (route `rum/*` in `plugin.json`). The URL and token can
+`Authorization: Bearer <readToken>` (routes in `plugin.json`: `GET rum/*` and
+`POST rum/v1/funnels/*` for Viewers, `DELETE rum/v1/sessions/*` for org Admins). The URL and token can
 be changed at `/plugins/ouo11y-rum-app` (Configuration) without restarting Grafana. Restart
 Grafana after changing `src/plugin.json`; for JS-only rebuilds a hard browser reload is enough.
 

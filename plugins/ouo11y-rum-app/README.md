@@ -8,9 +8,18 @@ Grafana Explore links, rrweb, frame or video replay synced to the timeline). All
 never sees the read token.
 
 ```
-browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[0].url = jsonData.rumApiUrl,
+browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[].url = jsonData.rumApiUrl,
                                                                   + Authorization: Bearer <secureJsonData.readToken>)--> rum-api
 ```
+
+Who may call what through the proxy (`routes` in `src/plugin.json`; Grafana refuses a method
+without a route with 404 and a role below the route's `reqRole` with 403):
+
+| Method and path | Org role | Used for |
+|---|---|---|
+| `GET rum/*` | Viewer | every page, the replay players (including the `<video>` segments) and the connection test |
+| `POST rum/v1/funnels/*` | Viewer | `POST /v1/funnels/query` (a read with a JSON body) |
+| `DELETE rum/v1/sessions/*` | Admin | `DELETE /v1/sessions/{id}/replay`, erasing one replay (no button in the UI) |
 
 ## Pages
 

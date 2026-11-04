@@ -5,6 +5,14 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## Unreleased
 
+### Fixed
+
+- **Viewers can no longer delete replays through the plugin proxy** (N30). The single proxy route
+  `rum/*` accepted every method for every Viewer; it is now `GET rum/*` and
+  `POST rum/v1/funnels/*` for Viewers and `DELETE rum/v1/sessions/*` for org Admins. Every other
+  method is refused by Grafana (404) before it reaches rum-api. The configuration page saves
+  `rumApiUrl` without a trailing slash. Restart Grafana after upgrading (route changes).
+
 ## [0.10.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.9.0...plugin-v0.10.0) (2026-10-31)
 
 ### Added
