@@ -94,6 +94,9 @@ class OuoReplayModule : Module() {
     )
   }
 
+  /** FrameMetrics listens per window: the current activity's, once there is one (see OnActivityEntersForeground). */
+  private fun attachFrames() = Signals.attachCurrent(appContext.currentActivity)
+
   override fun definition() = ModuleDefinition {
     Name("OuoReplay")
 
@@ -104,8 +107,14 @@ class OuoReplayModule : Module() {
     // writes its own state, and the frame counters run from the JS runtime's start.
     OnCreate {
       appContext.reactContext?.let { Signals.init(it) }
-      Signals.attachCurrent(appContext.currentActivity)
+      attachFrames()
     }
+
+    // The activity's onResume can run before Signals registered its lifecycle callbacks, with no
+    // current activity known yet at OnCreate (about 1 cold launch in 4 on an emulator): then no
+    // window would ever be measured. So every later entry point attaches again once the activity is
+    // known (idempotent per window).
+    OnActivityEntersForeground { attachFrames() }
 
     Function("start") { endpoint: String, options: StartOptions ->
       val config = config(endpoint, options)
@@ -185,6 +194,7 @@ class OuoReplayModule : Module() {
      * whose reports arrive as `onHang` events, and sets the session a crash belongs to.
      */
     Function("installCrashReporter") { sessionId: String, startedAtMs: Double ->
+      attachFrames()
       Signals.install(sessionId, startedAtMs.toLong()) { report -> sendEvent("onHang", mapOf("report" to report)) }
     }
 
@@ -196,9 +206,15 @@ class OuoReplayModule : Module() {
     // ---- mobile vitals (docs/specs/mobile-vitals.md) ----
 
     /** Start of this launch for `ouo.app.start`: `{ processStartMs, type, prewarmed }`, resolved once per runtime. */
-    Function("getAppStartInfo") { appStart }
+    Function("getAppStartInfo") {
+      attachFrames()
+      appStart
+    }
 
     /** Cumulative frame counters since the module started; JS diffs two snapshots. */
-    Function("getFrameStats") { Signals.frameStats() }
+    Function("getFrameStats") {
+      attachFrames()
+      Signals.frameStats()
+    }
   }
 }

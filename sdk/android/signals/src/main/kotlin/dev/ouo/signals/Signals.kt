@@ -240,6 +240,9 @@ object Signals {
     private var framesAtStart = 0.0
 
     override fun run() {
+      // Measuring starts now: the main thread has not been asked anything before (a baseline from
+      // init, seconds earlier on a slow cold start, would read as a hang until its first answer).
+      lastAnswer = SystemClock.uptimeMillis()
       while (true) {
         try {
           // Not measured in the background: parked until an activity starts (no wake-ups there).

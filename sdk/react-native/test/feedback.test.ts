@@ -186,14 +186,22 @@ describe("rum.feedback through initRUM", () => {
     expect(captured.byName("feedback")).toHaveLength(0);
   });
 
-  it("screenshot with replay recording: a frame is asked for and the record says so", async () => {
+  it("screenshot with replay recording: a frame is asked for after the record, and the record says so", async () => {
     const n = recordingNative();
     const { rum, captured } = await start({ replay: { enabled: true } });
+    let clock = Date.now();
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => ++clock);
+    let askedAt = 0;
+    n.screenDidChange.mockImplementation(() => (askedAt = Date.now()));
     rum.feedback({ message: "look at this", screenshot: true });
     rum.feedback({ message: "no picture" });
+    spy.mockRestore();
     await rum.flush();
     expect(n.screenDidChange).toHaveBeenCalledTimes(1);
-    expect(captured.byName("feedback").map((l) => attr(l.attributes, "ouo.feedback.screenshot"))).toEqual([true, undefined]);
+    const records = captured.byName("feedback");
+    expect(records.map((l) => attr(l.attributes, "ouo.feedback.screenshot"))).toEqual([true, undefined]);
+    // The frame comes after the feedback in the replay (C10.1's frame after it).
+    expect(Number(BigInt(records[0]!.timeUnixNano) / 1_000_000n)).toBeLessThan(askedAt);
   });
 
   it("screenshot without replay recording: no frame, no flag", async () => {
