@@ -24,6 +24,8 @@
 #                                 URL above does not route it there
 #   OUO_LOKI_DELETE_API           false when your Loki has no compactor deletion (delete-by-user
 #                                 then removes replays only; docs/operations/existing-lgtm.md)
+#   OUO_EXTERNAL_{LOKI,TEMPO}_BASIC_AUTH_{USERNAME,PASSWORD}
+#                                 rum-api's basic auth to a gateway in front of Loki / Tempo
 # The OUO_RETENTION_LOGS / _REPLAYS values must match your Loki's retention (rum-api searches that
 # far back on delete-by-user and keeps replays that long).
 #
@@ -79,3 +81,9 @@ services:
       TEMPO_TENANT_ID: ${OUO_LGTM_TENANT_ID:-}
       LOKI_DELETE_URL: ${OUO_EXTERNAL_LOKI_DELETE_URL:-}
       LOKI_DELETE_API: ${OUO_LOKI_DELETE_API:-true}
+      # Basic auth to an authenticating gateway in front of Loki / Tempo (SECRET: keep it in
+      # .env, never in a committed file). Empty: none (rum-api treats an empty variable as unset).
+      LOKI_BASIC_AUTH_USERNAME: ${OUO_EXTERNAL_LOKI_BASIC_AUTH_USERNAME:-}
+      LOKI_BASIC_AUTH_PASSWORD: ${OUO_EXTERNAL_LOKI_BASIC_AUTH_PASSWORD:-}
+      TEMPO_BASIC_AUTH_USERNAME: ${OUO_EXTERNAL_TEMPO_BASIC_AUTH_USERNAME:-}
+      TEMPO_BASIC_AUTH_PASSWORD: ${OUO_EXTERNAL_TEMPO_BASIC_AUTH_PASSWORD:-}

@@ -242,6 +242,11 @@ Tenants: by default your collector does not forward the ouo collector's `X-Scope
 needs `include_metadata: true` on the receiver plus the `headers_setter` extension. In front of
 a multi-tenant stack, it is usually your collector's own exporters that set the tenant.
 
+Compose without `OUO_LGTM_TENANT_ID` sends that header with an **empty** value. A collector
+whose `headers_setter` copies it `from_context` can pass the empty value on, and a multi-tenant
+backend then refuses the data (no org id). Set `OUO_LGTM_TENANT_ID` in that setup, or have
+your collector set the tenant itself.
+
 ## 6. Tenant, headers and authentication
 
 | | collector | rum-api | Grafana |
@@ -253,8 +258,39 @@ A single-tenant stack needs none of this: `auth_enabled: false` on Loki, multite
 Tempo and Mimir.
 
 rum-api's `tenant_id`, `headers`, `basic_auth` and `delete_url` keys need a rum-api release newer
-than 0.6.0 (`docs/compatibility.md`). rum-api 0.6.0 rejects unknown config keys, so with that
-image leave `lgtm.external.tenantId` and `lokiDeleteUrl` empty.
+than 0.6.0 (`docs/compatibility.md`). rum-api 0.6.0 rejects unknown config keys and would not
+start. The chart refuses to render `lgtm.external.tenantId` or `lokiDeleteUrl` while
+`rumApi.image.tag` is a release <= 0.6.0.
+
+Keep the basic-auth password and any credential header out of committed files.
+
+**Helm.** The rum-api ConfigMap is not a Secret, so never put a password in
+`rumApi.structuredConfig`. Put it in a Secret of your own and pass it with `rumApi.extraEnv`:
+
+```yaml
+rumApi:
+  extraEnv:
+    - name: LOKI_BASIC_AUTH_USERNAME
+      value: ouo
+    - name: LOKI_BASIC_AUTH_PASSWORD
+      valueFrom:
+        secretKeyRef: { name: ouo-lgtm-auth, key: loki-password }
+    # TEMPO_BASIC_AUTH_USERNAME / TEMPO_BASIC_AUTH_PASSWORD likewise
+```
+
+A credential header (an API key): give rum-api the secret as an environment variable the same
+way, for example `LOKI_API_KEY` from `secretKeyRef`. Then reference it from the config:
+`rumApi.structuredConfig.loki.headers: {X-Api-Key: "${LOKI_API_KEY}"}`. rum-api runs with
+`-config.expand-env=true`, so the ConfigMap holds only the reference.
+
+**Compose.** `compose.external.yaml` passes `OUO_EXTERNAL_LOKI_BASIC_AUTH_USERNAME`,
+`_PASSWORD` and the `TEMPO` pair from `deploy/compose/.env` to rum-api. Empty means no basic
+auth. A credential header needs two changes:
+- a `headers` entry with a `${VAR}` reference in `deploy/compose/rum-api/config.yaml`;
+- an override file of your own that passes `VAR` to the `rum-api` service.
+
+**Collector.** Basic auth or extra headers on the collector's exporters: Helm
+`collector.configOverride`; compose, the exporters in `deploy/compose/external/collector.yaml`.
 
 ## 7. Compose and VM
 
