@@ -34,7 +34,9 @@ what the funnel matches, attributes are not (v1).
    and custom event names seen in the range, most frequent first; type any other value and pick
    "Use this value". Arrows reorder, the bin removes.
 3. Optional: **Completed within** (every step within that time of step 1), and **Platform**,
-   **Service**, **Environment**, **Release** (`service.version`), **Project** filters.
+   **Environment**, **Release** (`service.version`) filters. The project and the app
+   (`service.name`) come from the **Project** / **App** selector at the top, shared with the other
+   pages ([scope spec](specs/rum-api-scope.md)).
 
 The funnel is in the URL (`?step=page:/&step=page:/products/*&step=event:add_to_cart`): copy the
 address bar to share it or bookmark it. There are no saved funnels in v1.

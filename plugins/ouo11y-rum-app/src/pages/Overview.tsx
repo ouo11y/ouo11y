@@ -13,7 +13,7 @@ import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { VersionTable } from '../components/VersionTable';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
-import { scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
+import { isOtherScope, scopeKeyTag, scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
 import { pct } from '../utils/format';
 
 const PLATFORMS: Array<{ id: 'web' | 'mobile'; title: string; icon: 'globe' | 'mobile-android' }> = [
@@ -73,11 +73,10 @@ export default function Overview() {
   const styles = useStyles2(getStyles);
   const range = useRawRange();
   const scope = useScope();
-  const key = `${range.from}|${range.to}|${scope.project}|${scope.service}`;
-  const { data, error, loading, reload } = useRumQuery(
-    () => rumApi.health({ from: range.from, to: range.to, ...scopeParams(scope) }),
-    key
-  );
+  const key = `${range.from}|${range.to}${scopeKeyTag(scope)}`;
+  const query = useRumQuery(() => rumApi.health({ from: range.from, to: range.to, ...scopeParams(scope) }), key);
+  const { error, loading, reload } = query;
+  const data = isOtherScope(query.dataKey, scope) ? undefined : query.data;
   const buckets = useMemo(() => data?.buckets ?? [], [data]);
   // The cross-project view: every project's apps side by side (one app selected: nothing to compare).
   const apps = useMemo(() => data?.apps ?? [], [data]);

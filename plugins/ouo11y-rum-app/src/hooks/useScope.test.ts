@@ -1,4 +1,4 @@
-import { isAllScope, scopeFromSearch, scopeParams, withScope } from './useScope';
+import { isAllScope, isOtherScope, scopeFromSearch, scopeKeyTag, scopeParams, withScope } from './useScope';
 
 describe('scope helpers', () => {
   it('reads project and service from the URL; missing means all', () => {
@@ -22,5 +22,17 @@ describe('scope helpers', () => {
     const q = new URLSearchParams('from=now-1h&project=old&service=old-app');
     expect(withScope(q, { project: 'bank', service: '' }).toString()).toBe('from=now-1h&project=bank');
     expect(withScope(q, { project: '', service: '' }).toString()).toBe('from=now-1h');
+  });
+});
+
+describe('isOtherScope', () => {
+  it('flags data of another scope but not of another time range', () => {
+    const shop = { project: 'shop', service: '' };
+    const key = (range: string, s: { project: string; service: string }) => `${range}${scopeKeyTag(s)}`;
+    expect(isOtherScope(undefined, shop)).toBe(false);
+    expect(isOtherScope(key('now-1h|now', shop), shop)).toBe(false);
+    expect(isOtherScope(key('now-6h|now', shop), shop)).toBe(false);
+    expect(isOtherScope(key('now-1h|now', { project: '', service: '' }), shop)).toBe(true);
+    expect(isOtherScope(key('now-1h|now', { project: 'shop', service: 'web' }), shop)).toBe(true);
   });
 });

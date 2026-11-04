@@ -219,8 +219,15 @@ func TestListProjects(t *testing.T) {
 	if ce.query != projectsQuery || strings.Join(ce.by, ",") != "ouo_project_id,service_name,ouo_platform" {
 		t.Fatalf("loki query %s by %v", ce.query, ce.by)
 	}
-	if r := ce.ranges[0]; r[1].Sub(r[0]) != defaultProjectsRange {
-		t.Fatalf("default range %v", r[1].Sub(r[0]))
+	// now is scopeBase+10m, on a minute: the default range is exactly 7 days.
+	if r := ce.ranges[0]; r[1].Sub(r[0]) != defaultProjectsRange || !r[1].Equal(scopeBase.Add(10*time.Minute)) {
+		t.Fatalf("default range %v .. %v", r[0], r[1])
+	}
+	// from rounds down and to rounds up to the minute: a session that started
+	// seconds ago is still counted.
+	getJSON(t, ts.URL+"/v1/projects?from="+scopeBase.Add(90*time.Second).Format(time.RFC3339)+"&to="+scopeBase.Add(150*time.Second).Format(time.RFC3339), nil)
+	if r := ce.ranges[1]; !r[0].Equal(scopeBase.Add(time.Minute)) || !r[1].Equal(scopeBase.Add(3*time.Minute)) {
+		t.Fatalf("rounded range %v .. %v", r[0], r[1])
 	}
 	b, _ := json.Marshal(pr.Projects)
 	want := `[{"project_id":"bank","sessions":4,"apps":[{"service_name":"bank-web","platforms":["web"],"sessions":4}]},` +

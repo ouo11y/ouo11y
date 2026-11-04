@@ -17,7 +17,9 @@
 //    (`${OUO_REPLAY_URL}/v1/replay/chunks`, Basic); the collector's ouoreplay exporter
 //    forwards it to rum-api's sink.
 // 2. Waits for Loki / Tempo ingestion, then asserts rum-api (reads carry the read token):
-//      GET /v1/stats/health              buckets equal the matrix (counts and percentages)
+//      GET /v1/stats/health              buckets equal the matrix (counts and percentages), with
+//                                        project_id; apps; ?project= narrows (docs/specs/rum-api-scope.md)
+//      GET /v1/projects                  the stamped project lists every app of the matrix
 //      GET /v1/sessions?status=crashed   exactly the crashed ids, with service_version
 //      GET /v1/sessions/{id}             trace_count, ordered timeline, Grafana trace links (HTTP 200),
 //                                        has_replay true only for the session that got a chunk
@@ -376,6 +378,7 @@ async function sendMatrix(sessions) {
 function expectedBuckets(svc) {
   const total = Object.values(COUNTS).reduce((a, b) => a + b, 0);
   return VERSIONS.map((version) => ({
+    project_id: PROJECT_ID,
     platform: svc.platform,
     service_name: svc.service,
     service_version: version,
@@ -430,6 +433,35 @@ async function assertHealth(svc, sessions) {
   check(`health buckets ${svc.service}`, expectedBuckets(svc), actualBuckets, url);
   check(`health rows sum ${svc.service}`, true, actualBuckets.every((b) => b.healthy + b.errored + b.crashed === b.total), url);
   check(`health totals ${svc.service}`, expectedTotals(svc), pickTotals(body.totals), url);
+  // Project / app scope (docs/specs/rum-api-scope.md): the stamped project narrows to the same
+  // buckets, another project to nothing; `apps` has one row for the app with the totals.
+  const t = expectedTotals(svc);
+  check(
+    `health apps ${svc.service}`,
+    [{ project_id: PROJECT_ID, service_name: svc.service, platforms: [svc.platform], total: t.total, healthy: t.healthy, errored: t.errored, crashed: t.crashed }],
+    (body.apps ?? []).map((a) => ({ project_id: a.project_id, service_name: a.service_name, platforms: a.platforms, total: a.total, healthy: a.healthy, errored: a.errored, crashed: a.crashed })),
+    url,
+  );
+  const scopedUrl = `${url}&project=${encodeURIComponent(PROJECT_ID)}`;
+  const scoped = await getJSON(scopedUrl);
+  check(`health scoped to project ${svc.service}`, expectedBuckets(svc), scoped.buckets, scopedUrl);
+  const otherUrl = `${url}&project=e2e-no-such-project`;
+  check(`health scoped to another project ${svc.service}`, 0, (await getJSON(otherUrl)).totals?.total, otherUrl);
+  return { url, body };
+}
+
+// GET /v1/projects lists the stamped project with every app of the matrix (the plugin's selector).
+async function assertProjects(sessions) {
+  const url = `${RUM}/v1/projects?from=${RANGE}`;
+  const body = await getJSON(url);
+  const project = (body.projects ?? []).find((p) => p.project_id === PROJECT_ID);
+  const expected = SERVICES.map((svc) => ({
+    service_name: svc.service,
+    platforms: [svc.platform],
+    sessions: sessions.filter((x) => x.service === svc.service).length,
+  }));
+  const actual = SERVICES.map((svc) => (project?.apps ?? []).find((a) => a.service_name === svc.service) ?? null);
+  check(`projects ${PROJECT_ID}`, expected, actual, url);
   return { url, body };
 }
 
@@ -466,6 +498,7 @@ async function assertDetail(session) {
   const rec = body; // the record fields are top-level, next to `timeline` and `traces`
   check(`detail record ${session.id}`, {
     session_id: session.id,
+    project_id: PROJECT_ID,
     user_id: session.userId,
     platform: session.platform,
     service_name: session.service,
@@ -477,6 +510,7 @@ async function assertDetail(session) {
     state: session.expect.endReason ? "ended" : "active",
   }, {
     session_id: rec.session_id,
+    project_id: rec.project_id,
     user_id: rec.user_id,
     platform: rec.platform,
     service_name: rec.service_name,
@@ -699,6 +733,7 @@ async function main() {
     result.health[svc.service] = await assertHealth(svc, sessions);
     result.crashed[svc.service] = await assertCrashedList(svc, sessions);
   }
+  result.projects = await assertProjects(sessions);
 
   // one detail check per service: the errored session with 3 traces (index 2, one of them a 500)
   for (const svc of SERVICES) {

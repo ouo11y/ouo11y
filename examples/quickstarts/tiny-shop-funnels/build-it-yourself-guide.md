@@ -1711,7 +1711,7 @@ docker compose down -v
 | `denied` when pulling `ghcr.io/ouo11y/...` | an old, expired ghcr.io login: `docker logout ghcr.io` (step 4b) |
 | No **Funnels** page in the app menu | an old `ghcr.io/ouo11y/grafana` image from before 0.5.0 is cached: `docker compose pull`, `docker compose up -d`, then hard-reload the browser |
 | The step box suggests nothing | no page views in the range yet: buy once (step 6), time range **Last 1 hour** |
-| Every bar is 0 | step 1 does not match (`/` vs `/home`) or the Service filter has a typo; check the paths on a session page |
+| Every bar is 0 | step 1 does not match (`/` vs `/home`) or the App selector at the top is set to another app; check the paths on a session page |
 | More sessions than the generator printed | your own sessions or a second `npm run generate`: every run adds the same 45 / 37 / 28 / 20 / 10 |
 | `generate` times out on `Add to cart` | the shop is not on 5173: `SHOP_URL=http://localhost:<port> npm run generate` |
 | Bars a little low right after the run | each page's last events are sent when it is left: wait 10 s and **Refresh** |

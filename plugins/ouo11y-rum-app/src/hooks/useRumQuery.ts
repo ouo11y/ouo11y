@@ -6,6 +6,8 @@ export interface QueryState<T> {
   error: RumApiError | undefined;
   loading: boolean;
   reload: () => void;
+  /** The `key` the current `data` was fetched for (it lags `key` while a new request is in flight). */
+  dataKey: string | undefined;
 }
 
 interface Result<T> {
@@ -61,5 +63,6 @@ export function useRumQuery<T>(fetcher: () => Promise<T>, key: string, enabled =
     error: settled ? result.error : undefined,
     loading: enabled && !settled,
     reload,
+    dataKey: enabled && result.data !== undefined ? result.key.slice(0, result.key.lastIndexOf('#')) : undefined,
   };
 }

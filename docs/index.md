@@ -9,6 +9,7 @@
 | [specs/sentry-bridge.md](specs/sentry-bridge.md) | Sentry envelope to ouo mapping, forwarding rules, session resolution, `video` replay chunk and rum-api video API (ADR-0008, accepted 2026-10-17) |
 | [funnels.md](funnels.md) | user guide: build and read a funnel in the plugin, what a step can be, counting rules, limits |
 | [specs/funnels.md](specs/funnels.md) | funnel reports: steps (page path, custom event), strict order, `within`, session counting, range and filters, Loki reads, limits (ADR-0012) |
+| [specs/rum-api-scope.md](specs/rum-api-scope.md) | project and app scope on every rum-api read (`project`, `service`), `GET /v1/projects`, health per project and app, the plugin's selector; not an access boundary (R1) |
 | [specs/mobile-vitals.md](specs/mobile-vitals.md) | mobile vitals (app start, TTID, frames, stalls) as session events, shared by the Sentry bridge and the ouo SDK; rum-api vitals endpoint |
 | [specs/mobile-sdk.md](specs/mobile-sdk.md) | mobile SDK spec: the twelve capabilities (records, attributes, thresholds), the conformance checks, maturity L0–L3 and the platform matrix, the React Native iOS suite (ADR-0015) |
 | [adr/](adr/README.md) | architecture decision records |

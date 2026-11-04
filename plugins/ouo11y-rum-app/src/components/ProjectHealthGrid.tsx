@@ -150,10 +150,11 @@ export function ProjectHealthGrid({ apps, scopeHref }: Props) {
 const getStyles = (theme: GrafanaTheme2) => ({
   grid: css({
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 520px), 1fr))',
     gap: theme.spacing(2),
   }),
   card: css({
+    overflowX: 'auto',
     background: theme.colors.background.primary,
     border: `1px solid ${theme.colors.border.weak}`,
     borderRadius: theme.shape.radius.default,
@@ -179,7 +180,11 @@ const getStyles = (theme: GrafanaTheme2) => ({
   table: css({
     width: '100%',
     borderCollapse: 'collapse',
-    'th, td': { padding: theme.spacing(0.5, 1), borderBottom: `1px solid ${theme.colors.border.weak}` },
+    'th, td': {
+      padding: theme.spacing(0.5, 1),
+      borderBottom: `1px solid ${theme.colors.border.weak}`,
+      whiteSpace: 'nowrap',
+    },
     th: { textAlign: 'left', color: theme.colors.text.secondary, fontWeight: 'normal' },
   }),
   num: css({ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }),

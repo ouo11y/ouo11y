@@ -11,7 +11,7 @@ import { SessionsTable } from '../components/SessionsTable';
 import { TimeRangeBar, useRawRange } from '../components/TimeRangeBar';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useRumQuery } from '../hooks/useRumQuery';
-import { scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
+import { isOtherScope, scopeKeyTag, scopeParams, useScope, withScope, type Scope } from '../hooks/useScope';
 import { setSearchParams, useSearchParams } from '../hooks/useSearchParams';
 
 const PLATFORM_OPTIONS: Array<SelectableValue<string>> = [
@@ -53,11 +53,13 @@ export default function Sessions() {
     }),
     [search]
   );
-  const key = JSON.stringify({ ...filters, ...range, ...scope });
-  const { data, error, loading, reload } = useRumQuery(
+  const key = JSON.stringify({ ...filters, ...range }) + scopeKeyTag(scope);
+  const query = useRumQuery(
     () => rumApi.sessions({ from: range.from, to: range.to, ...filters, ...scopeParams(scope) }),
     key
   );
+  const { error, loading, reload } = query;
+  const data = isOtherScope(query.dataKey, scope) ? undefined : query.data;
 
   // Free-text inputs are committed to the URL on blur / Enter; when the URL changes
   // (back button, Overview link) the inputs are re-synced during render.

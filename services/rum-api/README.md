@@ -166,6 +166,13 @@ too. `PUT /v1/sourcemaps` and `PUT /v1/dsyms` take a project's upload token inst
 Time parameters `from` / `to` accept RFC 3339, Unix seconds or milliseconds, or relative
 `now`, `now-30m`, `now-1h`, `now-7d`. Defaults: `from=now-1h`, `to=now`.
 
+**Scope** ([docs/specs/rum-api-scope.md](../../docs/specs/rum-api-scope.md)): every read takes
+optional `project=<ouo.project.id>` (the `ouo_project_id` Loki label; an invalid id is a 400)
+and `service=<service.name>`. Omitted means all projects / apps. On session and replay reads a
+session or replay outside the scope is a 404. The scope is what the plugin's project and app
+selector sends; it narrows views and is not an access boundary (one read token reads every
+project; per-project tokens are Phase 11).
+
 ### Health
 
 - `GET /healthz` -> `{"status":"ok"}`
@@ -318,7 +325,9 @@ attribute `ouo.project.id`. Rejected chunks are not counted; the collector's own
 
 ### Sessions
 
-`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&service=web-store&limit=100`
+`GET /v1/sessions?from=now-1h&to=now&platform=web|mobile&status=healthy|errored|crashed&version=1.4.2&user=u1&project=shop&service=web-store&limit=100`
+
+`project_id` is the session's `ouo.project.id` (`""` for telemetry ingested without one).
 
 `device_id` is the SDK's `device.id` (the same for every session of one browser or install), omitted when the SDK sends none.
 
@@ -326,7 +335,7 @@ Returns sessions whose `started_at` is inside `[from, to]`, newest first (`limit
 
 ```json
 {"sessions":[{
-  "session_id":"a4d47dfa-...","user_id":"3c63803d-...","device_id":"9b1f0c2e-...","platform":"web",
+  "session_id":"a4d47dfa-...","user_id":"3c63803d-...","device_id":"9b1f0c2e-...","project_id":"shop","platform":"web",
   "service_name":"web-store","service_version":"1.4.2",
   "started_at":"2026-10-06T05:06:20.896Z","last_signal_at":"2026-10-06T05:06:40.747Z",
   "ended_at":null,"end_reason":null,"state":"active","status":"crashed",
@@ -513,19 +522,33 @@ project.
 
 ### Stats
 
-`GET /v1/stats/health?from=now-24h&to=now&platform=&service=&version=&user=`
+`GET /v1/stats/health?from=now-24h&to=now&platform=&project=&service=&version=&user=`
 
 ```json
 {"buckets":[
-  {"platform":"mobile","service_name":"mobile-store","service_version":"9.9.9","total":1,"healthy":0,"errored":1,"crashed":0,"healthy_pct":0,"errored_pct":100,"crashed_pct":0},
-  {"platform":"web","service_name":"web-store","service_version":"1.4.2","total":4,"healthy":1,"errored":1,"crashed":2,"healthy_pct":25,"errored_pct":25,"crashed_pct":50}
+  {"project_id":"shop","platform":"mobile","service_name":"mobile-store","service_version":"9.9.9","total":1,"healthy":0,"errored":1,"crashed":0,"healthy_pct":0,"errored_pct":100,"crashed_pct":0},
+  {"project_id":"shop","platform":"web","service_name":"web-store","service_version":"1.4.2","total":4,"healthy":1,"errored":1,"crashed":2,"healthy_pct":25,"errored_pct":25,"crashed_pct":50}
  ],
- "totals":{"platform":"","service_name":"","service_version":"","total":5,"healthy":1,"errored":2,"crashed":2,"healthy_pct":20,"errored_pct":40,"crashed_pct":40},
+ "apps":[
+  {"project_id":"shop","service_name":"mobile-store","platforms":["mobile"],"total":1,"healthy":0,"errored":1,"crashed":0,"healthy_pct":0,"errored_pct":100,"crashed_pct":0},
+  {"project_id":"shop","service_name":"web-store","platforms":["web"],"total":4,"healthy":1,"errored":1,"crashed":2,"healthy_pct":25,"errored_pct":25,"crashed_pct":50}
+ ],
+ "totals":{"project_id":"","platform":"","service_name":"","service_version":"","total":5,"healthy":1,"errored":2,"crashed":2,"healthy_pct":20,"errored_pct":40,"crashed_pct":40},
  "from":"...","to":"..."}
 ```
 
-Buckets are sorted by platform, service, version; percentages are rounded to two decimals
-(the integer counts always add up to `total`).
+Buckets are sorted by project, platform, service, version; `apps` (health per project and
+app across versions and platforms, the plugin's cross-project overview) by project, service.
+Percentages are rounded to two decimals (the integer counts always add up to `total`).
+
+### Projects
+
+`GET /v1/projects?from=now-7d&to=now` -> every project (`ouo.project.id`) and its apps
+(`service.name`, with platforms) that started a session in the range, with session counts:
+the options of the plugin's project and app selector. One Loki instant query counting
+`session.start` by `ouo_project_id, service_name, ouo_platform`; default range 7 days, at most
+720 h (400 beyond); sessions without a project are counted in `unscoped_sessions`. Shape in
+[docs/specs/rum-api-scope.md](../../docs/specs/rum-api-scope.md).
 
 ### Funnels
 

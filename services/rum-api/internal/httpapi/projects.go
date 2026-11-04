@@ -20,7 +20,9 @@ const (
 	defaultProjectsRange = 7 * 24 * time.Hour
 	// maxProjectsRange stays under Loki's default max_query_length (721h).
 	maxProjectsRange = 30 * 24 * time.Hour
-	// projectsTimeGrain rounds from/to so the Loki query results cache hits.
+	// projectsTimeGrain rounds from down and to up (a superset of the range)
+	// so the Loki query results cache hits and a session that just started
+	// is not cut off.
 	projectsTimeGrain = time.Minute
 )
 
@@ -66,7 +68,10 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	from, to = from.Truncate(projectsTimeGrain), to.Truncate(projectsTimeGrain)
+	from = from.Truncate(projectsTimeGrain)
+	if t := to.Truncate(projectsTimeGrain); !t.Equal(to) {
+		to = t.Add(projectsTimeGrain)
+	}
 	if to.Sub(from) > maxProjectsRange {
 		writeError(w, http.StatusBadRequest, "range is at most 720h")
 		return

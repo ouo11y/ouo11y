@@ -56,3 +56,17 @@ export function useScope(): Scope {
   const service = search.get('service') ?? '';
   return useMemo(() => ({ project, service }), [project, service]);
 }
+
+/** Suffix of a query key that names the scope (see `scopeKeyTag` / `isOtherScope`). */
+export function scopeKeyTag(scope: Scope): string {
+  return `|scope:${scope.project}|${scope.service}`;
+}
+
+/**
+ * True when data fetched for `dataKey` belongs to another scope than `scope`. Pages keep showing
+ * the previous data while a new time range loads, but never another scope's numbers under the
+ * new scope's labels.
+ */
+export function isOtherScope(dataKey: string | undefined, scope: Scope): boolean {
+  return dataKey !== undefined && !dataKey.endsWith(scopeKeyTag(scope));
+}
