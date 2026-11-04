@@ -13,13 +13,18 @@ import (
 )
 
 // SubjectFilter is the LogQL of everything one user or one project sent:
-// every stream (service_name is on all OTLP streams) filtered by the
-// structured metadata user_id and / or ouo_project_id. Delete requests and
-// the session lookup use the same expression.
+// every stream (service_name is on all OTLP streams) filtered by
+// ouo_project_id and / or the structured metadata user_id. Delete requests
+// and the session lookup use the same expression. Without a project it
+// still keeps to lines that came through the ouo collector (it stamps
+// ouo.project.id on every resource): in a Loki shared with other senders
+// (docs/operations/existing-lgtm.md) their own user_id lines stay.
 func SubjectFilter(userID, projectID string) string {
 	q := `{service_name=~".+"}`
 	if projectID != "" {
 		q += ` | ouo_project_id=` + quote(projectID)
+	} else {
+		q += ` | ouo_project_id!=""`
 	}
 	if userID != "" {
 		q += ` | user_id=` + quote(userID)
@@ -107,8 +112,15 @@ func (c *Client) Delete(ctx context.Context, query string, start, end time.Time)
 	q := url.Values{}
 	q.Set("query", query)
 	q.Set("start", strconv.FormatInt(start.Unix(), 10))
-	q.Set("end", strconv.FormatInt(end.Unix()+1, 10))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/loki/api/v1/delete?"+q.Encode(), nil)
+	// end+1 covers the lines of end's last (fractional) second, but Loki
+	// refuses an end in the future ("deletes in the future are not
+	// allowed"), which end+1 is when end is now: clamp it to this second.
+	q.Set("end", strconv.FormatInt(min(end.Unix()+1, time.Now().Unix()), 10))
+	base := c.BaseURL
+	if c.DeleteURL != "" {
+		base = strings.TrimRight(c.DeleteURL, "/")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/loki/api/v1/delete?"+q.Encode(), nil)
 	if err != nil {
 		return err
 	}

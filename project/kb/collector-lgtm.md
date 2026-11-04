@@ -94,14 +94,19 @@ limits_config:
       ignore_defaults: true           # default list includes service.instance.id, k8s.*, cloud.*
       attributes_config:
         - action: index_label
-          attributes: [service.name, service.namespace, deployment.environment.name, ouo.platform]
+          attributes: [service.name, service.namespace, deployment.environment.name, ouo.platform, ouo.project.id]
     log_attributes:
       - action: index_label
         attributes: [event.name, ouo.platform]
 ```
 
 Result (`GET /loki/api/v1/labels`): `deployment_environment_name, event_name, ouo_platform,
-service_name`. Everything else (`session_id`, `user_id`, `service_version`, `trace_id`,
+ouo_project_id, service_name` (`service_namespace` when a resource sets it). `ouo_project_id`
+(added in roadmap 8b) is what funnels' project filter, per-project `retention_stream` and
+delete-by-project select on. This block is for ouo's **own** Loki: in a Loki shared with other
+senders, `ignore_defaults: true` would drop their `k8s_*` / `service_instance_id` labels; add
+the ouo attributes to the defaults instead (`docs/operations/existing-lgtm.md`,
+`project/kb/existing-lgtm.md`). Everything else (`session_id`, `user_id`, `service_version`, `trace_id`,
 `span_id`, `severity_text`, `ouo_session_started_at`, …) is structured metadata and is
 filtered with `| session_id="…"` after the stream selector. Loki rewrites `.` to `_` in
 both label and metadata names. Schema must be `v13` + `tsdb` for structured metadata.

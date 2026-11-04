@@ -31,6 +31,7 @@ import (
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/sourcemap"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/telemetry"
 	"github.com/ouo11y/ouo11y/services/rum-api/internal/tempo"
+	"github.com/ouo11y/ouo11y/services/rum-api/internal/upstream"
 )
 
 // version is set at build time: -ldflags "-X main.version=<semver>" (Dockerfile ARG VERSION).
@@ -254,8 +255,11 @@ func run(cfg config.Config) error {
 	}
 	// Outbound calls to Loki / Tempo are traced too.
 	httpClient := &http.Client{Timeout: 60 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
-	lokiClient := loki.New(cfg.Loki.URL, httpClient)
-	tempoClient := tempo.New(cfg.Tempo.URL, httpClient, cfg.Tempo.Concurrency, cfg.Tempo.CacheTTL)
+	// Tenant (X-Scope-OrgID), extra headers and basic auth of an existing,
+	// shared Loki / Tempo (docs/operations/existing-lgtm.md).
+	lokiClient := loki.New(cfg.Loki.URL, upstream.Client(httpClient, cfg.Loki.RequestHeaders()))
+	lokiClient.DeleteURL = cfg.Loki.DeleteURL
+	tempoClient := tempo.New(cfg.Tempo.URL, upstream.Client(httpClient, cfg.Tempo.RequestHeaders()), cfg.Tempo.Concurrency, cfg.Tempo.CacheTTL)
 	tempoClient.Links = &tempo.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Tempo.DatasourceUID}
 	lokiLinks := &loki.LinkBuilder{GrafanaURL: cfg.Grafana.URL, DatasourceUID: cfg.Loki.DatasourceUID}
 

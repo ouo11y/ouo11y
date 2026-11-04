@@ -74,6 +74,10 @@ when you ship a file: they would silently win over it. The Dockerfile sets none.
 | `RUM_API_ADDR` | `server.http_listen_address` | `:8080` | listen address |
 | `LOKI_URL` | `loki.url` | `http://loki:3100` | Loki base URL |
 | `TEMPO_URL` | `tempo.url` | `http://tempo:3200` | Tempo base URL |
+| `LOKI_TENANT_ID`, `TEMPO_TENANT_ID` | `loki.tenant_id`, `tempo.tenant_id` | | sent as `X-Scope-OrgID` on every request to that backend (multi-tenant Loki / Tempo); empty: no header |
+| | `loki.headers`, `tempo.headers` | | extra headers on every request to that backend (a gateway's API key); they win over `tenant_id`; values are redacted by `-config.verify` |
+| `LOKI_BASIC_AUTH_USERNAME`, `LOKI_BASIC_AUTH_PASSWORD` (`TEMPO_*` likewise) | `loki.basic_auth.username`, `.password` (`tempo.*` likewise) | | `Authorization: Basic` on every request (an authenticating gateway); cannot be combined with an `Authorization` entry in `headers` |
+| `LOKI_DELETE_URL` | `loki.delete_url` | `loki.url` | base URL of `POST /loki/api/v1/delete` (the compactor) when the gateway at `loki.url` does not route it there. See `docs/operations/existing-lgtm.md` |
 | `GRAFANA_URL` | `grafana.url` | `http://localhost:3000` | browser-facing Grafana URL used in trace deep links |
 | `GRAFANA_TEMPO_DATASOURCE_UID` | `tempo.datasource_uid` | `tempo` | datasource uid in the deep links |
 | `GRAFANA_LOKI_DATASOURCE_UID` | `loki.datasource_uid` | `loki` | datasource uid in the session logs' Explore link |
