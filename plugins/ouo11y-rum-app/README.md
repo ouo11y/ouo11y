@@ -8,9 +8,18 @@ Grafana Explore links, rrweb, frame or video replay synced to the timeline). All
 never sees the read token.
 
 ```
-browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[0].url = jsonData.rumApiUrl,
+browser --/api/plugin-proxy/ouo11y-rum-app/rum/v1/...--> Grafana --(routes[].url = jsonData.rumApiUrl,
                                                                   + Authorization: Bearer <secureJsonData.readToken>)--> rum-api
 ```
+
+Who may call what through the proxy (`routes` in `src/plugin.json`; Grafana refuses a method
+without a route with 404 and a role below the route's `reqRole` with 403):
+
+| Method and path | Org role | Used for |
+|---|---|---|
+| `GET rum/*` | Viewer | every page, the replay players (including the `<video>` segments) and the connection test |
+| `POST rum/v1/funnels/*` | Viewer | `POST /v1/funnels/query` (a read with a JSON body) |
+| `DELETE rum/v1/sessions/*` | Admin | `DELETE /v1/sessions/{id}/replay`, erasing one replay (no button in the UI) |
 
 ## Pages
 
@@ -40,7 +49,7 @@ Administration > Plugins and data > Plugins > ouo11y RUM > Configuration (`/plug
 
 | Setting | Stored as | Meaning |
 |---|---|---|
-| rum-api URL | `jsonData.rumApiUrl` | rum-api base URL as reachable **from the Grafana server**. Empty means `http://rum-api:8080` (the compose service). |
+| rum-api URL | `jsonData.rumApiUrl` | rum-api base URL as reachable **from the Grafana server**, with no trailing `/`. Empty means `http://rum-api:8080` (the compose service). The page trims a trailing `/` on save; a provisioning file must not have one, because the narrowed routes append `/v1/...` and a doubled `//` gets a 307 from rum-api. |
 | Read token | `secureJsonData.readToken` | The value of rum-api's `OUO_READ_TOKEN` (ADR-0007 section 6). Grafana stores it encrypted and only reports `secureJsonFields.readToken: true` back, so the field shows "configured" with a Reset button. Leave it empty when rum-api runs without `OUO_READ_TOKEN`. |
 
 Both are saved with `POST /api/plugins/ouo11y-rum-app/settings` (`{ enabled, pinned, jsonData, secureJsonData }`).
