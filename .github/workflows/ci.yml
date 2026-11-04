@@ -476,7 +476,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.bare-rn == 'true'
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 75
+    # Cold, it builds React Native 0.82 from source for both platforms (Gradle and CocoaPods caches
+    # empty): over 45 min for the Android step alone on 2026-11-04 with the Mac at load ~390.
+    timeout-minutes: 150
     env:
       ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
       GRADLE_OPTS: -Dorg.gradle.daemon=false
