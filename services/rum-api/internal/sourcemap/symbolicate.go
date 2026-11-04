@@ -1,6 +1,7 @@
 package sourcemap
 
 import (
+	"bytes"
 	"container/list"
 	"context"
 	"errors"
@@ -99,7 +100,7 @@ type Symbolicator struct {
 
 type cacheEntry struct {
 	key     string
-	v       any   // *gosm.Consumer or *debugFile; nil: known miss
+	v       any   // *jsMap or *debugFile; nil: known miss
 	size    int64 // decompressed bytes it was parsed from
 	expires time.Time
 }
@@ -218,16 +219,48 @@ func (s *Symbolicator) cached(ctx context.Context, ref Ref, parse func([]byte) (
 	return v, nil
 }
 
-func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*gosm.Consumer, error) {
-	v, err := s.cached(ctx, ref, func(b []byte) (any, error) { return gosm.Parse("", b) })
-	c, _ := v.(*gosm.Consumer)
+// jsMap is a parsed source map. hermes is set for the map of a Hermes bytecode
+// bundle (hermesc's map, or Metro's composed with it), which carries
+// x_hermes_function_offsets: its generated positions are line 1 (the bytecode
+// segment) and the bytecode offset as a 0-based column.
+type jsMap struct {
+	*gosm.Consumer
+	hermes  bool
+	debugID string // the id the map names (normalised), empty when it names none
+}
+
+// lookup maps a stack frame. A browser or JSC frame prints a 1-based column;
+// Hermes prints the bytecode offset itself ("address at file:1:<offset>",
+// lib/VM/JSError.cpp appendBytecodeFrame), the generated column of its map as
+// is. The React Native SDK drops the "address at" when it normalises a stack,
+// so a Hermes map says it too. One off in a Hermes column lands on the
+// previous instruction, which is often another line.
+func (m *jsMap) lookup(f RawFrame) (source, name string, line, column int, ok bool) {
+	col := max(f.Column-1, 0)
+	if f.Address || m.hermes {
+		col = f.Column
+	}
+	return m.Source(f.Line, col)
+}
+
+var hermesMapKey = []byte(`"x_hermes_function_offsets"`)
+
+func (s *Symbolicator) consumer(ctx context.Context, ref Ref) (*jsMap, error) {
+	v, err := s.cached(ctx, ref, func(b []byte) (any, error) {
+		c, err := gosm.Parse("", b)
+		if err != nil {
+			return nil, err
+		}
+		return &jsMap{Consumer: c, hermes: bytes.Contains(b, hermesMapKey), debugID: mapDebugID(b)}, nil
+	})
+	c, _ := v.(*jsMap)
 	return c, err
 }
 
 type parsedLine struct {
 	text  string
 	frame *RawFrame
-	c     *gosm.Consumer
+	c     *jsMap
 	id    string
 }
 
@@ -261,8 +294,15 @@ func (s *Symbolicator) Symbolicate(ctx context.Context, req Request) (Result, er
 			continue
 		}
 		if c == nil && ref.DebugID != "" && req.Release != "" {
-			// A debug id the store does not know: try the release index.
+			// A debug id the store does not know: try the release index, but
+			// only a map that belongs to no other build. Every OTA bundle of a
+			// store version has the same path, so the release map of
+			// /index.android.bundle is usually another bundle's, and mapping
+			// with it would show confident, wrong lines.
 			if c, err = s.consumer(ctx, Ref{ProjectID: req.ProjectID, Release: req.Release, URL: f.URL}); err != nil {
+				c = nil
+			}
+			if c != nil && c.debugID != "" && c.debugID != parsed[i].id {
 				c = nil
 			}
 		}
@@ -285,14 +325,14 @@ func (s *Symbolicator) Symbolicate(ctx context.Context, req Request) (Result, er
 		fr := Frame{Status: FrameNoMap, Generated: Position{File: f.URL, Line: f.Line, Column: f.Column, Function: f.Function}, DebugID: p.id}
 		if p.c != nil {
 			fr.Status = FrameUnmapped
-			if src, _, line, col, ok := p.c.Source(f.Line, max(f.Column-1, 0)); ok && src != "" {
+			if src, _, line, col, ok := p.c.lookup(f); ok && src != "" {
 				content := p.c.SourceContent(src)
 				orig := &Position{File: displaySource(src), Line: line, Column: col + 1, Function: f.Function}
 				if name := enclosingFunction(content, line, col); name != "" {
 					orig.Function = name
 				} else if caller := nextFrame(parsed, i); caller != nil && caller.c != nil {
 					// Caller-name rule: the name at the caller's call site is this frame's function.
-					if _, name, _, _, ok := caller.c.Source(caller.frame.Line, max(caller.frame.Column-1, 0)); ok && name != "" {
+					if _, name, _, _, ok := caller.c.lookup(*caller.frame); ok && name != "" {
 						orig.Function = name
 					}
 				}
@@ -406,10 +446,14 @@ func formatFrame(raw string, p *Position) string {
 	loc := fmt.Sprintf("%s:%d:%d", p.File, p.Line, p.Column)
 	indent := raw[:len(raw)-len(strings.TrimLeft(raw, " \t"))]
 	if v8Frame.MatchString(raw) {
-		if p.Function != "" {
-			return indent + "at " + p.Function + " (" + loc + ")"
+		suffix := ""
+		if strings.HasSuffix(strings.TrimRight(raw, " \t"), " [in app]") {
+			suffix = " [in app]"
 		}
-		return indent + "at " + loc
+		if p.Function != "" {
+			return indent + "at " + p.Function + " (" + loc + ")" + suffix
+		}
+		return indent + "at " + loc + suffix
 	}
 	return indent + p.Function + "@" + loc
 }
