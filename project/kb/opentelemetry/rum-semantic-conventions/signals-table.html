@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RUM Signal Map</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--ink:#1d2329;--muted:#5d6872;--line:#dcd8cf;--code:#f1eee7;--link:#2f62a3;
+--ev:#e8f0fb;--ev-i:#2a5a97;--sp:#fdf3e1;--sp-i:#8a5a0c;--st:#e3f4ea;--st-i:#1f6e47;--dv:#eef0f3;--dv-i:#46515c;--no:#fbeae7;--no-i:#a23a28;}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;--code:#262d34;--link:#8fb8ea;
+--ev:#1b2a3d;--ev-i:#9cc1ee;--sp:#332814;--sp-i:#e6b86c;--st:#16302a;--st-i:#7ed0a7;--dv:#2a3138;--dv-i:#b6c0ca;--no:#3a201b;--no-i:#ee9a88;}}
+:root[data-theme=dark]{--bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;--code:#262d34;--link:#8fb8ea;
+--ev:#1b2a3d;--ev-i:#9cc1ee;--sp:#332814;--sp-i:#e6b86c;--st:#16302a;--st-i:#7ed0a7;--dv:#2a3138;--dv-i:#b6c0ca;--no:#3a201b;--no-i:#ee9a88;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+main{max-width:1120px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:2rem;line-height:1.2;margin:0 0 8px}
+h2{font-size:1.35rem;margin:48px 0 10px;padding-top:12px;border-top:1px solid var(--line)}
+p,li{max-width:78ch}
+.lead{color:var(--muted);font-size:1.06rem;margin:0 0 24px}
+a{color:var(--link)}
+code{font:.86em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-size:.78rem;color:var(--muted);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tr.group td{background:var(--code);font-weight:600;font-size:.85rem}
+.b{display:inline-block;padding:0 7px;border-radius:10px;font-size:.78rem;font-weight:600;white-space:nowrap}
+.ev{background:var(--ev);color:var(--ev-i)}.sp{background:var(--sp);color:var(--sp-i)}
+.st{background:var(--st);color:var(--st-i)}.dv{background:var(--dv);color:var(--dv-i)}.no{background:var(--no);color:var(--no-i)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+button{font:inherit;font-size:.86rem;padding:4px 12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);cursor:pointer}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stats{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 16px;min-width:130px}
+.stat b{display:block;font-size:1.5rem;line-height:1.2}.stat span{color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>RUM signal map</h1>
+<p class="lead">Step 2 of the post-MVP plan, 2026-11-09. Every client signal: event or span, its name, its OTel status, and how sure we are that the final convention will match. All choices are proposals until the founder approves them. The reasoning is in <a href="rules.md">the kb entries</a>.</p>
+
+<div class="stats" id="stats"></div>
+
+<h2>Five things to know</h2>
+<ol>
+<li>Only the <code>exception</code> event and <code>exception.*</code> attributes are Stable. Everything else client-side is Development, or exists only in an SDK.</li>
+<li>Our rule: spans for network calls and two load phases (document load, app start), both created after the fact so they are never open. Everything else is an event.</li>
+<li>OTel's own SDKs disagree on several points, including <code>app.crash</code> against <code>device.crash</code>, and three spans against one for document load.</li>
+<li>OTel has no replay convention and no work in progress. Android's roadmap cites the absence of an OTLP data model for it.</li>
+<li>OTel has no React Native SDK. RN follows the mobile <code>app.*</code> names.</li>
+</ol>
+
+<h2>Every signal</h2>
+<div class="filters" role="group" aria-label="Filter signals">
+<button data-f="all" aria-pressed="true">All</button>
+<button data-f="event" aria-pressed="false">Events</button>
+<button data-f="span" aria-pressed="false">Spans</button>
+<button data-f="ouo" aria-pressed="false">Named by us</button>
+<button data-f="low" aria-pressed="false">Low confidence</button>
+</div>
+<div class="tbl"><table id="t">
+<thead><tr><th>Signal</th><th>Platform</th><th>Type</th><th>Name we emit</th><th>OTel status</th><th>Confidence</th><th>Note</th></tr></thead>
+<tbody></tbody>
+</table></div>
+<p style="color:var(--muted);font-size:.88rem">Confidence is about the final OTel convention matching our name and type. SDK only: emitted by an official OTel SDK, but in no shared registry. Dev core: Development in core v1.45.0. Dev client: Development in client-side v0.1.0-dev.</p>
+
+<h2>Decisions for the founder</h2>
+<div class="tbl"><table>
+<thead><tr><th>ID</th><th>Decision</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>Do names emitted by OTel SDKs but in no registry stay unprefixed?</td><td>Yes. Stock OTel data lands in the same place, and a rename table in the Collector handles change</td></tr>
+<tr><td>D2</td><td>Page load as both a <code>browser.navigation</code> event and a <code>documentLoad</code> span?</td><td>Yes, as agreed at the Oct 22 Browser SIG. The span earns its place only with the link to the server trace</td></tr>
+<tr><td>D3</td><td>Replay: bytes to the Collector, and only a reference onward to the log store?</td><td>Yes. The client stays simple, and Loki never sees a large body</td></tr>
+<tr><td>D4</td><td>Diverge from OTel SDK defaults: no <code>service.instance.id</code>, <code>app.installation.id</code> or <code>device.id</code> on the resource, and <code>session.id</code> in baggage off by default</td><td>Yes. A per-device resource value creates streams or labels in every backend we looked at</td></tr>
+<tr><td>D5</td><td>Add <code>ouo.view.id</code> on every record?</td><td>Yes. There is no agreed id for one visit to a page or screen</td></tr>
+</tbody></table></div>
+
+<h2>Where to read more</h2>
+<ul>
+<li><a href="rules.md">Sources, versions, naming and event-or-span rules</a></li>
+<li><a href="performance.md">Web vitals and mobile performance</a> · <a href="errors.md">Errors and crashes</a> · <a href="interactions.md">Clicks and taps</a></li>
+<li><a href="navigation.md">Navigation</a> · <a href="sessions.md">Sessions</a> · <a href="replay.md">Replay</a></li>
+<li><a href="propagation-and-resources.md">Propagation, resources and entities</a> · <a href="questions-for-step-3.md">Questions for Step 3</a></li>
+</ul>
+</main>
+<script>
+var G={v:"Performance",e:"Errors and crashes",c:"Clicks and taps",n:"Navigation and network",s:"Sessions",r:"Replay"};
+var R=[
+["v","LCP, INP, CLS, FCP, TTFB","Web","E","browser.web_vital","Dev core","High","One event per vital, emitted when final"],
+["v","INP attribution","Web","E","browser.web_vital.attribution.*","Draft (#35)","Medium","Grouping fields agreed Nov 3; full object in body"],
+["v","Long animation frame","Web","E","browser.long_animation_frame","Draft (PR #429)","High","The web's closest match to jank"],
+["v","App start","Mobile","S","AppStart + start.type","SDK only (Android)","Low","Created after first frame. Span type Medium, name Low"],
+["v","Jank","Mobile","E","app.jank","Dev core","High","Aggregate per polling window"],
+["v","ANR","Android","E","device.anr","SDK only (Android)","Medium","Namespace may change"],
+["v","Hang","iOS, RN","E","ouo.app.hang","None","Low","Swift has only delayed MetricKit data"],
+["e","JS error, unhandled rejection","Web, RN","E","exception","Stable","High","Add ouo.exception.source and .handled"],
+["e","Native crash","Mobile","E","app.crash","Dev core","High","Sent on next launch with the crashed session's id. Swift SDK says device.crash"],
+["c","Click","Web","E","browser.user_action.click","SDK only (browser)","Medium","Core proposal closed as stale; shared click open in #34"],
+["c","Tap on a known widget","Mobile, RN","E","app.widget.click","Dev core","Medium","One event per tap, unlike Android's two"],
+["c","Tap, no known widget","Mobile, RN","E","app.screen.click","Dev core","Medium","Absolute screen pixels"],
+["c","Rage, dead, error click","All","E","ouo.user_action.frustration","Draft (#510)","Low","Namespace likely browser.user_action.*"],
+["n","Page load, reliable count","Web","E","browser.navigation","Dev client","High","Sent early, survives leaving before load"],
+["n","Page load duration, server link","Web","S","documentLoad","Draft (PR #504)","High","Created after load, no children"],
+["n","Navigation timing","Web","E","browser.navigation_timing","Dev client","High",""],
+["n","Resource timing","Web","E","browser.resource_timing","Dev client","High",""],
+["n","Soft navigation","Web","E","browser.navigation (same_document=true)","Dev client","Medium","OTel has no definition of soft navigation yet"],
+["n","Screen view","Mobile, RN","E","app.navigation.complete","SDK only (Android)","Medium","Android Compose only today"],
+["n","Foreground and background","Mobile","E","device.app.lifecycle","Dev core","High","Moving to client-side, PR #51"],
+["n","Fetch, XHR, native HTTP","All","S","{method}, kind CLIENT","Stable","High","The link to the backend"],
+["n","Per-visit id on every record","All","A","ouo.view.id","Draft (#84)","Low","Attribute, not a signal"],
+["s","Session start","All","E","session.start","Dev core","High","Moving to client-side, PR #48"],
+["s","Session end","All","E","session.end","Dev core","High","A hint. The server also infers end"],
+["s","Session id on every record","All","A","session.id","Dev core","High","Record attribute, not resource"],
+["r","Replay chunk","All","E","ouo.replay.chunk","None","Low","Event shape High, name Low"]
+];
+function b(c,t){return '<span class="b '+c+'">'+t+'</span>'}
+function st(s){return s=="Stable"?"st":s=="None"||s.indexOf("Draft")==0?"no":s.indexOf("SDK")==0?"sp":"dv"}
+var T={E:["ev","Event"],S:["sp","Span"],A:["dv","Attribute"]};
+var body=document.querySelector("#t tbody"),last="";
+R.forEach(function(r){
+ if(r[0]!=last){last=r[0];var g=document.createElement("tr");g.className="group";g.innerHTML='<td colspan="7">'+G[last]+'</td>';body.appendChild(g)}
+ var tr=document.createElement("tr");tr.dataset.t=r[3];tr.dataset.c=r[6];tr.dataset.o=r[4].indexOf("ouo.")==0?"1":"0";
+ tr.innerHTML="<td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+b(T[r[3]][0],T[r[3]][1])+"</td><td><code>"+r[4].replace(/</g,"&lt;")+"</code></td><td>"+b(st(r[5]),r[5])+"</td><td>"+r[6]+"</td><td>"+r[7]+"</td>";
+ body.appendChild(tr);
+});
+function cnt(f){return R.filter(f).length}
+document.getElementById("stats").innerHTML=[[cnt(function(r){return r[3]=="E"}),"events"],[cnt(function(r){return r[3]=="S"}),"spans"],[cnt(function(r){return r[5]=="Stable"}),"stable in OTel"],[cnt(function(r){return r[4].indexOf("ouo.")==0}),"named by us"]].map(function(x){return '<div class="stat"><b>'+x[0]+'</b><span>'+x[1]+'</span></div>'}).join("");
+var btns=document.querySelectorAll(".filters button");
+btns.forEach(function(x){x.onclick=function(){
+ btns.forEach(function(y){y.setAttribute("aria-pressed",y==x)});
+ var f=x.dataset.f;
+ body.querySelectorAll("tr").forEach(function(tr){
+  if(tr.className=="group"){tr.hidden=f!="all";return}
+  tr.hidden=!(f=="all"||(f=="event"&&tr.dataset.t=="E")||(f=="span"&&tr.dataset.t=="S")||(f=="ouo"&&tr.dataset.o=="1")||(f=="low"&&tr.dataset.c=="Low"));
+ });
+}});
+</script>
+</body>
+</html>

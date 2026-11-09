@@ -24,5 +24,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [mobile-sdk](mobile-sdk/) | the ouo mobile SDK roadmap W1–W10 ([roadmap](../kb-archive/mobile-sdk-research/roadmap.md)): its ADRs (0014, 0015, 0016), the spec `docs/specs/mobile-sdk.md` and its conformance suite `tests/e2e/mobile/`, the sessions that build it, and the package code they write (`sdk/ios`, the Expo module and JS of `sdk/react-native`, the rum-api and plugin pieces a package needs) | W1–W10 |
 | [web-sdk-research](web-sdk-research/) | `project/kb-archive/web-sdk-research/` research on Sentry, Datadog, PostHog, Faro and the OTel-shaped vendors, the replay specialists and the field on the web (RUM, replay, bundle and wire cost measured on one page, OTel, 25-vendor matrix), ouo's web stack today, and the web roadmap (WB1–WB10) | research |
 | [otel-data-models](otel-data-models/) | Step 1 of the post-MVP plan: `project/kb/opentelemetry/`, explaining OTel logs, traces, metrics and OTLP from primary sources | post-MVP step 1 |
+| [rum-semconv](rum-semconv/) | Step 2 of the post-MVP plan: `project/kb/opentelemetry/rum-semantic-conventions/`, on RUM conventions, predictions, and which signals are events or spans | post-MVP step 2 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

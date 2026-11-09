@@ -9,3 +9,4 @@ How OpenTelemetry works, read from primary sources at the versions pinned in [co
 | [wire-protocol/](wire-protocol/index.md) | How telemetry travels over OTLP |
 | [storage-backends/](storage-backends/index.md) | Choosing a signal, and how backends store each one |
 | [questions-for-step-2.md](questions-for-step-2.md) | What must Step 2 decide about web vitals, errors, clicks, navigation, sessions and replays? |
+| [rum-semantic-conventions/](rum-semantic-conventions/index.md) | RUM conventions, predictions where OTel is silent, and which signals are events or spans, with an HTML signal table |
