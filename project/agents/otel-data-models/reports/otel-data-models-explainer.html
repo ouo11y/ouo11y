@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OTel Data Models</title>
+<style>
+:root{
+  --bg:#fbfaf7;--panel:#fff;--ink:#1d2329;--muted:#5d6872;--line:#dcd8cf;
+  --res:#e8f0fb;--res-b:#3f74b5;--scope:#e9f5ee;--scope-b:#2f8558;--rec:#fdf3e1;--rec-b:#b87a14;--sub:#f6ecf7;--sub-b:#8a4a94;
+  --warn:#fbeae7;--warn-b:#b5432f;--code:#f1eee7;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;
+  --res:#1b2a3d;--res-b:#7aa9e3;--scope:#17302a;--scope-b:#62bd8e;--rec:#332814;--rec-b:#e0ab55;--sub:#2f2233;--sub-b:#c690d0;
+  --warn:#3a201b;--warn-b:#ea8b78;--code:#262d34;
+}}
+:root[data-theme=dark]{
+  --bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;
+  --res:#1b2a3d;--res-b:#7aa9e3;--scope:#17302a;--scope-b:#62bd8e;--rec:#332814;--rec-b:#e0ab55;--sub:#2f2233;--sub-b:#c690d0;
+  --warn:#3a201b;--warn-b:#ea8b78;--code:#262d34;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+main{max-width:940px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:2rem;line-height:1.2;margin:0 0 8px}
+h2{font-size:1.45rem;margin:56px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+h3{font-size:1.08rem;margin:28px 0 8px}
+p,li{max-width:74ch}
+.lead{color:var(--muted);font-size:1.08rem;margin:0 0 20px}
+nav{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.92rem;margin:0 0 8px}
+a{color:var(--res-b)}
+code{font:.87em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+.tbl{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:.91rem;background:var(--panel)}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.box{border:1.5px solid;border-radius:8px;padding:10px 12px;margin:8px 0 0}
+.box>.t{font-weight:600;font-size:.9rem}
+.box .f{font:.8rem/1.75 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.box .f span{display:inline-block;margin-right:12px}
+.res{background:var(--res);border-color:var(--res-b)}
+.scope{background:var(--scope);border-color:var(--scope-b)}
+.rec{background:var(--rec);border-color:var(--rec-b)}
+.sub{background:var(--sub);border-color:var(--sub-b)}
+.key{font-weight:700}
+.note{border-left:4px solid var(--warn-b);background:var(--warn);padding:10px 14px;border-radius:0 6px 6px 0;margin:16px 0}
+.note p{margin:4px 0}
+figure{margin:16px 0}
+figcaption{color:var(--muted);font-size:.87rem;margin-top:4px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--ink);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+svg .m{fill:var(--muted);font-size:12px}
+.tag{font-size:.75rem;color:var(--muted);font-weight:400}
+footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<main>
+<h1>OpenTelemetry data models</h1>
+<p class="lead">Step 1 of the post-MVP plan: what logs, traces and metrics really are on the wire, and what that means for a browser or mobile client. It explains and does not decide; RUM semantic conventions are Step 2.</p>
+<nav><a href="#env">Envelope</a><a href="#id">Identity</a><a href="#logs">Logs</a><a href="#traces">Traces</a><a href="#metrics">Metrics</a><a href="#cost">Cost</a><a href="#back">Backends</a><a href="#limits">Limits</a><a href="#next">Step 2</a></nav>
+<p class="tag">Read at: spec v1.62.0, proto v1.11.1, semconv v1.45.0, Collector v0.165.0, Loki 3.7.9, Tempo 3.1.1, Mimir 3.2.4, VictoriaLogs 1.53.0, VictoriaTraces 0.13.0, VictoriaMetrics 1.155.0, on 2026-11-09. Full evidence in <code>project/kb/otel-*.md</code>.</p>
+
+<h2 id="env">The one idea: everything nests the same way</h2>
+<p>Each signal is three layers. A request names <strong>who</strong> sent the data once, then <strong>which library</strong>, then lists the records. This is why batching is so cheap, and why choosing what goes on the outer layer matters so much.</p>
+<div class="box res"><div class="t">Resource: who is emitting <span class="tag">same for every record from this source</span></div>
+<div class="f"><span>service.name</span><span>service.version</span><span>telemetry.sdk.*</span><span>dropped_attributes_count</span></div>
+<div class="box scope"><div class="t">Instrumentation scope: which code produced it</div>
+<div class="f"><span>name</span><span>version</span><span>attributes</span></div>
+<div class="box rec"><div class="t">Records: log_records, spans or metrics</div><div class="f">attributes here change per occurrence</div></div>
+</div></div>
+<p>Attribute values are an <code>AnyValue</code>: string, bool, int64, double, array, map or bytes, nested to any depth.</p>
+
+<h2 id="id">Identity and time</h2>
+<div class="tbl"><table><tr><th>Item</th><th>Shape</th><th>Note</th></tr>
+<tr><td><code>trace_id</code></td><td>16 bytes</td><td>Shared by a whole trace. Hex in JSON.</td></tr>
+<tr><td><code>span_id</code></td><td>8 bytes</td><td>One span.</td></tr>
+<tr><td>Trace flags</td><td>8 bits</td><td>Bit 0 sampled. Bit 1 trace id is random.</td></tr></table></div>
+<p><code>traceparent: 00-5b8efff798038103d269b633813fc60c-eee19b7ec3c1b174-01</code> is version, trace id, the sender's span id, flags.</p>
+<p>How the three signals connect: a <strong>log</strong> carries the ids as plain fields; a <strong>span</strong> has a parent and links; a <strong>metric</strong> has no ids at all, only optional exemplars.</p>
+<div class="note"><p><strong>Clocks.</strong> Every timestamp is the device clock in nanoseconds. OTel has no notion of skew. We tested Loki: a record 1 hour in the future is rejected with <code>400</code>, and 400 means the client must not retry. A device whose clock is more than 10 minutes ahead silently loses its logs.</p></div>
+
+<h2 id="logs">Logs and events</h2>
+<div class="box res"><div class="t">ResourceLogs</div>
+<div class="box scope"><div class="t">ScopeLogs</div>
+<div class="box rec"><div class="t">LogRecord</div>
+<div class="f"><span>1 time_unix_nano</span><span>11 observed_time_unix_nano</span><span>2 severity_number</span><span>3 severity_text</span><span>6 attributes</span><span>7 dropped_attributes_count</span><span>8 flags</span><span>9 trace_id</span><span>10 span_id</span></div>
+<div class="box sub"><div class="t">5 body: AnyValue <span class="tag">string, map, array or raw bytes; no SDK limit</span></div></div>
+<div class="box sub"><div class="t">12 event_name <span class="tag">non-empty means this record is an Event</span></div></div>
+</div></div></div>
+<p><strong>An Event is just a log record with a name.</strong> There is no separate event signal. The name promises a known shape for attributes and body.</p>
+<p><strong>Span events are going the same way.</strong> OTEP 4430 plans to deprecate the Span Event API and move instrumentation to log-based events, while the data shape stays in the proto. At spec v1.62.0 this is still a plan: <code>AddEvent</code> is not yet marked Deprecated, but the semantic conventions already recommend exceptions as logs.</p>
+<div class="note"><p><strong>Tested on Loki 3.7.9's native OTLP endpoint:</strong></p>
+<p><code>event_name</code> is <strong>dropped</strong>. The field that defines an Event does not reach storage unless something copies it first.</p>
+<p>A bytes body comes back as a <strong>base64 string</strong>, 4/3 the size. Bodies over 256 KB are rejected. Both matter for replay chunks.</p></div>
+
+<h2 id="traces">Traces</h2>
+<div class="box res"><div class="t">ResourceSpans</div>
+<div class="box scope"><div class="t">ScopeSpans</div>
+<div class="box rec"><div class="t">Span</div>
+<div class="f"><span>1 trace_id</span><span>2 span_id</span><span>3 trace_state</span><span>4 parent_span_id</span><span>16 flags</span><span>5 name</span><span>6 kind</span><span>7 start_time_unix_nano</span><span>8 end_time_unix_nano</span><span>9 attributes</span><span>15 status</span><span>dropped_* counts</span></div>
+<div class="box sub"><div class="t">11 events[] <span class="tag">time, name, attributes; API being deprecated</span></div></div>
+<div class="box sub"><div class="t">13 links[] <span class="tag">another span's trace_id and span_id, no parent relation</span></div></div>
+</div></div></div>
+<p><strong>Kinds:</strong> INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER. <strong>Status:</strong> leave <code>Unset</code> on success, <code>Error</code> on failure; <code>Ok</code> is only for a human assertion.</p>
+<p><strong>Sampling:</strong> the root span decides and the decision travels in the <code>traceparent</code> flags. If the browser starts the trace, its sampling rate decides what the backend records by default.</p>
+<h3>The client-side problem</h3>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="Timeline: a tab closes while a parent span is open. Child spans already ended are exported, the parent is lost, so the backend has orphans.">
+<text x="10" y="22">In the browser</text>
+<line x1="130" y1="205" x2="750" y2="205" stroke="var(--line)"/>
+<rect x="130" y="35" width="440" height="30" rx="4" fill="var(--warn)" stroke="var(--warn-b)" stroke-dasharray="5 4"/>
+<text x="142" y="55">page span: still open, never sent</text>
+<rect x="160" y="80" width="120" height="30" rx="4" fill="var(--rec)" stroke="var(--rec-b)"/><text x="172" y="100">fetch A: ended</text>
+<rect x="320" y="80" width="120" height="30" rx="4" fill="var(--rec)" stroke="var(--rec-b)"/><text x="332" y="100">fetch B: ended</text>
+<line x1="570" y1="28" x2="570" y2="205" stroke="var(--warn-b)" stroke-width="2"/><text x="580" y="50">tab closed</text><text class="m" x="580" y="68">End() never runs</text>
+<text x="10" y="150">At the backend</text>
+<rect x="160" y="135" width="120" height="30" rx="4" fill="var(--rec)" stroke="var(--rec-b)"/><text x="172" y="155">fetch A</text>
+<rect x="320" y="135" width="120" height="30" rx="4" fill="var(--rec)" stroke="var(--rec-b)"/><text x="332" y="155">fetch B</text>
+<text class="m" x="160" y="190">Both are orphans: their parent_span_id points to a span that never arrives.</text>
+</svg>
+<figcaption>A span reaches the exporter only when it ends, and OTLP has no partial span. There is no standard fix.</figcaption>
+</figure>
+<p>This rules out a naive "one root span per session". Spans need to stay short and be tied together another way; Step 2 and 3 pick how.</p>
+
+<h2 id="metrics">Metrics</h2>
+<p><strong>Instruments</strong> are what code calls; <strong>data points</strong> are what is sent. The SDK aggregates in between: 50 calls can become one point.</p>
+<div class="box res"><div class="t">ResourceMetrics</div>
+<div class="box scope"><div class="t">ScopeMetrics</div>
+<div class="box rec"><div class="t">Metric <span class="tag">name, description, unit, metadata</span></div>
+<div class="box sub"><div class="t">Exactly one of</div>
+<div class="f"><span class="key">Gauge</span> current value<br><span class="key">Sum</span> total or change (temporality, monotonic)<br><span class="key">Histogram</span> fixed buckets, count, sum, min, max (temporality)<br><span class="key">ExponentialHistogram</span> auto-scaling buckets (temporality)<br><span class="key">Summary</span> pre-computed quantiles, legacy, cannot be merged</div></div>
+<div class="f" style="margin-top:8px">each data point: attributes, start_time_unix_nano, time_unix_nano, value, exemplars[], flags</div>
+</div></div></div>
+<h3>Temporality</h3>
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-label="Cumulative windows all start at T0. Delta windows are consecutive.">
+<text x="10" y="42">Cumulative</text><text class="m" x="10" y="58">sender keeps state</text>
+<rect x="150" y="16" width="130" height="16" fill="var(--res)" stroke="var(--res-b)"/><rect x="150" y="36" width="280" height="16" fill="var(--res)" stroke="var(--res-b)"/><rect x="150" y="56" width="430" height="16" fill="var(--res)" stroke="var(--res-b)"/>
+<text x="10" y="120">Delta</text><text class="m" x="10" y="136">sender keeps almost nothing</text>
+<rect x="150" y="104" width="130" height="16" fill="var(--scope)" stroke="var(--scope-b)"/><rect x="280" y="104" width="150" height="16" fill="var(--scope)" stroke="var(--scope-b)"/><rect x="430" y="104" width="150" height="16" fill="var(--scope)" stroke="var(--scope-b)"/>
+<text class="m" x="145" y="158">T0</text><text class="m" x="275" y="158">T1</text><text class="m" x="425" y="158">T2</text><text class="m" x="575" y="158">T3</text>
+</svg>
+</figure>
+<p>Every stream must have <strong>exactly one writer</strong>, and browsers are the awkward case:</p>
+<ul>
+<li><strong>Per-tab identity</strong> gives one new time series per page view for every metric. Mimir's default limit is 150,000 active series per tenant.</li>
+<li><strong>Shared identity</strong> gives thousands of writers on one series, which the spec calls an error state.</li>
+<li><strong>Delta alone does not fix this.</strong> Conversion expects aligned windows from one writer, and Mimir rejects delta by default.</li>
+</ul>
+<p>The common way out is that clients send events and a server, as the single writer, aggregates them into metrics.</p>
+<p><strong>Cardinality:</strong> every distinct attribute combination is one series. Never put <code>session.id</code>, user ids or full URLs on a metric. The SDK's limit of 2000 protects one browser, not the total.</p>
+
+<h2 id="cost">What each choice costs</h2>
+<p>One API call, 6 attributes, 7 resource attributes, random ids. Gzipped protobuf bytes per record, measured.</p>
+<figure>
+<svg viewBox="0 0 760 245" role="img" aria-label="Bar chart of gzipped bytes per record alone versus in a batch of 50.">
+<g font-size="13">
+<text x="240" y="16" class="m">alone in a request</text><text x="520" y="16" class="m">in a batch of 50</text>
+<text x="10" y="44">Log, no trace ids</text><rect x="240" y="32" width="193" height="16" fill="var(--res-b)"/><text x="438" y="45">387</text><rect x="520" y="32" width="13" height="16" fill="var(--scope-b)"/><text x="538" y="45">26</text>
+<text x="10" y="84">Event with trace ids</text><rect x="240" y="72" width="222" height="16" fill="var(--res-b)"/><text x="467" y="85">444</text><rect x="520" y="72" width="28" height="16" fill="var(--scope-b)"/><text x="553" y="85">56</text>
+<text x="10" y="124">Span</text><rect x="240" y="112" width="231" height="16" fill="var(--res-b)"/><text x="476" y="125">463</text><rect x="520" y="112" width="34" height="16" fill="var(--scope-b)"/><text x="559" y="125">69</text>
+<text x="10" y="164">Span with 3 span events</text><rect x="240" y="152" width="243" height="16" fill="var(--res-b)"/><text x="488" y="165">486</text><rect x="520" y="152" width="40" height="16" fill="var(--scope-b)"/><text x="565" y="165">80</text>
+<text x="10" y="204">Histogram point</text><rect x="240" y="192" width="202" height="16" fill="var(--res-b)"/><text x="447" y="205">404</text><rect x="520" y="192" width="4" height="16" fill="var(--scope-b)"/><text x="529" y="205">9</text>
+</g>
+<text class="m" x="10" y="238">Both columns use the same scale. Synthetic data, so treat these as ratios.</text>
+</svg>
+</figure>
+<ul>
+<li><strong>Batching decides size</strong>, much more than event versus span.</li>
+<li>Event versus span differs by about 13 gzipped bytes. Choose on meaning, not size.</li>
+<li>A metric is cheap because it throws the individual measurements away.</li>
+</ul>
+<div class="tbl"><table><tr><th></th><th>Event</th><th>Span</th><th>Metric</th></tr>
+<tr><td>Sent when</td><td>As it happens</td><td>After it ends</td><td>On a timer</td></tr>
+<tr><td>Survives tab death</td><td>Yes, if flushed</td><td>Not if open</td><td>Since last export lost</td></tr>
+<tr><td>Find one session later</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td>Storage grows with</td><td>Volume</td><td>Volume</td><td>Cardinality</td></tr>
+<tr><td>Best query</td><td>Filter and count</td><td>Structure and duration</td><td>Long-range percentiles</td></tr></table></div>
+
+<h2 id="back">How backends store them</h2>
+<div class="tbl"><table><tr><th>Backend</th><th>Resource attributes</th><th>Worth knowing</th></tr>
+<tr><td>Loki 3.7.9</td><td>18 listed ones become labels, including <code>service.instance.id</code>. The rest are structured metadata.</td><td>Drops <code>event_name</code>. Every body becomes a string. Trace ids are metadata.</td></tr>
+<tr><td>Tempo 3.1.1</td><td>Stored per span in Parquet.</td><td>Events and links are queryable. Attributes over 2 KB are truncated. 5 MB per trace.</td></tr>
+<tr><td>Mimir 3.2.4</td><td>On <code>target_info</code> unless promoted.</td><td>Delta rejected by default. Exemplars off by default.</td></tr>
+<tr><td>VictoriaLogs 1.53</td><td><strong>All</strong> are stream fields by default.</td><td>Keeps <code>event_name</code> as a stream field. 2 MB per record.</td></tr>
+<tr><td>VictoriaTraces 0.13</td><td>Prefixed fields.</td><td>Spans on the log storage library. Queries through Jaeger APIs.</td></tr>
+<tr><td>VictoriaMetrics 1.155</td><td><strong>All</strong> promoted to labels by default.</td><td>Stores delta as-is, with caveats.</td></tr></table></div>
+<p class="tag">Loki behaviour was tested on a real container, other than its default list. Tempo, Mimir and the Victoria stack were read from source and bundled docs, and not run.</p>
+
+<h2 id="limits">Limits at a glance</h2>
+<div class="tbl"><table><tr><th>Limit</th><th>Default</th><th>At the limit</th></tr>
+<tr><td>SDK attributes per record</td><td>128</td><td>New one discarded, counted</td></tr>
+<tr><td>SDK attribute value length</td><td>None</td><td>Set one, or nothing protects you</td></tr>
+<tr><td>Browser keepalive budget</td><td>64 KiB in flight</td><td>Network error on unload flush</td></tr>
+<tr><td>Collector request body</td><td>20 MiB</td><td><code>400</code> (spec says 413), tested</td></tr>
+<tr><td>Loki line (body)</td><td>256 KB</td><td><code>400</code>; other records in the batch are stored, tested</td></tr>
+<tr><td>Loki structured metadata</td><td>64 KB, 128 entries</td><td>Same, tested</td></tr>
+<tr><td>Loki timestamp window</td><td>1 week old to 10 min ahead</td><td><code>400</code>, tested</td></tr>
+<tr><td>Tempo attribute</td><td>2 KB</td><td>Truncated</td></tr>
+<tr><td>Tempo trace</td><td>5 MB</td><td>Rejected</td></tr>
+<tr><td>Mimir series per tenant</td><td>150,000</td><td>Rejected</td></tr></table></div>
+
+<h2 id="next">Handed to Step 2</h2>
+<p>The full list is <code>project/kb/otel-step2-questions.md</code>. The big ones:</p>
+<ul>
+<li>What is a browser tab's identity, and which values go on the resource?</li>
+<li>Are web vitals events, metrics or both, and who is the single writer if a server aggregates them?</li>
+<li>Where do trace boundaries sit in a session, and what happens to open spans at <code>pagehide</code>?</li>
+<li>Errors: logs, span status or both, given metadata limits on stack traces?</li>
+<li>Replays: bytes in the body, or a reference to object storage?</li>
+<li>How do we keep <code>event_name</code> on Loki, and how do we handle device clock skew?</li>
+</ul>
+<footer>Agent: otel-data-models. Reproduce the measurements with the scripts in this agent's folder.</footer>
+</main>
+</body>
+</html>
