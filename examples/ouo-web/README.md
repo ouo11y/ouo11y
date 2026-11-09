@@ -128,6 +128,7 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `session.sampleRate`: fraction of sessions that send anything |
 | `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sampleRate`: fraction of sessions with a full replay |
 | `VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE` | `0` | `replay.onErrorSampleRate`: of the others, the fraction that buffer replay and upload it after an error |
+| `VITE_OUO_CONSENT` | unset | `pending` starts the SDK with `consent: "pending"` (also `?consent=pending` on the first page): a banner asks first, and nothing is stored or sent before a choice |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
 token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are
@@ -190,6 +191,14 @@ twice in `vite dev`. The production build (`vite preview`) reports it once.
   replay is paused.
 - "Flush" calls `rum.flush()` so spans, logs and replay chunks are sent now
   instead of on the next batch timer.
+
+### Consent first
+
+Open http://localhost:4173/?consent=pending. Until you choose in the banner, DevTools →
+Application shows no `ouo.*` key in Local Storage and no `ouo-delivery` database in
+IndexedDB, and the Network tab shows no request to the collector. **Accept all** starts the
+session (the footer shows its id) and the replay; **No replay** starts the session without
+replay; **Decline** keeps it all off. See the `@ouo11y/browser` README, "Consent".
 
 ### Replay privacy
 

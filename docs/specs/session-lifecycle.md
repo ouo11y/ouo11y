@@ -25,6 +25,17 @@ Every span, log record and metric data point emitted by an SDK carries:
 
 Spans get these through a SpanProcessor. Log records get them as attributes. Session attributes are **not** resource attributes because a session can rotate while the process lives.
 
+## Consent: no session before consent (ADR-0018)
+
+An SDK initialised with `consent: "pending"` has no session until the app grants telemetry.
+
+1. While pending the SDK stores nothing on the device (web: no `localStorage`, IndexedDB or cookie; mobile: nothing in its key/value storage, no native crash handler, no native recorder), opens no cross-tab channel, sends nothing and installs no instrumentation. `session.id()` is empty. No `session.start` is emitted and no session id exists anywhere.
+2. Public API calls made while pending (`setUser`, `clearUser`, `captureError`, `addEvent`, `setRoute`; mobile `log.*` and the last `trackNavigation`) wait in memory, at most 100, oldest dropped first. Activity, taps and spans while pending are not recorded.
+3. `setConsent({ telemetry: true, replay })` starts the SDK: the start rules below apply from that moment (a persisted session from an earlier granted visit may resume), then the queued calls run in order, stamped at the grant.
+4. `replay` is a separate grant on top of `telemetry`: without it the replay recorder is never started (or is paused), whatever sampling or `replay.resume()` say. `replay` without `telemetry` means nothing.
+5. `setConsent({ telemetry: false })` (revocation or refusal) stops capture and export at once; what is still batched is dropped, not sent or stored. The SDK deletes its own stored identifiers (`ouo.device`, `ouo.session`, `ouo.user` and, on mobile, the crash marker, error context and replay tallies) and its offline store, and closes its channels. Calls after it are dropped. Web: other running tabs of the origin see `ouo.device` removed and stop too, writing nothing back; a grant after a revocation never resumes a session that started before it, and tabs granted again one after the other join the same new session. A later grant starts a new `device.id` and a new session, with no `session.previous_id`.
+6. The SDK never persists the consent. The app passes its consent manager's decision at every start; `consent: "granted"` (the default) starts at once as before.
+
 ## Start rules
 
 ### Web
@@ -126,3 +137,6 @@ rum-api folds all signals with the same `session.id` into:
 8. Anonymous to identified keeps the session; one identified user to another ends it with `user_change` (the end carries the previous user) and starts a new one with `session.previous_id`; a logout does the same with a fresh anonymous id.
 9. `endSession()` emits `session.end` with `manual`; the next activity starts a new session with `session.previous_id`.
 10. `device.id` is the same before and after rotation, login and logout.
+11. Consent pending: no storage read or write, no channel, no network request and no `session.start` until the grant; calls made meanwhile are delivered after `session.start`, the oldest beyond the cap dropped.
+12. Consent revoked: no request after the revocation, the stored ids and the offline store are gone, and the next grant has a new `session.id` and `device.id`.
+13. Telemetry granted without replay: no replay chunk is recorded or sent; granting replay later starts it in the same session.

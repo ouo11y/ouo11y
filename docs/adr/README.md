@@ -19,5 +19,6 @@
 | [0015](0015-mobile-sdk-spec-and-conformance.md) | Mobile SDK spec: twelve capabilities, one conformance suite per package (Objective-C and Java as API surfaces), maturity L0–L3, pending checks | accepted |
 | [0016](0016-opentelemetry-in-process.md) | OpenTelemetry in process: opentelemetry-android as the Android base, a dependency-free Swift package speaking OTLP/JSON on iOS, opentelemetry-swift-core as the fallback | accepted |
 | [0017](0017-android-signals-and-opentelemetry-android.md) | Android signals: crashes, hangs, terminations, frames and app start are ouo detectors in `sdk/android` (the iOS report contract); the React Native module does not embed opentelemetry-android, which stays the native package's pipeline | proposed |
+| [0018](0018-consent-before-session.md) | Consent: `consent: "pending"` stores, opens and sends nothing and creates no session until `setConsent({ telemetry })`; replay consent apart; revocation stops export and wipes the SDK's storage | proposed |
 
 Format: Context, Decision, Consequences. New ADRs are numbered sequentially and added here.

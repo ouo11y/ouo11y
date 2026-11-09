@@ -11,6 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
 import { installAppStateListener } from "./appstate";
+import { createConsentGate, wipeNative, wipeStorage, type Installed, type ReplayIntent } from "./consent";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes } from "./crash";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
@@ -32,7 +33,7 @@ import { activeRoutePath, createNavigationTracker, type NavigationStateLike } fr
 import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders, requireCredentials, resolveEndpoints } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
-import { createReplayController, loadNativeReplayModule } from "./replay";
+import { createReplayController, loadNativeReplayModule, nativeStartOptions } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor, sampleRate } from "./sampling";
 import { uuidv4 } from "./session/ids";
 import { SessionManager } from "./session/manager";
@@ -59,6 +60,7 @@ export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/stack";
 export { touchedComponent, type FiberLike, type Gesture, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
+export { CONSENT_QUEUE_LIMIT } from "./consent";
 export { type NativeReplayModule, type NativeStartOptions } from "./replay";
 export { sampled, samplingHash, SAMPLING_SALT } from "./sampling";
 export {
@@ -98,7 +100,44 @@ export function initRUM(options: RUMOptions): RUM {
   }
   // Configuration errors throw: a missing credential means 401 on every request (ADR-0007).
   const endpoints = resolveEndpoints(options);
-  const { projectId, projectToken } = requireCredentials(options);
+  const credentials = requireCredentials(options);
+  const logger = createLogger(options.debug === true);
+  // Consent pending: nothing below `install` runs, so nothing is stored, sent or asked of the
+  // native module (README, "Consent"). Granted at launch (the default): installed now, and an
+  // install error throws as it always did.
+  const running = options.consent === "pending" ? undefined : install(options, endpoints, credentials, { allowed: true, paused: false, hidden: false });
+  const gate = createConsentGate({
+    start: (intent) => {
+      try {
+        return install(options, endpoints, credentials, intent);
+      } catch (err) {
+        console.warn("[ouo] could not start after the consent grant, the SDK is off", err);
+        return undefined;
+      }
+    },
+    wipe: () =>
+      Promise.all([
+        wipeStorage(safeStorage(options.storage ?? AsyncStorage, (err) => logger.warn("storage error", err)), logger),
+        // Also with no instance (refused at launch): what an earlier granted run left natively.
+        wipeNative(loadNativeReplayModule(), endpoints.replayEndpoint, nativeStartOptions({ ...credentials, options: options.replay }, logger.enabled, ""), logger),
+      ]).then(() => undefined),
+    logger,
+    onShutdown: () => {
+      if (getRUM() === gate) setRUM(undefined);
+    },
+    running,
+  });
+  setRUM(gate);
+  return gate;
+}
+
+function install(
+  options: RUMOptions,
+  endpoints: ReturnType<typeof resolveEndpoints>,
+  { projectId, projectToken }: ReturnType<typeof requireCredentials>,
+  /** Replay consent, and what the app asked of replay before the grant. */
+  intent: ReplayIntent,
+): Installed {
   const authorization = basicAuthorization(projectId, projectToken);
   const logger = createLogger(options.debug === true);
   if (options.debug) {
@@ -308,6 +347,11 @@ export function initRUM(options: RUMOptions): RUM {
     }
   });
   const onActivity = (): void => session.touch();
+  // Before the recorder starts: without replay consent it never starts, and a pause or hidden
+  // screen the app asked for before the grant holds from the first frame.
+  if (!intent.allowed) replay.setAllowed(false);
+  if (intent.paused) replay.pause();
+  if (intent.hidden) replay.hideScreen();
   // The native recorder keys chunks by the session id it is told; rotations arrive through onRotate.
   replay.start(session.id());
   // After Sentry.init when both run: ouo's handlers then run first and chain to Sentry's.
@@ -414,7 +458,30 @@ export function initRUM(options: RUMOptions): RUM {
     sampling: { session: sessionSampleRate, replay: options.replay?.sampleRate ?? 1, replayOnError: options.replay?.onErrorSampleRate ?? 0 },
   });
 
-  const rum: RUMInternal = {
+  /** Uninstall; `drain` waits (bounded) for the last batches to be sent. */
+  const teardown = async (drain: boolean): Promise<void> => {
+    vitals.stop();
+    nativeCrash.stop();
+    uninstallFetch();
+    uninstallXhr();
+    uninstallErrors();
+    uninstallSentry();
+    uninstallAppState();
+    replay.stop();
+    session.stop();
+    await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
+    // The shutdown persisted its last batches and started sending them: wait for that send, so
+    // no request outlives the instance, but bounded, so an app offline or on a hung request
+    // does not wait on it. What is not sent stays in the outbox for the next launch (C11).
+    if (drain) await withTimeout(outbox.drain(), UNINSTALL_DRAIN_TIMEOUT_MS, undefined);
+    outbox.stop();
+    trace.disable();
+    propagation.disable();
+    context.disable();
+    logs.disable();
+  };
+
+  const rum: Installed = {
     setUser(user: UserOptions): void {
       session.setUser(user.id);
       logger.log("user set", user.id);
@@ -492,30 +559,17 @@ export function initRUM(options: RUMOptions): RUM {
     ready,
     flush,
     _rootMounted: () => vitals.rootMounted(),
-    async _uninstall(): Promise<void> {
-      vitals.stop();
-      nativeCrash.stop();
-      uninstallFetch();
-      uninstallXhr();
-      uninstallErrors();
-      uninstallSentry();
-      uninstallAppState();
-      replay.stop();
-      session.stop();
-      await Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]);
-      // The shutdown persisted its last batches and started sending them: wait for that send, so
-      // no request outlives the instance, but bounded, so an app offline or on a hung request
-      // does not wait on it. What is not sent stays in the outbox for the next launch (C11).
-      await withTimeout(outbox.drain(), UNINSTALL_DRAIN_TIMEOUT_MS, undefined);
-      outbox.stop();
-      trace.disable();
-      propagation.disable();
-      context.disable();
-      logs.disable();
-      setRUM(undefined);
+    _uninstall: () => teardown(true),
+    async _revoke(): Promise<void> {
+      // First: from here the outbox sends and writes nothing, so the batches the shutdown
+      // exports are dropped, and what it held is deleted.
+      const cleared = outbox.clear();
+      await replay.discardHeld();
+      await teardown(false);
+      await cleared;
     },
+    _setReplayAllowed: (allowed) => replay.setAllowed(allowed),
   };
-  setRUM(rum);
   return rum;
 }
 

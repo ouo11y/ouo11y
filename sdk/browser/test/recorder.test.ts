@@ -76,6 +76,25 @@ describe("ReplayRecorder modes", () => {
     recorder.shutdown();
   });
 
+  it("drops what rrweb emits after its stop (a throttled mousemove from a timer)", async () => {
+    const { pushed, recorder } = setup({ sampleRate: 1, onErrorSampleRate: 0 });
+    await recorder.start();
+    const late = rr.emit!;
+    recorder.pause();
+    const before = pushed.length;
+    late(ev(3));
+    expect(pushed).toHaveLength(before);
+    recorder.resume();
+    await wait(0);
+    rr.emit!(ev(3)); // the new recording's events go through
+    late(ev(3)); // the old one's still do not
+    expect(pushed.slice(before).map((e) => e.type)).toEqual([4, 2, 3]);
+    const current = rr.emit!;
+    recorder.shutdown();
+    current(ev(3));
+    expect(pushed.slice(before)).toHaveLength(3);
+  });
+
   it("off when neither rate samples the session", async () => {
     const { pushed, recorder } = setup({ sampleRate: 0, onErrorSampleRate: 0 });
     await recorder.start();

@@ -116,6 +116,8 @@ export class Delivery {
 
   private pageHidden = false;
   private closed = false;
+  /** Consent revoked: nothing leaves the page and nothing is stored from now on. */
+  private halted = false;
   private readonly waiting = new Set<() => void>();
   private readonly inflight = new Set<Promise<unknown>>();
   private draining: Promise<void> | null = null;
@@ -186,6 +188,15 @@ export class Delivery {
     });
     this.draining = run;
     return run;
+  }
+
+  /**
+   * Consent was revoked: every request from now on, retries and the shutdown's last flush
+   * included, is dropped without a network call or a store write. Then {@link close}.
+   */
+  halt(): void {
+    this.halted = true;
+    this.close();
   }
 
   close(): void {
@@ -281,6 +292,7 @@ export class Delivery {
   }
 
   private post(url: string, body: Uint8Array, headers: Record<string, string>): Promise<Attempt> {
+    if (this.halted) return Promise.resolve({ kind: "drop", why: "consent revoked" });
     const keepalive = reserveKeepalive(body.byteLength);
     const abort = typeof AbortController === "function" ? new AbortController() : null;
     const timer = abort ? this.clock.setTimeout(() => abort.abort(), this.timeoutMs) : null;
@@ -315,7 +327,7 @@ export class Delivery {
   }
 
   private sendBeacon(req: DeliveryRequest): boolean {
-    if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return false;
+    if (this.halted || typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return false;
     try {
       return navigator.sendBeacon(req.url, new Blob([req.body as BlobPart], { type: req.headers["content-type"] ?? "application/json" }));
     } catch {
@@ -333,7 +345,7 @@ export class Delivery {
   }
 
   private async park(req: DeliveryRequest, why: string, notBefore = 0): Promise<Outcome> {
-    if (!this.store) return this.drop(req, "no_store", why);
+    if (!this.store || this.halted) return this.drop(req, "no_store", why);
     const res = await this.store.put({ url: req.url, headers: req.headers, body: req.body, createdAt: this.clock.now(), notBefore, attempts: 0 });
     for (const bytes of res.evicted) this.countDrop("store_full", bytes, "evicted from the offline store to make room");
     if (res.id === null) return this.drop(req, "too_large", `${why}; larger than the offline store`);

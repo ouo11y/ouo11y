@@ -12,6 +12,7 @@ import { FilteringSpanProcessor, InteractionTracker } from "./interactions/track
 import { installLongTasks } from "./longtasks";
 import { exceptionAttributes } from "./errors/classify";
 import { claimError, installErrorCapture } from "./errors/install";
+import { createConsentGate, type Gated, type Installed } from "./consent";
 import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
 import { attempt, guard, quiet, setGuardReporter } from "./guard";
 import { createDelivery, createLogExporter, createTraceExporter } from "./transport";
@@ -21,9 +22,9 @@ import { createNetworkInstrumentations } from "./network";
 import { ReplayChunker } from "./replay/chunker";
 import { ReplayRecorder, UNMASK_CLASS } from "./replay/recorder";
 import { createChunkUploader } from "./replay/uploader";
-import { loadDeviceId } from "./session/device";
+import { DEVICE_STORAGE_KEY, loadDeviceId } from "./session/device";
 import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
-import { LocalStorage } from "./session/storage";
+import { LocalStorage, type KeyValueStorage } from "./session/storage";
 import { PageLogRecordProcessor, PageSpanProcessor } from "./telemetry/batch";
 import { RouteState, SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
 import { EventEmitter } from "./telemetry/events";
@@ -38,8 +39,9 @@ export type * from "./types";
 export { SDK_VERSION } from "./version";
 export type { ReplayChunk } from "./replay/chunker";
 export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
+export { CONSENT_QUEUE_LIMIT } from "./consent";
 
-let instance: (RUM & { _uninstall(): Promise<void> }) | undefined;
+let instance: Gated | undefined;
 
 /** The instance `initRUM` returned, or undefined before it was called (framework integrations use it). */
 export function getRUM(): RUM | undefined {
@@ -51,9 +53,11 @@ function escapeRegExp(s: string): string {
 }
 
 /** What `initRUM` returns where it cannot run (no `window`, server rendering) or failed to start. */
-function noopRUM(): RUM & { _uninstall(): Promise<void> } {
+function noopRUM(): Gated {
   const done = (): Promise<void> => Promise.resolve();
   return {
+    setConsent: done,
+    getConsent: () => ({ status: "pending", telemetry: false, replay: false }),
     setUser: () => undefined,
     clearUser: () => undefined,
     endSession: () => undefined,
@@ -94,17 +98,36 @@ export function initRUM(options: RUMOptions): RUM {
   // Server rendering (Next.js, Remix, Node): nothing to observe, nothing installed.
   if (typeof window === "undefined" || typeof document === "undefined") return noopRUM();
 
-  const cleanup: Array<() => unknown> = [];
-  try {
-    instance = install(options, urls, authorization, cleanup);
-    return instance;
-  } catch (err) {
-    console.warn("[ouo] could not start, the SDK is off", err);
-    for (const off of cleanup.reverse()) attempt(off);
-    setGuardReporter(undefined);
-    instance = undefined;
-    return noopRUM();
+  const start = (replay: boolean, notBefore?: number): Installed | undefined => {
+    const cleanup: Array<() => unknown> = [];
+    try {
+      return install(options, urls, authorization, cleanup, replay, () => gate?._revokedElsewhere?.(), notBefore);
+    } catch (err) {
+      console.warn("[ouo] could not start, the SDK is off", err);
+      for (const off of cleanup.reverse()) attempt(off);
+      setGuardReporter(undefined);
+      return undefined;
+    }
+  };
+  // Consent pending: nothing below `install` runs, so nothing is stored, opened or sent (README, "Consent").
+  let running: Installed | undefined;
+  // Assigned below; the cross-tab revocation callback runs long after.
+  let gate: Gated | undefined;
+  if (options.consent !== "pending") {
+    running = start(true);
+    if (!running) return noopRUM();
   }
+  const created = createConsentGate(
+    start,
+    createLogger(options.debug === true),
+    () => {
+      if (instance === created) instance = undefined;
+    },
+    running,
+  );
+  gate = created;
+  instance = created;
+  return created;
 }
 
 function install(
@@ -112,7 +135,13 @@ function install(
   urls: ReturnType<typeof deriveIngestUrls>,
   authorization: string,
   cleanup: Array<() => unknown>,
-): RUM & { _uninstall(): Promise<void> } {
+  /** Replay consent: without it the recorder starts paused and rrweb is never loaded. */
+  replayAllowed: boolean,
+  /** Another tab revoked consent (it removed `ouo.device`). */
+  onRevokedElsewhere: () => void,
+  /** When consent was last revoked: no session from before it is resumed. */
+  notBefore: number | undefined,
+): Installed {
   const authHeaders = ingestHeaders(authorization);
   const logger = createLogger(options.debug === true);
   setGuardReporter((err) => logger.warn("contained", err));
@@ -134,7 +163,21 @@ function install(
   cleanup.push(() => delivery.close());
 
   const serviceVersion = options.service.version;
-  const storage = new LocalStorage();
+  // Nothing is written once the SDK is shut down, by any late callback (a timer, rrweb's
+  // throttled events): after a consent revocation that would bring back the ids just wiped.
+  // Pushed early, so it runs after the session's final persist (cleanup runs in reverse).
+  const local = new LocalStorage();
+  let storageClosed = false;
+  const storage: KeyValueStorage = {
+    get: (key) => local.get(key),
+    set: (key, value) => {
+      if (!storageClosed) local.set(key, value);
+    },
+    remove: (key) => {
+      if (!storageClosed) local.remove(key);
+    },
+  };
+  cleanup.push(() => (storageClosed = true));
   const deviceId = loadDeviceId(storage);
 
   // Late-bound: the session manager emits session.start inside start(), after these exist.
@@ -143,6 +186,7 @@ function install(
 
   const session = new SessionManager({
     storage,
+    ...(notBefore !== undefined ? { notBefore } : {}),
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
     ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
     ...(options.user?.id ? { initialUserId: options.user.id } : {}),
@@ -217,6 +261,9 @@ function install(
   cleanup.push(installActivityListeners(onActivity));
   const onStorage = guard((e: StorageEvent): void => {
     if (e.key === SESSION_STORAGE_KEY) session.handleStorageEvent(e.newValue);
+    // Only a consent revocation removes `ouo.device` (src/consent.ts `wipe`): another tab of the
+    // origin revoked, and this one stops too rather than export and re-write the ids.
+    if (e.key === DEVICE_STORAGE_KEY && e.newValue === null && e.oldValue !== null) onRevokedElsewhere();
   });
   globalThis.addEventListener("storage", onStorage);
   cleanup.push(() => globalThis.removeEventListener("storage", onStorage));
@@ -302,6 +349,7 @@ function install(
   });
   const rec = recorder;
   cleanup.push(() => rec.shutdown());
+  if (!replayAllowed) recorder.pause();
   void quiet(recorder.start());
   // Error-triggered replay: the first error of a buffering session uploads its replay.
   // Never-record routes: a navigation is emitted synchronously from the history call.
@@ -359,13 +407,12 @@ function install(
       for (const off of cleanup.reverse()) pending.push(attempt(off));
       await quiet(Promise.all(pending));
       setGuardReporter(undefined);
-      if (instance === rum) instance = undefined;
       logger.log("shut down");
     })();
     return stopped;
   };
 
-  const rum: RUM & { _uninstall(): Promise<void> } = {
+  const rum: Installed = {
     // Public methods are called by the app: they never throw into it.
     setUser(user: UserOptions): void {
       attempt(() => {
@@ -410,6 +457,13 @@ function install(
     flush,
     shutdown,
     _uninstall: shutdown,
+    _revoke: () => {
+      // Before the shutdown's flush: what is still buffered is dropped, not sent or stored, and
+      // the session's final persist does not happen (the ids are about to be, or were, wiped).
+      storageClosed = true;
+      delivery.halt();
+      return shutdown();
+    },
     deliveryStats: () => ({ ...delivery.stats, dropReasons: { ...delivery.stats.dropReasons } }),
   };
   return rum;

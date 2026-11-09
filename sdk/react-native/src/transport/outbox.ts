@@ -90,6 +90,8 @@ export class Outbox {
   private failures = 0;
   private retryTimer: TimerHandle | null = null;
   private stopped = false;
+  /** Consent revoked (`clear`): nothing is written or sent any more. */
+  private halted = false;
   /** False when the stored index could not be read: nothing is written or removed in storage. */
   private persistent = true;
 
@@ -117,6 +119,7 @@ export class Outbox {
   /** Persists the request, then sends it unless a retry is already scheduled. Never rejects. */
   async put(url: string, body: string): Promise<void> {
     await this.loaded;
+    if (this.halted) return;
     const item: Item = { id: this.index.next++, url, bytes: body.length };
     this.index.items.push(item);
     this.bodies.set(item.id, body);
@@ -142,6 +145,20 @@ export class Outbox {
   stop(): void {
     this.stopped = true;
     this.cancelRetry();
+  }
+
+  /**
+   * Consent revoked: nothing is sent or written from now on (a request already on the wire
+   * completes), and every stored request, this run's and earlier runs', is deleted unsent.
+   */
+  async clear(): Promise<void> {
+    this.halted = true;
+    this.stop();
+    await this.loaded;
+    const ids = this.index.items.map((i) => i.id);
+    this.index = { next: 1, items: [] };
+    this.bodies.clear();
+    await Promise.all([...ids.map((id) => this.guard(this.storage.removeItem(bodyKey(id)))), this.guard(this.storage.removeItem(OUTBOX_KEY))]);
   }
 
   // ---- internals ----
@@ -244,7 +261,7 @@ export class Outbox {
   }
 
   private persistIndex(): void {
-    if (!this.persistent) return;
+    if (!this.persistent || this.halted) return;
     void this.guard(this.storage.setItem(OUTBOX_KEY, JSON.stringify(this.index)));
   }
 

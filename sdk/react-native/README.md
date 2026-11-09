@@ -306,9 +306,22 @@ rum.feedback({ message, contact, screenshot: true }); // feedback event with the
 rum.session.id(); rum.session.userId(); rum.session.previousId();
 await rum.ready;                                // persisted state read, session.start emitted
 await rum.flush();                              // force export of spans and log records
+await rum.setConsent({ telemetry: true, replay: false }); // see "Consent"
+rum.getConsent();                               // { status, telemetry, replay }
 ```
 
 `initRUM` returns the same instance on repeated calls; `getRUM()` returns it from anywhere.
+
+## Consent
+
+`initRUM({ ...options, consent: "pending" })` starts nothing until the app has the user's choice (default `"granted"`, the behaviour of earlier versions):
+
+- **Pending**: no read or write in `storage` (AsyncStorage), no call into the native module (no replay, no crash or hang handler, no native upload, no held-chunk recovery), no request, no fetch / XHR / error / AppState instrumentation, no session (`rum.session.id()` is `""`, `rum.ready` resolves after the grant). `setUser`, `captureError`, `addEvent` and `log.*` wait in memory (100 at most, oldest dropped), `trackNavigation` keeps only the last screen; they run at the grant. Taps, activity, spans (`startSpan` / `withSpan` get a non-recording span and still run `fn`), `reportFullyDisplayed` and `feedback` before the grant are not recorded. The launch vitals (app start) are only measured when consent is granted before `RUMProvider` mounts.
+- **`setConsent({ telemetry: true, replay })`** installs the SDK and runs the queue. `replay` is its own switch: without it the native recorder never starts, whatever sampling or `rum.replay.resume()` say; granting it later starts it. A `replay.pause()` or `hideScreen()` made before the grant holds from the first frame.
+- **`setConsent({ telemetry: false, replay: false })`** stops capture and export: the outbox sends and writes nothing more (a request already on the wire completes) and is deleted with every stored request, the replay chunks held on the device (`keepAtNextLaunch`) are deleted unsent, the native recorder stops, and the SDK's keys (`ouo.session`, `ouo.user`, `ouo.crash`, `ouo.context`, `ouo.replay.errors`, `ouo.replay.feedback`, `ouo.outbox*`) are removed. A later grant starts a new session.
+- A revocation, or a refusal at launch, also drops what an earlier granted run left natively: the pending crash or termination report and the replay chunks held for `keepAtNextLaunch`.
+- Known limits until the native modules get a discard call: stopping the native recorder at a revocation uploads the chunk it had open (recorded under consent); the chunk a crash left open in an earlier run stays on the device and is sent at the next grant; the native crash and hang handlers installed after a grant stay installed for the rest of the process.
+- The SDK never stores the consent: pass your consent manager's answer at every launch.
 
 ## Sessions (mobile rules)
 

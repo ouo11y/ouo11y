@@ -66,6 +66,11 @@ export interface ProcessState {
 
 const GLOBAL_KEY = "__ouoSessionProcessState";
 
+/** Consent revoked: a later start in this process begins a new session instead of resuming. */
+export function resetProcessState(): void {
+  delete (globalThis as Record<string, unknown>)[GLOBAL_KEY];
+}
+
 export function processState(): ProcessState {
   const g = globalThis as Record<string, unknown>;
   if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = {};

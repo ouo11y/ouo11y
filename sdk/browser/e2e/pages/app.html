@@ -58,6 +58,8 @@
         longTasks: { thresholdMs: 100 },
         transport: { beacon: q.get("beacon") === "1", ...(q.has("attempts") ? { maxAttempts: num("attempts", 5) } : {}) },
         debug: q.get("debug") === "1",
+        // ?consent=pending: nothing stored or sent until window.rum.setConsent (e2e/consent.spec.ts).
+        ...(q.has("consent") ? { consent: q.get("consent") } : {}),
       });
       const out = document.getElementById("out");
       document.getElementById("fetch").addEventListener("click", async () => {
