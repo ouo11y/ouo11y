@@ -6,4 +6,4 @@ MVP-era knowledge is in [kb-archive](../kb-archive/index.md). It was mostly writ
 
 | Area | What it covers |
 |---|---|
-| [opentelemetry/](opentelemetry/index.md) | Logs, traces and metrics data models, OTLP, storage backends, with an HTML explainer |
+| [opentelemetry/](opentelemetry/index.md) | Logs, traces and metrics data models, OTLP, storage backends, RUM semantic conventions, with HTML explainers |
