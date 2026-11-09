@@ -232,6 +232,30 @@ export interface TimelineOptions {
   appLifecycle?: boolean;
   /** `http.request` for every answered request below 500, with its span's trace id and span id. */
   requests?: boolean;
+  /**
+   * `ouo.rage_click` for a burst of taps on one control or spot (spec C6); `false` turns it off.
+   * Default `{ threshold: 3, windowMs: 1000, radiusPt: 30 }`, the web's.
+   */
+  rageTaps?: RageTapOptions | false;
+  /**
+   * `ouo.dead_click` for a tap on a control after which nothing answered (spec C6); `false` turns
+   * it off. Default `{ timeoutMs: 1000 }`. Needs the new architecture (Fabric): off otherwise.
+   */
+  deadTaps?: DeadTapOptions | boolean;
+}
+
+export interface RageTapOptions {
+  /** Taps in one burst. Default 3. */
+  threshold?: number;
+  /** From the first tap of the burst. Default 1000. */
+  windowMs?: number;
+  /** A tap this close (points) to the first one counts even on another target. Default 30. */
+  radiusPt?: number;
+}
+
+export interface DeadTapOptions {
+  /** How long after the finger lifted something must answer. Default 1000. */
+  timeoutMs?: number;
 }
 
 /** Mobile vitals (docs/specs/mobile-vitals.md). */

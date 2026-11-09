@@ -282,6 +282,31 @@ const CHECKS = [
     },
   },
   {
+    id: "C6.2",
+    title: "four taps on Cart's coupon button within a second: one rage tap with the control, count and screen",
+    async run(g) {
+      const d = await detail(g.main.launches[0].second);
+      const rage = named(d, "ouo.rage_click").map((e) => ({
+        id: attr(e, "app.widget.id"),
+        count: Number(attr(e, "ouo.click.count")),
+        duration: Number(attr(e, "ouo.click.duration_ms")),
+        screen: attr(e, "app.screen.name"),
+      }));
+      const ok = rage.length === 1 && rage[0].id === "btn-coupon" && rage[0].count >= 3 && rage[0].duration < 1000 && rage[0].screen === "Cart";
+      return result(ok, rage.length > 0, { rage });
+    },
+  },
+  {
+    id: "C6.3",
+    title: "a tap on a button that does nothing is a dead tap; a tap that opens a screen is not",
+    async run(g) {
+      const d = await detail(g.main.launches[0].second);
+      const dead = named(d, "ouo.dead_click").map((e) => [attr(e, "app.widget.id"), attr(e, "ouo.ui.view_type"), attr(e, "app.screen.name")].join(" "));
+      const ok = dead.length > 0 && dead.every((x) => x === "btn-coupon button Cart");
+      return result(ok, dead.length > 0, { dead });
+    },
+  },
+  {
     id: "C7.1",
     title: "the three-screen journey: one screen navigation per change, a three-step funnel",
     async run(g) {

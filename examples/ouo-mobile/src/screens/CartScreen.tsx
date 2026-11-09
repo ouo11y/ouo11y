@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { getCart, formatPrice, type Cart } from "../api";
 import { FeedbackForm } from "../FeedbackForm";
 import { maskedArea } from "../journey";
@@ -35,6 +35,11 @@ export function CartScreen({ navigation }: ScreenProps<"Cart">) {
         )}
       />
       <Text ref={maskedArea("cart-total")} style={styles.title}>Total {formatPrice(cart.total)}</Text>
+      {/* Deliberately broken (there is no coupon service): the demo's dead tap, and a rage tap when
+          tapped again and again (spec C6). Its press highlight is native, so a tap commits nothing. */}
+      <TouchableOpacity testID="btn-coupon" accessibilityRole="button" onPress={() => {}} style={[styles.button, styles.muted]}>
+        <Text style={styles.buttonText}>Apply coupon</Text>
+      </TouchableOpacity>
       <Button title="Checkout" onPress={() => navigation.navigate("Checkout")} disabled={cart.itemCount === 0} />
       <Button title="Continue shopping" tone="muted" onPress={() => navigation.navigate("Products")} />
       <FeedbackForm />

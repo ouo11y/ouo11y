@@ -5,6 +5,13 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
 
 ## Unreleased
 
+### Added
+
+- **Rage and dead taps and clicks** (ADR-0019): `ouo.rage_click` and `ouo.dead_click`, from the web
+  SDK's clicks and now from React Native's taps, are timeline rows ("Rage tap", "Dead click" with
+  the control, its screen or path, and the tap count), replay markers in their own colour (legend
+  "rage / dead"), and taps in the replay's activity list.
+
 ### Fixed
 
 - **Viewers can no longer delete replays through the plugin proxy** (N30). The single proxy route

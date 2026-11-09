@@ -24,6 +24,8 @@ export interface TouchedComponent {
    * name, else the native view (`RCTView`).
    */
   viewType: string;
+  /** `ouo-frustration={false}` on a component on the way: no rage or dead taps from this touch. */
+  optedOut?: true;
 }
 
 export type Gesture = "tap" | "long_press" | "swipe";
@@ -89,6 +91,7 @@ interface Seen {
 export function touchedComponent(fiber: FiberLike | null | undefined, stop?: (f: FiberLike) => boolean): TouchedComponent | undefined {
   const parts: string[] = [];
   let label: string | undefined;
+  let optedOut = false;
   const seen: Seen[] = [];
   let cursor = fiber ?? undefined;
   let steps = 0;
@@ -97,6 +100,7 @@ export function touchedComponent(fiber: FiberLike | null | undefined, stop?: (f:
     if (stop?.(cursor)) break;
     const props = cursor.memoizedProps && typeof cursor.memoizedProps === "object" ? (cursor.memoizedProps as Record<string, unknown>) : undefined;
     const l = props ? labelOf(props) : undefined;
+    if (props?.["ouo-frustration"] === false) optedOut = true;
     const name = nameOf(cursor.elementType);
     if (l && !label) label = l;
     seen.push({ label: l, name, role: props ? roleOf(props) : undefined });
@@ -105,7 +109,9 @@ export function touchedComponent(fiber: FiberLike | null | undefined, stop?: (f:
     cursor = cursor.return ?? undefined;
   }
   if (parts.length === 0) return undefined;
-  return { target: label ?? parts[0]!, path: parts.join(" > "), viewType: viewTypeOf(seen, label, fiber) };
+  const touched: TouchedComponent = { target: label ?? parts[0]!, path: parts.join(" > "), viewType: viewTypeOf(seen, label, fiber) };
+  if (optedOut) touched.optedOut = true;
+  return touched;
 }
 
 /**

@@ -9,7 +9,8 @@
  *   main         Home (reported fully displayed) -> Products -> Cart with a tap, a long press and a
  *                swipe through RUMProvider, a request inside a custom span, a log
  *                line, a handled error, feedback, a 3 s main-thread block, then a background stay
- *                longer than the timeout and a second session
+ *                longer than the timeout and a second session, whose Cart has a broken button
+ *                tapped once, then four times in a row (C6.2, C6.3), and Checkout, which opens a screen
  *   crash        Home, then a native crash once the first batches are out
  *   early-crash  a native crash 200 ms after launch, before anything was exported
  *   terminate    Home, a memory warning, then the system kills the app in the foreground (no
@@ -67,6 +68,7 @@ async function main() {
   switch (LAUNCH) {
     case "main": {
       const root = RUMProvider({ rum });
+      os.commit(); // the first render
       rum.trackNavigation("/Home");
       await sleep(100);
       rum.reportFullyDisplayed(); // Home's data is on screen: TTFD
@@ -96,6 +98,18 @@ async function main() {
       await sleep(1500);
       out.second = rum.session.id();
       out.second_previous = rum.session.previousId() ?? null;
+      // C6.2, C6.3: Cart's coupon button does nothing (its press highlight is native: no commit).
+      rum.trackNavigation("/Cart");
+      await sleep(300);
+      const coupon = { label: "btn-coupon", role: "button", component: "TouchableOpacity", screen: "CartScreen" };
+      await touch(root, coupon);
+      await sleep(1300); // a dead tap: nothing answered within 1 s
+      for (let i = 0; i < 4; i++) await touch(root, coupon, 40); // a rage tap
+      await sleep(1300);
+      // Answered: not dead (Checkout, not Products: C7.1's funnel counts Home, Products, Cart).
+      await touch(root, { label: "btn-Checkout", role: "button", component: "Pressable", screen: "CartScreen" });
+      rum.trackNavigation("/Checkout");
+      await sleep(1300);
       break;
     }
     case "crash":

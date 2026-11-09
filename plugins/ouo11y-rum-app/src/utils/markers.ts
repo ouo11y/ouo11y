@@ -3,10 +3,34 @@ import { isFeedbackEvent } from './feedback';
 import { parseTs } from './format';
 import { isTapEvent, tapLabel, type ReplayTap } from './taps';
 
-export type MarkerKind = 'error' | 'crash' | 'failed_request' | 'navigation' | 'tap' | 'feedback' | 'hidden';
+export type MarkerKind =
+  'error' | 'crash' | 'failed_request' | 'navigation' | 'tap' | 'feedback' | 'frustration' | 'hidden';
 
 /** The SDKs' marker of a never-record route or screen (ADR-0003 revision 2026-11-03, ADR-0006 revision 3). */
 export const REPLAY_HIDDEN_EVENT = 'ouo.replay.hidden';
+
+/** Frustration records, the same names on web (clicks) and mobile (taps) (ADR-0019). */
+export const RAGE_CLICK_EVENT = 'ouo.rage_click';
+export const DEAD_CLICK_EVENT = 'ouo.dead_click';
+
+export const isFrustrationEvent = (ev: TimelineEvent): boolean =>
+  ev.name === RAGE_CLICK_EVENT || ev.name === DEAD_CLICK_EVENT;
+
+/** `Rage tap on add-to-cart (button) on Cart: 4 taps` / `Dead click on #pay /checkout`: what the user did, by platform. */
+export function frustrationLabel(ev: TimelineEvent): string {
+  const a = ev.attrs ?? {};
+  const unit = a.ouo_platform === 'mobile' ? 'tap' : 'click';
+  const kind = ev.name === RAGE_CLICK_EVENT ? 'Rage' : 'Dead';
+  const where = [
+    a.app_widget_id,
+    a.ouo_ui_view_type && a.ouo_ui_view_type !== a.app_widget_id ? `(${a.ouo_ui_view_type})` : '',
+    a.app_screen_name ? `on ${a.app_screen_name}` : (a.url_path ?? ''),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const count = a.ouo_click_count ? `: ${a.ouo_click_count} ${unit}s` : '';
+  return `${kind} ${unit} on ${where}${count}`.trim();
+}
 
 export interface ReplayMarker {
   /** Index into the timeline array; -1 for a tap known only from a recorded touch. */
@@ -53,7 +77,7 @@ export function markerKind(ev: TimelineEvent): MarkerKind | null {
       if (ev.name === REPLAY_HIDDEN_EVENT) {
         return 'hidden';
       }
-      return isTapEvent(ev) ? 'tap' : isFeedbackEvent(ev) ? 'feedback' : null;
+      return isTapEvent(ev) ? 'tap' : isFeedbackEvent(ev) ? 'feedback' : isFrustrationEvent(ev) ? 'frustration' : null;
     default:
       return null;
   }
@@ -74,6 +98,9 @@ export function markerLabel(ev: TimelineEvent): string {
       }
       if (isFeedbackEvent(ev)) {
         return `Feedback: ${a.ouo_feedback_message ?? ''}`.trim();
+      }
+      if (isFrustrationEvent(ev)) {
+        return frustrationLabel(ev);
       }
       if (ev.name === REPLAY_HIDDEN_EVENT) {
         return `Replay hidden (${a.ouo_replay_hidden_reason ?? 'unknown'}): nothing recorded until the next frame`;

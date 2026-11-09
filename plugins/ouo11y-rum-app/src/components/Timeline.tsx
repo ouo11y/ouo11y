@@ -4,6 +4,7 @@ import { type GrafanaTheme2, type IconName } from '@grafana/data';
 import { Icon, useStyles2, useTheme2 } from '@grafana/ui';
 import type { TimelineEvent, VitalRating } from '../api/types';
 import { formatDateTime, formatRelative, parseTs } from '../utils/format';
+import { DEAD_CLICK_EVENT, frustrationLabel, RAGE_CLICK_EVENT } from '../utils/markers';
 import { isVitalEvent, vitalDetail, vitalRating, vitalTitle } from '../utils/vitals';
 import { scrollRowIntoView } from '../utils/scroll';
 import { gestureTitle, tapSubject } from '../utils/taps';
@@ -140,6 +141,19 @@ const NAMED: Record<string, (ev: TimelineEvent) => Look> = {
       ]
         .filter(Boolean)
         .join(' '),
+  }),
+  // Rage and dead taps (mobile) or clicks (web), ADR-0019: the label says which.
+  [RAGE_CLICK_EVENT]: () => ({
+    icon: 'fire',
+    color: (t) => t.colors.error.text,
+    title: (e) => `Rage ${e.attrs.ouo_platform === 'mobile' ? 'tap' : 'click'}`,
+    detail: (e) => frustrationLabel(e).replace(/^Rage (tap|click) on /, ''),
+  }),
+  [DEAD_CLICK_EVENT]: () => ({
+    icon: 'ban',
+    color: (t) => t.colors.warning.text,
+    title: (e) => `Dead ${e.attrs.ouo_platform === 'mobile' ? 'tap' : 'click'}`,
+    detail: (e) => frustrationLabel(e).replace(/^Dead (tap|click) on /, ''),
   }),
   feedback: () => ({
     icon: 'comment-alt-message',
