@@ -50,7 +50,7 @@ The root holds only `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` and the 
 
 - Each agent owns a folder under `project/agents/<name>/` containing at minimum `index.md`, `tracker.md`, and a `summaries/` folder. Write a dated summary there at the end of every run: what was done, what was verified and how, what is left, what the next agent must know.
 - Each agent is given an explicit list of **allowed paths**. Do not write outside them except your own `project/agents/<name>/`, `project/kb/`, and the index files that list what you added.
-- When you learn something reusable (a library quirk, a config that works, a benchmark), write a `project/kb/<topic>.md` entry and add it to `project/kb/index.md`. Keep chat-only knowledge out of chat.
+- When you learn something reusable (a library quirk, a config that works, a benchmark), write an entry in a descriptive topic folder (`project/kb/<area>/<subject>/<topic>.md`) and add it to that folder's `index.md`. Keep chat-only knowledge out of chat.
 - Every folder that holds documents has an `index.md` listing its contents with one line each. Update the index whenever you add a file.
 - Reports and graphs are HTML/CSS/JS files (self-contained, no external network needed to render). Never markdown tables or image files for reports.
 - Hand-off to the orchestrator is your summary file plus a short final message. The orchestrator does not read your full transcript.
