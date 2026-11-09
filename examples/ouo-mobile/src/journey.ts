@@ -42,6 +42,18 @@ export function maskedArea(name: string): (v: View | null) => void {
   };
 }
 
+/**
+ * The app's root view (App.tsx). `action/areas` notes rectangles relative to it, which is the window:
+ * both example apps draw edge to edge. React Native before 0.86 subtracts the status bar from
+ * `measureInWindow` on Android even then (`RootViewUtil.getViewportOffset`), so the raw values of
+ * examples/ouo-bare-rn (0.82) were a status bar above the replay frame's pixels; 0.86 measures the
+ * root at (0, 0) and nothing changes.
+ */
+let rootView: View | null = null;
+export function appRoot(v: View | null): void {
+  rootView = v;
+}
+
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 const POLL_MS = 400;
@@ -103,11 +115,15 @@ async function run(cmd: string): Promise<void> {
         await rum.withSpan("golden.checkout", () => getProducts());
         rum.log.info("golden log line");
         break;
-      case "areas":
+      case "areas": {
+        const origin = await new Promise<{ x: number; y: number }>((resolve) =>
+          rootView ? rootView.measureInWindow((x, y) => resolve({ x, y })) : resolve({ x: 0, y: 0 }),
+        );
         for (const [name, view] of areas) {
-          view.measureInWindow((x, y, w, h) => note("area", { name, x, y, w, h }));
+          view.measureInWindow((x, y, w, h) => note("area", { name, x: x - origin.x, y: y - origin.y, w, h }));
         }
         break;
+      }
       case "event":
         rum.addEvent(params.get("name") ?? "journey.event");
         break;

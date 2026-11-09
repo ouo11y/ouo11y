@@ -70,6 +70,209 @@ to resolve their `browser` field remaps.
    `@react-native-async-storage/async-storage`, `promise`) to the app's `node_modules`.
    A published npm install needs none of this.
 
+### Bare React Native
+
+A bare app (`@react-native-community/cli` template, no Expo) gets the JavaScript side as is:
+sessions, JS errors, OTLP traces and logs, network, taps, feedback. The native side (replay, native
+crashes, hangs and terminations, vitals, gzip delivery) is an Expo module, so the app adds Expo
+modules first with Expo's own installer. That is the supported path; the modules are not rewritten
+as TurboModules. Without Expo modules those capabilities are silent no-ops (a debug-only warning is
+logged once). Verified on React Native 0.82.1 with Firebase 12 pods and static frameworks, on the
+iOS 27 Simulator (Xcode 27) and an Android 15 emulator.
+
+1. Add Expo modules. `install-expo-modules` picks the Expo SDK from the React Native version and has
+   no SDK for 0.82 or 0.84, so name one there:
+
+   | React Native | `install-expo-modules` | Extra step | Tested |
+   |---|---|---|---|
+   | 0.81 | `npx install-expo-modules@latest` (SDK 54) | none | no |
+   | **0.82** | `npx install-expo-modules@latest --sdk-version 54.0.0` | the `expo-modules-core` patch below | **yes** |
+   | 0.83 | `npx install-expo-modules@latest` (SDK 55) | none | no |
+   | 0.84 | no mapping: `--sdk-version` with 55 or 56 | unknown | no |
+   | 0.85 | `npx install-expo-modules@latest` (SDK 56) | none | no |
+   | 0.86 | `npx install-expo-modules@latest` (SDK 57) | none | yes (the Expo setup above) |
+
+   SDK 55 needs React Native 0.83 (it calls `RCTDevMenuConfiguration`, which 0.82 does not have).
+   SDK 54's `expo-modules-core` 3.0.30 does not compile on 0.82 because 0.82's `TurboModuleUtils.h`
+   stopped including two headers. Add them with `patch-package` (`npm i -D patch-package`,
+   `"postinstall": "patch-package"`), as `patches/expo-modules-core+3.0.30.patch`:
+
+   ```diff
+   diff --git a/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h b/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   --- a/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   +++ b/node_modules/expo-modules-core/ios/JSI/EXJSIUtils.h
+   @@ -6,7 +6,9 @@
+    
+    #import <jsi/jsi.h>
+    #import <React/RCTBridgeModule.h>
+   +#import <ReactCommon/CallInvoker.h>
+    #import <ReactCommon/TurboModuleUtils.h>
+   +#import <react/bridging/CallbackWrapper.h>
+    #import <ExpoModulesCore/ObjectDeallocator.h>
+    
+    namespace jsi = facebook::jsi;
+   ```
+
+   Pin both `"expo": "54.0.38"` and `"expo-modules-core": "3.0.30"` in `package.json` (the installer
+   writes `"expo": "~54.0.0"`). `expo@54.0.38` depends on exactly `expo-modules-core@3.0.30`; a later
+   54.0.x on another version would put a second, unpatched copy under `node_modules/expo/node_modules`.
+
+2. Fix three things `install-expo-modules --sdk-version 54.0.0` writes into a 0.82 project.
+
+   `android/app/src/main/java/<your package>/MainApplication.kt`: it calls
+   `ReactNativeHostWrapper.createReactHost(context = ..., packageList = ...)`, which SDK 54 does not
+   have (`Unresolved reference 'ReactNativeHostWrapper'`). Use the SDK 54 template's shape (React
+   Native 0.82 still has the deprecated `DefaultReactNativeHost`):
+
+   ```kotlin
+   package com.yourapp
+
+   import android.app.Application
+   import android.content.res.Configuration
+   import com.facebook.react.PackageList
+   import com.facebook.react.ReactApplication
+   import com.facebook.react.ReactHost
+   import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
+   import com.facebook.react.ReactNativeHost
+   import com.facebook.react.ReactPackage
+   import com.facebook.react.defaults.DefaultReactNativeHost
+   import expo.modules.ApplicationLifecycleDispatcher
+   import expo.modules.ReactNativeHostWrapper
+
+   class MainApplication : Application(), ReactApplication {
+
+     @Suppress("DEPRECATION")
+     override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
+       this,
+       object : DefaultReactNativeHost(this) {
+         override fun getPackages(): List<ReactPackage> = PackageList(this).packages
+         override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
+         override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
+         override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+       },
+     )
+
+     @Suppress("DEPRECATION")
+     override val reactHost: ReactHost
+       get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
+
+     override fun onCreate() {
+       super.onCreate()
+       loadReactNative(this)
+       ApplicationLifecycleDispatcher.onApplicationCreate(this)
+     }
+
+     override fun onConfigurationChanged(newConfig: Configuration) {
+       super.onConfigurationChanged(newConfig)
+       ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+     }
+   }
+   ```
+
+   `ios/<App>/AppDelegate.swift`: bind the factory, or the first root view traps in
+   `ExpoAppDelegate.recreateRootView` ("Missing factory in ExpoAppDelegate"):
+
+   ```swift
+   let factory = ExpoReactNativeFactory(delegate: delegate)
+   delegate.dependencyProvider = RCTAppDependencyProvider()
+   reactNativeDelegate = delegate
+   reactNativeFactory = factory
+   bindReactNativeFactory(factory)   // add this line
+   ```
+
+   `@expo/cli`: `require.resolve('@expo/cli')` in `android/app/build.gradle` (`cliFile`) and in the
+   "Bundle React Native code and images" phase of the Xcode project fails when npm nests `@expo/cli`
+   under `node_modules/expo/node_modules`. The Android release build then fails
+   (`createBundleReleaseJsAndAssets` "uses this output of task ':app:generateReactNativeEntryPoint'
+   without declaring an explicit or implicit dependency") and iOS quietly falls back to the React
+   Native CLI. In both places resolve it from expo's directory:
+
+   ```groovy
+   cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+   ```
+
+   ```sh
+   export CLI_PATH="$("$NODE_BINARY" --print "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })")"
+   ```
+
+3. Install the SDK and its storage peer, then the pods:
+
+   ```bash
+   npm install @ouo11y/react-native @react-native-async-storage/async-storage@2.2.0
+   cd ios && pod install
+   ```
+
+   `use_expo_modules!` (added to the `Podfile` by step 1) links `OuoReactNative` and the pods it
+   depends on; Gradle links the Android module through `expoAutolinking.useExpoModules()` in
+   `settings.gradle`. Static frameworks (`use_frameworks! :linkage => :static`, what Firebase and
+   `@react-native-firebase` need) work as they are. AsyncStorage 2.2.0 is the version verified with
+   0.82 here (Expo SDK 54's); the SDK accepts `>= 1.21.0`.
+
+4. Call `initRUM` in `index.js` before `AppRegistry.registerComponent`, as in the Expo setup above
+   (pass the endpoint and credential directly; `expo-constants` is optional).
+
+**Xcode 27 and iOS 27**, whether or not ouo is installed. React Native 0.82's `fmt` pod does not
+compile with Apple clang 21 ("call to consteval function ... is not a constant expression"), and Xcode
+27 refuses pod deployment targets below 15.0 (Firebase's `GoogleDataTransport`, `GoogleUtilities`,
+`nanopb`, `PromisesObjC`, `PromisesSwift`, and `RNCAsyncStorage` declare lower ones). In the
+`Podfile`'s `post_install`, after `react_native_post_install(...)`:
+
+```ruby
+installer.pods_project.targets.each do |t|
+  if t.name == 'fmt'
+    t.build_configurations.each { |c| c.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17' }
+  end
+  t.build_configurations.each do |c|
+    target = c.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+    c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = min_ios_version_supported if target && target.to_f < min_ios_version_supported.to_f
+  end
+end
+```
+
+An app built with the iOS 27 SDK traps at launch without the UIScene life cycle
+(`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`). Expo SDK 54 has no scene delegate,
+so add one: in `AppDelegate.swift`, drop the template's `window = UIWindow(...)` and
+`factory.startReactNative(...)` lines from `didFinishLaunching` (keep creating and binding the factory)
+and add
+
+```swift
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+    guard let windowScene = scene as? UIWindowScene,
+          let app = UIApplication.shared.delegate as? AppDelegate,
+          let factory = app.reactNativeFactory else { return }
+    let window = UIWindow(windowScene: windowScene)
+    self.window = window
+    app.window = window
+    factory.startReactNative(withModuleName: "YourApp", in: window, launchOptions: nil)
+  }
+}
+```
+
+and to `Info.plist`:
+
+```xml
+<key>UIApplicationSceneManifest</key>
+<dict>
+  <key>UIApplicationSupportsMultipleScenes</key>
+  <false/>
+  <key>UISceneConfigurations</key>
+  <dict>
+    <key>UIWindowSceneSessionRoleApplication</key>
+    <array>
+      <dict>
+        <key>UISceneConfigurationName</key>
+        <string>Default Configuration</string>
+        <key>UISceneDelegateClassName</key>
+        <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+      </dict>
+    </array>
+  </dict>
+</dict>
+```
+
 ### Shims
 
 The SDK installs, only when missing: `performance.timeOrigin` (Hermes exposes

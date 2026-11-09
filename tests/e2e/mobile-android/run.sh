@@ -9,6 +9,8 @@
 #
 # Usage: run.sh <env> [<adb serial>]      (OUO_ANDROID_OUT keeps the notes, logs and frames)
 # OUO_ANDROID_SKIP_BUILD=1 reuses the installed app (built for the same env and proxy port).
+# OUO_ANDROID_APP=ouo-bare-rn runs the same launches on examples/ouo-bare-rn (bare React Native 0.82
+# with install-expo-modules, the same golden screens and demo module); default examples/ouo-mobile.
 set -euo pipefail
 ENV=$1
 SERIAL=${2:-${ANDROID_SERIAL:-emulator-5580}}
@@ -19,18 +21,23 @@ mkdir -p "$OUT"
 : "${ANDROID_HOME:=/opt/homebrew/share/android-commandlinetools}"
 export ANDROID_HOME
 ADB=("$ANDROID_HOME/platform-tools/adb" -s "$SERIAL")
-APP=dev.ouo.mobilestore
+EXAMPLE=${OUO_ANDROID_APP:-ouo-mobile}
+case "$EXAMPLE" in
+  ouo-mobile) APP=dev.ouo.mobilestore ;;
+  ouo-bare-rn) APP=dev.ouo.bare ;;
+  *) echo "OUO_ANDROID_APP must be ouo-mobile or ouo-bare-rn" >&2; exit 2 ;;
+esac
 PROXY_PORT=${OUO_ANDROID_PROXY_PORT:-18328}
 eval "$("$ROOT/deploy/envs/ouo-env" env "$ENV")"
 COLLECTOR="ouo-$ENV-otel-collector-1"
 log() { printf '%s [android-suite] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 if [[ ${OUO_ANDROID_SKIP_BUILD:-0} != 1 ]]; then
-  log "building the golden app into $OUT (OTLP through the proxy on $PROXY_PORT)"
-  EXPO_PUBLIC_OTLP_ENDPOINT="http://10.0.2.2:$PROXY_PORT" "$ROOT/examples/ouo-mobile/scripts/build-android.sh" --env "$ENV" --conformance --no-install
+  log "building the golden app ($EXAMPLE) into $OUT (OTLP through the proxy on $PROXY_PORT)"
+  EXPO_PUBLIC_OTLP_ENDPOINT="http://10.0.2.2:$PROXY_PORT" "$ROOT/examples/$EXAMPLE/scripts/build-android.sh" --env "$ENV" --conformance --no-install
 fi
 "${ADB[@]}" uninstall "$APP" >/dev/null 2>&1 || true
-"${ADB[@]}" install "$ROOT/examples/ouo-mobile/android/app/build/outputs/apk/release/app-release.apk" >/dev/null
+"${ADB[@]}" install "$ROOT/examples/$EXAMPLE/android/app/build/outputs/apk/release/app-release.apk" >/dev/null
 swiftc -O "$HERE/../mobile-native/pixels.swift" -o "$OUT/pixels"
 
 : > "$OUT/requests.jsonl"
