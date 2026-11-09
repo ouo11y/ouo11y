@@ -63,9 +63,18 @@ export const rum: RUM = initRUM({
     sampleRate: config.replaySampleRate,
     onErrorSampleRate: config.replayOnErrorSampleRate,
   },
-  ...(initialUser ? { user: { id: initialUser } } : {}),
+  ...(initialUser ? { user: { id: initialUser, attributes: userAttributes(initialUser) } } : {}),
   debug: config.debug,
 });
+
+// The app's attributes (ouo.attr.*, docs/specs/attributes.md): the storefront's tenant, so sessions
+// can be filtered by it in the plugin. VITE_OUO_TENANT overrides it (e2e and demos of a second tenant).
+rum.setAttributes({ tenant: env.VITE_OUO_TENANT || "acme", storefront: "web-store" });
+
+/** The user's attributes: a demo plan derived from the id (`vip-*` users are on `pro`). */
+function userAttributes(id: string): { plan: string } {
+  return { plan: id.startsWith("vip") ? "pro" : "free" };
+}
 
 export function setUser(id: string): void {
   const trimmed = id.trim();
@@ -75,5 +84,5 @@ export function setUser(id: string): void {
   } catch {
     // storage unavailable; the SDK still gets the user for this page
   }
-  if (trimmed) rum.setUser({ id: trimmed });
+  if (trimmed) rum.setUser({ id: trimmed, attributes: userAttributes(trimmed) });
 }

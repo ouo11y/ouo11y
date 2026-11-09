@@ -42,6 +42,26 @@ export interface SessionOptions {
 
 export interface UserOptions {
   id: string;
+  /**
+   * The user's attributes (tenant, plan), sent as `ouo.attr.<key>` on every later span and event
+   * and kept on the session record. Replaces the user's set; omitted, the same user keeps it.
+   * Persisted with the user. Same rules as `setAttributes`.
+   */
+  attributes?: Attrs;
+}
+
+/**
+ * The over-the-air JavaScript bundle the app runs (docs/specs/attributes.md section 5). The SDK
+ * depends on no OTA library; pass what yours reports:
+ * - hot-updater: `{ id: HotUpdater.getBundleId(), channel: HotUpdater.getChannel() }`
+ * - expo-updates: `{ id: Updates.updateId ?? "embedded", channel: Updates.channel ?? undefined }`
+ * - CodePush: `rum.setBundle({ id: (await codePush.getUpdateMetadata())?.label ?? "embedded" })`
+ */
+export interface BundleOptions {
+  /** `ouo.app.bundle.id`, 1 to 128 characters. */
+  id: string;
+  /** `ouo.app.bundle.channel`, 1 to 64 characters. */
+  channel?: string;
 }
 
 /**
@@ -314,6 +334,12 @@ export interface RUMOptions {
    * (`service.*`, `ouo.platform`, `ouo.sdk.*`, `os.*`, `device.*`) win on a clash.
    */
   resource?: Attrs;
+  /**
+   * The OTA bundle this launch runs: `ouo.app.bundle.id` / `.channel` on the resource and every
+   * span and event, kept on the session record and grouped by on the Overview (version × bundle).
+   * Use `rum.setBundle` when the id is only known later (CodePush).
+   */
+  bundle?: BundleOptions;
   errors?: ErrorOptions;
   timeline?: TimelineOptions;
   vitals?: VitalsOptions;
@@ -362,6 +388,23 @@ export interface RUMSession {
 
 export interface RUM {
   setUser(user: UserOptions): void;
+  /**
+   * Add or change attributes of every later span and event (`ouo.attr.<key>`), kept on the session
+   * record and filterable in the plugin (`attr.<key>=<value>`). For a few low-cardinality facts the
+   * app owns (tenant, plan, cohort). They are app-controlled and may be personal data: never put
+   * names, e-mails or free text in them. Keys: a letter, then letters, digits and `_`, at most 40;
+   * values: string (cut to 128 characters), finite number or boolean; at most 20 keys with the
+   * user's. Invalid entries are dropped (logged with `debug`). They live for the launch: set them at
+   * start. docs/specs/attributes.md.
+   */
+  setAttributes(attributes: Attrs): void;
+  /** Remove an attribute set with `setAttributes` or `setUser`. */
+  removeAttribute(key: string): void;
+  /**
+   * Set (or with `undefined`, clear) the OTA bundle of this launch for every later span and event,
+   * when it is not known at `initRUM` (CodePush answers asynchronously). An invalid id is ignored.
+   */
+  setBundle(bundle: BundleOptions | undefined): void;
   /** Report a handled, non-fatal exception. */
   captureError(err: unknown, context?: Attrs): void;
   /** Emit a custom event (an OTel log record with `event.name = name`). */

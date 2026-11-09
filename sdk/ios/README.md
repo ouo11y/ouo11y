@@ -40,6 +40,8 @@ Ouo.trackScreen("Cart")                // a screen the SDK cannot see
 Ouo.trackTap("pay")                    // a tap the SDK cannot name (SwiftUI controls)
 Ouo.reportFullyDisplayed()             // TTFD of the current screen
 Ouo.setUser("user-42")                 // clearUser() at logout, endSession()
+Ouo.setUser("user-42", attributes: ["plan": "pro"])   // the user's attributes (below)
+Ouo.setAttributes(["cohort": "b"])     // the app's attributes, for this launch
 Ouo.captureError(error)                // handled exception with stack, screen and last events
 Ouo.addEvent("checkout", attributes: ["items": 3])
 Ouo.log(.info, "cart loaded", attributes: ["count": 3])
@@ -48,9 +50,33 @@ Ouo.feedback("the cart is slow", contact: "ada@example.com", screenshot: true)
 Ouo.flush { }
 ```
 
-Objective-C: `[Ouo start:config]`, `[Ouo captureError:error attributes:nil]`,
+Objective-C: `[Ouo start:config]`, `[Ouo setUser:@"user-42" attributes:@{@"plan": @"pro"}]`,
+`[Ouo setAttributes:@{@"cohort": @"b"}]`, `[Ouo removeAttribute:@"cohort"]`, `[Ouo captureError:error attributes:nil]`,
 `[Ouo captureException:exception attributes:nil]`, `[Ouo log:OuoLogLevelInfo message:@"…" attributes:nil]`,
 `[Ouo withSpan:@"checkout" attributes:nil block:^(OuoSpan *span) { … }]`.
+
+### User and session attributes
+
+A few low-cardinality facts the app owns (tenant, plan, cohort, A/B arm), sent as `ouo.attr.<key>`
+on every span and log record after the call, next to `user.id`; rum-api keeps them on the session
+and filters by them (`docs/specs/attributes.md`).
+
+| Call | Effect |
+|---|---|
+| `Ouo.setUser(_ id: String, attributes: [String: Any]? = nil)` | `attributes`, when given, replaces the user's set; omitted (or nil), the set is kept for the same user and emptied for another. Persisted with the user id (`session.json`) and swapped with it: a `user_change` rotation's `session.end` carries the old user's set, the new `session.start` the new one's. |
+| `Ouo.clearUser()` | Logout: the user's set is emptied with the user. |
+| `Ouo.setAttributes(_ attributes: [String: Any])` | Merged into the app's set, for this launch only (not persisted: set it after `start`). Wins over the user's set on a key in both. |
+| `Ouo.removeAttribute(_ key: String)` | Removes the key from both sets. |
+
+- **Keys** match `^[A-Za-z][A-Za-z0-9_]{0,39}$` (no dots or dashes). **Values** are a string (cut
+  to 128 characters), a finite number or a boolean. **At most 20 keys** in both sets together: a
+  new key beyond 20 is dropped, changing an existing one always works. Anything rejected is dropped
+  and reported to the debug log (`debug = true`); no call ever throws or crashes.
+- They are **app-controlled and may contain personal data**: the SDK sends what the app passes.
+  Do not put names, e-mail addresses, phone numbers or free text in them.
+- They are **never Loki labels**: they land in structured metadata as `ouo_attr_<key>`. Do not add
+  them to the collector's or Loki's label list (one stream per tenant, plan and user).
+- A crash or termination reported by the next launch carries the user's set as it was persisted.
 
 What it records, in the spec's names (docs/specs/mobile-sdk.md):
 
@@ -105,7 +131,8 @@ Rules worth knowing:
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` ships with `OuoSDK` (no tracking; crash,
   performance, diagnostic, product interaction data and an install id, not linked to the user;
   `UserDefaults` CA92.1, system boot time 35F9.1). An app that calls `setUser` sends its user id
-  with every record: it declares User ID, linked to the user, in its own manifest.
+  with every record: it declares User ID, linked to the user, in its own manifest (and whatever
+  data its user and session attributes hold).
 - **Request URLs**: `url.full` is the whole URL, query string included, as the React Native SDK
   sends it. Keep secrets out of query strings, or list such URLs in `ignoreUrls`.
 - **Launch kind**: a launch for the user or in the background is read from the process's task role

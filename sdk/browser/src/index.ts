@@ -6,6 +6,7 @@ import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 
 import { installActivityListeners } from "./activity";
+import { mergeAttributes } from "./attributes";
 import { installClickTracking } from "./interactions/clicks";
 import { FallbackContextManager } from "./interactions/context";
 import { FilteringSpanProcessor, InteractionTracker } from "./interactions/tracker";
@@ -56,6 +57,8 @@ function noopRUM(): RUM & { _uninstall(): Promise<void> } {
   return {
     setUser: () => undefined,
     clearUser: () => undefined,
+    setAttributes: () => undefined,
+    removeAttribute: () => undefined,
     endSession: () => undefined,
     captureError: () => undefined,
     addEvent: () => undefined,
@@ -141,6 +144,10 @@ function install(
   let events: EventEmitter;
   let recorder: ReplayRecorder | undefined;
 
+  const route = new RouteState();
+  const userAttrs = (attrs: unknown): Attrs | undefined =>
+    attrs === undefined ? undefined : mergeAttributes({}, attrs, route.attrs, logger.warn);
+
   const session = new SessionManager({
     storage,
     ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
@@ -154,7 +161,6 @@ function install(
   });
 
   const resource = buildResource(options.service, deviceId);
-  const route = new RouteState();
 
   // ---- logs (events) ----
   const logExporter = createLogExporter({ url: urls.logs, headers: authHeaders, delivery });
@@ -212,6 +218,8 @@ function install(
 
   // ---- session ----
   session.start();
+  // After session.start: like a setUser call right after initRUM.
+  if (options.user?.attributes) session.setUser(options.user.id, userAttrs(options.user.attributes));
   cleanup.push(() => session.stop());
   const onActivity = (): void => session.touch();
   cleanup.push(installActivityListeners(onActivity));
@@ -369,8 +377,19 @@ function install(
     // Public methods are called by the app: they never throw into it.
     setUser(user: UserOptions): void {
       attempt(() => {
-        session.setUser(user.id);
+        session.setUser(user.id, userAttrs(user.attributes));
         logger.log("user set", user.id);
+      });
+    },
+    setAttributes(attrs: Attrs): void {
+      attempt(() => mergeAttributes(route.attrs, attrs, session.userAttributes(), logger.warn));
+    },
+    removeAttribute(key: string): void {
+      attempt(() => {
+        delete route.attrs[key];
+        const user = { ...session.userAttributes() };
+        // Only an identified user has a set: this keeps the user and replaces the set.
+        if (Object.hasOwn(user, key) && delete user[key]) session.setUser(session.userId(), user);
       });
     },
     clearUser(): void {

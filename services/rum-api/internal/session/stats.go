@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-// Bucket is one (platform, service, version) group of the health stats.
+// Bucket is one (platform, service, version, bundle) group of the health stats.
 type Bucket struct {
 	Platform       string  `json:"platform"`
 	ServiceName    string  `json:"service_name"`
@@ -17,6 +17,10 @@ type Bucket struct {
 	HealthyPct     float64 `json:"healthy_pct"`
 	ErroredPct     float64 `json:"errored_pct"`
 	CrashedPct     float64 `json:"crashed_pct"`
+
+	// BundleID is the OTA bundle (Record.BundleID); "" for sessions without
+	// one, so web and native buckets are one per version as before.
+	BundleID string `json:"bundle_id"`
 }
 
 // HealthStats is the /v1/stats/health response.
@@ -25,11 +29,12 @@ type HealthStats struct {
 	Totals  Bucket   `json:"totals"`
 }
 
-// Health groups records by platform, service name and version and computes
-// percentages (rounded to 2 decimals; the three raw counts always sum to
-// total). Buckets are sorted by platform, service, version.
+// Health groups records by platform, service name, version and OTA bundle
+// and computes percentages (rounded to 2 decimals; the three raw counts
+// always sum to total). Buckets are sorted by platform, service, version,
+// bundle.
 func Health(records []Record) HealthStats {
-	type key struct{ p, s, v string }
+	type key struct{ p, s, v, b string }
 	m := map[key]*Bucket{}
 	totals := Bucket{}
 	add := func(b *Bucket, st Status) {
@@ -44,10 +49,10 @@ func Health(records []Record) HealthStats {
 		}
 	}
 	for _, r := range records {
-		k := key{r.Platform, r.ServiceName, r.ServiceVersion}
+		k := key{r.Platform, r.ServiceName, r.ServiceVersion, r.BundleID}
 		b, ok := m[k]
 		if !ok {
-			b = &Bucket{Platform: r.Platform, ServiceName: r.ServiceName, ServiceVersion: r.ServiceVersion}
+			b = &Bucket{Platform: r.Platform, ServiceName: r.ServiceName, ServiceVersion: r.ServiceVersion, BundleID: r.BundleID}
 			m[k] = b
 		}
 		add(b, r.Status)
@@ -65,7 +70,10 @@ func Health(records []Record) HealthStats {
 		if out[i].ServiceName != out[j].ServiceName {
 			return out[i].ServiceName < out[j].ServiceName
 		}
-		return out[i].ServiceVersion < out[j].ServiceVersion
+		if out[i].ServiceVersion != out[j].ServiceVersion {
+			return out[i].ServiceVersion < out[j].ServiceVersion
+		}
+		return out[i].BundleID < out[j].BundleID
 	})
 	totals.finish()
 	return HealthStats{Buckets: out, Totals: totals}

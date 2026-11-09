@@ -10,6 +10,7 @@
 | [funnels.md](funnels.md) | user guide: build and read a funnel in the plugin, what a step can be, counting rules, limits |
 | [specs/funnels.md](specs/funnels.md) | funnel reports: steps (page path, custom event), strict order, `within`, session counting, range and filters, Loki reads, limits (ADR-0012) |
 | [specs/mobile-vitals.md](specs/mobile-vitals.md) | mobile vitals (app start, TTID, frames, stalls) as session events, shared by the Sentry bridge and the ouo SDK; rum-api vitals endpoint |
+| [specs/attributes.md](specs/attributes.md) | user and session attributes (`setUser({ attributes })`, `setAttributes`, `removeAttribute`: validation, `ouo.attr.<key>`, never Loki labels, personal-data note) and the React Native OTA bundle id (`ouo.app.bundle.*`); rum-api record fields, `attr.<key>=` / `bundle=` filters, health by version × bundle (F1, F2) |
 | [specs/mobile-sdk.md](specs/mobile-sdk.md) | mobile SDK spec: the twelve capabilities (records, attributes, thresholds), the conformance checks, maturity L0–L3 and the platform matrix, the React Native iOS suite (ADR-0015) |
 | [adr/](adr/README.md) | architecture decision records |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |

@@ -26,6 +26,13 @@ type Event struct {
 	Platform       string
 	ServiceName    string
 	ServiceVersion string
+	// BundleID and BundleChannel are ouo.app.bundle.id / .channel, the OTA
+	// bundle of a React Native app (docs/specs/attributes.md section 5).
+	BundleID      string
+	BundleChannel string
+	// Attributes are the app's ouo.attr.<key> values keyed by <key>
+	// (docs/specs/attributes.md); nil when the event carries none.
+	Attributes map[string]string
 	// Attrs holds every label / metadata key except the identifiers above.
 	Attrs map[string]string
 	// Context holds the event's device, OS, build and environment keys
@@ -82,7 +89,12 @@ func TypeOf(name string) Type {
 var identifierKeys = map[string]bool{
 	"session_id": true, "user_id": true, "device_id": true, "ouo_platform": true,
 	"service_name": true, "service_version": true, "event_name": true,
+	"ouo_app_bundle_id": true, "ouo_app_bundle_channel": true,
 }
+
+// AttributePrefix is the Loki name prefix of the app's attributes:
+// ouo.attr.<key> arrives as structured metadata ouo_attr_<key>.
+const AttributePrefix = "ouo_attr_"
 
 // noiseKeys are per-SDK constants that would bloat every timeline entry.
 var noiseKeys = map[string]bool{
@@ -187,10 +199,19 @@ func eventFromLabels(ts time.Time, labels map[string]string, line string) Event 
 		Platform:       labels["ouo_platform"],
 		ServiceName:    labels["service_name"],
 		ServiceVersion: labels["service_version"],
+		BundleID:       labels["ouo_app_bundle_id"],
+		BundleChannel:  labels["ouo_app_bundle_channel"],
 		Attrs:          map[string]string{},
 	}
 	for k, v := range labels {
 		if identifierKeys[k] || noiseKeys[k] {
+			continue
+		}
+		if key, ok := strings.CutPrefix(k, AttributePrefix); ok && key != "" {
+			if ev.Attributes == nil {
+				ev.Attributes = map[string]string{}
+			}
+			ev.Attributes[key] = v
 			continue
 		}
 		ev.Attrs[k] = v

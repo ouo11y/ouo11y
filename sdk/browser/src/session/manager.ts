@@ -43,6 +43,8 @@ export interface SessionRecord {
 interface UserRecord {
   id: string;
   anonymous: boolean;
+  /** The user's attribute set (`setUser({ attributes })`, docs/specs/attributes.md), validated by the caller. */
+  attrs?: Attrs;
 }
 
 export interface SessionEvent {
@@ -136,7 +138,7 @@ export class SessionManager {
         if (this.initialUserId) this.setUser(this.initialUserId);
         return;
       }
-      if (this.initialUserId) this.saveUser({ id: this.initialUserId, anonymous: false });
+      if (this.initialUserId) this.saveUser(this.identified(this.initialUserId));
       if (reason) {
         this.rotate(persisted, reason, now);
         return;
@@ -144,7 +146,7 @@ export class SessionManager {
       // Ended by another tab earlier; the end event was already emitted there.
       this.lastEnded = persisted;
     } else if (this.initialUserId) {
-      this.saveUser({ id: this.initialUserId, anonymous: false });
+      this.saveUser(this.identified(this.initialUserId));
     }
     this.create(now);
   }
@@ -170,15 +172,23 @@ export class SessionManager {
     return this.user.anonymous;
   }
 
+  /** The user's attribute set; empty for an anonymous user. */
+  userAttributes(): Attrs {
+    return this.user.attrs ?? {};
+  }
+
   /**
    * Identifies the user. From one identified user to another the session rotates (`user_change`):
    * the `session.end` carries the previous user, the new session the new one. From anonymous to
-   * identified (a login during the visit) the session continues with the new user.
+   * identified (a login during the visit) the session continues with the new user. `attrs`
+   * replaces the user's attribute set; without it the same user keeps the set, another starts empty.
    */
-  setUser(id: string): void {
-    if (!id || (id === this.user.id && !this.user.anonymous)) return;
-    const next: UserRecord = { id, anonymous: false };
-    if (this.user.anonymous) this.saveUser(next);
+  setUser(id: string, attrs?: Attrs): void {
+    if (!id) return;
+    const next = this.identified(id, attrs);
+    if (id === this.user.id && !this.user.anonymous) {
+      if (attrs) this.saveUser(next);
+    } else if (this.user.anonymous) this.saveUser(next);
     else this.switchUser(next);
   }
 
@@ -358,6 +368,12 @@ export class SessionManager {
     this.rotate(rec, "user_change", this.clock.now(), () => this.saveUser(next));
   }
 
+  /** An identified user record; the current user's attributes stay when it is the same id and `attrs` is undefined. */
+  private identified(id: string, attrs?: Attrs): UserRecord {
+    const keep = attrs ?? (id === this.user?.id ? this.user.attrs : undefined);
+    return keep ? { id, anonymous: false, attrs: keep } : { id, anonymous: false };
+  }
+
   private saveUser(user: UserRecord): void {
     this.user = user;
     this.storage.set(USER_STORAGE_KEY, JSON.stringify(user));
@@ -489,9 +505,10 @@ export class SessionManager {
    */
   private loadUser(): UserRecord {
     const p = parse<UserRecord>(this.storage.get(USER_STORAGE_KEY));
-    const persisted = p && typeof p.id === "string" ? { id: p.id, anonymous: p.anonymous !== false } : null;
+    const persisted: UserRecord | null = p && typeof p.id === "string" ? { id: p.id, anonymous: p.anonymous !== false } : null;
+    if (persisted && p!.attrs && typeof p!.attrs === "object") persisted.attrs = p!.attrs;
     if (this.initialUserId && (!persisted || persisted.anonymous)) {
-      const user = { id: this.initialUserId, anonymous: false };
+      const user = this.identified(this.initialUserId);
       this.storage.set(USER_STORAGE_KEY, JSON.stringify(user));
       return user;
     }

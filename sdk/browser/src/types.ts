@@ -164,6 +164,12 @@ export interface TransportOptions {
 
 export interface UserOptions {
   id: string;
+  /**
+   * The user's attributes (tenant, plan), sent as `ouo.attr.<key>` on every later span and event
+   * and kept on the session record. Replaces the user's set; omitted, the same user keeps it.
+   * Same rules as `setAttributes`.
+   */
+  attributes?: Attrs;
 }
 
 export interface RUMOptions {
@@ -224,8 +230,20 @@ export interface RUM {
    * to another ends it (`user_change`) and starts a new one.
    */
   setUser(user: UserOptions): void;
-  /** Logout: back to a fresh anonymous user id, in a new session (`user_change`). */
+  /** Logout: back to a fresh anonymous user id, in a new session (`user_change`). Empties the user's attributes. */
   clearUser(): void;
+  /**
+   * Add or change attributes of every later span and event (`ouo.attr.<key>`), kept on the session
+   * record and filterable in the plugin (`attr.<key>=<value>`). For a few low-cardinality facts the
+   * app owns (tenant, plan, cohort). They are app-controlled and may be personal data: never put
+   * names, e-mails or free text in them. Keys: a letter, then letters, digits and `_`, at most 40;
+   * values: string (cut to 128 characters), finite number or boolean; at most 20 keys with the
+   * user's. Invalid entries are dropped (logged with `debug`). They live for the page: set them at
+   * start. docs/specs/attributes.md.
+   */
+  setAttributes(attributes: Attrs): void;
+  /** Remove an attribute set with `setAttributes` or `setUser`. */
+  removeAttribute(key: string): void;
   /** End the session now (`manual`); the next activity starts a new one. */
   endSession(): void;
   /** Report a handled, non-fatal exception. */

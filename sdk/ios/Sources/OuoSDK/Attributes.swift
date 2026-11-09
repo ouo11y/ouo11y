@@ -48,6 +48,31 @@ extension AttributeValue: ExpressibleByStringLiteral, ExpressibleByIntegerLitera
     init(booleanLiteral value: Bool) { self = .bool(value) }
 }
 
+/// As persisted (`session.json`, the user's attribute set): one key naming the type, so 3 and 3.0
+/// stay an int and a double.
+extension AttributeValue: Codable {
+    private enum CodingKeys: String, CodingKey { case s, i, d, b }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let v = try c.decodeIfPresent(String.self, forKey: .s) { self = .string(v) }
+        else if let v = try c.decodeIfPresent(Int64.self, forKey: .i) { self = .int(v) }
+        else if let v = try c.decodeIfPresent(Double.self, forKey: .d) { self = .double(v) }
+        else if let v = try c.decodeIfPresent(Bool.self, forKey: .b) { self = .bool(v) }
+        else { throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "no attribute value")) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .string(let v): try c.encode(v, forKey: .s)
+        case .int(let v): try c.encode(v, forKey: .i)
+        case .double(let v): try c.encode(v, forKey: .d)
+        case .bool(let v): try c.encode(v, forKey: .b)
+        }
+    }
+}
+
 typealias Attributes = [String: AttributeValue]
 
 extension Dictionary where Key == String, Value == AttributeValue {

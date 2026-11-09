@@ -16,12 +16,15 @@ interface Props {
 export function VersionTable({ buckets, sessionsHref }: Props) {
   const styles = useStyles2(getStyles);
   const colors = useStyles2(healthColors);
+  // OTA bundles (React Native): one row per version × bundle; the column shows only when one has a bundle.
+  const bundles = buckets.some((b) => b.bundle_id);
   return (
     <table className={styles.table} data-testid="version-table">
       <thead>
         <tr>
           <th>Service</th>
           <th>Version</th>
+          {bundles && <th>Bundle</th>}
           <th className={styles.num}>Total</th>
           <th className={styles.num}>Healthy</th>
           <th className={styles.num}>Errored</th>
@@ -31,7 +34,7 @@ export function VersionTable({ buckets, sessionsHref }: Props) {
       </thead>
       <tbody>
         {buckets.map((b) => (
-          <tr key={`${b.platform}|${b.service_name}|${b.service_version}`}>
+          <tr key={`${b.platform}|${b.service_name}|${b.service_version}|${b.bundle_id ?? ''}`}>
             <td>
               <Link className={styles.link} to={sessionsHref(b)}>
                 {b.service_name || '–'}
@@ -42,6 +45,17 @@ export function VersionTable({ buckets, sessionsHref }: Props) {
                 {b.service_version || '–'}
               </Link>
             </td>
+            {bundles && (
+              <td data-testid="version-table-bundle">
+                {b.bundle_id ? (
+                  <Link className={styles.link} to={sessionsHref(b)}>
+                    <code>{b.bundle_id}</code>
+                  </Link>
+                ) : (
+                  <span className={styles.pct}>embedded / none</span>
+                )}
+              </td>
+            )}
             <td className={styles.num}>{b.total}</td>
             <td className={styles.num}>
               {b.healthy} <span className={styles.pct}>({formatPct(b.healthy_pct)})</span>

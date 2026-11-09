@@ -282,7 +282,8 @@ const rum: RUM = initRUM({
   service: { name: "mobile-store", version: "2.3.0", environment: "local" },
   tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
   session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
-  user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
+  user: { id: "user-1", attributes: { tenant: "acme" } }, // optional, otherwise an anonymous persisted id
+  bundle: { id: HotUpdater.getBundleId(), channel: "production" }, // optional OTA bundle (ouo.app.bundle.*)
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
   errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000, forwardSentryErrors: undefined },
@@ -292,7 +293,9 @@ const rum: RUM = initRUM({
   debug: false,
 });
 
-rum.setUser({ id: "user-1" });
+rum.setUser({ id: "user-1", attributes: { plan: "pro" } }); // the user's attributes (ouo.attr.*), persisted
+rum.setAttributes({ cohort: "b" }); rum.removeAttribute("cohort"); // the app's attributes
+rum.setBundle({ id: label });                   // OTA bundle known after init (CodePush)
 rum.captureError(err, { screen: "Cart" });      // exception, fatal=false, handled=true
 rum.addEvent("cart.added", { "product.id": "p-1" });
 rum.trackNavigation("/Cart");                   // navigation event + activity
@@ -309,6 +312,53 @@ await rum.flush();                              // force export of spans and log
 ```
 
 `initRUM` returns the same instance on repeated calls; `getRUM()` returns it from anywhere.
+
+## User and session attributes
+
+```ts
+rum.setUser({ id: "user-42", attributes: { tenant: "acme", plan: "pro" } }); // the user's set
+rum.setAttributes({ cohort: "checkout-b", beta: true });                      // the app's set
+rum.removeAttribute("cohort");
+```
+
+Every later span and event carries each attribute as `ouo.attr.<key>` (`ouo.attr.tenant=acme`).
+rum-api keeps the latest value of each key on the session record, the Sessions page filters by
+them (`attr.tenant=acme`) and the session page lists them ([spec](../../docs/specs/attributes.md)).
+
+- For a few low-cardinality facts the app owns: tenant, plan, cohort, A/B arm. **They are
+  app-controlled and may contain personal data**: the SDK sends what the app passes, so never put
+  names, e-mail addresses or free text in them.
+- Keys: a letter, then letters, digits and `_`, at most 40 characters (no dots: Loki would
+  rewrite them). Values: string (cut to 128 characters), finite number or boolean. At most 20 keys
+  in both sets together. Anything else is dropped (logged with `debug: true`); the calls never throw.
+- The user's set (`setUser({ attributes })`, or `user.attributes` in the options, which then
+  reaches `session.start`) is persisted with `user.id`: `attributes` replaces it, a `setUser`
+  without them keeps it for the same user (across launches too) and empties it for another.
+- The app's set lives for the launch: call `setAttributes` at start. It wins over the user's set on
+  the same key.
+- Records about a previous run (its crash, its `session.end`, emitted at this launch) are not
+  stamped with this run's attributes.
+- They are structured metadata in Loki, never index labels (one stream per tenant would explode
+  cardinality).
+
+## OTA bundle id
+
+```ts
+// hot-updater
+initRUM({ ..., bundle: { id: HotUpdater.getBundleId(), channel: HotUpdater.getChannel() } });
+// expo-updates (updateId is null for the embedded bundle)
+initRUM({ ..., bundle: { id: Updates.updateId ?? "embedded", channel: Updates.channel ?? undefined } });
+// CodePush answers asynchronously: set it once known
+codePush.getUpdateMetadata().then((m) => rum.setBundle({ id: m?.label ?? "embedded" }));
+```
+
+An over-the-air update changes the JavaScript without changing `service.version`. `bundle` puts
+`ouo.app.bundle.id` (1 to 128 characters) and `ouo.app.bundle.channel` (optional, 1 to 64) on the
+resource next to `service.version` and on every span and event; `rum.setBundle` stamps every later
+span and event (`setBundle(undefined)` clears it). The SDK depends on no OTA library. rum-api keeps
+the session's first bundle (`bundle_id`), the Sessions page filters by it and the Overview shows
+health per version × bundle. Source maps for each OTA bundle are found by Hermes debug id, not by
+this id ([docs/sourcemaps.md](../../docs/sourcemaps.md) "OTA updates").
 
 ## Sessions (mobile rules)
 

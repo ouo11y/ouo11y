@@ -36,6 +36,14 @@ export interface SessionRecord {
   app_start_ms?: number;
   /** rum-api after 0.3.0: `cold` or `warm`; absent when the session has no `ouo.app.start`. */
   app_start_type?: AppStartType | string;
+  /** rum-api after 0.3.1: the OTA bundle (React Native `bundle` / `setBundle`); absent without one. */
+  bundle_id?: string;
+  bundle_channel?: string;
+  /**
+   * rum-api after 0.3.1: the app's `ouo.attr.*` attributes (setUser attributes, setAttributes), the
+   * latest value of each key; absent without any (docs/specs/attributes.md).
+   */
+  attributes?: Record<string, string>;
 }
 
 export interface SessionsResponse {
@@ -208,6 +216,8 @@ export interface HealthBucket {
   healthy_pct: number;
   errored_pct: number;
   crashed_pct: number;
+  /** rum-api after 0.3.1: the OTA bundle of the bucket; "" or absent for sessions without one. */
+  bundle_id?: string;
 }
 
 export interface HealthResponse {
@@ -357,6 +367,10 @@ export interface SessionFilters {
   user?: string;
   service?: string;
   limit?: number;
+  /** OTA bundle id (`bundle_id`). */
+  bundle?: string;
+  /** `attr.<key>=<value>`: sessions whose record has that attribute value (all must match). */
+  [attr: `attr.${string}`]: string | undefined;
 }
 
 /** A funnel step (docs/specs/funnels.md): a page path (exact or prefix) or a custom event name. */
