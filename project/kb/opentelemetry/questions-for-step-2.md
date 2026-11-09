@@ -9,7 +9,7 @@ Existing conventions at semantic-conventions v1.45.0, all **Development**: `brow
 1. Which values are resource and which are record attributes? In particular, what is `service.instance.id` for a browser tab, if anything, given that Loki indexes it by default?
 2. Where does `session.id` live? As a resource attribute it can only change with a new SDK resource; as a record attribute it is repeated on each record.
 3. Do we follow Development conventions as written, or use `ouo.` names where they are not settled? What is the plan for when they change?
-4. How do we keep `event_name` on Loki: a Collector copy into an attribute, or a backend change?
+4. How do we keep the `EventName` field on Loki? 3.7.x does not store it, so it needs a Collector copy into an attribute. 4.0 stores it as structured metadata, so the copy is only a stopgap there. Which Loki version do we target?
 5. How do we handle device clock skew? Validate, correct, or both, and where (SDK or edge)?
 
 ## Web vitals

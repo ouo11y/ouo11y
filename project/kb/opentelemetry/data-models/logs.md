@@ -103,4 +103,6 @@ Practical effect for ouo: emit events as logs, not span events. Details that nee
 
 ## Gotcha: `event_name` on native Loki OTLP
 
-**Loki 3.7.9 drops `event_name` on its native OTLP endpoint.** `otlp.go` never reads it, and a test record sent with `eventName` came back with no such field (tested). Since this field is what makes a record an Event, our main discriminator disappears unless something copies it to an attribute first. VictoriaLogs keeps it, and makes it a stream field (source).
+**Loki 3.7.x has no mapping for the OTLP `EventName` field, so it isn't stored; attributes are unaffected.** On 3.7.9 `otlp.go` never reads the field, and a test record sent with `eventName` came back with no such field (tested). An attribute named `event_name` is kept. Since this field is what makes a record an Event, on 3.7.x something must copy it to an attribute first, for example in the Collector.
+
+**Loki 4.0 (release candidates so far) stores it as `event_name` structured metadata**, and the field wins over a log attribute of the same name (`pkg/loghttp/push/otlplabels/labels.go` at v4.0.0-rc.3, source only, not run). On 4.0 the Collector copy is only a stopgap. Structured metadata is not an index label, so filtering on it is slower than on a stream label. VictoriaLogs keeps it, and makes it a stream field (source).

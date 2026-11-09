@@ -93,7 +93,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 <p><strong>An Event is just a log record with a name.</strong> There is no separate event signal. The name promises a known shape for attributes and body.</p>
 <p><strong>Span events are going the same way.</strong> OTEP 4430 plans to deprecate the Span Event API and move instrumentation to log-based events, while the data shape stays in the proto. At spec v1.62.0 this is still a plan: <code>AddEvent</code> is not yet marked Deprecated, but the semantic conventions already recommend exceptions as logs.</p>
 <div class="note"><p><strong>Tested on Loki 3.7.9's native OTLP endpoint:</strong></p>
-<p><code>event_name</code> is <strong>dropped</strong>. The field that defines an Event does not reach storage unless something copies it first.</p>
+<p>Loki 3.7.x has <strong>no mapping for the <code>EventName</code> field</strong>, so it isn't stored unless something copies it to an attribute first. Attributes are unaffected. Loki 4.0 (release candidates so far; source read, not run) stores it as <code>event_name</code> structured metadata.</p>
 <p>A bytes body comes back as a <strong>base64 string</strong>, 4/3 the size. Bodies over 256 KB are rejected. Both matter for replay chunks.</p></div>
 
 <h2 id="traces">Traces</h2>
@@ -182,7 +182,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 
 <h2 id="back">How backends store them</h2>
 <div class="tbl"><table><tr><th>Backend</th><th>Resource attributes</th><th>Worth knowing</th></tr>
-<tr><td>Loki 3.7.9</td><td>18 listed ones become labels, including <code>service.instance.id</code>. The rest are structured metadata.</td><td>Drops <code>event_name</code>. Every body becomes a string. Trace ids are metadata.</td></tr>
+<tr><td>Loki 3.7.9</td><td>18 listed ones become labels, including <code>service.instance.id</code>. The rest are structured metadata.</td><td>Does not store the <code>EventName</code> field (4.0 release candidates do, as structured metadata). Every body becomes a string. Trace ids are metadata.</td></tr>
 <tr><td>Tempo 3.1.1</td><td>Stored per span in Parquet.</td><td>Events and links are queryable. Attributes over 2 KB are truncated. 5 MB per trace.</td></tr>
 <tr><td>Mimir 3.2.4</td><td>On <code>target_info</code> unless promoted.</td><td>Delta rejected by default. Exemplars off by default.</td></tr>
 <tr><td>VictoriaLogs 1.53</td><td><strong>All</strong> are stream fields by default.</td><td>Keeps <code>event_name</code> as a stream field. 2 MB per record.</td></tr>
@@ -211,7 +211,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 <li>Where do trace boundaries sit in a session, and what happens to open spans at <code>pagehide</code>?</li>
 <li>Errors: logs, span status or both, given metadata limits on stack traces?</li>
 <li>Replays: bytes in the body, or a reference to object storage?</li>
-<li>How do we keep <code>event_name</code> on Loki, and how do we handle device clock skew?</li>
+<li>How do we keep the <code>EventName</code> field on Loki 3.7.x, and how do we handle device clock skew?</li>
 </ul>
 <footer>Agent: otel-data-models. Reproduce the measurements with the scripts in this agent's folder.</footer>
 </main>

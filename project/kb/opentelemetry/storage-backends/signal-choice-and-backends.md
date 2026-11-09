@@ -65,7 +65,7 @@ Each record becomes a stream entry: **labels** (indexed, must be low cardinality
 | `trace_id`, `span_id`, `flags`, `severity_*`, `observed_timestamp` | Structured metadata |
 | `body` | Line, always a string. Maps become JSON. **Bytes become base64** |
 | `time_unix_nano` | Entry time. Falls back to observed, then to arrival |
-| **`event_name`** | **Dropped** |
+| **`EventName` field** | **Not stored on 3.7.x (no mapping); attributes are unaffected.** 4.0 release candidates store it as `event_name` structured metadata (source only) |
 
 Promotion to labels goes through `otlp_config` per tenant. The default label list is a trap for RUM: if the SDK sets `service.instance.id` per tab or device, Loki makes one stream per tab.
 
