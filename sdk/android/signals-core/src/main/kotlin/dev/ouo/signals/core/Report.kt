@@ -25,8 +25,10 @@ data class JvmFrame(val module: String, val function: String, val filename: Stri
 /**
  * The native report the React Native SDK reads (`sdk/react-native/src/crash.ts`, the format of
  * `project/kb/ios-native-crashes.md`), for the Android mechanisms: `jvm` (an uncaught Java or Kotlin
- * exception), `hang` (the main thread stopped answering for 2 s or more) and `termination` (the
- * previous run was killed in the foreground without a crash report). Frames are JVM frames.
+ * exception), `signal` (an NDK crash read from the next launch's tombstone, [Tombstone]), `hang`
+ * (the main thread stopped answering for 2 s or more) and `termination` (the previous run was
+ * killed in the foreground without a crash report). Frames are JVM frames, or for `signal` the
+ * [nativeFrames] with their [images].
  */
 data class Report(
   val mechanism: String,
@@ -40,6 +42,16 @@ data class Report(
   val hangDurationMs: Long? = null,
   val hangFullyBlocking: Boolean? = null,
   val terminationCause: String? = null,
+  val arch: String? = null,
+  val pid: Int? = null,
+  val threadName: String? = null,
+  val signal: NativeSignal? = null,
+  /** `signal`: the message the process set before it aborted (`android_set_abort_message`, a failed `CHECK`, Hermes' fatal errors). */
+  val abortMessage: String? = null,
+  /** `signal`: debuggerd's diagnosis of the fault (`null pointer dereference`, ...). */
+  val cause: String? = null,
+  val nativeFrames: List<NativeFrame> = emptyList(),
+  val images: List<NativeImage> = emptyList(),
 ) {
   fun toJson(): String {
     val o = JSONObject()
@@ -48,11 +60,21 @@ data class Report(
       .put("mechanism", mechanism)
       .put("timestamp_ms", timestampMs)
       .put("session_id", sessionId)
-      .put("frames", JSONArray(frames.map { it.toJson() }))
-      .put("images", JSONArray())
+      .put("frames", JSONArray(if (nativeFrames.isNotEmpty()) nativeFrames.map { it.toJson() } else frames.map { it.toJson() }))
+      .put("images", JSONArray(images.map { it.toJson() }))
     if (sessionStartedMs != null && sessionStartedMs > 0) o.put("session_started_ms", sessionStartedMs)
     if (exceptionName != null) o.put("exception", JSONObject().put("name", exceptionName).put("reason", exceptionReason ?: ""))
-    if (mainThread != null) o.put("thread", JSONObject().put("main", mainThread))
+    if (mainThread != null || threadName != null) {
+      val t = JSONObject()
+      if (mainThread != null) t.put("main", mainThread)
+      if (threadName != null) t.put("name", threadName)
+      o.put("thread", t)
+    }
+    if (arch != null) o.put("arch", arch)
+    if (pid != null) o.put("pid", pid)
+    if (signal != null) o.put("signal", signal.toJson())
+    if (abortMessage != null) o.put("abort_message", abortMessage)
+    if (cause != null) o.put("cause", cause)
     if (hangDurationMs != null) o.put("hang", JSONObject().put("duration_ms", hangDurationMs).put("fully_blocking", hangFullyBlocking == true))
     if (terminationCause != null) o.put("termination", JSONObject().put("cause", terminationCause))
     return o.toString()

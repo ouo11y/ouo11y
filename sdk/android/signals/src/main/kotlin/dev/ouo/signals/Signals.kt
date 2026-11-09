@@ -3,6 +3,7 @@ package dev.ouo.signals
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
+import android.app.ApplicationExitInfo
 import android.app.ApplicationStartInfo
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -23,10 +24,15 @@ import dev.ouo.signals.core.Exit
 import dev.ouo.signals.core.FrameCounter
 import dev.ouo.signals.core.HangDetector
 import dev.ouo.signals.core.JvmFrame
+import dev.ouo.signals.core.NativeCrash
 import dev.ouo.signals.core.Report
 import dev.ouo.signals.core.RunState
 import dev.ouo.signals.core.Termination
+import dev.ouo.signals.core.Tombstone
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.zip.GZIPInputStream
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.Executors
@@ -34,7 +40,8 @@ import java.util.concurrent.Executors
 /**
  * The native signals of the mobile SDK spec on Android, the twin of the Swift `OuoCrash` and
  * `OuoVitals` (docs/specs/mobile-sdk.md C2, C3, C4): uncaught Java and Kotlin exceptions written as
- * a report at crash time (C2), main-thread hangs reported when they end (C3.1), foreground
+ * a report at crash time (C2), NDK (C/C++) crashes read from the tombstone `ApplicationExitInfo`
+ * keeps for the next launch (C2, Android 12+), main-thread hangs reported when they end (C3.1), foreground
  * terminations judged at the next launch from `ApplicationExitInfo` (C3.2), slow and frozen frames
  * from `FrameMetrics` per window, and the app start (C4). Reports use the format the React Native
  * SDK reads (`sdk/react-native/src/crash.ts`); the native Android package will register the same
@@ -91,7 +98,17 @@ object Signals {
     val crash = runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()
     crashFile.delete()
     val previous = RunState.parse(runCatching { File(dir, RUN).readText() }.getOrNull())
-    pending = crash ?: Termination.decide(previous, lastExit(previous?.pid), crashReported = false)?.toJson()
+    val info = lastExitInfo(previous?.pid)
+    val exit = if (info != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Exit(info.pid, info.reason, info.importance, info.status, info.timestamp) else null
+    // One exit, one record: a JVM crash report wins, then the NDK crash from the tombstone, then the termination rule.
+    // Guarded as a whole: init runs at every launch while the system keeps that exit record, so a
+    // failure here must fall back to the termination rule, never crash the app.
+    val native = if (crash == null) {
+      runCatching { NativeCrash.decide(previous, exit, tombstone(info), crashReported = false)?.toJson() }
+        .onFailure { Log.w(TAG, "[signals] native crash report failed: $it") }
+        .getOrNull()
+    } else null
+    pending = crash ?: native ?: Termination.decide(previous, exit, crashReported = native != null)?.toJson()
     updateRun { RunState(Process.myPid()) }
     foreground = isVisible(app)
     app.registerActivityLifecycleCallbacks(lifecycle)
@@ -194,14 +211,38 @@ object Signals {
       state
     }
 
-  private fun lastExit(pid: Int?): Exit? {
+  private fun lastExitInfo(pid: Int?): ApplicationExitInfo? {
     if (pid == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
     return runCatching {
       val am = app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-      am.getHistoricalProcessExitReasons(app.packageName, pid, 1).firstOrNull()?.let {
-        Exit(it.pid, it.reason, it.importance, it.status, it.timestamp)
-      }
+      am.getHistoricalProcessExitReasons(app.packageName, pid, 1).firstOrNull()
     }.getOrNull()
+  }
+
+  /**
+   * The tombstone of a native crash exit (Android 12+: a protobuf, project/kb/android-ndk-tombstones.md),
+   * at most [Tombstone.MAX_BYTES]; null for any other exit, before Android 12, or when the system kept none.
+   */
+  private fun tombstone(info: ApplicationExitInfo?): ByteArray? {
+    if (info == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S || info.reason != ApplicationExitInfo.REASON_CRASH_NATIVE) return null
+    return runCatching {
+      info.traceInputStream?.use { raw ->
+        val input = BufferedInputStream(raw)
+        // Read as the system stores it; a gzip stream (some builds compress traces) is unpacked.
+        input.mark(2)
+        val gzip = input.read() == 0x1f && input.read() == 0x8b
+        input.reset()
+        val stream = if (gzip) GZIPInputStream(input) else input
+        val out = ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (out.size() < Tombstone.MAX_BYTES) {
+          val n = stream.read(buf, 0, minOf(buf.size, Tombstone.MAX_BYTES - out.size()))
+          if (n < 0) break
+          out.write(buf, 0, n)
+        }
+        out.toByteArray()
+      }
+    }.onFailure { Log.w(TAG, "[signals] tombstone unreadable: $it") }.getOrNull()
   }
 
   private val memory = object : ComponentCallbacks2 {

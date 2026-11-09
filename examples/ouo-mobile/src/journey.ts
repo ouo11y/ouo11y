@@ -17,6 +17,7 @@
 //   action/golden                a request inside rum.withSpan("golden.checkout"), then a log line
 //   action/areas                 notes the window rectangles of the views the replay must mask
 //   action/crash                 a native crash (Android: an exception on the main thread)
+//   action/crash-ndk?abort=1     Android: an NDK crash in C code on the JS thread (SIGSEGV, or abort() with a message)
 //   action/event?name=...        rum.addEvent(name)
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
 //
@@ -114,6 +115,10 @@ async function run(cmd: string): Promise<void> {
       case "crash":
         note("crash");
         chaos?.crashNatively?.();
+        break;
+      case "crash-ndk":
+        note("crash", { crash: "ndk" });
+        chaos?.crashInNativeCode?.(params.get("abort") === "1");
         break;
     }
   } catch {

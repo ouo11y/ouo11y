@@ -83,8 +83,9 @@ object Termination {
    *
    * A termination is a death while the app was in the foreground (importance foreground or visible,
    * nothing else: a foreground service of a backgrounded app is 125) that no handler saw: the
-   * low-memory killer (`memory`), an ANR (`watchdog`), excessive resource use (`cpu`), an NDK crash,
-   * which ouo does not capture (`unknown`), and a `SIGKILL` (`memory` after a memory warning in the
+   * low-memory killer (`memory`), an ANR (`watchdog`), excessive resource use (`cpu`), an NDK crash
+   * without a readable tombstone (`unknown`: Android 11, or no tombstone written; with one,
+   * [NativeCrash.decide] reports the crash and [crashReported] is true), and a `SIGKILL` (`memory` after a memory warning in the
    * last minute, `watchdog` during a hang, else `unknown`). A user's force stop or swipe, `exit()`, a
    * package update, a permission change and any death in the background are not.
    */
