@@ -1,6 +1,6 @@
 # OTLP: how telemetry travels
 
-Source: `docs/specification.md` in opentelemetry-proto v1.11.1. Status: Stable for traces, metrics and logs. Versions and evidence labels are in [otel-common-model.md](otel-common-model.md).
+Source: `docs/specification.md` in opentelemetry-proto v1.11.1. Status: Stable for traces, metrics and logs. Versions and evidence labels are in [common-model.md](../data-models/common-model.md).
 
 ## Shape
 
@@ -72,6 +72,6 @@ Collector default batch is `send_batch_size` 8192, `timeout` 200 ms. SDK default
 
 ## Why this matters for an SDK
 
-- Batching is worth more than any encoding choice (measured in [otel-signal-choice-and-backends.md](otel-signal-choice-and-backends.md)).
+- Batching is worth more than any encoding choice (measured in [signal-choice-and-backends.md](../storage-backends/signal-choice-and-backends.md)).
 - Retry only on the listed codes.
 - Record every drop, because the protocol asks for it and nothing else will tell us.

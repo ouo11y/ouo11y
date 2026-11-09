@@ -20,7 +20,7 @@ How each claim in these files was checked:
 
 - **spec** or **proto**: read in the text at the version above.
 - **source**: read in the backend's or Collector's code or bundled docs. Not run.
-- **tested**: run against a real container. Method in the [agent summary](../agents/otel-data-models/summaries/2026-11-09-step1-otel-data-models.md).
+- **tested**: run against a real container. Method in the [agent summary](../../../agents/otel-data-models/summaries/2026-11-09-step1-otel-data-models.md).
 
 ## The envelope: Resource, then Scope, then record
 
@@ -44,7 +44,7 @@ Export<Signal>ServiceRequest
 | `Resource*` wrapper | `resource` (1), `scope_*` (2), `schema_url` (3) | Stable |
 | `Scope*` wrapper | `scope` (1), records (2), `schema_url` (3) | Stable |
 
-**Resource** says what is emitting. It should be the same for every record from that source. A value that changes from one record to the next belongs in record attributes. Resource data is also what backends most readily turn into indexes and labels, so it has a large effect on storage cost (see [backends](otel-signal-choice-and-backends.md)).
+**Resource** says what is emitting. It should be the same for every record from that source. A value that changes from one record to the next belongs in record attributes. Resource data is also what backends most readily turn into indexes and labels, so it has a large effect on storage cost (see [backends](../storage-backends/signal-choice-and-backends.md)).
 
 **Instrumentation scope** names the code that produced the data, such as `ouo.web` version `0.3.0`. It is not the application.
 
@@ -59,7 +59,7 @@ Export<Signal>ServiceRequest
 - `KeyValue` is a `key` (1) plus a `value` (2). Field 3, `key_strindex`, is profiling only.
 - Keys within an attribute collection or map MUST be unique. Receivers can behave unpredictably on duplicates.
 
-Attribute values accept the full `AnyValue` set, including maps and byte arrays, not only primitives (spec common/README). Do not assume a backend preserves those types. See [backends](otel-signal-choice-and-backends.md).
+Attribute values accept the full `AnyValue` set, including maps and byte arrays, not only primitives (spec common/README). Do not assume a backend preserves those types. See [backends](../storage-backends/signal-choice-and-backends.md).
 
 ### Attribute limits
 
@@ -124,7 +124,7 @@ Neither the spec nor the protocol has any concept of skew; the word does not app
 
 Only logs have a second timestamp, and for SDK-emitted logs it is normally set from the same clock at the same moment, so it does not help unless something later overwrites it. Spans and metrics have no second time at all.
 
-Backends do enforce windows, and the result is **lost data**, not a skewed chart (tested on Loki, see [backends](otel-signal-choice-and-backends.md)). Any correction has to be designed by us: for example, have the SDK or the edge compare the device clock with server time and adjust. That is a Step 3 question.
+Backends do enforce windows, and the result is **lost data**, not a skewed chart (tested on Loki, see [backends](../storage-backends/signal-choice-and-backends.md)). Any correction has to be designed by us: for example, have the SDK or the edge compare the device clock with server time and adjust. That is a Step 3 question.
 
 ## Stability, short version
 
@@ -143,4 +143,4 @@ The wire format is safe to build on. The names we would use for browser telemetr
 
 ## Related
 
-[otlp-protocol.md](otlp-protocol.md), [otel-logs-model.md](otel-logs-model.md), [otel-traces-model.md](otel-traces-model.md), [otel-metrics-model.md](otel-metrics-model.md)
+[otlp.md](../wire-protocol/otlp.md), [logs.md](logs.md), [traces.md](traces.md), [metrics.md](metrics.md)

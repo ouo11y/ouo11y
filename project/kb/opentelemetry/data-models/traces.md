@@ -1,6 +1,6 @@
 # OpenTelemetry traces
 
-Sources: `specification/trace/api.md`, `trace/sdk.md` (Stable except where marked), `trace/v1/trace.proto`. Versions in [otel-common-model.md](otel-common-model.md).
+Sources: `specification/trace/api.md`, `trace/sdk.md` (Stable except where marked), `trace/v1/trace.proto`. Versions in [common-model.md](common-model.md).
 
 ## Wire shape
 

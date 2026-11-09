@@ -1,6 +1,6 @@
 # OpenTelemetry logs and events
 
-Sources: `specification/logs/data-model.md` (Stable), `logs/v1/logs.proto`, semantic-conventions `docs/general/events.md` (Development). Versions in [otel-common-model.md](otel-common-model.md).
+Sources: `specification/logs/data-model.md` (Stable), `logs/v1/logs.proto`, semantic-conventions `docs/general/events.md` (Development). Versions in [common-model.md](common-model.md).
 
 This is probably the most important model for ouo, because replay chunks and most RUM facts look set to be log records.
 
@@ -93,7 +93,7 @@ A `Span.Event` is a name, time and attributes inside its parent span. OTEP 4430 
 
 Practical effect for ouo: emit events as logs, not span events. Details that need no timestamp of their own go on the span as attributes.
 
-## Limits (see the [backends](otel-signal-choice-and-backends.md) file for the full picture)
+## Limits (see the [backends](../storage-backends/signal-choice-and-backends.md) file for the full picture)
 
 | Limit (Loki defaults) | Value | At the limit (tested) |
 |---|---|---|

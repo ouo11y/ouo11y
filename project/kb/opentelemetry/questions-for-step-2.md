@@ -1,6 +1,6 @@
 # Questions Step 1 hands to Step 2 (RUM semantic conventions)
 
-Step 1 explains the data models. These are the decisions it leaves open. Background is in [otel-signal-choice-and-backends.md](otel-signal-choice-and-backends.md).
+Step 1 explains the data models. These are the decisions it leaves open. Background is in [signal-choice-and-backends.md](storage-backends/signal-choice-and-backends.md).
 
 Existing conventions at semantic-conventions v1.45.0, all **Development**: `browser.web_vital` event; `session.id`, `session.previous_id`, `session.start` and `session.end` events; `app.screen.click`, `app.widget.click`, `app.crash`, `app.jank` events.
 

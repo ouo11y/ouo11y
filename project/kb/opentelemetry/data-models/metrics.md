@@ -1,6 +1,6 @@
 # OpenTelemetry metrics
 
-Sources: `specification/metrics/data-model.md` (Mixed), `metrics/api.md`, `metrics/sdk.md`, `metrics/v1/metrics.proto`. Versions in [otel-common-model.md](otel-common-model.md).
+Sources: `specification/metrics/data-model.md` (Mixed), `metrics/api.md`, `metrics/sdk.md`, `metrics/v1/metrics.proto`. Versions in [common-model.md](common-model.md).
 
 ## Two models: what you call and what is sent
 
@@ -79,7 +79,7 @@ Delta avoids the sender-side state, and survives a tab dying better, but does no
 - Mimir **rejects delta by default**; `otel_native_delta_ingestion` is experimental (source).
 - VictoriaMetrics stores delta as-is from v1.132 but says it works best with cumulative, and warns against dedup and downsampling on delta series (source).
 
-What fits short-lived clients is usually to not make the client a metrics writer: send events, and aggregate on the server into a small number of series with a server as the single writer. That has its own costs (see the [comparison](otel-signal-choice-and-backends.md)). The final decision is Step 2's.
+What fits short-lived clients is usually to not make the client a metrics writer: send events, and aggregate on the server into a small number of series with a server as the single writer. That has its own costs (see the [comparison](../storage-backends/signal-choice-and-backends.md)). The final decision is Step 2's.
 
 ## Exemplars
 

@@ -1,6 +1,6 @@
 # Log, span or metric: what each choice costs, and how backends store them
 
-Builds on the [common](otel-common-model.md), [logs](otel-logs-model.md), [traces](otel-traces-model.md) and [metrics](otel-metrics-model.md) entries. This describes the trade-offs. It does not decide RUM semantic conventions; Step 2 does, using [these questions](otel-step2-questions.md).
+Builds on the [common](../data-models/common-model.md), [logs](../data-models/logs.md), [traces](../data-models/traces.md) and [metrics](../data-models/metrics.md) entries. This describes the trade-offs. It does not decide RUM semantic conventions; Step 2 does, using [these questions](../questions-for-step-2.md).
 
 ## Which one is it
 
@@ -16,7 +16,7 @@ A span and an event overlap for anything with a duration that you know only afte
 
 ## Wire size, measured
 
-One API call with 6 attributes, 7 resource attributes and realistic random ids. Average bytes per record. Reproduce with [`wire_size.py`](../agents/otel-data-models/scripts/wire_size.py); a real Collector accepted each protobuf body, and its debug output showed the expected fields.
+One API call with 6 attributes, 7 resource attributes and realistic random ids. Average bytes per record. Reproduce with [`wire_size.py`](../../../agents/otel-data-models/scripts/wire_size.py); a real Collector accepted each protobuf body, and its debug output showed the expected fields.
 
 | Form | Alone in a request: protobuf / gzip / JSON gzip | In a batch of 50: protobuf / gzip / JSON gzip |
 |---|---|---|
@@ -79,7 +79,7 @@ So a device whose clock is more than 10 minutes ahead loses all its logs. Nothin
 
 Stores spans in Parquet blocks, and keeps events and links queryable: `event:name`, `event.foo`, `link:traceID`, `trace:duration`, `span:duration` (source docs). Common attributes can get dedicated columns.
 
-Limits are in the [traces entry](otel-traces-model.md). Also, attributes over 2048 bytes are truncated. Tempo can generate metrics from spans, with the 30 s lateness window noted there.
+Limits are in the [traces entry](../data-models/traces.md). Also, attributes over 2048 bytes are truncated. Tempo can generate metrics from spans, with the 30 s lateness window noted there.
 
 ### Mimir 3.2.4 (metrics)
 
