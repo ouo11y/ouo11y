@@ -2,7 +2,7 @@ import Foundation
 import OuoCrash
 import OuoReplayCore
 
-/// A report written by OuoCrash (project/kb/ios-native-crashes.md): a crash at crash time, a
+/// A report written by OuoCrash (project/kb-archive/ios-native-crashes.md): a crash at crash time, a
 /// `termination` built by the next launch, a `hang` when one is over. The same fields as
 /// `NativeCrashReport` in `@ouo11y/react-native`'s `crash.ts`, which this file ports.
 struct NativeReport: Codable, Equatable {

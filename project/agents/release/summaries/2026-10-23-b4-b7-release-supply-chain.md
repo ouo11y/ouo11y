@@ -2,7 +2,7 @@
 
 Batch 1 session "b1-release-supply-chain". Allowed paths: `.github/`, `docs/releasing.md`,
 the root and per-component CHANGELOGs, release config, `SECURITY.md`, `project/agents/release/`,
-`project/kb/`; version fields only in product code. Nothing was tagged, published or made
+`project/kb-archive/`; version fields only in product code. Nothing was tagged, published or made
 public; no secret was created.
 
 ## Done

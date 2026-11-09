@@ -11,7 +11,7 @@ data:
     {{- .Values.lgtm.bundled.tempo.configOverride | nindent 4 }}
     {{- else }}
     # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir
-    # (mirrors deploy/compose/tempo/config.yaml; see project/kb/collector-lgtm.md for the 3.x schema).
+    # (mirrors deploy/compose/tempo/config.yaml; see project/kb-archive/collector-lgtm.md for the 3.x schema).
     stream_over_http_enabled: true
 
     server:

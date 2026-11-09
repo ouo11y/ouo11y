@@ -10,7 +10,7 @@ before the first run (2026-10-23) and change only through a dated entry in secti
 - Results: one folder per run under
   [`project/reports/benchmarks/`](../project/reports/benchmarks/index.md), each with the raw
   JSON, the SDK configs used and a self-contained HTML report, plus a trend page across runs.
-- Method notes and quirks: [`project/kb/sdk-overhead-ios.md`](../project/kb/sdk-overhead-ios.md).
+- Method notes and quirks: [`project/kb-archive/sdk-overhead-ios.md`](../project/kb-archive/sdk-overhead-ios.md).
 - Workflow: [`.github/workflows/benchmark.yml`](../.github/workflows/benchmark.yml).
 
 ## 1. Fairness rules

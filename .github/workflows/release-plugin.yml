@@ -10,7 +10,7 @@
 #   GRAFANA_ROOT_URLS            (variable) comma separated Grafana root URLs allowed to load
 #                                           the private signature, e.g. https://grafana.example.com
 # Without the token the zip is unsigned and Grafana needs
-# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app. See project/kb/release-packaging.md.
+# GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app. See project/kb-archive/release-packaging.md.
 #
 # Dry run (no release, the zip is kept as a run artifact for 7 days):
 #   Actions > release-plugin > Run workflow with the tag to rehearse, or any pull request that

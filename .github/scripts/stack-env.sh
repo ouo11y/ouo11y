@@ -1,7 +1,7 @@
 #!/bin/sh
 # Prints the stack's URLs as KEY=value lines for $GITHUB_ENV, from the OUO_*_PORT host ports
 # (compose.yaml's defaults when unset). Each self-hosted runner has its own rootless dockerd and
-# its own port set in its .env (ouo11y-N: 20N00..20N91, project/kb/ci-runners.md), so stack jobs on two
+# its own port set in its .env (ouo11y-N: 20N00..20N91, project/kb-archive/ci-runners.md), so stack jobs on two
 # runners run at the same time. compose reads the same OUO_*_PORT variables; the scripts and the
 # example apps read these URLs.
 #   .github/scripts/stack-env.sh >> "$GITHUB_ENV"

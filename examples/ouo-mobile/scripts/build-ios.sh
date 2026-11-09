@@ -8,7 +8,7 @@
 # EXPO_PUBLIC_OUO_REPLAY_ENDPOINT, EXPO_PUBLIC_OUO_PROJECT_ID / _TOKEN, BACKEND_URL, APP_VERSION,
 # OUO_ENV, read from .env when present (copy .env.example), the shell wins. --env <name> points the
 # app at an ouo-env's published ports instead. Needs full Xcode and CocoaPods
-# (project/kb/xcode-setup.md); builds @ouo11y/react-native first when its dist/ is missing.
+# (project/kb-archive/xcode-setup.md); builds @ouo11y/react-native first when its dist/ is missing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP_DIR="$PWD"

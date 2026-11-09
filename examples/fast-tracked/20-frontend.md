@@ -70,7 +70,7 @@ Then, in **your** app, pick one of the two install methods.
 
 Option A, install from the folder. npm links the folder into `node_modules/@ouo11y/browser`.
 This is the same mechanism the demo app `examples/ouo-web` uses (an npm workspace link, see
-`project/kb/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
+`project/kb-archive/web-demo-storefront.md`), so any rebuild in `sdk/browser` is picked up by your app
 without reinstalling:
 
 ```bash
@@ -491,7 +491,7 @@ To see the other two statuses, from the demo's `/chaos` page: "Handled error"
 "Unhandled rejection" turns it `crashed`. In your own app: `throw new Error("boom")` in a
 click handler, then re-run the sessions curl and check `status`. Note that React 18
 development builds re-throw handler errors once more, so `vite dev` reports an uncaught
-error twice; the production build reports it once (`project/kb/web-demo-storefront.md`).
+error twice; the production build reports it once (`project/kb-archive/web-demo-storefront.md`).
 
 ## 7. Quick walk through the demo code (`examples/ouo-web/src`)
 
@@ -571,4 +571,4 @@ Where to look when you want to know what a signal contains.
   headers on both paths).
 - `logger.ts`, `version.ts`: the `[ouo]` debug logger and the SDK version string.
 
-More detail: `sdk/browser/README.md`, `project/kb/otel-browser-sdk.md`, `project/kb/rrweb-chunking.md`.
+More detail: `sdk/browser/README.md`, `project/kb-archive/otel-browser-sdk.md`, `project/kb-archive/rrweb-chunking.md`.

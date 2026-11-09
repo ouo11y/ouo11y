@@ -38,7 +38,7 @@ Batch 1 session `b1-plugin-bridge`. Branch `claude/b1-plugin-bridge`. Report:
 
 ## After #38 merged
 
-Merged main (conflicts in `project/kb/index.md` and the checklist, both sides kept). Checked #38's receiver on
+Merged main (conflicts in `project/kb-archive/index.md` and the checklist, both sides kept). Checked #38's receiver on
 its `selfhosted` golden capture: context in the header, `sentry.message` under Logs, crash stack. Added a
 "Previous session" link (`session.previous_id`) and hid `network_*` attrs in Logs. #38 names http client
 spans `GET` (method only); roots stay transaction names, and a bare `GET` root is handled like `HTTP GET`.

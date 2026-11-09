@@ -438,7 +438,7 @@ configs:
       # LOCAL USE ONLY. The demo token is public in this repository; never deploy this file.
       # One line per project. username = project id, password = project token, {SHA} hash.
       # Generate a line with   htpasswd -nbs PROJECT TOKEN
-      # Comment lines in this file must never contain a colon character (see project/kb/collector-components.md).
+      # Comment lines in this file must never contain a colon character (see project/kb-archive/collector-components.md).
       demo:{SHA}IUpHBAUPHvXoJmvv4inmF4cN96I=
       # internal = the platform's own telemetry (rum-api, demo backend), token pt_dev_internal_00000000000000,
       # so it has its own rate-limit buckets and never spends a client project's quota.
@@ -572,7 +572,7 @@ configs:
     content: |
       # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir.
       # Started with -config.expand-env=true (trace retention from compose.yaml).
-      # Only keys that exist in 3.0.x are used; see project/kb/collector-lgtm.md.
+      # Only keys that exist in 3.0.x are used; see project/kb-archive/collector-lgtm.md.
       # Grafana >= 11 streams search/trace results over gRPC on the HTTP port (h2c).
       stream_over_http_enabled: true
 

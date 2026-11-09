@@ -1,7 +1,7 @@
 # ouo11y
 
 *Open Unified Observability.* Say "oh-you-oh-eleven-why", or **"ouo"** for short; always written
-lowercase ([ADR-0009](docs/adr/0009-org-and-product-naming.md)).
+lowercase ([ADR-0009](docs/adr-archive/0009-org-and-product-naming.md)).
 
 OpenTelemetry-native Real User Monitoring. Browser and React Native SDKs emit sessions, errors,
 traces and (web) rrweb replay through an OpenTelemetry Collector into Loki, Tempo and Mimir;
@@ -74,6 +74,6 @@ Unit tests: `npm run -w sdk/browser test`, `npm run -w sdk/react-native test`,
 | `examples/quickstarts` | standalone apps run against the one-file stack, e.g. `tiny-shop` (Node API + React, one trace end to end) |
 | `tests/e2e` | the end-to-end scenario script; `mobile/`, the mobile SDK conformance suite ([spec](docs/specs/mobile-sdk.md)); `mobile-native/`, the native iOS suite |
 | `docs/` | user-facing docs: [MVP](docs/MVP.md), [vision](docs/VISION.md), [specs](docs/specs/), [ADRs](docs/adr/README.md), [operations](docs/operations/index.md), [releasing](docs/releasing.md) ([index](docs/index.md)) |
-| `project/` | how the project is run, not shipped: `agents/` (one folder per agent), `kb/` (knowledge base), `tracker/` ([checklist](project/tracker/checklist.md) and phase trackers), `reports/` (HTML verification reports) |
+| `project/` | how the project is run, not shipped: `agents/` (one folder per agent), `kb/` (knowledge base), `kb-archive/` (MVP-era knowledge base), `tracker/` ([checklist](project/tracker/checklist.md) and phase trackers), `reports/` (HTML verification reports) |
 
 Working in this repository: read `AGENTS.md` first.

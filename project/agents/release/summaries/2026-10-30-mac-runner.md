@@ -20,7 +20,7 @@ jobs when it is reached.
   on `macos-latest` (hours of simulator load; numbers need an idle machine). On the Mac it adds
   `/opt/homebrew/bin` to `PATH` for CocoaPods and shuts its simulator down at the end.
   `release-npm.yml` stays hosted (npm OIDC).
-- `project/kb/ci-runners.md`: a Mac runner section. `docs/releasing.md`: the minutes paragraph.
+- `project/kb-archive/ci-runners.md`: a Mac runner section. `docs/releasing.md`: the minutes paragraph.
 
 ## Verified
 

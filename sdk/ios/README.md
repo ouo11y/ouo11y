@@ -124,9 +124,9 @@ Rules worth knowing:
 | `OuoReplay` | UIKit | `OuoReplayConfig`, the `OuoReplay` entry point, `ScreenCapturer` (main thread: view walk + drawHierarchy into an 8-bit bitmap; capture queue: `FrameComposer`), `TouchObserver` (observing gesture recognizer), `ReplayRecorder` (main run-loop observer, keep-alive tick, one capture in flight, background/foreground, the serial capture queue). On macOS this target compiles to a stub that prints "iOS only" so `swift build` works with the Command Line Tools |
 | `OuoCrashCore` | C | Async-signal-safe native crash handlers: one JSON report written at crash time (frames, binary images, signal or exception), previous handlers chained |
 | `OuoVitalsCore` | C | Process start (`sysctl` `kp_proc.p_starttime`) and the image load time (a constructor before `main`, used for prewarmed launches) |
-| `OuoVitals` | UIKit (counters without it) | Mobile vitals (`docs/specs/mobile-vitals.md`): `beginRuntime(at:)` (cold or warm start), `startFrameTracking()` / `frameStats()` (`CADisplayLink`: total, slow, frozen, delay), `HangDetector` (app hang rules on the same frames) and `startHangTracking` (its watchdog thread). See `project/kb/ios-vitals.md` |
+| `OuoVitals` | UIKit (counters without it) | Mobile vitals (`docs/specs/mobile-vitals.md`): `beginRuntime(at:)` (cold or warm start), `startFrameTracking()` / `frameStats()` (`CADisplayLink`: total, slow, frozen, delay), `HangDetector` (app hang rules on the same frames) and `startHangTracking` (its watchdog thread). See `project/kb-archive/ios-vitals.md` |
 | `OuoSDK` | the four above | `Ouo.start` and the public API (Swift and `@objc`), `SessionManager` (session-lifecycle.md mobile rules, `session.json`), `Core` (records, error context, the timeline buffer), `Exporter` (OTLP/JSON batches into a `DiskQueue`), the `URLSession` hook, `Vitals`, the UIKit lifecycle, `PrivacyInfo.xcprivacy` |
-| `OuoCrash` | Foundation, `OuoVitals` | `OuoCrash.install()`, the uncaught `NSException` handler, `setSession(_:startedAtMs:)` (the session and its start go into the report), `takePendingReport()` (the host sends it on the next launch; the React Native SDK does): the crash report, else a `termination` report when the previous run was killed while active (`RunState`, `Termination`); `startHangTracking(onHang:)` (one `hang` report per app hang); `ErrorContext` (memory, network type). Tested on macOS by crashing `OuoCrashProbe` (`project/kb/ios-native-crashes.md`, `project/kb/ios-hangs-terminations.md`) |
+| `OuoCrash` | Foundation, `OuoVitals` | `OuoCrash.install()`, the uncaught `NSException` handler, `setSession(_:startedAtMs:)` (the session and its start go into the report), `takePendingReport()` (the host sends it on the next launch; the React Native SDK does): the crash report, else a `termination` report when the previous run was killed while active (`RunState`, `Termination`); `startHangTracking(onHang:)` (one `hang` report per app hang); `ErrorContext` (memory, network type). Tested on macOS by crashing `OuoCrashProbe` (`project/kb-archive/ios-native-crashes.md`, `project/kb-archive/ios-hangs-terminations.md`) |
 
 ## Install
 
@@ -262,4 +262,4 @@ xcodebuild -scheme OuoSDK -destination 'generic/platform=iOS Simulator' build   
 ```
 
 What needs Xcode: compiling the `OuoReplay` UIKit target for iOS, the simulator, and the
-CocoaPods build of the Expo module (`project/kb/xcode-setup.md`).
+CocoaPods build of the Expo module (`project/kb-archive/xcode-setup.md`).

@@ -41,7 +41,7 @@ Hosts outside any env (`EXTERNAL` in `lib.mjs`, Traefik file provider):
 
 | Host | Target | What |
 |---|---|---|
-| `http://sentry.ouo.localhost`, `https://sentry.ouo.localhost` | `host.docker.internal:9000` | self-hosted Sentry, compose project `sentry-sbx`, the bridge's real upstream for testing (`project/kb/sentry-self-hosted.md`); 502 while it is down |
+| `http://sentry.ouo.localhost`, `https://sentry.ouo.localhost` | `host.docker.internal:9000` | self-hosted Sentry, compose project `sentry-sbx`, the bridge's real upstream for testing (`project/kb-archive/sentry-self-hosted.md`); 502 while it is down |
 
 **https.** Port 443 serves every env route and the external hosts, with a certificate from a local
 CA that `proxy up` creates once in `~/.local/state/ouo-env/proxy/tls/` (openssl; the CA key stays
@@ -101,4 +101,4 @@ env works, remove the old stack with `docker compose -p <project> down` (no `-v`
   network: compose aliases every container by its bare service name on each network it joins, so
   two envs on one network resolve each other's `loki`, `tempo`, `rum-api` at random (seen
   2026-10-24).
-- Knowledge and quirks: `project/kb/ouo-env.md`.
+- Knowledge and quirks: `project/kb-archive/ouo-env.md`.

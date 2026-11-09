@@ -1,6 +1,6 @@
 # 2026-10-30 W3a, step 1: `frames` schema 2 in rum-api, the collector and the player
 
-Branch `claude/w3a-tiles`, first of the two W3 tiles PRs of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) §3 (lane C), as decided in [ADR-0014](../../../../docs/adr/0014-replay-tiles-in-frames.md). Env `w3a-tiles`. Step 2 (Swift tiles in `sdk/ios`) follows on the same branch name once this merges.
+Branch `claude/w3a-tiles`, first of the two W3 tiles PRs of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) §3 (lane C), as decided in [ADR-0014](../../../../docs/adr-archive/0014-replay-tiles-in-frames.md). Env `w3a-tiles`. Step 2 (Swift tiles in `sdk/ios`) follows on the same branch name once this merges.
 
 ## What was done
 

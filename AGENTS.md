@@ -6,7 +6,7 @@ Operating manual for every coding agent (and human) working in this repository.
 
 ouo11y ("ouo" for short) is an OpenTelemetry-native Real User Monitoring platform. This repo is `github.com/ouo11y/ouo11y`. The MVP is defined in `docs/MVP.md`. The long-term vision is in `docs/VISION.md` and is **not** in scope until the MVP is done.
 
-## Names and repos ([ADR-0009](docs/adr/0009-org-and-product-naming.md))
+## Names and repos ([ADR-0009](docs/adr-archive/0009-org-and-product-naming.md))
 
 - Published identifiers say `ouo11y`, lowercase: `@ouo11y/browser`, `@ouo11y/react-native`, plugin ID `ouo11y-rum-app`, images `ghcr.io/ouo11y/{collector,grafana,rum-api}`, Go modules `github.com/ouo11y/ouo11y/...`, SwiftPM package `ouo11y-ios`.
 - Code keeps the short name `ouo`: the `ouo.` attribute prefix, the `ouosentry` / `ouoreplay` / `ouoratelimit` components, the Swift modules `OuoReplay` / `OuoReplayCore`, `OUO_*` variables, `ouo-env`, the Helm chart `ouo`. Do not rename these.
@@ -17,12 +17,12 @@ ouo11y ("ouo" for short) is an OpenTelemetry-native Real User Monitoring platfor
 
 1. `project/tracker/checklist.md` — the single sorted work list; `project/tracker/index.md` lists the phase trackers.
 2. `project/agents/index.md` — which agents exist and what each owns.
-3. `project/kb/index.md` — knowledge already gathered. Do not re-research something that has a kb entry.
-4. `docs/adr/` — decisions already made. Do not relitigate them; propose a new ADR if one is wrong.
+3. `project/kb/index.md` — knowledge already gathered. Do not re-research something that has a kb entry. `project/kb-archive/` is MVP-era knowledge, mostly unreviewed: check anything you take from it.
+4. `docs/adr/` — decisions already made. Do not relitigate them; propose a new ADR if one is wrong. `docs/adr-archive/` is the MVP-era record. The archived ADRs linked from this file stay in force until a new ADR replaces them.
 
 ## Repository layout
 
-Product at the top, process material under `project/` ([ADR-0010](docs/adr/0010-repository-layout.md)).
+Product at the top, process material under `project/` ([ADR-0010](docs/adr-archive/0010-repository-layout.md)).
 
 ```
 sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
@@ -39,6 +39,7 @@ project/             agent and process material (not shipped)
   agents/            one folder per agent or team, indexed by project/agents/index.md
     <agent>/         index.md, tracker.md, summaries/, reports/ (HTML)
   kb/                knowledge base, one file per topic, indexed by project/kb/index.md
+  kb-archive/        MVP-era knowledge base
   tracker/           checklist and phase trackers, indexed by project/tracker/index.md
   reports/           cross-cutting HTML reports, indexed by project/reports/index.md
 ```
@@ -54,7 +55,7 @@ The root holds only `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` and the 
 - Reports and graphs are HTML/CSS/JS files (self-contained, no external network needed to render). Never markdown tables or image files for reports.
 - Hand-off to the orchestrator is your summary file plus a short final message. The orchestrator does not read your full transcript.
 
-## Review and merge: two sessions, then the author merges ([ADR-0013](docs/adr/0013-session-to-session-review.md))
+## Review and merge: two sessions, then the author merges ([ADR-0013](docs/adr-archive/0013-session-to-session-review.md))
 
 Nobody waits on a pull request and no bot touches it. A PR is reviewed by a second session, both sessions leave one comment each, and the author session merges. The founder reviews merged work at checkpoints.
 

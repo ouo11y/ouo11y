@@ -1,6 +1,6 @@
 # 2026-10-30 W3a, step 2: tiles in `sdk/ios`
 
-Branch `claude/w3a-swift`, second of the two W3 tiles PRs of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) §3 (lane A), as decided in [ADR-0014](../../../../docs/adr/0014-replay-tiles-in-frames.md); step 1 (schema 2 in rum-api, the collector and the player) is [2026-10-30-w3a-schema2-player.md](2026-10-30-w3a-schema2-player.md). Env `w3a-tiles`, simulator `ouo-w3a` (89D4DCB3-6F29-4225-9566-2A65FE6BAA16, iPhone 18 Pro, iOS 27.0, same model and runtime as W1's B3 run).
+Branch `claude/w3a-swift`, second of the two W3 tiles PRs of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) §3 (lane A), as decided in [ADR-0014](../../../../docs/adr-archive/0014-replay-tiles-in-frames.md); step 1 (schema 2 in rum-api, the collector and the player) is [2026-10-30-w3a-schema2-player.md](2026-10-30-w3a-schema2-player.md). Env `w3a-tiles`, simulator `ouo-w3a` (89D4DCB3-6F29-4225-9566-2A65FE6BAA16, iPhone 18 Pro, iOS 27.0, same model and runtime as W1's B3 run).
 
 ## What was done
 
@@ -35,7 +35,7 @@ Branch `claude/w3a-swift`, second of the two W3 tiles PRs of [roadmap.md](../../
     - **ouo-T4 333.8 (321.1–354.9)**, against W1's 387.7 and Sentry's 360.3 (350.5–368.4). Exit target ≤ 450: **met**.
   - Paired against `none` (W1 in parentheses): CPU +3.8 pp at T3 and T4 (W1 +3.8, +4.2), against Sentry's +6.2; peak memory +25.4 MB (+25.5); steady memory +1.5 MB (+1.6); start +38 ms (+72.5 at T3). The tile hash adds nothing measurable.
 - **Static screen: zero image bytes.** The journey ends with about 20 s on a still home screen (the last tap at ~75 s, the end at 96 s). All 22 ouo sessions of the run (11 at T3, 11 at T4) sent no frame after second 77, read from rum-api's stored chunks. The masked sessions still sent their touches in frame-less chunks.
-- Before the 10 rounds: one round per ouo cell, read from the stored chunks (`project/kb/ios-replay.md`, "W3a: tiles on the device"). At T4, 11 of the 21 full images open a 5 s chunk, and most of the others follow a scroll or a screen change that redraws more than half the screen.
+- Before the 10 rounds: one round per ouo cell, read from the stored chunks (`project/kb-archive/ios-replay.md`, "W3a: tiles on the device"). At T4, 11 of the 21 full images open a 5 s chunk, and most of the others follow a scroll or a screen change that redraws more than half the screen.
 
 ## Left, and what the next session must know
 

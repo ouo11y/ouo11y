@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// NativeFrame is one entry of ouo.crash.frames (project/kb/ios-native-crashes.md).
+// NativeFrame is one entry of ouo.crash.frames (project/kb-archive/ios-native-crashes.md).
 type NativeFrame struct {
 	InstructionAddr string `json:"instruction_addr"`
 	ImageAddr       string `json:"image_addr,omitempty"`

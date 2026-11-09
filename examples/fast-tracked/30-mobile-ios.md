@@ -63,7 +63,7 @@ Point the command line tools at the full Xcode. Either the system-wide way:
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
-or, without `sudo`, per shell (verified in `project/kb/xcode-setup.md`: `xcodebuild`, `xcrun` and
+or, without `sudo`, per shell (verified in `project/kb-archive/xcode-setup.md`: `xcodebuild`, `xcrun` and
 `swift test` all pick up the full Xcode with this variable):
 
 ```bash
@@ -239,7 +239,7 @@ path. Full file:
 
 ```js
 // Metro config for consuming @ouo11y/react-native through a `file:` link (a symlink into
-// ../../sdk/react-native). See project/kb/otel-react-native.md.
+// ../../sdk/react-native). See project/kb-archive/otel-react-native.md.
 const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 
@@ -400,7 +400,7 @@ registers it in the Xcode project, and makes the generated `AppDelegate` conform
 //   2. writes SceneDelegate.swift (subclass of ExpoAppSceneDelegate) and adds it to the target,
 //   3. makes AppDelegate conform to ExpoReactNativeFactoryProvider and stops it from creating the
 //      window itself (the scene delegate does that and starts React Native into it).
-// Remove this plugin once the Expo template adopts scenes. See project/kb/xcode-setup.md.
+// Remove this plugin once the Expo template adopts scenes. See project/kb-archive/xcode-setup.md.
 const { withInfoPlist, withAppDelegate, withXcodeProject, withDangerousMod, IOSConfig } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
@@ -793,7 +793,7 @@ list of registered native modules.
 
 Native side: the Swift logger (`sdk/ios/Sources/OuoReplayCore/Clock.swift`, `ReplayLogger`)
 uses `NSLog` with the prefix `[ouo replay]`, enabled when `debug` is true. Swift `print` does
-not reach the unified log, `NSLog` does. Verified in `project/kb/ios-replay.md`:
+not reach the unified log, `NSLog` does. Verified in `project/kb-archive/ios-replay.md`:
 
 ```bash
 xcrun simctl spawn booted log show --last 2m --predicate 'process == "mobilestore"' | grep "ouo replay"

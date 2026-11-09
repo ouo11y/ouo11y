@@ -11,7 +11,7 @@
   `deploy/compose/` or the script): `--check` and `docker compose config --quiet`.
 - Docs: `examples/fast-tracked/00-stack.md` Step 1 "One file, no clone", `deploy/README.md`,
   root `README.md` Quickstart, `docs/releasing.md` step 9 (regenerate after a pin bump).
-- `project/kb/compose-quickstart.md`, checklist N29.
+- `project/kb-archive/compose-quickstart.md`, checklist N29.
 
 ## Second pass (same day, after #49 merged)
 

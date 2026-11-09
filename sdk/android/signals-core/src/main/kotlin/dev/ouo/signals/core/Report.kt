@@ -24,7 +24,7 @@ data class JvmFrame(val module: String, val function: String, val filename: Stri
 
 /**
  * The native report the React Native SDK reads (`sdk/react-native/src/crash.ts`, the format of
- * `project/kb/ios-native-crashes.md`), for the Android mechanisms: `jvm` (an uncaught Java or Kotlin
+ * `project/kb-archive/ios-native-crashes.md`), for the Android mechanisms: `jvm` (an uncaught Java or Kotlin
  * exception), `hang` (the main thread stopped answering for 2 s or more) and `termination` (the
  * previous run was killed in the foreground without a crash report). Frames are JVM frames.
  */

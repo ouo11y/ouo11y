@@ -8,7 +8,7 @@
 | 2026-10-07 | Sessions page (filters in URL, table, row click) | done, verified in browser |
 | 2026-10-07 | Session detail (timeline, traces + Explore, rrweb-player + markers sync) | done, verified in browser |
 | 2026-10-07 | Tests (format, markers), typecheck, lint, build | done |
-| 2026-10-07 | project/kb/grafana-app-plugin.md, deploy/README.md, project/tracker/mvp.md Phase 4, HTML report | done |
+| 2026-10-07 | project/kb-archive/grafana-app-plugin.md, deploy/README.md, project/tracker/mvp.md Phase 4, HTML report | done |
 | open | Replace deprecated `Select` with `Combobox`; Playwright e2e | todo (post-MVP) |
 | 2026-10-08 | Phase 7 frame player: code + 34 tests landed; visual check in Grafana pending | done: frames played in Grafana during the Phase 7 native verification (ios-replay tracker), merged in #9 (N1 2026-10-17) |
 | 2026-10-08 | Phase 7b: sticky replay + self-scrolling timeline, Replay duration column, sortable sessions table (52 tests, browser-verified, `project/reports/phase-7b-ux.html`) | done |

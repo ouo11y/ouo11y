@@ -4,7 +4,7 @@ Expo (React Native) iOS app instrumented with `@sentry/react-native` and, depend
 rollout flag, `@ouo11y/react-native` ("Rollout modes" below). It exists to generate real Sentry
 mobile SDK traffic (sentry-cocoa native layer plus the RN JS
 layer, including mobile Session Replay) for the ouo Sentry bridge (ADR-0008,
-`docs/specs/sentry-bridge.md`). Knowledge and gotchas: `project/kb/sentry-react-native-demo.md`.
+`docs/specs/sentry-bridge.md`). Knowledge and gotchas: `project/kb-archive/sentry-react-native-demo.md`.
 
 The DSN must point at a local host: the `ouosentry` receiver (the bridge) or a recorder
 (`scripts/recorder.py`). Never point it at sentry.io from this repo.
@@ -64,7 +64,7 @@ background rotation and a native crash) and then `scripts/verify.py`:
 `OUO_SENTRY_PUBLIC_KEY` of your project, in `deploy/compose/.env` (or the env's), then build the
 app with that key and project in `SENTRY_DSN` (host still the bridge). The bridge forwards every
 envelope unchanged and answers with Sentry's response. Our run against self-hosted Sentry:
-`project/kb/sentry-self-hosted.md`.
+`project/kb-archive/sentry-self-hosted.md`.
 
 CI cannot run an iOS Simulator on Linux: the `examples` job in `.github/workflows/ci.yml`
 typechecks the app and sends the same headers and envelopes from `scripts/ci-journey.py` through
@@ -173,7 +173,7 @@ bucketing id live in `Documents/ouo-rum-mode.json`; the status line shows
 ouo exports as service `sentry-demo-ouo` to `OUO_OTLP_ENDPOINT` / `OUO_REPLAY_ENDPOINT`.
 `src/monitoring.ts` sends the app's own `captureException`, `captureMessage` and `flush` calls to
 whichever SDKs run. `App.tsx` wraps the app in `RUMProvider` and feeds navigation to ouo when ouo
-runs, as the SDK README says. Findings: `project/kb/openfeature-rum-mode.md`, `project/kb/ouo-next-to-sentry.md`.
+runs, as the SDK README says. Findings: `project/kb-archive/openfeature-rum-mode.md`, `project/kb-archive/ouo-next-to-sentry.md`.
 
 | Variable | Default |
 |---|---|
@@ -211,7 +211,7 @@ ouo replay forced on) and `ouo-replay` (`ouo`). Without `OUO_PERF=1` both are no
 | `scripts/perf/run.sh` | the loop: per run, wipe the app's Library, write the mode, sample, drive, collect; modes interleaved |
 | `scripts/perf/analyze.py`, `report.py` | medians and spread per mode; the HTML report |
 
-Method, numbers and caveats: `project/kb/sdk-overhead-ios.md`; last report:
+Method, numbers and caveats: `project/kb-archive/sdk-overhead-ios.md`; last report:
 `project/agents/sentry-demo/reports/sdk-overhead-ios.html`.
 
 ## Capture and journey

@@ -2,15 +2,15 @@
 
 ## What was done
 
-- Nine appendices in [`project/kb/web-sdk-research/`](../../../kb/web-sdk-research/index.md), each
+- Nine appendices in [`project/kb-archive/web-sdk-research/`](../../../kb-archive/web-sdk-research/index.md), each
   grounded in source code at a pinned version: ouo on the web today (O, at `f4a3010`), Sentry
   JavaScript 11.10 (A), Datadog browser SDK 7.16 (B), posthog-js 1.442 (C), OTel-shaped web RUM
   (D: Faro, Splunk, Honeycomb, Embrace, Elastic, Dash0, opentelemetry-browser, semconv 1.44),
   replay specialists (E), a 25-vendor landscape (F) and a measured benchmark of six SDKs on one
   page (M).
-- [comparison.md](../../../kb/web-sdk-research/comparison.md): capability table, technique matrix,
+- [comparison.md](../../../kb-archive/web-sdk-research/comparison.md): capability table, technique matrix,
   replay practices, OTel position, performance claims, ranked recommendations.
-- [roadmap.md](../../../kb/web-sdk-research/roadmap.md): ten work packages WB1–WB10 ordered by
+- [roadmap.md](../../../kb-archive/web-sdk-research/roadmap.md): ten work packages WB1–WB10 ordered by
   value per cost, four lanes, milestones M1–M5, web column of the shared maturity ladder,
   decisions to take as ADRs, definitions of done.
 - Two HTML reports in `reports/`: research (matrices, coverage of 25 vendors, measured footprint)

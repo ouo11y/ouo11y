@@ -57,7 +57,7 @@ const config: ExpoConfig = {
   },
   web: { favicon: "./assets/favicon.png" },
   plugins: [
-    // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet (project/kb/xcode-setup.md).
+    // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet (project/kb-archive/xcode-setup.md).
     "./plugins/withUIScene.js",
     // disableAutoUpload: the build phases must never call sentry-cli / sentry.io.
     ["@sentry/react-native", { disableAutoUpload: true }],

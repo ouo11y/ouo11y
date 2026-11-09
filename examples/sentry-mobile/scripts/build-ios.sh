@@ -7,8 +7,8 @@
 # Environment (baked in at build time, see app.config.ts): SENTRY_DSN, BACKEND_URL, APP_VERSION,
 # BUILD_NUMBER, SENTRY_DEBUG=1, read from .env when present (copy .env.example), the shell wins.
 # --env <name> points the app at an ouo-env (its published Sentry bridge and backend ports).
-# Needs full Xcode (DEVELOPER_DIR) and CocoaPods; see project/kb/sentry-react-native-demo.md and
-# project/kb/xcode-setup.md.
+# Needs full Xcode (DEVELOPER_DIR) and CocoaPods; see project/kb-archive/sentry-react-native-demo.md and
+# project/kb-archive/xcode-setup.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

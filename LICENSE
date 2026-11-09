@@ -12,7 +12,7 @@ ouo is licensed per directory, not as a single work.
   deploy/, project/          Apache License 2.0           same text as sdk/browser/LICENSE
   docs/                      PROPOSED: Creative Commons   not applied yet; docs fall under
                              Attribution 4.0 (CC-BY-4.0)  Apache-2.0 until a decision is
-                                                          recorded in docs/adr/
+                                                          recorded in docs/adr-archive/
 
 Why the split (docs/VISION.md section 28):
 everything a customer embeds in their own application or cluster (SDKs, the Grafana

@@ -8,7 +8,7 @@ native code and runs in Expo Go; session replay (iOS) is an Expo native module a
 development build.
 
 Spec: `docs/specs/session-lifecycle.md` (mobile rules), classification: ADR-0004, ingest and
-project tokens: ADR-0007. Runtime notes and gotchas: `project/kb/otel-react-native.md`. Changes: `CHANGELOG.md`.
+project tokens: ADR-0007. Runtime notes and gotchas: `project/kb-archive/otel-react-native.md`. Changes: `CHANGELOG.md`.
 
 ## Install
 
@@ -555,7 +555,7 @@ screen`, `app.screen.name` = the route name, the last segment of the navigation 
 the next navigation or when the app goes to the background. The native measurements are the
 `OuoVitals` Swift target of `sdk/ios`, which the Expo module starts when it is created: one
 `CADisplayLink` callback per frame that only updates counters (main-thread cost in
-`project/kb/ios-vitals.md`). Without the native measurements (Expo Go, web, Android until W9 part 2) the SDK
+`project/kb-archive/ios-vitals.md`). Without the native measurements (Expo Go, web, Android until W9 part 2) the SDK
 emits no `ouo.app.start`, no `app.jank` and no first-screen TTID (spec rule 1: nothing that was
 not measured).
 

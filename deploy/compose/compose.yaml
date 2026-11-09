@@ -224,7 +224,7 @@ services:
   # so rum-api does too by default. `--profile s3` starts MinIO alone (e.g. for the
   # rum-api S3 tests, OUO_TEST_S3_ENDPOINT=localhost:9000); compose.s3.yaml also points
   # rum-api at it. The official minio/minio images are no longer published; pgsty/minio
-  # is the community-maintained build of the same server (project/kb/rum-api-config-s3.md).
+  # is the community-maintained build of the same server (project/kb-archive/rum-api-config-s3.md).
   minio:
     image: ${OUO_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     profiles: [s3]

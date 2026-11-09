@@ -1,7 +1,7 @@
 # Running the Sentry bridge: one replica
 
 For pilots who point a Sentry SDK at the ouo Sentry bridge (the collector's `ouosentry`
-receiver, [ADR-0008](adr/0008-sentry-sdk-bridge.md), [spec](specs/sentry-bridge.md)). Client
+receiver, [ADR-0008](adr-archive/0008-sentry-sdk-bridge.md), [spec](specs/sentry-bridge.md)). Client
 side setup is in [sentry-client-setup.md](sentry-client-setup.md).
 
 **Run exactly one bridge process.** The bridge keeps its session state in memory, so it runs

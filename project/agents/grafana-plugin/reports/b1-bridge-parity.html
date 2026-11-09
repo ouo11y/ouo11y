@@ -122,7 +122,7 @@ the next session <code>B1699F86…</code> carries <code>session.previous_id</cod
 <h2>Notes</h2>
 <ul>
 <li>rum-api grew three additive fields: replay meta <code>masked</code> (C8), session detail <code>context</code> (C2: OS and environment are dropped from timeline attributes as noise, so the plugin could not read them), trace <code>root_url_path</code> (C6: Tempo search only returns the root name). With an older rum-api the plugin shows "masking unknown", the device and build rows from timeline attributes, and the raw trace names.</li>
-<li>The bridged session came from a golden capture, not a fresh simulator run: the app built in <code>sentry</code> mode sent nothing to the bridge (open, <code>project/kb/env-test-sessions.md</code>). The capture is a real SDK run with real taps; its timestamps are from 2026-10-16.</li>
+<li>The bridged session came from a golden capture, not a fresh simulator run: the app built in <code>sentry</code> mode sent nothing to the bridge (open, <code>project/kb-archive/env-test-sessions.md</code>). The capture is a real SDK run with real taps; its timestamps are from 2026-10-16.</li>
 <li>Not changed: the receiver (another session owns A1 and the new context attributes; the plugin reads whichever attributes arrive).</li>
 </ul>
 </body>

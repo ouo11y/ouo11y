@@ -1,6 +1,6 @@
 # 2026-10-24 Web source maps and symbolication (N36 part C, A10 web)
 
-Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three parallel N36 sessions (A delivery, B page safety, C this one). Design: [ADR-0011](../../../../docs/adr/0011-source-maps-and-symbolication.md) (proposed). User guide: [docs/sourcemaps.md](../../../../docs/sourcemaps.md). Knowledge: [kb/sourcemaps-symbolication.md](../../../kb/sourcemaps-symbolication.md).
+Session `web-c-sourcemaps`, branch `claude/web-sourcemaps-fa863c`, one of three parallel N36 sessions (A delivery, B page safety, C this one). Design: [ADR-0011](../../../../docs/adr-archive/0011-source-maps-and-symbolication.md) (proposed). User guide: [docs/sourcemaps.md](../../../../docs/sourcemaps.md). Knowledge: [kb/sourcemaps-symbolication.md](../../../kb-archive/sourcemaps-symbolication.md).
 
 ## Done
 

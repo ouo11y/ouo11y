@@ -1,7 +1,7 @@
 # Native iOS conformance suite
 
 The suite of the native iOS package (`OuoSDK` in `sdk/ios`), with the check ids of
-[docs/specs/mobile-sdk.md](../../../docs/specs/mobile-sdk.md) section 3 ([ADR-0015](../../../docs/adr/0015-mobile-sdk-spec-and-conformance.md)).
+[docs/specs/mobile-sdk.md](../../../docs/specs/mobile-sdk.md) section 3 ([ADR-0015](../../../docs/adr-archive/0015-mobile-sdk-spec-and-conformance.md)).
 Unlike the React Native suite (`../mobile/`, a model in Node), it runs the real Swift code: the
 example app [examples/ouo-ios](../../../examples/ouo-ios/README.md) on an iOS simulator, against an
 `ouo-env` stack.

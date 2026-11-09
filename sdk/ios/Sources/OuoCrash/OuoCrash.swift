@@ -6,7 +6,7 @@ import OuoVitals
 /// the uncaught NSException handler; a crash writes one JSON report to disk at crash time, and
 /// `takePendingReport()` hands it over on the next launch so the host sends it (the React Native
 /// SDK as an OTel `exception` with the crashed session's id). Report format:
-/// project/kb/ios-native-crashes.md.
+/// project/kb-archive/ios-native-crashes.md.
 ///
 /// Next to another crash reporter (Sentry): ouo keeps the previously installed signal and
 /// exception handlers and calls them after writing its report, whichever SDK installs first.

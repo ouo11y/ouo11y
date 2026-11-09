@@ -1,6 +1,6 @@
 # 2026-10-31: Sentry bridge feedback end to end (N75)
 
-Branch `claude/n75-bridge-feedback`, env `n75-bridge-feedback`, own simulator `ouo-n75-bridge-feedback` (2E9BB903-794C-4DDA-A45E-CB3C9D4FDD4E, iPhone 18 Pro, iOS 27). Checklist N75 (W6 review item 9). Paths: `collector/receiver/ouosentryreceiver`, `docs/specs/sentry-bridge.md` 9c, `examples/sentry-mobile` (app action, journeys, verify), this folder, `project/kb/feedback.md`, the checklist.
+Branch `claude/n75-bridge-feedback`, env `n75-bridge-feedback`, own simulator `ouo-n75-bridge-feedback` (2E9BB903-794C-4DDA-A45E-CB3C9D4FDD4E, iPhone 18 Pro, iOS 27). Checklist N75 (W6 review item 9). Paths: `collector/receiver/ouosentryreceiver`, `docs/specs/sentry-bridge.md` 9c, `examples/sentry-mobile` (app action, journeys, verify), this folder, `project/kb-archive/feedback.md`, the checklist.
 
 ## Done
 

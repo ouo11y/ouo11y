@@ -209,7 +209,7 @@ add one yet. One Expo config plugin adds it when the iOS project is generated. C
 //   2. writes SceneDelegate.swift (subclass of ExpoAppSceneDelegate) and adds it to the target,
 //   3. makes AppDelegate conform to ExpoReactNativeFactoryProvider and stops it from creating the
 //      window itself (the scene delegate does that and starts React Native into it).
-// Remove this plugin once the Expo template adopts scenes. See project/kb/xcode-setup.md.
+// Remove this plugin once the Expo template adopts scenes. See project/kb-archive/xcode-setup.md.
 const { withInfoPlist, withAppDelegate, withXcodeProject, withDangerousMod, IOSConfig } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");

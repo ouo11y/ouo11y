@@ -3,7 +3,7 @@ import OuoCrashCore
 
 /// What a run of the app last wrote about itself (`run.json` next to the crash report), so the next
 /// launch can tell a foreground termination (OOM, watchdog) from a run that ended normally
-/// (mobile SDK spec C3.2, project/kb/ios-hangs-terminations.md).
+/// (mobile SDK spec C3.2, project/kb-archive/ios-hangs-terminations.md).
 public struct RunState: Codable, Equatable {
     /// `CFBundleShortVersionString (CFBundleVersion) <main executable's LC_UUID>`: an update is no
     /// termination, nor a development reinstall that kept the version string.

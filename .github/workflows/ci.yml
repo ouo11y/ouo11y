@@ -316,7 +316,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
     # Any self-hosted runner: each has its own rootless dockerd and its own host ports (OUO_*_PORT in
-    # its .env, project/kb/ci-runners.md), so two stacks on two runners do not collide.
+    # its .env, project/kb-archive/ci-runners.md), so two stacks on two runners do not collide.
     runs-on: [self-hosted, Linux]
     timeout-minutes: 35
     env:
@@ -406,7 +406,7 @@ jobs:
     name: swift (OuoReplayCore)
     needs: changes
     if: needs.changes.outputs.swift == 'true'
-    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb/ci-runners.md), only for sdk/ios changes
+    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb-archive/ci-runners.md), only for sdk/ios changes
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

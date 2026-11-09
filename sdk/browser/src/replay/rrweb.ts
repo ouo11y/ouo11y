@@ -15,7 +15,7 @@ const UNMASK_CLASS = "ouo-unmask";
  * Always blocked: rrweb's own helper iframes. Where a page has patched DOM prototypes (Zone.js,
  * another monitoring script) rrweb takes clean ones from a hidden iframe, and on Safari keeps it
  * in the DOM with the class `rr-block`; it is not part of the page the user saw. (rrweb still
- * attaches observers to its idle document at every checkout: project/kb/browser-sdk-safety.md.)
+ * attaches observers to its idle document at every checkout: project/kb-archive/browser-sdk-safety.md.)
  */
 export const ALWAYS_BLOCKED = "iframe.rr-block";
 

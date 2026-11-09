@@ -6,7 +6,7 @@ credentials, OTLP/HTTP on 4318, the replay stream on 4319, rate and size limits)
 **rum-api** (session API, replay store; ClusterIP only), **Grafana** with the ouo11y RUM app
 plugin baked into the image, and either a **bundled** single-binary Loki, Tempo and Mimir
 or the customer's **external** LGTM stack. Design: ADR-0007
-(`docs/adr/0007-ingest-gateway-project-tokens.md`).
+(`docs/adr-archive/0007-ingest-gateway-project-tokens.md`).
 
 ```
 browser / mobile SDK --POST /v1/{traces,logs,metrics} + Authorization: Basic id:token--> collector:4318 (Ingress)
@@ -17,7 +17,7 @@ Grafana (Ingress) --plugin route proxy + Bearer read token--> rum-api --> Loki, 
 in-cluster services --OTLP + Basic credential--> collector:4318 (HTTP) / collector-internal:4317 (gRPC)
 ```
 
-Verified on kind (Phase 8a): `project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md`, `project/kb/helm-kind.md`.
+Verified on kind (Phase 8a): `project/agents/helm/summaries/2026-10-10-phase-8a-rev2.md`, `project/kb-archive/helm-kind.md`.
 Verified on a one-node kind cluster on 2026-10-23 (checklist N12): S3 on in-cluster MinIO,
 Ingress with ingress-nginx and cert-manager, the `x_forwarded_for` client key, two collector
 replicas, every `existingSecret`, `lgtm.mode=external` against a separate LGTM release, and
@@ -205,7 +205,7 @@ CORS on both public receivers, the union of all projects; wildcards like
 `http://localhost:*,http://127.0.0.1:*`). Mobile and server clients send no `Origin` and are
 unaffected. Hand-written `curl` preflights must list `Access-Control-Request-Headers`
 lowercase and sorted (`authorization,content-type`), as browsers do, or the collector answers
-without `Access-Control-Allow-Origin` (`project/kb/collector-components.md`).
+without `Access-Control-Allow-Origin` (`project/kb-archive/collector-components.md`).
 
 Project ids must match `^[a-z0-9][a-z0-9._-]{0,63}$` (the chart refuses others). basicauth
 reads the htpasswd once at start; the checksum annotation makes `helm upgrade` roll the
@@ -336,7 +336,7 @@ container (`docs/operations/upgrade.md` section 8).
   every start, so a new `grafana.image.tag` upgrades the plugin.
 - Bundled LGTM StatefulSets roll one pod each. A StatefulSet whose pod is crash-looping does
   **not** roll to a new revision on its own; delete the pod (`kubectl delete pod ouo-mimir-0`)
-  after the upgrade (`project/kb/helm-kind.md`).
+  after the upgrade (`project/kb-archive/helm-kind.md`).
 
 ## Uninstall and data retention
 

@@ -132,7 +132,7 @@ Sentry UI: https://sentry.ouo.localhost (ouo-env proxy, TLS), http://localhost:9
 <li><b>Startup console lines get no session</b> (5 records, <code>ouo.sentry.session_match = none</code>): <code>rum mode ...</code>, <code>[rollout] next launch</code> and the log copy of <code>Running "main"</code> are sent before sentry-cocoa's session <code>init</code>. Since the bridge has no session to attach them to, the breadcrumb copy and the log copy of <code>Running "main"</code> are not de-duplicated. A bridge fix: hold <code>log</code> items with no session for a short while (as replay segments are held) and attach them to the next session of the same device.</li>
 <li><b>Info messages counted as errors.</b> RN's <code>captureMessage</code> carries a synthetic <code>exception</code> (stack trace attached), so the bridge emits an <code>exception</code> record. Sentry keeps <code>level: info</code>. The bridge should use <code>level</code> (info/debug/warning → custom <code>sentry.message</code>) before <code>exception.values</code>.</li>
 <li><b>Seek flashes black</b> in the ouo video player while the next segment loads; Sentry showed the frame at once. Preloading the neighbouring segments would fix it.</li>
-<li><b>Two clocks</b> (session-relative Timeline vs replay-relative activity list), already noted in <code>project/kb/sentry-replay-taps.md</code>.</li>
+<li><b>Two clocks</b> (session-relative Timeline vs replay-relative activity list), already noted in <code>project/kb-archive/sentry-replay-taps.md</code>.</li>
 <li><b>MCP needs https</b>; solved with TLS on the ouo-env proxy. Browsers warn on <code>https://sentry.ouo.localhost</code> until the founder trusts the proxy CA once.</li>
 <li><b>Install:</b> macOS bash 3.2 is too old for the installer; Docker Hub HEAD timeouts from the Docker VM break the build step (pre-pull with retries); the first user needs an email address to be able to sign in.</li>
 </ul>
@@ -150,6 +150,6 @@ SENTRY_DSN=http://&lt;key&gt;@localhost:4420/2 BACKEND_URL=http://localhost:8091
 # real taps (simulator tool), then:
 sentrytap compare captures/A captures/B
 python3 -I examples/sentry-mobile/scripts/verify-bridge.py --capture captures/A --rum http://localhost:8090 --loki http://localhost:3310 --tempo http://localhost:3320</pre>
-<p>Details, gotchas and the MCP setup: <code>project/kb/sentry-self-hosted.md</code>.</p>
+<p>Details, gotchas and the MCP setup: <code>project/kb-archive/sentry-self-hosted.md</code>.</p>
 </main></body>
 </html>

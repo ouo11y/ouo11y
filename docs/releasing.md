@@ -3,14 +3,14 @@
 How ouo is versioned, tagged and published, and the checklist the founder follows to cut a
 release. This is the only releasing document. Owner: the release agent
 (`project/agents/release/`). Tool quirks live in
-[`project/kb/release-packaging.md`](../project/kb/release-packaging.md); which versions work
+[`project/kb-archive/release-packaging.md`](../project/kb-archive/release-packaging.md); which versions work
 together in [`compatibility.md`](compatibility.md); the operator-side upgrade procedure in
 [`operations/upgrade.md`](operations/upgrade.md).
 
 Three rules from the founder hold for everything below:
 
 - **Only the founder pushes release tags**, or a checkpoint session the founder asks to
-  ([ADR-0013](adr/0013-session-to-session-review.md) §7). CI never creates a tag; release-please is configured
+  ([ADR-0013](adr-archive/0013-session-to-session-review.md) §7). CI never creates a tag; release-please is configured
   so that merging a release PR does not tag either. Otherwise agents prepare, dry-run and ask; they never
   push a tag, publish a package or change a visibility.
 - **Everything published stays private until a stable version**, except where the founder
@@ -68,7 +68,7 @@ All components are `0.y.z` until the first pilot is live.
 After `1.0.0` the usual rules apply (major for breaking). Component-specific rules:
 
 - **plugin:** every user-visible change is a release, because Grafana caches
-  `module.js?_cache=<version>` (`project/kb/grafana-app-plugin.md`).
+  `module.js?_cache=<version>` (`project/kb-archive/grafana-app-plugin.md`).
 - **grafana image:** its own series. A plugin release reaches image users only through a grafana
   image release: after the plugin tag, merge a `feat(grafana): ship plugin <version>` commit that
   touches `deploy/images/grafana` (its `CHANGELOG.md` `Unreleased` note is enough). Its notes
@@ -282,7 +282,7 @@ every workflow has a concurrency group, and release dry runs only run when their
 file changes. The Linux jobs run on the self-hosted server and the Swift jobs on the self-hosted
 Mac (`[self-hosted, macOS]`), so they use no minutes. Only `benchmark.yml` tag and manual runs (macOS, an idle
 machine for the numbers; its PR smoke run is on the Mac) and `release-npm.yml` (npm OIDC refuses self-hosted runners) stay on GitHub-hosted
-runners. Layout and setup: [ci-runners.md](../project/kb/ci-runners.md).
+runners. Layout and setup: [ci-runners.md](../project/kb-archive/ci-runners.md).
 
 ## 10. Local checks
 

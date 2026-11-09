@@ -84,7 +84,7 @@ data:
 
     # Mimir defaults several paths to its working directory (./metrics-activity.log,
     # ./data-ruler/, ./data-alertmanager/), which is read-only when the pod runs as uid
-    # 10001; put them all on the data volume (project/kb/helm-kind.md).
+    # 10001; put them all on the data volume (project/kb-archive/helm-kind.md).
     activity_tracker:
       filepath: /data/metrics-activity.log
 

@@ -1,6 +1,6 @@
 # @ouo11y/sourcemaps
 
-`ouo-sourcemaps` makes errors from minified production bundles, web and React Native (Hermes), readable in ouo. It adds a debug id to every built bundle and uploads the source maps to rum-api, which symbolicates exception stacks when they are read ([ADR-0011](../../docs/adr/0011-source-maps-and-symbolication.md)).
+`ouo-sourcemaps` makes errors from minified production bundles, web and React Native (Hermes), readable in ouo. It adds a debug id to every built bundle and uploads the source maps to rum-api, which symbolicates exception stacks when they are read ([ADR-0011](../../docs/adr-archive/0011-source-maps-and-symbolication.md)).
 
 ```bash
 npm install --save-dev @ouo11y/sourcemaps

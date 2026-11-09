@@ -45,7 +45,7 @@ no `$` prompts, one command per fence.
 - `examples/backend/main.go`, `internal/telemetry/{telemetry,baggage}.go`,
   `internal/api/{cors,faults,handlers,store}.go`, `go.mod`, `README.md`, `Dockerfile`,
   test function names in `baggage_test.go` and `api_test.go`.
-- `project/kb/otel-go-baggage.md`, `docs/specs/session-lifecycle.md`, ADR-0001 (Correlation),
+- `project/kb-archive/otel-go-baggage.md`, `docs/specs/session-lifecycle.md`, ADR-0001 (Correlation),
   ADR-0002, ADR-0004, `sdk/browser/src/telemetry/propagator.ts` and `types.ts`
   (`propagateTo`) for what the browser actually sends in `baggage`.
 - Every env var, port, image tag, function name, import path, header list, metric name
@@ -67,4 +67,4 @@ no `$` prompts, one command per fence.
 
 - No `index.md` for `examples/fast-tracked/` or `project/agents/fast-tracked/` (instructions
   said to write only the three files). The orchestrator should add both index entries
-  and a `project/kb/index.md` line if a kb entry is extracted later.
+  and a `project/kb-archive/index.md` line if a kb entry is extracted later.

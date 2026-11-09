@@ -1,7 +1,7 @@
 # React Native Android conformance suite
 
 The suite of `@ouo11y/react-native` on Android, with the check ids of
-[docs/specs/mobile-sdk.md](../../../docs/specs/mobile-sdk.md) section 3 ([ADR-0015](../../../docs/adr/0015-mobile-sdk-spec-and-conformance.md)).
+[docs/specs/mobile-sdk.md](../../../docs/specs/mobile-sdk.md) section 3 ([ADR-0015](../../../docs/adr-archive/0015-mobile-sdk-spec-and-conformance.md)).
 Unlike the React Native iOS suite (`../mobile/`, a model in Node), it runs the real app: the example
 [examples/ouo-mobile](../../../examples/ouo-mobile/README.md) built in Release with `OUO_CONFORMANCE=1`
 (default replay masking, a 5 s background timeout, `OUO_NOTE` lines in logcat) on an Android emulator,
@@ -9,7 +9,7 @@ against an `ouo-env` stack.
 
 ```bash
 OUO_SESSION=<you> deploy/envs/ouo-env up <env>
-# an emulator (project/kb/android-setup.md): emulator -avd <avd> -port 5580 -no-window -no-audio &
+# an emulator (project/kb-archive/android-setup.md): emulator -avd <avd> -port 5580 -no-window -no-audio &
 tests/e2e/mobile-android/run.sh <env> emulator-5580
 ```
 

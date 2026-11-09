@@ -9,7 +9,7 @@
 // The coordinates were calibrated on the 402 pt wide iPhone 18 Pro simulator. Taps at x = 201 are row
 // centres and move with the screen's centre; header back buttons are left-aligned and keep their x.
 // PERF_DY shifts every y (points) for a device whose safe area or header differs; calibrate it from
-// a screenshot and check each tap's backend request (project/kb/sdk-overhead-ios.md).
+// a screenshot and check each tap's backend request (project/kb-archive/sdk-overhead-ios.md).
 //
 // Environment (xcodebuild passes TEST_RUNNER_<name> as <name>):
 //   PERF_SECONDS   length of the run from the launch (default 95)

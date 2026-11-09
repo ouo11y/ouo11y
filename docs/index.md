@@ -11,7 +11,7 @@
 | [specs/funnels.md](specs/funnels.md) | funnel reports: steps (page path, custom event), strict order, `within`, session counting, range and filters, Loki reads, limits (ADR-0012) |
 | [specs/mobile-vitals.md](specs/mobile-vitals.md) | mobile vitals (app start, TTID, frames, stalls) as session events, shared by the Sentry bridge and the ouo SDK; rum-api vitals endpoint |
 | [specs/mobile-sdk.md](specs/mobile-sdk.md) | mobile SDK spec: the twelve capabilities (records, attributes, thresholds), the conformance checks, maturity L0–L3 and the platform matrix, the React Native iOS suite (ADR-0015) |
-| [adr/](adr/README.md) | architecture decision records |
+| [adr/](adr-archive/README.md) | architecture decision records |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
 | [../examples/quickstarts/index.md](../examples/quickstarts/index.md) | standalone quickstart apps against the one-file stack: `tiny-shop` (Node API + React); `tiny-shop-funnels` (quickstart 5, funnels); `tiny-shop-otel` (no ouo SDK: OpenTelemetry + rrweb by hand) |
 | [sourcemaps.md](sourcemaps.md) | readable stacks from minified web apps: upload tokens, `ouo-sourcemaps inject` / `upload`, Vite / webpack / Next.js setups, what the plugin shows, troubleshooting, retention (ADR-0011) |

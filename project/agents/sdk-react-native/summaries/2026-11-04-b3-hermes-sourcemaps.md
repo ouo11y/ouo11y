@@ -1,6 +1,6 @@
 # 2026-11-04 B3: Hermes debug ids and OTA-safe source maps
 
-Branch `claude/b3-hermes-sourcemaps`, for JUHI (bare React Native 0.82, Hermes, `hot-updater` OTA bundles). Design: ADR-0011 section 6 (revised). Docs: `docs/sourcemaps.md` "React Native (Hermes)". Knowledge: `project/kb/hermes-sourcemaps.md`.
+Branch `claude/b3-hermes-sourcemaps`, for JUHI (bare React Native 0.82, Hermes, `hot-updater` OTA bundles). Design: ADR-0011 section 6 (revised). Docs: `docs/sourcemaps.md` "React Native (Hermes)". Knowledge: `project/kb-archive/hermes-sourcemaps.md`.
 
 ## What was wrong
 

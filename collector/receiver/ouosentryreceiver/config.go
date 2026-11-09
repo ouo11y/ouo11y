@@ -43,7 +43,7 @@ var sentryProjectIDRe = regexp.MustCompile(`^[0-9]{1,20}$`)
 type Config struct {
 	// Named field with squash, never an anonymous embedding: an embedded
 	// confighttp.ServerConfig promotes its Unmarshal method and confmap then
-	// silently drops every sibling key (project/kb/collector-components.md).
+	// silently drops every sibling key (project/kb-archive/collector-components.md).
 	ServerConfig confighttp.ServerConfig `mapstructure:",squash"`
 
 	// UpstreamTimeout bounds one forward to Sentry.

@@ -3,7 +3,7 @@ import Testing
 @testable import OuoReplayCore
 @testable import OuoSDK
 
-/// The risks of the kb's table (project/kb/ios-native-sdk.md), each with a test that fails when the
+/// The risks of the kb's table (project/kb-archive/ios-native-sdk.md), each with a test that fails when the
 /// handling is removed.
 @Suite struct RobustnessTests {
     /// B1: the launch kind comes from the task role, not `applicationState` (which is `.background`

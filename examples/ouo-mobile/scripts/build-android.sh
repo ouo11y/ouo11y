@@ -10,7 +10,7 @@
 # app at an ouo-env's published ports on --host (default 10.0.2.2, the emulator's address of the
 # Mac; a phone needs the Mac's LAN IP, `ouo-env url <env> --lan`). --conformance builds the golden
 # app of tests/e2e/mobile-android (OUO_CONFORMANCE=1). Needs JDK 17 and the Android SDK
-# (ANDROID_HOME, project/kb/android-setup.md); builds @ouo11y/react-native first when its dist/ is
+# (ANDROID_HOME, project/kb-archive/android-setup.md); builds @ouo11y/react-native first when its dist/ is
 # missing. ABIs: REACT_NATIVE_ARCHITECTURES, default arm64-v8a (Apple silicon emulators and phones).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -62,7 +62,7 @@ fi
 mkdir -p android/build
 log "gradle :app:assembleRelease"
 # lintVital crashes inside third-party modules (react-native-screens, expo-modules-core) with AGP 8.12
-# on JDK 17 (project/kb/android-setup.md); it checks nothing of ours.
+# on JDK 17 (project/kb-archive/android-setup.md); it checks nothing of ours.
 (cd android && ./gradlew :app:assembleRelease -x lintVitalAnalyzeRelease -PreactNativeArchitectures="${REACT_NATIVE_ARCHITECTURES:-arm64-v8a}" --console=plain) > android/build/gradle.log 2>&1 \
   || { tail -40 android/build/gradle.log; log "build failed, see android/build/gradle.log"; exit 1; }
 APK="$PWD/android/app/build/outputs/apk/release/app-release.apk"

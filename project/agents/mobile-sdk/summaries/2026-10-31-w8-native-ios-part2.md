@@ -1,6 +1,6 @@
 # 2026-10-31 W8 part 2: screens, taps, SwiftUI masking, the native example and its suite
 
-Branch `claude/w8-native-ios-part2` (cut from `origin/main` at 69033f6, part 1), work package W8 of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) (§3, §10). Env `w8-native-ios-part2`, simulator `ouo-w8p2` (B9ADE0EA-EF3F-46D4-8FC0-E9B5E26EE3FC, iPhone 18 Pro, iOS 27.0). Design notes and the risk table: [ios-native-sdk.md](../../../kb/ios-native-sdk.md).
+Branch `claude/w8-native-ios-part2` (cut from `origin/main` at 69033f6, part 1), work package W8 of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) (§3, §10). Env `w8-native-ios-part2`, simulator `ouo-w8p2` (B9ADE0EA-EF3F-46D4-8FC0-E9B5E26EE3FC, iPhone 18 Pro, iOS 27.0). Design notes and the risk table: [ios-native-sdk.md](../../../kb-archive/ios-native-sdk.md).
 
 ## What was done
 

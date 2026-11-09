@@ -1,6 +1,6 @@
 # 2026-10-30 W3 delivery: gzip OTLP, outbox, durable chunk queue, keep/drop
 
-Branch `claude/w3b-delivery`, the delivery half of work package W3 of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) (§3, §10), checklist N48 and N49, mobile spec C11. The tiles half (schema 2, player) is W3a, a parallel session. Env `w3b-delivery`, simulator `w3b-delivery` (9E602997-2F45-4D2C-98D9-9E7D2ECF5AB2, iPhone 17 Pro, iOS 27).
+Branch `claude/w3b-delivery`, the delivery half of work package W3 of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) (§3, §10), checklist N48 and N49, mobile spec C11. The tiles half (schema 2, player) is W3a, a parallel session. Env `w3b-delivery`, simulator `w3b-delivery` (9E602997-2F45-4D2C-98D9-9E7D2ECF5AB2, iPhone 17 Pro, iOS 27).
 
 ## What was done
 
@@ -23,7 +23,7 @@ Branch `claude/w3b-delivery`, the delivery half of work package W3 of [roadmap.m
   - Error counts persist in `ouo.replay.errors`. Without the hook, anything held is sent.
 - **Expo bridge:** `postOtlp`, `heldReplaySessions`, `releaseHeldReplay`, and `holdUploads` in the start options.
 - **Conformance suite** (`tests/e2e/mobile`, from W2): C11.1 and C11.2 are no longer `pending`. The native stand-in models the new native behaviour: `postOtlp` (gzip), the chunk queue folder written before upload and drained oldest first, and held sessions.
-- **Docs:** `docs/specs/mobile-sdk.md` C11 is no longer draft: it states the bounds, and the matrix moves React Native iOS C11 to L2. `docs/specs/mobile-replay.md` gains two chunk rules (durable queue, keep/drop). The RN README gains "Delivery and offline (C11)". New kb [mobile-delivery.md](../../../kb/mobile-delivery.md); checklist N48 and N49 closed.
+- **Docs:** `docs/specs/mobile-sdk.md` C11 is no longer draft: it states the bounds, and the matrix moves React Native iOS C11 to L2. `docs/specs/mobile-replay.md` gains two chunk rules (durable queue, keep/drop). The RN README gains "Delivery and offline (C11)". New kb [mobile-delivery.md](../../../kb-archive/mobile-delivery.md); checklist N48 and N49 closed.
 - **Dependencies:** `@opentelemetry/exporter-logs-otlp-http` and `@opentelemetry/exporter-trace-otlp-http` were removed. They now go unused: their transport is replaced, and they pulled in `otlp-exporter-base`. `@opentelemetry/otlp-transformer` (^0.222.0) was added: it provides the OTLP JSON serializers, was already installed as a dependency of the removed exporters, and is a direct dependency of the browser SDK.
 
 ## Verified, and how

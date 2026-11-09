@@ -1,7 +1,7 @@
 // The ouo SDK, initialised by index.ts in the `parallel` and `ouo` rollout modes
 // (src/rollout.ts), always AFTER Sentry when both run: ouo then owns Hermes' single promise
 // rejection tracker (and forwards rejections to Sentry) and its fetch / XHR wrappers run first,
-// so ouo's traceparent is the one the backend gets (project/kb/ouo-next-to-sentry.md).
+// so ouo's traceparent is the one the backend gets (project/kb-archive/ouo-next-to-sentry.md).
 import { initRUM, type RUM } from "@ouo11y/react-native";
 import * as Sentry from "@sentry/react-native";
 import { config } from "./config";
@@ -35,7 +35,7 @@ export function initOuo(mode: RumMode, replay: boolean): RUM {
         }
       : {},
     // `parallel`: Sentry's replay keeps recording; a second recorder doubles the capture cost
-    // on the device (project/kb/sdk-overhead-ios.md), so ouo replay is off. `ouo`: ouo is the only
+    // on the device (project/kb-archive/sdk-overhead-ios.md), so ouo replay is off. `ouo`: ouo is the only
     // recorder. `replay` is that rule, except in a perf run that forces it (src/rollout.ts).
     replay: perfOuoReplay() ?? { enabled: replay, maskText: false }, // benchmark tiers only (src/perf.ts)
     debug: config.sentryDebug,

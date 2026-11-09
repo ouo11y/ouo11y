@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Device-cost measurement of the SDK mixes in examples/sentry-mobile (method: project/kb/sdk-overhead-ios.md).
+# Device-cost measurement of the SDK mixes in examples/sentry-mobile (method: project/kb-archive/sdk-overhead-ios.md).
 #
 #   scripts/perf/run.sh --out <dir> [--runs 5] [--seconds 95] [--modes "none sentry both both-replay ouo-replay"]
 #                       [--device <udid>]
