@@ -90,7 +90,7 @@ version needs the modules' `go.mod` bumped to the same versions.
 
 ocb itself builds from tagged modules without `replaces` (verified 2026-10-23 with local
 tags `collector/<kind>/<name>/v0.4.0` and `GOPROXY=direct`, see
-`project/kb/collector-components.md`). This repository's own build keeps `v0.0.0` + `replaces`
+`project/kb-archive/collector-components.md`). This repository's own build keeps `v0.0.0` + `replaces`
 on purpose:
 
 - A commit must build from its own component sources. With tags, `builder.yaml` names a
@@ -258,7 +258,7 @@ aborts the connection, so the SDK keeps the envelope and retries exactly as if S
 Envelopes Sentry accepted are translated off the request path into session events, exceptions
 and spans (logs and traces pipelines) and `kind: "video"` replay chunks (routed to the replay
 pipeline). `upstream: none` answers locally instead (cutover). Mapping:
-`docs/specs/sentry-bridge.md`; protocol notes: `project/kb/sentry-envelope-format.md`.
+`docs/specs/sentry-bridge.md`; protocol notes: `project/kb-archive/sentry-envelope-format.md`.
 
 ```yaml
 receivers:

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sets up the self-hosted macOS runner ouo11y-mac-1 on this Mac (project/kb/ci-runners.md, macOS section).
+# Sets up the self-hosted macOS runner ouo11y-mac-1 on this Mac (project/kb-archive/ci-runners.md, macOS section).
 #
 #   sudo RUNNER_TOKEN="$(gh api -X POST orgs/ouo11y/actions/runners/registration-token --jq .token)" \
 #     bash .github/scripts/setup-mac-runner.sh

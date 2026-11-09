@@ -26,14 +26,14 @@ Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 - [x] Grafana provisioning: Loki, Tempo, Mimir datasources, trace to logs correlation on `session.id`
 - [x] `examples/backend`: Go API with `/api/products`, `/api/cart`, `/api/checkout` (slow and 500 variants via query flags), OTel traces and logs, baggage `session.id` copied to spans (verified: `go vet`, `go test`, docker image, trace with `session.id` found in Tempo and log line in Loki; see `project/agents/backend-demo/summaries/2026-10-06-phase-1.md`)
 - [x] Smoke script: send a test span via curl and find it in Tempo; send a test log and find it in Loki
-- [x] project/kb/collector-lgtm.md filled
+- [x] project/kb-archive/collector-lgtm.md filled
 
 ## Phase 2 Browser SDK + web demo
 
 - [x] `sdk/browser`: init API, session manager (spec test cases 1 to 4 and 7), SpanProcessor + log attributes, fetch/XHR instrumentation with `traceparent` and baggage, errors (fatal / non-fatal), Web Vitals events, navigation events, rrweb recording with chunk upload (ADR-0003), privacy defaults, replay pause/disable (45 Vitest tests incl. jsdom integration against OTLP payloads; see `project/agents/sdk-browser/summaries/2026-10-06-phase-2.md`)
 - [x] `examples/ouo-web`: React storefront with product, cart, checkout, buttons to trigger slow request, 500, uncaught error, handled error (verified by browser click-through against the backend; see `project/agents/web-demo/summaries/2026-10-06-phase-2.md`)
 - [x] Verified: spans in Tempo with `session.id`, events in Loki, chunks on disk via rum-api stub or real (real Chromium session: 4 traces in Tempo incl. demo-backend child spans via baggage, 14 Loki records all with `session_id`, 8 gzip/keepalive chunks decoded by a Node stub; commands in the sdk-browser summary)
-- [x] project/kb/otel-browser-sdk.md and project/kb/rrweb-chunking.md filled
+- [x] project/kb-archive/otel-browser-sdk.md and project/kb-archive/rrweb-chunking.md filled
 
 ## Phase 3 rum-api
 
@@ -43,7 +43,7 @@ Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 - [x] Session folding and classification per ADR-0004 with unit tests on fixture Loki responses (`services/rum-api/internal/session`, 8 fixtures incl. a real Loki response; synthetic mobile session classified errored / 9.9.9)
 - [x] Tempo search per session with trace count and Tempo deep links (Explore `panes` URL opened in Grafana 13.2.1)
 - [x] Own OTel instrumentation, Dockerfile, added to compose (`service.name=rum-api` traces in Tempo, logs in Loki)
-- [x] project/kb/loki-session-queries.md and project/kb/tempo-session-search.md filled
+- [x] project/kb-archive/loki-session-queries.md and project/kb-archive/tempo-session-search.md filled
 
 ## Phase 4 Grafana plugin
 
@@ -51,14 +51,14 @@ Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 - [x] Overview page: health percentages web and mobile by version, time range picker (verified in Grafana 13.2.1: tiles and version rows equal `GET /v1/stats/health?from=now-24h`)
 - [x] Sessions page: table with filters, status, user, version, trace count (verified: crashed web session with user and 19 traces, filters pre-set from Overview links)
 - [x] Session detail: timeline, trace list with Explore links, rrweb player synced to timeline markers (verified: Explore opens the Tempo trace view, marker and timeline clicks seek the player, inputs masked, sandboxed iframe; `project/agents/grafana-plugin/reports/phase-4-verification.html`)
-- [x] project/kb/grafana-app-plugin.md filled
+- [x] project/kb-archive/grafana-app-plugin.md filled
 
 ## Phase 5 React Native
 
 - [x] `sdk/react-native`: session manager (spec cases 1, 2, 3, 5, 6, 7), app state handling, global error handler with fatal flag, crash marker, fetch instrumentation, OTLP export (36 Vitest tests; `npm run -w sdk/react-native build` then `npm run -w sdk/react-native test`)
 - [x] `examples/ouo-mobile`: Expo app with the same storefront flows and buttons for handled error, fatal error, slow and failing requests; `service.version` from app config (`APP_VERSION` env); iOS Hermes bundle builds with `npx expo export --platform ios`
 - [x] Verified on iOS Simulator: sessions show up in plugin with version 2.3.0 (2026-10-08, iOS 27 simulator); crash flow verified on the simulator (fatal error, relaunch, session.end reason crash, Grafana shows crashed with replay). **Not done: no Xcode on the build machine.** Verified instead headlessly (Node playground against the real collector) and with the Expo web build: 9 + 2 mobile sessions on 2.3.0 / 2.4.0 with the expected healthy / errored / crashed statuses in rum-api, health buckets per version, Tempo traces with demo-backend spans. See `project/agents/sdk-react-native/summaries/2026-10-07-phase-5.md`.
-- [x] project/kb/otel-react-native.md filled
+- [x] project/kb-archive/otel-react-native.md filled
 
 ## Phase 6 End-to-end QA + reports
 
@@ -81,7 +81,7 @@ All MVP phases are merged (statuses corrected 2026-10-17). Bug 1 of `project/age
 - [x] rum-api accepts `kind: frames` chunks (8 MB), meta `kind`, `GET .../replay/frames` (validation of base64 JPEG magic, touches, viewport; 409 on mixed kinds and on events/frames of the other kind; `replay_kind` on session records; verified with `go test ./...` and curl against the rebuilt compose service, session `frames-test-1791471557`; see `project/agents/rum-api/summaries/2026-10-08-phase-7.md`)
 - [x] Grafana plugin frame player with touches, scrubber, markers (34 Jest tests; visual check pending)
 - [x] Verified on the iOS Simulator: text masked black in captured frames, replay plays in Grafana (project/agents/ios-replay/reports/phase-7-ios-verification.html): checkout input masked, `ouo-unmask` honoured, header texts masked, crash flow verified
-- [x] project/kb/ios-replay.md, project/kb/xcode-setup.md
+- [x] project/kb-archive/ios-replay.md, project/kb-archive/xcode-setup.md
 
 ## Phase 7b UX and masking fixes
 

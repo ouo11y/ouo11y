@@ -27,7 +27,7 @@ ADR-0008 / `docs/specs/sentry-bridge.md` section 11. Plugin `ouo-rum-app` 0.3.0 
   `presentation-play` icon (`@grafana/data` 13 has no video icon).
 - Version 0.4.0 (minor: new user-visible replay kind, per `docs/releasing.md`), `CHANGELOG.md`, `README.md`
   (Replay players section).
-- kb: `project/kb/grafana-plugin-video-player.md` + index line.
+- kb: `project/kb-archive/grafana-plugin-video-player.md` + index line.
 
 ## Verified, and how
 
@@ -53,8 +53,8 @@ ADR-0008 / `docs/specs/sentry-bridge.md` section 11. Plugin `ouo-rum-app` 0.3.0 
   bump it to `0.4.0` (or run `npm install`) when committing, as was done for 0.3.0.
 - Gaps between segments are verified by unit tests only; the live sessions had contiguous segments, and the
   real session had no touches (touches were verified on the stub).
-- `project/kb/video-replay-serving.md` (rum-api agent) lists "Range through the Grafana proxy" as open: it is answered in
-  `project/kb/grafana-plugin-video-player.md` (passes through).
+- `project/kb-archive/video-replay-serving.md` (rum-api agent) lists "Range through the Grafana proxy" as open: it is answered in
+  `project/kb-archive/grafana-plugin-video-player.md` (passes through).
 - The manifest of the real session has `platform: ""`; the info line just omits it. rum-api/bridge may want to
   fill `ios`.
 - Prettier reformatted two pre-existing blocks in files I touched (`SessionsTable.tsx`, `frames.ts`); two

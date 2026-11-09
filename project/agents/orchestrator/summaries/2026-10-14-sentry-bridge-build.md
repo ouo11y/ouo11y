@@ -69,4 +69,4 @@ Everything ran in the isolated compose project `ouo-sb`. The ports are in the re
   - Only one SDK version was tested.
   - Sentry `log` items are not translated.
 - **Deployment:** the receiver state is in memory, so run it as a single replica.
-- **Builder version:** the build machine's `builder` is v0.162. Use v0.160.0, installed into a scratch GOBIN in this run, as `project/kb/collector-components.md` says.
+- **Builder version:** the build machine's `builder` is v0.162. Use v0.160.0, installed into a scratch GOBIN in this run, as `project/kb-archive/collector-components.md` says.

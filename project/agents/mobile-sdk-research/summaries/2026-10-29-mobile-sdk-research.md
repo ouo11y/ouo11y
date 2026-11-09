@@ -2,10 +2,10 @@
 
 ## What was done
 
-- Created `project/kb/mobile-sdk-research/` with a shared ten-section appendix template (`index.md`) and started eight Opus 5.5 sub sessions in this worktree, one appendix each: A sentry-cocoa, B sentry-java, C Sentry React Native + Flutter, D PostHog iOS + Android, E PostHog React Native + Flutter, F Luciq, G open-source landscape + OpenTelemetry on mobile, H closed vendors + 24-vendor feature matrix. Each session cloned the upstream repos (blobless, with history) into its own scratchpad, read the code, and cited every claim as `repo/path:line @ sha`, with `[docs only]` / `[blog only]` / `[binary headers]` labels for anything not read in code.
+- Created `project/kb-archive/mobile-sdk-research/` with a shared ten-section appendix template (`index.md`) and started eight Opus 5.5 sub sessions in this worktree, one appendix each: A sentry-cocoa, B sentry-java, C Sentry React Native + Flutter, D PostHog iOS + Android, E PostHog React Native + Flutter, F Luciq, G open-source landscape + OpenTelemetry on mobile, H closed vendors + 24-vendor feature matrix. Each session cloned the upstream repos (blobless, with history) into its own scratchpad, read the code, and cited every claim as `repo/path:line @ sha`, with `[docs only]` / `[blog only]` / `[binary headers]` labels for anything not read in code.
 - Wrote `comparison.md`: one-page answers to the brief's questions, technique matrix per vendor and platform, the exact replay pipelines step by step, reconstruction and players, a wire-size table (measured plus derived), performance claims with their measurement methods, both Sentry blogs grounded in commits, RUM signal matrix, OTel matrix, condensed feature matrix, the six-target language matrix, open-source status, 13 recommendations for ouo and the limits of the research.
 - Wrote the HTML report `reports/mobile-sdk-research.html` (self-contained: answer cards, coloured technique matrix, four pipelines, a log-scale wire-size bar chart with provenance colours and a table view, footprint table, blog grounding, OTel and feature matrices, recommendations).
-- Updated `project/kb/index.md`, `project/agents/index.md`, `project/kb/competitors.md` (pointer), this agent's `index.md` and `tracker.md`.
+- Updated `project/kb-archive/index.md`, `project/agents/index.md`, `project/kb-archive/competitors.md` (pointer), this agent's `index.md` and `tracker.md`.
 
 ## What was verified and how
 
@@ -16,7 +16,7 @@
 
 ## Key findings (the five that matter most for ouo)
 
-1. Sentry's H.264 pipeline costs about 110 KiB per minute with masking on real traffic, 5–20× less than ADR-0006's nominal per-frame JPEG bound while the screen changes (≈ 2× less than ouo measured at matched quality, N50); LaunchDarkly's open tile-diff design is cheaper still. ADR-0006 should be revised before the Android SDK. *The representation is decided in [roadmap.md §2.2](../../../kb/mobile-sdk-research/roadmap.md#22-where-i-disagree): tiles inside ouo's own `frames` chunk, not rrweb.*
+1. Sentry's H.264 pipeline costs about 110 KiB per minute with masking on real traffic, 5–20× less than ADR-0006's nominal per-frame JPEG bound while the screen changes (≈ 2× less than ouo measured at matched quality, N50); LaunchDarkly's open tile-diff design is cheaper still. ADR-0006 should be revised before the Android SDK. *The representation is decided in [roadmap.md §2.2](../../../kb-archive/mobile-sdk-research/roadmap.md#22-where-i-disagree): tiles inside ouo's own `frames` chunk, not rrweb.*
 2. Every vendor, including wireframe-first PostHog, Datadog and Fullstory, falls back to screenshots for SwiftUI, Compose, React Native and Flutter. React Native always wraps the native SDK; Flutter always needs Dart-side capture.
 3. No mobile SDK of Sentry, PostHog or Luciq exports OTLP; PostHog's only OTel touch point is logs. Nobody in the field sends replay over OTel, and only Embrace and the OTel distributions export RUM to a user's collector. That slot is empty.
 4. The iOS view renderer V2 blog's numbers came from a timing patch that was never committed; the Android startup blog is backed by an in-repo macrobenchmark with a `SentryAndroid.init` trace section. Sentry deleted its CPU/frame and startup benchmark gates in 2026; no vendor gates replay overhead in CI.
@@ -24,7 +24,7 @@
 
 ## Layout move and overlap found at PR time
 
-- The worktree was cut from the pre-move history (before ADR-0010), so the first commit put the files under `kb/` and `agents/`; `origin/main` had moved to `project/kb/` and `project/agents/` and the PR showed as conflicting. The branch was rebuilt on `origin/main` with the files under `project/`, prose paths rewritten with the `project/` prefix, and the app's sync tool could not be used because the repository's pinned origin changed when the repo moved (re-pin under Help → Troubleshooting).
+- The worktree was cut from the pre-move history (before ADR-0010), so the first commit put the files under `kb/` and `agents/`; `origin/main` had moved to `project/kb-archive/` and `project/agents/` and the PR showed as conflicting. The branch was rebuilt on `origin/main` with the files under `project/`, prose paths rewritten with the `project/` prefix, and the app's sync tool could not be used because the repository's pinned origin changed when the repo moved (re-pin under Help → Troubleshooting).
 - Main already had `sentry-ios-replay-internals.md`, `sdk-overhead-ios.md`, `ios-vitals.md`, `ios-native-crashes.md` and `docs/benchmarks.md`, none visible to the sub sessions. Appendix A agrees with the internals entry on every shared point; the comparison and the folder index now cross-reference them, and recommendation 11 was rewritten around the existing B3 harness instead of proposing a new one.
 
 ## What is left
@@ -43,7 +43,7 @@
 
 The founder asked, on §12 of `comparison.md`: order by value, define done, how much in parallel, is the SDK competitive afterwards and what is missing, is §12 right at all, Datadog or Sentry, spec first with different maturity per platform, finish one implementation before the next.
 
-Written: `project/kb/mobile-sdk-research/roadmap.md` (the argument, ten work packages W1–W10 with exit criteria, three lanes, the twelve-capability spec and the L0–L3 ladder, five ADRs to decide) and `reports/mobile-sdk-roadmap.html` (lane chart, value-against-cost scatter, maturity matrices today and after W10, the competitive table and the gap list).
+Written: `project/kb-archive/mobile-sdk-research/roadmap.md` (the argument, ten work packages W1–W10 with exit criteria, three lanes, the twelve-capability spec and the L0–L3 ladder, five ADRs to decide) and `reports/mobile-sdk-roadmap.html` (lane chart, value-against-cost scatter, maturity matrices today and after W10, the competitive table and the gap list).
 
 Positions taken that differ from §12: tiles inside our own `frames` chunk instead of rrweb `<img>` mutations or H.264; no opentelemetry-swift in process on iOS (opentelemetry-android on Android stays); feedback as an OTel-shaped primitive now and a widget later. Added what §12 missed: native crash symbolication (dSYM, R8, Hermes), OOM and watchdog terminations, error context, the App Store privacy manifest, distribution.
 
@@ -55,7 +55,7 @@ Respects the founder's 2026-10-23 order: the roadmap is for when the ouo mobile 
 
 The founder asked that no PR wait on a human during W1–W10, with no pile of stale PRs, and that sessions push only what they are proud of. A first draft with a Claude review workflow, a merge bot, a stale bot and daily bot releases was rejected as overly complicated: everything runs locally on the founder's subscription, no key, no bot.
 
-Written: `docs/adr/0013-session-to-session-review.md` (proposed): the author session pushes only when proud and tested, a second session reviews and talks to the author until they agree, each posts one PR comment (`Review: approve` / `Author: agreed`), the author merges with `.github/scripts/merge-agreed.sh` (two comments + CI green, squash with the PR title, branch deleted), a session leaves no PR behind, releases at checkpoints through the unchanged `docs/releasing.md`. `AGENTS.md` section "Review and merge: two sessions, then the author merges" with the "Before you push" list; `project/kb/release-automation.md` section on merging by a session. The roadmap's proposed ADR numbers moved up by one (0014–0016).
+Written: `docs/adr-archive/0013-session-to-session-review.md` (proposed): the author session pushes only when proud and tested, a second session reviews and talks to the author until they agree, each posts one PR comment (`Review: approve` / `Author: agreed`), the author merges with `.github/scripts/merge-agreed.sh` (two comments + CI green, squash with the PR title, branch deleted), a session leaves no PR behind, releases at checkpoints through the unchanged `docs/releasing.md`. `AGENTS.md` section "Review and merge: two sessions, then the author merges" with the "Before you push" list; `project/kb-archive/release-automation.md` section on merging by a session. The roadmap's proposed ADR numbers moved up by one (0014–0016).
 
 Verified: `shellcheck` on the script and a dry read of its `gh` calls against PR #104 (comments and check runs parse; the merge itself was not run); `lychee --offline` on the touched docs.
 

@@ -1,6 +1,6 @@
 # W9 part 1: React Native Android (replay capture, delivery, vitals) and its conformance suite
 
-Date: 2026-10-31. Branch `claude/w9-android`, merged as PR #141 (de2b3bc) on 2026-11-01 after review (`Review: approve`, `Author: agreed`, all 17 checks green, main green after the merge). Roadmap W9 ([roadmap.md](../../../kb/mobile-sdk-research/roadmap.md), lane D), split into PRs that merge on their own; this is the React Native Android one.
+Date: 2026-10-31. Branch `claude/w9-android`, merged as PR #141 (de2b3bc) on 2026-11-01 after review (`Review: approve`, `Author: agreed`, all 17 checks green, main green after the merge). Roadmap W9 ([roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md), lane D), split into PRs that merge on their own; this is the React Native Android one.
 
 ## What was done
 
@@ -11,7 +11,7 @@ Date: 2026-10-31. Branch `claude/w9-android`, merged as PR #141 (de2b3bc) on 202
 - **Example** `examples/ouo-mobile`: `scripts/build-android.sh` (Release APK, `--env`, `--host`, `--conformance`), `plugins/withAndroidCleartext.js`, the Android side of `modules/ouo-chaos` (broadcast command channel, native crash, hang, kill), journey actions `error`, `golden`, `areas`, `crash`, `event`, `OUO_CONFORMANCE=1` mode (default masking, 5 s background timeout, `OUO_NOTE` lines), test ids and an image on Product.
 - **Suite** `tests/e2e/mobile-android` (`run.sh`, `check.mjs`, README): the real app on an emulator against an ouo-env, same check ids, pending checks for part 2.
 - **CI**: job `android` on the Mac runner (`[self-hosted, macOS]`, like `swift`): `replay-core` tests, the library, its instrumented tests compiled, and the Expo module compiled inside the example's Gradle build (`:ouo11y-react-native:compileReleaseKotlin`, `:ouo-chaos:compileReleaseKotlin`). Path filter `android`.
-- **Docs**: `docs/specs/mobile-replay.md` "Capture rules (Android)"; `docs/specs/mobile-sdk.md` matrix (React Native Android column) and section 5; `sdk/android/README.md`; the RN README; the example README; kb [android-setup.md](../../../kb/android-setup.md); checklist N85, N86, N87. ADR-0016 (opentelemetry-android as the Android base) already existed; nothing new to decide in part 1.
+- **Docs**: `docs/specs/mobile-replay.md` "Capture rules (Android)"; `docs/specs/mobile-sdk.md` matrix (React Native Android column) and section 5; `sdk/android/README.md`; the RN README; the example README; kb [android-setup.md](../../../kb-archive/android-setup.md); checklist N85, N86, N87. ADR-0016 (opentelemetry-android as the Android base) already existed; nothing new to decide in part 1.
 
 ## Verified, and how
 

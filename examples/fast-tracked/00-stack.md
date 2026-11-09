@@ -769,7 +769,7 @@ metrics generator that remote-writes `traces_spanmetrics_*` and
 
 ```yaml
 # Tempo 3.x single binary, local storage, OTLP receiver, metrics generator -> Mimir.
-# Only keys that exist in 3.0.x are used; see project/kb/collector-lgtm.md.
+# Only keys that exist in 3.0.x are used; see project/kb-archive/collector-lgtm.md.
 # Grafana >= 11 streams search/trace results over gRPC on the HTTP port (h2c).
 stream_over_http_enabled: true
 

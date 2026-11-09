@@ -2,7 +2,7 @@
 
 Status: normative for iOS and Android replay (ADR-0006, ADR-0014). Flutter emits the same contract.
 
-This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. The iOS SDK, the Android capture (`sdk/android`) and the React Native SDK, which embeds both, emit schema 2 (`platform` `ios` or `android`).
+This page describes schema 2: a frame is a full image or a list of patches against the frame before it ([ADR-0014](../adr-archive/0014-replay-tiles-in-frames.md)). A schema 1 chunk (every frame a full image) is a valid schema 2 chunk with `schema_version: 1` and no `mode`; readers accept both, and a session may mix them. The iOS SDK, the Android capture (`sdk/android`) and the React Native SDK, which embeds both, emit schema 2 (`platform` `ios` or `android`).
 
 ## Chunk
 

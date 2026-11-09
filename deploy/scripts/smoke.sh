@@ -43,7 +43,7 @@ pass() { echo "ok: $*"; }
 warn() { echo "warn: $*" >&2; }
 
 # Requested headers are listed the way browsers send them: lowercase and sorted
-# (the collector's CORS handler rejects unsorted lists, see project/kb/collector-components.md).
+# (the collector's CORS handler rejects unsorted lists, see project/kb-archive/collector-components.md).
 # The OTLP SDK exporters send trace context headers; the replay uploaders do not.
 OTLP_PREFLIGHT_HEADERS="authorization,baggage,content-encoding,content-type,traceparent"
 REPLAY_PREFLIGHT_HEADERS="authorization,content-encoding,content-type"

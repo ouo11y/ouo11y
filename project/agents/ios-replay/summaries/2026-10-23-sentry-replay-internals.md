@@ -1,7 +1,7 @@
 # 2026-10-23 · sentry-cocoa session replay internals (kb-sentry-ios-replay-internals)
 
 Branch `claude/kb-sentry-ios-replay-internals-c06ec4` from `origin/main` 8121faf. Docs only, no SDK
-code changed, the iPhone not touched. kb: [sentry-ios-replay-internals.md](../../../kb/sentry-ios-replay-internals.md).
+code changed, the iPhone not touched. kb: [sentry-ios-replay-internals.md](../../../kb-archive/sentry-ios-replay-internals.md).
 
 ## Done
 

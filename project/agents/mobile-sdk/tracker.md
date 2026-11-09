@@ -1,6 +1,6 @@
 # mobile-sdk tracker
 
-Order and exit criteria: [roadmap.md §3 and §10](../../kb/mobile-sdk-research/roadmap.md#3-the-ordered-work-list).
+Order and exit criteria: [roadmap.md §3 and §10](../../kb-archive/mobile-sdk-research/roadmap.md#3-the-ordered-work-list).
 
 | Package | Status | Notes |
 |---|---|---|

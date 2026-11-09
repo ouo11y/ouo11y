@@ -28,7 +28,7 @@ An age has to be measured across processes and reboots (entries outlive both). T
 
 Round 1, `Review: changes needed`, all answered:
 
-1. Stale 24 h text: `ChunkUploader` doc comments, `project/kb/mobile-delivery.md`, `project/kb/ios-native-sdk.md`, the N55 line: fixed.
+1. Stale 24 h text: `ChunkUploader` doc comments, `project/kb-archive/mobile-delivery.md`, `project/kb-archive/ios-native-sdk.md`, the N55 line: fixed.
 2. The age was the only escape from N55's head-of-line block (a request answered 5xx every time): now the bound is, so on a quiet app 500 batches or 5 MB (OTLP), 10 MB (replay). Written in both specs, the kb and N55, which says this makes it more pressing. Kept bounds only: a wall-clock age as the escape is the bug, and the real fix is N55's narrower retry set.
 3. `put` lists the folder once (stamp and bound from the same listing) instead of twice.
 4. The doc comment says the stamp alone orders the names and the counter stays for the files already on devices.

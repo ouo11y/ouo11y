@@ -3,7 +3,7 @@
 # Command Line Tools there is no XCTest, but Swift Testing ships inside the CLT
 # (Library/Developer/Frameworks/Testing.framework + Library/Developer/usr/lib), which
 # SwiftPM does not search by default; this script points the compiler, linker and dyld there.
-# See project/kb/xcode-setup.md.
+# See project/kb-archive/xcode-setup.md.
 set -eu
 cd "$(dirname "$0")"
 DEV="$(xcode-select -p)"

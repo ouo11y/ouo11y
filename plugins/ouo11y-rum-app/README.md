@@ -160,5 +160,5 @@ src/utils/timerange.ts       URL <-> Grafana TimeRange
 .config/                     webpack, jest, tsconfig, eslint from @grafana/create-plugin 7.12.1
 ```
 
-See `project/kb/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, secureJsonData handling,
+See `project/kb-archive/grafana-app-plugin.md` for the gotchas (route path must be `rum/*`, secureJsonData handling,
 rrweb-player float, browser cache after rebuild, sandbox).

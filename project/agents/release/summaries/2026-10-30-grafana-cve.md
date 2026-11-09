@@ -16,11 +16,11 @@ fixed in 1.2.1-r0. The Grafana Go binaries had no fixable CRITICAL, only HIGHs (
   bind-mounted plugin runs on the version the image ships.
 - `examples/fast-tracked/00-stack.md`: the pinned-images line.
 - `deploy/images/grafana/CHANGELOG.md`: `Unreleased` note naming the new base.
-- `project/kb/release-automation.md`: how to read a red Trivy gate caused by the base.
+- `project/kb-archive/release-automation.md`: how to read a red Trivy gate caused by the base.
 - `docs/compatibility.md`: this `fix` touching `deploy/images/grafana` cuts grafana 0.5.1, which
   stays on the one-per-line `grafana | 0.5` row, so that row now says 13.2.5 from 0.5.1 (0.5.0:
   13.2.1). The 0.4 row stays at 13.2.1.
-- `project/kb/collector-lgtm.md`: the pinned-tags table.
+- `project/kb-archive/collector-lgtm.md`: the pinned-tags table.
 
 The Trivy step is unchanged.
 

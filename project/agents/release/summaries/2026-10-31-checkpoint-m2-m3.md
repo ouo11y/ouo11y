@@ -74,7 +74,7 @@ section 6). `gh workflow run release-chart.yml --ref main -f tag=chart-v0.2.0 -f
 
 ## What the next session must know
 
-Lessons are in `project/kb/release-automation.md` ("Release checkpoint lessons"): manifest
+Lessons are in `project/kb-archive/release-automation.md` ("Release checkpoint lessons"): manifest
 conflicts between release PRs, `ci.yml` has no dispatch, hand edits are wiped when a component's
 commit lands, compat rows go in their own release PR, release-please links to missing tags, the
 helm login on the runners. New checklist item N80 (chart upload path). In this worktree npm fails

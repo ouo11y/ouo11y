@@ -7,7 +7,7 @@ import type { Attrs } from "./types";
  * Native crash capture (checklist G1). The Expo module's OuoCrash handlers (sdk/ios
  * Sources/OuoCrash*) write one JSON report at crash time; the next `initRUM` takes it, ends the
  * crashed session with reason `crash` at the crash time and emits a fatal `exception` for it
- * (ADR-0004: the session is `crashed`). Report format: project/kb/ios-native-crashes.md.
+ * (ADR-0004: the session is `crashed`). Report format: project/kb-archive/ios-native-crashes.md.
  *
  * Hangs and terminations (mobile SDK spec C3, W4) use the same report: a `termination` report is
  * what the next launch takes when the previous run died in the foreground without a crash report

@@ -13,8 +13,8 @@
 - 30 runs: none, sentry, both (ouo replay off), both-replay, ouo-replay x 6 rounds, 95 s each, on a
   dedicated simulator (`ouo-perf iPhone 18 Pro`, A99B6BF8-...) against the isolated compose project
   `ouo-perf` (released 0.2.0 images, ports 35xx/45xx/85xx). One Time Profiler trace of both-replay.
-- Report `project/agents/sentry-demo/reports/sdk-overhead-ios.html`; kb `project/kb/sdk-overhead-ios.md`; pointer in
-  `project/kb/ouo-next-to-sentry.md`; README section.
+- Report `project/agents/sentry-demo/reports/sdk-overhead-ios.html`; kb `project/kb-archive/sdk-overhead-ios.md`; pointer in
+  `project/kb-archive/ouo-next-to-sentry.md`; README section.
 
 ## Result
 

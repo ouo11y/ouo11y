@@ -18,7 +18,7 @@
 - `node --test deploy/envs/*.test.mjs` 12/12; `https://sentry.ouo.localhost/_health/` 200 with the CA, `http://grafana.ouo.localhost` and `http://grafana.sbx.ouo.localhost` still 200 after the proxy was recreated.
 - F4 by looking at both players in the built-in browser (screenshots in the report).
 
-Report: [sentry-self-hosted-n2-f4.html](../reports/sentry-self-hosted-n2-f4.html). Knowledge: `project/kb/sentry-self-hosted.md`.
+Report: [sentry-self-hosted-n2-f4.html](../reports/sentry-self-hosted-n2-f4.html). Knowledge: `project/kb-archive/sentry-self-hosted.md`.
 
 ## Left
 

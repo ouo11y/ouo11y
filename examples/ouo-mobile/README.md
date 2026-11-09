@@ -86,7 +86,7 @@ the same stack and `verify.py`.
 
 ## Android (emulator)
 
-Needs JDK 17, the Android SDK and an emulator ([project/kb/android-setup.md](../../project/kb/android-setup.md)).
+Needs JDK 17, the Android SDK and an emulator ([project/kb-archive/android-setup.md](../../project/kb-archive/android-setup.md)).
 `scripts/build-android.sh` builds the Release APK with the stack's URLs baked in (`--env <name>` uses an
 ouo-env's ports on `10.0.2.2`, the emulator's address of the Mac; `--host <LAN IP>` for a phone) and
 installs it; `plugins/withAndroidCleartext.js` lets the Release build talk plain http to the local
@@ -139,7 +139,7 @@ Typecheck: `npx tsc --noEmit` in this folder (after `npm install`).
 This app is **not** an npm workspace: it has its own `package.json` and lockfile and links
 the SDK with `"@ouo11y/react-native": "file:../../sdk/react-native"` plus `metro.config.js`
 (watch folder, block list for the SDK's `node_modules`, peer redirection). See
-`project/kb/otel-react-native.md`.
+`project/kb-archive/otel-react-native.md`.
 
 ```bash
 # from the repo root: build the SDK first (Metro consumes dist/index.js, CocoaPods the vendored Swift sources)
@@ -156,7 +156,7 @@ npx expo export --platform ios            # bundle check without a simulator
 ### Development build (replay)
 
 The `OuoReplay` Expo module is native code, so the app must be built with Xcode once
-(`project/kb/xcode-setup.md` has the full machine setup):
+(`project/kb-archive/xcode-setup.md` has the full machine setup):
 
 ```bash
 cd examples/ouo-mobile

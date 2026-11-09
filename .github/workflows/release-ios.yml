@@ -51,7 +51,7 @@ jobs:
   test:
     name: swift tests
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.skip_tests)
-    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb/ci-runners.md), only on ios-v* tags
+    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb-archive/ci-runners.md), only on ios-v* tags
     timeout-minutes: 20
     permissions:
       contents: read

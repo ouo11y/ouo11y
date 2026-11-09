@@ -50,9 +50,9 @@ verified path.
     URLs, tenant header).
   - New "Existing LGTM" section in `.env.example`.
 - **kb:**
-  - `project/kb/collector-lgtm.md`: the label list now includes `ouo.project.id`, with a warning
+  - `project/kb-archive/collector-lgtm.md`: the label list now includes `ouo.project.id`, with a warning
     for shared Lokis.
-  - New `project/kb/existing-lgtm.md`.
+  - New `project/kb-archive/existing-lgtm.md`.
 - **Test fixture** `tests/e2e/existing-lgtm/`: a client-shaped stack plus `run.sh [--multitenant] [--keep]`.
 
 ## Verified, and how

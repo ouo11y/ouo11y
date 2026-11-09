@@ -1,6 +1,6 @@
 # Funnel reports specification
 
-Status: normative. Changes require an ADR. Decided in [ADR-0012](../adr/0012-funnel-reports.md).
+Status: normative. Changes require an ADR. Decided in [ADR-0012](../adr-archive/0012-funnel-reports.md).
 
 A funnel answers "of the sessions that did step 1, how many then did step 2, then step 3...". rum-api computes it from the session events already in Loki; nothing new is collected.
 

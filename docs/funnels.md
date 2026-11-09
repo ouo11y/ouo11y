@@ -3,7 +3,7 @@
 How many sessions go from one page or event to the next, in order, where they stop, and the
 replays of those that stopped. Grafana -> More apps -> ouo11y RUM -> **Funnels**.
 
-Rules: [specs/funnels.md](specs/funnels.md). Decision: [ADR-0012](adr/0012-funnel-reports.md).
+Rules: [specs/funnels.md](specs/funnels.md). Decision: [ADR-0012](adr-archive/0012-funnel-reports.md).
 API: [rum-api README, Funnels](../services/rum-api/README.md#funnels). A worked example with 50
 generated sessions: [quickstart 5, tiny-shop-funnels](../examples/quickstarts/tiny-shop-funnels/README.md).
 

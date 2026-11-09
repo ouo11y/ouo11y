@@ -1,17 +1,17 @@
 # ouo11y Android (sdk/android)
 
 The Android half of the ouo mobile SDK: session replay and the native signals (crashes, hangs,
-foreground terminations, frames, app start; [ADR-0017](../../docs/adr/0017-android-signals-and-opentelemetry-android.md)).
+foreground terminations, frames, app start; [ADR-0017](../../docs/adr-archive/0017-android-signals-and-opentelemetry-android.md)).
 
-Replay is the Android half of ouo mobile replay (roadmap W9, [ADR-0006](../../docs/adr/0006-mobile-replay-native-screenshots.md),
-[ADR-0014](../../docs/adr/0014-replay-tiles-in-frames.md)), the Kotlin twin of the Swift `OuoReplay`
+Replay is the Android half of ouo mobile replay (roadmap W9, [ADR-0006](../../docs/adr-archive/0006-mobile-replay-native-screenshots.md),
+[ADR-0014](../../docs/adr-archive/0014-replay-tiles-in-frames.md)), the Kotlin twin of the Swift `OuoReplay`
 in [sdk/ios](../ios/README.md). It sends the same `frames` chunks (schema 2, [mobile-replay.md](../../docs/specs/mobile-replay.md))
 to the collector's replay receiver, so rum-api and the Grafana player do not care which platform
 recorded them.
 
 Today it is consumed by the React Native SDK: `@ouo11y/react-native` compiles these sources inside
 the app's Gradle build (`sdk/react-native/scripts/sync-android.mjs` vendors them, as `sync-ios.mjs`
-does for Swift). A native Android package on opentelemetry-android ([ADR-0016](../../docs/adr/0016-opentelemetry-in-process.md))
+does for Swift). A native Android package on opentelemetry-android ([ADR-0016](../../docs/adr-archive/0016-opentelemetry-in-process.md))
 is W9 part 2.
 
 | Module | What it holds | Tests |
@@ -93,7 +93,7 @@ permission; replay reads only the app's own windows.
 ## Build and test
 
 Needs JDK 17 and the Android SDK (`ANDROID_HOME`, platform 35, build-tools 35); see
-[project/kb/android-setup.md](../../project/kb/android-setup.md).
+[project/kb-archive/android-setup.md](../../project/kb-archive/android-setup.md).
 
 ```bash
 cd sdk/android

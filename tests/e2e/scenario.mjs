@@ -51,7 +51,7 @@ import { BASIC, GRAFANA, GRAFANA_AUTH, OTLP, PROJECT_ID, PROJECT_TOKEN, READ_TOK
 
 const env = process.env;
 const ORIGIN = env.OUO_E2E_ORIGIN ?? "http://localhost:5173";
-// Browser-style Access-Control-Request-Headers: lowercase and sorted (project/kb/collector-components.md).
+// Browser-style Access-Control-Request-Headers: lowercase and sorted (project/kb-archive/collector-components.md).
 const OTLP_PREFLIGHT_HEADERS = "authorization,content-type";
 const REPLAY_PREFLIGHT_HEADERS = "authorization,content-encoding,content-type,x-ouo-seq,x-ouo-session-id";
 // Range: absolute run start so that two runs inside 15 minutes never count each other.

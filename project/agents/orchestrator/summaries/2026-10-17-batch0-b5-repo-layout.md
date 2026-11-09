@@ -1,12 +1,12 @@
 # 2026-10-17 Batch 0, step 1: B5 repository layout
 
-Founder approved the B5 layout from `project/tracker/roadmap.md` on 2026-10-17 and asked for it while no other session writes to the repo. Decision recorded as [ADR-0010](../../../../docs/adr/0010-repository-layout.md) (accepted; 0009 is taken by the naming proposal, PR #27).
+Founder approved the B5 layout from `project/tracker/roadmap.md` on 2026-10-17 and asked for it while no other session writes to the repo. Decision recorded as [ADR-0010](../../../../docs/adr-archive/0010-repository-layout.md) (accepted; 0009 is taken by the naming proposal, PR #27).
 
 ## Done
 
 - `git mv` only, history follows (`git log --follow`): `agents/`, `kb/`, `tracker/`, `reports/` → `project/`; `deploy/docker` → `deploy/compose`. Root `RELEASING.md` merged into `docs/releasing.md` (one document, 11 sections: packages, semver incl. the quick table and image rules, pre-releases, triggers, per-package procedure, image release checklist, local checks, pull access, secrets, changelogs, not automated).
-- References rewritten in 177 files with a two-pass script (link targets resolved against the old tree and recomputed; prose paths prefixed), method in [project/kb/repo-layout.md](../../../kb/repo-layout.md). False positives fixed by hand (an agent folder's own `reports/`, historical "before" sentences in roadmap B5 and the release tracker).
-- AGENTS.md: "Read first" now starts at `project/tracker/checklist.md`; layout block rewritten; rule that new top-level entries need an ADR and that links are checked. README "Where things live" table rewritten product first. LICENSE table paths. `docs/index.md`, `docs/adr/README.md`, `project/kb/index.md`.
+- References rewritten in 177 files with a two-pass script (link targets resolved against the old tree and recomputed; prose paths prefixed), method in [project/kb-archive/repo-layout.md](../../../kb-archive/repo-layout.md). False positives fixed by hand (an agent folder's own `reports/`, historical "before" sentences in roadmap B5 and the release tracker).
+- AGENTS.md: "Read first" now starts at `project/tracker/checklist.md`; layout block rewritten; rule that new top-level entries need an ADR and that links are checked. README "Where things live" table rewritten product first. LICENSE table paths. `docs/index.md`, `docs/adr-archive/README.md`, `project/kb-archive/index.md`.
 - CI: new job `links` (`lycheeverse/lychee-action@v2.9.0`, lychee 0.24.2, `--offline`, excludes `node_modules` and `/dist/`). Collector config validation path in `ci.yml` now `deploy/compose/collector/config.yaml`.
 - Trackers: roadmap B5 and checklist B5 ticked, founder decision 4 (layout) marked approved.
 

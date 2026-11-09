@@ -8,7 +8,7 @@
 - `scripts/build-ios.sh`: expo prebuild (first run or `--clean`), `pod install`, Release `xcodebuild` for the simulator with the JS bundle embedded, `simctl install`. Sentry uploads are disabled.
 - `scripts/journey.sh`: an unattended journey with timestamped log. Phases: launch, nav, network, errors, replay wait, background 40 s (Settings), crash. Opt-in `--js-fatal`. Flags `--no-nav`, `--no-network`, `--no-errors`, `--no-background`, `--no-crash`, `--bg-seconds`, `--replay-wait`, `--device`, `--openurl`.
 - `scripts/recorder.py` (stdlib fallback sink) and `scripts/analyze.py` (reads sentrytap and recorder captures; decodes envelopes and msgpack `replay_video`; can dump one segment).
-- `project/kb/sentry-react-native-demo.md` + kb index line, `project/agents/sentry-demo/` (index, tracker, this summary), and an `project/agents/index.md` line.
+- `project/kb-archive/sentry-react-native-demo.md` + kb index line, `project/agents/sentry-demo/` (index, tracker, this summary), and an `project/agents/index.md` line.
 
 Dependencies added (inside the example only): `@sentry/react-native` 8.30.0 is the SDK under test, newest release. `expo-linking` provides deep links. `expo-file-system` runs the journey mailbox; its native module was already linked by `expo`.
 
@@ -31,7 +31,7 @@ Why 8.30.0 rather than Expo's pinned `~7.11.0`: it is the newest version, its pe
   Touch run: JS fatal `event` (level `fatal`, mechanism `onerror`, `handled: false`) + session `crashed`, 8 `replay_video` items, and touch events.
 - `sdk.name` values seen (envelope header): `sentry.javascript.react-native` 8.30.0 (transactions, JS events, most replay segments) and `sentry.cocoa.react-native` 9.30.1 (sessions, native crash, a natively flushed replay segment). User-Agent is always `sentry.cocoa.react-native/9.30.1`.
 - `replay_video` is msgpack: first byte `0x83` (fixmap 3), `str8` keys, `bin32` values. `replay_recording` is uncompressed JSON. `replay_video` is mp4 (`ftypmp42`). One segment is dumped in `captures/2026-10-14-journey-replay-segment/` (`replay_event.json`, `replay_recording.bin`, `segment.mp4`).
-- Answers to the open questions in `project/kb/sentry-envelope-format.md` are in `project/kb/sentry-react-native-demo.md`: did = user.id; `exited` is sent on the next foreground; touches are in video (point) space on iOS; events carry `contexts.replay.replay_id`; transactions only carry envelope `trace.replay_id`.
+- Answers to the open questions in `project/kb-archive/sentry-envelope-format.md` are in `project/kb-archive/sentry-react-native-demo.md`: did = user.id; `exited` is sent on the next foreground; touches are in video (point) space on iOS; events carry `contexts.replay.replay_id`; transactions only carry envelope `trace.replay_id`.
 
 ## Captures
 

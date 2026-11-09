@@ -41,7 +41,7 @@ section 5 "8b". Owned paths: `services/rum-api`, the retention parts of `deploy/
   chunks at the sink (202 `sampled_out`, `ouo.replay.chunks_sampled_out`).
 - **Docs.** `docs/operations/data-lifecycle.md` (procedures, every backend's behaviour, the live
   record), `docs/operations/masking-proof.md` with 11 screenshots, READMEs and CHANGELOGs of
-  rum-api, the chart and the RN SDK, `project/kb/data-lifecycle.md`.
+  rum-api, the chart and the RN SDK, `project/kb-archive/data-lifecycle.md`.
 
 No new dependency (`minio-go/v7/pkg/lifecycle` is part of the existing module).
 
@@ -90,4 +90,4 @@ No new dependency (`minio-go/v7/pkg/lifecycle` is part of the existing module).
   `deploy/envs/ouo-env down 8b-retention-deletion` once the PR merges. It was started with
   `OUO_LOKI_DELETE_CANCEL_PERIOD=1m OUO_LOKI_COMPACTION_INTERVAL=1m OUO_LOKI_RETENTION_DELETE_DELAY=1m OUO_REPLAY_SWEEP_INTERVAL=30s`.
 - Simulator `ouo-8b` (B82A38DF-23AD-43AF-9E8F-7EA9FBE78202) was created for this run and is shut down.
-- Quirks worth knowing before touching this area are in `project/kb/data-lifecycle.md`.
+- Quirks worth knowing before touching this area are in `project/kb-archive/data-lifecycle.md`.

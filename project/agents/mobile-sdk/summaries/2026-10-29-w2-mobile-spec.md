@@ -5,11 +5,11 @@ Session started from the W1/W2 orchestration session; branch `claude/w2-mobile-s
 ## What was done
 
 - **`docs/specs/mobile-sdk.md`**: rules for every record; the twelve capabilities C1–C12 with records, required attributes, event names and thresholds, linking session-lifecycle, mobile-vitals, mobile-replay and funnels instead of repeating them; 18 conformance checks (C1.1 … C11.2) with what the golden app does and the pass condition; maturity L0–L3; the matrix for React Native iOS (measured), native iOS, React Native Android, native Android and Flutter (from reading the code); how the suite works and how a package turns a pending check required.
-- **ADR-0015** (indexed in `docs/adr/README.md`): one spec, L0–L3, one suite per package with the same check ids, Objective-C and Java as API surfaces, the React Native iOS suite in Node under a native model, strict pending checks, C12 = B3.
+- **ADR-0015** (indexed in `docs/adr-archive/README.md`): one spec, L0–L3, one suite per package with the same check ids, Objective-C and Java as API surfaces, the React Native iOS suite in Node under a native model, strict pending checks, C12 = B3.
 - **`tests/e2e/mobile/`**: `conformance.mjs` (runs the golden app, asserts rum-api, prints checks and the maturity row, `--out` JSON), `launch.cjs` (one launch of the built `@ouo11y/react-native` bundle per journey step), `standin.cjs` (model of the `OuoReplay` Expo module and of the OS, plus a fetch wrapper that logs and can refuse collector requests).
 - **`tests/e2e/lib.mjs`**: configuration and helpers moved out of `scenario.mjs` (env URLs and credentials, `getJSON`, `pollUntil`, `table`, …) so the two scripts share one copy; `scenario.mjs` imports them, behaviour unchanged.
 - **CI**: step `mobile SDK conformance (React Native iOS)` in the `examples` job's ouo-mobile leg (stack, demo backend and SDK build are already there); the `ex-ouo-mobile` path filter now also matches `tests/e2e/mobile/`, `tests/e2e/lib.mjs` and the spec.
-- kb [mobile-conformance.md](../../../kb/mobile-conformance.md); agent folder `project/agents/mobile-sdk/`; rows in the agents, kb, docs and ADR indexes; README layout row; checklist N17 note.
+- kb [mobile-conformance.md](../../../kb-archive/mobile-conformance.md); agent folder `project/agents/mobile-sdk/`; rows in the agents, kb, docs and ADR indexes; README layout row; checklist N17 note.
 
 ## Departures from the roadmap's wording (for the founder at the next checkpoint)
 

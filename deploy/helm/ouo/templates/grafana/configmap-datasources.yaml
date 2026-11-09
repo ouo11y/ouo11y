@@ -9,7 +9,7 @@ data:
   datasources.yaml: |
     # Mirrors deploy/compose/grafana/provisioning/datasources/datasources.yaml with the
     # URLs taken from lgtm.mode / lgtm.external. `$$` escapes the provisioner's own
-    # ${...} expansion (project/kb/collector-lgtm.md).
+    # ${...} expansion (project/kb-archive/collector-lgtm.md).
     apiVersion: 1
 
     deleteDatasources:

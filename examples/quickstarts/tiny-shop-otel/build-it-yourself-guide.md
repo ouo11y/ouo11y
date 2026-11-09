@@ -1590,7 +1590,7 @@ Create `frontend/src/telemetry/replay.js`:
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/frontend/src/telemetry/replay.js -->
 ```js
 // Session replay: rrweb records the page, and the events go to ouo in chunks
-// (docs/adr/0003-replay-model.md): { session_id, seq, started_at, ended_at, events },
+// (docs/adr-archive/0003-replay-model.md): { session_id, seq, started_at, ended_at, events },
 // POST /v1/replay/chunks on the collector's replay port, every 5 s or at 256 KB.
 import { record } from "rrweb";
 import { AUTHORIZATION, REPLAY_ENDPOINT } from "./config.js";

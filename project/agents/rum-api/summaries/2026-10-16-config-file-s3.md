@@ -2,7 +2,7 @@
 
 Branch `claude/rum-api-yaml-s3-80440c`, stacked on `claude/sentry-bridge-design`. Goal
 (founder, two prospective clients): operate rum-api like Loki and Tempo, a YAML config file
-plus object storage in MinIO / S3. Details and traps: `project/kb/rum-api-config-s3.md`.
+plus object storage in MinIO / S3. Details and traps: `project/kb-archive/rum-api-config-s3.md`.
 
 ## Done
 

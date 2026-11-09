@@ -1,6 +1,6 @@
 # 2026-10-31 W8 part 1: the native iOS SDK (`OuoSDK`)
 
-Branch `claude/w8-native-ios`, work package W8 of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) (§3, §10), part 1 of 2: what a UIKit or SwiftUI app needs to send the spec's records without React Native. ADR-0016 (dependency-free Swift, OTLP/JSON). Env `w8-native-ios`, simulator `ouo-w8` (617FDFE0-01F9-4EF8-8E0F-89F4C000931E, iPhone 18 Pro, iOS 27.0). Design notes and the risk table: [ios-native-sdk.md](../../../kb/ios-native-sdk.md).
+Branch `claude/w8-native-ios`, work package W8 of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) (§3, §10), part 1 of 2: what a UIKit or SwiftUI app needs to send the spec's records without React Native. ADR-0016 (dependency-free Swift, OTLP/JSON). Env `w8-native-ios`, simulator `ouo-w8` (617FDFE0-01F9-4EF8-8E0F-89F4C000931E, iPhone 18 Pro, iOS 27.0). Design notes and the risk table: [ios-native-sdk.md](../../../kb-archive/ios-native-sdk.md).
 
 ## What was done
 
@@ -12,7 +12,7 @@ Branch `claude/w8-native-ios`, work package W8 of [roadmap.md](../../../kb/mobil
 - **Wiring**: OuoCrash (previous report as a fatal exception of the crashed session with the persisted screen and last events; hangs as `hang` exceptions; session and start into the crash state), OuoVitals (app start, TTID / TTFD for `trackScreen` screens, frame windows; `OuoVitals.nextFrame` added), OuoReplay (started, rotated or paused per sampled session; the previous run's open chunk recovered), error context (last 20 events, screen, locale, memory, network) on every exception.
 - **`PrivacyInfo.xcprivacy`** in `OuoSDK` (no tracking; crash, performance, other diagnostic, product interaction, device id, not linked; UserDefaults CA92.1, system boot time 35F9.1).
 - **W4 review note**: the comment in `DisplayLinkTracker.start` (hang detection before the first frame relies on the link firing while active).
-- Docs: `sdk/ios` README ("OuoSDK: native apps") and CHANGELOG, spec matrix (native iOS C1–C5, C7–C9, C11 at L1; L2 needs the native suite, part 2), kb [ios-native-sdk.md](../../../kb/ios-native-sdk.md), release-please bumps `Ouo.sdkVersion`.
+- Docs: `sdk/ios` README ("OuoSDK: native apps") and CHANGELOG, spec matrix (native iOS C1–C5, C7–C9, C11 at L1; L2 needs the native suite, part 2), kb [ios-native-sdk.md](../../../kb-archive/ios-native-sdk.md), release-please bumps `Ouo.sdkVersion`.
 - No new dependency.
 
 ## Verified, and how

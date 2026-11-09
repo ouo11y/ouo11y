@@ -1,6 +1,6 @@
 # web-bench: six browser SDKs, one page, one journey
 
-The harness behind [Appendix M](../../../../kb/web-sdk-research/benchmark.md). It measures, on one
+The harness behind [Appendix M](../../../../kb-archive/web-sdk-research/benchmark.md). It measures, on one
 machine with headless Chromium, what `@ouo11y/browser`, `@sentry/browser`, `@datadog/browser-rum`,
 `posthog-js`, Grafana Faro and `@splunk/otel-web` cost on the same page: bundle bytes, main-thread
 and renderer CPU, long tasks, JS heap, and bytes on the wire (telemetry and replay apart). Every SDK

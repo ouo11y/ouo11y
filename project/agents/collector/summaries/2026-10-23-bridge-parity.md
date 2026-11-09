@@ -1,6 +1,6 @@
 # 2026-10-23: Sentry bridge parity fixes (Batch 1, checklist section 2)
 
-Session `b1-bridge-correctness`, branch `claude/b1-bridge-correctness-b3740f`. Paths: `collector/receiver/ouosentryreceiver` (code, tests, golden testdata), `docs/specs/sentry-bridge.md`, this folder, `project/kb/`, checklist ticks.
+Session `b1-bridge-correctness`, branch `claude/b1-bridge-correctness-b3740f`. Paths: `collector/receiver/ouosentryreceiver` (code, tests, golden testdata), `docs/specs/sentry-bridge.md`, this folder, `project/kb-archive/`, checklist ticks.
 
 ## Done
 
@@ -33,7 +33,7 @@ Own env `b1-bridge-correctness-b3740f` (built from this branch), self-hosted Sen
 - Loki: `session.previous_id` chains all 4 sessions; `session.start` of sessions 2 to 4 carry `os.version` 27.0 and `device.model.identifier` iPhone19,2 (session 1 has none: first contact with the device); `log` resource has `service.version`, environment, OS, device; `http.request.failed` at ERROR; errors carry `ouo.device.locale`, `network.connection.type`, `ouo.app.screen`; the native crash stack reads `at ? (sentrydemo 0x… 0x100260000 + 216732) [in app]` with 15 debug images.
 - Tempo: client spans of `sentry-demo` are named only `GET` / `POST`, with `server.address`, `server.port`, `url.scheme`, `url.path`.
 
-**Self-hosted Sentry was not ingesting** when the run started: its `taskbroker` Kafka consumer had shut down at 21:49Z and never rejoined, so Relay could not get project configs (`deadline exceeded`, about 275 envelopes pending) and nothing reached Sentry's stores, though every envelope got 200. Restarting only `taskbroker` (`docker compose --env-file .env.custom restart taskbroker`) fixed it; Relay then delivered the buffered envelopes. Recorded in `project/kb/sentry-self-hosted.md`.
+**Self-hosted Sentry was not ingesting** when the run started: its `taskbroker` Kafka consumer had shut down at 21:49Z and never rejoined, so Relay could not get project configs (`deadline exceeded`, about 275 envelopes pending) and nothing reached Sentry's stores, though every envelope got 200. Restarting only `taskbroker` (`docker compose --env-file .env.custom restart taskbroker`) fixed it; Relay then delivered the buffered envelopes. Recorded in `project/kb-archive/sentry-self-hosted.md`.
 
 ## Left / next
 

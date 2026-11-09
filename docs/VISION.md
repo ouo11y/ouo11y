@@ -2599,7 +2599,7 @@ Rules:
 Maintain:
 
 ```
-project/kb/
+project/kb-archive/
 ├── index.md
 ├── browser/
 ├── opentelemetry/

@@ -1,6 +1,6 @@
 # 2026-10-29 W1: production-safe iOS capture
 
-Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb/mobile-sdk-research/roadmap.md) (N51, N52). Env `w1-ios-capture` (released images), simulator `ouo-w1` (0A7A1A06-7317-4FA2-B166-D85E366D6621).
+Branch `claude/w1-ios-capture`, work package W1 of [roadmap.md](../../../kb-archive/mobile-sdk-research/roadmap.md) (N51, N52). Env `w1-ios-capture` (released images), simulator `ouo-w1` (0A7A1A06-7317-4FA2-B166-D85E366D6621).
 
 ## What was done
 

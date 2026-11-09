@@ -7,7 +7,7 @@ A native iOS crash caught by the ouo React Native SDK (or `OuoCrash` in `sdk/ios
 1   MyApp   0x0000000104a1c3c4 level2 (in MyApp) (ChaosScreen.swift:47)
 ```
 
-Web and JavaScript stacks use source maps instead: [sourcemaps.md](sourcemaps.md). The design is [ADR-0011](adr/0011-source-maps-and-symbolication.md), section 7.
+Web and JavaScript stacks use source maps instead: [sourcemaps.md](sourcemaps.md). The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md), section 7.
 
 ## How it works
 

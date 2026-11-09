@@ -2,7 +2,7 @@
 
 Owns `sdk/ios` (Swift package: `OuoReplay`, `OuoCrash`, `OuoVitals`), the Expo module side of `sdk/react-native`
 (`ios/`, `android/`, `expo-module.config.json`, `src/replay.ts`), replay wiring in
-`examples/ouo-mobile`, `project/kb/ios-replay.md`, `project/kb/xcode-setup.md`. Phase 7 (ADR-0006).
+`examples/ouo-mobile`, `project/kb-archive/ios-replay.md`, `project/kb-archive/xcode-setup.md`. Phase 7 (ADR-0006).
 
 - [tracker.md](tracker.md)
 - `summaries/` dated run summaries

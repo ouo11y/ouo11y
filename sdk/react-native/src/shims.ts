@@ -1,7 +1,7 @@
 /**
  * Globals the bundled OTel browser builds rely on that React Native / Hermes may lack.
  * Everything here is idempotent and only fills gaps; it never replaces a working global.
- * See project/kb/otel-react-native.md for the list and why each one is needed.
+ * See project/kb-archive/otel-react-native.md for the list and why each one is needed.
  */
 export interface ShimReport {
   performance: "native" | "timeOrigin-added" | "polyfilled";

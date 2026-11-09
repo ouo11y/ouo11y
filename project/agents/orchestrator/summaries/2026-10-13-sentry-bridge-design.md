@@ -6,16 +6,16 @@ The founder's iOS and Android apps run the Sentry SDKs. Can ouo consume what tho
 
 ## Done
 
-- `docs/adr/0008-sentry-sdk-bridge.md` (proposed). It adds an `ouosentry` receiver in `ouo-collector` (ADR-0007 rev 2), which:
+- `docs/adr-archive/0008-sentry-sdk-bridge.md` (proposed). It adds an `ouosentry` receiver in `ouo-collector` (ADR-0007 rev 2), which:
   - forwards each envelope to Sentry byte for byte and returns Sentry's response verbatim;
   - translates only envelopes that upstream accepted, asynchronously, into ordinary ouo OTLP;
   - resolves the session in the receiver;
   - introduces a `video` replay kind in rum-api.
 - `docs/specs/sentry-bridge.md`: the field-level mapping for sessions, errors, transactions and replay, the session resolution rules, the video chunk contract, the rum-api video API, the collector wiring, an attribute allowlist, the expected Sentry vs ouo differences and a verification plan.
-- `project/kb/sentry-envelope-format.md`: protocol facts from develop.sentry.dev and the MIT `sentry-java` sources, with links and open questions.
+- `project/kb-archive/sentry-envelope-format.md`: protocol facts from develop.sentry.dev and the MIT `sentry-java` sources, with links and open questions.
 - Index and tracker updates:
   - the ADR index, which also fixes the stale ADR-0007 title left over from rev 1;
-  - `docs/index.md` and `project/kb/index.md`;
+  - `docs/index.md` and `project/kb-archive/index.md`;
   - the roadmap Phase 12 item and a new conditional trigger;
   - `project/tracker/roadmap.md`, and the collector and orchestrator trackers.
 

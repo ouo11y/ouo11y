@@ -60,7 +60,7 @@ jobs:
   bench:
     # The PR smoke run (minutes) on the Mac runner; tag and dispatch runs stay GitHub-hosted: hours
     # of simulator load would land on the founder's Mac, and their numbers need an idle machine
-    # (project/kb/ci-runners.md).
+    # (project/kb-archive/ci-runners.md).
     runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["self-hosted","macOS"]') || 'macos-latest' }}
     timeout-minutes: 340
     permissions:

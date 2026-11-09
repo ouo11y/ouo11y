@@ -17,7 +17,7 @@
   - 4 (b): only the ouo SDK
   - 9 (c): cosmetic or plugin
   It also lists where the bridge is ahead of the ouo SDK, the parallel-mode traps and pitch guidance.
-- kb `project/kb/sentry-bridge-vs-ouo-sdk.md`. Tracker items A1 to A11 in `project/tracker/roadmap.md` ("Bridge parity gaps").
+- kb `project/kb-archive/sentry-bridge-vs-ouo-sdk.md`. Tracker items A1 to A11 in `project/tracker/roadmap.md` ("Bridge parity gaps").
 - Demo app (`examples/sentry-mobile`, owned by this agent), changed so the comparison is fair. No product code
   changed:
   - `App.tsx` wires `RUMProvider` and `navigationStateListener` in parallel mode, as the SDK README says.

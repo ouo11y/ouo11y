@@ -23,7 +23,7 @@ the examples (two prospective clients included) hit a bare `denied` / 403 on the
   user asks for, Helm, build from source); checklist steps 6 and 8 no longer say to make the
   package public. `docs/releasing.md` secrets table and `docs/operations/upgrade.md` updated
   the same way.
-- `project/kb/release-packaging.md` + `project/kb/index.md`: private-package pull quirks.
+- `project/kb-archive/release-packaging.md` + `project/kb-archive/index.md`: private-package pull quirks.
 
 No token or real credential anywhere; every example uses `$GHCR_TOKEN` and `<github-user>`.
 

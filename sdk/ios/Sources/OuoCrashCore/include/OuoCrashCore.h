@@ -1,6 +1,6 @@
 // Native crash capture for ouo (checklist G1). Async-signal-safe C: the signal handler writes one
 // JSON report to disk at crash time, the next launch sends it (OuoCrash, Swift). Report format and
-// rationale: project/kb/ios-native-crashes.md.
+// rationale: project/kb-archive/ios-native-crashes.md.
 #ifndef OUO_CRASH_CORE_H
 #define OUO_CRASH_CORE_H
 

@@ -58,7 +58,7 @@ fake one: getsentry/self-hosted in `~/Desktop/personal/sentry-self-hosted`, comp
 direct; login `admin@ouo.localhost` / testing567). It needs about 14 GiB of Docker memory (Docker
 Desktop at 20 GB + swap). Point an env's bridge at it with `OUO_SENTRY_UPSTREAM=http://host.docker.internal:9000`,
 `OUO_SENTRY_PROJECT_ID` and `OUO_SENTRY_PUBLIC_KEY` of the Sentry project. Install, memory, the
-read-only Sentry MCP server and what the first run showed: [project/kb/sentry-self-hosted.md](../project/kb/sentry-self-hosted.md).
+read-only Sentry MCP server and what the first run showed: [project/kb-archive/sentry-self-hosted.md](../project/kb-archive/sentry-self-hosted.md).
 
 ## Start, stop, reset
 
@@ -247,7 +247,7 @@ exporter and `ouoratelimit` processor. Compose builds it as `ouo/collector` from
 `../../collector` and mounts `deploy/compose/collector/config.yaml` at
 `/etc/otelcol/config.yaml` and `projects.htpasswd` at `/etc/otelcol/projects.htpasswd`.
 It needs `OUO_INGEST_TOKEN` in its environment for the replay exporter. Config details:
-`project/kb/collector-lgtm.md` and the collector agent's notes.
+`project/kb-archive/collector-lgtm.md` and the collector agent's notes.
 
 ## rum-api
 
@@ -295,7 +295,7 @@ go test ./internal/replay/`; without it the tests start their own MinIO containe
 The official `minio/minio` and `minio/mc` images are no longer published; the stack pins
 the community-maintained builds `pgsty/minio` and `pgsty/mc` (same server and client,
 override with `OUO_MINIO_IMAGE` / `OUO_MC_IMAGE`). Any S3 compatible store works for
-rum-api; see `project/kb/rum-api-config-s3.md`.
+rum-api; see `project/kb-archive/rum-api-config-s3.md`.
 
 ```bash
 curl localhost:8080/readyz                                                                     # {"ready":true,"checks":{"loki":"ok","tempo":"ok"}}
@@ -368,5 +368,5 @@ Kubernetes: `deploy/helm/README.md`.
 - Loki, Tempo, Mimir and rum-api are still published on `0.0.0.0` in the laptop stack so
   Explore-style curls work from other devices on your LAN; the VM override binds them to
   loopback.
-- Pinned images: see `compose.yaml` and `project/kb/collector-lgtm.md`; collector component
+- Pinned images: see `compose.yaml` and `project/kb-archive/collector-lgtm.md`; collector component
   versions in `collector/builder.yaml`.

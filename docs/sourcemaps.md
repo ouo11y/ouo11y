@@ -1,6 +1,6 @@
 # Source maps: readable stacks from minified web and React Native apps
 
-A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` into `at o (https://shop.example/assets/index-B3x9.js:40:1234)`. With source maps uploaded to ouo, the session page and rum-api's API show the original file, line, column and function, and the source line that threw. The raw stack stays available behind a toggle. The design is [ADR-0011](adr/0011-source-maps-and-symbolication.md).
+A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` into `at o (https://shop.example/assets/index-B3x9.js:40:1234)`. With source maps uploaded to ouo, the session page and rum-api's API show the original file, line, column and function, and the source line that threw. The raw stack stays available behind a toggle. The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md).
 
 ## How it works
 

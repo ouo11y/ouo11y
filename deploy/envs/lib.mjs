@@ -31,7 +31,7 @@ export const INGEST = [
 
 // Hosts outside any env, served by the proxy's file provider (deploy/envs/proxy/dynamic.yaml):
 // http and https. sentry: the self-hosted Sentry used as the bridge's real upstream
-// (project/kb/sentry-self-hosted.md), compose project sentry-sbx on host port 9000.
+// (project/kb-archive/sentry-self-hosted.md), compose project sentry-sbx on host port 9000.
 export const EXTERNAL = [{ name: "sentry", target: "http://host.docker.internal:9000" }];
 
 // The proxy's TLS certificate (https on port 443 for every env route and the EXTERNAL

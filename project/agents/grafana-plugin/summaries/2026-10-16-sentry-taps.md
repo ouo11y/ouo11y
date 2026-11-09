@@ -3,7 +3,7 @@
 Ask (founder, via the orchestrator session): in a Sentry-sourced (`video`) replay, taps must show at least as
 clearly as in Sentry's player, on the video and in a list beside it with click-to-seek.
 
-## Root cause (evidence in `project/kb/sentry-replay-taps.md`)
+## Root cause (evidence in `project/kb-archive/sentry-replay-taps.md`)
 
 - Not the SDK, not the receiver: real simulator taps give rrweb touch events (source 2 type 7/9, source 6 moves) in
   video points and `ui.tap` breadcrumbs 80 to 150 ms after each touch start. New golden capture

@@ -23,12 +23,12 @@ Grafana plugin proxy --GET /v1/... + Authorization: Bearer <OUO_READ_TOKEN>--> r
 rum-api --OTLP/HTTP--> ouo-collector (service.name=rum-api; own traces, logs, replay metrics)
 ```
 
-Design references: `docs/adr/0007-ingest-gateway-project-tokens.md` (the collector is the
+Design references: `docs/adr-archive/0007-ingest-gateway-project-tokens.md` (the collector is the
 edge, replay sink contract, read token), `docs/specs/session-lifecycle.md` (server-side
 record, end inference), ADR-0003 (replay layout), ADR-0004 (healthy / errored / crashed),
 ADR-0006 and `docs/specs/mobile-replay.md` (frame chunks), ADR-0008 and
-`docs/specs/sentry-bridge.md` section 11 (video chunks), `project/kb/ingest-gateway.md` (sink
-contract notes), `project/kb/loki-session-queries.md`, `project/kb/tempo-session-search.md`.
+`docs/specs/sentry-bridge.md` section 11 (video chunks), `project/kb-archive/ingest-gateway.md` (sink
+contract notes), `project/kb-archive/loki-session-queries.md`, `project/kb-archive/tempo-session-search.md`.
 
 ## Run
 
