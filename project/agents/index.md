@@ -25,5 +25,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [web-sdk-research](web-sdk-research/) | `project/kb-archive/web-sdk-research/` research on Sentry, Datadog, PostHog, Faro and the OTel-shaped vendors, the replay specialists and the field on the web (RUM, replay, bundle and wire cost measured on one page, OTel, 25-vendor matrix), ouo's web stack today, and the web roadmap (WB1–WB10) | research |
 | [otel-data-models](otel-data-models/) | Step 1 of the post-MVP plan: `project/kb/opentelemetry/`, explaining OTel logs, traces, metrics and OTLP from primary sources | post-MVP step 1 |
 | [rum-semconv](rum-semconv/) | Step 2 of the post-MVP plan: `project/kb/opentelemetry/rum-semantic-conventions/`, on RUM conventions, predictions, and which signals are events or spans | post-MVP step 2 |
+| [sdk-spec](sdk-spec/) | Step 3 of the post-MVP plan: the draft SDK spec, `project/kb/opentelemetry/rum-semantic-conventions/sdk-spec.md` | post-MVP step 3 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

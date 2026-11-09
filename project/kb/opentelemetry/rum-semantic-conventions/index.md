@@ -13,4 +13,5 @@ Which OTel conventions exist for RUM signals, what to predict where they are sil
 | [sessions.md](sessions.md) | What do `session.id` and session events specify? |
 | [replay.md](replay.md) | How should replay be modelled when OTel has no convention? |
 | [propagation-and-resources.md](propagation-and-resources.md) | How do `session.id` and `traceparent` propagate, and what belongs on the resource? |
+| [sdk-spec.md](sdk-spec.md) | What must every ouo SDK do? Draft normative spec (Step 3), moves to `docs/specs/` after Step 7 |
 | [questions-for-step-3.md](questions-for-step-3.md) | What must the founder decide, and what does the SDK spec have to answer? |
