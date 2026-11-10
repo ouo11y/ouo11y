@@ -1,0 +1,15 @@
+{
+ "method": "esbuild bundle of the package entry (own folder, so only one Sentry core resolves), minified ESM, React Native and Expo packages external, gzip -9 and brotli 11",
+ "ouo": {
+  "package": "@ouo11y/react-native 0.3.0",
+  "raw_kib": 132.3,
+  "gz_kib": 42.2,
+  "br_kib": 37.2
+ },
+ "sentry": {
+  "package": "@sentry/react-native 8.34.0",
+  "raw_kib": 308.3,
+  "gz_kib": 109,
+  "br_kib": 94
+ }
+}

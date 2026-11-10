@@ -1,0 +1,43 @@
+{
+ "platform": "ios",
+ "device": "iOS Simulator, iPhone 17 Pro, iOS 27.0 (24A434); simulator-only numbers, not device numbers",
+ "host": "MacBook Pro (Mac17,2), Apple M5, 32 GB, macOS 27.0.1, Xcode 27.0 (27A266a)",
+ "sdk_versions": {
+  "ouo11y-ios": "0.3.0 (sdk/ios/version.txt, local path, branch docs/step5-sdk-state @ 3e9e2c11)",
+  "sentry-cocoa": "9.33.0 (SwiftPM, product Sentry, static xcframework; latest 9.x tag on 2026-11-10)"
+ },
+ "not_measured": [
+  {
+   "what": "Journey spread at n>=5",
+   "why": "3 journey rounds per variant (each round takes about 10 minutes on the simulator); medians with min and max over 3 runs"
+  },
+  {
+   "what": "App Store thinned / compressed download size",
+   "why": "no signing identity or App Store Connect; reported the unsigned device-arch (arm64) .app plus an IPA-shaped zip instead"
+  },
+  {
+   "what": "Device (iPhone) numbers",
+   "why": "simulator only by instruction: CPU and memory are the Mac's host process, network is loopback"
+  },
+  {
+   "what": "Tap/interaction capture cost",
+   "why": "the journey is timer-driven inside the app (no synthesised touches), so neither SDK's tap tracking ran"
+  },
+  {
+   "what": "Init time for base",
+   "why": "no SDK call to time (baseline)"
+  },
+  {
+   "what": "Work done for the app by other processes (backboardd, render server, simulator networking)",
+   "why": "proc_pid_rusage counts the app process only"
+  }
+ ],
+ "method": "See README.md. One app, one source, three Release builds (base / OuoSDK / sentry-cocoa); replay is a runtime switch on the same binary. Size: device build (generic/platform=iOS, arm64, unsigned then ad-hoc signed), .app bytes and IPA-shaped zip (deflate 9); deltas vs base. Init: DispatchTime around Ouo.start / SentrySDK.start in didFinishLaunching, main thread, 12 cold launches on fresh installs per variant. CPU/memory: proc_pid_rusage(RUSAGE_INFO_V6) every 0.5 s on the simulator app's host PID (user+system CPU, phys_footprint); idle window 5-20 s (memory 10-20 s), journey window 20-80 s, peak 0-85 s. Wire: local capture server answering 200 itself, request body bytes as sent (gzip) for every SDK request from launch to 100 s (85 s foreground, 15 s background), scaled to per minute. 3 journey rounds per variant (n=3), interleaved and rotated. Timer-driven journey (no synthesised taps). Simulator numbers: host CPU and memory, loopback network. Host load: a first run under heavy contention (1-min load 5 to 500) was discarded whole (discarded_runs). In the rerun the journeys ran at load 1.9 to 2.9, but the 12 init launches started while that load was still falling: about half ran at load 10 to 139, the rest below 10. On the launches below load 10 (n = 5 or 6 per variant) the init medians are within 0.7 ms of the medians over all 12 (ouo 12.6, ouo + replay 8.4, Sentry 46.4, Sentry + replay 45.7 ms); the slowest Sentry launch (92 ms) is a loaded one. Load is sampled every 5 s and stored per run (load1).",
+ "discarded_runs": [
+  {
+   "when": "2026-11-10, first run",
+   "runs": "15 journey runs and the init launches of the first attempt",
+   "why": "Mac 1-min load 5 to 500 while a parallel session ran an Android emulator and a simulator; discarded whole and rerun, raw data not kept in the repo"
+  }
+ ]
+}

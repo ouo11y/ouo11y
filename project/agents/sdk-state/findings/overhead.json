@@ -1,0 +1,1889 @@
+{
+ "setup": "Every number is measured here, on 2026-11-10, on one Apple M5 Mac (10 cores, 32 GB, macOS 27.0.1), with ouo and Sentry on the same app and journey per platform and a no-SDK baseline in every round. Web: headless Chromium 156 through Playwright 1.64.1, @ouo11y/browser 0.3.1 against @sentry/browser 11.11.0, 5 rounds (3 at 4x CPU throttling), host load about 2. iOS: Simulator (iPhone 17 Pro, iOS 27.0), ouo11y-ios 0.3.0 against sentry-cocoa 9.33.0, 12 cold launches (about half at host load 10 to 139, while a discarded contended run's load was falling; the medians of the quiet launches match) and 3 journey rounds at host load about 2 to 3. Android: emulator (API 35, arm64), the Kotlin of sdk/android against sentry-android 8.63.0, 3 rounds, host load about 3 to 5. React Native: JS bundle size only. Simulator and emulator numbers are not device numbers. Medians; whiskers show the lowest and highest run.",
+ "charts": [
+  {
+   "title": "Web bundle",
+   "intro": "Each variant bundled the way an app bundler would (esbuild, minified, ESM, code splitting). \"Initial\" is what the page downloads at load; ouo loads rrweb lazily, so its replay cost is a second chunk fetched only when replay is sampled. Sentry was bundled with its replay in the main chunk, its default.",
+   "charts": [
+    {
+     "title": "Initial download, gzip",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 45.4599609375
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 45.4619140625
+      },
+      {
+       "label": "Sentry errors only",
+       "sdk": "sentry",
+       "value": 31.3173828125
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 54.69140625
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 95.0810546875
+      }
+     ]
+    },
+    {
+     "title": "Initial download, brotli",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 39.9228515625
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 39.95703125
+      },
+      {
+       "label": "Sentry errors only",
+       "sdk": "sentry",
+       "value": 28.0224609375
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 47.91796875
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 82.248046875
+      }
+     ]
+    },
+    {
+     "title": "With replay sampled: all JS downloaded, gzip",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 103.14453125
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 95.0810546875
+      }
+     ],
+     "note": "ouo: the initial chunk plus the lazy rrweb chunk. A session without replay downloads only the initial chunk."
+    },
+    {
+     "title": "React Native JS, gzip",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo 0.3.0",
+       "sdk": "ouo",
+       "value": 42.2
+      },
+      {
+       "label": "Sentry 8.34.0",
+       "sdk": "sentry",
+       "value": 109
+      }
+     ],
+     "note": "JS only, React Native and Expo packages external. Native code is extra (see the iOS and Android charts)."
+    }
+   ]
+  },
+  {
+   "title": "Web runtime, 60 s journey, headless Chromium",
+   "intro": "Chromium 156.0.8078.4, no CPU throttling, 5 interleaved rounds per variant. Values are the SDK's added cost: the variant's median minus the no-SDK median. Whiskers are the lowest and highest run, also minus the no-SDK median.",
+   "charts": [
+    {
+     "title": "Init call on the main thread",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 3.9000000953674316,
+       "lo": 3.799999952316284,
+       "hi": 7.699999809265137
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 4,
+       "lo": 3.799999952316284,
+       "hi": 4.1000001430511475
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 3.700000047683716,
+       "lo": 3.5,
+       "hi": 6.099999904632568
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 7.200000047683716,
+       "lo": 6.900000095367432,
+       "hi": 8.099999904632568
+      }
+     ],
+     "fmt": "{:.1f}",
+     "note": "Synchronous time of the init call itself; work it schedules later is in the CPU charts."
+    },
+    {
+     "title": "Main-thread task time added",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 72.39390877099765,
+       "lo": 58.47839287922159,
+       "hi": 89.16235259258838
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 143.19847044317174,
+       "lo": 122.71010844491093,
+       "hi": 158.7241484861084
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 109.76131655418686,
+       "lo": 99.27968005128344,
+       "hi": 139.4732933476946
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 180.8225275636416,
+       "lo": 133.11848237674286,
+       "hi": 217.35282483996366
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "Renderer CPU added (main thread and workers)",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 105.22110786717133,
+       "lo": 48.30738876113355,
+       "hi": 128.0922304706245
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 203.03855887657335,
+       "lo": 178.52505945778387,
+       "hi": 242.84939238365973
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 155.92370206943394,
+       "lo": 131.15504858160477,
+       "hi": 200.27808167188527
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 370.52931323332757,
+       "lo": 288.69783564920704,
+       "hi": 419.92164659496405
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "JS heap added after GC",
+     "unit": "MiB",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 0.91363525390625,
+       "lo": 0.9103851318359375,
+       "hi": 0.9140510559082031
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 2.4554595947265625,
+       "lo": 2.4399337768554688,
+       "hi": 2.4555206298828125
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 1.3375968933105469,
+       "lo": 1.3375625610351562,
+       "hi": 1.3384933471679688
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 2.690746307373047,
+       "lo": 2.6903724670410156,
+       "hi": 2.691059112548828
+      }
+     ],
+     "fmt": "{:.1f}"
+    },
+    {
+     "title": "Interaction task, p90, added",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 1.1099999999999994,
+       "lo": 0.18799999999999972,
+       "hi": 1.1819999999999995
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 3.738999999999999,
+       "lo": 3.484,
+       "hi": 4.33
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 0.9979999999999993,
+       "lo": 0.8179999999999996,
+       "hi": 1.0359999999999996
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 5.353,
+       "lo": 4.138,
+       "hi": 5.940999999999999
+      }
+     ],
+     "fmt": "{:.2f}",
+     "note": "The main-thread task that dispatched each click, key or wheel event: app handler plus SDK listeners and observers."
+    },
+    {
+     "title": "Bytes sent, all ingest",
+     "unit": "KiB per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 30.737975550233685,
+       "lo": 30.685306472459732,
+       "hi": 30.788505935308454
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 50.68577208256744,
+       "lo": 50.64564684128665,
+       "hi": 50.75316005418124
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 113.8865120940993,
+       "lo": 113.78559552912903,
+       "hi": 114.8407984183665
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 158.95748468812678,
+       "lo": 158.59809869042294,
+       "hi": 159.74701519087884
+      }
+     ],
+     "fmt": "{:.1f}",
+     "note": "Request bodies as received by the fake collector (compressed where the SDK compresses), including the flush at page close."
+    },
+    {
+     "title": "Of which replay",
+     "unit": "KiB per minute",
+     "rows": [
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 19.933175514464658,
+       "lo": 19.920459106406923,
+       "hi": 19.968456414759828
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 39.115504666479126,
+       "lo": 38.99261033248845,
+       "hi": 39.190926961872265
+      }
+     ],
+     "fmt": "{:.1f}"
+    }
+   ]
+  },
+  {
+   "title": "Web runtime with 4x CPU throttling",
+   "intro": "The same journey with Chrome's CPU throttled 4x, a rough stand-in for a mid-range phone; 3 rounds.",
+   "charts": [
+    {
+     "title": "Init call on the main thread (4x)",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 17.899999856948853,
+       "lo": 13.899999856948853,
+       "hi": 19.100000143051147
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 16,
+       "lo": 14.899999856948853,
+       "hi": 16.399999856948853
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 14.299999952316284,
+       "lo": 12.900000095367432,
+       "hi": 16.699999809265137
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 29.90000009536743,
+       "lo": 26.299999952316284,
+       "hi": 32.09999990463257
+      }
+     ]
+    },
+    {
+     "title": "Main-thread task time added (4x)",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 88.61930266406324,
+       "lo": 86.52842000955184,
+       "hi": 109.12456078267593
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 180.0206601286809,
+       "lo": 142.61767015587554,
+       "hi": 186.57114936756204
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 135.78466718783545,
+       "lo": 115.10347228575841,
+       "hi": 145.51991765071534
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 255.27615054385734,
+       "lo": 228.52294618109596,
+       "hi": 261.73745982158124
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "Interaction task, p90, added (4x)",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 0.41999999999999993,
+       "lo": 0.2919999999999998,
+       "hi": 0.7059999999999995
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 5.468,
+       "lo": 4.464,
+       "hi": 5.552
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 1.157,
+       "lo": 1.0039999999999996,
+       "hi": 1.2319999999999993
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 8.322000000000001,
+       "lo": 7.475999999999999,
+       "hi": 8.391
+      }
+     ],
+     "fmt": "{:.2f}"
+    }
+   ]
+  },
+  {
+   "title": "iOS Simulator",
+   "intro": "iPhone 17 Pro simulator, iOS 27.0: simulator numbers, not device numbers. One UIKit app built three ways (no SDK, ouo11y-ios 0.3.0, sentry-cocoa 9.33.0); replay is a runtime switch. Size is the arm64 device build. Init: 12 cold launches, about half of them at host load 10 to 139 (the medians of the quiet launches match). CPU, memory and bytes: 3 interleaved rounds of 20 s idle plus a 60 s timer-driven journey at host load about 2 to 3. Values are added over the no-SDK app; whiskers are the lowest and highest run, minus the no-SDK median. At n = 3, read only differences whose ranges do not overlap. Details: measure/ios/README.md.",
+   "charts": [
+    {
+     "title": "iOS: app size added, zipped",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 374.8525390625
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 374.8525390625
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 1308.5634765625
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 1308.5634765625
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "iOS: init on the main thread",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 12.61,
+       "lo": 9.407,
+       "hi": 18.365
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 8.709,
+       "lo": 7.798,
+       "hi": 19.992
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 47.14,
+       "lo": 46.099,
+       "hi": 92.079
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 46.097,
+       "lo": 43.812,
+       "hi": 64.672
+      }
+     ],
+     "fmt": "{:.1f}"
+    },
+    {
+     "title": "iOS: CPU added, idle screen",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 387.0,
+       "lo": 378.0,
+       "hi": 492.0
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 2476.0,
+       "lo": 2396.0,
+       "hi": 2658.0
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 429.0,
+       "lo": 388.0,
+       "hi": 487.0
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 4026.0,
+       "lo": 3950.0,
+       "hi": 4306.0
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "iOS: CPU added, journey",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 928.0,
+       "lo": 555.0,
+       "hi": 932.0
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 3076.0,
+       "lo": 2712.0,
+       "hi": 3117.0
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 662.0,
+       "lo": 660.0,
+       "hi": 700.0
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 3804.0,
+       "lo": 3801.0,
+       "hi": 3970.0
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "iOS: peak memory added",
+     "unit": "MiB",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 2.0,
+       "lo": 0.5,
+       "hi": 2.1999999999999993
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 3.8000000000000007,
+       "lo": 3.3999999999999986,
+       "hi": 11.3
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 3.8000000000000007,
+       "lo": 3.1999999999999993,
+       "hi": 4.899999999999999
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 42.5,
+       "lo": 17.900000000000002,
+       "hi": 43.0
+      }
+     ],
+     "fmt": "{:.1f}"
+    },
+    {
+     "title": "iOS: bytes sent",
+     "unit": "KiB per minute",
+     "rows": [
+      {
+       "label": "ouo core",
+       "sdk": "ouo",
+       "value": 28.21484375,
+       "lo": 28.205078125,
+       "hi": 28.2197265625
+      },
+      {
+       "label": "ouo + replay",
+       "sdk": "ouo",
+       "value": 67.1494140625,
+       "lo": 66.9677734375,
+       "hi": 67.6044921875
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 19.4990234375,
+       "lo": 19.34765625,
+       "hi": 19.501953125
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 69.44921875,
+       "lo": 67.13671875,
+       "hi": 70.634765625
+      }
+     ],
+     "fmt": "{:.1f}"
+    }
+   ]
+  },
+  {
+   "title": "Android emulator",
+   "intro": "Android emulator, API 35, arm64, 4 vCPU, software graphics. One native Kotlin app built per variant with R8. ouo here is the Kotlin code the React Native SDK vendors (signals and replay): it has no native exporter, so it sends replay only, while Sentry also sends errors, spans and sessions. CPU counts every thread but the render thread, because emulated graphics swamp total CPU. 3 interleaved rounds; whiskers are the lowest and highest run, minus the no-SDK median. Details: measure/android/README.md.",
+   "charts": [
+    {
+     "title": "Android: APK size added",
+     "unit": "KiB",
+     "rows": [
+      {
+       "label": "ouo signals only",
+       "sdk": "ouo",
+       "value": 9.88671875
+      },
+      {
+       "label": "ouo signals + replay",
+       "sdk": "ouo",
+       "value": 41.5
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 318.263671875
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 379.16015625
+      },
+      {
+       "label": "Sentry + NDK (size only)",
+       "sdk": "sentry",
+       "value": 1290.109375
+      }
+     ],
+     "fmt": "{:.0f}"
+    },
+    {
+     "title": "Android: init on the main thread",
+     "unit": "ms",
+     "rows": [
+      {
+       "label": "ouo signals only",
+       "sdk": "ouo",
+       "value": 3.07,
+       "lo": 1.02,
+       "hi": 13.62
+      },
+      {
+       "label": "ouo signals + replay",
+       "sdk": "ouo",
+       "value": 3.43,
+       "lo": 2.3,
+       "hi": 7.81
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 21.27,
+       "lo": 15.62,
+       "hi": 25.97
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 9.48,
+       "lo": 5.02,
+       "hi": 13.17
+      }
+     ],
+     "fmt": "{:.1f}"
+    },
+    {
+     "title": "Android: CPU added off the render thread, journey",
+     "unit": "ms per minute",
+     "rows": [
+      {
+       "label": "ouo signals only",
+       "sdk": "ouo",
+       "value": 90.0,
+       "lo": 80.0,
+       "hi": 120.0
+      },
+      {
+       "label": "ouo signals + replay",
+       "sdk": "ouo",
+       "value": 430.0,
+       "lo": 419.0,
+       "hi": 469.0
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 190.0,
+       "lo": 150.0,
+       "hi": 230.0
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 559.0,
+       "lo": 549.0,
+       "hi": 569.0
+      }
+     ],
+     "fmt": "{:.0f}",
+     "note": "Every thread but RenderThread: the SDK threads plus the main, binder, JIT and GC work they cause."
+    },
+    {
+     "title": "Android: steady memory added (PSS after settle)",
+     "unit": "MiB",
+     "rows": [
+      {
+       "label": "ouo signals only",
+       "sdk": "ouo",
+       "value": 1.299999999999999,
+       "lo": 0.09999999999999964,
+       "hi": 1.299999999999999
+      },
+      {
+       "label": "ouo signals + replay",
+       "sdk": "ouo",
+       "value": 4.200000000000001,
+       "lo": 2.9999999999999982,
+       "hi": 4.299999999999999
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 5.999999999999998,
+       "lo": 4.9,
+       "hi": 6.299999999999999
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 10.700000000000001,
+       "lo": 9.6,
+       "hi": 10.9
+      }
+     ],
+     "fmt": "{:.1f}",
+     "note": "Peak PSS (five samples in the journey) moved by about 1 MiB between runs, more than the SDKs added, so the steady value is shown."
+    },
+    {
+     "title": "Android: bytes sent",
+     "unit": "KiB per minute",
+     "rows": [
+      {
+       "label": "ouo signals only",
+       "sdk": "ouo",
+       "value": 0.0,
+       "lo": 0.0,
+       "hi": 0.0
+      },
+      {
+       "label": "ouo signals + replay",
+       "sdk": "ouo",
+       "value": 142.1748046875,
+       "lo": 139.353515625,
+       "hi": 142.8388671875
+      },
+      {
+       "label": "Sentry + tracing",
+       "sdk": "sentry",
+       "value": 20.6943359375,
+       "lo": 20.6591796875,
+       "hi": 20.708984375
+      },
+      {
+       "label": "Sentry + tracing + replay",
+       "sdk": "sentry",
+       "value": 192.6044921875,
+       "lo": 182.6689453125,
+       "hi": 238.36328125
+      }
+     ],
+     "fmt": "{:.1f}"
+    }
+   ]
+  }
+ ],
+ "budgets": [
+  {
+   "budget": "Size, core (compressed)",
+   "web": "50 KiB gzip initial JS (today 45.5)",
+   "ios": "500 KiB zipped app delta (today 375)",
+   "android": "250 KiB APK delta, exporter included (today 42 without one)",
+   "rn": "50 KiB gzip JS (today 42.2), plus the iOS and Android native budgets",
+   "basis": "Sentry: web 54.7, iOS 1309, Android 318, RN JS 109. Room for consent, sanitiser, view ids, bypass set and, on Android, an OTLP exporter",
+   "method": "CI on every PR: bundle.mjs (web, RN) and the iOS and Android harness builds plus size scripts. Size has no run-to-run noise, so fail above budget. The web dist budget (sdk/browser/size-budget.json) stays as the first gate"
+  },
+  {
+   "budget": "Size, with replay",
+   "web": "115 KiB gzip incl. the lazy replay chunk (today 103.1)",
+   "ios": "same binary as core (today 375)",
+   "android": "300 KiB APK delta (today 42)",
+   "rn": "native budgets apply",
+   "basis": "Sentry: web 95.1 all eager, iOS 1309, Android 379. Web replay must stay a lazy chunk, loaded only when sampled",
+   "method": "Same jobs as core size. The web job also fails if the initial chunk contains rrweb"
+  },
+  {
+   "budget": "Init on the main thread",
+   "web": "10 ms (today 3.9); 30 ms at 4x CPU throttling (today 17.9)",
+   "ios": "25 ms simulator (today 12.6)",
+   "android": "25 ms emulator (today 3.4 with replay)",
+   "rn": "not measured; propose 25 ms JS init",
+   "basis": "Sentry: web 3.7 core, 7.2 replay; iOS 47.1; Android 21.3 core, 9.5 replay. LIF-2 already forbids waiting on storage or network",
+   "method": "performance.now / DispatchTime / elapsedRealtimeNanos around init, median of at least 10 cold starts against a no-SDK build. Web: on PRs that touch sdk/browser. Mobile: the B3 benchmark (docs/benchmarks.md), extended with native ouo11y-ios / sentry-cocoa and Android cells, N >= 10 with real taps, at release checkpoints. Fail only when the lower quartile of the runs is above the budget, so noise alone cannot fail it"
+  },
+  {
+   "budget": "CPU, core, reference journey",
+   "web": "150 ms/min renderer CPU added (today 105)",
+   "ios": "1000 ms/min journey, 300 ms/min idle screen (today 928, range 555 to 932 over 3 runs, and 387: idle fails). Provisional until an N >= 10 run",
+   "android": "200 ms/min off the render thread (today 90, signals only)",
+   "rn": "not measured",
+   "basis": "Sentry: web 156; iOS 662 journey and 429 idle; Android 190. iOS journey: ouo's median is above Sentry's, but its lowest run is below, so at n = 3 ouo is possibly, not certainly, costlier. An idle screen should cost close to nothing",
+   "method": "Paired deltas: each SDK run minus the no-SDK run of the same round. Web: run.mjs, 10 rounds, on PRs that touch sdk/browser and nightly on main; the web baseline alone spans 369 to 515 ms/min over 5 rounds, more than the 45 ms/min of headroom, so a single median is not a gate. Mobile: the B3 benchmark (docs/benchmarks.md), extended with native ouo11y-ios / sentry-cocoa and Android cells, N >= 10 with real taps, at release checkpoints. Fail only when the lower quartile of the paired deltas is above the budget. Regressions between releases use the B3 rule (docs/benchmarks.md section 5: worse by the threshold and outside the previous IQR)"
+  },
+  {
+   "budget": "CPU, replay on",
+   "web": "300 ms/min (today 203)",
+   "ios": "3500 ms/min journey, 1000 idle (today 3076 and 2476: idle fails)",
+   "android": "500 ms/min off the render thread (today 430)",
+   "rn": "follows iOS and Android",
+   "basis": "Sentry: web 370; iOS 3804 journey and 4026 idle; Android 559",
+   "method": "Same as core CPU"
+  },
+  {
+   "budget": "Memory added, steady and peak",
+   "web": "JS heap after GC: 2 MiB core, 4 MiB replay (today 0.9 and 2.5)",
+   "ios": "peak footprint: 5 MiB core, 20 MiB replay (today 2.0 and 3.8)",
+   "android": "steady PSS: 5 MiB core, 15 MiB replay (today 1.3 and 4.2)",
+   "rn": "not measured",
+   "basis": "Sentry: web 1.3 and 2.7; iOS 3.8 and 42.5 peak; Android 6.0 and 10.7 steady",
+   "method": "Forced GC then heap (web), phys_footprint (iOS), smaps_rollup PSS (Android), against the no-SDK run. Same jobs and the same lower-quartile rule as CPU"
+  },
+  {
+   "budget": "Bytes per minute, telemetry",
+   "web": "40 KiB/min and 24 requests/min (today 30.7 KiB, 30.8 requests: requests fail)",
+   "ios": "40 KiB/min and 24 requests/min (today 28.2 KiB, 37.6 requests: requests fail)",
+   "android": "40 KiB/min (no exporter today)",
+   "rn": "40 KiB/min, not measured",
+   "basis": "Sentry: web 114 KiB (envelopes uncompressed) and 27.8 requests, iOS 19.5 KiB and 7.8 requests, Android 20.7 KiB and 9. 24 requests is two queues flushed every 5 s (spec 8.1 default)",
+   "method": "Fake collector in the harness counts request bodies as sent; byte and request counts barely move between runs (iOS 28.9 KiB with a 15-byte spread). Wire scenario in the section 14 suite on every PR"
+  },
+  {
+   "budget": "Bytes per minute, replay",
+   "web": "60 KiB/min (today 19.9)",
+   "ios": "100 KiB/min (today 38.8)",
+   "android": "200 KiB/min (today 142)",
+   "rn": "follows iOS and Android",
+   "basis": "Sentry: web 39.1, iOS 49.5, Android 193. The reference journeys are light; a 10,000-node page cost about 250 KiB/min on the web in the archived benchmark",
+   "method": "Same as telemetry bytes"
+  },
+  {
+   "budget": "Persisted storage cap",
+   "web": "5 MiB IndexedDB, replay first to go (today 5 MiB, shared)",
+   "ios": "5 MiB telemetry plus 10 MiB replay (today the same)",
+   "android": "10 MiB replay (today 10); 5 MiB telemetry when an exporter exists",
+   "rn": "5 MiB outbox plus 10 MiB native replay (today the same)",
+   "basis": "10 MiB holds over an hour of replay at the measured rates. Fills transport.persist.maxBytes in spec 8.1",
+   "method": "Unit test of the default and of oldest-first eviction in the order TRN-14 gives"
+  },
+  {
+   "budget": "Main-thread blocking per interaction (web)",
+   "web": "SDK adds at most 2 ms core and 5 ms replay to the p90 interaction task; 4 ms and 10 ms at 4x throttling (today 1.1 and 3.7; 0.4 and 5.5)",
+   "ios": "n/a",
+   "android": "n/a",
+   "rn": "n/a",
+   "basis": "Sentry: 1.0 and 5.4; 1.2 and 8.3 at 4x. INP's good threshold is 200 ms; the SDK should use a small slice of it",
+   "method": "Chrome trace in the web harness: the task that dispatched each input event, against the no-SDK run. Same job and lower-quartile rule as web CPU"
+  }
+ ],
+ "not_measured": [
+  {
+   "what": "Web on Firefox and WebKit",
+   "why": "The harness ran Chromium only; the CDP metrics it reads do not exist elsewhere"
+  },
+  {
+   "what": "React Native runtime cost",
+   "why": "Measuring it needs a release build of the Expo example app on a simulator and emulator, which did not fit this step. The JS bundle and the native pieces (iOS and Android harnesses) were measured separately"
+  },
+  {
+   "what": "Real devices",
+   "why": "No phone was used. Simulator CPU and memory are the Mac's; the emulator renders in software"
+  },
+  {
+   "what": "Web resource timing pricing (SIG-17)",
+   "why": "The SDK emits no browser.resource_timing events today; initial resources go out as resourceFetch child spans of documentLoad, always on, and are inside the measured telemetry bytes. Step 7, which fixes the web SDK, should price the event once it exists"
+  },
+  {
+   "what": "Journey spread at n>=5",
+   "why": "3 journey rounds per variant (each round takes about 10 minutes on the simulator); medians with min and max over 3 runs"
+  },
+  {
+   "what": "App Store thinned / compressed download size",
+   "why": "no signing identity or App Store Connect; reported the unsigned device-arch (arm64) .app plus an IPA-shaped zip instead"
+  },
+  {
+   "what": "Device (iPhone) numbers",
+   "why": "simulator only by instruction: CPU and memory are the Mac's host process, network is loopback"
+  },
+  {
+   "what": "Tap/interaction capture cost",
+   "why": "the journey is timer-driven inside the app (no synthesised touches), so neither SDK's tap tracking ran"
+  },
+  {
+   "what": "Init time for base",
+   "why": "no SDK call to time (baseline)"
+  },
+  {
+   "what": "Work done for the app by other processes (backboardd, render server, simulator networking)",
+   "why": "proc_pid_rusage counts the app process only"
+  },
+  {
+   "what": "ouo Android handled-error capture, HTTP spans, traces/logs/metrics export (OTLP) in the native host",
+   "why": "sdk/android has no native init, exporter or handled-error/HTTP API today; in the React Native SDK those live in JS (@ouo11y/react-native) and only replay + signals are native. The ouo variants therefore send replay chunks only; the handled error and the 3 HTTP calls per Fetch produce no ouo telemetry, while Sentry reports them (error event, OkHttp spans, transactions, sessions). Wire and CPU deltas are not like-for-like on that part."
+  },
+  {
+   "what": "ouo signals' wire cost (crash / hang / termination reports)",
+   "why": "Signals writes crash.json/run.json and hands the previous run's report to the host at the next launch; the native host has no sender (the RN JS SDK sends it). No crash or hang was provoked in the journey."
+  },
+  {
+   "what": "ouo full SDK as shipped (React Native app examples/ouo-mobile: JS SDK + native replay + signals)",
+   "why": "Not run: an RN app's own baseline (Hermes, RN runtime) would swamp a native comparison against sentry-android, and building the Expo example (prebuild + C++ build) was out of the time budget of this step. The native host measures exactly the Kotlin code the RN SDK vendors."
+  },
+  {
+   "what": "Runtime cost of sentry-android with NDK (variant sentryfull)",
+   "why": "Measured for size only; the NDK handler adds a native crash handler, not per-minute work, and the runtime runs cover sentry-android-core (+replay)."
+  },
+  {
+   "what": "Device (real hardware) CPU, memory and energy",
+   "why": "Emulator only (no physical phone by rule). Guest GL is emulated (-gpu swiftshader_indirect), so the app's RenderThread burns ~13 s CPU per journey minute even in the baseline; PixelCopy and JPEG/MP4 encoding costs differ from a phone's GPU and hardware codecs (Sentry replay encodes MP4 through MediaCodec, here a software encoder). Battery/energy cannot be measured on an emulator."
+  },
+  {
+   "what": "Frame timing (jank) impact via dumpsys gfxinfo, and simpleperf profiles",
+   "why": "Not collected: with emulated GL the frame times reflect the emulator, not the SDKs; per-thread /proc CPU attribution is used instead."
+  }
+ ],
+ "web": {
+  "runtime_1x": {
+   "chromium": "156.0.8078.4",
+   "throttle": 1,
+   "journey_ms": 60000,
+   "variants": {
+    "none": {
+     "runs": 5,
+     "load1": {
+      "median": 2.05859375,
+      "lo": 1.77294921875,
+      "hi": 2.77392578125,
+      "n": 5
+     },
+     "init_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "startup_task_ms": {
+      "median": 13.088000000000001,
+      "lo": 12.203000000000001,
+      "hi": 27.614,
+      "n": 5
+     },
+     "task_ms_per_min": {
+      "median": 283.96152889478486,
+      "lo": 232.64518055302136,
+      "hi": 294.0028846632073,
+      "n": 5
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 495.6115346370566,
+      "lo": 369.2378124637152,
+      "hi": 515.3649762098178,
+      "n": 5
+     },
+     "heap_mb": {
+      "median": 1.9844856262207031,
+      "lo": 1.9844741821289062,
+      "hi": 2.0296249389648438,
+      "n": 5
+     },
+     "ix_task_p50_ms": {
+      "median": 1.442,
+      "lo": 1.004,
+      "hi": 1.646,
+      "n": 5
+     },
+     "ix_task_p90_ms": {
+      "median": 5.756,
+      "lo": 4.265,
+      "hi": 5.96,
+      "n": 5
+     },
+     "ix_task_max_ms": {
+      "median": 6.264,
+      "lo": 5.829,
+      "hi": 6.655,
+      "n": 5
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "wire_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     },
+     "telemetry_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     },
+     "requests_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     }
+    },
+    "ouo-core": {
+     "runs": 5,
+     "load1": {
+      "median": 1.81201171875,
+      "lo": 1.685546875,
+      "hi": 2.25048828125,
+      "n": 5
+     },
+     "init_ms": {
+      "median": 3.9000000953674316,
+      "lo": 3.799999952316284,
+      "hi": 7.699999809265137,
+      "n": 5
+     },
+     "startup_task_ms": {
+      "median": 30.471999999999998,
+      "lo": 29.153,
+      "hi": 40.571999999999996,
+      "n": 5
+     },
+     "task_ms_per_min": {
+      "median": 356.3554376657825,
+      "lo": 342.43992177400645,
+      "hi": 373.12388148737324,
+      "n": 5
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 600.8326425042279,
+      "lo": 543.9189233981901,
+      "hi": 623.7037651076811,
+      "n": 5
+     },
+     "heap_mb": {
+      "median": 2.898120880126953,
+      "lo": 2.8948707580566406,
+      "hi": 2.8985366821289062,
+      "n": 5
+     },
+     "ix_task_p50_ms": {
+      "median": 1.925,
+      "lo": 1.84,
+      "hi": 2.07,
+      "n": 5
+     },
+     "ix_task_p90_ms": {
+      "median": 6.866,
+      "lo": 5.944,
+      "hi": 6.938,
+      "n": 5
+     },
+     "ix_task_max_ms": {
+      "median": 7.143,
+      "lo": 6.694,
+      "hi": 9.421,
+      "n": 5
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "wire_kib_per_min": {
+      "median": 30.737975550233685,
+      "lo": 30.685306472459732,
+      "hi": 30.788505935308454,
+      "n": 5
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     },
+     "telemetry_kib_per_min": {
+      "median": 30.737975550233685,
+      "lo": 30.685306472459732,
+      "hi": 30.788505935308454,
+      "n": 5
+     },
+     "requests_per_min": {
+      "median": 30.83554376657825,
+      "lo": 30.82123682640684,
+      "hi": 30.83861126769904,
+      "n": 5
+     }
+    },
+    "ouo-replay": {
+     "runs": 5,
+     "load1": {
+      "median": 1.9091796875,
+      "lo": 1.81103515625,
+      "hi": 2.39697265625,
+      "n": 5
+     },
+     "init_ms": {
+      "median": 4,
+      "lo": 3.799999952316284,
+      "hi": 4.1000001430511475,
+      "n": 5
+     },
+     "startup_task_ms": {
+      "median": 36.781,
+      "lo": 33.36,
+      "hi": 38.899,
+      "n": 5
+     },
+     "task_ms_per_min": {
+      "median": 427.1599993379566,
+      "lo": 406.6716373396958,
+      "hi": 442.68567738089325,
+      "n": 5
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 698.6500935136299,
+      "lo": 674.1365940948405,
+      "hi": 738.4609270207163,
+      "n": 5
+     },
+     "heap_mb": {
+      "median": 4.439945220947266,
+      "lo": 4.424419403076172,
+      "hi": 4.440006256103516,
+      "n": 5
+     },
+     "ix_task_p50_ms": {
+      "median": 2.322,
+      "lo": 2.185,
+      "hi": 2.977,
+      "n": 5
+     },
+     "ix_task_p90_ms": {
+      "median": 9.495,
+      "lo": 9.24,
+      "hi": 10.086,
+      "n": 5
+     },
+     "ix_task_max_ms": {
+      "median": 11.23,
+      "lo": 11.03,
+      "hi": 12.632,
+      "n": 5
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "wire_kib_per_min": {
+      "median": 50.68577208256744,
+      "lo": 50.64564684128665,
+      "hi": 50.75316005418124,
+      "n": 5
+     },
+     "replay_kib_per_min": {
+      "median": 19.933175514464658,
+      "lo": 19.920459106406923,
+      "hi": 19.968456414759828,
+      "n": 5
+     },
+     "telemetry_kib_per_min": {
+      "median": 30.758638034676338,
+      "lo": 30.70946176533854,
+      "hi": 30.784703639421405,
+      "n": 5
+     },
+     "requests_per_min": {
+      "median": 40.7372447712256,
+      "lo": 40.70421603018069,
+      "hi": 40.76019419084387,
+      "n": 5
+     }
+    },
+    "sentry-core": {
+     "runs": 5,
+     "load1": {
+      "median": 2.21044921875,
+      "lo": 1.81298828125,
+      "hi": 2.78564453125,
+      "n": 5
+     },
+     "init_ms": {
+      "median": 3.700000047683716,
+      "lo": 3.5,
+      "hi": 6.099999904632568,
+      "n": 5
+     },
+     "startup_task_ms": {
+      "median": 41.918,
+      "lo": 37.865,
+      "hi": 52.085,
+      "n": 5
+     },
+     "task_ms_per_min": {
+      "median": 393.7228454489717,
+      "lo": 383.2412089460683,
+      "hi": 423.43482224247947,
+      "n": 5
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 651.5352367064905,
+      "lo": 626.7665832186614,
+      "hi": 695.8896163089419,
+      "n": 5
+     },
+     "heap_mb": {
+      "median": 3.32208251953125,
+      "lo": 3.3220481872558594,
+      "hi": 3.322978973388672,
+      "n": 5
+     },
+     "ix_task_p50_ms": {
+      "median": 2.303,
+      "lo": 2.119,
+      "hi": 2.512,
+      "n": 5
+     },
+     "ix_task_p90_ms": {
+      "median": 6.754,
+      "lo": 6.574,
+      "hi": 6.792,
+      "n": 5
+     },
+     "ix_task_max_ms": {
+      "median": 7.218,
+      "lo": 6.979,
+      "hi": 7.565,
+      "n": 5
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "wire_kib_per_min": {
+      "median": 113.8865120940993,
+      "lo": 113.78559552912903,
+      "hi": 114.8407984183665,
+      "n": 5
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 5
+     },
+     "telemetry_kib_per_min": {
+      "median": 113.8865120940993,
+      "lo": 113.78559552912903,
+      "hi": 114.8407984183665,
+      "n": 5
+     },
+     "requests_per_min": {
+      "median": 27.844534681362394,
+      "lo": 27.838075195943595,
+      "hi": 27.861620617599257,
+      "n": 5
+     }
+    },
+    "sentry-replay": {
+     "runs": 5,
+     "load1": {
+      "median": 2.56396484375,
+      "lo": 2.46728515625,
+      "hi": 2.82568359375,
+      "n": 5
+     },
+     "init_ms": {
+      "median": 7.200000047683716,
+      "lo": 6.900000095367432,
+      "hi": 8.099999904632568,
+      "n": 5
+     },
+     "startup_task_ms": {
+      "median": 45.206,
+      "lo": 37.318999999999996,
+      "hi": 48.207,
+      "n": 5
+     },
+     "task_ms_per_min": {
+      "median": 464.78405645842645,
+      "lo": 417.0800112715277,
+      "hi": 501.3143537347485,
+      "n": 5
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 866.1408478703842,
+      "lo": 784.3093702862636,
+      "hi": 915.5331812320206,
+      "n": 5
+     },
+     "heap_mb": {
+      "median": 4.67523193359375,
+      "lo": 4.674858093261719,
+      "hi": 4.675544738769531,
+      "n": 5
+     },
+     "ix_task_p50_ms": {
+      "median": 2.952,
+      "lo": 2.386,
+      "hi": 3.416,
+      "n": 5
+     },
+     "ix_task_p90_ms": {
+      "median": 11.109,
+      "lo": 9.894,
+      "hi": 11.697,
+      "n": 5
+     },
+     "ix_task_max_ms": {
+      "median": 11.692,
+      "lo": 11.338,
+      "hi": 12.106,
+      "n": 5
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 5
+     },
+     "wire_kib_per_min": {
+      "median": 158.95748468812678,
+      "lo": 158.59809869042294,
+      "hi": 159.74701519087884,
+      "n": 5
+     },
+     "replay_kib_per_min": {
+      "median": 39.115504666479126,
+      "lo": 38.99261033248845,
+      "hi": 39.190926961872265,
+      "n": 5
+     },
+     "telemetry_kib_per_min": {
+      "median": 119.79429979777554,
+      "lo": 119.60548835793449,
+      "hi": 120.63151052439973,
+      "n": 5
+     },
+     "requests_per_min": {
+      "median": 36.7695773154896,
+      "lo": 36.70270806467612,
+      "hi": 36.79822307679557,
+      "n": 5
+     }
+    }
+   }
+  },
+  "runtime_4x": {
+   "chromium": "156.0.8078.4",
+   "throttle": 4,
+   "journey_ms": 60000,
+   "variants": {
+    "none": {
+     "runs": 3,
+     "load1": {
+      "median": 1.26904296875,
+      "lo": 1.00927734375,
+      "hi": 2.37109375,
+      "n": 3
+     },
+     "init_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "startup_task_ms": {
+      "median": 49.537,
+      "lo": 46.983999999999995,
+      "hi": 56.366,
+      "n": 3
+     },
+     "task_ms_per_min": {
+      "median": 279.7933904853499,
+      "lo": 272.3864314609722,
+      "hi": 281.51694620016923,
+      "n": 3
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 47328.23271786193,
+      "lo": 47314.07664118593,
+      "hi": 47335.28284368989,
+      "n": 3
+     },
+     "heap_mb": {
+      "median": 2.0296249389648438,
+      "lo": 2.0296249389648438,
+      "hi": 2.0296249389648438,
+      "n": 3
+     },
+     "ix_task_p50_ms": {
+      "median": 1.628,
+      "lo": 1.556,
+      "hi": 1.871,
+      "n": 3
+     },
+     "ix_task_p90_ms": {
+      "median": 7.833,
+      "lo": 7.678,
+      "hi": 7.94,
+      "n": 3
+     },
+     "ix_task_max_ms": {
+      "median": 12.463,
+      "lo": 12.399,
+      "hi": 15.626,
+      "n": 3
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "wire_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     },
+     "telemetry_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     },
+     "requests_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     }
+    },
+    "ouo-core": {
+     "runs": 3,
+     "load1": {
+      "median": 1.96923828125,
+      "lo": 1.29345703125,
+      "hi": 2.0458984375,
+      "n": 3
+     },
+     "init_ms": {
+      "median": 17.899999856948853,
+      "lo": 13.899999856948853,
+      "hi": 19.100000143051147,
+      "n": 3
+     },
+     "startup_task_ms": {
+      "median": 96.836,
+      "lo": 77.97500000000001,
+      "hi": 102.005,
+      "n": 3
+     },
+     "task_ms_per_min": {
+      "median": 368.41269314941314,
+      "lo": 366.32181049490174,
+      "hi": 388.91795126802583,
+      "n": 3
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 47416.071357517074,
+      "lo": 47405.77965680179,
+      "hi": 47428.33814022874,
+      "n": 3
+     },
+     "heap_mb": {
+      "median": 2.8985366821289062,
+      "lo": 2.8948898315429688,
+      "hi": 2.898937225341797,
+      "n": 3
+     },
+     "ix_task_p50_ms": {
+      "median": 2.585,
+      "lo": 2.392,
+      "hi": 2.59,
+      "n": 3
+     },
+     "ix_task_p90_ms": {
+      "median": 8.253,
+      "lo": 8.125,
+      "hi": 8.539,
+      "n": 3
+     },
+     "ix_task_max_ms": {
+      "median": 13.544,
+      "lo": 13.022,
+      "hi": 14.508,
+      "n": 3
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "wire_kib_per_min": {
+      "median": 30.750792516161113,
+      "lo": 30.740444077856623,
+      "hi": 30.81478487938324,
+      "n": 3
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     },
+     "telemetry_kib_per_min": {
+      "median": 30.750792516161113,
+      "lo": 30.740444077856623,
+      "hi": 30.81478487938324,
+      "n": 3
+     },
+     "requests_per_min": {
+      "median": 30.837588699515884,
+      "lo": 30.830432620586773,
+      "hi": 30.838099975130564,
+      "n": 3
+     }
+    },
+    "ouo-replay": {
+     "runs": 3,
+     "load1": {
+      "median": 1.94921875,
+      "lo": 1.263671875,
+      "hi": 2.33642578125,
+      "n": 3
+     },
+     "init_ms": {
+      "median": 16,
+      "lo": 14.899999856948853,
+      "hi": 16.399999856948853,
+      "n": 3
+     },
+     "startup_task_ms": {
+      "median": 110.703,
+      "lo": 107.279,
+      "hi": 111.46300000000001,
+      "n": 3
+     },
+     "task_ms_per_min": {
+      "median": 459.8140506140308,
+      "lo": 422.41106064122545,
+      "hi": 466.36453985291195,
+      "n": 3
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 47471.16577221228,
+      "lo": 47378.46556811777,
+      "hi": 47477.67612986625,
+      "n": 3
+     },
+     "heap_mb": {
+      "median": 4.439914703369141,
+      "lo": 4.438549041748047,
+      "hi": 4.440296173095703,
+      "n": 3
+     },
+     "ix_task_p50_ms": {
+      "median": 3.13,
+      "lo": 2.939,
+      "hi": 3.228,
+      "n": 3
+     },
+     "ix_task_p90_ms": {
+      "median": 13.301,
+      "lo": 12.297,
+      "hi": 13.385,
+      "n": 3
+     },
+     "ix_task_max_ms": {
+      "median": 23.57,
+      "lo": 23.245,
+      "hi": 25.139,
+      "n": 3
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "wire_kib_per_min": {
+      "median": 50.80475003728932,
+      "lo": 50.78474396243291,
+      "hi": 50.823924625343984,
+      "n": 3
+     },
+     "replay_kib_per_min": {
+      "median": 19.96605421387398,
+      "lo": 19.963378784865508,
+      "hi": 19.972890280494678,
+      "n": 3
+     },
+     "telemetry_kib_per_min": {
+      "median": 30.841371252423805,
+      "lo": 30.818689748558935,
+      "hi": 30.85103434484931,
+      "n": 3
+     },
+     "requests_per_min": {
+      "median": 40.769651469199026,
+      "lo": 40.74736632876168,
+      "hi": 40.78114120884586,
+      "n": 3
+     }
+    },
+    "sentry-core": {
+     "runs": 3,
+     "load1": {
+      "median": 1.8642578125,
+      "lo": 1.1005859375,
+      "hi": 2.0234375,
+      "n": 3
+     },
+     "init_ms": {
+      "median": 14.299999952316284,
+      "lo": 12.900000095367432,
+      "hi": 16.699999809265137,
+      "n": 3
+     },
+     "startup_task_ms": {
+      "median": 101.26899999999999,
+      "lo": 94.102,
+      "hi": 116.809,
+      "n": 3
+     },
+     "task_ms_per_min": {
+      "median": 415.57805767318536,
+      "lo": 394.8968627711083,
+      "hi": 425.31330813606525,
+      "n": 3
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 47405.455540083545,
+      "lo": 47381.37858990515,
+      "hi": 47414.919456413656,
+      "n": 3
+     },
+     "heap_mb": {
+      "median": 3.3230361938476562,
+      "lo": 3.3224754333496094,
+      "hi": 3.3232879638671875,
+      "n": 3
+     },
+     "ix_task_p50_ms": {
+      "median": 2.878,
+      "lo": 2.739,
+      "hi": 3.052,
+      "n": 3
+     },
+     "ix_task_p90_ms": {
+      "median": 8.99,
+      "lo": 8.837,
+      "hi": 9.065,
+      "n": 3
+     },
+     "ix_task_max_ms": {
+      "median": 15.292,
+      "lo": 13.743,
+      "hi": 15.422,
+      "n": 3
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "wire_kib_per_min": {
+      "median": 114.84308932894476,
+      "lo": 113.72081641531322,
+      "hi": 114.872850668888,
+      "n": 3
+     },
+     "replay_kib_per_min": {
+      "median": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "n": 3
+     },
+     "telemetry_kib_per_min": {
+      "median": 114.84308932894476,
+      "lo": 113.72081641531322,
+      "hi": 114.872850668888,
+      "n": 3
+     },
+     "requests_per_min": {
+      "median": 27.84961209468868,
+      "lo": 27.842227378190255,
+      "hi": 27.857000729588115,
+      "n": 3
+     }
+    },
+    "sentry-replay": {
+     "runs": 3,
+     "load1": {
+      "median": 2.1904296875,
+      "lo": 1.8212890625,
+      "hi": 2.3505859375,
+      "n": 3
+     },
+     "init_ms": {
+      "median": 29.90000009536743,
+      "lo": 26.299999952316284,
+      "hi": 32.09999990463257,
+      "n": 3
+     },
+     "startup_task_ms": {
+      "median": 123.559,
+      "lo": 113.045,
+      "hi": 131.661,
+      "n": 3
+     },
+     "task_ms_per_min": {
+      "median": 535.0695410292072,
+      "lo": 508.31633666644586,
+      "hi": 541.5308503069311,
+      "n": 3
+     },
+     "renderer_cpu_ms_per_min": {
+      "median": 47539.0611961057,
+      "lo": 47535.405271174095,
+      "hi": 47575.08182073895,
+      "n": 3
+     },
+     "heap_mb": {
+      "median": 4.68115234375,
+      "lo": 4.681133270263672,
+      "hi": 4.682170867919922,
+      "n": 3
+     },
+     "ix_task_p50_ms": {
+      "median": 4.346,
+      "lo": 4.289,
+      "hi": 4.387,
+      "n": 3
+     },
+     "ix_task_p90_ms": {
+      "median": 16.155,
+      "lo": 15.309,
+      "hi": 16.224,
+      "n": 3
+     },
+     "ix_task_max_ms": {
+      "median": 27.128,
+      "lo": 26.163,
+      "hi": 27.602,
+      "n": 3
+     },
+     "total_blocking_ms": {
+      "median": 0,
+      "lo": 0,
+      "hi": 0,
+      "n": 3
+     },
+     "wire_kib_per_min": {
+      "median": 160.07644878650422,
+      "lo": 159.81938061535152,
+      "hi": 160.0889209343334,
+      "n": 3
+     },
+     "replay_kib_per_min": {
+      "median": 39.14167593940798,
+      "lo": 39.09806780180121,
+      "hi": 39.15369498807868,
+      "n": 3
+     },
+     "telemetry_kib_per_min": {
+      "median": 120.93522594625472,
+      "lo": 120.67770467594354,
+      "hi": 120.978380984703,
+      "n": 3
+     },
+     "requests_per_min": {
+      "median": 36.75253294483809,
+      "lo": 36.73246521170806,
+      "hi": 36.757401152394195,
+      "n": 3
+     }
+    }
+   }
+  }
+ }
+}

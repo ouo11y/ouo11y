@@ -1,0 +1,2730 @@
+{
+ "platform": "web",
+ "sdk_paths": [
+  "sdk/browser/src",
+  "sdk/browser/test",
+  "sdk/browser/e2e"
+ ],
+ "sdk_version": "0.3.1 (sdk/browser/package.json, src/version.ts)",
+ "how_checked": "Read every file in sdk/browser/src (42 files) plus the relevant OTel instrumentation sources it depends on (document-load 0.67.0, fetch 0.222.0, browser-detector 0.222.0). npm is broken on this Mac (every npm command exits 'Exit prior to config file resolving'), so the worktree had no node_modules; ran vitest directly against the main checkout's node_modules: `node <ouo>/node_modules/vitest/vitest.mjs run` in sdk/browser -> 26 files passed, 194 tests passed, 1 file (test/store.test.ts) failed to import because fake-indexeddb is missing from the stale main node_modules. No e2e (Playwright) run and no wire capture.",
+ "requirements": [
+  {
+   "id": "REL-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Meta rule on how SDKs are judged; nothing to implement."
+  },
+  {
+   "id": "REL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:16",
+    "sdk/browser/src/replay/uploader.ts:35",
+    "sdk/browser/src/replay/uploader.ts:37-42",
+    "sdk/browser/src/transport/exporter.ts:62-68"
+   ],
+   "method": "read",
+   "note": "Spans and logs go as OTLP/HTTP JSON to /v1/traces and /v1/logs, but replay chunks are a custom JSON body ({session_id, seq, started_at, ended_at, events}) POSTed to a non-OTLP path /v1/replay/chunks (port 4319 by default)."
+  },
+  {
+   "id": "REL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:33",
+    "sdk/browser/src/navigation.ts:72",
+    "sdk/browser/src/vitals.ts:33",
+    "sdk/browser/src/network.ts:33-41",
+    "sdk/browser/src/telemetry/correlation.ts:15-19"
+   ],
+   "method": "read",
+   "note": "Custom events use unprefixed non-OTel names `navigation`, `web_vital`, `http.request.failed`; most custom attributes are ouo.-prefixed."
+  },
+  {
+   "id": "REL-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:173",
+    "sdk/browser/src/index.ts:207-211"
+   ],
+   "method": "read",
+   "note": "Does not replace a host's already-registered global tracer/logger provider, propagator or context manager (setGlobal* returns false), but registers its own globally by default with no opt-out."
+  },
+  {
+   "id": "REL-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/types.ts:221-251",
+    "sdk/browser/src/index.ts:368-414"
+   ],
+   "method": "read",
+   "note": "No getTracerProvider/getLoggerProvider on the RUM instance; hosts reach the providers only through the OTel globals, and only if the SDK won the global registration."
+  },
+  {
+   "id": "REL-6",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/package.json:69-86"
+   ],
+   "method": "read",
+   "note": "No metrics SDK dependency or /v1/metrics exporter; only traces and logs."
+  },
+  {
+   "id": "REL-7",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:39-47",
+    "sdk/browser/src/index.ts:240",
+    "sdk/browser/src/network.ts:48",
+    "sdk/browser/src/network.ts:66"
+   ],
+   "method": "read",
+   "note": "Events go through the Logs API with eventName; documentLoad and fetch/XHR instrumentations are configured with ignoreNetworkEvents and ignorePerformancePaintEvents so no span events are added."
+  },
+  {
+   "id": "API-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:53-70",
+    "sdk/browser/src/index.ts:368-414",
+    "sdk/browser/src/ingest.ts:70-75",
+    "sdk/browser/src/index.ts:87-93"
+   ],
+   "method": "test",
+   "note": "Instance methods are wrapped in attempt() and never throw (test/safety.test.ts); SSR returns an inert instance; but there is no pre-init API surface, methods after shutdown still write localStorage, and initRUM itself throws on missing endpoint/projectId/projectToken."
+  },
+  {
+   "id": "API-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/index.ts:316-320",
+    "sdk/browser/src/index.ts:354-366",
+    "sdk/browser/src/transport/delivery.ts:171-173"
+   ],
+   "method": "read",
+   "note": "flush/shutdown return promises; no API waits on network; only synchronous localStorage access."
+  },
+  {
+   "id": "API-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/index.ts:391-393"
+   ],
+   "method": "read",
+   "note": "addEvent accepts any name including session.* and ouo.* and any attribute names; nothing is rejected or counted."
+  },
+  {
+   "id": "API-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/types.ts:221-251",
+    "sdk/browser/src/index.ts:81"
+   ],
+   "method": "read",
+   "note": "Web and RN share initRUM/RUM names, but the surface differs from the spec: initRUM, captureError, addEvent, endSession, setRoute, session.id(); no getSessionId, restartSession, setConsent, setGlobalAttributes, recordEvent, recordException, trackNavigation, replay.start/stop/capture."
+  },
+  {
+   "id": "API-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/index.ts:394-399"
+   ],
+   "method": "read",
+   "note": "No trackNavigation; setRoute only renames app.screen.name on later records and emits no navigation; no ouo.view.id exists."
+  },
+  {
+   "id": "API-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/index.ts:385-390",
+    "sdk/browser/src/errors/classify.ts:35-47"
+   ],
+   "method": "read",
+   "note": "captureError sets ouo.exception.kind=captured and ouo.exception.handled=true; ouo.exception.source is never set."
+  },
+  {
+   "id": "CFG-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:70-75",
+    "sdk/browser/src/ingest.ts:115-118",
+    "sdk/browser/src/index.ts:87-93"
+   ],
+   "method": "test",
+   "note": "initRUM throws on a missing endpoint, projectId or projectToken (test/safety.test.ts 'a configuration error still throws'); other options are not validated or defaulted with a diagnostic."
+  },
+  {
+   "id": "CFG-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:146-150",
+    "sdk/browser/src/session/manager.ts:112-117",
+    "sdk/browser/src/session/sampling.ts:28-31"
+   ],
+   "method": "read",
+   "note": "Rates outside [0,1] behave as clamped (rate>=1 true, <=0 false), but inactivity and max-duration timeouts are used unclamped."
+  },
+  {
+   "id": "CFG-3",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:81-90",
+    "sdk/browser/src/index.ts:342-351",
+    "sdk/browser/src/transport/delivery.ts:283-297"
+   ],
+   "method": "read",
+   "note": "The credential is only an Authorization header, never in URLs or records; the debug init log prints projectId but not the token. (Stored requests in IndexedDB keep the header.)"
+  },
+  {
+   "id": "CFG-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep beforeSend|sanitize in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No beforeSend hook."
+  },
+  {
+   "id": "LIF-1",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/index.ts:82-85"
+   ],
+   "method": "test",
+   "note": "Second initRUM warns and returns the running instance (test/safety.test.ts 'initRUM twice warns'). The warning goes to console even without debug (see ERR-8)."
+  },
+  {
+   "id": "LIF-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/index.ts:305",
+    "sdk/browser/src/transport/store.ts:232-248"
+   ],
+   "method": "read",
+   "note": "Nothing awaited in init: IndexedDB opens in the background, rrweb loads by dynamic import; only synchronous localStorage reads."
+  },
+  {
+   "id": "LIF-3",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/batch.ts:46-60",
+    "sdk/browser/src/transport/store.ts:259-274"
+   ],
+   "method": "read",
+   "note": "Records flow into bounded batch queues immediately; delivery waits for the store to open before parking."
+  },
+  {
+   "id": "LIF-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:354-366",
+    "sdk/browser/src/session/manager.ts:295-298",
+    "sdk/browser/src/replay/recorder.ts:242-249"
+   ],
+   "method": "test",
+   "note": "Shutdown flushes and removes every hook and restores patched globals (test/safety.test.ts), but emits no session.end and no ouo.replay.ended, and the flush is not bounded by a shutdown deadline."
+  },
+  {
+   "id": "LIF-5",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/index.ts:362"
+   ],
+   "method": "test",
+   "note": "Instance cleared after shutdown; initRUM works again (test/safety.test.ts 'shutdown restores the patched globals, and initRUM works again')."
+  },
+  {
+   "id": "LIF-6",
+   "status": "met",
+   "evidence": [
+    "no code found: grep '\"unload\"|beforeunload' in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "Only pagehide, visibilitychange and pageshow listeners."
+  },
+  {
+   "id": "LIF-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:321-335",
+    "sdk/browser/src/vitals.ts:48-57",
+    "sdk/browser/src/replay/chunker.ts:129-140"
+   ],
+   "method": "read",
+   "note": "At pagehide: open click/soft-nav spans end, final INP is emitted, logs/traces/replay flushed with keepalive; but in-flight fetch/XHR spans are not ended with ouo.span.abandoned, no ouo.replay.ended, and replay flush runs concurrently with telemetry (Promise.all) rather than after it."
+  },
+  {
+   "id": "LIF-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:149-151",
+    "sdk/browser/src/index.ts:330-333"
+   ],
+   "method": "read",
+   "note": "pageshow(persisted) only clears the delivery 'hidden' flag; no session re-evaluation (pagehide even cleared the expiry timer), no new view id, vitals not restarted, no new replay stream."
+  },
+  {
+   "id": "LIF-9",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/index.ts:95"
+   ],
+   "method": "test",
+   "note": "No DOM access at module load; initRUM without window returns an inert instance (test/ssr.test.ts, passed). It still throws on bad config on the server."
+  },
+  {
+   "id": "LIF-10",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep prerender in sdk/browser/src",
+    "sdk/browser/src/index.ts:214"
+   ],
+   "method": "read",
+   "note": "No document.prerendering check; a session starts and telemetry flows at init during prerender."
+  },
+  {
+   "id": "LIF-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "LIF-12",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "LIF-13",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "LIF-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SES-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/session/ids.ts:2-15",
+    "sdk/browser/src/session/manager.ts:376"
+   ],
+   "method": "read",
+   "note": "session.id is a UUIDv4 string with hyphens (36 chars, 122 random bits), with a Math.random fallback when crypto is missing; not 32 lowercase hex."
+  },
+  {
+   "id": "SES-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:34-37",
+    "sdk/browser/src/telemetry/correlation.ts:64-84",
+    "sdk/browser/src/telemetry/resource.ts:21-29"
+   ],
+   "method": "test",
+   "note": "Stamped by the span processor onStart and the log processor onEmit; not on the resource (test/integration.test.ts 'every log record and span carries session.id')."
+  },
+  {
+   "id": "SES-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:214",
+    "sdk/browser/src/session/manager.ts:317-325"
+   ],
+   "method": "read",
+   "note": "Session starts at init, but also when the page is hidden, and ensure() lazily creates a session whenever any record asks for the id, not only on activity."
+  },
+  {
+   "id": "SES-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:389-399",
+    "sdk/browser/src/telemetry/correlation.ts:21-22",
+    "sdk/browser/src/session/manager.ts:429"
+   ],
+   "method": "test",
+   "note": "session.start emitted once per session with session.previous_id (test/session.test.ts, test/rotation.test.ts), dropped for unsampled sessions; but session.previous_id is stamped on every span and log record and on session.end."
+  },
+  {
+   "id": "SES-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/activity.ts:5",
+    "sdk/browser/src/network.ts:49",
+    "sdk/browser/src/network.ts:69",
+    "sdk/browser/src/index.ts:237"
+   ],
+   "method": "read",
+   "note": "Every fetch/XHR request counts as activity (requestHook/applyCustomAttributesOnSpan call onActivity); also generic 'scroll' and 'click'. Network activity extends the session."
+  },
+  {
+   "id": "SES-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:13-14",
+    "sdk/browser/src/session/manager.ts:478-483"
+   ],
+   "method": "test",
+   "note": "lastActivity persisted at most once per 1 s, not 5 s (test/session.test.ts 'throttled to once per second')."
+  },
+  {
+   "id": "SES-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:342-348",
+    "sdk/browser/src/session/manager.ts:21",
+    "sdk/browser/src/session/manager.ts:422-431",
+    "sdk/browser/src/telemetry/events.ts:36"
+   ],
+   "method": "read",
+   "note": "session.end precedes the next session.start with ouo.session.end_reason, but values are inactivity/max_duration/user_change/manual (not timeout/shutdown/consent), no end at shutdown, and the record Timestamp is emit time (last activity is only in ouo.session.ended_at)."
+  },
+  {
+   "id": "SES-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Consumer rule, not SDK behaviour."
+  },
+  {
+   "id": "SES-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:317-323",
+    "sdk/browser/src/session/manager.ts:448-467"
+   ],
+   "method": "test",
+   "note": "Activity after max duration rotates at once with previous_id; the timer path ends the session and the next record creates the new one lazily (test/rotation.test.ts case 4)."
+  },
+  {
+   "id": "SES-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:152-155",
+    "sdk/browser/src/session/manager.ts:317-325"
+   ],
+   "method": "read",
+   "note": "Any record with no valid session creates a new one via ensure(); no no_session drop, no ouo.session.expired; a polling tab creates sessions."
+  },
+  {
+   "id": "SES-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:261-288",
+    "sdk/browser/src/index.ts:218-222",
+    "sdk/browser/src/session/manager.ts:478-483"
+   ],
+   "method": "test",
+   "note": "Session shared through localStorage key ouo.session and storage events (test/session.test.ts cross-tab cases); no Web Locks or write-reread-adopt around start/end, so two racing tabs can each emit session.start."
+  },
+  {
+   "id": "SES-12",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/session/storage.ts:33-91"
+   ],
+   "method": "test",
+   "note": "Falls back to in-memory storage on any localStorage failure; no cookies (test/storage.test.ts)."
+  },
+  {
+   "id": "SES-13",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SES-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SES-15",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SES-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-00",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:33",
+    "sdk/browser/src/navigation.ts:33",
+    "sdk/browser/src/interactions/clicks.ts:95"
+   ],
+   "method": "read",
+   "note": "Most web signals are emitted under MVP names or as spans instead of events (web_vital, navigation, click spans, ouo.rage_click); see the SIG rows."
+  },
+  {
+   "id": "REC-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:39-46"
+   ],
+   "method": "read",
+   "note": "eventName is set, but every event also carries the deprecated event.name attribute (and body = the name)."
+  },
+  {
+   "id": "REC-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:13-24"
+   ],
+   "method": "read",
+   "note": "session.id on every record; ouo.view.id does not exist anywhere in the SDK."
+  },
+  {
+   "id": "REC-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:14",
+    "sdk/browser/src/interactions/clicks.ts:74",
+    "sdk/browser/src/longtasks.ts:35",
+    "sdk/browser/src/navigation.ts:28-29"
+   ],
+   "method": "read",
+   "note": "Records carry url.path (navigation also url.full); browser.document.url.full is never set."
+  },
+  {
+   "id": "REC-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:36",
+    "sdk/browser/src/longtasks.ts:86",
+    "sdk/browser/src/interactions/clicks.ts:61",
+    "sdk/browser/src/session/manager.ts:404"
+   ],
+   "method": "read",
+   "note": "Timestamps are occurrence times for long tasks, clicks and most events (OTel sets ObservedTimestamp); session.end is stamped at emit time, not the end time."
+  },
+  {
+   "id": "REC-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/version.ts:3",
+    "sdk/browser/src/index.ts:175",
+    "sdk/browser/src/index.ts:182"
+   ],
+   "method": "read",
+   "note": "Scope name is `@ouo11y/browser` with the SDK version; no ouo.rum or ouo.replay scope and no schema_url."
+  },
+  {
+   "id": "REC-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/interactions/tracker.ts:89",
+    "sdk/browser/src/interactions/clicks.ts:95",
+    "sdk/browser/src/navigation.ts:37",
+    "sdk/browser/src/index.ts:239-241"
+   ],
+   "method": "read",
+   "note": "Besides HTTP and documentLoad spans the SDK creates `click` and `soft-navigation` idle spans; documentLoad (OTel instrumentation) also creates documentFetch and resourceFetch child spans."
+  },
+  {
+   "id": "REC-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:36",
+    "sdk/browser/src/interactions/clicks.ts:60",
+    "sdk/browser/src/interactions/clicks.ts:101",
+    "sdk/browser/src/longtasks.ts:88"
+   ],
+   "method": "read",
+   "note": "Default severity INFO, but rage/dead clicks, long tasks and resource-load exceptions are WARN."
+  },
+  {
+   "id": "REC-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/errors/classify.ts:12-19",
+    "sdk/browser/src/errors/classify.ts:83-90"
+   ],
+   "method": "read",
+   "note": "No attribute truncation: exception.stacktrace and strings are sent whole (only console-arg JSON is cut at 2000 chars)."
+  },
+  {
+   "id": "REC-9",
+   "status": "met",
+   "evidence": [
+    "no code found: grep offset|skew in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "Device clock only."
+  },
+  {
+   "id": "SIG-01",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:6-16",
+    "sdk/browser/src/vitals.ts:33",
+    "sdk/browser/src/vitals.ts:41-55"
+   ],
+   "method": "test",
+   "note": "Emitted as event `web_vital` with ouo.web_vital.name/value/delta/id/rating/navigation_type; INP can be re-emitted with delta != value (test/vitals.test.ts)."
+  },
+  {
+   "id": "SIG-02",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:1"
+   ],
+   "method": "read",
+   "note": "Uses the non-attribution web-vitals build; no INP attribution attributes."
+  },
+  {
+   "id": "SIG-03",
+   "status": "na",
+   "evidence": [
+    "sdk/browser/src/longtasks.ts:6",
+    "sdk/browser/src/longtasks.ts:87-88"
+   ],
+   "method": "read",
+   "note": "Gated by SIG-30 until PR #429 merges; meanwhile the SDK emits its own ouo.long_animation_frame / ouo.long_task events by default."
+  },
+  {
+   "id": "SIG-04",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-05",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-06",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-07",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-30",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/longtasks.ts:5-6"
+   ],
+   "method": "read",
+   "note": "browser.long_animation_frame is never emitted (ouo.long_animation_frame is)."
+  },
+  {
+   "id": "SIG-31",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-32",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep view.id in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No ouo.view.id."
+  },
+  {
+   "id": "SIG-08",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:47-59",
+    "sdk/browser/src/errors/classify.ts:35-47",
+    "sdk/browser/src/errors/install.ts:37-43",
+    "sdk/browser/src/errors/install.ts:83"
+   ],
+   "method": "test",
+   "note": "`exception` events at ERROR with exception.type/.message/.stacktrace and ouo.exception.handled (test/integration.test.ts); no ouo.exception.source (ouo.exception.kind uncaught/unhandledrejection/console/captured/resource instead), code.filepath/code.lineno old names, plus console.error and resource errors reported as exception."
+  },
+  {
+   "id": "SIG-09",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-33",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:46"
+   ],
+   "method": "read",
+   "note": "Every event is emitted in ROOT_CONTEXT, so an exception never carries an active span's trace and span ids."
+  },
+  {
+   "id": "SIG-34",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/errors/classify.ts:35-47"
+   ],
+   "method": "read",
+   "note": "No fingerprint computed; apps may pass attributes through captureError."
+  },
+  {
+   "id": "SIG-35",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Swift-only rule"
+  },
+  {
+   "id": "SIG-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:70-76",
+    "sdk/browser/src/interactions/clicks.ts:95"
+   ],
+   "method": "read",
+   "note": "No browser.user_action.click event; a click becomes a `click` span (exported only if it had child spans) with app.widget.id/name and app.screen.coordinate.x/y (clientX/Y), no browser.page.x/y, browser.tag_name or ouo.viewport.*."
+  },
+  {
+   "id": "SIG-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-12",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:8-9",
+    "sdk/browser/src/interactions/clicks.ts:46",
+    "sdk/browser/src/interactions/clicks.ts:57-62",
+    "sdk/browser/src/interactions/clicks.ts:94-102"
+   ],
+   "method": "test",
+   "note": "Detection exists as `ouo.rage_click` (3 clicks/1000 ms within 30 px, ouo.click.count) and `ouo.dead_click` (no child span or mutation before idle), not ouo.user_action.frustration; no error clicks (test/interactions.test.ts)."
+  },
+  {
+   "id": "SIG-36",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-37",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-38",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:95",
+    "sdk/browser/src/interactions/tracker.ts:89",
+    "sdk/browser/src/interactions/context.ts:18-22"
+   ],
+   "method": "test",
+   "note": "A click opens a root `click` span that is the fallback parent of the requests it triggers, so clicks start traces (test/interactions.integration.test.ts)."
+  },
+  {
+   "id": "SIG-39",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/interactions/element.ts:40-47",
+    "sdk/browser/src/index.ts:260"
+   ],
+   "method": "test",
+   "note": "With default maskAllText the click name is data-testid only; inside ouo-unmask or with maskAllText:false button/link textContent, aria-label and title go into app.widget.name (test/privacy.test.ts)."
+  },
+  {
+   "id": "SIG-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:71-78"
+   ],
+   "method": "test",
+   "note": "Hard load emitted as event `navigation` with url.path, url.full, ouo.navigation.from, ouo.navigation.kind=load; no browser.navigation.* attributes (test/integration.test.ts 'emits an initial navigation event')."
+  },
+  {
+   "id": "SIG-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:239-241",
+    "@opentelemetry/instrumentation-document-load@0.67.0 build/esm/instrumentation.js:50-84"
+   ],
+   "method": "read",
+   "note": "OTel DocumentLoadInstrumentation builds documentLoad after load from fetchStart to loadEventEnd with url.full and the meta traceparent parent, but adds documentFetch and resourceFetch child spans and user_agent.original, under its own scope."
+  },
+  {
+   "id": "SIG-16",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep navigation_timing in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No browser.navigation_timing event (timings only as documentLoad child spans)."
+  },
+  {
+   "id": "SIG-17",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/index.ts:240"
+   ],
+   "method": "read",
+   "note": "No browser.resource_timing events; initial resources appear as resourceFetch spans under documentLoad, always on."
+  },
+  {
+   "id": "SIG-18",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:24-40",
+    "sdk/browser/src/navigation.ts:46-61"
+   ],
+   "method": "test",
+   "note": "History changes emit `navigation` (ouo.navigation.kind push/replace/pop) plus a soft-navigation span; hash-only changes skipped since only pathname is compared."
+  },
+  {
+   "id": "SIG-19",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-20",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "SIG-21",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/network.ts:45-73",
+    "sdk/browser/src/index.ts:232-238"
+   ],
+   "method": "read",
+   "note": "OTel fetch/XHR instrumentation: CLIENT spans named by method with stable HTTP attributes; but requests after a click or soft navigation join that interaction's trace instead of one trace each, url.full is unsanitised, and ouo.span.abandoned is never set."
+  },
+  {
+   "id": "SIG-40",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:69-73",
+    "sdk/browser/src/index.ts:227-231",
+    "sdk/browser/src/telemetry/batch.ts:82"
+   ],
+   "method": "test",
+   "note": "Exports use the unwrapped fetch, ingest URLs are in ignoreUrls and exports run with suppressTracing (test/integration.test.ts 'ingest requests are not traced')."
+  },
+  {
+   "id": "SIG-41",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:36-37",
+    "sdk/browser/src/interactions/tracker.ts:83-111"
+   ],
+   "method": "read",
+   "note": "A click span parents the soft-navigation span and the requests on the next view, so one trace spans page views; documentLoad children also join the server trace."
+  },
+  {
+   "id": "SIG-22",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:389-399"
+   ],
+   "method": "test",
+   "note": "session.start with session.id and session.previous_id; missing ouo.session.sample_rate; extra device.id and ouo.session.started_at."
+  },
+  {
+   "id": "SIG-23",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:422-431"
+   ],
+   "method": "test",
+   "note": "session.end with session.id and ouo.session.end_reason (values differ, see SES-7)."
+  },
+  {
+   "id": "SIG-24",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:15"
+   ],
+   "method": "test",
+   "note": "session.id on every record."
+  },
+  {
+   "id": "SIG-25",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep view.id in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No ouo.view.id."
+  },
+  {
+   "id": "SIG-26",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:35-44",
+    "sdk/browser/src/replay/chunker.ts:6-12"
+   ],
+   "method": "read",
+   "note": "Chunks are custom JSON POSTs, not ouo.replay.chunk log records."
+  },
+  {
+   "id": "SIG-27",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep replay.ended in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No end-of-stream record."
+  },
+  {
+   "id": "SIG-42",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule"
+  },
+  {
+   "id": "SIG-43",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule"
+  },
+  {
+   "id": "SIG-44",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule"
+  },
+  {
+   "id": "SIG-45",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule"
+  },
+  {
+   "id": "RES-0",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:21-39"
+   ],
+   "method": "test",
+   "note": "service.name, service.version, deployment.environment.name, telemetry.sdk.* (defaultResource), browser.* and user_agent.original (browserDetector), os.name/os.version (test/integration.test.ts)."
+  },
+  {
+   "id": "RES-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:22-30"
+   ],
+   "method": "read",
+   "note": "Fixed for the SDK lifetime, but includes high-cardinality device.id."
+  },
+  {
+   "id": "RES-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:30",
+    "sdk/browser/src/index.ts:138",
+    "sdk/browser/src/index.ts:156",
+    "sdk/browser/src/session/device.ts:12-23"
+   ],
+   "method": "read",
+   "note": "device.id (persistent random id in localStorage ouo.device) is on the resource and on session.start/end, sent by default."
+  },
+  {
+   "id": "RES-3",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:22-36"
+   ],
+   "method": "read",
+   "note": "No session, view, URL or user attributes on the resource."
+  },
+  {
+   "id": "RES-4",
+   "status": "met",
+   "evidence": [
+    "no code found: grep entity in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No entity use."
+  },
+  {
+   "id": "PRP-1",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/propagator.ts:12-26",
+    "sdk/browser/src/network.ts:46",
+    "sdk/browser/src/network.ts:64"
+   ],
+   "method": "test",
+   "note": "W3C trace context on same-origin and propagateTo URLs; ids from the OTel random generator (test/integration.test.ts)."
+  },
+  {
+   "id": "PRP-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/network.ts:46",
+    "@opentelemetry/sdk-trace-web@2.11.0 build/esm/utils.js:302-314"
+   ],
+   "method": "test",
+   "note": "Cross-origin only when listed in tracing.propagateTo (test/integration.test.ts 'does not propagate headers to origins outside propagateTo')."
+  },
+  {
+   "id": "PRP-3",
+   "status": "not_met",
+   "evidence": [
+    "@opentelemetry/instrumentation-fetch@0.222.0 build/esm/fetch.js:85-89"
+   ],
+   "method": "read",
+   "note": "The fetch instrumentation sets traceparent with headers.set, overwriting an app-set traceparent; no check."
+  },
+  {
+   "id": "PRP-4",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/sampling.ts:15-17"
+   ],
+   "method": "test",
+   "note": "Unsampled sessions still propagate with flag 00 (test/sampling.integration.test.ts)."
+  },
+  {
+   "id": "PRP-5",
+   "status": "partial",
+   "evidence": [
+    "@opentelemetry/instrumentation-document-load@0.67.0 build/esm/instrumentation.js:51-54"
+   ],
+   "method": "read",
+   "note": "meta traceparent is used as documentLoad's parent, but documentFetch and resourceFetch children share that trace."
+  },
+  {
+   "id": "PRP-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/propagator.ts:19-26"
+   ],
+   "method": "test",
+   "note": "baggage with session.id, user.id and ouo.platform is always injected with traceparent; no opt-in (test/integration.test.ts)."
+  },
+  {
+   "id": "TRN-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/exporter.ts:62-68",
+    "sdk/browser/src/replay/uploader.ts:35"
+   ],
+   "method": "read",
+   "note": "Telemetry is OTLP/HTTP JSON; replay chunks are custom JSON, not OTLP protobuf."
+  },
+  {
+   "id": "TRN-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:259-272",
+    "sdk/browser/src/transport/gzip.ts:2"
+   ],
+   "method": "test",
+   "note": "gzip via CompressionStream for bodies >= 1 KB; unload path uncompressed (test/transport.test.ts)."
+  },
+  {
+   "id": "TRN-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:132",
+    "sdk/browser/src/index.ts:286",
+    "sdk/browser/src/transport/delivery.ts:381-422"
+   ],
+   "method": "read",
+   "note": "Separate log/span batchers and replay chunker, but one shared Delivery and offline store whose drain stops at the first failing entry, so a stored replay backlog can delay stored telemetry."
+  },
+  {
+   "id": "TRN-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:163-167",
+    "sdk/browser/src/transport/exporter.ts:42-51"
+   ],
+   "method": "read",
+   "note": "At most 64 records per request and no empty request; no byte cap while visible (splitting only at page hide)."
+  },
+  {
+   "id": "TRN-5",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:44"
+   ],
+   "method": "read",
+   "note": "One chunk per request."
+  },
+  {
+   "id": "TRN-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/retry.ts:5-8",
+    "sdk/browser/src/transport/delivery.ts:303-307"
+   ],
+   "method": "test",
+   "note": "Retries 408, 429 and every 5xx (including 500); partial_success is not parsed, so 2xx with rejected records counts as accepted."
+  },
+  {
+   "id": "TRN-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/retry.ts:31-38",
+    "sdk/browser/src/transport/delivery.ts:133-134"
+   ],
+   "method": "test",
+   "note": "Equal jitter (half to full), 1 s to 30 s, not full jitter to 300 s."
+  },
+  {
+   "id": "TRN-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:215-216",
+    "sdk/browser/src/transport/retry.ts:15-22"
+   ],
+   "method": "test",
+   "note": "Retry-After honoured; one over 60 s parks the request in the store until then rather than capping at retry.maxMs."
+  },
+  {
+   "id": "TRN-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:211-227",
+    "sdk/browser/src/transport/delivery.ts:335-347"
+   ],
+   "method": "test",
+   "note": "After 5 attempts a request moves to the offline store and keeps retrying until 24 h expiry or cap eviction (counted); with offline:false it is dropped after 5 attempts."
+  },
+  {
+   "id": "TRN-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:259-273",
+    "sdk/browser/src/transport/store.ts:9-20"
+   ],
+   "method": "read",
+   "note": "Retries reuse the stored uncompressed body (re-gzipped); chunk identity is (session_id, seq), not (ouo.replay.id, stream.id, sequence)."
+  },
+  {
+   "id": "TRN-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/batch.ts:46-50"
+   ],
+   "method": "test",
+   "note": "A full export queue drops the newest record (counted queue_full), not the oldest; no bypass distinction."
+  },
+  {
+   "id": "TRN-12",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:412-414",
+    "sdk/browser/src/transport/delivery.ts:303-305"
+   ],
+   "method": "read",
+   "note": "Stored entries are deleted on 2xx, but partial_success rejected counts are ignored, and replay chunks are not persisted before send."
+  },
+  {
+   "id": "TRN-13",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:397-401",
+    "sdk/browser/src/transport/delivery.ts:412-414",
+    "sdk/browser/src/transport/delivery.ts:338"
+   ],
+   "method": "test",
+   "note": "Early deletion only on non-retryable status, expiry or cap, each counted (test/transport.test.ts)."
+  },
+  {
+   "id": "TRN-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/store.ts:42-52"
+   ],
+   "method": "read",
+   "note": "Store eviction is oldest-first by id regardless of type; replay is not evicted first."
+  },
+  {
+   "id": "TRN-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:44",
+    "sdk/browser/src/transport/delivery.ts:201-209"
+   ],
+   "method": "read",
+   "note": "Replay chunks are not written to IndexedDB before send; only parked after failure or over budget."
+  },
+  {
+   "id": "TRN-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/store.ts:226-315"
+   ],
+   "method": "test",
+   "note": "IndexedDB is async and falls back to memory on failure (test/store.test.ts, not run: missing dev dep), but the failure is only logged, not counted."
+  },
+  {
+   "id": "TRN-16",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/transport/keepalive.ts:7-31",
+    "sdk/browser/src/transport/delivery.ts:230-250",
+    "sdk/browser/src/index.ts:321-325"
+   ],
+   "method": "test",
+   "note": "Unload uses fetch keepalive within a 60 KiB/9-request budget; logs and traces reserve before replay; what does not fit is stored (test/transport.test.ts)."
+  },
+  {
+   "id": "TRN-17",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:317-324",
+    "sdk/browser/src/types.ts:157-162"
+   ],
+   "method": "read",
+   "note": "sendBeacon opt-in fallback; URL is the plain endpoint with no credentials."
+  },
+  {
+   "id": "TRN-18",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:432-440",
+    "sdk/browser/src/transport/delivery.ts:159"
+   ],
+   "method": "test",
+   "note": "A later page drains the stored requests (including parked chunks) under a Web Lock; no per-stream claim, and chunks that left by keepalive were never stored."
+  },
+  {
+   "id": "TRN-19",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:231-234"
+   ],
+   "method": "read",
+   "note": "A chunk sent by keepalive within budget is not persisted at all."
+  },
+  {
+   "id": "SMP-1",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:307-315"
+   ],
+   "method": "test",
+   "note": "Decided once per session and persisted with it (test/sampling.test.ts)."
+  },
+  {
+   "id": "SMP-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/session/sampling.ts:12-32"
+   ],
+   "method": "test",
+   "note": "Decision is fmix32(FNV-1a('session:'+id))/2^32 < rate, not the first 8 hex chars of the id (test/sampling.test.ts vectors)."
+  },
+  {
+   "id": "SMP-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/sampling.ts:35-39",
+    "sdk/browser/src/telemetry/sampling.ts:15-17"
+   ],
+   "method": "test",
+   "note": "Unsampled sessions export nothing, including no session.start (test/sampling.integration.test.ts); ouo.session.sample_rate is not on session.start."
+  },
+  {
+   "id": "SMP-4",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/sampling.ts:15-17"
+   ],
+   "method": "test",
+   "note": "Sampled spans flag 01; unsampled requests propagate flag 00."
+  },
+  {
+   "id": "SMP-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/sampling.ts:35-39"
+   ],
+   "method": "read",
+   "note": "No bypass set: unhandled exceptions of unsampled sessions are dropped."
+  },
+  {
+   "id": "SMP-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep sampling.bypass in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No ouo.sampling.bypass."
+  },
+  {
+   "id": "SMP-7",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep perSessionCap in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No bypass cap."
+  },
+  {
+   "id": "SMP-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:70-74",
+    "sdk/browser/src/session/sampling.ts:28-31"
+   ],
+   "method": "read",
+   "note": "Replay decision uses the same hash with salt 'replay', not the second 8 hex chars."
+  },
+  {
+   "id": "SMP-9",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:253-258"
+   ],
+   "method": "read",
+   "note": "Replay mode is off when the session is unsampled."
+  },
+  {
+   "id": "SMP-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:52",
+    "sdk/browser/src/replay/recorder.ts:347-359"
+   ],
+   "method": "test",
+   "note": "Buffer keeps the last two 30 s checkouts (30 to 60 s), cut at whole segments with a keyframe; less than the 60 s minimum (test/replay-on-error.integration.test.ts)."
+  },
+  {
+   "id": "SMP-11",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:98"
+   ],
+   "method": "read",
+   "note": "Ring is in memory only."
+  },
+  {
+   "id": "SMP-12",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:309-312",
+    "sdk/browser/src/replay/recorder.ts:193-209"
+   ],
+   "method": "test",
+   "note": "Any exception at ERROR (handled captureError and console.error too) flushes the ring and switches to full mode for the session; no replay.capture() and no ouo.replay.mode/trigger attributes."
+  },
+  {
+   "id": "PRV-1",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep consent in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No consent mode; storage written and data sent at init."
+  },
+  {
+   "id": "PRV-2",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep consent in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No consent buffer."
+  },
+  {
+   "id": "PRV-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep consent in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No telemetry/replay consent split."
+  },
+  {
+   "id": "PRV-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep consent in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No withdrawal handling."
+  },
+  {
+   "id": "PRV-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:104-166"
+   ],
+   "method": "test",
+   "note": "Text (maskAllText) and all input values masked by default on device; canvas not recorded; images and video are recorded (only ouo-block/blockSelector block) (test/privacy.test.ts)."
+  },
+  {
+   "id": "PRV-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:10-13",
+    "sdk/browser/src/replay/rrweb.ts:110-118",
+    "sdk/browser/src/replay/rrweb.ts:155-156"
+   ],
+   "method": "test",
+   "note": "Mask/unmask via classes ouo-mask/ouo-unmask/ouo-block, not data-ouo-mask/data-ouo-unmask; mask wins; passwords stay masked by rrweb defaults, but payment and one-time-code fields are not forced masked when maskAllInputs is false."
+  },
+  {
+   "id": "PRV-7",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "mobile-only rule"
+  },
+  {
+   "id": "PRV-8",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:110-118",
+    "sdk/browser/src/replay/recorder.ts:377"
+   ],
+   "method": "read",
+   "note": "Masking fails closed for unknown elements and invalid selectors; an exception while scrubbing drops the event inside guard()."
+  },
+  {
+   "id": "PRV-9",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/interactions/element.ts:30-37"
+   ],
+   "method": "test",
+   "note": "app.widget.id is tag#id.class1.class2[data-testid=value]: includes class names and an attribute value; digit-run ids not omitted; no browser.css_selector or nth-of-type."
+  },
+  {
+   "id": "PRV-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:29",
+    "sdk/browser/src/errors/install.ts:36-40",
+    "sdk/browser/src/network.ts:56"
+   ],
+   "method": "read",
+   "note": "No URL sanitisation: location.href, request URLs and resource URLs go out with credentials, query values and fragments; no privacy.urlQueryAllow, keepUrlFragment or sanitizeUrl."
+  },
+  {
+   "id": "PRV-11",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep sanitize|REDACTED in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No fragment sanitising."
+  },
+  {
+   "id": "PRV-12",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/network.ts:45-73"
+   ],
+   "method": "read",
+   "note": "No bodies or headers captured."
+  },
+  {
+   "id": "PRV-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:16-17",
+    "sdk/browser/src/telemetry/propagator.ts:23",
+    "sdk/browser/src/session/manager.ts:490-501"
+   ],
+   "method": "read",
+   "note": "A random anonymous user.id (and ouo.user.anonymous) is on every record and in baggage before any setUser; setUser sets user.id, not enduser.id. No IP or location collected."
+  },
+  {
+   "id": "PRV-14",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep beforeSend in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No beforeSend, so exception.message/stacktrace cannot be filtered."
+  },
+  {
+   "id": "RPL-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:6-12"
+   ],
+   "method": "read",
+   "note": "Chunk carries only session_id, seq, started_at, ended_at, events."
+  },
+  {
+   "id": "RPL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:35-42"
+   ],
+   "method": "read",
+   "note": "Chunk is a JSON document, not an OTLP log record with a bytes body."
+  },
+  {
+   "id": "RPL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:44"
+   ],
+   "method": "read",
+   "note": "No ouo.replay scope; chunks bypass OTel."
+  },
+  {
+   "id": "RPL-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:210-220",
+    "sdk/browser/src/replay/chunker.ts:93-94"
+   ],
+   "method": "test",
+   "note": "seq starts at 0 per session, +1 per chunk, persisted and continued across tabs and reloads; there is no per-stream sequence (test/session.test.ts 'replay seq persists')."
+  },
+  {
+   "id": "RPL-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/tabs.ts:16-36",
+    "sdk/browser/src/replay/recorder.ts:79-84"
+   ],
+   "method": "read",
+   "note": "No stream id: tabs take turns on one session-wide sequence through a BroadcastChannel lease."
+  },
+  {
+   "id": "RPL-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:108-117"
+   ],
+   "method": "read",
+   "note": "No keyframe flag; chunks are cut by time/size regardless of full-snapshot position."
+  },
+  {
+   "id": "RPL-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:108-126",
+    "sdk/browser/src/transport/delivery.ts:262-272"
+   ],
+   "method": "read",
+   "note": "Concatenated chunk events form a valid rrweb event stream and each request body is independently gzipped; no segment boundaries."
+  },
+  {
+   "id": "RPL-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:172-182",
+    "sdk/browser/src/replay/recorder.ts:150-154"
+   ],
+   "method": "read",
+   "note": "Restarting recording (resume, tab switch, route unhide) begins with a full snapshot, but dropping queued chunks at the 2 MB bound does not force a new keyframe."
+  },
+  {
+   "id": "RPL-9",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:50",
+    "sdk/browser/src/replay/recorder.ts:303-306"
+   ],
+   "method": "read",
+   "note": "Checkout every 5 min; hidden tab stops, visible tab restarts with a full snapshot."
+  },
+  {
+   "id": "RPL-10",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:47-48",
+    "sdk/browser/src/replay/chunker.ts:96-104",
+    "sdk/browser/src/index.ts:324"
+   ],
+   "method": "test",
+   "note": "Chunk closed at 5000 ms, 256 KB (estimated uncompressed JSON length) or page hide (test/chunker.test.ts)."
+  },
+  {
+   "id": "RPL-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:101-104",
+    "sdk/browser/src/replay/chunker.ts:172-182"
+   ],
+   "method": "read",
+   "note": "No hard limit or split: a single large event yields an oversize chunk; over 2 MB the buffer is dropped (truncation)."
+  },
+  {
+   "id": "RPL-12",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep sha256 in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No hash."
+  },
+  {
+   "id": "RPL-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:6-12"
+   ],
+   "method": "read",
+   "note": "None of the ouo.replay.* attributes exist."
+  },
+  {
+   "id": "RPL-14",
+   "status": "met",
+   "evidence": [
+    "no code found: grep replay.ref in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "Never set."
+  },
+  {
+   "id": "RPL-15",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/uploader.ts:44",
+    "sdk/browser/src/transport/delivery.ts:201-209"
+   ],
+   "method": "read",
+   "note": "Chunks are sent first and persisted only on failure."
+  },
+  {
+   "id": "RPL-16",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:192-219"
+   ],
+   "method": "read",
+   "note": "Sequential upload in order; at page hide queued chunks are fired together."
+  },
+  {
+   "id": "RPL-17",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:172-182"
+   ],
+   "method": "read",
+   "note": "Backlog drops oldest queued chunks with only a debug log; no partial marking or count."
+  },
+  {
+   "id": "RPL-18",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:178-181"
+   ],
+   "method": "read",
+   "note": "Capture continues when the buffer is full; buffered events are discarded instead."
+  },
+  {
+   "id": "RPL-19",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:253-258"
+   ],
+   "method": "read",
+   "note": "No capture when replay is not sampled; there is no replay consent."
+  },
+  {
+   "id": "RPL-26",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep replay.ended in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ended."
+  },
+  {
+   "id": "RPL-20",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep replay.ended in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No end record, normal or after kill."
+  },
+  {
+   "id": "RPL-21",
+   "status": "not_met",
+   "evidence": [
+    "no code found: grep end_state in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No end_state."
+  },
+  {
+   "id": "RPL-22",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Store rule, not SDK."
+  },
+  {
+   "id": "RPL-27",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:125",
+    "sdk/browser/src/replay/rrweb.ts:5"
+   ],
+   "method": "read",
+   "note": "rrweb is hard-wired; no format adapter interface."
+  },
+  {
+   "id": "RPL-23",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:6-12"
+   ],
+   "method": "read",
+   "note": "No format-independent hierarchy exists to satisfy."
+  },
+  {
+   "id": "RPL-24",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Reader rule, not SDK."
+  },
+  {
+   "id": "RPL-25",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Video formats only (MAY)."
+  },
+  {
+   "id": "ERR-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/guard.ts:32-56",
+    "sdk/browser/src/index.ts:87-93"
+   ],
+   "method": "test",
+   "note": "Callbacks, observers, timers and public methods are guarded (test/safety.test.ts, e2e/faults.spec.ts); initRUM deliberately throws on a configuration error."
+  },
+  {
+   "id": "ERR-2",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:46-55",
+    "sdk/browser/src/errors/install.ts:70-91"
+   ],
+   "method": "test",
+   "note": "Patched history and console.error call the original first and return its result/throw unchanged; fetch/XHR via OTel (test/safety.test.ts)."
+  },
+  {
+   "id": "ERR-3",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:23-26",
+    "sdk/browser/src/errors/install.ts:62-63"
+   ],
+   "method": "test",
+   "note": "addEventListener only, never window.onerror; errors not swallowed (test/safety.test.ts 'an error thrown by the page's own listener is still the page's')."
+  },
+  {
+   "id": "ERR-4",
+   "status": "met",
+   "evidence": [
+    "no code found: grep 'open(.*false' XMLHttpRequest in sdk/browser/src"
+   ],
+   "method": "read",
+   "note": "No synchronous XHR; IndexedDB async; localStorage only for the small session record."
+  },
+  {
+   "id": "ERR-5",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/batch.ts:79-83",
+    "sdk/browser/src/transport/delivery.ts:69-73",
+    "sdk/browser/src/errors/install.ts:68-90"
+   ],
+   "method": "read",
+   "note": "Exports suppress tracing and bypass the fetch wrapper; console.error capture has a reentrancy flag."
+  },
+  {
+   "id": "ERR-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/guard.ts:11-21"
+   ],
+   "method": "read",
+   "note": "Contained failures are counted but never trigger self-disable."
+  },
+  {
+   "id": "ERR-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:354-364",
+    "sdk/browser/src/types.ts:253-262",
+    "sdk/browser/src/replay/chunker.ts:172-182"
+   ],
+   "method": "test",
+   "note": "Drops counted per request by reason in deliveryStats() only; not per record or signal, no ouo.sdk.dropped event, replay drops not counted."
+  },
+  {
+   "id": "ERR-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/browser/src/logger.ts:7-16",
+    "sdk/browser/src/index.ts:83",
+    "sdk/browser/src/index.ts:102",
+    "sdk/browser/src/telemetry/events.ts:38"
+   ],
+   "method": "read",
+   "note": "Diagnostics are debug-gated, except console.warn on double init and failed start; with debug on, event attributes (payloads) are logged."
+  },
+  {
+   "id": "ERR-9",
+   "status": "met",
+   "evidence": [
+    "sdk/browser/src/telemetry/batch.ts:47",
+    "sdk/browser/src/replay/chunker.ts:49",
+    "sdk/browser/src/transport/index.ts:9",
+    "sdk/browser/src/longtasks.ts:75"
+   ],
+   "method": "read",
+   "note": "Batch queues (2048/1024), replay buffer (2 MB), store (5 MB), long tasks (50/page) are bounded."
+  },
+  {
+   "id": "OVH-1",
+   "status": "na",
+   "evidence": [
+    "sdk/browser/package.json:59"
+   ],
+   "method": "read",
+   "note": "Budgets are TBD in the spec; the SDK has its own size:check script."
+  },
+  {
+   "id": "VER-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the spec itself."
+  },
+  {
+   "id": "VER-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/CHANGELOG.md:1-12",
+    "sdk/browser/package.json:3"
+   ],
+   "method": "read",
+   "note": "Releases do not state a spec version."
+  },
+  {
+   "id": "VER-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/browser/src/index.ts:175",
+    "sdk/browser/src/index.ts:182"
+   ],
+   "method": "read",
+   "note": "No schema_url on any scope."
+  },
+  {
+   "id": "VER-4",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Collector rename rule."
+  },
+  {
+   "id": "VER-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Collector table rule."
+  }
+ ],
+ "violations": [
+  {
+   "what": "Replay chunks sent as custom JSON (non-OTLP) to /v1/replay/chunks on a separate receiver port (4319), with custom x-ouo-session-id and x-ouo-seq headers",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:11-16",
+    "sdk/browser/src/replay/uploader.ts:35-44"
+   ],
+   "breaks": "REL-2"
+  },
+  {
+   "what": "Unprefixed custom event names `navigation`, `web_vital`, `http.request.failed`",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:33",
+    "sdk/browser/src/vitals.ts:33",
+    "sdk/browser/src/network.ts:34"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "Deprecated `event.name` attribute set on every event (and body = event name)",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:41-45"
+   ],
+   "breaks": "REC-1"
+  },
+  {
+   "what": "device.id on the resource and on session.start/end, sent by default",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:30",
+    "sdk/browser/src/session/manager.ts:395",
+    "sdk/browser/src/session/manager.ts:430"
+   ],
+   "breaks": "RES-2"
+  },
+  {
+   "what": "Baggage `session.id`, `user.id`, `ouo.platform` injected on every propagated request by default",
+   "evidence": [
+    "sdk/browser/src/telemetry/propagator.ts:19-26"
+   ],
+   "breaks": "PRP-6"
+  },
+  {
+   "what": "Anonymous random `user.id` + `ouo.user.anonymous` on every record before setUser; setUser writes `user.id` not `enduser.id`",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:16-17",
+    "sdk/browser/src/session/manager.ts:490-501"
+   ],
+   "breaks": "PRV-13"
+  },
+  {
+   "what": "`click` and `soft-navigation` spans; clicks parent requests and soft navigations, so a click starts a trace that crosses page views",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:95",
+    "sdk/browser/src/navigation.ts:37",
+    "sdk/browser/src/interactions/context.ts:18-22"
+   ],
+   "breaks": "REC-6, SIG-38, SIG-41"
+  },
+  {
+   "what": "documentLoad emits documentFetch and resourceFetch child spans (and user_agent.original on the span)",
+   "evidence": [
+    "sdk/browser/src/index.ts:239-241"
+   ],
+   "breaks": "SIG-15"
+  },
+  {
+   "what": "session.previous_id stamped on every span and log record",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:21-22",
+    "sdk/browser/src/telemetry/correlation.ts:79"
+   ],
+   "breaks": "SES-4"
+  },
+  {
+   "what": "Every fetch/XHR request counts as session activity",
+   "evidence": [
+    "sdk/browser/src/network.ts:49",
+    "sdk/browser/src/network.ts:69"
+   ],
+   "breaks": "SES-5"
+  },
+  {
+   "what": "initRUM throws on a missing endpoint/projectId/projectToken",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:70-75",
+    "sdk/browser/src/index.ts:87-93"
+   ],
+   "breaks": "CFG-1"
+  },
+  {
+   "what": "console.error calls and resource load failures reported as `exception` events (sources outside error/unhandledrejection/manual)",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:31-45",
+    "sdk/browser/src/errors/install.ts:66-100"
+   ],
+   "breaks": "SIG-08"
+  },
+  {
+   "what": "Duplicate error event `http.request.failed` for 5xx/network failures besides the HTTP span",
+   "evidence": [
+    "sdk/browser/src/network.ts:32-43"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "With debug on, event attributes are logged; console.warn on double init and failed start even with debug off",
+   "evidence": [
+    "sdk/browser/src/telemetry/events.ts:38",
+    "sdk/browser/src/index.ts:83",
+    "sdk/browser/src/index.ts:102"
+   ],
+   "breaks": "ERR-8"
+  },
+  {
+   "what": "Click widget id includes class names and the data-testid attribute value",
+   "evidence": [
+    "sdk/browser/src/interactions/element.ts:30-37"
+   ],
+   "breaks": "PRV-9"
+  },
+  {
+   "what": "Full unsanitised URLs (query values, fragments, credentials) in url.full on navigation, spans, resource errors and replay",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:29",
+    "sdk/browser/src/errors/install.ts:36-40"
+   ],
+   "breaks": "PRV-10"
+  },
+  {
+   "what": "Retries on 500 and 408 (spec: drop)",
+   "evidence": [
+    "sdk/browser/src/transport/retry.ts:5-8"
+   ],
+   "breaks": "TRN-6"
+  },
+  {
+   "what": "Replay chunks dropped at the buffer bound without counting",
+   "evidence": [
+    "sdk/browser/src/replay/chunker.ts:172-182"
+   ],
+   "breaks": "ERR-7, RPL-17"
+  },
+  {
+   "what": "An app-set traceparent is overwritten by the fetch instrumentation",
+   "evidence": [
+    "@opentelemetry/instrumentation-fetch@0.222.0 build/esm/fetch.js:85-89"
+   ],
+   "breaks": "PRP-3"
+  },
+  {
+   "what": "Instrumentation scope `@ouo11y/browser` instead of `ouo.rum`, no schema_url",
+   "evidence": [
+    "sdk/browser/src/version.ts:3",
+    "sdk/browser/src/index.ts:175"
+   ],
+   "breaks": "REC-5, VER-3"
+  },
+  {
+   "what": "user_agent.original on the resource even when browser.brands is available",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:37"
+   ],
+   "breaks": "RES-0"
+  },
+  {
+   "what": "session.id is a hyphenated UUID with a Math.random fallback",
+   "evidence": [
+    "sdk/browser/src/session/ids.ts:2-15"
+   ],
+   "breaks": "SES-1"
+  },
+  {
+   "what": "Registers its tracer provider, logger provider, propagator and context manager globally by default",
+   "evidence": [
+    "sdk/browser/src/index.ts:173",
+    "sdk/browser/src/index.ts:207-211"
+   ],
+   "breaks": "REL-4"
+  }
+ ],
+ "features": [
+  {
+   "id": "SES-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:123-150"
+   ],
+   "note": "Automatic sessions with session.start/session.end; id format and naming gaps are in the requirements."
+  },
+  {
+   "id": "SES-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:11-12",
+    "sdk/browser/src/session/manager.ts:327-332"
+   ],
+   "note": "30 min inactivity and 4 h max, configurable, unclamped; network traffic extends sessions."
+  },
+  {
+   "id": "SES-c",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:261-288",
+    "sdk/browser/src/session/storage.ts:33-91"
+   ],
+   "note": "Shared across tabs through localStorage and storage events; survives reloads. No Web Locks on start."
+  },
+  {
+   "id": "SES-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:382-384",
+    "sdk/browser/src/index.ts:405-409"
+   ],
+   "note": "endSession() and session.id(); no restartSession that starts the next session at once."
+  },
+  {
+   "id": "ERR-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:31-56"
+   ],
+   "note": "window error listener emits `exception`; attribute names differ (ouo.exception.kind, code.filepath)."
+  },
+  {
+   "id": "ERR-b",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:58-60"
+   ],
+   "note": "unhandledrejection captured."
+  },
+  {
+   "id": "ERR-c",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/index.ts:385-390"
+   ],
+   "note": "captureError(err, attrs)."
+  },
+  {
+   "id": "ERR-g",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:13-24"
+   ],
+   "note": "Navigation, click spans, HTTP spans and events share session.id and time."
+  },
+  {
+   "id": "ERR-h",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:385-390"
+   ],
+   "note": "Apps can pass ouo.exception.fingerprint as a captureError attribute; no documented API."
+  },
+  {
+   "id": "ERR-k",
+   "state": "none",
+   "evidence": [
+    "no code found: grep dedupe|rate limit in sdk/browser/src"
+   ],
+   "note": "No error dedupe or flood guard (only long tasks are capped per page)."
+  },
+  {
+   "id": "PERF-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:31-62"
+   ],
+   "note": "CLS, LCP, INP, FCP, TTFB as `web_vital` with ouo.web_vital.*, not browser.web_vital."
+  },
+  {
+   "id": "PERF-b",
+   "state": "none",
+   "evidence": [
+    "sdk/browser/src/vitals.ts:1"
+   ],
+   "note": "No attribution build."
+  },
+  {
+   "id": "PERF-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/longtasks.ts:69-97"
+   ],
+   "note": "ouo.long_animation_frame (or ouo.long_task) on by default, threshold 100 ms, 50 per page; spec gates this signal."
+  },
+  {
+   "id": "PERF-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:239-241"
+   ],
+   "note": "documentLoad span via OTel instrumentation with child spans; no browser.navigation_timing event."
+  },
+  {
+   "id": "PERF-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:240"
+   ],
+   "note": "Only initial resources, as resourceFetch child spans of documentLoad; no browser.resource_timing events, no switch."
+  },
+  {
+   "id": "PERF-k",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:207"
+   ],
+   "note": "Custom spans only through the OTel global API when the SDK's provider won the global registration."
+  },
+  {
+   "id": "NET-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/network.ts:45-75"
+   ],
+   "note": "OTel fetch and XHR instrumentation with stable HTTP attributes."
+  },
+  {
+   "id": "NET-b",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/network.ts:46",
+    "sdk/browser/src/telemetry/propagator.ts:12-26"
+   ],
+   "note": "traceparent same-origin and to propagateTo origins (plus default-on baggage)."
+  },
+  {
+   "id": "INT-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:65-104"
+   ],
+   "note": "Clicks become `click` spans, exported only when they caused a request; no click event."
+  },
+  {
+   "id": "INT-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/interactions/element.ts:30-49"
+   ],
+   "note": "app.widget.name from data-testid (default) or aria-label/text inside ouo-unmask."
+  },
+  {
+   "id": "INT-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:46-63"
+   ],
+   "note": "ouo.rage_click at 3 clicks in 1 s within 30 px (target 4)."
+  },
+  {
+   "id": "INT-d",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/interactions/clicks.ts:94-102",
+    "sdk/browser/src/interactions/element.ts:63-85"
+   ],
+   "note": "ouo.dead_click when a button/link click causes no request, mutation or navigation before idle."
+  },
+  {
+   "id": "INT-e",
+   "state": "none",
+   "evidence": [
+    "no code found: grep error click in sdk/browser/src"
+   ],
+   "note": "No error clicks."
+  },
+  {
+   "id": "NAV-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:64-78"
+   ],
+   "note": "Initial `navigation` event (kind load) plus documentLoad span."
+  },
+  {
+   "id": "NAV-b",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/navigation.ts:20-62",
+    "sdk/browser/src/react/index.ts:72-97"
+   ],
+   "note": "pushState/replaceState/popstate captured; route templates through setRoute/useOuoRoute."
+  },
+  {
+   "id": "NAV-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:394-399"
+   ],
+   "note": "setRoute names the route; no manual navigation/view API."
+  },
+  {
+   "id": "RPL-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:85-398",
+    "sdk/browser/src/replay/rrweb.ts:1-188"
+   ],
+   "note": "rrweb, lazy-loaded chunk."
+  },
+  {
+   "id": "RPL-c",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:69",
+    "sdk/browser/src/replay/recorder.ts:193-209"
+   ],
+   "note": "full (sampleRate) and buffer-on-error (onErrorSampleRate) modes."
+  },
+  {
+   "id": "RPL-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:155-164"
+   ],
+   "note": "rrweb defaults record shadow DOM and same-origin iframes; canvas off."
+  },
+  {
+   "id": "RPL-e",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:15"
+   ],
+   "note": "Player joins HTTP spans by session.id and time; nothing copied into the replay."
+  },
+  {
+   "id": "RPL-f",
+   "state": "none",
+   "evidence": [
+    "no code found: grep console plugin in sdk/browser/src/replay"
+   ],
+   "note": "No console in replay."
+  },
+  {
+   "id": "RPL-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:104-166"
+   ],
+   "note": "Text and inputs masked by default; images/video not blocked; class-based mask/unmask/block plus selectors."
+  },
+  {
+   "id": "RPL-j",
+   "state": "none",
+   "evidence": [
+    "no code found: grep idle in sdk/browser/src/replay"
+   ],
+   "note": "No idle pause or replay maximum duration."
+  },
+  {
+   "id": "USR-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:370-375",
+    "sdk/browser/src/session/manager.ts:178-183"
+   ],
+   "note": "setUser sets user.id (not enduser.id); switching users rotates the session."
+  },
+  {
+   "id": "USR-c",
+   "state": "none",
+   "evidence": [
+    "no code found: grep setGlobalAttributes in sdk/browser/src"
+   ],
+   "note": "No global attributes API."
+  },
+  {
+   "id": "USR-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/session/device.ts:12-23",
+    "sdk/browser/src/telemetry/resource.ts:30"
+   ],
+   "note": "device.id and anonymous user.id always on (not opt-in), device.id on the resource."
+  },
+  {
+   "id": "LOG-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:173"
+   ],
+   "note": "Apps can use the OTel Logs API only through the global provider; not exposed."
+  },
+  {
+   "id": "LOG-b",
+   "state": "none",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:66-100"
+   ],
+   "note": "console.error becomes `exception`, not a log; no console log capture."
+  },
+  {
+   "id": "LOG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:169-175"
+   ],
+   "note": "Host OTel log records get session attributes if they go through the SDK's globally registered provider."
+  },
+  {
+   "id": "SMP-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:282-284",
+    "sdk/browser/src/telemetry/sampling.ts:12-48"
+   ],
+   "note": "session.sampleRate, decided once per session and persisted."
+  },
+  {
+   "id": "SMP-d",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:193-209"
+   ],
+   "note": "Buffer-on-error replay through replay.onErrorSampleRate."
+  },
+  {
+   "id": "SMP-e",
+   "state": "none",
+   "evidence": [
+    "sdk/browser/src/telemetry/sampling.ts:35-39"
+   ],
+   "note": "Unsampled sessions drop errors too."
+  },
+  {
+   "id": "SMP-f",
+   "state": "none",
+   "evidence": [
+    "no code found: grep remote config in sdk/browser/src"
+   ],
+   "note": "No remote config or kill switch."
+  },
+  {
+   "id": "PRV-a",
+   "state": "none",
+   "evidence": [
+    "no code found: grep consent in sdk/browser/src"
+   ],
+   "note": "No consent API."
+  },
+  {
+   "id": "PRV-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/interactions/element.ts:30-49"
+   ],
+   "note": "Input values never read; click text masked by default, but widget id carries class names and data-testid; URLs unsanitised."
+  },
+  {
+   "id": "PRV-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/rrweb.ts:10-13",
+    "sdk/browser/src/types.ts:86-109"
+   ],
+   "note": "ouo-mask/ouo-unmask/ouo-block classes and selectors, not data attributes."
+  },
+  {
+   "id": "PRV-d",
+   "state": "none",
+   "evidence": [
+    "no code found: grep sanitize|REDACTED in sdk/browser/src"
+   ],
+   "note": "No URL or query sanitising."
+  },
+  {
+   "id": "PRV-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/telemetry/correlation.ts:16",
+    "sdk/browser/src/telemetry/resource.ts:30"
+   ],
+   "note": "No IP or bodies, but anonymous user.id, device.id and full URLs by default."
+  },
+  {
+   "id": "PRV-f",
+   "state": "none",
+   "evidence": [
+    "no code found: grep beforeSend in sdk/browser/src"
+   ],
+   "note": "No beforeSend."
+  },
+  {
+   "id": "PRV-g",
+   "state": "none",
+   "evidence": [
+    "no code found: grep globalPrivacyControl|doNotTrack in sdk/browser/src"
+   ],
+   "note": "No GPC/DNT handling."
+  },
+  {
+   "id": "TRN-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/telemetry/batch.ts:33-87"
+   ],
+   "note": "Own batcher, 64 records per request."
+  },
+  {
+   "id": "TRN-b",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/transport/delivery.ts:101-473",
+    "sdk/browser/src/transport/store.ts:226-315"
+   ],
+   "note": "Retry with backoff, IndexedDB offline store drained by later pages."
+  },
+  {
+   "id": "TRN-c",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/transport/keepalive.ts:7-31",
+    "sdk/browser/src/transport/delivery.ts:230-250"
+   ],
+   "note": "keepalive within a 60 KiB budget, splitting, optional beacon, store for the rest."
+  },
+  {
+   "id": "TRN-d",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/transport/gzip.ts:1-14"
+   ],
+   "note": "gzip with CompressionStream for bodies >= 1 KB."
+  },
+  {
+   "id": "TRN-e",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/ingest.ts:47-56",
+    "sdk/browser/src/ingest.ts:115-129"
+   ],
+   "note": "Configurable endpoint, relative same-origin proxy route, separate replayEndpoint."
+  },
+  {
+   "id": "TRN-f",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/transport/retry.ts:15-22",
+    "sdk/browser/src/transport/delivery.ts:211-227"
+   ],
+   "note": "Retry-After honoured; exponential backoff with jitter."
+  },
+  {
+   "id": "TRN-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/transport/exporter.ts:62-68",
+    "sdk/browser/src/replay/uploader.ts:35"
+   ],
+   "note": "Telemetry OTLP JSON; replay not OTLP."
+  },
+  {
+   "id": "CFG-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/types.ts:169-206"
+   ],
+   "note": "One RUMOptions object."
+  },
+  {
+   "id": "CFG-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/types.ts:14-38",
+    "sdk/browser/src/types.ts:49-61",
+    "sdk/browser/src/types.ts:199-200"
+   ],
+   "note": "Switches for documentLoad, interactions, softNavigations, clicks, longTasks, replay; none for errors, vitals or HTTP."
+  },
+  {
+   "id": "CFG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/logger.ts:7-16",
+    "sdk/browser/src/index.ts:413"
+   ],
+   "note": "debug mode and deliveryStats(); no ouo.sdk.dropped events."
+  },
+  {
+   "id": "CFG-d",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/types.ts:5-12",
+    "sdk/browser/src/telemetry/resource.ts:22-25"
+   ],
+   "note": "service.name, service.version, deployment.environment.name."
+  },
+  {
+   "id": "CFG-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/replay/recorder.ts:125"
+   ],
+   "note": "rrweb lazy-loaded as a separate chunk; no CDN loader snippet."
+  },
+  {
+   "id": "CFG-f",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/index.ts:94-95"
+   ],
+   "note": "SSR-safe inert instance (test/ssr.test.ts); workers/extensions are Later."
+  },
+  {
+   "id": "API-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/index.ts:391-393"
+   ],
+   "note": "addEvent(name, attrs) as an OTel event (adds ouo.event.custom)."
+  },
+  {
+   "id": "API-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:207"
+   ],
+   "note": "No span API; OTel global tracer only when the SDK registered globally."
+  },
+  {
+   "id": "API-d",
+   "state": "none",
+   "evidence": [
+    "sdk/browser/src/index.ts:394-399"
+   ],
+   "note": "setRoute only; no per-view attributes."
+  },
+  {
+   "id": "API-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/index.ts:173",
+    "sdk/browser/src/index.ts:207-211"
+   ],
+   "note": "Does not replace host providers, but registers globally by default and does not expose its providers."
+  },
+  {
+   "id": "SYM-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/errors/classify.ts:50-66"
+   ],
+   "note": "ouo.exception.debug_ids from bundles injected by @ouo11y/sourcemaps."
+  },
+  {
+   "id": "SYM-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/sourcemaps/package.json:2-4"
+   ],
+   "note": "CLI (inject and upload); no Vite/webpack plugins seen."
+  },
+  {
+   "id": "FWK-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/react/index.ts:38-97"
+   ],
+   "note": "OuoErrorBoundary, useOuoRoute, routeTemplate."
+  },
+  {
+   "id": "FWK-b",
+   "state": "none",
+   "evidence": [
+    "no code found: grep next in sdk/browser/src"
+   ],
+   "note": "No Next.js integration (SSR-safe only)."
+  },
+  {
+   "id": "REL-a",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:24",
+    "sdk/browser/src/telemetry/correlation.ts:19"
+   ],
+   "note": "service.version on resource and every record."
+  },
+  {
+   "id": "REL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/browser/src/session/manager.ts:389-399",
+    "sdk/browser/src/errors/classify.ts:37-43"
+   ],
+   "note": "session.start and fatal exceptions exist; no bypass for unsampled sessions, user id is a random anonymous id."
+  },
+  {
+   "id": "REL-d",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/telemetry/resource.ts:24"
+   ],
+   "note": "service.version present; server query."
+  },
+  {
+   "id": "FF-a",
+   "state": "none",
+   "evidence": [
+    "no code found: grep feature_flag in sdk/browser/src"
+   ],
+   "note": "No flag evaluations."
+  },
+  {
+   "id": "FF-c",
+   "state": "none",
+   "evidence": [
+    "no code found: grep openfeature in sdk/browser/src"
+   ],
+   "note": "No OpenFeature hook."
+  },
+  {
+   "id": "FB-b",
+   "state": "none",
+   "evidence": [
+    "no code found: grep feedback in sdk/browser/src"
+   ],
+   "note": "No feedback API."
+  },
+  {
+   "id": "OTH-h",
+   "state": "none",
+   "evidence": [
+    "no code found: grep bot|crawler|webdriver in sdk/browser/src"
+   ],
+   "note": "No bot filtering."
+  },
+  {
+   "id": "ERR-j",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/errors/install.ts:66-100"
+   ],
+   "note": "Ships a Never feature: console.error captured as `exception`, on by default."
+  },
+  {
+   "id": "NET-e",
+   "state": "full",
+   "evidence": [
+    "sdk/browser/src/network.ts:32-43"
+   ],
+   "note": "Ships a Never feature: `http.request.failed` error event for 5xx and network failures."
+  }
+ ],
+ "architecture_notes": "Built on the OTel JS SDK: WebTracerProvider and LoggerProvider with custom processors (session stamping, session sampling, a page-lifetime Batcher), OTel fetch/XHR/document-load instrumentations, web-vitals and rrweb. Telemetry is serialised with the OTel JSON serializers and sent by a custom Delivery layer (gzip via CompressionStream, retry with equal-jitter backoff, keepalive budget at page hide, optional beacon, IndexedDB offline store with memory fallback drained by later pages under a Web Lock). Session state is a JSON record in localStorage (UUID id, lastActivity, sampling decisions, replay seq) shared by storage events; device.id and an anonymous user.id are also persisted and sent by default. Replay is rrweb loaded lazily; events are chunked (5 s / 256 KB) into a custom JSON document {session_id, seq, started_at, ended_at, events} POSTed to /v1/replay/chunks on a separate receiver (port 4319), not OTLP; a BroadcastChannel lease makes tabs take turns on one session-wide sequence. Biggest structural gaps: replay is not OTLP and has no replay/stream/segment identity, keyframe flags, sha256, end records or persist-before-send; no ouo.view.id; MVP signal names (web_vital, navigation, event.name, ouo.rage_click, click spans) instead of the spec's events; scope and schema_url wrong; no consent, beforeSend, URL sanitising or bypass set for unsampled errors; sampling hash differs from the hex-prefix rule; no ouo.sdk.dropped or self-disable; initRUM throws on bad config."
+}

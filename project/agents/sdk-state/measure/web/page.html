@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>bench shop</title>
+<style>body{font:14px system-ui;margin:0}nav a{margin:0 8px}main{padding:12px}li{padding:4px;border-bottom:1px solid #ddd}.card{display:inline-block;width:180px;height:90px;margin:4px;background:#eef;vertical-align:top}</style>
+<script>
+  // Registered before any SDK: for each input event, the time from dispatch until the main thread
+  // is free again (a MessageChannel task queued at dispatch runs after the event task and its microtasks).
+  window.__ix = [];
+  const ch = new MessageChannel(); let pending = [];
+  ch.port1.onmessage = () => { const now = performance.now(); for (const s of pending) window.__ix.push(now - s); pending = []; };
+  for (const type of ["click", "keydown", "pointerdown"]) window.addEventListener(type, () => { pending.push(performance.now()); ch.port2.postMessage(0); }, true);
+</script>
+</head><body>
+<nav><a href="#" data-path="/" data-route="home" id="nav-home">Home</a><a href="#" data-path="/products" data-route="products" id="nav-products">Products</a><a href="#" data-path="/cart" data-route="cart" id="nav-cart">Cart</a></nav>
+<main id="app"></main>
+<script type="module">
+  const t0 = performance.now();
+  await import(`/dist/${new URLSearchParams(location.search).get("v")}/app.js`);
+  const tImport = performance.now();
+  const s = performance.now();
+  window.__init(location.origin);
+  window.__initMs = performance.now() - s;
+  window.__importMs = tImport - t0;
+  const app = document.getElementById("app");
+  const render = (route) => {
+    if (route === "products") {
+      app.innerHTML = `<h1>Products</h1><input id="q" placeholder="search"><button id="load">Load more</button><ul id="list"></ul>`;
+      const list = document.getElementById("list");
+      for (let i = 0; i < 200; i++) { const li = document.createElement("li"); li.textContent = `Product ${i} — a fine item priced at ${(i * 3.7).toFixed(2)}`; list.appendChild(li); }
+      document.getElementById("load").onclick = async () => {
+        const r = await fetch("/api/items?n=50"); const items = await r.json();
+        for (const it of items) { const li = document.createElement("li"); li.textContent = it; list.appendChild(li); }
+      };
+    } else if (route === "cart") {
+      app.innerHTML = `<h1>Cart</h1><div id="cards"></div><button id="checkout">Checkout</button><button id="boom">Broken</button>`;
+      const c = document.getElementById("cards");
+      for (let i = 0; i < 24; i++) { const d = document.createElement("div"); d.className = "card"; d.textContent = `Item ${i}`; c.appendChild(d); }
+      document.getElementById("checkout").onclick = async () => { await fetch("/api/checkout", { method: "POST", body: JSON.stringify({ n: 3 }) }); app.insertAdjacentHTML("beforeend", "<p>Thanks!</p>"); };
+      document.getElementById("boom").onclick = () => { throw new Error("bench: checkout widget failed"); };
+    } else {
+      app.innerHTML = `<h1>Home</h1><p>Welcome.</p><button id="promo">Show promo</button><div id="promoBox"></div>`;
+      document.getElementById("promo").onclick = () => { document.getElementById("promoBox").textContent = "20% off today " + Date.now(); };
+    }
+  };
+  document.querySelector("nav").addEventListener("click", (e) => {
+    const a = e.target.closest("a"); if (!a) return; e.preventDefault();
+    history.pushState({}, "", a.dataset.path + location.search); render(a.dataset.route);
+  });
+  render("home");
+  window.__ready = true;
+</script></body></html>

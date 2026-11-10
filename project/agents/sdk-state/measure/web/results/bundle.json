@@ -1,0 +1,80 @@
+{
+ "none": {
+  "initial": {
+   "raw": 22,
+   "gzip": 42,
+   "brotli": 26
+  },
+  "total": {
+   "raw": 22,
+   "gzip": 42,
+   "brotli": 26
+  },
+  "files": 1
+ },
+ "ouo-core": {
+  "initial": {
+   "raw": 146987,
+   "gzip": 46551,
+   "brotli": 40881
+  },
+  "total": {
+   "raw": 328882,
+   "gzip": 105618,
+   "brotli": 78636
+  },
+  "files": 2
+ },
+ "ouo-replay": {
+  "initial": {
+   "raw": 147000,
+   "gzip": 46553,
+   "brotli": 40916
+  },
+  "total": {
+   "raw": 328895,
+   "gzip": 105620,
+   "brotli": 78671
+  },
+  "files": 2
+ },
+ "sentry-core": {
+  "initial": {
+   "raw": 160849,
+   "gzip": 56004,
+   "brotli": 49068
+  },
+  "total": {
+   "raw": 160849,
+   "gzip": 56004,
+   "brotli": 49068
+  },
+  "files": 1
+ },
+ "sentry-errors": {
+  "initial": {
+   "raw": 91912,
+   "gzip": 32069,
+   "brotli": 28695
+  },
+  "total": {
+   "raw": 91912,
+   "gzip": 32069,
+   "brotli": 28695
+  },
+  "files": 1
+ },
+ "sentry-replay": {
+  "initial": {
+   "raw": 290696,
+   "gzip": 97363,
+   "brotli": 84222
+  },
+  "total": {
+   "raw": 290696,
+   "gzip": 97363,
+   "brotli": 84222
+  },
+  "files": 1
+ }
+}

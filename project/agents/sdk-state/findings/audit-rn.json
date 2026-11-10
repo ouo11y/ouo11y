@@ -1,0 +1,2691 @@
+{
+ "platform": "rn",
+ "sdk_paths": [
+  "sdk/react-native/src",
+  "sdk/react-native/ios",
+  "sdk/react-native/android",
+  "sdk/ios/Sources/OuoReplay*",
+  "sdk/ios/Sources/OuoCrash*",
+  "sdk/ios/Sources/OuoVitals*",
+  "sdk/android/replay*",
+  "sdk/android/signals*"
+ ],
+ "sdk_version": "0.3.0 (@ouo11y/react-native package.json and src/version.ts)",
+ "how_checked": "Read all of sdk/react-native/src (index, session, sampling, telemetry, transport, network, errors, crash, vitals, replay, taps, navigation, endpoints), the Expo module entry points (ios/OuoReplayModule.swift, android/.../OuoReplayModule.kt), the sync scripts, and the vendored native parts it uses (sdk/ios OuoReplayCore ChunkUploader/Models/ChunkBuilder/RedactionPlanner/DiskQueue, OuoReplay ReplayRecorder; sdk/android HangDetector, Signals, RedactionPlanner, ReplayRecorder). Ran `vitest run` in sdk/react-native (vitest 5.0.3 resolved from the main checkout's node_modules because npm ci failed in this worktree with an npm config error): 23 files, 212 tests, all passed. method=test marks rows those tests exercise (delivery, session, sampling, crash, errors, integration). No wire capture beyond the existing ingest-stub test; no simulator run.",
+ "requirements": [
+  {
+   "id": "REL-1",
+   "status": "na",
+   "evidence": [
+    "sdk/react-native/src/index.ts:93"
+   ],
+   "method": "read",
+   "note": "Meta-rule about how SDKs are judged; nothing to implement."
+  },
+  {
+   "id": "REL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/endpoints.ts:19",
+    "sdk/react-native/src/endpoints.ts:56",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179",
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:99"
+   ],
+   "method": "read",
+   "note": "Telemetry goes as OTLP/HTTP JSON to /v1/traces and /v1/logs, but replay chunks go as gzip custom JSON (FrameChunk) to a non-OTLP path /v1/replay/chunks on a separate replayEndpoint."
+  },
+  {
+   "id": "REL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:364",
+    "sdk/react-native/src/index.ts:383",
+    "sdk/react-native/src/index.ts:396",
+    "sdk/react-native/src/index.ts:472",
+    "sdk/react-native/src/network.ts:88",
+    "sdk/react-native/src/tracing.ts:128"
+   ],
+   "method": "read",
+   "note": "Own event names are unprefixed and not OTel: navigation, ui.tap, app.lifecycle, feedback, log, http.request, http.request.failed; attribute `message` on log records is unprefixed."
+  },
+  {
+   "id": "REL-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:209",
+    "sdk/react-native/src/index.ts:229",
+    "sdk/react-native/src/index.ts:230",
+    "sdk/react-native/src/index.ts:232"
+   ],
+   "method": "read",
+   "note": "Always registers its LoggerProvider, TracerProvider, propagator and context manager globally with no opt-out; the OTel API refuses to override an existing global, so the first clause mostly holds, the second fails."
+  },
+  {
+   "id": "REL-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:209",
+    "sdk/react-native/src/index.ts:229",
+    "sdk/react-native/src/types.ts:363"
+   ],
+   "method": "read",
+   "note": "Host code can reach the providers only through the OTel globals (and gets session attributes via the processors); there is no getTracerProvider()/getLoggerProvider() on the public API."
+  },
+  {
+   "id": "REL-6",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:6",
+    "sdk/react-native/src/index.ts:8"
+   ],
+   "method": "read",
+   "note": "No MeterProvider or metrics exporter anywhere in src (grep Meter/metrics: none)."
+  },
+  {
+   "id": "REL-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:69",
+    "sdk/react-native/src/tracing.ts:71",
+    "sdk/react-native/src/telemetry/events.ts:43"
+   ],
+   "method": "read",
+   "note": "Events go through the Logs API with eventName, but withSpan() calls span.recordException(), which writes an `exception` span event."
+  },
+  {
+   "id": "API-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:93",
+    "sdk/react-native/src/instance.ts:5",
+    "sdk/react-native/src/index.ts:495"
+   ],
+   "method": "read",
+   "note": "API lives on the instance returned by initRUM, so there is nothing to call before init (getRUM() returns undefined); there is no public shutdown (only internal _uninstall), and calling methods after _uninstall is not guarded."
+  },
+  {
+   "id": "API-2",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:257",
+    "sdk/react-native/src/transport/outbox.ts:118",
+    "sdk/react-native/src/session/manager.ts:525"
+   ],
+   "method": "read",
+   "note": "Storage is async AsyncStorage, network goes through fetch or the native async postOtlp; flush returns a promise."
+  },
+  {
+   "id": "API-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:426",
+    "sdk/react-native/src/index.ts:418"
+   ],
+   "method": "read",
+   "note": "addEvent accepts any name and attributes, including session.* and ouo.*; nothing rejects or counts reserved names."
+  },
+  {
+   "id": "API-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:363",
+    "sdk/react-native/src/index.ts:93"
+   ],
+   "method": "read",
+   "note": "Names differ from the spec surface: initRUM, captureError, addEvent, session.id(); missing shutdown, restartSession, setConsent, setGlobalAttributes, getTracerProvider/getLoggerProvider, replay.start/stop/capture/mask."
+  },
+  {
+   "id": "API-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:429",
+    "sdk/react-native/src/index.ts:548",
+    "sdk/react-native/src/navigation.ts:33"
+   ],
+   "method": "read",
+   "note": "Manual trackNavigation and the react-navigation listener go through the same tracker and de-duplicate by path, but no ouo.view.id is assigned by either."
+  },
+  {
+   "id": "API-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:422",
+    "sdk/react-native/src/errors/classify.ts:43",
+    "sdk/react-native/src/errors/classify.ts:51"
+   ],
+   "method": "read",
+   "note": "captureError sets ouo.exception.kind=captured and ouo.exception.handled=true; no ouo.exception.source=manual."
+  },
+  {
+   "id": "CFG-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:99",
+    "sdk/react-native/src/endpoints.ts:58",
+    "sdk/react-native/src/endpoints.ts:81"
+   ],
+   "method": "read",
+   "note": "Missing endpoint, projectId or projectToken throws a TypeError from initRUM instead of a no-op; serviceName is not validated."
+  },
+  {
+   "id": "CFG-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:40",
+    "sdk/react-native/src/session/manager.ts:137"
+   ],
+   "method": "read",
+   "note": "Sample rates are clamped to [0,1]; inactivity/background/max-duration timeouts are used as given, unclamped."
+  },
+  {
+   "id": "CFG-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/endpoints.ts:147",
+    "sdk/react-native/src/index.ts:411",
+    "sdk/react-native/src/replay.ts:300"
+   ],
+   "method": "read",
+   "note": "Credential travels only in the Authorization header, but debug diagnostics print the first 8 characters of projectToken."
+  },
+  {
+   "id": "CFG-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "method": "read",
+   "note": "No beforeSend hook in RUMOptions (grep beforeSend: none)."
+  },
+  {
+   "id": "LIF-1",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:94"
+   ],
+   "method": "read",
+   "note": "Second initRUM returns the existing instance with a console.warn diagnostic."
+  },
+  {
+   "id": "LIF-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:124",
+    "sdk/react-native/src/crash.ts:268",
+    "sdk/react-native/src/crash.ts:296",
+    "sdk/react-native/src/index.ts:289"
+   ],
+   "method": "read",
+   "note": "Storage and network are async, but init makes synchronous native bridge calls (module load, takePendingCrash, installCrashReporter, replay start)."
+  },
+  {
+   "id": "LIF-3",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:119",
+    "sdk/react-native/src/index.ts:198",
+    "sdk/react-native/src/session/manager.ts:283"
+   ],
+   "method": "test",
+   "note": "Records before storage is read sit in the bounded OTel batch queues and the outbox awaits its load; session.start waits for the cold-start read."
+  },
+  {
+   "id": "LIF-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:495",
+    "sdk/react-native/src/index.ts:509"
+   ],
+   "method": "read",
+   "note": "Only the internal test hook _uninstall exists: it removes hooks, stops replay and drains within 2 s, but emits no session.end, closes no replay stream with an end record, and is not public API."
+  },
+  {
+   "id": "LIF-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:515",
+    "sdk/react-native/test/delivery.test.ts:417"
+   ],
+   "method": "test",
+   "note": "After _uninstall, initRUM can run again (setRUM(undefined)); same caveat that shutdown is internal."
+  },
+  {
+   "id": "LIF-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "LIF-7",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "LIF-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "LIF-9",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "LIF-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "LIF-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:364",
+    "sdk/react-native/src/index.ts:366",
+    "sdk/react-native/src/appstate.ts:15"
+   ],
+   "method": "read",
+   "note": "On background it flushes and closes vitals windows, but emits `app.lifecycle` with ouo.app.state instead of device.app.lifecycle with ios/android.app.state, and no beginBackgroundTask is taken for the flush."
+  },
+  {
+   "id": "LIF-12",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:372",
+    "sdk/react-native/src/session/manager.ts:234"
+   ],
+   "method": "read",
+   "note": "Foreground re-evaluates the session (background timeout), but the event is `app.lifecycle`/ouo.app.state, not device.app.lifecycle."
+  },
+  {
+   "id": "LIF-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:289",
+    "sdk/react-native/src/index.ts:312",
+    "sdk/react-native/src/session/manager.ts:180"
+   ],
+   "method": "read",
+   "note": "initRUM always creates a session and starts replay regardless of AppState; only vitals check launchedInForeground."
+  },
+  {
+   "id": "LIF-14",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/android/src/main/AndroidManifest.xml",
+    "sdk/react-native/android/build.gradle"
+   ],
+   "method": "read",
+   "note": "Module manifest is empty and no code starts a foreground service (grep startForeground: none)."
+  },
+  {
+   "id": "SES-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/session/ids.ts:6",
+    "sdk/react-native/src/session/ids.ts:25",
+    "sdk/react-native/src/session/ids.ts:29"
+   ],
+   "method": "read",
+   "note": "session.id is a dashed UUIDv4 (122 random bits, 36 chars) and falls back to Math.random when crypto is absent."
+  },
+  {
+   "id": "SES-2",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:30",
+    "sdk/react-native/src/telemetry/correlation.ts:57",
+    "sdk/react-native/src/telemetry/resource.ts:72",
+    "sdk/react-native/test/integration.test.ts:137"
+   ],
+   "method": "test",
+   "note": "Stamped by SessionSpanProcessor.onStart and SessionLogProcessor.onEmit at creation; not on the resource."
+  },
+  {
+   "id": "SES-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:289",
+    "sdk/react-native/src/session/manager.ts:383"
+   ],
+   "method": "read",
+   "note": "Starts at init; but any record (ensure()) also creates a new session after expiry, not only activity."
+  },
+  {
+   "id": "SES-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:429",
+    "sdk/react-native/src/telemetry/correlation.ts:18",
+    "sdk/react-native/src/session/manager.ts:479"
+   ],
+   "method": "read",
+   "note": "session.start is emitted once with session.id and session.previous_id, but previous_id is also stamped on every other record of the session and on session.end; extra user.id on start; no consent handling."
+  },
+  {
+   "id": "SES-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:149",
+    "sdk/react-native/src/network.ts:274",
+    "sdk/react-native/src/index.ts:310"
+   ],
+   "method": "read",
+   "note": "Every fetch/XHR request calls onActivity() and extends the session; touches, navigation and foreground also count."
+  },
+  {
+   "id": "SES-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:15",
+    "sdk/react-native/src/session/manager.ts:523"
+   ],
+   "method": "read",
+   "note": "Last activity is written at most once per 1 s, not 5 s."
+  },
+  {
+   "id": "SES-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:19",
+    "sdk/react-native/src/session/manager.ts:470",
+    "sdk/react-native/src/session/manager.ts:373"
+   ],
+   "method": "read",
+   "note": "session.end precedes the next session.start with ouo.session.end_reason, but values are inactivity/max_duration/background/crash/terminated (not timeout/manual/shutdown/consent) and the timestamp is last activity plus timeout, not last activity."
+  },
+  {
+   "id": "SES-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Consumer rule, not SDK behaviour."
+  },
+  {
+   "id": "SES-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:395",
+    "sdk/react-native/src/session/manager.ts:498",
+    "sdk/react-native/src/session/manager.ts:406",
+    "sdk/react-native/test/session.test.ts:144"
+   ],
+   "method": "test",
+   "note": "At maxDuration the timer ends the session (max_duration) but the next session is created lazily on the next activity or record, linked by previous_id."
+  },
+  {
+   "id": "SES-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:383",
+    "sdk/react-native/src/telemetry/correlation.ts:12"
+   ],
+   "method": "read",
+   "note": "No no-session state: stamping any record (including network spans) creates a fresh session; no no_session drops, no ouo.session.expired."
+  },
+  {
+   "id": "SES-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SES-12",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SES-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:309",
+    "sdk/react-native/src/session/manager.ts:318",
+    "sdk/react-native/test/crash.test.ts:247"
+   ],
+   "method": "test",
+   "note": "Next launch starts a new session with previous_id = crashed id, but it also emits session.end (reason crash) for the crashed session."
+  },
+  {
+   "id": "SES-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:179",
+    "sdk/react-native/src/session/manager.ts:361",
+    "sdk/react-native/test/session.test.ts:241"
+   ],
+   "method": "test",
+   "note": "Every cold start creates a new session and ends the previous one with reason terminated; only a same-JS-process re-init resumes."
+  },
+  {
+   "id": "SES-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:521",
+    "sdk/react-native/src/index.ts:314",
+    "sdk/react-native/src/crash.ts:296"
+   ],
+   "method": "read",
+   "note": "Native crash handler gets the id in memory (installCrashReporter/setCrashSessionId); but on cold start the record is persisted only after the async read, after the first records, and the sampling decision is never persisted."
+  },
+  {
+   "id": "SES-16",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:215",
+    "sdk/react-native/src/index.ts:306"
+   ],
+   "method": "read",
+   "note": "The crash record carries the crashed session.id, but it is an `exception` record, not app.crash."
+  },
+  {
+   "id": "SIG-00",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:383",
+    "sdk/react-native/src/vitals.ts:125",
+    "sdk/react-native/src/crash.ts:189"
+   ],
+   "method": "read",
+   "note": "Most mobile signals exist in some form but with pre-spec names and attributes (navigation, ui.tap, app.lifecycle, ouo.app.start, exception for crashes/hangs)."
+  },
+  {
+   "id": "REC-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:49",
+    "sdk/react-native/src/tracing.ts:133"
+   ],
+   "method": "read",
+   "note": "EventName is set, but every event also carries the deprecated `event.name` attribute."
+  },
+  {
+   "id": "REC-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:12"
+   ],
+   "method": "read",
+   "note": "session.id on every record; no ouo.view.id at all."
+  },
+  {
+   "id": "REC-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/errors/context.ts:38",
+    "sdk/react-native/src/index.ts:395",
+    "sdk/react-native/src/vitals.ts:152"
+   ],
+   "method": "read",
+   "note": "Mobile SHOULD clause: app.screen.name only on taps, exceptions and vitals, not on every record."
+  },
+  {
+   "id": "REC-4",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:46",
+    "sdk/react-native/src/index.ts:306"
+   ],
+   "method": "read",
+   "note": "Timestamp set to occurrence time (crash time, tap start); ObservedTimestamp defaults to now in sdk-logs."
+  },
+  {
+   "id": "REC-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:210",
+    "sdk/react-native/src/index.ts:233",
+    "sdk/react-native/src/version.ts:3"
+   ],
+   "method": "read",
+   "note": "Scope name is `@ouo11y/react-native` with version, no schema_url; replay is not an OTLP scope at all."
+  },
+  {
+   "id": "REC-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/network.ts:117",
+    "sdk/react-native/src/vitals.ts:125",
+    "sdk/react-native/src/tracing.ts:59"
+   ],
+   "method": "read",
+   "note": "SDK spans only for network calls (plus app-created custom spans); app start is an event, not an AppStart span."
+  },
+  {
+   "id": "REC-7",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:33"
+   ],
+   "method": "read",
+   "note": "Default severity INFO; exceptions ERROR."
+  },
+  {
+   "id": "REC-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/errors/classify.ts:44",
+    "sdk/react-native/src/crash.ts:208"
+   ],
+   "method": "read",
+   "note": "No truncation of exception.stacktrace or general strings (only log message 1024 and feedback 4096 bytes); ouo.crash.frames/images JSON can be large."
+  },
+  {
+   "id": "REC-9",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:46"
+   ],
+   "method": "read",
+   "note": "Device clock only; no offset estimation (grep offset/skew: none)."
+  },
+  {
+   "id": "SIG-01",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-02",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-03",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-04",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/vitals.ts:123",
+    "sdk/react-native/src/vitals.ts:125"
+   ],
+   "method": "read",
+   "note": "Emits event `ouo.app.start` with ouo.app.start.type/duration_ms, not an AppStart span with start.type; needs native getAppStartInfo."
+  },
+  {
+   "id": "SIG-05",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/vitals.ts:159",
+    "sdk/react-native/src/vitals.ts:169",
+    "sdk/react-native/src/vitals.ts:158"
+   ],
+   "method": "read",
+   "note": "Emits app.jank with app.jank.frame_count/.period/.threshold, per screen window rather than polling window, and also when frame_count is 0; threshold is expected frame duration."
+  },
+  {
+   "id": "SIG-06",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:191",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16"
+   ],
+   "method": "read",
+   "note": "Android main-thread hangs (2 s watchdog) are emitted as `exception` with ouo.exception.kind=hang, not device.anr after 5x1 s checks."
+  },
+  {
+   "id": "SIG-07",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:155",
+    "sdk/react-native/src/crash.ts:212"
+   ],
+   "method": "read",
+   "note": "Hangs are emitted on recovery at ERROR, but as `exception` with ouo.hang.duration_ms (ms), not ouo.app.hang with ouo.app.hang.duration in seconds."
+  },
+  {
+   "id": "SIG-30",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-31",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:66",
+    "sdk/react-native/src/crash.ts:220",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:44"
+   ],
+   "method": "read",
+   "note": "A hang in progress is persisted in the run state; a kill turns it into a `termination` exception with the hang stack on next launch, not a hang record with its original start."
+  },
+  {
+   "id": "SIG-32",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-08",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:86",
+    "sdk/react-native/src/errors/classify.ts:46",
+    "sdk/react-native/src/errors/install.ts:137"
+   ],
+   "method": "test",
+   "note": "Event `exception` with exception.type/.message/.stacktrace and ouo.exception.handled; source is ouo.exception.kind (uncaught, unhandledrejection, console, captured), and JS fatals are ERROR, not FATAL."
+  },
+  {
+   "id": "SIG-09",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:189",
+    "sdk/react-native/src/index.ts:306"
+   ],
+   "method": "read",
+   "note": "Native crashes are sent next launch as `exception` (ERROR, ouo.exception.kind=native) with original time and crashed session id; no app.crash, app.crash.id, app.build_id."
+  },
+  {
+   "id": "SIG-33",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:34",
+    "sdk/react-native/src/index.ts:248"
+   ],
+   "method": "read",
+   "note": "An exception raised inside an active span carries that context (trace_link active_span); errors escaping a span carry that span."
+  },
+  {
+   "id": "SIG-34",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/errors/classify.ts:41"
+   ],
+   "method": "read",
+   "note": "No fingerprint computed (grep fingerprint: none)."
+  },
+  {
+   "id": "SIG-35",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:189"
+   ],
+   "method": "read",
+   "note": "The Swift crash handler's report becomes an `exception`, not app.crash (it does not emit device.crash either)."
+  },
+  {
+   "id": "SIG-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:390",
+    "sdk/react-native/src/taps.ts:42"
+   ],
+   "method": "read",
+   "note": "Taps are `ui.tap` with ouo.ui.target/path/view_type/gesture and app.screen.name; no app.widget.click, coordinates or viewport."
+  },
+  {
+   "id": "SIG-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:445"
+   ],
+   "method": "read",
+   "note": "A touch with no identifiable component emits nothing; no app.screen.click."
+  },
+  {
+   "id": "SIG-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:390"
+   ],
+   "method": "read",
+   "note": "No rage, dead or error tap detection (grep rage/frustration: none)."
+  },
+  {
+   "id": "SIG-36",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:442"
+   ],
+   "method": "read",
+   "note": "One touch gives at most one `ui.tap`, but neither app.widget.click nor app.screen.click, and none when the target is unknown."
+  },
+  {
+   "id": "SIG-37",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:440"
+   ],
+   "method": "read",
+   "note": "pageX/pageY are read only to classify the gesture; no coordinates are emitted, no point-to-pixel scaling."
+  },
+  {
+   "id": "SIG-38",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:396"
+   ],
+   "method": "read",
+   "note": "ui.tap is a log event; it starts no span or trace."
+  },
+  {
+   "id": "SIG-39",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/taps.ts:42",
+    "sdk/react-native/src/taps.ts:50"
+   ],
+   "method": "read",
+   "note": "Text children are never read, but the tap target defaults to accessibilityLabel/aria-label, which usually repeats the visible text."
+  },
+  {
+   "id": "SIG-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-15",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SIG-19",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:383",
+    "sdk/react-native/src/navigation.ts:38"
+   ],
+   "method": "read",
+   "note": "Screen changes emit `navigation` with url.path, ouo.navigation.from, ouo.navigation.kind=screen; no app.navigation.complete / app.navigation.destination.name / app.screen.name."
+  },
+  {
+   "id": "SIG-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:364",
+    "sdk/react-native/src/appstate.ts:15"
+   ],
+   "method": "read",
+   "note": "Emits `app.lifecycle` with ouo.app.state foreground/inactive/background, not device.app.lifecycle with ios.app.state/android.app.state."
+  },
+  {
+   "id": "SIG-21",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/network.ts:115",
+    "sdk/react-native/src/network.ts:176",
+    "sdk/react-native/src/network.ts:276"
+   ],
+   "method": "read",
+   "note": "CLIENT span per fetch/XHR request with stable HTTP attributes, but named `HTTP GET` instead of the method; native-only HTTP is not instrumented in the RN package."
+  },
+  {
+   "id": "SIG-40",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:318",
+    "sdk/react-native/src/transport/send.ts:19"
+   ],
+   "method": "read",
+   "note": "Export URLs are in ignoreUrls; native postOtlp bypasses JS instrumentation."
+  },
+  {
+   "id": "SIG-41",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:151"
+   ],
+   "method": "read",
+   "note": "Each request starts its own trace unless the app wraps it in withSpan."
+  },
+  {
+   "id": "SIG-22",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:429"
+   ],
+   "method": "read",
+   "note": "session.start with session.id and session.previous_id; no ouo.session.sample_rate; extra user.id and ouo.session.started_at."
+  },
+  {
+   "id": "SIG-23",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:470"
+   ],
+   "method": "read",
+   "note": "session.end with session.id and ouo.session.end_reason (non-spec values), plus session.previous_id which SES-4 forbids on other records."
+  },
+  {
+   "id": "SIG-24",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:12"
+   ],
+   "method": "test",
+   "note": "session.id on every span and log record."
+  },
+  {
+   "id": "SIG-25",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:10"
+   ],
+   "method": "read",
+   "note": "No ouo.view.id anywhere (grep view.id: none)."
+  },
+  {
+   "id": "SIG-26",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:99",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:183"
+   ],
+   "method": "read",
+   "note": "Replay chunks are custom gzip JSON POSTs, not an ouo.replay.chunk log record."
+  },
+  {
+   "id": "SIG-27",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:444"
+   ],
+   "method": "read",
+   "note": "No end-of-stream record (grep replay.ended: none)."
+  },
+  {
+   "id": "SIG-42",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:128",
+    "sdk/react-native/src/index.ts:159",
+    "sdk/react-native/src/index.ts:190",
+    "sdk/react-native/src/transport/send.ts:17",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:52"
+   ],
+   "method": "read",
+   "note": "JS owns session (SessionManager), sampling, the OTel SDK, the batch queues and the AsyncStorage outbox; native only gzips and POSTs. Replay has a second, native queue and uploader. Native owns no session."
+  },
+  {
+   "id": "SIG-43",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:283",
+    "sdk/react-native/ios/OuoReplay.podspec"
+   ],
+   "method": "read",
+   "note": "The RN package vendors no native HTTP instrumentation (OuoSDK NetworkTracing is not synced), so a JS-traced request gets no second span."
+  },
+  {
+   "id": "SIG-44",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:86",
+    "sdk/react-native/src/telemetry/events.ts:11",
+    "sdk/react-native/src/crash.ts:101",
+    "sdk/react-native/src/index.ts:296"
+   ],
+   "method": "read",
+   "note": "JS fatal is an `exception` at ERROR with ouo.exception.fatal=true, not FATAL; the native RCTFatalException/JavascriptException below it is suppressed rather than sent as app.crash."
+  },
+  {
+   "id": "SIG-45",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:71",
+    "sdk/react-native/src/crash.ts:273",
+    "sdk/react-native/src/transport/send.ts:26"
+   ],
+   "method": "read",
+   "note": "Bridge calls are wrapped and cannot crash JS, but with native missing the JS layer keeps running and exports uncompressed through fetch instead of being a no-op."
+  },
+  {
+   "id": "RES-0",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:72",
+    "sdk/react-native/src/telemetry/resource.ts:84"
+   ],
+   "method": "read",
+   "note": "service.name/version, os.name/version and telemetry.sdk.* (OTel JS defaults) present; app.build_id and android.os.api_level missing."
+  },
+  {
+   "id": "RES-1",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:72"
+   ],
+   "method": "read",
+   "note": "Resource built once at init from static identity; app may add extra keys."
+  },
+  {
+   "id": "RES-2",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:72"
+   ],
+   "method": "read",
+   "note": "No service.instance.id, app.installation.id or device.id on the resource."
+  },
+  {
+   "id": "RES-3",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:72"
+   ],
+   "method": "read",
+   "note": "session.id, screen and user ids are record attributes, not resource."
+  },
+  {
+   "id": "RES-4",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:1"
+   ],
+   "method": "read",
+   "note": "Uses plain resources, no entities."
+  },
+  {
+   "id": "PRP-1",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:154",
+    "sdk/react-native/src/telemetry/propagator.ts:12",
+    "sdk/react-native/src/types.ts:22"
+   ],
+   "method": "read",
+   "note": "W3C traceparent on fetch/XHR matching tracing.propagateTo (default none); random OTel ids."
+  },
+  {
+   "id": "PRP-2",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "PRP-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/network.ts:156",
+    "sdk/react-native/src/network.ts:283"
+   ],
+   "method": "read",
+   "note": "XHR skips traceparent when already set; the fetch wrapper overwrites an existing traceparent header."
+  },
+  {
+   "id": "PRP-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:214",
+    "sdk/react-native/src/sampling.ts:86"
+   ],
+   "method": "read",
+   "note": "Default AlwaysOn sampler: flag is set in sampled sessions, but also set in unsampled sessions, whose spans are only dropped at export."
+  },
+  {
+   "id": "PRP-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "PRP-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/telemetry/propagator.ts:18"
+   ],
+   "method": "read",
+   "note": "Baggage session.id, user.id and ouo.platform is always injected on propagated requests; no propagation.sessionBaggage switch, on by default."
+  },
+  {
+   "id": "TRN-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/exporter.ts:44",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:196"
+   ],
+   "method": "read",
+   "note": "Telemetry is OTLP/HTTP JSON (the spec table wants protobuf on mobile); replay chunks are gzip JSON, not OTLP protobuf."
+  },
+  {
+   "id": "TRN-2",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/ios/OuoReplayModule.swift:119",
+    "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:152"
+   ],
+   "method": "test",
+   "note": "Native postOtlp gzips; without the native module the fetch fallback is uncompressed."
+  },
+  {
+   "id": "TRN-3",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:76",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:33"
+   ],
+   "method": "read",
+   "note": "Telemetry outbox (JS) and replay disk queue (native) are separate queues and senders."
+  },
+  {
+   "id": "TRN-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:201",
+    "sdk/react-native/src/transport/exporter.ts:24"
+   ],
+   "method": "read",
+   "note": "Batches of at most 64 records and empty exports are skipped; no maxRequestBytes limit."
+  },
+  {
+   "id": "TRN-5",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "Each chunk is one POST (not OTLP)."
+  },
+  {
+   "id": "TRN-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:51",
+    "sdk/react-native/src/transport/outbox.ts:174"
+   ],
+   "method": "test",
+   "note": "Retries 429/502/503/504/no answer, drops other statuses; partial_success in 2xx bodies is never read."
+  },
+  {
+   "id": "TRN-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:10",
+    "sdk/react-native/src/transport/outbox.ts:187"
+   ],
+   "method": "test",
+   "note": "Exponential 1 s doubling capped at 30 s (not 300 s) with no jitter."
+  },
+  {
+   "id": "TRN-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:187",
+    "sdk/react-native/src/transport/send.ts:46"
+   ],
+   "method": "test",
+   "note": "Retry-After honoured (seconds or date) but not capped at retry.maxMs."
+  },
+  {
+   "id": "TRN-9",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:186",
+    "sdk/react-native/src/transport/outbox.ts:221"
+   ],
+   "method": "test",
+   "note": "Persisted batches are retried until the byte/entry bound evicts them, counted in stats.dropped."
+  },
+  {
+   "id": "TRN-10",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:162"
+   ],
+   "method": "read",
+   "note": "The stored body is resent unchanged."
+  },
+  {
+   "id": "TRN-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:221",
+    "sdk/react-native/src/index.ts:202"
+   ],
+   "method": "read",
+   "note": "Outbox evicts oldest first and counts, but has no bypass class; the OTel batch processors drop new records silently when their queue (2048/1024) is full."
+  },
+  {
+   "id": "TRN-12",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:174"
+   ],
+   "method": "test",
+   "note": "A persisted request is removed only after a 2xx or a non-retryable answer."
+  },
+  {
+   "id": "TRN-13",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:180",
+    "sdk/react-native/src/transport/outbox.ts:165",
+    "sdk/react-native/src/transport/outbox.ts:228"
+   ],
+   "method": "read",
+   "note": "Early deletion only for non-retryable status, missing body, store full; each counted in stats (no TTL, no consent)."
+  },
+  {
+   "id": "TRN-14",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:221"
+   ],
+   "method": "read",
+   "note": "Replay and telemetry stores are separate; within telemetry eviction is oldest-first with no bypass-set protection."
+  },
+  {
+   "id": "TRN-20",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:126",
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:33"
+   ],
+   "method": "read",
+   "note": "Crash reports on disk natively, telemetry in AsyncStorage, replay chunks on disk before send."
+  },
+  {
+   "id": "TRN-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:197",
+    "sdk/react-native/src/session/storage.ts:30"
+   ],
+   "method": "read",
+   "note": "AsyncStorage runs off the main thread and failures degrade to memory-only, but the degradation is only logged, not counted."
+  },
+  {
+   "id": "TRN-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "TRN-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "TRN-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "TRN-19",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "SMP-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:33",
+    "sdk/react-native/src/sampling.ts:60"
+   ],
+   "method": "read",
+   "note": "Decision is a deterministic function of session.id, recomputed per record; it is never persisted with the session."
+  },
+  {
+   "id": "SMP-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:18",
+    "sdk/react-native/src/sampling.ts:36"
+   ],
+   "method": "test",
+   "note": "Uses fmix32(fnv1a32('session:'+id))/2^32, not the first 8 hex characters of session.id."
+  },
+  {
+   "id": "SMP-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:60",
+    "sdk/react-native/src/sampling.ts:86"
+   ],
+   "method": "test",
+   "note": "Unsampled sessions emit nothing (no session.start), but also no bypass set; ouo.session.sample_rate is never sent."
+  },
+  {
+   "id": "SMP-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:214"
+   ],
+   "method": "read",
+   "note": "Sampled sessions' spans have the flag; unsampled sessions still propagate traceparent but with the flag set."
+  },
+  {
+   "id": "SMP-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:62"
+   ],
+   "method": "read",
+   "note": "No bypass set: crashes and unhandled exceptions of unsampled sessions are dropped like everything else."
+  },
+  {
+   "id": "SMP-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:62"
+   ],
+   "method": "read",
+   "note": "No ouo.sampling.bypass marker (no bypass records)."
+  },
+  {
+   "id": "SMP-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:62"
+   ],
+   "method": "read",
+   "note": "No bypass cap (no bypass records)."
+  },
+  {
+   "id": "SMP-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:263",
+    "sdk/react-native/src/sampling.ts:36"
+   ],
+   "method": "read",
+   "note": "Replay sampling hashes 'replay:'+id with FNV/fmix; independent via salt, but not the second 8 hex characters."
+  },
+  {
+   "id": "SMP-9",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:262",
+    "sdk/react-native/src/replay.ts:263",
+    "sdk/react-native/test/sampling.test.ts:109"
+   ],
+   "method": "test",
+   "note": "Replay only when the session is in the session sample."
+  },
+  {
+   "id": "SMP-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:93",
+    "sdk/react-native/src/replay.ts:404"
+   ],
+   "method": "read",
+   "note": "No buffer mode or ring: onErrorSampleRate starts recording from the error onward; the native recorder keeps no pre-error frames."
+  },
+  {
+   "id": "SMP-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:106"
+   ],
+   "method": "read",
+   "note": "No ring; the related keepAtNextLaunch holds whole sessions' chunks on disk until the next launch decides."
+  },
+  {
+   "id": "SMP-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:404"
+   ],
+   "method": "read",
+   "note": "Trigger is only an error in the JS session; no replay.capture(), no buffer flush, no ouo.replay.mode/trigger."
+  },
+  {
+   "id": "PRV-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "method": "read",
+   "note": "No consent option or pending state (grep consent: none)."
+  },
+  {
+   "id": "PRV-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "method": "read",
+   "note": "No consent buffer."
+  },
+  {
+   "id": "PRV-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:59"
+   ],
+   "method": "read",
+   "note": "Replay is enabled by config, not by separate consent."
+  },
+  {
+   "id": "PRV-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:363"
+   ],
+   "method": "read",
+   "note": "No withdrawal path."
+  },
+  {
+   "id": "PRV-5",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:271",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:62",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:45"
+   ],
+   "method": "read",
+   "note": "Text, inputs, images and web views masked by default, on device before the chunk is written."
+  },
+  {
+   "id": "PRV-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web only."
+  },
+  {
+   "id": "PRV-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:72",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:101"
+   ],
+   "method": "read",
+   "note": "Secure text fields are masked only through maskInputs, which the app can set to false; no always-masked secure class."
+  },
+  {
+   "id": "PRV-8",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:244",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:38"
+   ],
+   "method": "read",
+   "note": "Both recorders fail closed: a frame whose masks cannot be established is dropped."
+  },
+  {
+   "id": "PRV-9",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:252",
+    "sdk/react-native/src/taps.ts:42"
+   ],
+   "method": "read",
+   "note": "Widget label (the app.widget.name equivalent, ouo.ui.target from accessibilityLabel/testID) is on by default (timeline.tapLabels true)."
+  },
+  {
+   "id": "PRV-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:120",
+    "sdk/react-native/src/network.ts:91"
+   ],
+   "method": "read",
+   "note": "url.full on spans and http.request events is the raw URL; no credential, query or fragment redaction, no sanitizeUrl."
+  },
+  {
+   "id": "PRV-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:120"
+   ],
+   "method": "read",
+   "note": "Fragments are kept and never sanitised."
+  },
+  {
+   "id": "PRV-12",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:115"
+   ],
+   "method": "read",
+   "note": "No request/response bodies or headers captured."
+  },
+  {
+   "id": "PRV-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:537",
+    "sdk/react-native/src/telemetry/correlation.ts:13",
+    "sdk/react-native/src/telemetry/propagator.ts:22"
+   ],
+   "method": "read",
+   "note": "No IP, location, ad id or contacts; but a persisted random user.id (plus ouo.user.anonymous) goes on every record and in baggage before any setUser."
+  },
+  {
+   "id": "PRV-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "method": "read",
+   "note": "Informative: there is no beforeSend for exception messages to pass through."
+  },
+  {
+   "id": "RPL-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Chunk carries session_id, seq, started_at/ended_at, viewport, platform, mode, masked; no replay id, stream id, segment index or keyframe flag."
+  },
+  {
+   "id": "RPL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "Chunk is a JSON document POSTed to /v1/replay/chunks, not an OTLP log record."
+  },
+  {
+   "id": "RPL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "No OTLP scope; routing is by a separate endpoint/port."
+  },
+  {
+   "id": "RPL-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:154",
+    "sdk/ios/Sources/OuoReplayCore/SeqStore.swift"
+   ],
+   "method": "read",
+   "note": "seq starts at 0 and rises by 1, retransmissions reuse the stored gzip bytes, but it is per session, not per stream."
+  },
+  {
+   "id": "RPL-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:154"
+   ],
+   "method": "read",
+   "note": "No stream concept; the seq space is the session, which in practice is bounded by the process because each cold start makes a new session."
+  },
+  {
+   "id": "RPL-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.keyframe; frames are full images or tile patches with no marked keyframe."
+  },
+  {
+   "id": "RPL-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:159"
+   ],
+   "method": "read",
+   "note": "No declared format whose concatenation is defined; each chunk is a standalone JSON document."
+  },
+  {
+   "id": "RPL-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:83"
+   ],
+   "method": "read",
+   "note": "Resume after a hidden stretch sends a full frame, but no segment concept."
+  },
+  {
+   "id": "RPL-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:53"
+   ],
+   "method": "read",
+   "note": "Full frames on resume/navigation; no periodic keyframe interval."
+  },
+  {
+   "id": "RPL-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:20"
+   ],
+   "method": "read",
+   "note": "Chunks close after 5 s or 1 MiB of images, not a 256 KiB compressed default."
+  },
+  {
+   "id": "RPL-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:20"
+   ],
+   "method": "read",
+   "note": "Image bytes cap of 1 MiB per chunk before JSON/gzip; no explicit post-compression hard limit or split."
+  },
+  {
+   "id": "RPL-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "No sha256 attribute."
+  },
+  {
+   "id": "RPL-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Most MUST chunk attributes absent (replay.id, stream.id, segment.index, keyframe, format, encoding, sha256, byte_size)."
+  },
+  {
+   "id": "RPL-14",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "No ref field set."
+  },
+  {
+   "id": "RPL-15",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:196",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:19"
+   ],
+   "method": "read",
+   "note": "Chunk is gzipped and written to the disk queue before upload."
+  },
+  {
+   "id": "RPL-16",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:52"
+   ],
+   "method": "read",
+   "note": "Uploaded in queue order."
+  },
+  {
+   "id": "RPL-17",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:33"
+   ],
+   "method": "read",
+   "note": "Disk queue bounded by bytes with oldest-first eviction, without segment awareness or a partial mark."
+  },
+  {
+   "id": "RPL-18",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:33"
+   ],
+   "method": "read",
+   "note": "Capture continues while the queue evicts; no stop or partial mark."
+  },
+  {
+   "id": "RPL-19",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:356",
+    "sdk/react-native/src/replay.ts:375"
+   ],
+   "method": "read",
+   "note": "No capture when the session is not replay-sampled; no consent model."
+  },
+  {
+   "id": "RPL-26",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:444"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ended record."
+  },
+  {
+   "id": "RPL-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:444",
+    "sdk/react-native/src/replay.ts:280"
+   ],
+   "method": "read",
+   "note": "No end record; recoverPendingChunk only sends the open chunk of a crashed run."
+  },
+  {
+   "id": "RPL-21",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:444"
+   ],
+   "method": "read",
+   "note": "No end_state."
+  },
+  {
+   "id": "RPL-22",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Store-side rule."
+  },
+  {
+   "id": "RPL-27",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/ios/OuoReplayModule.swift:85"
+   ],
+   "method": "read",
+   "note": "Capture, masking and encoding are one built-in screenshot pipeline; no format adapter interface."
+  },
+  {
+   "id": "RPL-23",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Identity and delivery are bound to the single frame format."
+  },
+  {
+   "id": "RPL-24",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Reader rule."
+  },
+  {
+   "id": "RPL-25",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Permission for video formats; RN ships screenshot frames."
+  },
+  {
+   "id": "ERR-1",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:85",
+    "sdk/react-native/src/replay.ts:255",
+    "sdk/react-native/src/vitals.ts:95",
+    "sdk/react-native/src/telemetry/events.ts:37"
+   ],
+   "method": "test",
+   "note": "Handlers, native calls and listeners catch their own errors."
+  },
+  {
+   "id": "ERR-2",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/network.ts:146",
+    "sdk/react-native/src/network.ts:255"
+   ],
+   "method": "test",
+   "note": "fetch/XHR wrappers return and rethrow the original results and errors; propagation rewrites init.headers into a plain object."
+  },
+  {
+   "id": "ERR-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:77",
+    "sdk/react-native/src/errors/install.ts:104",
+    "sdk/react-native/src/errors/install.ts:161"
+   ],
+   "method": "read",
+   "note": "Global handler chains to the previous one (fatal after up to 2 s); the Hermes rejection tracker is replaced, so a previous tracker (Sentry) stops getting rejections unless the app forwards them."
+  },
+  {
+   "id": "ERR-4",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/session/storage.ts:30",
+    "sdk/react-native/src/transport/send.ts:17"
+   ],
+   "method": "read",
+   "note": "No synchronous disk or network I/O from JS; storage is AsyncStorage, POSTs async."
+  },
+  {
+   "id": "ERR-5",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:74",
+    "sdk/react-native/src/errors/install.ts:186",
+    "sdk/react-native/src/index.ts:318"
+   ],
+   "method": "read",
+   "note": "Re-entrancy guards on the error handlers; exports excluded from instrumentation."
+  },
+  {
+   "id": "ERR-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:93"
+   ],
+   "method": "read",
+   "note": "No internal error counter or self-disable (grep selfDisable: none)."
+  },
+  {
+   "id": "ERR-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:100"
+   ],
+   "method": "read",
+   "note": "Drops are counted only in local Outbox.stats; no ouo.sdk.dropped event, and sampling/queue drops are not counted."
+  },
+  {
+   "id": "ERR-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/react-native/src/logger.ts:8",
+    "sdk/react-native/src/telemetry/events.ts:35",
+    "sdk/react-native/src/index.ts:96"
+   ],
+   "method": "read",
+   "note": "Diagnostics go through the debug logger, but the debug log prints every event's attributes (payloads), and the double-init warning prints without debug."
+  },
+  {
+   "id": "ERR-9",
+   "status": "met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:202",
+    "sdk/react-native/src/transport/outbox.ts:221",
+    "sdk/react-native/src/telemetry/recent.ts:35"
+   ],
+   "method": "read",
+   "note": "OTel queues, outbox and recent-events buffers are bounded."
+  },
+  {
+   "id": "OVH-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Budgets are TBD in spec section 13."
+  },
+  {
+   "id": "VER-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the spec text."
+  },
+  {
+   "id": "VER-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/package.json:3",
+    "sdk/react-native/src/version.ts:2"
+   ],
+   "method": "read",
+   "note": "Release metadata states only the SDK version (0.3.0), no spec version."
+  },
+  {
+   "id": "VER-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:210",
+    "sdk/react-native/src/index.ts:233"
+   ],
+   "method": "read",
+   "note": "getLogger/getTracer get no schemaUrl."
+  },
+  {
+   "id": "VER-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/react-native/src/index.ts:210"
+   ],
+   "method": "read",
+   "note": "Without schema_url the Collector cannot map old names by version."
+  },
+  {
+   "id": "VER-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the Collector rename table."
+  }
+ ],
+ "violations": [
+  {
+   "what": "Replay chunks sent as gzip custom JSON to a non-OTLP endpoint (/v1/replay/chunks, default port 4319) with x-ouo-seq header",
+   "evidence": [
+    "sdk/react-native/src/endpoints.ts:19",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "breaks": "REL-2"
+  },
+  {
+   "what": "Span events: withSpan records exceptions on the span (span.recordException)",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:71"
+   ],
+   "breaks": "REL-7"
+  },
+  {
+   "what": "Deprecated `event.name` attribute on every event record",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:49",
+    "sdk/react-native/src/tracing.ts:133"
+   ],
+   "breaks": "REC-1"
+  },
+  {
+   "what": "Unprefixed custom event names: navigation, ui.tap, app.lifecycle, feedback, log, http.request, http.request.failed; unprefixed attribute `message`",
+   "evidence": [
+    "sdk/react-native/src/index.ts:383",
+    "sdk/react-native/src/index.ts:396",
+    "sdk/react-native/src/index.ts:364",
+    "sdk/react-native/src/index.ts:472",
+    "sdk/react-native/src/tracing.ts:128",
+    "sdk/react-native/src/network.ts:88",
+    "sdk/react-native/src/network.ts:108"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "Registers tracer and logger providers, propagator and context manager globally without being configured to",
+   "evidence": [
+    "sdk/react-native/src/index.ts:209",
+    "sdk/react-native/src/index.ts:229",
+    "sdk/react-native/src/index.ts:230",
+    "sdk/react-native/src/index.ts:232"
+   ],
+   "breaks": "REL-4"
+  },
+  {
+   "what": "Session baggage (session.id, user.id, ouo.platform) always injected on propagated requests, no opt-in",
+   "evidence": [
+    "sdk/react-native/src/telemetry/propagator.ts:18"
+   ],
+   "breaks": "PRP-6"
+  },
+  {
+   "what": "Persisted anonymous user.id (random per install) plus ouo.user.anonymous stamped on every record before setUser, an install-level identifier",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:537",
+    "sdk/react-native/src/telemetry/correlation.ts:13"
+   ],
+   "breaks": "PRV-13"
+  },
+  {
+   "what": "session.previous_id stamped on every record of a session, not only session.start",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:18"
+   ],
+   "breaks": "SES-4"
+  },
+  {
+   "what": "Network requests count as session activity and extend/create sessions",
+   "evidence": [
+    "sdk/react-native/src/network.ts:149",
+    "sdk/react-native/src/network.ts:274"
+   ],
+   "breaks": "SES-5"
+  },
+  {
+   "what": "Raw url.full (query, credentials, fragment) on spans and http.request / http.request.failed events",
+   "evidence": [
+    "sdk/react-native/src/network.ts:120",
+    "sdk/react-native/src/network.ts:91",
+    "sdk/react-native/src/network.ts:108"
+   ],
+   "breaks": "PRV-10"
+  },
+  {
+   "what": "session.end emitted for a crashed session on the next launch",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:314",
+    "sdk/react-native/src/session/manager.ts:322"
+   ],
+   "breaks": "SES-13"
+  },
+  {
+   "what": "initRUM throws on missing endpoint or credentials",
+   "evidence": [
+    "sdk/react-native/src/endpoints.ts:58",
+    "sdk/react-native/src/endpoints.ts:81"
+   ],
+   "breaks": "CFG-1"
+  },
+  {
+   "what": "Tap labels (accessibilityLabel, testID, aria-label) captured by default as ouo.ui.target/ouo.ui.path",
+   "evidence": [
+    "sdk/react-native/src/taps.ts:42",
+    "sdk/react-native/src/index.ts:252"
+   ],
+   "breaks": "PRV-9"
+  },
+  {
+   "what": "Debug log prints record attributes and part of the project token",
+   "evidence": [
+    "sdk/react-native/src/telemetry/events.ts:35",
+    "sdk/react-native/src/index.ts:411"
+   ],
+   "breaks": "ERR-8"
+  },
+  {
+   "what": "Native crashes, hangs and terminations sent as `exception` events (non-spec ouo.exception.kind, ouo.crash.*, ouo.hang.duration_ms) instead of app.crash / ouo.app.hang / device.anr",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:189"
+   ],
+   "breaks": "SIG-09"
+  },
+  {
+   "what": "Hermes promise rejection tracker replaced without chaining to an earlier one",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:161"
+   ],
+   "breaks": "ERR-3"
+  },
+  {
+   "what": "fetch wrapper overwrites an existing traceparent header",
+   "evidence": [
+    "sdk/react-native/src/network.ts:156"
+   ],
+   "breaks": "PRP-3"
+  },
+  {
+   "what": "Ships console.error capture as exceptions, on by default (features.json ERR-j: Never)",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:181",
+    "sdk/react-native/src/types.ts:162"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "Extra non-spec exception attributes include device context (ouo.memory.*, network.connection.type, ouo.device.locale, ouo.last_events JSON) on every exception",
+   "evidence": [
+    "sdk/react-native/src/errors/context.ts:44",
+    "sdk/react-native/src/index.ts:242"
+   ],
+   "breaks": "REC-8"
+  }
+ ],
+ "features": [
+  {
+   "id": "SES-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:155"
+   ],
+   "note": "Automatic sessions in JS with session.start/end; id format, view id and native ownership differ from spec."
+  },
+  {
+   "id": "SES-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:11"
+   ],
+   "note": "Inactivity 30 min, max 4 h, background 30 s (spec 15 min); timeouts unclamped."
+  },
+  {
+   "id": "SES-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:361"
+   ],
+   "note": "Persisted in AsyncStorage but every cold start makes a new session (no continuation across relaunch)."
+  },
+  {
+   "id": "SES-d",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:363"
+   ],
+   "note": "No restartSession; only read access to the id."
+  },
+  {
+   "id": "ERR-a",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:75"
+   ],
+   "note": "Global handler with chaining, fatal flag, crash marker and flush."
+  },
+  {
+   "id": "ERR-b",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:135"
+   ],
+   "note": "Hermes rejection tracker (replaces earlier trackers)."
+  },
+  {
+   "id": "ERR-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:422"
+   ],
+   "note": "captureError(err, attrs); not named recordException, no source=manual."
+  },
+  {
+   "id": "ERR-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:189",
+    "sdk/react-native/src/index.ts:296"
+   ],
+   "note": "iOS signals/NSException and Android JVM crashes reported next launch, as `exception` not app.crash; no NDK."
+  },
+  {
+   "id": "ERR-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:155",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16"
+   ],
+   "note": "2 s hangs on both platforms as hang exceptions; no device.anr/ouo.app.hang names."
+  },
+  {
+   "id": "ERR-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/crash.ts:123"
+   ],
+   "note": "Foreground terminations (memory/watchdog cause) reported as fatal termination exceptions."
+  },
+  {
+   "id": "ERR-g",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/telemetry/recent.ts:5",
+    "sdk/react-native/src/errors/context.ts:36"
+   ],
+   "note": "Last 20 events as ouo.last_events JSON on exceptions and crashes."
+  },
+  {
+   "id": "ERR-h",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:422"
+   ],
+   "note": "App can pass ouo.exception.fingerprint in context attrs, but nothing documents or protects it."
+  },
+  {
+   "id": "ERR-k",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/errors/dedupe.ts:16"
+   ],
+   "note": "Identity de-dupe and fatal echo suppression; no flood rate limit."
+  },
+  {
+   "id": "PERF-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/vitals.ts:123"
+   ],
+   "note": "ouo.app.start event (cold/warm) from native process start; not an AppStart span."
+  },
+  {
+   "id": "PERF-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/vitals.ts:159"
+   ],
+   "note": "app.jank per screen window from native frame counters, plus ouo.stall JS stalls."
+  },
+  {
+   "id": "PERF-h",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/vitals.ts:232",
+    "sdk/react-native/src/index.ts:452"
+   ],
+   "note": "ouo.screen.display with TTID and TTFD via reportFullyDisplayed."
+  },
+  {
+   "id": "PERF-k",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:58"
+   ],
+   "note": "startSpan/withSpan with session attributes."
+  },
+  {
+   "id": "NET-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/network.ts:133",
+    "sdk/react-native/src/network.ts:242"
+   ],
+   "note": "fetch and XHR CLIENT spans; span name `HTTP <method>`, URLs unsanitised, no native HTTP."
+  },
+  {
+   "id": "NET-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/network.ts:154",
+    "sdk/react-native/src/telemetry/propagator.ts:18"
+   ],
+   "note": "traceparent on propagateTo; baggage always on; flag not tied to sampling."
+  },
+  {
+   "id": "INT-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/provider.ts:25",
+    "sdk/react-native/src/index.ts:390"
+   ],
+   "note": "ui.tap via RUMProvider with target, path, view type and gesture; no coordinates or spec names."
+  },
+  {
+   "id": "INT-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/taps.ts:42"
+   ],
+   "note": "Name from ouo-label/accessibilityLabel/testID or component name."
+  },
+  {
+   "id": "INT-c",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/index.ts:390"
+   ],
+   "note": "No rage taps."
+  },
+  {
+   "id": "INT-e",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/index.ts:390"
+   ],
+   "note": "No error taps."
+  },
+  {
+   "id": "NAV-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:380"
+   ],
+   "note": "`navigation` event per screen change; not app.navigation.complete, no view id."
+  },
+  {
+   "id": "NAV-d",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/index.ts:548",
+    "sdk/react-native/src/navigation.ts:10"
+   ],
+   "note": "react-navigation onStateChange helper with nested route paths (expo-router via the same)."
+  },
+  {
+   "id": "NAV-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:429"
+   ],
+   "note": "trackNavigation(path, attrs); same event as automatic, no view id."
+  },
+  {
+   "id": "NAV-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/appstate.ts:18"
+   ],
+   "note": "app.lifecycle with ouo.app.state; not device.app.lifecycle."
+  },
+  {
+   "id": "RPL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/ios/OuoReplayModule.swift:85",
+    "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:119"
+   ],
+   "note": "Native masked screenshot replay on iOS and Android, custom chunk format and endpoint."
+  },
+  {
+   "id": "RPL-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:57",
+    "sdk/react-native/src/types.ts:98"
+   ],
+   "note": "Session sampling and record-from-first-error; no pre-error buffer."
+  },
+  {
+   "id": "RPL-e",
+   "state": "none",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "note": "Chunks hold frames and touches only; network shows only on the event timeline."
+  },
+  {
+   "id": "RPL-f",
+   "state": "none",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "note": "No console in replay."
+  },
+  {
+   "id": "RPL-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:66",
+    "sdk/react-native/src/types.ts:86",
+    "sdk/react-native/src/types.ts:339"
+   ],
+   "note": "Mask text/inputs/images/webviews by default, excludeScreens and hideScreen; no per-view mask/unmask API, inputs unmaskable."
+  },
+  {
+   "id": "RPL-h",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:216"
+   ],
+   "note": "Replay for RN apps through the Expo module (needs dev build)."
+  },
+  {
+   "id": "RPL-j",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:57"
+   ],
+   "note": "Navigation mode and change-driven capture limit idle frames; no maximum replay duration."
+  },
+  {
+   "id": "USR-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:418"
+   ],
+   "note": "setUser sets user.id (not enduser.id); cannot clear."
+  },
+  {
+   "id": "USR-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:316"
+   ],
+   "note": "Static extra resource attributes at init only; no setGlobalAttributes."
+  },
+  {
+   "id": "USR-d",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:537"
+   ],
+   "note": "Persisted anonymous user.id per install (sent by default)."
+  },
+  {
+   "id": "LOG-a",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:123"
+   ],
+   "note": "rum.log.<level> as OTel log records."
+  },
+  {
+   "id": "LOG-b",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:181"
+   ],
+   "note": "console.error becomes exceptions; no console capture as logs."
+  },
+  {
+   "id": "LOG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:209"
+   ],
+   "note": "Global providers let host OTel instrumentation emit through the pipeline; no explicit accessors."
+  },
+  {
+   "id": "SMP-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:33"
+   ],
+   "note": "Deterministic per-session sampling (FNV hash, not spec rule)."
+  },
+  {
+   "id": "SMP-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/replay.ts:404"
+   ],
+   "note": "Starts recording at first error; no buffer of the moments before."
+  },
+  {
+   "id": "SMP-e",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/sampling.ts:62"
+   ],
+   "note": "Unsampled sessions drop errors and crashes too."
+  },
+  {
+   "id": "SMP-f",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/index.ts:93"
+   ],
+   "note": "No remote config or kill switch."
+  },
+  {
+   "id": "PRV-a",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "note": "No consent API."
+  },
+  {
+   "id": "PRV-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:252"
+   ],
+   "note": "timeline.tapLabels=false removes tap labels; URLs and messages unmasked."
+  },
+  {
+   "id": "PRV-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:86",
+    "sdk/react-native/src/types.ts:339"
+   ],
+   "note": "Screen-level exclusion and hideScreen; no element-level mask/unmask."
+  },
+  {
+   "id": "PRV-d",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/network.ts:120"
+   ],
+   "note": "No URL or query sanitising."
+  },
+  {
+   "id": "PRV-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/taps.ts:7",
+    "sdk/react-native/src/session/manager.ts:537"
+   ],
+   "note": "No text content, bodies, IP; but labels and an install-scoped user.id by default."
+  },
+  {
+   "id": "PRV-f",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "note": "No beforeSend."
+  },
+  {
+   "id": "TRN-a",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/index.ts:198",
+    "sdk/react-native/src/index.ts:219"
+   ],
+   "note": "OTel batch processors (64 records, 1-2 s)."
+  },
+  {
+   "id": "TRN-b",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:76"
+   ],
+   "note": "AsyncStorage outbox with retries and next-launch resend; native disk queue for replay."
+  },
+  {
+   "id": "TRN-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/ios/OuoReplayModule.swift:119"
+   ],
+   "note": "gzip through the native module; uncompressed without it."
+  },
+  {
+   "id": "TRN-e",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/endpoints.ts:56"
+   ],
+   "note": "Any endpoint/proxy; replayEndpoint override."
+  },
+  {
+   "id": "TRN-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/outbox.ts:187"
+   ],
+   "note": "Retry-After honoured; backoff without jitter, 30 s cap."
+  },
+  {
+   "id": "TRN-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/transport/exporter.ts:44",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "note": "OTLP/HTTP JSON for telemetry; replay not OTLP."
+  },
+  {
+   "id": "CFG-a",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "note": "One RUMOptions object."
+  },
+  {
+   "id": "CFG-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/types.ts:219",
+    "sdk/react-native/src/types.ts:238",
+    "sdk/react-native/src/types.ts:161"
+   ],
+   "note": "Switches for taps, labels, lifecycle, request events, vitals, stalls, console errors, native crashes; none for fetch/XHR spans."
+  },
+  {
+   "id": "CFG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/logger.ts:8",
+    "sdk/react-native/src/transport/outbox.ts:100"
+   ],
+   "note": "debug flag logs decisions; drop counts not reported."
+  },
+  {
+   "id": "CFG-d",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/types.ts:8",
+    "sdk/react-native/src/telemetry/resource.ts:75"
+   ],
+   "note": "service.name, service.version, deployment.environment.name."
+  },
+  {
+   "id": "API-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:426"
+   ],
+   "note": "addEvent(name, attrs); no reserved-name guard, no body."
+  },
+  {
+   "id": "API-c",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/tracing.ts:58"
+   ],
+   "note": "startSpan/withSpan."
+  },
+  {
+   "id": "API-d",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:363"
+   ],
+   "note": "No per-view attributes API."
+  },
+  {
+   "id": "API-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/index.ts:229",
+    "sdk/react-native/src/index.ts:209"
+   ],
+   "note": "Shares the OTel pipeline via globals; no getTracerProvider/getLoggerProvider."
+  },
+  {
+   "id": "SYM-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/errors/debugids.ts:1",
+    "sdk/react-native/src/errors/stack.ts:33"
+   ],
+   "note": "Normalised app:/// frames and debug-id attribute for source maps; symbolication is server-side."
+  },
+  {
+   "id": "SYM-e",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/package.json:51"
+   ],
+   "note": "No upload tooling in the package."
+  },
+  {
+   "id": "FWK-f",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/expo-module.config.json",
+    "sdk/react-native/src/provider.ts:25"
+   ],
+   "note": "Expo module plus RUMProvider and react-navigation helper; bare RN needs expo-modules-core."
+  },
+  {
+   "id": "REL-a",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/telemetry/correlation.ts:16",
+    "sdk/react-native/src/telemetry/resource.ts:76"
+   ],
+   "note": "service.version on resource and every record."
+  },
+  {
+   "id": "REL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/react-native/src/session/manager.ts:309",
+    "sdk/react-native/src/crash.ts:195"
+   ],
+   "note": "Crashed sessions identifiable (end_reason crash, fatal exceptions); no app.crash."
+  },
+  {
+   "id": "REL-d",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/telemetry/resource.ts:76"
+   ],
+   "note": "service.version per record allows adoption views."
+  },
+  {
+   "id": "FF-a",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "note": "No feature-flag attributes."
+  },
+  {
+   "id": "FF-c",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:280"
+   ],
+   "note": "No OpenFeature hook."
+  },
+  {
+   "id": "FB-b",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/index.ts:458",
+    "sdk/react-native/src/feedback.ts:12"
+   ],
+   "note": "rum.feedback({message, contact, screenshot}) as `feedback` event."
+  },
+  {
+   "id": "OTH-d",
+   "state": "none",
+   "evidence": [
+    "sdk/react-native/src/types.ts:76"
+   ],
+   "note": "WebViews only masked in replay; no hybrid bridge."
+  },
+  {
+   "id": "ERR-j",
+   "state": "full",
+   "evidence": [
+    "sdk/react-native/src/errors/install.ts:181",
+    "sdk/react-native/src/types.ts:162"
+   ],
+   "note": "Ships a Never feature: console.error reported as handled exceptions, on by default."
+  }
+ ],
+ "architecture_notes": "The RN SDK is JS-first: it runs the OpenTelemetry JS SDK (BasicTracerProvider, LoggerProvider, batch processors) inside Hermes and registers it globally. Session state, sampling (FNV-1a+fmix32 over a salted id), user identity and the delivery queue all live in JS: batches are serialised as OTLP/HTTP JSON and persisted in an AsyncStorage outbox, then posted through the native Expo module's postOtlp (gzip) or plain fetch when native is absent. Native code (the OuoReplay Expo module vendoring sdk/ios OuoReplay*/OuoCrash*/OuoVitals* and sdk/android replay*/signals*) only supplies replay capture, crash/hang/termination reports, app start and frame counters; it does not vendor the native OuoSDK session or exporter, so SIG-42's native-owned single session/queue/exporter is inverted, and replay has its own native disk queue and uploader. Replay is a masked screenshot/tile-diff pipeline sent as gzip custom JSON to /v1/replay/chunks on a separate receiver, so the whole section 11 contract (OTLP log record, replay/stream/segment ids, keyframes, sha256, ouo.replay.ended, format adapter, buffer mode) is missing. Signal names predate the spec: navigation, ui.tap, app.lifecycle, ouo.app.start (event), exception for native crashes/hangs/terminations, ouo.exception.kind instead of .source, plus event.name attributes and no ouo.view.id, schema_url or ouo.rum scope. Biggest structural gaps: no consent model, no beforeSend or URL sanitising, no bypass set for unsampled sessions, no ouo.sdk.dropped reporting or self-disable, uuid-style session ids, sessions extended by network activity and never continued across a relaunch, and throwing config validation."
+}

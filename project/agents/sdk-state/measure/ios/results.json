@@ -1,0 +1,1186 @@
+{
+ "platform": "ios",
+ "device": "iOS Simulator, iPhone 17 Pro, iOS 27.0 (24A434); simulator-only numbers, not device numbers",
+ "host": "MacBook Pro (Mac17,2), Apple M5, 32 GB, macOS 27.0.1, Xcode 27.0 (27A266a)",
+ "sdk_versions": {
+  "ouo11y-ios": "0.3.0 (sdk/ios/version.txt, local path, branch docs/step5-sdk-state @ 3e9e2c11)",
+  "sentry-cocoa": "9.33.0 (SwiftPM, product Sentry, static xcframework; latest 9.x tag on 2026-11-10)"
+ },
+ "not_measured": [
+  {
+   "what": "Journey spread at n>=5",
+   "why": "3 journey rounds per variant (each round takes about 10 minutes on the simulator); medians with min and max over 3 runs"
+  },
+  {
+   "what": "App Store thinned / compressed download size",
+   "why": "no signing identity or App Store Connect; reported the unsigned device-arch (arm64) .app plus an IPA-shaped zip instead"
+  },
+  {
+   "what": "Device (iPhone) numbers",
+   "why": "simulator only by instruction: CPU and memory are the Mac's host process, network is loopback"
+  },
+  {
+   "what": "Tap/interaction capture cost",
+   "why": "the journey is timer-driven inside the app (no synthesised touches), so neither SDK's tap tracking ran"
+  },
+  {
+   "what": "Init time for base",
+   "why": "no SDK call to time (baseline)"
+  },
+  {
+   "what": "Work done for the app by other processes (backboardd, render server, simulator networking)",
+   "why": "proc_pid_rusage counts the app process only"
+  }
+ ],
+ "method": "See README.md. One app, one source, three Release builds (base / OuoSDK / sentry-cocoa); replay is a runtime switch on the same binary. Size: device build (generic/platform=iOS, arm64, unsigned then ad-hoc signed), .app bytes and IPA-shaped zip (deflate 9); deltas vs base. Init: DispatchTime around Ouo.start / SentrySDK.start in didFinishLaunching, main thread, 12 cold launches on fresh installs per variant. CPU/memory: proc_pid_rusage(RUSAGE_INFO_V6) every 0.5 s on the simulator app's host PID (user+system CPU, phys_footprint); idle window 5-20 s (memory 10-20 s), journey window 20-80 s, peak 0-85 s. Wire: local capture server answering 200 itself, request body bytes as sent (gzip) for every SDK request from launch to 100 s (85 s foreground, 15 s background), scaled to per minute. 3 journey rounds per variant (n=3), interleaved and rotated. Timer-driven journey (no synthesised taps). Simulator numbers: host CPU and memory, loopback network. Host load: a first run under heavy contention (1-min load 5 to 500) was discarded whole (discarded_runs). In the rerun the journeys ran at load 1.9 to 2.9, but the 12 init launches started while that load was still falling: about half ran at load 10 to 139, the rest below 10. On the launches below load 10 (n = 5 or 6 per variant) the init medians are within 0.7 ms of the medians over all 12 (ouo 12.6, ouo + replay 8.4, Sentry 46.4, Sentry + replay 45.7 ms); the slowest Sentry launch (92 ms) is a loaded one. Load is sampled every 5 s and stored per run (load1).",
+ "discarded_runs": [
+  {
+   "when": "2026-11-10, first run",
+   "runs": "15 journey runs and the init launches of the first attempt",
+   "why": "Mac 1-min load 5 to 500 while a parallel session ran an Android emulator and a simulator; discarded whole and rerun, raw data not kept in the repo"
+  }
+ ],
+ "variants": {
+  "base": {
+   "size_bytes": 129512,
+   "size_zipped_bytes": 32924,
+   "size_delta_bytes": 0,
+   "size_zipped_delta_bytes": 0,
+   "size_sim_arm64_bytes": 243528,
+   "size_sim_delta_bytes": 0,
+   "init_ms": null,
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 6.0,
+     "p90": 6.0,
+     "q1": 4.0,
+     "q3": 6.0,
+     "min": 2.0,
+     "max": 6.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 968.0,
+     "p90": 992.0,
+     "q1": 949.0,
+     "q3": 983.0,
+     "min": 931.0,
+     "max": 998.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 11.8,
+     "p90": 11.9,
+     "q1": 11.8,
+     "q3": 11.8,
+     "min": 11.8,
+     "max": 11.9,
+     "n": 3
+    },
+    "journey": {
+     "median": 17.2,
+     "p90": 18.4,
+     "q1": 17.1,
+     "q3": 17.9,
+     "min": 17.1,
+     "max": 18.7,
+     "n": 3
+    },
+    "peak": {
+     "median": 17.8,
+     "p90": 18.9,
+     "q1": 17.7,
+     "q3": 18.5,
+     "min": 17.6,
+     "max": 19.1,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "q1": 0.0,
+    "q3": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "host_load1": {
+    "init": null,
+    "journey": {
+     "median": 2.1,
+     "p90": 2.5,
+     "q1": 2.0,
+     "q3": 2.4,
+     "min": 1.8,
+     "max": 2.6,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 2.1,
+      "cpu_idle_ms_per_min": 2,
+      "cpu_journey_ms_per_min": 968,
+      "mem_idle_mb": 11.8,
+      "mem_peak_mb": 17.6,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     },
+     {
+      "round": 2,
+      "load1": 2.6,
+      "cpu_idle_ms_per_min": 6,
+      "cpu_journey_ms_per_min": 931,
+      "mem_idle_mb": 11.8,
+      "mem_peak_mb": 19.1,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     },
+     {
+      "round": 3,
+      "load1": 1.8,
+      "cpu_idle_ms_per_min": 6,
+      "cpu_journey_ms_per_min": 998,
+      "mem_idle_mb": 11.9,
+      "mem_peak_mb": 17.8,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     }
+    ]
+   },
+   "endpoints_all_runs": {},
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 0,
+    "cpu_journey_ms_per_min": 0,
+    "mem_idle_mb": 0.0,
+    "mem_journey_mb": 0.0,
+    "mem_peak_mb": 0.0
+   }
+  },
+  "ouo": {
+   "size_bytes": 1014111,
+   "size_zipped_bytes": 416773,
+   "size_delta_bytes": 884599,
+   "size_zipped_delta_bytes": 383849,
+   "size_sim_arm64_bytes": 2060138,
+   "size_sim_delta_bytes": 1816610,
+   "init_ms": {
+    "median": 12.61,
+    "p90": 14.72,
+    "q1": 11.298,
+    "q3": 13.867,
+    "min": 9.407,
+    "max": 18.365,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 393.0,
+     "p90": 477.0,
+     "q1": 388.0,
+     "q3": 445.0,
+     "min": 384.0,
+     "max": 498.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 1896.0,
+     "p90": 1900.0,
+     "q1": 1710.0,
+     "q3": 1898.0,
+     "min": 1523.0,
+     "max": 1900.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 12.8,
+     "p90": 12.8,
+     "q1": 12.7,
+     "q3": 12.8,
+     "min": 12.7,
+     "max": 12.8,
+     "n": 3
+    },
+    "journey": {
+     "median": 17.8,
+     "p90": 19.2,
+     "q1": 17.7,
+     "q3": 18.7,
+     "min": 17.6,
+     "max": 19.5,
+     "n": 3
+    },
+    "peak": {
+     "median": 19.8,
+     "p90": 20.0,
+     "q1": 19.1,
+     "q3": 19.9,
+     "min": 18.3,
+     "max": 20.0,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 28892.0,
+     "p90": 28896.0,
+     "q1": 28887.0,
+     "q3": 28895.0,
+     "min": 28882.0,
+     "max": 28897.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 42741.0,
+     "p90": 42745.0,
+     "q1": 42737.0,
+     "q3": 42743.0,
+     "min": 42732.0,
+     "max": 42745.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 106591.0,
+     "p90": 106600.0,
+     "q1": 106578.0,
+     "q3": 106597.0,
+     "min": 106565.0,
+     "max": 106603.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 37.6,
+    "p90": 37.6,
+    "q1": 37.6,
+    "q3": 37.6,
+    "min": 37.6,
+    "max": 37.6,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 12.9,
+     "p90": 80.6,
+     "q1": 6.4,
+     "q3": 43.2,
+     "min": 4.5,
+     "max": 107.6,
+     "n": 12
+    },
+    "journey": {
+     "median": 2.8,
+     "p90": 2.9,
+     "q1": 2.3,
+     "q3": 2.8,
+     "min": 1.9,
+     "max": 2.9,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 13.026,
+      "load1": 107.6
+     },
+     {
+      "round": "10",
+      "init_ms": 12.661,
+      "load1": 6.2
+     },
+     {
+      "round": "11",
+      "init_ms": 9.407,
+      "load1": 6.4
+     },
+     {
+      "round": "12",
+      "init_ms": 14.752,
+      "load1": 4.5
+     },
+     {
+      "round": "2",
+      "init_ms": 10.532,
+      "load1": 83.3
+     },
+     {
+      "round": "3",
+      "init_ms": 13.679,
+      "load1": 56.6
+     },
+     {
+      "round": "4",
+      "init_ms": 14.43,
+      "load1": 38.7
+     },
+     {
+      "round": "5",
+      "init_ms": 12.486,
+      "load1": 24.6
+     },
+     {
+      "round": "6",
+      "init_ms": 10.177,
+      "load1": 17.6
+     },
+     {
+      "round": "7",
+      "init_ms": 12.559,
+      "load1": 8.2
+     },
+     {
+      "round": "8",
+      "init_ms": 11.553,
+      "load1": 7.1
+     },
+     {
+      "round": "9",
+      "init_ms": 18.365,
+      "load1": 5.4
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 393,
+      "cpu_journey_ms_per_min": 1523,
+      "mem_idle_mb": 12.7,
+      "mem_peak_mb": 20.0,
+      "wire_bytes_per_min": 28892,
+      "requests_per_min": 37.6
+     },
+     {
+      "round": 2,
+      "load1": 2.8,
+      "cpu_idle_ms_per_min": 384,
+      "cpu_journey_ms_per_min": 1900,
+      "mem_idle_mb": 12.8,
+      "mem_peak_mb": 19.8,
+      "wire_bytes_per_min": 28897,
+      "requests_per_min": 37.6
+     },
+     {
+      "round": 3,
+      "load1": 1.9,
+      "cpu_idle_ms_per_min": 498,
+      "cpu_journey_ms_per_min": 1896,
+      "mem_idle_mb": 12.8,
+      "mem_peak_mb": 18.3,
+      "wire_bytes_per_min": 28882,
+      "requests_per_min": 37.6
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "ouo-otlp /v1/logs": {
+     "requests": 99,
+     "body_bytes": 87642
+    },
+    "ouo-otlp /v1/traces": {
+     "requests": 90,
+     "body_bytes": 57438
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 387,
+    "cpu_journey_ms_per_min": 928,
+    "mem_idle_mb": 1.0,
+    "mem_journey_mb": 0.6,
+    "mem_peak_mb": 2.0
+   }
+  },
+  "ouo_replay": {
+   "size_bytes": 1014111,
+   "size_zipped_bytes": 416773,
+   "size_delta_bytes": 884599,
+   "size_zipped_delta_bytes": 383849,
+   "size_sim_arm64_bytes": 2060138,
+   "size_sim_delta_bytes": 1816610,
+   "init_ms": {
+    "median": 8.709,
+    "p90": 18.716,
+    "q1": 8.115,
+    "q3": 12.736,
+    "min": 7.798,
+    "max": 19.992,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 2482.0,
+     "p90": 2628.0,
+     "q1": 2442.0,
+     "q3": 2573.0,
+     "min": 2402.0,
+     "max": 2664.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 4044.0,
+     "p90": 4076.0,
+     "q1": 3862.0,
+     "q3": 4064.0,
+     "min": 3680.0,
+     "max": 4085.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 13.1,
+     "p90": 13.1,
+     "q1": 13.0,
+     "q3": 13.1,
+     "min": 13.0,
+     "max": 13.1,
+     "n": 3
+    },
+    "journey": {
+     "median": 18.1,
+     "p90": 19.9,
+     "q1": 18.0,
+     "q3": 19.2,
+     "min": 17.9,
+     "max": 20.4,
+     "n": 3
+    },
+    "peak": {
+     "median": 21.6,
+     "p90": 27.6,
+     "q1": 21.4,
+     "q3": 25.3,
+     "min": 21.2,
+     "max": 29.1,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 68761.0,
+     "p90": 69134.0,
+     "q1": 68668.0,
+     "q3": 68994.0,
+     "min": 68575.0,
+     "max": 69227.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 85280.0,
+     "p90": 85872.0,
+     "q1": 85189.0,
+     "q3": 85650.0,
+     "min": 85098.0,
+     "max": 86020.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 341971.0,
+     "p90": 341988.0,
+     "q1": 341692.0,
+     "q3": 341982.0,
+     "min": 341412.0,
+     "max": 341993.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 39720.0,
+     "p90": 40074.0,
+     "q1": 39658.0,
+     "q3": 39941.0,
+     "min": 39596.0,
+     "max": 40162.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 43.6,
+    "p90": 44.1,
+    "q1": 43.6,
+    "q3": 43.9,
+    "min": 43.6,
+    "max": 44.2,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 14.1,
+     "p90": 114.1,
+     "q1": 6.5,
+     "q3": 38.1,
+     "min": 5.2,
+     "max": 128.8,
+     "n": 12
+    },
+    "journey": {
+     "median": 2.7,
+     "p90": 3.6,
+     "q1": 2.4,
+     "q3": 3.2,
+     "min": 2.1,
+     "max": 3.8,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 17.296,
+      "load1": 120.9
+     },
+     {
+      "round": "10",
+      "init_ms": 8.123,
+      "load1": 7.1
+     },
+     {
+      "round": "11",
+      "init_ms": 8.422,
+      "load1": 5.8
+     },
+     {
+      "round": "12",
+      "init_ms": 19.992,
+      "load1": 5.4
+     },
+     {
+      "round": "2",
+      "init_ms": 9.36,
+      "load1": 128.8
+     },
+     {
+      "round": "3",
+      "init_ms": 8.004,
+      "load1": 52.6
+     },
+     {
+      "round": "4",
+      "init_ms": 18.874,
+      "load1": 33.2
+     },
+     {
+      "round": "5",
+      "init_ms": 8.271,
+      "load1": 22.9
+     },
+     {
+      "round": "6",
+      "init_ms": 7.798,
+      "load1": 16.9
+     },
+     {
+      "round": "7",
+      "init_ms": 11.217,
+      "load1": 11.4
+     },
+     {
+      "round": "8",
+      "init_ms": 8.088,
+      "load1": 6.7
+     },
+     {
+      "round": "9",
+      "init_ms": 8.995,
+      "load1": 5.2
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 2.7,
+      "cpu_idle_ms_per_min": 2402,
+      "cpu_journey_ms_per_min": 3680,
+      "mem_idle_mb": 13.0,
+      "mem_peak_mb": 21.2,
+      "wire_bytes_per_min": 68575,
+      "requests_per_min": 43.6
+     },
+     {
+      "round": 2,
+      "load1": 3.8,
+      "cpu_idle_ms_per_min": 2664,
+      "cpu_journey_ms_per_min": 4085,
+      "mem_idle_mb": 13.1,
+      "mem_peak_mb": 21.6,
+      "wire_bytes_per_min": 69227,
+      "requests_per_min": 44.2
+     },
+     {
+      "round": 3,
+      "load1": 2.1,
+      "cpu_idle_ms_per_min": 2482,
+      "cpu_journey_ms_per_min": 4044,
+      "mem_idle_mb": 13.1,
+      "mem_peak_mb": 29.1,
+      "wire_bytes_per_min": 68761,
+      "requests_per_min": 43.6
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "ouo-otlp /v1/logs": {
+     "requests": 99,
+     "body_bytes": 88286
+    },
+    "ouo-otlp /v1/traces": {
+     "requests": 90,
+     "body_bytes": 57454
+    },
+    "ouo-replay /v1/replay/chunks": {
+     "requests": 31,
+     "body_bytes": 199956
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 2476,
+    "cpu_journey_ms_per_min": 3076,
+    "mem_idle_mb": 1.3,
+    "mem_journey_mb": 0.9,
+    "mem_peak_mb": 3.8
+   }
+  },
+  "sentry": {
+   "size_bytes": 3447322,
+   "size_zipped_bytes": 1372893,
+   "size_delta_bytes": 3317810,
+   "size_zipped_delta_bytes": 1339969,
+   "size_sim_arm64_bytes": 6865498,
+   "size_sim_delta_bytes": 6621970,
+   "init_ms": {
+    "median": 47.14,
+    "p90": 52.051,
+    "q1": 46.481,
+    "q3": 49.29,
+    "min": 46.099,
+    "max": 92.079,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 435.0,
+     "p90": 481.0,
+     "q1": 415.0,
+     "q3": 464.0,
+     "min": 394.0,
+     "max": 493.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 1630.0,
+     "p90": 1661.0,
+     "q1": 1629.0,
+     "q3": 1649.0,
+     "min": 1628.0,
+     "max": 1668.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 15.5,
+     "p90": 15.5,
+     "q1": 15.5,
+     "q3": 15.5,
+     "min": 15.5,
+     "max": 15.5,
+     "n": 3
+    },
+    "journey": {
+     "median": 20.4,
+     "p90": 20.5,
+     "q1": 20.4,
+     "q3": 20.5,
+     "min": 20.4,
+     "max": 20.5,
+     "n": 3
+    },
+    "peak": {
+     "median": 21.6,
+     "p90": 22.5,
+     "q1": 21.3,
+     "q3": 22.1,
+     "min": 21.0,
+     "max": 22.7,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 19967.0,
+     "p90": 19969.0,
+     "q1": 19890.0,
+     "q3": 19969.0,
+     "min": 19812.0,
+     "max": 19970.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 22950.0,
+     "p90": 22951.0,
+     "q1": 22872.0,
+     "q3": 22950.0,
+     "min": 22794.0,
+     "max": 22951.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 121655.0,
+     "p90": 121709.0,
+     "q1": 121649.0,
+     "q3": 121689.0,
+     "min": 121642.0,
+     "max": 121723.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 7.8,
+    "p90": 7.8,
+    "q1": 7.8,
+    "q3": 7.8,
+    "min": 7.8,
+    "max": 7.8,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 12.8,
+     "p90": 108.2,
+     "q1": 7.1,
+     "q3": 42.3,
+     "min": 5.1,
+     "max": 136.8,
+     "n": 12
+    },
+    "journey": {
+     "median": 2.9,
+     "p90": 3.0,
+     "q1": 2.8,
+     "q3": 3.0,
+     "min": 2.7,
+     "max": 3.0,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 92.079,
+      "load1": 136.8
+     },
+     {
+      "round": "10",
+      "init_ms": 46.377,
+      "load1": 7.4
+     },
+     {
+      "round": "11",
+      "init_ms": 47.903,
+      "load1": 5.8
+     },
+     {
+      "round": "12",
+      "init_ms": 46.987,
+      "load1": 5.1
+     },
+     {
+      "round": "2",
+      "init_ms": 50.981,
+      "load1": 111.7
+     },
+     {
+      "round": "3",
+      "init_ms": 46.697,
+      "load1": 77.0
+     },
+     {
+      "round": "4",
+      "init_ms": 52.17,
+      "load1": 30.7
+     },
+     {
+      "round": "5",
+      "init_ms": 47.292,
+      "load1": 21.2
+     },
+     {
+      "round": "6",
+      "init_ms": 48.727,
+      "load1": 15.0
+     },
+     {
+      "round": "7",
+      "init_ms": 46.515,
+      "load1": 10.6
+     },
+     {
+      "round": "8",
+      "init_ms": 46.099,
+      "load1": 8.2
+     },
+     {
+      "round": "9",
+      "init_ms": 46.104,
+      "load1": 6.3
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 3.0,
+      "cpu_idle_ms_per_min": 493,
+      "cpu_journey_ms_per_min": 1628,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 21.0,
+      "wire_bytes_per_min": 19812,
+      "requests_per_min": 7.8
+     },
+     {
+      "round": 2,
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 394,
+      "cpu_journey_ms_per_min": 1668,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 22.7,
+      "wire_bytes_per_min": 19967,
+      "requests_per_min": 7.8
+     },
+     {
+      "round": 3,
+      "load1": 2.7,
+      "cpu_idle_ms_per_min": 435,
+      "cpu_journey_ms_per_min": 1630,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 21.6,
+      "wire_bytes_per_min": 19970,
+      "requests_per_min": 7.8
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "sentry /api/1/envelope/": {
+     "requests": 39,
+     "body_bytes": 100009
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 429,
+    "cpu_journey_ms_per_min": 662,
+    "mem_idle_mb": 3.7,
+    "mem_journey_mb": 3.2,
+    "mem_peak_mb": 3.8
+   }
+  },
+  "sentry_replay": {
+   "size_bytes": 3447322,
+   "size_zipped_bytes": 1372893,
+   "size_delta_bytes": 3317810,
+   "size_zipped_delta_bytes": 1339969,
+   "size_sim_arm64_bytes": 6865498,
+   "size_sim_delta_bytes": 6621970,
+   "init_ms": {
+    "median": 46.097,
+    "p90": 50.169,
+    "q1": 44.998,
+    "q3": 47.689,
+    "min": 43.812,
+    "max": 64.672,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 4032.0,
+     "p90": 4256.0,
+     "q1": 3994.0,
+     "q3": 4172.0,
+     "min": 3956.0,
+     "max": 4312.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 4772.0,
+     "p90": 4905.0,
+     "q1": 4771.0,
+     "q3": 4855.0,
+     "min": 4769.0,
+     "max": 4938.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 21.0,
+     "p90": 21.1,
+     "q1": 21.0,
+     "q3": 21.1,
+     "min": 20.9,
+     "max": 21.1,
+     "n": 3
+    },
+    "journey": {
+     "median": 25.0,
+     "p90": 26.0,
+     "q1": 24.9,
+     "q3": 25.7,
+     "min": 24.8,
+     "max": 26.3,
+     "n": 3
+    },
+    "peak": {
+     "median": 60.3,
+     "p90": 60.7,
+     "q1": 48.0,
+     "q3": 60.5,
+     "min": 35.7,
+     "max": 60.8,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 71116.0,
+     "p90": 72087.0,
+     "q1": 69932.0,
+     "q3": 71723.0,
+     "min": 68748.0,
+     "max": 72330.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 77768.0,
+     "p90": 78923.0,
+     "q1": 76584.0,
+     "q3": 78490.0,
+     "min": 75399.0,
+     "max": 79212.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 202863.0,
+     "p90": 204722.0,
+     "q1": 201626.0,
+     "q3": 204025.0,
+     "min": 200390.0,
+     "max": 205187.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 50687.0,
+     "p90": 51504.0,
+     "q1": 49413.0,
+     "q3": 51198.0,
+     "min": 48138.0,
+     "max": 51708.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 17.3,
+    "p90": 17.8,
+    "q1": 17.3,
+    "q3": 17.6,
+    "min": 17.3,
+    "max": 17.9,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 11.9,
+     "p90": 100.6,
+     "q1": 6.7,
+     "q3": 51.6,
+     "min": 4.6,
+     "max": 139.0,
+     "n": 12
+    },
+    "journey": {
+     "median": 2.6,
+     "p90": 2.8,
+     "q1": 2.4,
+     "q3": 2.8,
+     "min": 2.2,
+     "max": 2.9,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 64.672,
+      "load1": 139.0
+     },
+     {
+      "round": "10",
+      "init_ms": 45.396,
+      "load1": 6.8
+     },
+     {
+      "round": "11",
+      "init_ms": 44.716,
+      "load1": 6.0
+     },
+     {
+      "round": "12",
+      "init_ms": 47.133,
+      "load1": 4.6
+     },
+     {
+      "round": "2",
+      "init_ms": 50.422,
+      "load1": 103.8
+     },
+     {
+      "round": "3",
+      "init_ms": 45.092,
+      "load1": 71.3
+     },
+     {
+      "round": "4",
+      "init_ms": 44.11,
+      "load1": 45.1
+     },
+     {
+      "round": "5",
+      "init_ms": 46.288,
+      "load1": 18.9
+     },
+     {
+      "round": "6",
+      "init_ms": 47.891,
+      "load1": 14.0
+     },
+     {
+      "round": "7",
+      "init_ms": 43.812,
+      "load1": 9.9
+     },
+     {
+      "round": "8",
+      "init_ms": 47.622,
+      "load1": 7.6
+     },
+     {
+      "round": "9",
+      "init_ms": 45.906,
+      "load1": 6.4
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 2.2,
+      "cpu_idle_ms_per_min": 4312,
+      "cpu_journey_ms_per_min": 4769,
+      "mem_idle_mb": 21.0,
+      "mem_peak_mb": 60.8,
+      "wire_bytes_per_min": 71116,
+      "requests_per_min": 17.3
+     },
+     {
+      "round": 2,
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 3956,
+      "cpu_journey_ms_per_min": 4772,
+      "mem_idle_mb": 20.9,
+      "mem_peak_mb": 35.7,
+      "wire_bytes_per_min": 72330,
+      "requests_per_min": 17.9
+     },
+     {
+      "round": 3,
+      "load1": 2.6,
+      "cpu_idle_ms_per_min": 4032,
+      "cpu_journey_ms_per_min": 4938,
+      "mem_idle_mb": 21.1,
+      "mem_peak_mb": 60.3,
+      "wire_bytes_per_min": 68748,
+      "requests_per_min": 17.3
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "sentry /api/1/envelope/": {
+     "requests": 88,
+     "body_bytes": 355189
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 4026,
+    "cpu_journey_ms_per_min": 3804,
+    "mem_idle_mb": 9.2,
+    "mem_journey_mb": 7.8,
+    "mem_peak_mb": 42.5
+   }
+  }
+ },
+ "excluded_runs": []
+}

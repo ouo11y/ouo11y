@@ -1,0 +1,4251 @@
+[
+ {
+  "id": "SES-a",
+  "feature": "Automatic sessions",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: `session.id` is the join key for everything. OTel: `session.start`/`session.end` exist. All three vendors do it",
+  "effort": {
+   "size": "S",
+   "note": "Exists; align id format and start/end attributes"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Automatic sessions with session.start/session.end; id format and naming gaps are in the requirements.",
+    "ours_evidence": [
+     "sdk/browser/src/session/manager.ts:123-150"
+    ],
+    "sentry": "full",
+    "sentry_note": "`browserSessionIntegration` (default integration). Release-health sessions. | on. Lifecycle `'page'`: one session per page load.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Automatic sessions with session.start/session.end (names right, id format and attributes off spec).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:128",
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:244"
+    ],
+    "sentry": "full",
+    "sentry_note": "`enableAutoSessionTracking` defaults to true on all three. These are release-health sessions (status ok/crashed/abnormal/errored), not RUM view sessions.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No session manager in Kotlin; the id is supplied by RN JS.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:15-16"
+    ],
+    "sentry": "full",
+    "sentry_note": "`enableAutoSessionTracking` defaults to true on all three. These are release-health sessions (status ok/crashed/abnormal/errored), not RUM view sessions.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Automatic sessions in JS with session.start/end; id format, view id and native ownership differ from spec.",
+    "ours_evidence": [
+     "sdk/react-native/src/session/manager.ts:155"
+    ],
+    "sentry": "full",
+    "sentry_note": "`enableAutoSessionTracking` defaults to true on all three. These are release-health sessions (status ok/crashed/abnormal/errored), not RUM view sessions.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SES-b",
+  "feature": "Session timeouts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: session health depends on it. Ours: 30 min web, 15 min background, 4 h max, configurable. Datadog fixes 15 min/4 h; PostHog 30 min/24 h",
+  "effort": {
+   "size": "S",
+   "note": "Config defaults and activity rules"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "30 min inactivity and 4 h max, configurable, unclamped; network traffic extends sessions.",
+    "ours_evidence": [
+     "sdk/browser/src/session/manager.ts:11-12",
+     "sdk/browser/src/session/manager.ts:327-332"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Release-health sessions have no inactivity timeout. Replay session uses constants. | Replay: pauses after 5 min idle, expires after 15 min idle, max 60 min.",
+    "gap": "target"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Inactivity (30 min), max duration (4 h) and background (30 s default, spec 15 min); network counts as activity.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:258",
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:29"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionTrackingIntervalMillis` = 30 000. The session ends after 30 s in the background. There is no inactivity timeout while in the foreground and no max duration for health sessions. A replay session is capped at 60 min.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No timeouts in Kotlin.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionTrackingIntervalMillis` = 30 000. The session ends after 30 s in the background. There is no inactivity timeout while in the foreground and no max duration for health sessions. A replay session is capped at 60 min.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Inactivity 30 min, max 4 h, background 30 s (spec 15 min); timeouts unclamped.",
+    "ours_evidence": [
+     "sdk/react-native/src/session/manager.ts:11"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionTrackingIntervalMillis` = 30 000. The session ends after 30 s in the background. There is no inactivity timeout while in the foreground and no max duration for health sessions. A replay session is capped at 60 min.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SES-c",
+  "feature": "Shared across tabs; kept across app restarts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: one user, one session. Datadog and PostHog share across tabs; Sentry's replay session is per tab. Cross-subdomain sharing is G1",
+  "effort": {
+   "size": "M",
+   "note": "Web Locks tab sharing; mobile relaunch continuity instead of cold-start rotation"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Shared across tabs through localStorage and storage events; survives reloads. No Web Locks on start.",
+    "ours_evidence": [
+     "sdk/browser/src/session/manager.ts:261-288",
+     "sdk/browser/src/session/storage.ts:33-91"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Replay session kept in `sessionStorage` (`sentryReplaySession`, `stickySession: true`). | Lasts across reloads in the same tab. Not shared across tabs.",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Persisted across launches, but every cold start rotates the session.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:142"
+    ],
+    "sentry": "partial",
+    "sentry_note": "A session does not survive a restart: it is cached on disk and closed (crashed/abnormal) on the next launch. iOS \"Unreleased\" adds opt-in `enableScopePersistence` for user info; Android has `enableScopePersistence` = true (scope cache for crash events).",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Kotlin persists the JS-supplied id only for replay seq and crash attribution; continuity across restarts is JS.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58"
+    ],
+    "sentry": "partial",
+    "sentry_note": "A session does not survive a restart: it is cached on disk and closed (crashed/abnormal) on the next launch. iOS \"Unreleased\" adds opt-in `enableScopePersistence` for user info; Android has `enableScopePersistence` = true (scope cache for crash events).",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Persisted in AsyncStorage but every cold start makes a new session (no continuation across relaunch).",
+    "ours_evidence": [
+     "sdk/react-native/src/session/manager.ts:361"
+    ],
+    "sentry": "partial",
+    "sentry_note": "A session does not survive a restart: it is cached on disk and closed (crashed/abnormal) on the next launch. iOS \"Unreleased\" adds opt-in `enableScopePersistence` for user info; Android has `enableScopePersistence` = true (scope cache for crash events).",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "SES-d",
+  "feature": "Manual session control",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial. `getSessionId` lets apps join support tickets to sessions",
+  "effort": {
+   "size": "S",
+   "note": "getSessionId/restartSession wrappers"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "endSession() and session.id(); no restartSession that starts the next session at once.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:382-384",
+     "sdk/browser/src/index.ts:405-409"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startSession`, `endSession`, `captureSession`. Replay: `replay.start/stop/flush/getReplayId`. | n/a",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "endSession and sessionId exist; no restartSession that starts the new one at once.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:135",
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:125"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`SentrySDK.startSession()` / `endSession()` (iOS), `Sentry.startSession()` / `endSession()` (Android), `Sentry.startSession`/`endSession` from @sentry/core in RN. No public \"get session id\" for health sessions; the replay id is available (`SentrySDK.replay`, `Sentry.getReplay()`). *Exact RN wiring t",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Only sessionDidRotate to cut replay on a JS-driven rotation; no restartSession/getSessionId.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:68-69"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`SentrySDK.startSession()` / `endSession()` (iOS), `Sentry.startSession()` / `endSession()` (Android), `Sentry.startSession`/`endSession` from @sentry/core in RN. No public \"get session id\" for health sessions; the replay id is available (`SentrySDK.replay`, `Sentry.getReplay()`). *Exact RN wiring t",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No restartSession; only read access to the id.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:363"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`SentrySDK.startSession()` / `endSession()` (iOS), `Sentry.startSession()` / `endSession()` (Android), `Sentry.startSession`/`endSession` from @sentry/core in RN. No public \"get session id\" for health sessions; the replay id is available (`SentrySDK.replay`, `Sentry.getReplay()`). *Exact RN wiring t",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-a",
+  "feature": "Unhandled exceptions",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `exception` is the one Stable client-specific convention (HTTP client conventions are also Stable). Every vendor has it",
+  "effort": {
+   "size": "S",
+   "note": "Exists; rename attributes"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "window error listener emits `exception`; attribute names differ (ouo.exception.kind, code.filepath).",
+    "ours_evidence": [
+     "sdk/browser/src/errors/install.ts:31-56"
+    ],
+    "sentry": "full",
+    "sentry_note": "`globalHandlersIntegration({onerror})` | on",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Uncaught NSExceptions and signals captured, sent next launch (as `exception`).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoCrash/OuoCrash.swift:219",
+     "sdk/ios/Sources/OuoCrashCore/ouo_crash.c:580"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableCrashHandler` = true (SentryCrash, a KSCrash fork); `enableUncaughtNSExceptionReporting` = false (macOS only). Android: `enableUncaughtExceptionHandler` = true. RN: `reactNativeErrorHandlersIntegration` has `onerror` = true (ErrorUtils global handler).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Uncaught JVM exceptions on any thread are captured (chained handler) as a crash report; no exception event.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableCrashHandler` = true (SentryCrash, a KSCrash fork); `enableUncaughtNSExceptionReporting` = false (macOS only). Android: `enableUncaughtExceptionHandler` = true. RN: `reactNativeErrorHandlersIntegration` has `onerror` = true (ErrorUtils global handler).",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "Global handler with chaining, fatal flag, crash marker and flush.",
+    "ours_evidence": [
+     "sdk/react-native/src/errors/install.ts:75"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableCrashHandler` = true (SentryCrash, a KSCrash fork); `enableUncaughtNSExceptionReporting` = false (macOS only). Android: `enableUncaughtExceptionHandler` = true. RN: `reactNativeErrorHandlersIntegration` has `onerror` = true (ErrorUtils global handler).",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "ERR-b",
+  "feature": "Unhandled promise rejections",
+  "target": "Must",
+  "where": "W, RN",
+  "why": "Same as ERR-a. The Datadog RN research found no promise-rejection capture",
+  "effort": {
+   "size": "S",
+   "note": "Exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "unhandledrejection captured.",
+    "ours_evidence": [
+     "sdk/browser/src/errors/install.ts:58-60"
+    ],
+    "sentry": "full",
+    "sentry_note": "`globalHandlersIntegration({onunhandledrejection})` | on",
+    "gap": "none"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "Hermes rejection tracker (replaces earlier trackers).",
+    "ours_evidence": [
+     "sdk/react-native/src/errors/install.ts:135"
+    ],
+    "sentry": "full",
+    "sentry_note": "RN: `onunhandledrejection` = true and `patchGlobalPromise` = true.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "ERR-c",
+  "feature": "Manual capture API",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial",
+  "effort": {
+   "size": "S",
+   "note": "Rename to recordException, set source/handled"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "captureError(err, attrs).",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:385-390"
+    ],
+    "sentry": "full",
+    "sentry_note": "`captureException`, `captureMessage`, `captureEvent` | `attachStacktrace: true` (new in v11: adds a synthetic stack to messages)",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "captureError and captureException with stack and attributes.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:150",
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:161"
+    ],
+    "sentry": "full",
+    "sentry_note": "`capture(error:)`, `capture(exception:)`, `capture(message:)` / `Sentry.captureException` / `Sentry.captureException`. iOS 9.32 adds scope-block and `attachAllThreads` overloads.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No recordException.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`capture(error:)`, `capture(exception:)`, `capture(message:)` / `Sentry.captureException` / `Sentry.captureException`. iOS 9.32 adds scope-block and `attachAllThreads` overloads.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "captureError(err, attrs); not named recordException, no source=manual.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:422"
+    ],
+    "sentry": "full",
+    "sentry_note": "`capture(error:)`, `capture(exception:)`, `capture(message:)` / `Sentry.captureException` / `Sentry.captureException`. iOS 9.32 adds scope-block and `attachAllThreads` overloads.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-d",
+  "feature": "Native crashes",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the most important mobile signal. OTel: `app.crash` (Development). PostHog has it opt-in, without ANR",
+  "effort": {
+   "size": "L",
+   "note": "Android NDK crashes need a native signal handler; iOS has Mach/signal handling to verify"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Signals and NSExceptions with frames and images for dSYM symbolication; emitted as exception, not app.crash.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:135",
+     "sdk/ios/Sources/OuoSDK/Exceptions.swift:103"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: Mach exceptions, signals, C++ exceptions (`enableUnhandledCPPExceptionsV2` = false); `enableSigtermReporting` = false (deprecated). Android: NDK via sentry-native, `enableNdk` = true; `enableTombstone` = false (ApplicationExitInfo tombstones). RN: native crashes come from the native SDKs; `enab",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "JVM crashes persisted and handed out next launch; NDK (C/C++) crashes not captured; no app.crash/app.crash.id.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+     "sdk/android/README.md:77-80"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: Mach exceptions, signals, C++ exceptions (`enableUnhandledCPPExceptionsV2` = false); `enableSigtermReporting` = false (deprecated). Android: NDK via sentry-native, `enableNdk` = true; `enableTombstone` = false (ApplicationExitInfo tombstones). RN: native crashes come from the native SDKs; `enab",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "iOS signals/NSException and Android JVM crashes reported next launch, as `exception` not app.crash; no NDK.",
+    "ours_evidence": [
+     "sdk/react-native/src/crash.ts:189",
+     "sdk/react-native/src/index.ts:296"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: Mach exceptions, signals, C++ exceptions (`enableUnhandledCPPExceptionsV2` = false); `enableSigtermReporting` = false (deprecated). Android: NDK via sentry-native, `enableNdk` = true; `enableTombstone` = false (ApplicationExitInfo tombstones). RN: native crashes come from the native SDKs; `enab",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-e",
+  "feature": "ANR and app hangs",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: a frozen app is worse than a crash for users. Thresholds differ: Sentry iOS 2 s, Datadog iOS off by default, both Android 5 s plus `ApplicationExitInfo`. Hang threshold default is G2",
+  "effort": {
+   "size": "M",
+   "note": "Thresholds and persistence of in-progress hangs (SIG-31)"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "App hangs with stack (as exception kind=hang); ANR is Android-only.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoCrash/OuoCrash.swift:138",
+     "sdk/ios/Sources/OuoVitals/HangDetector.swift:1"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableAppHangTracking` = true, `appHangTimeoutInterval` = 2 s, non-fully-blocking hangs reported by default, off when a debugger is attached. **Deprecated in 9.x, to be removed in v10** in favour of MetricKit `MXHangDiagnostic` (`enableMetricKit` = false). Android: ANR v1 watchdog (<11) + v2 A",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Watchdog hang reports (2 s) and ApplicationExitInfo ANR terminations; no device.anr event.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableAppHangTracking` = true, `appHangTimeoutInterval` = 2 s, non-fully-blocking hangs reported by default, off when a debugger is attached. **Deprecated in 9.x, to be removed in v10** in favour of MetricKit `MXHangDiagnostic` (`enableMetricKit` = false). Android: ANR v1 watchdog (<11) + v2 A",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "2 s hangs on both platforms as hang exceptions; no device.anr/ouo.app.hang names.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:155",
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableAppHangTracking` = true, `appHangTimeoutInterval` = 2 s, non-fully-blocking hangs reported by default, off when a debugger is attached. **Deprecated in 9.x, to be removed in v10** in favour of MetricKit `MXHangDiagnostic` (`enableMetricKit` = false). Android: ANR v1 watchdog (<11) + v2 A",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-f",
+  "feature": "OOM, watchdog and exit reasons",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: OOM kills are invisible without it. Sentry and Datadog infer them on next launch; Android `ApplicationExitInfo` is cheap",
+  "effort": {
+   "size": "M",
+   "note": "ApplicationExitInfo on Android, watchdog inference on iOS"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "full",
+    "ours_note": "Foreground terminations with cause memory/watchdog/unknown (Sentry heuristic).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoCrash/RunState.swift:92"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableWatchdogTerminationTracking` = true. A heuristic on the next launch infers a foreground OS kill (needs the crash handler); hangs are excluded. MetricKit diagnostics are opt-in (CPU, disk-write, hang, app launch; memory exception on iOS 27). Android: ApplicationExitInfo ANRs, tombstones a",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "full",
+    "ours_note": "Foreground terminations from ApplicationExitInfo (Android 11+) classified memory/watchdog/cpu/unknown with memory warnings.",
+    "ours_evidence": [
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:197-222"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableWatchdogTerminationTracking` = true. A heuristic on the next launch infers a foreground OS kill (needs the crash handler); hangs are excluded. MetricKit diagnostics are opt-in (CPU, disk-write, hang, app launch; memory exception on iOS 27). Android: ApplicationExitInfo ANRs, tombstones a",
+    "gap": "none"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Foreground terminations (memory/watchdog cause) reported as fatal termination exceptions.",
+    "ours_evidence": [
+     "sdk/react-native/src/crash.ts:123"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableWatchdogTerminationTracking` = true. A heuristic on the next launch infers a foreground OS kill (needs the crash handler); hangs are excluded. MetricKit diagnostics are opt-in (CPU, disk-write, hang, app launch; memory exception on iOS 27). Android: ApplicationExitInfo ANRs, tombstones a",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-g",
+  "feature": "Trail of events before an error",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: our ordinary events (clicks, navigation, HTTP spans, logs) are the trail, joined by `session.id` and time, so we need no separate breadcrumb buffer. Unsampled sessions have no trail today, G4",
+  "effort": {
+   "size": "S",
+   "note": "Trail is our ordinary events; gap is unsampled sessions (G4)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Navigation, click spans, HTTP spans and events share session.id and time.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/correlation.ts:13-24"
+    ],
+    "sentry": "full",
+    "sentry_note": "`breadcrumbsIntegration({dom,fetch,history,sentry,xhr})` and `consoleIntegration({levels})`. `maxBreadcrumbs`, `beforeBreadcrumb`. | All on. Max 100.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "ouo.last_events (last 20 records) and screen on exceptions, persisted for crashes.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Timeline.swift:14",
+     "sdk/ios/Sources/OuoSDK/Core.swift:166"
+    ],
+    "sentry": "full",
+    "sentry_note": "`maxBreadcrumbs` = 100. Auto-collected: iOS UIViewController, touches, network, system events (battery, keyboard, orientation), hinge; Android Activity lifecycle, app lifecycle, system events, network events, user interactions, Logcat via the Gradle plugin (min level WARNING); RN touch, console, fet",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No breadcrumb/event trail in Kotlin.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`maxBreadcrumbs` = 100. Auto-collected: iOS UIViewController, touches, network, system events (battery, keyboard, orientation), hinge; Android Activity lifecycle, app lifecycle, system events, network events, user interactions, Logcat via the Gradle plugin (min level WARNING); RN touch, console, fet",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "Last 20 events as ouo.last_events JSON on exceptions and crashes.",
+    "ours_evidence": [
+     "sdk/react-native/src/telemetry/recent.ts:5",
+     "sdk/react-native/src/errors/context.ts:36"
+    ],
+    "sentry": "full",
+    "sentry_note": "`maxBreadcrumbs` = 100. Auto-collected: iOS UIViewController, touches, network, system events (battery, keyboard, orientation), hinge; Android Activity lifecycle, app lifecycle, system events, network events, user interactions, Logcat via the Gradle plugin (min level WARNING); RN touch, console, fet",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "ERR-h",
+  "feature": "Client fingerprint override",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: one attribute. The SDK never computes one",
+  "effort": {
+   "size": "S",
+   "note": "One attribute passthrough"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Apps can pass ouo.exception.fingerprint as a captureError attribute; no documented API.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:385-390"
+    ],
+    "sentry": "full",
+    "sentry_note": "`scope.setFingerprint()` or `event.fingerprint` in `beforeSend` | server grouping",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No documented fingerprint attribute; an app could pass any attribute but nothing names ouo.exception.fingerprint.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:186"
+    ],
+    "sentry": "full",
+    "sentry_note": "`event.fingerprint` / `scope.setFingerprint`. Android also applies a static fingerprint to system-frame-only ANRs.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No fingerprint override API.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`event.fingerprint` / `scope.setFingerprint`. Android also applies a static fingerprint to system-frame-only ANRs.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "App can pass ouo.exception.fingerprint in context attrs, but nothing documents or protects it.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:422"
+    ],
+    "sentry": "full",
+    "sentry_note": "`event.fingerprint` / `scope.setFingerprint`. Android also applies a static fingerprint to system-frame-only ANRs.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "ERR-k",
+  "feature": "Error dedupe and flood guard",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: an error loop can cost a customer real money and battery. Datadog 3000/min per type, PostHog 10 burst then 1 per 10 s per type",
+  "effort": {
+   "size": "S",
+   "note": "Per-type rate limiter"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No error dedupe or flood guard (only long tasks are capped per page).",
+    "ours_evidence": [
+     "no code found: grep dedupe|rate limit in sdk/browser/src"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`dedupeIntegration` (drops consecutive duplicates). eventFilters `ignoreErrors`/`denyUrls`. `sampleRate`. | dedupe on. 12 built-in ignore regexes (Script error, ResizeObserver, ...).",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No client dedupe or flood guard for errors.",
+    "ours_evidence": [],
+    "sentry": "partial",
+    "sentry_note": "Android: `enableDeduplication` = true. RN: `dedupeIntegration` is in the defaults. iOS: *a dedicated dedupe option was not found in Options.swift; uncertain.* All three honour server rate limits (TRN-f).",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Only hang de-duplication (one per block, 2 s quiet); no error flood guard.",
+    "ours_evidence": [
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16",
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:51-53"
+    ],
+    "sentry": "full",
+    "sentry_note": "Android: `enableDeduplication` = true. RN: `dedupeIntegration` is in the defaults. iOS: *a dedicated dedupe option was not found in Options.swift; uncertain.* All three honour server rate limits (TRN-f).",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Identity de-dupe and fatal echo suppression; no flood rate limit.",
+    "ours_evidence": [
+     "sdk/react-native/src/errors/dedupe.ts:16"
+    ],
+    "sentry": "full",
+    "sentry_note": "Android: `enableDeduplication` = true. RN: `dedupeIntegration` is in the defaults. iOS: *a dedicated dedupe option was not found in Options.swift; uncertain.* All three honour server rate limits (TRN-f).",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-a",
+  "feature": "Core Web Vitals and FCP, TTFB",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.web_vital`. PostHog has no TTFB",
+  "effort": {
+   "size": "S",
+   "note": "Rename to browser.web_vital"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "CLS, LCP, INP, FCP, TTFB as `web_vital` with ouo.web_vital.*, not browser.web_vital.",
+    "ours_evidence": [
+     "sdk/browser/src/vitals.ts:31-62"
+    ],
+    "sentry": "full",
+    "sentry_note": "`webVitalsIntegration` (auto-added by `browserTracingIntegration`). Uses the `web-vitals` ^6.2.3 library. LCP, CLS, INP, FCP, TTFB. | on when tracing is on. `webVitals.ignore: []`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-b",
+  "feature": "Vital attribution",
+  "target": "Should",
+  "where": "W",
+  "why": "Story: tells the developer which element. INP is in the spec, LCP element is not (G6)",
+  "effort": {
+   "size": "S",
+   "note": "web-vitals attribution build"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No attribution build.",
+    "ours_evidence": [
+     "sdk/browser/src/vitals.ts:1"
+    ],
+    "sentry": "full",
+    "sentry_note": "Span attributes `browser.web_vital.inp.target`, `browser.web_vital.lcp.element`, `cls.source.1`, `ui.component_name` | on",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "PERF-c",
+  "feature": "Long animation frames",
+  "target": "Should",
+  "where": "W",
+  "why": "OTel: draft PR #429, gated. Sentry has it on by default",
+  "effort": {
+   "size": "S",
+   "note": "Gated on OTel PR #429"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "ouo.long_animation_frame (or ouo.long_task) on by default, threshold 100 ms, 50 per page; spec gates this signal.",
+    "ours_evidence": [
+     "sdk/browser/src/longtasks.ts:69-97"
+    ],
+    "sentry": "full",
+    "sentry_note": "`enableLongTask`, `enableLongAnimationFrame` | **both true** in code (JSDoc wrongly says LoAF defaults to false)",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-d",
+  "feature": "Page load timing",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.navigation_timing` and `documentLoad`. Story: the page-load span links to the server trace",
+  "effort": {
+   "size": "S",
+   "note": "documentLoad exists; add browser.navigation_timing event"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "documentLoad span via OTel instrumentation with child spans; no browser.navigation_timing event.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:239-241"
+    ],
+    "sentry": "full",
+    "sentry_note": "Pageload span (`instrumentPageLoad`) with navigation-timing child spans (DNS, Connect, TLS, Request, ...) | on",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-e",
+  "feature": "Resource timing",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: the main volume risk. Default off until Step 5 prices it, then a per-view cap (G8)",
+  "effort": {
+   "size": "M",
+   "note": "Per-view cap and pricing"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Only initial resources, as resourceFetch child spans of documentLoad; no browser.resource_timing events, no switch.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:240"
+    ],
+    "sentry": "full",
+    "sentry_note": "Resource spans. `ignoreResourceSpans`. `enableHTTPTimings` for fetch/XHR. | on, ignore `[]`",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-f",
+  "feature": "App start",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the first thing a mobile user feels. All three except PostHog have it",
+  "effort": {
+   "size": "M",
+   "note": "AppStart span after the fact with cold/warm/hot"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Cold start (prewarm aware) to first frame, as event ouo.app.start, not the AppStart span.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Vitals.swift:140"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: cold/warm, prewarm (`enablePreWarmedAppStartTracing` = true), spans for Pre-Runtime Init, UIKit Init, App Init, Initial Frame Render. Attached to the first `ui.load` transaction only if the gap is \u22645 s; `enableStandaloneAppStartTracing` = false. Android: cold/warm, `enablePerformanceV2` = true,",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Cold/warm type and process start computed; span built by JS.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: cold/warm, prewarm (`enablePreWarmedAppStartTracing` = true), spans for Pre-Runtime Init, UIKit Init, App Init, Initial Frame Render. Attached to the first `ui.load` transaction only if the gap is \u22645 s; `enableStandaloneAppStartTracing` = false. Android: cold/warm, `enablePerformanceV2` = true,",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "ouo.app.start event (cold/warm) from native process start; not an AppStart span.",
+    "ours_evidence": [
+     "sdk/react-native/src/vitals.ts:123"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: cold/warm, prewarm (`enablePreWarmedAppStartTracing` = true), spans for Pre-Runtime Init, UIKit Init, App Init, Initial Frame Render. Attached to the first `ui.load` transaction only if the gap is \u22645 s; `enableStandaloneAppStartTracing` = false. Android: cold/warm, `enablePerformanceV2` = true,",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-g",
+  "feature": "Slow and frozen frames",
+  "target": "Must",
+  "where": "M",
+  "why": "OTel: `app.jank`",
+  "effort": {
+   "size": "S",
+   "note": "Emit app.jank per window"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Slow and frozen frames per screen window in app.jank.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Vitals.swift:167",
+     "sdk/ios/Sources/OuoVitals/FrameCounter.swift:20"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: frames tracker on by default. Android: `enableFramesTracking` = true, Android 7.0+. RN: `enableNativeFramesTracking` = true. Thresholds are not stated in the docs read: *uncertain*.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "FrameMetrics slow/frozen counters; JS diffs snapshots; no app.jank event.",
+    "ours_evidence": [
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: frames tracker on by default. Android: `enableFramesTracking` = true, Android 7.0+. RN: `enableNativeFramesTracking` = true. Thresholds are not stated in the docs read: *uncertain*.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "app.jank per screen window from native frame counters, plus ouo.stall JS stalls.",
+    "ours_evidence": [
+     "sdk/react-native/src/vitals.ts:159"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: frames tracker on by default. Android: `enableFramesTracking` = true, Android 7.0+. RN: `enableNativeFramesTracking` = true. Thresholds are not stated in the docs read: *uncertain*.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PERF-h",
+  "feature": "Time to initial and full display",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: per-screen load time. Sentry and Datadog: TTID automatic, TTFD by a manual call",
+  "effort": {
+   "size": "M",
+   "note": "TTID automatic per screen, TTFD manual call"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "full",
+    "ours_note": "TTID and TTFD per screen (ouo.screen.display, reportFullyDisplayed).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Vitals.swift:150",
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:200"
+    ],
+    "sentry": "full",
+    "sentry_note": "TTID is automatic (`ui.load.initial-display`). TTFD: `enableTimeToFullDisplayTracing` = false, then `reportFullyDisplayed()`. Deadline: iOS 30 s, Android 25 s (`DEADLINE_EXCEEDED`). RN: `<TimeToInitialDisplay>` / `<TimeToFullDisplay>` components or `Sentry.reportFullyDisplayed()`; React Navigation `",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No TTID/TTFD.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "TTID is automatic (`ui.load.initial-display`). TTFD: `enableTimeToFullDisplayTracing` = false, then `reportFullyDisplayed()`. Deadline: iOS 30 s, Android 25 s (`DEADLINE_EXCEEDED`). RN: `<TimeToInitialDisplay>` / `<TimeToFullDisplay>` components or `Sentry.reportFullyDisplayed()`; React Navigation `",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "ouo.screen.display with TTID and TTFD via reportFullyDisplayed.",
+    "ours_evidence": [
+     "sdk/react-native/src/vitals.ts:232",
+     "sdk/react-native/src/index.ts:452"
+    ],
+    "sentry": "full",
+    "sentry_note": "TTID is automatic (`ui.load.initial-display`). TTFD: `enableTimeToFullDisplayTracing` = false, then `reportFullyDisplayed()`. Deadline: iOS 30 s, Android 25 s (`DEADLINE_EXCEEDED`). RN: `<TimeToInitialDisplay>` / `<TimeToFullDisplay>` components or `Sentry.reportFullyDisplayed()`; React Navigation `",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "PERF-k",
+  "feature": "Custom spans and timings",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the app uses the OTel API through our tracer provider. We add no span API of our own",
+  "effort": {
+   "size": "M",
+   "note": "Expose tracer provider; on iOS and Android this needs the OTel SDK the founder's post-Step 5 direction adopts (opentelemetry-swift core, opentelemetry-android)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Custom spans only through the OTel global API when the SDK's provider won the global registration.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:207"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startSpan`, `startInactiveSpan`, `startSpanManual`, `ignoreSpans`, `beforeSendSpan` | `traceLifecycle: 'stream'`",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "startSpan/withSpan with thread-local active span.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:206",
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:213"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startTransaction` / `startChild`, idle transactions (`idleTimeout` = 3 s), `deadlineTimeout` 30 s on Android. RN uses @sentry/core `startSpan` APIs.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No custom spans or timings API.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startTransaction` / `startChild`, idle transactions (`idleTimeout` = 3 s), `deadlineTimeout` 30 s on Android. RN uses @sentry/core `startSpan` APIs.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "startSpan/withSpan with session attributes.",
+    "ours_evidence": [
+     "sdk/react-native/src/tracing.ts:58"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startTransaction` / `startChild`, idle transactions (`idleTimeout` = 3 s), `deadlineTimeout` 30 s on Android. RN uses @sentry/core `startSpan` APIs.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "NET-a",
+  "feature": "Automatic HTTP spans",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: Stable HTTP client conventions",
+  "effort": {
+   "size": "S",
+   "note": "Exists on JS; native HTTP on iOS/Android is M"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "OTel fetch and XHR instrumentation with stable HTTP attributes.",
+    "ours_evidence": [
+     "sdk/browser/src/network.ts:45-75"
+    ],
+    "sentry": "full",
+    "sentry_note": "`traceFetch`, `traceXHR` in `browserTracingIntegration`. Breadcrumbs for fetch and XHR. | true (needs tracing integration). Breadcrumbs on by default.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "URLSession resume swizzle: CLIENT span per data/download task (upload tasks skipped).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Network.swift:44",
+     "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:11"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: URLSession swizzling, `enableNetworkTracking` = true, `enableNetworkBreadcrumbs` = true. Android: OkHttp (`SentryOkHttpInterceptor`, auto-added by the Gradle plugin), Apollo, Ktor client. RN: fetch/XHR (incl. `expo/fetch`); native requests are also traced by the native SDKs.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No OkHttp/HttpURLConnection instrumentation.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: URLSession swizzling, `enableNetworkTracking` = true, `enableNetworkBreadcrumbs` = true. Android: OkHttp (`SentryOkHttpInterceptor`, auto-added by the Gradle plugin), Apollo, Ktor client. RN: fetch/XHR (incl. `expo/fetch`); native requests are also traced by the native SDKs.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "fetch and XHR CLIENT spans; span name `HTTP <method>`, URLs unsanitised, no native HTTP.",
+    "ours_evidence": [
+     "sdk/react-native/src/network.ts:133",
+     "sdk/react-native/src/network.ts:242"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: URLSession swizzling, `enableNetworkTracking` = true, `enableNetworkBreadcrumbs` = true. Android: OkHttp (`SentryOkHttpInterceptor`, auto-added by the Gradle plugin), Apollo, Ktor client. RN: fetch/XHR (incl. `expo/fetch`); native requests are also traced by the native SDKs.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "NET-b",
+  "feature": "Trace propagation to the backend",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: our edge. W3C `traceparent` by default. Sentry sends its own headers, `traceparent` opt-in; Datadog sends W3C plus its own to an allowlist; PostHog sends nothing by default and, when enabled, session and user-id headers rather than trace headers",
+  "effort": {
+   "size": "S",
+   "note": "traceparent exists; allowlist and sampled flag rules"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "traceparent same-origin and to propagateTo origins (plus default-on baggage).",
+    "ours_evidence": [
+     "sdk/browser/src/network.ts:46",
+     "sdk/browser/src/telemetry/propagator.ts:12-26"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sentry-trace` + `baggage`. `propagateTraceparent` adds W3C `traceparent`. `tracePropagationTargets`. | Same origin only. traceparent false.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "traceparent and baggage to propagateTo prefixes; sampled flag always set.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:23"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sentry-trace` + `baggage` headers. `tracePropagationTargets` defaults to `.*` (all hosts) on iOS and Android. W3C `traceparent` is opt-in: `enablePropagateTraceparent` / `propagateTraceparent` = false. `strictTraceContinuation` = false.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No traceparent propagation.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sentry-trace` + `baggage` headers. `tracePropagationTargets` defaults to `.*` (all hosts) on iOS and Android. W3C `traceparent` is opt-in: `enablePropagateTraceparent` / `propagateTraceparent` = false. `strictTraceContinuation` = false.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "traceparent on propagateTo; baggage always on; flag not tied to sampling.",
+    "ours_evidence": [
+     "sdk/react-native/src/network.ts:154",
+     "sdk/react-native/src/telemetry/propagator.ts:18"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sentry-trace` + `baggage` headers. `tracePropagationTargets` defaults to `.*` (all hosts) on iOS and Android. W3C `traceparent` is opt-in: `enablePropagateTraceparent` / `propagateTraceparent` = false. `strictTraceContinuation` = false.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "INT-a",
+  "feature": "Click and tap capture",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: what the user did. Sentry has it as breadcrumbs and replay, with interaction spans opt-in",
+  "effort": {
+   "size": "S",
+   "note": "Rename to spec events and attributes"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Clicks become `click` spans, exported only when they caused a request; no click event.",
+    "ours_evidence": [
+     "sdk/browser/src/interactions/clicks.ts:65-104"
+    ],
+    "sentry": "full",
+    "sentry_note": "`ui.click` breadcrumbs (`breadcrumbs.dom`). `interactionsIntegration` makes `ui.action.click` idle spans. Replay records clicks. | Breadcrumbs on. Interaction spans off.",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Taps, long presses and swipes as ui.tap; trackTap for SwiftUI; no coordinates or spec names.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:86",
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:181"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUserInteractionTracing` = true (UIKit only, not SwiftUI) plus touch breadcrumbs. Android: `enableUserInteractionBreadcrumbs` = true; `enableUserInteractionTracing` = false. RN: `TouchEventBoundary` breadcrumbs; `enableUserInteractionTracing` = false.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Touches captured only as replay samples (dp), no tap events.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:15-58"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUserInteractionTracing` = true (UIKit only, not SwiftUI) plus touch breadcrumbs. Android: `enableUserInteractionBreadcrumbs` = true; `enableUserInteractionTracing` = false. RN: `TouchEventBoundary` breadcrumbs; `enableUserInteractionTracing` = false.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "ui.tap via RUMProvider with target, path, view type and gesture; no coordinates or spec names.",
+    "ours_evidence": [
+     "sdk/react-native/src/provider.ts:25",
+     "sdk/react-native/src/index.ts:390"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUserInteractionTracing` = true (UIKit only, not SwiftUI) plus touch breadcrumbs. Android: `enableUserInteractionBreadcrumbs` = true; `enableUserInteractionTracing` = false. RN: `TouchEventBoundary` breadcrumbs; `enableUserInteractionTracing` = false.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "INT-b",
+  "feature": "Action naming",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: privacy. We never send element text (SIG-39). Names come from selectors, widget ids and opt-in `data-otel-*` attributes. Datadog masks names by default since v7",
+  "effort": {
+   "size": "S",
+   "note": "Selector rules (PRV-9)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "app.widget.name from data-testid (default) or aria-label/text inside ouo-unmask.",
+    "ours_evidence": [
+     "sdk/browser/src/interactions/element.ts:30-49"
+    ],
+    "sentry": "full",
+    "sentry_note": "CSS-like selector path. `data-sentry-component` / `data-sentry-element` from the bundler annotation plugin. | Up to 5 ancestors, 80 chars",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Targets named by accessibilityIdentifier with a path; no app.widget.name option.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Interactions.swift:40"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: selector + `accessibilityIdentifier` (`reportAccessibilityIdentifier` = true). Android: `Activity.viewId` (needs an ID); Compose needs a `sentryTag` modifier or the compiler plugin. RN: `sentry-label`, then `data-sentry-component` (Babel annotation), then `accessibilityLabel` / `aria-label` / `",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No action naming.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: selector + `accessibilityIdentifier` (`reportAccessibilityIdentifier` = true). Android: `Activity.viewId` (needs an ID); Compose needs a `sentryTag` modifier or the compiler plugin. RN: `sentry-label`, then `data-sentry-component` (Babel annotation), then `accessibilityLabel` / `aria-label` / `",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Name from ouo-label/accessibilityLabel/testID or component name.",
+    "ours_evidence": [
+     "sdk/react-native/src/taps.ts:42"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: selector + `accessibilityIdentifier` (`reportAccessibilityIdentifier` = true). Android: `Activity.viewId` (needs an ID); Compose needs a `sentryTag` modifier or the compiler plugin. RN: `sentry-label`, then `data-sentry-component` (Babel annotation), then `accessibilityLabel` / `aria-label` / `",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "INT-c",
+  "feature": "Rage clicks and taps",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: frustration tells the developer where users struggle. Our threshold (4 in 1 s) is stricter than Datadog and Sentry RN (3 in 1 s) and PostHog (3 clicks, each within 1 s of the previous), G9",
+  "effort": {
+   "size": "S",
+   "note": "Threshold 4 in 1 s"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "ouo.rage_click at 3 clicks in 1 s within 30 px (target 4).",
+    "ours_evidence": [
+     "sdk/browser/src/interactions/clicks.ts:46-63"
+    ],
+    "sentry": "full",
+    "sentry_note": "Replay click detector, multi-click frames, shown as Replay rage clicks | needs replay",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No rage tap detection.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "RN: rage-tap detection `enableRageTapDetection` = true, 3 taps within 1000 ms, emits a `ui.multiClick` breadcrumb. None found in iOS/Android sources.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No rage taps.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "none",
+    "sentry_note": "RN: rage-tap detection `enableRageTapDetection` = true, 3 taps within 1000 ms, emits a `ui.multiClick` breadcrumb. None found in iOS/Android sources.",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No rage taps.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:390"
+    ],
+    "sentry": "full",
+    "sentry_note": "RN: rage-tap detection `enableRageTapDetection` = true, 3 taps within 1000 ms, emits a `ui.multiClick` breadcrumb. None found in iOS/Android sources.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "INT-d",
+  "feature": "Dead clicks",
+  "target": "Must",
+  "where": "W",
+  "why": "Same. On mobile only PostHog Android has it, opt-in, so mobile dead taps are not a target yet",
+  "effort": {
+   "size": "S",
+   "note": "Exists on web"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "ouo.dead_click when a button/link click causes no request, mutation or navigation before idle.",
+    "ours_evidence": [
+     "sdk/browser/src/interactions/clicks.ts:94-102",
+     "sdk/browser/src/interactions/element.ts:63-85"
+    ],
+    "sentry": "full",
+    "sentry_note": "Slow-click detection: `slowClickTimeout`, `slowClickIgnoreSelectors` | timeout 7000 ms, threshold 3000 ms",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "INT-e",
+  "feature": "Error clicks",
+  "target": "Must",
+  "where": "all",
+  "why": "Same. Only Datadog ships it",
+  "effort": {
+   "size": "S",
+   "note": "Click followed by error within 2 s"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No error clicks.",
+    "ours_evidence": [
+     "no code found: grep error click in sdk/browser/src"
+    ],
+    "sentry": "uncertain",
+    "sentry_note": "No \"error click\" detector found in the SDK. Replay links errors to the timeline. | ",
+    "gap": "unknown"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No error tap detection.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "Not found as a distinct feature.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No error taps.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "none",
+    "sentry_note": "Not found as a distinct feature.",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No error taps.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:390"
+    ],
+    "sentry": "none",
+    "sentry_note": "Not found as a distinct feature.",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "NAV-a",
+  "feature": "Hard page loads",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.navigation`",
+  "effort": {
+   "size": "S",
+   "note": "browser.navigation event"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Initial `navigation` event (kind load) plus documentLoad span.",
+    "ours_evidence": [
+     "sdk/browser/src/navigation.ts:64-78"
+    ],
+    "sentry": "full",
+    "sentry_note": "`instrumentPageLoad` creates a pageload span. | true",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "NAV-b",
+  "feature": "SPA route changes",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: most apps are SPAs. Route-pattern names need router integrations (G11)",
+  "effort": {
+   "size": "S",
+   "note": "History API, same_document flag"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "pushState/replaceState/popstate captured; route templates through setRoute/useOuoRoute.",
+    "ours_evidence": [
+     "sdk/browser/src/navigation.ts:20-62",
+     "sdk/browser/src/react/index.ts:72-97"
+    ],
+    "sentry": "full",
+    "sentry_note": "`instrumentNavigation` (History API). Framework routers: React Router, Vue, Angular, TanStack, and others. | true",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "NAV-c",
+  "feature": "Mobile screen views",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the mobile \"page\". UIKit and Activities automatic; SwiftUI and Compose need integrations (G11)",
+  "effort": {
+   "size": "M",
+   "note": "UIKit/SwiftUI and Activity/Compose screen tracking"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "UIKit view controllers automatic, SwiftUI via .ouoScreen; emitted as `navigation`.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:11",
+     "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:9"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUIViewControllerTracing` = true (in-app VCs only; SwiftUI via `SentryTracedView`). Android: Activity `ui.load` (`enableAutoActivityLifecycleTracing` = true), Fragment (sentry-android-fragment), Navigation/Navigation 3 (sentry-android-navigation, multi-Activity support in 8.62), Compose n",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No screen view events; screenDidChange only paces replay.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:72"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUIViewControllerTracing` = true (in-app VCs only; SwiftUI via `SentryTracedView`). Android: Activity `ui.load` (`enableAutoActivityLifecycleTracing` = true), Fragment (sentry-android-fragment), Navigation/Navigation 3 (sentry-android-navigation, multi-Activity support in 8.62), Compose n",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "`navigation` event per screen change; not app.navigation.complete, no view id.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:380"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS: `enableUIViewControllerTracing` = true (in-app VCs only; SwiftUI via `SentryTracedView`). Android: Activity `ui.load` (`enableAutoActivityLifecycleTracing` = true), Fragment (sentry-android-fragment), Navigation/Navigation 3 (sentry-android-navigation, multi-Activity support in 8.62), Compose n",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "NAV-d",
+  "feature": "RN navigation",
+  "target": "Must",
+  "where": "RN",
+  "why": "React Navigation and Expo Router. PostHog needs manual calls for Expo Router",
+  "effort": {
+   "size": "S",
+   "note": "React Navigation integration exists"
+  },
+  "platforms": {
+   "rn": {
+    "ours": "full",
+    "ours_note": "react-navigation onStateChange helper with nested route paths (expo-router via the same).",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:548",
+     "sdk/react-native/src/navigation.ts:10"
+    ],
+    "sentry": "full",
+    "sentry_note": "React Navigation (`reactNavigationIntegration`, `routeChangeTimeoutMs` = 1000), Expo Router (`expoRouterIntegration`, Expo Router 58 support in 8.33), Wix react-native-navigation.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "NAV-e",
+  "feature": "Manual view API",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial",
+  "effort": {
+   "size": "S",
+   "note": "trackNavigation"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "setRoute names the route; no manual navigation/view API.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:394-399"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startBrowserTracingPageLoadSpan`, `startBrowserTracingNavigationSpan`, `beforeStartSpan`, `routeProvider` / `setRouteProvider` (added 11.3) | n/a",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "trackScreen(name).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:177"
+    ],
+    "sentry": "full",
+    "sentry_note": "Manual `ui.load` transactions; scope `transaction` name; RN `Sentry.startSpan`.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No manual view API.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Manual `ui.load` transactions; scope `transaction` name; RN `Sentry.startSpan`.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "trackNavigation(path, attrs); same event as automatic, no view id.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:429"
+    ],
+    "sentry": "full",
+    "sentry_note": "Manual `ui.load` transactions; scope `transaction` name; RN `Sentry.startSpan`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "NAV-f",
+  "feature": "Foreground and background",
+  "target": "Must",
+  "where": "M",
+  "why": "OTel: `device.app.lifecycle`",
+  "effort": {
+   "size": "S",
+   "note": "device.app.lifecycle naming"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "app.lifecycle foreground/inactive/background, not device.app.lifecycle.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:304"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS system-event breadcrumbs; Android `enableAppLifecycleBreadcrumbs` = true; RN `appRegistryIntegration` + native.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Foreground/background tracked internally (watchdog park, replay stop/flush); no lifecycle event.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS system-event breadcrumbs; Android `enableAppLifecycleBreadcrumbs` = true; RN `appRegistryIntegration` + native.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "app.lifecycle with ouo.app.state; not device.app.lifecycle.",
+    "ours_evidence": [
+     "sdk/react-native/src/appstate.ts:18"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS system-event breadcrumbs; Android `enableAppLifecycleBreadcrumbs` = true; RN `appRegistryIntegration` + native.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "RPL-a",
+  "feature": "Web DOM replay",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: the centre of the full story. rrweb, as Sentry and PostHog use",
+  "effort": {
+   "size": "L",
+   "note": "rrweb works; re-carry as OTLP log records with the section 11 identity, keyframes, sha256, ended record"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "rrweb, lazy-loaded chunk.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/recorder.ts:85-398",
+     "sdk/browser/src/replay/rrweb.ts:1-188"
+    ],
+    "sentry": "full",
+    "sentry_note": "`replayIntegration()` using `@sentry/rrweb` 2.45.0 (Sentry's fork of rrweb) | off",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "RPL-b",
+  "feature": "Mobile replay",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: same. **The format is not decided here.** Evidence is in [mobile-replay-format-evidence.md](mobile-replay-format-evidence.md)",
+  "effort": {
+   "size": "L",
+   "note": "Same transport rework plus format decision (wireframe or video)"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Masked JPEG frame replay with patches and touches; custom non-OTLP chunk format and endpoint.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:17",
+     "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+    ],
+    "sentry": "full",
+    "sentry_note": "**Screenshots, not wireframes.** iOS: the view hierarchy is drawn to an image (`enableViewRendererV2` = true, `enableFastViewRendering` = false), encoded to **H.264 MP4** with AVAssetWriter. Android: `PixelCopy` (default) or experimental `CANVAS`, encoded to **AVC/H.264 MP4** with MediaCodec. **1 fp",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "full",
+    "ours_note": "PixelCopy screenshots with tile diffs, masking, chunking and disk queue; but on the custom non-OTLP wire.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:30-44",
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:18-27",
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/TileDiffer.kt"
+    ],
+    "sentry": "full",
+    "sentry_note": "**Screenshots, not wireframes.** iOS: the view hierarchy is drawn to an image (`enableViewRendererV2` = true, `enableFastViewRendering` = false), encoded to **H.264 MP4** with AVAssetWriter. Android: `PixelCopy` (default) or experimental `CANVAS`, encoded to **AVC/H.264 MP4** with MediaCodec. **1 fp",
+    "gap": "none"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Native masked screenshot replay on iOS and Android, custom chunk format and endpoint.",
+    "ours_evidence": [
+     "sdk/react-native/ios/OuoReplayModule.swift:85",
+     "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:119"
+    ],
+    "sentry": "full",
+    "sentry_note": "**Screenshots, not wireframes.** iOS: the view hierarchy is drawn to an image (`enableViewRendererV2` = true, `enableFastViewRendering` = false), encoded to **H.264 MP4** with AVAssetWriter. Android: `PixelCopy` (default) or experimental `CANVAS`, encoded to **AVC/H.264 MP4** with MediaCodec. **1 fp",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "RPL-c",
+  "feature": "Session and on-error modes",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: buffer mode keeps replays of failures at low cost. Datadog has no client buffer",
+  "effort": {
+   "size": "M",
+   "note": "Buffer mode ring with keyframe retention"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "full (sampleRate) and buffer-on-error (onErrorSampleRate) modes.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/recorder.ts:69",
+     "sdk/browser/src/replay/recorder.ts:193-209"
+    ],
+    "sentry": "full",
+    "sentry_note": "`replaysSessionSampleRate`, `replaysOnErrorSampleRate` | undefined in code. Docs examples use 0.1 / 1.0.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Session mode by sample rate; no buffer-on-error mode.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:333"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionSampleRate` = 0 and `onErrorSampleRate` = 0 (off by default). On-error buffer: **30 s** in iOS and Android source (`errorReplayDuration`); the RN docs say \"up to one minute\" (mismatch with the native code). Android `beforeErrorSampling` hook. Opening the feedback form also buffers up to 30 s",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Session-style recording only (session/navigation cadences); no buffer-on-error ring; holdUploads is a coarse keep/drop.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/CapturePacer.kt:4-21",
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:25-29"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionSampleRate` = 0 and `onErrorSampleRate` = 0 (off by default). On-error buffer: **30 s** in iOS and Android source (`errorReplayDuration`); the RN docs say \"up to one minute\" (mismatch with the native code). Android `beforeErrorSampling` hook. Opening the feedback form also buffers up to 30 s",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Session sampling and record-from-first-error; no pre-error buffer.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:57",
+     "sdk/react-native/src/types.ts:98"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sessionSampleRate` = 0 and `onErrorSampleRate` = 0 (off by default). On-error buffer: **30 s** in iOS and Android source (`errorReplayDuration`); the RN docs say \"up to one minute\" (mismatch with the native code). Android `beforeErrorSampling` hook. Opening the feedback form also buffers up to 30 s",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "RPL-d",
+  "feature": "Iframes, shadow DOM, canvas",
+  "target": "Should",
+  "where": "W",
+  "why": "Same-origin iframes and shadow DOM Should; canvas Later and opt-in, since canvas pixels cannot be masked (G12)",
+  "effort": {
+   "size": "M",
+   "note": "rrweb options plus tests"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "rrweb defaults record shadow DOM and same-origin iframes; canvas off.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/rrweb.ts:155-164"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Canvas via `replayCanvasIntegration` (opt-in). Same-origin `srcdoc` iframes blocked by default. | canvas off",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "RPL-e",
+  "feature": "Network requests in replay",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the player joins HTTP spans by `session.id` and time. No copy inside the replay",
+  "effort": {
+   "size": "M",
+   "note": "Network events into the replay timeline"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Player joins HTTP spans by session.id and time; nothing copied into the replay.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/correlation.ts:15"
+    ],
+    "sentry": "full",
+    "sentry_note": "Network requests appear in the timeline. Details via allowlist (NET-c). | URL, timing, size only",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "Network requests are not in the replay payload (only on the telemetry timeline).",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "Network breadcrumbs by default; headers/bodies opt-in (NET-c).",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No network requests in replay.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Network breadcrumbs by default; headers/bodies opt-in (NET-c).",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "Chunks hold frames and touches only; network shows only on the event timeline.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+    ],
+    "sentry": "full",
+    "sentry_note": "Network breadcrumbs by default; headers/bodies opt-in (NET-c).",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "RPL-f",
+  "feature": "Console in replay",
+  "target": "Should",
+  "where": "W, RN",
+  "why": "Follows LOG-b: logs join like spans",
+  "effort": {
+   "size": "S",
+   "note": "rrweb console plugin"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No console in replay.",
+    "ours_evidence": [
+     "no code found: grep console plugin in sdk/browser/src/replay"
+    ],
+    "sentry": "full",
+    "sentry_note": "Console entries appear in the replay. | on",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No console in replay.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+    ],
+    "sentry": "full",
+    "sentry_note": "RN replay shows console entries. Native: logs/breadcrumbs. *Native console mapping: uncertain.*",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "RPL-g",
+  "feature": "Masking defaults and APIs",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: privacy. Ours masks all text, inputs and media, like Sentry and Datadog mobile. Datadog web masks inputs only by default (`mask-user-input`); PostHog web does not mask text",
+  "effort": {
+   "size": "M",
+   "note": "Unmaskable secure fields, mask-on-failure drop (PRV-8)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Text and inputs masked by default; images/video not blocked; class-based mask/unmask/block plus selectors.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/rrweb.ts:104-166"
+    ],
+    "sentry": "full",
+    "sentry_note": "`maskAllText`, `maskAllInputs`, `blockAllMedia`, `mask`, `unmask`, `block`, `unblock`, `ignore`, `maskFn`, `maskAttributes` | all three true. Masks the title, placeholder, and aria-label attributes.",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Mask-all default, per-group switches, ouo-mask/ouo-unmask identifiers and SwiftUI modifiers (secure fields unmaskable, see PRV-7).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:108",
+     "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15"
+    ],
+    "sentry": "full",
+    "sentry_note": "Default: mask all text, images, user input and webviews (`maskAllText` = true, `maskAllImages` = true; RN also `maskAllVectors` = true). APIs: iOS `maskedViewClasses` / `unmaskedViewClasses`, `view.sentryReplayMask()`, SwiftUI `.sentryReplayMask()` / `.sentryReplayUnmask()`, and a masking preview vi",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Mask-by-default and config toggles, ouo-mask/ouo-unmask tags, maskClasses; no replay.mask(view)/unmask(view) API and secure fields are unmaskable.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:43-79",
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:20-26"
+    ],
+    "sentry": "full",
+    "sentry_note": "Default: mask all text, images, user input and webviews (`maskAllText` = true, `maskAllImages` = true; RN also `maskAllVectors` = true). APIs: iOS `maskedViewClasses` / `unmaskedViewClasses`, `view.sentryReplayMask()`, SwiftUI `.sentryReplayMask()` / `.sentryReplayUnmask()`, and a masking preview vi",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Mask text/inputs/images/webviews by default, excludeScreens and hideScreen; no per-view mask/unmask API, inputs unmaskable.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:66",
+     "sdk/react-native/src/types.ts:86",
+     "sdk/react-native/src/types.ts:339"
+    ],
+    "sentry": "full",
+    "sentry_note": "Default: mask all text, images, user input and webviews (`maskAllText` = true, `maskAllImages` = true; RN also `maskAllVectors` = true). APIs: iOS `maskedViewClasses` / `unmaskedViewClasses`, `view.sentryReplayMask()`, SwiftUI `.sentryReplayMask()` / `.sentryReplayUnmask()`, and a masking preview vi",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "RPL-h",
+  "feature": "RN replay",
+  "target": "Must",
+  "where": "RN",
+  "why": "Native capture under RN",
+  "effort": {
+   "size": "M",
+   "note": "Follows RPL-b"
+  },
+  "platforms": {
+   "rn": {
+    "ours": "full",
+    "ours_note": "Replay for RN apps through the Expo module (needs dev build).",
+    "ours_evidence": [
+     "sdk/react-native/src/replay.ts:216"
+    ],
+    "sentry": "full",
+    "sentry_note": "`mobileReplayIntegration()` forwards to native replay (min RN SDK 6.5.0). Expo supported.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "RPL-i",
+  "feature": "SwiftUI and Compose replay",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: new apps are built with them. The format decision decides how hard this is",
+  "effort": {
+   "size": "L",
+   "note": "SwiftUI and Compose masking need view-tree or layer heuristics"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Snapshot-based capture covers SwiftUI and UIKit; SwiftUI text masking depends on the view walk.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15",
+     "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:155"
+    ],
+    "sentry": "full",
+    "sentry_note": "SwiftUI masking modifiers (`SentryReplayView.swift`). Compose: `ComposeViewHierarchyNode` + modifiers.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Compose content is captured but masked whole (fails closed) until a semantics walk exists.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:62-70",
+     "sdk/android/README.md:55-57"
+    ],
+    "sentry": "full",
+    "sentry_note": "SwiftUI masking modifiers (`SentryReplayView.swift`). Compose: `ComposeViewHierarchyNode` + modifiers.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "unknown",
+    "ours_note": "not graded",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "SwiftUI masking modifiers (`SentryReplayView.swift`). Compose: `ComposeViewHierarchyNode` + modifiers.",
+    "gap": "unknown"
+   }
+  }
+ },
+ {
+  "id": "RPL-j",
+  "feature": "Idle pause and maximum duration",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: Sentry pauses after 5 min idle and stops at 60 min. The spec bounds a replay only by its session (30 min inactivity, 4 h maximum), so a mostly idle replay can run 4 h (G14)",
+  "effort": {
+   "size": "S",
+   "note": "Idle pause and max duration"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No idle pause or replay maximum duration.",
+    "ours_evidence": [
+     "no code found: grep idle in sdk/browser/src/replay"
+    ],
+    "sentry": "full",
+    "sentry_note": "`maxReplayDuration`, `minReplayDuration`, `flushMinDelay` / `flushMaxDelay`, `mutationLimit`, `mutationBreadcrumbLimit` | 60 min, 5 s, 5\u20135.5 s, 10000, 750",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Pauses in background and unchanged frames are skipped; no maximum replay duration.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:108"
+    ],
+    "sentry": "full",
+    "sentry_note": "Max 60 min per session, 5 s segments, session ends after 30 s in the background. iOS `maximumDuration` 3600 s and Android `sessionDuration` 1 h are not user-settable on iOS (`@_spi(Private)`). Rate-limited replays may be missing.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Idle screens cost nothing (draw-dirty flag) and background stops capture; no maximum duration.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:33-35",
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:104-111"
+    ],
+    "sentry": "full",
+    "sentry_note": "Max 60 min per session, 5 s segments, session ends after 30 s in the background. iOS `maximumDuration` 3600 s and Android `sessionDuration` 1 h are not user-settable on iOS (`@_spi(Private)`). Rate-limited replays may be missing.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Navigation mode and change-driven capture limit idle frames; no maximum replay duration.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:57"
+    ],
+    "sentry": "full",
+    "sentry_note": "Max 60 min per session, 5 s segments, session ends after 30 s in the background. iOS `maximumDuration` 3600 s and Android `sessionDuration` 1 h are not user-settable on iOS (`@_spi(Private)`). Rate-limited replays may be missing.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "USR-a",
+  "feature": "Set user id",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `enduser.id`",
+  "effort": {
+   "size": "S",
+   "note": "setUser to enduser.id"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "setUser sets user.id (not enduser.id); switching users rotates the session.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:370-375",
+     "sdk/browser/src/session/manager.ts:178-183"
+    ],
+    "sentry": "full",
+    "sentry_note": "`setUser({id, email, username, ip_address})` | none",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "setUser/clearUser set user.id (not enduser.id) and may rotate the session.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:131"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.setUser` / `Sentry.setUser` / `Sentry.setUser`.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No setUser.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.setUser` / `Sentry.setUser` / `Sentry.setUser`.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "setUser sets user.id (not enduser.id); cannot clear.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:418"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.setUser` / `Sentry.setUser` / `Sentry.setUser`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "USR-c",
+  "feature": "Global attributes",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial",
+  "effort": {
+   "size": "S",
+   "note": "setGlobalAttributes"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No global attributes API.",
+    "ours_evidence": [
+     "no code found: grep setGlobalAttributes in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`setTag(s)`, `setContext`, `setExtra`, and `setAttribute(s)` (attributes go to spans, logs, and metrics) | none",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Only static resourceAttributes at start; no setGlobalAttributes for records.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:69"
+    ],
+    "sentry": "full",
+    "sentry_note": "Tags, contexts and extras on the scope; `initialScope`; Android `tags` option and `contextTags`.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No global attributes.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Tags, contexts and extras on the scope; `initialScope`; Android `tags` option and `contextTags`.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Static extra resource attributes at init only; no setGlobalAttributes.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:316"
+    ],
+    "sentry": "full",
+    "sentry_note": "Tags, contexts and extras on the scope; `initialScope`; Android `tags` option and `contextTags`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "USR-d",
+  "feature": "Anonymous install id",
+  "target": "Should",
+  "where": "all",
+  "why": "Story: crash-free *users* needs a stable pseudo id. Opt-in, off the resource (G15)",
+  "effort": {
+   "size": "S",
+   "note": "Install id off the resource, opt-in"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "device.id and anonymous user.id always on (not opt-in), device.id on the resource.",
+    "ours_evidence": [
+     "sdk/browser/src/session/device.ts:12-23",
+     "sdk/browser/src/telemetry/resource.ts:30"
+    ],
+    "sentry": "uncertain",
+    "sentry_note": "No anonymous or device id generator found in the browser SDK code. IP inferred server-side when `userInfo` is on. | `infer_ip: 'auto'`",
+    "gap": "unknown"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Anonymous user.id and device.id kept on device (sent by default, see violations).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:106",
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:107"
+    ],
+    "sentry": "full",
+    "sentry_note": "An installation id is generated and used as the default user id for sessions. Android `distinctId` option. *iOS installation id file name not re-read: partial confirmation.*",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No install id.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "An installation id is generated and used as the default user id for sessions. Android `distinctId` option. *iOS installation id file name not re-read: partial confirmation.*",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "Persisted anonymous user.id per install (sent by default).",
+    "ours_evidence": [
+     "sdk/react-native/src/session/manager.ts:537"
+    ],
+    "sentry": "full",
+    "sentry_note": "An installation id is generated and used as the default user id for sessions. Android `distinctId` option. *iOS installation id file name not re-read: partial confirmation.*",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "LOG-a",
+  "feature": "Structured logs",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the app uses the OTel Logs API through our provider",
+  "effort": {
+   "size": "M",
+   "note": "Logger provider exposed and session-stamped"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Apps can use the OTel Logs API only through the global provider; not exposed.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:173"
+    ],
+    "sentry": "full",
+    "sentry_note": "`Sentry.logger.trace\u2026fatal`, `logger.fmt`, `beforeSendLog` | On by usage (v11 removed `enableLogs`).",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Ouo.log with severity, message and active span trace.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:170"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS `enableLogs` = false, `SentrySDK.logger`, `beforeSendLog`. Android `logs.enable` = false. RN `enableLogs`, `Sentry.logger.*`, `logsOrigin` = 'all'. Batched; client reports count each log (9.33).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No structured log API.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS `enableLogs` = false, `SentrySDK.logger`, `beforeSendLog`. Android `logs.enable` = false. RN `enableLogs`, `Sentry.logger.*`, `logsOrigin` = 'all'. Batched; client reports count each log (9.33).",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "rum.log.<level> as OTel log records.",
+    "ours_evidence": [
+     "sdk/react-native/src/tracing.ts:123"
+    ],
+    "sentry": "full",
+    "sentry_note": "iOS `enableLogs` = false, `SentrySDK.logger`, `beforeSendLog`. Android `logs.enable` = false. RN `enableLogs`, `Sentry.logger.*`, `logsOrigin` = 'all'. Batched; client reports count each log (9.33).",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "LOG-b",
+  "feature": "Console capture as logs",
+  "target": "Should",
+  "where": "W, RN",
+  "why": "Story: console lines next to the error. Opt-in, warn and error only, size-capped (G13)",
+  "effort": {
+   "size": "S",
+   "note": "Console patch to logs"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "console.error becomes `exception`, not a log; no console log capture.",
+    "ours_evidence": [
+     "sdk/browser/src/errors/install.ts:66-100"
+    ],
+    "sentry": "full",
+    "sentry_note": "`consoleLoggingIntegration({levels})` | off",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "console.error becomes exceptions; no console capture as logs.",
+    "ours_evidence": [
+     "sdk/react-native/src/errors/install.ts:181"
+    ],
+    "sentry": "full",
+    "sentry_note": "RN: `enableAutoConsoleLogs` = true when logs are enabled. Android: Timber and Logcat integrations, native logs when `enableLogs` (RN 8.34). iOS: *OSLog capture not found: uncertain*.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "LOG-c",
+  "feature": "OTel logs interop",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: we are the OTel pipeline. PostHog sends OTLP logs; Sentry and Datadog do not",
+  "effort": {
+   "size": "M",
+   "note": "Needs OTel logs SDK on native"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Host OTel log records get session attributes if they go through the SDK's globally registered provider.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:169-175"
+    ],
+    "sentry": "none",
+    "sentry_note": "Sentry log envelope (OTel-like severity numbers 1\u201321). Browser has no OTLP log export. | n/a",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No OTel providers; host OTel instrumentation cannot share the pipeline.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "Android: sentry-opentelemetry modules (server-side focus). Logs are sent in the Sentry envelope, not OTLP.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No OTel logs interop.",
+    "ours_evidence": [
+     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android: sentry-opentelemetry modules (server-side focus). Logs are sent in the Sentry envelope, not OTLP.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Global providers let host OTel instrumentation emit through the pipeline; no explicit accessors.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:209"
+    ],
+    "sentry": "none",
+    "sentry_note": "Android: sentry-opentelemetry modules (server-side focus). Logs are sent in the Sentry envelope, not OTLP.",
+    "gap": "ahead"
+   }
+  }
+ },
+ {
+  "id": "SMP-a",
+  "feature": "Session sampling",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: one decision keeps every signal of a session together",
+  "effort": {
+   "size": "S",
+   "note": "Switch FNV hash to the SMP-2 hex rule"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "session.sampleRate, decided once per session and persisted.",
+    "ours_evidence": [
+     "sdk/browser/src/session/manager.ts:282-284",
+     "sdk/browser/src/telemetry/sampling.ts:12-48"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Replay session rate only. Release-health sessions are not sampled. | n/a",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Session sampling by hash of the id, not the spec rule.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:402"
+    ],
+    "sentry": "none",
+    "sentry_note": "Health sessions are not sampled. Replay sessions use `sessionSampleRate` (RPL-c).",
+    "gap": "ahead"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No session sampling in Kotlin.",
+    "ours_evidence": [
+     "no code found (grep sampl in sdk/android: only touch-move sampling)"
+    ],
+    "sentry": "none",
+    "sentry_note": "Health sessions are not sampled. Replay sessions use `sessionSampleRate` (RPL-c).",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Deterministic per-session sampling (FNV hash, not spec rule).",
+    "ours_evidence": [
+     "sdk/react-native/src/sampling.ts:33"
+    ],
+    "sentry": "none",
+    "sentry_note": "Health sessions are not sampled. Replay sessions use `sessionSampleRate` (RPL-c).",
+    "gap": "ahead"
+   }
+  }
+ },
+ {
+  "id": "SMP-d",
+  "feature": "Buffer-on-error replay",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: see RPL-c",
+  "effort": {
+   "size": "M",
+   "note": "Ring buffer and trigger"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Buffer-on-error replay through replay.onErrorSampleRate.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/recorder.ts:193-209"
+    ],
+    "sentry": "full",
+    "sentry_note": "`replaysOnErrorSampleRate` | see RPL-c",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No buffer-on-error replay.",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "`onErrorSampleRate` (30 s buffer).",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No buffer-on-error replay.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`onErrorSampleRate` (30 s buffer).",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Starts recording at first error; no buffer of the moments before.",
+    "ours_evidence": [
+     "sdk/react-native/src/replay.ts:404"
+    ],
+    "sentry": "full",
+    "sentry_note": "`onErrorSampleRate` (30 s buffer).",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SMP-e",
+  "feature": "Errors kept in unsampled sessions",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: rare crashes are never lost",
+  "effort": {
+   "size": "S",
+   "note": "Bypass set and cap"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "Unsampled sessions drop errors too.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/sampling.ts:35-39"
+    ],
+    "sentry": "full",
+    "sentry_note": "Errors are sampled independently of traces and replay. | errors 100%",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "Errors of unsampled sessions are dropped.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:359"
+    ],
+    "sentry": "full",
+    "sentry_note": "Errors are independent of replay and trace sampling.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No bypass set in Kotlin.",
+    "ours_evidence": [
+     "no code found (grep sampl in sdk/android: only touch-move sampling)"
+    ],
+    "sentry": "full",
+    "sentry_note": "Errors are independent of replay and trace sampling.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "Unsampled sessions drop errors and crashes too.",
+    "ours_evidence": [
+     "sdk/react-native/src/sampling.ts:62"
+    ],
+    "sentry": "full",
+    "sentry_note": "Errors are independent of replay and trace sampling.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "SMP-f",
+  "feature": "Remote config and kill switch",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: a mobile release takes days to roll back. Datadog mobile (2026) and PostHog have it; Datadog web's is internal and undocumented. Served through the Collector (G16)",
+  "effort": {
+   "size": "L",
+   "note": "Remote config needs a server side"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No remote config or kill switch.",
+    "ours_evidence": [
+     "no code found: grep remote config in sdk/browser/src"
+    ],
+    "sentry": "partial",
+    "sentry_note": "No remote config in the npm SDK. The Loader Script takes settings from project config. Server-side dynamic sampling. | n/a",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No remote config or kill switch.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "No remote config or kill switch in the SDK. Android `enableExternalConfiguration` reads local files/env only; `enableBackpressureHandling` = true downsamples under load. Server-side dynamic sampling is outside the SDK.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No remote config.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "partial",
+    "sentry_note": "No remote config or kill switch in the SDK. Android `enableExternalConfiguration` reads local files/env only; `enableBackpressureHandling` = true downsamples under load. Server-side dynamic sampling is outside the SDK.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No remote config or kill switch.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:93"
+    ],
+    "sentry": "none",
+    "sentry_note": "No remote config or kill switch in the SDK. Android `enableExternalConfiguration` reads local files/env only; `enableBackpressureHandling` = true downsamples under load. Server-side dynamic sampling is outside the SDK.",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "PRV-a",
+  "feature": "Consent API",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: without consent handling the SDK cannot ship in the EU. Pending, granted, denied, per category. Sentry has none",
+  "effort": {
+   "size": "M",
+   "note": "setConsent with pending buffer and withdrawal deletion"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No consent API.",
+    "ours_evidence": [
+     "no code found: grep consent in sdk/browser/src"
+    ],
+    "sentry": "none",
+    "sentry_note": "No consent API. Use delayed `init`, `enabled: false`, or `close()`. | n/a",
+    "gap": "target"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No consent API.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "No consent API. `enabled` = true can be set false at init, and `close()` exists.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No consent API.",
+    "ours_evidence": [
+     "no code found (grep consent: no hits)"
+    ],
+    "sentry": "none",
+    "sentry_note": "No consent API. `enabled` = true can be set false at init, and `close()` exists.",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No consent API.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:280"
+    ],
+    "sentry": "none",
+    "sentry_note": "No consent API. `enabled` = true can be set false at init, and `close()` exists.",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "PRV-b",
+  "feature": "Masking outside replay",
+  "target": "Must",
+  "where": "all",
+  "why": "No element text, no input values",
+  "effort": {
+   "size": "S",
+   "note": "Selector and widget-name rules"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Input values never read; click text masked by default, but widget id carries class names and data-testid; URLs unsanitised.",
+    "ours_evidence": [
+     "sdk/browser/src/interactions/element.ts:30-49"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`dataCollection` (v11) for non-replay data. Replay masks by default. | **Permissive**: userInfo, cookies, headers, bodies, query params all true.",
+    "gap": "target"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Taps never read text; URLs and exception messages are not masked.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Interactions.swift:30"
+    ],
+    "sentry": "full",
+    "sentry_note": "Error screenshots and replay mask text and images by default (`screenshot` options).",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Kotlin captures no text or URLs outside replay; no masking API for telemetry because none is emitted.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ViewWalker.kt:61-66"
+    ],
+    "sentry": "full",
+    "sentry_note": "Error screenshots and replay mask text and images by default (`screenshot` options).",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "timeline.tapLabels=false removes tap labels; URLs and messages unmasked.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:252"
+    ],
+    "sentry": "full",
+    "sentry_note": "Error screenshots and replay mask text and images by default (`screenshot` options).",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PRV-c",
+  "feature": "Element-level mask and unmask",
+  "target": "Must",
+  "where": "all",
+  "why": "Web attributes, mobile view APIs",
+  "effort": {
+   "size": "S",
+   "note": "data-ouo-mask/unmask and mobile mask APIs"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "ouo-mask/ouo-unmask/ouo-block classes and selectors, not data attributes.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/rrweb.ts:10-13",
+     "sdk/browser/src/types.ts:86-109"
+    ],
+    "sentry": "full",
+    "sentry_note": "Replay `mask`, `unmask`, `block`, `unblock`, `ignore` selectors | text masked",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "ouo-mask/ouo-unmask/ouo-unmask-area identifiers and SwiftUI .ouoMask/.ouoUnmask.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15",
+     "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:55"
+    ],
+    "sentry": "full",
+    "sentry_note": "See RPL-g.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "View tag \"ouo-mask\"/\"ouo-unmask\" works; no programmatic mask(view)/unmask(view).",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:53-55",
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:98-104"
+    ],
+    "sentry": "full",
+    "sentry_note": "See RPL-g.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Screen-level exclusion and hideScreen; no element-level mask/unmask.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:86",
+     "sdk/react-native/src/types.ts:339"
+    ],
+    "sentry": "full",
+    "sentry_note": "See RPL-g.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PRV-d",
+  "feature": "URL and query sanitising",
+  "target": "Must",
+  "where": "all",
+  "why": "Ours redacts every query value by default. Sentry, Datadog and PostHog keep them. A recommended allowlist is G17",
+  "effort": {
+   "size": "S",
+   "note": "PRV-10 sanitiser shared across platforms"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No URL or query sanitising.",
+    "ours_evidence": [
+     "no code found: grep sanitize|REDACTED in sdk/browser/src"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`dataCollection.urlQueryParams` (true, false, or allow/deny lists) | true (kept)",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "URLs sent raw.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:15"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android `DataCollection.urlQueryParams`; iOS `dataCollection` gated `SDK_V10`. Replay network details strip auth headers.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No URL sanitiser (no URLs captured).",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android `DataCollection.urlQueryParams`; iOS `dataCollection` gated `SDK_V10`. Replay network details strip auth headers.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No URL or query sanitising.",
+    "ours_evidence": [
+     "sdk/react-native/src/network.ts:120"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android `DataCollection.urlQueryParams`; iOS `dataCollection` gated `SDK_V10`. Replay network details strip auth headers.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PRV-e",
+  "feature": "No PII by default",
+  "target": "Must",
+  "where": "all",
+  "why": "Sentry's JavaScript SDK v11 flipped to collect user info, IP, headers and bodies by default; Sentry mobile keeps `sendDefaultPii` off. Ours collects none",
+  "effort": {
+   "size": "S",
+   "note": "Drop install-wide user.id and device.id defaults"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "No IP or bodies, but anonymous user.id, device.id and full URLs by default.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/correlation.ts:16",
+     "sdk/browser/src/telemetry/resource.ts:30"
+    ],
+    "sentry": "full",
+    "sentry_note": "`dataCollection.userInfo` replaces `sendDefaultPii` | **true**, so IP is inferred",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "No IP, location or ad id, but device.id and anonymous user.id are sent by default.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:107"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sendDefaultPii` = false on all three (no IP or user identity sent by default). Android `DataCollection` gives granular control; iOS v10 replaces `sendDefaultPii` with `dataCollection`.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "full",
+    "ours_note": "No PII collected by default; replay masked by default.",
+    "ours_evidence": [
+     "no code found (grep enduser|location|advertis|ANDROID_ID: no hits)"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sendDefaultPii` = false on all three (no IP or user identity sent by default). Android `DataCollection` gives granular control; iOS v10 replaces `sendDefaultPii` with `dataCollection`.",
+    "gap": "none"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "No text content, bodies, IP; but labels and an install-scoped user.id by default.",
+    "ours_evidence": [
+     "sdk/react-native/src/taps.ts:7",
+     "sdk/react-native/src/session/manager.ts:537"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sendDefaultPii` = false on all three (no IP or user identity sent by default). Android `DataCollection` gives granular control; iOS v10 replaces `sendDefaultPii` with `dataCollection`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "PRV-f",
+  "feature": "`beforeSend` hook",
+  "target": "Must",
+  "where": "all",
+  "why": "Every vendor has one",
+  "effort": {
+   "size": "S",
+   "note": "beforeSend hook before persistence"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No beforeSend.",
+    "ours_evidence": [
+     "no code found: grep beforeSend in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`beforeSend`, `beforeSendSpan`, `beforeBreadcrumb`, `beforeSendLog`, `beforeSendMetric`, replay `beforeAddRecordingEvent` | none",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No beforeSend.",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "`beforeSend`, `beforeSendTransaction`, `beforeSendSpan` (iOS), `beforeSendLog`, `beforeSendMetric`, `beforeBreadcrumb`, `beforeCaptureScreenshot`. RN: the JS `beforeSend` does not apply to native-created events such as JS hang events.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No beforeSend.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`beforeSend`, `beforeSendTransaction`, `beforeSendSpan` (iOS), `beforeSendLog`, `beforeSendMetric`, `beforeBreadcrumb`, `beforeCaptureScreenshot`. RN: the JS `beforeSend` does not apply to native-created events such as JS hang events.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No beforeSend.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:280"
+    ],
+    "sentry": "full",
+    "sentry_note": "`beforeSend`, `beforeSendTransaction`, `beforeSendSpan` (iOS), `beforeSendLog`, `beforeSendMetric`, `beforeBreadcrumb`, `beforeCaptureScreenshot`. RN: the JS `beforeSend` does not apply to native-created events such as JS hang events.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "PRV-g",
+  "feature": "Global Privacy Control and Do Not Track",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: GPC is a legal opt-out in some US states. Opt-in setting (G18)",
+  "effort": {
+   "size": "S",
+   "note": "Read GPC/DNT"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No GPC/DNT handling.",
+    "ours_evidence": [
+     "no code found: grep globalPrivacyControl|doNotTrack in sdk/browser/src"
+    ],
+    "sentry": "none",
+    "sentry_note": "No Do Not Track or GPC check found in the browser SDK. | n/a",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "TRN-a",
+  "feature": "Batching",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: OTLP batches",
+  "effort": {
+   "size": "S",
+   "note": "Limits per section 8.1"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Own batcher, 64 records per request.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/batch.ts:33-87"
+    ],
+    "sentry": "full",
+    "sentry_note": "Errors sent right away. Spans buffered per trace. Logs and metrics buffered. Transport `bufferSize`. | Spans: 1000 / 5 s / 5 MB. Logs: 100 / 5 s. Metrics: 1000. Transport: 64 in flight.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "1 s / 64-record batches.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Exporter.swift:14"
+    ],
+    "sentry": "partial",
+    "sentry_note": "One envelope per event. Logs, metrics and spans are batched (*batch size/flush interval not read: uncertain*). `shutdownTimeInterval` 2 s; Android `flushTimeoutMillis` 15 s.",
+    "gap": "ahead"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Replay frames batched into 5 s / 1 MiB chunks; no telemetry batching in Kotlin.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:21-29"
+    ],
+    "sentry": "partial",
+    "sentry_note": "One envelope per event. Logs, metrics and spans are batched (*batch size/flush interval not read: uncertain*). `shutdownTimeInterval` 2 s; Android `flushTimeoutMillis` 15 s.",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "OTel batch processors (64 records, 1-2 s).",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:198",
+     "sdk/react-native/src/index.ts:219"
+    ],
+    "sentry": "partial",
+    "sentry_note": "One envelope per event. Logs, metrics and spans are batched (*batch size/flush interval not read: uncertain*). `shutdownTimeInterval` 2 s; Android `flushTimeoutMillis` 15 s.",
+    "gap": "ahead"
+   }
+  }
+ },
+ {
+  "id": "TRN-b",
+  "feature": "Offline persistence and retry",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: mobile users go offline. Datadog and PostHog web retry from memory only; Sentry's web offline queue is opt-in",
+  "effort": {
+   "size": "M",
+   "note": "Retry table, jitter, TTL, eviction order"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Retry with backoff, IndexedDB offline store drained by later pages.",
+    "ours_evidence": [
+     "sdk/browser/src/transport/delivery.ts:101-473",
+     "sdk/browser/src/transport/store.ts:226-315"
+    ],
+    "sentry": "full",
+    "sentry_note": "`makeBrowserOfflineTransport(makeFetchTransport)` | off. IndexedDB `sentry-offline`, max queue 30.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Disk outbox for telemetry and replay with retries across launches.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:30"
+    ],
+    "sentry": "full",
+    "sentry_note": "Disk cache of envelopes. `maxCacheItems` = **30** (oldest rotated out); iOS deletes envelopes older than **90 days**; Android `maxQueueSize` = 30 (in-memory queue, `QUEUE_OVERFLOW` drop). RN JS envelopes go to the native transport; fatal JS errors are persisted on Android (8.33).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "full",
+    "ours_note": "Replay outbox and open-chunk spool on disk with retry across launches (replay only).",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:8-26",
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkSpool.kt:8-17"
+    ],
+    "sentry": "full",
+    "sentry_note": "Disk cache of envelopes. `maxCacheItems` = **30** (oldest rotated out); iOS deletes envelopes older than **90 days**; Android `maxQueueSize` = 30 (in-memory queue, `QUEUE_OVERFLOW` drop). RN JS envelopes go to the native transport; fatal JS errors are persisted on Android (8.33).",
+    "gap": "none"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "AsyncStorage outbox with retries and next-launch resend; native disk queue for replay.",
+    "ours_evidence": [
+     "sdk/react-native/src/transport/outbox.ts:76"
+    ],
+    "sentry": "full",
+    "sentry_note": "Disk cache of envelopes. `maxCacheItems` = **30** (oldest rotated out); iOS deletes envelopes older than **90 days**; Android `maxQueueSize` = 30 (in-memory queue, `QUEUE_OVERFLOW` drop). RN JS envelopes go to the native transport; fatal JS errors are persisted on Android (8.33).",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "TRN-c",
+  "feature": "Delivery at page unload",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: the last seconds before a user leaves",
+  "effort": {
+   "size": "M",
+   "note": "60 KiB keepalive budget, later-page drain under Web Lock"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "keepalive within a 60 KiB budget, splitting, optional beacon, store for the rest.",
+    "ours_evidence": [
+     "sdk/browser/src/transport/keepalive.ts:7-31",
+     "sdk/browser/src/transport/delivery.ts:230-250"
+    ],
+    "sentry": "full",
+    "sentry_note": "fetch `keepalive`. `flush()` on visibilitychange\u2192hidden. | keepalive while <60 KB pending and <15 requests",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "TRN-d",
+  "feature": "Compression",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost",
+  "effort": {
+   "size": "S",
+   "note": "gzip exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "gzip with CompressionStream for bodies >= 1 KB.",
+    "ours_evidence": [
+     "sdk/browser/src/transport/gzip.ts:1-14"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Replay `useCompression` (deflate in a web worker; `workerUrl` option) | true",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "gzip on telemetry and replay.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Exporter.swift:59"
+    ],
+    "sentry": "full",
+    "sentry_note": "gzip `Content-Encoding` (iOS level -1 default; Android `GZIPOutputStream`).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "gzip for replay chunks and the RN postOtlp helper.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:47-53"
+    ],
+    "sentry": "full",
+    "sentry_note": "gzip `Content-Encoding` (iOS level -1 default; Android `GZIPOutputStream`).",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "gzip through the native module; uncompressed without it.",
+    "ours_evidence": [
+     "sdk/react-native/ios/OuoReplayModule.swift:119"
+    ],
+    "sentry": "full",
+    "sentry_note": "gzip `Content-Encoding` (iOS level -1 default; Android `GZIPOutputStream`).",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "TRN-e",
+  "feature": "Custom endpoint or proxy",
+  "target": "Must",
+  "where": "all",
+  "why": "Self-hosting: the Collector runs on the customer's domain, so a tunnel is not needed",
+  "effort": {
+   "size": "S",
+   "note": "Exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Configurable endpoint, relative same-origin proxy route, separate replayEndpoint.",
+    "ours_evidence": [
+     "sdk/browser/src/ingest.ts:47-56",
+     "sdk/browser/src/ingest.ts:115-129"
+    ],
+    "sentry": "full",
+    "sentry_note": "`tunnel: '<url>'`, or `tunnel: true` / `{path, basePath}` for a managed tunnel derived from the DSN | undefined",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Configurable endpoint and replay endpoint.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:11",
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:23"
+    ],
+    "sentry": "full",
+    "sentry_note": "DSN points anywhere; iOS custom `urlSession`; Android `proxy`, `sslSocketFactory`, custom transport factory; Spotlight for local dev. No tunnel option documented for mobile.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Configurable replay endpoint, but it must speak the custom /v1/replay/chunks API.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:10-11"
+    ],
+    "sentry": "full",
+    "sentry_note": "DSN points anywhere; iOS custom `urlSession`; Android `proxy`, `sslSocketFactory`, custom transport factory; Spotlight for local dev. No tunnel option documented for mobile.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "Any endpoint/proxy; replayEndpoint override.",
+    "ours_evidence": [
+     "sdk/react-native/src/endpoints.ts:56"
+    ],
+    "sentry": "full",
+    "sentry_note": "DSN points anywhere; iOS custom `urlSession`; Android `proxy`, `sslSocketFactory`, custom transport factory; Spotlight for local dev. No tunnel option documented for mobile.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "TRN-f",
+  "feature": "Server-driven backoff",
+  "target": "Must",
+  "where": "all",
+  "why": "OTLP retry rules",
+  "effort": {
+   "size": "S",
+   "note": "Retry-After honoured and capped"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "Retry-After honoured; exponential backoff with jitter.",
+    "ours_evidence": [
+     "sdk/browser/src/transport/retry.ts:15-22",
+     "sdk/browser/src/transport/delivery.ts:211-227"
+    ],
+    "sentry": "full",
+    "sentry_note": "Honours `X-Sentry-Rate-Limits` and `Retry-After` | 60 s fallback",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Retry-After honoured as a minimum, uncapped; no jitter.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:290"
+    ],
+    "sentry": "full",
+    "sentry_note": "Honour `X-Sentry-Rate-Limits` / 429 `Retry-After` per category (`SentryEnvelopeRateLimit`, `DefaultRateLimits`). Android `enableBackpressureHandling`.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Retry-After honoured (seconds only), no cap, no jitter.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:222-233"
+    ],
+    "sentry": "full",
+    "sentry_note": "Honour `X-Sentry-Rate-Limits` / 429 `Retry-After` per category (`SentryEnvelopeRateLimit`, `DefaultRateLimits`). Android `enableBackpressureHandling`.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Retry-After honoured; backoff without jitter, 30 s cap.",
+    "ours_evidence": [
+     "sdk/react-native/src/transport/outbox.ts:187"
+    ],
+    "sentry": "full",
+    "sentry_note": "Honour `X-Sentry-Rate-Limits` / 429 `Retry-After` per category (`SentryEnvelopeRateLimit`, `DefaultRateLimits`). Android `enableBackpressureHandling`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "TRN-g",
+  "feature": "OTLP on the wire",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: our reason to exist. None of the three vendors sends RUM as OTLP",
+  "effort": {
+   "size": "M",
+   "note": "Telemetry already OTLP; replay is not; protobuf on mobile"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Telemetry OTLP JSON; replay not OTLP.",
+    "ours_evidence": [
+     "sdk/browser/src/transport/exporter.ts:62-68",
+     "sdk/browser/src/replay/uploader.ts:35"
+    ],
+    "sentry": "none",
+    "sentry_note": "Sentry envelope format (span v2 envelopes for streamed spans). Not OTLP from the browser. | n/a",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Telemetry is OTLP/HTTP JSON; replay is not OTLP.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/OTLP.swift:40"
+    ],
+    "sentry": "none",
+    "sentry_note": "Sentry envelope format (newline-delimited JSON headers + items), not OTLP.",
+    "gap": "ahead"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "Not OTLP on the wire.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:102-115"
+    ],
+    "sentry": "none",
+    "sentry_note": "Sentry envelope format (newline-delimited JSON headers + items), not OTLP.",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "OTLP/HTTP JSON for telemetry; replay not OTLP.",
+    "ours_evidence": [
+     "sdk/react-native/src/transport/exporter.ts:44",
+     "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+    ],
+    "sentry": "none",
+    "sentry_note": "Sentry envelope format (newline-delimited JSON headers + items), not OTLP.",
+    "gap": "ahead"
+   }
+  }
+ },
+ {
+  "id": "CFG-a",
+  "feature": "One config object",
+  "target": "Must",
+  "where": "all",
+  "why": "",
+  "effort": {
+   "size": "S",
+   "note": "One config object exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "One RUMOptions object.",
+    "ours_evidence": [
+     "sdk/browser/src/types.ts:169-206"
+    ],
+    "sentry": "full",
+    "sentry_note": "`Sentry.init({dsn, ...})`, single options object | none",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "OuoConfig object for Swift and Objective-C.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:8"
+    ],
+    "sentry": "full",
+    "sentry_note": "Single options object + DSN (iOS also reads env `SENTRY_DSN`). Android `AndroidManifest.xml` meta-data (`io.sentry.*`) or `SentryAndroid.init`. RN `Sentry.init({...})`, plus optional native init from `sentry.options.json`.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "One replay config object; signals have no config; no unified SDK config.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:9-35"
+    ],
+    "sentry": "full",
+    "sentry_note": "Single options object + DSN (iOS also reads env `SENTRY_DSN`). Android `AndroidManifest.xml` meta-data (`io.sentry.*`) or `SentryAndroid.init`. RN `Sentry.init({...})`, plus optional native init from `sentry.options.json`.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "One RUMOptions object.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:280"
+    ],
+    "sentry": "full",
+    "sentry_note": "Single options object + DSN (iOS also reads env `SENTRY_DSN`). Android `AndroidManifest.xml` meta-data (`io.sentry.*`) or `SentryAndroid.init`. RN `Sentry.init({...})`, plus optional native init from `sentry.options.json`.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "CFG-b",
+  "feature": "Per-instrumentation switches",
+  "target": "Must",
+  "where": "all",
+  "why": "",
+  "effort": {
+   "size": "S",
+   "note": "instrumentations.<signal> switches"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Switches for documentLoad, interactions, softNavigations, clicks, longTasks, replay; none for errors, vitals or HTTP.",
+    "ours_evidence": [
+     "sdk/browser/src/types.ts:14-38",
+     "sdk/browser/src/types.ts:49-61",
+     "sdk/browser/src/types.ts:199-200"
+    ],
+    "sentry": "full",
+    "sentry_note": "`integrations` (array or function), `defaultIntegrations: false`, `addIntegration()` | 12 defaults",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Switches for requestEvents, lifecycleEvents, screens, taps, tapLabels, crashes, vitals; network spans cannot be turned off.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/OuoConfig.swift:39"
+    ],
+    "sentry": "full",
+    "sentry_note": "Per-feature `enable*` flags; RN `integrations` array/function.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Only mask toggles; signals are on/off by the host calling init/install.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:20-26"
+    ],
+    "sentry": "full",
+    "sentry_note": "Per-feature `enable*` flags; RN `integrations` array/function.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Switches for taps, labels, lifecycle, request events, vitals, stalls, console errors, native crashes; none for fetch/XHR spans.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:219",
+     "sdk/react-native/src/types.ts:238",
+     "sdk/react-native/src/types.ts:161"
+    ],
+    "sentry": "full",
+    "sentry_note": "Per-feature `enable*` flags; RN `integrations` array/function.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "CFG-c",
+  "feature": "Debug mode and drop counts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: the customer must see what was dropped. Sentry's client reports are the model",
+  "effort": {
+   "size": "M",
+   "note": "ouo.sdk.dropped events and self-disable"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "debug mode and deliveryStats(); no ouo.sdk.dropped events.",
+    "ours_evidence": [
+     "sdk/browser/src/logger.ts:7-16",
+     "sdk/browser/src/index.ts:413"
+    ],
+    "sentry": "full",
+    "sentry_note": "`debug`, `sendClientReports` (dropped-data outcomes), `diagnoseSdkConnectivity()`, `spotlight` | debug false. Client reports true, flushed every 60 s and on hide.",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "debug logging; no drop counts.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Attributes.swift:132"
+    ],
+    "sentry": "full",
+    "sentry_note": "`debug` = false, `diagnosticLevel`; `sendClientReports` = true (dropped-data outcomes). RN `enableNativeNagger`.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "debug flag logs replay to logcat; drop counts are internal only.",
+    "ours_evidence": [
+     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:375-385",
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:76-83"
+    ],
+    "sentry": "full",
+    "sentry_note": "`debug` = false, `diagnosticLevel`; `sendClientReports` = true (dropped-data outcomes). RN `enableNativeNagger`.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "debug flag logs decisions; drop counts not reported.",
+    "ours_evidence": [
+     "sdk/react-native/src/logger.ts:8",
+     "sdk/react-native/src/transport/outbox.ts:100"
+    ],
+    "sentry": "full",
+    "sentry_note": "`debug` = false, `diagnosticLevel`; `sendClientReports` = true (dropped-data outcomes). RN `enableNativeNagger`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "CFG-d",
+  "feature": "Service, version, environment",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: resource attributes",
+  "effort": {
+   "size": "S",
+   "note": "Exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "service.name, service.version, deployment.environment.name.",
+    "ours_evidence": [
+     "sdk/browser/src/types.ts:5-12",
+     "sdk/browser/src/telemetry/resource.ts:22-25"
+    ],
+    "sentry": "full",
+    "sentry_note": "`release`, `environment`, `dist` | release from `__SENTRY_RELEASE__` or `window.SENTRY_RELEASE`. env `production`.",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "service.name, service.version, deployment.environment.name.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:486"
+    ],
+    "sentry": "full",
+    "sentry_note": "`releaseName` defaults to bundle id@version+build (iOS); `dist`; `environment` = \"production\". Android 8.63 adds scope-level `Environment`.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No service name/version/environment in Kotlin.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`releaseName` defaults to bundle id@version+build (iOS); `dist`; `environment` = \"production\". Android 8.63 adds scope-level `Environment`.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "service.name, service.version, deployment.environment.name.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:8",
+     "sdk/react-native/src/telemetry/resource.ts:75"
+    ],
+    "sentry": "full",
+    "sentry_note": "`releaseName` defaults to bundle id@version+build (iOS); `dist`; `environment` = \"production\". Android 8.63 adds scope-level `Environment`.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "CFG-e",
+  "feature": "Loader, CDN and lazy loading",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: bundle size. Replay loaded on demand, as Sentry and PostHog do (G19)",
+  "effort": {
+   "size": "M",
+   "note": "CDN loader build"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "rrweb lazy-loaded as a separate chunk; no CDN loader snippet.",
+    "ours_evidence": [
+     "sdk/browser/src/replay/recorder.ts:125"
+    ],
+    "sentry": "full",
+    "sentry_note": "npm, CDN bundles (per-feature), Loader Script, `lazyLoadIntegration`, `feedbackAsyncIntegration` | n/a",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "CFG-f",
+  "feature": "SSR safety, workers, extensions",
+  "target": "Must",
+  "where": "W",
+  "why": "SSR safety is Must (LIF-9). Workers, extensions and micro-frontends are Later",
+  "effort": {
+   "size": "S",
+   "note": "Exists on web"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "SSR-safe inert instance (test/ssr.test.ts); workers/extensions are Later.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:94-95"
+    ],
+    "sentry": "full",
+    "sentry_note": "Browser-extension check (`skipBrowserExtensionCheck`), `webWorkerIntegration`, `moduleMetadataIntegration` for micro-frontends, SSR via meta-framework SDKs | The SDK disables itself inside extensions.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "API-a",
+  "feature": "Custom events",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: events through the Logs API",
+  "effort": {
+   "size": "S",
+   "note": "recordEvent with reserved-prefix rejection"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "addEvent(name, attrs) as an OTel event (adds ouo.event.custom).",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:391-393"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`captureMessage`, `captureEvent`. No product-analytics event API. | n/a",
+    "gap": "ahead"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "addEvent(name, attributes).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:142"
+    ],
+    "sentry": "partial",
+    "sentry_note": "No generic custom-event API; `captureMessage` + breadcrumbs + logs fill this role.",
+    "gap": "ahead"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No custom events.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "partial",
+    "sentry_note": "No generic custom-event API; `captureMessage` + breadcrumbs + logs fill this role.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "addEvent(name, attrs); no reserved-name guard, no body.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:426"
+    ],
+    "sentry": "partial",
+    "sentry_note": "No generic custom-event API; `captureMessage` + breadcrumbs + logs fill this role.",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "API-c",
+  "feature": "Custom spans",
+  "target": "Must",
+  "where": "all",
+  "why": "Through the OTel tracer provider",
+  "effort": {
+   "size": "M",
+   "note": "Through the OTel tracer provider (PERF-k)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "No span API; OTel global tracer only when the SDK registered globally.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:207"
+    ],
+    "sentry": "full",
+    "sentry_note": "`startSpan`, `startInactiveSpan`, `startSpanManual`, `withActiveSpan` | n/a",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Custom spans.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:206"
+    ],
+    "sentry": "full",
+    "sentry_note": "See PERF-k. Android `SentryTraced` idle spans (8.63).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No custom spans.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "See PERF-k. Android `SentryTraced` idle spans (8.63).",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "startSpan/withSpan.",
+    "ours_evidence": [
+     "sdk/react-native/src/tracing.ts:58"
+    ],
+    "sentry": "full",
+    "sentry_note": "See PERF-k. Android `SentryTraced` idle spans (8.63).",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "API-d",
+  "feature": "Attributes for the current view",
+  "target": "Should",
+  "where": "all",
+  "why": "Datadog's view context. Lets an app tag a page with, say, an experiment arm (G20)",
+  "effort": {
+   "size": "S",
+   "note": "View-scoped attributes"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "setRoute only; no per-view attributes.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:394-399"
+    ],
+    "sentry": "full",
+    "sentry_note": "`span.setAttribute(s)`, `getActiveSpan()`, scope `setAttribute(s)` | n/a",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No view-scoped attributes.",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "`span.setData` / scope tags; RN `sentry-span-attributes` prop on touchables.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No view attributes.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`span.setData` / scope tags; RN `sentry-span-attributes` prop on touchables.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No per-view attributes API.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:363"
+    ],
+    "sentry": "full",
+    "sentry_note": "`span.setData` / scope tags; RN `sentry-span-attributes` prop on touchables.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "API-e",
+  "feature": "OTel interop",
+  "target": "Must",
+  "where": "all",
+  "why": "Never replaces the host's providers; exposes ours",
+  "effort": {
+   "size": "M",
+   "note": "Provider access; native needs OTel SDKs"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "Does not replace host providers, but registers globally by default and does not expose its providers.",
+    "ours_evidence": [
+     "sdk/browser/src/index.ts:173",
+     "sdk/browser/src/index.ts:207-211"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Browser: W3C `traceparent` opt-in only. v11 OTel interop (`enableOpenTelemetrySetup`, `openTelemetryIntegration`) is server-only. | traceparent off",
+    "gap": "target"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No OTel interop (ADR-0016 custom encoder).",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "Android: `openTelemetryMode` = AUTO, sentry-opentelemetry bridge (JVM-focused). RN: @sentry/core v10 is OTel-based internally. W3C traceparent opt-in. No OTLP export.",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No OTel interop; README says opentelemetry-android is future work (W9 part 2).",
+    "ours_evidence": [
+     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android: `openTelemetryMode` = AUTO, sentry-opentelemetry bridge (JVM-focused). RN: @sentry/core v10 is OTel-based internally. W3C traceparent opt-in. No OTLP export.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Shares the OTel pipeline via globals; no getTracerProvider/getLoggerProvider.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:229",
+     "sdk/react-native/src/index.ts:209"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android: `openTelemetryMode` = AUTO, sentry-opentelemetry bridge (JVM-focused). RN: @sentry/core v10 is OTel-based internally. W3C traceparent opt-in. No OTLP export.",
+    "gap": "target"
+   }
+  }
+ },
+ {
+  "id": "SYM-a",
+  "feature": "Web source maps",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: a minified stack is useless. Needs a build or debug id on records (G21)",
+  "effort": {
+   "size": "S",
+   "note": "Sourcemap uploader exists (sdk/sourcemaps)"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "ouo.exception.debug_ids from bundles injected by @ouo11y/sourcemaps.",
+    "ours_evidence": [
+     "sdk/browser/src/errors/classify.ts:50-66"
+    ],
+    "sentry": "full",
+    "sentry_note": "Debug IDs injected at build time, then uploaded | Debug IDs are the default linking method",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "SYM-b",
+  "feature": "iOS dSYM",
+  "target": "Must",
+  "where": "iOS",
+  "why": "`app.build_id` on the resource",
+  "effort": {
+   "size": "M",
+   "note": "dSYM upload tool and server symbolication"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "partial",
+    "ours_note": "Frames and binary images with debug ids (ouo.crash.frames/images) for dSYM symbolication; no upload tooling here.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Exceptions.swift:157",
+     "sdk/ios/Sources/OuoSDK/Exceptions.swift:167"
+    ],
+    "sentry": "full",
+    "sentry_note": "sentry-cli `debug-files upload`, Xcode Run Script build phase, fastlane plugin; source context with `--include-sources`.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SYM-c",
+  "feature": "Android mapping and NDK symbols",
+  "target": "Must",
+  "where": "Android",
+  "why": "Same",
+  "effort": {
+   "size": "L",
+   "note": "R8 mapping and NDK symbols, server side"
+  },
+  "platforms": {
+   "android": {
+    "ours": "partial",
+    "ours_note": "JVM frames use Sentry field names so R8 mapping can be applied later; no mapping upload or NDK symbols.",
+    "ours_evidence": [
+     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:6-9"
+    ],
+    "sentry": "full",
+    "sentry_note": "Gradle plugin uploads ProGuard/R8 mappings, NDK symbols and source context.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SYM-d",
+  "feature": "RN and Hermes source maps",
+  "target": "Must",
+  "where": "RN",
+  "why": "Same",
+  "effort": {
+   "size": "M",
+   "note": "Hermes maps"
+  },
+  "platforms": {
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Normalised app:/// frames and debug-id attribute for source maps; symbolication is server-side.",
+    "ours_evidence": [
+     "sdk/react-native/src/errors/debugids.ts:1",
+     "sdk/react-native/src/errors/stack.ts:33"
+    ],
+    "sentry": "full",
+    "sentry_note": "Automatic in Xcode/Gradle builds (SDK \u22655.11.0), Hermes and JSC. Metro serializer for debug IDs (`tools/sentryMetroSerializer.ts`); Expo `withSentry` plugin; `@sentry/expo-upload-sourcemaps` and EAS build hooks.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "SYM-e",
+  "feature": "Build tooling",
+  "target": "Should",
+  "where": "all",
+  "why": "CLI, Vite and webpack plugins, Gradle, Xcode build phase, Expo plugin. A tooling spec, not the SDK spec",
+  "effort": {
+   "size": "M",
+   "note": "Bundler plugins"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "CLI (inject and upload); no Vite/webpack plugins seen.",
+    "ours_evidence": [
+     "sdk/sourcemaps/package.json:2-4"
+    ],
+    "sentry": "full",
+    "sentry_note": "`sentry-cli`, `@sentry/wizard`, Vite/webpack/Rollup/esbuild plugins (also add component annotation and module metadata) | n/a",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No build tooling in sdk/ios.",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "sentry-cli 3.x, wizard (`@sentry/wizard`), Gradle plugin 6.26.0, Expo plugin.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No build tooling (Gradle plugin) for uploads.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "sentry-cli 3.x, wizard (`@sentry/wizard`), Gradle plugin 6.26.0, Expo plugin.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No upload tooling in the package.",
+    "ours_evidence": [
+     "sdk/react-native/package.json:51"
+    ],
+    "sentry": "full",
+    "sentry_note": "sentry-cli 3.x, wizard (`@sentry/wizard`), Gradle plugin 6.26.0, Expo plugin.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "FWK-a",
+  "feature": "React",
+  "target": "Must",
+  "where": "W",
+  "why": "Error boundary and router names",
+  "effort": {
+   "size": "S",
+   "note": "React entry exists"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "OuoErrorBoundary, useOuoRoute, routeTemplate.",
+    "ours_evidence": [
+     "sdk/browser/src/react/index.ts:38-97"
+    ],
+    "sentry": "full",
+    "sentry_note": "`@sentry/react`: ErrorBoundary, Profiler, `reactRouterBrowserTracingIntegration` (new `@sentry/react/react-router` entry) | n/a",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "FWK-b",
+  "feature": "Next.js",
+  "target": "Should",
+  "where": "W",
+  "why": "The most used React meta-framework",
+  "effort": {
+   "size": "M",
+   "note": "Next.js integration"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No Next.js integration (SSR-safe only).",
+    "ours_evidence": [
+     "no code found: grep next in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`@sentry/nextjs`, nuxt, sveltekit, remix, react-router, astro, solidstart, tanstack | n/a",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "FWK-d",
+  "feature": "SwiftUI and UIKit",
+  "target": "Must",
+  "where": "iOS",
+  "why": "",
+  "effort": {
+   "size": "M",
+   "note": "SwiftUI modifiers"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "full",
+    "ours_note": "UIKit automatic, SwiftUI modifiers, Objective-C surface.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:11",
+     "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:9"
+    ],
+    "sentry": "full",
+    "sentry_note": "SwiftUI `SentryTracedView`, replay modifiers, `sentryFeedback(isPresented:)`; UIKit swizzling.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "FWK-e",
+  "feature": "Compose and OkHttp",
+  "target": "Must",
+  "where": "Android",
+  "why": "",
+  "effort": {
+   "size": "M",
+   "note": "Compose and OkHttp"
+  },
+  "platforms": {
+   "android": {
+    "ours": "partial",
+    "ours_note": "Compose masked whole in replay; no OkHttp instrumentation.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:62-70"
+    ],
+    "sentry": "full",
+    "sentry_note": "Compose, OkHttp, Apollo, Ktor, SQLite/Room, Timber, Fragment, Navigation, LaunchDarkly, OpenFeature.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "FWK-f",
+  "feature": "React Native and Expo",
+  "target": "Must",
+  "where": "RN",
+  "why": "Expo config plugin",
+  "effort": {
+   "size": "S",
+   "note": "Expo module exists"
+  },
+  "platforms": {
+   "rn": {
+    "ours": "full",
+    "ours_note": "Expo module plus RUMProvider and react-navigation helper; bare RN needs expo-modules-core.",
+    "ours_evidence": [
+     "sdk/react-native/expo-module.config.json",
+     "sdk/react-native/src/provider.ts:25"
+    ],
+    "sentry": "full",
+    "sentry_note": "Expo: config plugin, `expoContext`, `expoConstants`, `expoUpdatesListener`, Expo Router, expo-image/asset.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "REL-a",
+  "feature": "Release tagging",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `service.version`, `app.build_id`",
+  "effort": {
+   "size": "S",
+   "note": "service.version and app.build_id"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "service.version on resource and every record.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/resource.ts:24",
+     "sdk/browser/src/telemetry/correlation.ts:19"
+    ],
+    "sentry": "full",
+    "sentry_note": "`release` option or bundler-injected release | auto when the plugin is used",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "service.version on resource and records.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:487"
+    ],
+    "sentry": "full",
+    "sentry_note": "`release`, `dist`; Android avoids sending the whole release as dist (8.63).",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No release tagging in Kotlin.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`release`, `dist`; Android avoids sending the whole release as dist (8.63).",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "service.version on resource and every record.",
+    "ours_evidence": [
+     "sdk/react-native/src/telemetry/correlation.ts:16",
+     "sdk/react-native/src/telemetry/resource.ts:76"
+    ],
+    "sentry": "full",
+    "sentry_note": "`release`, `dist`; Android avoids sending the whole release as dist (8.63).",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "REL-b",
+  "feature": "Crash-free sessions and users",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: our session health. Derived on the server from `session.start` and crashes; users need USR-d",
+  "effort": {
+   "size": "S",
+   "note": "Computed at the edge from session and crash events"
+  },
+  "platforms": {
+   "web": {
+    "ours": "partial",
+    "ours_note": "session.start and fatal exceptions exist; no bypass for unsampled sessions, user id is a random anonymous id.",
+    "ours_evidence": [
+     "sdk/browser/src/session/manager.ts:389-399",
+     "sdk/browser/src/errors/classify.ts:37-43"
+    ],
+    "sentry": "full",
+    "sentry_note": "Crash-free sessions and users from browserSession | on",
+    "gap": "medium"
+   },
+   "ios": {
+    "ours": "partial",
+    "ours_note": "session.end reasons crash/terminated support crash-free sessions; crash records are not app.crash.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/SessionManager.swift:5"
+    ],
+    "sentry": "full",
+    "sentry_note": "Crash-free sessions/users from health sessions (SES-a); Android tracks ANR rate.",
+    "gap": "medium"
+   },
+   "android": {
+    "ours": "partial",
+    "ours_note": "Crash reports carry the session id so crash-free sessions can be derived downstream; no users.",
+    "ours_evidence": [
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171"
+    ],
+    "sentry": "full",
+    "sentry_note": "Crash-free sessions/users from health sessions (SES-a); Android tracks ANR rate.",
+    "gap": "medium"
+   },
+   "rn": {
+    "ours": "partial",
+    "ours_note": "Crashed sessions identifiable (end_reason crash, fatal exceptions); no app.crash.",
+    "ours_evidence": [
+     "sdk/react-native/src/session/manager.ts:309",
+     "sdk/react-native/src/crash.ts:195"
+    ],
+    "sentry": "full",
+    "sentry_note": "Crash-free sessions/users from health sessions (SES-a); Android tracks ANR rate.",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "REL-d",
+  "feature": "Version adoption",
+  "target": "Should",
+  "where": "all",
+  "why": "Server query over `service.version`. No SDK work",
+  "effort": {
+   "size": "S",
+   "note": "Server side"
+  },
+  "platforms": {
+   "web": {
+    "ours": "full",
+    "ours_note": "service.version present; server query.",
+    "ours_evidence": [
+     "sdk/browser/src/telemetry/resource.ts:24"
+    ],
+    "sentry": "full",
+    "sentry_note": "Adoption: share of sessions in the last 24 h | n/a",
+    "gap": "none"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "service.version on every record, session.end names the version it ran on.",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Core.swift:378"
+    ],
+    "sentry": "full",
+    "sentry_note": "Server-side from session `release`.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No version reporting.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Server-side from session `release`.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "service.version per record allows adoption views.",
+    "ours_evidence": [
+     "sdk/react-native/src/telemetry/resource.ts:76"
+    ],
+    "sentry": "full",
+    "sentry_note": "Server-side from session `release`.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "FF-a",
+  "feature": "Flag evaluations on errors and sessions",
+  "target": "Should",
+  "where": "all",
+  "why": "OTel: a `feature_flag.evaluation` event exists in semconv, and OpenFeature publishes OTel hooks. Story: \"broke after the flag flipped\" (G22)",
+  "effort": {
+   "size": "S",
+   "note": "Attribute on records"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No flag evaluations.",
+    "ours_evidence": [
+     "no code found: grep feature_flag in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`featureFlagsIntegration` (manual) or a provider integration. Flags attached to errors and spans. | off",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No feature flag support.",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "Flag evaluations buffered on the scope; `maxFeatureFlags` = 100. RN `featureFlags` integration.",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No flag evaluations.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Flag evaluations buffered on the scope; `maxFeatureFlags` = 100. RN `featureFlags` integration.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No feature-flag attributes.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:280"
+    ],
+    "sentry": "full",
+    "sentry_note": "Flag evaluations buffered on the scope; `maxFeatureFlags` = 100. RN `featureFlags` integration.",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "FF-c",
+  "feature": "OpenFeature integration",
+  "target": "Should",
+  "where": "all",
+  "why": "Same as FF-a. One hook covers most providers",
+  "effort": {
+   "size": "M",
+   "note": "OpenFeature hook per platform"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No OpenFeature hook.",
+    "ours_evidence": [
+     "no code found: grep openfeature in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`openFeatureIntegration`, `launchDarklyIntegration`, `statsigIntegration`, `unleashIntegration`, `growthbookIntegration` | off",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "none",
+    "ours_note": "No OpenFeature hook.",
+    "ours_evidence": [],
+    "sentry": "none",
+    "sentry_note": "Android: sentry-openfeature, sentry-launchdarkly-android. RN: *JS OpenFeature/LaunchDarkly integrations from @sentry/core may apply: uncertain.*",
+    "gap": "target"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No OpenFeature.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "Android: sentry-openfeature, sentry-launchdarkly-android. RN: *JS OpenFeature/LaunchDarkly integrations from @sentry/core may apply: uncertain.*",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "No OpenFeature hook.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:280"
+    ],
+    "sentry": "partial",
+    "sentry_note": "Android: sentry-openfeature, sentry-launchdarkly-android. RN: *JS OpenFeature/LaunchDarkly integrations from @sentry/core may apply: uncertain.*",
+    "gap": "medium"
+   }
+  }
+ },
+ {
+  "id": "FB-b",
+  "feature": "Feedback API",
+  "target": "Should",
+  "where": "all",
+  "why": "Story: the user's own words, joined to replay. Can trigger the replay buffer (G23)",
+  "effort": {
+   "size": "M",
+   "note": "Feedback API plus UI"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No feedback API.",
+    "ours_evidence": [
+     "no code found: grep feedback in sdk/browser/src"
+    ],
+    "sentry": "full",
+    "sentry_note": "`captureFeedback`, `sendFeedback` (v11 always rejects with an `Error`) | n/a",
+    "gap": "large"
+   },
+   "ios": {
+    "ours": "full",
+    "ours_note": "Ouo.feedback(message, contact, screenshot).",
+    "ours_evidence": [
+     "sdk/ios/Sources/OuoSDK/Ouo.swift:192"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.capture(feedback:)`, `Sentry.feedback().capture(Feedback)`, `Sentry.captureFeedback(...)`, each with `associatedEventId` + attachments.",
+    "gap": "none"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "No feedback API.",
+    "ours_evidence": [
+     "no code found"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.capture(feedback:)`, `Sentry.feedback().capture(Feedback)`, `Sentry.captureFeedback(...)`, each with `associatedEventId` + attachments.",
+    "gap": "large"
+   },
+   "rn": {
+    "ours": "full",
+    "ours_note": "rum.feedback({message, contact, screenshot}) as `feedback` event.",
+    "ours_evidence": [
+     "sdk/react-native/src/index.ts:458",
+     "sdk/react-native/src/feedback.ts:12"
+    ],
+    "sentry": "full",
+    "sentry_note": "`SentrySDK.capture(feedback:)`, `Sentry.feedback().capture(Feedback)`, `Sentry.captureFeedback(...)`, each with `associatedEventId` + attachments.",
+    "gap": "none"
+   }
+  }
+ },
+ {
+  "id": "OTH-d",
+  "feature": "WebView and hybrid apps",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: the web SDK inside a WebView joins the native session (G24)",
+  "effort": {
+   "size": "M",
+   "note": "WebView bridge"
+  },
+  "platforms": {
+   "ios": {
+    "ours": "none",
+    "ours_note": "No WebView bridge (web views are only masked in replay).",
+    "ours_evidence": [],
+    "sentry": "full",
+    "sentry_note": "Trace propagation into a WKWebView: `SentryWebViewTracing.addTracePropagation(to:)` with `allowedHosts` (9.33). RN `sentryWebViewProps` (8.32).",
+    "gap": "large"
+   },
+   "android": {
+    "ours": "none",
+    "ours_note": "WebViews are masked whole; no hybrid bridge.",
+    "ours_evidence": [
+     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:78"
+    ],
+    "sentry": "none",
+    "sentry_note": "Trace propagation into a WKWebView: `SentryWebViewTracing.addTracePropagation(to:)` with `allowedHosts` (9.33). RN `sentryWebViewProps` (8.32).",
+    "gap": "target"
+   },
+   "rn": {
+    "ours": "none",
+    "ours_note": "WebViews only masked in replay; no hybrid bridge.",
+    "ours_evidence": [
+     "sdk/react-native/src/types.ts:76"
+    ],
+    "sentry": "full",
+    "sentry_note": "Trace propagation into a WKWebView: `SentryWebViewTracing.addTracePropagation(to:)` with `allowedHosts` (9.33). RN `sentryWebViewProps` (8.32).",
+    "gap": "large"
+   }
+  }
+ },
+ {
+  "id": "OTH-h",
+  "feature": "Bot and crawler filtering",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: crawlers create sessions, because `init` in a visible page counts as activity (G25)",
+  "effort": {
+   "size": "S",
+   "note": "UA heuristics"
+  },
+  "platforms": {
+   "web": {
+    "ours": "none",
+    "ours_note": "No bot filtering.",
+    "ours_evidence": [
+     "no code found: grep bot|crawler|webdriver in sdk/browser/src"
+    ],
+    "sentry": "partial",
+    "sentry_note": "`isBotUserAgent()` (see CFG-x1) skips idle timers and observers for crawlers | used in tracing code",
+    "gap": "medium"
+   }
+  }
+ }
+]
