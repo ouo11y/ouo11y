@@ -1,0 +1,23 @@
+{
+  "name": "sentry-web-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Step 6 research demo: exercises every @sentry/browser 11.11.0 feature against self-hosted Sentry through sentrytap",
+  "scripts": {
+    "dev": "vite --port 4521 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 4521 --strictPort",
+    "size": "node scripts/size.mjs"
+  },
+  "dependencies": {
+    "@sentry/browser": "11.11.0",
+    "@sentry/react": "11.11.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "5.1.0",
+    "vite": "7.2.2"
+  }
+}

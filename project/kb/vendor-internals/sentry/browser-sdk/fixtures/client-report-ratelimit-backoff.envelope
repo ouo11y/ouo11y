@@ -1,0 +1,3 @@
+{}
+{"type":"client_report"}
+{"timestamp":1794281901.452,"discarded_events":[{"reason":"ratelimit_backoff","category":"span","quantity":10},{"reason":"ratelimit_backoff","category":"replay","quantity":4},{"reason":"ratelimit_backoff","category":"error","quantity":3}]}

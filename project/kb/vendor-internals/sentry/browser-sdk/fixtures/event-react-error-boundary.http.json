@@ -1,0 +1,55 @@
+{
+ "request": {
+  "method": "POST",
+  "path": "/api/4/envelope/",
+  "query": "sentry_version=7&sentry_key=00000000000000000000000000000000&sentry_client=sentry.javascript.react%2F11.11.0",
+  "headers": {
+   "Content-Length": [
+    "5931"
+   ],
+   "Content-Type": [
+    "text/plain;charset=UTF-8"
+   ],
+   "Origin": [
+    "http://127.0.0.1:4521"
+   ],
+   "Sec-Fetch-Mode": [
+    "cors"
+   ],
+   "Sec-Fetch-Site": [
+    "cross-site"
+   ],
+   "User-Agent": [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+   ]
+  },
+  "body_len": 5931
+ },
+ "response": {
+  "status": 200,
+  "headers": {
+   "Access-Control-Allow-Origin": [
+    "*"
+   ],
+   "Access-Control-Expose-Headers": [
+    "x-sentry-error,x-sentry-rate-limits,retry-after"
+   ],
+   "Content-Length": [
+    "41"
+   ],
+   "Content-Type": [
+    "application/json"
+   ],
+   "Cross-Origin-Resource-Policy": [
+    "cross-origin"
+   ],
+   "Server": [
+    "nginx"
+   ],
+   "Vary": [
+    "origin, access-control-request-method, access-control-request-headers"
+   ]
+  },
+  "body": "{\"id\":\"734a9ebbcb734dc5966553e0c3702645\"}"
+ }
+}

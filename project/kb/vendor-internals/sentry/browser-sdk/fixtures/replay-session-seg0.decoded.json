@@ -1,0 +1,936 @@
+{
+ "envelope_header": {
+  "event_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+  "sent_at": "2026-11-10T03:35:37.554Z",
+  "sdk": {
+   "name": "sentry.javascript.react",
+   "version": "11.11.0"
+  }
+ },
+ "items": [
+  {
+   "item_header": {
+    "type": "replay_event"
+   },
+   "payload": {
+    "type": "replay_event",
+    "replay_start_timestamp": 1794281732.3313,
+    "timestamp": 1794281737.551,
+    "error_ids": [],
+    "trace_ids": [
+     "e62f290989b94cc58202e3fa6ac63131"
+    ],
+    "segment_names": [
+     "Pageload"
+    ],
+    "urls": [
+     "http://127.0.0.1:4521/"
+    ],
+    "replay_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+    "segment_id": 0,
+    "replay_type": "session",
+    "request": {
+     "url": "http://127.0.0.1:4521/",
+     "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+     }
+    },
+    "contexts": {
+     "profile": {
+      "profiler_id": "af575ee410db4e8288cf628e99e72d9f"
+     },
+     "react": {
+      "version": "19.2.0"
+     },
+     "culture": {
+      "locale": "en-US",
+      "timezone": "Etc/Redacted",
+      "calendar": "gregory"
+     }
+    },
+    "event_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+    "environment": "step6",
+    "release": "sentry-web-demo@1.0.0",
+    "sdk": {
+     "integrations": [
+      "EventFilters",
+      "FunctionToString",
+      "ConversationId",
+      "BrowserApiErrors",
+      "Breadcrumbs",
+      "Console",
+      "GlobalHandlers",
+      "LinkedErrors",
+      "Dedupe",
+      "HttpContext",
+      "CultureContext",
+      "BrowserSession",
+      "BrowserTracing",
+      "Replay",
+      "Feedback",
+      "BrowserProfiling",
+      "HttpClient",
+      "ConsoleLogs",
+      "SpanStreaming",
+      "WebVitals"
+     ],
+     "name": "sentry.javascript.react",
+     "version": "11.11.0",
+     "settings": {
+      "infer_ip": "auto"
+     }
+    },
+    "tags": {
+     "demo": "step6"
+    },
+    "user": {
+     "id": "demo-user-1"
+    },
+    "transaction": "/",
+    "platform": "javascript"
+   }
+  },
+  {
+   "item_header": {
+    "type": "replay_recording",
+    "length": 2729
+   },
+   "recording_header": {
+    "segment_id": 0
+   },
+   "compression": "zlib",
+   "first_bytes_hex": "789c",
+   "events": [
+    {
+     "type": 4,
+     "data": {
+      "href": "http://127.0.0.1:4521/",
+      "width": 0,
+      "height": 86
+     },
+     "timestamp": 1794281732507
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281732507,
+     "data": {
+      "tag": "options",
+      "payload": {
+       "shouldRecordCanvas": false,
+       "sessionSampleRate": 1,
+       "errorSampleRate": 1,
+       "useCompressionOption": true,
+       "blockAllMedia": true,
+       "maskAllText": true,
+       "maskAllInputs": true,
+       "useCompression": false,
+       "networkDetailHasUrls": true,
+       "networkCaptureBodies": true,
+       "networkRequestHasHeaders": true,
+       "networkResponseHasHeaders": true
+      }
+     }
+    },
+    {
+     "type": 2,
+     "data": {
+      "node": {
+       "type": 0,
+       "childNodes": [
+        {
+         "type": 1,
+         "name": "html",
+         "publicId": "",
+         "systemId": "",
+         "id": 2
+        },
+        {
+         "type": 2,
+         "tagName": "html",
+         "attributes": {
+          "lang": "en"
+         },
+         "childNodes": [
+          {
+           "type": 2,
+           "tagName": "head",
+           "attributes": {},
+           "childNodes": [
+            {
+             "type": 2,
+             "tagName": "meta",
+             "attributes": {
+              "charset": "UTF-8"
+             },
+             "childNodes": [],
+             "id": 5
+            },
+            {
+             "type": 2,
+             "tagName": "meta",
+             "attributes": {
+              "name": "viewport",
+              "content": "width=device-width, initial-scale=1.0"
+             },
+             "childNodes": [],
+             "id": 6
+            },
+            {
+             "type": 2,
+             "tagName": "title",
+             "attributes": {},
+             "childNodes": [
+              {
+               "type": 3,
+               "textContent": "********** ****",
+               "id": 8
+              }
+             ],
+             "id": 7
+            }
+           ],
+           "id": 4
+          },
+          {
+           "type": 3,
+           "textContent": "\n  ",
+           "id": 9
+          },
+          {
+           "type": 2,
+           "tagName": "body",
+           "attributes": {},
+           "childNodes": [
+            {
+             "type": 3,
+             "textContent": "\n    ",
+             "id": 11
+            },
+            {
+             "type": 2,
+             "tagName": "div",
+             "attributes": {
+              "id": "root"
+             },
+             "childNodes": [],
+             "id": 12
+            },
+            {
+             "type": 3,
+             "textContent": "\n    ",
+             "id": 13
+            },
+            {
+             "type": 2,
+             "tagName": "canvas",
+             "attributes": {
+              "id": "cv",
+              "width": "300",
+              "height": "80",
+              "style": "border:1px solid #888"
+             },
+             "childNodes": [],
+             "id": 14
+            },
+            {
+             "type": 3,
+             "textContent": "\n  \n\n",
+             "id": 15
+            },
+            {
+             "type": 2,
+             "tagName": "div",
+             "attributes": {
+              "id": "sentry-feedback"
+             },
+             "childNodes": [
+              {
+               "type": 2,
+               "tagName": "style",
+               "attributes": {},
+               "childNodes": [
+                {
+                 "type": 3,
+                 "textContent": ":host { --font-family: system-ui, 'Helvetica Neue', Arial, sans-serif; --font-size: 14px; --z-index: 100000; --page-margin: 16px; --inset: auto 0 0 auto; --actor-inset: var(--inset); font-family: var(--font-family); font-size: var(--font-size); --foreground: #2b2233; --background: #ffffff; --accent-foreground: white; --accent-background: rgba(88, 74, 192, 1); --success-color: #268d75; --error-color: #df3338; --border: 1.5px solid rgba(41, 35, 47, 0.13); --box-shadow: 0px 4px 24px 0px rgba(43, 34, 51, 0.12); --outline: 1px auto var(--accent-background); --interactive-filter: brightness(95%); }@media (prefers-color-scheme: dark) {\n  :host { color-scheme: dark only; --foreground: #ebe6ef; --background: #29232f; --accent-foreground: white; --accent-background: rgba(88, 74, 192, 1); --success-color: #2da98c; --error-color: #f55459; --border: 1.5px solid rgba(235, 230, 239, 0.15); --box-shadow: 0px 4px 24px 0px rgba(43, 34, 51, 0.12); --outline: 1px auto var(--accent-background); --interactive-filter: brightness(150%); }\n}",
+                 "isStyle": true,
+                 "id": 18
+                }
+               ],
+               "id": 17,
+               "isShadow": true
+              },
+              {
+               "type": 2,
+               "tagName": "style",
+               "attributes": {},
+               "childNodes": [
+                {
+                 "type": 3,
+                 "textContent": ".widget__actor { position: fixed; z-index: var(--z-index); margin: var(--page-margin); inset: var(--actor-inset); display: flex; align-items: center; gap: 8px; padding: 16px; font-family: inherit; font-size: var(--font-size); font-weight: 600; line-height: 1.14em; text-decoration: none; background: var(--actor-background, var(--background)); border-radius: var(--actor-border-radius, 1.7em/50%); border: var(--actor-border, var(--border)); box-shadow: var(--actor-box-shadow, var(--box-shadow)); color: var(--actor-color, var(--foreground)); fill: var(--actor-color, var(--foreground)); cursor: pointer; opacity: 1; transition: transform 0.2s ease-in-out; transform: translate(0px, 0px) scale(1); }.widget__actor[aria-hidden=\"true\"] { opacity: 0; pointer-events: none; visibility: hidden; transform: translate(0px, 16px) scale(0.98); }.widget__actor:hover { background: var(--actor-hover-background, var(--background)); filter: var(--interactive-filter); }.widget__actor svg { width: 1.14em; height: 1.14em; }@media (max-width: 600px) {\n  .widget__actor span { display: none; }\n}",
+                 "isStyle": true,
+                 "id": 20
+                }
+               ],
+               "id": 19,
+               "isShadow": true
+              },
+              {
+               "type": 2,
+               "tagName": "button",
+               "attributes": {
+                "type": "button",
+                "class": "widget__actor",
+                "aria-hidden": "false",
+                "aria-label": "****** * ***"
+               },
+               "childNodes": [
+                {
+                 "type": 2,
+                 "tagName": "svg",
+                 "attributes": {
+                  "rr_width": "15.953125px",
+                  "rr_height": "15.953125px"
+                 },
+                 "childNodes": [],
+                 "isSVG": true,
+                 "id": 22
+                },
+                {
+                 "type": 2,
+                 "tagName": "span",
+                 "attributes": {},
+                 "childNodes": [
+                  {
+                   "type": 3,
+                   "textContent": "****** * ***",
+                   "id": 24
+                  }
+                 ],
+                 "id": 23
+                }
+               ],
+               "id": 21,
+               "isShadow": true
+              }
+             ],
+             "id": 16,
+             "isShadowHost": true
+            }
+           ],
+           "id": 10
+          }
+         ],
+         "id": 3
+        }
+       ],
+       "id": 1
+      },
+      "initialOffset": {
+       "left": 0,
+       "top": 0
+      }
+     },
+     "timestamp": 1794281732515
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 0,
+      "texts": [],
+      "attributes": [],
+      "removes": [],
+      "adds": [
+       {
+        "parentId": 12,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "main",
+         "attributes": {
+          "style": "font-family: system-ui; padding: 16px;"
+         },
+         "childNodes": [],
+         "id": 25
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "pre",
+         "attributes": {
+          "id": "out"
+         },
+         "childNodes": [],
+         "id": 26
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 26,
+        "node": {
+         "type": 2,
+         "tagName": "div",
+         "attributes": {
+          "style": "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"
+         },
+         "childNodes": [],
+         "id": 27
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 27,
+        "node": {
+         "type": 2,
+         "tagName": "input",
+         "attributes": {
+          "id": "secret",
+          "placeholder": "**** ****"
+         },
+         "childNodes": [],
+         "id": 28
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 28,
+        "node": {
+         "type": 2,
+         "tagName": "p",
+         "attributes": {},
+         "childNodes": [],
+         "id": 29
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 29,
+        "node": {
+         "type": 2,
+         "tagName": "h1",
+         "attributes": {},
+         "childNodes": [],
+         "id": 30
+        }
+       },
+       {
+        "parentId": 30,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********** **** ************** ********",
+         "id": 31
+        }
+       },
+       {
+        "parentId": 29,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******* **** **** ****** ***** ** ********",
+         "id": 32
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-boom"
+         },
+         "childNodes": [],
+         "id": 33
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 33,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-replayFlush"
+         },
+         "childNodes": [],
+         "id": 34
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 34,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-replayId"
+         },
+         "childNodes": [],
+         "id": 35
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 35,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-flush"
+         },
+         "childNodes": [],
+         "id": 36
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 36,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-drawCanvas"
+         },
+         "childNodes": [],
+         "id": 37
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 37,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-typeText"
+         },
+         "childNodes": [],
+         "id": 38
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 38,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-dropMe"
+         },
+         "childNodes": [],
+         "id": 39
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 39,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-feedback"
+         },
+         "childNodes": [],
+         "id": 40
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 40,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-metrics"
+         },
+         "childNodes": [],
+         "id": 41
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 41,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-logs"
+         },
+         "childNodes": [],
+         "id": 42
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 42,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-manualSpan"
+         },
+         "childNodes": [],
+         "id": 43
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 43,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-navigate"
+         },
+         "childNodes": [],
+         "id": 44
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 44,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-fetchFail"
+         },
+         "childNodes": [],
+         "id": 45
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 45,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-fetchOk"
+         },
+         "childNodes": [],
+         "id": 46
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 46,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-attachment"
+         },
+         "childNodes": [],
+         "id": 47
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 47,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-linked"
+         },
+         "childNodes": [],
+         "id": 48
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 48,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-message"
+         },
+         "childNodes": [],
+         "id": 49
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 49,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-rejection"
+         },
+         "childNodes": [],
+         "id": 50
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 50,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-thrown"
+         },
+         "childNodes": [],
+         "id": 51
+        }
+       },
+       {
+        "parentId": 51,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 52
+        }
+       },
+       {
+        "parentId": 50,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*********",
+         "id": 53
+        }
+       },
+       {
+        "parentId": 49,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 54
+        }
+       },
+       {
+        "parentId": 48,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 55
+        }
+       },
+       {
+        "parentId": 47,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 56
+        }
+       },
+       {
+        "parentId": 46,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 57
+        }
+       },
+       {
+        "parentId": 45,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*********",
+         "id": 58
+        }
+       },
+       {
+        "parentId": 44,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 59
+        }
+       },
+       {
+        "parentId": 43,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 60
+        }
+       },
+       {
+        "parentId": 42,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "****",
+         "id": 61
+        }
+       },
+       {
+        "parentId": 41,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 62
+        }
+       },
+       {
+        "parentId": 40,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 63
+        }
+       },
+       {
+        "parentId": 39,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 64
+        }
+       },
+       {
+        "parentId": 38,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 65
+        }
+       },
+       {
+        "parentId": 37,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 66
+        }
+       },
+       {
+        "parentId": 36,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*****",
+         "id": 67
+        }
+       },
+       {
+        "parentId": 35,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 68
+        }
+       },
+       {
+        "parentId": 34,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "***********",
+         "id": 69
+        }
+       },
+       {
+        "parentId": 33,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "***** ****** *****",
+         "id": 70
+        }
+       }
+      ]
+     },
+     "timestamp": 1794281732531
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 5,
+      "text": "",
+      "isChecked": false,
+      "id": 28
+     },
+     "timestamp": 1794281732546
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281732.3313,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "navigation.navigate",
+       "description": "http://127.0.0.1:4521/",
+       "startTimestamp": 1794281732.3313,
+       "endTimestamp": 1794281732.5242,
+       "data": {
+        "size": 710,
+        "decodedBodySize": 410,
+        "encodedBodySize": 410,
+        "duration": 193,
+        "domInteractive": 91.79999995231628,
+        "domContentLoadedEventStart": 192.59999990463257,
+        "domContentLoadedEventEnd": 192.69999980926514,
+        "loadEventStart": 192.89999985694885,
+        "loadEventEnd": 193,
+        "domComplete": 192.89999985694885,
+        "redirectCount": 0
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281732.4144,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.script",
+       "description": "http://127.0.0.1:4521/assets/index-Crrx_OTW.js",
+       "startTimestamp": 1794281732.4144,
+       "endTimestamp": 1794281732.451,
+       "data": {
+        "size": 220010,
+        "statusCode": 200,
+        "decodedBodySize": 659233,
+        "encodedBodySize": 219710
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281737.55,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "memory",
+       "description": "memory",
+       "startTimestamp": 1794281737.55,
+       "endTimestamp": 1794281737.55,
+       "data": {
+        "memory": {
+         "jsHeapSizeLimit": 4395630592,
+         "totalJSHeapSize": 8161049,
+         "usedJSHeapSize": 4956925
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

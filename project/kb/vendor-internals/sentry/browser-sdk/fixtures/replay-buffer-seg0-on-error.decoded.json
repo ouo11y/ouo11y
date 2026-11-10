@@ -1,0 +1,1100 @@
+{
+ "envelope_header": {
+  "event_id": "bf65b696dc80413ab4d37083262c80b5",
+  "sent_at": "2026-11-10T03:39:04.048Z",
+  "sdk": {
+   "name": "sentry.javascript.react",
+   "version": "11.11.0"
+  }
+ },
+ "items": [
+  {
+   "item_header": {
+    "type": "replay_event"
+   },
+   "payload": {
+    "type": "replay_event",
+    "replay_start_timestamp": 1794281920.0878,
+    "timestamp": 1794281944.045,
+    "error_ids": [
+     "b71c48c7c9254cffb7578a444aa6450f"
+    ],
+    "trace_ids": [
+     "97c38d399bc74572a0925e916022d48a"
+    ],
+    "segment_names": [
+     "Pageload",
+     "GET 127.0.0.1"
+    ],
+    "urls": [
+     "http://127.0.0.1:4521/?replay=buffer"
+    ],
+    "replay_id": "bf65b696dc80413ab4d37083262c80b5",
+    "segment_id": 0,
+    "replay_type": "buffer",
+    "request": {
+     "url": "http://127.0.0.1:4521/?replay=buffer",
+     "headers": {
+      "Referer": "http://127.0.0.1:4521/?tap=4523",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+     }
+    },
+    "contexts": {
+     "profile": {
+      "profiler_id": "d6f717d07b884ff29acf1d361a13a445"
+     },
+     "react": {
+      "version": "19.2.0"
+     },
+     "culture": {
+      "locale": "en-US",
+      "timezone": "Etc/Redacted",
+      "calendar": "gregory"
+     }
+    },
+    "event_id": "bf65b696dc80413ab4d37083262c80b5",
+    "environment": "step6",
+    "release": "sentry-web-demo@1.0.0",
+    "sdk": {
+     "integrations": [
+      "EventFilters",
+      "FunctionToString",
+      "ConversationId",
+      "BrowserApiErrors",
+      "Breadcrumbs",
+      "Console",
+      "GlobalHandlers",
+      "LinkedErrors",
+      "Dedupe",
+      "HttpContext",
+      "CultureContext",
+      "BrowserSession",
+      "BrowserTracing",
+      "Replay",
+      "Feedback",
+      "BrowserProfiling",
+      "HttpClient",
+      "ConsoleLogs",
+      "SpanStreaming",
+      "WebVitals"
+     ],
+     "name": "sentry.javascript.react",
+     "version": "11.11.0",
+     "settings": {
+      "infer_ip": "auto"
+     }
+    },
+    "tags": {
+     "demo": "step6"
+    },
+    "user": {
+     "id": "demo-user-1"
+    },
+    "transaction": "/",
+    "platform": "javascript"
+   }
+  },
+  {
+   "item_header": {
+    "type": "replay_recording",
+    "length": 3240
+   },
+   "recording_header": {
+    "segment_id": 0
+   },
+   "compression": "zlib",
+   "first_bytes_hex": "789c",
+   "events": [
+    {
+     "type": 4,
+     "data": {
+      "href": "http://127.0.0.1:4521/?replay=buffer",
+      "width": 1024,
+      "height": 768
+     },
+     "timestamp": 1794281920150
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281920150,
+     "data": {
+      "tag": "options",
+      "payload": {
+       "shouldRecordCanvas": false,
+       "sessionSampleRate": 0,
+       "errorSampleRate": 1,
+       "useCompressionOption": true,
+       "blockAllMedia": true,
+       "maskAllText": true,
+       "maskAllInputs": true,
+       "useCompression": false,
+       "networkDetailHasUrls": true,
+       "networkCaptureBodies": true,
+       "networkRequestHasHeaders": true,
+       "networkResponseHasHeaders": true
+      }
+     }
+    },
+    {
+     "type": 2,
+     "data": {
+      "node": {
+       "type": 0,
+       "childNodes": [
+        {
+         "type": 1,
+         "name": "html",
+         "publicId": "",
+         "systemId": "",
+         "id": 2
+        },
+        {
+         "type": 2,
+         "tagName": "html",
+         "attributes": {
+          "lang": "en"
+         },
+         "childNodes": [
+          {
+           "type": 2,
+           "tagName": "head",
+           "attributes": {},
+           "childNodes": [
+            {
+             "type": 2,
+             "tagName": "meta",
+             "attributes": {
+              "charset": "UTF-8"
+             },
+             "childNodes": [],
+             "id": 5
+            },
+            {
+             "type": 2,
+             "tagName": "meta",
+             "attributes": {
+              "name": "viewport",
+              "content": "width=device-width, initial-scale=1.0"
+             },
+             "childNodes": [],
+             "id": 6
+            },
+            {
+             "type": 2,
+             "tagName": "title",
+             "attributes": {},
+             "childNodes": [
+              {
+               "type": 3,
+               "textContent": "********** ****",
+               "id": 8
+              }
+             ],
+             "id": 7
+            }
+           ],
+           "id": 4
+          },
+          {
+           "type": 3,
+           "textContent": "\n  ",
+           "id": 9
+          },
+          {
+           "type": 2,
+           "tagName": "body",
+           "attributes": {},
+           "childNodes": [
+            {
+             "type": 3,
+             "textContent": "\n    ",
+             "id": 11
+            },
+            {
+             "type": 2,
+             "tagName": "div",
+             "attributes": {
+              "id": "root"
+             },
+             "childNodes": [],
+             "id": 12
+            },
+            {
+             "type": 3,
+             "textContent": "\n    ",
+             "id": 13
+            },
+            {
+             "type": 2,
+             "tagName": "canvas",
+             "attributes": {
+              "id": "cv",
+              "width": "300",
+              "height": "80",
+              "style": "border:1px solid #888"
+             },
+             "childNodes": [],
+             "id": 14
+            },
+            {
+             "type": 3,
+             "textContent": "\n  \n\n",
+             "id": 15
+            },
+            {
+             "type": 2,
+             "tagName": "div",
+             "attributes": {
+              "id": "sentry-feedback"
+             },
+             "childNodes": [
+              {
+               "type": 2,
+               "tagName": "style",
+               "attributes": {},
+               "childNodes": [
+                {
+                 "type": 3,
+                 "textContent": ":host { --font-family: system-ui, 'Helvetica Neue', Arial, sans-serif; --font-size: 14px; --z-index: 100000; --page-margin: 16px; --inset: auto 0 0 auto; --actor-inset: var(--inset); font-family: var(--font-family); font-size: var(--font-size); --foreground: #2b2233; --background: #ffffff; --accent-foreground: white; --accent-background: rgba(88, 74, 192, 1); --success-color: #268d75; --error-color: #df3338; --border: 1.5px solid rgba(41, 35, 47, 0.13); --box-shadow: 0px 4px 24px 0px rgba(43, 34, 51, 0.12); --outline: 1px auto var(--accent-background); --interactive-filter: brightness(95%); }@media (prefers-color-scheme: dark) {\n  :host { color-scheme: dark only; --foreground: #ebe6ef; --background: #29232f; --accent-foreground: white; --accent-background: rgba(88, 74, 192, 1); --success-color: #2da98c; --error-color: #f55459; --border: 1.5px solid rgba(235, 230, 239, 0.15); --box-shadow: 0px 4px 24px 0px rgba(43, 34, 51, 0.12); --outline: 1px auto var(--accent-background); --interactive-filter: brightness(150%); }\n}",
+                 "isStyle": true,
+                 "id": 18
+                }
+               ],
+               "id": 17,
+               "isShadow": true
+              },
+              {
+               "type": 2,
+               "tagName": "style",
+               "attributes": {},
+               "childNodes": [
+                {
+                 "type": 3,
+                 "textContent": ".widget__actor { position: fixed; z-index: var(--z-index); margin: var(--page-margin); inset: var(--actor-inset); display: flex; align-items: center; gap: 8px; padding: 16px; font-family: inherit; font-size: var(--font-size); font-weight: 600; line-height: 1.14em; text-decoration: none; background: var(--actor-background, var(--background)); border-radius: var(--actor-border-radius, 1.7em/50%); border: var(--actor-border, var(--border)); box-shadow: var(--actor-box-shadow, var(--box-shadow)); color: var(--actor-color, var(--foreground)); fill: var(--actor-color, var(--foreground)); cursor: pointer; opacity: 1; transition: transform 0.2s ease-in-out; transform: translate(0px, 0px) scale(1); }.widget__actor[aria-hidden=\"true\"] { opacity: 0; pointer-events: none; visibility: hidden; transform: translate(0px, 16px) scale(0.98); }.widget__actor:hover { background: var(--actor-hover-background, var(--background)); filter: var(--interactive-filter); }.widget__actor svg { width: 1.14em; height: 1.14em; }@media (max-width: 600px) {\n  .widget__actor span { display: none; }\n}",
+                 "isStyle": true,
+                 "id": 20
+                }
+               ],
+               "id": 19,
+               "isShadow": true
+              },
+              {
+               "type": 2,
+               "tagName": "button",
+               "attributes": {
+                "type": "button",
+                "class": "widget__actor",
+                "aria-hidden": "false",
+                "aria-label": "****** * ***"
+               },
+               "childNodes": [
+                {
+                 "type": 2,
+                 "tagName": "svg",
+                 "attributes": {
+                  "rr_width": "15.953125px",
+                  "rr_height": "15.953125px"
+                 },
+                 "childNodes": [],
+                 "isSVG": true,
+                 "id": 22
+                },
+                {
+                 "type": 2,
+                 "tagName": "span",
+                 "attributes": {},
+                 "childNodes": [
+                  {
+                   "type": 3,
+                   "textContent": "****** * ***",
+                   "id": 24
+                  }
+                 ],
+                 "id": 23
+                }
+               ],
+               "id": 21,
+               "isShadow": true
+              }
+             ],
+             "id": 16,
+             "isShadowHost": true
+            }
+           ],
+           "id": 10
+          }
+         ],
+         "id": 3
+        }
+       ],
+       "id": 1
+      },
+      "initialOffset": {
+       "left": 0,
+       "top": 0
+      }
+     },
+     "timestamp": 1794281920153
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 0,
+      "texts": [],
+      "attributes": [],
+      "removes": [],
+      "adds": [
+       {
+        "parentId": 12,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "main",
+         "attributes": {
+          "style": "font-family: system-ui; padding: 16px;"
+         },
+         "childNodes": [],
+         "id": 25
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "pre",
+         "attributes": {
+          "id": "out"
+         },
+         "childNodes": [],
+         "id": 26
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 26,
+        "node": {
+         "type": 2,
+         "tagName": "div",
+         "attributes": {
+          "style": "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"
+         },
+         "childNodes": [],
+         "id": 27
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 27,
+        "node": {
+         "type": 2,
+         "tagName": "input",
+         "attributes": {
+          "id": "secret",
+          "placeholder": "**** ****"
+         },
+         "childNodes": [],
+         "id": 28
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 28,
+        "node": {
+         "type": 2,
+         "tagName": "p",
+         "attributes": {},
+         "childNodes": [],
+         "id": 29
+        }
+       },
+       {
+        "parentId": 25,
+        "nextId": 29,
+        "node": {
+         "type": 2,
+         "tagName": "h1",
+         "attributes": {},
+         "childNodes": [],
+         "id": 30
+        }
+       },
+       {
+        "parentId": 30,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********** **** ************** ********",
+         "id": 31
+        }
+       },
+       {
+        "parentId": 29,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******* **** **** ****** ***** ** ********",
+         "id": 32
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": null,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-boom"
+         },
+         "childNodes": [],
+         "id": 33
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 33,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-replayFlush"
+         },
+         "childNodes": [],
+         "id": 34
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 34,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-replayId"
+         },
+         "childNodes": [],
+         "id": 35
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 35,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-flush"
+         },
+         "childNodes": [],
+         "id": 36
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 36,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-drawCanvas"
+         },
+         "childNodes": [],
+         "id": 37
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 37,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-typeText"
+         },
+         "childNodes": [],
+         "id": 38
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 38,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-dropMe"
+         },
+         "childNodes": [],
+         "id": 39
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 39,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-feedback"
+         },
+         "childNodes": [],
+         "id": 40
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 40,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-metrics"
+         },
+         "childNodes": [],
+         "id": 41
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 41,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-logs"
+         },
+         "childNodes": [],
+         "id": 42
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 42,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-manualSpan"
+         },
+         "childNodes": [],
+         "id": 43
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 43,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-navigate"
+         },
+         "childNodes": [],
+         "id": 44
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 44,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-fetchFail"
+         },
+         "childNodes": [],
+         "id": 45
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 45,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-fetchOk"
+         },
+         "childNodes": [],
+         "id": 46
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 46,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-attachment"
+         },
+         "childNodes": [],
+         "id": 47
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 47,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-linked"
+         },
+         "childNodes": [],
+         "id": 48
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 48,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-message"
+         },
+         "childNodes": [],
+         "id": 49
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 49,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-rejection"
+         },
+         "childNodes": [],
+         "id": 50
+        }
+       },
+       {
+        "parentId": 27,
+        "nextId": 50,
+        "node": {
+         "type": 2,
+         "tagName": "button",
+         "attributes": {
+          "id": "btn-thrown"
+         },
+         "childNodes": [],
+         "id": 51
+        }
+       },
+       {
+        "parentId": 51,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 52
+        }
+       },
+       {
+        "parentId": 50,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*********",
+         "id": 53
+        }
+       },
+       {
+        "parentId": 49,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 54
+        }
+       },
+       {
+        "parentId": 48,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 55
+        }
+       },
+       {
+        "parentId": 47,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 56
+        }
+       },
+       {
+        "parentId": 46,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 57
+        }
+       },
+       {
+        "parentId": 45,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*********",
+         "id": 58
+        }
+       },
+       {
+        "parentId": 44,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 59
+        }
+       },
+       {
+        "parentId": 43,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 60
+        }
+       },
+       {
+        "parentId": 42,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "****",
+         "id": 61
+        }
+       },
+       {
+        "parentId": 41,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*******",
+         "id": 62
+        }
+       },
+       {
+        "parentId": 40,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 63
+        }
+       },
+       {
+        "parentId": 39,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "******",
+         "id": 64
+        }
+       },
+       {
+        "parentId": 38,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 65
+        }
+       },
+       {
+        "parentId": 37,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**********",
+         "id": 66
+        }
+       },
+       {
+        "parentId": 36,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "*****",
+         "id": 67
+        }
+       },
+       {
+        "parentId": 35,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "********",
+         "id": 68
+        }
+       },
+       {
+        "parentId": 34,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "***********",
+         "id": 69
+        }
+       },
+       {
+        "parentId": 33,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "***** ****** *****",
+         "id": 70
+        }
+       }
+      ]
+     },
+     "timestamp": 1794281920157
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 5,
+      "text": "",
+      "isChecked": false,
+      "id": 28
+     },
+     "timestamp": 1794281920159
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 5,
+      "text": "****************",
+      "isChecked": false,
+      "id": 28
+     },
+     "timestamp": 1794281927520
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281927.5215,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281927.5215,
+       "endTimestamp": 1794281927.6489,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "418",
+          "content-type": "application/json"
+         },
+         "size": 418,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "97c38d399bc74572a0925e916022d48a-9bec8724b8bf6a97-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=97c38d399bc74572a0925e916022d48a,sentry-sampled=true,sentry-sample_rand=0.39328267247677506,sentry-sample_rate=1",
+          "traceparent": "00-97c38d399bc74572a0925e916022d48a-9bec8724b8bf6a97-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281930.8518,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281930.8518,
+       "endTimestamp": 1794281930.9789002,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "418",
+          "content-type": "application/json"
+         },
+         "size": 418,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "97c38d399bc74572a0925e916022d48a-8f738ce55466d740-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=97c38d399bc74572a0925e916022d48a,sentry-sampled=true,sentry-sample_rand=0.39328267247677506,sentry-sample_rate=1",
+          "traceparent": "00-97c38d399bc74572a0925e916022d48a-8f738ce55466d740-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281934.0972,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281934.0972,
+       "endTimestamp": 1794281934.2253,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "418",
+          "content-type": "application/json"
+         },
+         "size": 418,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "97c38d399bc74572a0925e916022d48a-a106ebdd70c4ac81-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=97c38d399bc74572a0925e916022d48a,sentry-sampled=true,sentry-sample_rand=0.39328267247677506,sentry-sample_rate=1",
+          "traceparent": "00-97c38d399bc74572a0925e916022d48a-a106ebdd70c4ac81-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281937.4201999,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281937.4201999,
+       "endTimestamp": 1794281937.5476,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "418",
+          "content-type": "application/json"
+         },
+         "size": 418,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "97c38d399bc74572a0925e916022d48a-98c34d9daa63f31f-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=97c38d399bc74572a0925e916022d48a,sentry-sampled=true,sentry-sample_rand=0.39328267247677506,sentry-sample_rate=1",
+          "traceparent": "00-97c38d399bc74572a0925e916022d48a-98c34d9daa63f31f-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281940.7265,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281940.7265,
+       "endTimestamp": 1794281940.8525,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "418",
+          "content-type": "application/json"
+         },
+         "size": 418,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "97c38d399bc74572a0925e916022d48a-b36bd00ee65324cf-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=97c38d399bc74572a0925e916022d48a,sentry-sampled=true,sentry-sample_rand=0.39328267247677506,sentry-sample_rate=1",
+          "traceparent": "00-97c38d399bc74572a0925e916022d48a-b36bd00ee65324cf-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281920.0878,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "navigation.navigate",
+       "description": "http://127.0.0.1:4521/?replay=buffer",
+       "startTimestamp": 1794281920.0878,
+       "endTimestamp": 1794281920.1555,
+       "data": {
+        "size": 710,
+        "decodedBodySize": 410,
+        "encodedBodySize": 410,
+        "duration": 67.80000019073486,
+        "domInteractive": 42.60000014305115,
+        "domContentLoadedEventStart": 67.5,
+        "domContentLoadedEventEnd": 67.60000014305115,
+        "loadEventStart": 67.70000004768372,
+        "loadEventEnd": 67.80000019073486,
+        "domComplete": 67.70000004768372,
+        "redirectCount": 0
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281920.1264002,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.script",
+       "description": "http://127.0.0.1:4521/assets/index-Crrx_OTW.js",
+       "startTimestamp": 1794281920.1264002,
+       "endTimestamp": 1794281920.1316001,
+       "data": {
+        "size": 300,
+        "statusCode": 200,
+        "decodedBodySize": 659233,
+        "encodedBodySize": 219710
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281944.045,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "memory",
+       "description": "memory",
+       "startTimestamp": 1794281944.045,
+       "endTimestamp": 1794281944.045,
+       "data": {
+        "memory": {
+         "jsHeapSizeLimit": 4395630592,
+         "totalJSHeapSize": 11111128,
+         "usedJSHeapSize": 9081508
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

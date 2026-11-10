@@ -1,0 +1,43 @@
+{
+ "request": {
+  "method": "POST",
+  "path": "/api/4/envelope/",
+  "query": "sentry_version=7&sentry_key=00000000000000000000000000000000&sentry_client=sentry.javascript.react%2F11.11.0",
+  "headers": {
+   "Content-Length": [
+    "267"
+   ],
+   "Content-Type": [
+    "text/plain;charset=UTF-8"
+   ],
+   "Origin": [
+    "http://127.0.0.1:4521"
+   ],
+   "Sec-Fetch-Mode": [
+    "cors"
+   ],
+   "Sec-Fetch-Site": [
+    "cross-site"
+   ],
+   "User-Agent": [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+   ]
+  },
+  "body_len": 267
+ },
+ "response": {
+  "status": 429,
+  "headers": {
+   "Content-Type": [
+    "application/json"
+   ],
+   "Retry-After": [
+    "60"
+   ],
+   "X-Sentry-Rate-Limits": [
+    "60:error;transaction;span;replay:organization"
+   ]
+  },
+  "body": "{\"detail\":\"sentrytap sink configured to fail\"}"
+ }
+}

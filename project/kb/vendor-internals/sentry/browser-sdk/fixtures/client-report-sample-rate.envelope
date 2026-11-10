@@ -1,0 +1,3 @@
+{}
+{"type":"client_report"}
+{"timestamp":1794282054.96,"discarded_events":[{"reason":"no_parent_span","category":"span","quantity":1},{"reason":"sample_rate","category":"error","quantity":1}]}
