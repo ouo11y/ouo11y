@@ -1,0 +1,26 @@
+{
+  "case": "ratelimit-key-session-while-limited",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:23:33.180Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 370,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:23:33.176Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"}}\n{\"type\":\"session\",\"length\":187}\n{\"sid\":\"6a0c2b0e-4f8e-4b4e-9e57-3f8d2a2b1c11\",\"init\":true,\"started\":\"2026-11-10T03:23:33.176Z\",\"timestamp\":\"2026-11-10T03:23:33.176Z\",\"status\":\"ok\",\"attrs\":{\"release\":\"step6-wire@1.0.0\"}}\n"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 4.0
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "case": "item-profile_chunk-minimal",
+  "note": "structurally minimal; accepted at the edge, validity decided async",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.756Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 417,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.748Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"}}\n{\"type\":\"profile_chunk\",\"platform\":\"javascript\",\"length\":204}\n{\"version\":\"2\",\"chunk_id\":\"4a74fc81b24847e8aaf44afc9d42e82f\",\"profiler_id\":\"f90f336d47804ad2b84fc34c95a77a40\",\"platform\":\"javascript\",\"profile\":{\"samples\":[],\"stacks\":[],\"frames\":[],\"thread_metadata\":{}}}\n"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 7.8
+  }
+}

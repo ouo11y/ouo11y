@@ -1,0 +1,27 @@
+{
+  "case": "event-deflate-zlib",
+  "note": "HTTP deflate = zlib wrapper (RFC 9110)",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.063Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope",
+      "Content-Encoding": "deflate"
+    },
+    "body_bytes": 426,
+    "body_preview": "<binary, first bytes 789c9552cb6edb3010bce72b8a3dcb32>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"755cc69dad1b4312985396c20af5c24c\"}",
+    "ms": 16.7
+  }
+}

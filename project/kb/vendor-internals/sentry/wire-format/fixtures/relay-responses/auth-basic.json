@@ -1,0 +1,25 @@
+{
+  "case": "auth-basic",
+  "note": "HTTP basic auth with public key as user",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.346Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "Authorization": "Basic MDRlZGM3NDNkNDI4ZTBhOTNiMzM1OTRlOWQ3MWY3MmM6"
+    },
+    "body_bytes": 703,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.332Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"5901fbfe9e784936a69b0feb82de21cb\"}\n{\"type\":\"event\",\"content_type\":\"application/json\",\"length\":442}\n{\"event_id\":\"5901fbfe9e784936a69b0feb82de21cb\",\"message\":\"step6-wire basic\",\"level\":\"error\",\"platform\":\"javascript\",\"timestamp\":1794280827.332813,\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\",\"tags\":{\"step6\":\"wire\"},\"exception\":{\"values\":[{\"type\":\"TypeError\",\"value\":\"step6-wire basic\",\"mechanism\":{\"type\":\"onerror\",\"handled\":false},\"st"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"5901fbfe9e784936a69b0feb82de21cb\"}",
+    "ms": 13.5
+  }
+}

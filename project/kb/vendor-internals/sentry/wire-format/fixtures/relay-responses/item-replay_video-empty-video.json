@@ -1,0 +1,26 @@
+{
+  "case": "item-replay_video-empty-video",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.839Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 1106,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.834Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"0f40d9e1d7dd4938bd8c8f0b9a555d67\"}\n{\"type\":\"replay_video\",\"length\":872}\n\ufffd\ufffdreplay_event\ufffd\u0002\r{\"type\": \"replay_event\", \"replay_id\": \"0fa16ee44572493da849817ed72e01c9\", \"event_id\": \"0fa16ee44572493da849817ed72e01c9\", \"segment_id\": 0, \"replay_type\": \"session\", \"timestamp\": 1794280827.528055, \"replay_start_timestamp\": 1794280826.528055, \"urls\": [], \"error_ids\": [], \"trace_ids\": [], \"platform\": \"android\", \"release\": \"step6-wire@1.0.0\", \"environ"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"0f40d9e1d7dd4938bd8c8f0b9a555d67\"}",
+    "ms": 4.5
+  }
+}

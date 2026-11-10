@@ -1,0 +1,23 @@
+{
+  "case": "otlp-metrics-json",
+  "note": "metrics are not an OTLP route in Relay 26.10.0",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.560Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/metrics",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 2,
+    "body_preview": "{}"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "Server": "nginx"
+    },
+    "body": "",
+    "ms": 8.5
+  }
+}

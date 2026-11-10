@@ -1,0 +1,29 @@
+{
+  "_note": "observed: video segment file = zlib(pack(rrweb, video)); pack = 0x01 + uint32 BE video length + video bytes + rrweb JSON (sentry/replays/usecases/pack.py)",
+  "type_byte": 1,
+  "video_length": 20,
+  "video_first_bytes_hex": "00000018667479706d7034320000000000000000",
+  "rrweb": [
+    {
+      "type": 5,
+      "timestamp": 1794280827528,
+      "data": {
+        "tag": "video",
+        "payload": {
+          "segmentId": 0,
+          "size": 16,
+          "duration": 5000,
+          "encoding": "h264",
+          "container": "mp4",
+          "height": 640,
+          "width": 360,
+          "frameCount": 5,
+          "frameRate": 1,
+          "frameRateType": "constant",
+          "left": 0,
+          "top": 0
+        }
+      }
+    }
+  ]
+}

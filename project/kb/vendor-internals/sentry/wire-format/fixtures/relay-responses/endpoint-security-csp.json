@@ -1,0 +1,24 @@
+{
+  "case": "endpoint-security-csp",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.091Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/security/?sentry_key=<redacted-public-key>&sentry_environment=wire",
+    "headers": {
+      "Content-Type": "application/csp-report"
+    },
+    "body_bytes": 274,
+    "body_preview": "{\"csp-report\": {\"document-uri\": \"http://localhost/step6\", \"referrer\": \"\", \"violated-directive\": \"script-src\", \"effective-directive\": \"script-src\", \"original-policy\": \"default-src 'self'; report-uri /x\", \"blocked-uri\": \"http://evil.example.invalid/x.js\", \"status-code\": 200}}"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "",
+    "ms": 28.1
+  }
+}

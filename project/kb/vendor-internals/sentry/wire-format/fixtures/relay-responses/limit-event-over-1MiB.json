@@ -1,0 +1,26 @@
+{
+  "case": "limit-event-over-1MiB",
+  "note": "event item > max_event_size (1 MiB)",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.933Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 1048941,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.839Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"94cbc27c36f04133a742e62c6e216805\"}\n{\"type\":\"event\",\"length\":1048710}\n{\"event_id\":\"94cbc27c36f04133a742e62c6e216805\",\"message\":\"step6-wire big\",\"timestamp\":1794280827.839654,\"extra\":{\"blob\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "response": {
+    "status": 413,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"envelope exceeded size limits for type 'event' (https://develop.sentry.dev/sdk/envelopes/#size-limits)\"}",
+    "ms": 90.2
+  }
+}

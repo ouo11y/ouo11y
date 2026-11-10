@@ -1,0 +1,27 @@
+{
+  "case": "otlp-traces-gzip",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.349Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/traces",
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Encoding": "gzip",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 300,
+    "body_preview": "<binary, first bytes 1f8b08000000000002ff7d914d4fc330>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 98.2
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "case": "cors-preflight",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.527Z",
+  "request": {
+    "method": "OPTIONS",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "Origin": "http://example.invalid",
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "content-type,x-sentry-auth"
+    },
+    "body_bytes": 0,
+    "body_preview": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "access-control-allow-methods": "POST",
+      "access-control-allow-headers": "x-sentry-auth,x-requested-with,x-forwarded-for,origin,referer,accept,content-type,authentication,authorization,content-encoding,transfer-encoding",
+      "access-control-allow-origin": "*"
+    },
+    "body": "",
+    "ms": 63.0
+  }
+}

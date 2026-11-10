@@ -1,0 +1,26 @@
+{
+  "case": "auth-header-and-query",
+  "note": "X-Sentry-Auth and ?sentry_key together",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.362Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/?sentry_key=<redacted-public-key>",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 674,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.347Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"d861bc70f951414b9f74a8d8baa5a768\"}\n{\"type\":\"event\",\"content_type\":\"application/json\",\"length\":413}\n{\"event_id\":\"d861bc70f951414b9f74a8d8baa5a768\",\"message\":\"x\",\"level\":\"error\",\"platform\":\"javascript\",\"timestamp\":1794280827.3470788,\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\",\"tags\":{\"step6\":\"wire\"},\"exception\":{\"values\":[{\"type\":\"TypeError\",\"value\":\"x\",\"mechanism\":{\"type\":\"onerror\",\"handled\":false},\"stacktrace\":{\"frames\":[{\"filena"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"multiple authorization payloads detected\"}",
+    "ms": 15.0
+  }
+}

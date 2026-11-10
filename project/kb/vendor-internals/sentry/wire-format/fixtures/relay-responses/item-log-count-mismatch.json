@@ -1,0 +1,26 @@
+{
+  "case": "item-log-count-mismatch",
+  "note": "item_count 5 but 2 items",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.671Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 658,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.643Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"}}\n{\"type\":\"log\",\"item_count\":5,\"content_type\":\"application/vnd.sentry.items.log+json\",\"length\":409}\n{\"items\":[{\"timestamp\":1794280827.528055,\"trace_id\":\"91f40a983d294df29abaf2cbb0755c8c\",\"span_id\":\"33fd8de3cca34db5\",\"level\":\"info\",\"body\":\"step6 wire log\",\"attributes\":{\"step6.k\":{\"type\":\"string\",\"value\":\"v\"},\"sentry.release\":{\"type\":\"string\",\"value\":\"step6-wire@1.0.0\"}}},{\"timestamp\":1794280827.528055,\"trace_id\":\"91f40a983d294df29abaf2cbb0755c8c\",\"l"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 28.0
+  }
+}

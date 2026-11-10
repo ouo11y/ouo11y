@@ -1,0 +1,26 @@
+{
+  "case": "otlp-logs-json",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.551Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/logs",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 453,
+    "body_preview": "{\"resourceLogs\": [{\"resource\": {\"attributes\": [{\"key\": \"service.name\", \"value\": {\"stringValue\": \"step6-wire-otlp\"}}]}, \"scopeLogs\": [{\"scope\": {\"name\": \"step6\"}, \"logRecords\": [{\"timeUnixNano\": \"1794280827528055040\", \"severityNumber\": 9, \"severityText\": \"INFO\", \"body\": {\"stringValue\": \"otlp json log\"}, \"traceId\": \"91f40a983d294df29abaf2cbb0755c8c\", \"spanId\": \"33fd8de3cca34db5\", \"attributes\": [{\"key\": \"step6.k\", \"value\": {\"stringValue\": \"v\"}}]}]}]}]}"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 47.2
+  }
+}

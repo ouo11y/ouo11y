@@ -1,0 +1,26 @@
+{
+  "case": "item-transaction",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.554Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 1164,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.528Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"044bf5fba7ee4cd78fc83081fe9e7694\",\"trace\":{\"trace_id\":\"91f40a983d294df29abaf2cbb0755c8c\",\"public_key\":\"<redacted-public-key>\",\"sample_rate\":\"1\",\"sample_rand\":\"0.5\",\"sampled\":\"true\",\"transaction\":\"/step6/wire\",\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\"}}\n{\"type\":\"transaction\",\"length\":694}\n{\"type\":\"transaction\",\"event_id\":\"044bf5fba7ee4cd78fc83081fe9e7694\",\"transaction\":\"/step6/wire\",\"transaction_info\":{\"source\":\"route"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"044bf5fba7ee4cd78fc83081fe9e7694\"}",
+    "ms": 26.6
+  }
+}

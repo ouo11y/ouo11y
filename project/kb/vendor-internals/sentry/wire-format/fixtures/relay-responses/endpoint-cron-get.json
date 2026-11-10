@@ -1,0 +1,22 @@
+{
+  "case": "endpoint-cron-get",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.235Z",
+  "request": {
+    "method": "GET",
+    "path": "/api/8/cron/step6-wire-http-cron/<redacted-public-key>/?status=ok",
+    "headers": {},
+    "body_bytes": 0,
+    "body_preview": ""
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "Server": "nginx",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "",
+    "ms": 10.4
+  }
+}

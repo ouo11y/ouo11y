@@ -1,0 +1,28 @@
+{
+  "case": "ratelimit-key-mixed-event-plus-session",
+  "note": "error is limited, session is not: whole request answers 429, the session item is still queued",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:23:43.261Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 557,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:23:43.255Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"f25eec0ccb614fcdbdc19a2267a2ca37\"}\n{\"type\":\"event\",\"length\":110}\n{\"event_id\":\"f25eec0ccb614fcdbdc19a2267a2ca37\",\"message\":\"step6-wire rl mixed\",\"timestamp\":1794281023.2552981}\n{\"type\":\"session\",\"length\":187}\n{\"sid\":\"58440f16-019a-4b53-937d-0cb3bb0761ab\",\"init\":true,\"started\":\"2026-11-10T03:23:43.255Z\",\"timestamp\":\"2026-11-10T03:23:43.255Z\",\"status\":\"ok\",\"attrs\":{\"release\":\"step6-wire@1.0.0\"}}\n"
+  },
+  "response": {
+    "status": 429,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "retry-after": "19",
+      "x-sentry-rate-limits": "19:default;error;security:key:key_quota",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information.\"}",
+    "ms": 5.9
+  }
+}
