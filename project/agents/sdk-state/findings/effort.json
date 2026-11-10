@@ -85,7 +85,7 @@
  },
  "PERF-k": {
   "size": "M",
-  "note": "Expose tracer provider; on iOS/Android needs an OTel SDK (ADR-0016 rejected it)"
+  "note": "Expose tracer provider; on iOS and Android this needs the OTel SDK the founder's post-Step 5 direction adopts (opentelemetry-swift core, opentelemetry-android)"
  },
  "NET-a": {
   "size": "S",

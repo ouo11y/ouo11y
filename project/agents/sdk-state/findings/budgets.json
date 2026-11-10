@@ -107,7 +107,7 @@
   },
   {
    "what": "Web resource timing pricing (SIG-17)",
-   "why": "The SDK emits no browser.resource_timing events today; initial resources go out as resourceFetch child spans of documentLoad, always on, and are inside the measured telemetry bytes. Step 12 should price the event once it exists"
+   "why": "The SDK emits no browser.resource_timing events today; initial resources go out as resourceFetch child spans of documentLoad, always on, and are inside the measured telemetry bytes. Step 7, which fixes the web SDK, should price the event once it exists"
   }
  ]
 }

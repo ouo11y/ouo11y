@@ -912,7 +912,7 @@
   "why": "OTel: the app uses the OTel API through our tracer provider. We add no span API of our own",
   "effort": {
    "size": "M",
-   "note": "Expose tracer provider; on iOS/Android needs an OTel SDK (ADR-0016 rejected it)"
+   "note": "Expose tracer provider; on iOS and Android this needs the OTel SDK the founder's post-Step 5 direction adopts (opentelemetry-swift core, opentelemetry-android)"
   },
   "platforms": {
    "web": {

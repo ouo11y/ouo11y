@@ -37,7 +37,7 @@ Ranked by how many platforms are behind and how far, then by effort.
 | 9 | CFG-b, CFG-c switches, debug and drop counts | medium on all four | S, M | No per-instrumentation switches on mobile; no drop events or self-disable |
 | 10 | REL-b crash-free sessions | medium on all four | S | Sessions and crashes exist; crashes in unsampled sessions are lost (see 1), so the rate is biased |
 
-On Android alone, 20 Must features are large gaps (sessions, manual capture, trail, HTTP spans, propagation, screen views, user id, global attributes, logs, custom spans, release tagging and others). They are one gap: a native Android SDK with its own init, session and exporter, which Step 4 targets and ADR-0017 began.
+On Android alone, 20 Must features are large gaps (sessions, manual capture, trail, HTTP spans, propagation, screen views, user id, global attributes, logs, custom spans, release tagging and others). They are one gap: a standalone Android SDK with its own init, session and exporter. Step 4 targets it, and the founder's direction after Step 5 is to build it on `opentelemetry-android` in Step 12.
 
 ## Top gaps (Should)
 
@@ -50,6 +50,6 @@ Large on some platform: vital attribution (PERF-b, web), console in replay and c
 
 ## What this does not say
 
-- It compares features, not quality. Whether our hang detection or masking is as good as Sentry's in the field is Step 6 (vendor internals) and Step 12 (refinement).
+- It compares features, not quality. Whether our hang detection or masking is as good as Sentry's in the field is Step 6 (vendor internals), then Step 7 (web and React Native fixes) and Step 12 (iOS, Android and Flutter fixes).
 - Sentry cells marked "uncertain" or "partial" in Step 4 stay that way. Three cells are unknown (INT-e and USR-d on the web, RPL-i on RN).
 - Effort sizes assume the spec work in [compliance.md](compliance.md) is done once, shared across platforms where it can be (sanitiser, sampling rule, bypass set).

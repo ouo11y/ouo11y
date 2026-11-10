@@ -48,9 +48,10 @@ None to the product. The harnesses pin `@sentry/browser` 11.11.0, `@sentry/react
 ## What the next agent must know
 
 1. **Nothing here is a decision.** Budgets and the JSON recommendation go to Step 7 with the spec review.
-2. **Bugs worth fixing before Step 12**: the React Native debug log prints part of the project token; a bad `jpegQuality` throws on an Android SDK thread and crashes the app; iOS forces the sampled flag on in unsampled sessions; web and React Native overwrite an app-set `traceparent`.
+2. **Bugs to fix when each SDK is fixed** (web and React Native in Step 7, iOS and Android in Step 12): the React Native debug log prints part of the project token; a bad `jpegQuality` throws on an Android SDK thread and crashes the app; iOS forces the sampled flag on in unsampled sessions; web and React Native overwrite an app-set `traceparent`.
 3. **`.gitignore` ignores every `data/` folder**, which is why the audit files live in `findings/`.
-4. **Android has no native SDK.** Its compliance and gap rows judge `sdk/android` alone; most "not met" there means "not built", and its overhead is a lower bound.
+4. **Android has no standalone SDK yet.** Its compliance and gap rows judge `sdk/android` alone; most "not met" there means "not built", and its overhead is a lower bound.
 5. **Mobile runtime numbers are simulator and emulator numbers.** One iPhone run at a checkpoint would calibrate them.
 6. **Rebuild the report** after changing anything in `findings/` or `measure/*/results`: `build_gaps.py`, `summarize_overhead.py`, `build_report.py` (it also writes the budget table of overhead.md; `--check` fails when either is stale).
-7. No env was started; the simulators, emulators and servers the harnesses started were stopped by PID.
+7. **Founder decisions after this step** (2026-11-10): the SDKs go OpenTelemetry-first, replacing the never-approved MVP-era ADR-0016 and ADR-0017. React Native keeps the OTel JS SDK; Android becomes a standalone SDK on `opentelemetry-android`; iOS moves to the `opentelemetry-swift` API and SDK core with ouo's own OTLP/HTTP exporter. "Native" means iOS and Android; React Native and Flutter are cross-platform. Plan: Step 7 reviews the spec after Step 6 and fixes web then React Native; Steps 8 to 11 are Muninn, the plugin front end and BFF, the full demo and the cloud; Step 12 fixes iOS, Android and Flutter. The golden rule (the app must not pay for the SDK's failures) is graded by the failure-safety checklist, PR #177.
+8. No env was started; the simulators, emulators and servers the harnesses started were stopped by PID.
