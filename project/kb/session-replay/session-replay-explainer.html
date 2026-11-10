@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Session Replay Internals</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--mut:#66625a;--line:#e3dfd6;--card:#fff;--acc:#b4441c;--ok:#2f7d4f;--warn:#a87508;--bad:#b3261e;--blue:#2b5fa8;--vio:#6a3fa0;--soft:#f1eee7;--hl:#fde9c8}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#161513;--fg:#ecebe6;--mut:#a29d93;--line:#34312c;--card:#1f1d1a;--acc:#f08a5d;--ok:#5cc489;--warn:#e0b040;--bad:#ff7a70;--blue:#7fa8ec;--vio:#b796e8;--soft:#262420;--hl:#4a3a1c}}
+:root[data-theme=dark]{--bg:#161513;--fg:#ecebe6;--mut:#a29d93;--line:#34312c;--card:#1f1d1a;--acc:#f08a5d;--ok:#5cc489;--warn:#e0b040;--bad:#ff7a70;--blue:#7fa8ec;--vio:#b796e8;--soft:#262420;--hl:#4a3a1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:28px;margin:0 0 6px;line-height:1.2}h2{font-size:22px;margin:56px 0 8px;padding-top:12px;border-top:2px solid var(--line)}
+h3{font-size:17px;margin:32px 0 6px}
+p,li{max-width:72ch}.mut{color:var(--mut)}a{color:var(--blue)}
+code{font:13px ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:1px 4px;border-radius:4px}
+pre{font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:10px 12px;border-radius:8px;overflow-x:auto;margin:8px 0}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 4px}
+nav.toc a{font-size:13px;text-decoration:none;color:var(--fg);border:1px solid var(--line);background:var(--card);padding:4px 10px;border-radius:999px}
+nav.toc a.todo{color:var(--mut);border-style:dashed}
+.theme{position:fixed;top:10px;right:10px;font-size:12px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;z-index:5}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:14px 0}
+.key{border-left:4px solid var(--acc);background:var(--card);padding:10px 14px;margin:16px 0;border-radius:0 8px 8px 0}
+.src{font-size:12.5px;color:var(--mut)}.src a{color:var(--mut)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+button.b{font:13px system-ui,sans-serif;background:var(--soft);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button.b.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12.5px}
+/* tree outline */
+.tree{font:13px ui-monospace,Menlo,monospace}
+.tn{display:flex;align-items:center;gap:6px;padding:2px 6px;border-radius:6px;transition:background .4s,opacity .4s,transform .4s;white-space:nowrap}
+.tn .tag{color:var(--blue)}.tn .at{color:var(--vio)}.tn .tx{color:var(--ok)}
+.tn.new{background:var(--hl);animation:pop .6s}
+.tn.chg{background:var(--hl)}
+.tn.gone{opacity:.25;text-decoration:line-through}
+.tn.opaque{opacity:.35}
+@keyframes pop{from{transform:translateX(-14px);opacity:0}to{transform:none;opacity:1}}
+.page{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.page .bar{background:var(--soft);font-size:11px;padding:4px 8px;color:var(--mut)}
+.page .body{padding:10px 14px;min-height:150px;font-size:14px}
+.page li{transition:all .4s}.page .sel{color:var(--acc);font-weight:600}
+.recs{min-height:120px;font:12px/1.4 ui-monospace,Menlo,monospace}
+.rec{background:var(--soft);border-left:3px solid var(--vio);padding:6px 8px;margin:6px 0;border-radius:0 6px 6px 0;animation:pop .5s}
+/* pipeline */
+.pipe{display:flex;flex-wrap:wrap;gap:4px;align-items:stretch;margin:8px 0}
+.tree{overflow-x:auto}
+.st{flex:1 1 80px;min-width:74px;overflow-wrap:anywhere;border:1px solid var(--line);border-radius:8px;padding:6px;font-size:12px;text-align:center;background:var(--card);transition:all .35s}
+.st b{display:block;font-size:12.5px}
+.st.act{background:var(--acc);color:#fff;border-color:var(--acc);transform:translateY(-3px)}
+.st.act .mut{color:#ffe}
+.st.thread{font-size:10.5px;color:var(--mut)}
+.st.act.thread{color:#fff}
+.lane{font-size:11px;color:var(--mut);margin-top:2px}
+.step-caption{min-height:3em;font-size:14px;background:var(--soft);border-radius:8px;padding:8px 10px}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--mut)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.placeholder{border:1px dashed var(--line);border-radius:12px;padding:18px;color:var(--mut)}
+svg text{fill:var(--fg);font:12px system-ui,sans-serif}
+</style></head>
+<body>
+<button class="theme" id="themeBtn" type="button">theme</button>
+<main>
+<h1>How session replay works inside</h1>
+<p class="mut">A walkthrough for the ouo founder, built one topic at a time. Browser, iOS, Android, React Native, Flutter. Every technique flow links to the vendors' source at a pinned release tag. Started 2026-11-10.</p>
+<nav class="toc">
+<a href="#t1">1 · Platform foundations</a>
+<a href="#t2" class="todo">2 · Capture ideas</a>
+<a href="#t3" class="todo">3 · When to capture</a>
+<a href="#t4" class="todo">4 · Browser techniques</a>
+<a href="#t5" class="todo">5 · Mobile and Flutter</a>
+<a href="#t6" class="todo">6 · Shipping as chunks</a>
+</nav>
+
+<!-- ============================ TOPIC 1 ============================ -->
+<h2 id="t1">1 · Platform foundations: what is on the screen, and who knows about it</h2>
+<p>Every replay technique is an answer to one question: <em>what does the platform let an outsider read about the screen, and when?</em> So we start with how each platform turns a description of the UI into pixels.</p>
+<div class="key">The one idea to keep: on the web the browser hands any script a <b>live, readable, observable tree</b> (the DOM) that fully describes the page. On mobile there is a tree too, but it is <b>private to the app's UI framework</b>, it is not the whole truth (custom drawing, SwiftUI, Compose and Flutter hide inside one view), and nothing notifies you when it changes. That single difference explains why web replay is a text diff and mobile replay is mostly pictures.</div>
+
+<h3 id="t1-dom">1.1 The browser: the DOM, the event loop, and MutationObserver</h3>
+<p>The HTML parser builds a tree of <b>nodes</b>: elements (<code>&lt;ul&gt;</code>) with <b>attributes</b> (<code>class="sel"</code>), text nodes, comments. JavaScript changes this tree at any time. The browser does not repaint after each change: it batches them and, once per frame, runs <b>style → layout → paint → composite</b>. Between a script's task and the next frame, the browser runs <b>microtasks</b>, and that is where a <code>MutationObserver</code> receives a list of <b>MutationRecords</b> describing every change since the last delivery: <code>childList</code> (nodes added or removed), <code>attributes</code>, <code>characterData</code> (text).</p>
+<div class="card">
+<div class="btns"><button class="b" id="domPlay" type="button">▶ play</button><button class="b" id="domStep" type="button">step</button><button class="b" id="domReset" type="button">reset</button></div>
+<div class="step-caption" id="domCap">Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.</div>
+<div class="grid2" style="margin-top:10px">
+ <div><div class="lane">DOM tree (what the script and the recorder see)</div><div class="tree" id="domTree"></div></div>
+ <div><div class="lane">Rendered page (what the user sees, after the next frame)</div><div class="page"><div class="bar">shop.example / cart</div><div class="body" id="domPage"></div></div></div>
+</div>
+<div class="lane" style="margin-top:10px">One turn of the event loop</div>
+<div class="pipe" id="loopPipe">
+ <div class="st" data-k="task"><b>Task</b><span class="mut">click handler, timer, fetch callback</span></div>
+ <div class="st" data-k="micro"><b>Microtasks</b><span class="mut">promises, MutationObserver callbacks</span></div>
+ <div class="st" data-k="raf"><b>rAF</b><span class="mut">requestAnimationFrame</span></div>
+ <div class="st" data-k="style"><b>Style</b><span class="mut">match CSS</span></div>
+ <div class="st" data-k="layout"><b>Layout</b><span class="mut">boxes, positions</span></div>
+ <div class="st" data-k="paint"><b>Paint</b><span class="mut">display lists</span></div>
+ <div class="st" data-k="comp"><b>Composite</b><span class="mut">GPU layers → screen</span></div>
+</div>
+<div class="lane">MutationRecords delivered to the observer's callback</div>
+<div class="recs" id="domRecs"></div>
+</div>
+<p>What this gives a recorder for free:</p>
+<ul>
+<li><b>A complete, serialisable description.</b> Walk the tree once and you have everything needed to rebuild the page somewhere else, as text (this is the <em>full snapshot</em>).</li>
+<li><b>A change feed.</b> MutationObserver tells you exactly which nodes changed, asynchronously, batched, without polling (this becomes the <em>incremental</em> events).</li>
+<li><b>Events on the same tree.</b> Input, scroll, pointer, resize, <code>visibilitychange</code>, <code>pagehide</code> can all be listened to by any script.</li>
+</ul>
+<p>What it does <em>not</em> give: pixels the DOM does not describe. A <code>&lt;canvas&gt;</code> or WebGL surface is one element whose content is a bitmap; a <code>&lt;video&gt;</code> is a URL plus a playhead; a cross-origin <code>&lt;iframe&gt;</code> is unreadable; the result of CSS from a stylesheet the recorder cannot fetch is lost. These are the "holes" of DOM replay.</p>
+<p class="src">Sources (specifications, the behaviour browsers implement): <a href="https://dom.spec.whatwg.org/#mutation-observers">DOM Standard §4.3 Mutation observers</a> (records are queued, then delivered in a microtask: <a href="https://dom.spec.whatwg.org/#queue-a-mutation-observer-compound-microtask">queue a mutation observer microtask</a>) · <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model">HTML Standard, event loop processing model</a> (task, microtask checkpoint, then "update the rendering": rAF callbacks, style, layout, paint) · <a href="https://html.spec.whatwg.org/multipage/interaction.html#page-visibility">page visibility</a>.</p>
+
+<h3 id="t1-native">1.2 Mobile and Flutter: view trees, and what draws the pixels</h3>
+<p>Pick a platform. The top row is how a frame gets to the screen; the tree is what the app holds in memory. Toggle <b>"what a native view walk sees"</b>: that is the view a replay SDK gets when it walks the platform's view hierarchy from the window, which is what every mobile replay SDK does.</p>
+<div class="card">
+<div class="tabs" id="natTabs"></div>
+<div class="btns"><button class="b" id="natPlay" type="button">▶ draw a frame</button><button class="b" id="natSee" type="button">what a native view walk sees</button></div>
+<div class="step-caption" id="natCap"></div>
+<div class="pipe" id="natPipe"></div>
+<div class="grid2" style="margin-top:8px">
+ <div><div class="lane">Tree in memory</div><div class="tree" id="natTree"></div></div>
+ <div><div class="lane">Notes</div><div id="natNotes" style="font-size:14px"></div></div>
+</div>
+</div>
+
+<h3 id="t1-compare">1.3 Side by side</h3>
+<div class="wrap"><table>
+<tr><th></th><th>Unit of UI</th><th>Readable by an SDK?</th><th>Change notification?</th><th>Frame hook</th><th>Where pixels come from</th></tr>
+<tr><td><b>Browser</b></td><td>DOM node</td><td>Yes, fully, any script</td><td><b>Yes</b>: MutationObserver</td><td><code>requestAnimationFrame</code></td><td>Browser paints the DOM; canvas/WebGL/video are opaque bitmaps</td></tr>
+<tr><td><b>iOS UIKit</b></td><td><code>UIView</code> backed by a <code>CALayer</code></td><td>Yes, by walking <code>subviews</code> from the window, on the main thread</td><td>No general one</td><td><code>CADisplayLink</code>, run-loop observers</td><td>Core Animation commits the layer tree to the render server, which draws on the GPU</td></tr>
+<tr><td><b>SwiftUI</b></td><td>View <em>values</em> (structs), diffed by SwiftUI</td><td>Only through the private UIKit views it creates; many are generic drawing views</td><td>No</td><td>same as UIKit</td><td>Rendered into UIKit/Core Animation layers</td></tr>
+<tr><td><b>Android Views</b></td><td><code>View</code> / <code>ViewGroup</code></td><td>Yes, walk from the window's root view</td><td>Partly: <code>ViewTreeObserver</code> (layout, draw, scroll)</td><td><code>Choreographer</code>, <code>OnDrawListener</code></td><td>Views record display lists (RenderNodes); RenderThread draws them on the GPU</td></tr>
+<tr><td><b>Jetpack Compose</b></td><td>Composables → <code>LayoutNode</code>s</td><td>Not as Views: one <code>AndroidComposeView</code>; the semantics tree is the readable side</td><td>No (recomposition is internal)</td><td>same as Views</td><td>LayoutNodes draw into the host view's display list</td></tr>
+<tr><td><b>React Native</b></td><td>React element → shadow node → native view</td><td>The native views, like any native app; the JS tree is in the JS runtime</td><td>No (the mount step is internal)</td><td>native ones</td><td>Real UIKit / Android views, so it inherits the native picture</td></tr>
+<tr><td><b>Flutter</b></td><td>Widget → Element → RenderObject</td><td>Natively: one <code>FlutterView</code>, opaque. In Dart: the render tree is readable</td><td>No, but a post-frame callback every frame</td><td><code>SchedulerBinding</code> frame callbacks</td><td>Flutter's own engine (Impeller / Skia) draws everything into one surface</td></tr>
+</table></div>
+<p class="src">Platform sources are linked in the tab notes above. Apple frameworks are closed source; those rows cite Apple documentation. Lines marked "(docs)" were not read in code.</p>
+
+<!-- ============================ TOPIC 2..6 ============================ -->
+<h2 id="t2">2 · Ideas behind capture</h2>
+<div class="placeholder">Next in the walkthrough: DOM serialisation and mutation diffs, view-tree wireframes, screenshots and video, draw-command recording, and what each one loses.</div>
+<h2 id="t3">3 · How to know when to capture</h2>
+<div class="placeholder">Coming: keyframes and deltas, checkouts, and every trigger (mutations, input, scroll, visibility, foreground, frame callbacks, hashing unchanged frames).</div>
+<h2 id="t4">4 · Browser techniques</h2>
+<div class="placeholder">Coming: rrweb record and replay in source, Sentry's fork and compression worker, PostHog, Datadog's own recorder, OpenReplay, Highlight.</div>
+<h2 id="t5">5 · Mobile and Flutter techniques</h2>
+<div class="placeholder">Coming: Sentry video, PostHog wireframes and screenshots, Datadog wireframes, on iOS, Android, React Native and Flutter.</div>
+<h2 id="t6">6 · How ouo would ship it</h2>
+<div class="placeholder">Coming: each technique's output mapped onto an <code>ouo.replay.chunk</code>.</div>
+</main>
+<script>
+(function(){
+/* theme toggle */
+var root=document.documentElement,tb=document.getElementById('themeBtn');
+function cur(){return root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}
+function lbl(){tb.textContent=cur()==='dark'?'☀ light':'☾ dark'}
+tb.onclick=function(){var n=cur()==='dark'?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem('sr-theme',n)}catch(e){}lbl()};
+try{var s=localStorage.getItem('sr-theme');if(s)root.setAttribute('data-theme',s)}catch(e){}lbl();
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+/* ---------- 1.1 DOM demo ---------- */
+var model,steps,si,timer;
+function init(){
+ model={id:1,tag:'body',kids:[{id:2,tag:'h1',kids:[{id:3,text:'Your cart'}]},{id:4,tag:'ul',attrs:{id:'list'},kids:[{id:5,tag:'li',kids:[{id:6,text:'Tea'}]}]}]};
+ si=0;document.getElementById('domRecs').innerHTML='';mark={};render();cap('Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.');lit(null);
+}
+var mark={};
+function find(n,id){if(n.id===id)return n;for(var k of n.kids||[]){var r=find(k,id);if(r)return r}return null}
+function rows(n,d,out){var a='';if(n.attrs)for(var k in n.attrs)a+=' <span class="at">'+k+'="'+esc(n.attrs[k])+'"</span>';
+ var lab=n.text!==undefined?'<span class="tx">"'+esc(n.text)+'"</span> <span class="mut">#text</span>':'<span class="tag">&lt;'+n.tag+'</span>'+a+'<span class="tag">&gt;</span>';
+ out.push('<div class="tn '+(mark[n.id]||'')+'" style="padding-left:'+(6+d*18)+'px"><span class="mut">'+n.id+'</span> '+lab+'</div>');
+ (n.kids||[]).forEach(function(k){rows(k,d+1,out)});return out}
+function render(){document.getElementById('domTree').innerHTML=rows(model,0,[]).join('');}
+function paintPage(){var ul=find(model,4),h=find(model,3);var html='<div style="font-weight:700;font-size:17px;margin-bottom:6px">'+esc(h.text)+'</div><ul style="margin:0;padding-left:18px">';
+ ul.kids.forEach(function(li){if(mark[li.id]==='gone')return;html+='<li class="'+(li.attrs&&li.attrs['class']||'')+'">'+esc(li.kids[0].text)+'</li>'});document.getElementById('domPage').innerHTML=html+'</ul>';}
+function cap(t){document.getElementById('domCap').innerHTML=t}
+function lit(k){document.querySelectorAll('#loopPipe .st').forEach(function(e){e.classList.toggle('act',e.dataset.k===k)})}
+function rec(o){var d=document.createElement('div');d.className='rec';d.textContent=JSON.stringify(o);document.getElementById('domRecs').prepend(d)}
+steps=[
+ function(){lit('task');var ul=find(model,4);ul.kids.push({id:7,tag:'li',kids:[{id:8,text:'Coffee'}]});mark={7:'new',8:'new'};render();cap('<b>Task:</b> a click handler runs <code>ul.appendChild(li)</code>. The DOM changes <em>now</em>, but nothing is drawn yet and the observer has not been called.')},
+ function(){lit('micro');rec({type:'childList',target:'ul#list (4)',addedNodes:['li (7)'],removedNodes:[],previousSibling:'li (5)'});cap('<b>Microtask checkpoint:</b> the MutationObserver callback receives one <code>childList</code> record. A recorder serialises node 7 and its subtree here. Note: still no pixels.')},
+ function(){lit('style');cap('<b>Update the rendering:</b> style recalculation…')},
+ function(){lit('layout');cap('…layout computes the new box for "Coffee"…')},
+ function(){lit('paint');cap('…paint records drawing commands…')},
+ function(){lit('comp');paintPage();cap('…and the compositor puts the frame on screen. One DOM change, one record, one frame.')},
+ function(){lit('task');var li=find(model,5);li.attrs={'class':'sel'};mark={5:'chg'};render();cap('<b>Task:</b> <code>li.className = "sel"</code> (the user selected Tea).')},
+ function(){lit('micro');rec({type:'attributes',target:'li (5)',attributeName:'class',oldValue:null});cap('<b>Microtask:</b> an <code>attributes</code> record. The recorder only needs to send "node 5, class = sel".')},
+ function(){lit('comp');paintPage();cap('Next frame: Tea is highlighted.')},
+ function(){lit('task');find(model,3).text='Your cart (2)';mark={3:'chg'};var ul=find(model,4);mark[5]='gone';mark[6]='gone';render();cap('<b>Task:</b> one handler does two things: changes the heading text and removes Tea.')},
+ function(){lit('micro');rec({type:'characterData',target:'#text (3)',oldValue:'Your cart'});rec({type:'childList',target:'ul#list (4)',addedNodes:[],removedNodes:['li (5)']});cap('<b>Microtask:</b> <em>both</em> records arrive in <em>one</em> callback, in order. Batching is free: many changes in one task become one delivery.')},
+ function(){lit('comp');var ul=find(model,4);ul.kids=ul.kids.filter(function(k){return k.id!==5});mark={};render();paintPage();cap('Frame. The recorder now holds: a full snapshot of the starting tree plus four small records. That is the whole idea of DOM replay, and topic 2 builds on it.')}
+];
+function step(){if(si>=steps.length){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';return}steps[si++]()}
+document.getElementById('domStep').onclick=function(){if(si>=steps.length)init();step()};
+document.getElementById('domReset').onclick=function(){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';init()};
+document.getElementById('domPlay').onclick=function(){if(timer){clearInterval(timer);timer=null;this.textContent='▶ play';return}if(si>=steps.length)init();this.textContent='❚❚ pause';step();timer=setInterval(step,reduce?2600:1700)};
+init();paintPage();
+
+/* ---------- 1.2 native platforms ---------- */
+var P={
+ 'iOS UIKit':{
+  stages:[['Event','touch, timer','main'],['Your code','change views / constraints','main'],['Layout','layoutSubviews','main'],['Display','draw(_:) into layer backing','main'],['CA commit','layer tree sent','main'],['Render server','composites on GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UINavigationController.view'],[2,'UILabel "Your cart"'],[2,'UITableView'],[3,'UITableViewCell'],[4,'UILabel "Tea"'],[4,'UIImageView'],[2,'MKMapView',1],[2,'CustomChartView (draw(_:))',1]],
+  see:'Every UIView is walkable from the key window on the main thread, with its frame, class, text, colours. But a view that draws itself with Core Graphics (<code>draw(_:)</code>), a map, a video or a Metal layer is just a rectangle: its content is pixels.',
+  notes:'Each <code>UIView</code> owns a <code>CALayer</code>. Your code changes views on the main thread; at the end of the run-loop turn Core Animation <b>commits</b> the layer tree to the <b>render server</b> (a separate process) which composites it on the GPU. So the pixels on screen live outside your process: to get them you ask UIKit to <b>re-draw</b> the hierarchy into an image (<code>drawHierarchy(in:afterScreenUpdates:)</code>) or render the layer tree (<code>CALayer.render(in:)</code>). <code>CADisplayLink</code> calls you once per display refresh.<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/uikit/uiview">UIView</a> · <a href="https://developer.apple.com/documentation/quartzcore/calayer">CALayer</a> · <a href="https://developer.apple.com/documentation/uikit/uiview/drawhierarchy(in:afterscreenupdates:)">drawHierarchy(in:afterScreenUpdates:)</a> · <a href="https://developer.apple.com/documentation/quartzcore/cadisplaylink">CADisplayLink</a></p>'},
+ 'SwiftUI':{
+  stages:[['State change','@State / @Observable','main'],['body re-run','new view values','main'],['Diff','SwiftUI graph','main'],['Update hosting views','private UIKit views','main'],['CA commit','','main'],['Render server','GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UIHostingController.view'],[2,'_UIHostingView'],[3,'CGDrawingView (all text)',1],[3,'_UIGraphicsView (shapes, images)',1],[3,'UIKitPlatformViewHost → UISwitch'],[3,'_UIShapeHitTestingView',1]],
+  see:'You wrote <code>VStack { Text("Tea"); Toggle(...) }</code>, but the walk finds generic private drawing views. Text is not a <code>UILabel</code>; you cannot read the string. Only controls SwiftUI backs with real UIKit views appear by type.',
+  notes:'Your <code>View</code>s are <b>values</b>, not objects on screen. SwiftUI keeps its own attribute graph, diffs new values, and updates a small number of private UIKit/Core Animation views it owns. This is why SwiftUI support is the weak spot of every wireframe recorder, and why ouo\'s iOS masker masks <code>SwiftUI.CGDrawingView</code> and <code>_UIGraphicsView</code> by class name (<a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rule 4).<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/swiftui/uihostingcontroller">UIHostingController</a></p>'},
+ 'Android Views':{
+  stages:[['Input','MotionEvent','main'],['Your code','setText, invalidate()','main'],['Choreographer','doFrame (vsync)','main'],['Measure / layout','performTraversals','main'],['Draw','record RenderNode display lists','main'],['RenderThread','replays lists on GPU','render thread'],['SurfaceFlinger','composites windows','system']],
+  tree:[[0,'DecorView'],[1,'LinearLayout'],[2,'TextView "Your cart"'],[2,'RecyclerView'],[3,'ConstraintLayout'],[4,'TextView "Tea"'],[4,'ImageView'],[2,'SurfaceView (video / map)',1],[2,'ChartView (onDraw(Canvas))',1]],
+  see:'Every View is walkable from the window\'s root, with bounds, class, text, drawables. <code>SurfaceView</code>/<code>TextureView</code> (video, maps, camera) and custom <code>onDraw</code> are rectangles with unknown content.',
+  notes:'<code>invalidate()</code> marks a view dirty. On the next vsync <code>Choreographer</code> runs <code>ViewRootImpl.performTraversals()</code>: measure, layout, draw. Since hardware acceleration, <code>draw()</code> does not make pixels: it <b>records</b> canvas commands into each view\'s <code>RenderNode</code>; the RenderThread replays them on the GPU. <code>ViewTreeObserver.OnDrawListener</code> fires on every draw pass, a cheap "something changed" signal; <code>PixelCopy</code> copies the window surface\'s pixels.<p class="src">AOSP <code>android-15.0.0_r1</code>: <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L2888-L2897">scheduleTraversals</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/Choreographer.java#L846-L962">Choreographer.doFrame</a> (input, animation, traversal) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5499-L5704">ViewRootImpl.draw</a> (fires <code>dispatchOnDraw</code> at <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5572">L5572</a>, before the frame is recorded) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ThreadedRenderer.java#L795-L827">ThreadedRenderer.draw</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/graphics/java/android/view/PixelCopy.java#L223-L226">PixelCopy.request(Window)</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/WindowManagerGlobal.java#L144">WindowManagerGlobal.mViews</a></p>'},
+ 'Jetpack Compose':{
+  stages:[['State change','mutableStateOf','main'],['Recompose','composables re-run','main'],['Layout','LayoutNodes measured','main'],['Draw','into host RenderNode','main'],['RenderThread','GPU','render thread']],
+  tree:[[0,'DecorView'],[1,'ComposeView'],[2,'AndroidComposeView (everything below is invisible to a View walk)',1],[3,'LayoutNode Column',1],[4,'LayoutNode Text "Tea"',1],[4,'LayoutNode Switch',1],[2,'semantics tree (readable: text, role, bounds)']],
+  see:'A View walk stops at <code>AndroidComposeView</code>: one View, no children. The way in is the <b>semantics tree</b> (built for accessibility and tests): nodes with bounds, text, role. ouo masks Compose whole today for this reason.',
+  notes:'Compose keeps its own tree of <code>LayoutNode</code>s inside one Android View. Recomposition re-runs only the functions whose state changed. For replay this is the Android equivalent of SwiftUI: the classic recorder\'s view walk sees nothing, so vendors read the semantics tree (public) or the internal <code>LayoutNode</code> tree (by reflection) instead; details in topic 5.<p class="src">androidx at commit <code>3aea5205</code> (the GitHub mirror has no tags): <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidComposeView.android.kt#L2419-L2432">AndroidComposeView.dispatchDraw</a> draws all content itself · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/node/Owner.kt#L67-L70">Owner.root: LayoutNode</a> (internal) · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/semantics/SemanticsOwner.kt#L43-L59">SemanticsOwner</a> (public)</p>'},
+ 'React Native':{
+  stages:[['JS thread','React render, reconcile','JS'],['Fabric commit','shadow tree (C++), Yoga layout','background'],['Mount','create/update native views','main'],['Native draw','UIKit / Android pipeline','main + GPU']],
+  tree:[[0,'(JS) <View><Text>Tea</Text><Image/></View>'],[0,'(C++) ShadowNode tree, Yoga layout'],[0,'UIWindow / DecorView'],[1,'RCTSurfaceView / ReactRootView'],[2,'RCTViewComponentView / ReactViewGroup'],[3,'RCTParagraphComponentView / ReactTextView "Tea"'],[3,'RCTImageComponentView / ReactImageView']],
+  see:'Natively an RN app is an ordinary native app: real views with RN class names. So native replay SDKs work, once they know RN\'s text and image classes. The React tree (component names, props) lives in JS and is not visible to the native walk.',
+  notes:'React reconciles your components in JS. In the new architecture (Fabric) the result is committed as a C++ <b>shadow tree</b> where Yoga computes layout; a diff produces mount instructions that create and update <b>real native views</b>. That is why Sentry, PostHog and Datadog all record RN with their <em>native</em> iOS/Android recorders plus an RN class list. Layout-only <code>&lt;View&gt;</code>s are <b>flattened away</b> and never become native views, so a JS wrapper cannot be relied on to exist natively. And <code>&lt;Text&gt;</code> on iOS is not a <code>UILabel</code>: <code>RCTParagraphComponentView</code> draws the string itself.<p class="src">react-native <code>v0.88.1</code>: <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.cpp#L302-L336">ShadowTree commit</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/MountingCoordinator.cpp#L71-L94">MountingCoordinator</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/internal/sliceChildShadowNodeViewPairs.cpp#L109-L125">view flattening</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/RCTMountingManager.mm#L43-L102">RCTMountingManager (iOS)</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/ComponentViews/Text/RCTParagraphComponentView.mm#L429-L455">RCTParagraphComponentView draws text in drawRect</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt#L578-L612">SurfaceMountingManager (Android)</a></p>'},
+ 'Flutter':{
+  stages:[['Vsync','SchedulerBinding.handleBeginFrame','UI'],['Build','widgets → elements','UI'],['Layout','RenderObjects','UI'],['Paint','PictureRecorder → layer tree','UI'],['Composite','scene to engine','UI'],['Raster','Impeller / Skia on GPU','raster'],['Post-frame','addPostFrameCallback','UI']],
+  tree:[[0,'UIWindow / DecorView'],[1,'FlutterView (one native view, opaque)',1],[0,'(Dart) Widget: Column → Text("Tea")'],[0,'(Dart) Element tree (keeps state)'],[0,'(Dart) RenderObject: RenderFlex → RenderParagraph "Tea"'],[0,'(Dart) Layer tree: OffsetLayer → PictureLayer']],
+  see:'Natively: one <code>FlutterView</code>, a single surface. Nothing inside it is a native view. A native recorder can only take pictures of it. In Dart, though, the render tree is fully readable and Flutter can snapshot any <code>RepaintBoundary</code> to an image.',
+  notes:'Flutter draws <b>everything itself</b>. Widgets are cheap immutable configs; Elements hold the live tree; RenderObjects lay out and paint; painting records drawing commands into <code>Picture</code>s inside a layer tree, which the engine rasterises with Impeller or Skia. Every frame ends with post-frame callbacks, a perfect "a frame was drawn" hook. So Flutter replay is done <b>in Dart</b>, not by the native SDK.<p class="src">flutter <code>3.47.9</code>: <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L312-L349">Widget.createElement</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L6797-L6803">RenderObjectElement.mount → createRenderObject</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L3928-L3932">visitChildElements</a> (what replay maskers walk) · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L1338-L1352">handleDrawFrame → post-frame callbacks</a></p>'}
+};
+var cur1='iOS UIKit',seeOn=false,nt=null;
+var tabs=document.getElementById('natTabs');
+Object.keys(P).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.textContent=k;b.onclick=function(){cur1=k;draw()};tabs.appendChild(b)});
+function draw(){var p=P[cur1];
+ tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.textContent===cur1)});
+ document.getElementById('natPipe').innerHTML=p.stages.map(function(s){return '<div class="st"><b>'+s[0]+'</b><span class="mut">'+s[1]+'</span><div class="st thread" style="border:0;padding:0;background:none">'+s[2]+'</div></div>'}).join('');
+ document.getElementById('natTree').innerHTML=p.tree.map(function(r){return '<div class="tn '+(seeOn&&r[2]?'opaque':'')+'" style="padding-left:'+(6+r[0]*18)+'px">'+(r[2]?'▣ ':'')+esc(r[1])+'</div>'}).join('');
+ document.getElementById('natNotes').innerHTML=p.notes;
+ document.getElementById('natCap').innerHTML=seeOn?'<b>What a native view walk sees:</b> '+p.see:'Press "draw a frame" to follow one frame through '+esc(cur1)+'. ▣ marks parts whose content is pixels, not structure.';
+ document.getElementById('natSee').classList.toggle('on',seeOn);}
+document.getElementById('natSee').onclick=function(){seeOn=!seeOn;draw()};
+document.getElementById('natPlay').onclick=function(){clearInterval(nt);var els=document.querySelectorAll('#natPipe .st'),i=0;
+ nt=setInterval(function(){els.forEach(function(e,j){e.classList.toggle('act',j===i)});var s=P[cur1].stages[i];if(s)document.getElementById('natCap').innerHTML='<b>'+s[0]+'</b> ('+s[2]+' thread): '+s[1];i++;if(i>els.length){clearInterval(nt);els.forEach(function(e){e.classList.remove('act')});draw()}},reduce?1600:900)};
+draw();
+})();
+</script>
+</body></html>
