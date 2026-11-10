@@ -1,0 +1,298 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "POST /i/v1/logs?token=... OTLP/JSON logs from logs.captureConsoleLogs (remote config logs.captureConsoleLogs=true)."
+  },
+  "ts": "2026-11-10T03:29:38.185Z",
+  "method": "POST",
+  "path": "/i/v1/logs",
+  "query": {
+    "token": "phc_<redacted>"
+  },
+  "headers": {
+    "host": "posthog-capture.localhost:4570",
+    "content-length": "590",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "content-type": "text/plain",
+    "accept": "*/*",
+    "origin": "http://posthog-capture.localhost:4570",
+    "sec-fetch-mode": "cors"
+  },
+  "decode": {
+    "rawBytes": 590,
+    "contentType": "text/plain",
+    "steps": [
+      "gunzip"
+    ],
+    "decodedBytes": 3099
+  },
+  "body": {
+    "resourceLogs": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "os.name",
+              "value": {
+                "stringValue": "macOS"
+              }
+            },
+            {
+              "key": "os.version",
+              "value": {
+                "stringValue": "10.15.7"
+              }
+            },
+            {
+              "key": "service.name",
+              "value": {
+                "stringValue": "posthog-browser-logs"
+              }
+            },
+            {
+              "key": "telemetry.sdk.name",
+              "value": {
+                "stringValue": "web"
+              }
+            },
+            {
+              "key": "telemetry.sdk.version",
+              "value": {
+                "stringValue": "1.447.6"
+              }
+            }
+          ]
+        },
+        "scopeLogs": [
+          {
+            "scope": {
+              "name": "console",
+              "version": "1.447.6"
+            },
+            "logRecords": [
+              {
+                "timeUnixNano": "1794281375179000000",
+                "observedTimeUnixNano": "1794281375179000000",
+                "severityNumber": 9,
+                "severityText": "INFO",
+                "body": {
+                  "stringValue": "\"demo log\" {\"a\":1}"
+                },
+                "attributes": [
+                  {
+                    "key": "posthogDistinctId",
+                    "value": {
+                      "stringValue": "01a1c380-ee0a-7775-bca9-06f4379b3a53"
+                    }
+                  },
+                  {
+                    "key": "sessionId",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e08bd74251"
+                    }
+                  },
+                  {
+                    "key": "window.id",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e16de154a0"
+                    }
+                  },
+                  {
+                    "key": "sessionStartTimestamp",
+                    "value": {
+                      "stringValue": "1794281369103"
+                    }
+                  },
+                  {
+                    "key": "lastActivityTimestamp",
+                    "value": {
+                      "stringValue": "1794281375178"
+                    }
+                  },
+                  {
+                    "key": "url.full",
+                    "value": {
+                      "stringValue": "http://posthog-capture.localhost:4570/"
+                    }
+                  },
+                  {
+                    "key": "feature_flags",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "demo-flag"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "log.source",
+                    "value": {
+                      "stringValue": "console.log"
+                    }
+                  },
+                  {
+                    "key": "host",
+                    "value": {
+                      "stringValue": "posthog-capture.localhost:4570"
+                    }
+                  }
+                ]
+              },
+              {
+                "timeUnixNano": "1794281375185000000",
+                "observedTimeUnixNano": "1794281375185000000",
+                "severityNumber": 13,
+                "severityText": "WARN",
+                "body": {
+                  "stringValue": "\"demo warn\""
+                },
+                "attributes": [
+                  {
+                    "key": "posthogDistinctId",
+                    "value": {
+                      "stringValue": "01a1c380-ee0a-7775-bca9-06f4379b3a53"
+                    }
+                  },
+                  {
+                    "key": "sessionId",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e08bd74251"
+                    }
+                  },
+                  {
+                    "key": "window.id",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e16de154a0"
+                    }
+                  },
+                  {
+                    "key": "sessionStartTimestamp",
+                    "value": {
+                      "stringValue": "1794281369103"
+                    }
+                  },
+                  {
+                    "key": "lastActivityTimestamp",
+                    "value": {
+                      "stringValue": "1794281375178"
+                    }
+                  },
+                  {
+                    "key": "url.full",
+                    "value": {
+                      "stringValue": "http://posthog-capture.localhost:4570/"
+                    }
+                  },
+                  {
+                    "key": "feature_flags",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "demo-flag"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "log.source",
+                    "value": {
+                      "stringValue": "console.warn"
+                    }
+                  },
+                  {
+                    "key": "host",
+                    "value": {
+                      "stringValue": "posthog-capture.localhost:4570"
+                    }
+                  }
+                ]
+              },
+              {
+                "timeUnixNano": "1794281375186000000",
+                "observedTimeUnixNano": "1794281375186000000",
+                "severityNumber": 17,
+                "severityText": "ERROR",
+                "body": {
+                  "stringValue": "\"demo console error\""
+                },
+                "attributes": [
+                  {
+                    "key": "posthogDistinctId",
+                    "value": {
+                      "stringValue": "01a1c380-ee0a-7775-bca9-06f4379b3a53"
+                    }
+                  },
+                  {
+                    "key": "sessionId",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e08bd74251"
+                    }
+                  },
+                  {
+                    "key": "window.id",
+                    "value": {
+                      "stringValue": "01a1c380-ee3a-7f3c-86a1-56e16de154a0"
+                    }
+                  },
+                  {
+                    "key": "sessionStartTimestamp",
+                    "value": {
+                      "stringValue": "1794281369103"
+                    }
+                  },
+                  {
+                    "key": "lastActivityTimestamp",
+                    "value": {
+                      "stringValue": "1794281375178"
+                    }
+                  },
+                  {
+                    "key": "url.full",
+                    "value": {
+                      "stringValue": "http://posthog-capture.localhost:4570/"
+                    }
+                  },
+                  {
+                    "key": "feature_flags",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "demo-flag"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "log.source",
+                    "value": {
+                      "stringValue": "console.error"
+                    }
+                  },
+                  {
+                    "key": "host",
+                    "value": {
+                      "stringValue": "posthog-capture.localhost:4570"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "Ok"
+    }
+  }
+}

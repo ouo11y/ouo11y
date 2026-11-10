@@ -1,0 +1,94 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "First $pageview goes to /e/ because remote config (analytics.endpoint=/i/v0/e/) had not arrived yet. Body envelope {api_key,batch,sent_at}."
+  },
+  "ts": "2026-11-10T03:29:29.175Z",
+  "method": "POST",
+  "path": "/e/",
+  "query": {},
+  "headers": {
+    "host": "posthog-capture.localhost:4570",
+    "content-length": "906",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "content-type": "text/plain",
+    "accept": "*/*",
+    "origin": "http://posthog-capture.localhost:4570",
+    "sec-fetch-mode": "cors"
+  },
+  "decode": {
+    "rawBytes": 906,
+    "contentType": "text/plain",
+    "steps": [
+      "gunzip"
+    ],
+    "decodedBytes": 1930
+  },
+  "body": [
+    {
+      "uuid": "01a1c380-ee0f-7c5b-b11a-b6be8bcb324a",
+      "event": "$pageview",
+      "properties": {
+        "$os": "Mac OS X",
+        "$os_version": "10.15.7",
+        "$browser": "Chrome",
+        "$device_type": "Desktop",
+        "$timezone": "Africa/Cairo",
+        "$timezone_offset": -120,
+        "$current_url": "http://posthog-capture.localhost:4570/",
+        "$host": "posthog-capture.localhost:4570",
+        "$pathname": "/",
+        "$raw_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+        "$browser_version": 157,
+        "$browser_language": "en-US",
+        "$browser_language_prefix": "en",
+        "$screen_height": 600,
+        "$screen_width": 800,
+        "$viewport_height": 813,
+        "$viewport_width": 1280,
+        "$lib": "web",
+        "$lib_version": "1.447.6",
+        "$insert_id": "lvoi9nhezqcjs3ss",
+        "$time": 1794281369.146,
+        "$sdk_dist_channel": "cdn",
+        "$initialization_time": "2026-11-10T03:29:29.091Z",
+        "$configured_session_timeout_ms": 1800000,
+        "distinct_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
+        "$device_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
+        "$sdk_debug_extensions_init_method": "synchronous",
+        "$sdk_debug_extensions_init_time_ms": 3,
+        "$referrer": "$direct",
+        "$referring_domain": "$direct",
+        "title": "posthog-capture demo",
+        "token": "phc_<redacted>",
+        "$config_defaults": "2026-08-30",
+        "$session_id": "01a1c380-ee3a-7f3c-86a1-56e08bd74251",
+        "$window_id": "01a1c380-ee3a-7f3c-86a1-56e16de154a0",
+        "$session_entry_referrer": "$direct",
+        "$session_entry_referring_domain": "$direct",
+        "$session_entry_url": "http://posthog-capture.localhost:4570/",
+        "$session_entry_host": "posthog-capture.localhost:4570",
+        "$session_entry_pathname": "/",
+        "$recording_status": "disabled",
+        "$sdk_debug_retry_queue_size": 0,
+        "$lib_custom_api_host": "http://posthog-capture.localhost:4570",
+        "$pageview_id": "01a1c380-ee0f-7c5b-b11a-b6be8bcb324a",
+        "$is_identified": false,
+        "$process_person_profile": false,
+        "$lib_rate_limit_remaining_tokens": 99
+      },
+      "timestamp": "2026-11-10T03:29:29.103Z"
+    }
+  ],
+  "bodyEnvelope": {
+    "api_key": "phc_<redacted>",
+    "batch": "<1 events, see body>",
+    "sent_at": "2026-11-10T03:29:29.149Z"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "Ok"
+    }
+  }
+}

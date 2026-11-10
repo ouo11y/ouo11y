@@ -1,0 +1,42 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "Server forced 500 on the first 3 requests. The same $pageview (same uuid) was resent with retry_count=1 then 2; times show the backoff."
+  },
+  "attempts": [
+    {
+      "ts": "2026-11-10T03:27:28.451Z",
+      "path": "/e/",
+      "query": {},
+      "status": 500,
+      "uuids": [
+        "01a1c37f-16a9-7774-a2a5-60b777d508c1"
+      ],
+      "sent_at": "2026-11-10T03:27:28.444Z"
+    },
+    {
+      "ts": "2026-11-10T03:27:34.491Z",
+      "path": "/e/",
+      "query": {
+        "retry_count": "1"
+      },
+      "status": 500,
+      "uuids": [
+        "01a1c37f-16a9-7774-a2a5-60b777d508c1"
+      ],
+      "sent_at": "2026-11-10T03:27:34.488Z"
+    },
+    {
+      "ts": "2026-11-10T03:27:43.501Z",
+      "path": "/e/",
+      "query": {
+        "retry_count": "2"
+      },
+      "status": 200,
+      "uuids": [
+        "01a1c37f-16a9-7774-a2a5-60b777d508c1"
+      ],
+      "sent_at": "2026-11-10T03:27:43.499Z"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>posthog-capture demo</title>
+    <style>
+      body { font: 16px/1.4 system-ui, sans-serif; margin: 24px; max-width: 720px; }
+      button, input { font: inherit; margin: 4px 0; padding: 6px 10px; }
+      #list li { padding: 2px 0; }
+      .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin: 12px 0; }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">posthog-capture demo</h1>
+    <p>Each control below triggers one PostHog feature. The capture server logs what the SDK sends.</p>
+
+    <div class="card">
+      <button id="btn-click" data-ph-capture-attribute-step="first">Plain click (autocapture)</button>
+      <button id="btn-rage">Rage click me</button>
+      <span id="dead" style="cursor: pointer">Dead click target</span>
+    </div>
+
+    <div class="card">
+      <form id="form" onsubmit="event.preventDefault(); document.getElementById('form-out').textContent = 'submitted'">
+        <input id="name" name="name" placeholder="name (text input)" />
+        <input id="password" name="password" type="password" placeholder="password" />
+        <input id="captured" name="captured" data-ph-capture-value placeholder="value captured" />
+        <button id="submit" type="submit">Submit form</button>
+        <span id="form-out"></span>
+      </form>
+    </div>
+
+    <div class="card">
+      <button id="btn-fetch">fetch /api/demo</button>
+      <button id="btn-fetch-fail">fetch /api/demo-fail (500)</button>
+      <button id="btn-throw">Throw error</button>
+      <button id="btn-reject">Unhandled rejection</button>
+      <button id="btn-console">console.log/warn/error</button>
+      <button id="btn-manual">Manual capture + identify + captureException</button>
+      <button id="btn-mutate">Add 200 list items (DOM mutations)</button>
+      <button id="btn-nav">pushState to /page-2</button>
+    </div>
+    <ul id="list"></ul>
+
+    <script src="/dist/array.js"></script>
+    <script>
+      // posthog-js 1.447.6 from the npm package, served locally. Everything that
+      // would normally go to us.i.posthog.com or the asset CDN goes to this origin.
+      posthog.init('phc_demo_token_not_a_secret', {
+        api_host: location.origin,
+        defaults: '2026-08-30',
+        autocapture: true,
+        capture_pageview: 'history_change',
+        capture_pageleave: true,
+        capture_exceptions: { capture_unhandled_errors: true, capture_unhandled_rejections: true, capture_console_errors: true },
+        capture_performance: { web_vitals: true, network_timing: true },
+        capture_dead_clicks: true,
+        capture_heatmaps: true,
+        disable_session_recording: false,
+        session_recording: { recordHeaders: true, recordBody: true },
+        enable_recording_console_log: true,
+        person_profiles: 'identified_only',
+        debug: false,
+        loaded: (ph) => { window.__phLoaded = true },
+      })
+
+      const $ = (id) => document.getElementById(id)
+      $('btn-fetch').onclick = () => fetch('/api/demo?x=1', { headers: { 'x-demo': 'yes' } }).then((r) => r.json())
+      $('btn-fetch-fail').onclick = () => fetch('/api/demo-fail').catch(() => {})
+      $('btn-throw').onclick = () => { setTimeout(() => { throw new TypeError('demo thrown error') }) }
+      $('btn-reject').onclick = () => { Promise.reject(new Error('demo unhandled rejection')) }
+      $('btn-console').onclick = () => { console.log('demo log', { a: 1 }); console.warn('demo warn'); console.error('demo console error') }
+      $('btn-manual').onclick = () => {
+        posthog.capture('demo_manual_event', { plan: 'test', amount: 3 })
+        posthog.identify('user-123', { email: '<redacted>' })
+        posthog.captureException(new Error('demo manual exception'), { where: 'btn-manual' })
+      }
+      $('btn-mutate').onclick = () => {
+        const ul = $('list')
+        for (let i = 0; i < 200; i++) { const li = document.createElement('li'); li.textContent = 'item ' + i; ul.appendChild(li) }
+      }
+      $('btn-nav').onclick = () => { history.pushState({}, '', '/page-2'); $('title').textContent = 'page 2' }
+    </script>
+  </body>
+</html>

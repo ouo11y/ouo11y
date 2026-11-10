@@ -1,0 +1,70 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "GET /array/<token>/config. The response is the MOCK our capture server returns (keys from posthog/models/remote_config.py); the request is what posthog-js sent after /array/<token>/config.js returned 404."
+  },
+  "request": {
+    "ts": "2026-11-10T03:29:29.179Z",
+    "method": "GET",
+    "path": "/array/phc_<redacted>/config",
+    "query": {},
+    "headers": {
+      "host": "posthog-capture.localhost:4570",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+      "accept": "*/*",
+      "sec-fetch-mode": "cors"
+    }
+  },
+  "mockResponse": {
+    "token": "phc_<redacted>",
+    "supportedCompression": [
+      "gzip",
+      "gzip-js"
+    ],
+    "hasFeatureFlags": true,
+    "captureDeadClicks": true,
+    "capturePerformance": {
+      "network_timing": true,
+      "web_vitals": true,
+      "web_vitals_allowed_metrics": null
+    },
+    "autocapture_opt_out": false,
+    "autocaptureExceptions": true,
+    "analytics": {
+      "endpoint": "/i/v0/e/"
+    },
+    "elementsChainAsString": true,
+    "errorTracking": {
+      "autocaptureExceptions": true,
+      "suppressionRules": []
+    },
+    "logs": {
+      "captureConsoleLogs": true
+    },
+    "heatmaps": true,
+    "surveys": false,
+    "productTours": false,
+    "defaultIdentifiedOnly": true,
+    "siteApps": [],
+    "sessionRecording": {
+      "endpoint": "/s/",
+      "consoleLogRecordingEnabled": true,
+      "recorderVersion": "v2",
+      "sampleRate": null,
+      "minimumDurationMilliseconds": null,
+      "linkedFlag": null,
+      "networkPayloadCapture": {
+        "recordHeaders": true,
+        "recordBody": true
+      },
+      "masking": null,
+      "urlTriggers": [],
+      "urlBlocklist": [],
+      "eventTriggers": [],
+      "triggerMatchType": null,
+      "scriptConfig": null,
+      "recordCanvas": false,
+      "version": 1
+    }
+  }
+}

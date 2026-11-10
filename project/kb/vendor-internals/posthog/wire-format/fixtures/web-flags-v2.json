@@ -1,0 +1,99 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "POST /flags/?v=2 after identify(). Body gzip, Content-Type text/plain, no compression query param. Response is our mock."
+  },
+  "ts": "2026-11-10T03:29:35.584Z",
+  "method": "POST",
+  "path": "/flags/",
+  "query": {
+    "v": "2"
+  },
+  "headers": {
+    "host": "posthog-capture.localhost:4570",
+    "content-length": "442",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "content-type": "text/plain",
+    "accept": "*/*",
+    "origin": "http://posthog-capture.localhost:4570",
+    "sec-fetch-mode": "cors"
+  },
+  "decode": {
+    "rawBytes": 442,
+    "contentType": "text/plain",
+    "steps": [
+      "gunzip"
+    ],
+    "decodedBytes": 1154
+  },
+  "body": {
+    "token": "phc_<redacted>",
+    "distinct_id": "user-123",
+    "groups": {},
+    "$anon_distinct_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
+    "person_properties": {
+      "$initial_referrer": "$direct",
+      "$initial_referring_domain": "$direct",
+      "$initial_current_url": "http://posthog-capture.localhost:4570/",
+      "$initial_host": "posthog-capture.localhost:4570",
+      "$initial_pathname": "/",
+      "$initial_utm_source": null,
+      "$initial_utm_medium": null,
+      "$initial_utm_campaign": null,
+      "$initial_utm_content": null,
+      "$initial_utm_term": null,
+      "$initial_gad_source": null,
+      "$initial_mc_cid": null,
+      "$initial_gclid": null,
+      "$initial_gclsrc": null,
+      "$initial_dclid": null,
+      "$initial_gbraid": null,
+      "$initial_wbraid": null,
+      "$initial_fbclid": null,
+      "$initial_msclkid": null,
+      "$initial_twclid": null,
+      "$initial_li_fat_id": null,
+      "$initial_igshid": null,
+      "$initial_ttclid": null,
+      "$initial_rdt_cid": null,
+      "$initial_epik": null,
+      "$initial_qclid": null,
+      "$initial_sccid": null,
+      "$initial_oppref": null,
+      "$initial_bfcid": null,
+      "$initial_irclid": null,
+      "$initial__kx": null,
+      "email": "<redacted>",
+      "$lib": "web",
+      "$lib_version": "1.447.6"
+    },
+    "timezone": "Africa/Cairo",
+    "$device_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
+    "sent_at": "2026-11-10T03:29:35.580Z"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "flags": {
+        "demo-flag": {
+          "key": "demo-flag",
+          "enabled": true,
+          "variant": null,
+          "reason": {
+            "code": "condition_match",
+            "condition_index": 0,
+            "description": "Matched condition set 1"
+          },
+          "metadata": {
+            "id": 1,
+            "version": 1,
+            "payload": null
+          }
+        }
+      },
+      "errorsWhileComputingFlags": false,
+      "requestId": "00000000-0000-0000-0000-000000000000",
+      "quotaLimited": []
+    }
+  }
+}
