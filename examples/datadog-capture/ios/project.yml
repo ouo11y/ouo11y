@@ -1,0 +1,43 @@
+# xcodegen spec for the iOS capture app. Generate with: xcodegen generate
+name: DDCapture
+options:
+  bundleIdPrefix: dev.ouo.research
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  DatadogSDK:
+    url: https://github.com/DataDog/dd-sdk-ios
+    exactVersion: 3.21.0
+targets:
+  DDCapture:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: DatadogSDK
+        product: DatadogCore
+      - package: DatadogSDK
+        product: DatadogRUM
+      - package: DatadogSDK
+        product: DatadogLogs
+      - package: DatadogSDK
+        product: DatadogSessionReplay
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: DDCapture
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: "NO"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: "NO"

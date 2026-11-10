@@ -1,0 +1,1444 @@
+{
+  "receivedAt": "2026-11-10T03:15:32.171Z",
+  "method": "POST",
+  "proxyUrl": "/intake?ddforward=%2Fapi%2Fv2%2Freplay%3Fddsource%3Dbrowser%26dd-api-key%3D%3Credacted%3E%26dd-evp-origin-version%3D7.17.0%26dd-evp-origin%3Dbrowser%26dd-request-id%3D%3Credacted%3E",
+  "forwardPath": "/api/v2/replay",
+  "forwardParams": {
+    "ddsource": "browser",
+    "dd-api-key": "<redacted client token>",
+    "dd-evp-origin-version": "7.17.0",
+    "dd-evp-origin": "browser",
+    "dd-request-id": "<redacted>"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "content-length": "3253",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "sec-ch-ua": "\"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"156\", \"Google Chrome\";v=\"156\"",
+    "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryAgBQft0dYioMTCSg",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "origin": "http://127.0.0.1:4560",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/?run=1794280527016",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000001&id=00000000-0000-4000-8000-000000000002&created=1794280527132&expire=1794281431459&c=0"
+  },
+  "bodyBytes": 3253,
+  "body": {
+    "kind": "multipart",
+    "parts": [
+      {
+        "name": "segment",
+        "filename": "00000000-0000-4000-8000-000000000002-1794280527163",
+        "contentType": "application/octet-stream",
+        "bytes": 2498,
+        "inflatedBytes": 7272,
+        "json": {
+          "records": [
+            {
+              "data": {
+                "height": 813,
+                "href": "http://127.0.0.1:4560/",
+                "width": 1280
+              },
+              "type": 4,
+              "timestamp": 1794280527163
+            },
+            {
+              "data": {
+                "has_focus": false
+              },
+              "type": 6,
+              "timestamp": 1794280527163
+            },
+            {
+              "data": [
+                [
+                  11,
+                  [
+                    1,
+                    "#document",
+                    "#doctype",
+                    "HTML",
+                    "HEAD",
+                    "#text",
+                    "META",
+                    "TITLE",
+                    "STYLE",
+                    "BODY",
+                    "H1",
+                    "P",
+                    "CODE",
+                    "DIV",
+                    "H2",
+                    "BUTTON",
+                    "LABEL",
+                    "INPUT",
+                    "IMG"
+                  ],
+                  [
+                    4,
+                    "",
+                    "Datadog capture demo",
+                    "\n  ",
+                    "\n    ",
+                    "Every Datadog request goes to ",
+                    "/intake",
+                    " on this server and is written to ",
+                    "captures/",
+                    ".",
+                    "\n\n    ",
+                    "\n      ",
+                    "Interactions",
+                    "Named click",
+                    "Plain button text",
+                    "Dead button (no handler)",
+                    "addAction + timing + vital",
+                    "Network",
+                    "fetch /api/ok",
+                    "fetch /api/fail (500)",
+                    "XHR /api/slow",
+                    "Errors and logs",
+                    "throw Error",
+                    "unhandled rejection",
+                    "console.error",
+                    "addError",
+                    "logger.info / warn",
+                    "300 ms long task",
+                    "Replay privacy",
+                    "Name ",
+                    "Password ",
+                    "xxxx xxxxxxxxx xx xxxxxx xxxx xxxxxxxxxxxxxxxxxxxxxxx",
+                    "Mutate DOM",
+                    "Navigation",
+                    "pushState to /checkout/42",
+                    "\n  \n\n"
+                  ],
+                  [
+                    3,
+                    "html",
+                    "",
+                    "en",
+                    "utf-8",
+                    "viewport",
+                    "width=device-width, initial-scale=1",
+                    "title",
+                    "card",
+                    "btn-action",
+                    "named click",
+                    "btn-plain",
+                    "btn-dead",
+                    "btn-custom",
+                    "btn-fetch-ok",
+                    "btn-fetch-fail",
+                    "btn-xhr-slow",
+                    "btn-throw",
+                    "btn-reject",
+                    "btn-console",
+                    "btn-adderror",
+                    "btn-log",
+                    "btn-longtask",
+                    "name",
+                    "text",
+                    "type here",
+                    "pw",
+                    "password",
+                    "secret",
+                    "mask",
+                    "hidden",
+                    "placeholder image",
+                    "btn-mutate",
+                    "btn-nav",
+                    "log"
+                  ],
+                  [
+                    2,
+                    "lang",
+                    "charset",
+                    "name",
+                    "content",
+                    "id",
+                    "class",
+                    "data-dd-action-name",
+                    "type",
+                    "placeholder",
+                    "data-dd-privacy",
+                    "alt",
+                    "src"
+                  ],
+                  [
+                    7,
+                    "",
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' fill='%2388aacc'/></svg>"
+                  ],
+                  [
+                    6,
+                    "body { font: 15px / 1.5 system-ui, sans-serif; margin: 24px; max-width: 760px; }button { margin: 4px 4px 4px 0px; padding: 6px 10px; }.card { border: 1px solid rgb(204, 204, 204); border-radius: 8px; padding: 12px; margin: 12px 0px; }img { width: 64px; height: 64px; background: rgb(136, 170, 204); display: block; }#log { font: 12px ui-monospace, monospace; white-space: pre-wrap; background: rgb(244, 244, 244); padding: 8px; }"
+                  ]
+                ],
+                [
+                  1,
+                  [
+                    null,
+                    0
+                  ],
+                  [
+                    1,
+                    1,
+                    53,
+                    54,
+                    99
+                  ],
+                  [
+                    0,
+                    2,
+                    [
+                      87,
+                      55
+                    ]
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    1,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    5,
+                    [
+                      88,
+                      56
+                    ]
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    5,
+                    [
+                      89,
+                      57
+                    ],
+                    [
+                      90,
+                      58
+                    ]
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    6
+                  ],
+                  [
+                    1,
+                    4,
+                    19
+                  ],
+                  [
+                    8,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    7
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    0,
+                    4,
+                    18
+                  ],
+                  [
+                    16,
+                    4,
+                    20
+                  ],
+                  [
+                    0,
+                    8
+                  ],
+                  [
+                    1,
+                    4,
+                    21
+                  ],
+                  [
+                    0,
+                    9,
+                    [
+                      91,
+                      59
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    19
+                  ],
+                  [
+                    4,
+                    4,
+                    21
+                  ],
+                  [
+                    0,
+                    10
+                  ],
+                  [
+                    1,
+                    4,
+                    22
+                  ],
+                  [
+                    0,
+                    11
+                  ],
+                  [
+                    1,
+                    4,
+                    23
+                  ],
+                  [
+                    4,
+                    4,
+                    24
+                  ],
+                  [
+                    0,
+                    11
+                  ],
+                  [
+                    1,
+                    4,
+                    25
+                  ],
+                  [
+                    7,
+                    4,
+                    26
+                  ],
+                  [
+                    13,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      92,
+                      60
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    13
+                  ],
+                  [
+                    1,
+                    4,
+                    29
+                  ],
+                  [
+                    4,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      61
+                    ],
+                    [
+                      93,
+                      62
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    30
+                  ],
+                  [
+                    7,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      63
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    31
+                  ],
+                  [
+                    10,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      64
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    32
+                  ],
+                  [
+                    13,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      65
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    33
+                  ],
+                  [
+                    16,
+                    4,
+                    21
+                  ],
+                  [
+                    31,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      92,
+                      60
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    13
+                  ],
+                  [
+                    1,
+                    4,
+                    34
+                  ],
+                  [
+                    4,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      66
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    35
+                  ],
+                  [
+                    7,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      67
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    36
+                  ],
+                  [
+                    10,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      68
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    37
+                  ],
+                  [
+                    13,
+                    4,
+                    21
+                  ],
+                  [
+                    46,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      92,
+                      60
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    13
+                  ],
+                  [
+                    1,
+                    4,
+                    38
+                  ],
+                  [
+                    4,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      69
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    39
+                  ],
+                  [
+                    7,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      70
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    40
+                  ],
+                  [
+                    10,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      71
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    41
+                  ],
+                  [
+                    13,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      72
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    42
+                  ],
+                  [
+                    16,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      73
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    43
+                  ],
+                  [
+                    19,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      74
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    44
+                  ],
+                  [
+                    22,
+                    4,
+                    21
+                  ],
+                  [
+                    70,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      92,
+                      60
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    13
+                  ],
+                  [
+                    1,
+                    4,
+                    45
+                  ],
+                  [
+                    4,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    15
+                  ],
+                  [
+                    1,
+                    4,
+                    46
+                  ],
+                  [
+                    0,
+                    16,
+                    [
+                      91,
+                      75
+                    ],
+                    [
+                      94,
+                      76
+                    ],
+                    [
+                      95,
+                      77
+                    ]
+                  ],
+                  [
+                    8,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    15
+                  ],
+                  [
+                    1,
+                    4,
+                    47
+                  ],
+                  [
+                    0,
+                    16,
+                    [
+                      91,
+                      78
+                    ],
+                    [
+                      94,
+                      79
+                    ]
+                  ],
+                  [
+                    12,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    10,
+                    [
+                      92,
+                      80
+                    ],
+                    [
+                      96,
+                      81
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    48
+                  ],
+                  [
+                    15,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    10,
+                    [
+                      96,
+                      82
+                    ]
+                  ],
+                  [
+                    0,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    17,
+                    [
+                      97,
+                      83
+                    ],
+                    [
+                      98,
+                      100
+                    ]
+                  ],
+                  [
+                    0,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      84
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    49
+                  ],
+                  [
+                    22,
+                    4,
+                    21
+                  ],
+                  [
+                    94,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      92,
+                      60
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    13
+                  ],
+                  [
+                    1,
+                    4,
+                    50
+                  ],
+                  [
+                    4,
+                    4,
+                    28
+                  ],
+                  [
+                    0,
+                    14,
+                    [
+                      91,
+                      85
+                    ]
+                  ],
+                  [
+                    1,
+                    4,
+                    51
+                  ],
+                  [
+                    7,
+                    4,
+                    21
+                  ],
+                  [
+                    103,
+                    4,
+                    27
+                  ],
+                  [
+                    0,
+                    12,
+                    [
+                      91,
+                      86
+                    ]
+                  ],
+                  [
+                    0,
+                    4,
+                    52
+                  ]
+                ],
+                [
+                  5,
+                  [
+                    106,
+                    734,
+                    22.5
+                  ]
+                ],
+                [
+                  6,
+                  [
+                    0,
+                    0,
+                    0
+                  ]
+                ],
+                [
+                  7,
+                  [
+                    101
+                  ]
+                ],
+                [
+                  8,
+                  [
+                    12,
+                    0
+                  ]
+                ]
+              ],
+              "format": 1,
+              "type": 2,
+              "timestamp": 1794280527163
+            },
+            {
+              "data": {
+                "scale": 1,
+                "offsetLeft": 0,
+                "offsetTop": 0,
+                "pageLeft": 0,
+                "pageTop": 0,
+                "height": 813,
+                "width": 1280
+              },
+              "type": 8,
+              "timestamp": 1794280527163
+            },
+            {
+              "data": {
+                "has_focus": true
+              },
+              "type": 6,
+              "timestamp": 1794280529542
+            },
+            {
+              "data": {
+                "has_focus": true
+              },
+              "type": 6,
+              "timestamp": 1794280529542
+            },
+            {
+              "data": {
+                "source": 1,
+                "positions": [
+                  {
+                    "id": 38,
+                    "timeOffset": 0,
+                    "x": 85,
+                    "y": 231
+                  }
+                ]
+              },
+              "type": 3,
+              "timestamp": 1794280529545
+            },
+            {
+              "id": 1,
+              "data": {
+                "source": 2,
+                "id": 38,
+                "type": 1,
+                "x": 85,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529558
+            },
+            {
+              "id": 2,
+              "data": {
+                "source": 2,
+                "id": 38,
+                "type": 5
+              },
+              "type": 3,
+              "timestamp": 1794280529560
+            },
+            {
+              "id": 3,
+              "data": {
+                "source": 2,
+                "id": 38,
+                "type": 0,
+                "x": 85,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529561
+            },
+            {
+              "id": 4,
+              "data": {
+                "source": 2,
+                "id": 38,
+                "type": 2,
+                "x": 85,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529561
+            },
+            {
+              "data": [
+                [
+                  11,
+                  [
+                    4,
+                    "03:15:29.561 named click\n"
+                  ]
+                ],
+                [
+                  1,
+                  [
+                    2,
+                    4,
+                    102
+                  ]
+                ]
+              ],
+              "type": 12,
+              "timestamp": 1794280529592
+            },
+            {
+              "data": {
+                "source": 1,
+                "positions": [
+                  {
+                    "id": 41,
+                    "timeOffset": 0,
+                    "x": 201,
+                    "y": 231
+                  }
+                ]
+              },
+              "type": 3,
+              "timestamp": 1794280529688
+            },
+            {
+              "id": 5,
+              "data": {
+                "source": 2,
+                "id": 41,
+                "type": 1,
+                "x": 201,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529690
+            },
+            {
+              "id": 6,
+              "data": {
+                "source": 2,
+                "id": 38,
+                "type": 6
+              },
+              "type": 3,
+              "timestamp": 1794280529690
+            },
+            {
+              "id": 7,
+              "data": {
+                "source": 2,
+                "id": 41,
+                "type": 5
+              },
+              "type": 3,
+              "timestamp": 1794280529690
+            },
+            {
+              "id": 8,
+              "data": {
+                "source": 2,
+                "id": 41,
+                "type": 0,
+                "x": 201,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529691
+            },
+            {
+              "id": 9,
+              "data": {
+                "source": 2,
+                "id": 41,
+                "type": 2,
+                "x": 201,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280529691
+            },
+            {
+              "data": [
+                [
+                  11,
+                  [
+                    4,
+                    "Datadog capture demo (clicked)",
+                    "03:15:29.561 named click\n03:15:29.691 plain click\n"
+                  ]
+                ],
+                [
+                  1,
+                  [
+                    105,
+                    4,
+                    103
+                  ],
+                  [
+                    4,
+                    4,
+                    104
+                  ]
+                ],
+                [
+                  2,
+                  22,
+                  125
+                ]
+              ],
+              "type": 12,
+              "timestamp": 1794280529725
+            },
+            {
+              "data": {
+                "source": 1,
+                "positions": [
+                  {
+                    "id": 44,
+                    "timeOffset": 0,
+                    "x": 355,
+                    "y": 231
+                  }
+                ]
+              },
+              "type": 3,
+              "timestamp": 1794280530114
+            },
+            {
+              "id": 10,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 1,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280530115
+            },
+            {
+              "id": 11,
+              "data": {
+                "source": 2,
+                "id": 41,
+                "type": 6
+              },
+              "type": 3,
+              "timestamp": 1794280530115
+            },
+            {
+              "id": 12,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 5
+              },
+              "type": 3,
+              "timestamp": 1794280530115
+            },
+            {
+              "id": 13,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 0,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280530116
+            },
+            {
+              "id": 14,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 2,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280530116
+            },
+            {
+              "data": {
+                "source": 1,
+                "positions": [
+                  {
+                    "id": 44,
+                    "timeOffset": 0,
+                    "x": 355,
+                    "y": 231
+                  }
+                ]
+              },
+              "type": 3,
+              "timestamp": 1794280531440
+            },
+            {
+              "id": 15,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 1,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531441
+            },
+            {
+              "id": 16,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 0,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531441
+            },
+            {
+              "id": 17,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 2,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531441
+            },
+            {
+              "id": 18,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 1,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531523
+            },
+            {
+              "id": 19,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 0,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531524
+            },
+            {
+              "id": 20,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 2,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531524
+            },
+            {
+              "id": 21,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 1,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531606
+            },
+            {
+              "id": 22,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 0,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531607
+            },
+            {
+              "id": 23,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 2,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531607
+            },
+            {
+              "id": 24,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 1,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531688
+            },
+            {
+              "id": 25,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 0,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531689
+            },
+            {
+              "id": 26,
+              "data": {
+                "source": 2,
+                "id": 44,
+                "type": 2,
+                "x": 355,
+                "y": 231
+              },
+              "type": 3,
+              "timestamp": 1794280531689
+            }
+          ],
+          "start": 1794280527163,
+          "end": 1794280531689,
+          "creation_reason": "init",
+          "records_count": 38,
+          "has_full_snapshot": true,
+          "index_in_view": 0,
+          "source": "browser",
+          "application": {
+            "id": "00000000-0000-4000-8000-000000000000"
+          },
+          "session": {
+            "id": "00000000-0000-4000-8000-000000000002"
+          },
+          "view": {
+            "id": "00000000-0000-4000-8000-000000000003"
+          }
+        }
+      },
+      {
+        "name": "event",
+        "filename": "blob",
+        "contentType": "application/json",
+        "bytes": 373,
+        "json": {
+          "raw_segment_size": 7272,
+          "compressed_segment_size": 2498,
+          "start": 1794280527163,
+          "end": 1794280531689,
+          "creation_reason": "init",
+          "records_count": 38,
+          "has_full_snapshot": true,
+          "index_in_view": 0,
+          "source": "browser",
+          "application": {
+            "id": "00000000-0000-4000-8000-000000000000"
+          },
+          "session": {
+            "id": "00000000-0000-4000-8000-000000000002"
+          },
+          "view": {
+            "id": "00000000-0000-4000-8000-000000000003"
+          }
+        }
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run1-default/0001-replay-segment-first.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

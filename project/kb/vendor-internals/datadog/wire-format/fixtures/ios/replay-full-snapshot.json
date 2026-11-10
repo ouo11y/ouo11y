@@ -1,0 +1,449 @@
+{
+  "receivedAt": "2026-11-10T03:34:08.665Z",
+  "method": "POST",
+  "proxyUrl": "/api/v2/replay",
+  "forwardPath": "/api/v2/replay",
+  "forwardParams": {},
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "accept": "*/*",
+    "dd-evp-origin": "ios",
+    "accept-encoding": "gzip, deflate",
+    "dd-api-key": "<redacted dd-api-key>",
+    "dd-request-id": "<redacted dd-request-id>",
+    "content-length": "1611",
+    "user-agent": "DDCapture/1.0 CFNetwork (<redacted>)",
+    "connection": "keep-alive",
+    "content-type": "multipart/form-data; boundary=00000000-0000-4000-8000-000000000070",
+    "dd-evp-origin-version": "3.21.0"
+  },
+  "bodyBytes": 1611,
+  "body": {
+    "kind": "multipart",
+    "parts": [
+      {
+        "name": "segment",
+        "filename": "file0",
+        "contentType": "application/octet-stream",
+        "bytes": 956,
+        "inflatedBytes": 4612,
+        "json": {
+          "view": {
+            "id": "00000000-0000-4000-8000-000000000066"
+          },
+          "end": 1794281643882,
+          "session": {
+            "id": "00000000-0000-4000-8000-000000000062"
+          },
+          "application": {
+            "id": "00000000-0000-4000-8000-000000000000"
+          },
+          "records": [
+            {
+              "timestamp": 1794281643882,
+              "type": 4,
+              "data": {
+                "width": 402,
+                "height": 874
+              }
+            },
+            {
+              "data": {
+                "has_focus": true
+              },
+              "timestamp": 1794281643882,
+              "type": 6
+            },
+            {
+              "timestamp": 1794281643882,
+              "type": 10,
+              "data": {
+                "wireframes": [
+                  {
+                    "height": 874,
+                    "x": 0,
+                    "id": 6,
+                    "y": 0,
+                    "width": 402,
+                    "type": "shape",
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#FFFFFFFF",
+                      "cornerRadius": 0
+                    }
+                  },
+                  {
+                    "height": 20,
+                    "x": 16,
+                    "id": 9,
+                    "y": 132,
+                    "width": 370,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "text": "xxxxx xxxxxxx xxxx xxxx xx xxxxxx xx xxxxxxx",
+                    "type": "text",
+                    "textStyle": {
+                      "color": "#000000FF",
+                      "truncationMode": "tail",
+                      "size": 17,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    },
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#00000000",
+                      "cornerRadius": 0
+                    }
+                  },
+                  {
+                    "border": {
+                      "color": "#00000033",
+                      "width": 1
+                    },
+                    "height": 34,
+                    "x": 16,
+                    "id": 10,
+                    "y": 164,
+                    "width": 370,
+                    "type": "shape",
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#FFFFFFFF",
+                      "cornerRadius": 5
+                    }
+                  },
+                  {
+                    "height": 24,
+                    "x": 21,
+                    "y": 169,
+                    "id": 11,
+                    "textPosition": {
+                      "padding": {
+                        "bottom": 0,
+                        "top": 0,
+                        "left": 0,
+                        "right": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 360,
+                    "text": "***",
+                    "type": "text",
+                    "textStyle": {
+                      "color": "#3C3C434C",
+                      "size": 17,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    }
+                  },
+                  {
+                    "y": 210,
+                    "id": 12,
+                    "x": 16,
+                    "height": 21,
+                    "type": "shape",
+                    "width": 370
+                  },
+                  {
+                    "height": 21,
+                    "x": 16,
+                    "y": 210,
+                    "id": 13,
+                    "width": 370,
+                    "label": "Image",
+                    "type": "placeholder"
+                  },
+                  {
+                    "x": 16,
+                    "height": 40,
+                    "y": 243,
+                    "id": 14,
+                    "width": 370,
+                    "type": "shape",
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#00C3D0FF",
+                      "cornerRadius": 12
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 169,
+                    "y": 301,
+                    "id": 17,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 64,
+                    "text": "xxxxx xx",
+                    "type": "text",
+                    "textStyle": {
+                      "size": 15,
+                      "truncationMode": "middle",
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif",
+                      "color": "#0088FFFF"
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 166,
+                    "y": 343,
+                    "id": 19,
+                    "textPosition": {
+                      "padding": {
+                        "right": 0,
+                        "top": 0,
+                        "left": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 70,
+                    "text": "xxxxx xxx",
+                    "type": "text",
+                    "textStyle": {
+                      "size": 15,
+                      "truncationMode": "middle",
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif",
+                      "color": "#0088FFFF"
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 150,
+                    "y": 385,
+                    "id": 21,
+                    "textPosition": {
+                      "padding": {
+                        "right": 0,
+                        "top": 0,
+                        "left": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 103,
+                    "text": "xxx xxxxx x xxx",
+                    "type": "text",
+                    "textStyle": {
+                      "truncationMode": "middle",
+                      "color": "#0088FFFF",
+                      "size": 15,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 151,
+                    "y": 427,
+                    "id": 23,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 100,
+                    "text": "xxxxxx xxxxxx",
+                    "type": "text",
+                    "textStyle": {
+                      "truncationMode": "middle",
+                      "color": "#0088FFFF",
+                      "size": 15,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 111,
+                    "y": 469,
+                    "id": 25,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 180,
+                    "text": "xxxxx xxxx xxxxxx xxx xx",
+                    "type": "text",
+                    "textStyle": {
+                      "truncationMode": "middle",
+                      "color": "#0088FFFF",
+                      "size": 15,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    }
+                  },
+                  {
+                    "height": 18,
+                    "x": 162,
+                    "y": 511,
+                    "id": 27,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 79,
+                    "text": "xxxx xxxxxx",
+                    "type": "text",
+                    "textStyle": {
+                      "truncationMode": "middle",
+                      "color": "#0088FFFF",
+                      "size": 15,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    }
+                  },
+                  {
+                    "x": 0,
+                    "height": 116,
+                    "border": {
+                      "width": 1,
+                      "color": "#AAAAAA80"
+                    },
+                    "y": 0,
+                    "id": 28,
+                    "width": 402,
+                    "type": "shape",
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#FFFFFFFF",
+                      "cornerRadius": 0
+                    }
+                  },
+                  {
+                    "x": 177,
+                    "height": 23,
+                    "y": 73,
+                    "id": 36,
+                    "textPosition": {
+                      "padding": {
+                        "left": 0,
+                        "top": 0,
+                        "right": 0,
+                        "bottom": 0
+                      },
+                      "alignment": {
+                        "horizontal": "left",
+                        "vertical": "center"
+                      }
+                    },
+                    "width": 47,
+                    "text": "xxxx",
+                    "type": "text",
+                    "textStyle": {
+                      "truncationMode": "tail",
+                      "color": "#000000FF",
+                      "size": 17,
+                      "family": "-apple-system, BlinkMacSystemFont, 'Roboto', sans-serif"
+                    },
+                    "shapeStyle": {
+                      "opacity": 1,
+                      "backgroundColor": "#00000000",
+                      "cornerRadius": 0
+                    }
+                  },
+                  {
+                    "y": 62,
+                    "id": 39,
+                    "width": 402,
+                    "type": "shape",
+                    "x": 0,
+                    "height": 54
+                  },
+                  {
+                    "y": 0,
+                    "id": 43,
+                    "width": 402,
+                    "type": "shape",
+                    "x": 0,
+                    "height": 874
+                  }
+                ]
+              }
+            }
+          ],
+          "start": 1794281643882,
+          "source": "ios",
+          "has_full_snapshot": true,
+          "records_count": 3
+        }
+      },
+      {
+        "name": "event",
+        "filename": "blob",
+        "contentType": "application/json",
+        "bytes": 326,
+        "json": [
+          {
+            "raw_segment_size": 4612,
+            "view": {
+              "id": "00000000-0000-4000-8000-000000000066"
+            },
+            "compressed_segment_size": 956,
+            "end": 1794281643882,
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000062"
+            },
+            "application": {
+              "id": "00000000-0000-4000-8000-000000000000"
+            },
+            "start": 1794281643882,
+            "source": "ios",
+            "has_full_snapshot": true,
+            "records_count": 3
+          }
+        ]
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/ios-run1/0004-replay-segment-next.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "receivedAt": "2026-11-10T03:34:13.505Z",
+  "method": "POST",
+  "proxyUrl": "/api/v2/replay",
+  "forwardPath": "/api/v2/replay",
+  "forwardParams": {},
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "accept": "*/*",
+    "dd-evp-origin": "ios",
+    "accept-encoding": "gzip, deflate",
+    "dd-api-key": "<redacted dd-api-key>",
+    "dd-request-id": "<redacted dd-request-id>",
+    "content-length": "920",
+    "user-agent": "DDCapture/1.0 CFNetwork (<redacted>)",
+    "connection": "keep-alive",
+    "content-type": "multipart/form-data; boundary=00000000-0000-4000-8000-000000000070",
+    "dd-evp-origin-version": "3.21.0"
+  },
+  "bodyBytes": 920,
+  "body": {
+    "kind": "multipart",
+    "parts": [
+      {
+        "name": "segment",
+        "filename": "file0",
+        "contentType": "application/octet-stream",
+        "bytes": 265,
+        "inflatedBytes": 446,
+        "json": {
+          "view": {
+            "id": "00000000-0000-4000-8000-000000000066"
+          },
+          "application": {
+            "id": "00000000-0000-4000-8000-000000000000"
+          },
+          "source": "ios",
+          "records": [
+            {
+              "data": {
+                "adds": [],
+                "source": 0,
+                "removes": [],
+                "updates": [
+                  {
+                    "type": "text",
+                    "text": "xxxxxxx xx xxxxxxxxxx xxxxxxxx xxxxx",
+                    "id": 9
+                  }
+                ]
+              },
+              "type": 11,
+              "timestamp": 1794281648836
+            }
+          ],
+          "start": 1794281648836,
+          "has_full_snapshot": false,
+          "records_count": 1,
+          "end": 1794281648836,
+          "session": {
+            "id": "00000000-0000-4000-8000-000000000062"
+          }
+        }
+      },
+      {
+        "name": "event",
+        "filename": "blob",
+        "contentType": "application/json",
+        "bytes": 326,
+        "json": [
+          {
+            "view": {
+              "id": "00000000-0000-4000-8000-000000000066"
+            },
+            "compressed_segment_size": 265,
+            "application": {
+              "id": "00000000-0000-4000-8000-000000000000"
+            },
+            "source": "ios",
+            "raw_segment_size": 446,
+            "start": 1794281648836,
+            "has_full_snapshot": false,
+            "records_count": 1,
+            "end": 1794281648836,
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000062"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/ios-run1/0006-replay-segment-next.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

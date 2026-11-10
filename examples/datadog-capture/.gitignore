@@ -1,0 +1,4 @@
+node_modules/
+captures/
+ios/DDCapture.xcodeproj/
+ios/Sources/Info.plist

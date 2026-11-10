@@ -1,0 +1,759 @@
+{
+  "receivedAt": "2026-11-10T03:15:45.635Z",
+  "method": "POST",
+  "proxyUrl": "/intake?ddforward=%2Fapi%2Fv2%2Frum%3Fddsource%3Dbrowser%26dd-api-key%3D%3Credacted%3E%26dd-evp-origin-version%3D7.17.0%26dd-evp-origin%3Dbrowser%26dd-request-id%3D%3Credacted%3E%26batch_time%3D1794280545634%26_dd.api%3Dbeacon",
+  "forwardPath": "/api/v2/rum",
+  "forwardParams": {
+    "ddsource": "browser",
+    "dd-api-key": "<redacted client token>",
+    "dd-evp-origin-version": "7.17.0",
+    "dd-evp-origin": "browser",
+    "dd-request-id": "<redacted>",
+    "batch_time": "1794280545634",
+    "_dd.api": "beacon"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "content-length": "11301",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "sec-ch-ua": "\"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"156\", \"Google Chrome\";v=\"156\"",
+    "content-type": "text/plain;charset=UTF-8",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "origin": "http://127.0.0.1:4560",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/checkout/42",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000001&id=00000000-0000-4000-8000-000000000002&created=1794280527132&expire=1794281444526&c=0"
+  },
+  "bodyBytes": 11301,
+  "body": {
+    "kind": "ndjson",
+    "encoding": "identity",
+    "inflatedBytes": 11301,
+    "events": [
+      {
+        "type": "action",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "action": {
+            "target": {
+              "selector": "#name",
+              "width": 153,
+              "height": 21,
+              "composed_path_selector": "INPUT#name[type=\"text\"];LABEL:nth-child(2):nth-of-type(1);DIV.card:nth-child(6):nth-of-type(4);"
+            },
+            "position": {
+              "x": 77,
+              "y": 11
+            },
+            "name_source": "text_content"
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280535865,
+        "source": "browser",
+        "view": {
+          "in_foreground": true,
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "action": {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "target": {
+            "name": "Name"
+          },
+          "type": "click",
+          "error": {
+            "count": 0
+          },
+          "long_task": {
+            "count": 0
+          },
+          "resource": {
+            "count": 0
+          },
+          "frustration": {
+            "type": []
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "action",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "action": {
+            "target": {
+              "selector": "#pw",
+              "width": 153,
+              "height": 21,
+              "composed_path_selector": "INPUT#pw[type=\"password\"];LABEL:nth-child(3):nth-of-type(2);DIV.card:nth-child(6):nth-of-type(4);"
+            },
+            "position": {
+              "x": 77,
+              "y": 11
+            },
+            "name_source": "mask_placeholder"
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280536377,
+        "source": "browser",
+        "view": {
+          "in_foreground": true,
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "action": {
+          "id": "00000000-0000-4000-8000-000000000015",
+          "target": {
+            "name": "Masked Element"
+          },
+          "type": "click",
+          "error": {
+            "count": 0
+          },
+          "long_task": {
+            "count": 0
+          },
+          "resource": {
+            "count": 0
+          },
+          "frustration": {
+            "type": []
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "action",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "action": {
+            "target": {
+              "width": 1280,
+              "height": 1183
+            },
+            "position": {
+              "x": 87,
+              "y": 852
+            },
+            "name_source": "blank"
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280536743,
+        "source": "browser",
+        "view": {
+          "in_foreground": true,
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "action": {
+          "id": "00000000-0000-4000-8000-000000000016",
+          "target": {
+            "name": ""
+          },
+          "type": "click",
+          "error": {
+            "count": 0
+          },
+          "long_task": {
+            "count": 0
+          },
+          "resource": {
+            "count": 0
+          },
+          "frustration": {
+            "type": []
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "action",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "action": {
+            "target": {
+              "selector": "#btn-nav",
+              "width": 178,
+              "height": 31,
+              "composed_path_selector": "BUTTON#btn-nav:nth-child(2);DIV.card:nth-child(7):nth-of-type(5);"
+            },
+            "position": {
+              "x": 89,
+              "y": 16
+            },
+            "name_source": "text_content"
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280538372,
+        "source": "browser",
+        "view": {
+          "in_foreground": true,
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "action": {
+          "id": "00000000-0000-4000-8000-000000000017",
+          "target": {
+            "name": "pushState to /checkout/42"
+          },
+          "type": "click",
+          "loading_time": 1000000,
+          "error": {
+            "count": 0
+          },
+          "long_task": {
+            "count": 0
+          },
+          "resource": {
+            "count": 0
+          },
+          "frustration": {
+            "type": []
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "action",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "action": {
+            "target": {
+              "width": 1280,
+              "height": 1197
+            },
+            "position": {
+              "x": 201,
+              "y": 231
+            },
+            "name_source": "blank"
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280544507,
+        "source": "browser",
+        "view": {
+          "in_foreground": true,
+          "url": "http://127.0.0.1:4560/checkout/42",
+          "referrer": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000018"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "action": {
+          "id": "00000000-0000-4000-8000-000000000019",
+          "target": {
+            "name": ""
+          },
+          "type": "click",
+          "error": {
+            "count": 0
+          },
+          "long_task": {
+            "count": 0
+          },
+          "resource": {
+            "count": 0
+          },
+          "frustration": {
+            "type": [
+              "dead_click"
+            ]
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "view",
+        "_dd": {
+          "format_version": 2,
+          "drift": -1,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100,
+            "start_session_replay_recording_manually": false
+          },
+          "sdk_name": "rum",
+          "page_states": [
+            {
+              "state": "active",
+              "start": 0
+            },
+            {
+              "state": "passive",
+              "start": 111500000
+            },
+            {
+              "state": "active",
+              "start": 2518900000
+            }
+          ],
+          "document_version": 5,
+          "replay_stats": {
+            "records_count": 128,
+            "resources_count": 0,
+            "segments_count": 3,
+            "segments_total_raw_size": 16319
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280527023,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000003",
+          "action": {
+            "count": 19
+          },
+          "frustration": {
+            "count": 12
+          },
+          "cumulative_layout_shift": 0,
+          "first_byte": 7600000,
+          "dom_complete": 49300000,
+          "dom_content_loaded": 47600000,
+          "dom_interactive": 47200000,
+          "error": {
+            "count": 4
+          },
+          "first_contentful_paint": 72000000,
+          "interaction_to_next_paint": 304000000,
+          "interaction_to_next_paint_time": 8352200000,
+          "interaction_to_next_paint_target_selector": "#btn-longtask",
+          "is_active": false,
+          "largest_contentful_paint": 72000000,
+          "largest_contentful_paint_target_selector": "#title",
+          "load_event": 49300000,
+          "loading_time": 139000000,
+          "loading_type": "initial_load",
+          "long_task": {
+            "count": 1
+          },
+          "performance": {
+            "cls": {
+              "score": 0
+            },
+            "fcp": {
+              "timestamp": 72000000
+            },
+            "inp": {
+              "duration": 304000000,
+              "timestamp": 8352200000,
+              "target_selector": "#btn-longtask",
+              "sub_parts": {
+                "input_delay": 100000,
+                "processing_duration": 300900000,
+                "presentation_delay": 3000000
+              }
+            },
+            "lcp": {
+              "timestamp": 72000000,
+              "target_selector": "#title",
+              "sub_parts": {
+                "load_delay": 0,
+                "load_time": 0,
+                "render_delay": 64400000
+              }
+            }
+          },
+          "resource": {
+            "count": 8
+          },
+          "time_spent": 11350000000,
+          "custom_timings": {
+            "hero_image_loaded": 5953000000
+          }
+        },
+        "feature_flags": {
+          "new-checkout": true
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true,
+          "sampled_for_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          },
+          "scroll": {
+            "max_depth": 1183,
+            "max_depth_scroll_top": 370,
+            "max_scroll_height": 1183,
+            "max_scroll_height_time": 9655000000
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "privacy": {
+          "replay_level": "mask-user-input"
+        },
+        "device": {
+          "locale": "en-US",
+          "locales": [
+            "en-US",
+            "en"
+          ],
+          "time_zone": "<redacted time zone>"
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "view",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100,
+            "start_session_replay_recording_manually": false
+          },
+          "sdk_name": "rum",
+          "page_states": [
+            {
+              "state": "active",
+              "start": -8831800000
+            }
+          ],
+          "document_version": 3,
+          "replay_stats": {
+            "records_count": 9,
+            "resources_count": 0,
+            "segments_count": 2,
+            "segments_total_raw_size": 4673
+          }
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280538374,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/checkout/42",
+          "referrer": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000018",
+          "action": {
+            "count": 1
+          },
+          "frustration": {
+            "count": 1
+          },
+          "cumulative_layout_shift": 0,
+          "error": {
+            "count": 0
+          },
+          "interaction_to_next_paint": 48000000,
+          "interaction_to_next_paint_time": 6131000000,
+          "is_active": true,
+          "loading_time": 2000000,
+          "loading_type": "route_change",
+          "long_task": {
+            "count": 0
+          },
+          "performance": {
+            "cls": {
+              "score": 0
+            },
+            "inp": {
+              "duration": 48000000,
+              "timestamp": 6131000000,
+              "sub_parts": {
+                "input_delay": 300000,
+                "processing_duration": 2400000,
+                "presentation_delay": 45300000
+              }
+            }
+          },
+          "resource": {
+            "count": 0
+          },
+          "time_spent": 7259000000
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "user",
+          "has_replay": true,
+          "sampled_for_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "context": {
+          "demo.run": "1794280527016"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          },
+          "scroll": {
+            "max_depth": 1183,
+            "max_depth_scroll_top": 370,
+            "max_scroll_height": 1197,
+            "max_scroll_height_time": 1019500000
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "privacy": {
+          "replay_level": "mask-user-input"
+        },
+        "device": {
+          "locale": "en-US",
+          "locales": [
+            "en-US",
+            "en"
+          ],
+          "time_zone": "<redacted time zone>"
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run1-default/0011-rum-action+view.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

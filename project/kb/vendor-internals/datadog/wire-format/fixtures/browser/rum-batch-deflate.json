@@ -1,0 +1,383 @@
+{
+  "receivedAt": "2026-11-10T03:16:14.414Z",
+  "method": "POST",
+  "proxyUrl": "/intake?ddforward=%2Fapi%2Fv2%2Frum%3Fddsource%3Dbrowser%26dd-api-key%3D%3Credacted%3E%26dd-evp-origin-version%3D7.17.0%26dd-evp-origin%3Dbrowser%26dd-request-id%3D%3Credacted%3E%26dd-evp-encoding%3Ddeflate%26batch_time%3D1794280574407%26_dd.api%3Dbeacon",
+  "forwardPath": "/api/v2/rum",
+  "forwardParams": {
+    "ddsource": "browser",
+    "dd-api-key": "<redacted client token>",
+    "dd-evp-origin-version": "7.17.0",
+    "dd-evp-origin": "browser",
+    "dd-request-id": "<redacted>",
+    "dd-evp-encoding": "deflate",
+    "batch_time": "1794280574407",
+    "_dd.api": "beacon"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "content-length": "5702",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Google Chrome\";v=\"157\", \"Chromium\";v=\"157\"",
+    "content-type": "text/plain",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "origin": "http://127.0.0.1:4560",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/checkout/42",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000020&id=00000000-0000-4000-8000-000000000021&created=1794280555921&expire=1794281473313&c=0"
+  },
+  "bodyBytes": 5702,
+  "body": {
+    "kind": "ndjson",
+    "encoding": "deflate",
+    "inflatedBytes": 51941,
+    "events": [
+      {
+        "type": "resource",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "discarded": false
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280555808,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/?run=1794280555801&compress=1&viewUpdates=1",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000022"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000023"
+        },
+        "context": {
+          "demo.run": "1794280555801"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000020"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "resource": {
+          "id": "00000000-0000-4000-8000-000000000024",
+          "duration": 10600000,
+          "type": "document",
+          "status_code": 200,
+          "url": "http://127.0.0.1:4560/?run=1794280555801&compress=1&viewUpdates=1",
+          "protocol": "http/1.1",
+          "delivery_type": "other",
+          "render_blocking_status": "non-blocking",
+          "size": 2789,
+          "encoded_body_size": 2789,
+          "decoded_body_size": 2789,
+          "transfer_size": 3089,
+          "download": {
+            "duration": 400000,
+            "start": 10200000
+          },
+          "first_byte": {
+            "duration": 8800000,
+            "start": 1400000
+          },
+          "response": {
+            "headers": {
+              "content-type": "text/html"
+            }
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "resource",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "discarded": false
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280555822,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/?run=1794280555801&compress=1&viewUpdates=1",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000022"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000023"
+        },
+        "context": {
+          "demo.run": "1794280555801"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000020"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "resource": {
+          "id": "00000000-0000-4000-8000-000000000025",
+          "duration": 3700000,
+          "type": "js",
+          "status_code": 200,
+          "url": "http://127.0.0.1:4560/vendor/rum/datadog-rum.js",
+          "protocol": "http/1.1",
+          "delivery_type": "other",
+          "render_blocking_status": "blocking",
+          "size": 196525,
+          "encoded_body_size": 196525,
+          "decoded_body_size": 196525,
+          "transfer_size": 196825,
+          "download": {
+            "duration": 200000,
+            "start": 3500000
+          },
+          "first_byte": {
+            "duration": 1300000,
+            "start": 2200000
+          },
+          "response": {
+            "headers": {
+              "content-type": "text/javascript"
+            }
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "resource",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "discarded": false
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280555822,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/?run=1794280555801&compress=1&viewUpdates=1",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000022"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000023"
+        },
+        "context": {
+          "demo.run": "1794280555801"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000020"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "resource": {
+          "id": "00000000-0000-4000-8000-000000000026",
+          "duration": 5100000,
+          "type": "js",
+          "status_code": 200,
+          "url": "http://127.0.0.1:4560/vendor/logs/datadog-logs.js",
+          "protocol": "http/1.1",
+          "delivery_type": "other",
+          "render_blocking_status": "blocking",
+          "size": 61568,
+          "encoded_body_size": 61568,
+          "decoded_body_size": 61568,
+          "transfer_size": 61868,
+          "download": {
+            "duration": 200000,
+            "start": 4900000
+          },
+          "first_byte": {
+            "duration": 2900000,
+            "start": 2000000
+          },
+          "response": {
+            "headers": {
+              "content-type": "text/javascript"
+            }
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "type": "resource",
+        "_dd": {
+          "format_version": 2,
+          "drift": 0,
+          "configuration": {
+            "session_sample_rate": 100,
+            "session_replay_sample_rate": 100,
+            "profiling_sample_rate": 0,
+            "trace_sample_rate": 100
+          },
+          "sdk_name": "rum",
+          "discarded": false
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "date": 1794280555822,
+        "source": "browser",
+        "view": {
+          "url": "http://127.0.0.1:4560/?run=1794280555801&compress=1&viewUpdates=1",
+          "referrer": "",
+          "id": "00000000-0000-4000-8000-000000000022"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "user",
+          "has_replay": true
+        },
+        "connectivity": {
+          "status": "connected",
+          "effective_type": "4g"
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000023"
+        },
+        "context": {
+          "demo.run": "1794280555801"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "plan": "free",
+          "anonymous_id": "00000000-0000-4000-8000-000000000020"
+        },
+        "display": {
+          "viewport": {
+            "width": 1280,
+            "height": 813
+          }
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "resource": {
+          "id": "00000000-0000-4000-8000-000000000027",
+          "duration": 7200000,
+          "type": "js",
+          "status_code": 200,
+          "url": "http://127.0.0.1:4560/app.js",
+          "protocol": "http/1.1",
+          "delivery_type": "other",
+          "render_blocking_status": "blocking",
+          "size": 3988,
+          "encoded_body_size": 3988,
+          "decoded_body_size": 3988,
+          "transfer_size": 4288,
+          "download": {
+            "duration": 100000,
+            "start": 7100000
+          },
+          "first_byte": {
+            "duration": 4900000,
+            "start": 2200000
+          },
+          "connect": {
+            "duration": 100000,
+            "start": 2100000
+          },
+          "dns": {
+            "duration": 0,
+            "start": 2100000
+          },
+          "response": {
+            "headers": {
+              "content-type": "text/javascript"
+            }
+          }
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run2-compress-viewupdates/0011-rum-resource+long_task+action+vital+error.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)",
+    "truncated": "body.events cut to the first 4 of 35"
+  }
+}

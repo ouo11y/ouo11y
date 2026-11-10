@@ -1,0 +1,256 @@
+{
+  "receivedAt": "2026-11-10T03:15:45.639Z",
+  "method": "POST",
+  "proxyUrl": "/intake?ddforward=%2Fapi%2Fv2%2Flogs%3Fddsource%3Dbrowser%26dd-api-key%3D%3Credacted%3E%26dd-evp-origin-version%3D7.17.0%26dd-evp-origin%3Dbrowser%26dd-request-id%3D%3Credacted%3E",
+  "forwardPath": "/api/v2/logs",
+  "forwardParams": {
+    "ddsource": "browser",
+    "dd-api-key": "<redacted client token>",
+    "dd-evp-origin-version": "7.17.0",
+    "dd-evp-origin": "browser",
+    "dd-request-id": "<redacted>"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "content-length": "4770",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "sec-ch-ua": "\"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"156\", \"Google Chrome\";v=\"156\"",
+    "content-type": "text/plain;charset=UTF-8",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "origin": "http://127.0.0.1:4560",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/checkout/42",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000001&id=00000000-0000-4000-8000-000000000002&created=1794280527132&expire=1794281444526&c=0"
+  },
+  "bodyBytes": 4770,
+  "body": {
+    "kind": "ndjson",
+    "encoding": "identity",
+    "inflatedBytes": 4770,
+    "events": [
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000049",
+            "00000000-0000-4000-8000-000000000050"
+          ]
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "message": "Fetch error GET http://127.0.0.1:4560/api/fail",
+        "date": 1794280533261,
+        "error": {
+          "stack": "{\"ok\":false,\"path\":\"/api/fail\"}"
+        },
+        "_dd": {},
+        "http": {
+          "method": "GET",
+          "status_code": 500,
+          "url": "http://127.0.0.1:4560/api/fail"
+        },
+        "status": "error",
+        "origin": "network",
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000051",
+            "00000000-0000-4000-8000-000000000052"
+          ]
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "message": "Demo uncaught error",
+        "date": 1794280534742,
+        "error": {
+          "stack": "Error: Demo uncaught error\n  at <anonymous> @ http://127.0.0.1:4560/app.js:70:13",
+          "kind": "Error",
+          "handling": "unhandled"
+        },
+        "_dd": {},
+        "origin": "source",
+        "status": "error",
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000053",
+            "00000000-0000-4000-8000-000000000054"
+          ]
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "message": "Demo unhandled rejection",
+        "date": 1794280534875,
+        "error": {
+          "stack": "TypeError: Demo unhandled rejection\n  at HTMLButtonElement.<anonymous> @ http://127.0.0.1:4560/app.js:73:41",
+          "kind": "TypeError",
+          "handling": "unhandled"
+        },
+        "_dd": {},
+        "origin": "source",
+        "status": "error",
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000055",
+            "00000000-0000-4000-8000-000000000056"
+          ]
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "date": 1794280534978,
+        "message": "Demo console.error {\n  \"order\": 42\n}",
+        "origin": "console",
+        "error": {
+          "handling": "handled"
+        },
+        "_dd": {},
+        "status": "error",
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": []
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "date": 1794280535243,
+        "message": "Demo info log",
+        "status": "info",
+        "origin": "logger",
+        "_dd": {},
+        "order": {
+          "id": 42
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      },
+      {
+        "view": {
+          "referrer": "",
+          "url": "http://127.0.0.1:4560/?run=1794280527016",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "service": "datadog-capture",
+        "version": "0.0.1",
+        "session_id": "00000000-0000-4000-8000-000000000002",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000001"
+        },
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "user_action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000057",
+            "00000000-0000-4000-8000-000000000058"
+          ]
+        },
+        "tab": {
+          "id": "00000000-0000-4000-8000-000000000004"
+        },
+        "date": 1794280535244,
+        "message": "Demo warn log",
+        "status": "warn",
+        "origin": "logger",
+        "_dd": {},
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1"
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run1-default/0012-logs-error+info+warn.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}
