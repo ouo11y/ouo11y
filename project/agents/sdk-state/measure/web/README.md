@@ -30,20 +30,18 @@ Both SDKs run at 100 % sampling with their default privacy settings (text masked
 
 ## Run it
 
-From this folder, after building the SDKs at the repo root (`npm ci`, then `npm run build -w sdk/browser -w sdk/react-native`):
+From this folder, after building the SDK at the repo root (`npm ci`, then `npm run build -w sdk/browser`):
 
 ```bash
 npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts
 mkdir -p node_modules/@ouo11y
 ln -sfn ../../../../../../../sdk/browser node_modules/@ouo11y/browser
-ln -sfn ../../../../../../../sdk/react-native node_modules/@ouo11y/react-native
 node bundle.mjs
-node rn-bundle.mjs
 ROUNDS=5 OUT=results/runtime-1x.json node run.mjs
 ROUNDS=3 CPU_THROTTLE=4 OUT=results/runtime-4x.json node run.mjs
 ```
 
-The two `@ouo11y` links resolve their own dependencies (OpenTelemetry, rrweb) through the repo root `node_modules`. `run.mjs` uses the Chromium that Playwright 1.64.1 already installed; it downloads nothing. On the Mac, bound each run: `perl -e 'alarm 3000; exec @ARGV' node run.mjs`.
+The `@ouo11y/browser` link resolves its own dependencies through the repo root `node_modules`. `run.mjs` uses the Chromium that Playwright 1.64.1 already installed; it downloads nothing. On the Mac, bound each run: `perl -e 'alarm 3000; exec @ARGV' node run.mjs`.
 
 To compare OTLP/JSON with OTLP/protobuf on the same records, save the request bodies of one run and re-encode them:
 

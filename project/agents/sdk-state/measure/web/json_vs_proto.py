@@ -1,6 +1,8 @@
 """Re-encodes captured OTLP/JSON request bodies (ouo web SDK, one 60 s journey) as OTLP protobuf,
 with a minimal encoder for the logs and traces messages, and compares sizes raw and gzip-9.
-Usage: python3 json_vs_proto.py <bodies-dir>  (files written by server.mjs with SAVE_BODIES)."""
+Usage: python3 json_vs_proto.py <bodies-dir>  (files written by server.mjs with SAVE_BODIES).
+Writes results/json-vs-proto.json, keeping the serializer bundle sizes already recorded there
+(measured by bundling @opentelemetry/otlp-transformer's Json and Protobuf serializers with esbuild)."""
 import gzip, json, os, struct, sys
 
 def varint(n):
@@ -61,4 +63,8 @@ for f in sorted(os.listdir(d)):
     jj = json.loads(js); t['records'] += sum(len(sl.get('logRecords', [])) for rl in jj.get('resourceLogs', []) for sl in rl.get('scopeLogs', [])) + sum(len(ss.get('spans', [])) for rs in jj.get('resourceSpans', []) for ss in rs.get('scopeSpans', []))
 for k, t in tot.items():
     print(k, t, f"proto/json raw {t['proto']/t['json']:.2f}, gz {t['proto_gz']/t['json_gz']:.2f}")
-print(json.dumps(tot))
+path = 'results/json-vs-proto.json'
+old = json.load(open(path)) if os.path.exists(path) else {}
+tot.update({k: old[k] for k in ('serializer_bundle_gz_bytes', 'method') if k in old})
+json.dump(tot, open(path, 'w'), indent=1)
+print('wrote', path)

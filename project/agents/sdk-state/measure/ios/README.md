@@ -5,20 +5,10 @@ simulator app is a host process: CPU and memory are the Mac's, not an iPhone's, 
 path is loopback. Use these numbers to compare the two SDKs with each other, never as device
 numbers. No physical iPhone was used.
 
-**Host contention.** The Mac was heavily loaded during these runs (1-min load average about
-10-30 on 10 cores; an Android emulator measurement ran at the same time). Variants were
-interleaved round-robin within every round and the order rotated per round, so ouo and Sentry ran
-under the same contention. The host load (`sysctl vm.loadavg`, the numbers `uptime` prints) was
-logged every 5 s by `scripts/loadlog.sh` and is in `results.json` per run (`load1`) and per
-variant (`host_load1`). The load logger started part-way through the init phase, so the earliest
-init launches have `load1: null`. The logged 1-min load spiked to about 500 once during journey
-round 1 (every variant's p90/max `host_load1` shows it); the per-run values sit next to each
-run's CPU and memory in `results.json` so a contended run can be told apart. Absolute CPU and init times are inflated by the contention;
-compare variants, not absolutes.
+**Host load.** A first run under heavy contention (1-min load 10 to 500, a parallel Android emulator) was discarded. The numbers in `results.json` come from a rerun on a quiet Mac (1-min load about 2 to 3), logged every 5 s by `scripts/loadlog.sh` and stored per run (`load1`) and per variant (`host_load1`).
 
-**Journey n = 3.** The journey was cut to 3 complete rounds (each variant 3 runs), down from the
-planned 6, because of the run time under contention: medians with min/max over 3 runs, not a
-robust spread. Init time has n = 12 per SDK variant.
+**Journey n = 3.** 3 complete rounds (each variant 3 runs; a round takes about 10 minutes):
+medians with min/max over 3 runs, not a robust spread. Init time has n = 12 per SDK variant.
 
 ## What is measured
 
@@ -73,7 +63,7 @@ harness brings Settings to the front (both SDKs flush on background), at 100 s t
   and logs every request: body bytes as sent (gzip as the SDK sent it), header bytes, decoded size,
   Sentry envelope item types. Wire per minute = every SDK request (not the app's own backend calls)
   from launch to the end of the run (100 s: 85 s foreground + 15 s background), scaled to 60 s.
-- **Runs**: 3 journey rounds per variant (planned 6, cut for time), interleaved and rotated, each on a fresh install. A run
+- **Runs**: 3 journey rounds per variant, interleaved and rotated, each on a fresh install. A run
   is left out (and listed in `excluded_runs`) if its journey did not finish, an SDK variant sent
   nothing, or a replay variant uploaded no replay.
 
@@ -97,5 +87,5 @@ xcrun simctl shutdown "$UDID"; xcrun simctl delete "$UDID"
 - `app/App.swift`, `app/Info.plist`: the harness app (one source, three builds).
 - `scripts/build.sh`: generates `build/<variant>/pkg/Package.swift`, builds sim + device, wraps the `.app`.
 - `scripts/size.py`, `scripts/capture.py`, `scripts/loadlog.sh`, `scripts/sample.py`, `scripts/run.sh`, `scripts/analyze.py`.
-- `out/`: raw data (`requests.jsonl`, `runs.jsonl`, `init/*.jsonl`, `journey/*.json` samples and notes).
+- `out/` (written by a run, not committed): raw data (`requests.jsonl`, `runs.jsonl`, `init/*.jsonl`, `journey/*.json` samples). `results.json` keeps every run's values.
 - `results.json`: the numbers.

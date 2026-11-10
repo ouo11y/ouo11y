@@ -1,0 +1,113 @@
+{
+ "setup": "Every number is measured here, on 2026-11-10, on one Apple M5 Mac (10 cores, 32 GB, macOS 27.0.1), with ouo and Sentry on the same app and journey per platform and a no-SDK baseline in every round. Web: headless Chromium 156 through Playwright 1.64.1, @ouo11y/browser 0.3.1 against @sentry/browser 11.11.0, 5 rounds (3 at 4x CPU throttling), host load about 2. iOS: Simulator (iPhone 17 Pro, iOS 27.0), ouo11y-ios 0.3.0 against sentry-cocoa 9.33.0, 12 cold launches and 3 journey rounds, host load about 2 to 3. Android: emulator (API 35, arm64), the Kotlin of sdk/android against sentry-android 8.63.0, 3 rounds, host load about 3 to 5. React Native: JS bundle size only. Simulator and emulator numbers are not device numbers. Medians; whiskers show the lowest and highest run.",
+ "budgets": [
+  {
+   "budget": "Size, core (compressed)",
+   "web": "50 KiB gzip initial JS (today 45.5)",
+   "ios": "500 KiB zipped app delta (today 375)",
+   "android": "250 KiB APK delta, exporter included (today 42 without one)",
+   "rn": "50 KiB gzip JS (today 42.2), plus the iOS and Android native budgets",
+   "basis": "Sentry: web 54.7, iOS 1309, Android 318, RN JS 109. Room for consent, sanitiser, view ids, bypass set and, on Android, an OTLP exporter",
+   "method": "CI on every PR: bundle.mjs (web, RN) and the iOS and Android harness builds plus size scripts. Fail above budget. The web dist budget (sdk/browser/size-budget.json) stays as the first gate"
+  },
+  {
+   "budget": "Size, with replay",
+   "web": "115 KiB gzip incl. the lazy replay chunk (today 103.1)",
+   "ios": "same binary as core (today 375)",
+   "android": "300 KiB APK delta (today 42)",
+   "rn": "native budgets apply",
+   "basis": "Sentry: web 95.1 all eager, iOS 1309, Android 379. Web replay must stay a lazy chunk, loaded only when sampled",
+   "method": "Same jobs as core size. The web job also fails if the initial chunk contains rrweb"
+  },
+  {
+   "budget": "Init on the main thread",
+   "web": "10 ms (today 3.9); 30 ms at 4x CPU throttling (today 17.9)",
+   "ios": "25 ms simulator (today 12.6)",
+   "android": "25 ms emulator (today 3.4 with replay)",
+   "rn": "not measured; propose 25 ms JS init",
+   "basis": "Sentry: web 3.7 core, 7.2 replay; iOS 47.1; Android 21.3 core, 9.5 replay. LIF-2 already forbids waiting on storage or network",
+   "method": "Harness: performance.now / DispatchTime / elapsedRealtimeNanos around init, median of at least 10 cold starts. Web on every PR; mobile at release checkpoints in benchmark.yml"
+  },
+  {
+   "budget": "CPU, core, reference journey",
+   "web": "150 ms/min renderer CPU added (today 105)",
+   "ios": "1000 ms/min journey, 300 ms/min idle screen (today 928 and 387: idle fails)",
+   "android": "200 ms/min on SDK threads (today 30, signals only)",
+   "rn": "not measured",
+   "basis": "Sentry: web 156; iOS 662 journey and 429 idle; Android 70. ouo iOS costs more than Sentry in the journey. An idle screen should cost close to nothing",
+   "method": "Harness deltas against the no-SDK run in the same round, 5 rounds. Web on every PR on the self-hosted Linux runner; mobile at checkpoints. Fail on the median"
+  },
+  {
+   "budget": "CPU, replay on",
+   "web": "300 ms/min (today 203)",
+   "ios": "3500 ms/min journey, 1000 idle (today 3076 and 2476: idle fails)",
+   "android": "600 ms/min on SDK threads (today 290)",
+   "rn": "follows iOS and Android",
+   "basis": "Sentry: web 370; iOS 3804 journey and 4026 idle; Android 350",
+   "method": "Same as core CPU"
+  },
+  {
+   "budget": "Memory added, steady and peak",
+   "web": "JS heap after GC: 2 MiB core, 4 MiB replay (today 0.9 and 2.5)",
+   "ios": "peak footprint: 5 MiB core, 20 MiB replay (today 2.0 and 3.8)",
+   "android": "steady PSS: 5 MiB core, 15 MiB replay (today 1.3 and 4.2)",
+   "rn": "not measured",
+   "basis": "Sentry: web 1.3 and 2.7; iOS 3.8 and 42.5 peak; Android 6.0 and 10.7 steady",
+   "method": "Harness: forced GC then heap (web), phys_footprint (iOS), smaps_rollup PSS (Android), against the no-SDK run"
+  },
+  {
+   "budget": "Bytes per minute, telemetry",
+   "web": "40 KiB/min and 24 requests/min (today 30.7 KiB, 30.8 requests: requests fail)",
+   "ios": "40 KiB/min and 24 requests/min (today 28.2 KiB, 37.6 requests: requests fail)",
+   "android": "40 KiB/min (no exporter today)",
+   "rn": "40 KiB/min, not measured",
+   "basis": "Sentry: web 114 KiB (envelopes uncompressed) and 27.8 requests, iOS 19.5 KiB and 7.8 requests, Android 20.7 KiB and 9. 24 requests is two queues flushed every 5 s (spec 8.1 default)",
+   "method": "Fake collector in the harness counts request bodies as sent. Wire scenario in the section 14 suite on every PR"
+  },
+  {
+   "budget": "Bytes per minute, replay",
+   "web": "60 KiB/min (today 19.9)",
+   "ios": "100 KiB/min (today 38.8)",
+   "android": "200 KiB/min (today 142)",
+   "rn": "follows iOS and Android",
+   "basis": "Sentry: web 39.1, iOS 49.5, Android 193. The reference journeys are light; a 10,000-node page cost about 250 KiB/min on the web in the archived benchmark",
+   "method": "Same as telemetry bytes"
+  },
+  {
+   "budget": "Persisted storage cap",
+   "web": "5 MiB IndexedDB, replay first to go (today 5 MiB, shared)",
+   "ios": "5 MiB telemetry plus 10 MiB replay (today the same)",
+   "android": "10 MiB replay (today 10); 5 MiB telemetry when an exporter exists",
+   "rn": "5 MiB outbox plus 10 MiB native replay (today the same)",
+   "basis": "10 MiB holds over an hour of replay at the measured rates. Fills transport.persist.maxBytes in spec 8.1",
+   "method": "Unit test of the default and of oldest-first eviction in the order TRN-14 gives"
+  },
+  {
+   "budget": "Main-thread blocking per interaction (web)",
+   "web": "SDK adds at most 2 ms core and 5 ms replay to the p90 interaction task; 4 ms and 10 ms at 4x throttling (today 1.1 and 3.7; 0.4 and 5.5)",
+   "ios": "n/a",
+   "android": "n/a",
+   "rn": "n/a",
+   "basis": "Sentry: 1.0 and 5.4; 1.2 and 8.3 at 4x. INP's good threshold is 200 ms; the SDK should use a small slice of it",
+   "method": "Chrome trace in the web harness: the task that dispatched each input event, against the no-SDK run"
+  }
+ ],
+ "not_measured": [
+  {
+   "what": "Web on Firefox and WebKit",
+   "why": "The harness ran Chromium only; the CDP metrics it reads do not exist elsewhere"
+  },
+  {
+   "what": "React Native runtime cost",
+   "why": "Measuring it needs a release build of the Expo example app on a simulator and emulator, which did not fit this step. The JS bundle and the native pieces (iOS and Android harnesses) were measured separately"
+  },
+  {
+   "what": "Real devices",
+   "why": "No phone was used. Simulator CPU and memory are the Mac's; the emulator renders in software"
+  },
+  {
+   "what": "Web resource timing pricing (SIG-17)",
+   "why": "The SDK emits no browser.resource_timing events today; initial resources go out as resourceFetch child spans of documentLoad, always on, and are inside the measured telemetry bytes. Step 12 should price the event once it exists"
+  }
+ ]
+}

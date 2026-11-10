@@ -1,0 +1,718 @@
+{
+ "platform": "android",
+ "device": "Android Emulator 35 (system-images;android-35;google_apis;arm64-v8a, build AE3A.240806.043 userdebug), AVD ouo-step5-bench: pixel_7 profile 1080x2400 @420dpi, 4 vCPU, 4 GiB RAM, -gpu swiftshader_indirect, headless (-no-window)",
+ "host": "Mac17,2 (Apple M5, 32 GB), macOS 27.0.1, Android Emulator 37.2.13.0",
+ "sdk_versions": {
+  "ouo_android": "sdk/android @ 3e9e2c11 (modules signals, signals-core, replay, replay-core; vendored unchanged)",
+  "sentry_android": "8.63.0 (sentry-android-core, sentry-android-replay, sentry-okhttp; sentry-android umbrella with NDK for size only)",
+  "host_app": "AGP 8.12.0, Kotlin 2.1.20, compileSdk/targetSdk 35, minSdk 24, OkHttp 4.12.0 in every variant, release + R8 + shrinkResources, arm64-v8a only"
+ },
+ "variants": {
+  "baseline": {
+   "size_bytes": 0,
+   "size_zipped_bytes": 0,
+   "size_dex_bytes": 0,
+   "size_native_bytes": 0,
+   "apk_bytes_absolute": 166859,
+   "init_ms": {
+    "median": 0.0,
+    "p90": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "cold_start_ms": {
+    "median": 268,
+    "p90": 299,
+    "min": 257,
+    "max": 299,
+    "n": 3
+   },
+   "cpu_ms_per_min": {
+    "journey": {
+     "median": 11581.0,
+     "p90": 11645.0,
+     "min": 11451.0,
+     "max": 11645.0,
+     "n": 3
+    },
+    "idle_static_screen": {
+     "median": 20.0,
+     "p90": 40.0,
+     "min": 20.0,
+     "max": 40.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": 14.4,
+    "peak": 22.8,
+    "peak_rss_hwm": 143.2,
+    "idle_spread": {
+     "median": 14.4,
+     "p90": 15.5,
+     "min": 14.3,
+     "max": 15.5,
+     "n": 3
+    },
+    "peak_spread": {
+     "median": 22.8,
+     "p90": 22.8,
+     "min": 21.7,
+     "max": 22.8,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "wire_body_bytes_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "requests_per_min": 0.0,
+   "startup_and_idle_wire_bytes": {
+    "median": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "n": 3
+   },
+   "telemetry_paths": [],
+   "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_by_thread": {
+    ".bench.baseline": 310,
+    "RenderThread": 11150,
+    "binder:#_#": 30
+   },
+   "host_load_per_run": [
+    {
+     "run": 0,
+     "load_at_start_1_5_15": [
+      6.07,
+      3.5,
+      2.53
+     ],
+     "load1_mean": 5.1,
+     "load1_max": 6.98,
+     "samples": 12
+    },
+    {
+     "run": 1,
+     "load_at_start_1_5_15": [
+      4.48,
+      4.08,
+      3.19
+     ],
+     "load1_mean": 4.3,
+     "load1_max": 5.97,
+     "samples": 12
+    },
+    {
+     "run": 2,
+     "load_at_start_1_5_15": [
+      6.2,
+      4.5,
+      3.6
+     ],
+     "load1_mean": 5.1,
+     "load1_max": 7.23,
+     "samples": 11
+    }
+   ],
+   "host_load1_median": 5.1,
+   "runs_refocused": 0,
+   "process_died_during_run": 0
+  },
+  "ouosignals": {
+   "size_bytes": 20844,
+   "size_zipped_bytes": 10124,
+   "size_dex_bytes": 20840,
+   "size_native_bytes": 0,
+   "apk_bytes_absolute": 176983,
+   "init_ms": {
+    "median": 3.07,
+    "p90": 13.62,
+    "min": 1.02,
+    "max": 13.62,
+    "n": 3
+   },
+   "cold_start_ms": {
+    "median": 222,
+    "p90": 283,
+    "min": 202,
+    "max": 283,
+    "n": 3
+   },
+   "cpu_ms_per_min": {
+    "journey": {
+     "median": 11722.0,
+     "p90": 11730.0,
+     "min": 11643.0,
+     "max": 11730.0,
+     "n": 3
+    },
+    "idle_static_screen": {
+     "median": 60.0,
+     "p90": 80.0,
+     "min": 40.0,
+     "max": 80.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": 15.7,
+    "peak": 22.9,
+    "peak_rss_hwm": 143.9,
+    "idle_spread": {
+     "median": 15.7,
+     "p90": 15.7,
+     "min": 14.5,
+     "max": 15.7,
+     "n": 3
+    },
+    "peak_spread": {
+     "median": 22.9,
+     "p90": 23.0,
+     "min": 21.8,
+     "max": 23.0,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "wire_body_bytes_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "requests_per_min": 0.0,
+   "startup_and_idle_wire_bytes": {
+    "median": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 0,
+    "n": 3
+   },
+   "telemetry_paths": [],
+   "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_by_thread": {
+    "RenderThread": 11180,
+    "binder:#_#": 100,
+    "ench.ouosignals": 320,
+    "ouo-hang-watchd": 20
+   },
+   "host_load_per_run": [
+    {
+     "run": 0,
+     "load_at_start_1_5_15": [
+      2.16,
+      2.96,
+      2.44
+     ],
+     "load1_mean": 4.0,
+     "load1_max": 6.11,
+     "samples": 12
+    },
+    {
+     "run": 1,
+     "load_at_start_1_5_15": [
+      2.29,
+      3.37,
+      3.01
+     ],
+     "load1_mean": 3.0,
+     "load1_max": 4.48,
+     "samples": 12
+    },
+    {
+     "run": 2,
+     "load_at_start_1_5_15": [
+      6.07,
+      4.89,
+      3.84
+     ],
+     "load1_mean": 5.8,
+     "load1_max": 6.81,
+     "samples": 12
+    }
+   ],
+   "host_load1_median": 4.0,
+   "runs_refocused": 0,
+   "process_died_during_run": 0,
+   "delta_vs_baseline": {
+    "init_ms": 3.07,
+    "cold_start_ms": -46,
+    "cpu_ms_per_min_journey": 141.0,
+    "cpu_ms_per_min_idle": 40.0,
+    "mem_mb_idle": 1.3,
+    "mem_mb_peak": 0.1,
+    "app_api_header_bytes_per_request": 0.0
+   }
+  },
+  "ouofull": {
+   "size_bytes": 88856,
+   "size_zipped_bytes": 42496,
+   "size_dex_bytes": 88856,
+   "size_native_bytes": 0,
+   "apk_bytes_absolute": 209355,
+   "init_ms": {
+    "median": 3.43,
+    "p90": 7.81,
+    "min": 2.3,
+    "max": 7.81,
+    "n": 3
+   },
+   "cold_start_ms": {
+    "median": 239,
+    "p90": 255,
+    "min": 196,
+    "max": 255,
+    "n": 3
+   },
+   "cpu_ms_per_min": {
+    "journey": {
+     "median": 12264.0,
+     "p90": 12310.0,
+     "min": 12141.0,
+     "max": 12310.0,
+     "n": 3
+    },
+    "idle_static_screen": {
+     "median": 60.0,
+     "p90": 60.0,
+     "min": 60.0,
+     "max": 60.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": 18.6,
+    "peak": 23.1,
+    "peak_rss_hwm": 149.0,
+    "idle_spread": {
+     "median": 18.6,
+     "p90": 18.7,
+     "min": 17.4,
+     "max": 18.7,
+     "n": 3
+    },
+    "peak_spread": {
+     "median": 23.1,
+     "p90": 23.8,
+     "min": 23.0,
+     "max": 23.8,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "median": 149784.0,
+    "p90": 150464.0,
+    "min": 146897.0,
+    "max": 150464.0,
+    "n": 3
+   },
+   "wire_body_bytes_per_min": {
+    "median": 145587.0,
+    "p90": 146267.0,
+    "min": 142698.0,
+    "max": 146267.0,
+    "n": 3
+   },
+   "requests_per_min": 11.0,
+   "startup_and_idle_wire_bytes": {
+    "median": 2699,
+    "p90": 2700,
+    "min": 2698,
+    "max": 2700,
+    "n": 3
+   },
+   "telemetry_paths": [
+    "/v1/replay/chunks"
+   ],
+   "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_by_thread": {
+    "HeapTaskDaemon": 30,
+    "Jit thread pool": 50,
+    "RenderThread": 11370,
+    "binder:#_#": 110,
+    "o.bench.ouofull": 350,
+    "ouo-hang-watchd": 20,
+    "ouo-replay-comp": 230
+   },
+   "host_load_per_run": [
+    {
+     "run": 0,
+     "load_at_start_1_5_15": [
+      2.82,
+      3.0,
+      2.52
+     ],
+     "load1_mean": 2.7,
+     "load1_max": 3.38,
+     "samples": 12
+    },
+    {
+     "run": 1,
+     "load_at_start_1_5_15": [
+      2.77,
+      3.22,
+      2.99
+     ],
+     "load1_mean": 2.6,
+     "load1_max": 3.67,
+     "samples": 11
+    },
+    {
+     "run": 2,
+     "load_at_start_1_5_15": [
+      4.0,
+      4.67,
+      3.9
+     ],
+     "load1_mean": 5.4,
+     "load1_max": 6.33,
+     "samples": 11
+    }
+   ],
+   "host_load1_median": 2.7,
+   "runs_refocused": 0,
+   "process_died_during_run": 0,
+   "delta_vs_baseline": {
+    "init_ms": 3.43,
+    "cold_start_ms": -29,
+    "cpu_ms_per_min_journey": 683.0,
+    "cpu_ms_per_min_idle": 40.0,
+    "mem_mb_idle": 4.2,
+    "mem_mb_peak": 0.3,
+    "app_api_header_bytes_per_request": 0.0
+   }
+  },
+  "sentrycore": {
+   "size_bytes": 717492,
+   "size_zipped_bytes": 325902,
+   "size_dex_bytes": 703588,
+   "size_native_bytes": 0,
+   "apk_bytes_absolute": 492761,
+   "init_ms": {
+    "median": 21.27,
+    "p90": 25.97,
+    "min": 15.62,
+    "max": 25.97,
+    "n": 3
+   },
+   "cold_start_ms": {
+    "median": 249,
+    "p90": 250,
+    "min": 238,
+    "max": 250,
+    "n": 3
+   },
+   "cpu_ms_per_min": {
+    "journey": {
+     "median": 11761.0,
+     "p90": 11811.0,
+     "min": 11411.0,
+     "max": 11811.0,
+     "n": 3
+    },
+    "idle_static_screen": {
+     "median": 40.0,
+     "p90": 60.0,
+     "min": 0.0,
+     "max": 60.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": 20.4,
+    "peak": 23.2,
+    "peak_rss_hwm": 149.8,
+    "idle_spread": {
+     "median": 20.4,
+     "p90": 20.7,
+     "min": 19.3,
+     "max": 20.7,
+     "n": 3
+    },
+    "peak_spread": {
+     "median": 23.2,
+     "p90": 23.2,
+     "min": 22.2,
+     "max": 23.2,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "median": 24339.0,
+    "p90": 24354.0,
+    "min": 24302.0,
+    "max": 24354.0,
+    "n": 3
+   },
+   "wire_body_bytes_per_min": {
+    "median": 21191.0,
+    "p90": 21206.0,
+    "min": 21155.0,
+    "max": 21206.0,
+    "n": 3
+   },
+   "requests_per_min": 9.0,
+   "startup_and_idle_wire_bytes": {
+    "median": 3850,
+    "p90": 5534,
+    "min": 3830,
+    "max": 5534,
+    "n": 3
+   },
+   "telemetry_paths": [
+    "/api/1/envelope/"
+   ],
+   "app_api_header_bytes_per_request": 452.0,
+   "journey_cpu_ms_by_thread": {
+    "HeapTaskDaemon": 20,
+    "Jit thread pool": 70,
+    "RenderThread": 11140,
+    "SentryAsyncConn": 20,
+    "SentryExecutorS": 20,
+    "binder:#_#": 70,
+    "ench.sentrycore": 340
+   },
+   "host_load_per_run": [
+    {
+     "run": 0,
+     "load_at_start_1_5_15": [
+      4.24,
+      3.42,
+      2.73
+     ],
+     "load1_mean": 3.5,
+     "load1_max": 4.57,
+     "samples": 12
+    },
+    {
+     "run": 1,
+     "load_at_start_1_5_15": [
+      4.32,
+      3.54,
+      3.13
+     ],
+     "load1_mean": 3.4,
+     "load1_max": 4.92,
+     "samples": 11
+    },
+    {
+     "run": 2,
+     "load_at_start_1_5_15": [
+      5.3,
+      4.77,
+      4.01
+     ],
+     "load1_mean": 4.2,
+     "load1_max": 6.06,
+     "samples": 12
+    }
+   ],
+   "host_load1_median": 3.5,
+   "runs_refocused": 0,
+   "process_died_during_run": 0,
+   "delta_vs_baseline": {
+    "init_ms": 21.27,
+    "cold_start_ms": -19,
+    "cpu_ms_per_min_journey": 180.0,
+    "cpu_ms_per_min_idle": 20.0,
+    "mem_mb_idle": 6.0,
+    "mem_mb_peak": 0.4,
+    "app_api_header_bytes_per_request": 302.0
+   }
+  },
+  "sentryreplay": {
+   "size_bytes": 851844,
+   "size_zipped_bytes": 388260,
+   "size_dex_bytes": 837876,
+   "size_native_bytes": 0,
+   "apk_bytes_absolute": 555119,
+   "init_ms": {
+    "median": 9.48,
+    "p90": 13.17,
+    "min": 5.02,
+    "max": 13.17,
+    "n": 3
+   },
+   "cold_start_ms": {
+    "median": 240,
+    "p90": 246,
+    "min": 227,
+    "max": 246,
+    "n": 3
+   },
+   "cpu_ms_per_min": {
+    "journey": {
+     "median": 12340.0,
+     "p90": 12400.0,
+     "min": 12201.0,
+     "max": 12400.0,
+     "n": 3
+    },
+    "idle_static_screen": {
+     "median": 719.0,
+     "p90": 759.0,
+     "min": 699.0,
+     "max": 759.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": 25.1,
+    "peak": 28.7,
+    "peak_rss_hwm": 161.5,
+    "idle_spread": {
+     "median": 25.1,
+     "p90": 25.3,
+     "min": 24.0,
+     "max": 25.3,
+     "n": 3
+    },
+    "peak_spread": {
+     "median": 28.7,
+     "p90": 28.9,
+     "min": 27.2,
+     "max": 28.9,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "median": 205278.0,
+    "p90": 252136.0,
+    "min": 195102.0,
+    "max": 252136.0,
+    "n": 3
+   },
+   "wire_body_bytes_per_min": {
+    "median": 197227.0,
+    "p90": 244084.0,
+    "min": 187053.0,
+    "max": 244084.0,
+    "n": 3
+   },
+   "requests_per_min": 23.0,
+   "startup_and_idle_wire_bytes": {
+    "median": 31423,
+    "p90": 31456,
+    "min": 31314,
+    "max": 31456,
+    "n": 3
+   },
+   "telemetry_paths": [
+    "/api/1/envelope/"
+   ],
+   "app_api_header_bytes_per_request": 504.0,
+   "journey_cpu_ms_by_thread": {
+    "HeapTaskDaemon": 30,
+    "Jit thread pool": 100,
+    "RenderThread": 11270,
+    "SentryAsyncConn": 40,
+    "SentryExecutorS": 20,
+    "SentryReplayInt": 270,
+    "binder:#_#": 100,
+    "ch.sentryreplay": 330
+   },
+   "host_load_per_run": [
+    {
+     "run": 0,
+     "load_at_start_1_5_15": [
+      5.97,
+      4.28,
+      3.15
+     ],
+     "load1_mean": 5.2,
+     "load1_max": 6.78,
+     "samples": 12
+    },
+    {
+     "run": 1,
+     "load_at_start_1_5_15": [
+      5.13,
+      3.94,
+      3.32
+     ],
+     "load1_mean": 4.2,
+     "load1_max": 5.88,
+     "samples": 11
+    },
+    {
+     "run": 2,
+     "load_at_start_1_5_15": [
+      2.91,
+      4.09,
+      3.83
+     ],
+     "load1_mean": 3.9,
+     "load1_max": 5.12,
+     "samples": 11
+    }
+   ],
+   "host_load1_median": 4.2,
+   "runs_refocused": 0,
+   "process_died_during_run": 0,
+   "delta_vs_baseline": {
+    "init_ms": 9.48,
+    "cold_start_ms": -28,
+    "cpu_ms_per_min_journey": 759.0,
+    "cpu_ms_per_min_idle": 699.0,
+    "mem_mb_idle": 10.7,
+    "mem_mb_peak": 5.9,
+    "app_api_header_bytes_per_request": 354.0
+   }
+  },
+  "sentryfull": {
+   "size_bytes": 1769572,
+   "size_zipped_bytes": 1321072,
+   "size_dex_bytes": 847648,
+   "size_native_bytes": 907640,
+   "apk_bytes_absolute": 1487931
+  }
+ },
+ "invalid_runs_rerun": [],
+ "not_measured": [
+  {
+   "what": "ouo Android handled-error capture, HTTP spans, traces/logs/metrics export (OTLP) in the native host",
+   "why": "sdk/android has no native init, exporter or handled-error/HTTP API today; in the React Native SDK those live in JS (@ouo11y/react-native) and only replay + signals are native. The ouo variants therefore send replay chunks only; the handled error and the 3 HTTP calls per Fetch produce no ouo telemetry, while Sentry reports them (error event, OkHttp spans, transactions, sessions). Wire and CPU deltas are not like-for-like on that part."
+  },
+  {
+   "what": "ouo signals' wire cost (crash / hang / termination reports)",
+   "why": "Signals writes crash.json/run.json and hands the previous run's report to the host at the next launch; the native host has no sender (the RN JS SDK sends it). No crash or hang was provoked in the journey."
+  },
+  {
+   "what": "ouo full SDK as shipped (React Native app examples/ouo-mobile: JS SDK + native replay + signals)",
+   "why": "Not run: an RN app's own baseline (Hermes, RN runtime) would swamp a native comparison against sentry-android, and building the Expo example (prebuild + C++ build) was out of the time budget of this step. The native host measures exactly the Kotlin code the RN SDK vendors."
+  },
+  {
+   "what": "Runtime cost of sentry-android with NDK (variant sentryfull)",
+   "why": "Measured for size only; the NDK handler adds a native crash handler, not per-minute work, and the runtime runs cover sentry-android-core (+replay)."
+  },
+  {
+   "what": "Device (real hardware) CPU, memory and energy",
+   "why": "Emulator only (no physical phone by rule). Guest GL is emulated (-gpu swiftshader_indirect), so the app's RenderThread burns ~13 s CPU per journey minute even in the baseline; PixelCopy and JPEG/MP4 encoding costs differ from a phone's GPU and hardware codecs (Sentry replay encodes MP4 through MediaCodec, here a software encoder). Battery/energy cannot be measured on an emulator."
+  },
+  {
+   "what": "Frame timing (jank) impact via dumpsys gfxinfo, and simpleperf profiles",
+   "why": "Not collected: with emulated GL the frame times reflect the emulator, not the SDKs; per-thread /proc CPU attribution is used instead."
+  }
+ ],
+ "method": "One native host app (host/, Kotlin, no AndroidX, OkHttp 4.12.0 in every variant) built release with R8 + resource shrinking, arm64-v8a only, one product flavor per variant: baseline (no SDK), ouosignals (sdk/android Signals.init + install), ouofull (Signals + OuoReplay.start, mode SESSION, 1 s frame interval, default masks), sentrycore (sentry-android-core + sentry-okhttp interceptor, tracesSampleRate 1.0, defaults otherwise), sentryreplay (sentrycore + sentry-android-replay, sessionSampleRate 1.0), sentryfull (sentry-android umbrella incl. NDK; size only). Both SDKs are initialised by hand in Application.onCreate (Sentry auto-init off) and init_ms is the wall time of that call (SystemClock.elapsedRealtimeNanos; Sentry finishes part of its setup on background threads afterwards, ouo replay posts its start to the main looper). Size: size_bytes = uncompressed APK entries minus baseline, size_zipped_bytes = APK file size minus baseline (debug-signed; scripts/sizes.py). Runtime (scripts/run_bench.py, round-robin over variants so contention spreads evenly; 3 complete rounds, so n = 3 per variant: small, treat medians as indicative and look at min/max): force-stop + pm clear, `am start -W` cold launch (cold_start_ms = TotalTime), 8 s settle, 30 s idle on the static Home screen, then a 60 s scripted journey by adb input (4 cycles of 15 s: Home Fetch = 2 GET + 1 POST via OkHttp to the capture server's API port, open a 300-row ListView and fling 3 times, back, open Detail, Fetch again, one handled error in the first cycle only, back), then 10 s grace. CPU = utime+stime of the app process from /proc/<pid>/stat (root via adb root; CLK_TCK 100) over the journey, scaled to ms per minute; per-thread attribution from /proc/<pid>/task/*/stat. Memory = Pss/Rss from /proc/<pid>/smaps_rollup (read by root, the app is not involved; excludes GPU/graphics mtrack that dumpsys meminfo would add): idle = after settle, peak = max of 5 samples during the journey; peak_rss_hwm = VmHWM at the end. Wire = every request the capture server (scripts/capture_server.py, answers 200) got on the telemetry port 8712 from journey start to end of grace, body bytes as sent (both SDKs gzip) + request line and headers, divided by the journey minutes; Sentry DSN http://pub@10.0.2.2:8712/1, ouo replay endpoint http://10.0.2.2:8712. Medians with p90/min/max over runs; deltas are median minus baseline median. Emulator numbers: CPU absolute values are inflated by emulated GL (RenderThread), compare deltas, not absolutes, and expect a phone to differ.\n Host load: these runs were made on a quiet Mac after an earlier contended run (load 15 to 480) was discarded; the load sampler (scripts/load_sampler.sh) logged the Mac's load average every 10 s from before the first round, joined to each run (host_load_per_run). 3 complete rounds per variant, interleaved."
+}

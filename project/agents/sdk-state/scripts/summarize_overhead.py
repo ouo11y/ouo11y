@@ -4,7 +4,8 @@ ranges per variant, chart rows, and the proposed budgets from findings/budgets.j
     python3 project/agents/sdk-state/scripts/summarize_overhead.py
 
 Inputs (all under project/agents/sdk-state/):
-  measure/web/results/bundle.json, runtime-1x.json, runtime-4x.json, rn-bundle.json, json-vs-proto.json
+  measure/web/results/bundle.json, runtime-1x.json, runtime-4x.json, json-vs-proto.json
+  measure/react-native/results/rn-bundle.json
   measure/ios/results.json, measure/android/results.json
   findings/budgets.json
 """
@@ -74,47 +75,80 @@ def rows(variants, key, minus=None, order=None):
     return out
 
 
-def mobile_rows(res, key, sub='median', scale=1.0, minus=None):
-    out = []
+MLABEL = {'ouo': 'ouo core', 'ouo_replay': 'ouo + replay', 'sentry': 'Sentry + tracing', 'sentry_replay': 'Sentry + tracing + replay',
+          'ouosignals': 'ouo signals only', 'ouofull': 'ouo signals + replay', 'sentrycore': 'Sentry + tracing', 'sentryreplay': 'Sentry + tracing + replay',
+          'sentryfull': 'Sentry + NDK (size only)'}
+
+
+def get(x, path):
+    for k in path.split('.'):
+        if not isinstance(x, dict) or k not in x:
+            return None
+        x = x[k]
+    return x.get('median') if isinstance(x, dict) else x
+
+
+def mobile_rows(res, path, scale=1.0, minus_base=False, fn=None):
+    """Chart rows for every SDK variant (the no-SDK base is the reference, not a bar)."""
     v = res.get('variants', {})
+    base = next((k for k in v if sdk_of(k) == 'base'), None)
+    out = []
     for name, x in v.items():
-        val = x.get(key)
-        if isinstance(val, dict):
-            val = val.get(sub)
+        if name == base:
+            continue
+        val = fn(name, x) if fn else get(x, path)
         if val is None:
             continue
-        if minus and minus in v:
-            b = v[minus].get(key)
-            b = b.get(sub) if isinstance(b, dict) else b
-            if b is None or name == minus:
+        if minus_base and not fn:
+            b = get(v[base], path)
+            if b is None:
                 continue
-            val = val - b
-        out.append({'label': name, 'sdk': sdk_of(name), 'value': max(val * scale, 0)})
+            val -= b
+        out.append({'label': MLABEL.get(name, name), 'sdk': sdk_of(name), 'value': max(val * scale, 0)})
     return out
+
+
+SDK_THREADS = ('ouo-', 'Sentry', 'etricsCollector')
+
+
+def android_sdk_cpu(res):
+    """SDK-attributable journey CPU on the emulator: the SDKs' own threads plus the main thread's
+    increase over the no-SDK app. Total process CPU is useless there: emulated GL (RenderThread)
+    burns about 15 s per minute in every variant and swamps the SDKs."""
+    v = res['variants']
+    # The main thread is named after the package (`...o.bench.<variant>`), cut to its last 15 characters.
+    main = lambda n, x: sum(ms for t, ms in x.get('journey_cpu_ms_by_thread', {}).items() if f'o.bench.{n}'.endswith(t))
+    base_main = main('baseline', v['baseline'])
+    def fn(name, x):
+        th = x.get('journey_cpu_ms_by_thread')
+        if not th:
+            return None
+        return sum(ms for t, ms in th.items() if t.startswith(SDK_THREADS)) + max(main(name, x) - base_main, 0)
+    return fn
 
 
 def main():
     bundle = json.loads((WEB / 'bundle.json').read_text())
     rt1 = web_runtime(WEB / 'runtime-1x.json')
     rt4 = web_runtime(WEB / 'runtime-4x.json') if (WEB / 'runtime-4x.json').exists() else None
-    rn = json.loads((WEB / 'rn-bundle.json').read_text())
+    rn = json.loads((A / 'measure/react-native/results/rn-bundle.json').read_text())
     jp = json.loads((WEB / 'json-vs-proto.json').read_text())
     ios = json.loads((A / 'measure/ios/results.json').read_text())
     android = json.loads((A / 'measure/android/results.json').read_text())
     budgets = json.loads((A / 'findings/budgets.json').read_text())
     order = ['ouo-core', 'ouo-replay', 'sentry-errors', 'sentry-core', 'sentry-replay']
     kib = lambda b: b / 1024
-    size_rows = lambda key, part: [{'label': LABEL[v], 'sdk': sdk_of(v), 'value': kib(bundle[v][part][key])} for v in order]
+    size_rows = lambda key, part, vs=order: [{'label': LABEL[v], 'sdk': sdk_of(v), 'value': kib(bundle[v][part][key])} for v in vs]
     v1 = rt1['variants']
     charts = [
         {'title': 'Web bundle', 'intro': 'Each variant bundled the way an app bundler would (esbuild, minified, ESM, code splitting). "Initial" is what the page downloads at load; ouo loads rrweb lazily, so its replay cost is a second chunk fetched only when replay is sampled. Sentry was bundled with its replay in the main chunk, its default.',
          'charts': [
              {'title': 'Initial download, gzip', 'unit': 'KiB', 'rows': size_rows('gzip', 'initial')},
              {'title': 'Initial download, brotli', 'unit': 'KiB', 'rows': size_rows('brotli', 'initial')},
-             {'title': 'Everything incl. lazy replay chunk, gzip', 'unit': 'KiB', 'rows': size_rows('gzip', 'total')},
+             {'title': 'With replay sampled: all JS downloaded, gzip', 'unit': 'KiB', 'rows': size_rows('gzip', 'total', ['ouo-replay', 'sentry-replay']), 'note': 'ouo: the initial chunk plus the lazy rrweb chunk. A session without replay downloads only the initial chunk.'},
              {'title': 'React Native JS, gzip', 'unit': 'KiB', 'rows': [
-                 {'label': 'ouo @ouo11y/react-native 0.3.0', 'sdk': 'ouo', 'value': rn['ouo']['gz_kib']},
-                 {'label': 'Sentry @sentry/react-native 8.34.0', 'sdk': 'sentry', 'value': rn['sentry']['gz_kib']}],
+                 {'label': 'ouo 0.3.0', 'sdk': 'ouo', 'value': rn['ouo']['gz_kib']},
+                 {'label': 'Sentry 8.34.0', 'sdk': 'sentry', 'value': rn['sentry']['gz_kib']}],
               'note': 'JS only, React Native and Expo packages external. Native code is extra (see the iOS and Android charts).'},
          ]},
         {'title': 'Web runtime, 60 s journey, headless Chromium', 'intro': f"Chromium {rt1['chromium']}, no CPU throttling, {v1['ouo-core']['runs']} interleaved rounds per variant. Values are the SDK's added cost: the variant's median minus the no-SDK median. Whiskers are the lowest and highest run, also minus the no-SDK median.",
@@ -136,23 +170,29 @@ def main():
                            {'title': 'Main-thread task time added (4x)', 'unit': 'ms per minute', 'rows': rows(v4, 'task_ms_per_min', 'none', order), 'fmt': '{:.0f}'},
                            {'title': 'Interaction task, p90, added (4x)', 'unit': 'ms', 'rows': rows(v4, 'ix_task_p90_ms', 'none', order), 'fmt': '{:.2f}'},
                        ]})
-    for name, res in (('iOS', ios), ('Android', android)):
-        base = next((k for k in res.get('variants', {}) if sdk_of(k) == 'base'), None)
-        cs = [
-            {'title': f'{name}: app size added (zipped)', 'unit': 'KiB', 'rows': mobile_rows(res, 'size_zipped_bytes', scale=1 / 1024, minus=base), 'fmt': '{:.0f}'},
-            {'title': f'{name}: init on the main thread', 'unit': 'ms', 'rows': mobile_rows(res, 'init_ms'), 'fmt': '{:.1f}'},
-            {'title': f'{name}: CPU during the journey', 'unit': 'ms per minute', 'rows': mobile_rows(res, 'cpu_ms_per_min', sub=res.get('cpu_sub', 'journey')), 'fmt': '{:.0f}'},
-            {'title': f'{name}: memory, peak', 'unit': 'MiB', 'rows': mobile_rows(res, 'mem_mb', sub='peak'), 'fmt': '{:.1f}'},
-            {'title': f'{name}: bytes sent', 'unit': 'KiB per minute', 'rows': mobile_rows(res, 'wire_bytes_per_min', sub=res.get('wire_sub', 'median'), scale=1 / 1024), 'fmt': '{:.1f}'},
-        ]
-        charts.append({'title': f'{name} ({res.get("device", "")})', 'intro': res.get('method', ''), 'charts': [c for c in cs if c['rows']]})
+    charts.append({'title': 'iOS Simulator', 'intro': f"iPhone 17 Pro simulator, iOS 27.0: simulator numbers, not device numbers. One UIKit app built three ways (no SDK, ouo11y-ios 0.3.0, sentry-cocoa 9.33.0); replay is a runtime switch. Size is the arm64 device build. Init: 12 cold launches. CPU, memory and bytes: 3 interleaved rounds of 20 s idle plus a 60 s timer-driven journey, host load about 2 to 3, recorded per run. Values are added over the no-SDK app. Details: measure/ios/README.md.",
+                   'charts': [
+                       {'title': 'iOS: app size added, zipped', 'unit': 'KiB', 'rows': mobile_rows(ios, 'size_zipped_delta_bytes', 1 / 1024), 'fmt': '{:.0f}'},
+                       {'title': 'iOS: init on the main thread', 'unit': 'ms', 'rows': mobile_rows(ios, 'init_ms'), 'fmt': '{:.1f}'},
+                       {'title': 'iOS: CPU added, idle screen', 'unit': 'ms per minute', 'rows': mobile_rows(ios, 'cpu_ms_per_min.idle', minus_base=True), 'fmt': '{:.0f}'},
+                       {'title': 'iOS: CPU added, journey', 'unit': 'ms per minute', 'rows': mobile_rows(ios, 'cpu_ms_per_min.journey', minus_base=True), 'fmt': '{:.0f}'},
+                       {'title': 'iOS: peak memory added', 'unit': 'MiB', 'rows': mobile_rows(ios, 'mem_mb.peak', minus_base=True), 'fmt': '{:.1f}'},
+                       {'title': 'iOS: bytes sent', 'unit': 'KiB per minute', 'rows': mobile_rows(ios, 'wire_bytes_per_min.body_as_sent', 1 / 1024), 'fmt': '{:.1f}'},
+                   ]})
+    charts.append({'title': 'Android emulator', 'intro': f"Android emulator, API 35, arm64, 4 vCPU, software graphics. One native Kotlin app built per variant with R8. ouo here is the Kotlin code the React Native SDK vendors (signals and replay): it has no native exporter, so it sends replay only, while Sentry also sends errors, spans and sessions. CPU counts only the SDKs' own threads plus the main thread's increase, because emulated graphics swamp total CPU. Details: measure/android/README.md.",
+                   'charts': [
+                       {'title': 'Android: APK size added', 'unit': 'KiB', 'rows': mobile_rows(android, 'size_zipped_bytes', 1 / 1024), 'fmt': '{:.0f}'},
+                       {'title': 'Android: init on the main thread', 'unit': 'ms', 'rows': mobile_rows(android, 'init_ms'), 'fmt': '{:.1f}'},
+                       {'title': 'Android: SDK CPU, journey', 'unit': 'ms per minute', 'rows': mobile_rows(android, '', fn=android_sdk_cpu(android)), 'fmt': '{:.0f}'},
+                       {'title': 'Android: steady memory added (PSS after settle)', 'unit': 'MiB', 'rows': mobile_rows(android, 'mem_mb.idle', minus_base=True), 'fmt': '{:.1f}', 'note': 'Peak PSS (five samples in the journey) moved by about 1 MiB between runs, more than the SDKs added, so the steady value is shown.'},
+                       {'title': 'Android: bytes sent', 'unit': 'KiB per minute', 'rows': mobile_rows(android, 'wire_body_bytes_per_min', 1 / 1024), 'fmt': '{:.1f}'},
+                   ]})
     overhead = {
         'setup': budgets['setup'],
         'charts': charts,
         'budgets': budgets['budgets'],
         'not_measured': budgets['not_measured'] + ios.get('not_measured', []) + android.get('not_measured', []),
-        'web': {'bundle': bundle, 'runtime_1x': rt1, 'runtime_4x': rt4, 'json_vs_proto': jp, 'rn_bundle': rn},
-        'ios': ios, 'android': android,
+        'web': {'runtime_1x': rt1, 'runtime_4x': rt4},
     }
     (A / 'findings/overhead.json').write_text(json.dumps(overhead, indent=1))
     print('wrote findings/overhead.json')

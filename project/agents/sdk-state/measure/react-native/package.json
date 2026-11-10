@@ -1,0 +1,11 @@
+{
+  "name": "sdk-state-rn-bundle",
+  "private": true,
+  "type": "module",
+  "description": "Step 5: React Native SDK JavaScript bundle size, ouo against Sentry. Not a workspace package; see README.md.",
+  "scripts": { "bundle": "node rn-bundle.mjs" },
+  "devDependencies": {
+    "@sentry/react-native": "8.34.0",
+    "esbuild": "0.25.12"
+  }
+}

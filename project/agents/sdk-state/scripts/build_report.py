@@ -36,7 +36,7 @@ def bar_chart(title, unit, rows, note='', fmt='{:.1f}'):
         return ''
     vmax = max(max(r['value'], r.get('hi') or 0) for r in rows) or 1
     w, lw, rh, gap = 640, 190, 22, 8
-    plot = w - lw - 70
+    plot = w - lw - 80
     h = len(rows) * (rh + gap) + 28
     out = [f'<figure class="chart"><figcaption><strong>{esc(title)}</strong> <span class="unit">({esc(unit)})</span></figcaption>',
            f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{esc(title)}">']
@@ -58,7 +58,8 @@ def bar_chart(title, unit, rows, note='', fmt='{:.1f}'):
         if r.get('lo') is not None and r.get('hi') is not None:
             x1, x2 = lw + plot * r['lo'] / vmax, lw + plot * r['hi'] / vmax
             out.append(f'<line x1="{x1:.1f}" x2="{x2:.1f}" y1="{y + rh / 2}" y2="{y + rh / 2}" class="whisk"/>')
-        out.append(f'<text x="{lw + bw + 6:.1f}" y="{y + rh * 0.68:.1f}" class="val">{esc(fmt.format(r["value"]))}</text></g>')
+        right = lw + plot * max(r['value'], r.get('hi') or 0) / vmax
+        out.append(f'<text x="{max(lw + bw, right) + 6:.1f}" y="{y + rh * 0.68:.1f}" class="val">{esc(fmt.format(r["value"]))}</text></g>')
     out.append('</svg>')
     if note:
         out.append(f'<p class="note">{esc(note)}</p>')

@@ -1,1 +1,0 @@
-{"ouo":{"package":"@ouo11y/react-native 0.3.0","raw_kib":132.3,"gz_kib":42.2,"br_kib":37.1},"sentry":{"package":"@sentry/react-native 8.34.0","raw_kib":308.3,"gz_kib":109.0,"br_kib":94.0},"method":"esbuild 0.25.12 bundle of the package entry, minified ESM, react-native/react/expo packages external, gzip -9 and brotli 11"}

@@ -9,7 +9,7 @@
  "not_measured": [
   {
    "what": "Journey spread at n>=5",
-   "why": "journey capped at n=3 rounds per variant (coordinator instruction, host contention made each round slow); medians with min/max over 3 runs"
+   "why": "3 journey rounds per variant (each round takes about 10 minutes on the simulator); medians with min and max over 3 runs"
   },
   {
    "what": "App Store thinned / compressed download size",
@@ -28,15 +28,11 @@
    "why": "no SDK call to time (baseline)"
   },
   {
-   "what": "Host load for the first init launches",
-   "why": "the load logger was added part-way through the init phase (coordinator request); those launches have load1 null"
-  },
-  {
    "what": "Work done for the app by other processes (backboardd, render server, simulator networking)",
    "why": "proc_pid_rusage counts the app process only"
   }
  ],
- "method": "See README.md. One app, one source, three Release builds (base / OuoSDK / sentry-cocoa); replay is a runtime switch on the same binary. Size: device build (generic/platform=iOS, arm64, unsigned then ad-hoc signed), .app bytes and IPA-shaped zip (deflate 9); deltas vs base. Init: DispatchTime around Ouo.start / SentrySDK.start in didFinishLaunching, main thread, 12 cold launches on fresh installs per variant. CPU/memory: proc_pid_rusage(RUSAGE_INFO_V6) every 0.5 s on the simulator app's host PID (user+system CPU, phys_footprint); idle window 5-20 s (memory 10-20 s), journey window 20-80 s, peak 0-85 s. Wire: local capture server answering 200 itself, request body bytes as sent (gzip) for every SDK request from launch to 100 s (85 s foreground, 15 s background), scaled to per minute. 3 journey rounds per variant (n=3, cut from the planned 6 for run time under host contention), interleaved and rotated. Timer-driven journey (no synthesised taps). Simulator numbers: host CPU and memory, loopback network. Host was heavily loaded (1-min load ~10-30 on 10 cores, a parallel Android emulator run); variants interleaved and rotated per round so both SDKs saw the same contention; host load average logged every 5 s and attached per run (load1).",
+ "method": "See README.md. One app, one source, three Release builds (base / OuoSDK / sentry-cocoa); replay is a runtime switch on the same binary. Size: device build (generic/platform=iOS, arm64, unsigned then ad-hoc signed), .app bytes and IPA-shaped zip (deflate 9); deltas vs base. Init: DispatchTime around Ouo.start / SentrySDK.start in didFinishLaunching, main thread, 12 cold launches on fresh installs per variant. CPU/memory: proc_pid_rusage(RUSAGE_INFO_V6) every 0.5 s on the simulator app's host PID (user+system CPU, phys_footprint); idle window 5-20 s (memory 10-20 s), journey window 20-80 s, peak 0-85 s. Wire: local capture server answering 200 itself, request body bytes as sent (gzip) for every SDK request from launch to 100 s (85 s foreground, 15 s background), scaled to per minute. 3 journey rounds per variant (n=3, cut from the planned 6 for run time under host contention), interleaved and rotated. Timer-driven journey (no synthesised taps). Simulator numbers: host CPU and memory, loopback network. Host was heavily loaded (1-min load ~10-30 on 10 cores, a parallel Android emulator run); variants interleaved and rotated per round so both SDKs saw the same contention; host load average logged every 5 s and attached per run (load1). Runs: a first run under heavy host contention (load 10 to 500) was discarded and rerun on a quiet Mac (load about 2 to 3), 12 init launches and 3 journey rounds per variant.",
  "variants": {
   "base": {
    "size_bytes": 129512,
@@ -48,50 +44,50 @@
    "init_ms": null,
    "cpu_ms_per_min": {
     "idle": {
-     "median": 2.0,
-     "p90": 2.0,
-     "q1": 2.0,
-     "q3": 2.0,
+     "median": 6.0,
+     "p90": 6.0,
+     "q1": 4.0,
+     "q3": 6.0,
      "min": 2.0,
-     "max": 2.0,
+     "max": 6.0,
      "n": 3
     },
     "journey": {
-     "median": 851.0,
-     "p90": 918.0,
-     "q1": 830.0,
-     "q3": 893.0,
-     "min": 808.0,
-     "max": 935.0,
+     "median": 968.0,
+     "p90": 992.0,
+     "q1": 949.0,
+     "q3": 983.0,
+     "min": 931.0,
+     "max": 998.0,
      "n": 3
     }
    },
    "mem_mb": {
     "idle": {
-     "median": 12.7,
-     "p90": 12.9,
-     "q1": 12.6,
-     "q3": 12.8,
-     "min": 12.5,
-     "max": 13.0,
+     "median": 11.8,
+     "p90": 11.9,
+     "q1": 11.8,
+     "q3": 11.8,
+     "min": 11.8,
+     "max": 11.9,
      "n": 3
     },
     "journey": {
-     "median": 19.4,
-     "p90": 19.4,
-     "q1": 19.3,
-     "q3": 19.4,
-     "min": 19.2,
-     "max": 19.5,
+     "median": 17.2,
+     "p90": 18.4,
+     "q1": 17.1,
+     "q3": 17.9,
+     "min": 17.1,
+     "max": 18.7,
      "n": 3
     },
     "peak": {
-     "median": 19.9,
-     "p90": 19.9,
-     "q1": 19.9,
-     "q3": 19.9,
-     "min": 19.8,
-     "max": 19.9,
+     "median": 17.8,
+     "p90": 18.9,
+     "q1": 17.7,
+     "q3": 18.5,
+     "min": 17.6,
+     "max": 19.1,
      "n": 3
     }
    },
@@ -145,12 +141,12 @@
    "host_load1": {
     "init": null,
     "journey": {
-     "median": 13.5,
-     "p90": 72.1,
-     "q1": 10.3,
-     "q3": 50.1,
-     "min": 7.2,
-     "max": 86.7,
+     "median": 2.1,
+     "p90": 2.5,
+     "q1": 2.0,
+     "q3": 2.4,
+     "min": 1.8,
+     "max": 2.6,
      "n": 3
     }
    },
@@ -159,31 +155,31 @@
     "journey": [
      {
       "round": 1,
-      "load1": 13.5,
+      "load1": 2.1,
       "cpu_idle_ms_per_min": 2,
-      "cpu_journey_ms_per_min": 808,
-      "mem_idle_mb": 12.5,
-      "mem_peak_mb": 19.9,
+      "cpu_journey_ms_per_min": 968,
+      "mem_idle_mb": 11.8,
+      "mem_peak_mb": 17.6,
       "wire_bytes_per_min": 0,
       "requests_per_min": 0.0
      },
      {
       "round": 2,
-      "load1": 86.7,
-      "cpu_idle_ms_per_min": 2,
-      "cpu_journey_ms_per_min": 935,
-      "mem_idle_mb": 13.0,
-      "mem_peak_mb": 19.9,
+      "load1": 2.6,
+      "cpu_idle_ms_per_min": 6,
+      "cpu_journey_ms_per_min": 931,
+      "mem_idle_mb": 11.8,
+      "mem_peak_mb": 19.1,
       "wire_bytes_per_min": 0,
       "requests_per_min": 0.0
      },
      {
       "round": 3,
-      "load1": 7.2,
-      "cpu_idle_ms_per_min": 2,
-      "cpu_journey_ms_per_min": 851,
-      "mem_idle_mb": 12.7,
-      "mem_peak_mb": 19.8,
+      "load1": 1.8,
+      "cpu_idle_ms_per_min": 6,
+      "cpu_journey_ms_per_min": 998,
+      "mem_idle_mb": 11.9,
+      "mem_peak_mb": 17.8,
       "wire_bytes_per_min": 0,
       "requests_per_min": 0.0
      }
@@ -206,89 +202,89 @@
    "size_sim_arm64_bytes": 2060138,
    "size_sim_delta_bytes": 1816610,
    "init_ms": {
-    "median": 14.83,
-    "p90": 17.455,
-    "q1": 13.447,
-    "q3": 16.559,
-    "min": 12.752,
-    "max": 18.769,
+    "median": 12.61,
+    "p90": 14.72,
+    "q1": 11.298,
+    "q3": 13.867,
+    "min": 9.407,
+    "max": 18.365,
     "n": 12
    },
    "cpu_ms_per_min": {
     "idle": {
-     "median": 496.0,
-     "p90": 526.0,
-     "q1": 464.0,
-     "q3": 515.0,
-     "min": 432.0,
-     "max": 534.0,
+     "median": 393.0,
+     "p90": 477.0,
+     "q1": 388.0,
+     "q3": 445.0,
+     "min": 384.0,
+     "max": 498.0,
      "n": 3
     },
     "journey": {
-     "median": 1728.0,
-     "p90": 1778.0,
-     "q1": 1727.0,
-     "q3": 1760.0,
-     "min": 1727.0,
-     "max": 1791.0,
+     "median": 1896.0,
+     "p90": 1900.0,
+     "q1": 1710.0,
+     "q3": 1898.0,
+     "min": 1523.0,
+     "max": 1900.0,
      "n": 3
     }
    },
    "mem_mb": {
     "idle": {
-     "median": 14.0,
-     "p90": 14.0,
-     "q1": 14.0,
-     "q3": 14.0,
-     "min": 14.0,
-     "max": 14.0,
+     "median": 12.8,
+     "p90": 12.8,
+     "q1": 12.7,
+     "q3": 12.8,
+     "min": 12.7,
+     "max": 12.8,
      "n": 3
     },
     "journey": {
-     "median": 19.7,
-     "p90": 19.9,
-     "q1": 19.7,
-     "q3": 19.8,
-     "min": 19.7,
-     "max": 19.9,
+     "median": 17.8,
+     "p90": 19.2,
+     "q1": 17.7,
+     "q3": 18.7,
+     "min": 17.6,
+     "max": 19.5,
      "n": 3
     },
     "peak": {
-     "median": 20.3,
-     "p90": 20.4,
-     "q1": 20.2,
-     "q3": 20.3,
-     "min": 20.0,
-     "max": 20.4,
+     "median": 19.8,
+     "p90": 20.0,
+     "q1": 19.1,
+     "q3": 19.9,
+     "min": 18.3,
+     "max": 20.0,
      "n": 3
     }
    },
    "wire_bytes_per_min": {
     "body_as_sent": {
-     "median": 28651.0,
-     "p90": 28794.0,
-     "q1": 28417.0,
-     "q3": 28740.0,
-     "min": 28182.0,
-     "max": 28830.0,
+     "median": 28892.0,
+     "p90": 28896.0,
+     "q1": 28887.0,
+     "q3": 28895.0,
+     "min": 28882.0,
+     "max": 28897.0,
      "n": 3
     },
     "body_plus_headers": {
-     "median": 42373.0,
-     "p90": 42577.0,
-     "q1": 41969.0,
-     "q3": 42500.0,
-     "min": 41565.0,
-     "max": 42628.0,
+     "median": 42741.0,
+     "p90": 42745.0,
+     "q1": 42737.0,
+     "q3": 42743.0,
+     "min": 42732.0,
+     "max": 42745.0,
      "n": 3
     },
     "decoded_body": {
-     "median": 105660.0,
-     "p90": 106093.0,
-     "q1": 105532.0,
-     "q3": 105931.0,
-     "min": 105404.0,
-     "max": 106202.0,
+     "median": 106591.0,
+     "p90": 106600.0,
+     "q1": 106578.0,
+     "q3": 106597.0,
+     "min": 106565.0,
+     "max": 106603.0,
      "n": 3
     },
     "replay_part": {
@@ -302,31 +298,31 @@
     }
    },
    "requests_per_min": {
-    "median": 37.3,
-    "p90": 37.5,
-    "q1": 36.8,
-    "q3": 37.4,
-    "min": 36.4,
-    "max": 37.5,
+    "median": 37.6,
+    "p90": 37.6,
+    "q1": 37.6,
+    "q3": 37.6,
+    "min": 37.6,
+    "max": 37.6,
     "n": 3
    },
    "host_load1": {
     "init": {
-     "median": 10.8,
-     "p90": 10.8,
-     "q1": 10.8,
-     "q3": 10.8,
-     "min": 10.8,
-     "max": 10.8,
-     "n": 1
+     "median": 12.9,
+     "p90": 80.6,
+     "q1": 6.4,
+     "q3": 43.2,
+     "min": 4.5,
+     "max": 107.6,
+     "n": 12
     },
     "journey": {
-     "median": 19.8,
-     "p90": 28.0,
-     "q1": 16.6,
-     "q3": 25.0,
-     "min": 13.5,
-     "max": 30.1,
+     "median": 2.8,
+     "p90": 2.9,
+     "q1": 2.3,
+     "q3": 2.8,
+     "min": 1.9,
+     "max": 2.9,
      "n": 3
     }
    },
@@ -334,114 +330,114 @@
     "init": [
      {
       "round": "1",
-      "init_ms": 12.968,
-      "load1": null
+      "init_ms": 13.026,
+      "load1": 107.6
      },
      {
       "round": "10",
-      "init_ms": 18.769,
-      "load1": null
+      "init_ms": 12.661,
+      "load1": 6.2
      },
      {
       "round": "11",
-      "init_ms": 12.752,
-      "load1": null
+      "init_ms": 9.407,
+      "load1": 6.4
      },
      {
       "round": "12",
-      "init_ms": 13.906,
-      "load1": 10.8
+      "init_ms": 14.752,
+      "load1": 4.5
      },
      {
       "round": "2",
-      "init_ms": 13.532,
-      "load1": null
+      "init_ms": 10.532,
+      "load1": 83.3
      },
      {
       "round": "3",
-      "init_ms": 14.069,
-      "load1": null
+      "init_ms": 13.679,
+      "load1": 56.6
      },
      {
       "round": "4",
-      "init_ms": 17.525,
-      "load1": null
+      "init_ms": 14.43,
+      "load1": 38.7
      },
      {
       "round": "5",
-      "init_ms": 15.893,
-      "load1": null
+      "init_ms": 12.486,
+      "load1": 24.6
      },
      {
       "round": "6",
-      "init_ms": 13.192,
-      "load1": null
+      "init_ms": 10.177,
+      "load1": 17.6
      },
      {
       "round": "7",
-      "init_ms": 16.827,
-      "load1": null
+      "init_ms": 12.559,
+      "load1": 8.2
      },
      {
       "round": "8",
-      "init_ms": 15.591,
-      "load1": null
+      "init_ms": 11.553,
+      "load1": 7.1
      },
      {
       "round": "9",
-      "init_ms": 16.47,
-      "load1": null
+      "init_ms": 18.365,
+      "load1": 5.4
      }
     ],
     "journey": [
      {
       "round": 1,
-      "load1": 13.5,
-      "cpu_idle_ms_per_min": 432,
-      "cpu_journey_ms_per_min": 1791,
-      "mem_idle_mb": 14.0,
-      "mem_peak_mb": 20.3,
-      "wire_bytes_per_min": 28830,
-      "requests_per_min": 37.5
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 393,
+      "cpu_journey_ms_per_min": 1523,
+      "mem_idle_mb": 12.7,
+      "mem_peak_mb": 20.0,
+      "wire_bytes_per_min": 28892,
+      "requests_per_min": 37.6
      },
      {
       "round": 2,
-      "load1": 30.1,
-      "cpu_idle_ms_per_min": 534,
-      "cpu_journey_ms_per_min": 1727,
-      "mem_idle_mb": 14.0,
-      "mem_peak_mb": 20.0,
-      "wire_bytes_per_min": 28182,
-      "requests_per_min": 36.4
+      "load1": 2.8,
+      "cpu_idle_ms_per_min": 384,
+      "cpu_journey_ms_per_min": 1900,
+      "mem_idle_mb": 12.8,
+      "mem_peak_mb": 19.8,
+      "wire_bytes_per_min": 28897,
+      "requests_per_min": 37.6
      },
      {
       "round": 3,
-      "load1": 19.8,
-      "cpu_idle_ms_per_min": 496,
-      "cpu_journey_ms_per_min": 1728,
-      "mem_idle_mb": 14.0,
-      "mem_peak_mb": 20.4,
-      "wire_bytes_per_min": 28651,
-      "requests_per_min": 37.3
+      "load1": 1.9,
+      "cpu_idle_ms_per_min": 498,
+      "cpu_journey_ms_per_min": 1896,
+      "mem_idle_mb": 12.8,
+      "mem_peak_mb": 18.3,
+      "wire_bytes_per_min": 28882,
+      "requests_per_min": 37.6
      }
     ]
    },
    "endpoints_all_runs": {
     "ouo-otlp /v1/logs": {
-     "requests": 98,
-     "body_bytes": 87212
+     "requests": 99,
+     "body_bytes": 87642
     },
     "ouo-otlp /v1/traces": {
-     "requests": 89,
-     "body_bytes": 56898
+     "requests": 90,
+     "body_bytes": 57438
     }
    },
    "delta_vs_base_median": {
-    "cpu_idle_ms_per_min": 494,
-    "cpu_journey_ms_per_min": 877,
-    "mem_idle_mb": 1.3,
-    "mem_journey_mb": 0.3,
-    "mem_peak_mb": 0.4
+    "cpu_idle_ms_per_min": 387,
+    "cpu_journey_ms_per_min": 928,
+    "mem_idle_mb": 1.0,
+    "mem_journey_mb": 0.6,
+    "mem_peak_mb": 2.0
    }
   },
   "ouo_replay": {
@@ -452,119 +448,127 @@
    "size_sim_arm64_bytes": 2060138,
    "size_sim_delta_bytes": 1816610,
    "init_ms": {
-    "median": 13.085,
-    "p90": 17.005,
-    "q1": 10.434,
-    "q3": 15.782,
-    "min": 8.776,
-    "max": 18.886,
+    "median": 8.709,
+    "p90": 18.716,
+    "q1": 8.115,
+    "q3": 12.736,
+    "min": 7.798,
+    "max": 19.992,
     "n": 12
    },
    "cpu_ms_per_min": {
     "idle": {
-     "median": 2358.0,
-     "p90": 2405.0,
-     "q1": 2293.0,
-     "q3": 2387.0,
-     "min": 2229.0,
-     "max": 2417.0,
+     "median": 2482.0,
+     "p90": 2628.0,
+     "q1": 2442.0,
+     "q3": 2573.0,
+     "min": 2402.0,
+     "max": 2664.0,
      "n": 3
     },
     "journey": {
-     "median": 3764.0,
-     "p90": 4026.0,
-     "q1": 3745.0,
-     "q3": 3928.0,
-     "min": 3725.0,
-     "max": 4091.0,
+     "median": 4044.0,
+     "p90": 4076.0,
+     "q1": 3862.0,
+     "q3": 4064.0,
+     "min": 3680.0,
+     "max": 4085.0,
      "n": 3
     }
    },
    "mem_mb": {
     "idle": {
-     "median": 14.4,
-     "p90": 14.4,
-     "q1": 14.3,
-     "q3": 14.4,
-     "min": 14.3,
-     "max": 14.4,
+     "median": 13.1,
+     "p90": 13.1,
+     "q1": 13.0,
+     "q3": 13.1,
+     "min": 13.0,
+     "max": 13.1,
      "n": 3
     },
     "journey": {
-     "median": 20.6,
-     "p90": 20.7,
-     "q1": 20.5,
-     "q3": 20.7,
-     "min": 20.4,
-     "max": 20.8,
+     "median": 18.1,
+     "p90": 19.9,
+     "q1": 18.0,
+     "q3": 19.2,
+     "min": 17.9,
+     "max": 20.4,
      "n": 3
     },
     "peak": {
-     "median": 34.3,
-     "p90": 39.5,
-     "q1": 34.2,
-     "q3": 37.5,
-     "min": 34.1,
-     "max": 40.7,
+     "median": 21.6,
+     "p90": 27.6,
+     "q1": 21.4,
+     "q3": 25.3,
+     "min": 21.2,
+     "max": 29.1,
      "n": 3
     }
    },
    "wire_bytes_per_min": {
     "body_as_sent": {
-     "median": 67818.0,
-     "p90": 69496.0,
-     "q1": 66411.0,
-     "q3": 68867.0,
-     "min": 65003.0,
-     "max": 69915.0,
+     "median": 68761.0,
+     "p90": 69134.0,
+     "q1": 68668.0,
+     "q3": 68994.0,
+     "min": 68575.0,
+     "max": 69227.0,
      "n": 3
     },
     "body_plus_headers": {
-     "median": 84181.0,
-     "p90": 86142.0,
-     "q1": 82390.0,
-     "q3": 85406.0,
-     "min": 80600.0,
-     "max": 86632.0,
+     "median": 85280.0,
+     "p90": 85872.0,
+     "q1": 85189.0,
+     "q3": 85650.0,
+     "min": 85098.0,
+     "max": 86020.0,
      "n": 3
     },
     "decoded_body": {
-     "median": 338417.0,
-     "p90": 340525.0,
-     "q1": 330677.0,
-     "q3": 339735.0,
-     "min": 322937.0,
-     "max": 341052.0,
+     "median": 341971.0,
+     "p90": 341988.0,
+     "q1": 341692.0,
+     "q3": 341982.0,
+     "min": 341412.0,
+     "max": 341993.0,
      "n": 3
     },
     "replay_part": {
-     "median": 39093.0,
-     "p90": 40596.0,
-     "q1": 38340.0,
-     "q3": 40032.0,
-     "min": 37587.0,
-     "max": 40971.0,
+     "median": 39720.0,
+     "p90": 40074.0,
+     "q1": 39658.0,
+     "q3": 39941.0,
+     "min": 39596.0,
+     "max": 40162.0,
      "n": 3
     }
    },
    "requests_per_min": {
-    "median": 43.2,
-    "p90": 43.9,
-    "q1": 42.2,
-    "q3": 43.6,
-    "min": 41.2,
-    "max": 44.0,
+    "median": 43.6,
+    "p90": 44.1,
+    "q1": 43.6,
+    "q3": 43.9,
+    "min": 43.6,
+    "max": 44.2,
     "n": 3
    },
    "host_load1": {
-    "init": null,
+    "init": {
+     "median": 14.1,
+     "p90": 114.1,
+     "q1": 6.5,
+     "q3": 38.1,
+     "min": 5.2,
+     "max": 128.8,
+     "n": 12
+    },
     "journey": {
-     "median": 32.5,
-     "p90": 262.2,
-     "q1": 28.1,
-     "q3": 176.1,
-     "min": 23.7,
-     "max": 319.6,
+     "median": 2.7,
+     "p90": 3.6,
+     "q1": 2.4,
+     "q3": 3.2,
+     "min": 2.1,
+     "max": 3.8,
      "n": 3
     }
    },
@@ -572,118 +576,118 @@
     "init": [
      {
       "round": "1",
-      "init_ms": 9.757,
-      "load1": null
+      "init_ms": 17.296,
+      "load1": 120.9
      },
      {
       "round": "10",
-      "init_ms": 15.581,
-      "load1": null
+      "init_ms": 8.123,
+      "load1": 7.1
      },
      {
       "round": "11",
-      "init_ms": 12.69,
-      "load1": null
+      "init_ms": 8.422,
+      "load1": 5.8
      },
      {
       "round": "12",
-      "init_ms": 10.66,
-      "load1": null
+      "init_ms": 19.992,
+      "load1": 5.4
      },
      {
       "round": "2",
-      "init_ms": 13.479,
-      "load1": null
+      "init_ms": 9.36,
+      "load1": 128.8
      },
      {
       "round": "3",
-      "init_ms": 8.776,
-      "load1": null
+      "init_ms": 8.004,
+      "load1": 52.6
      },
      {
       "round": "4",
-      "init_ms": 14.507,
-      "load1": null
+      "init_ms": 18.874,
+      "load1": 33.2
      },
      {
       "round": "5",
-      "init_ms": 12.36,
-      "load1": null
+      "init_ms": 8.271,
+      "load1": 22.9
      },
      {
       "round": "6",
-      "init_ms": 8.902,
-      "load1": null
+      "init_ms": 7.798,
+      "load1": 16.9
      },
      {
       "round": "7",
-      "init_ms": 17.073,
-      "load1": null
+      "init_ms": 11.217,
+      "load1": 11.4
      },
      {
       "round": "8",
-      "init_ms": 16.387,
-      "load1": null
+      "init_ms": 8.088,
+      "load1": 6.7
      },
      {
       "round": "9",
-      "init_ms": 18.886,
-      "load1": null
+      "init_ms": 8.995,
+      "load1": 5.2
      }
     ],
     "journey": [
      {
       "round": 1,
-      "load1": 23.7,
-      "cpu_idle_ms_per_min": 2229,
-      "cpu_journey_ms_per_min": 4091,
-      "mem_idle_mb": 14.3,
-      "mem_peak_mb": 40.7,
-      "wire_bytes_per_min": 69915,
-      "requests_per_min": 44.0
+      "load1": 2.7,
+      "cpu_idle_ms_per_min": 2402,
+      "cpu_journey_ms_per_min": 3680,
+      "mem_idle_mb": 13.0,
+      "mem_peak_mb": 21.2,
+      "wire_bytes_per_min": 68575,
+      "requests_per_min": 43.6
      },
      {
       "round": 2,
-      "load1": 32.5,
-      "cpu_idle_ms_per_min": 2417,
-      "cpu_journey_ms_per_min": 3725,
-      "mem_idle_mb": 14.4,
-      "mem_peak_mb": 34.1,
-      "wire_bytes_per_min": 67818,
-      "requests_per_min": 43.2
+      "load1": 3.8,
+      "cpu_idle_ms_per_min": 2664,
+      "cpu_journey_ms_per_min": 4085,
+      "mem_idle_mb": 13.1,
+      "mem_peak_mb": 21.6,
+      "wire_bytes_per_min": 69227,
+      "requests_per_min": 44.2
      },
      {
       "round": 3,
-      "load1": 319.6,
-      "cpu_idle_ms_per_min": 2358,
-      "cpu_journey_ms_per_min": 3764,
-      "mem_idle_mb": 14.4,
-      "mem_peak_mb": 34.3,
-      "wire_bytes_per_min": 65003,
-      "requests_per_min": 41.2
+      "load1": 2.1,
+      "cpu_idle_ms_per_min": 2482,
+      "cpu_journey_ms_per_min": 4044,
+      "mem_idle_mb": 13.1,
+      "mem_peak_mb": 29.1,
+      "wire_bytes_per_min": 68761,
+      "requests_per_min": 43.6
      }
     ]
    },
    "endpoints_all_runs": {
     "ouo-otlp /v1/logs": {
      "requests": 99,
-     "body_bytes": 88239
+     "body_bytes": 88286
     },
     "ouo-otlp /v1/traces": {
      "requests": 90,
-     "body_bytes": 57565
+     "body_bytes": 57454
     },
     "ouo-replay /v1/replay/chunks": {
      "requests": 31,
-     "body_bytes": 201575
+     "body_bytes": 199956
     }
    },
    "delta_vs_base_median": {
-    "cpu_idle_ms_per_min": 2356,
-    "cpu_journey_ms_per_min": 2913,
-    "mem_idle_mb": 1.7,
-    "mem_journey_mb": 1.2,
-    "mem_peak_mb": 14.4
+    "cpu_idle_ms_per_min": 2476,
+    "cpu_journey_ms_per_min": 3076,
+    "mem_idle_mb": 1.3,
+    "mem_journey_mb": 0.9,
+    "mem_peak_mb": 3.8
    }
   },
   "sentry": {
@@ -694,89 +698,89 @@
    "size_sim_arm64_bytes": 6865498,
    "size_sim_delta_bytes": 6621970,
    "init_ms": {
-    "median": 59.142,
-    "p90": 70.352,
-    "q1": 52.127,
-    "q3": 62.964,
-    "min": 49.444,
-    "max": 84.097,
+    "median": 47.14,
+    "p90": 52.051,
+    "q1": 46.481,
+    "q3": 49.29,
+    "min": 46.099,
+    "max": 92.079,
     "n": 12
    },
    "cpu_ms_per_min": {
     "idle": {
-     "median": 464.0,
-     "p90": 619.0,
-     "q1": 451.0,
-     "q3": 561.0,
-     "min": 437.0,
-     "max": 658.0,
+     "median": 435.0,
+     "p90": 481.0,
+     "q1": 415.0,
+     "q3": 464.0,
+     "min": 394.0,
+     "max": 493.0,
      "n": 3
     },
     "journey": {
-     "median": 1478.0,
-     "p90": 1692.0,
-     "q1": 1375.0,
-     "q3": 1611.0,
-     "min": 1272.0,
-     "max": 1745.0,
+     "median": 1630.0,
+     "p90": 1661.0,
+     "q1": 1629.0,
+     "q3": 1649.0,
+     "min": 1628.0,
+     "max": 1668.0,
      "n": 3
     }
    },
    "mem_mb": {
     "idle": {
-     "median": 16.9,
-     "p90": 17.1,
-     "q1": 16.9,
-     "q3": 17.0,
-     "min": 16.9,
-     "max": 17.1,
+     "median": 15.5,
+     "p90": 15.5,
+     "q1": 15.5,
+     "q3": 15.5,
+     "min": 15.5,
+     "max": 15.5,
      "n": 3
     },
     "journey": {
-     "median": 22.9,
-     "p90": 23.0,
-     "q1": 22.8,
-     "q3": 22.9,
-     "min": 22.8,
-     "max": 23.0,
+     "median": 20.4,
+     "p90": 20.5,
+     "q1": 20.4,
+     "q3": 20.5,
+     "min": 20.4,
+     "max": 20.5,
      "n": 3
     },
     "peak": {
-     "median": 23.5,
-     "p90": 23.6,
-     "q1": 23.4,
-     "q3": 23.6,
-     "min": 23.3,
-     "max": 23.6,
+     "median": 21.6,
+     "p90": 22.5,
+     "q1": 21.3,
+     "q3": 22.1,
+     "min": 21.0,
+     "max": 22.7,
      "n": 3
     }
    },
    "wire_bytes_per_min": {
     "body_as_sent": {
-     "median": 19833.0,
-     "p90": 19900.0,
-     "q1": 19782.0,
-     "q3": 19875.0,
-     "min": 19732.0,
-     "max": 19917.0,
+     "median": 19967.0,
+     "p90": 19969.0,
+     "q1": 19890.0,
+     "q3": 19969.0,
+     "min": 19812.0,
+     "max": 19970.0,
      "n": 3
     },
     "body_plus_headers": {
-     "median": 22799.0,
-     "p90": 22875.0,
-     "q1": 22736.0,
-     "q3": 22846.0,
-     "min": 22672.0,
-     "max": 22894.0,
+     "median": 22950.0,
+     "p90": 22951.0,
+     "q1": 22872.0,
+     "q3": 22950.0,
+     "min": 22794.0,
+     "max": 22951.0,
      "n": 3
     },
     "decoded_body": {
-     "median": 120906.0,
-     "p90": 121297.0,
-     "q1": 120857.0,
-     "q3": 121150.0,
-     "min": 120808.0,
-     "max": 121394.0,
+     "median": 121655.0,
+     "p90": 121709.0,
+     "q1": 121649.0,
+     "q3": 121689.0,
+     "min": 121642.0,
+     "max": 121723.0,
      "n": 3
     },
     "replay_part": {
@@ -790,31 +794,31 @@
     }
    },
    "requests_per_min": {
-    "median": 7.7,
-    "p90": 7.7,
-    "q1": 7.7,
-    "q3": 7.7,
-    "min": 7.7,
+    "median": 7.8,
+    "p90": 7.8,
+    "q1": 7.8,
+    "q3": 7.8,
+    "min": 7.8,
     "max": 7.8,
     "n": 3
    },
    "host_load1": {
     "init": {
-     "median": 13.2,
-     "p90": 13.2,
-     "q1": 13.2,
-     "q3": 13.2,
-     "min": 13.2,
-     "max": 13.2,
-     "n": 1
+     "median": 12.8,
+     "p90": 108.2,
+     "q1": 7.1,
+     "q3": 42.3,
+     "min": 5.1,
+     "max": 136.8,
+     "n": 12
     },
     "journey": {
-     "median": 22.2,
-     "p90": 285.5,
-     "q1": 15.9,
-     "q3": 186.8,
-     "min": 9.7,
-     "max": 351.3,
+     "median": 2.9,
+     "p90": 3.0,
+     "q1": 2.8,
+     "q3": 3.0,
+     "min": 2.7,
+     "max": 3.0,
      "n": 3
     }
    },
@@ -822,94 +826,94 @@
     "init": [
      {
       "round": "1",
-      "init_ms": 51.438,
-      "load1": null
+      "init_ms": 92.079,
+      "load1": 136.8
      },
      {
       "round": "10",
-      "init_ms": 61.113,
-      "load1": null
+      "init_ms": 46.377,
+      "load1": 7.4
      },
      {
       "round": "11",
-      "init_ms": 59.73,
-      "load1": null
+      "init_ms": 47.903,
+      "load1": 5.8
      },
      {
       "round": "12",
-      "init_ms": 51.428,
-      "load1": 13.2
+      "init_ms": 46.987,
+      "load1": 5.1
      },
      {
       "round": "2",
-      "init_ms": 49.444,
-      "load1": null
+      "init_ms": 50.981,
+      "load1": 111.7
      },
      {
       "round": "3",
-      "init_ms": 52.356,
-      "load1": null
+      "init_ms": 46.697,
+      "load1": 77.0
      },
      {
       "round": "4",
-      "init_ms": 58.553,
-      "load1": null
+      "init_ms": 52.17,
+      "load1": 30.7
      },
      {
       "round": "5",
-      "init_ms": 84.097,
-      "load1": null
+      "init_ms": 47.292,
+      "load1": 21.2
      },
      {
       "round": "6",
-      "init_ms": 53.554,
-      "load1": null
+      "init_ms": 48.727,
+      "load1": 15.0
      },
      {
       "round": "7",
-      "init_ms": 70.838,
-      "load1": null
+      "init_ms": 46.515,
+      "load1": 10.6
      },
      {
       "round": "8",
-      "init_ms": 61.96,
-      "load1": null
+      "init_ms": 46.099,
+      "load1": 8.2
      },
      {
       "round": "9",
-      "init_ms": 65.977,
-      "load1": null
+      "init_ms": 46.104,
+      "load1": 6.3
      }
     ],
     "journey": [
      {
       "round": 1,
-      "load1": 22.2,
-      "cpu_idle_ms_per_min": 437,
-      "cpu_journey_ms_per_min": 1272,
-      "mem_idle_mb": 16.9,
-      "mem_peak_mb": 23.3,
-      "wire_bytes_per_min": 19833,
-      "requests_per_min": 7.7
+      "load1": 3.0,
+      "cpu_idle_ms_per_min": 493,
+      "cpu_journey_ms_per_min": 1628,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 21.0,
+      "wire_bytes_per_min": 19812,
+      "requests_per_min": 7.8
      },
      {
       "round": 2,
-      "load1": 351.3,
-      "cpu_idle_ms_per_min": 464,
-      "cpu_journey_ms_per_min": 1478,
-      "mem_idle_mb": 17.1,
-      "mem_peak_mb": 23.5,
-      "wire_bytes_per_min": 19732,
-      "requests_per_min": 7.7
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 394,
+      "cpu_journey_ms_per_min": 1668,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 22.7,
+      "wire_bytes_per_min": 19967,
+      "requests_per_min": 7.8
      },
      {
       "round": 3,
-      "load1": 9.7,
-      "cpu_idle_ms_per_min": 658,
-      "cpu_journey_ms_per_min": 1745,
-      "mem_idle_mb": 16.9,
-      "mem_peak_mb": 23.6,
-      "wire_bytes_per_min": 19917,
+      "load1": 2.7,
+      "cpu_idle_ms_per_min": 435,
+      "cpu_journey_ms_per_min": 1630,
+      "mem_idle_mb": 15.5,
+      "mem_peak_mb": 21.6,
+      "wire_bytes_per_min": 19970,
       "requests_per_min": 7.8
      }
     ]
@@ -917,15 +921,15 @@
    "endpoints_all_runs": {
     "sentry /api/1/envelope/": {
      "requests": 39,
-     "body_bytes": 100265
+     "body_bytes": 100009
     }
    },
    "delta_vs_base_median": {
-    "cpu_idle_ms_per_min": 462,
-    "cpu_journey_ms_per_min": 627,
-    "mem_idle_mb": 4.2,
-    "mem_journey_mb": 3.5,
-    "mem_peak_mb": 3.6
+    "cpu_idle_ms_per_min": 429,
+    "cpu_journey_ms_per_min": 662,
+    "mem_idle_mb": 3.7,
+    "mem_journey_mb": 3.2,
+    "mem_peak_mb": 3.8
    }
   },
   "sentry_replay": {
@@ -936,127 +940,127 @@
    "size_sim_arm64_bytes": 6865498,
    "size_sim_delta_bytes": 6621970,
    "init_ms": {
-    "median": 53.765,
-    "p90": 74.931,
-    "q1": 52.931,
-    "q3": 63.682,
-    "min": 50.674,
-    "max": 90.9,
+    "median": 46.097,
+    "p90": 50.169,
+    "q1": 44.998,
+    "q3": 47.689,
+    "min": 43.812,
+    "max": 64.672,
     "n": 12
    },
    "cpu_ms_per_min": {
     "idle": {
-     "median": 4472.0,
-     "p90": 4595.0,
-     "q1": 4457.0,
-     "q3": 4549.0,
-     "min": 4442.0,
-     "max": 4625.0,
+     "median": 4032.0,
+     "p90": 4256.0,
+     "q1": 3994.0,
+     "q3": 4172.0,
+     "min": 3956.0,
+     "max": 4312.0,
      "n": 3
     },
     "journey": {
-     "median": 5164.0,
-     "p90": 5189.0,
-     "q1": 4993.0,
-     "q3": 5180.0,
-     "min": 4821.0,
-     "max": 5196.0,
+     "median": 4772.0,
+     "p90": 4905.0,
+     "q1": 4771.0,
+     "q3": 4855.0,
+     "min": 4769.0,
+     "max": 4938.0,
      "n": 3
     }
    },
    "mem_mb": {
     "idle": {
-     "median": 23.4,
-     "p90": 23.9,
-     "q1": 23.1,
-     "q3": 23.7,
-     "min": 22.8,
-     "max": 24.0,
+     "median": 21.0,
+     "p90": 21.1,
+     "q1": 21.0,
+     "q3": 21.1,
+     "min": 20.9,
+     "max": 21.1,
      "n": 3
     },
     "journey": {
-     "median": 28.7,
-     "p90": 29.1,
-     "q1": 28.6,
-     "q3": 29.0,
-     "min": 28.4,
-     "max": 29.2,
+     "median": 25.0,
+     "p90": 26.0,
+     "q1": 24.9,
+     "q3": 25.7,
+     "min": 24.8,
+     "max": 26.3,
      "n": 3
     },
     "peak": {
-     "median": 71.7,
-     "p90": 76.1,
-     "q1": 68.5,
-     "q3": 74.5,
-     "min": 65.4,
-     "max": 77.3,
+     "median": 60.3,
+     "p90": 60.7,
+     "q1": 48.0,
+     "q3": 60.5,
+     "min": 35.7,
+     "max": 60.8,
      "n": 3
     }
    },
    "wire_bytes_per_min": {
     "body_as_sent": {
-     "median": 67929.0,
-     "p90": 85885.0,
-     "q1": 67922.0,
-     "q3": 79152.0,
-     "min": 67915.0,
-     "max": 90374.0,
+     "median": 71116.0,
+     "p90": 72087.0,
+     "q1": 69932.0,
+     "q3": 71723.0,
+     "min": 68748.0,
+     "max": 72330.0,
      "n": 3
     },
     "body_plus_headers": {
-     "median": 74556.0,
-     "p90": 92131.0,
-     "q1": 74552.0,
-     "q3": 85540.0,
-     "min": 74548.0,
-     "max": 96524.0,
+     "median": 77768.0,
+     "p90": 78923.0,
+     "q1": 76584.0,
+     "q3": 78490.0,
+     "min": 75399.0,
+     "max": 79212.0,
      "n": 3
     },
     "decoded_body": {
-     "median": 199649.0,
-     "p90": 371303.0,
-     "q1": 199462.0,
-     "q3": 306933.0,
-     "min": 199275.0,
-     "max": 414217.0,
+     "median": 202863.0,
+     "p90": 204722.0,
+     "q1": 201626.0,
+     "q3": 204025.0,
+     "min": 200390.0,
+     "max": 205187.0,
      "n": 3
     },
     "replay_part": {
-     "median": 47431.0,
-     "p90": 47483.0,
-     "q1": 45787.0,
-     "q3": 47464.0,
-     "min": 44142.0,
-     "max": 47496.0,
+     "median": 50687.0,
+     "p90": 51504.0,
+     "q1": 49413.0,
+     "q3": 51198.0,
+     "min": 48138.0,
+     "max": 51708.0,
      "n": 3
     }
    },
    "requests_per_min": {
-    "median": 17.2,
-    "p90": 17.3,
-    "q1": 16.6,
-    "q3": 17.3,
-    "min": 16.0,
-    "max": 17.3,
+    "median": 17.3,
+    "p90": 17.8,
+    "q1": 17.3,
+    "q3": 17.6,
+    "min": 17.3,
+    "max": 17.9,
     "n": 3
    },
    "host_load1": {
     "init": {
-     "median": 12.2,
-     "p90": 12.2,
-     "q1": 12.2,
-     "q3": 12.2,
-     "min": 12.2,
-     "max": 12.2,
-     "n": 1
+     "median": 11.9,
+     "p90": 100.6,
+     "q1": 6.7,
+     "q3": 51.6,
+     "min": 4.6,
+     "max": 139.0,
+     "n": 12
     },
     "journey": {
-     "median": 20.0,
-     "p90": 251.5,
-     "q1": 12.6,
-     "q3": 164.7,
-     "min": 5.3,
-     "max": 309.4,
+     "median": 2.6,
+     "p90": 2.8,
+     "q1": 2.4,
+     "q3": 2.8,
+     "min": 2.2,
+     "max": 2.9,
      "n": 3
     }
    },
@@ -1064,110 +1068,110 @@
     "init": [
      {
       "round": "1",
-      "init_ms": 51.972,
-      "load1": null
+      "init_ms": 64.672,
+      "load1": 139.0
      },
      {
       "round": "10",
-      "init_ms": 50.674,
-      "load1": null
+      "init_ms": 45.396,
+      "load1": 6.8
      },
      {
       "round": "11",
-      "init_ms": 53.058,
-      "load1": null
+      "init_ms": 44.716,
+      "load1": 6.0
      },
      {
       "round": "12",
-      "init_ms": 52.55,
-      "load1": 12.2
+      "init_ms": 47.133,
+      "load1": 4.6
      },
      {
       "round": "2",
-      "init_ms": 53.946,
-      "load1": null
+      "init_ms": 50.422,
+      "load1": 103.8
      },
      {
       "round": "3",
-      "init_ms": 53.583,
-      "load1": null
+      "init_ms": 45.092,
+      "load1": 71.3
      },
      {
       "round": "4",
-      "init_ms": 62.263,
-      "load1": null
+      "init_ms": 44.11,
+      "load1": 45.1
      },
      {
       "round": "5",
-      "init_ms": 90.9,
-      "load1": null
+      "init_ms": 46.288,
+      "load1": 18.9
      },
      {
       "round": "6",
-      "init_ms": 76.128,
-      "load1": null
+      "init_ms": 47.891,
+      "load1": 14.0
      },
      {
       "round": "7",
-      "init_ms": 53.569,
-      "load1": null
+      "init_ms": 43.812,
+      "load1": 9.9
      },
      {
       "round": "8",
-      "init_ms": 64.161,
-      "load1": null
+      "init_ms": 47.622,
+      "load1": 7.6
      },
      {
       "round": "9",
-      "init_ms": 63.523,
-      "load1": null
+      "init_ms": 45.906,
+      "load1": 6.4
      }
     ],
     "journey": [
      {
       "round": 1,
-      "load1": 20.0,
-      "cpu_idle_ms_per_min": 4442,
-      "cpu_journey_ms_per_min": 4821,
-      "mem_idle_mb": 22.8,
-      "mem_peak_mb": 65.4,
-      "wire_bytes_per_min": 67929,
-      "requests_per_min": 17.2
+      "load1": 2.2,
+      "cpu_idle_ms_per_min": 4312,
+      "cpu_journey_ms_per_min": 4769,
+      "mem_idle_mb": 21.0,
+      "mem_peak_mb": 60.8,
+      "wire_bytes_per_min": 71116,
+      "requests_per_min": 17.3
      },
      {
       "round": 2,
-      "load1": 309.4,
-      "cpu_idle_ms_per_min": 4625,
-      "cpu_journey_ms_per_min": 5164,
-      "mem_idle_mb": 24.0,
-      "mem_peak_mb": 77.3,
-      "wire_bytes_per_min": 90374,
-      "requests_per_min": 16.0
+      "load1": 2.9,
+      "cpu_idle_ms_per_min": 3956,
+      "cpu_journey_ms_per_min": 4772,
+      "mem_idle_mb": 20.9,
+      "mem_peak_mb": 35.7,
+      "wire_bytes_per_min": 72330,
+      "requests_per_min": 17.9
      },
      {
       "round": 3,
-      "load1": 5.3,
-      "cpu_idle_ms_per_min": 4472,
-      "cpu_journey_ms_per_min": 5196,
-      "mem_idle_mb": 23.4,
-      "mem_peak_mb": 71.7,
-      "wire_bytes_per_min": 67915,
+      "load1": 2.6,
+      "cpu_idle_ms_per_min": 4032,
+      "cpu_journey_ms_per_min": 4938,
+      "mem_idle_mb": 21.1,
+      "mem_peak_mb": 60.3,
+      "wire_bytes_per_min": 68748,
       "requests_per_min": 17.3
      }
     ]
    },
    "endpoints_all_runs": {
     "sentry /api/1/envelope/": {
-     "requests": 85,
-     "body_bytes": 380496
+     "requests": 88,
+     "body_bytes": 355189
     }
    },
    "delta_vs_base_median": {
-    "cpu_idle_ms_per_min": 4470,
-    "cpu_journey_ms_per_min": 4313,
-    "mem_idle_mb": 10.7,
-    "mem_journey_mb": 9.3,
-    "mem_peak_mb": 51.8
+    "cpu_idle_ms_per_min": 4026,
+    "cpu_journey_ms_per_min": 3804,
+    "mem_idle_mb": 9.2,
+    "mem_journey_mb": 7.8,
+    "mem_peak_mb": 42.5
    }
   }
  },

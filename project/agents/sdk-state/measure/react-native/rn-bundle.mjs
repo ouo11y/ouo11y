@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync, brotliCompressSync } from "node:zlib";
 const ext = ["react", "react-native", "react/jsx-runtime", "expo-modules-core", "expo-constants", "expo", "@react-native-async-storage/async-storage", "react-native-*", "@react-native/*", "expo-*", "promise/*"];
 const pkg = (n) => JSON.parse(readFileSync(`node_modules/${n}/package.json`, "utf8")).version;
-const out = { method: "esbuild bundle of the package entry, minified ESM, React Native and Expo packages external, gzip -9 and brotli 11" };
+const out = { method: "esbuild bundle of the package entry (own folder, so only one Sentry core resolves), minified ESM, React Native and Expo packages external, gzip -9 and brotli 11" };
 mkdirSync("results", { recursive: true });
 for (const [key, entry, name] of [["ouo", "rn-entries/e-ouo.js", "@ouo11y/react-native"], ["sentry", "rn-entries/e-sentry.js", "@sentry/react-native"]]) {
   await build({ entryPoints: [entry], bundle: true, minify: true, format: "esm", outfile: `dist/rn-${key}.js`, platform: "neutral", mainFields: ["react-native", "module", "main"], conditions: ["react-native", "import", "require", "default"], external: ext, logLevel: "error", define: { __DEV__: "false", "process.env.NODE_ENV": '"production"' }, resolveExtensions: [".native.js", ".ios.js", ".js", ".mjs", ".cjs", ".json"], loader: { ".js": "jsx" } });
