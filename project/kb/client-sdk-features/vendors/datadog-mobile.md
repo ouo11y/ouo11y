@@ -248,6 +248,7 @@
 | OTH-e | yes | yes | uncertain | Synthetics mobile tests are tagged in RUM (`_dd.synthetics.test_id` env read) | iRC L525-527 |
 | OTH-f | no | no | no | No Segment-style integrations found | — |
 | OTH-g | yes | yes | partial | Accessibility settings capture (`collectAccessibility` default false); account info; macOS; `isLowRam`/total RAM device fields; CPU and memory timeseries | iRC L373; iOS CHANGELOG 3.11.0 |
+| OTH-h | n/a | n/a | n/a | Web concern; added after the research | — |
 
 ## Notable
 

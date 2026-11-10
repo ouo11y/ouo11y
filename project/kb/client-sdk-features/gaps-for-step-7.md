@@ -8,7 +8,7 @@ Step 4, 2026-11-10. What the [target list](target-list.md) needs that the [draft
 |---|---|---|---|---|
 | 1 | First display or time to full display on mobile? | **Should.** Time to initial display automatic per screen view, time to full display by a manual `reportFullyDisplayed()` with a deadline | Sentry: TTFD manual, deadline 30 s iOS, 25 s Android. Datadog: TTID automatic, TTFD manual, plus iOS time-to-network-settled. PostHog: none | G7 |
 | 2 | Should an unsampled session send recent breadcrumbs with its bypass errors? | **Should.** Keep a small in-memory ring of recent records in unsampled sessions and flush it with a bypass record, marked like the bypass record and counted against the cap | Sentry attaches up to 100 breadcrumbs to every error. PostHog keeps a 32 KB manual "exception steps" buffer. Datadog samples whole sessions | G4 |
-| 3 | Is redacting every query value too strict for analytics? | **Keep the strict default.** Document an opt-in preset of campaign keys: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`. Leave click ids such as `gclid` out, since they identify a visit | All three vendors keep query values by default; Sentry v11 made collection permissive | G17 |
+| 3 | Is redacting every query value too strict for analytics? | **Keep the strict default.** Document an opt-in preset of campaign keys: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`. Leave click ids such as `gclid` out, since they identify a visit | All three vendors keep query values by default; Sentry's JavaScript SDK v11 made collection permissive | G17 |
 | 4 | Should a session span subdomains? | **Later, opt-in.** It needs a cookie scoped to the parent domain, which SES-12 forbids. Step 7 decides whether an opt-in cookie is allowed | Datadog `trackSessionAcrossSubdomains` (off). PostHog `cross_subdomain_cookie` (on unless the host is on a public-suffix list) | G1 |
 | 5 | Per-signal rates, remote configuration, remote kill switch? | **No per-signal rates** (one session decision keeps the story whole). **Remote kill switch and rate override: Should**, served through the Collector | Datadog added remote config in 2026 (iOS 3.17, Android 3.14; web `@internal`). PostHog loads remote config on every start and gates most features with it. Sentry has none in the npm SDK | G16 |
 | 6 | Which mobile replay format first? | **Not decided here, by the brief.** Evidence: [mobile-replay-format-evidence.md](mobile-replay-format-evidence.md) | Sentry is video only; Datadog is wireframe only; PostHog ships both and reports users prefer screenshots | none, founder decision |
@@ -18,7 +18,7 @@ Step 4, 2026-11-10. What the [target list](target-list.md) needs that the [draft
 
 ## Gaps
 
-Priority follows the target of the rows that need it. "Rows" link back to the [target list](target-list.md).
+"Target" is the gap's own priority. It can be lower than its row's when the row is met without it: SES-c is Must for tabs and restarts, while cross-subdomain sharing (G1) is Later; ERR-g is Must through ordinary events, while the unsampled-session ring (G4) is Should. "Rows" link back to the [target list](target-list.md).
 
 | Gap | Rows | Target | What the spec lacks | Proposal for Step 7 |
 |---|---|---|---|---|
@@ -30,7 +30,7 @@ Priority follows the target of the rows that need it. "Rows" link back to the [t
 | G6 | PERF-b | Should | LCP element attribution | Optional attribute on the LCP event, sanitised like the INP target |
 | G7 | PERF-h | Should | Time to initial and full display | Event or after-the-fact span per screen view; `reportFullyDisplayed()` in section 3.1 |
 | G8 | PERF-e | Should | Resource timing cap | Per-view cap and an origin filter; default stays off until Step 5 |
-| G9 | INT-c | Must | Rage threshold check | Spec says 4 clicks in 1 s; Datadog, PostHog and Sentry RN use 3 in 1 s, Datadog within 100 px, PostHog within 30 px. Step 7 aligns or explains |
+| G9 | INT-c | Must | Rage threshold check | Spec says 4 clicks in 1 s. Datadog: 3 clicks in 1 s within 100 px. Sentry RN: 3 taps in 1 s. PostHog: 3 clicks within 30 px, each within 1 s of the previous, so up to about 2 s in all. Step 7 aligns or explains |
 | G10 | INT-h | Later | Document size for heatmaps | `ouo.document.width`, `.height` on clicks, when heatmaps are built (answer 9) |
 | G11 | NAV-b to NAV-d, FWK | Must | Named framework integrations | List the integrations each platform ships (React Router, Next.js, React Navigation, Expo Router, SwiftUI, Compose, OkHttp) and the route-pattern naming each gives |
 | G12 | RPL-d | Should | Iframes, shadow DOM, canvas | Same-origin iframes and open shadow roots recorded; canvas opt-in and always blocked unless unmasked by the app |
@@ -47,7 +47,7 @@ Priority follows the target of the rows that need it. "Rows" link back to the [t
 | G23 | FB-b | Should | User feedback | `recordFeedback(message, {email?})` as an event joined by `session.id`, triggering a buffered replay |
 | G24 | OTH-d | Should | WebView bridging | The native SDK passes `session.id` and sampling into a WebView so the web SDK joins the same session instead of starting one |
 | G25 | OTH-h | Should | Bot and crawler filtering | Do not start a session for known crawler user agents; SES-3 lets `init` in a visible page count as activity |
-| G26 | OTH-g | Should | Changing a default without breaking installs | Consider PostHog's dated `defaults` snapshot as part of section 15 |
+| G26 | OTH-g | Later | Changing a default without breaking installs | Consider PostHog's dated `defaults` snapshot as part of section 15 |
 | G27 | OTH-g | Later | Battery-aware upload | Defer non-crash uploads on low battery or low-power mode, as Datadog does |
 
 ## Conflicts the research found in the spec

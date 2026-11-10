@@ -121,7 +121,7 @@ function detailHtml(r){
   if (r.full) parts.push(`<p class="muted">Catalog: ${r.full}</p>`);
   const cards = [];
   for (const v of D.vendors) for (const p of P) { const e=(r.cells[v]||{})[p]; if (e && e.s!=="na") cards.push(`<div class="cell"><h4>${D.vnames[v]} · ${PN[p]}</h4>${e.t}</div>`); }
-  parts.push(cards.length?`<div class="grid">${cards.join("")}</div>`:`<p class="muted">No vendor has it on any platform.</p>`);
+  parts.push(cards.length?`<div class="grid">${cards.join("")}</div>`:`<p class="muted">Not applicable on any platform, for every vendor.</p>`);
   return parts.join("");
 }
 function match(r){

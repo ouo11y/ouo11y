@@ -8,6 +8,7 @@ Sources of truth, all in project/kb/client-sdk-features/:
 
 Standard library only. Run from anywhere:
   python3 project/agents/sdk-features/scripts/build_matrix.py
+  python3 project/agents/sdk-features/scripts/build_matrix.py --check   # fail if the HTML is stale
 """
 import html
 import json
@@ -140,6 +141,10 @@ def main():
     missing = [f for f in CATALOG if f not in tgt]
     if missing:
         sys.exit(f"catalog ids without a target: {missing}")
+    holes = [f"{f} {v} {p}" for f in CATALOG for v in VENDORS for p in PLATFORMS
+             if p not in cells.get(f, {}).get(v, {})]
+    if holes:
+        sys.exit(f"catalog rows missing from a vendor file: {holes}")
     rows = []
     for fid, name in CATALOG.items():
         t = tgt[fid]
@@ -162,6 +167,11 @@ def main():
     counts = {k: sum(1 for r in rows if r["target"] == k) for k in ("must", "should", "later", "never")}
     data = {"groups": GROUPS, "vendors": VENDORS, "vnames": VENDOR_NAMES, "rows": rows, "extras": extra_rows, "counts": counts}
     page = TEMPLATE.replace("/*DATA*/", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
+    if "--check" in sys.argv:
+        if OUT.read_text() != page:
+            sys.exit(f"{OUT.relative_to(ROOT)} is stale: run build_matrix.py and commit the result")
+        print(f"{OUT.relative_to(ROOT)} is up to date")
+        return
     OUT.write_text(page)
     print(f"wrote {OUT.relative_to(ROOT)}: {len(rows)} features, {len(extra_rows)} vendor extras, targets {counts}")
 

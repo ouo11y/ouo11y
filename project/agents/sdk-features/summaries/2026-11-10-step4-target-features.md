@@ -32,7 +32,8 @@ Research ran as seven parallel sub-agents (three vendors by web and mobile, plus
 
 | Check | Method | Result |
 |---|---|---|
-| Every catalog id has a target | `build_matrix.py` exits if not | Pass |
+| Every catalog id has a target and a cell for every vendor and platform | `build_matrix.py` exits if not | Pass |
+| HTML matches the Markdown | `build_matrix.py --check` | Pass. Not in CI yet: a CI step would catch drift |
 | Every spec link points at a real heading | Anchors derived from the spec's headings, compared with the links | All match |
 | Claims in the target list and gaps file | Read against the vendor rows by hand | Five fixed |
 | `feature_flag.evaluation` exists | `model/feature-flags/events.yaml` at semconv v1.45.0 | Release candidate |
@@ -40,6 +41,10 @@ Research ran as seven parallel sub-agents (three vendors by web and mobile, plus
 | Links | `lychee --offline` | See PR |
 
 **Not verified:** vendor cells were not run on devices; costs in the replay evidence are vendor numbers with their stated methods. Cells marked "uncertain" stay uncertain.
+
+## Review
+
+Reviewed in PR #174 by a separate agent (`Review: changes needed`, nine findings). All fixed: Datadog web masks inputs only, PostHog Android has opt-in dead taps, OTH-h vendor rows added and the generator now fails on a missing cell, Sentry's permissive defaults qualified as JavaScript-only, PostHog's rage window is per click gap, gap priorities explained, five smaller overstatements corrected, feature ids declared a separate namespace from spec requirement ids, and the "Where" legend completed.
 
 ## What is left
 

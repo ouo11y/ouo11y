@@ -236,6 +236,7 @@
 | OTH-e | yes | Synthetic browser tests produce `session.type: synthetics` sessions (not billed) | — | — | DD:real_user_monitoring/browser/data_collected/ | accessed 2026-11-10 |
 | OTH-f | partial | Shopify bundle (`@datadog/browser-rum-shopify`); Salesforce bundle; Segment: not found | — | — | CL 7.6/7.7/7.14 | v7.17.0 / 2026-11-05 |
 | OTH-g | yes | Live Debugger (dynamic probes in the browser; `browser-debugger` is private in the repo); WASM plugin; `getSessionReplayLink`; `tab.id` | — | Debugger shipping status: uncertain | src:browser-debugger/; CL 7.3–7.17 | v7.17.0 / 2026-11-05 |
+| OTH-h | uncertain | Not researched: the row was added after the research. No bot filter appears in this file | — | — | — | accessed 2026-11-10 |
 
 ## Notable
 

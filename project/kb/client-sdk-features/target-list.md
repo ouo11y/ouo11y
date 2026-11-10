@@ -9,11 +9,13 @@ Step 4 of the post-MVP plan, 2026-11-10. Every row of the [catalog](catalog.md) 
 | **Later** | Worth doing, not before the core is measured (Step 5) and the store exists (Step 8) |
 | **Never** | Out of scope by design. Reopening it needs an ADR |
 
-Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one or more of three tests:
+Where: **W** web, **M** mobile (iOS, Android and RN), **iOS**, **Android** or **RN** alone, **all**. Reasons name one or more of three tests:
 
 - **OTel**: does it fit OpenTelemetry as written, or need a name we invent?
 - **Story**: does it add to the full story from a user's session to the backend trace, which is our edge?
 - **Cost**: build effort, bytes on the wire, overhead on the device, privacy risk.
+
+Feature ids such as `ERR-a` or `PRV-e` are a namespace of their own. They are not the spec's requirement ids (`ERR-7`, `PRV-13`), which the "Spec" column always writes in full with a number.
 
 "Spec" links the [draft SDK spec](../opentelemetry/rum-semantic-conventions/sdk-spec.md) section that covers the row. **G*n*** is a gap: the spec does not cover the row as targeted. Gaps go to Step 7 through [gaps-for-step-7.md](gaps-for-step-7.md).
 
@@ -30,8 +32,8 @@ Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one 
 
 | ID | Feature | Target | Where | Why | Spec |
 |---|---|---|---|---|---|
-| ERR-a | Unhandled exceptions | Must | all | OTel: `exception` is the one Stable client convention. Every vendor has it | [§6.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#63-errors-and-crashes) SIG-08 |
-| ERR-b | Unhandled promise rejections | Must | W, RN | Same as ERR-a. Datadog RN lacks it, a known gap | [§6.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#63-errors-and-crashes) SIG-08 |
+| ERR-a | Unhandled exceptions | Must | all | OTel: `exception` is the one Stable client-specific convention (HTTP client conventions are also Stable). Every vendor has it | [§6.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#63-errors-and-crashes) SIG-08 |
+| ERR-b | Unhandled promise rejections | Must | W, RN | Same as ERR-a. The Datadog RN research found no promise-rejection capture | [§6.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#63-errors-and-crashes) SIG-08 |
 | ERR-c | Manual capture API | Must | all | Cost: trivial | [§3.1](../opentelemetry/rum-semantic-conventions/sdk-spec.md#31-api) `recordException` |
 | ERR-d | Native crashes | Must | M | Story: the most important mobile signal. OTel: `app.crash` (Development). PostHog has it opt-in, without ANR | [§6.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#63-errors-and-crashes) SIG-09 |
 | ERR-e | ANR and app hangs | Must | M | Story: a frozen app is worse than a crash for users. Thresholds differ: Sentry iOS 2 s, Datadog iOS off by default, both Android 5 s plus `ApplicationExitInfo`. Hang threshold default is G2 | [§6.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#62-performance) SIG-06, SIG-07, G2 |
@@ -63,7 +65,7 @@ Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one 
 | ID | Feature | Target | Where | Why | Spec |
 |---|---|---|---|---|---|
 | NET-a | Automatic HTTP spans | Must | all | OTel: Stable HTTP client conventions | [§6.5](../opentelemetry/rum-semantic-conventions/sdk-spec.md#65-navigation-and-network) SIG-21 |
-| NET-b | Trace propagation to the backend | Must | all | Story: our edge. W3C `traceparent` by default. Sentry and PostHog default to their own headers; Datadog sends W3C plus its own | [§7.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#72-traceparent) |
+| NET-b | Trace propagation to the backend | Must | all | Story: our edge. W3C `traceparent` by default. Sentry sends its own headers, `traceparent` opt-in; Datadog sends W3C plus its own to an allowlist; PostHog sends nothing by default and, when enabled, session and user-id headers rather than trace headers | [§7.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#72-traceparent) |
 | NET-c | Request and response headers and bodies | Later | all | Cost: privacy. PRV-12 forbids it today. If added: opt-in URL allowlist, size cap, replay only, as Sentry does | [§10.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#103-attributes-and-urls) PRV-12 |
 | NET-d | GraphQL operation names | Later | all | OTel: `graphql.*` exists, but naming needs the request body | none |
 | NET-e | Failed HTTP request as an error | Never | all | OTel: the HTTP span's status and `error.type` already say it. A second record duplicates it | SIG-21 covers it |
@@ -75,8 +77,8 @@ Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one 
 |---|---|---|---|---|---|
 | INT-a | Click and tap capture | Must | all | Story: what the user did. Sentry has it as breadcrumbs and replay, with interaction spans opt-in | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-10 to SIG-12 |
 | INT-b | Action naming | Should | all | Cost: privacy. We never send element text (SIG-39). Names come from selectors, widget ids and opt-in `data-otel-*` attributes. Datadog masks names by default since v7 | [§10.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#103-attributes-and-urls) PRV-9 |
-| INT-c | Rage clicks and taps | Must | all | Story: frustration is business value. Our threshold (4 in 1 s) is stricter than Datadog, PostHog and Sentry RN (3 in 1 s), G9 | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-13, G9 |
-| INT-d | Dead clicks | Must | W | Same. No vendor ships mobile dead taps | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-13 |
+| INT-c | Rage clicks and taps | Must | all | Story: frustration tells the developer where users struggle. Our threshold (4 in 1 s) is stricter than Datadog and Sentry RN (3 in 1 s) and PostHog (3 clicks, each within 1 s of the previous), G9 | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-13, G9 |
+| INT-d | Dead clicks | Must | W | Same. On mobile only PostHog Android has it, opt-in, so mobile dead taps are not a target yet | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-13 |
 | INT-e | Error clicks | Must | all | Same. Only Datadog ships it | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-13 |
 | INT-f | Scroll and swipe | Later | all | Needed for scroll maps and scroll depth. Replay already shows scrolling | none |
 | INT-g | Form and input autocapture | Never | all | Cost: privacy. Product analytics, not reliability | none |
@@ -103,10 +105,10 @@ Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one 
 | RPL-d | Iframes, shadow DOM, canvas | Should | W | Same-origin iframes and shadow DOM Should; canvas Later and opt-in, since canvas pixels cannot be masked (G12) | G12 |
 | RPL-e | Network requests in replay | Must | all | OTel: the player joins HTTP spans by `session.id` and time. No copy inside the replay | SIG-21, [§11](../opentelemetry/rum-semantic-conventions/sdk-spec.md#11-replay-contract) |
 | RPL-f | Console in replay | Should | W, RN | Follows LOG-b: logs join like spans | G13 |
-| RPL-g | Masking defaults and APIs | Must | all | Cost: privacy. Ours masks all text, inputs and media, like Sentry and Datadog; PostHog web does not mask text | [§10.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#102-masking) |
+| RPL-g | Masking defaults and APIs | Must | all | Cost: privacy. Ours masks all text, inputs and media, like Sentry and Datadog mobile. Datadog web masks inputs only by default (`mask-user-input`); PostHog web does not mask text | [§10.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#102-masking) |
 | RPL-h | RN replay | Must | RN | Native capture under RN | [§6.8](../opentelemetry/rum-semantic-conventions/sdk-spec.md#68-react-native-boundaries) |
 | RPL-i | SwiftUI and Compose replay | Must | M | Story: new apps are built with them. The format decision decides how hard this is | [§11.6](../opentelemetry/rum-semantic-conventions/sdk-spec.md#116-format-is-pluggable) |
-| RPL-j | Idle pause and maximum duration | Should | all | Cost: Sentry pauses after 5 min idle and stops at 60 min. The spec has neither (G14) | G14 |
+| RPL-j | Idle pause and maximum duration | Should | all | Cost: Sentry pauses after 5 min idle and stops at 60 min. The spec bounds a replay only by its session (30 min inactivity, 4 h maximum), so a mostly idle replay can run 4 h (G14) | G14 |
 
 ## User and attributes
 
@@ -135,19 +137,19 @@ Where: **W** web, **M** mobile (iOS, Android and RN), **all**. Reasons name one 
 | SMP-c | Error sample rate | Never | all | Errors are never sampled away: they bypass the session decision | [§9](../opentelemetry/rum-semantic-conventions/sdk-spec.md#9-sampling) SMP-5 |
 | SMP-d | Buffer-on-error replay | Must | all | Cost: see RPL-c | [§9.1](../opentelemetry/rum-semantic-conventions/sdk-spec.md#91-replay-sampling-and-buffer-on-error) |
 | SMP-e | Errors kept in unsampled sessions | Must | all | Story: rare crashes are never lost | [§9](../opentelemetry/rum-semantic-conventions/sdk-spec.md#9-sampling) SMP-5 to SMP-7 |
-| SMP-f | Remote config and kill switch | Should | all | Cost: a mobile release takes days to roll back. Datadog (2026) and PostHog have it. Served through the Collector (G16) | G16 |
+| SMP-f | Remote config and kill switch | Should | all | Cost: a mobile release takes days to roll back. Datadog mobile (2026) and PostHog have it; Datadog web's is internal and undocumented. Served through the Collector (G16) | G16 |
 
 ## Privacy
 
 | ID | Feature | Target | Where | Why | Spec |
 |---|---|---|---|---|---|
-| PRV-a | Consent API | Must | all | Business value: GDPR. Pending, granted, denied, per category. Sentry has none | [§10.1](../opentelemetry/rum-semantic-conventions/sdk-spec.md#101-consent) |
+| PRV-a | Consent API | Must | all | Story: without consent handling the SDK cannot ship in the EU. Pending, granted, denied, per category. Sentry has none | [§10.1](../opentelemetry/rum-semantic-conventions/sdk-spec.md#101-consent) |
 | PRV-b | Masking outside replay | Must | all | No element text, no input values | [§6.4](../opentelemetry/rum-semantic-conventions/sdk-spec.md#64-interactions) SIG-39 |
 | PRV-c | Element-level mask and unmask | Must | all | Web attributes, mobile view APIs | [§10.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#102-masking) |
 | PRV-d | URL and query sanitising | Must | all | Ours redacts every query value by default. Sentry, Datadog and PostHog keep them. A recommended allowlist is G17 | [§10.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#103-attributes-and-urls) PRV-10, G17 |
-| PRV-e | No PII by default | Must | all | Sentry v11 flipped to collect user info, IP, headers and bodies by default. Ours collects none | [§10.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#103-attributes-and-urls) PRV-13 |
+| PRV-e | No PII by default | Must | all | Sentry's JavaScript SDK v11 flipped to collect user info, IP, headers and bodies by default; Sentry mobile keeps `sendDefaultPii` off. Ours collects none | [§10.3](../opentelemetry/rum-semantic-conventions/sdk-spec.md#103-attributes-and-urls) PRV-13 |
 | PRV-f | `beforeSend` hook | Must | all | Every vendor has one | [§3.2](../opentelemetry/rum-semantic-conventions/sdk-spec.md#32-configuration) CFG-4 |
-| PRV-g | Global Privacy Control and Do Not Track | Should | W | Business value: GPC is a legal opt-out in some US states. Opt-in setting (G18) | G18 |
+| PRV-g | Global Privacy Control and Do Not Track | Should | W | Cost: GPC is a legal opt-out in some US states. Opt-in setting (G18) | G18 |
 
 ## Offline and transport
 

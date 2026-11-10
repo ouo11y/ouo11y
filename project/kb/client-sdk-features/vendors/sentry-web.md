@@ -244,6 +244,7 @@
 | OTH-e | uncertain | No SDK-side synthetic or uptime link found. Not researched in the product docs. | | | | |
 | OTH-f | partial | `supabaseIntegration`, `graphqlClientIntegration`, flag providers, Spotlight. No Segment-style CDP integration. | off | none noted | index.ts | 11.11.0, 2026-11-05 |
 | OTH-g | yes | `cultureContextIntegration` and `httpContextIntegration` (locale, timezone, URL, user agent) are on by default. | on | none noted | sdk.ts | 11.11.0, 2026-11-05 |
+| OTH-h | partial | `isBotUserAgent()` (see CFG-x1) skips idle timers and observers for crawlers | used in tracing code | Added in review from CFG-x1. Whether bot page loads still create release-health sessions was not researched | B/packages/browser-utils/src/isBotUserAgent.ts | 11.11.0, 2026-11-05 |
 
 ## Notable
 

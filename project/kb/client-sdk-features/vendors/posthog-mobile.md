@@ -241,6 +241,7 @@
 | OTH-x2 | yes | yes | yes | **Groups** (B2B): `group(type, key, props)` and group properties for flags. | ios PostHogSDK.swift L2048-2062 |
 | OTH-x3 | no | yes | no | **Android `encryption`** hook for the on-disk queue (`PostHogEncryption`, default null). | and PostHogConfig.kt L164 |
 | OTH-x4 | yes | no | no | **iOS `appGroupIdentifier`** shares SDK storage between the app and its extensions. | ios PostHogConfig.swift L424 |
+| OTH-h | n/a | n/a | n/a | Web concern; added after the research | — |
 
 ## Notable
 

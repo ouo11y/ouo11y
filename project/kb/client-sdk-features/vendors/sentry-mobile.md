@@ -293,6 +293,7 @@ Cells cite these short keys. Code links point at the release tag; the tag date i
 | OTH-f | no | partial | partial | Android LaunchDarkly/OpenFeature; RN Supabase integration. | J-tree, R-tree |
 | OTH-g | — | yes | — | Android `sentry-android-distribution` module (app build distribution). *Exact scope: uncertain.* | J-tree |
 | OTH-x1 | yes | yes | yes | Crons/check-ins exist but are server-oriented. Root/jailbreak check: Android `enableRootCheck` = true. | J-and |
+| OTH-h | n/a | n/a | n/a | Web concern; added after the research | — |
 
 ---
 

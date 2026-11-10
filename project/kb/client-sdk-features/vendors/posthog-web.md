@@ -66,7 +66,7 @@
 |---|---|---|---|---|---|---|
 | INT-a | yes | `autocapture: true\|{dom_event_allowlist, element_allowlist, css_selector_allowlist/ignorelist, url_allowlist/ignorelist}`. Remote `autocapture_opt_out` | on. Event `$autocapture` | `ph-no-capture` class excludes. Clicks on cursor:pointer elements captured | src:browser-common/src/utils/autocapture-utils.ts L445-560 | 1.447.6 (2026-11-09) |
 | INT-b | yes | `$el_text`, `elements_chain` (tag, classes, id, attrs, nth-child), aria-label fallback, `data-ph-capture-attribute-*` custom props | — | Text scrubbed if it looks like a card number or SSN. `mask_all_text`, `mask_all_element_attributes` | src:autocapture-utils.ts L72-79, L278-295 | 1.447.6 (2026-11-09) |
-| INT-c | yes | `rageclick: true\|{threshold_px, click_count, timeout_ms, css_selector_ignorelist, content_ignorelist}`. Event `$rageclick` | 3 clicks / 1000 ms / 30 px. Ignores `.ph-no-rageclick` | Defaults ≥2025-11-30 ignore content keywords | src:browser-common/src/rageclick.ts L8-10; posthog-config.ts L150-185 | 1.447.6 (2026-11-09) |
+| INT-c | yes | `rageclick: true\|{threshold_px, click_count, timeout_ms, css_selector_ignorelist, content_ignorelist}`. Event `$rageclick` | 3 clicks within 30 px, each within 1000 ms of the previous (found in review: the window is per gap, not total). Ignores `.ph-no-rageclick` | Defaults ≥2025-11-30 ignore content keywords | src:browser-common/src/rageclick.ts L8-10; posthog-config.ts L150-185 | 1.447.6 (2026-11-09) |
 | INT-d | yes | Remote `captureDeadClicks` or `capture_dead_clicks: {scroll_threshold_ms, mutation_threshold_ms, selection_change_threshold_ms, capture_dead_swipes…}`. Lazy-loaded. Events `$dead_click`, `$dead_swipe` | Off unless remote. Mutation 2500 ms, scroll 100 ms, selection 100 ms. Dead swipes on, 30 px, max 10 per page load | Anchors are not dead clicks | src:browser/src/entrypoints/dead-clicks-autocapture.ts L99-175 | 1.447.6 (2026-11-09) |
 | INT-e | no | — | — | No "error click" event found. Errors and clicks are linked only via the session | src tree at tag | 1.447.6 (2026-11-09) |
 | INT-f | partial | Scroll depth on pageview/pageleave (`$prev_pageview_max_scroll(_percentage)`, content %). `scroll_root_selector`. Dead swipes. Heatmap scroll | on with pageleave | No generic gesture events | src:browser/src/page-view.ts L10-19 | 1.447.6 (2026-11-09) |
@@ -234,6 +234,7 @@
 | OTH-x1 | yes | `defaults: '<date>'` config snapshots: opt into new default behaviour without breaking old installs | `'unset'` | 7 dated snapshots plus `latest` | src:types/src/posthog-config.ts L489-503 | 1.447.6 (2026-11-09) |
 | OTH-x2 | yes | Bot detection: `$browser_type: 'bot'`, bot events dropped by default | on | — | src:posthog-core.ts L1820, L2295 | 1.447.6 (2026-11-09) |
 | OTH-x3 | yes | `get_session_replay_url()` to link a replay from other tools | — | — | src:posthog-core.ts L4220 | 1.447.6 (2026-11-09) |
+| OTH-h | yes | Bot user agents detected (`$browser_type: 'bot'`); `opt_out_useragent_filter`, `custom_blocked_useragents` (see OTH-x2, PRV-g) | bot events dropped | Added in review from OTH-x2 | src:posthog-core.ts L1820, L2295 | 1.447.6 (2026-11-09) |
 
 ## Notable
 
