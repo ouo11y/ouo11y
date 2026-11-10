@@ -24,7 +24,7 @@ Cold launch (`am start -W`), 8 s settle, 30 s idle on a static screen, then 60 s
 | Metric | How |
 |---|---|
 | Size | APK file size and uncompressed entries minus `baseline`, release with R8 and resource shrinking, arm64-v8a only ([scripts/sizes.py](scripts/sizes.py)) |
-| CPU | `utime + stime` per thread from `/proc/<pid>/task/*/stat` (root). The report counts the SDKs' own threads plus the main thread's increase over `baseline`: emulated graphics (`RenderThread`, SwiftShader) burn about 15 s per minute in every flavor and swamp the total |
+| CPU | `utime + stime` per thread from `/proc/<pid>/task/*/stat` (root). The report counts every thread except `RenderThread`, minus `baseline` (`journey_cpu_ms_per_min_off_render`): the SDK threads plus the main, binder, JIT and GC work they cause. `RenderThread` (emulated graphics, SwiftShader) burns about 11 s per minute in every flavor and swamps the total; any SDK work on it is lost in that noise |
 | Memory | `Pss` from `/proc/<pid>/smaps_rollup` after settle (idle) and the maximum of five samples during the journey (peak) |
 | Bytes | Request bodies as sent (both SDKs gzip) received by [scripts/capture_server.py](scripts/capture_server.py) on port 8712, journey start to end of grace, per minute |
 | Host load | The Mac's load average every 10 s ([scripts/load_sampler.sh](scripts/load_sampler.sh)), joined to each run |
@@ -58,5 +58,6 @@ Stop the capture server and the load sampler by the PIDs you started. On the Mac
 ## Limits
 
 - Emulator, not a phone: graphics are emulated, Sentry's MP4 replay encoder runs in software, and there is no battery or frame-time measurement.
-- Three rounds per flavor. Medians are indicative; `results.json` has min and max per metric.
 - No crash or hang is provoked, so the cost of sending those reports is not measured.
+- Three rounds per flavor: medians are indicative, and `results.json` has min and max per metric. Init ranges overlap (ouo + replay 2.3 to 7.8 ms, Sentry + replay 5.0 to 13.2 ms), so read init as "similar to faster", not a measured win.
+- A first run under host contention (1-min load 5 to 500) was discarded whole; `discarded_runs` in `results.json` records it.

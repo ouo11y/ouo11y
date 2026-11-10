@@ -145,7 +145,7 @@
     "ours_note": "Kotlin persists the JS-supplied id only for replay seq and crash attribution; continuity across restarts is JS.",
     "ours_evidence": [
      "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46",
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt58"
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58"
     ],
     "sentry": "partial",
     "sentry_note": "A session does not survive a restart: it is cached on disk and closed (crashed/abnormal) on the next launch. iOS \"Unreleased\" adds opt-in `enableScopePersistence` for user info; Android has `enableScopePersistence` = true (scope cache for crash events).",
@@ -254,7 +254,7 @@
     "ours": "partial",
     "ours_note": "Uncaught JVM exceptions on any thread are captured (chained handler) as a crash report; no exception event.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt110-127"
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
     ],
     "sentry": "full",
     "sentry_note": "iOS: `enableCrashHandler` = true (SentryCrash, a KSCrash fork); `enableUncaughtNSExceptionReporting` = false (macOS only). Android: `enableUncaughtExceptionHandler` = true. RN: `reactNativeErrorHandlersIntegration` has `onerror` = true (ErrorUtils global handler).",
@@ -385,7 +385,7 @@
     "ours": "partial",
     "ours_note": "JVM crashes persisted and handed out next launch; NDK (C/C++) crashes not captured; no app.crash/app.crash.id.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
      "sdk/android/README.md:77-80"
     ],
     "sentry": "full",
@@ -431,7 +431,7 @@
     "ours": "partial",
     "ours_note": "Watchdog hang reports (2 s) and ApplicationExitInfo ANR terminations; no device.anr event.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt233-306",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
      "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
     ],
     "sentry": "full",
@@ -477,7 +477,7 @@
     "ours_note": "Foreground terminations from ApplicationExitInfo (Android 11+) classified memory/watchdog/cpu/unknown with memory warnings.",
     "ours_evidence": [
      "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114",
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt197-222"
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:197-222"
     ],
     "sentry": "full",
     "sentry_note": "iOS: `enableWatchdogTerminationTracking` = true. A heuristic on the next launch infers a foreground OS kill (needs the crash handler); hangs are excluded. MetricKit diagnostics are opt-in (CPU, disk-write, hang, app launch; memory exception on iOS 27). Android: ApplicationExitInfo ANRs, tombstones a",
@@ -795,7 +795,7 @@
     "ours": "partial",
     "ours_note": "Cold/warm type and process start computed; span built by JS.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt145-150",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
      "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
     ],
     "sentry": "full",
@@ -841,7 +841,7 @@
     "ours_note": "FrameMetrics slow/frozen counters; JS diffs snapshots; no app.jank event.",
     "ours_evidence": [
      "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt351-367"
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
     ],
     "sentry": "full",
     "sentry_note": "iOS: frames tracker on by default. Android: `enableFramesTracking` = true, Android 7.0+. RN: `enableNativeFramesTracking` = true. Thresholds are not stated in the docs read: *uncertain*.",
@@ -1495,7 +1495,7 @@
     "ours": "partial",
     "ours_note": "Foreground/background tracked internally (watchdog park, replay stop/flush); no lifecycle event.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt314-343",
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
      "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
     ],
     "sentry": "full",
@@ -3090,7 +3090,7 @@
      "sdk/browser/src/replay/uploader.ts:35"
     ],
     "sentry": "none",
-    "sentry_note": "Step 4's cell says yes, but its own text says Sentry sends envelopes, not OTLP, from the browser. Sentry envelope format (span v2 envelopes for streamed spans). Not OTLP from the browser. | n/a",
+    "sentry_note": "Sentry envelope format (span v2 envelopes for streamed spans). Not OTLP from the browser. | n/a",
     "gap": "ahead"
    },
    "ios": {
@@ -3956,7 +3956,7 @@
     "ours": "partial",
     "ours_note": "Crash reports carry the session id so crash-free sessions can be derived downstream; no users.",
     "ours_evidence": [
-     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171"
+     "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171"
     ],
     "sentry": "full",
     "sentry_note": "Crash-free sessions/users from health sessions (SES-a); Android tracks ANR rate.",

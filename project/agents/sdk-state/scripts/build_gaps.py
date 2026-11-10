@@ -27,8 +27,6 @@ def applies(where, p):
     return w == 'all' or (p == 'web' and 'W' in w.split(',')) or (p != 'web' and 'M' in w.split(',')) or \
         (p == 'ios' and 'iOS' in w) or (p == 'android' and 'Android' in w) or (p == 'rn' and 'RN' in w)
 rank = {'full': 2, 'partial': 1, 'none': 0}
-# Corrections to Step 4 cells, each with its reason (shown in the report).
-OVERRIDE = {('TRN-g', 'web'): ('none', "Step 4's cell says yes, but its own text says Sentry sends envelopes, not OTLP, from the browser")}
 out = []
 for f in features:
     if f['target'] not in ('Must', 'Should'): continue
@@ -40,7 +38,6 @@ for f in features:
         else:
             m = sm.get(f['id']); i = ('ios', 'android', 'rn').index(p)
             s = norm(m[i]) if m else 'unknown'; snote = m[3] if m and len(m) > 3 else ''
-        if (f['id'], p) in OVERRIDE: s, snote = OVERRIDE[(f['id'], p)][0], OVERRIDE[(f['id'], p)][1] + '. ' + snote
         o = ours['state']
         if s in rank and o in rank:
             d = rank[s] - rank[o]

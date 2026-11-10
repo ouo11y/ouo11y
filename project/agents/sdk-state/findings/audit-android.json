@@ -40,12 +40,12 @@
   },
   {
    "id": "REL-4",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
    ],
    "method": "read",
-   "note": "Vacuous: Kotlin creates no tracer/logger/meter provider, so it never registers or replaces a global one."
+   "note": "Not applicable while the feature is absent. Vacuous: Kotlin creates no tracer/logger/meter provider, so it never registers or replaces a global one."
   },
   {
    "id": "REL-5",
@@ -79,7 +79,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:50-79",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt110-133",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-133",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:90-97"
    ],
    "method": "read",
@@ -90,7 +90,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:99-101",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-99",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99",
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:153",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:97"
    ],
@@ -111,7 +111,7 @@
    "status": "not_met",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-88",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-150"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-150"
    ],
    "method": "read",
    "note": "Public names (OuoReplay.start/pause/resume/sessionDidRotate/screenDidChange, Signals.init/install/takePendingReport) do not follow the spec surface (init, shutdown, replay.start, trackNavigation...)."
@@ -178,7 +178,7 @@
    "id": "LIF-1",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-87",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-87",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:38-47"
    ],
    "method": "read",
@@ -190,19 +190,19 @@
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:122-128",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-99"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99"
    ],
    "method": "read",
    "note": "Replay start posts to main and recovers the spool asynchronously, but Signals.init does synchronous file reads and a binder call before returning."
   },
   {
    "id": "LIF-3",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:90-114"
    ],
    "method": "read",
-   "note": "Vacuous: storage is plain files written synchronously on worker threads, so there is no not-ready window to buffer through."
+   "note": "Not applicable while the feature is absent. Vacuous: storage is plain files written synchronously on worker threads, so there is no not-ready window to buffer through."
   },
   {
    "id": "LIF-4",
@@ -210,7 +210,7 @@
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:74-79",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:143-147",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt110-127"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
    ],
    "method": "read",
    "note": "OuoReplay.stop stops capture, unregisters callbacks and flushes the chunk (unbounded), but there is no shutdown: the crash handler and watchdog stay installed, no session.end, no ouo.replay.ended."
@@ -220,7 +220,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-87"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-87"
    ],
    "method": "read",
    "note": "Replay can be started again after stop as a new recorder; Signals cannot be re-initialised (init is once per process)."
@@ -265,7 +265,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:104-111",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt320-323"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:320-323"
    ],
    "method": "read",
    "note": "On background replay stops, cuts the chunk and drains the queue, but no device.app.lifecycle is emitted and the flush is not bounded to an OS allowance (daemon threads keep sending)."
@@ -275,7 +275,7 @@
    "status": "not_met",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:88-94",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt315-318"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:315-318"
    ],
    "method": "read",
    "note": "Foreground only resumes replay and the watchdog; no device.app.lifecycle event, and session re-evaluation is in RN JS."
@@ -286,7 +286,7 @@
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:70",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:358-366",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt249-252"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:249-252"
    ],
    "method": "read",
    "note": "Replay captures only with a started activity and the watchdog parks in background, but there is no Kotlin session logic; whether a session starts is up to the RN JS layer."
@@ -306,7 +306,7 @@
    "status": "not_met",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:15-16",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt130-133"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:130-133"
    ],
    "method": "read",
    "note": "Kotlin generates no session id; it is supplied by RN JS (no session manager in Kotlin: the session id comes from RN JS through OuoReplayConfig.sessionId and Signals.install/setSession)."
@@ -410,8 +410,8 @@
    "id": "SES-13",
    "status": "not_met",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt101-103"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:101-103"
    ],
    "method": "read",
    "note": "Kotlin records the crashed session id in crash.json and hands it to JS at next launch, but starting the new session with session.previous_id is RN JS work."
@@ -429,9 +429,9 @@
    "id": "SES-15",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt58",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt130-133",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt182-195"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:130-133",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:182-195"
    ],
    "method": "read",
    "note": "Session id and start are held in a volatile RunState read lock-free by the crash handler and written to run.json asynchronously; no sampling decision or last activity is persisted, and the write is not ordered before the first record."
@@ -440,7 +440,7 @@
    "id": "SES-16",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-166"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-166"
    ],
    "method": "read",
    "note": "crash.json carries the session id current at crash time (the crashed one), but it is a custom report, not an app.crash event."
@@ -486,7 +486,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:49",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt271",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:271",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:108"
    ],
    "method": "read",
@@ -505,7 +505,7 @@
    "id": "REC-6",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt145-150"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150"
    ],
    "method": "read",
    "note": "Kotlin makes no spans (so none beyond the allowed set), but the AppStart span is not created here either: only {processStartMs, type} is returned to JS."
@@ -533,7 +533,7 @@
    "id": "REC-9",
    "status": "met",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt159",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:159",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:51"
    ],
    "method": "read",
@@ -564,7 +564,7 @@
    "id": "SIG-04",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt145-150",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
    ],
    "method": "test",
@@ -575,7 +575,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt351-367"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
    ],
    "method": "test",
    "note": "FrameMetrics counts total/slow/frozen cumulatively for JS to diff; no app.jank event or app.jank.* attributes, slow is past the frame deadline (not a fixed 16 ms) and frozen is >= 700 ms (spec: over 700)."
@@ -584,7 +584,7 @@
    "id": "SIG-06",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt233-306",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:94-97"
    ],
@@ -609,7 +609,7 @@
    "id": "SIG-31",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt269-277",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:269-277",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
    ],
    "method": "test",
@@ -633,9 +633,9 @@
    "id": "SIG-09",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt117-124",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt101-103"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:101-103"
    ],
    "method": "read",
    "note": "Uncaught JVM exceptions write crash.json (session_id, timestamp_ms, exception name/reason, frames) handed out at next launch; no app.crash event, no app.crash.id, app.build_id or os.*, and NDK crashes are not captured."
@@ -720,12 +720,12 @@
   },
   {
    "id": "SIG-38",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:63-66"
    ],
    "method": "read",
-   "note": "Vacuous: a touch never starts a trace (no tracing in Kotlin)."
+   "note": "Not applicable while the feature is absent. Vacuous: a touch never starts a trace (no tracing in Kotlin)."
   },
   {
    "id": "SIG-39",
@@ -784,7 +784,7 @@
    "id": "SIG-20",
    "status": "not_met",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt314-343",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
    ],
    "method": "read",
@@ -801,21 +801,21 @@
   },
   {
    "id": "SIG-40",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:22-45"
    ],
    "method": "read",
-   "note": "Vacuous: there is no HTTP instrumentation to observe the SDK's own uploads."
+   "note": "Not applicable while the feature is absent. Vacuous: there is no HTTP instrumentation to observe the SDK's own uploads."
   },
   {
    "id": "SIG-41",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
    ],
    "method": "read",
-   "note": "Vacuous: no traces are created in Kotlin."
+   "note": "Not applicable while the feature is absent. Vacuous: no traces are created in Kotlin."
   },
   {
    "id": "SIG-22",
@@ -892,7 +892,7 @@
    "id": "SIG-44",
    "status": "na",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt117-124"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124"
    ],
    "method": "read",
    "note": "RN-only rule (audited in audit-rn). Relevant fact: a JS fatal also reaches the Kotlin handler as JavascriptException and is written to crash.json."
@@ -915,12 +915,12 @@
   },
   {
    "id": "RES-1",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
    ],
    "method": "read",
-   "note": "Vacuous: no resource is built in Kotlin."
+   "note": "Not applicable while the feature is absent. Vacuous: no resource is built in Kotlin."
   },
   {
    "id": "RES-2",
@@ -933,12 +933,12 @@
   },
   {
    "id": "RES-3",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
    ],
    "method": "read",
-   "note": "Vacuous: no resource is built in Kotlin."
+   "note": "Not applicable while the feature is absent. Vacuous: no resource is built in Kotlin."
   },
   {
    "id": "RES-4",
@@ -967,12 +967,12 @@
   },
   {
    "id": "PRP-3",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "no code found (grep traceparent: no hits)"
    ],
    "method": "read",
-   "note": "Vacuous: never injects."
+   "note": "Not applicable while the feature is absent. Vacuous: never injects."
   },
   {
    "id": "PRP-4",
@@ -1140,9 +1140,9 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:90-102",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt167-170",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt276",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt290-305"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:276",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:290-305"
    ],
    "method": "read",
    "note": "Replay chunks and crashes are on disk before send; a hang in progress is in run.json, but a finished hang report goes to JS via callback without Kotlin persisting it; no other telemetry is persisted natively."
@@ -1152,8 +1152,8 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:153",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt187-193",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt168-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:187-193",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:168-170",
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:103-108"
    ],
    "method": "read",
@@ -1300,7 +1300,7 @@
    "id": "PRV-1",
    "status": "not_met",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-99"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99"
    ],
    "method": "read",
    "note": "No consent state in Kotlin; Signals.init writes run.json and installs callbacks before any consent decision."
@@ -1383,12 +1383,12 @@
   },
   {
    "id": "PRV-10",
-   "status": "met",
+   "status": "na",
    "evidence": [
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:10-22"
    ],
    "method": "read",
-   "note": "Vacuous: Kotlin captures no URLs (JVM frames are class/method/file, WebViews are masked)."
+   "note": "Not applicable while the feature is absent. Vacuous: Kotlin captures no URLs (JVM frames are class/method/file, WebViews are masked)."
   },
   {
    "id": "PRV-11",
@@ -1676,7 +1676,7 @@
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:315-331",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:101-104",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt242-281",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:242-281",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:64"
    ],
    "method": "read",
@@ -1696,7 +1696,7 @@
    "id": "ERR-3",
    "status": "met",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt117-124"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124"
    ],
    "method": "read",
    "note": "The handler writes crash.json then calls the previous handler; with none it kills the process, never swallows."
@@ -1705,8 +1705,8 @@
    "id": "ERR-4",
    "status": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt167-170",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt85-93"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-93"
    ],
    "method": "read",
    "note": "Uploads and queue I/O are off the UI thread, but crash.json is written synchronously on the crashing thread (main for main-thread crashes) and Signals.init reads files on its caller."
@@ -1743,7 +1743,7 @@
    "status": "partial",
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:375-385",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt366"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:366"
    ],
    "method": "read",
    "note": "Replay logs only when debug is on, but Signals logs a FrameMetrics warning to logcat unconditionally; no payloads are logged."
@@ -1862,7 +1862,7 @@
    "evidence": [
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:101-104",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:315-331",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt242-281"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:242-281"
    ],
    "breaks": "ERR-1"
   },
@@ -1883,24 +1883,24 @@
   {
    "what": "Unconditional logcat output from Signals (FrameMetrics unavailable)",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt366"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:366"
    ],
    "breaks": "ERR-8"
   },
   {
    "what": "Synchronous disk write of crash.json on the crashing thread, which can be the UI thread; synchronous file reads in Signals.init on the caller",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt167-170",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt89-93"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:89-93"
    ],
    "breaks": "ERR-4"
   },
   {
    "what": "Persistent storage written (run.json, noBackupFilesDir/ouo/signals) at Signals.init with no consent gate",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt89",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt95",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt182-195"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:89",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:95",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:182-195"
    ],
    "breaks": "PRV-1"
   },
@@ -1956,7 +1956,7 @@
    "state": "partial",
    "evidence": [
     "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt58"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58"
    ],
    "note": "Kotlin persists the JS-supplied id only for replay seq and crash attribution; continuity across restarts is JS."
   },
@@ -1972,7 +1972,7 @@
    "id": "ERR-a",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt110-127"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
    ],
    "note": "Uncaught JVM exceptions on any thread are captured (chained handler) as a crash report; no exception event."
   },
@@ -1988,7 +1988,7 @@
    "id": "ERR-d",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
     "sdk/android/README.md:77-80"
    ],
    "note": "JVM crashes persisted and handed out next launch; NDK (C/C++) crashes not captured; no app.crash/app.crash.id."
@@ -1997,7 +1997,7 @@
    "id": "ERR-e",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt233-306",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
    ],
    "note": "Watchdog hang reports (2 s) and ApplicationExitInfo ANR terminations; no device.anr event."
@@ -2007,7 +2007,7 @@
    "state": "full",
    "evidence": [
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt197-222"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:197-222"
    ],
    "note": "Foreground terminations from ApplicationExitInfo (Android 11+) classified memory/watchdog/cpu/unknown with memory warnings."
   },
@@ -2040,7 +2040,7 @@
    "id": "PERF-f",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt145-150",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
    ],
    "note": "Cold/warm type and process start computed; span built by JS."
@@ -2050,7 +2050,7 @@
    "state": "partial",
    "evidence": [
     "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt351-367"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
    ],
    "note": "FrameMetrics slow/frozen counters; JS diffs snapshots; no app.jank event."
   },
@@ -2138,7 +2138,7 @@
    "id": "NAV-f",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt314-343",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
     "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
    ],
    "note": "Foreground/background tracked internally (watchdog park, replay stop/flush); no lifecycle event."
@@ -2468,7 +2468,7 @@
    "id": "REL-b",
    "state": "partial",
    "evidence": [
-    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt154-171"
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171"
    ],
    "note": "Crash reports carry the session id so crash-free sessions can be derived downstream; no users."
   },

@@ -780,7 +780,7 @@
    "status": "partial",
    "evidence": [
     "sdk/browser/src/index.ts:239-241",
-    "node_modules/@opentelemetry/instrumentation-document-load/build/esm/instrumentation.js:50-84"
+    "@opentelemetry/instrumentation-document-load@0.67.0 build/esm/instrumentation.js:50-84"
    ],
    "method": "read",
    "note": "OTel DocumentLoadInstrumentation builds documentLoad after load from fetchStart to loadEventEnd with url.full and the meta traceparent parent, but adds documentFetch and resourceFetch child spans and user_agent.original, under its own scope."
@@ -1005,7 +1005,7 @@
    "status": "met",
    "evidence": [
     "sdk/browser/src/network.ts:46",
-    "node_modules/@opentelemetry/sdk-trace-web/build/esm/utils.js:302-314"
+    "@opentelemetry/sdk-trace-web@2.11.0 build/esm/utils.js:302-314"
    ],
    "method": "test",
    "note": "Cross-origin only when listed in tracing.propagateTo (test/integration.test.ts 'does not propagate headers to origins outside propagateTo')."
@@ -1014,7 +1014,7 @@
    "id": "PRP-3",
    "status": "not_met",
    "evidence": [
-    "node_modules/@opentelemetry/instrumentation-fetch/build/esm/fetch.js:85-89"
+    "@opentelemetry/instrumentation-fetch@0.222.0 build/esm/fetch.js:85-89"
    ],
    "method": "read",
    "note": "The fetch instrumentation sets traceparent with headers.set, overwriting an app-set traceparent; no check."
@@ -1032,7 +1032,7 @@
    "id": "PRP-5",
    "status": "partial",
    "evidence": [
-    "node_modules/@opentelemetry/instrumentation-document-load/build/esm/instrumentation.js:51-54"
+    "@opentelemetry/instrumentation-document-load@0.67.0 build/esm/instrumentation.js:51-54"
    ],
    "method": "read",
    "note": "meta traceparent is used as documentLoad's parent, but documentFetch and resourceFetch children share that trace."
@@ -2024,7 +2024,7 @@
   {
    "what": "An app-set traceparent is overwritten by the fetch instrumentation",
    "evidence": [
-    "node_modules/@opentelemetry/instrumentation-fetch/build/esm/fetch.js:85-89"
+    "@opentelemetry/instrumentation-fetch@0.222.0 build/esm/fetch.js:85-89"
    ],
    "breaks": "PRP-3"
   },

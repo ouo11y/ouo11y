@@ -87,6 +87,13 @@
    },
    "telemetry_paths": [],
    "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_per_min_off_render": {
+    "median": 360.0,
+    "p90": 390.0,
+    "min": 340.0,
+    "max": 390.0,
+    "n": 3
+   },
    "journey_cpu_ms_by_thread": {
     ".bench.baseline": 310,
     "RenderThread": 11150,
@@ -210,6 +217,13 @@
    },
    "telemetry_paths": [],
    "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_per_min_off_render": {
+    "median": 450.0,
+    "p90": 480.0,
+    "min": 440.0,
+    "max": 480.0,
+    "n": 3
+   },
    "journey_cpu_ms_by_thread": {
     "RenderThread": 11180,
     "binder:#_#": 100,
@@ -345,6 +359,13 @@
     "/v1/replay/chunks"
    ],
    "app_api_header_bytes_per_request": 150.0,
+   "journey_cpu_ms_per_min_off_render": {
+    "median": 790.0,
+    "p90": 829.0,
+    "min": 779.0,
+    "max": 829.0,
+    "n": 3
+   },
    "journey_cpu_ms_by_thread": {
     "HeapTaskDaemon": 30,
     "Jit thread pool": 50,
@@ -483,6 +504,13 @@
     "/api/1/envelope/"
    ],
    "app_api_header_bytes_per_request": 452.0,
+   "journey_cpu_ms_per_min_off_render": {
+    "median": 550.0,
+    "p90": 590.0,
+    "min": 510.0,
+    "max": 590.0,
+    "n": 3
+   },
    "journey_cpu_ms_by_thread": {
     "HeapTaskDaemon": 20,
     "Jit thread pool": 70,
@@ -621,6 +649,13 @@
     "/api/1/envelope/"
    ],
    "app_api_header_bytes_per_request": 504.0,
+   "journey_cpu_ms_per_min_off_render": {
+    "median": 919.0,
+    "p90": 929.0,
+    "min": 909.0,
+    "max": 929.0,
+    "n": 3
+   },
    "journey_cpu_ms_by_thread": {
     "HeapTaskDaemon": 30,
     "Jit thread pool": 100,
@@ -714,5 +749,12 @@
    "why": "Not collected: with emulated GL the frame times reflect the emulator, not the SDKs; per-thread /proc CPU attribution is used instead."
   }
  ],
- "method": "One native host app (host/, Kotlin, no AndroidX, OkHttp 4.12.0 in every variant) built release with R8 + resource shrinking, arm64-v8a only, one product flavor per variant: baseline (no SDK), ouosignals (sdk/android Signals.init + install), ouofull (Signals + OuoReplay.start, mode SESSION, 1 s frame interval, default masks), sentrycore (sentry-android-core + sentry-okhttp interceptor, tracesSampleRate 1.0, defaults otherwise), sentryreplay (sentrycore + sentry-android-replay, sessionSampleRate 1.0), sentryfull (sentry-android umbrella incl. NDK; size only). Both SDKs are initialised by hand in Application.onCreate (Sentry auto-init off) and init_ms is the wall time of that call (SystemClock.elapsedRealtimeNanos; Sentry finishes part of its setup on background threads afterwards, ouo replay posts its start to the main looper). Size: size_bytes = uncompressed APK entries minus baseline, size_zipped_bytes = APK file size minus baseline (debug-signed; scripts/sizes.py). Runtime (scripts/run_bench.py, round-robin over variants so contention spreads evenly; 3 complete rounds, so n = 3 per variant: small, treat medians as indicative and look at min/max): force-stop + pm clear, `am start -W` cold launch (cold_start_ms = TotalTime), 8 s settle, 30 s idle on the static Home screen, then a 60 s scripted journey by adb input (4 cycles of 15 s: Home Fetch = 2 GET + 1 POST via OkHttp to the capture server's API port, open a 300-row ListView and fling 3 times, back, open Detail, Fetch again, one handled error in the first cycle only, back), then 10 s grace. CPU = utime+stime of the app process from /proc/<pid>/stat (root via adb root; CLK_TCK 100) over the journey, scaled to ms per minute; per-thread attribution from /proc/<pid>/task/*/stat. Memory = Pss/Rss from /proc/<pid>/smaps_rollup (read by root, the app is not involved; excludes GPU/graphics mtrack that dumpsys meminfo would add): idle = after settle, peak = max of 5 samples during the journey; peak_rss_hwm = VmHWM at the end. Wire = every request the capture server (scripts/capture_server.py, answers 200) got on the telemetry port 8712 from journey start to end of grace, body bytes as sent (both SDKs gzip) + request line and headers, divided by the journey minutes; Sentry DSN http://pub@10.0.2.2:8712/1, ouo replay endpoint http://10.0.2.2:8712. Medians with p90/min/max over runs; deltas are median minus baseline median. Emulator numbers: CPU absolute values are inflated by emulated GL (RenderThread), compare deltas, not absolutes, and expect a phone to differ.\n Host load: these runs were made on a quiet Mac after an earlier contended run (load 15 to 480) was discarded; the load sampler (scripts/load_sampler.sh) logged the Mac's load average every 10 s from before the first round, joined to each run (host_load_per_run). 3 complete rounds per variant, interleaved."
+ "method": "One native host app (host/, Kotlin, no AndroidX, OkHttp 4.12.0 in every variant) built release with R8 + resource shrinking, arm64-v8a only, one product flavor per variant: baseline (no SDK), ouosignals (sdk/android Signals.init + install), ouofull (Signals + OuoReplay.start, mode SESSION, 1 s frame interval, default masks), sentrycore (sentry-android-core + sentry-okhttp interceptor, tracesSampleRate 1.0, defaults otherwise), sentryreplay (sentrycore + sentry-android-replay, sessionSampleRate 1.0), sentryfull (sentry-android umbrella incl. NDK; size only). Both SDKs are initialised by hand in Application.onCreate (Sentry auto-init off) and init_ms is the wall time of that call (SystemClock.elapsedRealtimeNanos; Sentry finishes part of its setup on background threads afterwards, ouo replay posts its start to the main looper). Size: size_bytes = uncompressed APK entries minus baseline, size_zipped_bytes = APK file size minus baseline (debug-signed; scripts/sizes.py). Runtime (scripts/run_bench.py, round-robin over variants so contention spreads evenly; 3 complete rounds, so n = 3 per variant: small, treat medians as indicative and look at min/max): force-stop + pm clear, `am start -W` cold launch (cold_start_ms = TotalTime), 8 s settle, 30 s idle on the static Home screen, then a 60 s scripted journey by adb input (4 cycles of 15 s: Home Fetch = 2 GET + 1 POST via OkHttp to the capture server's API port, open a 300-row ListView and fling 3 times, back, open Detail, Fetch again, one handled error in the first cycle only, back), then 10 s grace. CPU = utime+stime of the app process from /proc/<pid>/stat (root via adb root; CLK_TCK 100) over the journey, scaled to ms per minute; per-thread attribution from /proc/<pid>/task/*/stat. Memory = Pss/Rss from /proc/<pid>/smaps_rollup (read by root, the app is not involved; excludes GPU/graphics mtrack that dumpsys meminfo would add): idle = after settle, peak = max of 5 samples during the journey; peak_rss_hwm = VmHWM at the end. Wire = every request the capture server (scripts/capture_server.py, answers 200) got on the telemetry port 8712 from journey start to end of grace, body bytes as sent (both SDKs gzip) + request line and headers, divided by the journey minutes; Sentry DSN http://pub@10.0.2.2:8712/1, ouo replay endpoint http://10.0.2.2:8712. Medians with p90/min/max over runs; deltas are median minus baseline median. Emulator numbers: CPU absolute values are inflated by emulated GL (RenderThread), compare deltas, not absolutes, and expect a phone to differ.\n Host load: these runs were made on a quiet Mac after an earlier contended run (1-min load 5 to 500) was discarded whole (discarded_runs); the load sampler (scripts/load_sampler.sh) logged the Mac's load average every 10 s from before the first round, joined to each run (host_load_per_run). 3 complete rounds per variant, interleaved. CPU added by an SDK: journey_cpu_ms_per_min_off_render, every thread except RenderThread (emulated GL, about 11 s per minute in every variant, swamps the rest), minus the baseline median. It counts the SDK threads plus the main, binder, JIT and GC work they cause; per-thread values in journey_cpu_ms_by_thread are medians per thread over the 3 runs.",
+ "discarded_runs": [
+  {
+   "when": "2026-11-10, first run",
+   "runs": "12 journey runs of the first attempt",
+   "why": "Mac 1-min load 5 to 500 (same contention as the first iOS run); discarded whole and rerun, raw data not kept in the repo"
+  }
+ ]
 }

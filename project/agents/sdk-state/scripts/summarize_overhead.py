@@ -81,50 +81,35 @@ MLABEL = {'ouo': 'ouo core', 'ouo_replay': 'ouo + replay', 'sentry': 'Sentry + t
 
 
 def get(x, path):
+    """The value at a dotted path: a stats dict ({median, min, max, ...}) or a plain number."""
     for k in path.split('.'):
         if not isinstance(x, dict) or k not in x:
             return None
         x = x[k]
-    return x.get('median') if isinstance(x, dict) else x
+    return x
 
 
-def mobile_rows(res, path, scale=1.0, minus_base=False, fn=None):
-    """Chart rows for every SDK variant (the no-SDK base is the reference, not a bar)."""
+def mobile_rows(res, path, scale=1.0, minus_base=False):
+    """Chart rows for every SDK variant (the no-SDK base is the reference, not a bar). Stats give
+    whiskers from the lowest to the highest run, minus the base median like the bar itself."""
     v = res.get('variants', {})
     base = next((k for k in v if sdk_of(k) == 'base'), None)
+    b = 0
+    if minus_base:
+        bs = get(v[base], path)
+        b = bs['median'] if isinstance(bs, dict) else bs
     out = []
     for name, x in v.items():
-        if name == base:
+        s = get(x, path)
+        if name == base or s is None:
             continue
-        val = fn(name, x) if fn else get(x, path)
-        if val is None:
-            continue
-        if minus_base and not fn:
-            b = get(v[base], path)
-            if b is None:
-                continue
-            val -= b
-        out.append({'label': MLABEL.get(name, name), 'sdk': sdk_of(name), 'value': max(val * scale, 0)})
+        row = {'label': MLABEL.get(name, name), 'sdk': sdk_of(name)}
+        if isinstance(s, dict):
+            row.update(value=max((s['median'] - b) * scale, 0), lo=max((s['min'] - b) * scale, 0), hi=max((s['max'] - b) * scale, 0))
+        else:
+            row['value'] = max((s - b) * scale, 0)
+        out.append(row)
     return out
-
-
-SDK_THREADS = ('ouo-', 'Sentry', 'etricsCollector')
-
-
-def android_sdk_cpu(res):
-    """SDK-attributable journey CPU on the emulator: the SDKs' own threads plus the main thread's
-    increase over the no-SDK app. Total process CPU is useless there: emulated GL (RenderThread)
-    burns about 15 s per minute in every variant and swamps the SDKs."""
-    v = res['variants']
-    # The main thread is named after the package (`...o.bench.<variant>`), cut to its last 15 characters.
-    main = lambda n, x: sum(ms for t, ms in x.get('journey_cpu_ms_by_thread', {}).items() if f'o.bench.{n}'.endswith(t))
-    base_main = main('baseline', v['baseline'])
-    def fn(name, x):
-        th = x.get('journey_cpu_ms_by_thread')
-        if not th:
-            return None
-        return sum(ms for t, ms in th.items() if t.startswith(SDK_THREADS)) + max(main(name, x) - base_main, 0)
-    return fn
 
 
 def main():
@@ -170,7 +155,7 @@ def main():
                            {'title': 'Main-thread task time added (4x)', 'unit': 'ms per minute', 'rows': rows(v4, 'task_ms_per_min', 'none', order), 'fmt': '{:.0f}'},
                            {'title': 'Interaction task, p90, added (4x)', 'unit': 'ms', 'rows': rows(v4, 'ix_task_p90_ms', 'none', order), 'fmt': '{:.2f}'},
                        ]})
-    charts.append({'title': 'iOS Simulator', 'intro': f"iPhone 17 Pro simulator, iOS 27.0: simulator numbers, not device numbers. One UIKit app built three ways (no SDK, ouo11y-ios 0.3.0, sentry-cocoa 9.33.0); replay is a runtime switch. Size is the arm64 device build. Init: 12 cold launches. CPU, memory and bytes: 3 interleaved rounds of 20 s idle plus a 60 s timer-driven journey, host load about 2 to 3, recorded per run. Values are added over the no-SDK app. Details: measure/ios/README.md.",
+    charts.append({'title': 'iOS Simulator', 'intro': f"iPhone 17 Pro simulator, iOS 27.0: simulator numbers, not device numbers. One UIKit app built three ways (no SDK, ouo11y-ios 0.3.0, sentry-cocoa 9.33.0); replay is a runtime switch. Size is the arm64 device build. Init: 12 cold launches, about half of them at host load 10 to 139 (the medians of the quiet launches match). CPU, memory and bytes: 3 interleaved rounds of 20 s idle plus a 60 s timer-driven journey at host load about 2 to 3. Values are added over the no-SDK app; whiskers are the lowest and highest run, minus the no-SDK median. At n = 3, read only differences whose ranges do not overlap. Details: measure/ios/README.md.",
                    'charts': [
                        {'title': 'iOS: app size added, zipped', 'unit': 'KiB', 'rows': mobile_rows(ios, 'size_zipped_delta_bytes', 1 / 1024), 'fmt': '{:.0f}'},
                        {'title': 'iOS: init on the main thread', 'unit': 'ms', 'rows': mobile_rows(ios, 'init_ms'), 'fmt': '{:.1f}'},
@@ -179,12 +164,13 @@ def main():
                        {'title': 'iOS: peak memory added', 'unit': 'MiB', 'rows': mobile_rows(ios, 'mem_mb.peak', minus_base=True), 'fmt': '{:.1f}'},
                        {'title': 'iOS: bytes sent', 'unit': 'KiB per minute', 'rows': mobile_rows(ios, 'wire_bytes_per_min.body_as_sent', 1 / 1024), 'fmt': '{:.1f}'},
                    ]})
-    charts.append({'title': 'Android emulator', 'intro': f"Android emulator, API 35, arm64, 4 vCPU, software graphics. One native Kotlin app built per variant with R8. ouo here is the Kotlin code the React Native SDK vendors (signals and replay): it has no native exporter, so it sends replay only, while Sentry also sends errors, spans and sessions. CPU counts only the SDKs' own threads plus the main thread's increase, because emulated graphics swamp total CPU. Details: measure/android/README.md.",
+    charts.append({'title': 'Android emulator', 'intro': f"Android emulator, API 35, arm64, 4 vCPU, software graphics. One native Kotlin app built per variant with R8. ouo here is the Kotlin code the React Native SDK vendors (signals and replay): it has no native exporter, so it sends replay only, while Sentry also sends errors, spans and sessions. CPU counts every thread but the render thread, because emulated graphics swamp total CPU. 3 interleaved rounds; whiskers are the lowest and highest run, minus the no-SDK median. Details: measure/android/README.md.",
                    'charts': [
                        {'title': 'Android: APK size added', 'unit': 'KiB', 'rows': mobile_rows(android, 'size_zipped_bytes', 1 / 1024), 'fmt': '{:.0f}'},
                        {'title': 'Android: init on the main thread', 'unit': 'ms', 'rows': mobile_rows(android, 'init_ms'), 'fmt': '{:.1f}'},
-                       {'title': 'Android: SDK CPU, journey', 'unit': 'ms per minute', 'rows': mobile_rows(android, '', fn=android_sdk_cpu(android)), 'fmt': '{:.0f}'},
-                       {'title': 'Android: steady memory added (PSS after settle)', 'unit': 'MiB', 'rows': mobile_rows(android, 'mem_mb.idle', minus_base=True), 'fmt': '{:.1f}', 'note': 'Peak PSS (five samples in the journey) moved by about 1 MiB between runs, more than the SDKs added, so the steady value is shown.'},
+                       {'title': 'Android: CPU added off the render thread, journey', 'unit': 'ms per minute', 'rows': mobile_rows(android, 'journey_cpu_ms_per_min_off_render', minus_base=True), 'fmt': '{:.0f}',
+                        'note': 'Every thread but RenderThread: the SDK threads plus the main, binder, JIT and GC work they cause.'},
+                       {'title': 'Android: steady memory added (PSS after settle)', 'unit': 'MiB', 'rows': mobile_rows(android, 'mem_mb.idle_spread', minus_base=True), 'fmt': '{:.1f}', 'note': 'Peak PSS (five samples in the journey) moved by about 1 MiB between runs, more than the SDKs added, so the steady value is shown.'},
                        {'title': 'Android: bytes sent', 'unit': 'KiB per minute', 'rows': mobile_rows(android, 'wire_body_bytes_per_min', 1 / 1024), 'fmt': '{:.1f}'},
                    ]})
     overhead = {

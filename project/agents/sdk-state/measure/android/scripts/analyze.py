@@ -60,6 +60,10 @@ for v in order:
             "startup_and_idle_wire_bytes": summ([sum(c["body"] + c["hdr"] for c in w) for w in sw], 0),
             "telemetry_paths": sorted({c["path"] for w in jw + sw for c in w}),
             "app_api_header_bytes_per_request": round(st.median(st.mean(c["hdr"] for c in a) for a in api if a), 0),
+            # Every thread but RenderThread (emulated GL, about 11 s per minute in every variant): the SDKs'
+            # own threads plus the main, binder, JIT and GC work they cause. Compare as a delta against baseline.
+            "journey_cpu_ms_per_min_off_render": summ([sum(t for k, t in r["journey_threads"].items() if k != "RenderThread") * TICK_MS / m
+                                                       for r, m in zip(rr, jmin)], 0),
             "journey_cpu_ms_by_thread": {k: round(st.median(r["journey_threads"].get(k, 0) * TICK_MS for r in rr))
                                          for k in sorted({k for r in rr for k in r["journey_threads"]}) if st.median(r["journey_threads"].get(k, 0) for r in rr) >= 2},
             "host_load_per_run": [{"run": r["run"], "load_at_start_1_5_15": r.get("host_load_at_start"), **(run_load(r) or {"load1_mean": None, "note": "load sampler started after this run"})} for r in rr],
@@ -86,6 +90,8 @@ res = {"platform": "android", **meta, "variants": variants}
 res["invalid_runs_rerun"] = [{"variant": r["variant"], "run": r["run"], "journey_cpu_ticks": r["cpu_ticks"]["journey"]}
                              for r in (json.loads(l) for l in open(f"{root}/out/runs_invalid.jsonl") if l.strip())]
 res["not_measured"] = json.load(open(f"{root}/out/not_measured.json"))
+# Whole runs thrown away before this one (e.g. under host contention), written by hand: what, when, why.
+res["discarded_runs"] = json.load(open(f"{root}/out/discarded_runs.json")) if os.path.exists(f"{root}/out/discarded_runs.json") else []
 res["method"] = open(f"{root}/out/method.txt").read().strip()
 json.dump(res, open(f"{root}/results.json", "w"), indent=1)
 for v, o in variants.items():

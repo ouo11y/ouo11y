@@ -1,5 +1,5 @@
 {
- "setup": "Every number is measured here, on 2026-11-10, on one Apple M5 Mac (10 cores, 32 GB, macOS 27.0.1), with ouo and Sentry on the same app and journey per platform and a no-SDK baseline in every round. Web: headless Chromium 156 through Playwright 1.64.1, @ouo11y/browser 0.3.1 against @sentry/browser 11.11.0, 5 rounds (3 at 4x CPU throttling), host load about 2. iOS: Simulator (iPhone 17 Pro, iOS 27.0), ouo11y-ios 0.3.0 against sentry-cocoa 9.33.0, 12 cold launches and 3 journey rounds, host load about 2 to 3. Android: emulator (API 35, arm64), the Kotlin of sdk/android against sentry-android 8.63.0, 3 rounds, host load about 3 to 5. React Native: JS bundle size only. Simulator and emulator numbers are not device numbers. Medians; whiskers show the lowest and highest run.",
+ "setup": "Every number is measured here, on 2026-11-10, on one Apple M5 Mac (10 cores, 32 GB, macOS 27.0.1), with ouo and Sentry on the same app and journey per platform and a no-SDK baseline in every round. Web: headless Chromium 156 through Playwright 1.64.1, @ouo11y/browser 0.3.1 against @sentry/browser 11.11.0, 5 rounds (3 at 4x CPU throttling), host load about 2. iOS: Simulator (iPhone 17 Pro, iOS 27.0), ouo11y-ios 0.3.0 against sentry-cocoa 9.33.0, 12 cold launches (about half at host load 10 to 139, while a discarded contended run's load was falling; the medians of the quiet launches match) and 3 journey rounds at host load about 2 to 3. Android: emulator (API 35, arm64), the Kotlin of sdk/android against sentry-android 8.63.0, 3 rounds, host load about 3 to 5. React Native: JS bundle size only. Simulator and emulator numbers are not device numbers. Medians; whiskers show the lowest and highest run.",
  "budgets": [
   {
    "budget": "Size, core (compressed)",
@@ -8,7 +8,7 @@
    "android": "250 KiB APK delta, exporter included (today 42 without one)",
    "rn": "50 KiB gzip JS (today 42.2), plus the iOS and Android native budgets",
    "basis": "Sentry: web 54.7, iOS 1309, Android 318, RN JS 109. Room for consent, sanitiser, view ids, bypass set and, on Android, an OTLP exporter",
-   "method": "CI on every PR: bundle.mjs (web, RN) and the iOS and Android harness builds plus size scripts. Fail above budget. The web dist budget (sdk/browser/size-budget.json) stays as the first gate"
+   "method": "CI on every PR: bundle.mjs (web, RN) and the iOS and Android harness builds plus size scripts. Size has no run-to-run noise, so fail above budget. The web dist budget (sdk/browser/size-budget.json) stays as the first gate"
   },
   {
    "budget": "Size, with replay",
@@ -26,24 +26,24 @@
    "android": "25 ms emulator (today 3.4 with replay)",
    "rn": "not measured; propose 25 ms JS init",
    "basis": "Sentry: web 3.7 core, 7.2 replay; iOS 47.1; Android 21.3 core, 9.5 replay. LIF-2 already forbids waiting on storage or network",
-   "method": "Harness: performance.now / DispatchTime / elapsedRealtimeNanos around init, median of at least 10 cold starts. Web on every PR; mobile at release checkpoints in benchmark.yml"
+   "method": "performance.now / DispatchTime / elapsedRealtimeNanos around init, median of at least 10 cold starts against a no-SDK build. Web: on PRs that touch sdk/browser. Mobile: the B3 benchmark (docs/benchmarks.md), extended with native ouo11y-ios / sentry-cocoa and Android cells, N >= 10 with real taps, at release checkpoints. Fail only when the lower quartile of the runs is above the budget, so noise alone cannot fail it"
   },
   {
    "budget": "CPU, core, reference journey",
    "web": "150 ms/min renderer CPU added (today 105)",
-   "ios": "1000 ms/min journey, 300 ms/min idle screen (today 928 and 387: idle fails)",
-   "android": "200 ms/min on SDK threads (today 30, signals only)",
+   "ios": "1000 ms/min journey, 300 ms/min idle screen (today 928, range 555 to 932 over 3 runs, and 387: idle fails). Provisional until an N >= 10 run",
+   "android": "200 ms/min off the render thread (today 90, signals only)",
    "rn": "not measured",
-   "basis": "Sentry: web 156; iOS 662 journey and 429 idle; Android 70. ouo iOS costs more than Sentry in the journey. An idle screen should cost close to nothing",
-   "method": "Harness deltas against the no-SDK run in the same round, 5 rounds. Web on every PR on the self-hosted Linux runner; mobile at checkpoints. Fail on the median"
+   "basis": "Sentry: web 156; iOS 662 journey and 429 idle; Android 190. iOS journey: ouo's median is above Sentry's, but its lowest run is below, so at n = 3 ouo is possibly, not certainly, costlier. An idle screen should cost close to nothing",
+   "method": "Paired deltas: each SDK run minus the no-SDK run of the same round. Web: run.mjs, 10 rounds, on PRs that touch sdk/browser and nightly on main; the web baseline alone spans 369 to 515 ms/min over 5 rounds, more than the 45 ms/min of headroom, so a single median is not a gate. Mobile: the B3 benchmark (docs/benchmarks.md), extended with native ouo11y-ios / sentry-cocoa and Android cells, N >= 10 with real taps, at release checkpoints. Fail only when the lower quartile of the paired deltas is above the budget. Regressions between releases use the B3 rule (docs/benchmarks.md section 5: worse by the threshold and outside the previous IQR)"
   },
   {
    "budget": "CPU, replay on",
    "web": "300 ms/min (today 203)",
    "ios": "3500 ms/min journey, 1000 idle (today 3076 and 2476: idle fails)",
-   "android": "600 ms/min on SDK threads (today 290)",
+   "android": "500 ms/min off the render thread (today 430)",
    "rn": "follows iOS and Android",
-   "basis": "Sentry: web 370; iOS 3804 journey and 4026 idle; Android 350",
+   "basis": "Sentry: web 370; iOS 3804 journey and 4026 idle; Android 559",
    "method": "Same as core CPU"
   },
   {
@@ -53,7 +53,7 @@
    "android": "steady PSS: 5 MiB core, 15 MiB replay (today 1.3 and 4.2)",
    "rn": "not measured",
    "basis": "Sentry: web 1.3 and 2.7; iOS 3.8 and 42.5 peak; Android 6.0 and 10.7 steady",
-   "method": "Harness: forced GC then heap (web), phys_footprint (iOS), smaps_rollup PSS (Android), against the no-SDK run"
+   "method": "Forced GC then heap (web), phys_footprint (iOS), smaps_rollup PSS (Android), against the no-SDK run. Same jobs and the same lower-quartile rule as CPU"
   },
   {
    "budget": "Bytes per minute, telemetry",
@@ -62,7 +62,7 @@
    "android": "40 KiB/min (no exporter today)",
    "rn": "40 KiB/min, not measured",
    "basis": "Sentry: web 114 KiB (envelopes uncompressed) and 27.8 requests, iOS 19.5 KiB and 7.8 requests, Android 20.7 KiB and 9. 24 requests is two queues flushed every 5 s (spec 8.1 default)",
-   "method": "Fake collector in the harness counts request bodies as sent. Wire scenario in the section 14 suite on every PR"
+   "method": "Fake collector in the harness counts request bodies as sent; byte and request counts barely move between runs (iOS 28.9 KiB with a 15-byte spread). Wire scenario in the section 14 suite on every PR"
   },
   {
    "budget": "Bytes per minute, replay",
@@ -89,7 +89,7 @@
    "android": "n/a",
    "rn": "n/a",
    "basis": "Sentry: 1.0 and 5.4; 1.2 and 8.3 at 4x. INP's good threshold is 200 ms; the SDK should use a small slice of it",
-   "method": "Chrome trace in the web harness: the task that dispatched each input event, against the no-SDK run"
+   "method": "Chrome trace in the web harness: the task that dispatched each input event, against the no-SDK run. Same job and lower-quartile rule as web CPU"
   }
  ],
  "not_measured": [

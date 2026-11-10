@@ -5,10 +5,21 @@ simulator app is a host process: CPU and memory are the Mac's, not an iPhone's, 
 path is loopback. Use these numbers to compare the two SDKs with each other, never as device
 numbers. No physical iPhone was used.
 
-**Host load.** A first run under heavy contention (1-min load 10 to 500, a parallel Android emulator) was discarded. The numbers in `results.json` come from a rerun on a quiet Mac (1-min load about 2 to 3), logged every 5 s by `scripts/loadlog.sh` and stored per run (`load1`) and per variant (`host_load1`).
+**Host load.** A first run under heavy contention (1-min load 5 to 500, a parallel session's Android emulator and simulator) was discarded whole; `discarded_runs` in `results.json` records it. In the rerun the journeys ran at load 1.9 to 2.9. The 12 init launches started while that load was still falling: about half ran at load 10 to 139, the rest below 10. On the launches below 10 (n = 5 or 6 per variant) the init medians are within 0.7 ms of the medians over all 12, so the reported medians hold; the slowest launches are the loaded ones. `scripts/loadlog.sh` logs the load every 5 s; each run stores its `load1`.
 
 **Journey n = 3.** 3 complete rounds (each variant 3 runs; a round takes about 10 minutes):
-medians with min/max over 3 runs, not a robust spread. Init time has n = 12 per SDK variant.
+medians with min/max over 3 runs, not a robust spread, and below the N ≥ 10 that
+[docs/benchmarks.md](../../../../../docs/benchmarks.md) requires for the release benchmark. Treat a
+difference between the SDKs as real only when the ranges do not overlap. Init time has n = 12 per
+SDK variant.
+
+**Why a second iOS harness.** The B3 benchmark ([docs/benchmarks.md](../../../../../docs/benchmarks.md),
+`examples/sentry-mobile/scripts/perf/`) measures the React Native SDKs (`@ouo11y/react-native`
+against `@sentry/react-native`) inside the Expo demo app, with XCUITest taps. Step 5 needed the
+native SDKs alone (`ouo11y-ios` against `sentry-cocoa`), without React Native's runtime in the
+baseline, so this harness builds a plain UIKit app instead. It reuses B3's sampling method
+(`scripts/sample.py` follows B3's `sample.py`). Folding it into B3 as native cells, with real taps
+and N ≥ 10, is the way to make it a gate; see [overhead.md](../../../../kb/client-sdk-state/overhead.md#how-ci-would-enforce-them-ovh-1).
 
 ## What is measured
 

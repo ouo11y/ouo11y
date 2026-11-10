@@ -41,8 +41,8 @@ tr.detail td{background:color-mix(in srgb,var(--ink) 3%,transparent);font-size:1
 .chip.na,.chip.unknown,.chip.uncertain,.chip.g-unknown,.chip.g-target{background:var(--na);color:var(--ink)}
 code{font-size:12px;word-break:break-all}
 ul.ev{margin:4px 0;padding-left:18px}
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}.cols>*,.charts>*{min-width:0}.panel,td{overflow-wrap:anywhere}
-@media (max-width:640px){th.hide-s,td.hide-s{display:none}}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}.cols>*,.charts>*{min-width:0}.panel,tr.detail td,td.wrap{overflow-wrap:anywhere}td strong{white-space:nowrap}
+@media (max-width:640px){th.hide-s,td.hide-s{display:none}table{font-size:12px}th,td{padding:5px 4px}.chip{min-width:0;padding:1px 5px;white-space:normal}}
 </style>
 </head>
 <body>
@@ -52,7 +52,7 @@ ul.ev{margin:4px 0;padding-left:18px}
 <nav class="toc"><a href="#compliance">Compliance</a><a href="#table">All requirements</a><a href="#violations">Violations</a><a href="#gaps">Sentry gaps</a><a href="#overhead">Overhead</a><a href="#budgets">Proposed budgets</a><a href="#method">Method</a></nav>
 
 <h2 id="compliance">Spec compliance</h2>
-<p>Each SDK against every MUST in the spec that applies to its platform. "Partly met" means a real part of the rule holds. The Android row judges what a native Android app gets from <code>sdk/android</code> alone: today that code runs only inside the React Native SDK.</p>
+<p>Each SDK against every MUST in the spec that applies to its platform. "Partly met" means a real part of the rule holds. The Android row judges what a native Android app gets from <code>sdk/android</code> alone: today that code runs only inside the React Native SDK. A rule Android meets only because the feature it governs is absent counts as not applicable, not met.</p>
 <div class="tiles">@@HEADLINE@@</div>
 <div class="panel">
 <div class="legend"><span><span class="sw" style="background:var(--good)"></span>Met</span><span><span class="sw" style="background:var(--warn)"></span>Partly met</span><span><span class="sw" style="background:var(--crit)"></span>Not met</span></div>

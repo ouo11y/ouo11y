@@ -10,15 +10,15 @@ Of the MUST rows that apply to each platform:
 |---|---|---|---|---|---|
 | Web (`sdk/browser`) | 0.3.1 | **42 of 157 (27 %)** | 38 | 77 | 35 |
 | iOS (`sdk/ios`) | 0.3.0 | **40 of 152 (26 %)** | 46 | 66 | 40 |
-| Android (`sdk/android`) | none, vendored in RN 0.3.0 | **30 of 152 (20 %)** | 42 | 80 | 40 |
+| Android (`sdk/android`) | none, vendored in RN 0.3.0 | **21 of 143 (15 %)** | 42 | 80 | 49 |
 | React Native (`sdk/react-native`) | 0.3.0 | **40 of 160 (25 %)** | 50 | 70 | 32 |
-| All four | | **152 of 621 (24 %)** | 176 | 293 | 147 |
+| All four | | **143 of 612 (23 %)** | 176 | 293 | 156 |
 
 No SDK is conformant at `0.1.0-draft`, and none could be: the SDKs predate the spec by weeks and were built to the MVP's own conventions. The low score is mostly a small number of structural differences repeated across many requirements, listed below. Twenty-three MUSTs are met everywhere they apply (for example LIF-6 no `unload` handler, SIG-40 export requests not instrumented, TRN-16 keepalive budget on the web, PRV-12 no bodies or headers, ERR-2 patched functions keep their behaviour).
 
-The Android row judges what a native Android app would get from `sdk/android` alone. That code has no public init, session, sampling, consent or OTLP exporter: the React Native JS layer supplies all of them. So most Android "not met" rows are "not built yet on Android", not wrong behaviour.
+The Android row judges what a native Android app would get from `sdk/android` alone. That code has no public init, session, sampling, consent or OTLP exporter: the React Native JS layer supplies all of them. So most Android "not met" rows are "not built yet on Android", not wrong behaviour. A rule that Android meets only because the feature it governs is absent (it cannot overwrite `traceparent` because it never sends one, PRP-3) is graded not applicable, not met: nine rows (REL-4, LIF-3, SIG-38, SIG-40, SIG-41, RES-1, RES-3, PRP-3, PRV-10), so Android's score counts behaviour only. No other SDK had such a row.
 
-The five SHOULDs and one MAY: TRN-2 (gzip) and RPL-9 (keyframe interval) are met almost everywhere; SES-6 (throttled last-activity writes) and SES-7 (`session.end` attributes) are partly met at best; API-4 (same names across platforms) is partly met.
+The five SHOULDs and one MAY: TRN-2 (gzip) and RPL-9 (keyframe interval) are met almost everywhere; SES-6 (throttled last-activity writes) and SES-7 (`session.end` attributes) are partly met at best; API-4 (same names across platforms) is partly met on web, iOS and RN and not met on Android, which has no public API. The MAY, RPL-25, does not apply anywhere: it concerns a replay feature none of the SDKs has.
 
 ## By spec area
 
@@ -26,18 +26,18 @@ MUST rows, met / partly / not met, out of those that apply.
 
 | Area | Web | iOS | Android | RN |
 |---|---|---|---|---|
-| REL relation to OTel | 2/1/3 of 6 | 3/0/3 of 6 | 2/1/3 of 6 | 1/1/4 of 6 |
+| REL relation to OTel | 2/1/3 of 6 | 3/0/3 of 6 | 1/1/3 of 5 | 1/1/4 of 6 |
 | API public API | 1/1/3 of 5 | 0/4/1 of 5 | 0/2/3 of 5 | 1/2/2 of 5 |
 | CFG configuration | 1/1/2 of 4 | 1/2/1 of 4 | 1/0/3 of 4 | 0/2/2 of 4 |
-| LIF lifecycle | 6/2/2 of 10 | 2/2/4 of 8 | 2/6/1 of 9 | 3/5/1 of 9 |
+| LIF lifecycle | 6/2/2 of 10 | 2/2/4 of 8 | 1/6/1 of 8 | 3/5/1 of 9 |
 | SES sessions | 2/4/3 of 9 | 2/5/4 of 11 | 0/2/9 of 11 | 1/6/4 of 11 |
-| SIG signals | 5/5/16 of 26 | 8/6/13 of 27 | 5/5/16 of 26 | 7/8/18 of 33 |
+| SIG signals | 5/5/16 of 26 | 8/6/13 of 27 | 2/5/16 of 23 | 7/8/18 of 33 |
 | REC record rules | 1/3/5 of 9 | 2/3/4 of 9 | 1/3/5 of 9 | 3/3/3 of 9 |
-| RES resource | 3/1/1 of 5 | 2/2/1 of 5 | 4/0/1 of 5 | 4/1/0 of 5 |
-| PRP propagation | 3/1/2 of 6 | 2/0/2 of 4 | 1/0/3 of 4 | 1/2/1 of 4 |
+| RES resource | 3/1/1 of 5 | 2/2/1 of 5 | 2/0/1 of 3 | 4/1/0 of 5 |
+| PRP propagation | 3/1/2 of 6 | 2/0/2 of 4 | 0/0/3 of 3 | 1/2/1 of 4 |
 | TRN transport | 4/8/7 of 19 | 5/8/2 of 15 | 2/11/2 of 15 | 7/7/1 of 15 |
 | SMP sampling | 4/3/5 of 12 | 1/3/8 of 12 | 0/0/12 of 12 | 1/3/8 of 12 |
-| PRV privacy | 2/2/8 of 12 | 3/2/7 of 12 | 5/1/5 of 11 | 3/1/8 of 12 |
+| PRV privacy | 2/2/8 of 12 | 3/2/7 of 12 | 4/1/5 of 10 | 3/1/8 of 12 |
 | RPL replay | 3/4/16 of 23 | 4/8/11 of 23 | 4/7/12 of 23 | 3/7/13 of 23 |
 | ERR error handling | 5/2/2 of 9 | 5/1/3 of 9 | 3/4/2 of 9 | 5/2/2 of 9 |
 | VER versioning | 0/0/2 of 2 | 0/0/2 of 2 | 0/0/3 of 3 | 0/0/3 of 3 |
