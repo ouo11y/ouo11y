@@ -1,0 +1,877 @@
+[
+ {
+  "id": "SES-a",
+  "feature": "Automatic sessions",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: `session.id` is the join key for everything. OTel: `session.start`/`session.end` exist. All three vendors do it"
+ },
+ {
+  "id": "SES-b",
+  "feature": "Session timeouts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: session health depends on it. Ours: 30 min web, 15 min background, 4 h max, configurable. Datadog fixes 15 min/4 h; PostHog 30 min/24 h"
+ },
+ {
+  "id": "SES-c",
+  "feature": "Shared across tabs; kept across app restarts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: one user, one session. Datadog and PostHog share across tabs; Sentry's replay session is per tab. Cross-subdomain sharing is G1"
+ },
+ {
+  "id": "SES-d",
+  "feature": "Manual session control",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial. `getSessionId` lets apps join support tickets to sessions"
+ },
+ {
+  "id": "ERR-a",
+  "feature": "Unhandled exceptions",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `exception` is the one Stable client-specific convention (HTTP client conventions are also Stable). Every vendor has it"
+ },
+ {
+  "id": "ERR-b",
+  "feature": "Unhandled promise rejections",
+  "target": "Must",
+  "where": "W, RN",
+  "why": "Same as ERR-a. The Datadog RN research found no promise-rejection capture"
+ },
+ {
+  "id": "ERR-c",
+  "feature": "Manual capture API",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial"
+ },
+ {
+  "id": "ERR-d",
+  "feature": "Native crashes",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the most important mobile signal. OTel: `app.crash` (Development). PostHog has it opt-in, without ANR"
+ },
+ {
+  "id": "ERR-e",
+  "feature": "ANR and app hangs",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: a frozen app is worse than a crash for users. Thresholds differ: Sentry iOS 2 s, Datadog iOS off by default, both Android 5 s plus `ApplicationExitInfo`. Hang threshold default is G2"
+ },
+ {
+  "id": "ERR-f",
+  "feature": "OOM, watchdog and exit reasons",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: OOM kills are invisible without it. Sentry and Datadog infer them on next launch; Android `ApplicationExitInfo` is cheap"
+ },
+ {
+  "id": "ERR-g",
+  "feature": "Trail of events before an error",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: our ordinary events (clicks, navigation, HTTP spans, logs) are the trail, joined by `session.id` and time, so we need no separate breadcrumb buffer. Unsampled sessions have no trail today, G4"
+ },
+ {
+  "id": "ERR-h",
+  "feature": "Client fingerprint override",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: one attribute. The SDK never computes one"
+ },
+ {
+  "id": "ERR-i",
+  "feature": "Screenshot or view hierarchy on error",
+  "target": "Later",
+  "where": "M",
+  "why": "Cost: privacy and bytes. Replay in buffer mode already shows the moment"
+ },
+ {
+  "id": "ERR-j",
+  "feature": "`console.error` as errors",
+  "target": "Never",
+  "where": "W, RN",
+  "why": "OTel: console output is a log, not an exception (see LOG-b). Sentry keeps it opt-in for this reason"
+ },
+ {
+  "id": "ERR-k",
+  "feature": "Error dedupe and flood guard",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: an error loop can cost a customer real money and battery. Datadog 3000/min per type, PostHog 10 burst then 1 per 10 s per type"
+ },
+ {
+  "id": "PERF-a",
+  "feature": "Core Web Vitals and FCP, TTFB",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.web_vital`. PostHog has no TTFB"
+ },
+ {
+  "id": "PERF-b",
+  "feature": "Vital attribution",
+  "target": "Should",
+  "where": "W",
+  "why": "Story: tells the developer which element. INP is in the spec, LCP element is not (G6)"
+ },
+ {
+  "id": "PERF-c",
+  "feature": "Long animation frames",
+  "target": "Should",
+  "where": "W",
+  "why": "OTel: draft PR #429, gated. Sentry has it on by default"
+ },
+ {
+  "id": "PERF-d",
+  "feature": "Page load timing",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.navigation_timing` and `documentLoad`. Story: the page-load span links to the server trace"
+ },
+ {
+  "id": "PERF-e",
+  "feature": "Resource timing",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: the main volume risk. Default off until Step 5 prices it, then a per-view cap (G8)"
+ },
+ {
+  "id": "PERF-f",
+  "feature": "App start",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the first thing a mobile user feels. All three except PostHog have it"
+ },
+ {
+  "id": "PERF-g",
+  "feature": "Slow and frozen frames",
+  "target": "Must",
+  "where": "M",
+  "why": "OTel: `app.jank`"
+ },
+ {
+  "id": "PERF-h",
+  "feature": "Time to initial and full display",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: per-screen load time. Sentry and Datadog: TTID automatic, TTFD by a manual call"
+ },
+ {
+  "id": "PERF-i",
+  "feature": "Profiling",
+  "target": "Later",
+  "where": "all",
+  "why": "OTel: the profiles signal is still in development. Cost: high"
+ },
+ {
+  "id": "PERF-j",
+  "feature": "Device vitals (CPU, memory, battery, thermal)",
+  "target": "Later",
+  "where": "M",
+  "why": "Only Datadog ships it. Cost: sampling overhead"
+ },
+ {
+  "id": "PERF-k",
+  "feature": "Custom spans and timings",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the app uses the OTel API through our tracer provider. We add no span API of our own"
+ },
+ {
+  "id": "NET-a",
+  "feature": "Automatic HTTP spans",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: Stable HTTP client conventions"
+ },
+ {
+  "id": "NET-b",
+  "feature": "Trace propagation to the backend",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: our edge. W3C `traceparent` by default. Sentry sends its own headers, `traceparent` opt-in; Datadog sends W3C plus its own to an allowlist; PostHog sends nothing by default and, when enabled, session and user-id headers rather than trace headers"
+ },
+ {
+  "id": "NET-c",
+  "feature": "Request and response headers and bodies",
+  "target": "Later",
+  "where": "all",
+  "why": "Cost: privacy. PRV-12 forbids it today. If added: opt-in URL allowlist, size cap, replay only, as Sentry does"
+ },
+ {
+  "id": "NET-d",
+  "feature": "GraphQL operation names",
+  "target": "Later",
+  "where": "all",
+  "why": "OTel: `graphql.*` exists, but naming needs the request body"
+ },
+ {
+  "id": "NET-e",
+  "feature": "Failed HTTP request as an error",
+  "target": "Never",
+  "where": "all",
+  "why": "OTel: the HTTP span's status and `error.type` already say it. A second record duplicates it"
+ },
+ {
+  "id": "NET-f",
+  "feature": "WebSocket",
+  "target": "Later",
+  "where": "all",
+  "why": "Datadog has it in beta only"
+ },
+ {
+  "id": "INT-a",
+  "feature": "Click and tap capture",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: what the user did. Sentry has it as breadcrumbs and replay, with interaction spans opt-in"
+ },
+ {
+  "id": "INT-b",
+  "feature": "Action naming",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: privacy. We never send element text (SIG-39). Names come from selectors, widget ids and opt-in `data-otel-*` attributes. Datadog masks names by default since v7"
+ },
+ {
+  "id": "INT-c",
+  "feature": "Rage clicks and taps",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: frustration tells the developer where users struggle. Our threshold (4 in 1 s) is stricter than Datadog and Sentry RN (3 in 1 s) and PostHog (3 clicks, each within 1 s of the previous), G9"
+ },
+ {
+  "id": "INT-d",
+  "feature": "Dead clicks",
+  "target": "Must",
+  "where": "W",
+  "why": "Same. On mobile only PostHog Android has it, opt-in, so mobile dead taps are not a target yet"
+ },
+ {
+  "id": "INT-e",
+  "feature": "Error clicks",
+  "target": "Must",
+  "where": "all",
+  "why": "Same. Only Datadog ships it"
+ },
+ {
+  "id": "INT-f",
+  "feature": "Scroll and swipe",
+  "target": "Later",
+  "where": "all",
+  "why": "Needed for scroll maps and scroll depth. Replay already shows scrolling"
+ },
+ {
+  "id": "INT-g",
+  "feature": "Form and input autocapture",
+  "target": "Never",
+  "where": "all",
+  "why": "Cost: privacy. Product analytics, not reliability"
+ },
+ {
+  "id": "INT-h",
+  "feature": "Heatmaps",
+  "target": "Later",
+  "where": "all",
+  "why": "A query over clicks. Needs document size (G10)"
+ },
+ {
+  "id": "NAV-a",
+  "feature": "Hard page loads",
+  "target": "Must",
+  "where": "W",
+  "why": "OTel: `browser.navigation`"
+ },
+ {
+  "id": "NAV-b",
+  "feature": "SPA route changes",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: most apps are SPAs. Route-pattern names need router integrations (G11)"
+ },
+ {
+  "id": "NAV-c",
+  "feature": "Mobile screen views",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: the mobile \"page\". UIKit and Activities automatic; SwiftUI and Compose need integrations (G11)"
+ },
+ {
+  "id": "NAV-d",
+  "feature": "RN navigation",
+  "target": "Must",
+  "where": "RN",
+  "why": "React Navigation and Expo Router. PostHog needs manual calls for Expo Router"
+ },
+ {
+  "id": "NAV-e",
+  "feature": "Manual view API",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial"
+ },
+ {
+  "id": "NAV-f",
+  "feature": "Foreground and background",
+  "target": "Must",
+  "where": "M",
+  "why": "OTel: `device.app.lifecycle`"
+ },
+ {
+  "id": "RPL-a",
+  "feature": "Web DOM replay",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: the centre of the full story. rrweb, as Sentry and PostHog use"
+ },
+ {
+  "id": "RPL-b",
+  "feature": "Mobile replay",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: same. **The format is not decided here.** Evidence is in [mobile-replay-format-evidence.md](mobile-replay-format-evidence.md)"
+ },
+ {
+  "id": "RPL-c",
+  "feature": "Session and on-error modes",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: buffer mode keeps replays of failures at low cost. Datadog has no client buffer"
+ },
+ {
+  "id": "RPL-d",
+  "feature": "Iframes, shadow DOM, canvas",
+  "target": "Should",
+  "where": "W",
+  "why": "Same-origin iframes and shadow DOM Should; canvas Later and opt-in, since canvas pixels cannot be masked (G12)"
+ },
+ {
+  "id": "RPL-e",
+  "feature": "Network requests in replay",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the player joins HTTP spans by `session.id` and time. No copy inside the replay"
+ },
+ {
+  "id": "RPL-f",
+  "feature": "Console in replay",
+  "target": "Should",
+  "where": "W, RN",
+  "why": "Follows LOG-b: logs join like spans"
+ },
+ {
+  "id": "RPL-g",
+  "feature": "Masking defaults and APIs",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: privacy. Ours masks all text, inputs and media, like Sentry and Datadog mobile. Datadog web masks inputs only by default (`mask-user-input`); PostHog web does not mask text"
+ },
+ {
+  "id": "RPL-h",
+  "feature": "RN replay",
+  "target": "Must",
+  "where": "RN",
+  "why": "Native capture under RN"
+ },
+ {
+  "id": "RPL-i",
+  "feature": "SwiftUI and Compose replay",
+  "target": "Must",
+  "where": "M",
+  "why": "Story: new apps are built with them. The format decision decides how hard this is"
+ },
+ {
+  "id": "RPL-j",
+  "feature": "Idle pause and maximum duration",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: Sentry pauses after 5 min idle and stops at 60 min. The spec bounds a replay only by its session (30 min inactivity, 4 h maximum), so a mostly idle replay can run 4 h (G14)"
+ },
+ {
+  "id": "USR-a",
+  "feature": "Set user id",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `enduser.id`"
+ },
+ {
+  "id": "USR-b",
+  "feature": "User traits",
+  "target": "Never",
+  "where": "all",
+  "why": "Cost: PII sprawl. Global attributes cover segmenting, such as a plan tier"
+ },
+ {
+  "id": "USR-c",
+  "feature": "Global attributes",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: trivial"
+ },
+ {
+  "id": "USR-d",
+  "feature": "Anonymous install id",
+  "target": "Should",
+  "where": "all",
+  "why": "Story: crash-free *users* needs a stable pseudo id. Opt-in, off the resource (G15)"
+ },
+ {
+  "id": "USR-e",
+  "feature": "Identify and alias merging",
+  "target": "Never",
+  "where": "all",
+  "why": "Product analytics; a server-side concern"
+ },
+ {
+  "id": "LOG-a",
+  "feature": "Structured logs",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: the app uses the OTel Logs API through our provider"
+ },
+ {
+  "id": "LOG-b",
+  "feature": "Console capture as logs",
+  "target": "Should",
+  "where": "W, RN",
+  "why": "Story: console lines next to the error. Opt-in, warn and error only, size-capped (G13)"
+ },
+ {
+  "id": "LOG-c",
+  "feature": "OTel logs interop",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: we are the OTel pipeline. PostHog sends OTLP logs; Sentry and Datadog do not"
+ },
+ {
+  "id": "SMP-a",
+  "feature": "Session sampling",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: one decision keeps every signal of a session together"
+ },
+ {
+  "id": "SMP-b",
+  "feature": "Separate trace sampling",
+  "target": "Never",
+  "where": "all",
+  "why": "Story: a second rate breaks the session's story. Volume is cut by session rate, defaults and caps instead"
+ },
+ {
+  "id": "SMP-c",
+  "feature": "Error sample rate",
+  "target": "Never",
+  "where": "all",
+  "why": "Errors are never sampled away: they bypass the session decision"
+ },
+ {
+  "id": "SMP-d",
+  "feature": "Buffer-on-error replay",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost: see RPL-c"
+ },
+ {
+  "id": "SMP-e",
+  "feature": "Errors kept in unsampled sessions",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: rare crashes are never lost"
+ },
+ {
+  "id": "SMP-f",
+  "feature": "Remote config and kill switch",
+  "target": "Should",
+  "where": "all",
+  "why": "Cost: a mobile release takes days to roll back. Datadog mobile (2026) and PostHog have it; Datadog web's is internal and undocumented. Served through the Collector (G16)"
+ },
+ {
+  "id": "PRV-a",
+  "feature": "Consent API",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: without consent handling the SDK cannot ship in the EU. Pending, granted, denied, per category. Sentry has none"
+ },
+ {
+  "id": "PRV-b",
+  "feature": "Masking outside replay",
+  "target": "Must",
+  "where": "all",
+  "why": "No element text, no input values"
+ },
+ {
+  "id": "PRV-c",
+  "feature": "Element-level mask and unmask",
+  "target": "Must",
+  "where": "all",
+  "why": "Web attributes, mobile view APIs"
+ },
+ {
+  "id": "PRV-d",
+  "feature": "URL and query sanitising",
+  "target": "Must",
+  "where": "all",
+  "why": "Ours redacts every query value by default. Sentry, Datadog and PostHog keep them. A recommended allowlist is G17"
+ },
+ {
+  "id": "PRV-e",
+  "feature": "No PII by default",
+  "target": "Must",
+  "where": "all",
+  "why": "Sentry's JavaScript SDK v11 flipped to collect user info, IP, headers and bodies by default; Sentry mobile keeps `sendDefaultPii` off. Ours collects none"
+ },
+ {
+  "id": "PRV-f",
+  "feature": "`beforeSend` hook",
+  "target": "Must",
+  "where": "all",
+  "why": "Every vendor has one"
+ },
+ {
+  "id": "PRV-g",
+  "feature": "Global Privacy Control and Do Not Track",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: GPC is a legal opt-out in some US states. Opt-in setting (G18)"
+ },
+ {
+  "id": "TRN-a",
+  "feature": "Batching",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: OTLP batches"
+ },
+ {
+  "id": "TRN-b",
+  "feature": "Offline persistence and retry",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: mobile users go offline. Datadog and PostHog web retry from memory only; Sentry's web offline queue is opt-in"
+ },
+ {
+  "id": "TRN-c",
+  "feature": "Delivery at page unload",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: the last seconds before a user leaves"
+ },
+ {
+  "id": "TRN-d",
+  "feature": "Compression",
+  "target": "Must",
+  "where": "all",
+  "why": "Cost"
+ },
+ {
+  "id": "TRN-e",
+  "feature": "Custom endpoint or proxy",
+  "target": "Must",
+  "where": "all",
+  "why": "Self-hosting: the Collector runs on the customer's domain, so a tunnel is not needed"
+ },
+ {
+  "id": "TRN-f",
+  "feature": "Server-driven backoff",
+  "target": "Must",
+  "where": "all",
+  "why": "OTLP retry rules"
+ },
+ {
+  "id": "TRN-g",
+  "feature": "OTLP on the wire",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: our reason to exist. None of the three vendors sends RUM as OTLP"
+ },
+ {
+  "id": "CFG-a",
+  "feature": "One config object",
+  "target": "Must",
+  "where": "all",
+  "why": ""
+ },
+ {
+  "id": "CFG-b",
+  "feature": "Per-instrumentation switches",
+  "target": "Must",
+  "where": "all",
+  "why": ""
+ },
+ {
+  "id": "CFG-c",
+  "feature": "Debug mode and drop counts",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: the customer must see what was dropped. Sentry's client reports are the model"
+ },
+ {
+  "id": "CFG-d",
+  "feature": "Service, version, environment",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: resource attributes"
+ },
+ {
+  "id": "CFG-e",
+  "feature": "Loader, CDN and lazy loading",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: bundle size. Replay loaded on demand, as Sentry and PostHog do (G19)"
+ },
+ {
+  "id": "CFG-f",
+  "feature": "SSR safety, workers, extensions",
+  "target": "Must",
+  "where": "W",
+  "why": "SSR safety is Must (LIF-9). Workers, extensions and micro-frontends are Later"
+ },
+ {
+  "id": "API-a",
+  "feature": "Custom events",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: events through the Logs API"
+ },
+ {
+  "id": "API-b",
+  "feature": "Custom metrics",
+  "target": "Never",
+  "where": "all",
+  "why": "OTel: browsers do not fit the single-writer metric model. Events are aggregated at the edge"
+ },
+ {
+  "id": "API-c",
+  "feature": "Custom spans",
+  "target": "Must",
+  "where": "all",
+  "why": "Through the OTel tracer provider"
+ },
+ {
+  "id": "API-d",
+  "feature": "Attributes for the current view",
+  "target": "Should",
+  "where": "all",
+  "why": "Datadog's view context. Lets an app tag a page with, say, an experiment arm (G20)"
+ },
+ {
+  "id": "API-e",
+  "feature": "OTel interop",
+  "target": "Must",
+  "where": "all",
+  "why": "Never replaces the host's providers; exposes ours"
+ },
+ {
+  "id": "SYM-a",
+  "feature": "Web source maps",
+  "target": "Must",
+  "where": "W",
+  "why": "Story: a minified stack is useless. Needs a build or debug id on records (G21)"
+ },
+ {
+  "id": "SYM-b",
+  "feature": "iOS dSYM",
+  "target": "Must",
+  "where": "iOS",
+  "why": "`app.build_id` on the resource"
+ },
+ {
+  "id": "SYM-c",
+  "feature": "Android mapping and NDK symbols",
+  "target": "Must",
+  "where": "Android",
+  "why": "Same"
+ },
+ {
+  "id": "SYM-d",
+  "feature": "RN and Hermes source maps",
+  "target": "Must",
+  "where": "RN",
+  "why": "Same"
+ },
+ {
+  "id": "SYM-e",
+  "feature": "Build tooling",
+  "target": "Should",
+  "where": "all",
+  "why": "CLI, Vite and webpack plugins, Gradle, Xcode build phase, Expo plugin. A tooling spec, not the SDK spec"
+ },
+ {
+  "id": "FWK-a",
+  "feature": "React",
+  "target": "Must",
+  "where": "W",
+  "why": "Error boundary and router names"
+ },
+ {
+  "id": "FWK-b",
+  "feature": "Next.js",
+  "target": "Should",
+  "where": "W",
+  "why": "The most used React meta-framework"
+ },
+ {
+  "id": "FWK-c",
+  "feature": "Vue, Angular, Svelte",
+  "target": "Later",
+  "where": "W",
+  "why": "`trackNavigation` works meanwhile"
+ },
+ {
+  "id": "FWK-d",
+  "feature": "SwiftUI and UIKit",
+  "target": "Must",
+  "where": "iOS",
+  "why": ""
+ },
+ {
+  "id": "FWK-e",
+  "feature": "Compose and OkHttp",
+  "target": "Must",
+  "where": "Android",
+  "why": ""
+ },
+ {
+  "id": "FWK-f",
+  "feature": "React Native and Expo",
+  "target": "Must",
+  "where": "RN",
+  "why": "Expo config plugin"
+ },
+ {
+  "id": "FWK-g",
+  "feature": "Flutter and others",
+  "target": "Later",
+  "where": "M",
+  "why": "OTel has no Flutter SDK. Cost: a fifth platform"
+ },
+ {
+  "id": "REL-a",
+  "feature": "Release tagging",
+  "target": "Must",
+  "where": "all",
+  "why": "OTel: `service.version`, `app.build_id`"
+ },
+ {
+  "id": "REL-b",
+  "feature": "Crash-free sessions and users",
+  "target": "Must",
+  "where": "all",
+  "why": "Story: our session health. Derived on the server from `session.start` and crashes; users need USR-d"
+ },
+ {
+  "id": "REL-c",
+  "feature": "Commits and suspect commits",
+  "target": "Later",
+  "where": "all",
+  "why": "Server and VCS work, not the SDK"
+ },
+ {
+  "id": "REL-d",
+  "feature": "Version adoption",
+  "target": "Should",
+  "where": "all",
+  "why": "Server query over `service.version`. No SDK work"
+ },
+ {
+  "id": "FF-a",
+  "feature": "Flag evaluations on errors and sessions",
+  "target": "Should",
+  "where": "all",
+  "why": "OTel: a `feature_flag.evaluation` event exists in semconv, and OpenFeature publishes OTel hooks. Story: \"broke after the flag flipped\" (G22)"
+ },
+ {
+  "id": "FF-b",
+  "feature": "Own flag service",
+  "target": "Never",
+  "where": "all",
+  "why": "Not our product"
+ },
+ {
+  "id": "FF-c",
+  "feature": "OpenFeature integration",
+  "target": "Should",
+  "where": "all",
+  "why": "Same as FF-a. One hook covers most providers"
+ },
+ {
+  "id": "FB-a",
+  "feature": "Feedback widget",
+  "target": "Later",
+  "where": "all",
+  "why": "Cost: UI on four platforms"
+ },
+ {
+  "id": "FB-b",
+  "feature": "Feedback API",
+  "target": "Should",
+  "where": "all",
+  "why": "Story: the user's own words, joined to replay. Can trigger the replay buffer (G23)"
+ },
+ {
+  "id": "FB-c",
+  "feature": "Screenshot and shake to report",
+  "target": "Later",
+  "where": "M",
+  "why": "Follows FB-a"
+ },
+ {
+  "id": "OTH-a",
+  "feature": "Product analytics autocapture",
+  "target": "Never",
+  "where": "all",
+  "why": "We tell the reliability story; funnels can be queried from navigation events later"
+ },
+ {
+  "id": "OTH-b",
+  "feature": "Experiments",
+  "target": "Never",
+  "where": "all",
+  "why": "Not our product"
+ },
+ {
+  "id": "OTH-c",
+  "feature": "Surveys",
+  "target": "Never",
+  "where": "all",
+  "why": "Not our product"
+ },
+ {
+  "id": "OTH-d",
+  "feature": "WebView and hybrid apps",
+  "target": "Should",
+  "where": "M",
+  "why": "Story: the web SDK inside a WebView joins the native session (G24)"
+ },
+ {
+  "id": "OTH-e",
+  "feature": "Synthetic test link",
+  "target": "Later",
+  "where": "all",
+  "why": ""
+ },
+ {
+  "id": "OTH-f",
+  "feature": "Third-party integrations",
+  "target": "Never",
+  "where": "all",
+  "why": "OTLP is the integration"
+ },
+ {
+  "id": "OTH-g",
+  "feature": "Other vendor extras",
+  "target": "Later",
+  "where": "all",
+  "why": "Listed under each group in the matrix. Two shape the gaps: PostHog's dated defaults (G26) and Datadog's battery-aware upload (G27)"
+ },
+ {
+  "id": "OTH-h",
+  "feature": "Bot and crawler filtering",
+  "target": "Should",
+  "where": "W",
+  "why": "Cost: crawlers create sessions, because `init` in a visible page counts as activity (G25)"
+ }
+]

@@ -1,0 +1,23 @@
+{
+ "logs": {
+  "requests": 14,
+  "json": 36867,
+  "json_gz": 11504,
+  "proto": 18275,
+  "proto_gz": 10743,
+  "records": 18
+ },
+ "traces": {
+  "requests": 17,
+  "json": 59857,
+  "json_gz": 16857,
+  "proto": 27962,
+  "proto_gz": 15716,
+  "records": 35
+ },
+ "serializer_bundle_gz_bytes": {
+  "json": 3134,
+  "protobuf": 5252
+ },
+ "method": "ouo-replay 60 s journey bodies re-encoded with a minimal OTLP protobuf encoder (json_vs_proto.py); serializer cost: esbuild bundle of @opentelemetry/otlp-transformer 0.222.0 Json vs Protobuf logs+trace serializers, gzip -9"
+}

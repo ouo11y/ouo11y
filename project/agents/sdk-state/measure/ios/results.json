@@ -1,0 +1,1175 @@
+{
+ "platform": "ios",
+ "device": "iOS Simulator, iPhone 17 Pro, iOS 27.0 (24A434); simulator-only numbers, not device numbers",
+ "host": "MacBook Pro (Mac17,2), Apple M5, 32 GB, macOS 27.0.1, Xcode 27.0 (27A266a)",
+ "sdk_versions": {
+  "ouo11y-ios": "0.3.0 (sdk/ios/version.txt, local path, branch docs/step5-sdk-state @ 3e9e2c11)",
+  "sentry-cocoa": "9.33.0 (SwiftPM, product Sentry, static xcframework; latest 9.x tag on 2026-11-10)"
+ },
+ "not_measured": [
+  {
+   "what": "Journey spread at n>=5",
+   "why": "journey capped at n=3 rounds per variant (coordinator instruction, host contention made each round slow); medians with min/max over 3 runs"
+  },
+  {
+   "what": "App Store thinned / compressed download size",
+   "why": "no signing identity or App Store Connect; reported the unsigned device-arch (arm64) .app plus an IPA-shaped zip instead"
+  },
+  {
+   "what": "Device (iPhone) numbers",
+   "why": "simulator only by instruction: CPU and memory are the Mac's host process, network is loopback"
+  },
+  {
+   "what": "Tap/interaction capture cost",
+   "why": "the journey is timer-driven inside the app (no synthesised touches), so neither SDK's tap tracking ran"
+  },
+  {
+   "what": "Init time for base",
+   "why": "no SDK call to time (baseline)"
+  },
+  {
+   "what": "Host load for the first init launches",
+   "why": "the load logger was added part-way through the init phase (coordinator request); those launches have load1 null"
+  },
+  {
+   "what": "Work done for the app by other processes (backboardd, render server, simulator networking)",
+   "why": "proc_pid_rusage counts the app process only"
+  }
+ ],
+ "method": "See README.md. One app, one source, three Release builds (base / OuoSDK / sentry-cocoa); replay is a runtime switch on the same binary. Size: device build (generic/platform=iOS, arm64, unsigned then ad-hoc signed), .app bytes and IPA-shaped zip (deflate 9); deltas vs base. Init: DispatchTime around Ouo.start / SentrySDK.start in didFinishLaunching, main thread, 12 cold launches on fresh installs per variant. CPU/memory: proc_pid_rusage(RUSAGE_INFO_V6) every 0.5 s on the simulator app's host PID (user+system CPU, phys_footprint); idle window 5-20 s (memory 10-20 s), journey window 20-80 s, peak 0-85 s. Wire: local capture server answering 200 itself, request body bytes as sent (gzip) for every SDK request from launch to 100 s (85 s foreground, 15 s background), scaled to per minute. 3 journey rounds per variant (n=3, cut from the planned 6 for run time under host contention), interleaved and rotated. Timer-driven journey (no synthesised taps). Simulator numbers: host CPU and memory, loopback network. Host was heavily loaded (1-min load ~10-30 on 10 cores, a parallel Android emulator run); variants interleaved and rotated per round so both SDKs saw the same contention; host load average logged every 5 s and attached per run (load1).",
+ "variants": {
+  "base": {
+   "size_bytes": 129512,
+   "size_zipped_bytes": 32924,
+   "size_delta_bytes": 0,
+   "size_zipped_delta_bytes": 0,
+   "size_sim_arm64_bytes": 243528,
+   "size_sim_delta_bytes": 0,
+   "init_ms": null,
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 2.0,
+     "p90": 2.0,
+     "q1": 2.0,
+     "q3": 2.0,
+     "min": 2.0,
+     "max": 2.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 851.0,
+     "p90": 918.0,
+     "q1": 830.0,
+     "q3": 893.0,
+     "min": 808.0,
+     "max": 935.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 12.7,
+     "p90": 12.9,
+     "q1": 12.6,
+     "q3": 12.8,
+     "min": 12.5,
+     "max": 13.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 19.4,
+     "p90": 19.4,
+     "q1": 19.3,
+     "q3": 19.4,
+     "min": 19.2,
+     "max": 19.5,
+     "n": 3
+    },
+    "peak": {
+     "median": 19.9,
+     "p90": 19.9,
+     "q1": 19.9,
+     "q3": 19.9,
+     "min": 19.8,
+     "max": 19.9,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 0.0,
+    "p90": 0.0,
+    "q1": 0.0,
+    "q3": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 3
+   },
+   "host_load1": {
+    "init": null,
+    "journey": {
+     "median": 13.5,
+     "p90": 72.1,
+     "q1": 10.3,
+     "q3": 50.1,
+     "min": 7.2,
+     "max": 86.7,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 13.5,
+      "cpu_idle_ms_per_min": 2,
+      "cpu_journey_ms_per_min": 808,
+      "mem_idle_mb": 12.5,
+      "mem_peak_mb": 19.9,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     },
+     {
+      "round": 2,
+      "load1": 86.7,
+      "cpu_idle_ms_per_min": 2,
+      "cpu_journey_ms_per_min": 935,
+      "mem_idle_mb": 13.0,
+      "mem_peak_mb": 19.9,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     },
+     {
+      "round": 3,
+      "load1": 7.2,
+      "cpu_idle_ms_per_min": 2,
+      "cpu_journey_ms_per_min": 851,
+      "mem_idle_mb": 12.7,
+      "mem_peak_mb": 19.8,
+      "wire_bytes_per_min": 0,
+      "requests_per_min": 0.0
+     }
+    ]
+   },
+   "endpoints_all_runs": {},
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 0,
+    "cpu_journey_ms_per_min": 0,
+    "mem_idle_mb": 0.0,
+    "mem_journey_mb": 0.0,
+    "mem_peak_mb": 0.0
+   }
+  },
+  "ouo": {
+   "size_bytes": 1014111,
+   "size_zipped_bytes": 416773,
+   "size_delta_bytes": 884599,
+   "size_zipped_delta_bytes": 383849,
+   "size_sim_arm64_bytes": 2060138,
+   "size_sim_delta_bytes": 1816610,
+   "init_ms": {
+    "median": 14.83,
+    "p90": 17.455,
+    "q1": 13.447,
+    "q3": 16.559,
+    "min": 12.752,
+    "max": 18.769,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 496.0,
+     "p90": 526.0,
+     "q1": 464.0,
+     "q3": 515.0,
+     "min": 432.0,
+     "max": 534.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 1728.0,
+     "p90": 1778.0,
+     "q1": 1727.0,
+     "q3": 1760.0,
+     "min": 1727.0,
+     "max": 1791.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 14.0,
+     "p90": 14.0,
+     "q1": 14.0,
+     "q3": 14.0,
+     "min": 14.0,
+     "max": 14.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 19.7,
+     "p90": 19.9,
+     "q1": 19.7,
+     "q3": 19.8,
+     "min": 19.7,
+     "max": 19.9,
+     "n": 3
+    },
+    "peak": {
+     "median": 20.3,
+     "p90": 20.4,
+     "q1": 20.2,
+     "q3": 20.3,
+     "min": 20.0,
+     "max": 20.4,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 28651.0,
+     "p90": 28794.0,
+     "q1": 28417.0,
+     "q3": 28740.0,
+     "min": 28182.0,
+     "max": 28830.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 42373.0,
+     "p90": 42577.0,
+     "q1": 41969.0,
+     "q3": 42500.0,
+     "min": 41565.0,
+     "max": 42628.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 105660.0,
+     "p90": 106093.0,
+     "q1": 105532.0,
+     "q3": 105931.0,
+     "min": 105404.0,
+     "max": 106202.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 37.3,
+    "p90": 37.5,
+    "q1": 36.8,
+    "q3": 37.4,
+    "min": 36.4,
+    "max": 37.5,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 10.8,
+     "p90": 10.8,
+     "q1": 10.8,
+     "q3": 10.8,
+     "min": 10.8,
+     "max": 10.8,
+     "n": 1
+    },
+    "journey": {
+     "median": 19.8,
+     "p90": 28.0,
+     "q1": 16.6,
+     "q3": 25.0,
+     "min": 13.5,
+     "max": 30.1,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 12.968,
+      "load1": null
+     },
+     {
+      "round": "10",
+      "init_ms": 18.769,
+      "load1": null
+     },
+     {
+      "round": "11",
+      "init_ms": 12.752,
+      "load1": null
+     },
+     {
+      "round": "12",
+      "init_ms": 13.906,
+      "load1": 10.8
+     },
+     {
+      "round": "2",
+      "init_ms": 13.532,
+      "load1": null
+     },
+     {
+      "round": "3",
+      "init_ms": 14.069,
+      "load1": null
+     },
+     {
+      "round": "4",
+      "init_ms": 17.525,
+      "load1": null
+     },
+     {
+      "round": "5",
+      "init_ms": 15.893,
+      "load1": null
+     },
+     {
+      "round": "6",
+      "init_ms": 13.192,
+      "load1": null
+     },
+     {
+      "round": "7",
+      "init_ms": 16.827,
+      "load1": null
+     },
+     {
+      "round": "8",
+      "init_ms": 15.591,
+      "load1": null
+     },
+     {
+      "round": "9",
+      "init_ms": 16.47,
+      "load1": null
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 13.5,
+      "cpu_idle_ms_per_min": 432,
+      "cpu_journey_ms_per_min": 1791,
+      "mem_idle_mb": 14.0,
+      "mem_peak_mb": 20.3,
+      "wire_bytes_per_min": 28830,
+      "requests_per_min": 37.5
+     },
+     {
+      "round": 2,
+      "load1": 30.1,
+      "cpu_idle_ms_per_min": 534,
+      "cpu_journey_ms_per_min": 1727,
+      "mem_idle_mb": 14.0,
+      "mem_peak_mb": 20.0,
+      "wire_bytes_per_min": 28182,
+      "requests_per_min": 36.4
+     },
+     {
+      "round": 3,
+      "load1": 19.8,
+      "cpu_idle_ms_per_min": 496,
+      "cpu_journey_ms_per_min": 1728,
+      "mem_idle_mb": 14.0,
+      "mem_peak_mb": 20.4,
+      "wire_bytes_per_min": 28651,
+      "requests_per_min": 37.3
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "ouo-otlp /v1/logs": {
+     "requests": 98,
+     "body_bytes": 87212
+    },
+    "ouo-otlp /v1/traces": {
+     "requests": 89,
+     "body_bytes": 56898
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 494,
+    "cpu_journey_ms_per_min": 877,
+    "mem_idle_mb": 1.3,
+    "mem_journey_mb": 0.3,
+    "mem_peak_mb": 0.4
+   }
+  },
+  "ouo_replay": {
+   "size_bytes": 1014111,
+   "size_zipped_bytes": 416773,
+   "size_delta_bytes": 884599,
+   "size_zipped_delta_bytes": 383849,
+   "size_sim_arm64_bytes": 2060138,
+   "size_sim_delta_bytes": 1816610,
+   "init_ms": {
+    "median": 13.085,
+    "p90": 17.005,
+    "q1": 10.434,
+    "q3": 15.782,
+    "min": 8.776,
+    "max": 18.886,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 2358.0,
+     "p90": 2405.0,
+     "q1": 2293.0,
+     "q3": 2387.0,
+     "min": 2229.0,
+     "max": 2417.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 3764.0,
+     "p90": 4026.0,
+     "q1": 3745.0,
+     "q3": 3928.0,
+     "min": 3725.0,
+     "max": 4091.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 14.4,
+     "p90": 14.4,
+     "q1": 14.3,
+     "q3": 14.4,
+     "min": 14.3,
+     "max": 14.4,
+     "n": 3
+    },
+    "journey": {
+     "median": 20.6,
+     "p90": 20.7,
+     "q1": 20.5,
+     "q3": 20.7,
+     "min": 20.4,
+     "max": 20.8,
+     "n": 3
+    },
+    "peak": {
+     "median": 34.3,
+     "p90": 39.5,
+     "q1": 34.2,
+     "q3": 37.5,
+     "min": 34.1,
+     "max": 40.7,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 67818.0,
+     "p90": 69496.0,
+     "q1": 66411.0,
+     "q3": 68867.0,
+     "min": 65003.0,
+     "max": 69915.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 84181.0,
+     "p90": 86142.0,
+     "q1": 82390.0,
+     "q3": 85406.0,
+     "min": 80600.0,
+     "max": 86632.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 338417.0,
+     "p90": 340525.0,
+     "q1": 330677.0,
+     "q3": 339735.0,
+     "min": 322937.0,
+     "max": 341052.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 39093.0,
+     "p90": 40596.0,
+     "q1": 38340.0,
+     "q3": 40032.0,
+     "min": 37587.0,
+     "max": 40971.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 43.2,
+    "p90": 43.9,
+    "q1": 42.2,
+    "q3": 43.6,
+    "min": 41.2,
+    "max": 44.0,
+    "n": 3
+   },
+   "host_load1": {
+    "init": null,
+    "journey": {
+     "median": 32.5,
+     "p90": 262.2,
+     "q1": 28.1,
+     "q3": 176.1,
+     "min": 23.7,
+     "max": 319.6,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 9.757,
+      "load1": null
+     },
+     {
+      "round": "10",
+      "init_ms": 15.581,
+      "load1": null
+     },
+     {
+      "round": "11",
+      "init_ms": 12.69,
+      "load1": null
+     },
+     {
+      "round": "12",
+      "init_ms": 10.66,
+      "load1": null
+     },
+     {
+      "round": "2",
+      "init_ms": 13.479,
+      "load1": null
+     },
+     {
+      "round": "3",
+      "init_ms": 8.776,
+      "load1": null
+     },
+     {
+      "round": "4",
+      "init_ms": 14.507,
+      "load1": null
+     },
+     {
+      "round": "5",
+      "init_ms": 12.36,
+      "load1": null
+     },
+     {
+      "round": "6",
+      "init_ms": 8.902,
+      "load1": null
+     },
+     {
+      "round": "7",
+      "init_ms": 17.073,
+      "load1": null
+     },
+     {
+      "round": "8",
+      "init_ms": 16.387,
+      "load1": null
+     },
+     {
+      "round": "9",
+      "init_ms": 18.886,
+      "load1": null
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 23.7,
+      "cpu_idle_ms_per_min": 2229,
+      "cpu_journey_ms_per_min": 4091,
+      "mem_idle_mb": 14.3,
+      "mem_peak_mb": 40.7,
+      "wire_bytes_per_min": 69915,
+      "requests_per_min": 44.0
+     },
+     {
+      "round": 2,
+      "load1": 32.5,
+      "cpu_idle_ms_per_min": 2417,
+      "cpu_journey_ms_per_min": 3725,
+      "mem_idle_mb": 14.4,
+      "mem_peak_mb": 34.1,
+      "wire_bytes_per_min": 67818,
+      "requests_per_min": 43.2
+     },
+     {
+      "round": 3,
+      "load1": 319.6,
+      "cpu_idle_ms_per_min": 2358,
+      "cpu_journey_ms_per_min": 3764,
+      "mem_idle_mb": 14.4,
+      "mem_peak_mb": 34.3,
+      "wire_bytes_per_min": 65003,
+      "requests_per_min": 41.2
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "ouo-otlp /v1/logs": {
+     "requests": 99,
+     "body_bytes": 88239
+    },
+    "ouo-otlp /v1/traces": {
+     "requests": 90,
+     "body_bytes": 57565
+    },
+    "ouo-replay /v1/replay/chunks": {
+     "requests": 31,
+     "body_bytes": 201575
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 2356,
+    "cpu_journey_ms_per_min": 2913,
+    "mem_idle_mb": 1.7,
+    "mem_journey_mb": 1.2,
+    "mem_peak_mb": 14.4
+   }
+  },
+  "sentry": {
+   "size_bytes": 3447322,
+   "size_zipped_bytes": 1372893,
+   "size_delta_bytes": 3317810,
+   "size_zipped_delta_bytes": 1339969,
+   "size_sim_arm64_bytes": 6865498,
+   "size_sim_delta_bytes": 6621970,
+   "init_ms": {
+    "median": 59.142,
+    "p90": 70.352,
+    "q1": 52.127,
+    "q3": 62.964,
+    "min": 49.444,
+    "max": 84.097,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 464.0,
+     "p90": 619.0,
+     "q1": 451.0,
+     "q3": 561.0,
+     "min": 437.0,
+     "max": 658.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 1478.0,
+     "p90": 1692.0,
+     "q1": 1375.0,
+     "q3": 1611.0,
+     "min": 1272.0,
+     "max": 1745.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 16.9,
+     "p90": 17.1,
+     "q1": 16.9,
+     "q3": 17.0,
+     "min": 16.9,
+     "max": 17.1,
+     "n": 3
+    },
+    "journey": {
+     "median": 22.9,
+     "p90": 23.0,
+     "q1": 22.8,
+     "q3": 22.9,
+     "min": 22.8,
+     "max": 23.0,
+     "n": 3
+    },
+    "peak": {
+     "median": 23.5,
+     "p90": 23.6,
+     "q1": 23.4,
+     "q3": 23.6,
+     "min": 23.3,
+     "max": 23.6,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 19833.0,
+     "p90": 19900.0,
+     "q1": 19782.0,
+     "q3": 19875.0,
+     "min": 19732.0,
+     "max": 19917.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 22799.0,
+     "p90": 22875.0,
+     "q1": 22736.0,
+     "q3": 22846.0,
+     "min": 22672.0,
+     "max": 22894.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 120906.0,
+     "p90": 121297.0,
+     "q1": 120857.0,
+     "q3": 121150.0,
+     "min": 120808.0,
+     "max": 121394.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 0.0,
+     "p90": 0.0,
+     "q1": 0.0,
+     "q3": 0.0,
+     "min": 0.0,
+     "max": 0.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 7.7,
+    "p90": 7.7,
+    "q1": 7.7,
+    "q3": 7.7,
+    "min": 7.7,
+    "max": 7.8,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 13.2,
+     "p90": 13.2,
+     "q1": 13.2,
+     "q3": 13.2,
+     "min": 13.2,
+     "max": 13.2,
+     "n": 1
+    },
+    "journey": {
+     "median": 22.2,
+     "p90": 285.5,
+     "q1": 15.9,
+     "q3": 186.8,
+     "min": 9.7,
+     "max": 351.3,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 51.438,
+      "load1": null
+     },
+     {
+      "round": "10",
+      "init_ms": 61.113,
+      "load1": null
+     },
+     {
+      "round": "11",
+      "init_ms": 59.73,
+      "load1": null
+     },
+     {
+      "round": "12",
+      "init_ms": 51.428,
+      "load1": 13.2
+     },
+     {
+      "round": "2",
+      "init_ms": 49.444,
+      "load1": null
+     },
+     {
+      "round": "3",
+      "init_ms": 52.356,
+      "load1": null
+     },
+     {
+      "round": "4",
+      "init_ms": 58.553,
+      "load1": null
+     },
+     {
+      "round": "5",
+      "init_ms": 84.097,
+      "load1": null
+     },
+     {
+      "round": "6",
+      "init_ms": 53.554,
+      "load1": null
+     },
+     {
+      "round": "7",
+      "init_ms": 70.838,
+      "load1": null
+     },
+     {
+      "round": "8",
+      "init_ms": 61.96,
+      "load1": null
+     },
+     {
+      "round": "9",
+      "init_ms": 65.977,
+      "load1": null
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 22.2,
+      "cpu_idle_ms_per_min": 437,
+      "cpu_journey_ms_per_min": 1272,
+      "mem_idle_mb": 16.9,
+      "mem_peak_mb": 23.3,
+      "wire_bytes_per_min": 19833,
+      "requests_per_min": 7.7
+     },
+     {
+      "round": 2,
+      "load1": 351.3,
+      "cpu_idle_ms_per_min": 464,
+      "cpu_journey_ms_per_min": 1478,
+      "mem_idle_mb": 17.1,
+      "mem_peak_mb": 23.5,
+      "wire_bytes_per_min": 19732,
+      "requests_per_min": 7.7
+     },
+     {
+      "round": 3,
+      "load1": 9.7,
+      "cpu_idle_ms_per_min": 658,
+      "cpu_journey_ms_per_min": 1745,
+      "mem_idle_mb": 16.9,
+      "mem_peak_mb": 23.6,
+      "wire_bytes_per_min": 19917,
+      "requests_per_min": 7.8
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "sentry /api/1/envelope/": {
+     "requests": 39,
+     "body_bytes": 100265
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 462,
+    "cpu_journey_ms_per_min": 627,
+    "mem_idle_mb": 4.2,
+    "mem_journey_mb": 3.5,
+    "mem_peak_mb": 3.6
+   }
+  },
+  "sentry_replay": {
+   "size_bytes": 3447322,
+   "size_zipped_bytes": 1372893,
+   "size_delta_bytes": 3317810,
+   "size_zipped_delta_bytes": 1339969,
+   "size_sim_arm64_bytes": 6865498,
+   "size_sim_delta_bytes": 6621970,
+   "init_ms": {
+    "median": 53.765,
+    "p90": 74.931,
+    "q1": 52.931,
+    "q3": 63.682,
+    "min": 50.674,
+    "max": 90.9,
+    "n": 12
+   },
+   "cpu_ms_per_min": {
+    "idle": {
+     "median": 4472.0,
+     "p90": 4595.0,
+     "q1": 4457.0,
+     "q3": 4549.0,
+     "min": 4442.0,
+     "max": 4625.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 5164.0,
+     "p90": 5189.0,
+     "q1": 4993.0,
+     "q3": 5180.0,
+     "min": 4821.0,
+     "max": 5196.0,
+     "n": 3
+    }
+   },
+   "mem_mb": {
+    "idle": {
+     "median": 23.4,
+     "p90": 23.9,
+     "q1": 23.1,
+     "q3": 23.7,
+     "min": 22.8,
+     "max": 24.0,
+     "n": 3
+    },
+    "journey": {
+     "median": 28.7,
+     "p90": 29.1,
+     "q1": 28.6,
+     "q3": 29.0,
+     "min": 28.4,
+     "max": 29.2,
+     "n": 3
+    },
+    "peak": {
+     "median": 71.7,
+     "p90": 76.1,
+     "q1": 68.5,
+     "q3": 74.5,
+     "min": 65.4,
+     "max": 77.3,
+     "n": 3
+    }
+   },
+   "wire_bytes_per_min": {
+    "body_as_sent": {
+     "median": 67929.0,
+     "p90": 85885.0,
+     "q1": 67922.0,
+     "q3": 79152.0,
+     "min": 67915.0,
+     "max": 90374.0,
+     "n": 3
+    },
+    "body_plus_headers": {
+     "median": 74556.0,
+     "p90": 92131.0,
+     "q1": 74552.0,
+     "q3": 85540.0,
+     "min": 74548.0,
+     "max": 96524.0,
+     "n": 3
+    },
+    "decoded_body": {
+     "median": 199649.0,
+     "p90": 371303.0,
+     "q1": 199462.0,
+     "q3": 306933.0,
+     "min": 199275.0,
+     "max": 414217.0,
+     "n": 3
+    },
+    "replay_part": {
+     "median": 47431.0,
+     "p90": 47483.0,
+     "q1": 45787.0,
+     "q3": 47464.0,
+     "min": 44142.0,
+     "max": 47496.0,
+     "n": 3
+    }
+   },
+   "requests_per_min": {
+    "median": 17.2,
+    "p90": 17.3,
+    "q1": 16.6,
+    "q3": 17.3,
+    "min": 16.0,
+    "max": 17.3,
+    "n": 3
+   },
+   "host_load1": {
+    "init": {
+     "median": 12.2,
+     "p90": 12.2,
+     "q1": 12.2,
+     "q3": 12.2,
+     "min": 12.2,
+     "max": 12.2,
+     "n": 1
+    },
+    "journey": {
+     "median": 20.0,
+     "p90": 251.5,
+     "q1": 12.6,
+     "q3": 164.7,
+     "min": 5.3,
+     "max": 309.4,
+     "n": 3
+    }
+   },
+   "runs": {
+    "init": [
+     {
+      "round": "1",
+      "init_ms": 51.972,
+      "load1": null
+     },
+     {
+      "round": "10",
+      "init_ms": 50.674,
+      "load1": null
+     },
+     {
+      "round": "11",
+      "init_ms": 53.058,
+      "load1": null
+     },
+     {
+      "round": "12",
+      "init_ms": 52.55,
+      "load1": 12.2
+     },
+     {
+      "round": "2",
+      "init_ms": 53.946,
+      "load1": null
+     },
+     {
+      "round": "3",
+      "init_ms": 53.583,
+      "load1": null
+     },
+     {
+      "round": "4",
+      "init_ms": 62.263,
+      "load1": null
+     },
+     {
+      "round": "5",
+      "init_ms": 90.9,
+      "load1": null
+     },
+     {
+      "round": "6",
+      "init_ms": 76.128,
+      "load1": null
+     },
+     {
+      "round": "7",
+      "init_ms": 53.569,
+      "load1": null
+     },
+     {
+      "round": "8",
+      "init_ms": 64.161,
+      "load1": null
+     },
+     {
+      "round": "9",
+      "init_ms": 63.523,
+      "load1": null
+     }
+    ],
+    "journey": [
+     {
+      "round": 1,
+      "load1": 20.0,
+      "cpu_idle_ms_per_min": 4442,
+      "cpu_journey_ms_per_min": 4821,
+      "mem_idle_mb": 22.8,
+      "mem_peak_mb": 65.4,
+      "wire_bytes_per_min": 67929,
+      "requests_per_min": 17.2
+     },
+     {
+      "round": 2,
+      "load1": 309.4,
+      "cpu_idle_ms_per_min": 4625,
+      "cpu_journey_ms_per_min": 5164,
+      "mem_idle_mb": 24.0,
+      "mem_peak_mb": 77.3,
+      "wire_bytes_per_min": 90374,
+      "requests_per_min": 16.0
+     },
+     {
+      "round": 3,
+      "load1": 5.3,
+      "cpu_idle_ms_per_min": 4472,
+      "cpu_journey_ms_per_min": 5196,
+      "mem_idle_mb": 23.4,
+      "mem_peak_mb": 71.7,
+      "wire_bytes_per_min": 67915,
+      "requests_per_min": 17.3
+     }
+    ]
+   },
+   "endpoints_all_runs": {
+    "sentry /api/1/envelope/": {
+     "requests": 85,
+     "body_bytes": 380496
+    }
+   },
+   "delta_vs_base_median": {
+    "cpu_idle_ms_per_min": 4470,
+    "cpu_journey_ms_per_min": 4313,
+    "mem_idle_mb": 10.7,
+    "mem_journey_mb": 9.3,
+    "mem_peak_mb": 51.8
+   }
+  }
+ },
+ "excluded_runs": []
+}
