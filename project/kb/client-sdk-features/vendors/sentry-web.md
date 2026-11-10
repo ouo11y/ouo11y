@@ -161,7 +161,7 @@
 | TRN-d | partial | Replay `useCompression` (deflate in a web worker; `workerUrl` option) | true | No compression found for other envelopes. | integration.ts | 11.11.0, 2026-11-05 |
 | TRN-e | yes | `tunnel: '<url>'`, or `tunnel: true` / `{path, basePath}` for a managed tunnel derived from the DSN | undefined | Managed tunnel added in 11.10.0. Tunnel request body size limited (11.9). | B/packages/browser/src/utils/managedTunnel.ts; CHANGELOG | 11.10.0, 2026-10-28 |
 | TRN-f | yes | Honours `X-Sentry-Rate-Limits` and `Retry-After` | 60 s fallback | Handles 413. | B/packages/core/src/utils/ratelimit.ts | 11.11.0, 2026-11-05 |
-| TRN-g | yes | Sentry envelope format (span v2 envelopes for streamed spans). Not OTLP from the browser. | n/a | `getOtlpTracesEndpoint` is server-only. | MIG; spans/envelope.ts | 11.0.0, 2026-09-23 |
+| TRN-g | no | Sentry envelope format (span v2 envelopes for streamed spans). Not OTLP from the browser. | n/a | `getOtlpTracesEndpoint` is server-only. | MIG; spans/envelope.ts | 11.0.0, 2026-09-23 |
 | TRN-x1 | yes | Span streaming: `traceLifecycle: 'stream'` or `'static'` | `'stream'` (new in v11) | Removes the 1000-span transaction cap. `ignoreTransactions` is a no-op. | MIG | 11.0.0, 2026-09-23 |
 
 ## CFG configuration

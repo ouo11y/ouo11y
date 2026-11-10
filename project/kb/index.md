@@ -8,4 +8,6 @@ MVP-era knowledge is in [kb-archive](../kb-archive/index.md). It was mostly writ
 |---|---|
 | [opentelemetry/](opentelemetry/index.md) | Logs, traces and metrics data models, OTLP, storage backends, RUM semantic conventions, with HTML explainers |
 | [client-sdk-features/](client-sdk-features/index.md) | Which features our web and mobile SDKs target, compared with Sentry, Datadog and PostHog, with an HTML matrix and the spec gaps for Step 7 |
+| [client-sdk-state/](client-sdk-state/index.md) | How the four SDKs on `main` meet the draft spec, where they stand against Sentry, and what they cost on a device, with proposed overhead budgets and an HTML report |
+| [client-sdk-safety/](client-sdk-safety/index.md) | The golden rule, "the app must not pay for the SDK's failures", as a 61-item checklist with incidents, grades of our four SDKs, and the spec proposal for Step 7 |
 | [vendor-internals/](vendor-internals/index.md) | How Sentry, Datadog and PostHog work inside on web and mobile: SDK architecture and options, wire formats with captured fixtures, reliability, storage, and the read APIs Muninn can use, with HTML explainers |

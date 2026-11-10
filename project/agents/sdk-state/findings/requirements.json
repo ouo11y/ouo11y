@@ -1,0 +1,1196 @@
+[
+ {
+  "id": "REL-1",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-1** An SDK MUST be judged by its behaviour and its wire output. This spec does not require any particular library internally."
+ },
+ {
+  "id": "REL-2",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-2** All telemetry MUST leave the device as OTLP sent to a configured Collector endpoint. An SDK MUST NOT send telemetry to any other destination or use a non-OTLP format."
+ },
+ {
+  "id": "REL-3",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-3** Attributes and events we define MUST be prefixed `ouo.`. Names that OTel defines, or that an official OTel SDK already emits, are used unprefixed. `[OPEN D1]`"
+ },
+ {
+  "id": "REL-4",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-4** An SDK MUST NOT replace a tracer, logger or meter provider that the host has already registered globally, and it MUST NOT register its provider globally unless configured to."
+ },
+ {
+  "id": "REL-5",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-5** The SDK MUST expose its OTel tracer and logger providers, so host instrumentation can emit through the same pipeline and receive the same session and view attributes."
+ },
+ {
+  "id": "REL-6",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-6** The SDK MUST NOT export client OTel metrics for RUM signals. Aggregates are derived at the edge from events. Short-lived clients do not fit the single-writer metric model ([Step 2](performance.md))."
+ },
+ {
+  "id": "REL-7",
+  "section": "1. Scope and relation to OpenTelemetry",
+  "level": "MUST",
+  "text": "- **REL-7** Span events MUST NOT be used. Events go through the Logs API with a non-empty `EventName` (OTEP 4430)."
+ },
+ {
+  "id": "API-1",
+  "section": "3.1 API",
+  "level": "MUST",
+  "text": "- **API-1** Every public function MUST be safe to call before `init`, after `shutdown`, and on an unsupported platform. It MUST then be a no-op that does not throw."
+ },
+ {
+  "id": "API-2",
+  "section": "3.1 API",
+  "level": "MUST",
+  "text": "- **API-2** A public function MUST NOT block the calling thread on I/O or network, and any waiting API MUST be asynchronous."
+ },
+ {
+  "id": "API-3",
+  "section": "3.1 API",
+  "level": "MUST",
+  "text": "- **API-3** `recordEvent` and attribute setters MUST reject app-supplied names in the reserved prefixes `session.` and `ouo.`, except attributes this spec lists as app-settable. A rejected name MUST be dropped, counted (**ERR-7**) and MUST NOT throw."
+ },
+ {
+  "id": "API-4",
+  "section": "3.1 API",
+  "level": "SHOULD",
+  "text": "- **API-4** Per-platform APIs SHOULD be named the same, apart from language casing."
+ },
+ {
+  "id": "API-5",
+  "section": "3.1 API",
+  "level": "MUST",
+  "text": "- **API-5** `trackNavigation` MUST behave exactly like the equivalent automatic navigation, including new `ouo.view.id` assignment. If both report the same navigation, one signal MUST be emitted."
+ },
+ {
+  "id": "API-6",
+  "section": "3.1 API",
+  "level": "MUST",
+  "text": "- **API-6** `recordException` MUST set `ouo.exception.source=manual` and `ouo.exception.handled=true`, unless the caller set `handled`."
+ },
+ {
+  "id": "CFG-1",
+  "section": "3.2 Configuration",
+  "level": "MUST",
+  "text": "- **CFG-1** Invalid configuration MUST NOT throw. An invalid value MUST fall back to its default with a diagnostic. If `endpoint` or `serviceName` is missing or invalid, the SDK MUST act as a no-op."
+ },
+ {
+  "id": "CFG-2",
+  "section": "3.2 Configuration",
+  "level": "MUST",
+  "text": "- **CFG-2** Out-of-range values MUST be clamped: inactivity and background timeouts to at least 1 minute, maximum duration to at most 24 hours, rates to [0, 1]."
+ },
+ {
+  "id": "CFG-3",
+  "section": "3.2 Configuration",
+  "level": "MUST",
+  "text": "- **CFG-3** `headers` values may be public ingest keys, and MUST NOT appear in URLs, records or diagnostics."
+ },
+ {
+  "id": "CFG-4",
+  "section": "3.2 Configuration",
+  "level": "MUST",
+  "text": "- **CFG-4** A `beforeSend` hook MUST run before persistence and export. It MAY return a modified record or drop it, a hook that throws MUST be treated as returning the unmodified record, and it MUST NOT receive replay chunks."
+ },
+ {
+  "id": "LIF-1",
+  "section": "4.1 All platforms",
+  "level": "MUST",
+  "text": "- **LIF-1** A second `init` MUST be ignored with a diagnostic."
+ },
+ {
+  "id": "LIF-2",
+  "section": "4.1 All platforms",
+  "level": "MUST",
+  "text": "- **LIF-2** `init` MUST return without waiting for network, storage or a native bridge. Slow work continues asynchronously."
+ },
+ {
+  "id": "LIF-3",
+  "section": "4.1 All platforms",
+  "level": "MUST",
+  "text": "- **LIF-3** Records created between `init` and storage readiness MUST be held in a bounded memory buffer, then processed normally."
+ },
+ {
+  "id": "LIF-4",
+  "section": "4.1 All platforms",
+  "level": "MUST",
+  "text": "- **LIF-4** `shutdown` MUST stop all capture, remove every hook it installed, emit `session.end` if a session is active, close open replay streams (**RPL-20**), and attempt a flush bounded by `transport.shutdownDeadlineMs` (*default* 2 s)."
+ },
+ {
+  "id": "LIF-5",
+  "section": "4.1 All platforms",
+  "level": "MUST",
+  "text": "- **LIF-5** After `shutdown`, `init` MAY be called again and MUST behave as a new start."
+ },
+ {
+  "id": "LIF-6",
+  "section": "4.2 Web",
+  "level": "MUST",
+  "text": "- **LIF-6** An SDK MUST NOT register `unload` or `beforeunload` handlers, since they can disable the back/forward cache."
+ },
+ {
+  "id": "LIF-7",
+  "section": "4.2 Web",
+  "level": "MUST",
+  "text": "- **LIF-7** At `pagehide`, in this order, the SDK MUST: end in-flight fetch and XHR spans with `ouo.span.abandoned=true` `[P18]`; emit remaining final vitals; close the current replay chunk and emit `ouo.replay.ended`; flush telemetry; then flush replay chunks with the remaining budget (**TRN-16**)."
+ },
+ {
+  "id": "LIF-8",
+  "section": "4.2 Web",
+  "level": "MUST",
+  "text": "- **LIF-8** On bfcache restore, the SDK MUST re-evaluate the session, assign a new `ouo.view.id`, restart vitals with new ids, and open a new replay stream starting with a keyframe."
+ },
+ {
+  "id": "LIF-9",
+  "section": "4.2 Web",
+  "level": "MUST",
+  "text": "- **LIF-9** On a server-side or non-DOM runtime, the web SDK MUST be a no-op. Importing it MUST NOT throw or touch DOM globals at module load."
+ },
+ {
+  "id": "LIF-10",
+  "section": "4.2 Web",
+  "level": "MUST",
+  "text": "- **LIF-10** A prerendered page MUST NOT start a session or send telemetry until it activates."
+ },
+ {
+  "id": "LIF-11",
+  "section": "4.3 Mobile",
+  "level": "MUST",
+  "text": "- **LIF-11** On a move to background, the SDK MUST emit `device.app.lifecycle`, close the current replay chunk, and flush within the OS allowance (iOS `beginBackgroundTask`, ended before expiry). It MUST NOT keep the app running beyond that."
+ },
+ {
+  "id": "LIF-12",
+  "section": "4.3 Mobile",
+  "level": "MUST",
+  "text": "- **LIF-12** On a move to foreground, the SDK MUST emit `device.app.lifecycle` and re-evaluate the session."
+ },
+ {
+  "id": "LIF-13",
+  "section": "4.3 Mobile",
+  "level": "MUST",
+  "text": "- **LIF-13** A background launch with no foreground (push, background fetch) MUST NOT start a session or replay."
+ },
+ {
+  "id": "LIF-14",
+  "section": "4.3 Mobile",
+  "level": "MUST",
+  "text": "- **LIF-14** Android SDKs MUST NOT start a foreground service for telemetry. They MAY schedule deferred upload through WorkManager."
+ },
+ {
+  "id": "SES-1",
+  "section": "5. Sessions",
+  "level": "MUST",
+  "text": "- **SES-1** `session.id` MUST be 128 bits from a cryptographically secure generator, written as 32 lowercase hex characters. Consumers MUST treat it as opaque."
+ },
+ {
+  "id": "SES-2",
+  "section": "5. Sessions",
+  "level": "MUST",
+  "text": "- **SES-2** `session.id` MUST be a record attribute on every log record and span, stamped when the record is created, not at export. It MUST NOT be a resource attribute."
+ },
+ {
+  "id": "SES-3",
+  "section": "5.1 Start and activity",
+  "level": "MUST",
+  "text": "- **SES-3** A session MUST start on the first activity with no valid session. `init` in a visible page or foregrounded app counts as activity."
+ },
+ {
+  "id": "SES-4",
+  "section": "5.1 Start and activity",
+  "level": "MUST",
+  "text": "- **SES-4** In a sampled session (**SMP-3**), `session.start` MUST be emitted exactly once, as the session's first record, with `session.id`, and with `session.previous_id` whenever a prior session id is known, except after consent withdrawal (**PRV-4**). `session.previous_id` MUST differ from `session.id` and MUST NOT appear on other records."
+ },
+ {
+  "id": "SES-5",
+  "section": "5.1 Start and activity",
+  "level": "MUST",
+  "text": "- **SES-5** Only these count as activity. Web: pointer down, key down, wheel or touch scroll, hard or soft navigation, and a page becoming visible. Mobile: touch, a screen navigation, and a move to foreground. Telemetry, timers and network activity MUST NOT count."
+ },
+ {
+  "id": "SES-6",
+  "section": "5.1 Start and activity",
+  "level": "SHOULD",
+  "text": "- **SES-6** The last-activity time SHOULD be written to storage at most once per 5 s per context."
+ },
+ {
+  "id": "SES-7",
+  "section": "5.2 End",
+  "level": "SHOULD",
+  "text": "- **SES-7** `session.end` SHOULD be emitted, before the following `session.start`, with the timestamp of the last activity and with `ouo.session.end_reason` (`timeout`, `max_duration`, `manual`, `shutdown`, `consent`)."
+ },
+ {
+  "id": "SES-8",
+  "section": "5.2 End",
+  "level": "MUST",
+  "text": "- **SES-8** Consumers MUST treat `session.end` as a hint, since it can be lost. A session has ended at the earliest of `session.end`, a `session.start` that names it as `session.previous_id`, or last record plus the inactivity timeout."
+ },
+ {
+  "id": "SES-9",
+  "section": "5.2 End",
+  "level": "MUST",
+  "text": "- **SES-9** Reaching `maxDurationMs` with the user present MUST roll to a new session at once, with `session.previous_id` linking them."
+ },
+ {
+  "id": "SES-10",
+  "section": "5.2 End",
+  "level": "MUST",
+  "text": "- **SES-10** While no valid session exists, records outside the bypass set MUST be dropped and counted with reason `no_session`. A polling tab MUST NOT create sessions. Bypass-set records MUST be sent with the last session id and `ouo.session.expired=true`. If no session id is known, for example a crash during a background launch, the SDK MUST generate one for those records, also marked, without emitting `session.start`."
+ },
+ {
+  "id": "SES-11",
+  "section": "5.3 Tabs and windows (web)",
+  "level": "MUST",
+  "text": "- **SES-11** One session MUST be shared by all same-origin tabs in a browser profile, stored in `localStorage`. Starting, ending and rolling MUST be serialised with Web Locks where available. Otherwise a tab MUST write, re-read and adopt the stored value. Exactly one context MUST emit each `session.start` and `session.end`."
+ },
+ {
+  "id": "SES-12",
+  "section": "5.3 Tabs and windows (web)",
+  "level": "MUST",
+  "text": "- **SES-12** Where `localStorage` is unavailable, the session lives in memory and is limited to the page. The SDK MUST NOT fall back to cookies."
+ },
+ {
+  "id": "SES-13",
+  "section": "5.4 App restarts and crashes (mobile)",
+  "level": "MUST",
+  "text": "- **SES-13** A crash MUST end the session. The next launch MUST start a new session with `session.previous_id` set to the crashed id, and no `session.end` for the crashed session."
+ },
+ {
+  "id": "SES-14",
+  "section": "5.4 App restarts and crashes (mobile)",
+  "level": "MUST",
+  "text": "- **SES-14** A clean process exit followed by a relaunch within the timeout MUST continue the same session without a new `session.start`, with a new replay stream."
+ },
+ {
+  "id": "SES-15",
+  "section": "5.4 App restarts and crashes (mobile)",
+  "level": "MUST",
+  "text": "- **SES-15** The session id, its sampling decision and last activity MUST be persisted before the first record of the session. The id MUST be readable by the crash handler without allocating or locking."
+ },
+ {
+  "id": "SES-16",
+  "section": "5.4 App restarts and crashes (mobile)",
+  "level": "MUST",
+  "text": "- **SES-16** `app.crash` MUST carry the crashed session's id, not the current one."
+ },
+ {
+  "id": "SIG-00",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **SIG-00** A signal in these tables MUST be emitted with its type, name, required attributes and firing rule whenever the platform supports it, the instrumentation is enabled and the session is sampled."
+ },
+ {
+  "id": "REC-1",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-1** Every event MUST set `EventName`. It MUST NOT set the deprecated `event.name` attribute."
+ },
+ {
+  "id": "REC-2",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-2** Every record MUST carry `session.id` (**SES-2**), and `ouo.view.id` once a view exists. `ouo.view.id` is a new random id for every hard or soft navigation and screen view. `[OPEN D5]` `[P13]`"
+ },
+ {
+  "id": "REC-3",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-3** Every web record except those in the `ouo.replay` scope MUST carry sanitised `browser.document.url.full`. Mobile records SHOULD carry `app.screen.name` when known."
+ },
+ {
+  "id": "REC-4",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-4** `Timestamp` MUST be when the thing occurred, and `ObservedTimestamp` when the SDK recorded it."
+ },
+ {
+  "id": "REC-5",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-5** Telemetry MUST use instrumentation scope `ouo.rum`. Replay records MUST use scope `ouo.replay` (**RPL-3**). Both MUST set `schema_url` (**VER-3**) `[P19]`. Host-provided OTel instrumentations keep their own scope."
+ },
+ {
+  "id": "REC-6",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-6** Spans MUST be used only for network calls, `documentLoad` and `AppStart`. The two load spans MUST be created after the fact with explicit times, so they are never open."
+ },
+ {
+  "id": "REC-7",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-7** Every event defaults to severity INFO unless its table says otherwise."
+ },
+ {
+  "id": "REC-8",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-8** Attribute values MUST be truncated at source: `exception.stacktrace` to 25 KiB keeping the top frames, other strings to 4 KiB. Total attributes on a record SHOULD stay under 64 KB, the Loki metadata limit."
+ },
+ {
+  "id": "REC-9",
+  "section": "6.1 Rules for every record",
+  "level": "MUST",
+  "text": "- **REC-9** The SDK MUST NOT estimate clock offset. Records carry the device clock, and edge validation handles skew ([rules](rules.md))."
+ },
+ {
+  "id": "SIG-01",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-01** | LCP, INP, CLS, FCP, TTFB | Web | Event `browser.web_vital` | OTel: `browser.web_vital.name`, `.value`, `.delta`, `.id` | `.rating`, `.navigation_type` | Once per vital per hard page load, when final: first hidden or `pagehide`; FCP and TTFB when known. `delta` equals `value` | Dev core, High |"
+ },
+ {
+  "id": "SIG-02",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-02** | INP attribution | Web | Attributes on the INP event | none | `browser.web_vital.attribution.interaction_target`, `.interaction_type`, `.input_delay`, `.processing_duration`, `.presentation_delay`; full object in the body when `instrumentations.vitalAttributionBody` is on (*default* off) | With the INP event | Draft #35 `[P3]` |"
+ },
+ {
+  "id": "SIG-03",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-03** | Long animation frame | Web | Event `browser.long_animation_frame` | Per convention once merged | Per convention | Gated (**SIG-30**) | Draft PR #429 `[P4]` |"
+ },
+ {
+  "id": "SIG-04",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-04** | App start | Mobile | Span `AppStart`, after the fact | `start.type` (`cold`, `warm`, `hot`) | `ouo.app.start.prewarmed` (iOS) | When first frame draws, with start at process start. Lost if killed during launch | SDK only `[P5]` |"
+ },
+ {
+  "id": "SIG-05",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-05** | Jank | Mobile | Event `app.jank` | `app.jank.frame_count`, `.threshold`, `.period` (OTel: recommended) | | Per polling window, slow (over 16 ms) and frozen (over 700 ms) frames, only when count is above 0 | Dev core, High |"
+ },
+ {
+  "id": "SIG-06",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-06** | ANR | Android, RN | Event `device.anr`, severity ERROR | `exception.stacktrace` | | After 5 failed 1-second main-thread checks. If killed first, on next launch (**SIG-31**) | SDK only `[P6]` |"
+ },
+ {
+  "id": "SIG-07",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "| **SIG-07** | Hang | iOS, RN | Event `ouo.app.hang`, severity ERROR | `ouo.app.hang.duration` (seconds), `exception.stacktrace` | | When the main thread recovers. If killed first, on next launch (**SIG-31**) | None `[P7]` |"
+ },
+ {
+  "id": "SIG-30",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "- **SIG-30** `browser.long_animation_frame` MUST NOT be emitted until PR #429 merges, or the founder accepts its draft names."
+ },
+ {
+  "id": "SIG-31",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "- **SIG-31** An ANR or hang in progress when the process is killed MUST be persisted and sent on next launch with its original time and session id."
+ },
+ {
+  "id": "SIG-32",
+  "section": "6.2 Performance",
+  "level": "MUST",
+  "text": "- **SIG-32** Web vitals MUST carry the `ouo.view.id` of the hard page load they measure, even when emitted after a soft navigation."
+ },
+ {
+  "id": "SIG-08",
+  "section": "6.3 Errors and crashes",
+  "level": "MUST",
+  "text": "| **SIG-08** | JS error, unhandled rejection | Web, RN | Event `exception`, severity ERROR; RN JS fatal FATAL | `exception.type` or `.message`, `.stacktrace` when present, `ouo.exception.source` (`error`, `unhandledrejection`, `manual`), `ouo.exception.handled` | `code.file.path`, `code.line.number`, `code.column.number` `[P20]`, `ouo.exception.fingerprint` `[P21]` | Global handler, or `recordException` | Stable, High |"
+ },
+ {
+  "id": "SIG-09",
+  "section": "6.3 Errors and crashes",
+  "level": "MUST",
+  "text": "| **SIG-09** | Native crash | Mobile | Event `app.crash`, severity FATAL | `app.build_id`, `service.version`, `os.name`, `os.version`, `session.id` of the crashed session, `app.crash.id`, `exception.stacktrace` | `exception.type`, `.message` | Next launch, with original crash time | Dev core, High |"
+ },
+ {
+  "id": "SIG-33",
+  "section": "6.3 Errors and crashes",
+  "level": "MUST",
+  "text": "- **SIG-33** An exception emitted while a span is active MUST carry that span's trace and span ids."
+ },
+ {
+  "id": "SIG-34",
+  "section": "6.3 Errors and crashes",
+  "level": "MUST",
+  "text": "- **SIG-34** The SDK MUST NOT compute a fingerprint. Only the server or an app-supplied value sets `ouo.exception.fingerprint`, since minified frames change per build."
+ },
+ {
+  "id": "SIG-35",
+  "section": "6.3 Errors and crashes",
+  "level": "MUST",
+  "text": "- **SIG-35** Swift-based SDKs MUST emit `app.crash`, not `device.crash`."
+ },
+ {
+  "id": "SIG-10",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "| **SIG-10** | Click | Web | Event `browser.user_action.click` | `browser.page.x`, `.y`, `browser.tag_name`, `ouo.viewport.width`, `.height` | `browser.css_selector`, `browser.mouse_event.button`, `browser.element.attributes` (only `data-otel-*`) | On click | SDK only `[P8]` |"
+ },
+ {
+  "id": "SIG-11",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "| **SIG-11** | Tap on known widget | Mobile, RN | Event `app.widget.click` | `app.widget.id`, `app.screen.coordinate.x`, `.y`, `ouo.viewport.width`, `.height` | `app.screen.id`, `app.screen.name`, `app.widget.name` (**PRV-9**) | On tap | Dev core `[P9]` |"
+ },
+ {
+  "id": "SIG-12",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "| **SIG-12** | Tap, no known widget | Mobile, RN | Event `app.screen.click` | `app.screen.coordinate.x`, `.y`, `ouo.viewport.width`, `.height` | `app.screen.id`, `app.screen.name` | On tap | Dev core `[P9]` |"
+ },
+ {
+  "id": "SIG-13",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "| **SIG-13** | Rage, dead, error click | All | Event `ouo.user_action.frustration` | `ouo.user_action.frustration.type`; `.click_count` for rage; target attributes of the click | | Rage: 4+ clicks within 1000 ms on one element. Dead: no DOM change, navigation or network within 2000 ms. Error: click followed by an error within 2000 ms. In addition to the clicks | Draft #510 `[P10]` |"
+ },
+ {
+  "id": "SIG-36",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "- **SIG-36** One tap MUST produce one event: `app.widget.click` when the target is known, otherwise `app.screen.click`."
+ },
+ {
+  "id": "SIG-37",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "- **SIG-37** Mobile coordinates MUST be absolute screen pixels. RN MUST scale density-independent points to pixels."
+ },
+ {
+  "id": "SIG-38",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "- **SIG-38** A click or tap MUST NOT start a trace. Joins use `session.id` and time."
+ },
+ {
+  "id": "SIG-39",
+  "section": "6.4 Interactions",
+  "level": "MUST",
+  "text": "- **SIG-39** Element text MUST NOT be captured."
+ },
+ {
+  "id": "SIG-14",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-14** | Page load count | Web | Event `browser.navigation` | OTel: `url.full`, `browser.navigation.same_document`, `.hash_change`; `.type` as the convention requires | | As early as possible at document start | Dev client, High |"
+ },
+ {
+  "id": "SIG-15",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-15** | Page load span | Web | Span `documentLoad`, after the fact | `url.full` | Server trace link (**PRP-5**) | After `load`, from `fetchStart` to `loadEventEnd`. No children, no span events. None if the user leaves first | Draft PR #504 `[P2]` `[OPEN D2]` |"
+ },
+ {
+  "id": "SIG-16",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-16** | Navigation timing | Web | Event `browser.navigation_timing` | OTel: `url.full` and the `browser.navigation_timing.*` milestones | | After `load` | Dev client, High |"
+ },
+ {
+  "id": "SIG-17",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-17** | Resource timing | Web | Event `browser.resource_timing` | OTel: `browser.resource_timing.*` timings | | One per resource. Timestamp MUST be resource start. *Default* off until Step 5 prices it | Dev client, High |"
+ },
+ {
+  "id": "SIG-18",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-18** | Soft navigation | Web | Event `browser.navigation` with `same_document=true`, `hash_change=false` | As SIG-14 | | On History API navigation. Hash-only changes off by default | Dev client `[P11]` |"
+ },
+ {
+  "id": "SIG-19",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-19** | Screen view | Mobile, RN | Event `app.navigation.complete` | `app.navigation.destination.name` (route pattern, never filled arguments), `app.screen.name` | `app.screen.id` | When a screen becomes current | SDK only `[P12]` |"
+ },
+ {
+  "id": "SIG-20",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-20** | Foreground and background | Mobile | Event `device.app.lifecycle` | OTel: `ios.app.state` or `android.app.state` | | On each transition | Dev core, High |"
+ },
+ {
+  "id": "SIG-21",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "| **SIG-21** | Fetch, XHR, native HTTP | All | Span, kind CLIENT, named by method | Stable HTTP client attributes | `ouo.span.abandoned` `[P18]` | Per request, one trace each | Stable, High |"
+ },
+ {
+  "id": "SIG-40",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "- **SIG-40** The SDK's own export requests MUST NOT be instrumented."
+ },
+ {
+  "id": "SIG-41",
+  "section": "6.5 Navigation and network",
+  "level": "MUST",
+  "text": "- **SIG-41** No trace may span a session or multiple page views. The `documentLoad` span is the only record joined to the server trace of the page load."
+ },
+ {
+  "id": "SIG-22",
+  "section": "6.6 Sessions and identity",
+  "level": "MUST",
+  "text": "| **SIG-22** | Session start | All | Event `session.start` | `session.id`; `session.previous_id` per **SES-4**; `ouo.session.sample_rate` | | **SES-4** | Dev core, High |"
+ },
+ {
+  "id": "SIG-23",
+  "section": "6.6 Sessions and identity",
+  "level": "MUST",
+  "text": "| **SIG-23** | Session end | All | Event `session.end` | `session.id` | `ouo.session.end_reason` | **SES-7** | Dev core, High |"
+ },
+ {
+  "id": "SIG-24",
+  "section": "6.6 Sessions and identity",
+  "level": "MUST",
+  "text": "| **SIG-24** | Session id | All | Attribute `session.id` | | | Every record | Dev core, High |"
+ },
+ {
+  "id": "SIG-25",
+  "section": "6.6 Sessions and identity",
+  "level": "MUST",
+  "text": "| **SIG-25** | View id | All | Attribute `ouo.view.id` | | | Every record | Draft #84 `[P13]` `[OPEN D5]` |"
+ },
+ {
+  "id": "SIG-26",
+  "section": "6.7 Replay",
+  "level": "MUST",
+  "text": "| **SIG-26** | Replay chunk | All | Event `ouo.replay.chunk` | [Section 11.3](#113-chunk-record) | **RPL-10** | None `[P16]` |"
+ },
+ {
+  "id": "SIG-27",
+  "section": "6.7 Replay",
+  "level": "MUST",
+  "text": "| **SIG-27** | Replay ended | All | Event `ouo.replay.ended` | [Section 11.5](#115-end-of-stream) | **RPL-20** | None `[P16]` |"
+ },
+ {
+  "id": "SIG-42",
+  "section": "6.8 React Native boundaries",
+  "level": "MUST",
+  "text": "- **SIG-42** RN MUST have one session, one queue and one exporter, owned by native. JS records MUST cross the bridge rather than export on their own."
+ },
+ {
+  "id": "SIG-43",
+  "section": "6.8 React Native boundaries",
+  "level": "MUST",
+  "text": "- **SIG-43** A request carrying a `traceparent` set by JS MUST NOT produce a second span from native HTTP instrumentation."
+ },
+ {
+  "id": "SIG-44",
+  "section": "6.8 React Native boundaries",
+  "level": "MUST",
+  "text": "- **SIG-44** A JS fatal MUST be emitted as `exception` at FATAL. A native crash below it is a separate `app.crash`."
+ },
+ {
+  "id": "SIG-45",
+  "section": "6.8 React Native boundaries",
+  "level": "MUST",
+  "text": "- **SIG-45** Bridge failure MUST NOT crash either side. If native is missing, the JS layer MUST be a no-op."
+ },
+ {
+  "id": "RES-0",
+  "section": "7.1 Resource",
+  "level": "MUST",
+  "text": "- **RES-0** The resource MUST carry the attributes marked MUST in this table, for that platform."
+ },
+ {
+  "id": "RES-1",
+  "section": "7.1 Resource",
+  "level": "MUST",
+  "text": "- **RES-1** The resource MUST contain only low-cardinality identity fixed for the SDK's lifetime."
+ },
+ {
+  "id": "RES-2",
+  "section": "7.1 Resource",
+  "level": "MUST",
+  "text": "- **RES-2** `service.instance.id`, `app.installation.id` and `device.id` MUST NOT be on the resource. `device.id` MUST NOT be sent at all unless configured. `[OPEN D4]`"
+ },
+ {
+  "id": "RES-3",
+  "section": "7.1 Resource",
+  "level": "MUST",
+  "text": "- **RES-3** `session.id`, `ouo.view.id`, `app.screen.name`, `browser.document.url.full` and `enduser.*` MUST NOT be on the resource."
+ },
+ {
+  "id": "RES-4",
+  "section": "7.1 Resource",
+  "level": "MUST",
+  "text": "- **RES-4** The SDK MUST NOT depend on OTel entities until the entity spec is stable. `[P17]`"
+ },
+ {
+  "id": "PRP-1",
+  "section": "7.2 `traceparent`",
+  "level": "MUST",
+  "text": "- **PRP-1** The SDK MUST use W3C Trace Context on instrumented requests whose URL matches `propagation.urls`. Trace ids MUST be random."
+ },
+ {
+  "id": "PRP-2",
+  "section": "7.2 `traceparent`",
+  "level": "MUST",
+  "text": "- **PRP-2** Web MUST inject cross-origin only on an explicit match, since the server must allow the header in CORS."
+ },
+ {
+  "id": "PRP-3",
+  "section": "7.2 `traceparent`",
+  "level": "MUST",
+  "text": "- **PRP-3** The SDK MUST NOT inject if the request already has `traceparent`."
+ },
+ {
+  "id": "PRP-4",
+  "section": "7.2 `traceparent`",
+  "level": "MUST",
+  "text": "- **PRP-4** The sampled flag MUST reflect the session's decision (**SMP-4**)."
+ },
+ {
+  "id": "PRP-5",
+  "section": "7.2 `traceparent`",
+  "level": "MUST",
+  "text": "- **PRP-5** Web SHOULD read `<meta name=\"traceparent\">` and use it as the parent of `documentLoad` only. It MUST NOT apply it to any other record. `[OPEN D2]`"
+ },
+ {
+  "id": "PRP-6",
+  "section": "7.3 `session.id` to backends",
+  "level": "MUST",
+  "text": "- **PRP-6** When `propagation.sessionBaggage` is true, the SDK MUST send W3C `baggage: session.id=<id>`, only to URLs that receive trace headers, with the same value as the record attribute. It MUST be off by default. `[OPEN D4]` `[P14]`"
+ },
+ {
+  "id": "TRN-1",
+  "section": "8.1 Encoding and batching",
+  "level": "MUST",
+  "text": "- **TRN-1** Export MUST be OTLP/HTTP as defined by OTLP v1.11.1. Replay chunks MUST use binary protobuf, to avoid the 4/3 base64 cost."
+ },
+ {
+  "id": "TRN-2",
+  "section": "8.1 Encoding and batching",
+  "level": "SHOULD",
+  "text": "- **TRN-2** Non-replay requests SHOULD be gzipped. Where compression is asynchronous and cannot finish during page teardown, the unload flush MAY be uncompressed and counts uncompressed against **TRN-16**."
+ },
+ {
+  "id": "TRN-3",
+  "section": "8.1 Encoding and batching",
+  "level": "MUST",
+  "text": "- **TRN-3** Telemetry and replay MUST have separate queues and separate export tasks. Replay failure, backlog or size MUST NOT delay telemetry."
+ },
+ {
+  "id": "TRN-4",
+  "section": "8.1 Encoding and batching",
+  "level": "MUST",
+  "text": "- **TRN-4** A request MUST NOT exceed `maxRequestBytes` or `maxBatchRecords`. An empty request MUST NOT be sent."
+ },
+ {
+  "id": "TRN-5",
+  "section": "8.1 Encoding and batching",
+  "level": "MUST",
+  "text": "- **TRN-5** Each replay chunk MUST be sent as its own request, so a partial-success count identifies the chunk without ambiguity."
+ },
+ {
+  "id": "TRN-6",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-6** Retries MUST follow that table."
+ },
+ {
+  "id": "TRN-7",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-7** Backoff MUST be exponential with full jitter, from `retry.initialMs` to `retry.maxMs`."
+ },
+ {
+  "id": "TRN-8",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-8** `Retry-After` MUST be honoured, capped at `retry.maxMs`."
+ },
+ {
+  "id": "TRN-9",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-9** An in-memory batch MUST be retried until the queue limit forces eviction, then dropped and counted."
+ },
+ {
+  "id": "TRN-10",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-10** Retries MUST reuse the original payload. Delivery is at-least-once, so duplicates are expected. Identity for de-duplication is `(ouo.replay.id, ouo.replay.stream.id, ouo.replay.sequence)` for chunks, `span_id` for spans, `app.crash.id` for crashes, `browser.web_vital.id` for vitals."
+ },
+ {
+  "id": "TRN-11",
+  "section": "8.2 Responses and retries",
+  "level": "MUST",
+  "text": "- **TRN-11** When the export queue is full, the SDK MUST evict the oldest non-bypass records first and count each."
+ },
+ {
+  "id": "TRN-12",
+  "section": "8.3 Durable acceptance and deletion",
+  "level": "MUST",
+  "text": "- **TRN-12** Data is **durably accepted** only when the configured endpoint answers 2xx with no rejected records. A persisted record MUST NOT be deleted before then, except for the reasons in **TRN-13**."
+ },
+ {
+  "id": "TRN-13",
+  "section": "8.3 Durable acceptance and deletion",
+  "level": "MUST",
+  "text": "- **TRN-13** A persisted record MAY be deleted early only for: a non-retryable response; expiry of `persist.ttlHours`; storage cap reached; consent withdrawal; an app-initiated clear; or corrupt data. Each except consent and clear MUST be counted."
+ },
+ {
+  "id": "TRN-14",
+  "section": "8.3 Durable acceptance and deletion",
+  "level": "MUST",
+  "text": "- **TRN-14** Under the storage cap, eviction MUST run oldest-first in this order: replay chunks, then ordinary telemetry, then bypass-set records."
+ },
+ {
+  "id": "TRN-20",
+  "section": "8.4 Offline persistence",
+  "level": "MUST",
+  "text": "- **TRN-20** Data MUST be persisted as this table requires."
+ },
+ {
+  "id": "TRN-15",
+  "section": "8.4 Offline persistence",
+  "level": "MUST",
+  "text": "- **TRN-15** Persistence MUST NOT run on the main thread on mobile. On the web it MUST be asynchronous. Persistence failure MUST degrade to memory-only and be counted."
+ },
+ {
+  "id": "TRN-16",
+  "section": "8.5 Page-unload budget (web)",
+  "level": "MUST",
+  "text": "- **TRN-16** Unload flushes MUST use `fetch` with `keepalive` and keep all in-flight keepalive bytes at or under 60 KiB (the platform limit is 64 KiB across all requests). Telemetry goes first. A replay chunk is sent only if it fits in what remains. Chunks that do not fit stay persisted."
+ },
+ {
+  "id": "TRN-17",
+  "section": "8.5 Page-unload budget (web)",
+  "level": "MUST",
+  "text": "- **TRN-17** `sendBeacon` MAY be used as a fallback, and MUST NOT carry credentials in the URL."
+ },
+ {
+  "id": "TRN-18",
+  "section": "8.5 Page-unload budget (web)",
+  "level": "MUST",
+  "text": "- **TRN-18** A persisted replay chunk from a closed page MUST be sent by a later page of the same origin. A page claims a closed stream through a Web Lock, so only one page drains it."
+ },
+ {
+  "id": "TRN-19",
+  "section": "8.5 Page-unload budget (web)",
+  "level": "MUST",
+  "text": "- **TRN-19** Because a keepalive response may never be observed, a chunk sent at unload MUST stay persisted until a later page confirms acceptance by resend. Muninn de-duplicates by chunk identity."
+ },
+ {
+  "id": "SMP-1",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-1** Sampling MUST be decided once per session, at session start, and persisted with the session. `[P15]`"
+ },
+ {
+  "id": "SMP-2",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-2** The decision MUST be deterministic from `session.id`: sampled when the first 8 hex characters, read as an unsigned 32-bit integer, divided by 2^32, is below `sampling.sessionRate`. All tabs, and JS and native in RN, then agree."
+ },
+ {
+  "id": "SMP-3",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-3** An unsampled session MUST emit only the bypass set. `session.start` itself MUST NOT be emitted. `ouo.session.sample_rate` on `session.start` lets consumers scale counts."
+ },
+ {
+  "id": "SMP-4",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-4** Spans in a sampled session MUST have the sampled flag set. Requests in an unsampled session MUST still propagate `traceparent`, with the flag clear."
+ },
+ {
+  "id": "SMP-5",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-5** The bypass set MUST be: `app.crash`, `device.anr`, `ouo.app.hang`, and `exception` with `ouo.exception.handled=false`."
+ },
+ {
+  "id": "SMP-6",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-6** Bypass records from an unsampled session MUST carry `ouo.sampling.bypass=true`, and consumers MUST exclude them from rates and session health, whose denominator is sampled sessions only. Without this exclusion, those rates would be biased upward."
+ },
+ {
+  "id": "SMP-7",
+  "section": "9. Sampling",
+  "level": "MUST",
+  "text": "- **SMP-7** At most `sampling.bypass.perSessionCap` bypass records MUST be sent per unsampled session. Crashes MUST NOT be capped, as there is at most one per session."
+ },
+ {
+  "id": "SMP-8",
+  "section": "9.1 Replay sampling and buffer-on-error",
+  "level": "MUST",
+  "text": "- **SMP-8** Replay sampling MUST use the second 8 hex characters of `session.id`, by the same method as **SMP-2**, so it is independent of the session decision."
+ },
+ {
+  "id": "SMP-9",
+  "section": "9.1 Replay sampling and buffer-on-error",
+  "level": "MUST",
+  "text": "- **SMP-9** Replay MUST run only in sampled sessions. To keep replays for rare errors, set `sessionRate` to 1.0 and use a low replay rate."
+ },
+ {
+  "id": "SMP-10",
+  "section": "9.1 Replay sampling and buffer-on-error",
+  "level": "MUST",
+  "text": "- **SMP-10** In `buffer` mode, the SDK MUST hold at least the last `replay.bufferSeconds` (*default* 60) in a ring that always retains the keyframe needed to decode it. Evicting whole segments is the only permitted eviction."
+ },
+ {
+  "id": "SMP-11",
+  "section": "9.1 Replay sampling and buffer-on-error",
+  "level": "MUST",
+  "text": "- **SMP-11** Web MUST keep the ring in memory only, so nothing that was never triggered reaches disk. Mobile MAY persist the ring so a crash can trigger upload on next launch, and if it does it MUST discard unused rings at next launch."
+ },
+ {
+  "id": "SMP-12",
+  "section": "9.1 Replay sampling and buffer-on-error",
+  "level": "MUST",
+  "text": "- **SMP-12** A trigger is any bypass-set record or `replay.capture()`. The buffer MUST then be flushed and recording MUST continue as in `session` mode until the session ends, with `ouo.replay.mode=buffer` and `ouo.replay.trigger` set."
+ },
+ {
+  "id": "PRV-1",
+  "section": "10.1 Consent",
+  "level": "MUST",
+  "text": "- **PRV-1** When `consent.required` is true, the SDK MUST start with consent pending. While pending it MUST NOT send anything, MUST NOT write to persistent storage, and MUST NOT start replay."
+ },
+ {
+  "id": "PRV-2",
+  "section": "10.1 Consent",
+  "level": "MUST",
+  "text": "- **PRV-2** Records created while pending MAY be held in a bounded memory buffer. On grant they MUST be processed normally. On denial they MUST be discarded."
+ },
+ {
+  "id": "PRV-3",
+  "section": "10.1 Consent",
+  "level": "MUST",
+  "text": "- **PRV-3** Telemetry and replay consent MUST be separate. Replay MUST require replay consent."
+ },
+ {
+  "id": "PRV-4",
+  "section": "10.1 Consent",
+  "level": "MUST",
+  "text": "- **PRV-4** On withdrawal, the SDK MUST stop capture of that category, emit nothing further for it, delete unsent persisted data for it, and clear the persisted session. A later grant MUST start a new session without `session.previous_id`."
+ },
+ {
+  "id": "PRV-5",
+  "section": "10.2 Masking",
+  "level": "MUST",
+  "text": "- **PRV-5** Replay MUST mask by default. Web: all text and all input values masked; images, video and canvas blocked. Mobile: all text and images masked. Masking MUST happen on the device, before any persistence or export."
+ },
+ {
+  "id": "PRV-6",
+  "section": "10.2 Masking",
+  "level": "MUST",
+  "text": "- **PRV-6** Web apps unmask or mask through `data-ouo-unmask` and `data-ouo-mask`. Mask MUST win when both apply. Password, payment and one-time-code fields MUST always be masked and MUST NOT be unmaskable."
+ },
+ {
+  "id": "PRV-7",
+  "section": "10.2 Masking",
+  "level": "MUST",
+  "text": "- **PRV-7** Mobile secure text fields MUST always be masked and MUST NOT be unmaskable."
+ },
+ {
+  "id": "PRV-8",
+  "section": "10.2 Masking",
+  "level": "MUST",
+  "text": "- **PRV-8** If masking fails or the masked state of a frame cannot be established, the frame MUST be dropped, not sent."
+ },
+ {
+  "id": "PRV-9",
+  "section": "10.3 Attributes and URLs",
+  "level": "MUST",
+  "text": "- **PRV-9** Defaults: `browser.tag_name`, sanitised `browser.css_selector` and the sanitised INP target are on. `app.widget.id` is on. `app.widget.name` and the web-vital attribution body are off. Selectors MUST be built from tag names, `nth-of-type`, and ids only, MUST NOT contain attribute values, and MUST omit any id containing a run of 6 or more digits, since such ids are often generated or user-specific."
+ },
+ {
+  "id": "PRV-10",
+  "section": "10.3 Attributes and URLs",
+  "level": "MUST",
+  "text": "- **PRV-10** URLs on `url.full`, `browser.document.url.full`, stack frames and replay MUST be sanitised before persistence: credentials become `REDACTED:REDACTED`; every query value becomes `REDACTED` unless its key is in `privacy.urlQueryAllow`; the fragment is removed unless `privacy.keepUrlFragment`. A `sanitizeUrl` hook then runs. This is stricter than the OTel default, which redacts only listed keys."
+ },
+ {
+  "id": "PRV-11",
+  "section": "10.3 Attributes and URLs",
+  "level": "MUST",
+  "text": "- **PRV-11** Sanitising MUST also cover a query-shaped fragment if fragments are kept."
+ },
+ {
+  "id": "PRV-12",
+  "section": "10.3 Attributes and URLs",
+  "level": "MUST",
+  "text": "- **PRV-12** The SDK MUST NOT capture request or response bodies or headers, apart from those required by the HTTP conventions."
+ },
+ {
+  "id": "PRV-13",
+  "section": "10.3 Attributes and URLs",
+  "level": "MUST",
+  "text": "- **PRV-13** `enduser.id` and `enduser.pseudo.id` MUST be sent only after `setUser`. The SDK MUST NOT collect IP address, location, advertising id or contacts."
+ },
+ {
+  "id": "PRV-14",
+  "section": "10.3 Attributes and URLs",
+  "level": "informative",
+  "text": "- **PRV-14** `exception.message` and `.stacktrace` pass through `beforeSend`. Apps with sensitive messages are expected to use it."
+ },
+ {
+  "id": "RPL-1",
+  "section": "11.1 Hierarchy",
+  "level": "MUST",
+  "text": "- **RPL-1** Every chunk MUST carry all identity attributes in [section 11.3](#113-chunk-record)."
+ },
+ {
+  "id": "RPL-2",
+  "section": "11.1 Hierarchy",
+  "level": "MUST",
+  "text": "- **RPL-2** A chunk is an OTLP log record, with bytes as its body when sent to the Collector. `[OPEN D3]` `[P16]`"
+ },
+ {
+  "id": "RPL-3",
+  "section": "11.1 Hierarchy",
+  "level": "MUST",
+  "text": "- **RPL-3** Chunks and end records MUST use scope `ouo.replay`, so the Collector can route them to a separate pipeline."
+ },
+ {
+  "id": "RPL-4",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-4** `ouo.replay.sequence` MUST start at 0 in each stream and rise by exactly 1 per chunk. It MUST NOT reset at a segment boundary, and retransmission MUST reuse the same value and the same bytes."
+ },
+ {
+  "id": "RPL-5",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-5** A stream MUST map to exactly one tab, window, scene or process lifetime."
+ },
+ {
+  "id": "RPL-6",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-6** The first chunk of a segment MUST have `ouo.replay.keyframe=true`, and it MUST start with a keyframe that makes the segment decodable with no earlier data. A keyframe MAY span chunks."
+ },
+ {
+  "id": "RPL-7",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-7** The concatenation of a segment's decompressed chunk bodies, in sequence order, MUST be a valid payload of `ouo.replay.format`. Each chunk body MUST be independently decompressible."
+ },
+ {
+  "id": "RPL-8",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-8** After any gap in capture or local loss, the SDK MUST start a new segment with a keyframe before sending more."
+ },
+ {
+  "id": "RPL-9",
+  "section": "11.2 Segments and chunks",
+  "level": "SHOULD",
+  "text": "- **RPL-9** A new keyframe and segment SHOULD begin at least every `replay.keyframeIntervalMs` (*default* 300 000), and on a change of tab visibility or foreground."
+ },
+ {
+  "id": "RPL-10",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-10** A chunk MUST be closed at the earliest of: `replay.chunkMaxBytes` (*default* 256 KiB compressed; hard limit 1 MiB), `replay.chunkMaxMs` (*default* 5000), stream end, or page hide or background."
+ },
+ {
+  "id": "RPL-11",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-11** Chunk bodies MUST NOT exceed the hard limit, and a larger chunk MUST be split, never truncated."
+ },
+ {
+  "id": "RPL-12",
+  "section": "11.2 Segments and chunks",
+  "level": "MUST",
+  "text": "- **RPL-12** `ouo.replay.sha256` MUST be the lowercase hex SHA-256 of the exact body bytes as sent, after compression."
+ },
+ {
+  "id": "RPL-13",
+  "section": "11.3 Chunk record",
+  "level": "MUST",
+  "text": "- **RPL-13** Attributes marked MUST in that table MUST be present on every chunk."
+ },
+ {
+  "id": "RPL-14",
+  "section": "11.3 Chunk record",
+  "level": "MUST",
+  "text": "- **RPL-14** An SDK MUST NOT set `ouo.replay.ref`."
+ },
+ {
+  "id": "RPL-15",
+  "section": "11.4 Delivery",
+  "level": "MUST",
+  "text": "- **RPL-15** A chunk MUST be persisted before its first send where storage is available (web: IndexedDB; mobile: disk)."
+ },
+ {
+  "id": "RPL-16",
+  "section": "11.4 Delivery",
+  "level": "MUST",
+  "text": "- **RPL-16** Chunks of one stream SHOULD be sent in sequence order. Receivers MUST NOT assume arrival order."
+ },
+ {
+  "id": "RPL-17",
+  "section": "11.4 Delivery",
+  "level": "MUST",
+  "text": "- **RPL-17** A backlog MUST drop or evict whole chunks from the oldest segment. It MUST mark the stream partial (**RPL-21**) and MUST NOT silently renumber."
+ },
+ {
+  "id": "RPL-18",
+  "section": "11.4 Delivery",
+  "level": "MUST",
+  "text": "- **RPL-18** Replay capture MUST stop, and the stream MUST be marked partial, if the replay queue and store are full and cannot accept more."
+ },
+ {
+  "id": "RPL-19",
+  "section": "11.4 Delivery",
+  "level": "MUST",
+  "text": "- **RPL-19** Replay capture MUST NOT run in a session where replay was not sampled or consented."
+ },
+ {
+  "id": "RPL-26",
+  "section": "11.5 End of stream",
+  "level": "MUST",
+  "text": "- **RPL-26** Every `ouo.replay.ended` record MUST carry the attributes marked MUST in this table."
+ },
+ {
+  "id": "RPL-20",
+  "section": "11.5 End of stream",
+  "level": "MUST",
+  "text": "- **RPL-20** An SDK MUST emit `ouo.replay.ended` when a stream ends normally. A killed process cannot emit it, so on next launch the SDK MUST emit it for streams left open, with `end_state=partial`."
+ },
+ {
+  "id": "RPL-21",
+  "section": "11.5 End of stream",
+  "level": "MUST",
+  "text": "- **RPL-21** `end_state=complete` MUST mean only that chunks 0 to `last_sequence` were all produced and none is known to have been lost or rejected. The SDK cannot see the whole path, so this is a claim about the client."
+ },
+ {
+  "id": "RPL-22",
+  "section": "11.5 End of stream",
+  "level": "MUST",
+  "text": "- **RPL-22** The store MUST compute final completeness by comparing the chunks it holds with `last_sequence`. A stream with no end record MUST be treated as partial after an idle period."
+ },
+ {
+  "id": "RPL-27",
+  "section": "11.6 Format is pluggable",
+  "level": "MUST",
+  "text": "- **RPL-27** Every format adapter MUST provide the capabilities in this table."
+ },
+ {
+  "id": "RPL-23",
+  "section": "11.6 Format is pluggable",
+  "level": "MUST",
+  "text": "- **RPL-23** The hierarchy, identity, chunk attributes, delivery and end rules MUST NOT depend on the format."
+ },
+ {
+  "id": "RPL-24",
+  "section": "11.6 Format is pluggable",
+  "level": "MUST",
+  "text": "- **RPL-24** Readers MUST choose a decoder by `ouo.replay.format`, and MUST treat an unknown format as stored-but-undecodable, not as an error."
+ },
+ {
+  "id": "RPL-25",
+  "section": "11.6 Format is pluggable",
+  "level": "MAY",
+  "text": "- **RPL-25** A video format MAY make each chunk a self-contained segment. Its rules are the same."
+ },
+ {
+  "id": "ERR-1",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-1** The SDK MUST NOT crash, hang or throw into the host app. Every callback, patched function, observer and handler MUST catch its own errors."
+ },
+ {
+  "id": "ERR-2",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-2** Patched platform functions (`fetch`, `XMLHttpRequest`, history methods, delegates, interceptors) MUST preserve the original's behaviour, return values, errors and timing semantics."
+ },
+ {
+  "id": "ERR-3",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-3** Global error and crash handlers MUST chain to any previous handler and MUST NOT swallow the error."
+ },
+ {
+  "id": "ERR-4",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-4** The SDK MUST NOT do synchronous disk or network I/O on the UI thread. Web MUST NOT use synchronous XHR."
+ },
+ {
+  "id": "ERR-5",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-5** Instrumentation and exporters MUST NOT re-enter themselves."
+ },
+ {
+  "id": "ERR-6",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-6** After `diagnostics.selfDisableThreshold` (*default* 20) internal errors in one process lifetime, the SDK MUST stop capture and act as a no-op. Crash reporting MAY continue."
+ },
+ {
+  "id": "ERR-7",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-7** The SDK MUST count every record it drops, by signal and reason. It MUST report counts as event `ouo.sdk.dropped` with `ouo.sdk.drop.reason`, `ouo.sdk.drop.signal` and `ouo.sdk.drop.count`, at most once per flush interval. Drop events MUST NOT count as drops themselves or cause more drop events."
+ },
+ {
+  "id": "ERR-8",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-8** Diagnostics MUST go to the platform console only when `debug` is on. They MUST NOT include record payloads."
+ },
+ {
+  "id": "ERR-9",
+  "section": "12. Error handling",
+  "level": "MUST",
+  "text": "- **ERR-9** All internal buffers MUST be bounded."
+ },
+ {
+  "id": "OVH-1",
+  "section": "13. Overhead budgets",
+  "level": "MUST",
+  "text": "- **OVH-1** Once filled in, each budget MUST be measured on the reference app in CI, and an exceeded budget MUST fail conformance."
+ },
+ {
+  "id": "VER-1",
+  "section": "15. Versioning and absorbing change",
+  "level": "MUST",
+  "text": "- **VER-1** This spec MUST use semantic versioning. MAJOR: a change incompatible with deployed SDKs or consumers. MINOR: a new signal or capability. PATCH: clarification."
+ },
+ {
+  "id": "VER-2",
+  "section": "15. Versioning and absorbing change",
+  "level": "MUST",
+  "text": "- **VER-2** Each SDK release MUST state the spec version it implements."
+ },
+ {
+  "id": "VER-3",
+  "section": "15.1 When OTel changes a name",
+  "level": "MUST",
+  "text": "- **VER-3** Every scope MUST set `schema_url` to the version whose names it emits. For this draft, `https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev`, which is pinned to core 1.45.0. `[P19]`"
+ },
+ {
+  "id": "VER-4",
+  "section": "15.1 When OTel changes a name",
+  "level": "MUST",
+  "text": "- **VER-4** An SDK release MUST NOT be needed to absorb a rename. The Collector maps old names to new by `schema_url`, for as long as the old SDK versions are in the field. SDKs adopt the new name at their next regular release, with a new `schema_url`."
+ },
+ {
+  "id": "VER-5",
+  "section": "15.1 When OTel changes a name",
+  "level": "MUST",
+  "text": "- **VER-5** A rename MUST NOT change a signal's type in the Collector table. An event becoming a span, or the reverse, is a MAJOR spec change."
+ }
+]
