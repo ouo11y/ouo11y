@@ -27,5 +27,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [rum-semconv](rum-semconv/) | Step 2 of the post-MVP plan: `project/kb/opentelemetry/rum-semantic-conventions/`, on RUM conventions, predictions, and which signals are events or spans | post-MVP step 2 |
 | [sdk-spec](sdk-spec/) | Step 3 of the post-MVP plan: the draft SDK spec, `project/kb/opentelemetry/rum-semantic-conventions/sdk-spec.md` | post-MVP step 3 |
 | [sdk-features](sdk-features/) | Step 4 of the post-MVP plan: `project/kb/client-sdk-features/`, the feature catalog, vendor comparison, target list and spec gaps | post-MVP step 4 |
+| [vendor-research](vendor-research/) | Step 6 of the post-MVP plan: `project/kb/vendor-internals/`, Sentry, Datadog and PostHog internals (SDKs, wire formats, storage, read APIs) and the capture demos | post-MVP step 6 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.
