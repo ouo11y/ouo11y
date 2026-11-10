@@ -2,7 +2,7 @@
 
 ## What was done
 
-- Collected 45 incidents where a monitoring or analytics SDK hurt its host app (Meta's 2020 iOS SDK crashes, Sentry, Firebase, Datadog, New Relic, PostHog, rrweb, OpenTelemetry JS, Application Insights, storage quota cases, token leaks), 14 vendor and platform guidance pages, and 13 of ouo's own faults from `project/kb-archive/`, git history and the code. `project/kb/client-sdk-safety/incidents/`.
+- Collected 43 incidents where a monitoring or analytics SDK hurt its host app (Meta's 2020 iOS SDK crashes, Sentry, Firebase, Datadog, New Relic, PostHog, rrweb, OpenTelemetry JS, Application Insights, storage quota cases, token leaks), 14 vendor and platform guidance pages, and 13 of ouo's own faults from `project/kb-archive/`, git history and the code. `project/kb/client-sdk-safety/incidents/`.
 - Wrote the 61-item checklist in 15 categories, each item with an id, a MUST rule, the motivating incident, platforms and an automated test. `checklist/golden-rule-checklist.md`.
 - Graded web, React Native, iOS and Android with `file:line` evidence. `grades/current-sdks.md`.
 - Proposed how the rule enters the SDK spec and the fix order. `spec-proposal/step-7-proposal.md`. The spec itself is untouched.

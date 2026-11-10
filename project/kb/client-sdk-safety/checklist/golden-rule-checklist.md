@@ -14,7 +14,7 @@ Every ouo SDK (web, React Native, iOS, Android, later Flutter) is checked agains
 
 | Id | MUST | Motivated by | Platforms | Automated test |
 |---|---|---|---|---|
-| GR-CRASH-1 | No public API call (init, setUser, track, shutdown, every other method) MUST throw, reject or crash, whatever its arguments. It returns or logs instead | INC-1, INC-2, GUIDE-1 | all | Fuzz every public method with null, wrong types, huge strings, NaN, called before init and after shutdown; the test app must stay alive and nothing reaches its error handler |
+| GR-CRASH-1 | A public API call (init, setUser, track, shutdown, every other method) MUST NOT throw, reject or crash, whatever its arguments. It returns or logs instead | INC-1, INC-2, GUIDE-1 | all | Fuzz every public method with null, wrong types, huge strings, NaN, called before init and after shutdown; the test app must stay alive and nothing reaches its error handler |
 | GR-CRASH-2 | Every callback the SDK runs (observers, timers, listeners, native delegates, background threads, executors, workers) MUST catch everything it raises, including from third-party code it hosts (rrweb, OTel instrumentations) | OUO-1, OUO-8, OUO-11, INC-29 | all | Fault-inject a throw in each callback; assert no uncaught error, no process death, and an `ouo.sdk.internal_error` count |
 | GR-CRASH-3 | A background thread the SDK owns MUST NOT let an exception reach the process's uncaught handler. On JVM, every `Runnable` body is wrapped; on Apple, no `try!`, `fatalError`, force unwrap or `preconditionFailure` outside tests | OUO-1, INC-15, INC-17 | iOS, And, RN, Fl | Lint rule (detekt / SwiftLint / grep) on SDK sources; fault-inject in each executor and assert the app's default handler is not called |
 | GR-CRASH-4 | Async SDK work MUST NOT produce an unhandled promise rejection or unobserved task error in the host | OUO-7 | W, RN, Fl | Block the lazy chunk (CSP, offline, 404) and fault-inject each async path; assert no `unhandledrejection` reaches the page |
@@ -26,9 +26,9 @@ Every ouo SDK (web, React Native, iOS, Android, later Flutter) is checked agains
 
 | Id | MUST | Motivated by | Platforms | Automated test |
 |---|---|---|---|---|
-| GR-MAIN-1 | No synchronous disk I/O, network I/O, database open, or lock wait on the UI thread, including at init | INC-13, INC-14, GUIDE-11, GUIDE-12 | all | Android StrictMode (`detectDiskReads/Writes/Network`, penaltyDeath) in the test app; iOS Main Thread Checker plus a hang probe; web long-task observer with a seeded slow IndexedDB |
-| GR-MAIN-2 | No single SDK task on the UI thread MAY exceed the budget in spec §13 (*proposed* 16 ms web, 8 ms mobile) | OUO-10, INC-10 | all | Trace the reference app; fail on any SDK-attributed long task or hang above budget |
-| GR-MAIN-3 | The SDK MUST NOT block the UI thread waiting on a background thread (no `sync` dispatch to or from main, no join) | INC-11, INC-12 | iOS, And, RN | Static check for `DispatchQueue.main.sync` / `runBlocking` on main; hang probe under a stalled exporter |
+| GR-MAIN-1 | The SDK MUST NOT do synchronous disk I/O, network I/O, database open, or lock wait on the UI thread, including at init | INC-13, INC-14, GUIDE-11, GUIDE-12 | all | Android StrictMode (`detectDiskReads/Writes/Network`, penaltyDeath) in the test app; iOS Main Thread Checker plus a hang probe; web long-task observer with a seeded slow IndexedDB |
+| GR-MAIN-2 | The SDK MUST NOT run a single task on the UI thread that exceeds the budget in spec §13 (*proposed* 16 ms web, 8 ms mobile) | OUO-10, INC-10 | all | Trace the reference app; fail on any SDK-attributed long task or hang above budget |
+| GR-MAIN-3 | The SDK MUST NOT block the UI thread waiting on a background thread (no `sync` dispatch to or from main, no join) | INC-11 | iOS, And, RN | Static check for `DispatchQueue.main.sync` / `runBlocking` on main; hang probe under a stalled exporter |
 | GR-MAIN-4 | Large work (replay full snapshot, compression, serialisation) MUST run off the UI thread, or in slices that yield | OUO-9, OUO-10, INC-31 | all | 50k-node page / deep view tree; assert no long task above GR-MAIN-2's budget from the SDK |
 | GR-MAIN-5 | Web MUST NOT use synchronous XHR, `unload` listeners, or work in `pagehide` beyond queueing a `sendBeacon`/`keepalive` | INC-40, GUIDE-14 | W | Grep for `open(..., false)` and `'unload'`; bfcache test in Chrome (page restored from bfcache with the SDK on) |
 
@@ -38,7 +38,7 @@ Every ouo SDK (web, React Native, iOS, Android, later Flutter) is checked agains
 |---|---|---|---|---|
 | GR-CPU-1 | High-frequency sources (mousemove, scroll, mutations, frames, sensors) MUST be sampled or throttled with a documented cap | INC-31, INC-9 | all | Synthetic storm (10k mutations/s, continuous scroll); SDK CPU stays within the spec §13 budget |
 | GR-CPU-2 | Replay MUST measure its own cost and back off or stop when it exceeds its budget for a sustained period | INC-8 | all with replay | Force a mutation storm; assert replay degrades to a lower rate or stops and emits a drop count |
-| GR-CPU-3 | No busy loop or unbounded retry of a failing internal operation | INC-32 | all | Fault-inject a permanently failing operation; CPU of the SDK thread stays idle-level after 60 s |
+| GR-CPU-3 | The SDK MUST NOT run a busy loop or unbounded retry of a failing internal operation | INC-32 | all | Fault-inject a permanently failing operation; CPU of the SDK thread stays idle-level after 60 s |
 
 ## 4. Memory
 
@@ -77,7 +77,7 @@ Every ouo SDK (web, React Native, iOS, Android, later Flutter) is checked agains
 
 | Id | MUST | Motivated by | Platforms | Automated test |
 |---|---|---|---|---|
-| GR-START-1 | Init on the UI thread MUST stay within the spec §13 init budget; everything else is deferred | INC-10, INC-12, INC-22 | all | Cold-start trace of the reference app with and without the SDK; diff within budget |
+| GR-START-1 | Init on the UI thread MUST stay within the spec §13 init budget; everything else is deferred | INC-10 | all | Cold-start trace of the reference app with and without the SDK; diff within budget |
 | GR-START-2 | Heavy optional parts (replay, rrweb) MUST load lazily and the app MUST NOT wait for them | GUIDE-13, OUO-7 | all | Bundle analysis shows replay in a separate chunk; the app is interactive before it loads |
 | GR-START-3 | Init MUST NOT depend on the network: no fetch of remote config blocks startup, and a slow or failed fetch keeps the last known or default config | INC-18, INC-1 | all | Start in airplane mode and with a 30 s-stalled endpoint; app starts in normal time |
 
@@ -134,7 +134,7 @@ Every ouo SDK (web, React Native, iOS, Android, later Flutter) is checked agains
 | GR-CFG-1 | Invalid config MUST NOT throw. Out-of-range numbers are clamped to range, wrong types fall back to the default, and each fix is logged once in debug | OUO-1, INC-1 | all | Table test of every option with below-range, above-range, NaN, wrong type, null; init returns and the effective config is clamped |
 | GR-CFG-2 | Missing endpoint or token MUST make the SDK a no-op, not throw | GUIDE-2 | all | Init with no token; app runs and the SDK reports disabled |
 | GR-CFG-3 | Config values passed to native code (RN → iOS/Android, Flutter → native) MUST be validated on both sides | OUO-1 | RN, Fl | RN test passes `jpegQuality: 500` and `-1` through the bridge; no native crash |
-| GR-CFG-4 | Calling init twice, from two threads, or after shutdown MUST be safe | INC-12 | all | Concurrent init stress test |
+| GR-CFG-4 | Calling init twice, from two threads, or after shutdown MUST be safe | no public incident found; spec ERR-5 | all | Concurrent init stress test |
 | GR-CFG-5 | Unsupported environments (SSR, web workers, app extensions, old OS) MUST degrade to a no-op | GUIDE-2 | all | Run init under Node SSR, in a worker, in an iOS extension; nothing throws |
 
 ## 15. Upgrades

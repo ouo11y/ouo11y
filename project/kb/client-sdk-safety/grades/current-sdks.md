@@ -26,7 +26,7 @@ No SDK has the automated tests the checklist asks for, except the web fault e2e 
 
 The four fails that can hurt a user today, in order:
 
-1. **Android crash on bad `jpegQuality`** (GR-CRASH-3, GR-CFG-1, GR-CFG-3). Reachable from RN, which passes the value through unclamped.
+1. **Android crash on bad `jpegQuality`** (GR-CRASH-3, GR-CFG-1). Only a native Android app can trigger it today: RN does not pass `jpegQuality` to native (`sdk/react-native/src/replay.ts:265-277`).
 2. **Web and RN overwrite an app-set `traceparent`** (GR-HDR-1).
 3. **RN logs 8 characters of the token** (GR-PRIV-1).
 4. **RN drops another SDK's rejection tracker** (GR-HAND-1).
@@ -70,7 +70,7 @@ No SDK has a kill switch or self-disable (GR-KILL-1, -2): a bug that ships canno
 | 11 | **F** | Debug log prints `projectToken.slice(0, 8)` (`sdk/react-native/src/replay.ts:300`; OUO-2) |
 | 12 | P | AsyncStorage outbox (`outbox.ts:57-60`) |
 | 13 | **F** | None (`sdk/react-native/src/types.ts:226` is a content switch, not a kill switch) |
-| 14 | **F** | Missing creds throw; replay `jpegQuality` goes to native unclamped, which crashes Android (OUO-1) |
+| 14 | **F** | Missing creds throw (spec CFG-1 says no-op). RN sends no `jpegQuality` to native (`replay.ts:265-277`), so OUO-1 is not reachable from RN |
 | 15 | Pa | No outbox format version *(sampled)* |
 
 ## iOS (`sdk/ios`)

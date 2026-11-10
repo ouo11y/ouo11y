@@ -2,7 +2,7 @@
 
 | Item | State |
 |---|---|
-| Incident catalog (45 vendor incidents, 13 ouo faults, 14 guidance pages) | done 2026-11-10 |
+| Incident catalog (43 vendor incidents, 13 ouo faults, 14 guidance pages) | done 2026-11-10 |
 | 61-item checklist in 15 categories | done 2026-11-10 |
 | Grades for web, RN, iOS, Android | done 2026-11-10; *(sampled)* verdicts to confirm in Step 7 |
 | Spec proposal for Step 7 | done 2026-11-10 |

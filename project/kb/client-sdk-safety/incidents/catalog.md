@@ -2,7 +2,7 @@
 
 Researched 2026-11-10. Each row has an id (`INC-n` for other vendors, `OUO-n` for our own faults) that the [checklist](../checklist/golden-rule-checklist.md) cites.
 
-**How solid the sources are.** The URLs come from web search results; the pages were not all read in full, so the details are only as reliable as the search snippets. Rows marked *(mirror)* were seen only on a mirror site. For those the link given is the canonical github.com address with the same issue number, rebuilt by hand, so check it before quoting. Lychee runs offline in CI and does not fetch external links.
+**How solid the sources are.** The URLs come from web search results; the pages were not all read in full, so the details are only as reliable as the search snippets. Rows marked *(mirror)* were seen only on a mirror site. For those the link given is the canonical github.com address with the same issue number, rebuilt by hand, so check it before quoting. INC-12 and INC-22 were removed after review: their rebuilt links pointed at different issues. Lychee runs offline in CI and does not fetch external links.
 
 ## Other vendors
 
@@ -19,7 +19,6 @@ Researched 2026-11-10. Each row has an id (`INC-n` for other vendors, `OUO-n` fo
 | INC-9 | 2024 | GitLab (Sentry customer) | Turned Sentry replay and sampling down on about.gitlab.com to save CPU | CPU | web | https://gitlab.com/gitlab-com/marketing/digital-experience/about-gitlab-com/-/merge_requests/3011 |
 | INC-10 | 2025 | sentry-cocoa | Possible launch hang from `_dyld_get_image_header` on the main thread, fixed in 8.56.1 | main thread, startup | iOS | https://newreleases.io/project/github/getsentry/sentry-cocoa/release/8.56.1 |
 | INC-11 | 2026 | sentry-cocoa | Deadlock in the crash handler caused by SDK debug logging; a background call blocked on a main-thread read | crash handler, main thread | iOS | https://newreleases.io/project/github/getsentry/sentry-cocoa/release/9.30.2 |
-| INC-12 | 2024 | sentry-cocoa | Hang during init when a breadcrumb is added from another thread *(mirror)* | startup, main thread | iOS | https://github.com/getsentry/sentry-cocoa/issues/3492 |
 | INC-13 | 2025 | sentry-java | ANRs: system broadcasts handled synchronously on the main thread | ANR | Android | https://github.com/getsentry/sentry-java/issues/4907 |
 | INC-14 | 2025 | sentry-java | ANR from disk access in `getCacheDirPath` on the main thread *(mirror)* | ANR, storage | Android | https://github.com/getsentry/sentry-java/issues/4751 |
 | INC-15 | 2025 | sentry-java | Random crashes after upgrading 8.17 to 8.23; rollback fixed them | crash, upgrade | Android | https://github.com/getsentry/sentry-java/issues/4890 |
@@ -29,7 +28,6 @@ Researched 2026-11-10. Each row has an id (`INC-n` for other vendors, `OUO-n` fo
 | INC-19 | 2020 | sentry-react-native | Release-only Android crashes after adding the SDK | crash | RN, Android | https://github.com/getsentry/sentry-react-native/issues/779 |
 | INC-20 | 2021 | Sentry + Datadog + CodePush | Crash when the three SDKs ran together | handler conflict | RN | https://lightrun.com/answers/getsentry-sentry-react-native-crash-when-using-sentry-datadog--codepush-together |
 | INC-21 | 2019 | Firebase Performance | Crash on password-autofill screens for 0.5% of users; removing the SDK fixed it | crash, swizzling | iOS | https://github.com/firebase/firebase-ios-sdk/issues/2283 |
-| INC-22 | 2019 | Firebase Performance | 3.1.x crashed immediately on start *(mirror)* | crash, startup | iOS | https://github.com/firebase/firebase-ios-sdk/issues/3929 |
 | INC-23 | 2025 | Crashlytics | EXC_GUARD crash on iOS 26 when registering Mach exception handlers *(mirror)* | crash, OS upgrade | iOS | https://github.com/firebase/firebase-ios-sdk/issues/15393 |
 | INC-24 | n/a | New Relic iOS | Vendor documents its agent as incompatible with Firebase *(mirror)* | handler conflict | iOS | https://docs.newrelic.com/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/firebase-incompatibility/ |
 | INC-25 | 2023 | Crashlytics vs Intercom | Two signal handlers; init order decides which one wins and crash reports are lost | handler conflict | iOS | https://community.intercom.com/reporting-21/conflict-between-crashlytics-and-intercom-signal-handlers-in-ios-9328 |
