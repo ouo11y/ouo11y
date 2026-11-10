@@ -47,4 +47,4 @@ Redacted sample responses from self-hosted Sentry 26.10.0, captured 2026-11-10 w
 | [measurements/ingest-latency-runs.json](measurements/ingest-latency-runs.json) | Five runs of the ingest-to-API visibility probe |
 | [measurements/muninn-pull-report.json](measurements/muninn-pull-report.json) | Output of `muninn_pull.py` on a web SDK, a mobile and a synthetic replay |
 | [measurements/routes-26.10.0.json](measurements/routes-26.10.0.json) | 253 relevant API routes dumped from Django's URL resolver: class, `publish_status`, scope maps, rate limits |
-| [measurements/webhook-halted-restricted-ip.log](measurements/webhook-halted-restricted-ip.log) | Taskworker log lines showing webhooks halted with `restricted_ip` |
+| [measurements/webhook-halted-restricted-ip.txt](measurements/webhook-halted-restricted-ip.txt) | Taskworker log lines showing webhooks halted with `restricted_ip` |
