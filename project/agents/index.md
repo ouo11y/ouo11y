@@ -26,5 +26,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [otel-data-models](otel-data-models/) | Step 1 of the post-MVP plan: `project/kb/opentelemetry/`, explaining OTel logs, traces, metrics and OTLP from primary sources | post-MVP step 1 |
 | [rum-semconv](rum-semconv/) | Step 2 of the post-MVP plan: `project/kb/opentelemetry/rum-semantic-conventions/`, on RUM conventions, predictions, and which signals are events or spans | post-MVP step 2 |
 | [sdk-spec](sdk-spec/) | Step 3 of the post-MVP plan: the draft SDK spec, `project/kb/opentelemetry/rum-semantic-conventions/sdk-spec.md` | post-MVP step 3 |
+| [sdk-features](sdk-features/) | Step 4 of the post-MVP plan: `project/kb/client-sdk-features/`, the feature catalog, vendor comparison, target list and spec gaps | post-MVP step 4 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.
