@@ -1,0 +1,83 @@
+{
+ "item_header": {
+  "content_type": "application/vnd.sentry.items.log+json",
+  "type": "log",
+  "item_count": 2,
+  "length": 1192
+ },
+ "payload": {
+  "version": 2,
+  "ingest_settings": {
+   "infer_ip": "never",
+   "infer_user_agent": "never"
+  },
+  "items": [
+   {
+    "timestamp": 1794282748.0396743,
+    "level": "info",
+    "body": "[sentry-demo] rum mode sentry (flag), device 3506ce80",
+    "trace_id": "e4e96684350a4fd2af21ee4aad82ce83",
+    "severity_number": 10,
+    "attributes": {
+     "sentry.origin": {
+      "value": "auto.log.console",
+      "type": "string"
+     },
+     "sentry.release": {
+      "value": "sentry-demo@1.0.0+1",
+      "type": "string"
+     },
+     "sentry.environment": {
+      "value": "development",
+      "type": "string"
+     },
+     "sentry.sdk.name": {
+      "value": "sentry.javascript.react-native",
+      "type": "string"
+     },
+     "sentry.sdk.version": {
+      "value": "8.34.0",
+      "type": "string"
+     },
+     "sentry.timestamp.sequence": {
+      "value": 0,
+      "type": "integer"
+     }
+    }
+   },
+   {
+    "timestamp": 1794282748.0401266,
+    "level": "info",
+    "body": "Running \"main\"",
+    "trace_id": "e4e96684350a4fd2af21ee4aad82ce83",
+    "severity_number": 10,
+    "attributes": {
+     "sentry.origin": {
+      "value": "auto.log.console",
+      "type": "string"
+     },
+     "sentry.release": {
+      "value": "sentry-demo@1.0.0+1",
+      "type": "string"
+     },
+     "sentry.environment": {
+      "value": "development",
+      "type": "string"
+     },
+     "sentry.sdk.name": {
+      "value": "sentry.javascript.react-native",
+      "type": "string"
+     },
+     "sentry.sdk.version": {
+      "value": "8.34.0",
+      "type": "string"
+     },
+     "sentry.timestamp.sequence": {
+      "value": 0,
+      "type": "integer"
+     }
+    }
+   }
+  ]
+ }
+}

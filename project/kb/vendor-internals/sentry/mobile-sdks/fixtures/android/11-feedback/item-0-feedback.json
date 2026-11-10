@@ -1,0 +1,2066 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "feedback",
+  "length": 27829
+ },
+ "payload": {
+  "contexts": {
+   "trace": {
+    "trace_id": "a8f642934bbe4734a4e41b59bc4a6c48",
+    "span_id": "bad2796656a3c3ad"
+   },
+   "device": {
+    "processor_frequency": 0,
+    "boot_time": "2026-11-10T03:46:03.033Z",
+    "screen_height_pixels": 2400,
+    "low_memory": false,
+    "free_storage": 9180549120,
+    "memory_size": 4111405056,
+    "model_id": "AE3A.240806.043",
+    "free_memory": 2608058368,
+    "charging": true,
+    "screen_dpi": 420,
+    "screen_density": 2.625,
+    "connection_type": "wifi",
+    "model": "sdk_gphone64_arm64",
+    "battery_level": 100,
+    "orientation": "portrait",
+    "storage_size": 10411143168,
+    "chipset": "AOSP ranchu",
+    "brand": "google",
+    "timezone": "Africa/Cairo",
+    "id": "a3113c529723466cac6eef793508a734",
+    "locale": "en_US",
+    "battery_temperature": 25,
+    "online": true,
+    "simulator": true,
+    "archs": [
+     "arm64-v8a"
+    ],
+    "family": "sdk_gphone64_arm64",
+    "manufacturer": "Google",
+    "screen_width_pixels": 1080,
+    "processor_count": 4
+   },
+   "os": {
+    "rooted": false,
+    "version": "15",
+    "name": "Android",
+    "build": "sdk_gphone64_arm64-userdebug 15 AE3A.240806.043 12960925 dev-keys",
+    "kernel_version": "6.6.30-android15-8-gdd9c02ccfe27-ab11987101-4k"
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "app": {
+    "view_names": [
+     "Home"
+    ],
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_version": "1.0.0",
+    "is_split_apks": false,
+    "app_start_time": "2026-11-10T03:52:25.653Z",
+    "app_build": "1",
+    "permissions": {
+     "VIBRATE": "granted",
+     "INTERNET": "granted",
+     "ACCESS_NETWORK_STATE": "granted",
+     "SYSTEM_ALERT_WINDOW": "not_granted",
+     "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION": "granted"
+    },
+    "app_name": "sentry-demo",
+    "in_foreground": true
+   },
+   "react_native_context": {
+    "turbo_module": true,
+    "fabric": true,
+    "react_native_version": "0.86.3",
+    "expo": true,
+    "js_engine": "hermes",
+    "hermes_version": "250829098.0.17",
+    "hermes_debug_info": true
+   },
+   "feedback": {
+    "contact_email": "<redacted>",
+    "name": "QA",
+    "message": "The pay button does nothing"
+   },
+   "expo_constants": {
+    "execution_environment": "bare",
+    "session_id": "9cd2ff44-0a3f-4df1-892f-c18c2ae7f00b",
+    "status_bar_height": 48
+   }
+  },
+  "type": "feedback",
+  "level": "info",
+  "tags": {
+   "hermes": "True",
+   "ouo.rum.mode": "sentry",
+   "event.origin": "javascript",
+   "event.environment": "javascript"
+  },
+  "request": {
+   "url": "",
+   "headers": {}
+  },
+  "event_id": "55f701d929684962be0a3495fa2a7737",
+  "timestamp": 1794282834.827,
+  "environment": "development",
+  "release": "sentry-demo@1.0.0+1",
+  "dist": "1",
+  "sdk": {
+   "integrations": [
+    "ReactNativeErrorHandlers",
+    "NativeLinkedErrors",
+    "InboundFilters",
+    "FunctionToString",
+    "Breadcrumbs",
+    "Dedupe",
+    "HttpContext",
+    "Release",
+    "EventOrigin",
+    "SdkInfo",
+    "ReactNativeInfo",
+    "RewriteFrames",
+    "DebugMeta",
+    "DeviceContext",
+    "ModulesLoader",
+    "LogEnricher",
+    "ConsoleLogs",
+    "Screenshot",
+    "ViewHierarchy",
+    "HermesProfiling",
+    "AppStart",
+    "NativeFrames",
+    "StallTracking",
+    "AppRegistry",
+    "ReactNativeTracing",
+    "TimeToDisplay",
+    "HttpClient",
+    "ExpoContext",
+    "ExpoConstants",
+    "ExpoUpdatesListener",
+    "ExpoRouter",
+    "MobileReplay",
+    "PrimitiveTagIntegration",
+    "TurboModuleContext",
+    "ReactNavigation",
+    "ReactNativeProfiler",
+    "TouchEventBoundary"
+   ],
+   "name": "sentry.javascript.react-native",
+   "version": "8.34.0",
+   "packages": [
+    {
+     "version": "8.62.0",
+     "name": "sentry.java.android.react-native"
+    },
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    }
+   ],
+   "settings": {
+    "infer_ip": "never"
+   }
+  },
+  "breadcrumbs": [
+   {
+    "timestamp": 1794282748.039,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] rum mode sentry (flag), device 3506ce80"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] rum mode sentry (flag), device 3506ce80"
+   },
+   {
+    "timestamp": 1794282748.039,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "Running \"main\""
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "Running \"main\""
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "foreground"
+    },
+    "timestamp": 1794282748.212
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "network.event",
+    "data": {
+     "action": "NETWORK_AVAILABLE"
+    },
+    "timestamp": 1794282748.276
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "network.event",
+    "data": {
+     "download_bandwidth": 30000,
+     "network_type": "wifi",
+     "signal_strength": -50,
+     "vpn_active": false,
+     "action": "NETWORK_CAPABILITIES_CHANGED",
+     "upload_bandwidth": 12000
+    },
+    "timestamp": 1794282748.276
+   },
+   {
+    "timestamp": 1794282748.318,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "device.event",
+    "data": {
+     "action": "BATTERY_CHANGED",
+     "charging": true,
+     "level": 100
+    },
+    "timestamp": 1794282749.444
+   },
+   {
+    "timestamp": 1794282749.459,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "83a35439fabfd936",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282750.512,
+    "category": "sentry.transaction",
+    "event_id": "0977511257ba455993d6685c31e173b6",
+    "level": "info",
+    "message": "0977511257ba455993d6685c31e173b6"
+   },
+   {
+    "timestamp": 1794282756.23,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "product-p-1001"
+      },
+      {
+       "name": "View",
+       "label": "product-p-1001"
+      },
+      {
+       "name": "Pressable",
+       "label": "product-p-1001"
+      },
+      {
+       "label": "03:52:28 rum mode sentry (flag), device 3506ce80 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: product-p-1001",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282756.24,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Product",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282756.268,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Product",
+    "data": {
+     "from": "Home",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282756.285,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products/p-1001",
+     "__span": "bbad79a3c28ca1c9",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282757.345,
+    "category": "sentry.transaction",
+    "event_id": "5c7e63f2ce304609b69293ebab42b101",
+    "level": "info",
+    "message": "5c7e63f2ce304609b69293ebab42b101"
+   },
+   {
+    "timestamp": 1794282761.731,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Go to cart"
+      },
+      {
+       "name": "Text",
+       "label": "Go to cart"
+      },
+      {
+       "label": "btn-Go to cart"
+      },
+      {
+       "name": "View",
+       "label": "btn-Go to cart"
+      },
+      {
+       "name": "Pressable",
+       "label": "btn-Go to cart"
+      },
+      {
+       "label": "Go to cart"
+      },
+      {
+       "label": "Trail Runner Shoes $129.00"
+      },
+      {
+       "label": "03:52:28 rum mode sentry (flag), device 3506ce80 Trail Runner Sh..."
+      },
+      {
+       "name": "View",
+       "label": "Trail Runner Shoes $129.00"
+      },
+      {
+       "label": "Trail Runner Shoes $129.00"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Go to cart",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282761.743,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Cart",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Cart"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282761.807,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Cart",
+    "data": {
+     "from": "Product",
+     "to": "Cart"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282762.001,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "9d8e2d847f555823",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282763.599,
+    "category": "sentry.transaction",
+    "event_id": "376171f43cdf4c18b80c7531ff3c5754",
+    "level": "info",
+    "message": "376171f43cdf4c18b80c7531ff3c5754"
+   },
+   {
+    "timestamp": 1794282767.993,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Back to products"
+      },
+      {
+       "name": "Text",
+       "label": "Back to products"
+      },
+      {
+       "label": "btn-Back to products"
+      },
+      {
+       "name": "View",
+       "label": "btn-Back to products"
+      },
+      {
+       "name": "Pressable",
+       "label": "btn-Back to products"
+      },
+      {
+       "label": "Back to products"
+      },
+      {
+       "label": "03:52:28 rum mode sentry (flag), device 3506ce80"
+      },
+      {
+       "name": "View"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Back to products",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282767.994,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched POP_TO_TOP",
+    "data": {
+     "action_type": "POP_TO_TOP"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282768.024,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "from": "Cart",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282773.941,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Fetch products"
+      },
+      {
+       "name": "Text",
+       "label": "Fetch products"
+      },
+      {
+       "label": "action-fetch-ok"
+      },
+      {
+       "name": "View",
+       "label": "action-fetch-ok"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-fetch-ok"
+      },
+      {
+       "label": "action-fetch-ok"
+      },
+      {
+       "name": "View"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Fetch products",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282773.942,
+    "category": "demo.action",
+    "message": "fetch-ok",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282774.059,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "98bf173d3e25ab11",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282774.067,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] fetch-ok: 6 products"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] fetch-ok: 6 products"
+   },
+   {
+    "timestamp": 1794282774.175,
+    "category": "sentry.transaction",
+    "event_id": "855a9e6f39c04894ace0647076c57ae6",
+    "level": "info",
+    "message": "855a9e6f39c04894ace0647076c57ae6"
+   },
+   {
+    "timestamp": 1794282779.142,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Fetch 500"
+      },
+      {
+       "name": "Text",
+       "label": "Fetch 500"
+      },
+      {
+       "label": "action-fetch-500"
+      },
+      {
+       "name": "View",
+       "label": "action-fetch-500"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-fetch-500"
+      },
+      {
+       "label": "action-fetch-500"
+      },
+      {
+       "label": "03:52:28 rum mode sentry (flag), device 3506ce80 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Fetch 500",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282779.142,
+    "category": "demo.action",
+    "message": "fetch-500",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282779.172,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products?fail=500",
+     "__span": "88704c73a20be451",
+     "status_code": 500
+    },
+    "type": "http",
+    "level": "error"
+   },
+   {
+    "timestamp": 1794282779.174,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] fetch-500: HTTP 500 from http://10.0.2.2:4539/api/products?fail=500"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] fetch-500: HTTP 500 from http://10.0.2.2:4539/api/products?fail=500"
+   },
+   {
+    "timestamp": 1794282779.219,
+    "category": "sentry.transaction",
+    "event_id": "4aca890e36df4c6189ff6dc0c4918fff",
+    "level": "info",
+    "message": "4aca890e36df4c6189ff6dc0c4918fff"
+   },
+   {
+    "timestamp": 1794282783.626,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Slow fetch (2.5 s)"
+      },
+      {
+       "name": "Text",
+       "label": "Slow fetch (2.5 s)"
+      },
+      {
+       "label": "action-fetch-slow"
+      },
+      {
+       "name": "View",
+       "label": "action-fetch-slow"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-fetch-slow"
+      },
+      {
+       "label": "action-fetch-slow"
+      },
+      {
+       "label": "03:52:59 fetch-500: HTTP 500 from http://10.0.2.2:4539/api/produ..."
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Slow fetch (2.5 s)",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282783.627,
+    "category": "demo.action",
+    "message": "fetch-slow",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282786.206,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products?delay=2500",
+     "__span": "a7b2b320fd067977",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282786.216,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] fetch-slow: 6 products"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] fetch-slow: 6 products"
+   },
+   {
+    "timestamp": 1794282786.314,
+    "category": "sentry.transaction",
+    "event_id": "4b6b8c903b0a45fab3b5fa5311bfa78e",
+    "level": "info",
+    "message": "4b6b8c903b0a45fab3b5fa5311bfa78e"
+   },
+   {
+    "timestamp": 1794282791.644,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Cart via XMLHttpRequest (axios path)"
+      },
+      {
+       "name": "Text",
+       "label": "Cart via XMLHttpRequest (axios path)"
+      },
+      {
+       "label": "action-xhr-cart"
+      },
+      {
+       "name": "View",
+       "label": "action-xhr-cart"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-xhr-cart"
+      },
+      {
+       "label": "action-xhr-cart"
+      },
+      {
+       "label": "03:52:59 fetch-500: HTTP 500 from http://10.0.2.2:4539/api/produ..."
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Cart via XMLHttpRequest (axios path)",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282791.644,
+    "category": "demo.action",
+    "message": "xhr-cart",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282792.208,
+    "category": "xhr",
+    "data": {
+     "start_timestamp": 1794282791673.476,
+     "end_timestamp": 1794282792208,
+     "response_body_size": 65,
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282792.21,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] xhr-cart: 0 lines"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] xhr-cart: 0 lines"
+   },
+   {
+    "timestamp": 1794282792.28,
+    "category": "sentry.transaction",
+    "event_id": "2ac20db567784478bb12b290ba368a3b",
+    "level": "info",
+    "message": "2ac20db567784478bb12b290ba368a3b"
+   },
+   {
+    "timestamp": 1794282796.014,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Browse catalog (5 requests)"
+      },
+      {
+       "name": "Text",
+       "label": "Browse catalog (5 requests)"
+      },
+      {
+       "label": "action-browse-catalog"
+      },
+      {
+       "name": "View",
+       "label": "action-browse-catalog"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-browse-catalog"
+      },
+      {
+       "label": "action-browse-catalog"
+      },
+      {
+       "label": "03:53:12 xhr-cart: 0 lines Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Browse catalog (5 requests)",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282796.015,
+    "category": "demo.action",
+    "message": "browse-catalog",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.067,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "a541760f70bc8003",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.125,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products/p-1001",
+     "__span": "a6b6757cd208674c",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.635,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products/p-1003",
+     "__span": "86ded71301c19260",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.635,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products/p-1004",
+     "__span": "9364407e0e2fae21",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.636,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products/p-1002",
+     "__span": "b13dd709ff096896",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282796.679,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] browse-catalog: 6 products, 4 details"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] browse-catalog: 6 products, 4 details"
+   },
+   {
+    "timestamp": 1794282796.711,
+    "category": "sentry.transaction",
+    "event_id": "600b6f3106504cbf988dc2fabe8ed495",
+    "level": "info",
+    "message": "600b6f3106504cbf988dc2fabe8ed495"
+   },
+   {
+    "timestamp": 1794282801.325,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Search (slow backend)"
+      },
+      {
+       "name": "Text",
+       "label": "Search (slow backend)"
+      },
+      {
+       "label": "action-search"
+      },
+      {
+       "name": "View",
+       "label": "action-search"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-search"
+      },
+      {
+       "label": "action-search"
+      },
+      {
+       "label": "03:53:12 xhr-cart: 0 lines Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Search (slow backend)",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282801.325,
+    "category": "demo.action",
+    "message": "search",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282801.967,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products?delay=600",
+     "__span": "93156307184a8f91",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282801.995,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] search lamp: 1 hits"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] search lamp: 1 hits"
+   },
+   {
+    "timestamp": 1794282802.02,
+    "category": "sentry.transaction",
+    "event_id": "b56b6a9df725416e883e14045dc91259",
+    "level": "info",
+    "message": "b56b6a9df725416e883e14045dc91259"
+   },
+   {
+    "timestamp": 1794282806.86,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Checkout"
+      },
+      {
+       "name": "Text",
+       "label": "Checkout"
+      },
+      {
+       "label": "action-checkout"
+      },
+      {
+       "name": "View",
+       "label": "action-checkout"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-checkout"
+      },
+      {
+       "label": "action-checkout"
+      },
+      {
+       "label": "03:53:21 search lamp: 1 hits Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Checkout",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282806.86,
+    "category": "demo.action",
+    "message": "checkout",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282806.907,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "b5d1d37608d791f4",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282806.92,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "9ac7f78703715613",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282806.96,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "806512e126419250",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282806.976,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "9edf846b0f86b92e",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282806.998,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/checkout",
+     "__span": "b3f14d0abbf4aabf",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282807,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout: order ord-000001"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] checkout: order ord-000001"
+   },
+   {
+    "timestamp": 1794282807.035,
+    "category": "sentry.transaction",
+    "event_id": "7f742e50d6154cfcaea35fb55ae44c5e",
+    "level": "info",
+    "message": "7f742e50d6154cfcaea35fb55ae44c5e"
+   },
+   {
+    "timestamp": 1794282812.411,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Checkout, card declined (500)"
+      },
+      {
+       "name": "Text",
+       "label": "Checkout, card declined (500)"
+      },
+      {
+       "label": "action-checkout-fail"
+      },
+      {
+       "name": "View",
+       "label": "action-checkout-fail"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-checkout-fail"
+      },
+      {
+       "label": "action-checkout-fail"
+      },
+      {
+       "label": "03:53:27 checkout: order ord-000001 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Checkout, card declined (500)",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282812.412,
+    "category": "demo.action",
+    "message": "checkout-fail",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282812.484,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "b3c89f6d0620f835",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282812.557,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "a8d9d93ce54ff599",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282812.574,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "8feae5479505708d",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282812.699,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/cart",
+     "__span": "a381182164bbeb8c",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282812.749,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://10.0.2.2:4539/api/checkout",
+     "__span": "b04cbd97d66c9f6b",
+     "status_code": 500
+    },
+    "type": "http",
+    "level": "error"
+   },
+   {
+    "timestamp": 1794282812.75,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout-fail: HTTP 500 from http://10.0.2.2:4539/api/checkout"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] checkout-fail: HTTP 500 from http://10.0.2.2:4539/api/checkout"
+   },
+   {
+    "timestamp": 1794282812.816,
+    "category": "sentry.transaction",
+    "event_id": "b825a77fff5f4d5d95ddcd0df600587e",
+    "level": "info",
+    "message": "b825a77fff5f4d5d95ddcd0df600587e"
+   },
+   {
+    "timestamp": 1794282817.875,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Products",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282822.061,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Handled error"
+      },
+      {
+       "name": "Text",
+       "label": "Handled error"
+      },
+      {
+       "label": "action-handled-error"
+      },
+      {
+       "name": "View",
+       "label": "action-handled-error"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-handled-error"
+      },
+      {
+       "label": "action-handled-error"
+      },
+      {
+       "label": "03:53:27 checkout: order ord-000001 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Handled error",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282822.074,
+    "category": "demo.action",
+    "message": "handled-error",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282822.081,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] handled-error: event a22bd860"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] handled-error: event a22bd860"
+   },
+   {
+    "timestamp": 1794282822.439,
+    "category": "sentry.event",
+    "event_id": "a22bd860292649549627e98cf3a86c4b",
+    "level": "error",
+    "message": "Error: sentry-demo handled error: coupon service unavailable"
+   },
+   {
+    "timestamp": 1794282826.374,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Breadcrumb + message"
+      },
+      {
+       "name": "Text",
+       "label": "Breadcrumb + message"
+      },
+      {
+       "label": "action-message"
+      },
+      {
+       "name": "View",
+       "label": "action-message"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-message"
+      },
+      {
+       "label": "action-message"
+      },
+      {
+       "label": "03:53:42 handled-error: event a22bd860 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Breadcrumb + message",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282826.375,
+    "category": "demo.action",
+    "message": "message",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282826.375,
+    "category": "demo",
+    "message": "user opened the promo sheet",
+    "level": "info",
+    "data": {
+     "promo": "AUTUMN"
+    }
+   },
+   {
+    "timestamp": 1794282826.378,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] message: event 8caf5e1b"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] message: event 8caf5e1b"
+   },
+   {
+    "timestamp": 1794282826.698,
+    "category": "sentry.event",
+    "event_id": "8caf5e1bc35149d18ece2e646cf0bed0",
+    "level": "info",
+    "message": "sentry-demo custom message: promo sheet opened"
+   },
+   {
+    "timestamp": 1794282830.624,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Unhandled rejection"
+      },
+      {
+       "name": "Text",
+       "label": "Unhandled rejection"
+      },
+      {
+       "label": "action-unhandled-rejection"
+      },
+      {
+       "name": "View",
+       "label": "action-unhandled-rejection"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-unhandled-rejection"
+      },
+      {
+       "label": "action-unhandled-rejection"
+      },
+      {
+       "label": "03:53:46 message: event 8caf5e1b Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Unhandled rejection",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282830.624,
+    "category": "demo.action",
+    "message": "unhandled-rejection",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794282830.624,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] unhandled-rejection: rejected a promise"
+     ],
+     "logger": "console"
+    },
+    "level": "log",
+    "message": "[sentry-demo] unhandled-rejection: rejected a promise"
+   },
+   {
+    "timestamp": 1794282832.785,
+    "category": "sentry.event",
+    "event_id": "a7f2f92337fe458f8b0e23e2270d51d0",
+    "level": "error",
+    "message": "Error: sentry-demo unhandled promise rejection"
+   },
+   {
+    "timestamp": 1794282834.823,
+    "category": "touch",
+    "data": {
+     "path": [
+      {
+       "label": "Error + user feedback"
+      },
+      {
+       "name": "Text",
+       "label": "Error + user feedback"
+      },
+      {
+       "label": "action-feedback"
+      },
+      {
+       "name": "View",
+       "label": "action-feedback"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-feedback"
+      },
+      {
+       "label": "action-feedback"
+      },
+      {
+       "label": "03:53:50 unhandled-rejection: rejected a promise Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "level": "info",
+    "message": "Touch event within element: Error + user feedback",
+    "type": "user"
+   },
+   {
+    "timestamp": 1794282834.824,
+    "category": "demo.action",
+    "message": "feedback",
+    "level": "info"
+   }
+  ],
+  "platform": "javascript",
+  "user": {
+   "id": "a3113c529723466cac6eef793508a734"
+  },
+  "fingerprint": [],
+  "modules": {}
+ }
+}

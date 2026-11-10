@@ -1,0 +1,39 @@
+{
+ "request": {
+  "seq": 40,
+  "time": "2026-11-10T03:53:43.244209Z",
+  "method": "POST",
+  "path": "/api/7/envelope/",
+  "raw_query": "",
+  "header": {
+   "Accept": [
+    "application/json"
+   ],
+   "Accept-Encoding": [
+    "gzip"
+   ],
+   "Content-Encoding": [
+    "gzip"
+   ],
+   "Content-Length": [
+    "26674"
+   ],
+   "Content-Type": [
+    "application/x-sentry-envelope"
+   ],
+   "User-Agent": [
+    "sentry.java.android.react-native/8.62.0"
+   ],
+   "X-Sentry-Auth": [
+    "Sentry sentry_version=7,sentry_client=sentry.java.android.react-native/8.62.0,sentry_key=<redacted>"
+   ]
+  },
+  "body_len": 26674,
+  "body_sha256": "471c01442140130fdd17573d184a99146cce591945c0279b06415370646c394b"
+ },
+ "response": {
+  "status": 200,
+  "body": "{\"id\":\"a22bd860292649549627e98cf3a86c4b\"}",
+  "duration_ms": 20.418
+ }
+}

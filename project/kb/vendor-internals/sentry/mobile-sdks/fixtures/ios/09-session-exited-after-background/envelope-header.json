@@ -1,0 +1,36 @@
+{
+ "sent_at": "2026-11-10T07:19:01.081Z",
+ "sdk": {
+  "features": [
+   "dataSwizzling",
+   "experimentalViewRenderer",
+   "viewHierarchy",
+   "metrics"
+  ],
+  "settings": {
+   "infer_ip": "never"
+  },
+  "packages": [
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   }
+  ],
+  "name": "sentry.cocoa.react-native",
+  "version": "9.33.0",
+  "integrations": [
+   "Metrics",
+   "SessionReplay",
+   "AutoSessionTracking",
+   "Screenshot",
+   "WatchdogTerminationTracking",
+   "ANRTracking",
+   "AutoBreadcrumbTracking",
+   "ViewHierarchy",
+   "AppStartTracking",
+   "FramesTracking",
+   "NetworkTracking",
+   "Crash"
+  ]
+ }
+}

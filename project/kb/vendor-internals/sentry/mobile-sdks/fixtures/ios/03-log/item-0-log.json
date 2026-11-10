@@ -1,0 +1,152 @@
+{
+ "item_header": {
+  "content_type": "application/vnd.sentry.items.log+json",
+  "item_count": 3,
+  "type": "log",
+  "length": 2256
+ },
+ "payload": {
+  "version": 2,
+  "ingest_settings": {
+   "infer_ip": "never",
+   "infer_user_agent": "never"
+  },
+  "items": [
+   {
+    "timestamp": 1794295011.891,
+    "level": "info",
+    "body": "[sentry-demo] rum mode sentry (flag), device 7e137208",
+    "trace_id": "71d956ce5d9044b49c98ca426be2ccbf",
+    "severity_number": 10,
+    "attributes": {
+     "sentry.origin": {
+      "value": "auto.log.console",
+      "type": "string"
+     },
+     "sentry.release": {
+      "value": "sentry-demo@1.0.0+1",
+      "type": "string"
+     },
+     "sentry.environment": {
+      "value": "development",
+      "type": "string"
+     },
+     "sentry.sdk.name": {
+      "value": "sentry.javascript.react-native",
+      "type": "string"
+     },
+     "sentry.sdk.version": {
+      "value": "8.34.0",
+      "type": "string"
+     },
+     "sentry.timestamp.sequence": {
+      "value": 0,
+      "type": "integer"
+     }
+    }
+   },
+   {
+    "timestamp": 1794295012.001,
+    "level": "info",
+    "body": "Running \"main\"",
+    "trace_id": "71d956ce5d9044b49c98ca426be2ccbf",
+    "severity_number": 10,
+    "attributes": {
+     "sentry.origin": {
+      "value": "auto.log.console",
+      "type": "string"
+     },
+     "sentry.release": {
+      "value": "sentry-demo@1.0.0+1",
+      "type": "string"
+     },
+     "sentry.environment": {
+      "value": "development",
+      "type": "string"
+     },
+     "sentry.sdk.name": {
+      "value": "sentry.javascript.react-native",
+      "type": "string"
+     },
+     "sentry.sdk.version": {
+      "value": "8.34.0",
+      "type": "string"
+     },
+     "sentry.timestamp.sequence": {
+      "value": 0,
+      "type": "integer"
+     }
+    }
+   },
+   {
+    "timestamp": 1794295016.625,
+    "level": "info",
+    "body": "viewed product Trail Runner Shoes",
+    "trace_id": "a92439d4b6ef4c6ab583d5cd3e431cce",
+    "severity_number": 9,
+    "attributes": {
+     "product.id": {
+      "value": "p-1001",
+      "type": "string"
+     },
+     "product.price": {
+      "value": 129,
+      "type": "integer"
+     },
+     "sentry.release": {
+      "value": "sentry-demo@1.0.0+1",
+      "type": "string"
+     },
+     "sentry.environment": {
+      "value": "development",
+      "type": "string"
+     },
+     "sentry.sdk.name": {
+      "value": "sentry.javascript.react-native",
+      "type": "string"
+     },
+     "sentry.sdk.version": {
+      "value": "8.34.0",
+      "type": "string"
+     },
+     "sentry.message.template": {
+      "value": "viewed product %s",
+      "type": "string"
+     },
+     "sentry.message.parameter.0": {
+      "value": "Trail Runner Shoes",
+      "type": "string"
+     },
+     "sentry.trace.parent_span_id": {
+      "value": "ad81fe8501cf1545",
+      "type": "string"
+     },
+     "device.model": {
+      "value": "iPhone19,2",
+      "type": "string"
+     },
+     "device.family": {
+      "value": "iOS",
+      "type": "string"
+     },
+     "os.name": {
+      "value": "iOS",
+      "type": "string"
+     },
+     "os.version": {
+      "value": "27.0",
+      "type": "string"
+     },
+     "sentry.replay_id": {
+      "value": "1f83973a53684417b81ff592390b41a2",
+      "type": "string"
+     },
+     "sentry.timestamp.sequence": {
+      "value": 0,
+      "type": "integer"
+     }
+    }
+   }
+  ]
+ }
+}

@@ -20,6 +20,9 @@ import type { ExpoConfig } from "expo/config";
  *                        (default `sentry`).
  *   ouo exports to OUO_OTLP_ENDPOINT and OUO_REPLAY_ENDPOINT (default the isolated ouo-sb
  *   collector: 4338 and 4339).
+ *   SENTRY_CAPTURE_ALL=1  attachScreenshot, attachViewHierarchy, profilesSampleRate 1,
+ *                enableCaptureFailedRequests (Step 6 wire captures). SENTRY_REPLAY_MASK=default keeps
+ *                Sentry's default replay masking (all text, images, vectors).
  *   OUO_PERF=1   overhead measurement build (scripts/perf): a JS frame monitor writes
  *                Documents/perf.json, and Documents/perf-mode.json overrides the rollout mode per
  *                launch (the flag is then not evaluated).
@@ -55,12 +58,16 @@ const config: ExpoConfig = {
       NSAppTransportSecurity: { NSAllowsArbitraryLoads: true, NSAllowsLocalNetworking: true },
     },
   },
+  // Android build (Step 6 wire captures): scripts/build-android.sh.
+  android: { package: "dev.ouo.sentrydemo", versionCode: Number(buildNumber) },
   web: { favicon: "./assets/favicon.png" },
   plugins: [
     // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet (project/kb-archive/xcode-setup.md).
     "./plugins/withUIScene.js",
     // disableAutoUpload: the build phases must never call sentry-cli / sentry.io.
     ["@sentry/react-native", { disableAutoUpload: true }],
+    // Release builds talk plain http to the local DSN host and backend (10.0.2.2 from the emulator).
+    "./plugins/withAndroidCleartext.js",
   ],
   extra: {
     sentryDsn: process.env.SENTRY_DSN ?? "http://publickey0000000000000000000000@localhost:4400/1",
@@ -80,6 +87,10 @@ const config: ExpoConfig = {
     ouoProjectId: process.env.OUO_PROJECT_ID ?? "demo",
     ouoProjectToken: process.env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     perfModes: process.env.OUO_PERF === "1",
+    // SENTRY_CAPTURE_ALL=1 (Step 6 wire research): screenshots and view hierarchy on errors, Hermes
+    // profiles, failed-request events. SENTRY_REPLAY_MASK=default keeps Sentry's replay masking.
+    sentryCaptureAll: process.env.SENTRY_CAPTURE_ALL === "1",
+    replayMaskDefault: process.env.SENTRY_REPLAY_MASK === "default",
   },
 };
 

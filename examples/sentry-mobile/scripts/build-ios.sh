@@ -60,9 +60,9 @@ fi
 if [[ $CLEAN == 1 || ! -d ios ]]; then
   log "expo prebuild --platform ios ${CLEAN:+(clean=$CLEAN)}"
   if [[ $CLEAN == 1 ]]; then
-    npx expo prebuild --platform ios --clean --no-install
+    ./node_modules/.bin/expo prebuild --platform ios --clean --no-install
   else
-    npx expo prebuild --platform ios --no-install
+    ./node_modules/.bin/expo prebuild --platform ios --no-install
   fi
 fi
 

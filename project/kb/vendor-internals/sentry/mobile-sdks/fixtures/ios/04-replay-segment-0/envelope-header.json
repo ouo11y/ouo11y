@@ -1,0 +1,14 @@
+{
+ "event_id": "1f83973a53684417b81ff592390b41a2",
+ "sdk": {
+  "version": "8.34.0",
+  "name": "sentry.javascript.react-native",
+  "settings": {
+   "infer_ip": "never"
+  },
+  "packages": [],
+  "integrations": [],
+  "features": []
+ },
+ "sent_at": "2026-11-10T07:16:57.425Z"
+}

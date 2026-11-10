@@ -1,0 +1,385 @@
+{
+ "item_header": {
+  "type": "profile",
+  "length": 519638
+ },
+ "payload": {
+  "platform": "javascript",
+  "version": "1",
+  "profile": {
+   "samples": [
+    {
+     "stack_id": 0,
+     "thread_id": "54668123",
+     "elapsed_since_start_ns": "0"
+    },
+    {
+     "stack_id": 0,
+     "thread_id": "54668123",
+     "elapsed_since_start_ns": "15338000"
+    },
+    {
+     "stack_id": 0,
+     "thread_id": "54668123",
+     "elapsed_since_start_ns": "24721000"
+    },
+    {
+     "stack_id": 0,
+     "thread_id": "54668123",
+     "elapsed_since_start_ns": "39722000"
+    },
+    {
+     "stack_id": 0,
+     "thread_id": "54668123",
+     "elapsed_since_start_ns": "53972000"
+    }
+   ],
+   "frames": [
+    {
+     "function": "[root]",
+     "in_app": false
+    },
+    {
+     "function": "",
+     "abs_path": "app:///main.jsbundle",
+     "lineno": 1,
+     "colno": 1857523
+    },
+    {
+     "function": "[Native] "
+    },
+    {
+     "function": "apply",
+     "abs_path": "app:///main.jsbundle",
+     "lineno": 1,
+     "colno": 1520429
+    },
+    {
+     "function": "[Native] reflectApply"
+    }
+   ],
+   "stacks": [
+    [
+     0
+    ],
+    [
+     18,
+     17,
+     16,
+     15,
+     14,
+     13,
+     12,
+     11,
+     10,
+     9,
+     8,
+     7,
+     6,
+     5,
+     4,
+     3,
+     2,
+     1,
+     0
+    ],
+    [],
+    [
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29,
+     30,
+     31,
+     32,
+     33,
+     34,
+     35,
+     36,
+     37,
+     38,
+     39
+    ],
+    [
+     40,
+     41,
+     42,
+     43,
+     44,
+     45,
+     46,
+     47,
+     48,
+     49,
+     50,
+     47,
+     48,
+     51,
+     52,
+     53,
+     54,
+     55,
+     56,
+     57,
+     58,
+     59,
+     60,
+     61,
+     62,
+     62,
+     63,
+     64,
+     65,
+     66,
+     67,
+     68,
+     69,
+     70,
+     71,
+     72,
+     47,
+     73,
+     74,
+     75,
+     76,
+     77,
+     35,
+     78,
+     79,
+     80,
+     81,
+     82,
+     83,
+     84
+    ]
+   ],
+   "thread_metadata": {
+    "259": {
+     "name": "main",
+     "priority": 31
+    },
+    "4867": {},
+    "6147": {},
+    "7427": {
+     "priority": 31
+    },
+    "9987": {},
+    "12811": {
+     "priority": 31
+    },
+    "17155": {
+     "priority": 31
+    },
+    "23043": {
+     "name": "com.facebook.react.runtime.JavaScript",
+     "priority": 31
+    },
+    "26163": {},
+    "26635": {},
+    "30211": {},
+    "31299": {},
+    "32771": {},
+    "34563": {},
+    "34827": {
+     "name": "hermes-sampling-profiler",
+     "priority": 31
+    },
+    "36611": {},
+    "40195": {},
+    "40451": {},
+    "40971": {},
+    "54668123": {
+     "name": "JavaScriptThread",
+     "priority": 1
+    }
+   },
+   "active_thread_id": "54668123",
+   "queue_metadata": {},
+   "samples_truncated_from": 1771,
+   "stacks_truncated_from": 34,
+   "frames_truncated_from": 437
+  },
+  "transaction": {
+   "name": "Home",
+   "id": "5995e611f07546b68368f14078776188",
+   "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+   "active_thread_id": "54668123"
+  },
+  "debug_meta": {
+   "images": [
+    {
+     "code_file": "app:///main.jsbundle",
+     "debug_id": "2772c6ae-bb2a-4cb7-9487-475093a203c5",
+     "type": "sourcemap"
+    },
+    {
+     "image_vmaddr": "0x0000000100000000",
+     "debug_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+     "image_addr": "0x00000001045b8000",
+     "type": "macho",
+     "image_size": 4030464,
+     "code_file": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo"
+    },
+    {
+     "debug_id": "523F7D4F-C938-3DC9-BCD3-160406B6226E",
+     "image_addr": "0x0000000105048000",
+     "type": "macho",
+     "image_size": 16384,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/swift/libswiftDataDetection.dylib"
+    },
+    {
+     "debug_id": "BAC5E730-1188-3390-AB3B-997516FCD57C",
+     "image_addr": "0x000000010505c000",
+     "type": "macho",
+     "image_size": 16384,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/swift/libswiftUIKit.dylib"
+    },
+    {
+     "debug_id": "284A4CD2-A934-3BA7-9277-47F5EF53D245",
+     "image_addr": "0x0000000105068000",
+     "type": "macho",
+     "image_size": 49152,
+     "code_file": "/usr/lib/system/libsystem_platform.dylib"
+    }
+   ],
+   "images__truncated_from": 817
+  },
+  "measurements": {
+   "cpu_usage": {
+    "values": [
+     {
+      "value": 96.9000015258789,
+      "elapsed_since_start_ns": "55417"
+     },
+     {
+      "value": 84.0999984741211,
+      "elapsed_since_start_ns": "148201458"
+     },
+     {
+      "value": 66.4000015258789,
+      "elapsed_since_start_ns": "229225417"
+     },
+     {
+      "value": 67.69999694824219,
+      "elapsed_since_start_ns": "349557625"
+     },
+     {
+      "value": 60.099998474121094,
+      "elapsed_since_start_ns": "449680333"
+     }
+    ],
+    "unit": "percent",
+    "values__truncated_from": 11
+   },
+   "slow_frame_renders": {
+    "values": [
+     {
+      "value": 383343375,
+      "elapsed_since_start_ns": "371879458"
+     },
+     {
+      "value": 17550459,
+      "elapsed_since_start_ns": "389429917"
+     },
+     {
+      "value": 65483083,
+      "elapsed_since_start_ns": "1005258375"
+     },
+     {
+      "value": 17809333,
+      "elapsed_since_start_ns": "1023067708"
+     }
+    ],
+    "unit": "nanosecond"
+   },
+   "cpu_energy_usage": {
+    "values": [
+     {
+      "value": 70657170,
+      "elapsed_since_start_ns": "148219125"
+     },
+     {
+      "value": 10171518,
+      "elapsed_since_start_ns": "229236917"
+     },
+     {
+      "value": 92395492,
+      "elapsed_since_start_ns": "349574583"
+     },
+     {
+      "value": 29294756,
+      "elapsed_since_start_ns": "449689042"
+     },
+     {
+      "value": 1047616,
+      "elapsed_since_start_ns": "549915583"
+     }
+    ],
+    "unit": "nanojoule",
+    "values__truncated_from": 10
+   },
+   "memory_footprint": {
+    "values": [
+     {
+      "value": 37734776,
+      "elapsed_since_start_ns": "66875"
+     },
+     {
+      "value": 40634744,
+      "elapsed_since_start_ns": "148213958"
+     },
+     {
+      "value": 40962496,
+      "elapsed_since_start_ns": "229233250"
+     },
+     {
+      "value": 42830272,
+      "elapsed_since_start_ns": "349568750"
+     },
+     {
+      "value": 43190720,
+      "elapsed_since_start_ns": "449686000"
+     }
+    ],
+    "unit": "byte",
+    "values__truncated_from": 11
+   },
+   "screen_frame_rates": {
+    "values": [
+     {
+      "value": 60,
+      "elapsed_since_start_ns": "371879458"
+     }
+    ],
+    "unit": "hz"
+   }
+  },
+  "event_id": "347245db1e354b97ba7dcc021f704756",
+  "runtime": {
+   "name": "hermes",
+   "version": "250829098.0.17"
+  },
+  "timestamp": "2026-11-10T07:16:52.073Z",
+  "release": "sentry-demo@1.0.0+1",
+  "environment": "development",
+  "os": {
+   "name": "iOS",
+   "version": "27.0",
+   "build_number": "26A434"
+  },
+  "device": {
+   "locale": "en_EG",
+   "model": "iPhone19,2",
+   "manufacturer": "",
+   "architecture": "arm64",
+   "is_emulator": true
+  }
+ }
+}

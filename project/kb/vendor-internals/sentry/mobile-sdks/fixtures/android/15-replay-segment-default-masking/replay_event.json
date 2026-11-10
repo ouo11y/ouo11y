@@ -1,0 +1,137 @@
+{
+ "type": "replay_event",
+ "replay_type": "session",
+ "segment_id": 2,
+ "timestamp": "2026-11-10T07:23:41.336Z",
+ "replay_id": "98d5b61ef6a34a03bdc8a3ea5b8a34d2",
+ "replay_start_timestamp": "2026-11-10T07:23:36.336Z",
+ "urls": [],
+ "error_ids": [],
+ "trace_ids": [
+  "4a0c58ce4ecb4852ae5a8e84bd82e170"
+ ],
+ "segment_names": [],
+ "event_id": "98d5b61ef6a34a03bdc8a3ea5b8a34d2",
+ "contexts": {
+  "app": {
+   "app_identifier": "dev.ouo.sentrydemo",
+   "app_start_time": "2026-11-10T07:23:25.664Z",
+   "app_name": "sentry-demo",
+   "app_version": "1.0.0",
+   "app_build": "1",
+   "permissions": {
+    "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION": "granted",
+    "ACCESS_NETWORK_STATE": "granted",
+    "INTERNET": "granted",
+    "SYSTEM_ALERT_WINDOW": "not_granted",
+    "VIBRATE": "granted"
+   },
+   "in_foreground": true,
+   "view_names": [
+    "Product"
+   ],
+   "is_split_apks": false
+  },
+  "device": {
+   "manufacturer": "Google",
+   "brand": "google",
+   "family": "sdk_gphone64_arm64",
+   "model": "sdk_gphone64_arm64",
+   "model_id": "AE3A.240806.043",
+   "archs": [
+    "arm64-v8a"
+   ],
+   "orientation": "portrait",
+   "simulator": true,
+   "memory_size": 4111405056,
+   "screen_width_pixels": 1080,
+   "screen_height_pixels": 2400,
+   "screen_density": 2.625,
+   "screen_dpi": 420,
+   "boot_time": "2026-11-10T03:46:03.034Z",
+   "timezone": "Africa/Cairo",
+   "id": "a3113c529723466cac6eef793508a734",
+   "locale": "en_US",
+   "processor_count": 4,
+   "processor_frequency": 0.0,
+   "chipset": "AOSP ranchu"
+  },
+  "os": {
+   "name": "Android",
+   "version": "15",
+   "build": "sdk_gphone64_arm64-userdebug 15 AE3A.240806.043 12960925 dev-keys",
+   "kernel_version": "6.6.30-android15-8-gdd9c02ccfe27-ab11987101-4k",
+   "rooted": false
+  },
+  "ota_updates": {
+   "is_enabled": false
+  },
+  "trace": {
+   "trace_id": "4a0c58ce4ecb4852ae5a8e84bd82e170",
+   "span_id": "93a19d709af34f76",
+   "parent_span_id": "9e60e48e03ef516b",
+   "op": "default",
+   "origin": "manual",
+   "data": {
+    "thread.name": "SentryReplayIntegration-0",
+    "thread.id": "8945"
+   }
+  }
+ },
+ "sdk": {
+  "name": "sentry.javascript.react-native",
+  "version": "8.34.0",
+  "packages": [
+   {
+    "name": "maven:io.sentry:sentry",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-core",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-replay",
+    "version": "8.62.0"
+   },
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-ndk",
+    "version": "8.62.0"
+   }
+  ],
+  "integrations": [
+   "ReplayCustomMasking",
+   "Screenshot",
+   "ViewHierarchy",
+   "PerfettoContinuousProfiling",
+   "UncaughtExceptionHandler",
+   "ShutdownHook",
+   "SendCachedEnvelope",
+   "Ndk",
+   "EnvelopeFileObserver",
+   "AppLifecycle",
+   "AnrV2",
+   "ActivityLifecycle",
+   "ActivityBreadcrumbs",
+   "UserInteraction",
+   "AppComponentsBreadcrumbs",
+   "NetworkBreadcrumbs",
+   "Replay",
+   "SystemEventsBreadcrumbs"
+  ]
+ },
+ "tags": {
+  "isSideLoaded": "true"
+ },
+ "release": "sentry-demo@1.0.0+1",
+ "environment": "development",
+ "platform": "java",
+ "user": {
+  "id": "a3113c529723466cac6eef793508a734"
+ },
+ "dist": "1"
+}

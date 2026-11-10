@@ -1,0 +1,421 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "transaction",
+  "length": 7874
+ },
+ "payload": {
+  "contexts": {
+   "trace": {
+    "span_id": "a07ed7cfef2b0952",
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "data": {
+     "sentry.origin": "auto.app.start",
+     "sentry.op": "ui.load",
+     "sentry.source": "component",
+     "sentry.sample_rate": 1,
+     "thread.name": "javascript",
+     "route.name": "Home",
+     "route.key": "Home-WvOutIyz8UXLVBK6fqw3N",
+     "route.has_been_seen": false,
+     "sentry.idle_span_finish_reason": "idleTimeout",
+     "frames.total": 15,
+     "frames.slow": 14,
+     "frames.frozen": 1
+    },
+    "op": "ui.load",
+    "status": "ok",
+    "origin": "auto.app.start"
+   },
+   "device": {
+    "processor_frequency": 0,
+    "boot_time": "2026-11-10T03:46:03.033Z",
+    "screen_height_pixels": 2400,
+    "low_memory": false,
+    "free_storage": 9179590656,
+    "memory_size": 4111405056,
+    "model_id": "AE3A.240806.043",
+    "free_memory": 2622304256,
+    "charging": true,
+    "screen_dpi": 420,
+    "screen_density": 2.625,
+    "connection_type": "wifi",
+    "model": "sdk_gphone64_arm64",
+    "battery_level": 100,
+    "orientation": "portrait",
+    "storage_size": 10411143168,
+    "chipset": "AOSP ranchu",
+    "brand": "google",
+    "timezone": "Africa/Cairo",
+    "id": "a3113c529723466cac6eef793508a734",
+    "locale": "en_US",
+    "battery_temperature": 25,
+    "online": true,
+    "simulator": true,
+    "archs": [
+     "arm64-v8a"
+    ],
+    "family": "sdk_gphone64_arm64",
+    "manufacturer": "Google",
+    "screen_width_pixels": 1080,
+    "processor_count": 4
+   },
+   "os": {
+    "rooted": false,
+    "version": "15",
+    "name": "Android",
+    "build": "sdk_gphone64_arm64-userdebug 15 AE3A.240806.043 12960925 dev-keys",
+    "kernel_version": "6.6.30-android15-8-gdd9c02ccfe27-ab11987101-4k"
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "app": {
+    "view_names": [
+     "Home"
+    ],
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_version": "1.0.0",
+    "is_split_apks": false,
+    "app_start_time": "2026-11-10T03:52:25.653Z",
+    "app_build": "1",
+    "permissions": {
+     "VIBRATE": "granted",
+     "INTERNET": "granted",
+     "ACCESS_NETWORK_STATE": "granted",
+     "SYSTEM_ALERT_WINDOW": "not_granted",
+     "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION": "granted"
+    },
+    "app_name": "sentry-demo",
+    "in_foreground": true
+   },
+   "react_native_context": {
+    "turbo_module": true,
+    "fabric": true,
+    "react_native_version": "0.86.3",
+    "expo": true,
+    "js_engine": "hermes",
+    "hermes_version": "250829098.0.17",
+    "hermes_debug_info": true
+   },
+   "expo_constants": {
+    "execution_environment": "bare",
+    "session_id": "9cd2ff44-0a3f-4df1-892f-c18c2ae7f00b",
+    "status_bar_height": 48
+   }
+  },
+  "spans": [
+   {
+    "data": {
+     "sentry.origin": "auto.navigation.react_navigation",
+     "sentry.op": "navigation.processing",
+     "thread.name": "javascript",
+     "sentry.source": "custom"
+    },
+    "description": "Navigation dispatch to screen Home mounted",
+    "op": "navigation.processing",
+    "parent_span_id": "a07ed7cfef2b0952",
+    "span_id": "b0bcd1566bad5be8",
+    "start_timestamp": 1794282748.1747632,
+    "status": "ok",
+    "timestamp": 1794282748.317723,
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "origin": "auto.navigation.react_navigation"
+   },
+   {
+    "data": {
+     "sentry.origin": "auto.http.browser",
+     "sentry.op": "http.client",
+     "url": "http://10.0.2.2:4539/api/products",
+     "type": "fetch",
+     "http.method": "GET",
+     "thread.name": "javascript",
+     "http.response.status_code": 200,
+     "http.response_content_length": 583,
+     "frames.total": 4,
+     "frames.slow": 3,
+     "frames.frozen": 1
+    },
+    "description": "GET http://10.0.2.2:4539/api/products",
+    "op": "http.client",
+    "parent_span_id": "a07ed7cfef2b0952",
+    "span_id": "83a35439fabfd936",
+    "start_timestamp": 1794282748.398123,
+    "status": "ok",
+    "timestamp": 1794282749.4600697,
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "origin": "auto.http.browser"
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "description": "Cold Start",
+    "start_timestamp": 1794282745.653,
+    "timestamp": 1794282748.1729472,
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "parent_span_id": "a07ed7cfef2b0952",
+    "origin": "auto.app.start",
+    "span_id": "88e657292f3b3edb",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "parent_span_id": "88e657292f3b3edb",
+    "origin": "auto.app.start",
+    "description": "JS Bundle Execution Before React Root",
+    "start_timestamp": 1794282746.4130332,
+    "timestamp": 1794282748.043946,
+    "span_id": "8e9f13355ae35529",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "parent_span_id": "88e657292f3b3edb",
+    "origin": "auto.app.start",
+    "description": "Process Initialization",
+    "start_timestamp": 1794282745.653,
+    "timestamp": 1794282745.735,
+    "span_id": "a3d1c65aed492b6a",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start",
+     "thread.name": "main"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "ui.load.initial_display",
+    "description": "Home initial display",
+    "start_timestamp": 1794282745.653,
+    "timestamp": 1794282748.966,
+    "origin": "auto.ui.time_to_display",
+    "parent_span_id": "a07ed7cfef2b0952",
+    "trace_id": "7138a555973244799409c27eb53f0387",
+    "data": {
+     "sentry.op": "ui.load.initial_display",
+     "sentry.origin": "auto.ui.time_to_display",
+     "thread.name": "javascript"
+    },
+    "span_id": "a1505ecb5d37db63"
+   }
+  ],
+  "start_timestamp": 1794282745.653,
+  "timestamp": 1794282749.4600697,
+  "transaction": "Home",
+  "type": "transaction",
+  "request": {
+   "url": "",
+   "headers": {}
+  },
+  "transaction_info": {
+   "source": "component"
+  },
+  "measurements": {
+   "stall_count": {
+    "value": 5,
+    "unit": "none"
+   },
+   "stall_total_time": {
+    "value": 706.550537109375,
+    "unit": "millisecond"
+   },
+   "stall_longest_time": {
+    "value": 295.559814453125,
+    "unit": "millisecond"
+   },
+   "app_start_cold": {
+    "value": 2519.947265625,
+    "unit": "millisecond"
+   },
+   "frames_total": {
+    "value": 4,
+    "unit": "none"
+   },
+   "frames_frozen": {
+    "value": 1,
+    "unit": "none"
+   },
+   "frames_slow": {
+    "value": 3,
+    "unit": "none"
+   },
+   "time_to_initial_display": {
+    "value": 3312.999963760376,
+    "unit": "millisecond"
+   }
+  },
+  "event_id": "0977511257ba455993d6685c31e173b6",
+  "environment": "development",
+  "release": "sentry-demo@1.0.0+1",
+  "dist": "1",
+  "sdk": {
+   "integrations": [
+    "ReactNativeErrorHandlers",
+    "NativeLinkedErrors",
+    "InboundFilters",
+    "FunctionToString",
+    "Breadcrumbs",
+    "Dedupe",
+    "HttpContext",
+    "Release",
+    "EventOrigin",
+    "SdkInfo",
+    "ReactNativeInfo",
+    "RewriteFrames",
+    "DebugMeta",
+    "DeviceContext",
+    "ModulesLoader",
+    "LogEnricher",
+    "ConsoleLogs",
+    "Screenshot",
+    "ViewHierarchy",
+    "HermesProfiling",
+    "AppStart",
+    "NativeFrames",
+    "StallTracking",
+    "AppRegistry",
+    "ReactNativeTracing",
+    "TimeToDisplay",
+    "HttpClient",
+    "ExpoContext",
+    "ExpoConstants",
+    "ExpoUpdatesListener",
+    "ExpoRouter",
+    "MobileReplay",
+    "PrimitiveTagIntegration",
+    "TurboModuleContext",
+    "ReactNavigation",
+    "ReactNativeProfiler",
+    "TouchEventBoundary"
+   ],
+   "name": "sentry.javascript.react-native",
+   "version": "8.34.0",
+   "packages": [
+    {
+     "version": "8.62.0",
+     "name": "sentry.java.android.react-native"
+    },
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    }
+   ],
+   "settings": {
+    "infer_ip": "never"
+   }
+  },
+  "tags": {
+   "hermes": "True",
+   "ouo.rum.mode": "sentry",
+   "event.origin": "javascript",
+   "event.environment": "javascript"
+  },
+  "breadcrumbs": [
+   {
+    "timestamp": 1794282748.039,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] rum mode sentry (flag), device 3506ce80"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] rum mode sentry (flag), device 3506ce80"
+   },
+   {
+    "timestamp": 1794282748.039,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "Running \"main\""
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "Running \"main\""
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "foreground"
+    },
+    "timestamp": 1794282748.212
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "network.event",
+    "data": {
+     "action": "NETWORK_AVAILABLE"
+    },
+    "timestamp": 1794282748.276
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "network.event",
+    "data": {
+     "download_bandwidth": 30000,
+     "network_type": "wifi",
+     "signal_strength": -50,
+     "vpn_active": false,
+     "action": "NETWORK_CAPABILITIES_CHANGED",
+     "upload_bandwidth": 12000
+    },
+    "timestamp": 1794282748.276
+   },
+   {
+    "timestamp": 1794282748.318,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "type": "system",
+    "level": "info",
+    "category": "device.event",
+    "data": {
+     "action": "BATTERY_CHANGED",
+     "charging": true,
+     "level": 100
+    },
+    "timestamp": 1794282749.444
+   },
+   {
+    "timestamp": 1794282749.459,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://10.0.2.2:4539/api/products",
+     "__span": "83a35439fabfd936",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   }
+  ],
+  "platform": "javascript",
+  "user": {
+   "id": "a3113c529723466cac6eef793508a734"
+  },
+  "fingerprint": [],
+  "modules": {}
+ }
+}

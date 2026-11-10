@@ -1,0 +1,1 @@
+The screenshot and view-hierarchy attachments of this envelope are the same kind as in 05-error-js-handled-screenshot-viewhierarchy and were removed to keep the fixtures small.

@@ -1,0 +1,47 @@
+{
+ "sdk": {
+  "name": "sentry.java.android.react-native",
+  "version": "8.62.0",
+  "packages": [
+   {
+    "name": "maven:io.sentry:sentry",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-core",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-replay",
+    "version": "8.62.0"
+   },
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-ndk",
+    "version": "8.62.0"
+   }
+  ],
+  "integrations": [
+   "ReplayCustomMasking",
+   "Screenshot",
+   "ViewHierarchy",
+   "PerfettoContinuousProfiling",
+   "UncaughtExceptionHandler",
+   "ShutdownHook",
+   "SendCachedEnvelope",
+   "Ndk",
+   "AppLifecycle",
+   "AnrV2",
+   "ActivityLifecycle",
+   "ActivityBreadcrumbs",
+   "UserInteraction",
+   "AppComponentsBreadcrumbs",
+   "NetworkBreadcrumbs",
+   "Replay"
+  ]
+ },
+ "sent_at": "2026-11-10T03:52:28.263Z"
+}

@@ -1,0 +1,21 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "session",
+  "length": 296
+ },
+ "payload": {
+  "sid": "07902ee619b94a55982ba1056ef9217c",
+  "did": "a3113c529723466cac6eef793508a734",
+  "started": "2026-11-10T03:52:28.205Z",
+  "status": "exited",
+  "seq": 1794282822618,
+  "errors": 1,
+  "duration": 74.413,
+  "timestamp": "2026-11-10T03:53:42.618Z",
+  "attrs": {
+   "release": "sentry-demo@1.0.0+1",
+   "environment": "development"
+  }
+ }
+}

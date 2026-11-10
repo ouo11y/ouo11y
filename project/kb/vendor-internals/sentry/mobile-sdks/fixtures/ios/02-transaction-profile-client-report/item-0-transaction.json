@@ -1,0 +1,416 @@
+{
+ "item_header": {
+  "type": "transaction",
+  "length": 8269
+ },
+ "payload": {
+  "contexts": {
+   "trace": {
+    "span_id": "99284456c97c992f",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "data": {
+     "sentry.origin": "auto.app.start",
+     "sentry.op": "ui.load",
+     "sentry.source": "component",
+     "sentry.sample_rate": 1,
+     "thread.name": "javascript",
+     "route.name": "Home",
+     "route.key": "Home-Wv_p2rwIZ_IcQFtQ0YqdL",
+     "route.has_been_seen": false,
+     "sentry.idle_span_finish_reason": "idleTimeout",
+     "frames.total": 41,
+     "frames.slow": 4,
+     "frames.frozen": 0,
+     "frames.delay": 0.06197968334890902
+    },
+    "op": "ui.load",
+    "status": "ok",
+    "origin": "auto.app.start"
+   },
+   "app": {
+    "view_names": [
+     "Home"
+    ],
+    "build_type": "simulator",
+    "app_version": "1.0.0",
+    "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+    "app_start_time": "2026-11-10T07:16:51Z",
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_build": "1",
+    "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+    "app_memory": 43761664,
+    "app_name": "sentrydemo",
+    "in_foreground": true
+   },
+   "os": {
+    "name": "iOS",
+    "build": "26A434",
+    "version": "27.0",
+    "rooted": false,
+    "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142"
+   },
+   "device": {
+    "processor_count": 10,
+    "model_id": "simulator",
+    "screen_height_pixels": 874,
+    "free_memory": 176619520,
+    "family": "iOS",
+    "thermal_state": "nominal",
+    "low_power_mode": false,
+    "screen_width_pixels": 402,
+    "simulator": true,
+    "locale": "en_EG",
+    "connection_type": "wifi",
+    "arch": "arm64",
+    "memory_size": 34359738368,
+    "model": "iPhone19,2",
+    "usable_memory": 20052623360
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "react_native_context": {
+    "turbo_module": true,
+    "fabric": true,
+    "react_native_version": "0.86.3",
+    "expo": true,
+    "js_engine": "hermes",
+    "hermes_version": "250829098.0.17",
+    "hermes_debug_info": true
+   },
+   "expo_constants": {
+    "execution_environment": "bare",
+    "debug_mode": false,
+    "session_id": "D7B1F486-C612-445D-8C8A-015D30CDFF4B",
+    "status_bar_height": 0
+   }
+  },
+  "spans": [
+   {
+    "data": {
+     "sentry.origin": "auto.navigation.react_navigation",
+     "sentry.op": "navigation.processing",
+     "thread.name": "javascript",
+     "sentry.source": "custom"
+    },
+    "description": "Navigation dispatch to screen Home mounted",
+    "op": "navigation.processing",
+    "parent_span_id": "99284456c97c992f",
+    "span_id": "98d1602b09bca11c",
+    "start_timestamp": 1794295012.073,
+    "status": "ok",
+    "timestamp": 1794295012.074,
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "origin": "auto.navigation.react_navigation"
+   },
+   {
+    "data": {
+     "sentry.origin": "auto.http.browser",
+     "sentry.op": "http.client",
+     "url": "http://localhost:4539/api/products",
+     "type": "fetch",
+     "http.method": "GET",
+     "thread.name": "javascript",
+     "http.response.status_code": 200,
+     "http.response_content_length": 583
+    },
+    "description": "GET http://localhost:4539/api/products",
+    "op": "http.client",
+    "parent_span_id": "99284456c97c992f",
+    "span_id": "9e295521f0dc06fe",
+    "start_timestamp": 1794295012.076,
+    "status": "ok",
+    "timestamp": 1794295012.141,
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "origin": "auto.http.browser"
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "description": "Cold Start",
+    "start_timestamp": 1794295007.396472,
+    "timestamp": 1794295012.072,
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "parent_span_id": "99284456c97c992f",
+    "origin": "auto.app.start",
+    "span_id": "b2a54b7daac01fc2",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start",
+     "frames.total": 4,
+     "frames.slow": 2,
+     "frames.frozen": 0
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "parent_span_id": "b2a54b7daac01fc2",
+    "origin": "auto.app.start",
+    "description": "JS Bundle Execution Before React Root",
+    "start_timestamp": 1794295011.7937515,
+    "timestamp": 1794295012.002,
+    "span_id": "b63dd68310427dc1",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "parent_span_id": "b2a54b7daac01fc2",
+    "origin": "auto.app.start",
+    "description": "Pre Runtime Init",
+    "start_timestamp": 1794295007.396472,
+    "timestamp": 1794295011.0332808,
+    "span_id": "b2d88ddaf10040ee",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start",
+     "thread.name": "main"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "parent_span_id": "b2a54b7daac01fc2",
+    "origin": "auto.app.start",
+    "description": "Runtime init to Pre Main initializers",
+    "start_timestamp": 1794295011.0332808,
+    "timestamp": 1794295011.0544,
+    "span_id": "93537216a10bca14",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start",
+     "thread.name": "main"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "app.start.cold",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "parent_span_id": "b2a54b7daac01fc2",
+    "origin": "auto.app.start",
+    "description": "UIKit Init to JS Exec Start",
+    "start_timestamp": 1794295011.0544,
+    "timestamp": 1794295011.7936485,
+    "span_id": "b05dd29eb0479bbe",
+    "data": {
+     "sentry.op": "app.start.cold",
+     "sentry.origin": "auto.app.start",
+     "thread.name": "main"
+    }
+   },
+   {
+    "status": "ok",
+    "op": "ui.load.initial_display",
+    "description": "Home initial display",
+    "start_timestamp": 1794295007.396472,
+    "timestamp": 1794295012.445461,
+    "origin": "auto.ui.time_to_display",
+    "parent_span_id": "99284456c97c992f",
+    "trace_id": "75fee9366fc44ddb95bb7888a1dfd4f1",
+    "data": {
+     "sentry.op": "ui.load.initial_display",
+     "sentry.origin": "auto.ui.time_to_display",
+     "thread.name": "javascript"
+    },
+    "span_id": "a0b0f5ddbb3561ea"
+   }
+  ],
+  "start_timestamp": 1794295007.396472,
+  "timestamp": 1794295012.445461,
+  "transaction": "Home",
+  "type": "transaction",
+  "request": {
+   "url": "",
+   "headers": {}
+  },
+  "transaction_info": {
+   "source": "component"
+  },
+  "measurements": {
+   "stall_count": {
+    "value": 0,
+    "unit": "none"
+   },
+   "stall_total_time": {
+    "value": 0,
+    "unit": "millisecond"
+   },
+   "stall_longest_time": {
+    "value": 0,
+    "unit": "millisecond"
+   },
+   "app_start_cold": {
+    "value": 4675.528076171875,
+    "unit": "millisecond"
+   },
+   "time_to_initial_display": {
+    "value": 5048.989057540894,
+    "unit": "millisecond"
+   }
+  },
+  "event_id": "5995e611f07546b68368f14078776188",
+  "environment": "development",
+  "release": "sentry-demo@1.0.0+1",
+  "dist": "1",
+  "sdk": {
+   "integrations": [
+    "ReactNativeErrorHandlers",
+    "NativeLinkedErrors",
+    "InboundFilters",
+    "FunctionToString",
+    "Breadcrumbs",
+    "Dedupe",
+    "HttpContext",
+    "Release",
+    "EventOrigin",
+    "SdkInfo",
+    "ReactNativeInfo",
+    "RewriteFrames",
+    "DebugMeta",
+    "DeviceContext",
+    "ModulesLoader",
+    "LogEnricher",
+    "ConsoleLogs",
+    "Screenshot",
+    "ViewHierarchy",
+    "HermesProfiling",
+    "AppStart",
+    "NativeFrames",
+    "StallTracking",
+    "AppRegistry",
+    "ReactNativeTracing",
+    "TimeToDisplay",
+    "HttpClient",
+    "ExpoContext",
+    "ExpoConstants",
+    "ExpoUpdatesListener",
+    "ExpoRouter",
+    "MobileReplay",
+    "PrimitiveTagIntegration",
+    "TurboModuleContext",
+    "ReactNavigation",
+    "ReactNativeProfiler",
+    "TouchEventBoundary"
+   ],
+   "name": "sentry.javascript.react-native",
+   "version": "8.34.0",
+   "packages": [
+    {
+     "name": "sentry.cocoa.react-native",
+     "version": "9.33.0"
+    },
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    }
+   ],
+   "settings": {
+    "infer_ip": "never"
+   }
+  },
+  "tags": {
+   "hermes": "True",
+   "ouo.rum.mode": "sentry",
+   "event.origin": "javascript",
+   "event.environment": "javascript"
+  },
+  "breadcrumbs": [
+   {
+    "timestamp": 1794295011.891,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] rum mode sentry (flag), device 7e137208"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] rum mode sentry (flag), device 7e137208"
+   },
+   {
+    "type": "debug",
+    "level": "info",
+    "category": "started",
+    "message": "Breadcrumb Tracking",
+    "timestamp": 1794295011.975
+   },
+   {
+    "timestamp": 1794295012,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "Running \"main\""
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "Running \"main\""
+   },
+   {
+    "timestamp": 1794295012.074,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295012.141,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "9e295521f0dc06fe",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSNavigationController",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "parentViewController": "UIViewController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "window_windowLevel": "0.0",
+     "is_window_rootViewController": "false"
+    },
+    "timestamp": 1794295012.436
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "sentry-demo",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0",
+     "window_isKeyWindow": "true"
+    },
+    "timestamp": 1794295012.439
+   }
+  ],
+  "platform": "javascript",
+  "user": {
+   "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+  },
+  "modules": {}
+ }
+}

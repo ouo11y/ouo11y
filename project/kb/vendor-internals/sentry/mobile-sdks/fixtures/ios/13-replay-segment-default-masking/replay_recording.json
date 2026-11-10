@@ -1,0 +1,220 @@
+{
+ "segment_header": {
+  "segment_id": 2
+ },
+ "events": [
+  {
+   "data": {
+    "height": 874,
+    "width": 402,
+    "href": ""
+   },
+   "timestamp": 1794295564650,
+   "type": 4
+  },
+  {
+   "type": 5,
+   "data": {
+    "payload": {
+     "width": 402,
+     "segmentId": 2,
+     "container": "mp4",
+     "duration": 6000,
+     "frameRate": 1,
+     "encoding": "h264",
+     "left": 0,
+     "timestamp": 1794295564.650614,
+     "size": 16443,
+     "frameRateType": "constant",
+     "frameCount": 6,
+     "height": 874,
+     "top": 0
+    },
+    "tag": "video"
+   },
+   "timestamp": 1794295564650
+  },
+  {
+   "type": 5,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "category": "demo.action",
+     "level": "info",
+     "timestamp": 1794295565.897946,
+     "type": "default",
+     "message": "fetch-ok"
+    }
+   },
+   "timestamp": 1794295565897
+  },
+  {
+   "type": 5,
+   "data": {
+    "payload": {
+     "level": "info",
+     "timestamp": 1794295565.906059,
+     "data": {
+      "status_code": 200,
+      "url": "http://localhost:4539/api/products",
+      "method": "GET",
+      "__span": "8f16598c856a4821"
+     },
+     "category": "fetch",
+     "type": "default"
+    },
+    "tag": "breadcrumb"
+   },
+   "timestamp": 1794295565906
+  },
+  {
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "category": "console",
+     "timestamp": 1794295565.90657,
+     "message": "[sentry-demo] fetch-ok: 6 products",
+     "data": {
+      "logger": "console",
+      "arguments": [
+       "[sentry-demo] fetch-ok: 6 products"
+      ]
+     },
+     "type": "default",
+     "level": "debug"
+    }
+   },
+   "type": 5,
+   "timestamp": 1794295565906
+  },
+  {
+   "type": 5,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "message": "browse-catalog",
+     "timestamp": 1794295568.3979259,
+     "category": "demo.action",
+     "type": "default",
+     "level": "info"
+    }
+   },
+   "timestamp": 1794295568397
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295568405,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "category": "fetch",
+     "type": "default",
+     "level": "info",
+     "timestamp": 1794295568.405116,
+     "data": {
+      "method": "GET",
+      "__span": "be2b4f181bfd4a98",
+      "url": "http://localhost:4539/api/products",
+      "status_code": 200
+     }
+    }
+   }
+  },
+  {
+   "data": {
+    "payload": {
+     "type": "default",
+     "level": "info",
+     "category": "fetch",
+     "timestamp": 1794295568.412562,
+     "data": {
+      "url": "http://localhost:4539/api/products/p-1001",
+      "method": "GET",
+      "__span": "828226552114d74f",
+      "status_code": 200
+     }
+    },
+    "tag": "breadcrumb"
+   },
+   "type": 5,
+   "timestamp": 1794295568412
+  },
+  {
+   "data": {
+    "payload": {
+     "data": {
+      "url": "http://localhost:4539/api/products/p-1002",
+      "method": "GET",
+      "status_code": 200,
+      "__span": "bad89f3cafb2ff39"
+     },
+     "timestamp": 1794295568.4173641,
+     "level": "info",
+     "type": "default",
+     "category": "fetch"
+    },
+    "tag": "breadcrumb"
+   },
+   "type": 5,
+   "timestamp": 1794295568417
+  },
+  {
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "data": {
+      "__span": "bda8d8d1ec790b1f",
+      "method": "GET",
+      "url": "http://localhost:4539/api/products/p-1003",
+      "status_code": 200
+     },
+     "category": "fetch",
+     "timestamp": 1794295568.417811,
+     "type": "default",
+     "level": "info"
+    }
+   },
+   "type": 5,
+   "timestamp": 1794295568417
+  },
+  {
+   "timestamp": 1794295568418,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "timestamp": 1794295568.4183369,
+     "category": "fetch",
+     "data": {
+      "url": "http://localhost:4539/api/products/p-1004",
+      "status_code": 200,
+      "method": "GET",
+      "__span": "81a41bdba772fad8"
+     },
+     "type": "default",
+     "level": "info"
+    }
+   },
+   "type": 5
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295568458,
+   "data": {
+    "payload": {
+     "category": "console",
+     "level": "debug",
+     "type": "default",
+     "data": {
+      "arguments": [
+       "[sentry-demo] browse-catalog: 6 products, 4 details"
+      ],
+      "logger": "console"
+     },
+     "timestamp": 1794295568.458338,
+     "message": "[sentry-demo] browse-catalog: 6 products, 4 details"
+    },
+    "tag": "breadcrumb"
+   }
+  }
+ ]
+}

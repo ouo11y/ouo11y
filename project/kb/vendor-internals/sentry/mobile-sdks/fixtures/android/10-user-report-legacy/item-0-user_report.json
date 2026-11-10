@@ -1,0 +1,13 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "user_report",
+  "length": 123
+ },
+ "payload": {
+  "event_id": "30beb43da27c47758f6e9085548d1f6b",
+  "name": "QA",
+  "email": "<redacted>",
+  "comments": "It failed when I paid"
+ }
+}

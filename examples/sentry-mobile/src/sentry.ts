@@ -58,8 +58,14 @@ export function initSentry(mode: RumMode): void {
     // real screens. The demo shows no personal data; keep the defaults (all masked) in a real app.
     replaysSessionSampleRate: 1.0,
     replaysOnErrorSampleRate: 1.0,
+    // SENTRY_CAPTURE_ALL=1 builds (Step 6): every optional item type the SDK can send.
+    ...(config.sentryCaptureAll
+      ? { attachScreenshot: true, attachViewHierarchy: true, profilesSampleRate: 1.0, enableCaptureFailedRequests: true }
+      : {}),
     integrations: [
-      Sentry.mobileReplayIntegration({ maskAllText: false, maskAllImages: false, maskAllVectors: false }),
+      config.replayMaskDefault
+        ? Sentry.mobileReplayIntegration()
+        : Sentry.mobileReplayIntegration({ maskAllText: false, maskAllImages: false, maskAllVectors: false }),
       navigationIntegration,
       // The ouo SDK's uploads and the flag request are not app requests.
       Sentry.reactNativeTracingIntegration({ shouldCreateSpanForRequest: (url) => !isMonitoringUrl(url) }),

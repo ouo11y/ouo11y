@@ -1,0 +1,1446 @@
+{
+ "item_header": {
+  "filename": "view-hierarchy.json",
+  "type": "attachment",
+  "content_type": "application/json",
+  "attachment_type": "event.view_hierarchy",
+  "length": 15703
+ },
+ "payload": {
+  "rendering_system": "UIKIT",
+  "windows": [
+   {
+    "type": "UIWindow",
+    "width": 402,
+    "height": 874,
+    "x": 0,
+    "y": 0,
+    "alpha": 1,
+    "visible": true,
+    "children": [
+     {
+      "type": "UITransitionView",
+      "width": 402,
+      "height": 874,
+      "x": 0,
+      "y": 0,
+      "alpha": 1,
+      "visible": true,
+      "children": [
+       {
+        "type": "UIDropShadowView",
+        "width": 402,
+        "height": 874,
+        "x": 0,
+        "y": 0,
+        "alpha": 1,
+        "visible": true,
+        "children": [
+         {
+          "type": "RCTSurfaceHostingProxyRootView",
+          "width": 402,
+          "height": 874,
+          "x": 0,
+          "y": 0,
+          "alpha": 1,
+          "visible": true,
+          "view_controller": "UIViewController",
+          "children": [
+           {
+            "type": "RCTSurfaceView",
+            "width": 402,
+            "height": 874,
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "visible": true,
+            "children": [
+             {
+              "type": "RCTRootComponentView",
+              "width": 402,
+              "height": 874,
+              "x": 0,
+              "y": 0,
+              "alpha": 1,
+              "visible": true,
+              "children": [
+               {
+                "type": "RCTViewComponentView",
+                "width": 402,
+                "height": 874,
+                "x": 0,
+                "y": 0,
+                "alpha": 1,
+                "visible": true,
+                "children": [
+                 {
+                  "type": "RNCSafeAreaProviderComponentView",
+                  "width": 402,
+                  "height": 874,
+                  "x": 0,
+                  "y": 0,
+                  "alpha": 1,
+                  "visible": true,
+                  "children": [
+                   {
+                    "type": "RNSScreenStackView",
+                    "width": 402,
+                    "height": 874,
+                    "x": 0,
+                    "y": 0,
+                    "alpha": 1,
+                    "visible": true,
+                    "children": [
+                     {
+                      "type": "UILayoutContainerView",
+                      "width": 402,
+                      "height": 874,
+                      "x": 0,
+                      "y": 0,
+                      "alpha": 1,
+                      "visible": true,
+                      "view_controller": "RNSNavigationController",
+                      "children": [
+                       {
+                        "type": "UINavigationTransitionView",
+                        "width": 402,
+                        "height": 874,
+                        "x": 0,
+                        "y": 0,
+                        "alpha": 1,
+                        "visible": true,
+                        "children": [
+                         {
+                          "type": "UIViewControllerWrapperView",
+                          "width": 402,
+                          "height": 874,
+                          "x": 0,
+                          "y": 0,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": [
+                           {
+                            "type": "RNSScreenView",
+                            "width": 402,
+                            "height": 758,
+                            "x": 0,
+                            "y": 116,
+                            "alpha": 1,
+                            "visible": true,
+                            "view_controller": "RNSScreen",
+                            "children": [
+                             {
+                              "type": "RNSScreenContentWrapper",
+                              "width": 402,
+                              "height": 758,
+                              "x": 0,
+                              "y": 0,
+                              "alpha": 1,
+                              "visible": true,
+                              "children": [
+                               {
+                                "type": "RNSSafeAreaViewComponentView",
+                                "width": 402,
+                                "height": 758,
+                                "x": 0,
+                                "y": 0,
+                                "alpha": 1,
+                                "visible": true,
+                                "children": [
+                                 {
+                                  "type": "RCTScrollViewComponentView",
+                                  "width": 402,
+                                  "height": 758,
+                                  "x": 0,
+                                  "y": 0,
+                                  "alpha": 1,
+                                  "visible": true,
+                                  "children": [
+                                   {
+                                    "type": "RCTEnhancedScrollView",
+                                    "width": 402,
+                                    "height": 758,
+                                    "x": 0,
+                                    "y": 0,
+                                    "alpha": 1,
+                                    "visible": true,
+                                    "children": [
+                                     {
+                                      "type": "UIView",
+                                      "width": 386,
+                                      "height": 1073.67,
+                                      "x": 0,
+                                      "y": 0,
+                                      "alpha": 1,
+                                      "visible": true,
+                                      "children": [
+                                       {
+                                        "type": "RCTViewComponentView",
+                                        "width": 370,
+                                        "height": 1057.67,
+                                        "x": 16,
+                                        "y": 16,
+                                        "alpha": 1,
+                                        "visible": true,
+                                        "children": [
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "width": 370,
+                                          "height": 28,
+                                          "x": 0,
+                                          "y": 0,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": []
+                                         },
+                                         {
+                                          "type": "RCTParagraphComponentView",
+                                          "identifier": "status-line",
+                                          "width": 354,
+                                          "height": 12,
+                                          "x": 8,
+                                          "y": 8,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphTextView",
+                                            "width": 354,
+                                            "height": 12,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": []
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTParagraphComponentView",
+                                          "width": 370,
+                                          "height": 15.6667,
+                                          "x": 0,
+                                          "y": 48,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphTextView",
+                                            "width": 370,
+                                            "height": 15.6667,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": []
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "product-p-1001",
+                                          "width": 370,
+                                          "height": 39.6667,
+                                          "x": 0,
+                                          "y": 67.6667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 135.667,
+                                            "height": 19.3333,
+                                            "x": 0,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 135.667,
+                                              "height": 19.3333,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           },
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 52.3333,
+                                            "height": 17,
+                                            "x": 317.667,
+                                            "y": 11,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 52.3333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "product-p-1002",
+                                          "width": 370,
+                                          "height": 39.6667,
+                                          "x": 0,
+                                          "y": 107.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 160.333,
+                                            "height": 19.3333,
+                                            "x": 0,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 160.333,
+                                              "height": 19.3333,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           },
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 46,
+                                            "height": 17,
+                                            "x": 324,
+                                            "y": 11,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 46,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "product-p-1003",
+                                          "width": 370,
+                                          "height": 39.6667,
+                                          "x": 0,
+                                          "y": 147,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 134,
+                                            "height": 19.3333,
+                                            "x": 0,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 134,
+                                              "height": 19.3333,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           },
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 45.6667,
+                                            "height": 17,
+                                            "x": 324.333,
+                                            "y": 11,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 45.6667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "btn-Open cart",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 190.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 66.6667,
+                                            "height": 17,
+                                            "x": 151.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 66.6667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTParagraphComponentView",
+                                          "width": 370,
+                                          "height": 15.6667,
+                                          "x": 0,
+                                          "y": 243.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphTextView",
+                                            "width": 370,
+                                            "height": 15.6667,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": []
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-browse-catalog",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 267.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 190,
+                                            "height": 17,
+                                            "x": 90,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 190,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-search",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 312.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 153.667,
+                                            "height": 17,
+                                            "x": 108,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 153.667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-checkout",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 357.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 64.3333,
+                                            "height": 17,
+                                            "x": 152.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 64.3333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-checkout-fail",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 402.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 205.667,
+                                            "height": 17,
+                                            "x": 82,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 205.667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTParagraphComponentView",
+                                          "width": 370,
+                                          "height": 15.6667,
+                                          "x": 0,
+                                          "y": 455.333,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphTextView",
+                                            "width": 370,
+                                            "height": 15.6667,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": []
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-fetch-ok",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 479,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 102.333,
+                                            "height": 17,
+                                            "x": 133.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 102.333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-fetch-500",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 524,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 69,
+                                            "height": 17,
+                                            "x": 150.333,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 69,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-fetch-slow",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 569,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 118.333,
+                                            "height": 17,
+                                            "x": 125.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 118.333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-xhr-cart",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 614,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 255.667,
+                                            "height": 17,
+                                            "x": 57,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 255.667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTParagraphComponentView",
+                                          "width": 370,
+                                          "height": 15.6667,
+                                          "x": 0,
+                                          "y": 667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphTextView",
+                                            "width": 370,
+                                            "height": 15.6667,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": []
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-handled-error",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 690.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 93.3333,
+                                            "height": 17,
+                                            "x": 138.333,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 93.3333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-unhandled-rejection",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 735.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 136,
+                                            "height": 17,
+                                            "x": 117,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 136,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-message",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 780.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 159.667,
+                                            "height": 17,
+                                            "x": 105,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 159.667,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-feedback",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 825.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 146,
+                                            "height": 17,
+                                            "x": 112,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 146,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-js-fatal",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 878.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 184,
+                                            "height": 17,
+                                            "x": 93,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 184,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-native-crash",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 923.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 84.3333,
+                                            "height": 17,
+                                            "x": 142.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 84.3333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         },
+                                         {
+                                          "type": "RCTViewComponentView",
+                                          "identifier": "action-flush",
+                                          "width": 370,
+                                          "height": 37,
+                                          "x": 0,
+                                          "y": 968.667,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "RCTParagraphComponentView",
+                                            "width": 36.3333,
+                                            "height": 17,
+                                            "x": 166.667,
+                                            "y": 10,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "RCTParagraphTextView",
+                                              "width": 36.3333,
+                                              "height": 17,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": []
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         }
+                                        ]
+                                       }
+                                      ]
+                                     },
+                                     {
+                                      "type": "_UIScrollViewScrollIndicator",
+                                      "width": 3,
+                                      "height": 679,
+                                      "x": 396,
+                                      "y": 3,
+                                      "alpha": 0,
+                                      "visible": true,
+                                      "children": [
+                                       {
+                                        "type": "UIView",
+                                        "width": 3,
+                                        "height": 679,
+                                        "x": 0,
+                                        "y": 0,
+                                        "alpha": 1,
+                                        "visible": true,
+                                        "children": []
+                                       }
+                                      ]
+                                     },
+                                     {
+                                      "type": "_UIScrollViewScrollIndicator",
+                                      "width": 377,
+                                      "height": 3,
+                                      "x": 19,
+                                      "y": 718,
+                                      "alpha": 0,
+                                      "visible": true,
+                                      "children": [
+                                       {
+                                        "type": "UIView",
+                                        "width": 377,
+                                        "height": 3,
+                                        "x": 0,
+                                        "y": 0,
+                                        "alpha": 1,
+                                        "visible": true,
+                                        "children": []
+                                       }
+                                      ]
+                                     }
+                                    ]
+                                   }
+                                  ]
+                                 }
+                                ]
+                               }
+                              ]
+                             },
+                             {
+                              "type": "RNSScreenStackHeaderConfig",
+                              "width": 402,
+                              "height": 54,
+                              "x": 0,
+                              "y": -54,
+                              "alpha": 1,
+                              "visible": false,
+                              "children": []
+                             }
+                            ]
+                           }
+                          ]
+                         }
+                        ]
+                       },
+                       {
+                        "type": "UINavigationBar",
+                        "width": 402,
+                        "height": 54,
+                        "x": 0,
+                        "y": 62,
+                        "alpha": 1,
+                        "visible": true,
+                        "children": [
+                         {
+                          "type": "_UIBarBackground",
+                          "width": 402,
+                          "height": 116,
+                          "x": 0,
+                          "y": -62,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": [
+                           {
+                            "type": "UIImageView",
+                            "width": 402,
+                            "height": 116,
+                            "x": 0,
+                            "y": 0,
+                            "alpha": 1,
+                            "visible": true,
+                            "children": []
+                           },
+                           {
+                            "type": "_UIBarBackgroundShadowView",
+                            "width": 402,
+                            "height": 0.333333,
+                            "x": 0,
+                            "y": 116,
+                            "alpha": 1,
+                            "visible": true,
+                            "children": [
+                             {
+                              "type": "_UIBarBackgroundShadowContentImageView",
+                              "width": 402,
+                              "height": 0.333333,
+                              "x": 0,
+                              "y": 0,
+                              "alpha": 1,
+                              "visible": true,
+                              "children": []
+                             }
+                            ]
+                           }
+                          ]
+                         },
+                         {
+                          "type": "NavigationBarContentView",
+                          "width": 402,
+                          "height": 54,
+                          "x": 0,
+                          "y": 0,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": [
+                           {
+                            "type": "NavigationBarTransitionContainer",
+                            "width": 402,
+                            "height": 54,
+                            "x": 0,
+                            "y": 0,
+                            "alpha": 1,
+                            "visible": true,
+                            "children": [
+                             {
+                              "type": "HostedViewContainer",
+                              "width": 402,
+                              "height": 54,
+                              "x": 0,
+                              "y": 0,
+                              "alpha": 1,
+                              "visible": true,
+                              "children": [
+                               {
+                                "type": "HostedViewWrapper",
+                                "width": 104,
+                                "height": 20.6667,
+                                "x": 149,
+                                "y": 11.6667,
+                                "alpha": 1,
+                                "visible": true,
+                                "children": [
+                                 {
+                                  "type": "_UINavigationBarTitleControl",
+                                  "width": 104,
+                                  "height": 20.6667,
+                                  "x": 0,
+                                  "y": 0,
+                                  "alpha": 1,
+                                  "visible": true,
+                                  "children": [
+                                   {
+                                    "type": "_UIIntrinsicContentSizeInvalidationForwardingWrapperView",
+                                    "width": 104,
+                                    "height": 20.6667,
+                                    "x": 0,
+                                    "y": 0,
+                                    "alpha": 1,
+                                    "visible": true,
+                                    "children": [
+                                     {
+                                      "type": "UILabel",
+                                      "width": 103.667,
+                                      "height": 20.6667,
+                                      "x": 0,
+                                      "y": 0,
+                                      "alpha": 1,
+                                      "visible": true,
+                                      "children": []
+                                     }
+                                    ]
+                                   }
+                                  ]
+                                 }
+                                ]
+                               }
+                              ]
+                             },
+                             {
+                              "type": "UIView",
+                              "width": 402,
+                              "height": 54,
+                              "x": 0,
+                              "y": 0,
+                              "alpha": 1,
+                              "visible": true,
+                              "children": []
+                             },
+                             {
+                              "type": "NavigationBarPlatterContainer_v2",
+                              "width": 402,
+                              "height": 54,
+                              "x": 0,
+                              "y": 0,
+                              "alpha": 1,
+                              "visible": true,
+                              "children": [
+                               {
+                                "type": "PlatterContainerHostingView<NavigationBarPlatterContent>",
+                                "width": 402,
+                                "height": 54,
+                                "x": 0,
+                                "y": 0,
+                                "alpha": 1,
+                                "visible": true,
+                                "children": [
+                                 {
+                                  "type": "_UIInheritedView",
+                                  "width": 402,
+                                  "height": 54,
+                                  "x": 0,
+                                  "y": 0,
+                                  "alpha": 1,
+                                  "visible": true,
+                                  "children": [
+                                   {
+                                    "type": "_UIInheritedView",
+                                    "width": 402,
+                                    "height": 54,
+                                    "x": 0,
+                                    "y": 0,
+                                    "alpha": 1,
+                                    "visible": true,
+                                    "children": [
+                                     {
+                                      "type": "_UIInheritedView",
+                                      "width": 0,
+                                      "height": 0,
+                                      "x": 0,
+                                      "y": 0,
+                                      "alpha": 1,
+                                      "visible": true,
+                                      "children": [
+                                       {
+                                        "type": "UIPlatformGlassInteractionView",
+                                        "width": 113.333,
+                                        "height": 44,
+                                        "x": 16,
+                                        "y": 0,
+                                        "alpha": 1,
+                                        "visible": true,
+                                        "children": [
+                                         {
+                                          "type": "_UIInheritedView",
+                                          "width": 113.333,
+                                          "height": 44,
+                                          "x": 0,
+                                          "y": 0,
+                                          "alpha": 1,
+                                          "visible": true,
+                                          "children": [
+                                           {
+                                            "type": "UICorePlatformViewHost<PlatformViewRepresentableAdaptor<NavigationBarPlatterRepresentable>>",
+                                            "width": 113.333,
+                                            "height": 44,
+                                            "x": 0,
+                                            "y": 0,
+                                            "alpha": 1,
+                                            "visible": true,
+                                            "children": [
+                                             {
+                                              "type": "_UIButtonBarButton",
+                                              "width": 113.333,
+                                              "height": 44,
+                                              "x": 0,
+                                              "y": 0,
+                                              "alpha": 1,
+                                              "visible": true,
+                                              "children": [
+                                               {
+                                                "type": "Button",
+                                                "width": 62,
+                                                "height": 34.3333,
+                                                "x": 34.3333,
+                                                "y": 5,
+                                                "alpha": 1,
+                                                "visible": true,
+                                                "children": [
+                                                 {
+                                                  "type": "UIButtonLabel",
+                                                  "width": 62,
+                                                  "height": 22.3333,
+                                                  "x": 0,
+                                                  "y": 6,
+                                                  "alpha": 1,
+                                                  "visible": true,
+                                                  "children": []
+                                                 }
+                                                ]
+                                               },
+                                               {
+                                                "type": "BackButtonMaskView",
+                                                "width": 113.333,
+                                                "height": 44,
+                                                "x": 0,
+                                                "y": 0,
+                                                "alpha": 1,
+                                                "visible": false,
+                                                "children": [
+                                                 {
+                                                  "type": "UIImageView",
+                                                  "width": 19.6667,
+                                                  "height": 28,
+                                                  "x": 12,
+                                                  "y": 8.33333,
+                                                  "alpha": 1,
+                                                  "visible": true,
+                                                  "children": []
+                                                 },
+                                                 {
+                                                  "type": "UIView",
+                                                  "width": 85,
+                                                  "height": 44,
+                                                  "x": 28.3333,
+                                                  "y": 0,
+                                                  "alpha": 1,
+                                                  "visible": true,
+                                                  "children": []
+                                                 }
+                                                ]
+                                               },
+                                               {
+                                                "type": "Button",
+                                                "width": 16.3333,
+                                                "height": 23,
+                                                "x": 12,
+                                                "y": 10.6667,
+                                                "alpha": 1,
+                                                "visible": true,
+                                                "children": [
+                                                 {
+                                                  "type": "UIImageView",
+                                                  "width": 16.3333,
+                                                  "height": 23,
+                                                  "x": 0,
+                                                  "y": 0,
+                                                  "alpha": 1,
+                                                  "visible": true,
+                                                  "children": []
+                                                 }
+                                                ]
+                                               }
+                                              ]
+                                             }
+                                            ]
+                                           }
+                                          ]
+                                         }
+                                        ]
+                                       }
+                                      ]
+                                     }
+                                    ]
+                                   }
+                                  ]
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "_UIPointerInteractionAssistantEffectContainerView",
+                                "width": 0,
+                                "height": 0,
+                                "x": 0,
+                                "y": 0,
+                                "alpha": 1,
+                                "visible": true,
+                                "children": []
+                               }
+                              ]
+                             }
+                            ]
+                           }
+                          ]
+                         },
+                         {
+                          "type": "_UIPointerInteractionAssistantEffectContainerView",
+                          "width": 0,
+                          "height": 0,
+                          "x": 0,
+                          "y": 0,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": []
+                         }
+                        ]
+                       },
+                       {
+                        "type": "_UIFloatingBarContainerView",
+                        "width": 402,
+                        "height": 874,
+                        "x": 0,
+                        "y": 0,
+                        "alpha": 1,
+                        "visible": true,
+                        "children": [
+                         {
+                          "type": "FloatingBarHostingView<FloatingBarContainer>",
+                          "width": 402,
+                          "height": 874,
+                          "x": 0,
+                          "y": 0,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": []
+                         },
+                         {
+                          "type": "_UIPointerInteractionAssistantEffectContainerView",
+                          "width": 0,
+                          "height": 0,
+                          "x": 0,
+                          "y": 0,
+                          "alpha": 1,
+                          "visible": true,
+                          "children": []
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

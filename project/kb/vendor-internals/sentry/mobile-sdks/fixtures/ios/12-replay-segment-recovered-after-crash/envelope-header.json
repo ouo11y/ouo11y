@@ -1,0 +1,37 @@
+{
+ "sdk": {
+  "name": "sentry.cocoa.react-native",
+  "integrations": [
+   "Screenshot",
+   "NetworkTracking",
+   "ViewHierarchy",
+   "WatchdogTerminationTracking",
+   "SessionReplay",
+   "AutoBreadcrumbTracking",
+   "AutoSessionTracking",
+   "Crash",
+   "FramesTracking",
+   "Metrics",
+   "AppStartTracking",
+   "ANRTracking"
+  ],
+  "features": [
+   "metrics",
+   "dataSwizzling",
+   "viewHierarchy",
+   "experimentalViewRenderer"
+  ],
+  "settings": {
+   "infer_ip": "never"
+  },
+  "version": "9.33.0",
+  "packages": [
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   }
+  ]
+ },
+ "event_id": "d3edc3158b2b42c6964019dca1ed0c6b",
+ "sent_at": "2026-11-10T07:19:38.564Z"
+}

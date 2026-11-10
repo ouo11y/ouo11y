@@ -1,0 +1,155 @@
+{
+ "segment_header": {
+  "segment_id": 1
+ },
+ "events": [
+  {
+   "type": 4,
+   "timestamp": 1794282753458,
+   "data": {
+    "href": "",
+    "height": 912,
+    "width": 416
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282753458,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "segmentId": 1,
+     "size": 42640,
+     "duration": 5000,
+     "encoding": "h264",
+     "container": "mp4",
+     "height": 912,
+     "width": 416,
+     "frameCount": 5,
+     "frameRate": 1,
+     "frameRateType": "constant",
+     "left": 0,
+     "top": 0
+    }
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282756223,
+   "data": {
+    "source": 2,
+    "type": 7,
+    "id": 0,
+    "x": 208.0,
+    "y": 215.45999145507812,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282756227,
+   "data": {
+    "source": 2,
+    "type": 9,
+    "id": 0,
+    "x": 208.0,
+    "y": 215.45999145507812,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282756230,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282756.23,
+     "category": "ui.tap",
+     "message": "03:52:28 rum mode sentry (flag), device 3506ce80 Products > product-p-1001 > product-p-1001 > product-p-1001",
+     "level": "info",
+     "data": {
+      "path": [
+       {
+        "label": "product-p-1001"
+       },
+       {
+        "name": "View",
+        "label": "product-p-1001"
+       },
+       {
+        "name": "Pressable",
+        "label": "product-p-1001"
+       },
+       {
+        "label": "03:52:28 rum mode sentry (flag), device 3506ce80 Products"
+       },
+       {
+        "label": "Products"
+       },
+       {
+        "name": "View",
+        "label": "Products"
+       },
+       {
+        "label": "Products"
+       },
+       {
+        "name": "ScrollView"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       },
+       {
+        "name": "View"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282756268,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282756.268,
+     "category": "navigation",
+     "level": "info",
+     "data": {
+      "from": "Home",
+      "to": "Product"
+     }
+    }
+   }
+  }
+ ]
+}

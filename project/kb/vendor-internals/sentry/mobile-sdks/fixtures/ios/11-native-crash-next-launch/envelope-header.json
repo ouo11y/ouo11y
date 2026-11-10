@@ -1,0 +1,39 @@
+{
+ "event_id": "9bc95b97fd304a2dae1bf404142d0f49",
+ "trace": {
+  "trace_id": "838fe6b94d0348b4b54f7061d87277b0",
+  "replay_id": "d3edc3158b2b42c6964019dca1ed0c6b",
+  "public_key": "<redacted>",
+  "environment": "development",
+  "release": "sentry-demo@1.0.0+1"
+ },
+ "sent_at": "2026-11-10T07:19:38.432Z",
+ "sdk": {
+  "version": "9.33.0",
+  "settings": {
+   "infer_ip": "never"
+  },
+  "packages": [
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   }
+  ],
+  "name": "sentry.cocoa.react-native",
+  "features": [
+   "viewHierarchy",
+   "dataSwizzling",
+   "metrics",
+   "experimentalViewRenderer"
+  ],
+  "integrations": [
+   "AutoBreadcrumbTracking",
+   "NetworkTracking",
+   "ANRTracking",
+   "SessionReplay",
+   "Crash",
+   "AutoSessionTracking",
+   "Metrics"
+  ]
+ }
+}

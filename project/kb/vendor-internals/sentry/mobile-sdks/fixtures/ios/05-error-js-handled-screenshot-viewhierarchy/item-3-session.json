@@ -1,0 +1,19 @@
+{
+ "item_header": {
+  "type": "session",
+  "length": 270
+ },
+ "payload": {
+  "timestamp": "2026-11-10T07:17:57.650Z",
+  "did": "798FE998-D391-4C5A-A8E6-70C96F258CAC",
+  "seq": 2,
+  "attrs": {
+   "release": "sentry-demo@1.0.0+1",
+   "environment": "development"
+  },
+  "started": "2026-11-10T07:16:51.962Z",
+  "errors": 1,
+  "status": "ok",
+  "sid": "91AE91D5-19E4-4FE9-AB37-942B44E25299"
+ }
+}

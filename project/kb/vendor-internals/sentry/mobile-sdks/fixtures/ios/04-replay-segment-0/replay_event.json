@@ -1,0 +1,86 @@
+{
+ "extra": {},
+ "tags": {},
+ "event_id": "1f83973a53684417b81ff592390b41a2",
+ "trace_ids": [
+  "75fee9366fc44ddb95bb7888a1dfd4f1"
+ ],
+ "sdk": {
+  "version": "8.34.0",
+  "name": "sentry.javascript.react-native"
+ },
+ "type": "replay_video",
+ "replay_id": "1f83973a53684417b81ff592390b41a2",
+ "urls": [
+  "Home",
+  "Home",
+  "Home",
+  "Home",
+  "Home"
+ ],
+ "environment": "development",
+ "release": "sentry-demo@1.0.0+1",
+ "replay_start_timestamp": 1794295012.001419,
+ "contexts": {
+  "app": {
+   "build_type": "simulator",
+   "app_version": "1.0.0",
+   "app_identifier": "dev.ouo.sentrydemo",
+   "app_start_time": "2026-11-10T07:16:51Z",
+   "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+   "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+   "app_build": "1",
+   "app_memory": 54231040,
+   "view_names": [
+    "Product"
+   ],
+   "app_name": "sentrydemo"
+  },
+  "os": {
+   "version": "27.0",
+   "rooted": false,
+   "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142",
+   "name": "iOS",
+   "build": "26A434"
+  },
+  "device": {
+   "processor_count": 10,
+   "model_id": "simulator",
+   "free_memory": 128811008,
+   "thermal_state": "nominal",
+   "family": "iOS",
+   "screen_height_pixels": 874,
+   "screen_width_pixels": 402,
+   "simulator": true,
+   "low_power_mode": false,
+   "locale": "en_EG",
+   "connection_type": "wifi",
+   "arch": "arm64",
+   "memory_size": 34359738368,
+   "model": "iPhone19,2",
+   "usable_memory": 20052623360
+  },
+  "ota_updates": {
+   "is_enabled": false
+  },
+  "trace": {
+   "trace_id": "a92439d4b6ef4c6ab583d5cd3e431cce",
+   "span_id": "ad81fe8501cf1545"
+  },
+  "culture": {
+   "locale": "en_EG",
+   "timezone": "Africa/Cairo",
+   "display_name": "English (Egypt)",
+   "calendar": "Gregorian Calendar",
+   "is_24_hour_format": false
+  }
+ },
+ "timestamp": 1794295017.001419,
+ "segment_id": 0,
+ "platform": "cocoa",
+ "user": {
+  "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+ },
+ "dist": "1",
+ "replay_type": "session"
+}
