@@ -1,0 +1,2529 @@
+{
+ "platform": "ios",
+ "sdk_paths": [
+  "sdk/ios"
+ ],
+ "sdk_version": "0.3.0 (sdk/ios/version.txt, Ouo.sdkVersion)",
+ "how_checked": "Read all of sdk/ios/Sources (OuoSDK, OuoReplay, OuoReplayCore, OuoCrash, OuoCrashCore, OuoVitals) and the spec sections 0-15. Ran sdk/ios/test.sh (Command Line Tools, Swift Testing) bounded by perl alarm 900: 233 tests in 31 suites across 4 test targets, all passed (OuoSDKTests 77, OuoReplayCoreTests 98, OuoVitalsTests 34, OuoCrashTests 24). No simulator, no device, no wire capture against a fake collector; wire claims come from the OTLP encoder and its unit tests (EncodingTests LogsJSON/TracesJSON).",
+ "requirements": [
+  {
+   "id": "REL-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Meta rule on how SDKs are judged; nothing for the SDK to implement."
+  },
+  {
+   "id": "REL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:66",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179",
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:21"
+   ],
+   "method": "read",
+   "note": "Logs and spans go as OTLP/HTTP JSON to /v1/logs and /v1/traces, but replay chunks are a custom gzip JSON document (kind=frames, schema 2) POSTed to /v1/replay/chunks on a separate replay endpoint (default port 4319), not OTLP."
+  },
+  {
+   "id": "REL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:212",
+    "sdk/ios/Sources/OuoSDK/Core.swift:230",
+    "sdk/ios/Sources/OuoSDK/Core.swift:308",
+    "sdk/ios/Sources/OuoSDK/Core.swift:155",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:50",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:142"
+   ],
+   "method": "read",
+   "note": "Own event names are unprefixed (navigation, ui.tap, app.lifecycle, log, feedback, http.request, http.request.failed) and log lines carry an unprefixed `message` attribute; app custom attributes pass unfiltered."
+  },
+  {
+   "id": "REL-4",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:36"
+   ],
+   "method": "read",
+   "note": "No OpenTelemetry API is used (ADR-0016, custom encoder), so no global provider is registered or replaced."
+  },
+  {
+   "id": "REL-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:206",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:170"
+   ],
+   "method": "read",
+   "note": "No OTel TracerProvider/LoggerProvider exists to expose; the SDK offers its own Ouo.startSpan/withSpan/log API, which does stamp session attributes."
+  },
+  {
+   "id": "REL-6",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:36"
+   ],
+   "method": "read",
+   "note": "Only /v1/logs and /v1/traces (plus the replay path); no /v1/metrics traffic."
+  },
+  {
+   "id": "REL-7",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:58"
+   ],
+   "method": "read",
+   "note": "Spans are encoded without an events field; events go as log records with eventName."
+  },
+  {
+   "id": "API-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:125",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:151",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:55",
+    "sdk/ios/Tests/OuoSDKTests/EncodingTests.swift:238"
+   ],
+   "method": "test",
+   "note": "Every call before start is a no-op (test CallsBeforeStartDoNothing) and app extensions refuse start; there is no shutdown, so the after-shutdown half cannot hold."
+  },
+  {
+   "id": "API-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:237",
+    "sdk/ios/Sources/OuoSDK/Core.swift:229",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:319",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:64"
+   ],
+   "method": "read",
+   "note": "flush is asynchronous with a completion, but session.touch() (taps, screens, requests, foreground) can write session.json synchronously on the caller's thread, at most once a second."
+  },
+  {
+   "id": "API-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:143",
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:55"
+   ],
+   "method": "read",
+   "note": "Attributes(app:) copies every app key; no rejection or counting of session.* or ouo.* names in addEvent, log, captureError or span attributes."
+  },
+  {
+   "id": "API-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:48",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:142",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:150",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:177",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:135"
+   ],
+   "method": "read",
+   "note": "flush and setUser match; others differ from the spec names: start (init), addEvent (recordEvent), captureError (recordException), trackScreen (trackNavigation), endSession (restartSession), sessionId property."
+  },
+  {
+   "id": "API-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:201",
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:25"
+   ],
+   "method": "read",
+   "note": "trackScreen and the UIKit swizzle share Core.trackScreen, which dedupes the same screen to one record; but no ouo.view.id is assigned on either path."
+  },
+  {
+   "id": "API-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:175"
+   ],
+   "method": "read",
+   "note": "captureError sets ouo.exception.handled=true but uses ouo.exception.kind=captured instead of ouo.exception.source=manual."
+  },
+  {
+   "id": "CFG-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:83",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:50"
+   ],
+   "method": "read",
+   "note": "An unusable endpoint/serviceName makes start return false with a log (no-op, no throw); individual bad values (negative rates, timeouts) are not validated or reported, and projectId/projectToken are also required."
+  },
+  {
+   "id": "CFG-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:110",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:138"
+   ],
+   "method": "read",
+   "note": "Rates are effectively clamped by the sampling check (>=1 all, <=0 none); timeouts and max duration are not clamped (no 1 min floor, no 24 h ceiling)."
+  },
+  {
+   "id": "CFG-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:72",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:118"
+   ],
+   "method": "read",
+   "note": "The token only goes in the Authorization header; the start log names endpoint and projectId, never the token."
+  },
+  {
+   "id": "CFG-4",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No beforeSend hook exists (grep beforeSend in sdk/ios/Sources: none)."
+  },
+  {
+   "id": "LIF-1",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:59",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:63"
+   ],
+   "method": "read",
+   "note": "A second start is refused with an NSLog diagnostic and returns false."
+  },
+  {
+   "id": "LIF-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:120",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:132",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:92"
+   ],
+   "method": "read",
+   "note": "start reads session.json and the previous crash report / run.json synchronously on the calling (main) thread before returning; network is deferred (LazyTransport)."
+  },
+  {
+   "id": "LIF-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:17",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:135"
+   ],
+   "method": "read",
+   "note": "Storage is read synchronously during start, so there is no pre-ready window; when session.json is unreadable (before first unlock) the session lives in memory and records go to the bounded 2048-record buffer."
+  },
+  {
+   "id": "LIF-4",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No shutdown API (grep shutdown in sdk/ios/Sources: none); hooks (URLSession, UIViewController swizzles, crash handlers) are never removed by the SDK."
+  },
+  {
+   "id": "LIF-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:59"
+   ],
+   "method": "read",
+   "note": "`starting` is never reset, so a process can start the SDK only once."
+  },
+  {
+   "id": "LIF-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "LIF-7",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "LIF-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "LIF-9",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "LIF-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "LIF-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:372",
+    "sdk/ios/Sources/OuoSDK/Core.swift:272",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:108"
+   ],
+   "method": "read",
+   "note": "Background flushes inside beginBackgroundTask ended by completion or expiry, and replay cuts its chunk; but the event emitted is app.lifecycle (ouo.app.state=background), not device.app.lifecycle."
+  },
+  {
+   "id": "LIF-12",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:289",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:192"
+   ],
+   "method": "read",
+   "note": "Foreground re-evaluates the session (background timeout) before emitting, but emits app.lifecycle with ouo.app.state=foreground, not device.app.lifecycle."
+  },
+  {
+   "id": "LIF-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:95",
+    "sdk/ios/Sources/OuoSDK/Core.swift:120",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:158"
+   ],
+   "method": "read",
+   "note": "A background launch is detected (LaunchRole) but SessionManager.start always creates a session and emits session.start; replay is started on that session if sampled."
+  },
+  {
+   "id": "LIF-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Android-only rule."
+  },
+  {
+   "id": "SES-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:245"
+   ],
+   "method": "read",
+   "note": "session.id is UUID().uuidString.lowercased(): 36 chars with dashes and 122 random bits, not 32 lowercase hex."
+  },
+  {
+   "id": "SES-2",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:375",
+    "sdk/ios/Sources/OuoSDK/OuoSpan.swift:19",
+    "sdk/ios/Sources/OuoSDK/Core.swift:479"
+   ],
+   "method": "read",
+   "note": "session.id is stamped as a record attribute at emit/span start; the resource holds no session.id."
+  },
+  {
+   "id": "SES-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:120",
+    "sdk/ios/Sources/OuoSDK/Core.swift:385",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:163"
+   ],
+   "method": "read",
+   "note": "start creates the session, but any record (including telemetry such as a vital or span) calls ensure() and starts a new session when none is valid."
+  },
+  {
+   "id": "SES-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:244",
+    "sdk/ios/Sources/OuoSDK/Core.swift:389"
+   ],
+   "method": "read",
+   "note": "session.start is emitted once at creation with session.id and session.previous_id, but stampLocked also puts session.previous_id on every other record of the session."
+  },
+  {
+   "id": "SES-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:17",
+    "sdk/ios/Sources/OuoSDK/Core.swift:229",
+    "sdk/ios/Sources/OuoSDK/Core.swift:211",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:192"
+   ],
+   "method": "read",
+   "note": "Touch, screen change and foreground are activity, but every instrumented network request also calls activity()."
+  },
+  {
+   "id": "SES-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:93"
+   ],
+   "method": "read",
+   "note": "Last activity is persisted at most once per second, not once per 5 s."
+  },
+  {
+   "id": "SES-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:295",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:5"
+   ],
+   "method": "read",
+   "note": "session.end precedes the next session.start with ouo.session.end_reason, but values are inactivity/max_duration/background/crash/terminated/user_change/manual (not timeout/shutdown/consent) and the timestamp is the deadline, not the last activity."
+  },
+  {
+   "id": "SES-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Consumer rule; nothing in the SDK."
+  },
+  {
+   "id": "SES-9",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:163",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:258"
+   ],
+   "method": "read",
+   "note": "Max duration is checked on every use; the next record or activity after the deadline ends the session (max_duration) and starts one with session.previous_id."
+  },
+  {
+   "id": "SES-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:385"
+   ],
+   "method": "read",
+   "note": "There is no no-session state: ensure() creates a new session for any record, nothing is dropped as no_session, and no bypass marking (ouo.session.expired) exists."
+  },
+  {
+   "id": "SES-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SES-12",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SES-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:280",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:151"
+   ],
+   "method": "read",
+   "note": "The next launch starts a new session with session.previous_id = crashed id, but it also emits session.end (reason crash) for the crashed session."
+  },
+  {
+   "id": "SES-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:142"
+   ],
+   "method": "read",
+   "note": "Every cold start ends the persisted session (terminated or a deadline) and starts a new one, even after a clean exit within the timeout."
+  },
+  {
+   "id": "SES-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:249",
+    "sdk/ios/Sources/OuoCrashCore/ouo_crash.c:617",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:74"
+   ],
+   "method": "read",
+   "note": "The session is persisted before session.start, and the crash handler reads a double-buffered static C struct without allocation; but the sampling decision is not persisted and OuoCrash.setSession runs after the first record."
+  },
+  {
+   "id": "SES-16",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:126",
+    "sdk/ios/Sources/OuoSDK/Core.swift:135"
+   ],
+   "method": "read",
+   "note": "The crash record carries the crashed session's session.id, but it is an `exception` record, not app.crash."
+  },
+  {
+   "id": "SIG-00",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:186"
+   ],
+   "method": "read",
+   "note": "Only app.jank, session.start, session.end and HTTP spans use spec names; app start, hang, crash, taps, screen views and lifecycle are emitted under other names or types (see SIG-04..SIG-20)."
+  },
+  {
+   "id": "REC-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:355",
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:50",
+    "sdk/ios/Tests/OuoSDKTests/EncodingTests.swift:71"
+   ],
+   "method": "test",
+   "note": "EventName is set on the wire, but the deprecated `event.name` attribute is also kept on every event."
+  },
+  {
+   "id": "REC-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:386"
+   ],
+   "method": "read",
+   "note": "session.id on every record; no ouo.view.id anywhere (grep view.id: none)."
+  },
+  {
+   "id": "REC-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:226",
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:157",
+    "sdk/ios/Sources/OuoSDK/Timeline.swift:71"
+   ],
+   "method": "read",
+   "note": "app.screen.name is on taps, vitals and exceptions only, not on other records while a screen is known."
+  },
+  {
+   "id": "REC-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:43"
+   ],
+   "method": "read",
+   "note": "observedTimeUnixNano is always set equal to timeUnixNano, including for a crash reported on the next launch."
+  },
+  {
+   "id": "REC-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:38",
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:76"
+   ],
+   "method": "read",
+   "note": "Scope name is `ouo11y-ios` (not ouo.rum), replay is not OTLP so there is no ouo.replay scope, and no schema_url is set."
+  },
+  {
+   "id": "REC-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:22",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:206",
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:147"
+   ],
+   "method": "read",
+   "note": "Automatic spans are only HTTP client spans (custom spans come from the app's startSpan/withSpan); app start is an event, not an after-the-fact AppStart span."
+  },
+  {
+   "id": "REC-7",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:148"
+   ],
+   "method": "read",
+   "note": "Events default to INFO."
+  },
+  {
+   "id": "REC-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:155",
+    "sdk/ios/Sources/OuoSDK/Interactions.swift:88"
+   ],
+   "method": "read",
+   "note": "No general cut: exception.stacktrace and url.full are uncapped; only log `message` (1 KiB) and feedback (4 KiB) are cut."
+  },
+  {
+   "id": "REC-9",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:68"
+   ],
+   "method": "read",
+   "note": "Device wall clock plus monotonic delta; no server clock offset estimation."
+  },
+  {
+   "id": "SIG-01",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-02",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-03",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-04",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:140",
+    "sdk/ios/Sources/OuoVitals/AppStart.swift:3"
+   ],
+   "method": "read",
+   "note": "App start is measured process start to first frame, but emitted as event ouo.app.start with ouo.app.start.type/duration_ms, not a span AppStart with start.type; prewarm is not reported as an attribute; no hot type."
+  },
+  {
+   "id": "SIG-05",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:167",
+    "sdk/ios/Sources/OuoVitals/FrameCounter.swift:20"
+   ],
+   "method": "read",
+   "note": "Event app.jank with app.jank.frame_count (slow+frozen combined), .threshold (expected frame s) and .period per screen window; emitted whenever total frames > 0 even when the jank count is 0, and slow/frozen are only ouo.frames.* extras."
+  },
+  {
+   "id": "SIG-06",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Android/RN-only signal."
+  },
+  {
+   "id": "SIG-07",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:191",
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:122",
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift:166"
+   ],
+   "method": "read",
+   "note": "Hangs are emitted when over as an `exception` (severity ERROR, ouo.exception.kind=hang, ouo.hang.duration_ms in ms, exception.stacktrace), not ouo.app.hang with ouo.app.hang.duration in seconds."
+  },
+  {
+   "id": "SIG-30",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-31",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoCrash/RunState.swift:92",
+    "sdk/ios/Sources/OuoCrash/RunState.swift:108"
+   ],
+   "method": "read",
+   "note": "A hang in progress is persisted in run.json with its stack; after a kill the next launch sends a `termination` exception (cause watchdog) stamped at the last alive time, not the hang record with its original start time."
+  },
+  {
+   "id": "SIG-32",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-08",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web/RN JS error signal; iOS handled errors are covered by API-6."
+  },
+  {
+   "id": "SIG-09",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:141",
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:103"
+   ],
+   "method": "read",
+   "note": "Native crashes are sent on next launch with the original time, but as event `exception` at severity ERROR with ouo.exception.fatal=true; no app.crash name, no app.crash.id, no app.build_id."
+  },
+  {
+   "id": "SIG-33",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:187",
+    "sdk/ios/Tests/OuoSDKTests/NetworkTests.swift:131"
+   ],
+   "method": "read",
+   "note": "captureError and log carry the active withSpan span's trace and span ids."
+  },
+  {
+   "id": "SIG-34",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:103"
+   ],
+   "method": "read",
+   "note": "No fingerprint is computed (grep fingerprint: none)."
+  },
+  {
+   "id": "SIG-35",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:141"
+   ],
+   "method": "read",
+   "note": "Neither app.crash nor device.crash: crashes are `exception` records."
+  },
+  {
+   "id": "SIG-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:221",
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:86"
+   ],
+   "method": "read",
+   "note": "Taps are emitted as ui.tap with ouo.ui.target (accessibilityIdentifier), ouo.ui.gesture, ouo.ui.path, ouo.ui.view_type; no app.widget.click, no coordinates, no viewport."
+  },
+  {
+   "id": "SIG-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:221"
+   ],
+   "method": "read",
+   "note": "A tap with no identifier is still ui.tap with the view class as target; no app.screen.click, no coordinates or viewport."
+  },
+  {
+   "id": "SIG-13",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No rage, dead or error tap detection (grep frustration/rage: none)."
+  },
+  {
+   "id": "SIG-36",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:98"
+   ],
+   "method": "read",
+   "note": "One touch gives one ui.tap record (tap, long_press or swipe), but never app.widget.click/app.screen.click."
+  },
+  {
+   "id": "SIG-37",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:223"
+   ],
+   "method": "read",
+   "note": "Tap records carry no coordinates; replay touches are in points, not pixels."
+  },
+  {
+   "id": "SIG-38",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:228"
+   ],
+   "method": "read",
+   "note": "Taps are plain events with no trace."
+  },
+  {
+   "id": "SIG-39",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Interactions.swift:30",
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:110"
+   ],
+   "method": "read",
+   "note": "Only accessibilityIdentifier and class names are read; no labels or text."
+  },
+  {
+   "id": "SIG-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-15",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SIG-19",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:207",
+    "sdk/ios/Sources/OuoSDK/Core.swift:212"
+   ],
+   "method": "read",
+   "note": "Screen views are event `navigation` with url.path=/<Name>, ouo.navigation.kind=screen and ouo.navigation.from; no app.navigation.complete, app.navigation.destination.name or app.screen.name."
+  },
+  {
+   "id": "SIG-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:308"
+   ],
+   "method": "read",
+   "note": "Event app.lifecycle with ouo.app.state (foreground, inactive, background), not device.app.lifecycle with ios.app.state."
+  },
+  {
+   "id": "SIG-21",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:19",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:22",
+    "sdk/ios/Tests/OuoSDKTests/NetworkTests.swift:60"
+   ],
+   "method": "test",
+   "note": "CLIENT span per URLSession data/download task with http.request.method, url.full, server.address/port, http.response.status_code, error.type; but named `HTTP GET` (semconv name is the method), upload tasks are skipped, and extra http.request / http.request.failed events are emitted per request."
+  },
+  {
+   "id": "SIG-40",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:93",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:16",
+    "sdk/ios/Tests/OuoSDKTests/NetworkTests.swift:113"
+   ],
+   "method": "test",
+   "note": "Ingest URLs (logs, traces, replay chunks) are excluded from tracing."
+  },
+  {
+   "id": "SIG-41",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoSpan.swift:17"
+   ],
+   "method": "read",
+   "note": "Each request is its own trace unless inside an app withSpan; no long-lived trace."
+  },
+  {
+   "id": "SIG-22",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:250"
+   ],
+   "method": "read",
+   "note": "session.start has session.id and session.previous_id, but no ouo.session.sample_rate; it also carries device.id and user.id."
+  },
+  {
+   "id": "SIG-23",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:305"
+   ],
+   "method": "read",
+   "note": "session.end with session.id and ouo.session.end_reason (values differ from the spec list, see SES-7)."
+  },
+  {
+   "id": "SIG-24",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:386",
+    "sdk/ios/Sources/OuoSDK/OuoSpan.swift:19"
+   ],
+   "method": "read",
+   "note": "session.id on every log record and span."
+  },
+  {
+   "id": "SIG-25",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No ouo.view.id (grep view.id in sdk/ios/Sources: none)."
+  },
+  {
+   "id": "SIG-26",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "Replay chunks are custom JSON POSTs, not ouo.replay.chunk log records."
+  },
+  {
+   "id": "SIG-27",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No ouo.replay.ended or any end-of-stream record (grep replay.ended: none)."
+  },
+  {
+   "id": "SIG-42",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule; the standalone iOS SDK has no JS layer."
+  },
+  {
+   "id": "SIG-43",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule; the standalone iOS SDK has no JS layer."
+  },
+  {
+   "id": "SIG-44",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule; the standalone iOS SDK has no JS layer."
+  },
+  {
+   "id": "SIG-45",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "React Native-only rule; the standalone iOS SDK has no JS layer."
+  },
+  {
+   "id": "RES-0",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:479"
+   ],
+   "method": "read",
+   "note": "service.name, service.version, os.name, os.version present; telemetry.sdk.name/language/version replaced by ouo.sdk.name/version, and app.build_id is missing."
+  },
+  {
+   "id": "RES-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:445"
+   ],
+   "method": "read",
+   "note": "Identity is fixed at start, but device.id (per-install, high cardinality) is added to the resource after start and can change when the session store becomes readable."
+  },
+  {
+   "id": "RES-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:447",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:250",
+    "sdk/ios/Tests/OuoSDKTests/RobustnessTests.swift:23"
+   ],
+   "method": "test",
+   "note": "device.id (random per install) is on the resource and on session.start/session.end, by default, with no setting to turn it off."
+  },
+  {
+   "id": "RES-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:479"
+   ],
+   "method": "read",
+   "note": "session.id, screen and user ids are record attributes, not resource (app-supplied resourceAttributes are not filtered)."
+  },
+  {
+   "id": "RES-4",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:55"
+   ],
+   "method": "read",
+   "note": "No entity usage."
+  },
+  {
+   "id": "PRP-1",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:23",
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:103"
+   ],
+   "method": "read",
+   "note": "traceparent on URLs matching propagateTo; ids from UInt8.random (system CSPRNG)."
+  },
+  {
+   "id": "PRP-2",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "PRP-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:25",
+    "sdk/ios/Tests/OuoSDKTests/NetworkTests.swift:113"
+   ],
+   "method": "test",
+   "note": "An existing traceparent is kept."
+  },
+  {
+   "id": "PRP-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:107"
+   ],
+   "method": "read",
+   "note": "The flag is always 01, also in unsampled sessions."
+  },
+  {
+   "id": "PRP-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "PRP-6",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:29"
+   ],
+   "method": "read",
+   "note": "baggage with session.id, user.id and ouo.platform is always sent to propagateTo URLs; there is no sessionBaggage switch and it is on by default."
+  },
+  {
+   "id": "TRN-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:38",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:183"
+   ],
+   "method": "read",
+   "note": "Telemetry is OTLP/HTTP JSON (spec: protobuf on mobile); replay is non-OTLP gzip JSON, not binary protobuf."
+  },
+  {
+   "id": "TRN-2",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:59"
+   ],
+   "method": "read",
+   "note": "Telemetry requests are gzip with content-encoding."
+  },
+  {
+   "id": "TRN-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:43",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:173"
+   ],
+   "method": "read",
+   "note": "Two DiskQueue folders with their own dispatch queues and transports; a replay backlog does not block telemetry."
+  },
+  {
+   "id": "TRN-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:14",
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:106"
+   ],
+   "method": "read",
+   "note": "Batches are at most 64 records and empty batches are never written, but there is no byte limit per request."
+  },
+  {
+   "id": "TRN-5",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:193"
+   ],
+   "method": "read",
+   "note": "One chunk per request (though not OTLP)."
+  },
+  {
+   "id": "TRN-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:109",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:266"
+   ],
+   "method": "read",
+   "note": "429/502/503/504 and network errors retried, other statuses dropped, 2xx deleted; OTLP partial_success is never read, so rejected>0 is not counted."
+  },
+  {
+   "id": "TRN-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:46",
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:19"
+   ],
+   "method": "read",
+   "note": "Exponential 1 s doubling, capped at 30 s (telemetry) / 60 s (replay), with no jitter."
+  },
+  {
+   "id": "TRN-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:290",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:46"
+   ],
+   "method": "read",
+   "note": "Retry-After (seconds form) is honoured as a lower bound but not capped at retry.maxMs; HTTP-date form is ignored."
+  },
+  {
+   "id": "TRN-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:226",
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:75"
+   ],
+   "method": "read",
+   "note": "Batches are retried until the 5 MB / 500 bound evicts them (counted only in an internal counter); in-memory overflow beyond 2048 records is dropped uncounted."
+  },
+  {
+   "id": "TRN-10",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:255",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:196"
+   ],
+   "method": "read",
+   "note": "The stored body is resent (replay: exact gzip bytes; telemetry: same JSON, re-gzipped per send); span_id stable."
+  },
+  {
+   "id": "TRN-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:231"
+   ],
+   "method": "read",
+   "note": "Oldest entries are evicted first, but with no bypass-record protection and no reported count."
+  },
+  {
+   "id": "TRN-12",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:266"
+   ],
+   "method": "read",
+   "note": "Files are removed only after a 2xx or a final status, or by the documented bounds."
+  },
+  {
+   "id": "TRN-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:238",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:255"
+   ],
+   "method": "read",
+   "note": "Deletions are only for final status, bound, or unreadable file, counted in DiskQueue stats; no TTL is used (deliberately), and counts are never reported."
+  },
+  {
+   "id": "TRN-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:231"
+   ],
+   "method": "read",
+   "note": "Each queue evicts its own oldest entries; there is no cross-queue order (replay, then telemetry, then bypass), and crash records are not protected."
+  },
+  {
+   "id": "TRN-20",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:193",
+    "sdk/ios/Sources/OuoCrashCore/ouo_crash.c:328",
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:99"
+   ],
+   "method": "read",
+   "note": "Replay chunks spooled then written to disk before send; crash report written at crash time and hang-in-progress in run.json; other telemetry goes to the disk outbox after at most 1 s in memory."
+  },
+  {
+   "id": "TRN-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:126",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:64",
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:134"
+   ],
+   "method": "read",
+   "note": "Outbox writes run on background queues and a refused write falls back to one send from memory (logged, not counted); session.json is written on the caller's thread, which can be main."
+  },
+  {
+   "id": "TRN-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "TRN-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "TRN-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "TRN-19",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "SMP-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:402"
+   ],
+   "method": "read",
+   "note": "Deterministic from the id, so stable within a session, but recomputed per record and not persisted with the session."
+  },
+  {
+   "id": "SMP-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:91",
+    "sdk/ios/Tests/OuoSDKTests/EncodingTests.swift:175"
+   ],
+   "method": "test",
+   "note": "Decision is fmix32(FNV-1a(\"session:\"+id))/2^32 < rate, not the first 8 hex chars of the id."
+  },
+  {
+   "id": "SMP-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:359"
+   ],
+   "method": "read",
+   "note": "Unsampled sessions send nothing, session.start included, but also no bypass records; session.start has no ouo.session.sample_rate."
+  },
+  {
+   "id": "SMP-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:107",
+    "sdk/ios/Sources/OuoSDK/Core.swift:330"
+   ],
+   "method": "read",
+   "note": "Unsampled sessions still propagate traceparent, but with the sampled flag set (01)."
+  },
+  {
+   "id": "SMP-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:359"
+   ],
+   "method": "read",
+   "note": "No bypass set: crashes, hangs and unhandled errors of an unsampled session are dropped like everything else."
+  },
+  {
+   "id": "SMP-6",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No ouo.sampling.bypass marker (grep: none)."
+  },
+  {
+   "id": "SMP-7",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No bypass records, so no per-session cap."
+  },
+  {
+   "id": "SMP-8",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:334"
+   ],
+   "method": "read",
+   "note": "Replay uses the same FNV hash with salt \"replay\" (independent, but not the second 8 hex chars)."
+  },
+  {
+   "id": "SMP-9",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:334"
+   ],
+   "method": "read",
+   "note": "Replay records only when the session and the replay sample both include it."
+  },
+  {
+   "id": "SMP-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:60"
+   ],
+   "method": "read",
+   "note": "No buffer mode; ReplayMode is session/navigation/auto capture pacing."
+  },
+  {
+   "id": "SMP-11",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No buffer ring exists."
+  },
+  {
+   "id": "SMP-12",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No trigger flush or ouo.replay.trigger."
+  },
+  {
+   "id": "PRV-1",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No consent API or consent.required (grep consent: none)."
+  },
+  {
+   "id": "PRV-2",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No consent pending state."
+  },
+  {
+   "id": "PRV-3",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No separate telemetry and replay consent."
+  },
+  {
+   "id": "PRV-4",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No consent withdrawal."
+  },
+  {
+   "id": "PRV-5",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:108",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:63",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:246"
+   ],
+   "method": "read",
+   "note": "Text, inputs, images and web views are masked by default, on device, before the JPEG is composed or spooled."
+  },
+  {
+   "id": "PRV-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only rule; not applicable to a native iOS SDK."
+  },
+  {
+   "id": "PRV-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:162",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:119"
+   ],
+   "method": "read",
+   "note": "Secure text fields are masked only as UITextField under maskInputs; replayMaskInputs=false or an ouo-unmask ancestor unmasks them (no isSecureTextEntry rule)."
+  },
+  {
+   "id": "PRV-8",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:141",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:247"
+   ],
+   "method": "read",
+   "note": "plan returns nil when a masked view is moving and the frame is dropped; a failed snapshot is dropped."
+  },
+  {
+   "id": "PRV-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Interactions.swift:30",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:50"
+   ],
+   "method": "read",
+   "note": "Only accessibilityIdentifier (as ouo.ui.target) and class names are captured by default, never labels; names are not app.widget.id/name."
+  },
+  {
+   "id": "PRV-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:15"
+   ],
+   "method": "read",
+   "note": "url.full is the raw absoluteString: credentials, query values and fragment are sent unredacted; no sanitizeUrl."
+  },
+  {
+   "id": "PRV-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:15"
+   ],
+   "method": "read",
+   "note": "Fragments are kept and never sanitised."
+  },
+  {
+   "id": "PRV-12",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:19"
+   ],
+   "method": "read",
+   "note": "No request/response bodies or headers captured."
+  },
+  {
+   "id": "PRV-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:106",
+    "sdk/ios/Sources/OuoSDK/Core.swift:387"
+   ],
+   "method": "read",
+   "note": "No IP, location, ad id or contacts; but an anonymous random user.id (with ouo.user.anonymous) is sent on every record before any setUser, and setUser sets user.id, not enduser.id."
+  },
+  {
+   "id": "PRV-14",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No beforeSend, so exception text cannot be filtered."
+  },
+  {
+   "id": "RPL-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Chunks carry only session_id, seq, started_at, ended_at, mode, masked, platform in the JSON body; no replay.id, stream.id, segment.index, keyframe, format, encoding, sha256, byte_size."
+  },
+  {
+   "id": "RPL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "A chunk is a standalone gzip JSON document, not an OTLP log record."
+  },
+  {
+   "id": "RPL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179"
+   ],
+   "method": "read",
+   "note": "No OTLP scope at all for replay."
+  },
+  {
+   "id": "RPL-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:155",
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:166",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:196"
+   ],
+   "method": "read",
+   "note": "seq starts at 0 per session and rises by 1, resend uses the same stored bytes; it is per session (no stream), and a chunk that fails to encode leaves a gap."
+  },
+  {
+   "id": "RPL-5",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No stream id; the stream is implied by session_id."
+  },
+  {
+   "id": "RPL-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:71"
+   ],
+   "method": "read",
+   "note": "Every chunk starts with a full image, so each chunk decodes alone; there is no ouo.replay.keyframe flag."
+  },
+  {
+   "id": "RPL-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:196"
+   ],
+   "method": "read",
+   "note": "Each chunk is independently gzip-decompressible, but chunks are separate JSON documents rather than parts of one format payload."
+  },
+  {
+   "id": "RPL-8",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:185",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:176"
+   ],
+   "method": "read",
+   "note": "After pause, background or a screen change, the differ resets and the next frame is a full image."
+  },
+  {
+   "id": "RPL-9",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:71",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:113"
+   ],
+   "method": "read",
+   "note": "Every 5 s chunk starts with a full frame, and foreground resumes with a full frame."
+  },
+  {
+   "id": "RPL-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:92",
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:109",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:108"
+   ],
+   "method": "read",
+   "note": "Cut at 5 s, on background and stop; the size cut is 1 MiB of base64 image characters, not 256 KiB compressed."
+  },
+  {
+   "id": "RPL-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkBuilder.swift:92"
+   ],
+   "method": "read",
+   "note": "The cut happens after the frame that crosses 1 MiB, so a body can exceed 1 MiB; no split."
+  },
+  {
+   "id": "RPL-12",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No sha256 (grep sha256: none)."
+  },
+  {
+   "id": "RPL-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Most MUST attributes are absent (see RPL-1)."
+  },
+  {
+   "id": "RPL-14",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ref is set."
+  },
+  {
+   "id": "RPL-15",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:193",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:81"
+   ],
+   "method": "read",
+   "note": "Open chunk spooled while built and written to the outbox before the first send; a crash's open chunk is recovered next launch."
+  },
+  {
+   "id": "RPL-16",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:244"
+   ],
+   "method": "read",
+   "note": "Oldest first, one request at a time."
+  },
+  {
+   "id": "RPL-17",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:226"
+   ],
+   "method": "read",
+   "note": "The 10 MB bound drops whole oldest chunks without renumbering, but nothing marks the stream partial."
+  },
+  {
+   "id": "RPL-18",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:226"
+   ],
+   "method": "read",
+   "note": "Capture never stops on a full store; old chunks are evicted instead."
+  },
+  {
+   "id": "RPL-19",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:334"
+   ],
+   "method": "read",
+   "note": "Capture runs only in replay-sampled sessions; there is no consent check because consent does not exist."
+  },
+  {
+   "id": "RPL-26",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No ouo.replay.ended record."
+  },
+  {
+   "id": "RPL-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:81"
+   ],
+   "method": "read",
+   "note": "No end record; after a kill the open chunk is recovered and sent, but no partial end record is emitted."
+  },
+  {
+   "id": "RPL-21",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No end_state."
+  },
+  {
+   "id": "RPL-22",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Store-side rule."
+  },
+  {
+   "id": "RPL-27",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:101",
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:176",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:141"
+   ],
+   "method": "read",
+   "note": "The one built-in format has an id in the body (kind=frames, schema_version), keyframes on request, gzip and masking, but there is no adapter interface, and output is not reliably bounded (RPL-11)."
+  },
+  {
+   "id": "RPL-23",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "method": "read",
+   "note": "Identity (session_id, seq) and delivery headers live inside the frames JSON body, so they depend on the format."
+  },
+  {
+   "id": "RPL-24",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Reader rule."
+  },
+  {
+   "id": "RPL-25",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "MAY clause for video formats; the SDK uses JPEG frames."
+  },
+  {
+   "id": "ERR-1",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:66",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:55"
+   ],
+   "method": "read",
+   "note": "No throwing paths into the host; KVC is guarded by respondsToSelector; unusable config is refused without throwing. Not fault-injected here."
+  },
+  {
+   "id": "ERR-2",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:51",
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:41"
+   ],
+   "method": "read",
+   "note": "Swizzled resume and viewWillAppear/viewDidAppear call the original with the same arguments; only trace headers are added to matching requests."
+  },
+  {
+   "id": "ERR-3",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoCrashCore/ouo_crash.c:443",
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift:219",
+    "sdk/ios/Tests/OuoCrashTests/OuoCrashTests.swift:1"
+   ],
+   "method": "test",
+   "note": "Signal handlers restore and call the previous handlers; the NSException handler chains (test PreviousHandlersStillRunAfterOurs)."
+  },
+  {
+   "id": "ERR-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:132",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:64",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:92"
+   ],
+   "method": "read",
+   "note": "Synchronous file reads at start and session.json writes from taps, screens and lifecycle can run on the main thread."
+  },
+  {
+   "id": "ERR-5",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:16"
+   ],
+   "method": "read",
+   "note": "The SDK's own URLSession tasks go through the swizzle but are skipped by the ingest prefix check."
+  },
+  {
+   "id": "ERR-6",
+   "status": "not_met",
+   "evidence": [],
+   "method": "read",
+   "note": "No internal error counter or self-disable (grep selfDisable: none)."
+  },
+  {
+   "id": "ERR-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:87"
+   ],
+   "method": "read",
+   "note": "Drops are counted only in DiskQueue stats; no ouo.sdk.dropped event."
+  },
+  {
+   "id": "ERR-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:132",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:51",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:64",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:32",
+    "sdk/ios/Sources/OuoSDK/Core.swift:142"
+   ],
+   "method": "read",
+   "note": "Most diagnostics are gated by debug, but some NSLog calls always print, and the debug log prints the previous crash's exception.message."
+  },
+  {
+   "id": "ERR-9",
+   "status": "met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:17",
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:19",
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:90",
+    "sdk/ios/Sources/OuoSDK/Timeline.swift:15"
+   ],
+   "method": "read",
+   "note": "Pending records (2048/1024), outbox (5 MB/500), replay outbox (10 MB) and recent events (20) are bounded."
+  },
+  {
+   "id": "OVH-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Budgets in section 13 are TBD; nothing to measure against yet."
+  },
+  {
+   "id": "VER-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the spec document itself."
+  },
+  {
+   "id": "VER-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/version.txt:1",
+    "sdk/ios/CHANGELOG.md:10"
+   ],
+   "method": "read",
+   "note": "Releases state the SDK version 0.3.0 only, no spec version."
+  },
+  {
+   "id": "VER-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:76"
+   ],
+   "method": "read",
+   "note": "No schema_url on the scope or resource."
+  },
+  {
+   "id": "VER-4",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Collector and release-process rule."
+  },
+  {
+   "id": "VER-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Spec and Collector table rule."
+  }
+ ],
+ "violations": [
+  {
+   "what": "Replay chunks sent as custom gzip JSON (kind=frames) to /v1/replay/chunks, a non-OTLP format and path (default port 4319)",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:179",
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:94"
+   ],
+   "breaks": "REL-2"
+  },
+  {
+   "what": "Replay requests carry custom headers x-ouo-session-id and x-ouo-seq",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/ChunkUploader.swift:185"
+   ],
+   "breaks": "REL-2"
+  },
+  {
+   "what": "device.id (random per install) put on the resource and on session.start/session.end by default",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:447",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:250",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:312"
+   ],
+   "breaks": "RES-2"
+  },
+  {
+   "what": "Deprecated event.name attribute kept on every event",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:355"
+   ],
+   "breaks": "REC-1"
+  },
+  {
+   "what": "Unprefixed custom event names: navigation, ui.tap, app.lifecycle, log, feedback, http.request, http.request.failed",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:212",
+    "sdk/ios/Sources/OuoSDK/Core.swift:230",
+    "sdk/ios/Sources/OuoSDK/Core.swift:308",
+    "sdk/ios/Sources/OuoSDK/Core.swift:157",
+    "sdk/ios/Sources/OuoSDK/Core.swift:248",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:50"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "Unprefixed custom attribute `message` on log records",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:155"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "session.previous_id stamped on every record, not only session.start",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:389"
+   ],
+   "breaks": "SES-4"
+  },
+  {
+   "what": "Network requests count as session activity",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:17"
+   ],
+   "breaks": "SES-5"
+  },
+  {
+   "what": "baggage with session.id, user.id and ouo.platform always sent to propagateTo URLs, no off switch",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:29"
+   ],
+   "breaks": "PRP-6"
+  },
+  {
+   "what": "Anonymous user.id sent on every record before setUser",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:387",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:106"
+   ],
+   "breaks": "PRV-13"
+  },
+  {
+   "what": "Raw url.full with query, credentials and fragment on spans and http.request events",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:15",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:54"
+   ],
+   "breaks": "PRV-10"
+  },
+  {
+   "what": "Extra http.request / http.request.failed events per request beside the span",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:50",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:61"
+   ],
+   "breaks": "SIG-21"
+  },
+  {
+   "what": "traceparent sampled flag forced to 01 in unsampled sessions",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:107"
+   ],
+   "breaks": "SMP-4"
+  },
+  {
+   "what": "Crashes, hangs and terminations dropped in unsampled sessions (no bypass)",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:359"
+   ],
+   "breaks": "SMP-5"
+  },
+  {
+   "what": "Synchronous disk I/O on the main thread (session.json read/write, crash report read at start)",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:58",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:64",
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift:110"
+   ],
+   "breaks": "ERR-4"
+  },
+  {
+   "what": "NSLog diagnostics printed with debug off",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:51",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:64",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:32"
+   ],
+   "breaks": "ERR-8"
+  },
+  {
+   "what": "Secure text fields can be unmasked (maskInputs=false or ouo-unmask)",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:162"
+   ],
+   "breaks": "PRV-7"
+  },
+  {
+   "what": "A background launch starts a session and emits session.start",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:158"
+   ],
+   "breaks": "LIF-13"
+  },
+  {
+   "what": "Custom session.id format (UUID with dashes)",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:245"
+   ],
+   "breaks": "SES-1"
+  },
+  {
+   "what": "observedTimeUnixNano equal to timeUnixNano on every record",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:44"
+   ],
+   "breaks": "REC-4"
+  }
+ ],
+ "features": [
+  {
+   "id": "SES-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:128",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:244"
+   ],
+   "note": "Automatic sessions with session.start/session.end (names right, id format and attributes off spec)."
+  },
+  {
+   "id": "SES-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:258",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:29"
+   ],
+   "note": "Inactivity (30 min), max duration (4 h) and background (30 s default, spec 15 min); network counts as activity."
+  },
+  {
+   "id": "SES-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:142"
+   ],
+   "note": "Persisted across launches, but every cold start rotates the session."
+  },
+  {
+   "id": "SES-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:135",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:125"
+   ],
+   "note": "endSession and sessionId exist; no restartSession that starts the new one at once."
+  },
+  {
+   "id": "ERR-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift:219",
+    "sdk/ios/Sources/OuoCrashCore/ouo_crash.c:580"
+   ],
+   "note": "Uncaught NSExceptions and signals captured, sent next launch (as `exception`)."
+  },
+  {
+   "id": "ERR-c",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:150",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:161"
+   ],
+   "note": "captureError and captureException with stack and attributes."
+  },
+  {
+   "id": "ERR-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:135",
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:103"
+   ],
+   "note": "Signals and NSExceptions with frames and images for dSYM symbolication; emitted as exception, not app.crash."
+  },
+  {
+   "id": "ERR-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoCrash/OuoCrash.swift:138",
+    "sdk/ios/Sources/OuoVitals/HangDetector.swift:1"
+   ],
+   "note": "App hangs with stack (as exception kind=hang); ANR is Android-only."
+  },
+  {
+   "id": "ERR-f",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoCrash/RunState.swift:92"
+   ],
+   "note": "Foreground terminations with cause memory/watchdog/unknown (Sentry heuristic)."
+  },
+  {
+   "id": "ERR-g",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Timeline.swift:14",
+    "sdk/ios/Sources/OuoSDK/Core.swift:166"
+   ],
+   "note": "ouo.last_events (last 20 records) and screen on exceptions, persisted for crashes."
+  },
+  {
+   "id": "ERR-h",
+   "state": "none",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:186"
+   ],
+   "note": "No documented fingerprint attribute; an app could pass any attribute but nothing names ouo.exception.fingerprint."
+  },
+  {
+   "id": "ERR-k",
+   "state": "none",
+   "evidence": [],
+   "note": "No client dedupe or flood guard for errors."
+  },
+  {
+   "id": "PERF-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:140"
+   ],
+   "note": "Cold start (prewarm aware) to first frame, as event ouo.app.start, not the AppStart span."
+  },
+  {
+   "id": "PERF-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:167",
+    "sdk/ios/Sources/OuoVitals/FrameCounter.swift:20"
+   ],
+   "note": "Slow and frozen frames per screen window in app.jank."
+  },
+  {
+   "id": "PERF-h",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Vitals.swift:150",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:200"
+   ],
+   "note": "TTID and TTFD per screen (ouo.screen.display, reportFullyDisplayed)."
+  },
+  {
+   "id": "PERF-k",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:206",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:213"
+   ],
+   "note": "startSpan/withSpan with thread-local active span."
+  },
+  {
+   "id": "NET-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Network.swift:44",
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:11"
+   ],
+   "note": "URLSession resume swizzle: CLIENT span per data/download task (upload tasks skipped)."
+  },
+  {
+   "id": "NET-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:23"
+   ],
+   "note": "traceparent and baggage to propagateTo prefixes; sampled flag always set."
+  },
+  {
+   "id": "INT-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:86",
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:181"
+   ],
+   "note": "Taps, long presses and swipes as ui.tap; trackTap for SwiftUI; no coordinates or spec names."
+  },
+  {
+   "id": "INT-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Interactions.swift:40"
+   ],
+   "note": "Targets named by accessibilityIdentifier with a path; no app.widget.name option."
+  },
+  {
+   "id": "INT-c",
+   "state": "none",
+   "evidence": [],
+   "note": "No rage tap detection."
+  },
+  {
+   "id": "INT-e",
+   "state": "none",
+   "evidence": [],
+   "note": "No error tap detection."
+  },
+  {
+   "id": "NAV-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:11",
+    "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:9"
+   ],
+   "note": "UIKit view controllers automatic, SwiftUI via .ouoScreen; emitted as `navigation`."
+  },
+  {
+   "id": "NAV-e",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:177"
+   ],
+   "note": "trackScreen(name)."
+  },
+  {
+   "id": "NAV-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:304"
+   ],
+   "note": "app.lifecycle foreground/inactive/background, not device.app.lifecycle."
+  },
+  {
+   "id": "RPL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:17",
+    "sdk/ios/Sources/OuoReplayCore/Models.swift:100"
+   ],
+   "note": "Masked JPEG frame replay with patches and touches; custom non-OTLP chunk format and endpoint."
+  },
+  {
+   "id": "RPL-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:333"
+   ],
+   "note": "Session mode by sample rate; no buffer-on-error mode."
+  },
+  {
+   "id": "RPL-e",
+   "state": "none",
+   "evidence": [],
+   "note": "Network requests are not in the replay payload (only on the telemetry timeline)."
+  },
+  {
+   "id": "RPL-g",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:108",
+    "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15"
+   ],
+   "note": "Mask-all default, per-group switches, ouo-mask/ouo-unmask identifiers and SwiftUI modifiers (secure fields unmaskable, see PRV-7)."
+  },
+  {
+   "id": "RPL-i",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:155"
+   ],
+   "note": "Snapshot-based capture covers SwiftUI and UIKit; SwiftUI text masking depends on the view walk."
+  },
+  {
+   "id": "RPL-j",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplay/ReplayRecorder.swift:108"
+   ],
+   "note": "Pauses in background and unchanged frames are skipped; no maximum replay duration."
+  },
+  {
+   "id": "USR-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:131"
+   ],
+   "note": "setUser/clearUser set user.id (not enduser.id) and may rotate the session."
+  },
+  {
+   "id": "USR-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:69"
+   ],
+   "note": "Only static resourceAttributes at start; no setGlobalAttributes for records."
+  },
+  {
+   "id": "USR-d",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:106",
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:107"
+   ],
+   "note": "Anonymous user.id and device.id kept on device (sent by default, see violations)."
+  },
+  {
+   "id": "LOG-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:170"
+   ],
+   "note": "Ouo.log with severity, message and active span trace."
+  },
+  {
+   "id": "LOG-c",
+   "state": "none",
+   "evidence": [],
+   "note": "No OTel providers; host OTel instrumentation cannot share the pipeline."
+  },
+  {
+   "id": "SMP-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:402"
+   ],
+   "note": "Session sampling by hash of the id, not the spec rule."
+  },
+  {
+   "id": "SMP-d",
+   "state": "none",
+   "evidence": [],
+   "note": "No buffer-on-error replay."
+  },
+  {
+   "id": "SMP-e",
+   "state": "none",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:359"
+   ],
+   "note": "Errors of unsampled sessions are dropped."
+  },
+  {
+   "id": "SMP-f",
+   "state": "none",
+   "evidence": [],
+   "note": "No remote config or kill switch."
+  },
+  {
+   "id": "PRV-a",
+   "state": "none",
+   "evidence": [],
+   "note": "No consent API."
+  },
+  {
+   "id": "PRV-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Interactions.swift:30"
+   ],
+   "note": "Taps never read text; URLs and exception messages are not masked."
+  },
+  {
+   "id": "PRV-c",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:15",
+    "sdk/ios/Sources/OuoReplayCore/RedactionPlanner.swift:55"
+   ],
+   "note": "ouo-mask/ouo-unmask/ouo-unmask-area identifiers and SwiftUI .ouoMask/.ouoUnmask."
+  },
+  {
+   "id": "PRV-d",
+   "state": "none",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/NetworkTracing.swift:15"
+   ],
+   "note": "URLs sent raw."
+  },
+  {
+   "id": "PRV-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:107"
+   ],
+   "note": "No IP, location or ad id, but device.id and anonymous user.id are sent by default."
+  },
+  {
+   "id": "PRV-f",
+   "state": "none",
+   "evidence": [],
+   "note": "No beforeSend."
+  },
+  {
+   "id": "TRN-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:14"
+   ],
+   "note": "1 s / 64-record batches."
+  },
+  {
+   "id": "TRN-b",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:30"
+   ],
+   "note": "Disk outbox for telemetry and replay with retries across launches."
+  },
+  {
+   "id": "TRN-d",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exporter.swift:59"
+   ],
+   "note": "gzip on telemetry and replay."
+  },
+  {
+   "id": "TRN-e",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:11",
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:23"
+   ],
+   "note": "Configurable endpoint and replay endpoint."
+  },
+  {
+   "id": "TRN-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoReplayCore/DiskQueue.swift:290"
+   ],
+   "note": "Retry-After honoured as a minimum, uncapped; no jitter."
+  },
+  {
+   "id": "TRN-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OTLP.swift:40"
+   ],
+   "note": "Telemetry is OTLP/HTTP JSON; replay is not OTLP."
+  },
+  {
+   "id": "CFG-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:8"
+   ],
+   "note": "OuoConfig object for Swift and Objective-C."
+  },
+  {
+   "id": "CFG-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/OuoConfig.swift:39"
+   ],
+   "note": "Switches for requestEvents, lifecycleEvents, screens, taps, tapLabels, crashes, vitals; network spans cannot be turned off."
+  },
+  {
+   "id": "CFG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Attributes.swift:132"
+   ],
+   "note": "debug logging; no drop counts."
+  },
+  {
+   "id": "CFG-d",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:486"
+   ],
+   "note": "service.name, service.version, deployment.environment.name."
+  },
+  {
+   "id": "API-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:142"
+   ],
+   "note": "addEvent(name, attributes)."
+  },
+  {
+   "id": "API-c",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:206"
+   ],
+   "note": "Custom spans."
+  },
+  {
+   "id": "API-d",
+   "state": "none",
+   "evidence": [],
+   "note": "No view-scoped attributes."
+  },
+  {
+   "id": "API-e",
+   "state": "none",
+   "evidence": [],
+   "note": "No OTel interop (ADR-0016 custom encoder)."
+  },
+  {
+   "id": "SYM-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:157",
+    "sdk/ios/Sources/OuoSDK/Exceptions.swift:167"
+   ],
+   "note": "Frames and binary images with debug ids (ouo.crash.frames/images) for dSYM symbolication; no upload tooling here."
+  },
+  {
+   "id": "SYM-e",
+   "state": "none",
+   "evidence": [],
+   "note": "No build tooling in sdk/ios."
+  },
+  {
+   "id": "FWK-d",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/UIKitTracking.swift:11",
+    "sdk/ios/Sources/OuoSDK/SwiftUISupport.swift:9"
+   ],
+   "note": "UIKit automatic, SwiftUI modifiers, Objective-C surface."
+  },
+  {
+   "id": "REL-a",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:487"
+   ],
+   "note": "service.version on resource and records."
+  },
+  {
+   "id": "REL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/SessionManager.swift:5"
+   ],
+   "note": "session.end reasons crash/terminated support crash-free sessions; crash records are not app.crash."
+  },
+  {
+   "id": "REL-d",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Core.swift:378"
+   ],
+   "note": "service.version on every record, session.end names the version it ran on."
+  },
+  {
+   "id": "FF-a",
+   "state": "none",
+   "evidence": [],
+   "note": "No feature flag support."
+  },
+  {
+   "id": "FF-c",
+   "state": "none",
+   "evidence": [],
+   "note": "No OpenFeature hook."
+  },
+  {
+   "id": "FB-b",
+   "state": "full",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:192"
+   ],
+   "note": "Ouo.feedback(message, contact, screenshot)."
+  },
+  {
+   "id": "OTH-d",
+   "state": "none",
+   "evidence": [],
+   "note": "No WebView bridge (web views are only masked in replay)."
+  },
+  {
+   "id": "ERR-i",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:192",
+    "sdk/ios/Sources/OuoReplay/OuoReplay.swift:103"
+   ],
+   "note": "Feedback can take a masked replay frame as screenshot (ships a Later feature, partially)."
+  },
+  {
+   "id": "PERF-j",
+   "state": "partial",
+   "evidence": [
+    "sdk/ios/Sources/OuoSDK/Ouo.swift:85"
+   ],
+   "note": "Memory footprint/available and network type on exceptions (ships a Later feature, partially)."
+  }
+ ],
+ "architecture_notes": "The iOS SDK is fully custom: ADR-0016 rejected opentelemetry-swift, so there is no OTel API/SDK, no TracerProvider or LoggerProvider, and the spec's section 1 plan (wrap opentelemetry-swift) is not followed. OuoSDK builds log records and spans itself and encodes them as OTLP/HTTP JSON (not protobuf), gzip, Basic auth, to /v1/logs and /v1/traces, with scope `ouo11y-ios` and no schema_url. Records are batched in memory for 1 s (64 per batch, 2048 pending) and then written to a DiskQueue outbox folder (5 MB / 500 requests, oldest dropped, no TTL), sent one request at a time with 1 s doubling to 30 s retries, no jitter, partial_success not read. Sessions are a synchronous state machine persisted in session.json with UUID ids, inactivity, 30 s background and 4 h max timeouts, a rotation on every cold start, and a per-install device.id on the resource; sampling uses an FNV/fmix hash shared with the RN SDK and drops everything in unsampled sessions, with no bypass set. Crashes (async-signal-safe C handlers plus NSException, chained), hangs (display link watchdog) and watchdog/OOM terminations are reported as `exception` records with ouo.exception.kind rather than app.crash/ouo.app.hang; vitals use ouo.app.start, ouo.screen.display and the spec-named app.jank. Replay is a separate pipeline: masked, JPEG frames with patches and touches, spooled and queued on disk, posted as custom gzip JSON (`frames` schema 2) to the collector's /v1/replay/chunks receiver, so it is not OTLP and has none of the spec's replay/stream/segment identity, sha256, end record or buffer mode. The largest structural gaps: non-OTLP replay, event naming that predates the spec (event.name kept, unprefixed custom names, no view id), no consent, beforeSend, URL sanitising, shutdown or drop reporting, no bypass sampling, and main-thread file I/O in start and session updates."
+}

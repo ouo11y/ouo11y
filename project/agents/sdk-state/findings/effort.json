@@ -1,0 +1,390 @@
+{
+ "SES-a": {
+  "size": "S",
+  "note": "Exists; align id format and start/end attributes"
+ },
+ "SES-b": {
+  "size": "S",
+  "note": "Config defaults and activity rules"
+ },
+ "SES-c": {
+  "size": "M",
+  "note": "Web Locks tab sharing; mobile relaunch continuity instead of cold-start rotation"
+ },
+ "SES-d": {
+  "size": "S",
+  "note": "getSessionId/restartSession wrappers"
+ },
+ "ERR-a": {
+  "size": "S",
+  "note": "Exists; rename attributes"
+ },
+ "ERR-b": {
+  "size": "S",
+  "note": "Exists"
+ },
+ "ERR-c": {
+  "size": "S",
+  "note": "Rename to recordException, set source/handled"
+ },
+ "ERR-d": {
+  "size": "L",
+  "note": "Android NDK crashes need a native signal handler; iOS has Mach/signal handling to verify"
+ },
+ "ERR-e": {
+  "size": "M",
+  "note": "Thresholds and persistence of in-progress hangs (SIG-31)"
+ },
+ "ERR-f": {
+  "size": "M",
+  "note": "ApplicationExitInfo on Android, watchdog inference on iOS"
+ },
+ "ERR-g": {
+  "size": "S",
+  "note": "Trail is our ordinary events; gap is unsampled sessions (G4)"
+ },
+ "ERR-h": {
+  "size": "S",
+  "note": "One attribute passthrough"
+ },
+ "ERR-k": {
+  "size": "S",
+  "note": "Per-type rate limiter"
+ },
+ "PERF-a": {
+  "size": "S",
+  "note": "Rename to browser.web_vital"
+ },
+ "PERF-b": {
+  "size": "S",
+  "note": "web-vitals attribution build"
+ },
+ "PERF-c": {
+  "size": "S",
+  "note": "Gated on OTel PR #429"
+ },
+ "PERF-d": {
+  "size": "S",
+  "note": "documentLoad exists; add browser.navigation_timing event"
+ },
+ "PERF-e": {
+  "size": "M",
+  "note": "Per-view cap and pricing"
+ },
+ "PERF-f": {
+  "size": "M",
+  "note": "AppStart span after the fact with cold/warm/hot"
+ },
+ "PERF-g": {
+  "size": "S",
+  "note": "Emit app.jank per window"
+ },
+ "PERF-h": {
+  "size": "M",
+  "note": "TTID automatic per screen, TTFD manual call"
+ },
+ "PERF-k": {
+  "size": "M",
+  "note": "Expose tracer provider; on iOS and Android this needs the OTel SDK the founder's post-Step 5 direction adopts (opentelemetry-swift core, opentelemetry-android)"
+ },
+ "NET-a": {
+  "size": "S",
+  "note": "Exists on JS; native HTTP on iOS/Android is M"
+ },
+ "NET-b": {
+  "size": "S",
+  "note": "traceparent exists; allowlist and sampled flag rules"
+ },
+ "INT-a": {
+  "size": "S",
+  "note": "Rename to spec events and attributes"
+ },
+ "INT-b": {
+  "size": "S",
+  "note": "Selector rules (PRV-9)"
+ },
+ "INT-c": {
+  "size": "S",
+  "note": "Threshold 4 in 1 s"
+ },
+ "INT-d": {
+  "size": "S",
+  "note": "Exists on web"
+ },
+ "INT-e": {
+  "size": "S",
+  "note": "Click followed by error within 2 s"
+ },
+ "NAV-a": {
+  "size": "S",
+  "note": "browser.navigation event"
+ },
+ "NAV-b": {
+  "size": "S",
+  "note": "History API, same_document flag"
+ },
+ "NAV-c": {
+  "size": "M",
+  "note": "UIKit/SwiftUI and Activity/Compose screen tracking"
+ },
+ "NAV-d": {
+  "size": "S",
+  "note": "React Navigation integration exists"
+ },
+ "NAV-e": {
+  "size": "S",
+  "note": "trackNavigation"
+ },
+ "NAV-f": {
+  "size": "S",
+  "note": "device.app.lifecycle naming"
+ },
+ "RPL-a": {
+  "size": "L",
+  "note": "rrweb works; re-carry as OTLP log records with the section 11 identity, keyframes, sha256, ended record"
+ },
+ "RPL-b": {
+  "size": "L",
+  "note": "Same transport rework plus format decision (wireframe or video)"
+ },
+ "RPL-c": {
+  "size": "M",
+  "note": "Buffer mode ring with keyframe retention"
+ },
+ "RPL-d": {
+  "size": "M",
+  "note": "rrweb options plus tests"
+ },
+ "RPL-e": {
+  "size": "M",
+  "note": "Network events into the replay timeline"
+ },
+ "RPL-f": {
+  "size": "S",
+  "note": "rrweb console plugin"
+ },
+ "RPL-g": {
+  "size": "M",
+  "note": "Unmaskable secure fields, mask-on-failure drop (PRV-8)"
+ },
+ "RPL-h": {
+  "size": "M",
+  "note": "Follows RPL-b"
+ },
+ "RPL-i": {
+  "size": "L",
+  "note": "SwiftUI and Compose masking need view-tree or layer heuristics"
+ },
+ "RPL-j": {
+  "size": "S",
+  "note": "Idle pause and max duration"
+ },
+ "USR-a": {
+  "size": "S",
+  "note": "setUser to enduser.id"
+ },
+ "USR-c": {
+  "size": "S",
+  "note": "setGlobalAttributes"
+ },
+ "USR-d": {
+  "size": "S",
+  "note": "Install id off the resource, opt-in"
+ },
+ "LOG-a": {
+  "size": "M",
+  "note": "Logger provider exposed and session-stamped"
+ },
+ "LOG-b": {
+  "size": "S",
+  "note": "Console patch to logs"
+ },
+ "LOG-c": {
+  "size": "M",
+  "note": "Needs OTel logs SDK on native"
+ },
+ "SMP-a": {
+  "size": "S",
+  "note": "Switch FNV hash to the SMP-2 hex rule"
+ },
+ "SMP-d": {
+  "size": "M",
+  "note": "Ring buffer and trigger"
+ },
+ "SMP-e": {
+  "size": "S",
+  "note": "Bypass set and cap"
+ },
+ "SMP-f": {
+  "size": "L",
+  "note": "Remote config needs a server side"
+ },
+ "PRV-a": {
+  "size": "M",
+  "note": "setConsent with pending buffer and withdrawal deletion"
+ },
+ "PRV-b": {
+  "size": "S",
+  "note": "Selector and widget-name rules"
+ },
+ "PRV-c": {
+  "size": "S",
+  "note": "data-ouo-mask/unmask and mobile mask APIs"
+ },
+ "PRV-d": {
+  "size": "S",
+  "note": "PRV-10 sanitiser shared across platforms"
+ },
+ "PRV-e": {
+  "size": "S",
+  "note": "Drop install-wide user.id and device.id defaults"
+ },
+ "PRV-f": {
+  "size": "S",
+  "note": "beforeSend hook before persistence"
+ },
+ "PRV-g": {
+  "size": "S",
+  "note": "Read GPC/DNT"
+ },
+ "TRN-a": {
+  "size": "S",
+  "note": "Limits per section 8.1"
+ },
+ "TRN-b": {
+  "size": "M",
+  "note": "Retry table, jitter, TTL, eviction order"
+ },
+ "TRN-c": {
+  "size": "M",
+  "note": "60 KiB keepalive budget, later-page drain under Web Lock"
+ },
+ "TRN-d": {
+  "size": "S",
+  "note": "gzip exists"
+ },
+ "TRN-e": {
+  "size": "S",
+  "note": "Exists"
+ },
+ "TRN-f": {
+  "size": "S",
+  "note": "Retry-After honoured and capped"
+ },
+ "TRN-g": {
+  "size": "M",
+  "note": "Telemetry already OTLP; replay is not; protobuf on mobile"
+ },
+ "CFG-a": {
+  "size": "S",
+  "note": "One config object exists"
+ },
+ "CFG-b": {
+  "size": "S",
+  "note": "instrumentations.<signal> switches"
+ },
+ "CFG-c": {
+  "size": "M",
+  "note": "ouo.sdk.dropped events and self-disable"
+ },
+ "CFG-d": {
+  "size": "S",
+  "note": "Exists"
+ },
+ "CFG-e": {
+  "size": "M",
+  "note": "CDN loader build"
+ },
+ "CFG-f": {
+  "size": "S",
+  "note": "Exists on web"
+ },
+ "API-a": {
+  "size": "S",
+  "note": "recordEvent with reserved-prefix rejection"
+ },
+ "API-c": {
+  "size": "M",
+  "note": "Through the OTel tracer provider (PERF-k)"
+ },
+ "API-d": {
+  "size": "S",
+  "note": "View-scoped attributes"
+ },
+ "API-e": {
+  "size": "M",
+  "note": "Provider access; native needs OTel SDKs"
+ },
+ "SYM-a": {
+  "size": "S",
+  "note": "Sourcemap uploader exists (sdk/sourcemaps)"
+ },
+ "SYM-b": {
+  "size": "M",
+  "note": "dSYM upload tool and server symbolication"
+ },
+ "SYM-c": {
+  "size": "L",
+  "note": "R8 mapping and NDK symbols, server side"
+ },
+ "SYM-d": {
+  "size": "M",
+  "note": "Hermes maps"
+ },
+ "SYM-e": {
+  "size": "M",
+  "note": "Bundler plugins"
+ },
+ "FWK-a": {
+  "size": "S",
+  "note": "React entry exists"
+ },
+ "FWK-b": {
+  "size": "M",
+  "note": "Next.js integration"
+ },
+ "FWK-d": {
+  "size": "M",
+  "note": "SwiftUI modifiers"
+ },
+ "FWK-e": {
+  "size": "M",
+  "note": "Compose and OkHttp"
+ },
+ "FWK-f": {
+  "size": "S",
+  "note": "Expo module exists"
+ },
+ "REL-a": {
+  "size": "S",
+  "note": "service.version and app.build_id"
+ },
+ "REL-b": {
+  "size": "S",
+  "note": "Computed at the edge from session and crash events"
+ },
+ "REL-d": {
+  "size": "S",
+  "note": "Server side"
+ },
+ "FF-a": {
+  "size": "S",
+  "note": "Attribute on records"
+ },
+ "FF-c": {
+  "size": "M",
+  "note": "OpenFeature hook per platform"
+ },
+ "FB-b": {
+  "size": "M",
+  "note": "Feedback API plus UI"
+ },
+ "OTH-d": {
+  "size": "M",
+  "note": "WebView bridge"
+ },
+ "OTH-h": {
+  "size": "S",
+  "note": "UA heuristics"
+ }
+}

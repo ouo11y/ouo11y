@@ -1,0 +1,2525 @@
+{
+ "platform": "android",
+ "sdk_paths": [
+  "sdk/android/replay-core",
+  "sdk/android/replay",
+  "sdk/android/signals-core",
+  "sdk/android/signals"
+ ],
+ "sdk_version": "none: sdk/android has no version metadata; it ships vendored inside @ouo11y/react-native 0.3.0 (sdk/react-native/package.json)",
+ "how_checked": "Read every main source file in the four modules (~2.9k lines), README.md, the RN glue sdk/react-native/android/.../OuoReplayModule.kt, and the spec sections 0-15. Grepped sdk/android for opentelemetry, traceparent, sampl, consent, beforeSend, fingerprint, service, WorkManager, ANDROID_ID, location. Ran `perl -e \"alarm 900; exec @ARGV\" ./gradlew :replay-core:test :signals-core:test`: BUILD SUCCESSFUL, 26 tests, 0 failures (ChunkTest 6, DiffAndPlanTest 5, DeliveryAndPacingTest 7, SignalsTest 8). Did not run the instrumented MaskPixelTest or any emulator. No wire capture.",
+ "requirements": [
+  {
+   "id": "REL-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Meta rule on how SDKs are judged; nothing to implement."
+  },
+  {
+   "id": "REL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:46",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:102-115",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-128"
+   ],
+   "method": "read",
+   "note": "Replay chunks are gzip JSON POSTed to the custom `${endpoint}/v1/replay/chunks` receiver, not OTLP; signals never leave Kotlin as OTLP (custom JSON reports handed to the RN JS layer)."
+  },
+  {
+   "id": "REL-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-126",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:44-58",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:107-113"
+   ],
+   "method": "read",
+   "note": "Wire names are unprefixed custom keys (session_id, seq, started_at, viewport, platform, mode, frames, touches, masked; report mechanism, timestamp_ms, hang, termination) and headers x-ouo-session-id / x-ouo-seq, not ouo.* attributes."
+  },
+  {
+   "id": "REL-4",
+   "status": "na",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: Kotlin creates no tracer/logger/meter provider, so it never registers or replaces a global one."
+  },
+  {
+   "id": "REL-5",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No OTel providers exist on the Kotlin side to expose."
+  },
+  {
+   "id": "REL-6",
+   "status": "met",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36"
+   ],
+   "method": "read",
+   "note": "No OTel metrics; frame counters are cumulative numbers returned to JS, not exported as metrics."
+  },
+  {
+   "id": "REL-7",
+   "status": "partial",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No span events (no spans at all), but no events go through an OTel Logs API with EventName either."
+  },
+  {
+   "id": "API-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:50-79",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-133",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:90-97"
+   ],
+   "method": "read",
+   "note": "pause/resume/flush/stop are no-ops before start and Signals.install/setSession check `initialized`, but there is no spec init/shutdown and heldSessions/releaseHeld build an uploader and act before start."
+  },
+  {
+   "id": "API-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:99-101",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:153",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:97"
+   ],
+   "method": "read",
+   "note": "Replay calls post to main/compose threads, but Signals.init reads crash.json/run.json and calls getHistoricalProcessExitReasons on the caller, and releaseHeld blocks on the queue thread (executor.submit().get())."
+  },
+  {
+   "id": "API-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no recordEvent or attribute setter in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No recordEvent or attribute setters, so no reserved-prefix rejection."
+  },
+  {
+   "id": "API-4",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-88",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-150"
+   ],
+   "method": "read",
+   "note": "Public names (OuoReplay.start/pause/resume/sessionDidRotate/screenDidChange, Signals.init/install/takePendingReport) do not follow the spec surface (init, shutdown, replay.start, trackNavigation...)."
+  },
+  {
+   "id": "API-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:72"
+   ],
+   "method": "read",
+   "note": "No trackNavigation; screenDidChange only requests a replay frame, assigns no ouo.view.id and emits nothing."
+  },
+  {
+   "id": "API-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no recordException in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No recordException API."
+  },
+  {
+   "id": "CFG-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:9-35",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:101-104",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:315-331"
+   ],
+   "method": "read",
+   "note": "OuoReplayConfig is not validated: a bad endpoint retries forever, and jpegQuality outside 0..100 makes Bitmap.compress throw on the compose executor, uncaught, crashing the app; endpoint/credential checks live in the RN module and throw."
+  },
+  {
+   "id": "CFG-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:19-32"
+   ],
+   "method": "read",
+   "note": "No clamping of any value (frameInterval, flushIntervalMs, jpegQuality, maxLongestSide); no session timeouts or rates exist in Kotlin."
+  },
+  {
+   "id": "CFG-3",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:55-56",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:107-108",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:127"
+   ],
+   "method": "read",
+   "note": "The token only goes into the Authorization header; debug log prints endpoint and projectId but never the token, and chunk bodies carry no credential."
+  },
+  {
+   "id": "CFG-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep beforeSend in sdk/android: no hits)"
+   ],
+   "method": "read",
+   "note": "No beforeSend hook."
+  },
+  {
+   "id": "LIF-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-87",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:38-47"
+   ],
+   "method": "read",
+   "note": "Signals.init is idempotent but silent (no diagnostic); OuoReplay.start replaces a running recorder instead of ignoring the second call."
+  },
+  {
+   "id": "LIF-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:122-128",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99"
+   ],
+   "method": "read",
+   "note": "Replay start posts to main and recovers the spool asynchronously, but Signals.init does synchronous file reads and a binder call before returning."
+  },
+  {
+   "id": "LIF-3",
+   "status": "na",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:90-114"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: storage is plain files written synchronously on worker threads, so there is no not-ready window to buffer through."
+  },
+  {
+   "id": "LIF-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:74-79",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:143-147",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
+   ],
+   "method": "read",
+   "note": "OuoReplay.stop stops capture, unregisters callbacks and flushes the chunk (unbounded), but there is no shutdown: the crash handler and watchdog stay installed, no session.end, no ouo.replay.ended."
+  },
+  {
+   "id": "LIF-5",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-87"
+   ],
+   "method": "read",
+   "note": "Replay can be started again after stop as a new recorder; Signals cannot be re-initialised (init is once per process)."
+  },
+  {
+   "id": "LIF-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only lifecycle rule."
+  },
+  {
+   "id": "LIF-7",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only lifecycle rule."
+  },
+  {
+   "id": "LIF-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only lifecycle rule."
+  },
+  {
+   "id": "LIF-9",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only lifecycle rule."
+  },
+  {
+   "id": "LIF-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only lifecycle rule."
+  },
+  {
+   "id": "LIF-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:104-111",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:320-323"
+   ],
+   "method": "read",
+   "note": "On background replay stops, cuts the chunk and drains the queue, but no device.app.lifecycle is emitted and the flush is not bounded to an OS allowance (daemon threads keep sending)."
+  },
+  {
+   "id": "LIF-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:88-94",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:315-318"
+   ],
+   "method": "read",
+   "note": "Foreground only resumes replay and the watchdog; no device.app.lifecycle event, and session re-evaluation is in RN JS."
+  },
+  {
+   "id": "LIF-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:70",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:358-366",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:249-252"
+   ],
+   "method": "read",
+   "note": "Replay captures only with a started activity and the watchdog parks in background, but there is no Kotlin session logic; whether a session starts is up to the RN JS layer."
+  },
+  {
+   "id": "LIF-14",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay/src/androidTest/AndroidManifest.xml",
+    "no main AndroidManifest declaring a service; grep service/WorkManager: no hits"
+   ],
+   "method": "read",
+   "note": "No foreground service and no WorkManager; uploads run on daemon executor threads."
+  },
+  {
+   "id": "SES-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:15-16",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:130-133"
+   ],
+   "method": "read",
+   "note": "Kotlin generates no session id; it is supplied by RN JS (no session manager in Kotlin: the session id comes from RN JS through OuoReplayConfig.sessionId and Signals.install/setSession)."
+  },
+  {
+   "id": "SES-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:117",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:111",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:50"
+   ],
+   "method": "read",
+   "note": "session id travels as JSON key session_id in the chunk body, an x-ouo-session-id header and the report, not as an OTel record attribute; it may be empty before JS sets it (RN module default \"\")."
+  },
+  {
+   "id": "SES-3",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:15-16"
+   ],
+   "method": "read",
+   "note": "No session start logic in Kotlin; depends on RN JS."
+  },
+  {
+   "id": "SES-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no session.start in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No session.start emitted from Kotlin."
+  },
+  {
+   "id": "SES-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:44-58"
+   ],
+   "method": "read",
+   "note": "Touches are recorded for replay only; no activity tracking extends a session in Kotlin."
+  },
+  {
+   "id": "SES-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No last-activity persistence in Kotlin."
+  },
+  {
+   "id": "SES-7",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no session.end in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No session.end from Kotlin."
+  },
+  {
+   "id": "SES-8",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Consumer rule, not an SDK behaviour."
+  },
+  {
+   "id": "SES-9",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No maxDuration roll in Kotlin."
+  },
+  {
+   "id": "SES-10",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No no-session drop or ouo.session.expired marking."
+  },
+  {
+   "id": "SES-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web multi-tab rule."
+  },
+  {
+   "id": "SES-12",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web localStorage rule."
+  },
+  {
+   "id": "SES-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:101-103"
+   ],
+   "method": "read",
+   "note": "Kotlin records the crashed session id in crash.json and hands it to JS at next launch, but starting the new session with session.previous_id is RN JS work."
+  },
+  {
+   "id": "SES-14",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46"
+   ],
+   "method": "read",
+   "note": "No session continuation logic in Kotlin; replay seq continues across the relaunch for the same session id instead of opening a new stream."
+  },
+  {
+   "id": "SES-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:130-133",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:182-195"
+   ],
+   "method": "read",
+   "note": "Session id and start are held in a volatile RunState read lock-free by the crash handler and written to run.json asynchronously; no sampling decision or last activity is persisted, and the write is not ordered before the first record."
+  },
+  {
+   "id": "SES-16",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-166"
+   ],
+   "method": "read",
+   "note": "crash.json carries the session id current at crash time (the crashed one), but it is a custom report, not an app.crash event."
+  },
+  {
+   "id": "SIG-00",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:31-59"
+   ],
+   "method": "read",
+   "note": "Kotlin emits none of the spec signals by name/type; it produces custom JSON reports and counters for RN JS to convert."
+  },
+  {
+   "id": "REC-1",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no OTel Logs API usage)"
+   ],
+   "method": "read",
+   "note": "Kotlin creates no OTel events, so no EventName is set."
+  },
+  {
+   "id": "REC-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:117"
+   ],
+   "method": "read",
+   "note": "No record attributes; no ouo.view.id anywhere in Kotlin."
+  },
+  {
+   "id": "REC-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no app.screen.name in sdk/android)"
+   ],
+   "method": "read",
+   "note": "Web clause n/a; mobile SHOULD clause fails: no app.screen.name is attached."
+  },
+  {
+   "id": "REC-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:49",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:271",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:108"
+   ],
+   "method": "read",
+   "note": "Reports carry the occurrence time (crash time, hang start, exit timestamp) and chunks started_at, but there is no separate ObservedTimestamp."
+  },
+  {
+   "id": "REC-5",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No instrumentation scopes (ouo.rum / ouo.replay) and no schema_url."
+  },
+  {
+   "id": "REC-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150"
+   ],
+   "method": "read",
+   "note": "Kotlin makes no spans (so none beyond the allowed set), but the AppStart span is not created here either: only {processStartMs, type} is returned to JS."
+  },
+  {
+   "id": "REC-7",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No events and no severities in Kotlin."
+  },
+  {
+   "id": "REC-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:62-65",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:71-81"
+   ],
+   "method": "read",
+   "note": "Stacks are capped at the top 100 frames, not 25 KiB; exception reason (message plus up to 5 causes) is not truncated to 4 KiB."
+  },
+  {
+   "id": "REC-9",
+   "status": "met",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:159",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:51"
+   ],
+   "method": "read",
+   "note": "Uses the device wall clock; no clock-offset estimation."
+  },
+  {
+   "id": "SIG-01",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only signal."
+  },
+  {
+   "id": "SIG-02",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only signal."
+  },
+  {
+   "id": "SIG-03",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only signal."
+  },
+  {
+   "id": "SIG-04",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
+   ],
+   "method": "test",
+   "note": "Kotlin decides cold vs warm and the process start time (ApplicationStartInfo on 15+), but creates no AppStart span, has no `hot` type, and does not end at first frame (JS does). Test: SignalsTest.framesAndAppStart."
+  },
+  {
+   "id": "SIG-05",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
+   ],
+   "method": "test",
+   "note": "FrameMetrics counts total/slow/frozen cumulatively for JS to diff; no app.jank event or app.jank.* attributes, slow is past the frame deadline (not a fixed 16 ms) and frozen is >= 700 ms (spec: over 700)."
+  },
+  {
+   "id": "SIG-06",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:94-97"
+   ],
+   "method": "test",
+   "note": "A 200 ms ping watchdog reports a `hang` report (2 s threshold) when the main thread recovers, and a previous-run ANR shows up as a `termination` with cause watchdog; no device.anr event, no 5x1 s rule, no ERROR severity. Tests: SignalsTest.oneHangPerBlockFromItsLastAnswer, terminationCauses."
+  },
+  {
+   "id": "SIG-07",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "iOS/RN hang signal (Android has ANR, SIG-06)."
+  },
+  {
+   "id": "SIG-30",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only signal."
+  },
+  {
+   "id": "SIG-31",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:269-277",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
+   ],
+   "method": "test",
+   "note": "A hang in progress is persisted in run.json with its stack and session; next launch reports it as a `termination` (Android 11+ only, via ApplicationExitInfo) timed at the exit, not the hang start, and not as device.anr."
+  },
+  {
+   "id": "SIG-32",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only signal."
+  },
+  {
+   "id": "SIG-08",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "JS error signal (web, RN JS layer)."
+  },
+  {
+   "id": "SIG-09",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:101-103"
+   ],
+   "method": "read",
+   "note": "Uncaught JVM exceptions write crash.json (session_id, timestamp_ms, exception name/reason, frames) handed out at next launch; no app.crash event, no app.crash.id, app.build_id or os.*, and NDK crashes are not captured."
+  },
+  {
+   "id": "SIG-33",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no spans or exception events in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No exception events or spans exist in Kotlin to link."
+  },
+  {
+   "id": "SIG-34",
+   "status": "met",
+   "evidence": [
+    "no code found (grep fingerprint in sdk/android: no hits)"
+   ],
+   "method": "read",
+   "note": "No fingerprint is computed."
+  },
+  {
+   "id": "SIG-35",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Swift-only rule."
+  },
+  {
+   "id": "SIG-10",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web click signal."
+  },
+  {
+   "id": "SIG-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:44-58"
+   ],
+   "method": "read",
+   "note": "Touches are only replay samples; no app.widget.click event or app.widget.id."
+  },
+  {
+   "id": "SIG-12",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:44-58"
+   ],
+   "method": "read",
+   "note": "No app.screen.click event."
+  },
+  {
+   "id": "SIG-13",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No rage/dead/error tap detection."
+  },
+  {
+   "id": "SIG-36",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:44-58"
+   ],
+   "method": "read",
+   "note": "No tap events at all."
+  },
+  {
+   "id": "SIG-37",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:56-57",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:82-83"
+   ],
+   "method": "read",
+   "note": "Replay touch coordinates are divided by density (dp), not absolute screen pixels."
+  },
+  {
+   "id": "SIG-38",
+   "status": "na",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:63-66"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: a touch never starts a trace (no tracing in Kotlin)."
+  },
+  {
+   "id": "SIG-39",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ViewWalker.kt:61-66"
+   ],
+   "method": "read",
+   "note": "View text is read only to compute mask line boxes; it is never written into any record."
+  },
+  {
+   "id": "SIG-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only navigation signal."
+  },
+  {
+   "id": "SIG-15",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only navigation signal."
+  },
+  {
+   "id": "SIG-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only navigation signal."
+  },
+  {
+   "id": "SIG-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only navigation signal."
+  },
+  {
+   "id": "SIG-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web-only navigation signal."
+  },
+  {
+   "id": "SIG-19",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:72"
+   ],
+   "method": "read",
+   "note": "No app.navigation.complete; screenDidChange only paces replay."
+  },
+  {
+   "id": "SIG-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
+   ],
+   "method": "read",
+   "note": "Foreground/background is tracked internally (watchdog, replay) but no device.app.lifecycle with android.app.state is emitted."
+  },
+  {
+   "id": "SIG-21",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no OkHttp/HttpURLConnection instrumentation)"
+   ],
+   "method": "read",
+   "note": "No native HTTP client spans."
+  },
+  {
+   "id": "SIG-40",
+   "status": "na",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:22-45"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: there is no HTTP instrumentation to observe the SDK's own uploads."
+  },
+  {
+   "id": "SIG-41",
+   "status": "na",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: no traces are created in Kotlin."
+  },
+  {
+   "id": "SIG-22",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No session.start."
+  },
+  {
+   "id": "SIG-23",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No session.end."
+  },
+  {
+   "id": "SIG-24",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:117"
+   ],
+   "method": "read",
+   "note": "session id is a JSON body key session_id, not the session.id attribute."
+  },
+  {
+   "id": "SIG-25",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no view id in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No ouo.view.id."
+  },
+  {
+   "id": "SIG-26",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:100-128",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:102"
+   ],
+   "method": "test",
+   "note": "Chunks are custom `frames` schema 2 JSON documents posted to /v1/replay/chunks, not ouo.replay.chunk log records. Test: ChunkTest.chunkJsonHasTheSpecKeys."
+  },
+  {
+   "id": "SIG-27",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no replay.ended in sdk/android)"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ended."
+  },
+  {
+   "id": "SIG-42",
+   "status": "na",
+   "evidence": [
+    "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:152-168"
+   ],
+   "method": "read",
+   "note": "RN-only rule (audited in audit-rn). Relevant fact: Android native owns only the replay queue; session, sampling and telemetry export live in JS (RN module postOtlp is a POST helper), so RN fails this."
+  },
+  {
+   "id": "SIG-43",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "RN-only rule (audited in audit-rn)."
+  },
+  {
+   "id": "SIG-44",
+   "status": "na",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124"
+   ],
+   "method": "read",
+   "note": "RN-only rule (audited in audit-rn). Relevant fact: a JS fatal also reaches the Kotlin handler as JavascriptException and is written to crash.json."
+  },
+  {
+   "id": "SIG-45",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "RN-only rule (audited in audit-rn)."
+  },
+  {
+   "id": "RES-0",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Kotlin builds no OTel resource (no service.*, telemetry.sdk.*, app.build_id, os.*, android.os.api_level)."
+  },
+  {
+   "id": "RES-1",
+   "status": "na",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: no resource is built in Kotlin."
+  },
+  {
+   "id": "RES-2",
+   "status": "met",
+   "evidence": [
+    "no code found (grep ANDROID_ID|device.id|installation: no hits)"
+   ],
+   "method": "read",
+   "note": "No device.id, installation id or service.instance.id is collected."
+  },
+  {
+   "id": "RES-3",
+   "status": "na",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: no resource is built in Kotlin."
+  },
+  {
+   "id": "RES-4",
+   "status": "met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No OTel entities used."
+  },
+  {
+   "id": "PRP-1",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep traceparent: no hits)"
+   ],
+   "method": "read",
+   "note": "No HTTP instrumentation, no trace context injection."
+  },
+  {
+   "id": "PRP-2",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web cross-origin rule."
+  },
+  {
+   "id": "PRP-3",
+   "status": "na",
+   "evidence": [
+    "no code found (grep traceparent: no hits)"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: never injects."
+  },
+  {
+   "id": "PRP-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No traceparent, no sampled flag."
+  },
+  {
+   "id": "PRP-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web meta-tag rule."
+  },
+  {
+   "id": "PRP-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep baggage: no hits)"
+   ],
+   "method": "read",
+   "note": "No propagation.sessionBaggage option."
+  },
+  {
+   "id": "TRN-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:64-73",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:104-115"
+   ],
+   "method": "test",
+   "note": "Replay is gzip JSON (content-type application/json) to a custom path, not OTLP/HTTP binary protobuf; Kotlin exports no other telemetry. Test: DeliveryAndPacingTest.uploadsGzipWithTheHeadersInOrder."
+  },
+  {
+   "id": "TRN-2",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:47-53",
+    "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:152-167"
+   ],
+   "method": "read",
+   "note": "Kotlin sends no non-replay requests itself; its Gzip helper is used by the RN module's postOtlp. Replay chunks are gzipped by the transport (spec: compressed by the format, no second gzip)."
+  },
+  {
+   "id": "TRN-3",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:65-69",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:348"
+   ],
+   "method": "read",
+   "note": "Replay has its own disk queue and send/compose threads; there is no telemetry queue in Kotlin to separate from."
+  },
+  {
+   "id": "TRN-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:21-29",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:100-105"
+   ],
+   "method": "read",
+   "note": "Empty chunks are never sent and chunks are cut at 1 MiB of base64 image text, but there is no maxRequestBytes check on the sent body and a frame can push a chunk past it."
+  },
+  {
+   "id": "TRN-5",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:173-198"
+   ],
+   "method": "test",
+   "note": "One queue file (one chunk) per request, one request in flight. Test: DeliveryAndPacingTest.uploadsGzipWithTheHeadersInOrder."
+  },
+  {
+   "id": "TRN-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:200-220",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:243"
+   ],
+   "method": "test",
+   "note": "2xx deletes, 429/502/503/504/network retry, others delete and count `rejected`; partial_success is never parsed and no rejected_status/partial_rejected drop reasons are reported. Tests: DeliveryAndPacingTest.retriesOutagesAndDropsRejections, aFiveHundredIsFinalAndDoesNotBlock."
+  },
+  {
+   "id": "TRN-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:41-42",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:27"
+   ],
+   "method": "read",
+   "note": "Backoff is 1 s doubling capped at 60 s with no jitter (spec: full jitter, 1 s to 300 s)."
+  },
+  {
+   "id": "TRN-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:224",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:9-12"
+   ],
+   "method": "read",
+   "note": "Retry-After seconds are honoured (max of backoff and header) but not capped at retry.maxMs, and HTTP-date values are ignored."
+  },
+  {
+   "id": "TRN-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:103-108"
+   ],
+   "method": "read",
+   "note": "When the disk refuses a chunk it is sent once from memory with no retry and the loss is not counted."
+  },
+  {
+   "id": "TRN-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:186-197",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:71"
+   ],
+   "method": "read",
+   "note": "Retries resend the same file bytes, but chunk identity is (session id, seq) with no ouo.replay.id or stream id."
+  },
+  {
+   "id": "TRN-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:155-171"
+   ],
+   "method": "test",
+   "note": "Oldest chunk evicted first under the 10 MiB bound and counted in an internal `dropped` field; no bypass concept and the count is not reported. Test: DeliveryAndPacingTest.queueBoundDropsTheOldest."
+  },
+  {
+   "id": "TRN-12",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:200-220"
+   ],
+   "method": "test",
+   "note": "A queued chunk file is deleted only on 2xx, a final status, the bound or unreadable data."
+  },
+  {
+   "id": "TRN-13",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:155-171",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:186-192",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:213-217"
+   ],
+   "method": "read",
+   "note": "Early deletes are only final status, storage cap, corrupt data and host-released held chunks; each bumps an internal counter, but the counts never leave the device (no ouo.sdk.dropped)."
+  },
+  {
+   "id": "TRN-14",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:155-165"
+   ],
+   "method": "read",
+   "note": "Replay is evicted oldest-first, but there is no shared store with telemetry or bypass records to order."
+  },
+  {
+   "id": "TRN-20",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:90-102",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:276",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:290-305"
+   ],
+   "method": "read",
+   "note": "Replay chunks and crashes are on disk before send; a hang in progress is in run.json, but a finished hang report goes to JS via callback without Kotlin persisting it; no other telemetry is persisted natively."
+  },
+  {
+   "id": "TRN-15",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:153",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:187-193",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:168-170",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:103-108"
+   ],
+   "method": "read",
+   "note": "Queue, spool and run.json writes run on worker threads, but crash.json is written on the crashing thread (may be main) and a refused disk write degrades to one in-memory send without being counted."
+  },
+  {
+   "id": "TRN-16",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web page-unload rule."
+  },
+  {
+   "id": "TRN-17",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web page-unload rule."
+  },
+  {
+   "id": "TRN-18",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web page-unload rule."
+  },
+  {
+   "id": "TRN-19",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web page-unload rule."
+  },
+  {
+   "id": "SMP-1",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No sampling in Kotlin; RN JS decides."
+  },
+  {
+   "id": "SMP-2",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No deterministic decision from session.id in Kotlin."
+  },
+  {
+   "id": "SMP-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No unsampled-session behaviour in Kotlin."
+  },
+  {
+   "id": "SMP-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No spans or sampled flag."
+  },
+  {
+   "id": "SMP-5",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No bypass set."
+  },
+  {
+   "id": "SMP-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No ouo.sampling.bypass."
+  },
+  {
+   "id": "SMP-7",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No bypass cap."
+  },
+  {
+   "id": "SMP-8",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "method": "read",
+   "note": "No replay sampling in Kotlin; replay records whenever the host starts it."
+  },
+  {
+   "id": "SMP-9",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47"
+   ],
+   "method": "read",
+   "note": "Kotlin does not check session sampling before recording; depends on RN JS."
+  },
+  {
+   "id": "SMP-10",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/CapturePacer.kt:4-21"
+   ],
+   "method": "read",
+   "note": "No buffer mode: modes are session/navigation/auto capture cadences, not a ring."
+  },
+  {
+   "id": "SMP-11",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:25-29",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:89-94"
+   ],
+   "method": "read",
+   "note": "No ring exists; holdUploads keeps whole-session chunks until JS releases or drops them at next launch."
+  },
+  {
+   "id": "SMP-12",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No trigger, no ouo.replay.trigger."
+  },
+  {
+   "id": "PRV-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-99"
+   ],
+   "method": "read",
+   "note": "No consent state in Kotlin; Signals.init writes run.json and installs callbacks before any consent decision."
+  },
+  {
+   "id": "PRV-2",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep consent: no hits)"
+   ],
+   "method": "read",
+   "note": "No pending-consent buffer."
+  },
+  {
+   "id": "PRV-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep consent: no hits)"
+   ],
+   "method": "read",
+   "note": "No telemetry or replay consent; replay runs when the host calls start."
+  },
+  {
+   "id": "PRV-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep consent: no hits)"
+   ],
+   "method": "read",
+   "note": "No withdrawal path deleting unsent data or clearing the session."
+  },
+  {
+   "id": "PRV-5",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:43-79",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:20-24",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:76-80"
+   ],
+   "method": "test",
+   "note": "Text (per line), inputs, images, TextureView/SurfaceView, WebViews and Compose are masked by default and painted black on device before JPEG encoding and spooling. Test: DiffAndPlanTest.plannerMasksTextPerLineAndInputsWhole (pixel test MaskPixelTest not run, needs emulator)."
+  },
+  {
+   "id": "PRV-6",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Web data-ouo-* attribute rule."
+  },
+  {
+   "id": "PRV-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:98",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:108",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:22"
+   ],
+   "method": "read",
+   "note": "EditText (password fields included) is masked by default, but maskInputs=false or an ouo-unmask tag on an ancestor unmasks it; there is no password/secure-field rule."
+  },
+  {
+   "id": "PRV-8",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:290-311",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:282-283",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:86-92"
+   ],
+   "method": "read",
+   "note": "A failed view walk, a failed copy, a masked view that moved between walks, or a JPEG failure drops the frame."
+  },
+  {
+   "id": "PRV-9",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No tap events, so no app.widget.id default; nothing to configure."
+  },
+  {
+   "id": "PRV-10",
+   "status": "na",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:10-22"
+   ],
+   "method": "read",
+   "note": "Not applicable while the feature is absent. Vacuous: Kotlin captures no URLs (JVM frames are class/method/file, WebViews are masked)."
+  },
+  {
+   "id": "PRV-11",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Fragment rule tied to web privacy.keepUrlFragment."
+  },
+  {
+   "id": "PRV-12",
+   "status": "met",
+   "evidence": [
+    "no code found (no HTTP instrumentation)"
+   ],
+   "method": "read",
+   "note": "No request/response bodies or headers captured."
+  },
+  {
+   "id": "PRV-13",
+   "status": "met",
+   "evidence": [
+    "no code found (grep enduser|location|advertis|ANDROID_ID: no hits)"
+   ],
+   "method": "read",
+   "note": "No enduser.*, IP, location, advertising id or contacts."
+  },
+  {
+   "id": "PRV-14",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Informative statement."
+  },
+  {
+   "id": "RPL-1",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-126"
+   ],
+   "method": "read",
+   "note": "Chunk carries session_id and seq only; no ouo.replay.id, stream.id, segment.index, keyframe, sha256 etc."
+  },
+  {
+   "id": "RPL-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:64-73"
+   ],
+   "method": "read",
+   "note": "A chunk is a standalone gzip JSON document, not an OTLP log record."
+  },
+  {
+   "id": "RPL-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No scope ouo.replay."
+  },
+  {
+   "id": "RPL-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:134-143"
+   ],
+   "method": "test",
+   "note": "seq starts at 0 and rises by 1 per chunk, and retries reuse the file bytes, but it is per session id (persisted across relaunches), not per stream. Test: ChunkTest.fileSeqStorePersistsPerSession."
+  },
+  {
+   "id": "RPL-5",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:7-9"
+   ],
+   "method": "read",
+   "note": "No stream concept; a seq run spans process lifetimes of one session."
+  },
+  {
+   "id": "RPL-6",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:47-48",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:57-60"
+   ],
+   "method": "test",
+   "note": "Every chunk starts with a full JPEG frame, so it decodes alone, but no ouo.replay.keyframe flag is set. Test: ChunkTest.firstFrameOfAChunkIsFullAndChunksCutOnTime."
+  },
+  {
+   "id": "RPL-7",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:64-67",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-128"
+   ],
+   "method": "read",
+   "note": "Each chunk body is independently gunzippable self-contained JSON, but there is no ouo.replay.format and concatenated bodies are not one valid payload."
+  },
+  {
+   "id": "RPL-8",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:47-48",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:177-181"
+   ],
+   "method": "read",
+   "note": "Every chunk opens with a full frame and resume resets the differ, so any gap is followed by a keyframe."
+  },
+  {
+   "id": "RPL-9",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:21-22",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:88-93"
+   ],
+   "method": "read",
+   "note": "A full frame starts every 5 s chunk and on foreground resume."
+  },
+  {
+   "id": "RPL-10",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:21-29",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:79-85",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:104-111"
+   ],
+   "method": "test",
+   "note": "Chunks close at 5 s, on background/pause/stop/rotation, and at 1 MiB of uncompressed base64 images (spec default 256 KiB compressed)."
+  },
+  {
+   "id": "RPL-11",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:57-70"
+   ],
+   "method": "read",
+   "note": "Chunks are never truncated, but the 1 MiB cut is checked after a frame is added, there is no split, and the sent gzip body size is not checked against the hard limit."
+  },
+  {
+   "id": "RPL-12",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep sha256: no hits)"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.sha256."
+  },
+  {
+   "id": "RPL-13",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-126"
+   ],
+   "method": "read",
+   "note": "Required chunk attributes absent (has started_at/ended_at, masked, mode under other names only)."
+  },
+  {
+   "id": "RPL-14",
+   "status": "met",
+   "evidence": [
+    "no code found (grep replay.ref: no hits)"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ref set."
+  },
+  {
+   "id": "RPL-15",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:63-73",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:90-102",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkSpool.kt:31-56"
+   ],
+   "method": "test",
+   "note": "The open chunk is spooled frame by frame and a cut chunk is written to the outbox before any send. Test: ChunkTest.spoolRecoversTheOpenChunkAfterAKill."
+  },
+  {
+   "id": "RPL-16",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:173-198"
+   ],
+   "method": "read",
+   "note": "Sent oldest first, one at a time, in queue (seq) order."
+  },
+  {
+   "id": "RPL-17",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:155-165"
+   ],
+   "method": "read",
+   "note": "Eviction drops whole chunks oldest-first without renumbering, but the stream is never marked partial."
+  },
+  {
+   "id": "RPL-18",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:155-165"
+   ],
+   "method": "read",
+   "note": "Capture never stops on a full queue; old chunks are evicted instead and nothing marks partial."
+  },
+  {
+   "id": "RPL-19",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:41-47"
+   ],
+   "method": "read",
+   "note": "Kotlin records whenever start is called; sampling and consent gating are left to RN JS."
+  },
+  {
+   "id": "RPL-26",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No ouo.replay.ended record."
+  },
+  {
+   "id": "RPL-20",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:392-407"
+   ],
+   "method": "read",
+   "note": "No end record; next launch recovers and sends the open chunk, but emits no partial end record."
+  },
+  {
+   "id": "RPL-21",
+   "status": "not_met",
+   "evidence": [
+    "no code found"
+   ],
+   "method": "read",
+   "note": "No end_state."
+  },
+  {
+   "id": "RPL-22",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Store-side rule."
+  },
+  {
+   "id": "RPL-27",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:130-133",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:47-48",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:88-93"
+   ],
+   "method": "read",
+   "note": "The frames format has an id/version (kind frames, schema_version 2), keyframes on request and masking, but no encoding attribute and no split for bounded output; it is not an adapter interface."
+  },
+  {
+   "id": "RPL-23",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-126"
+   ],
+   "method": "read",
+   "note": "Identity (session_id, seq) lives inside the format's own JSON body; hierarchy and delivery are tied to the frames format."
+  },
+  {
+   "id": "RPL-24",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Reader-side rule."
+  },
+  {
+   "id": "RPL-25",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "MAY for a video format; Android uses JPEG frames."
+  },
+  {
+   "id": "ERR-1",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:315-331",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:101-104",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:242-281",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:64"
+   ],
+   "method": "read",
+   "note": "Touch, walk and copy paths catch errors, but compose-executor tasks and the watchdog loop are not wrapped: an exception there (e.g. Bitmap.compress with an out-of-range jpegQuality) is uncaught on an SDK thread and kills the app."
+  },
+  {
+   "id": "ERR-2",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:60-73",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:32-42"
+   ],
+   "method": "read",
+   "note": "The Window.Callback wrapper forwards every call (default methods explicitly) and restores the original only if still on top."
+  },
+  {
+   "id": "ERR-3",
+   "status": "met",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:117-124"
+   ],
+   "method": "read",
+   "note": "The handler writes crash.json then calls the previous handler; with none it kills the process, never swallows."
+  },
+  {
+   "id": "ERR-4",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:85-93"
+   ],
+   "method": "read",
+   "note": "Uploads and queue I/O are off the UI thread, but crash.json is written synchronously on the crashing thread (main for main-thread crashes) and Signals.init reads files on its caller."
+  },
+  {
+   "id": "ERR-5",
+   "status": "met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:22-45"
+   ],
+   "method": "read",
+   "note": "Uploads use plain HttpURLConnection and nothing in the SDK instruments it; no re-entry path."
+  },
+  {
+   "id": "ERR-6",
+   "status": "not_met",
+   "evidence": [
+    "no code found (no error counter / self-disable)"
+   ],
+   "method": "read",
+   "note": "No internal error threshold or self-disable."
+  },
+  {
+   "id": "ERR-7",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:76-83"
+   ],
+   "method": "read",
+   "note": "Only internal sent/dropped/rejected counters; dropped frames are not counted and no ouo.sdk.dropped event exists."
+  },
+  {
+   "id": "ERR-8",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:375-385",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:366"
+   ],
+   "method": "read",
+   "note": "Replay logs only when debug is on, but Signals logs a FrameMetrics warning to logcat unconditionally; no payloads are logged."
+  },
+  {
+   "id": "ERR-9",
+   "status": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:26",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:69",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:63"
+   ],
+   "method": "read",
+   "note": "Disk queue (10 MiB), chunk size and stack frames are bounded; the executor work queues (compose, ouo-signals io, DiskQueue) are unbounded LinkedBlockingQueues."
+  },
+  {
+   "id": "OVH-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Budgets in section 13 are still TBD; no Android overhead measurement in CI."
+  },
+  {
+   "id": "VER-1",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the spec document itself."
+  },
+  {
+   "id": "VER-2",
+   "status": "not_met",
+   "evidence": [
+    "sdk/android/build.gradle.kts:1-7",
+    "sdk/android/README.md:1-20"
+   ],
+   "method": "read",
+   "note": "sdk/android has no version and states no spec version."
+  },
+  {
+   "id": "VER-3",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "No scopes, no schema_url."
+  },
+  {
+   "id": "VER-4",
+   "status": "not_met",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "method": "read",
+   "note": "Without schema_url the Collector cannot map names by version, so a rename needs an SDK release."
+  },
+  {
+   "id": "VER-5",
+   "status": "na",
+   "evidence": [],
+   "method": "read",
+   "note": "Rule on the spec and Collector table."
+  }
+ ],
+ "violations": [
+  {
+   "what": "Replay chunks leave the device as gzip JSON (`frames` schema 2) POSTed to the custom /v1/replay/chunks receiver with content-type application/json, not OTLP",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:46",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:102-115",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-128"
+   ],
+   "breaks": "REL-2"
+  },
+  {
+   "what": "Same: non-OTLP, non-protobuf replay encoding",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:64-67"
+   ],
+   "breaks": "TRN-1"
+  },
+  {
+   "what": "Unprefixed custom wire names in chunk body (session_id, seq, started_at, ended_at, viewport, platform, mode, frames, touches, masked) and custom headers x-ouo-session-id, x-ouo-seq",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:113-126",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:107-113"
+   ],
+   "breaks": "REL-3"
+  },
+  {
+   "what": "Native signals are a custom JSON report format (version, platform, mechanism jvm/hang/termination, timestamp_ms, session_id, frames, images, hang, termination) handed to RN JS instead of OTel events",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:44-58"
+   ],
+   "breaks": "SIG-00"
+  },
+  {
+   "what": "Session id carried as a JSON body key and HTTP header, not a record attribute; may be empty (\"\") before JS sets it",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Models.kt:117",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:111",
+    "sdk/react-native/android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt:65"
+   ],
+   "breaks": "SES-2"
+  },
+  {
+   "what": "Replay touch coordinates in dp (divided by density), not screen pixels",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:56-57"
+   ],
+   "breaks": "SIG-37"
+  },
+  {
+   "what": "Unwrapped work on SDK executor threads: an exception (e.g. jpegQuality outside 0..100 in Bitmap.compress, or a throw in the watchdog loop) is uncaught on a non-main thread and crashes the host app",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:101-104",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:315-331",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:242-281"
+   ],
+   "breaks": "ERR-1"
+  },
+  {
+   "what": "Invalid config is not validated or clamped (jpegQuality, frameInterval, endpoint)",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:9-35"
+   ],
+   "breaks": "CFG-1"
+  },
+  {
+   "what": "Password/secure EditText can be unmasked with maskInputs=false or an ouo-unmask ancestor tag; unmask is checked before mask on the same node",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:98-108"
+   ],
+   "breaks": "PRV-7"
+  },
+  {
+   "what": "Unconditional logcat output from Signals (FrameMetrics unavailable)",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:366"
+   ],
+   "breaks": "ERR-8"
+  },
+  {
+   "what": "Synchronous disk write of crash.json on the crashing thread, which can be the UI thread; synchronous file reads in Signals.init on the caller",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:167-170",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:89-93"
+   ],
+   "breaks": "ERR-4"
+  },
+  {
+   "what": "Persistent storage written (run.json, noBackupFilesDir/ouo/signals) at Signals.init with no consent gate",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:89",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:95",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:182-195"
+   ],
+   "breaks": "PRV-1"
+  },
+  {
+   "what": "Retry backoff is deterministic doubling capped at 60 s, no jitter",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:41-42"
+   ],
+   "breaks": "TRN-7"
+  },
+  {
+   "what": "Retry-After not capped",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:224"
+   ],
+   "breaks": "TRN-8"
+  },
+  {
+   "what": "Replay seq continues across relaunches for the same session (persisted FileSeqStore) instead of a new stream per process",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46"
+   ],
+   "breaks": "RPL-5"
+  },
+  {
+   "what": "Replay chunks are gzipped again by the transport on top of JPEG/base64 content (spec: format compresses, no second gzip), and content-encoding: gzip header on a replay request",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:64-67",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:110"
+   ],
+   "breaks": "TRN-1"
+  }
+ ],
+ "features": [
+  {
+   "id": "SES-a",
+   "state": "none",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:15-16"
+   ],
+   "note": "No session manager in Kotlin; the id is supplied by RN JS."
+  },
+  {
+   "id": "SES-b",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No timeouts in Kotlin."
+  },
+  {
+   "id": "SES-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/SeqStore.kt:39-46",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:58"
+   ],
+   "note": "Kotlin persists the JS-supplied id only for replay seq and crash attribution; continuity across restarts is JS."
+  },
+  {
+   "id": "SES-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:68-69"
+   ],
+   "note": "Only sessionDidRotate to cut replay on a JS-driven rotation; no restartSession/getSessionId."
+  },
+  {
+   "id": "ERR-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:110-127"
+   ],
+   "note": "Uncaught JVM exceptions on any thread are captured (chained handler) as a crash report; no exception event."
+  },
+  {
+   "id": "ERR-c",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No recordException."
+  },
+  {
+   "id": "ERR-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171",
+    "sdk/android/README.md:77-80"
+   ],
+   "note": "JVM crashes persisted and handed out next launch; NDK (C/C++) crashes not captured; no app.crash/app.crash.id."
+  },
+  {
+   "id": "ERR-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:233-306",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114"
+   ],
+   "note": "Watchdog hang reports (2 s) and ApplicationExitInfo ANR terminations; no device.anr event."
+  },
+  {
+   "id": "ERR-f",
+   "state": "full",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/RunState.kt:91-114",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:197-222"
+   ],
+   "note": "Foreground terminations from ApplicationExitInfo (Android 11+) classified memory/watchdog/cpu/unknown with memory warnings."
+  },
+  {
+   "id": "ERR-g",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No breadcrumb/event trail in Kotlin."
+  },
+  {
+   "id": "ERR-h",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No fingerprint override API."
+  },
+  {
+   "id": "ERR-k",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:16",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/HangDetector.kt:51-53"
+   ],
+   "note": "Only hang de-duplication (one per block, 2 s quiet); no error flood guard."
+  },
+  {
+   "id": "PERF-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:145-150",
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:44-57"
+   ],
+   "note": "Cold/warm type and process start computed; span built by JS."
+  },
+  {
+   "id": "PERF-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Frames.kt:10-36",
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:351-367"
+   ],
+   "note": "FrameMetrics slow/frozen counters; JS diffs snapshots; no app.jank event."
+  },
+  {
+   "id": "PERF-h",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No TTID/TTFD."
+  },
+  {
+   "id": "PERF-k",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No custom spans or timings API."
+  },
+  {
+   "id": "NET-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No OkHttp/HttpURLConnection instrumentation."
+  },
+  {
+   "id": "NET-b",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No traceparent propagation."
+  },
+  {
+   "id": "INT-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/TouchRecorder.kt:15-58"
+   ],
+   "note": "Touches captured only as replay samples (dp), no tap events."
+  },
+  {
+   "id": "INT-b",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No action naming."
+  },
+  {
+   "id": "INT-c",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No rage taps."
+  },
+  {
+   "id": "INT-e",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No error taps."
+  },
+  {
+   "id": "NAV-c",
+   "state": "none",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplay.kt:72"
+   ],
+   "note": "No screen view events; screenDidChange only paces replay."
+  },
+  {
+   "id": "NAV-e",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No manual view API."
+  },
+  {
+   "id": "NAV-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:314-343",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:87-111"
+   ],
+   "note": "Foreground/background tracked internally (watchdog park, replay stop/flush); no lifecycle event."
+  },
+  {
+   "id": "RPL-b",
+   "state": "full",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:30-44",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ScreenCapturer.kt:18-27",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/TileDiffer.kt"
+   ],
+   "note": "PixelCopy screenshots with tile diffs, masking, chunking and disk queue; but on the custom non-OTLP wire."
+  },
+  {
+   "id": "RPL-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/CapturePacer.kt:4-21",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:25-29"
+   ],
+   "note": "Session-style recording only (session/navigation cadences); no buffer-on-error ring; holdUploads is a coarse keep/drop."
+  },
+  {
+   "id": "RPL-e",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No network requests in replay."
+  },
+  {
+   "id": "RPL-g",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:43-79",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:20-26"
+   ],
+   "note": "Mask-by-default and config toggles, ouo-mask/ouo-unmask tags, maskClasses; no replay.mask(view)/unmask(view) API and secure fields are unmaskable."
+  },
+  {
+   "id": "RPL-i",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:62-70",
+    "sdk/android/README.md:55-57"
+   ],
+   "note": "Compose content is captured but masked whole (fails closed) until a semantics walk exists."
+  },
+  {
+   "id": "RPL-j",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:33-35",
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:104-111"
+   ],
+   "note": "Idle screens cost nothing (draw-dirty flag) and background stops capture; no maximum duration."
+  },
+  {
+   "id": "USR-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No setUser."
+  },
+  {
+   "id": "USR-c",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No global attributes."
+  },
+  {
+   "id": "USR-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No install id."
+  },
+  {
+   "id": "LOG-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No structured log API."
+  },
+  {
+   "id": "LOG-c",
+   "state": "none",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "note": "No OTel logs interop."
+  },
+  {
+   "id": "SMP-a",
+   "state": "none",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "note": "No session sampling in Kotlin."
+  },
+  {
+   "id": "SMP-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No buffer-on-error replay."
+  },
+  {
+   "id": "SMP-e",
+   "state": "none",
+   "evidence": [
+    "no code found (grep sampl in sdk/android: only touch-move sampling)"
+   ],
+   "note": "No bypass set in Kotlin."
+  },
+  {
+   "id": "SMP-f",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No remote config."
+  },
+  {
+   "id": "PRV-a",
+   "state": "none",
+   "evidence": [
+    "no code found (grep consent: no hits)"
+   ],
+   "note": "No consent API."
+  },
+  {
+   "id": "PRV-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ViewWalker.kt:61-66"
+   ],
+   "note": "Kotlin captures no text or URLs outside replay; no masking API for telemetry because none is emitted."
+  },
+  {
+   "id": "PRV-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:53-55",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:98-104"
+   ],
+   "note": "View tag \"ouo-mask\"/\"ouo-unmask\" works; no programmatic mask(view)/unmask(view)."
+  },
+  {
+   "id": "PRV-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No URL sanitiser (no URLs captured)."
+  },
+  {
+   "id": "PRV-e",
+   "state": "full",
+   "evidence": [
+    "no code found (grep enduser|location|advertis|ANDROID_ID: no hits)"
+   ],
+   "note": "No PII collected by default; replay masked by default."
+  },
+  {
+   "id": "PRV-f",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No beforeSend."
+  },
+  {
+   "id": "TRN-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkBuilder.kt:21-29"
+   ],
+   "note": "Replay frames batched into 5 s / 1 MiB chunks; no telemetry batching in Kotlin."
+  },
+  {
+   "id": "TRN-b",
+   "state": "full",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:8-26",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkSpool.kt:8-17"
+   ],
+   "note": "Replay outbox and open-chunk spool on disk with retry across launches (replay only)."
+  },
+  {
+   "id": "TRN-d",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/Transport.kt:47-53"
+   ],
+   "note": "gzip for replay chunks and the RN postOtlp helper."
+  },
+  {
+   "id": "TRN-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:10-11"
+   ],
+   "note": "Configurable replay endpoint, but it must speak the custom /v1/replay/chunks API."
+  },
+  {
+   "id": "TRN-f",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:222-233"
+   ],
+   "note": "Retry-After honoured (seconds only), no cap, no jitter."
+  },
+  {
+   "id": "TRN-g",
+   "state": "none",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/ChunkUploader.kt:102-115"
+   ],
+   "note": "Not OTLP on the wire."
+  },
+  {
+   "id": "CFG-a",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:9-35"
+   ],
+   "note": "One replay config object; signals have no config; no unified SDK config."
+  },
+  {
+   "id": "CFG-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/OuoReplayConfig.kt:20-26"
+   ],
+   "note": "Only mask toggles; signals are on/off by the host calling init/install."
+  },
+  {
+   "id": "CFG-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:375-385",
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/DiskQueue.kt:76-83"
+   ],
+   "note": "debug flag logs replay to logcat; drop counts are internal only."
+  },
+  {
+   "id": "CFG-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No service name/version/environment in Kotlin."
+  },
+  {
+   "id": "API-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No custom events."
+  },
+  {
+   "id": "API-c",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No custom spans."
+  },
+  {
+   "id": "API-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No view attributes."
+  },
+  {
+   "id": "API-e",
+   "state": "none",
+   "evidence": [
+    "no code found (grep -ri opentelemetry in sdk/android: only a doc comment at signals/.../Signals.kt:41)"
+   ],
+   "note": "No OTel interop; README says opentelemetry-android is future work (W9 part 2)."
+  },
+  {
+   "id": "SYM-c",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals-core/src/main/kotlin/dev/ouo/signals/core/Report.kt:6-9"
+   ],
+   "note": "JVM frames use Sentry field names so R8 mapping can be applied later; no mapping upload or NDK symbols."
+  },
+  {
+   "id": "SYM-e",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No build tooling (Gradle plugin) for uploads."
+  },
+  {
+   "id": "FWK-e",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:62-70"
+   ],
+   "note": "Compose masked whole in replay; no OkHttp instrumentation."
+  },
+  {
+   "id": "REL-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No release tagging in Kotlin."
+  },
+  {
+   "id": "REL-b",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/signals/src/main/kotlin/dev/ouo/signals/Signals.kt:154-171"
+   ],
+   "note": "Crash reports carry the session id so crash-free sessions can be derived downstream; no users."
+  },
+  {
+   "id": "REL-d",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No version reporting."
+  },
+  {
+   "id": "FF-a",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No flag evaluations."
+  },
+  {
+   "id": "FF-c",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No OpenFeature."
+  },
+  {
+   "id": "FB-b",
+   "state": "none",
+   "evidence": [
+    "no code found"
+   ],
+   "note": "No feedback API."
+  },
+  {
+   "id": "OTH-d",
+   "state": "none",
+   "evidence": [
+    "sdk/android/replay-core/src/main/kotlin/dev/ouo/replay/core/RedactionPlanner.kt:78"
+   ],
+   "note": "WebViews are masked whole; no hybrid bridge."
+  },
+  {
+   "id": "ERR-i",
+   "state": "partial",
+   "evidence": [
+    "sdk/android/replay/src/main/kotlin/dev/ouo/replay/ReplayRecorder.kt:392-407"
+   ],
+   "note": "Ships a Later/Never feature: not a screenshot on error, but the replay chunk open at a crash is recovered and sent next launch."
+  }
+ ],
+ "architecture_notes": "sdk/android is not a standalone SDK: it is two capture libraries (replay, signals) plus their JVM-testable cores, with no OpenTelemetry dependency, no init/shutdown entry point, no session manager, no sampling, no consent, no resource and no telemetry exporter. Today they are compiled into @ouo11y/react-native and driven from JS through the Expo module OuoReplayModule.kt: JS owns the session id (passed in via a lambda and Signals.install/setSession), sampling, consent, event naming and OTLP export (the module's postOtlp is only a gzip+POST helper for JSON built in JS). A native Android app could get replay (OuoReplay.start with an OuoReplayConfig) and the signal reports (Signals.init/install/takePendingReport), but would have to build sessions, events and OTLP export itself. Replay is screenshot-based: PixelCopy into RGB_565, view-walk masks (text per line, inputs, images, web views, Compose whole) painted on device with fail-closed checks, 64 px tile diffs into full JPEG or patch frames, 5 s / 1 MiB chunks, an append-only spool for the open chunk and a byte-bounded disk outbox with 429/502/503/504 retry. Chunks go as gzip JSON (`frames` schema 2) to the collector's custom ouoreplay receiver at /v1/replay/chunks with Basic auth and x-ouo-session-id/x-ouo-seq headers, so the whole replay wire contract (OTLP log record, ouo.replay.* identity, stream/segment, sha256, keyframe flag, ouo.replay.ended) is missing. Signals produce custom JSON reports (jvm crash written at crash time, hang from a 200 ms ping watchdog with a 2 s threshold, foreground termination from ApplicationExitInfo, FrameMetrics counters, cold/warm app start) for JS to translate; NDK crashes are not captured. Biggest structural gaps against the spec: no OTel providers/scopes/schema_url or OTLP export from native (REL-2, REL-5, TRN-1); no native session, sampling or consent (SES-*, SMP-*, PRV-1..4), which SIG-42 says native must own for RN; no spec event names (device.anr, app.crash, app.jank, device.app.lifecycle, app.*click); no drop accounting (ERR-7) or self-disable (ERR-6); and unwrapped executor tasks that can crash the host (ERR-1)."
+}
