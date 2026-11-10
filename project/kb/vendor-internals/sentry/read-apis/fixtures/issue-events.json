@@ -1,0 +1,111 @@
+[
+ {
+  "id": "ac04cdd88f6e4d0c9459b9ee74736c42",
+  "event.type": "error",
+  "groupID": "8",
+  "eventID": "ac04cdd88f6e4d0c9459b9ee74736c42",
+  "projectID": "3",
+  "message": "",
+  "title": "Error: Cart total is NaN",
+  "location": "app:///main.jsbundle",
+  "culprit": "anonymous(main)",
+  "user": {
+   "id": "40997118-5E1D-445C-962E-21CE57DD43D6",
+   "email": null,
+   "username": null,
+   "ip_address": null,
+   "name": null,
+   "geo": null,
+   "data": null
+  },
+  "tags": [
+   {
+    "key": "app.device", "value": "<redacted>"
+   },
+   {
+    "key": "device",
+    "value": "iPhone19,2"
+   },
+   {
+    "key": "device.class",
+    "value": "high"
+   },
+   {
+    "key": "device.family",
+    "value": "iOS"
+   },
+   {
+    "key": "environment",
+    "value": "local"
+   },
+   {
+    "key": "event.environment",
+    "value": "javascript"
+   },
+   {
+    "key": "event.origin",
+    "value": "javascript"
+   },
+   {
+    "key": "handled",
+    "value": "no"
+   },
+   {
+    "key": "hermes",
+    "value": "True"
+   },
+   {
+    "key": "interface_type",
+    "value": "exception"
+   },
+   {
+    "key": "level",
+    "value": "fatal"
+   },
+   {
+    "key": "mechanism",
+    "value": "onerror"
+   },
+   {
+    "key": "os",
+    "value": "iOS 27.0"
+   },
+   {
+    "key": "os.build",
+    "value": "26A434"
+   },
+   {
+    "key": "os.name",
+    "value": "iOS"
+   },
+   {
+    "key": "os.rooted",
+    "value": "no"
+   },
+   {
+    "key": "dist",
+    "value": "1"
+   },
+   {
+    "key": "release",
+    "value": "dev.ouo.tinyshop.m4@1.0.0+1"
+   },
+   {
+    "key": "user",
+    "value": "id:40997118-5E1D-445C-962E-21CE57DD43D6",
+    "query": "user.id:\"40997118-5E1D-445C-962E-21CE57DD43D6\""
+   }
+  ],
+  "platform": "javascript",
+  "dateCreated": "2026-10-27T22:57:49Z",
+  "crashFile": null,
+  "metadata": {
+   "filename": "app:///main.jsbundle",
+   "function": "anonymous",
+   "in_app_frame_mix": "in-app-only",
+   "synthetic": false,
+   "type": "Error",
+   "value": "Cart total is NaN"
+  }
+ }
+]

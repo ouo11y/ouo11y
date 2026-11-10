@@ -1,0 +1,4 @@
+GET /api/0/projects/sentry/step6-wire/replays/62649a29ef4440bfa140a17c472d1ba3/recording-segments/
+HTTP 200
+Content-Type: application/json
+link: <https://sentry.ouo.localhost/api/0/projects/sentry/step6-wire/replays/62649a29ef4440bfa140a17c472d1ba3/recording-segments/?&cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1", <https://sentry.ouo.localhost/api/0/projects/sentry/step6-wire/replays/62649a29ef4440bfa140a17c472d1ba3/recording-segments/?&cursor=0:100:0>; rel="next"; results="false"; cursor="0:100:0"

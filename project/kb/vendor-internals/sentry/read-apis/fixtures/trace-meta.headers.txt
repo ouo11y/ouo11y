@@ -1,0 +1,4 @@
+GET /api/0/organizations/sentry/trace-meta/e07ca7724b82497092cd68359cd35ff3/?project=-1&statsPeriod=30d
+HTTP 200
+Content-Type: application/json
+Content-Length: 248

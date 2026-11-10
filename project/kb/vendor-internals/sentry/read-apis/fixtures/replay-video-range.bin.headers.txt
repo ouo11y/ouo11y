@@ -1,0 +1,7 @@
+GET /api/0/projects/sentry/tiny-shop-mobile/replays/de88d54498d146168841dd3baf693e08/videos/0/
+HTTP 206
+Content-Type: application/octet-stream
+Content-Length: 32
+content-range: bytes 0-31/4101
+accept-ranges: bytes
+content-disposition: attachment; filename="90/3/de88d54498d146168841dd3baf693e08/0.video"

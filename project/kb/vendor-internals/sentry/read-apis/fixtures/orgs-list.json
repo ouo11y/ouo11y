@@ -1,0 +1,27 @@
+[
+ {
+  "id": "1",
+  "slug": "sentry",
+  "status": {
+   "id": "active",
+   "name": "active"
+  },
+  "name": "Sentry",
+  "dateCreated": "2026-10-17T21:33:29.822438Z",
+  "isEarlyAdopter": false,
+  "require2FA": false,
+  "avatar": {
+   "avatarType": "letter_avatar",
+   "avatarUuid": null,
+   "avatarUrl": null
+  },
+  "allowMemberInvite": true,
+  "allowMemberProjectCreation": true,
+  "allowSuperuserAccess": true,
+  "links": {
+   "organizationUrl": "https://sentry.ouo.localhost",
+   "regionUrl": "https://sentry.ouo.localhost"
+  },
+  "hasAuthProvider": false
+ }
+]

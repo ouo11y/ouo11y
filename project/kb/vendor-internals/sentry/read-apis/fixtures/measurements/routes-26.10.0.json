@@ -1,0 +1,8991 @@
+{
+"source": "Django URL resolver dump from sentry-sbx-web-1, Sentry 26.10.0+da07b233; enforce = enforce_rate_limit evaluated with SENTRY_RATELIMITER_ENABLED=False (self-hosted default); rate_limits = [limit, window_s, concurrent_limit] per category",
+"routes": [
+{
+"route": "^api/0/^relays/^publickeys/$",
+"name": "sentry-api-0-relay-publickeys",
+"cls": "RelayPublicKeysEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "RelayPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/$",
+"name": "sentry-api-0-group-details",
+"cls": "GroupDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "GroupDetailsPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+},
+"PUT": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+},
+"DELETE": {
+"ip": [
+5,
+5,
+999
+],
+"user": [
+5,
+5,
+999
+],
+"org": [
+5,
+5,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/activities/$",
+"name": "sentry-api-0-group-activities",
+"cls": "GroupActivitiesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/events/$",
+"name": "sentry-api-0-group-events",
+"cls": "GroupEventsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/events/(?P<event_id>(?:latest|oldest|recommended|\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-group-event-details",
+"cls": "GroupEventDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+15,
+1,
+999
+],
+"user": [
+15,
+1,
+999
+],
+"org": [
+15,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:notes|comments)/$",
+"name": "sentry-api-0-group-notes",
+"cls": "GroupNotesEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:notes|comments)/(?P<note_id>[^/]+)/$",
+"name": "sentry-api-0-group-note-details",
+"cls": "GroupNotesDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/hashes/$",
+"name": "sentry-api-0-group-hashes",
+"cls": "GroupHashesEndpoint",
+"publish": {
+"PUT": "private",
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/reprocessing/$",
+"name": "sentry-api-0-group-reprocessing",
+"cls": "GroupReprocessingEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/stats/$",
+"name": "sentry-api-0-group-stats",
+"cls": "GroupStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/$",
+"name": "sentry-api-0-group-tags",
+"cls": "GroupTagsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/(?P<key>[^/]+)/$",
+"name": "sentry-api-0-group-tag-key-details",
+"cls": "GroupTagKeyDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/(?P<key>[^/]+)/values/$",
+"name": "sentry-api-0-group-tag-key-values",
+"cls": "GroupTagKeyValuesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+75,
+60,
+5
+],
+"user": [
+150,
+60,
+10
+],
+"org": [
+300,
+60,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:user-feedback|user-reports)/$",
+"name": "sentry-api-0-group-user-reports",
+"cls": "GroupUserReportsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/attachments/$",
+"name": "sentry-api-0-group-attachments",
+"cls": "GroupAttachmentsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/similar/$",
+"name": "sentry-api-0-group-similar",
+"cls": "GroupSimilarIssuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/similar-issues-embeddings/$",
+"name": "sentry-api-0-group-similar-issues-embeddings",
+"cls": "GroupSimilarIssuesEmbeddingsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/external-issues/$",
+"name": "sentry-api-0-group-external-issues",
+"cls": "GroupExternalIssuesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/external-issues/(?P<external_issue_id>\\d+)/$",
+"name": "sentry-api-0-group-external-issues-details",
+"cls": "GroupExternalIssueDetailsEndpoint",
+"publish": {
+"DELETE": "public_experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/integrations/$",
+"name": "sentry-api-0-group-integrations",
+"cls": "GroupIntegrationsEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/integrations/(?P<integration_id>\\d+)/$",
+"name": "sentry-api-0-group-integration-details",
+"cls": "GroupIntegrationDetailsEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public",
+"PUT": "public",
+"DELETE": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/current-release/$",
+"name": "sentry-api-0-group-current-release",
+"cls": "GroupCurrentReleaseEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^(?:issues|groups)/^(?P<issue_id>[^/]+)/related-issues/$",
+"name": "sentry-api-0-related-issues",
+"cls": "RelatedIssuesEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+15,
+5,
+999
+],
+"user": [
+15,
+5,
+999
+],
+"org": [
+15,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/$",
+"name": "sentry-api-0-organization-group-group-details",
+"cls": "GroupDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "GroupDetailsPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+},
+"PUT": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+},
+"DELETE": {
+"ip": [
+5,
+5,
+999
+],
+"user": [
+5,
+5,
+999
+],
+"org": [
+5,
+5,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/activities/$",
+"name": "sentry-api-0-organization-group-group-activities",
+"cls": "GroupActivitiesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/events/$",
+"name": "sentry-api-0-organization-group-group-events",
+"cls": "GroupEventsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/events/(?P<event_id>(?:latest|oldest|recommended|\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-group-group-event-details",
+"cls": "GroupEventDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+15,
+1,
+999
+],
+"user": [
+15,
+1,
+999
+],
+"org": [
+15,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:notes|comments)/$",
+"name": "sentry-api-0-organization-group-group-notes",
+"cls": "GroupNotesEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:notes|comments)/(?P<note_id>[^/]+)/$",
+"name": "sentry-api-0-organization-group-group-note-details",
+"cls": "GroupNotesDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/hashes/$",
+"name": "sentry-api-0-organization-group-group-hashes",
+"cls": "GroupHashesEndpoint",
+"publish": {
+"PUT": "private",
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/reprocessing/$",
+"name": "sentry-api-0-organization-group-group-reprocessing",
+"cls": "GroupReprocessingEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/stats/$",
+"name": "sentry-api-0-organization-group-group-stats",
+"cls": "GroupStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/$",
+"name": "sentry-api-0-organization-group-group-tags",
+"cls": "GroupTagsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/(?P<key>[^/]+)/$",
+"name": "sentry-api-0-organization-group-group-tag-key-details",
+"cls": "GroupTagKeyDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/tags/(?P<key>[^/]+)/values/$",
+"name": "sentry-api-0-organization-group-group-tag-key-values",
+"cls": "GroupTagKeyValuesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+75,
+60,
+5
+],
+"user": [
+150,
+60,
+10
+],
+"org": [
+300,
+60,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/(?:user-feedback|user-reports)/$",
+"name": "sentry-api-0-organization-group-group-user-reports",
+"cls": "GroupUserReportsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/attachments/$",
+"name": "sentry-api-0-organization-group-group-attachments",
+"cls": "GroupAttachmentsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/similar/$",
+"name": "sentry-api-0-organization-group-group-similar",
+"cls": "GroupSimilarIssuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/similar-issues-embeddings/$",
+"name": "sentry-api-0-organization-group-group-similar-issues-embeddings",
+"cls": "GroupSimilarIssuesEmbeddingsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/external-issues/$",
+"name": "sentry-api-0-organization-group-group-external-issues",
+"cls": "GroupExternalIssuesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/external-issues/(?P<external_issue_id>\\d+)/$",
+"name": "sentry-api-0-organization-group-group-external-issues-details",
+"cls": "GroupExternalIssueDetailsEndpoint",
+"publish": {
+"DELETE": "public_experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/integrations/$",
+"name": "sentry-api-0-organization-group-group-integrations",
+"cls": "GroupIntegrationsEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/integrations/(?P<integration_id>\\d+)/$",
+"name": "sentry-api-0-organization-group-group-integration-details",
+"cls": "GroupIntegrationDetailsEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public",
+"PUT": "public",
+"DELETE": "public"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/current-release/$",
+"name": "sentry-api-0-organization-group-group-current-release",
+"cls": "GroupCurrentReleaseEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/related-issues/$",
+"name": "sentry-api-0-organization-group-related-issues",
+"cls": "RelatedIssuesEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+15,
+5,
+999
+],
+"user": [
+15,
+5,
+999
+],
+"org": [
+15,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/autofix/$",
+"name": "sentry-api-0-organization-group-group-autofix",
+"cls": "GroupAutofixEndpoint",
+"publish": {
+"POST": "public",
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "GroupAiPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"POST": {
+"ip": [
+25,
+60,
+999
+],
+"user": [
+25,
+60,
+999
+],
+"org": [
+100,
+3600,
+999
+]
+},
+"GET": {
+"ip": [
+1024,
+60,
+999
+],
+"user": [
+1024,
+60,
+999
+],
+"org": [
+8192,
+60,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/autofix/setup/$",
+"name": "sentry-api-0-organization-group-group-autofix-setup",
+"cls": "GroupAutofixSetupCheck",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupAiPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+200,
+60,
+20
+],
+"user": [
+100,
+60,
+10
+],
+"org": [
+1000,
+60,
+100
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/autofix/repos/$",
+"name": "sentry-api-0-organization-group-group-autofix-repos",
+"cls": "GroupAutofixReposEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupAiPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+500,
+60,
+100
+],
+"user": [
+500,
+60,
+100
+],
+"org": [
+1000,
+60,
+100
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/^(?P<issue_id>[^/]+)/summarize/$",
+"name": "sentry-api-0-organization-group-group-ai-summary",
+"cls": "GroupAiSummaryEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "GroupAiPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"POST": {
+"ip": [
+20,
+60,
+999
+],
+"user": [
+20,
+60,
+999
+],
+"org": [
+100,
+60,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues/(?P<issue_id>[^/]+)/derived-data/debug/$",
+"name": "sentry-api-0-organization-group-derived-data-debug",
+"cls": "DebugGroupDerivedDataEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/(?P<issue_id>[^/]+)/pull-requests/$",
+"name": "sentry-api-0-organization-group-pull-requests",
+"cls": "GroupPullRequestsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/(?:issues|groups)/(?P<issue_id>[^/]+)/first-last-release/$",
+"name": "sentry-api-0-organization-group-first-last-release",
+"cls": "GroupFirstLastReleaseEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "GroupPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/shared/(?:issues|groups)/(?P<share_id>[^/]+)/$",
+"name": "sentry-api-0-organization-shared-group-details",
+"cls": "SharedGroupDetailsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/data-export/$",
+"name": "sentry-api-0-organization-data-export",
+"cls": "DataExportEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "OrganizationDataExportPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:read",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/data-export/(?P<data_export_id>[^/]+)/$",
+"name": "sentry-api-0-organization-data-export-details",
+"cls": "DataExportDetailsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationDataExportPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:read",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/related-issues/$",
+"name": "sentry-api-0-organization-related-issues",
+"cls": "OrganizationEventsRelatedIssuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/starred-service-spans/$",
+"name": "sentry-api-0-organization-starred-service-spans",
+"cls": "OrganizationStarredServiceSpansEndpoint",
+"publish": {
+"POST": "public_experimental",
+"DELETE": "public_experimental"
+},
+"perms": [
+{
+"class": "MemberPermission",
+"scope_map": {
+"POST": [
+"member:read",
+"member:write"
+],
+"DELETE": [
+"member:read",
+"member:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/eventids/(?P<event_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-event-id-lookup",
+"cls": "EventIdLookupEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+1,
+1,
+999
+],
+"user": [
+1,
+1,
+999
+],
+"org": [
+1,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/api-keys/$",
+"name": "sentry-api-0-organization-api-key-index",
+"cls": "OrganizationApiKeyIndexEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "OrganizationAdminPermission",
+"scope_map": {
+"GET": [
+"org:admin"
+],
+"POST": [
+"org:admin"
+],
+"PUT": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/api-keys/(?P<api_key_id>[^/]+)/$",
+"name": "sentry-api-0-organization-api-key-details",
+"cls": "OrganizationApiKeyDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationAdminPermission",
+"scope_map": {
+"GET": [
+"org:admin"
+],
+"POST": [
+"org:admin"
+],
+"PUT": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/project-keys/$",
+"name": "sentry-api-0-organization-project-keys",
+"cls": "OrganizationProjectKeysEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/audit-logs/$",
+"name": "sentry-api-0-organization-audit-logs",
+"cls": "OrganizationAuditLogsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationAuditPermission",
+"scope_map": {
+"GET": [
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events/$",
+"name": "sentry-api-0-organization-events",
+"cls": "OrganizationEventsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+30,
+1,
+15
+],
+"user": [
+30,
+1,
+15
+],
+"org": [
+30,
+1,
+15
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events/validate/$",
+"name": "sentry-api-0-organization-events-validate",
+"cls": "OrganizationEventsValidateEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-sql/$",
+"name": "sentry-api-0-organization-events-sql",
+"cls": "OrganizationEventsSqlEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events/(?P<project_id_or_slug>[^/]+):(?P<event_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-event-details",
+"cls": "OrganizationEventDetailsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-stats/$",
+"name": "sentry-api-0-organization-events-stats",
+"cls": "OrganizationEventsStatsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-timeseries/$",
+"name": "sentry-api-0-organization-events-timeseries",
+"cls": "OrganizationEventsTimeseriesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+30,
+1,
+15
+],
+"user": [
+30,
+1,
+15
+],
+"org": [
+30,
+1,
+15
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-dropped/$",
+"name": "sentry-api-0-organization-events-dropped",
+"cls": "OrganizationEventsDroppedEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-heatmap/$",
+"name": "sentry-api-0-organization-events-heatmap",
+"cls": "OrganizationEventsHeatmapEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+30,
+1,
+15
+],
+"user": [
+30,
+1,
+15
+],
+"org": [
+30,
+1,
+15
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events/anomalies/$",
+"name": "sentry-api-0-organization-events-anomalies",
+"cls": "OrganizationEventsAnomaliesEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "OrganizationAlertRulePermission",
+"scope_map": {
+"GET": [
+"alerts:read",
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"alerts:write",
+"org:admin",
+"org:read",
+"org:write"
+],
+"PUT": [
+"alerts:write",
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"alerts:write",
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/traces/$",
+"name": "sentry-api-0-organization-traces",
+"cls": "OrganizationTracesEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/$",
+"name": "sentry-api-0-organization-trace-item-attributes",
+"cls": "OrganizationTraceItemAttributesEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/merged/$",
+"name": "sentry-api-0-organization-trace-item-attributes-merged",
+"cls": "OrganizationTraceItemAttributesMergedEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/validate/$",
+"name": "sentry-api-0-organization-trace-item-attributes-validate",
+"cls": "OrganizationTraceItemAttributeValidateEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/(?P<key>[^/]+)/context/$",
+"name": "sentry-api-0-organization-trace-item-attribute-context",
+"cls": "OrganizationTraceItemAttributeContextEndpoint",
+"publish": {
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/metrics/(?P<metric>[^/]+)/context/$",
+"name": "sentry-api-0-organization-trace-item-metric-context",
+"cls": "OrganizationTraceItemMetricContextEndpoint",
+"publish": {
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/(?P<key>[^/]+)/values/$",
+"name": "sentry-api-0-organization-trace-item-attribute-values",
+"cls": "OrganizationTraceItemAttributeValuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/attributes/ranked/$",
+"name": "sentry-api-0-organization-trace-item-attributes-ranked",
+"cls": "OrganizationTraceItemsAttributesRankedEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/metrics/$",
+"name": "sentry-api-0-organization-trace-item-metrics",
+"cls": "OrganizationTraceItemMetricsEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-items/stats/$",
+"name": "sentry-api-0-organization-trace-item-stats",
+"cls": "OrganizationTraceItemStatsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-facets/$",
+"name": "sentry-api-0-organization-events-facets",
+"cls": "OrganizationEventsFacetsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-facets-performance/$",
+"name": "sentry-api-0-organization-events-facets-performance",
+"cls": "OrganizationEventsFacetsPerformanceEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-facets-performance-histogram/$",
+"name": "sentry-api-0-organization-events-facets-performance-histogram",
+"cls": "OrganizationEventsFacetsPerformanceHistogramEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-span-ops/$",
+"name": "sentry-api-0-organization-events-span-ops",
+"cls": "OrganizationEventsSpanOpsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-spans/$",
+"name": "sentry-api-0-organization-events-spans",
+"cls": "OrganizationEventsSpansExamplesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-spans-performance/$",
+"name": "sentry-api-0-organization-events-spans-performance",
+"cls": "OrganizationEventsSpansPerformanceEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-spans-stats/$",
+"name": "sentry-api-0-organization-events-spans-stats",
+"cls": "OrganizationEventsSpansStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-root-cause-analysis/$",
+"name": "sentry-api-0-organization-events-root-cause-analysis",
+"cls": "OrganizationEventsRootCauseAnalysisEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-meta/$",
+"name": "sentry-api-0-organization-events-meta",
+"cls": "OrganizationEventsMetaEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-histogram/$",
+"name": "sentry-api-0-organization-events-histogram",
+"cls": "OrganizationEventsHistogramEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-trends/$",
+"name": "sentry-api-0-organization-events-trends",
+"cls": "OrganizationEventsTrendsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-vitals/$",
+"name": "sentry-api-0-organization-events-vitals",
+"cls": "OrganizationEventsVitalsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-has-measurements/$",
+"name": "sentry-api-0-organization-events-has-measurements",
+"cls": "OrganizationEventsHasMeasurementsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-trends-stats/$",
+"name": "sentry-api-0-organization-events-trends-stats",
+"cls": "OrganizationEventsTrendsStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-trends-statsv2/$",
+"name": "sentry-api-0-organization-events-trends-statsv2",
+"cls": "OrganizationEventsNewTrendsStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+15,
+1,
+15
+],
+"user": [
+15,
+1,
+15
+],
+"org": [
+30,
+1,
+30
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-trace/(?P<trace_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-events-trace",
+"cls": "OrganizationEventsTraceEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/events-trace-meta/(?P<trace_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-events-trace-meta",
+"cls": "OrganizationEventsTraceMetaEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace/(?P<trace_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-trace",
+"cls": "OrganizationTraceEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-meta/(?P<trace_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-organization-trace-meta",
+"cls": "OrganizationTraceMetaEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/trace-logs/$",
+"name": "sentry-api-0-organization-trace-logs",
+"cls": "OrganizationTraceLogsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues/$",
+"name": "sentry-api-0-organization-group-index",
+"cls": "OrganizationGroupIndexEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "OrganizationEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+999
+],
+"user": [
+10,
+1,
+999
+],
+"org": [
+20,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues-count/$",
+"name": "sentry-api-0-organization-issues-count",
+"cls": "OrganizationIssuesCountEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+999
+],
+"user": [
+10,
+1,
+999
+],
+"org": [
+10,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues-stats/$",
+"name": "sentry-api-0-organization-group-index-stats",
+"cls": "OrganizationGroupIndexStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+999
+],
+"user": [
+10,
+1,
+999
+],
+"org": [
+10,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues-with-supergroups/$",
+"name": "sentry-api-0-organization-issues-with-supergroups",
+"cls": "OrganizationIssuesWithSupergroupsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues-metrics/$",
+"name": "sentry-api-0-organization-issue-metrics",
+"cls": "OrganizationIssueMetricsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/issues-timeseries/$",
+"name": "sentry-api-0-organization-issue-timeseries",
+"cls": "OrganizationIssueTimeSeriesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/integrations/(?P<integration_id>[^/]+)/issues/$",
+"name": "sentry-api-0-organization-integration-issues",
+"cls": "OrganizationIntegrationIssuesEndpoint",
+"publish": {
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationIntegrationsPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:integrations",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:integrations",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:integrations"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/external-users/$",
+"name": "sentry-api-0-organization-external-user",
+"cls": "ExternalUserEndpoint",
+"publish": {
+"POST": "public"
+},
+"perms": [
+{
+"class": "ExternalUserPermission",
+"scope_map": {
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/external-users/(?P<external_user_id>[^/]+)/$",
+"name": "sentry-api-0-organization-external-user-details",
+"cls": "ExternalUserDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "ExternalUserPermission",
+"scope_map": {
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/sessions/$",
+"name": "sentry-api-0-organization-sessions",
+"cls": "OrganizationSessionsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/resolved/$",
+"name": "sentry-api-0-organization-release-resolved",
+"cls": "OrganizationIssuesResolvedInReleaseEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/legacy-webhooks/$",
+"name": "sentry-api-0-organization-legacy-webhooks",
+"cls": "OrganizationLegacyWebhooksEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/$",
+"name": "sentry-api-0-organization-releases",
+"cls": "OrganizationReleasesEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+},
+"POST": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/stats/$",
+"name": "sentry-api-0-organization-releases-stats",
+"cls": "OrganizationReleasesStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/$",
+"name": "sentry-api-0-organization-release-details",
+"cls": "OrganizationReleaseDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/meta/$",
+"name": "sentry-api-0-organization-release-meta",
+"cls": "OrganizationReleaseMetaEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/assemble/$",
+"name": "sentry-api-0-organization-release-assemble",
+"cls": "OrganizationReleaseAssembleEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/files/$",
+"name": "sentry-api-0-organization-release-files",
+"cls": "OrganizationReleaseFilesEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+},
+"POST": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/files/(?P<file_id>[^/]+)/$",
+"name": "sentry-api-0-organization-release-file-details",
+"cls": "OrganizationReleaseFileDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/commitfiles/$",
+"name": "sentry-api-0-release-commitfilechange",
+"cls": "CommitFileChangeEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/deploys/$",
+"name": "sentry-api-0-organization-release-deploys",
+"cls": "ReleaseDeploysEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/commits/$",
+"name": "sentry-api-0-organization-release-commits",
+"cls": "OrganizationReleaseCommitsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/previous-with-commits/$",
+"name": "sentry-api-0-organization-release-previous-with-commits",
+"cls": "OrganizationReleasePreviousCommitsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/users/$",
+"name": "sentry-api-0-organization-users",
+"cls": "OrganizationUsersEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/users/(?P<user_id>[^/]+)/$",
+"name": "sentry-api-0-organization-user-details",
+"cls": "OrganizationUserDetailsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "MemberPermission",
+"scope_map": {
+"GET": [
+"member:admin",
+"member:read",
+"member:write"
+],
+"POST": [
+"member:admin",
+"member:invite",
+"member:write"
+],
+"PUT": [
+"member:admin",
+"member:write"
+],
+"DELETE": [
+"member:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/sentry-app-installations/$",
+"name": "sentry-api-0-sentry-app-installations",
+"cls": "SentryAppInstallationsEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppInstallationsPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:integrations",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/sentry-apps/$",
+"name": "sentry-api-0-organization-sentry-apps",
+"cls": "OrganizationSentryAppsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/seer/supergroups/by-group/$",
+"name": "sentry-api-0-organization-supergroups-by-group",
+"cls": "OrganizationSupergroupsByGroupEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationSupergroupsByGroupPermission",
+"scope_map": {
+"GET": [
+"org:read"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/seer/supergroups/(?P<supergroup_id>[^/]+)/$",
+"name": "sentry-api-0-organization-supergroup-details",
+"cls": "OrganizationSupergroupDetailsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "OrganizationSupergroupDetailsPermission",
+"scope_map": {
+"GET": [
+"org:read"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/sentry-app-components/$",
+"name": "sentry-api-0-organization-sentry-app-components",
+"cls": "OrganizationSentryAppComponentsEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/tags/$",
+"name": "sentry-api-0-organization-tags",
+"cls": "OrganizationTagsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/tags/(?P<key>[^/]+)/values/$",
+"name": "sentry-api-0-organization-tagkey-values",
+"cls": "OrganizationTagKeyValuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/flags/logs/$",
+"name": "sentry-api-0-organization-flag-logs",
+"cls": "OrganizationFlagLogIndexEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/flags/logs/(?P<flag_log_id>\\d+)/$",
+"name": "sentry-api-0-organization-flag-log",
+"cls": "OrganizationFlagLogDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/flags/hooks/provider/(?P<provider>[\\w-]+)/$",
+"name": "sentry-api-0-organization-flag-hooks",
+"cls": "OrganizationFlagsHooksEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/replays/$",
+"name": "sentry-api-0-organization-replay-index",
+"cls": "OrganizationReplayIndexEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/replay-selectors/$",
+"name": "sentry-api-0-organization-replay-selectors-index",
+"cls": "OrganizationReplaySelectorIndexEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/replay-count/$",
+"name": "sentry-api-0-organization-replay-count",
+"cls": "OrganizationReplayCountEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+20,
+1,
+999
+],
+"user": [
+20,
+1,
+999
+],
+"org": [
+20,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/$",
+"name": "sentry-api-0-organization-replay-details",
+"cls": "OrganizationReplayDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/replays-events-meta/$",
+"name": "sentry-api-0-organization-replay-events-meta",
+"cls": "OrganizationReplayEventsMetaEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/scim/v2/^Users$",
+"name": "sentry-api-0-organization-scim-member-index",
+"cls": "OrganizationSCIMMemberIndex",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "OrganizationSCIMMemberPermission",
+"scope_map": {
+"GET": [
+"member:admin",
+"member:read",
+"member:write"
+],
+"POST": [
+"member:admin",
+"member:write"
+],
+"PATCH": [
+"member:admin",
+"member:write"
+],
+"PUT": [
+"member:admin",
+"member:write"
+],
+"DELETE": [
+"member:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/scim/v2/^Users/(?P<member_id>\\d+)$",
+"name": "sentry-api-0-organization-scim-member-details",
+"cls": "OrganizationSCIMMemberDetails",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "experimental",
+"PATCH": "public"
+},
+"perms": [
+{
+"class": "OrganizationSCIMMemberPermission",
+"scope_map": {
+"GET": [
+"member:admin",
+"member:read",
+"member:write"
+],
+"POST": [
+"member:admin",
+"member:write"
+],
+"PATCH": [
+"member:admin",
+"member:write"
+],
+"PUT": [
+"member:admin",
+"member:write"
+],
+"DELETE": [
+"member:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/scim/v2/^Groups$",
+"name": "sentry-api-0-organization-scim-team-index",
+"cls": "OrganizationSCIMTeamIndex",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "OrganizationSCIMTeamPermission",
+"scope_map": {
+"GET": [
+"team:admin",
+"team:read",
+"team:write"
+],
+"POST": [
+"team:admin",
+"team:write"
+],
+"PATCH": [
+"team:admin",
+"team:write"
+],
+"DELETE": [
+"team:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/scim/v2/^Groups/(?P<team_id_or_slug>\\d+)$",
+"name": "sentry-api-0-organization-scim-team-details",
+"cls": "OrganizationSCIMTeamDetails",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "experimental",
+"PATCH": "public"
+},
+"perms": [
+{
+"class": "OrganizationSCIMTeamPermission",
+"scope_map": {
+"GET": [
+"team:admin",
+"team:read",
+"team:write"
+],
+"POST": [
+"team:admin",
+"team:write"
+],
+"PATCH": [
+"team:admin",
+"team:write"
+],
+"DELETE": [
+"team:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/profiling/^flamegraph/$",
+"name": "sentry-api-0-organization-profiling-flamegraph",
+"cls": "OrganizationProfilingFlamegraphEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/profiling/^function-trends/$",
+"name": "sentry-api-0-organization-profiling-function-trends",
+"cls": "OrganizationProfilingFunctionTrendsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/profiling/^chunks/$",
+"name": "sentry-api-0-organization-profiling-chunks",
+"cls": "OrganizationProfilingChunksEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/profiling/^chunk-attachments/$",
+"name": "sentry-api-0-organization-profiling-chunk-attachments",
+"cls": "OrganizationProfilingChunkAttachmentsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^organizations/^(?P<organization_id_or_slug>[^/]+)/profiling/^has-chunks/$",
+"name": "sentry-api-0-organization-profiling-has-chunks",
+"cls": "OrganizationProfilingHasChunksEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "OrganizationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:read",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/trace-items/(?P<item_id>(?:[A-Fa-f0-9]+))/$",
+"name": "sentry-api-0-project-trace-item-details",
+"cls": "ProjectTraceItemDetailsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/$",
+"name": "sentry-api-0-project-events",
+"cls": "ProjectEventsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+60,
+60,
+1
+],
+"user": [
+60,
+60,
+1
+],
+"org": [
+60,
+60,
+2
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>(?:\\d+|[A-Fa-f0-9]{32}))/$",
+"name": "sentry-api-0-project-event-details",
+"cls": "ProjectEventDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/grouping-info/$",
+"name": "sentry-api-0-event-grouping-info",
+"cls": "EventGroupingInfoEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/apple-crash-report$",
+"name": "sentry-api-0-event-apple-crash-report",
+"cls": "EventAppleCrashReportEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/attachments/$",
+"name": "sentry-api-0-event-attachments",
+"cls": "EventAttachmentsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/reprocessable/$",
+"name": "sentry-api-0-event-reprocessable",
+"cls": "EventReprocessableEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/attachments/(?P<attachment_id>[^/]+)/$",
+"name": "sentry-api-0-event-attachment-details",
+"cls": "EventAttachmentDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "public"
+},
+"perms": [
+{
+"class": "EventAttachmentDetailsPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/committers/$",
+"name": "sentry-api-0-event-file-committers",
+"cls": "EventFileCommittersEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/json/$",
+"name": "sentry-api-0-event-json",
+"cls": "EventJsonEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/owners/$",
+"name": "sentry-api-0-event-owners",
+"cls": "EventOwnersEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/source-map-debug/$",
+"name": "sentry-api-0-event-source-map-debug",
+"cls": "SourceMapDebugEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/events/(?P<event_id>[^/]+)/actionable-items/$",
+"name": "sentry-api-0-event-actionable-items",
+"cls": "ActionableItemsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/files/proguard-artifact-releases",
+"name": "sentry-api-0-proguard-artifact-releases",
+"cls": "ProguardArtifactReleasesEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/hooks/$",
+"name": "sentry-api-0-service-hooks",
+"cls": "ProjectServiceHooksEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/hooks/(?P<hook_id>[^/]+)/$",
+"name": "sentry-api-0-project-service-hook-details",
+"cls": "ProjectServiceHookDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/(?:issues|groups)/$",
+"name": "sentry-api-0-project-group-index",
+"cls": "ProjectGroupIndexEndpoint",
+"publish": {
+"DELETE": "experimental",
+"GET": "experimental",
+"PUT": "experimental"
+},
+"perms": [
+{
+"class": "ProjectEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+5,
+1,
+999
+],
+"user": [
+5,
+1,
+999
+],
+"org": [
+5,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/(?:issues|groups)/stats/$",
+"name": "sentry-api-0-project-group-stats",
+"cls": "ProjectGroupStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+20,
+1,
+999
+],
+"user": [
+20,
+1,
+999
+],
+"org": [
+20,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/keys/$",
+"name": "sentry-api-0-project-keys",
+"cls": "ProjectKeysEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+},
+"POST": {
+"ip": [
+40,
+1,
+999
+],
+"user": [
+40,
+1,
+999
+],
+"org": [
+40,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/keys/(?P<key_id>[^/]+)/$",
+"name": "sentry-api-0-project-key-details",
+"cls": "ProjectKeyDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/keys/(?P<key_id>[^/]+)/stats/$",
+"name": "sentry-api-0-project-key-stats",
+"cls": "ProjectKeyStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+20,
+1,
+999
+],
+"user": [
+20,
+1,
+999
+],
+"org": [
+20,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/$",
+"name": "sentry-api-0-project-releases",
+"cls": "ProjectReleasesEndpoint",
+"publish": {
+"GET": "public",
+"POST": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+999,
+1,
+999
+],
+"user": [
+999,
+1,
+999
+],
+"org": [
+999,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/token/$",
+"name": "sentry-api-0-project-releases-token",
+"cls": "ProjectReleasesTokenEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "StrictProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+},
+{
+"class": "DisallowImpersonatedTokenCreation",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/completion/$",
+"name": "sentry-api-0-project-releases-completion-status",
+"cls": "ProjectReleaseSetupCompletionEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/$",
+"name": "sentry-api-0-project-release-details",
+"cls": "ProjectReleaseDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/commits/$",
+"name": "sentry-api-0-project-release-commits",
+"cls": "ProjectReleaseCommitsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/repositories/$",
+"name": "sentry-api-0-project-release-repositories",
+"cls": "ProjectReleaseRepositories",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/resolved/$",
+"name": "sentry-api-0-project-release-resolved",
+"cls": "ProjectIssuesResolvedInReleaseEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/stats/$",
+"name": "sentry-api-0-project-release-stats",
+"cls": "ProjectReleaseStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/files/$",
+"name": "sentry-api-0-project-release-files",
+"cls": "ProjectReleaseFilesEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"ip": [
+999,
+1,
+999
+],
+"user": [
+999,
+1,
+999
+],
+"org": [
+999,
+1,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/releases/(?P<version>[^/]+)/files/(?P<file_id>[^/]+)/$",
+"name": "sentry-api-0-project-release-file-details",
+"cls": "ProjectReleaseFileDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "ProjectReleasePermission",
+"scope_map": {
+"GET": [
+"org:ci",
+"project:admin",
+"project:read",
+"project:releases",
+"project:write"
+],
+"POST": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"PUT": [
+"org:ci",
+"project:admin",
+"project:releases",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:releases"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/$",
+"name": "sentry-api-0-project-replay-details",
+"cls": "ProjectReplayDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "private"
+},
+"perms": [
+{
+"class": "ReplayDetailsPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/viewed-by/$",
+"name": "sentry-api-0-project-replay-viewed-by",
+"cls": "ProjectReplayViewedByEndpoint",
+"publish": {
+"GET": "public",
+"POST": "private"
+},
+"perms": [
+{
+"class": "ProjectEventPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/clicks/$",
+"name": "sentry-api-0-project-replay-clicks-index",
+"cls": "ProjectReplayClicksIndexEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/recording-segments/$",
+"name": "sentry-api-0-project-replay-recording-segment-index",
+"cls": "ProjectReplayRecordingSegmentIndexEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/summarize/$",
+"name": "sentry-api-0-project-replay-summary",
+"cls": "ProjectReplaySummaryEndpoint",
+"publish": {
+"GET": "experimental",
+"POST": "experimental"
+},
+"perms": [
+{
+"class": "ReplaySummaryPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write"
+],
+"POST": [
+"event:admin",
+"event:write"
+],
+"PUT": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/recording-segments/(?P<segment_id>\\d+)/$",
+"name": "sentry-api-0-project-replay-recording-segment-details",
+"cls": "ProjectReplayRecordingSegmentDetailsEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/(?P<replay_id>[^/]+)/videos/(?P<segment_id>\\d+)/$",
+"name": "sentry-api-0-project-replay-video-details",
+"cls": "ProjectReplayVideoDetailsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/jobs/delete/$",
+"name": "sentry-api-0-project-replay-deletion-jobs-index",
+"cls": "ProjectReplayDeletionJobsIndexEndpoint",
+"publish": {
+"GET": "public",
+"POST": "public"
+},
+"perms": [
+{
+"class": "ReplayDeletionJobPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/replays/jobs/delete/(?P<job_id>\\d+)/$",
+"name": "sentry-api-0-project-replay-deletion-job-details",
+"cls": "ProjectReplayDeletionJobDetailEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ReplayDeletionJobPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/tags/$",
+"name": "sentry-api-0-project-tags",
+"cls": "ProjectTagsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/tags/(?P<key>[^/]+)/$",
+"name": "sentry-api-0-project-tagkey-details",
+"cls": "ProjectTagKeyDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"DELETE": {
+"ip": [
+1,
+1,
+999
+],
+"user": [
+1,
+1,
+999
+],
+"org": [
+1,
+1,
+999
+]
+},
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/tags/(?P<key>[^/]+)/values/$",
+"name": "sentry-api-0-project-tagkey-values",
+"cls": "ProjectTagKeyValuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"GET": {
+"ip": [
+10,
+1,
+10
+],
+"user": [
+10,
+1,
+10
+],
+"org": [
+20,
+1,
+5
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/users/$",
+"name": "sentry-api-0-project-users",
+"cls": "ProjectUsersEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectAndStaffPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"GET": {
+"org": [
+5,
+60,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/performance-issues/configure/$",
+"name": "sentry-api-0-project-performance-issue-settings",
+"cls": "ProjectPerformanceIssueSettingsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "ProjectSettingPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin",
+"project:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/legacy-webhooks/$",
+"name": "sentry-api-0-project-legacy-webhooks",
+"cls": "ProjectLegacyWebhooksEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private",
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/stacktrace-link/$",
+"name": "sentry-api-0-project-stacktrace-link",
+"cls": "ProjectStacktraceLinkEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/stacktrace-source-context/$",
+"name": "sentry-api-0-project-stacktrace-source-context",
+"cls": "ProjectStacktraceSourceContextEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/profiling/profiles/(?P<profile_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-project-profiling-profile",
+"cls": "ProjectProfilingProfileEndpoint",
+"publish": {
+"GET": "public"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/profiling/raw_profiles/(?P<profile_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-project-profiling-raw-profile",
+"cls": "ProjectProfilingRawProfileEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/profiling/raw_chunks/(?P<profiler_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/(?P<chunk_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/$",
+"name": "sentry-api-0-project-profiling-raw-chunk",
+"cls": "ProjectProfilingRawChunkEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProjectPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^projects/^(?P<organization_id_or_slug>[^/]+)/(?P<project_id_or_slug>[^/]+)/profiling/chunks/(?P<profiler_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/(?P<chunk_id>(?:\\d+|[A-Fa-f0-9-]{32,36}))/attachments/(?P<attachment_id>\\d+)/$",
+"name": "sentry-api-0-project-profiling-chunk-attachment",
+"cls": "ProjectProfilingChunkAttachmentEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "ProfileChunkAttachmentPermission",
+"scope_map": {
+"GET": [
+"project:admin",
+"project:read",
+"project:write"
+],
+"POST": [
+"project:admin",
+"project:write"
+],
+"PUT": [
+"project:admin",
+"project:write"
+],
+"DELETE": [
+"project:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^teams/^(?P<organization_id_or_slug>[^/]+)/(?P<team_id_or_slug>[^/]+)/issues/old/$",
+"name": "sentry-api-0-team-oldest-issues",
+"cls": "TeamGroupsOldEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "TeamPermission",
+"scope_map": {
+"GET": [
+"team:admin",
+"team:read",
+"team:write"
+],
+"POST": [
+"team:admin",
+"team:write"
+],
+"PUT": [
+"team:admin",
+"team:write"
+],
+"DELETE": [
+"team:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^teams/^(?P<organization_id_or_slug>[^/]+)/(?P<team_id_or_slug>[^/]+)/all-unresolved-issues/$",
+"name": "sentry-api-0-team-all-unresolved-issues",
+"cls": "TeamAllUnresolvedIssuesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "TeamPermission",
+"scope_map": {
+"GET": [
+"team:admin",
+"team:read",
+"team:write"
+],
+"POST": [
+"team:admin",
+"team:write"
+],
+"PUT": [
+"team:admin",
+"team:write"
+],
+"DELETE": [
+"team:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^$",
+"name": "sentry-api-0-user-index",
+"cls": "UserIndexEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SuperuserOrStaffFeatureFlaggedPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/$",
+"name": "sentry-api-0-user-details",
+"cls": "UserDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserAndStaffPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/regions/$",
+"name": "sentry-api-0-user-regions",
+"cls": "UserRegionsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserRegionEndpointPermissions",
+"scope_map": {
+"GET": [
+"org:read"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/avatar/$",
+"name": "sentry-api-0-user-avatar",
+"cls": "UserAvatarEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/authenticators/$",
+"name": "sentry-api-0-user-authenticator-index",
+"cls": "UserAuthenticatorIndexEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/authenticators/(?P<interface_id>[^/]+)/enroll/$",
+"name": "sentry-api-0-user-authenticator-enroll",
+"cls": "UserAuthenticatorEnrollEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/authenticators/(?P<auth_id>[^/]+)/(?P<interface_device_id>[^/]+)/$",
+"name": "sentry-api-0-user-authenticator-device-details",
+"cls": "UserAuthenticatorDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationUserPermission",
+"scope_map": {
+"DELETE": [
+"member:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/authenticators/(?P<auth_id>[^/]+)/$",
+"name": "sentry-api-0-user-authenticator-details",
+"cls": "UserAuthenticatorDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "OrganizationUserPermission",
+"scope_map": {
+"DELETE": [
+"member:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/display-preferences/$",
+"name": "sentry-api-0-user-display-preferences",
+"cls": "UserDisplayPreferencesEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserDisplayPreferencesPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/emails/$",
+"name": "sentry-api-0-user-emails",
+"cls": "UserEmailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"POST": {
+"ip": [
+10,
+60,
+999
+],
+"user": [
+10,
+60,
+999
+],
+"org": [
+10,
+60,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/emails/confirm/$",
+"name": "sentry-api-0-user-emails-confirm",
+"cls": "UserEmailsConfirmEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": {
+"POST": {
+"user": [
+10,
+60,
+999
+],
+"org": [
+10,
+60,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/identities/(?P<identity_id>[^/]+)/$",
+"name": "sentry-api-0-user-identity-details",
+"cls": "UserIdentityDetailsEndpoint",
+"publish": {
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/identities/$",
+"name": "sentry-api-0-user-identity",
+"cls": "UserIdentityEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/ips/$",
+"name": "sentry-api-0-user-ips",
+"cls": "UserIPsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/organizations/$",
+"name": "sentry-api-0-user-organizations",
+"cls": "UserOrganizationsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/notifications/$",
+"name": "sentry-api-0-user-notifications",
+"cls": "UserNotificationDetailsEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/notifications/email/$",
+"name": "sentry-api-0-user-notifications-email",
+"cls": "UserNotificationEmailEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/notification-options/$",
+"name": "sentry-api-0-user-notification-options",
+"cls": "UserNotificationSettingsOptionsEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/notification-options/(?P<notification_option_id>[^/]+)/$",
+"name": "sentry-api-0-user-notification-options-details",
+"cls": "UserNotificationSettingsOptionsDetailEndpoint",
+"publish": {
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/notification-providers/$",
+"name": "sentry-api-0-user-notification-providers",
+"cls": "UserNotificationSettingsProvidersEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/password/$",
+"name": "sentry-api-0-user-password",
+"cls": "UserPasswordEndpoint",
+"publish": {
+"PUT": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": true,
+"rate_limits": {
+"PUT": {
+"user": [
+5,
+3600,
+999
+]
+}
+}
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/permissions/$",
+"name": "sentry-api-0-user-permissions",
+"cls": "UserPermissionsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SuperuserOrStaffFeatureFlaggedPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/permissions/config/$",
+"name": "sentry-api-0-user-permissions-config",
+"cls": "UserPermissionsConfigEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SuperuserOrStaffFeatureFlaggedPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/permissions/(?P<permission_name>[^/]+)/$",
+"name": "sentry-api-0-user-permission-details",
+"cls": "UserPermissionDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "SuperuserOrStaffFeatureFlaggedPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/subscriptions/$",
+"name": "sentry-api-0-user-subscriptions",
+"cls": "UserSubscriptionsEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/organization-integrations/$",
+"name": "sentry-api-0-user-organization-integrations",
+"cls": "UserOrganizationIntegrationsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/user-identities/$",
+"name": "sentry-api-0-user-identity-config",
+"cls": "UserIdentityConfigEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserAndStaffPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^users/^(?P<user_id>[^/]+)/user-identities/(?P<category>[\\w-]+)/(?P<identity_id>[^/]+)/$",
+"name": "sentry-api-0-user-identity-config-details",
+"cls": "UserIdentityConfigDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private"
+},
+"perms": [
+{
+"class": "UserAndStaffPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^$",
+"name": "sentry-api-0-sentry-apps",
+"cls": "SentryAppsEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppsAndStaffPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"POST": [
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/$",
+"name": "sentry-api-0-sentry-app-details",
+"cls": "SentryAppDetailsEndpoint",
+"publish": {
+"DELETE": "public",
+"GET": "public",
+"PUT": "public"
+},
+"perms": [
+{
+"class": "SentryAppDetailsEndpointPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/features/$",
+"name": "sentry-api-0-sentry-app-features",
+"cls": "SentryAppFeaturesEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SentryAppPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/components/$",
+"name": "sentry-api-0-sentry-app-components",
+"cls": "SentryAppComponentsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SentryAppPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/avatar/$",
+"name": "sentry-api-0-sentry-app-avatar",
+"cls": "SentryAppAvatarEndpoint",
+"publish": {
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "SentryAppPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/api-tokens/$",
+"name": "sentry-api-0-sentry-internal-app-tokens",
+"cls": "SentryInternalAppTokensEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryInternalAppTokenPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:write"
+]
+}
+},
+{
+"class": "DisallowImpersonatedTokenCreation",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/api-tokens/(?P<api_token_id>[^/]+)/$",
+"name": "sentry-api-0-sentry-internal-app-token-details",
+"cls": "SentryInternalAppTokenDetailsEndpoint",
+"publish": {
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "SentryInternalAppTokenPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:write"
+]
+}
+},
+{
+"class": "DisallowImpersonatedTokenCreation",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/rotate-secret/$",
+"name": "sentry-api-0-sentry-app-rotate-secret",
+"cls": "SentryAppRotateSecretEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppRotateSecretPermission",
+"scope_map": {
+"POST": [
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/stats/$",
+"name": "sentry-api-0-sentry-app-stats",
+"cls": "SentryAppStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SentryAppStatsPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"POST": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/publish-request/$",
+"name": "sentry-api-0-sentry-app-publish-request",
+"cls": "SentryAppPublishRequestEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppPermission",
+"scope_map": {
+"GET": [
+"event:admin",
+"event:read",
+"event:write",
+"member:read",
+"org:read",
+"project:read",
+"project:releases",
+"team:read"
+],
+"PUT": [
+"org:admin",
+"org:write"
+],
+"POST": [
+"org:admin"
+],
+"DELETE": [
+"org:admin"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/webhook-requests/$",
+"name": "sentry-api-0-sentry-app-webhook-requests",
+"cls": "SentryAppWebhookRequestsEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "SentryAppWebhookRequestsPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps/^(?P<sentry_app_id_or_slug>[^/]+)/interaction/$",
+"name": "sentry-api-0-sentry-app-interaction",
+"cls": "SentryAppInteractionEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppStatsPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"POST": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/$",
+"name": "sentry-api-0-sentry-app-installation-details",
+"cls": "SentryAppInstallationDetailsEndpoint",
+"publish": {
+"DELETE": "private",
+"GET": "private",
+"PUT": "private"
+},
+"perms": [
+{
+"class": "SentryAppInstallationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:integrations",
+"org:write"
+],
+"POST": [
+"event:admin",
+"event:write",
+"org:integrations"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/authorizations/$",
+"name": "sentry-api-0-sentry-app-installation-authorizations",
+"cls": "SentryAppAuthorizationsEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppAuthorizationsPermission",
+"scope_map": {
+"HEAD": [],
+"GET": [],
+"POST": [],
+"PUT": [],
+"PATCH": [],
+"DELETE": []
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/external-requests/$",
+"name": "sentry-api-0-sentry-app-installation-external-requests",
+"cls": "SentryAppInstallationExternalRequestsEndpoint",
+"publish": {
+"GET": "public_experimental"
+},
+"perms": [
+{
+"class": "SentryAppInstallationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:integrations",
+"org:write"
+],
+"POST": [
+"event:admin",
+"event:write",
+"org:integrations"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/external-issue-actions/$",
+"name": "sentry-api-0-sentry-app-installation-external-issue-actions",
+"cls": "SentryAppInstallationExternalIssueActionsEndpoint",
+"publish": {
+"POST": "public_experimental"
+},
+"perms": [
+{
+"class": "SentryAppInstallationExternalIssuePermission",
+"scope_map": {
+"POST": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/external-issues/$",
+"name": "sentry-api-0-sentry-app-installation-external-issues",
+"cls": "SentryAppInstallationExternalIssuesEndpoint",
+"publish": {
+"POST": "private"
+},
+"perms": [
+{
+"class": "SentryAppInstallationExternalIssuePermission",
+"scope_map": {
+"POST": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/external-issues/(?P<external_issue_id>[^/]+)/$",
+"name": "sentry-api-0-sentry-app-installation-external-issue-details",
+"cls": "SentryAppInstallationExternalIssueDetailsEndpoint",
+"publish": {
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "SentryAppInstallationExternalIssuePermission",
+"scope_map": {
+"POST": [
+"event:admin",
+"event:write"
+],
+"DELETE": [
+"event:admin",
+"event:write"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-app-installations/^(?P<uuid>[^/]+)/service-hook-projects/$",
+"name": "sentry-api-0-sentry-app-installation-service-hook-projects",
+"cls": "SentryAppInstallationServiceHookProjectsEndpoint",
+"publish": {
+"GET": "private",
+"POST": "private",
+"DELETE": "private"
+},
+"perms": [
+{
+"class": "SentryAppInstallationPermission",
+"scope_map": {
+"GET": [
+"org:admin",
+"org:integrations",
+"org:read",
+"org:write"
+],
+"DELETE": [
+"org:admin",
+"org:integrations",
+"org:write"
+],
+"POST": [
+"event:admin",
+"event:write",
+"org:integrations"
+]
+}
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^sentry-apps-stats/$",
+"name": "sentry-api-0-sentry-apps-stats",
+"cls": "SentryAppsStatsEndpoint",
+"publish": {
+"GET": "private"
+},
+"perms": [
+{
+"class": "SuperuserOrStaffFeatureFlaggedPermission",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+},
+{
+"route": "^api/0/^publickeys/relocations/$",
+"name": "sentry-api-0-relocations-public-key",
+"cls": "RelocationPublicKeyEndpoint",
+"publish": {
+"GET": "experimental"
+},
+"perms": [
+{
+"class": "SentryIsAuthenticated",
+"scope_map": null
+}
+],
+"enforce": false,
+"rate_limits": null
+}
+]
+}

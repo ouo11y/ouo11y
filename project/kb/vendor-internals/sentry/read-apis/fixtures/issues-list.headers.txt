@@ -1,0 +1,7 @@
+GET /api/0/organizations/sentry/issues/?project=-1&statsPeriod=30d&limit=1&query=issue.id:8
+HTTP 200
+Content-Type: application/json
+Content-Length: 2155
+x-hits: 1
+x-max-hits: 1000
+link: <https://sentry.ouo.localhost/api/0/organizations/sentry/issues/?project=-1&statsPeriod=30d&limit=1&query=issue.id%3A8&cursor=1793141869000:0:1>; rel="previous"; results="false"; cursor="1793141869000:0:1", <https://sentry.ouo.localhost/api/0/organizations/sentry/issues/?project=-1&statsPeriod=30d&limit=1&query=issue.id%3A8&cursor=1793141869000:1:0>; rel="next"; results="false"; cursor="1793141869000:1:0"

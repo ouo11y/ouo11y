@@ -1,0 +1,126 @@
+[
+ {
+  "children": [
+   {
+    "children": [],
+    "errors": [],
+    "occurrences": [],
+    "event_id": "4e10425e55b04546",
+    "transaction_id": "dfc27f819067494bb39e85cb371c7c7f",
+    "project_id": 2,
+    "project_slug": "sentry-demo",
+    "profile_id": "",
+    "profiler_id": "",
+    "parent_span_id": "b0160ad8b1364e7b",
+    "start_timestamp": 1794280927.171887,
+    "end_timestamp": 1794280927.771887,
+    "measurements": {
+     "measurements.app_start_cold": 0.0,
+     "measurements.app_start_warm": 0.0,
+     "measurements.cls": 0.0,
+     "measurements.fcp": 0.0,
+     "measurements.frames_frozen_rate": 0.0,
+     "measurements.frames_slow_rate": 0.0,
+     "measurements.inp": 0.0,
+     "measurements.lcp": 0.0,
+     "measurements.score.ratio.cls": 0.0,
+     "measurements.score.ratio.fcp": 0.0,
+     "measurements.score.ratio.inp": 0.0,
+     "measurements.score.ratio.lcp": 0.0,
+     "measurements.score.ratio.ttfb": 0.0,
+     "measurements.time_to_full_display": 0.0,
+     "measurements.time_to_initial_display": 0.0,
+     "measurements.ttfb": 0.0
+    },
+    "browser_web_vital": {
+     "browser.web_vital.cls.value": 0.0,
+     "browser.web_vital.fcp.value": 0.0,
+     "browser.web_vital.inp.value": 0.0,
+     "browser.web_vital.lcp.value": 0.0,
+     "browser.web_vital.ttfb.value": 0.0
+    },
+    "mobile_app_vital": {
+     "app.vitals.start.cold.value": 0.0,
+     "app.vitals.start.warm.value": 0.0,
+     "app.vitals.ttfd.value": 0.0,
+     "app.vitals.ttid.value": 0.0
+    },
+    "duration": 600.000143,
+    "transaction": "/probe",
+    "is_transaction": false,
+    "description": "GET /probe-api",
+    "sdk_name": "ouo.read-api-probe",
+    "op": "http.client",
+    "name": "HTTP",
+    "event_type": "span",
+    "additional_attributes": {}
+   }
+  ],
+  "errors": [
+   {
+    "event_id": "d9d98a105d2e4f4bb81fac57ce8c2678",
+    "project_id": 2,
+    "project_slug": "sentry-demo",
+    "start_timestamp": 1794280927.971,
+    "transaction": "",
+    "description": "read-api latency probe d9d98a10 ProbeError",
+    "level": "error",
+    "issue_id": 19,
+    "event_type": "error",
+    "culprit": "",
+    "short_id": "SENTRY-DEMO-7",
+    "issue_type": 1
+   }
+  ],
+  "occurrences": [],
+  "event_id": "b0160ad8b1364e7b",
+  "transaction_id": "dfc27f819067494bb39e85cb371c7c7f",
+  "project_id": 2,
+  "project_slug": "sentry-demo",
+  "profile_id": "",
+  "profiler_id": "",
+  "parent_span_id": null,
+  "start_timestamp": 1794280926.971887,
+  "end_timestamp": 1794280927.971887,
+  "measurements": {
+   "measurements.app_start_cold": 0.0,
+   "measurements.app_start_warm": 0.0,
+   "measurements.cls": 0.0,
+   "measurements.fcp": 0.0,
+   "measurements.frames_frozen_rate": 0.0,
+   "measurements.frames_slow_rate": 0.0,
+   "measurements.inp": 0.0,
+   "measurements.lcp": 0.0,
+   "measurements.score.ratio.cls": 0.0,
+   "measurements.score.ratio.fcp": 0.0,
+   "measurements.score.ratio.inp": 0.0,
+   "measurements.score.ratio.lcp": 0.0,
+   "measurements.score.ratio.ttfb": 0.0,
+   "measurements.time_to_full_display": 0.0,
+   "measurements.time_to_initial_display": 0.0,
+   "measurements.ttfb": 0.0
+  },
+  "browser_web_vital": {
+   "browser.web_vital.cls.value": 0.0,
+   "browser.web_vital.fcp.value": 0.0,
+   "browser.web_vital.inp.value": 0.0,
+   "browser.web_vital.lcp.value": 0.0,
+   "browser.web_vital.ttfb.value": 0.0
+  },
+  "mobile_app_vital": {
+   "app.vitals.start.cold.value": 0.0,
+   "app.vitals.start.warm.value": 0.0,
+   "app.vitals.ttfd.value": 0.0,
+   "app.vitals.ttid.value": 0.0
+  },
+  "duration": 1000.0,
+  "transaction": "/probe",
+  "is_transaction": true,
+  "description": "/probe",
+  "sdk_name": "ouo.read-api-probe",
+  "op": "pageload",
+  "name": "/probe",
+  "event_type": "span",
+  "additional_attributes": {}
+ }
+]

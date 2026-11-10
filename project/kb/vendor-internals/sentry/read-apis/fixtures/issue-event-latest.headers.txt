@@ -1,0 +1,4 @@
+GET /api/0/organizations/sentry/issues/8/events/latest/
+HTTP 200
+Content-Type: application/json
+Content-Length: 19347

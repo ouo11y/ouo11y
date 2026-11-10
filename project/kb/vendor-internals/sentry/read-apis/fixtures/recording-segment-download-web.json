@@ -1,0 +1,81 @@
+[
+ {
+  "type": 4,
+  "timestamp": 1794280827528,
+  "data": {
+   "href": "http://localhost/step6",
+   "width": 800,
+   "height": 600
+  }
+ },
+ {
+  "type": 2,
+  "timestamp": 1794280827528,
+  "data": {
+   "node": {
+    "type": 0,
+    "childNodes": [
+     {
+      "type": 2,
+      "tagName": "html",
+      "attributes": {},
+      "childNodes": [
+       {
+        "type": 2,
+        "tagName": "body",
+        "attributes": {},
+        "childNodes": [
+         {
+          "type": 3,
+          "textContent": "my card 4111 1111 1111 1111",
+          "id": 4
+         }
+        ],
+        "id": 3
+       }
+      ],
+      "id": 2
+     }
+    ],
+    "id": 1
+   },
+   "initialOffset": {
+    "left": 0,
+    "top": 0
+   }
+  }
+ },
+ {
+  "type": 5,
+  "timestamp": 1794280827538,
+  "data": {
+   "tag": "breadcrumb",
+   "payload": {
+    "type": "default",
+    "category": "console",
+    "timestamp": 1794280827.528055,
+    "message": "password=hunter2 card 4111 1111 1111 1111",
+    "data": {
+     "arg": "secret=abc"
+    }
+   }
+  }
+ },
+ {
+  "type": 5,
+  "timestamp": 1794280827548,
+  "data": {
+   "tag": "performanceSpan",
+   "payload": {
+    "op": "resource.fetch",
+    "description": "https://api.example.invalid/?token=4111111111111111",
+    "startTimestamp": 1794280827.528055,
+    "endTimestamp": 1794280827.6280549,
+    "data": {
+     "method": "GET",
+     "statusCode": 200
+    }
+   }
+  }
+ }
+]

@@ -1,0 +1,269 @@
+[
+ {
+  "id": "8",
+  "shareId": null,
+  "shortId": "TINY-SHOP-MOBILE-2",
+  "title": "Error: Cart total is NaN",
+  "culprit": "anonymous(main)",
+  "permalink": "https://sentry.ouo.localhost/organizations/sentry/issues/8/",
+  "logger": null,
+  "level": "fatal",
+  "status": "unresolved",
+  "statusDetails": {},
+  "substatus": "ongoing",
+  "isPublic": false,
+  "platform": "javascript",
+  "project": {
+   "id": "3",
+   "name": "tiny-shop-mobile",
+   "slug": "tiny-shop-mobile",
+   "platform": "react-native"
+  },
+  "type": "error",
+  "metadata": {
+   "value": "Cart total is NaN",
+   "type": "Error",
+   "synthetic": false,
+   "filename": "app:///main.jsbundle",
+   "function": "anonymous",
+   "in_app_frame_mix": "in-app-only",
+   "sdk": {
+    "name": "sentry.javascript.react-native",
+    "name_normalized": "sentry.javascript.react.native"
+   },
+   "initial_priority": 75
+  },
+  "numComments": 0,
+  "assignedTo": null,
+  "isBookmarked": false,
+  "isSubscribed": false,
+  "subscriptionDetails": null,
+  "hasSeen": false,
+  "annotations": [],
+  "issueType": "error",
+  "issueCategory": "error",
+  "priority": "high",
+  "priorityLockedAt": null,
+  "seerFixabilityScore": null,
+  "seerAutofixLastTriggered": null,
+  "seerExplorerAutofixLastTriggered": null,
+  "isUnhandled": true,
+  "count": "1",
+  "userCount": 1,
+  "firstSeen": "2026-10-27T22:57:49Z",
+  "lastSeen": "2026-10-27T22:57:49Z",
+  "stats": {
+   "24h": [
+    [
+     1794196800,
+     0
+    ],
+    [
+     1794200400,
+     0
+    ],
+    [
+     1794204000,
+     0
+    ],
+    [
+     1794207600,
+     0
+    ],
+    [
+     1794211200,
+     0
+    ],
+    [
+     1794214800,
+     0
+    ],
+    [
+     1794218400,
+     0
+    ],
+    [
+     1794222000,
+     0
+    ],
+    [
+     1794225600,
+     0
+    ],
+    [
+     1794229200,
+     0
+    ],
+    [
+     1794232800,
+     0
+    ],
+    [
+     1794236400,
+     0
+    ],
+    [
+     1794240000,
+     0
+    ],
+    [
+     1794243600,
+     0
+    ],
+    [
+     1794247200,
+     0
+    ],
+    [
+     1794250800,
+     0
+    ],
+    [
+     1794254400,
+     0
+    ],
+    [
+     1794258000,
+     0
+    ],
+    [
+     1794261600,
+     0
+    ],
+    [
+     1794265200,
+     0
+    ],
+    [
+     1794268800,
+     0
+    ],
+    [
+     1794272400,
+     0
+    ],
+    [
+     1794276000,
+     0
+    ],
+    [
+     1794279600,
+     0
+    ]
+   ]
+  },
+  "lifetime": {
+   "count": "1",
+   "userCount": 1,
+   "firstSeen": "2026-10-27T22:57:49.856000Z",
+   "lastSeen": "2026-10-27T22:57:49Z",
+   "stats": null
+  },
+  "filtered": {
+   "count": "1",
+   "userCount": 1,
+   "firstSeen": "2026-10-27T22:57:49Z",
+   "lastSeen": "2026-10-27T22:57:49Z",
+   "stats": {
+    "24h": [
+     [
+      1794196800,
+      0
+     ],
+     [
+      1794200400,
+      0
+     ],
+     [
+      1794204000,
+      0
+     ],
+     [
+      1794207600,
+      0
+     ],
+     [
+      1794211200,
+      0
+     ],
+     [
+      1794214800,
+      0
+     ],
+     [
+      1794218400,
+      0
+     ],
+     [
+      1794222000,
+      0
+     ],
+     [
+      1794225600,
+      0
+     ],
+     [
+      1794229200,
+      0
+     ],
+     [
+      1794232800,
+      0
+     ],
+     [
+      1794236400,
+      0
+     ],
+     [
+      1794240000,
+      0
+     ],
+     [
+      1794243600,
+      0
+     ],
+     [
+      1794247200,
+      0
+     ],
+     [
+      1794250800,
+      0
+     ],
+     [
+      1794254400,
+      0
+     ],
+     [
+      1794258000,
+      0
+     ],
+     [
+      1794261600,
+      0
+     ],
+     [
+      1794265200,
+      0
+     ],
+     [
+      1794268800,
+      0
+     ],
+     [
+      1794272400,
+      0
+     ],
+     [
+      1794276000,
+      0
+     ],
+     [
+      1794279600,
+      0
+     ]
+    ]
+   }
+  }
+ }
+]

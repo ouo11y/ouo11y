@@ -1,0 +1,114 @@
+{
+ "data": [
+  {
+   "id": "bb6e59678173435bb7cc1cc1d3f8620a",
+   "project_id": "4",
+   "trace_ids": [
+    "79966169ef284bd9ae1cb0b623f5b965",
+    "e62f290989b94cc58202e3fa6ac63131",
+    "a7060e539d1d434d846bba0adb95e807",
+    "740afc93703b4abc967b508d89a3f18a"
+   ],
+   "error_ids": [
+    "fa04c5d3bfd74988ac33ce917f6b25b3",
+    "a08d6dfc0860454e8df1c104429e28f0",
+    "79e5c13a531f44c98065ce70e7797ae4",
+    "b1000736be2f4205885934676ccb6894",
+    "eee4f4df29d34047858083524359102e",
+    "87f9cee00bfa4820bb22762c088681ee",
+    "734a9ebbcb734dc5966553e0c3702645"
+   ],
+   "environment": "step6",
+   "tags": {
+    "demo": [
+     "step6"
+    ]
+   },
+   "user": {
+    "id": "demo-user-1",
+    "username": null,
+    "email": null,
+    "ip": "0.0.0.0",
+    "geo": {
+     "city": "",
+     "country_code": "",
+     "region": "",
+     "subdivision": ""
+    },
+    "display_name": "demo-user-1"
+   },
+   "sdk": {
+    "name": "sentry.javascript.react",
+    "version": "11.11.0"
+   },
+   "os": {
+    "name": "Mac OS X",
+    "version": ">=10.15.7"
+   },
+   "browser": {
+    "name": "Chrome",
+    "version": "152.0.7977"
+   },
+   "device": {
+    "name": null,
+    "brand": "Apple",
+    "model": "Mac",
+    "family": "Mac"
+   },
+   "ota_updates": {
+    "channel": "",
+    "runtime_version": "",
+    "update_id": ""
+   },
+   "urls": [
+    "http://0.0.0.0:4521/",
+    "http://0.0.0.0:4521/page/1",
+    "http://0.0.0.0:4521/page/2",
+    "http://0.0.0.0:4521/?drop=1"
+   ],
+   "segment_names": [
+    "GET 0.0.0.0",
+    "Navigation",
+    "Pageload",
+    "demo.work"
+   ],
+   "is_archived": false,
+   "activity": 10,
+   "clicks": [
+    {
+     "click.alt": null,
+     "click.label": null,
+     "click.classes": null,
+     "click.component_name": null,
+     "click.id": "btn-boom",
+     "click.role": null,
+     "click.tag": "button",
+     "click.testid": null,
+     "click.text": null,
+     "click.title": null
+    }
+   ],
+   "count_dead_clicks": 0,
+   "count_errors": 6,
+   "count_rage_clicks": 0,
+   "count_segments": 5,
+   "count_urls": 4,
+   "dist": null,
+   "duration": 89,
+   "finished_at": "2026-11-10T03:37:01+00:00",
+   "platform": "javascript",
+   "releases": [
+    "sentry-web-demo@1.0.0"
+   ],
+   "replay_type": "session",
+   "started_at": "2026-11-10T03:35:32+00:00",
+   "warning_ids": [],
+   "info_ids": [
+    "a08d6dfc0860454e8df1c104429e28f0"
+   ],
+   "count_infos": 1,
+   "count_warnings": 0,
+   "has_viewed": false
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+{
+ "data": [
+  {
+   "id": "a09d6828f29b4d14aa6fef61d96ac592",
+   "project_id": "2",
+   "started_at": "2026-11-10T03:25:00+00:00",
+   "finished_at": "2026-11-10T03:25:01+00:00",
+   "count_segments": 2,
+   "platform": "javascript"
+  },
+  {
+   "id": "5bd68ecea04346149cf0338ae94e2363",
+   "project_id": "2",
+   "started_at": "2026-11-10T03:24:11+00:00",
+   "finished_at": "2026-11-10T03:24:12+00:00",
+   "count_segments": 2,
+   "platform": "javascript"
+  },
+  {
+   "id": "27c4797b11e445a1a33700ff87d78b53",
+   "project_id": "2",
+   "started_at": "2026-11-10T03:23:25+00:00",
+   "finished_at": "2026-11-10T03:23:26+00:00",
+   "count_segments": 2,
+   "platform": "javascript"
+  }
+ ]
+}

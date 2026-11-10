@@ -1,0 +1,126 @@
+[
+ {
+  "id": 9,
+  "version": "read-api-probe@1.0.9",
+  "status": "open",
+  "shortVersion": "read-api-probe@1.0.9",
+  "versionInfo": {
+   "package": "read-api-probe",
+   "version": {
+    "raw": "1.0.9",
+    "major": 1,
+    "minor": 0,
+    "patch": 9,
+    "pre": null,
+    "buildCode": null,
+    "components": 3
+   },
+   "description": "1.0.9",
+   "buildHash": null
+  },
+  "ref": null,
+  "url": null,
+  "dateReleased": null,
+  "dateCreated": "2026-11-10T03:27:35.259517Z",
+  "data": {},
+  "newGroups": 1,
+  "owner": null,
+  "commitCount": 0,
+  "lastCommit": null,
+  "deployCount": 0,
+  "lastDeploy": null,
+  "authors": [],
+  "projects": [
+   {
+    "id": 2,
+    "slug": "sentry-demo",
+    "name": "sentry-demo",
+    "newGroups": 1,
+    "platform": "react-native",
+    "platforms": [],
+    "hasHealthData": false,
+    "healthData": {
+     "durationP50": null,
+     "durationP90": null,
+     "crashFreeUsers": null,
+     "crashFreeSessions": null,
+     "sessionsCrashed": 0,
+     "sessionsErrored": 0,
+     "totalUsers": null,
+     "totalUsers24h": null,
+     "totalProjectUsers24h": null,
+     "totalSessions": null,
+     "totalSessions24h": null,
+     "totalProjectSessions24h": null,
+     "adoption": null,
+     "sessionsAdoption": null,
+     "stats": {
+      "24h": [
+       [
+        1793145600,
+        0
+       ],
+       [
+        1793232000,
+        0
+       ],
+       [
+        1793318400,
+        0
+       ],
+       [
+        1793404800,
+        0
+       ],
+       [
+        1793491200,
+        0
+       ],
+       [
+        1793577600,
+        0
+       ],
+       [
+        1793664000,
+        0
+       ],
+       [
+        1793750400,
+        0
+       ],
+       [
+        1793836800,
+        0
+       ],
+       [
+        1793923200,
+        0
+       ],
+       [
+        1794009600,
+        0
+       ],
+       [
+        1794096000,
+        0
+       ],
+       [
+        1794182400,
+        0
+       ],
+       [
+        1794268800,
+        0
+       ]
+      ]
+     },
+     "hasHealthData": false
+    }
+   }
+  ],
+  "firstEvent": "2026-11-10T03:27:35Z",
+  "lastEvent": "2026-11-10T03:27:35Z",
+  "currentProjectMeta": {},
+  "userAgent": null
+ }
+]

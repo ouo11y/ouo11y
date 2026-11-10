@@ -1,0 +1,4 @@
+GET /api/0/organizations/sentry/replay-count/?project=-1&statsPeriod=30d&query=issue.id:[8]&returnIds=true
+HTTP 200
+Content-Type: application/json
+Content-Length: 42

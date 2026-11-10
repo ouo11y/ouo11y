@@ -1,0 +1,60 @@
+[
+ {
+  "id": "<redacted-key>",
+  "name": "Default",
+  "label": "Default",
+  "public": "<redacted-key>",
+  "secret": "<redacted-key>",
+  "projectId": 3,
+  "isActive": true,
+  "rateLimit": null,
+  "dsn": {
+   "secret": "https://<redacted-key>:<redacted-key>@sentry.ouo.localhost/3",
+   "public": "https://<redacted-key>@sentry.ouo.localhost/3",
+   "csp": "https://sentry.ouo.localhost/api/3/csp-report/?sentry_key=<redacted-key>",
+   "security": "https://sentry.ouo.localhost/api/3/security/?sentry_key=<redacted-key>",
+   "minidump": "https://sentry.ouo.localhost/api/3/minidump/?sentry_key=<redacted-key>",
+   "nel": "https://sentry.ouo.localhost/api/3/nel/?sentry_key=<redacted-key>",
+   "unreal": "https://sentry.ouo.localhost/api/3/unreal/<redacted-key>/",
+   "crons": "https://sentry.ouo.localhost/api/3/cron/___MONITOR_SLUG___/<redacted-key>/",
+   "cdn": "https://sentry.ouo.localhost/js-sdk-loader/<redacted-key>.min.js",
+   "playstation": "https://sentry.ouo.localhost/api/3/playstation/?sentry_key=<redacted-key>",
+   "integration": "https://sentry.ouo.localhost/api/3/integration/",
+   "otlp_traces": "https://sentry.ouo.localhost/api/3/integration/otlp/v1/traces",
+   "otlp_logs": "https://sentry.ouo.localhost/api/3/integration/otlp/v1/logs"
+  },
+  "browserSdkVersion": "11.x",
+  "browserSdk": {
+   "choices": [
+    [
+     "11.x",
+     "11.x"
+    ],
+    [
+     "10.x",
+     "10.x"
+    ],
+    [
+     "9.x",
+     "9.x"
+    ],
+    [
+     "8.x",
+     "8.x"
+    ],
+    [
+     "7.x",
+     "7.x"
+    ]
+   ]
+  },
+  "dateCreated": "2026-10-27T22:55:14.928973Z",
+  "dynamicSdkLoaderOptions": {
+   "hasReplay": true,
+   "hasPerformance": true,
+   "hasDebug": false,
+   "hasFeedback": false,
+   "hasLogsAndMetrics": false
+  }
+ }
+]

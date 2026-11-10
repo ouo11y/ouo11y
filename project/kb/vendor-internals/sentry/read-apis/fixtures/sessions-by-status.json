@@ -1,0 +1,117 @@
+{
+ "groups": [
+  {
+   "by": {
+    "session.status": "abnormal"
+   },
+   "totals": {
+    "sum(session)": 0
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "by": {
+    "session.status": "crashed"
+   },
+   "totals": {
+    "sum(session)": 0
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "by": {
+    "session.status": "errored"
+   },
+   "totals": {
+    "sum(session)": 8
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     8
+    ]
+   }
+  },
+  {
+   "by": {
+    "session.status": "healthy"
+   },
+   "totals": {
+    "sum(session)": 7
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     7
+    ]
+   }
+  },
+  {
+   "by": {
+    "session.status": "unhandled"
+   },
+   "totals": {
+    "sum(session)": 0
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ ],
+ "start": "2026-11-03T00:00:00Z",
+ "end": "2026-11-11T00:00:00Z",
+ "intervals": [
+  "2026-11-03T00:00:00Z",
+  "2026-11-04T00:00:00Z",
+  "2026-11-05T00:00:00Z",
+  "2026-11-06T00:00:00Z",
+  "2026-11-07T00:00:00Z",
+  "2026-11-08T00:00:00Z",
+  "2026-11-09T00:00:00Z",
+  "2026-11-10T00:00:00Z"
+ ],
+ "query": ""
+}

@@ -1,0 +1,4 @@
+GET /api/0/organizations/sentry/sessions/?project=-1&statsPeriod=7d&interval=1d&field=sum(session)&groupBy=session.id
+HTTP 400
+Content-Type: application/json
+Content-Length: 44

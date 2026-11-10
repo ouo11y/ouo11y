@@ -1,0 +1,5 @@
+GET /api/0/organizations/sentry/events/?dataset=errors&project=-1&statsPeriod=30d&per_page=2&field=id&field=title&field=timestamp&field=trace&field=replayId&field=user.id&field=issue&sort=-timestamp
+HTTP 200
+Content-Type: application/json
+Content-Length: 1091
+link: <https://sentry.ouo.localhost/api/0/organizations/sentry/events/?dataset=errors&project=-1&statsPeriod=30d&per_page=2&field=id&field=title&field=timestamp&field=trace&field=replayId&field=user.id&field=issue&sort=-timestamp&cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1", <https://sentry.ouo.localhost/api/0/organizations/sentry/events/?dataset=errors&project=-1&statsPeriod=30d&per_page=2&field=id&field=title&field=timestamp&field=trace&field=replayId&field=user.id&field=issue&sort=-timestamp&cursor=0:2:0>; rel="next"; results="true"; cursor="0:2:0"
