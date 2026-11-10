@@ -41,7 +41,7 @@
     "low_power_mode": false,
     "screen_width_pixels": 402,
     "simulator": true,
-    "locale": "en_EG",
+    "locale": "xx_XX",
     "connection_type": "wifi",
     "arch": "arm64",
     "memory_size": 34359738368,

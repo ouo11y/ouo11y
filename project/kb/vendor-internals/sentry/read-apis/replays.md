@@ -88,9 +88,9 @@ R3 (project variant) returned a byte-identical body (observed with `cmp`), but i
 
 - Experimental, no docs page. Returns the mp4 bytes of one segment: `Content-Type: application/octet-stream`, `Accept-Ranges: bytes`, `Content-Disposition: ...{segment_id}.video` ([replay-video-segment0.mp4.headers.txt](fixtures/replay-video-segment0.mp4.headers.txt)).
 - One byte range is supported: `Range: bytes=0-31` gives 206 with `Content-Range: bytes 0-31/4101` (observed). Several ranges or a bad range give 416 with `Content-Range: bytes */<size>` ([#L89-L125](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/replays/endpoints/project_replay_video_details.py#L89-L125)).
-- Storage: the blob is `0x01` + 4-byte big-endian video length + mp4 + rrweb JSON ([pack.py#L30-L58](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/replays/usecases/pack.py#L30-L58)). R4/R6 return the rrweb part, R7 the mp4 part.
+- R4/R6 return the rrweb part of a stored video segment, R7 the mp4 part. The stored byte format is in [../self-hosted-storage/object-storage.md](../self-hosted-storage/object-storage.md#replay-segments).
 - Web segment (no video): 404 "Replay recording segment not found." (observed).
-- Each mobile segment's rrweb JSON contains a custom event (`type: 5`, `data.tag: "video"`) whose `payload` has `segmentId, size, duration (ms), encoding "h264", container "mp4", frameRate, frameRateType, frameCount, width, height, left, top` (observed, [recording-segments-mobile-page1.json](fixtures/recording-segments-mobile-page1.json)). `payload.size` equalled the downloaded mp4 length for all 52 segments (observed, [muninn-pull-report.json](fixtures/measurements/muninn-pull-report.json)).
+- Each mobile segment's rrweb JSON carries a type-5 `video` event describing the mp4 (fields in [../wire-format/replay-wire.md](../wire-format/replay-wire.md#replay_video-payload); observed in [recording-segments-mobile-page1.json](fixtures/recording-segments-mobile-page1.json)). `payload.size` equalled the downloaded mp4 length for all 52 segments (observed, [muninn-pull-report.json](fixtures/measurements/muninn-pull-report.json)).
 
 ## R8 to R12 helpers
 

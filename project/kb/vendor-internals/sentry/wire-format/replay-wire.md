@@ -1,6 +1,6 @@
 # Session Replay on the wire and through Relay
 
-Versions: Relay 26.10.0, Sentry 26.10.0, Snuba 26.10.0, self-hosted 26.10.0. Researched 2026-11-10. SDK-side replay capture (rrweb options, masking, buffer mode) is in the sibling folders `browser-sdk/` and `mobile-sdks/` and in Step 4 ([../../../client-sdk-features/vendors/sentry-web.md](../../../client-sdk-features/vendors/sentry-web.md), [../../../client-sdk-features/vendors/sentry-mobile.md](../../../client-sdk-features/vendors/sentry-mobile.md)). Where the segments end up is in [../self-hosted-storage/object-storage.md](../self-hosted-storage/object-storage.md).
+Versions: Relay 26.10.0, Sentry 26.10.0, Snuba 26.10.0, self-hosted 26.10.0. Researched 2026-11-10. SDK-side replay capture (rrweb options, masking, buffer mode) is in the sibling folders `browser-sdk/` and `mobile-sdks/` and in Step 4 ([../../../client-sdk-features/vendors/sentry-web.md](../../../client-sdk-features/vendors/sentry-web.md), [../../../client-sdk-features/vendors/sentry-mobile.md](../../../client-sdk-features/vendors/sentry-mobile.md)). Where the segments end up is in [../self-hosted-storage/object-storage.md](../self-hosted-storage/object-storage.md). This file is the one place that describes the replay items on the wire; the browser, storage and read-API entries link here instead of repeating it.
 
 ## Three item types, two shapes
 
@@ -111,7 +111,7 @@ Observed (kafka-console-consumer on the topic): the keys above appear in this or
 1. **taskbroker** consumes `ingest-replay-recordings` in raw mode (consumer group `ingest-replay-recordings`, [`taskbroker/config.yml`](https://github.com/getsentry/self-hosted/blob/26.10.0/taskbroker/config.yml)) and turns each message into a `sentry.replays.tasks.process_replay_recording` task run by **taskworker**. There is no dedicated replay consumer container any more.
 2. The task ([`replays/tasks.py`](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/replays/tasks.py), [`usecases/ingest/__init__.py`](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/replays/usecases/ingest/__init__.py)):
    - splits the header line, inflates the body (zlib or raw `[`);
-   - writes the segment to blob storage under `{retention_days}/{project_id}/{replay_id}/{segment_id}`: the zlib body for web, `zlib(0x01 + u32 video_len + video + rrweb)` for video ([`usecases/pack.py`](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/replays/usecases/pack.py));
+   - writes the segment to blob storage; the key layout and the byte format of web and video segments are described once, in [../self-hosted-storage/object-storage.md](../self-hosted-storage/object-storage.md#replay-segments);
    - publishes `{start_time, replay_id, project_id, retention_days, payload: replay_event}` to **`ingest-replay-events`**;
    - parses type-5 events into click/tap/action rows and emits them to `ingest-replay-events` too, plus EAP trace items;
    - on segment 0, tracks the billing outcome.

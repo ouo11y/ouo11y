@@ -23,7 +23,7 @@
 | 5–7 | replay | fetch | 3 026 / 1 197 / 2 749 | 5 s timer, then a new view (`view_change`) |
 | 8 | rum | **beacon** | 11 301 | Page exit |
 | 9 | logs | beacon (no `_dd.api` on logs) | 4 770 | Page exit |
-| 10 | replay | fetch | 1 135 | Page exit. Replay uses `fetch`, not the beacon (see reliability page). |
+| 10 | replay | fetch | 1 135 | Page exit. The `hidden` flush fired first, and that reason uses `send()` (fetch); other exit reasons use sendBeacon (see reliability page). |
 
 - With 16 KiB uncompressed batches, a chatty page flushes on bytes, not on the 30 s timer.
 - With `compressIntakeRequests` (run2), the limit counts **compressed** bytes. All RUM events of the run stayed in one batch until page exit.

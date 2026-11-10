@@ -31,7 +31,7 @@ The receiver has two modes: forward (raw bytes to Sentry, answer copied back, tr
 
 ## Item types translated
 
-Relay processes 22 wire types. The receiver translates 7: `session`, `user_report`, `event`, `transaction`, `feedback`, `log`, `replay_video` (`decode` in `translate.go`). Not translated (forwarded only):
+Relay processes 23 wire types. The receiver translates 7: `session`, `user_report`, `event`, `transaction`, `feedback`, `log`, `replay_video` (`decode` in `translate.go`). Not translated (forwarded only):
 
 | # | Item | Consequence for ouo |
 |---|---|---|

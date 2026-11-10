@@ -28,14 +28,14 @@ Docs: [Webhooks](https://docs.sentry.io/organization/integrations/integration-pl
 1. Created an internal integration with scopes `org:read project:read event:read`, resources `issue` + `error`, webhook URL `http://host.docker.internal:4550/hook` (`POST /api/0/sentry-apps/`, `isAlertable` must be sent, else 400). Response `webhookEvents`: `error.created, issue.assigned, issue.created, issue.ignored, issue.resolved, issue.unresolved`.
 2. Started a listener on port 4550 and confirmed the taskworker container could reach it.
 3. Sent a fresh error with a new fingerprint at 03:27:35.
-4. The taskworker tried to send `error.created` and `issue.created` at 03:27:47 (**~12 s after ingest**), but halted both: `outcome_reason='send_and_save_webhook_request.restricted_ip'` ([webhook-halted-restricted-ip.txt](fixtures/measurements/webhook-halted-restricted-ip.txt)). Nothing reached the listener.
+4. The taskworker tried to send `error.created` and `issue.created` at 03:27:47 (**~12 s after the event was sent**), but halted both: `outcome_reason='send_and_save_webhook_request.restricted_ip'` ([webhook-halted-restricted-ip.txt](fixtures/measurements/webhook-halted-restricted-ip.txt)). Nothing reached the listener.
 5. Cause: `SENTRY_DISALLOWED_IPS` blocks private ranges for outbound requests ([conf/server.py#L117](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/conf/server.py#L117), [net/socket.py#L21-L45](https://github.com/getsentry/sentry/blob/26.10.0/src/sentry/net/socket.py#L21-L45)). The self-hosted config leaves the override commented out ([sentry.conf.example.py#L115](https://github.com/getsentry/self-hosted/blob/26.10.0/sentry/sentry.conf.example.py#L115)). The coordinator's config was not changed.
 
 So, for self-hosted customers, webhooks to an in-cluster Muninn need the operator to edit `SENTRY_DISALLOWED_IPS`, or Muninn must be reachable on a public address. Payload shape was therefore **not captured**; see the docs for `error.created` (contains the full event, with `contexts.replay.replay_id` when the SDK set it).
 
 ### What webhooks are still good for
 
-`error.created` carries the replay id of errors captured during a replay. Muninn can use it as a **hint** to sync that replay sooner (the replay is listable ~4 s after ingest, the webhook arrives ~12 s after). It does not replace polling: session replays without errors never trigger anything.
+`error.created` carries the replay id of errors captured during a replay. Muninn can use it as a **hint** to sync that replay sooner (the replay is listable ~4 s after the SDK sends it, the webhook arrives ~12 s after). It does not replace polling: session replays without errors never trigger anything.
 
 ## Other push or bulk options
 

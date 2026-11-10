@@ -100,6 +100,8 @@ So in a default session-mode replay, full snapshots appear only at segment 0 and
 
 ## 2. Segment flushing and the wire
 
+This section says where the SDK builds each part, with code lines. The normative description of the replay items as Relay accepts them is [../wire-format/replay-wire.md](../wire-format/replay-wire.md); how Sentry stores them is [../self-hosted-storage/object-storage.md](../self-hosted-storage/object-storage.md#replay-segments).
+
 ### 2.1 When a segment is flushed
 
 - Every added event calls `addUpdate()` → `_debouncedFlush()` (session mode only, `replay.ts#L641-L660`). Debounce: `wait = flushMinDelay` (5 s), `maxWait = flushMaxDelay` (5.5 s) (`replay.ts#L208-L210`, `B/packages/core/src/utils/debounce.ts#L38`, `#L66-L67`). Console breadcrumbs do not schedule a flush (`coreHandlers/util/addBreadcrumbEvent.ts#L36`).

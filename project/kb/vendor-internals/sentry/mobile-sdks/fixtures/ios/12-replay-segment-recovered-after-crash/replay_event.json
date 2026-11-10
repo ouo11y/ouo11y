@@ -43,7 +43,7 @@
    "simulator": true,
    "screen_width_pixels": 402,
    "low_power_mode": false,
-   "locale": "en_EG",
+   "locale": "xx_XX",
    "connection_type": "wifi",
    "arch": "arm64",
    "memory_size": 34359738368,
@@ -58,9 +58,9 @@
    "trace_id": "3da37277329342c9a89d86cd4ffd87cc"
   },
   "culture": {
-   "locale": "en_EG",
-   "timezone": "Africa/Cairo",
-   "display_name": "English (Egypt)",
+   "locale": "xx_XX",
+   "timezone": "Etc/Redacted",
+   "display_name": "Redacted (Redacted)",
    "calendar": "Gregorian Calendar",
    "is_24_hour_format": false
   }

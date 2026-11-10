@@ -67,7 +67,7 @@
       "$lib": "web",
       "$lib_version": "1.447.6"
     },
-    "timezone": "Africa/Cairo",
+    "timezone": "Etc/Redacted",
     "$device_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
     "sent_at": "2026-11-10T03:29:35.580Z"
   },

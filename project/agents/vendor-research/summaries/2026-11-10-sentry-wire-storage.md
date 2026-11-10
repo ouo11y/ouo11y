@@ -23,7 +23,7 @@ Agent: `sentry-wire-storage`. Pinned: Relay 26.10.0 (`b4194151`), Sentry 26.10.0
 3. Recording PII scrubbing is off in self-hosted (feature `organizations:session-replay-recording-scrubbing` not enabled): a card number and password in our segment were stored unchanged.
 4. Only **one** of event/transaction/feedback/replay_event/security per envelope: `event` + `replay_event` gets 413 for the whole envelope.
 5. Nodestore is the seaweedfs S3 bucket `nodestore` (zstd, key `md5("project:event")`); Postgres `nodestore_node` is empty. Sessions are stored only as metrics aggregates. Spans, logs and trace metrics all live in `eap_items_1_local`.
-6. Relay framing differs from our receiver: two trailing newlines → 400, CRLF → 400, `x-gzip` → 415, raw deflate → 400, br/zstd accepted. Our receiver translates 7 of 22 item types and does not translate web replays (`replay_event` + `replay_recording`) at all. See `wire-format/ouo-receiver-gaps.md`.
+6. Relay framing differs from our receiver: two trailing newlines → 400, CRLF → 400, `x-gzip` → 415, raw deflate → 400, br/zstd accepted. Our receiver translates 7 of 23 item types and does not translate web replays (`replay_event` + `replay_recording`) at all. See `wire-format/ouo-receiver-gaps.md`.
 
 ## Unverified / left
 

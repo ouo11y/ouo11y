@@ -47,7 +47,7 @@ Versions: Sentry self-hosted 26.10.0. Research date 2026-11-10. Every rule below
 
 ## Optional hint
 
-An `error.created` webhook with `contexts.replay.replay_id` can trigger an immediate fetch of that replay (it arrives ~12 s after ingest, the replay is already listable). Only where the webhook can reach Muninn ([webhooks-and-push.md](webhooks-and-push.md)).
+An `error.created` webhook with `contexts.replay.replay_id` can trigger an immediate fetch of that replay (it arrives ~12 s after the event was sent, the replay is already listable). Only where the webhook can reach Muninn ([webhooks-and-push.md](webhooks-and-push.md)).
 
 ## Cost per poll (observed scale)
 

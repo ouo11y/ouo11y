@@ -25,7 +25,7 @@ Which Sentry REST endpoints can Muninn, our replay store, use to read sessions, 
 2. **The segment list returns contents, not metadata, and hides gaps.** Use per-segment metadata to prove completeness.
 3. **Time windows use SDK timestamps, not receive time.** A replay delivered 3 h late was invisible to a 1 h window. Sync needs overlapping hot, warm and cold scans.
 4. **Real web replays mix ms and seconds timestamps** (`@sentry/react` 11.11.0 custom events use seconds).
-5. **Data is visible fast:** replays 2.4–5.4 s after ingest, errors 5.5–7.6 s, spans 14.5–18 s, sessions about 50 s.
+5. **Data is visible fast:** replays 2.4–5.4 s after the SDK sent them, errors 5.5–7.6 s, spans 14.5–18 s, sessions about 50 s.
 6. **Sessions are aggregates only.** No per-session id, user or timeline anywhere in the API.
 7. **No replay webhook.** Issue/error webhooks exist but self-hosted blocks private IPs by default.
 8. **Use an internal integration with `org:read project:read event:read` and always pass `project=-1`.** Org auth tokens see nothing without it.

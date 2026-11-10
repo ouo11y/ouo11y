@@ -33,7 +33,7 @@
         "$os_version": "10.15.7",
         "$browser": "Chrome",
         "$device_type": "Desktop",
-        "$timezone": "Africa/Cairo",
+        "$timezone": "Etc/Redacted",
         "$timezone_offset": -120,
         "$current_url": "http://posthog-capture.localhost:4570/",
         "$host": "posthog-capture.localhost:4570",

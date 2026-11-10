@@ -55,7 +55,10 @@ def envelope(header, *items):
 def redact(s):
     if isinstance(s, bytes):
         s = s.decode("utf-8", "replace")
-    return s.replace(KEY, RED)
+    s = s.replace(KEY, RED)
+    # The key also travels base64-encoded in "Authorization: Basic <key>:".
+    import base64
+    return s.replace(base64.b64encode(f"{KEY}:".encode()).decode(), "<redacted-base64-public-key>")
 
 
 def send(case, path, body, headers=None, method="POST", note=""):

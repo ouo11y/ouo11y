@@ -1690,7 +1690,7 @@
     "screen_width_pixels": 402,
     "simulator": true,
     "low_power_mode": false,
-    "locale": "en_EG",
+    "locale": "xx_XX",
     "arch": "arm64",
     "memory_size": 34359738368,
     "model": "iPhone19,2",

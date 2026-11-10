@@ -73,7 +73,7 @@ Method:
 - This corrects Step 4 TRN-c, which said "fetch with keepalive". v7.17.0 uses no keepalive at all.
 
 **Replay segments:**
-- Segments go through the same `fetch` path on exit.
+- Segments on exit: `flushSegment` uses `httpRequest.sendOnExit` (sendBeacon, falling back to fetch above the bytes limit) for every page-exit reason except `hidden`, and `send()` (fetch with retry) for `hidden`, because a hidden page is probably not closing ([segmentCollection.ts](https://github.com/DataDog/browser-sdk/blob/v7.17.0/packages/browser-rum/src/domain/segmentCollection/segmentCollection.ts#L113-L127)). Our capture saw fetch because `hidden` fired first.
 - Replay image resources pending at exit are re-sent with `sendOnExit` except on `visibility_hidden` (`src:browser-rum/src/domain/segmentCollection/replayResourceCollection.ts`).
 
 **Retry** (`src:browser-core/src/transport/sendWithRetryStrategy.ts`):
