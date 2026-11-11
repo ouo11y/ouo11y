@@ -25,4 +25,5 @@ Every replay recorder is six steps: hook, record (pixels or structure), mask, pa
 ## Evidence still to come
 
 - The iOS port spike (branch `sentry-recorder-ios`): seam map, bytes and main-thread cost against the current recorder.
+  First results (2026-11-11, iOS Simulator, one trial each, not yet repeated): 28 files / 3,157 lines copied unmodified. On the same 50 s scroll journey the copied core sent 154 KB against 246 KB for ouo frames, took about 44 ms against 27 ms of main thread per capture, and kept 60 frames against 37 (no drops while scrolling). It **leaked one frame**: 14 ms after a SwiftUI screen appeared its text, including a `.ouoMask()` card number, was readable, because redaction walked the tree before SwiftUI had created its text views; the next frame was masked. It also ignores ouo's mask/unmask markers and does not mask SF Symbols or asset images. To send video, the spike lets `ouoreplay` accept `kind: "video"` with the bridge's validation and an optional `ouo.replay.format`.
 - The masking experiment (branch `masking-experiment`): leak rates with confidence intervals for Sentry's masking, ouo's drop-if-moving and alternatives.
