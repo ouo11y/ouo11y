@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentry recorder spike</title>
+<style>
+:root { --bg:#fbfaf7; --fg:#1c1b19; --muted:#6b675f; --card:#ffffff; --line:#e3dfd6; --accent:#2f5fd0; --good:#1f7a4a; --bad:#b3261e; --warn:#8a5a00; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#161513; --fg:#ece9e2; --muted:#a29d93; --card:#201f1c; --line:#35322d; --accent:#7aa2ff; --good:#5fc28d; --bad:#ff8a80; --warn:#e0b060; } }
+:root[data-theme="dark"] { --bg:#161513; --fg:#ece9e2; --muted:#a29d93; --card:#201f1c; --line:#35322d; --accent:#7aa2ff; --good:#5fc28d; --bad:#ff8a80; --warn:#e0b060; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width:1040px; margin:0 auto; padding:32px 16px 64px; }
+h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:21px; margin:40px 0 12px; border-top:1px solid var(--line); padding-top:24px; }
+h3 { font-size:16px; margin:20px 0 8px; }
+p, li { max-width:72ch; } .muted { color:var(--muted); font-size:14px; }
+code { font:13px ui-monospace, SFMono-Regular, Menlo, monospace; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+.verdict { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:14px 18px; margin:20px 0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+.stat { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+.stat .k { font-size:13px; color:var(--muted); } .stat .v { font-size:22px; font-weight:600; } .stat .r { font-size:13px; color:var(--muted); }
+.good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+table { border-collapse:collapse; width:100%; font-size:14px; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; } th { font-weight:600; }
+.scroll { overflow-x:auto; }
+figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px; }
+figure img { width:100%; height:auto; display:block; border-radius:4px; background:#fff; }
+figcaption { font-size:13px; color:var(--muted); margin-top:6px; }
+.figs { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+.figs.wide { grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); }
+@media (max-width:480px) { .figs.wide { grid-template-columns:1fr; } }
+.bar { height:10px; background:var(--accent); border-radius:5px; }
+.barrow { display:grid; grid-template-columns:120px 1fr 90px; gap:8px; align-items:center; font-size:14px; margin:4px 0; }
+.toggle { float:right; font-size:13px; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; cursor:pointer; }
+</style>
+</head>
+<body>
+<main>
+<button class="toggle" id="t" type="button">Theme</button>
+<h1>Borrowing Sentry's iOS recorder core</h1>
+<p class="muted">Spike, 2026-11-11, branch <code>claude/sentry-recorder-ios</code>. iOS Simulator (iPhone 17 Pro, iOS 27.0) on an Apple-silicon Mac: simulator numbers, not device numbers. For the proposed ADR-0018 (PR #178). kb entry: <code>project/kb/session-replay/borrowing/sentry-ios-recorder-spike.md</code>.</p>
+
+<div class="verdict">
+<strong>It works.</strong> sentry-cocoa 9.33.0's recorder core (28 files, 3,157 lines, copied unmodified) runs inside the ouo iOS SDK behind <code>OuoConfig.replayRecorder = .sentryVideo</code>. Its 5 s H.264 segments go out as <code>kind: "video"</code> chunks with <code>format: "sentry-video"</code> through ouo's uploader and collector, and play in the existing Grafana video player.
+On a scroll-heavy journey it sends <strong class="good">40 % fewer bytes</strong> and keeps more frames than ouo's frames recorder. It also costs <strong class="bad">about 1.6 times the main-thread time</strong>, and <strong class="bad">leaked readable text in one frame in 2 of 5 runs</strong>, at a screen transition. ouo's recorder, which fails closed, leaked none.
+</div>
+
+<h2>1. Demo: simulator to Grafana</h2>
+<p>The app is <code>examples/ouo-ios</code> with <code>OUO_ACTION=replaydemo</code> (Home, Products, Cart, then an 80-row statement scrolled down, up and flung, then back to Home). It ran against my own env from <code>deploy/envs/ouo-env up sentryrec</code>, built from this branch. The chunk went into the collector's <code>ouoreplay</code> receiver (port 4319), which now accepts <code>video</code>, then the <code>ouoreplay</code> exporter and rum-api, and was played by the plugin. rum-api stored the session as <code>kind: "video"</code>: 14 chunks, 76 frames, 164 KB.</p>
+<div class="figs">
+<figure><img src="sentry-recorder-spike/simulator-app-unmasked.png" alt="The app in the simulator during a push from Products to Cart, text visible"><figcaption>What the user sees (simulator, unmasked): the push from Products to Cart.</figcaption></figure>
+<figure><img src="sentry-recorder-spike/grafana-sentry-video-session.jpg" alt="Grafana session page with the video player on the masked Home screen"><figcaption>Grafana: the Sentry-derived session, video player on Home, activity list beside it.</figcaption></figure>
+<figure><img src="sentry-recorder-spike/grafana-sentry-video-playing.jpg" alt="Grafana playing the statement list with masked rows"><figcaption>Playing at +13.4 s, segment 3 of 14: the statement, every row masked. "14 video segments · 76 frames · masked".</figcaption></figure>
+<figure><img src="sentry-recorder-spike/grafana-frames-playing.jpg" alt="Grafana playing the frames recorder session of the same journey"><figcaption>The same journey with ouo's frames recorder (<code>kind: "frames"</code>, 37 frames), for comparison.</figcaption></figure>
+</div>
+
+<h2>2. Measurements</h2>
+<p>The method follows Step 5 (<code>project/kb/client-sdk-state/overhead.md</code>): fresh install per run, both recorders interleaved and rotated, 5 rounds, median with min and max. The journey is the 50 s <code>replaydemo</code>; the app is backgrounded at 50 s so the open chunk is cut and sent. Everything went to a local sink (<code>measure/sink.py</code>). Host load was 4.5 to 17.7 (1-minute average); the two loaded Sentry runs are not the extremes of any column. The harness and raw numbers are in <code>project/agents/session-replay/measure/</code> (<code>results.json</code>).</p>
+<div class="grid">
+<div class="stat"><div class="k">Replay sent, KiB/min</div><div class="v"><span class="good">170</span> vs 283</div><div class="r">Sentry 154–187 · frames 278–289</div></div>
+<div class="stat"><div class="k">Main thread per capture, p50</div><div class="v"><span class="bad">47.6 ms</span> vs 29.4</div><div class="r">Sentry 41.8–50.0 · frames 22.9–30.3 · Sentry max up to 203 ms</div></div>
+<div class="stat"><div class="k">Main thread per minute</div><div class="v"><span class="bad">2,533 ms</span> vs 1,622</div><div class="r">Sentry 2,057–2,549 · frames 1,333–1,654</div></div>
+<div class="stat"><div class="k">Frames in the replay</div><div class="v">55 vs 37</div><div class="r">Sentry: 1/s, also while views move · frames: dropped while a masked view moves, unchanged ones not sent</div></div>
+<div class="stat"><div class="k">Frames with readable text (OCR, confirmed by eye)</div><div class="v"><span class="bad">2 / 272</span> vs 0 / 185</div><div class="r">Sentry: 1 frame in 2 of 5 runs (also 1 in the trial run) · frames: only the intentionally unmasked "Total 4.50"</div></div>
+<div class="stat"><div class="k">Requests</div><div class="v">10 vs 8</div><div class="r">one per 5 s segment vs one per 5 s chunk (plus the background cut)</div></div>
+</div>
+
+<h3>Replay bytes per minute</h3>
+<div class="barrow"><span>sentry-video</span><div class="bar" style="width:60%"></div><span>170 KiB</span></div>
+<div class="barrow"><span>frames</span><div class="bar" style="width:100%"></div><span>283 KiB</span></div>
+<h3>Main-thread ms per minute of recording</h3>
+<div class="barrow"><span>sentry-video</span><div class="bar" style="width:100%;background:var(--bad)"></div><span>2,533 ms</span></div>
+<div class="barrow"><span>frames</span><div class="bar" style="width:64%;background:var(--bad)"></div><span>1,622 ms</span></div>
+<p class="muted">Main-thread time per capture, measured by each recorder itself and exposed as <code>OuoReplay.captureStats</code>. Sentry: redaction plus render, its own <code>SentryViewPhotographerScreenshotMetadata.mainThreadDuration</code>. Frames: the view walk, mask plan and render, including walks that took no frame. Mask drawing, scaling, encoding and upload run off the main thread in both and are not counted. Step 5 measured a lighter journey without a scroll list: Sentry 49.5 against ouo 38.8 KiB/min. The numbers here are heavier because the screen changes all the time.</p>
+
+<h2>3. Masking</h2>
+<p><code>measure/frames.swift</code> rebuilds every frame each recorder sent (mp4 frames at <code>i / frame_rate</code>; JPEG patches drawn over their full image), runs Vision text recognition on each, and writes a contact sheet. Both recorders mask all text and images by default. Any recognised text is a candidate miss, and I looked at each one.</p>
+<div class="figs">
+<figure><img src="sentry-recorder-spike/leak-swiftui-products.jpg" alt="Products screen with readable text including a card number"><figcaption class="bad">Sentry, run 5 (and the trial run): the first frame of the SwiftUI Products screen. Everything is readable, including "Card ending 4242", which has <code>.ouoMask()</code>.</figcaption></figure>
+<figure><img src="sentry-recorder-spike/next-frame-masked.jpg" alt="The same screen one second later, masked"><figcaption>The next frame, 1 s later: masked. The leak lasts one frame.</figcaption></figure>
+<figure><img src="sentry-recorder-spike/leak-uikit-home-after-pop.jpg" alt="Home screen with the greeting label readable"><figcaption class="bad">Sentry, run 3: Home right after the pop back from the statement. The UIKit <code>UILabel</code> greeting is readable; the nav title is masked.</figcaption></figure>
+</div>
+<p>Both leaks sit at a screen transition (a push, a pop), never inside the scroll. The likely mechanism: the redaction pass reads the view tree and the presentation layers on the main thread, then the render runs. Right after a transition, the tree it walked does not yet hold the views that the render draws: SwiftUI had not created its text drawing views, and the label was presumably still in the transition's container. ouo's recorder does not capture while a view controller transition runs, waits a settle time after it, and drops a frame when a masked view moves (ADR-0006 rev 2). That is why it has no such frame. This is my reading of the frames, not a traced root cause; the separate masking-experiment session tests Sentry's masking directly.</p>
+<p>Sentry also follows its own rules where ouo's differ. It ignores <code>.ouoUnmask()</code> and the <code>ouo-mask</code>/<code>ouo-unmask</code> identifiers, so "Total 4.50" is masked under Sentry and visible under ouo. It does not mask SF Symbols or bundled images (the row icons stay visible; ouo masks them). It fills masks with the area's average colour rather than black.</p>
+<h3>During scrolling</h3>
+<div class="figs">
+<figure><img src="sentry-recorder-spike/sentry-scroll-frame.jpg" alt="Sentry frame mid-scroll, rows masked"><figcaption>Sentry mid-scroll: the boxes follow the rows (presentation layers), and no frame is dropped.</figcaption></figure>
+<figure><img src="sentry-recorder-spike/frames-scroll-frame.jpg" alt="ouo frame mid-scroll, rows and icons masked"><figcaption>ouo frames recorder mid-scroll: rows and icons masked; frames are dropped while the list moves.</figcaption></figure>
+</div>
+<div class="figs wide" style="margin-top:12px">
+<figure><img src="sentry-recorder-spike/sheet-sentry-video.jpg" alt="All 55 frames of one Sentry run"><figcaption>All 55 frames of Sentry run 5, in order (the leak is the third).</figcaption></figure>
+<figure><img src="sentry-recorder-spike/sheet-frames.jpg" alt="All 37 frames of one frames-recorder run"><figcaption>All 37 frames of frames run 5.</figcaption></figure>
+</div>
+
+<h2>4. What was copied, what was cut</h2>
+<div class="scroll"><table>
+<tr><th>Piece</th><th>Where</th><th>How</th></tr>
+<tr><td>Hook: run-loop observer, activity guard</td><td><code>SentrySessionReplayRunLoopCaptureScheduler</code>, <code>SentrySessionReplayCaptureGuard</code></td><td>copied</td></tr>
+<tr><td>Record: photographer, renderers</td><td><code>SentryViewPhotographer</code>, <code>SentryViewRendererV2</code> and friends</td><td>copied</td></tr>
+<tr><td>Mask: redaction builder, regions, mask renderers</td><td><code>SentryUIRedactBuilder</code> and 8 files, plus the ObjC exception helper</td><td>copied (ObjC class given an <code>objc_runtime_name</code>)</td></tr>
+<tr><td>Pack: frame store, H.264 writer</td><td><code>SentryOnDemandReplay</code>, <code>SentryVideoFrameProcessor</code>, <code>SentryPixelBuffer</code> and friends</td><td>copied</td></tr>
+<tr><td>Seams: log, queues, date, run-loop typealiases</td><td><code>Seams.swift</code> (82 lines), <code>SentryLogC.h</code></td><td>re-implemented</td></tr>
+<tr><td>Pacing and 5 s segment cut</td><td><code>SentrySessionReplay</code> (958 lines)</td><td>adapted into <code>SentryCoreRecorder</code> (358 lines)</td></tr>
+<tr><td>Hub, replay id, envelope, rrweb events, breadcrumbs, network details, touch swizzling, buffer mode, file manager, crash recovery</td><td><code>SentrySessionReplay</code>, <code>SentrySessionReplayIntegration</code> and others</td><td>cut</td></tr>
+<tr><td>Ship: chunk, touches, seq, uploader</td><td><code>VideoReplayRecorder</code>, <code>VideoChunk</code>; collector <code>ouoreplay</code> accepts <code>video</code></td><td>ouo</td></tr>
+</table></div>
+<p><code>sdk/ios/scripts/sentry-core-sync.sh check</code> proves the copy equals the tag plus three scripted transforms. <code>diff &lt;tag&gt;</code> shows upstream changes. From 9.32.0 to 9.33.0 none of the copied files changed; against 9.30.2, one file differs by 12 lines. The core adds about 236 KiB of code and data per architecture (Release simulator object, before dead-stripping).</p>
+
+<h2>5. What this does not show</h2>
+<ul>
+<li>Device numbers. The simulator's main thread is the Mac's. Step 5's rule applies: read only differences whose ranges do not overlap. Bytes, frames and main-thread time do not overlap here.</li>
+<li>Whether the transition leak happens on a device, and how often. It needs a frame landing in a short window, so 1 in 2 or 3 sessions is this journey's rate, not a general one.</li>
+<li>CPU and memory off the main thread (the H.264 encode, PNG frames on disk). Step 5 measured Sentry replay at 42.5 MiB peak against ouo's 3.8. The copied core is the same code, so expect the same.</li>
+<li>Crash recovery, navigation mode, feedback frames and the OTLP replay path (sdk-spec section 11) are not built for the new recorder.</li>
+</ul>
+</main>
+<script>
+(function () {
+  var r = document.documentElement, b = document.getElementById('t');
+  try { var s = localStorage.getItem('theme'); if (s) r.setAttribute('data-theme', s); } catch (e) {}
+  b.addEventListener('click', function () {
+    var dark = r.getAttribute('data-theme') ? r.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    var n = dark ? 'light' : 'dark'; r.setAttribute('data-theme', n);
+    try { localStorage.setItem('theme', n); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>
