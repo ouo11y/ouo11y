@@ -7,6 +7,7 @@ Nothing here is a decision. The proposed decision that follows from topic 7 is [
 | Entry | Content |
 |---|---|
 | [session-replay-explainer.html](session-replay-explainer.html) | The animated explainer: topics 1–7 with step-through flows, the masking race, a capture-timing simulator and a chunk builder. Light and dark, phone width, no network |
+| [school/](school/index.md) | replay-school: the same material as an animated course in 25 lessons, fundamentals first (including compression and H.264 skip blocks), then topics, then one lesson per vendor and platform; each lesson ends with a quiz. Open `school/index.html` |
 | [foundations/](foundations/index.md) | Topics 1–3: what each platform lets a recorder read, the capture families, and when to capture and flush |
 | [browser/](browser/index.md) | Topic 4: rrweb, Sentry, PostHog, Datadog, OpenReplay, Highlight and Clarity on the web |
 | [mobile/](mobile/index.md) | Topic 5: Sentry, PostHog, Datadog and OpenReplay on iOS and Android, React Native and Flutter, and the masking race |

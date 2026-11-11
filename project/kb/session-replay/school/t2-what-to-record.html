@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What to record · replay-school</title>
+<meta name="description" content="Pixels or structure, at the level of real recorders. There are four families. Here all four record the same screen, side by side, with what goes on the wire.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t2-what-to-record">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>What to record</h1>
+<p class="lede">Pixels or structure, at the level of real recorders. There are four families. Here all four record the same screen, side by side, with what goes on the wire.</p>
+<p class="builds">Builds on: <a href="f1-pixels-vs-structure.html">Pixels versus structure</a> · <a href="f6-masking-data-vs-geometry.html">Masking: data versus geometry</a></p>
+<p>Lesson 1 ended with a split: what you can <em>read</em> (a tree) versus what you can only <em>see</em> (pixels). Every replay technique sits somewhere on that line. There are four families, and each one answers "what do we write down?" differently:</p>
+<ol>
+<li><b>Serialise the tree, then diff it.</b> Write the document structure as text once (a full snapshot), then write only what changed. The player rebuilds a real, live copy. This is rrweb, and every web recorder.</li>
+<li><b>Wireframes.</b> Walk the native view tree and turn each view into a typed rectangle: <code>text</code>, <code>image</code>, <code>shape</code>, <code>input</code>, with position and style. The player <em>draws</em> rectangles that look like the app; it never rebuilds the real UI. Datadog, PostHog wireframe mode.</li>
+<li><b>Pictures: screenshots or video.</b> Copy the pixels, paint boxes over private things, compress like images or like a movie. The player shows images. Sentry (video), PostHog screenshot mode, OpenReplay mobile, and ouo's current mobile SDK (JPEG frames with tile patches).</li>
+<li><b>Draw commands.</b> Record the drawing instructions the UI issued (<code>drawRect</code>, <code>drawText</code>, <code>drawImage</code>) instead of their result. The player re-executes them. This is how rrweb records <code>&lt;canvas&gt;</code>, how Sentry Android's <em>canvas</em> strategy masks, and what Flutter's <code>PictureRecorder</code> produces internally.</li>
+</ol>
+<div class="card">
+<div class="lane">The same screen, recorded four ways. Pick a technique, then press ▶ to watch the recorder work and the player rebuild.</div>
+<div class="tabs" id="capTabs"></div>
+<div class="btns"><button class="b" id="capPlay" type="button">▶ record and replay</button><label style="font-size:13px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="capMask" checked> default masking</label></div>
+<div class="step-caption" id="capCap"></div>
+<div class="grid2" style="margin-top:8px">
+ <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+  <div><div class="lane">On the device</div><canvas id="capReal" width="180" height="320" style="width:180px;height:320px;border:1px solid var(--line);border-radius:14px"></canvas></div>
+  <div><div class="lane">In the player</div><canvas id="capOut" width="180" height="320" style="width:180px;height:320px;border:1px solid var(--line);border-radius:14px;image-rendering:pixelated"></canvas></div>
+ </div>
+ <div><div class="lane">What goes on the wire (real shape, trimmed)</div><pre id="capWire" style="max-height:260px;min-height:200px"></pre></div>
+</div>
+<div class="wrap"><table id="capMeters" style="margin-top:8px"></table></div>
+<p class="src" id="capSrc"></p>
+</div>
+
+<h2 id="tradeoffs">What each family costs and loses</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Fidelity</th><th>Bytes</th><th>Device work</th><th>Privacy / masking</th><th>Lost or weak</th></tr>
+<tr><td><b>Tree + diff</b> (web)</td><td>Exact structure, real fonts, selectable text, responsive replay</td><td>Small after the first snapshot; the snapshot can be large (inline CSS, many nodes)</td><td>Serialising big DOMs; mutation storms (Sentry stops past 10,000 records in one callback)</td><td>Easy and early: text and inputs are replaced <em>before</em> they leave the page</td><td>Canvas and WebGL (unless draw commands are recorded), video, cross-origin iframes, CSS the player cannot fetch, anything that depends on server state at replay time</td></tr>
+<tr><td><b>Wireframes</b> (mobile)</td><td>"Looks like" the app: boxes, text, images, colours. Not pixel exact</td><td>Small: about 34 KB/min observed on one simple iOS screen; Datadog's docs average 73 KB/min (Android) to 720 KB/min (iOS) on real apps</td><td>A full view-tree walk on the main thread per capture, then diffing in the background</td><td>Easy: the text is replaced before encoding (Datadog writes <code>x</code>s, PostHog <code>*</code>s)</td><td>Everything without a mapper: custom drawing, maps, charts, video, SwiftUI and Compose unless reverse-engineered (Datadog reads SwiftUI's private display list)</td></tr>
+<tr><td><b>Pictures</b> (mobile)</td><td>What the user saw, including custom drawing and maps, at reduced resolution and frame rate (typically 1 fps)</td><td>Largest: Sentry video 165–212 KB/min masked; PostHog screenshots up to ~1.2 MB/min at 1 change/s (inferred); a static screen still costs about 7 KB/s as Sentry video</td><td>Rendering or copying the window, scaling, JPEG/WebP or H.264 encoding</td><td>Hard: boxes must be painted over the right pixels. If a view moves between the tree walk and the copy, the box misses (ouo drops such frames: "fails closed")</td><td>Scroll smoothness between frames; text is not searchable; anything masked is gone for good</td></tr>
+<tr><td><b>Draw commands</b></td><td>Exact pixels, re-rendered at any size</td><td>Depends on the scene: cheap for simple UI, huge for images and animations (every bitmap must be shipped)</td><td>Intercepting every draw call; serialising arguments</td><td>Precise: mask at the call (<code>drawText</code> → rectangle), no misalignment</td><td>Needs a player that implements the platform's drawing API; versions drift; GPU-only content (video, Metal, GL surfaces) bypasses the calls</td></tr>
+</table></div>
+<p class="src">Byte numbers come from Step 6's measurements and vendor docs, collected in <a href="../../vendor-internals/mobile-replay-evidence.md">vendor-internals/mobile-replay-evidence.md</a> (PR #175, which states each method) and Step 4's <a href="../../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Different apps and screens: these are not like-for-like. No draw-command numbers were measured. Device work is qualitative here; Step 5 owns measured overhead.</p>
+<div class="key">The decisive difference is <b>where the knowledge of "what is private" meets the data</b>. In tree, wireframe and draw-command capture, masking is a transformation of structured data (a string becomes <code>***</code>). In picture capture, masking is geometry: you compute rectangles from one tree walk and paint them on pixels copied at a slightly different moment. That gap is where picture-based recorders leak, and why their masking code is the biggest part of them.</div>
+
+<h2 id="hybrid">Nobody is pure</h2>
+<ul>
+<li><b>rrweb is tree-based but records canvas as draw commands</b> (or as image snapshots at a set FPS): <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/canvas-manager.ts#L69-L86">canvas-manager.ts L69–86</a> picks commands (<code>sampling.canvas: 'all'</code>) or snapshots (a number); 2D context methods are patched in <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/2d.ts#L31-L55">2d.ts L31–55</a>.</li>
+<li><b>Sentry mobile sends video plus rrweb JSON</b>: touches and breadcrumbs travel as rrweb events next to the MP4 (<a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/test/resources/json/replay_recording.json#L1-L2">replay_recording.json</a>).</li>
+<li><b>PostHog wireframe mode puts a screenshot inside a wireframe</b> (a node of type <code>screenshot</code> with a base64 image), and its "screenshot mode" is exactly that, one node per frame.</li>
+<li><b>Datadog wireframes ship images separately</b>, keyed by an MD5 of a small greyscale rendition, so the same image is sent once (<a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/Utilities/UIImage+SessionReplay.swift#L19-L60">UIImage+SessionReplay.swift L19–60</a>).</li>
+<li><b>Sentry Android has a draw-command path</b>: <code>CanvasStrategy</code> records <code>root.draw()</code> into a <code>Picture</code> through a canvas that turns every <code>drawText</code> into a rectangle (<a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L873-L890">L873–890</a>), then replays the picture off the main thread and still ships video.</li>
+</ul>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"Which family can replay a hand-drawn chart without a special mapper?","a":["Wireframes","Pictures (screenshots or video)","Tree + diff without canvas recording"],"c":1,"why":"Pixels do not care how they were drawn. Wireframes see a custom view as a plain rectangle; DOM replay shows a blank canvas unless canvas recording is on."},
+{"q":"What does a wireframe player do?","a":["Runs the app's real UI","Draws typed rectangles (text, image, shape) that look like the app","Plays an MP4"],"c":1,"why":"It never rebuilds the real UI. It draws boxes from the recorded wireframes."},
+{"q":"Which pairing is right?","a":["Sentry mobile: video plus rrweb JSON for touches and breadcrumbs","Datadog mobile: H.264 video","rrweb: JPEG screenshots for every frame"],"c":0,"why":"Sentry sends touches and breadcrumbs as rrweb events next to the MP4. Datadog ships wireframes; rrweb serialises the DOM."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t1-hooks.html"><small>← previous</small>When to look: hooks</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t3-masking-race.html"><small>next →</small>How to mask: the masking race</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+/* ---------- 2 · four capture techniques ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var S=2; /* canvas backing scale */
+['capReal','capOut'].forEach(function(id){var c=document.getElementById(id);c.width=180*S;c.height=320*S});
+var EL=[
+ {id:1,k:'bg',x:0,y:0,w:180,h:320},
+ {id:2,k:'text',x:12,y:22,w:110,h:20,t:'Your cart',size:16,bold:1},
+ {id:3,k:'img',x:138,y:16,w:30,h:30},
+ {id:4,k:'text',x:12,y:58,w:60,h:16,t:'Tea',size:13},{id:5,k:'text',x:120,y:58,w:48,h:16,t:'£3.20',size:13,right:1},
+ {id:6,k:'text',x:12,y:84,w:60,h:16,t:'Coffee',size:13},{id:7,k:'text',x:120,y:84,w:48,h:16,t:'£4.20',size:13,right:1},
+ {id:8,k:'text',x:12,y:118,w:80,h:16,t:'Gift wrap',size:13},{id:9,k:'toggle',x:132,y:115,w:36,h:22},
+ {id:10,k:'custom',x:12,y:150,w:156,h:84},
+ {id:11,k:'button',x:12,y:256,w:156,h:38,t:'Pay £7.40'}
+];
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function txt(c,e,s,col){c.fillStyle=col||'#1d1d1b';c.font=(e.bold?'700 ':'')+e.size+'px system-ui,sans-serif';c.textBaseline='middle';c.textAlign=e.right?'right':'left';c.fillText(s,e.right?e.x+e.w:e.x,e.y+e.h/2)}
+function mask(s,ch){return String(s||"").replace(/\S/g,ch)}
+/* real drawing of one element */
+function real(c,e){
+ if(e.k==='bg'){c.fillStyle='#ffffff';c.fillRect(0,0,180,320);c.fillStyle='#eeeeee';c.fillRect(12,103,156,1);c.fillRect(12,76,156,1);return}
+ if(e.k==='text')return txt(c,e,e.t);
+ if(e.k==='img'){c.save();c.beginPath();c.arc(e.x+15,e.y+15,15,0,7);c.clip();var g=c.createLinearGradient(e.x,e.y,e.x+30,e.y+30);g.addColorStop(0,'#f2a65a');g.addColorStop(1,'#b4441c');c.fillStyle=g;c.fillRect(e.x,e.y,30,30);c.fillStyle='#fde3c8';c.beginPath();c.arc(e.x+15,e.y+12,6,0,7);c.fill();c.beginPath();c.arc(e.x+15,e.y+30,11,0,7);c.fill();c.restore();return}
+ if(e.k==='toggle'){c.fillStyle='#34c759';rr(c,e.x,e.y,e.w,e.h,11);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(e.x+e.w-11,e.y+11,9,0,7);c.fill();return}
+ if(e.k==='custom'){c.fillStyle='#f6f4ef';c.fillRect(e.x,e.y,e.w,e.h);var v=[30,52,40,70,58,64,44];v.forEach(function(h,i){c.fillStyle=i===3?'#b4441c':'#2b5fa8';c.fillRect(e.x+8+i*21,e.y+e.h-6-h,14,h)});c.fillStyle='#66625a';c.font='9px system-ui';c.textAlign='left';c.fillText('spend / week',e.x+6,e.y+9);return}
+ if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();txt(c,{x:e.x,y:e.y,w:e.w,h:e.h,size:14,bold:1},'',null);c.fillStyle='#fff';c.font='700 14px system-ui';c.textAlign='center';c.fillText(e.t,e.x+e.w/2,e.y+e.h/2);return}
+}
+function ctx(id){var c=document.getElementById(id).getContext('2d');c.setTransform(S,0,0,S,0,0);return c}
+function drawReal(hl){var c=ctx('capReal');EL.forEach(function(e){real(c,e)});if(hl){c.strokeStyle='#b4441c';c.lineWidth=2;c.strokeRect(hl.x-1,hl.y-1,hl.w+2,hl.h+2)}}
+function clearOut(){var c=ctx('capOut');c.fillStyle='#f1eee7';c.fillRect(0,0,180,320);c.fillStyle='#a29d93';c.font='11px system-ui';c.textAlign='center';c.fillText('waiting for data…',90,160);}
+var masked=true;
+/* per-technique: steps(e) draw into player; wire lines */
+var T={
+ tree:{name:'Tree + diff (rrweb, web)',
+  cap:'The recorder walks the DOM once, gives every node an id and writes it as JSON (the full snapshot). The player builds a <em>real</em> DOM from it in a sandboxed iframe. The chart is a <code>&lt;canvas&gt;</code>: its pixels are not in the tree, so it comes back blank unless canvas recording is turned on.',
+  out:function(c,e){if(e.k==='text'){c.fillStyle='#fff';c.fillRect(e.x,e.y,e.w,e.h);txt(c,e,masked?mask(e.t,'*'):e.t);return}
+   if(e.k==='custom'){c.fillStyle='#ffffff';c.fillRect(e.x,e.y,e.w,e.h);c.strokeStyle='#cccccc';c.setLineDash([3,3]);c.strokeRect(e.x+.5,e.y+.5,e.w-1,e.h-1);c.setLineDash([]);c.fillStyle='#999';c.font='10px system-ui';c.textAlign='center';c.fillText('<canvas> not recorded',e.x+e.w/2,e.y+e.h/2);return}
+   if(e.k==='button'){real(c,{k:'button',x:e.x,y:e.y,w:e.w,h:e.h,t:masked?mask(e.t,'*'):e.t});return}
+   real(c,e)},
+  wire:function(e){var m={bg:'{"id":1,"type":2,"tagName":"body","childNodes":[…]}',text:'{"id":'+e.id+',"type":3,"textContent":"'+(masked&&e.t?mask(e.t,'*'):e.t)+'"}',img:'{"id":3,"type":2,"tagName":"img","attributes":{"src":"https://…/me.jpg"}}',toggle:'{"id":9,"type":2,"tagName":"input","attributes":{"type":"checkbox","checked":true}}',custom:'{"id":10,"type":2,"tagName":"canvas","attributes":{"width":"156"}}',button:'{"id":11,"type":2,"tagName":"button","childNodes":[{"type":3,"textContent":"'+(masked?mask(e.t,'*'):e.t)+'"}]}'};return m[e.k]},
+  head:'// rrweb FullSnapshot (type 2): every node gets an id\n{"type":2,"data":{"node":',
+  tail:'}}\n// later, one change = one small event (rrweb test fixture):\n{"type":3,"data":{"source":0,"adds":[{"parentId":5,"nextId":null,\n  "node":{"type":2,"tagName":"input","id":33}}],\n  "removes":[],"texts":[],"attributes":[]}}',
+  src:'Shapes from <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb-snapshot/src/snapshot.ts#L924-L1129">rrweb-snapshot serializeNodeWithId</a> and the fixture <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/test/events/input.ts#L156-L190">test/events/input.ts</a>. Text masking keeps the length, every non-space character becomes <code>*</code>: <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb-snapshot/src/snapshot.ts#L498-L539">snapshot.ts L498–539</a>.',
+  m:[['Bytes','low after snapshot',2],['Device work','medium',2],['Fidelity','exact (no canvas)',5],['Masking safety','high',5]]},
+ wire:{name:'Wireframes (Datadog, PostHog)',
+  cap:'The recorder walks the native view tree and maps each view it knows to a typed rectangle. The player draws rectangles; it does not run the app. The chart is a custom-drawn view: the recorder sees only its background, so the bars are gone. The avatar becomes an image placeholder unless image privacy allows the bitmap to be uploaded.',
+  out:function(c,e){if(e.k==='bg'){c.fillStyle='#ffffff';c.fillRect(0,0,180,320);return}
+   if(e.k==='text'){txt(c,{x:e.x,y:e.y,w:e.w,h:e.h,size:e.size,bold:e.bold,right:e.right},masked?mask(e.t,'x'):e.t,'#333');return}
+   if(e.k==='img'){c.fillStyle='#d9d6cf';c.fillRect(e.x,e.y,e.w,e.h);c.fillStyle='#777';c.font='8px system-ui';c.textAlign='center';c.fillText('Image',e.x+15,e.y+17);return}
+   if(e.k==='toggle'){c.fillStyle='#34c759';rr(c,e.x,e.y,e.w,e.h,11);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(e.x+e.w-11,e.y+11,9,0,7);c.fill();return}
+   if(e.k==='custom'){c.fillStyle='#f6f4ef';c.fillRect(e.x,e.y,e.w,e.h);return}
+   if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();c.fillStyle='#fff';c.font='700 14px system-ui';c.textAlign='center';c.fillText(masked?mask(e.t,'x'):e.t,e.x+e.w/2,e.y+e.h/2)}},
+  wire:function(e){var b='"id":'+e.id+',"x":'+e.x*2+',"y":'+e.y*2+',"width":'+e.w*2+',"height":'+e.h*2;var m={bg:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#FFFFFFFF"}}',text:'{'+b+',"type":"text","text":"'+(masked&&e.t?mask(e.t,'x'):e.t)+'","textStyle":{"size":'+e.size*2+'}}',img:'{'+b+',"type":"placeholder","label":"Content Image"}',toggle:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#34C759FF","cornerRadius":22}}',custom:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#F6F4EFFF"}}',button:'{'+b+',"type":"text","text":"'+(masked?mask(e.t,'x'):e.t)+'","shapeStyle":{"backgroundColor":"#2B5FA8FF"}}'};return m[e.k]},
+  head:'// Datadog mobile FullSnapshot (type 10), shape as captured\n// from dd-sdk-ios 3.21.0 in Step 6\n{"type":10,"data":{"wireframes":[',
+  tail:']}}\n// later: type 11 with {"adds":[…],"removes":[{"id":7}],\n//   "updates":[{"id":5,"text":"xxxxx"}]}  (Heckel diff, per field)',
+  src:'Real captured wireframes: <a href="../../vendor-internals/datadog/wire-format/fixtures/ios/replay-full-snapshot.json">Step 6 fixture replay-full-snapshot.json</a> (PR #175). Mapping view → wireframe: <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98">UILabelRecorder</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIImageViewRecorder.swift#L36-L140">UIImageViewRecorder</a> (image or placeholder); PostHog iOS mapping: <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayIntegration.swift#L1451-L1586">toWireframe</a>. The update record schema: <a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/json/schemas/session-replay/mobile/mutation-payload-schema.json#L1-L51">mutation-payload-schema.json</a>.',
+  m:[['Bytes','low',2],['Device work','medium (tree walk)',3],['Fidelity','"looks like"',3],['Masking safety','high',5]]},
+ pix:{name:'Screenshots / video (Sentry, PostHog, ouo)',
+  cap:'The recorder copies the window\'s pixels, walks the view tree to find rectangles to hide, paints them, scales the image down and encodes it (JPEG/WebP per frame, or H.264 for 5 s of frames). The player shows images. The chart survives, because pixels do not care how they were drawn. The text does not: it is under the boxes, forever.',
+  out:null,
+  wire:null,
+  head:'',tail:'',
+  src:'Sentry iOS paints each box with the <em>average colour</em> of the area: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91">SentryDefaultMaskRenderer.swift L14–91</a>; H.264 settings (key frame every 6 frames, 20–60 kbps): <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a>; Android PixelCopy capture: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/PixelCopyStrategy.kt#L82-L185">PixelCopyStrategy.kt L82–185</a>; text masked one box per line: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/util/MaskRenderer.kt#L43-L110">MaskRenderer.kt L43–110</a>. The video event is the fixture <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/test/resources/json/rrweb_video_event.json#L1-L21">rrweb_video_event.json</a>.',
+  m:[['Bytes','high',4],['Device work','high (render + encode)',4],['Fidelity','what the user saw, 1 fps',4],['Masking safety','geometry, can misalign',2]]},
+ cmd:{name:'Draw commands (rrweb canvas, Sentry Android canvas strategy)',
+  cap:'The recorder intercepts every drawing call and writes it down with its arguments. The player executes the same calls on its own canvas: exact pixels, including the chart. Masking happens at the call: a <code>drawText</code> becomes a <code>drawRect</code> of the same size, so the box can never be in the wrong place.',
+  out:function(c,e){if(e.k==='text'){if(masked){c.fillStyle='#c9c6bf';var w=c.measureText?null:null;rr(c,e.right?e.x+e.w-e.t.length*7:e.x,e.y+3,e.t.length*7,e.h-6,3);c.fill()}else txt(c,e,e.t);return}
+   if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();if(masked){c.fillStyle='#ffffffaa';rr(c,e.x+40,e.y+12,76,14,3);c.fill()}else real(c,e);return}
+   real(c,e)},
+  wire:function(e){var m={bg:'drawColor(#FFFFFF)\ndrawRect(12,76,156,1, #EEEEEE)',text:masked?'drawRect('+e.x+','+e.y+','+e.w+','+e.h+', #C9C6BF)   // was drawText':'drawText("'+e.t+'", '+e.x+', '+e.y+', size='+e.size+')',img:'drawBitmap(<30×30 bitmap>, 138, 16)   // bytes must ship',toggle:'drawRoundRect(132,115,36,22, r=11, #34C759)\ndrawCircle(157,126, r=9, #FFFFFF)',custom:'drawRect(12,150,156,84, #F6F4EF)\ndrawRect(20,198,14,30, #2B5FA8) … ×7 bars',button:'drawRoundRect(12,256,156,38, r=10, #2B5FA8)\n'+(masked?'drawRect(52,268,76,14)   // was drawText':'drawText("Pay £7.40", …)')};return m[e.k]},
+  head:'// illustrative command list (Android Canvas names);\n// rrweb canvas mutations look like {"id":10,"type":0,\n//   "commands":[{"property":"fillRect","args":[8,48,14,30]}]}\n',
+  tail:'',
+  src:'rrweb patches the 2D context and flushes commands once per animation frame as a CanvasMutation event: <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/2d.ts#L31-L55">2d.ts L31–55</a>, <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/canvas-manager.ts#L287-L314">canvas-manager.ts L287–314</a>. Sentry Android records <code>root.draw()</code> into a <code>Picture</code> through a masking canvas: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L156-L174">CanvasStrategy.kt L156–174</a>, <code>drawText</code> → rectangle <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L873-L890">L873–890</a>; it rasterises that picture and still ships video, so its commands never leave the device. Flutter\'s equivalent is <a href="https://github.com/flutter/flutter/blob/3.47.9/engine/src/flutter/lib/ui/painting.dart#L8604">dart:ui PictureRecorder</a>. The Android-style command list above is illustrative, not a vendor format.',
+  m:[['Bytes','varies (bitmaps!)',3],['Device work','medium (intercept)',3],['Fidelity','exact pixels',5],['Masking safety','exact, at the call',5]]}
+};
+var curT='tree',ct=null;
+var tabs=document.getElementById('capTabs');
+Object.keys(T).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=T[k].name.split(' (')[0];b.onclick=function(){curT=k;show()};tabs.appendChild(b)});
+document.getElementById('capMask').onchange=function(){masked=this.checked;show()};
+function meters(){var t=T[curT];document.getElementById('capMeters').innerHTML='<tr>'+t.m.map(function(m){return '<th>'+m[0]+'</th>'}).join('')+'</tr><tr>'+t.m.map(function(m){var w=m[2]*20;return '<td><div style="height:8px;border-radius:4px;background:var(--soft)"><div style="height:8px;border-radius:4px;width:'+w+'%;background:var(--acc)"></div></div><span class="mut" style="font-size:12px">'+m[1]+'</span></td>'}).join('')+'</tr>'}
+function show(){clearInterval(ct);ct=null;var t=T[curT];tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===curT)});
+ document.getElementById('capCap').innerHTML=t.cap;document.getElementById('capSrc').innerHTML=t.src;document.getElementById('capWire').textContent='';drawReal();clearOut();meters();}
+/* picture pipeline */
+function pixFrame(c,scanY){var off=document.createElement('canvas');off.width=60;off.height=107;var o=off.getContext('2d');o.drawImage(document.getElementById('capReal'),0,0,60,107);
+ c.imageSmoothingEnabled=false;c.fillStyle='#f1eee7';c.fillRect(0,0,180,320);c.save();c.beginPath();c.rect(0,0,180,scanY);c.clip();c.drawImage(off,0,0,180,320);c.restore()}
+function pixMasks(c,n){var k=0;EL.forEach(function(e){if(!masked||k>=n)return;if(e.k==='text'||e.k==='img'||(e.k==='button')){k++;c.fillStyle=e.k==='button'?'#2b5fa8':e.k==='img'?'#c97a45':'#9a9a9a';if(e.k==='button'){c.fillStyle='#5a7fb8';c.fillRect(e.x+36,e.y+10,84,18)}else c.fillRect(e.x,e.y+2,e.k==='text'?Math.min(e.w,e.t.length*8):e.w,e.h-4)}})}
+document.getElementById('capPlay').onclick=function(){show();var t=T[curT],c=ctx('capOut'),w=document.getElementById('capWire'),i=0,cap=document.getElementById('capCap');
+ if(curT==='pix'){var y=0,phase=0,fr=0;w.textContent='';
+  ct=setInterval(function(){if(phase===0){y+=16;drawReal({x:0,y:Math.max(0,y-2),w:180,h:2});pixFrame(c,y);cap.innerHTML='<b>1. Copy the window</b> (<code>drawHierarchy</code> on iOS, <code>PixelCopy</code> on Android) and scale it down. Shown here at 1/3 resolution.';if(y>=320){phase=1;y=0}}
+   else if(phase===1){y++;drawReal();pixFrame(c,320);pixMasks(c,y);cap.innerHTML='<b>2. Paint masks</b> from a view-tree walk: every text, image and button title gets a box. '+(masked?'':'(masking is off: nothing is hidden)');if(y>12)phase=2}
+   else{fr++;cap.innerHTML='<b>3. Encode.</b> Frame '+fr+' of 5 goes into the 5 s video segment (H.264 at 1 fps) or out as a JPEG/WebP image. Then the whole MP4 is one binary attachment.';
+    w.textContent='// Sentry: one rrweb custom event describes the MP4\n// that travels next to it in the same envelope (fixture)\n{"type":5,"timestamp":12345678901,"data":{"tag":"video",\n "payload":{"segmentId":0,"size":4000000,"duration":5000,\n  "encoding":"h264","container":"mp4","height":1920,\n  "width":1080,"frameCount":5,"frameRate":1,\n  "frameRateType":"constant","left":100,"top":100}}}\n\n// ouo mobile today: JPEG frames in a JSON chunk\n{"kind":"frames","schema_version":2,"frames":[\n {"ts":…,"reason":"change","jpeg":"/9j/4AAQ…"},\n {"ts":…,"patches":[{"x":0,"y":128,"w":196,"h":64,"jpeg":"…"}]}]}';
+    if(fr>=5){clearInterval(ct);ct=null}}},reduce?400:120);return}
+ var lines=[];c.fillStyle='#ffffff';c.fillRect(0,0,180,320);
+ ct=setInterval(function(){if(i>=EL.length){clearInterval(ct);ct=null;drawReal();w.textContent=t.head+lines.join(curT==='cmd'?'\n':',\n  ')+t.tail;return}
+  var e=EL[i++];drawReal(e.k==='bg'?null:e);t.out(c,e);lines.push(t.wire(e));w.textContent=t.head+lines.join(curT==='cmd'?'\n':',\n  ')+(curT==='cmd'?'':' …');w.scrollTop=w.scrollHeight;
+  cap.innerHTML='<b>'+(curT==='tree'?'Serialise':curT==='wire'?'Map view → wireframe':'Intercept')+'</b> element '+e.id+' ('+e.k+').'+(e.k==='custom'?(curT==='tree'?' A canvas: only the element is in the DOM, not its pixels.':curT==='wire'?' A custom-drawn view: the recorder sees a plain rectangle; the bars are lost.':' The bars are just more draw calls: they replay exactly.'):'')+(e.k==='img'&&curT==='cmd'?' A bitmap: its bytes have to ship.':'')},reduce?900:450)};
+show();
+})();
+</script>
+</body></html>

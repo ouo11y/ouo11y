@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>React Native · replay-school</title>
+<meta name="description" content="No vendor records React Native from JavaScript. The JS package configures the vendor's native recorder, adds React Native classes, and provides privacy components that become real native views.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m6-react-native">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · cross-platform</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · cross-platform</p>
+<h1>React Native</h1>
+<p class="lede">No vendor records React Native from JavaScript. The JS package configures the vendor's native recorder, adds React Native classes, and provides privacy components that become real native views.</p>
+<p class="builds">Builds on: <a href="f3-view-trees.html">View trees, platform by platform</a> · <a href="m1-sentry-ios.html">Sentry iOS</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"Why must a React Native privacy wrapper be a real native view?","a":["For speed","Fabric flattens layout-only views away, so a JS-only wrapper may not exist natively","Native views are encrypted"],"c":1,"why":"Sentry's <code>&lt;Mask&gt;</code> is a native host component the redactor finds by class; OpenReplay even uses a sibling marker view."},
+{"q":"Which mode does PostHog React Native force?","a":["Wireframes","Screenshot mode on both platforms","Video"],"c":1,"why":"PosthogReactNativePlugin.swift L405–445."},
+{"q":"How does Datadog read RN text on iOS Fabric?","a":["From the JS tree","Straight from the C++ <code>ParagraphProps</code>","By OCR"],"c":1,"why":"RCTFabricWrapper.mm L28–69."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m5-openreplay-mobile.html"><small>← previous</small>OpenReplay iOS and Android</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m7-flutter.html"><small>next →</small>Flutter</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-rn',title:'React Native: the native SDKs do the recording',intro:'No vendor records React Native from JavaScript. The JS package configures the native recorder, adds React Native view classes to its lists, and provides privacy components that become real native views.',
+ boxes:[['sen','Sentry RN','video'],['ph','PostHog RN','screenshots'],['dd','Datadog RN','wireframes'],['or','OpenReplay RN','JPEGs']],
+ steps:[
+ ['sen','Options cross the bridge once, at native init. iOS turns the booleans into class names (<code>RCTParagraphComponentView</code>, <code>RCTImageComponentView</code>, <code>RNSVGSvgView</code>…).',[['mobilereplay.ts L47–200',SRN+'src/js/replay/mobilereplay.ts#L47-L200'],['RNSentryReplay.mm L58–91',SRN+'ios/RNSentryReplay.mm#L58-L91']]],
+ ['sen','<code>&lt;Mask&gt;</code> is a native host component, so Fabric cannot flatten it. The native redactor recognises it by its <b>class</b> and masks the whole subtree. If the native view is missing it falls back to a plain View and warns about leaking PII.',[['CustomMask.tsx L13–65',SRN+'src/js/replay/CustomMask.tsx#L13-L65'],['RNSentryReplay.mm L93–110',SRN+'ios/RNSentryReplay.mm#L93-L110']]],
+ ['ph','PostHog RN forces <b>screenshot mode</b> on both platforms (never wireframes). A view is marked private with the string <code>ph-no-capture</code> in its accessibility id or label. The "mask all text inputs" flag also masks all RN static text.',[['iOS plugin L405–445',PRN+'react-native-plugin/ios/PosthogReactNativePlugin.swift#L405-L445'],['UIView+Util.swift L76–104',PI+'Replay/UIView%2BUtil.swift#L76-L104'],['RN text masking L967–1003',PI+'Replay/PostHogReplayIntegration.swift#L967-L1003']]],
+ ['dd','Datadog RN adds native mappers for RN views. On iOS Fabric it reads text straight from the C++ <code>ParagraphProps</code>; on Android Fabric it reads the text colour from a private field by reflection. <code>&lt;PrivacyView&gt;</code> props become view tags (Android) or per-view overrides (iOS).',[['ReactNativeSessionReplayExtensionSupport.kt L36–45',DRN+'android/src/main/kotlin/com/datadog/reactnative/sessionreplay/ReactNativeSessionReplayExtensionSupport.kt#L36-L45'],['RCTFabricWrapper.mm L28–69',DRN+'ios/Sources/RCTFabricWrapper.mm#L28-L69'],['PrivacyView.tsx L57–78',DRN+'src/components/SessionReplayView/PrivacyView.tsx#L57-L78']]],
+ ['or','OpenReplay RN wraps its native trackers (older pinned versions). Its privacy marker is a childless native view placed as an absolutely positioned <em>sibling</em>, because Fabric\'s interop layer and view flattening break a wrapping view.',[['ios ReactNativeORSanitizedViewManager.swift L16–37',ORT+'tracker-reactnative/ios/ReactNativeORSanitizedViewManager.swift#L16-L37'],['podspec L18',ORT+'tracker-reactnative/openreplay-react-native.podspec#L18']]]
+ ]});
+})();
+</script>
+</body></html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PostHog iOS and Android · replay-school</title>
+<meta name="description" content="PostHog mobile records either wireframes (one node per view) or one screenshot per changed frame, both as rrweb-shaped events, and drops unchanged frames by hash.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m3-posthog-mobile">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · mobile</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · mobile</p>
+<h1>PostHog iOS and Android</h1>
+<p class="lede">PostHog mobile records either wireframes (one node per view) or one screenshot per changed frame, both as rrweb-shaped events, and drops unchanged frames by hash.</p>
+<p class="builds">Builds on: <a href="t2-what-to-record.html">What to record</a> · <a href="t1-hooks.html">When to look: hooks</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"What does PostHog iOS wireframe mode do with a SwiftUI root?","a":["Reads SwiftUI's display list","Skips it and points to screenshot mode","Converts it to UIKit"],"c":1,"why":"\"enable screenshotMode\" (PostHogReplayIntegration.swift L1702–1741)."},
+{"q":"How does PostHog iOS avoid sending an unchanged frame?","a":["It hashes the frame and drops it if equal to the last","It never captures twice","The server deduplicates"],"c":0,"why":"frameVerdict L2129–2163: the base64 string, or the wireframe tree without ids."},
+{"q":"How does a PostHog screenshot travel?","a":["As an MP4","As WebP base64 inside one wireframe node of type <code>screenshot</code> in an rrweb event","As a separate binary upload"],"c":1,"why":"RRWireframe.swift L52–145."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m2-sentry-android.html"><small>← previous</small>Sentry Android</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m4-datadog-mobile.html"><small>next →</small>Datadog iOS and Android</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-posthog',title:'PostHog iOS and Android: wireframe or screenshot, as rrweb events',
+ boxes:[['sch','Schedule','throttle 1 s'],['wf','Wireframe','view → node'],['ss','Screenshot','one image node'],['eq','Equal?','hash / id diff'],['em','Emit','$snapshot']],
+ steps:[
+ ['sch','iOS: a main run-loop observer (order 2,100,000), throttled to 1 s; after 3 unchanged frames the interval doubles up to 8 s, and a cheap structure fingerprint wakes it. Android: the window\'s draw listener through a 1 s throttler.',[['ApplicationRunLoopPublisher.swift L85–136',PI+'ApplicationRunLoopPublisher.swift#L85-L136'],['backoff L11–91',PI+'Replay/PostHogReplayCaptureBackoff.swift#L11-L91'],['Throttler.kt L8–64',PA+'internal/Throttler.kt#L8-L64']]],
+ ['wf','Wireframe mode walks <code>subviews</code> and maps known classes: label → <code>text</code>, text field → <code>input</code>, switch → <code>toggle</code>, image → <code>image</code> (bitmap only if not sensitive), web view → <code>web_view</code>. Masking replaces text with <code>*</code>. A SwiftUI root is skipped: "enable screenshotMode".',[['toWireframe L1451–1586',PI+'Replay/PostHogReplayIntegration.swift#L1451-L1586'],['SwiftUI skip L1702–1741',PI+'Replay/PostHogReplayIntegration.swift#L1702-L1741'],['Android toWireframe L2766–3064',PA+'PostHogReplayIntegration.kt#L2766-L3064']]],
+ ['ss','Screenshot mode renders the window, paints masks black at native resolution, and encodes WebP quality 0.3 as base64 inside one wireframe node of type <code>screenshot</code>. Android uses PixelCopy and keeps a frame only if no layout happened and no mask moved between two walks.',[['RRWireframe.swift L52–145',PI+'Replay/RRWireframe.swift#L52-L145'],['Android L2449–2736',PA+'PostHogReplayIntegration.kt#L2449-L2736']]],
+ ['eq','iOS hashes the frame (the base64 string, or the wireframe tree without ids) and drops it if equal. Android wireframes diff by node id and send the <em>whole</em> node on any change.',[['frameVerdict L2129–2163',PI+'Replay/PostHogReplayIntegration.swift#L2129-L2163'],['Android diff L1323–1410',PA+'PostHogReplayIntegration.kt#L1323-L1410']]],
+ ['em','iOS always emits an rrweb FullSnapshot (type 2) per changed frame, never a mutation; Android sends type 3 mutations after the first. Touches go as their own rrweb events.',[['L858–875',PI+'Replay/PostHogReplayIntegration.swift#L858-L875'],['touches L697–760',PI+'Replay/PostHogReplayIntegration.swift#L697-L760']]]
+ ]});
+})();
+</script>
+</body></html>

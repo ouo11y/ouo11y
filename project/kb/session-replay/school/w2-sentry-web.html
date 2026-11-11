@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentry on the web · replay-school</title>
+<meta name="description" content="Sentry ships its own fork of rrweb and puts its effort around the engine: an error buffer, a guard against mutation storms, and compression in a worker as events arrive.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="w2-sentry-web">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · web</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · web</p>
+<h1>Sentry on the web</h1>
+<p class="lede">Sentry ships its own fork of rrweb and puts its effort around the engine: an error buffer, a guard against mutation storms, and compression in a worker as events arrive.</p>
+<p class="builds">Builds on: <a href="w1-rrweb.html">rrweb: the engine</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Every step links the file and lines at that tag. Wire formats (envelopes, segment framing) are in Step 6: <a href="../../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"What happens when one observer callback in Sentry's recorder holds more than 10,000 records?","a":["The batch is split","The replay is stopped","The records are compressed harder"],"c":1,"why":"Above 750 a breadcrumb is added; above 10,000 the replay stops, so a page rewriting itself in a loop cannot take the app down."},
+{"q":"In buffer mode, why does Sentry take a checkout every 60 s?","a":["To bound memory: the buffer holds about the last minute plus a snapshot, and is sent only on an error","Because the server needs one per minute","To refresh fonts"],"c":0,"why":"A checkout clears the buffer; on an error the buffer is sent and recording switches to session mode."},
+{"q":"When does Sentry flush replay data on the web?","a":["Every 30 s","5 s after the last event, at most 5.5 s after the first unsent one, and immediately on hide or blur","Only on page unload"],"c":1,"why":"replay.ts L208–218 for the debounce, L245–264 for visibility."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="w1-rrweb.html"><small>← previous</small>rrweb: the engine</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="w3-posthog-web.html"><small>next →</small>PostHog on the web</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-sentry',title:'Sentry: a fork of rrweb, a worker, and a 5-second debounce',intro:'Sentry\'s value is around the engine: when to record (session or error buffer), a guard against mutation storms, and compression off the main thread.',
+ boxes:[['fork','rrweb fork','2.45.0'],['start','startRecording','mode, checkout'],['guard','Mutation guard','750 / 10,000'],['buf','Event buffer','array or worker'],['wk','Worker','fflate zlib stream'],['fl','Flush','debounce, hidden']],
+ steps:[
+ ['fork','The fork adds options upstream lacks: <code>maskAllText</code>, <code>unblockSelector</code>, <code>maskAttributeFn</code>, and an <code>onMutation</code> hook that can drop a whole batch. Canvas recording is injected, so it is not in the bundle unless you add it.',[['record/index.ts L91–134',SF+'index.ts#L91-L134'],['onMutation L125–150',SF+'observer.ts#L125-L150'],['canvas L782–798',SF+'index.ts#L782-L798']]],
+ ['fork','It uses Angular\'s unpatched MutationObserver when present (so recording does not trigger change detection) and still has the older linked-list mutation buffer that upstream replaced.',[['observer.ts L112–124',SF+'observer.ts#L112-L124'],['mutation.ts L45–80',SF+'mutation.ts#L45-L80']]],
+ ['start','<code>startRecording()</code>: in <b>buffer</b> mode a checkout every 60 s, so the in-memory buffer holds at most about 60 s plus the snapshot; in session mode no periodic checkout. Mouse moves are switched off on iPhone and iPad.',[['replay.ts L443–479',SJ+'replay-internal/src/replay.ts#L443-L479'],['sampling L9–22',SJ+'replay-internal/src/util/getRecordingSamplingOptions.ts#L9-L22']]],
+ ['start','A checkout in buffer mode clears the buffer. When an error happens, the buffer is sent and recording switches to session mode.',[['handleRecordingEmit.ts L23–125',SJ+'replay-internal/src/util/handleRecordingEmit.ts#L23-L125']]],
+ ['guard','If one observer callback holds more than 750 records, a <code>replay.mutations</code> breadcrumb is added; above 10,000 the replay is <b>stopped</b>. A page that rewrites itself in a loop must not take the app down.',[['replay.ts L1361–1405',SJ+'replay-internal/src/replay.ts#L1361-L1405']]],
+ ['buf','Events go to a buffer: a Web Worker created from a Blob URL when possible, otherwise a plain array. The proxy starts on the array and switches to the worker once it says <code>init</code>.',[['eventBuffer/index.ts L19–62',SJ+'replay-internal/src/eventBuffer/index.ts#L19-L62'],['EventBufferProxy.ts L20–141',SJ+'replay-internal/src/eventBuffer/EventBufferProxy.ts#L20-L141']]],
+ ['wk','The worker <b>compresses as events arrive</b>: fflate UTF-8 encoder into a zlib stream, <code>[</code> at start, <code>,event</code> per event, <code>]</code> at finish. Flushing only has to close the stream. Protocol: <code>{id, method: init|addEvent|finish|clear, arg}</code>.',[['Compressor.ts L31–79',SJ+'replay-worker/src/Compressor.ts#L31-L79'],['handleMessage.ts L13–62',SJ+'replay-worker/src/handleMessage.ts#L13-L62']]],
+ ['fl','Flush is debounced: 5 s after the last event, at most 5.5 s after the first unsent one. Page hidden or window blur flushes immediately. The upload envelope is in Step 6.',[['replay.ts L208–218',SJ+'replay-internal/src/replay.ts#L208-L218'],['visibility L245–264',SJ+'replay-internal/src/replay.ts#L245-L264']]]
+ ]});
+})();
+</script>
+</body></html>

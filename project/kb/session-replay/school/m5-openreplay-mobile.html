@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenReplay iOS and Android · replay-school</title>
+<meta name="description" content="OpenReplay's native trackers take JPEG screenshots at a rate the server sets, mask only what the app opts in, and upload gzip archives of frames apart from the event stream.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m5-openreplay-mobile">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · mobile</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · mobile</p>
+<h1>OpenReplay iOS and Android</h1>
+<p class="lede">OpenReplay's native trackers take JPEG screenshots at a rate the server sets, mask only what the app opts in, and upload gzip archives of frames apart from the event stream.</p>
+<p class="builds">Builds on: <a href="t2-what-to-record.html">What to record</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"What does OpenReplay mobile mask by default?","a":["All text","Nothing: masking is opt-in","Images only"],"c":1,"why":"Views registered with <code>addIgnoredView</code>, a SwiftUI <code>.sensitive()</code> modifier or a sensitive text field (ScreenCapture.swift L410–435)."},
+{"q":"Who sets OpenReplay iOS's capture rate?","a":["The app developer only","The server's start response (fps and quality)","The OS"],"c":1,"why":"ORTracker.swift L99–106. Android uses fixed loops per quality level."},
+{"q":"How are frames packed?","a":["As H.264","As <code>[timestamp][length][jpeg]…</code>, gzipped, uploaded apart from the event stream","As rrweb events"],"c":1,"why":"ScreenCapture.swift L318–366."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m4-datadog-mobile.html"><small>← previous</small>Datadog iOS and Android</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m6-react-native.html"><small>next →</small>React Native</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-openreplay',title:'OpenReplay iOS and Android: JPEG archives',
+ boxes:[['rate','Rate','from server'],['cap','Capture','drawHierarchy / PixelCopy'],['msk','Mask','opt-in only'],['arc','Archive','gzip of JPEGs']],
+ steps:[
+ ['rate','The server\'s start response sets fps and quality (iOS); Android loops at 1000/500/300 ms for low/standard/high.',[['ORTracker.swift L99–106',OI+'ORTracker.swift#L99-L106'],['ScreenshotManager.kt L131–151',OA+'ScreenshotManager.kt#L131-L151']]],
+ ['cap','iOS: <code>drawHierarchy(afterScreenUpdates: false)</code> on main, mask compositing and JPEG encoding off main, a frame dropped if the encoder is behind. Android: PixelCopy with a Canvas fallback.',[['ScreenCapture.swift L140–190',OI+'ScreenCapture/ScreenCapture.swift#L140-L190'],['ScreenshotManager.kt L657–766',OA+'ScreenshotManager.kt#L657-L766']]],
+ ['msk','Masking is <b>opt-in only</b>: views registered with <code>addIgnoredView</code>, a SwiftUI <code>.sensitive()</code> modifier or a sensitive text field. Nothing is masked by default.',[['ScreenCapture.swift L410–435',OI+'ScreenCapture/ScreenCapture.swift#L410-L435']]],
+ ['arc','Frames are packed as <code>[timestamp][length][jpeg]…</code>, gzipped and uploaded as a separate archive, apart from the event stream.',[['ScreenCapture.swift L318–366',OI+'ScreenCapture/ScreenCapture.swift#L318-L366']]]
+ ]});
+})();
+</script>
+</body></html>

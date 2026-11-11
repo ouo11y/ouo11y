@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flutter · replay-school</title>
+<meta name="description" content="A native recorder sees one opaque FlutterView, so every vendor captures inside the Flutter framework, in Dart, and uses the native SDK only to encode or upload.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m7-flutter">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · cross-platform</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · cross-platform</p>
+<h1>Flutter</h1>
+<p class="lede">A native recorder sees one opaque FlutterView, so every vendor captures inside the Flutter framework, in Dart, and uses the native SDK only to encode or upload.</p>
+<p class="builds">Builds on: <a href="f3-view-trees.html">View trees, platform by platform</a> · <a href="t3-masking-race.html">How to mask: the masking race</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<h2 id="compare">Mobile and Flutter side by side</h2>
+<div class="wrap"><table>
+<tr><th>SDK</th><th>Output</th><th>Trigger</th><th>Unchanged screen</th><th>Masking key</th><th>SwiftUI / Compose</th></tr>
+<tr><td>Sentry iOS</td><td>H.264 MP4 per 5 s, 1 fps</td><td>run-loop observer after CA commit, 1 s pacing, back-off to 2 s</td><td>no capture if the loop was idle; encoder repeats last frame</td><td>CALayer walk: class lists, RN classes built in</td><td>SwiftUI by layer class names (iOS 26)</td></tr>
+<tr><td>Sentry Android</td><td>H.264 MP4 per 5 s, 1 fps</td><td>1 s main-looper loop; draw listener sets a flag</td><td>re-sends the last bitmap</td><td>class hierarchy, tags</td><td>Compose via internal LayoutNode semantics; unreadable → masked</td></tr>
+<tr><td>PostHog iOS</td><td>full-snapshot wireframe, or one WebP screenshot node</td><td>run-loop observer, 1 s throttle, back-off to 8 s</td><td>hash equal → dropped</td><td>class checks, <code>ph-no-capture</code></td><td>SwiftUI: screenshot mode only</td></tr>
+<tr><td>PostHog Android</td><td>wireframe + id diff, or screenshot</td><td>draw listener, 1 s throttle</td><td>no changed ids → nothing</td><td>class rules, <code>ph-no-capture</code></td><td>Compose: masks in screenshot mode only</td></tr>
+<tr><td>Datadog iOS</td><td>wireframes, Heckel diff per field</td><td>swizzled CALayer changes, ≤ every 100 ms</td><td>no layer change → no walk; empty diff → no record</td><td>node recorders, privacy overrides</td><td>SwiftUI by reading its private DisplayList (opt-in)</td></tr>
+<tr><td>Datadog Android</td><td>wireframes, Heckel diff; full every 3 s</td><td>draw listener, 64 ms debounce, time bank</td><td>empty diff → no record</td><td>mappers, view tags</td><td>Compose via semantics + reflection</td></tr>
+<tr><td>React Native (all)</td><td colspan="5">recorded by the vendor's native iOS/Android SDK, with RN class names added (<code>RCTParagraphComponentView</code>, <code>ReactTextView</code>…); privacy wrappers are real native views so Fabric cannot flatten them</td></tr>
+<tr><td>Flutter (all)</td><td colspan="5">recorded in Dart from the Element / RenderObject tree, captured with <code>RepaintBoundary.toImage</code> (Sentry, PostHog, OpenReplay) or turned into wireframes in Dart (Datadog); native only encodes and transports</td></tr>
+</table></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"Which Flutter recorder builds wireframes rather than images?","a":["Sentry","Datadog, in Dart","OpenReplay"],"c":1,"why":"An Element walk matches Widget types to recorders and a background isolate diffs (datadog_session_replay.dart)."},
+{"q":"What does Sentry Flutter do on an idle screen?","a":["Captures nothing","Forces a frame every second and never skips duplicates","Backs off to 8 s"],"c":1,"why":"scheduled_recorder.dart L191–256; the idle-frame filler is commented out."},
+{"q":"What do PostHog Flutter masks key on?","a":["Widget types","RenderObject types such as <code>RenderParagraph</code> and <code>RenderImage</code>","Accessibility labels"],"c":1,"why":"element_parsers_const.dart L10–22. Sentry keys on Widget types."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m6-react-native.html"><small>← previous</small>React Native</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="z1-six-steps.html"><small>next →</small>Six steps, and what ouo borrows</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-flutter',title:'Flutter: everyone records in Dart',intro:'A native recorder sees one opaque FlutterView, so every vendor captures inside the Flutter framework and uses the native SDK only to encode or upload.',
+ boxes:[['sen','Sentry Flutter','image → native video'],['ph','PostHog Flutter','image → screenshot node'],['dd','Datadog Flutter','Dart wireframes'],['or','OpenReplay Flutter','image → JPEG']],
+ steps:[
+ ['sen','A <code>RepaintBoundary</code> at the root. Capture is <code>toImage()</code> plus, in the same synchronous task, a breadth-first Element walk masking by <b>Widget</b> type (<code>Text</code>, <code>EditableText</code>, <code>RichText</code>, <code>Image</code>).',[['recorder.dart L57–131',SD+'lib/src/screen_capture/recorder.dart#L57-L131'],['widget_filter.dart L26–89',SD+'lib/src/screen_capture/widget_filter.dart#L26-L89'],['privacy options L31–133',SD+'lib/src/screen_capture/sentry_privacy_options.dart#L31-L133']]],
+ ['sen','It forces a frame every second even on an idle screen and never skips duplicates (the idle-frame filler is commented out: "we\'ve decided to capture on every frame"). On Android, Dart <em>pushes</em> raw RGBA to sentry-java over JNI from a worker isolate; on iOS, sentry-cocoa <em>pulls</em> each frame over a method channel. Native encodes the MP4.',[['scheduled_recorder.dart L191–256',SD+'lib/src/replay/scheduled_recorder.dart#L191-L256'],['android_replay_recorder.dart L143–181',SD+'lib/src/native/java/android_replay_recorder.dart#L143-L181'],['iOS provider L24–41',SD+'darwin/sentry_flutter/Sources/sentry_flutter_objc/SentryFlutterReplayScreenshotProvider.m#L24-L41']]],
+ ['ph','A timer at the throttle delay registers a post-frame callback; no frame is forced, so an idle screen captures nothing. After <code>endOfFrame</code> it walks the tree and calls <code>toImage()</code> with no <code>await</code> between. An FNV hash of the raw pixels drops unchanged frames. Masks key on <b>RenderObject</b> types (<code>RenderParagraph</code>, <code>RenderImage</code>, <code>RenderEditable</code>).',[['change_detector.dart L43–71',PF+'lib/src/replay/change_detector.dart#L43-L71'],['screenshot_capturer.dart L700–757',PF+'lib/src/replay/screenshot/screenshot_capturer.dart#L700-L757'],['hash L495–524',PF+'lib/src/replay/screenshot/screenshot_capturer.dart#L495-L524'],['parsers L10–22',PF+'lib/src/replay/element_parsers/element_parsers_const.dart#L10-L22']]],
+ ['ph','The PNG goes to native over a method channel; iOS wraps it as a <code>screenshot</code> wireframe in an rrweb FullSnapshot, Android re-encodes WebP q30. Native PostHog skips its own scheduler on Flutter.',[['native_communicator.dart L10–29',PF+'lib/src/replay/native_communicator.dart#L10-L29'],['PosthogFlutterPlugin.swift L1218–1270',PF+'darwin/posthog_flutter/Sources/posthog_flutter/PosthogFlutterPlugin.swift#L1218-L1270']]],
+ ['dd','Datadog builds <b>wireframes in Dart</b>: a 100 ms timer captures only if a post-frame callback set a flag; an Element walk matches Widget types (<code>RichText</code>, <code>RawImage</code>, Material and Cupertino controls) to recorders; a background isolate diffs; native only transports.',[['datadog_session_replay.dart L150–233',DF+'lib/src/datadog_session_replay.dart#L150-L233'],['recorder.dart L194–214',DF+'lib/src/capture/recorder.dart#L194-L214'],['processor.dart L97–136',DF+'lib/src/processor/processor.dart#L97-L136']]],
+ ['or','OpenReplay follows repaints with a self-re-registering post-frame callback (throttled to 333 ms), uses <code>toImageSync()</code>, blurs opt-in sanitized views in Dart, and native drops a frame whose 64-bit FNV hash is unchanged before JPEG-encoding.',[['screenshot_manager.dart L26–60',ORT+'tracker-flutter/openreplay/lib/src/capture/screenshot_manager.dart#L26-L60'],['OpenreplayPlugin.swift L58–104',ORT+'tracker-flutter/openreplay/ios/openreplay/Sources/openreplay/OpenreplayPlugin.swift#L58-L104']]]
+ ]});
+})();
+</script>
+</body></html>

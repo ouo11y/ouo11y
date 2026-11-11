@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pixels versus structure · replay-school</title>
+<meta name="description" content="Session replay writes a screen down so it can be shown again later. There are only two ways to know what is on a screen: read a description of it, or look at its pixels. Every technique in this course picks one, or mixes both.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f1-pixels-vs-structure">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>Pixels versus structure</h1>
+<p class="lede">Session replay writes a screen down so it can be shown again later. There are only two ways to know what is on a screen: <b>read</b> a description of it, or <b>look</b> at its pixels. Every technique in this course picks one, or mixes both.</p>
+
+<p>Picture a shopping-cart screen: a heading, two items with prices, a toggle, a chart someone drew by hand, and a pay button. A recorder that wants to replay it later has two options.</p>
+<ul>
+<li><b>Structure</b>: ask the UI framework what it is showing. "A text that says <i>Tea</i> at x 12, y 58. A toggle, switched on." The answer is a <em>tree</em> of objects with types, text and positions.</li>
+<li><b>Pixels</b>: copy the colours of the screen. "Pixel (12, 58) is dark grey." The answer is an image. It shows exactly what the user saw, but it does not know that the dark pixels spell a word.</li>
+</ul>
+
+<div class="card">
+<div class="lane">One screen, two ways of knowing it. Press a button and watch what the recorder learns.</div>
+<div class="btns"><button class="b" id="pvRead" type="button">▶ read it as structure</button><button class="b" id="pvSee" type="button">▶ look at it as pixels</button><button class="b" id="pvAsk" type="button">? "what is the price of Tea?"</button></div>
+<div class="step-caption" id="pvCap" aria-live="polite">Pick a way of knowing the screen.</div>
+<div class="grid2" style="margin-top:10px">
+ <div class="phones"><div><div class="lane">On the device</div><canvas id="pvScreen" width="360" height="640" style="width:180px;height:320px;border:1px solid var(--line);border-radius:14px"></canvas></div></div>
+ <div><div class="lane" id="pvLane">What the recorder now knows</div><pre id="pvOut" style="min-height:300px;max-height:320px;white-space:pre-wrap"></pre></div>
+</div>
+</div>
+
+<div class="key">The one idea to keep: on the web the browser hands any script a <b>live, readable, observable tree</b> (the DOM) that fully describes the page. On mobile there is a tree too, but it is <b>private to the app's UI framework</b>, it is not the whole truth (custom drawing, SwiftUI, Compose and Flutter hide inside one view), and nothing notifies you when it changes. That single difference explains why web replay is a text diff and mobile replay is mostly pictures.</div>
+
+<h2>What each side is good at</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Structure (read)</th><th>Pixels (look)</th></tr>
+<tr><td><b>Knows what things are</b></td><td>Yes: this is text, this is an image, this is a button</td><td>No: only colours at positions</td></tr>
+<tr><td><b>Sees everything drawn</b></td><td>No: a chart drawn by hand, a map, a video or a canvas is one rectangle with unknown content</td><td>Yes: pixels do not care how they were drawn</td></tr>
+<tr><td><b>Hiding private text</b></td><td>Replace the string before writing it: <code>Tea</code> becomes <code>***</code></td><td>Paint a box over the right pixels, which must be found from the tree anyway</td></tr>
+<tr><td><b>Bytes</b></td><td>Small once the first description is written; later only changes</td><td>Large: images, even when compressed</td></tr>
+</table></div>
+<p>Real recorders come in four families, and they sit on this line: <b>tree + diff</b> (the web), <b>wireframes</b> (mobile structure, drawn as boxes), <b>pictures</b> (screenshots or video) and <b>draw commands</b> (record the drawing calls, not their result). Lesson <a href="t2-what-to-record.html">What to record</a> shows all four recording the same screen.</p>
+<div class="note">This lesson is the frame for the rest of the course; it makes no vendor claim. The facts behind it come from the specifications and platform sources cited in the next two lessons.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"A recorder walks the UI tree and writes <code>{\"type\":\"text\",\"text\":\"Tea\"}</code>. Which way of knowing the screen is that?","a":["Pixels","Structure","Draw commands"],"c":1,"why":"It describes <em>what</em> is on screen as typed objects, so it is structure."},
+{"q":"The cart screen has a chart the app draws by hand. Which way of knowing the screen captures the bars?","a":["Structure: the chart is a node in the tree","Pixels: the bars are just colours on screen","Neither"],"c":1,"why":"To a tree walk a custom-drawn view is one rectangle with unknown content. Pixels capture whatever was drawn."},
+{"q":"Why is hiding a private string easier with structure than with pixels?","a":["Structure is always encrypted","With structure the string can be replaced before it is written; with pixels a box must be painted on the right spot","Pixels cannot contain text"],"c":1,"why":"Structure masking is a data transform. Pixel masking is geometry, and geometry can miss (lesson 6)."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<span class="gap"></span>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="f2-event-loop-and-frames.html"><small>next →</small>The event loop and frames</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var S=2,cv=document.getElementById('pvScreen'),c=cv.getContext('2d'),out=document.getElementById('pvOut'),cap=document.getElementById('pvCap'),tm=null;
+var EL=[
+ {k:'text',x:12,y:22,w:110,h:20,t:'Your cart',size:16,bold:1,n:'Text'},
+ {k:'img',x:138,y:16,w:30,h:30,n:'Image'},
+ {k:'text',x:12,y:58,w:60,h:16,t:'Tea',size:13,n:'Text'},{k:'text',x:120,y:58,w:48,h:16,t:'£3.20',size:13,right:1,n:'Text'},
+ {k:'text',x:12,y:84,w:60,h:16,t:'Coffee',size:13,n:'Text'},{k:'text',x:120,y:84,w:48,h:16,t:'£4.20',size:13,right:1,n:'Text'},
+ {k:'text',x:12,y:118,w:80,h:16,t:'Gift wrap',size:13,n:'Text'},{k:'toggle',x:132,y:115,w:36,h:22,n:'Toggle'},
+ {k:'custom',x:12,y:150,w:156,h:84,n:'ChartView'},
+ {k:'button',x:12,y:256,w:156,h:38,t:'Pay £7.40',n:'Button'}];
+function rr(x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function draw(){c.setTransform(S,0,0,S,0,0);c.fillStyle='#fff';c.fillRect(0,0,180,320);c.fillStyle='#eee';c.fillRect(12,76,156,1);c.fillRect(12,103,156,1);
+ EL.forEach(function(e){
+  if(e.k==='text'){c.fillStyle='#1d1d1b';c.font=(e.bold?'700 ':'')+e.size+'px system-ui,sans-serif';c.textBaseline='middle';c.textAlign=e.right?'right':'left';c.fillText(e.t,e.right?e.x+e.w:e.x,e.y+e.h/2)}
+  if(e.k==='img'){var g=c.createLinearGradient(e.x,e.y,e.x+30,e.y+30);g.addColorStop(0,'#f2a65a');g.addColorStop(1,'#b4441c');c.fillStyle=g;c.beginPath();c.arc(e.x+15,e.y+15,15,0,7);c.fill()}
+  if(e.k==='toggle'){c.fillStyle='#34c759';rr(e.x,e.y,e.w,e.h,11);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(e.x+e.w-11,e.y+11,9,0,7);c.fill()}
+  if(e.k==='custom'){c.fillStyle='#f6f4ef';c.fillRect(e.x,e.y,e.w,e.h);[30,52,40,70,58,64,44].forEach(function(h,i){c.fillStyle=i===3?'#b4441c':'#2b5fa8';c.fillRect(e.x+8+i*21,e.y+e.h-6-h,14,h)})}
+  if(e.k==='button'){c.fillStyle='#2b5fa8';rr(e.x,e.y,e.w,e.h,10);c.fill();c.fillStyle='#fff';c.font='700 14px system-ui';c.textAlign='center';c.textBaseline='middle';c.fillText(e.t,e.x+e.w/2,e.y+e.h/2)}})}
+function hl(e,col){c.strokeStyle=col||'#b4441c';c.lineWidth=2;c.strokeRect(e.x-2,e.y-2,e.w+4,e.h+4)}
+function stop(){clearInterval(tm);tm=null}
+function line(e){var p='x:'+e.x+' y:'+e.y+' w:'+e.w+' h:'+e.h;if(e.k==='text')return e.n+' "'+e.t+'"  '+p;if(e.k==='toggle')return 'Toggle on  '+p;if(e.k==='img')return 'Image (bitmap)  '+p;if(e.k==='custom')return 'ChartView  '+p+'\n   content: ? (drawn by hand: no children, no text)';return 'Button "'+e.t+'"  '+p}
+document.getElementById('pvRead').onclick=function(){stop();draw();var i=0,lines=['Window'];out.textContent=lines.join('\n');document.getElementById('pvLane').textContent='What the recorder now knows (a tree)';
+ tm=setInterval(function(){if(i>=EL.length){stop();draw();cap.innerHTML='The recorder knows every object by type and position, and every string. It knows nothing about the chart\'s bars: to a tree walk a hand-drawn view is one rectangle.';return}
+  var e=EL[i++];draw();hl(e,e.k==='custom'?'#a87508':null);lines.push('  └ '+line(e));out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;cap.innerHTML='Reading node '+i+' of '+EL.length+': <b>'+e.n+'</b>'+(e.k==='custom'?', a hole in the description.':'.')},RS.reduce?1200:500)};
+document.getElementById('pvSee').onclick=function(){stop();draw();var px=c.getImageData(0,0,cv.width,cv.height).data,y=0,lines=[];document.getElementById('pvLane').textContent='What the recorder now knows (colours)';out.textContent='';
+ tm=setInterval(function(){draw();var B=10;c.setTransform(1,0,0,1,0,0);for(var yy=0;yy<Math.min(y,640);yy+=B)for(var xx=0;xx<360;xx+=B){var o=((yy+B/2)*360+(xx+B/2))*4;c.fillStyle='rgb('+px[o]+','+px[o+1]+','+px[o+2]+')';c.fillRect(xx,yy,B,B)}
+  c.fillStyle='#b4441c';c.fillRect(0,Math.min(y,638),360,2);
+  var sy=Math.min(y,630),row=[];for(var xx2=20;xx2<360;xx2+=60){var o2=(sy*360+xx2)*4;row.push('#'+[px[o2],px[o2+1],px[o2+2]].map(function(v){return ('0'+v.toString(16)).slice(-2)}).join(''))}lines.push('y '+String(Math.round(sy/2)).padStart(3)+': '+row.join(' '));out.textContent=lines.join('\n');out.scrollTop=out.scrollHeight;
+  y+=40;if(y>660){stop();cap.innerHTML='The recorder has every colour, including the chart\'s bars. It has no idea which dark pixels are the word "Tea" or that the green blob is a toggle. (Shown blocky on purpose: replay pictures are usually scaled down.)'}else cap.innerHTML='Copying pixels, row by row…'},RS.reduce?300:90)};
+document.getElementById('pvAsk').onclick=function(){stop();draw();hl(EL[3]);cap.innerHTML='<b>Structure</b> answers directly: the text node next to "Tea" says <code>£3.20</code>. <b>Pixels</b> can only say "there are dark pixels around x 120–168, y 58–74"; turning them back into text would need character recognition. This is why structure can mask a price by changing a string, and pixels must paint a box over a place.'};
+draw();
+})();
+</script>
+</body></html>

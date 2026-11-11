@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>replay-school</title>
+<meta name="description" content="An animated course on how session replay works inside: fundamentals first, then topics, then each vendor's technique, read from source at pinned tags.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="index">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Contents</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<div class="hero">
+<div>
+<p class="kicker">A course in 25 lessons</p>
+<h1>How session replay works, from the ground up</h1>
+<p class="lede">Browser, iOS, Android, React Native and Flutter. Start with the fundamentals (pixels, frames, trees, keyframes, compression, masking), then the six topics every recorder has to answer, then each vendor's technique, step by step, linked to its source at a pinned release tag.</p>
+<p><a href="f1-pixels-vs-structure.html"><b>Start with lesson 1 →</b></a></p>
+</div>
+<div class="card" aria-hidden="true">
+<div class="lane">Every recorder, without the buzz words</div>
+<div class="pipe" id="heroPipe">
+<div class="st"><b>Hook</b><span class="mut">when to look</span></div>
+<div class="st"><b>Record</b><span class="mut">pixels or structure</span></div>
+<div class="st"><b>Mask</b><span class="mut">hide what is private</span></div>
+<div class="st"><b>Pack</b><span class="mut">bytes</span></div>
+<div class="st"><b>Ship</b><span class="mut">send</span></div>
+<div class="st"><b>Play</b><span class="mut">rebuild</span></div>
+</div>
+<div class="step-caption" id="heroCap" style="font-size:13px">The finale puts these six steps together.</div>
+</div>
+</div>
+
+<section class="part">
+<h2>Fundamentals</h2>
+<p class="mut">What a screen is to a recorder. No vendor needed yet.</p>
+<ul class="lessons">
+<li><a data-id="f1-pixels-vs-structure" href="f1-pixels-vs-structure.html"><span class="n">1</span><span><span class="t">Pixels versus structure</span><span class="d">Read the screen, or look at it</span></span></a></li>
+<li><a data-id="f2-event-loop-and-frames" href="f2-event-loop-and-frames.html"><span class="n">2</span><span><span class="t">The event loop and frames</span><span class="d">DOM, microtasks, MutationObserver, paint</span></span></a></li>
+<li><a data-id="f3-view-trees" href="f3-view-trees.html"><span class="n">3</span><span><span class="t">View trees, platform by platform</span><span class="d">UIKit, SwiftUI, Views, Compose, RN, Flutter</span></span></a></li>
+<li><a data-id="f4-keyframes-and-deltas" href="f4-keyframes-and-deltas.html"><span class="n">4</span><span><span class="t">Keyframes and deltas</span><span class="d">Checkouts, seeking, buffers</span></span></a></li>
+<li><a data-id="f5-compression" href="f5-compression.html"><span class="n">5</span><span><span class="t">Compression basics</span><span class="d">Deflate, base64, tiles, H.264 P-frames and skip blocks</span></span></a></li>
+<li><a data-id="f6-masking-data-vs-geometry" href="f6-masking-data-vs-geometry.html"><span class="n">6</span><span><span class="t">Masking: data versus geometry</span><span class="d">Why some recorders can leak</span></span></a></li>
+</ul>
+</section>
+
+<section class="part">
+<h2>Topics</h2>
+<p class="mut">The questions every recorder answers, compared across vendors.</p>
+<ul class="lessons">
+<li><a data-id="t1-hooks" href="t1-hooks.html"><span class="n">7</span><span><span class="t">When to look: hooks</span><span class="d">Five strategies on one session</span></span></a></li>
+<li><a data-id="t2-what-to-record" href="t2-what-to-record.html"><span class="n">8</span><span><span class="t">What to record</span><span class="d">Four families on one screen</span></span></a></li>
+<li><a data-id="t3-masking-race" href="t3-masking-race.html"><span class="n">9</span><span><span class="t">How to mask: the masking race</span><span class="d">Four defences, played out</span></span></a></li>
+<li><a data-id="t4-packing" href="t4-packing.html"><span class="n">10</span><span><span class="t">How to pack</span><span class="d">Bytes per technique; tiles versus video</span></span></a></li>
+<li><a data-id="t5-sending" href="t5-sending.html"><span class="n">11</span><span><span class="t">When to send, and how ouo ships</span><span class="d">Flush triggers; the <code>ouo.replay.chunk</code> builder</span></span></a></li>
+<li><a data-id="t6-playing" href="t6-playing.html"><span class="n">12</span><span><span class="t">How to play</span><span class="d">The rrweb player; one player per format</span></span></a></li>
+</ul>
+</section>
+
+<section class="part">
+<h2>Techniques</h2>
+<p class="mut">One lesson per vendor and platform. Each step links the file and lines at a pinned tag.</p>
+<h3>Web</h3>
+<ul class="lessons">
+<li><a data-id="w1-rrweb" href="w1-rrweb.html"><span class="n">13</span><span><span class="t">rrweb: the engine</span><span class="d">Serialise, mirror, observe, emit</span></span></a></li>
+<li><a data-id="w2-sentry-web" href="w2-sentry-web.html"><span class="n">14</span><span><span class="t">Sentry on the web</span><span class="d">Fork, guard, worker, debounce</span></span></a></li>
+<li><a data-id="w3-posthog-web" href="w3-posthog-web.html"><span class="n">15</span><span><span class="t">PostHog on the web</span><span class="d">Lazy load, throttle, per-field gzip</span></span></a></li>
+<li><a data-id="w4-datadog-web" href="w4-datadog-web.html"><span class="n">16</span><span><span class="t">Datadog on the web</span><span class="d">Own recorder, Change records</span></span></a></li>
+<li><a data-id="w5-openreplay-highlight-clarity" href="w5-openreplay-highlight-clarity.html"><span class="n">17</span><span><span class="t">OpenReplay, Highlight, Clarity</span><span class="d">Three more designs; side by side</span></span></a></li>
+</ul>
+<h3>Mobile</h3>
+<ul class="lessons">
+<li><a data-id="m1-sentry-ios" href="m1-sentry-ios.html"><span class="n">18</span><span><span class="t">Sentry iOS</span><span class="d">Masked screenshots → H.264</span></span></a></li>
+<li><a data-id="m2-sentry-android" href="m2-sentry-android.html"><span class="n">19</span><span><span class="t">Sentry Android</span><span class="d">PixelCopy or Canvas → MediaCodec</span></span></a></li>
+<li><a data-id="m3-posthog-mobile" href="m3-posthog-mobile.html"><span class="n">20</span><span><span class="t">PostHog iOS and Android</span><span class="d">Wireframe or screenshot</span></span></a></li>
+<li><a data-id="m4-datadog-mobile" href="m4-datadog-mobile.html"><span class="n">21</span><span><span class="t">Datadog iOS and Android</span><span class="d">Wireframes with a real diff</span></span></a></li>
+<li><a data-id="m5-openreplay-mobile" href="m5-openreplay-mobile.html"><span class="n">22</span><span><span class="t">OpenReplay iOS and Android</span><span class="d">JPEG archives</span></span></a></li>
+</ul>
+<h3>Cross-platform</h3>
+<ul class="lessons">
+<li><a data-id="m6-react-native" href="m6-react-native.html"><span class="n">23</span><span><span class="t">React Native</span><span class="d">The native SDKs do the recording</span></span></a></li>
+<li><a data-id="m7-flutter" href="m7-flutter.html"><span class="n">24</span><span><span class="t">Flutter</span><span class="d">Everyone records in Dart; side by side</span></span></a></li>
+</ul>
+</section>
+
+<section class="part">
+<h2>Finale</h2>
+<ul class="lessons">
+<li><a data-id="z1-six-steps" href="z1-six-steps.html"><span class="n">25</span><span><span class="t">Six steps, and what ouo borrows</span><span class="d">Borrow map, licences, order; ADR-0018 (proposed)</span></span></a></li>
+</ul>
+</section>
+
+<div class="note" style="margin-top:32px">
+<b>How to read this course.</b> Every page ends with a short "check yourself" quiz; a lesson gets a tick here once its quiz is finished in this browser. Arrow keys ← → move between lessons. Claims come from the vendors' source at pinned tags (linked in every step), from the specifications, and from Step 5 and Step 6 measurements in this repository. Anything not read in code is marked as such: "(docs)", "(not read in code)", "(reasoning)" or "not checked". Nothing here is a decision; the proposal that follows is <a href="../../../../docs/adr/0018-borrow-the-replay-recorder.md">ADR-0018 (proposed)</a>.
+<br><br>Sources: the <a href="../session-replay-explainer.html">session replay explainer</a> (the same material as one long page), the <a href="../index.md">session replay kb entries</a> and their source notes, and Step 6 <a href="../../vendor-internals/index.md">vendor internals</a>.
+</div>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){var els=document.querySelectorAll('#heroPipe .st'),cap=document.getElementById('heroCap'),i=0;
+var T=['A callback or loop: MutationObserver, run-loop observer, draw listener, post-frame callback.','Pixels (take a frame) or structure (describe the screen).','A data transform for structure; geometry for pixels.','JSON, gzip, JPEG, tiles, H.264: bytes and CPU only.','An ouo.replay.chunk through OpenTelemetry.','A player per format in the Grafana plugin.'];
+function show(){els.forEach(function(e,j){e.classList.toggle('act',j===i)});cap.textContent=T[i];i=(i+1)%els.length}
+if(!RS.reduce){show();setInterval(show,2200)}})();
+</script>
+</body></html>

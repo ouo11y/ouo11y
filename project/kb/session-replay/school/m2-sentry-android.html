@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentry Android · replay-school</title>
+<meta name="description" content="Sentry Android copies the window with PixelCopy (or records a masking Canvas), walks the view and Compose trees for masks, keeps JPEGs on disk and encodes them with MediaCodec.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m2-sentry-android">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · mobile</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · mobile</p>
+<h1>Sentry Android</h1>
+<p class="lede">Sentry Android copies the window with PixelCopy (or records a masking Canvas), walks the view and Compose trees for masks, keeps JPEGs on disk and encodes them with MediaCodec.</p>
+<p class="builds">Builds on: <a href="m1-sentry-ios.html">Sentry iOS</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"What does Sentry Android's <code>OnDrawListener</code> do?","a":["Captures a frame on every draw","Only sets a <code>contentChanged</code> flag; a 1 s loop captures","Encodes video"],"c":1,"why":"ScreenshotRecorder.kt L54–125: if nothing was drawn, the loop re-emits the last bitmap."},
+{"q":"How is a Compose screen masked by Sentry Android?","a":["It is never masked","Through Compose's internal LayoutNode semantics; a node whose semantics cannot be read is masked whole","By OCR"],"c":1,"why":"ComposeViewHierarchyNode.kt L40–178."},
+{"q":"Why are frames written to disk as JPEGs before encoding?","a":["Encoding needs files","So a crashed segment can be recovered next launch, and the encoder reads them back every 5 s","Disk is faster than memory"],"c":1,"why":"ReplayCache.kt L75–91 and L132–242."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m1-sentry-ios.html"><small>← previous</small>Sentry iOS</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m3-posthog-mobile.html"><small>next →</small>PostHog iOS and Android</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-sentry-android',title:'Sentry Android: PixelCopy (or Canvas) → MediaCodec',
+ boxes:[['trg','Trigger','dirty flag + 1 s loop'],['cap','Capture','PixelCopy / Canvas'],['msk','Mask','view + Compose walk'],['jpg','Disk','JPEG per frame'],['enc','Encode','MediaCodec AVC']],
+ steps:[
+ ['trg','The window\'s <code>OnDrawListener</code> only sets <code>contentChanged</code>. A runnable on the main looper captures every second; if nothing was drawn it re-emits the last bitmap.',[['ScreenshotRecorder.kt L54–125',SA+'ScreenshotRecorder.kt#L54-L125'],['WindowRecorder.kt L217–253',SA+'WindowRecorder.kt#L217-L253']]],
+ ['cap','Default: <code>PixelCopy</code> of the window into one reusable bitmap; SurfaceViews (video, maps) can be copied separately and composited behind. Alternative: record <code>root.draw()</code> into a <code>Picture</code> through a canvas that turns <code>drawText</code> into rectangles.',[['PixelCopyStrategy.kt L82–185',SA+'screenshot/PixelCopyStrategy.kt#L82-L185'],['CanvasStrategy.kt L156–174',SA+'screenshot/CanvasStrategy.kt#L156-L174']]],
+ ['msk','In the copy callback the view tree is walked: masked by class hierarchy (TextView, ImageView, WebView, video) or tag; text gets one box per line in its text colour, images the average colour. <code>AndroidComposeView</code> is walked through Compose\'s internal LayoutNode semantics; a node whose semantics cannot be read is masked whole.',[['ViewHierarchyNode.kt L303–446',SA+'viewhierarchy/ViewHierarchyNode.kt#L303-L446'],['MaskRenderer.kt L43–110',SA+'util/MaskRenderer.kt#L43-L110'],['ComposeViewHierarchyNode.kt L40–178',SA+'viewhierarchy/ComposeViewHierarchyNode.kt#L40-L178']]],
+ ['jpg','Each frame is compressed to JPEG (quality 10/30/50) into a per-replay folder, which is also how a crashed segment is recovered next launch.',[['ReplayCache.kt L75–91',SA+'ReplayCache.kt#L75-L91']]],
+ ['enc','Every 5 s the JPEGs are decoded again and drawn onto a MediaCodec AVC encoder\'s input surface, one frame per second (repeating the last one when a second has none); the muxer rewrites timestamps to a constant frame rate.',[['ReplayCache.kt L132–242',SA+'ReplayCache.kt#L132-L242'],['SimpleVideoEncoder.kt L61–189',SA+'video/SimpleVideoEncoder.kt#L61-L189'],['SimpleMp4FrameMuxer.kt L39–61',SA+'video/SimpleMp4FrameMuxer.kt#L39-L61']]]
+ ]});
+})();
+</script>
+</body></html>
