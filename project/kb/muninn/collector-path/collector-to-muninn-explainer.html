@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collector to Muninn</title>
+<style>
+:root{
+  --bg:#fbfaf7;--panel:#fff;--ink:#1d2329;--muted:#5d6872;--line:#dcd8cf;
+  --a:#e8f0fb;--a-b:#3f74b5;--b:#e9f5ee;--b-b:#2f8558;--c:#fdf3e1;--c-b:#b87a14;--d:#f6ecf7;--d-b:#8a4a94;
+  --warn:#fbeae7;--warn-b:#b5432f;--code:#f1eee7;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;
+  --a:#1b2a3d;--a-b:#7aa9e3;--b:#17302a;--b-b:#62bd8e;--c:#332814;--c-b:#e0ab55;--d:#2f2233;--d-b:#c690d0;
+  --warn:#3a201b;--warn-b:#ea8b78;--code:#262d34;
+}}
+:root[data-theme=dark]{
+  --bg:#14181c;--panel:#1c2228;--ink:#e6e9ec;--muted:#9aa6b1;--line:#343d46;
+  --a:#1b2a3d;--a-b:#7aa9e3;--b:#17302a;--b-b:#62bd8e;--c:#332814;--c-b:#e0ab55;--d:#2f2233;--d-b:#c690d0;
+  --warn:#3a201b;--warn-b:#ea8b78;--code:#262d34;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+main{max-width:960px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:2rem;line-height:1.2;margin:0 0 8px}
+h2{font-size:1.4rem;margin:52px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+p,li{max-width:74ch}
+.lead{color:var(--muted);font-size:1.08rem;margin:0 0 20px}
+nav{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.92rem}
+a{color:var(--a-b)}
+code{font:.87em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--code);padding:12px 14px;border-radius:6px;overflow-x:auto;font:.82rem/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.tbl{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:.91rem;background:var(--panel)}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+figure{margin:16px 0;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto}
+figcaption{color:var(--muted);font-size:.87rem;margin-top:6px}
+svg{min-width:760px;width:100%;height:auto;display:block}
+svg text{fill:var(--ink);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+svg .m{fill:var(--muted);font-size:11.5px}
+svg .h{font-weight:600}
+.bx{stroke-width:1.5;rx:6}
+.ba{fill:var(--a);stroke:var(--a-b)}.bb{fill:var(--b);stroke:var(--b-b)}.bc{fill:var(--c);stroke:var(--c-b)}.bd{fill:var(--d);stroke:var(--d-b)}
+.bg{fill:none;stroke:var(--muted)}
+.later{stroke-dasharray:5 4}
+.ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+.arc{stroke:var(--c-b);stroke-width:2;fill:none}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:14px 0}
+.step{border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--panel)}
+.step b{display:block}
+.step .n{font-size:.8rem;color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.btns button{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);cursor:pointer}
+.btns button[aria-pressed=true]{border-color:var(--c-b);background:var(--c)}
+#out{border-left:4px solid var(--c-b);background:var(--c);padding:10px 14px;border-radius:0 6px 6px 0;min-height:5.5em}
+#out p{margin:4px 0}
+.note{border-left:4px solid var(--warn-b);background:var(--warn);padding:10px 14px;border-radius:0 6px 6px 0;margin:16px 0}
+footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<main>
+<h1>Collector to Muninn</h1>
+<p class="lead">How a replay chunk gets from an SDK into the replay store and back to a player. A proposal, 2026-11-11: <a href="../../../../docs/adr/0019-collector-to-muninn.md">ADR-0019</a> and <a href="../../../../docs/specs/muninn.md">the Muninn spec</a>. Nothing here is built.</p>
+<nav>
+<a href="#path">The path</a><a href="#ack">Who answers 2xx</a><a href="#fail">When a part fails</a><a href="#store">Where a chunk lives</a><a href="#read">Reading it back</a><a href="#later">Later</a><a href="#confirm">To confirm</a>
+</nav>
+
+<h2 id="path">The path</h2>
+<p>A chunk is an ordinary OTLP log record: event <code>ouo.replay.chunk</code>, scope <code>ouo.replay</code>, the recording bytes as its body. It goes to the same endpoint as all other telemetry. The Collector separates it by scope name and nothing else in the stack needs a replay-specific wire format.</p>
+<figure>
+<svg viewBox="0 0 940 500" role="img" aria-label="Architecture: SDKs send OTLP to the Collector, which routes replay chunks through a disk queue to Muninn and everything else to Loki, Tempo and Mimir. The plugin BFF reads all four.">
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+<marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--c-b)"/></marker>
+</defs>
+
+<text x="20" y="22" class="h">Write path</text>
+<rect class="bx ba" x="20" y="60" width="140" height="34"/><text x="90" y="82" text-anchor="middle">Web SDK</text>
+<rect class="bx ba" x="20" y="106" width="140" height="34"/><text x="90" y="128" text-anchor="middle">React Native SDK</text>
+<rect class="bx ba" x="20" y="152" width="140" height="34"/><text x="90" y="174" text-anchor="middle">Native SDKs</text>
+<rect class="bx bg later" x="20" y="236" width="140" height="44"/><text x="90" y="254" text-anchor="middle">Sentry, Datadog,</text><text x="90" y="270" text-anchor="middle">PostHog SDKs</text>
+
+<rect class="bx bg" x="200" y="34" width="350" height="262"/><text x="212" y="52" class="h">ouo-collector</text>
+<rect class="bx bb" x="214" y="62" width="130" height="34"/><text x="279" y="84" text-anchor="middle">otlp receiver :4318</text>
+<rect class="bx bb" x="214" y="108" width="130" height="44"/><text x="279" y="126" text-anchor="middle">auth, rate limit,</text><text x="279" y="142" text-anchor="middle">project stamp</text>
+<rect class="bx bb" x="214" y="164" width="130" height="34"/><text x="279" y="186" text-anchor="middle">route by scope</text>
+<rect class="bx bb" x="384" y="62" width="152" height="44"/><text x="460" y="80" text-anchor="middle">reference copy</text><text x="460" y="96" text-anchor="middle" class="m">no body, + ouo.replay.ref</text>
+<rect class="bx bb" x="384" y="120" width="152" height="44"/><text x="460" y="138" text-anchor="middle">logs, traces, metrics</text><text x="460" y="154" text-anchor="middle" class="m">batched</text>
+<rect class="bx bc" x="384" y="178" width="152" height="44"/><text x="460" y="196" text-anchor="middle">replay pipeline</text><text x="460" y="212" text-anchor="middle" class="m">disk queue, fsync</text>
+<rect class="bx bg later" x="214" y="240" width="322" height="44"/><text x="375" y="258" text-anchor="middle">later: vendor envelope receivers</text><text x="375" y="274" text-anchor="middle" class="m">ouosentry, ouodatadog, ouoposthog</text>
+
+<rect class="bx ba" x="600" y="40" width="110" height="32"/><text x="655" y="61" text-anchor="middle">Loki</text>
+<rect class="bx ba" x="600" y="82" width="110" height="32"/><text x="655" y="103" text-anchor="middle">Tempo</text>
+<rect class="bx ba" x="600" y="124" width="110" height="32"/><text x="655" y="145" text-anchor="middle">Mimir</text>
+<rect class="bx bc" x="600" y="176" width="110" height="44"/><text x="655" y="195" text-anchor="middle" class="h">Muninn</text><text x="655" y="211" text-anchor="middle" class="m">/otlp/v1/logs</text>
+<rect class="bx bc" x="600" y="250" width="110" height="34"/><text x="655" y="272" text-anchor="middle">object store</text>
+
+<path class="ar" marker-end="url(#ah)" d="M160 77H186V79H214"/>
+<path class="ar" marker-end="url(#ah)" d="M160 123H186V79"/>
+<path class="ar" marker-end="url(#ah)" d="M160 169H186V79"/>
+<text x="166" y="54" class="m">OTLP</text>
+<path class="ar later" marker-end="url(#ah)" d="M160 258H214"/>
+<path class="ar" marker-end="url(#ah)" d="M279 96V108"/>
+<path class="ar" marker-end="url(#ah)" d="M279 152V164"/>
+<path class="ar" marker-end="url(#ah)" d="M344 181H364V84H384"/>
+<path class="ar" marker-end="url(#ah)" d="M364 142H384"/>
+<path class="arc" marker-end="url(#ahc)" d="M344 181H364V200H384"/>
+<path class="ar" marker-end="url(#ah)" d="M536 84H560V50H600"/>
+<path class="ar" marker-end="url(#ah)" d="M536 142H578V62H600"/>
+<path class="ar" marker-end="url(#ah)" d="M578 98H600"/>
+<path class="ar" marker-end="url(#ah)" d="M578 140H600"/>
+<path class="arc" marker-end="url(#ahc)" d="M536 200H600"/>
+<path class="arc" marker-end="url(#ahc)" d="M655 220V250"/>
+
+<text x="20" y="352" class="h">Read path</text>
+<rect class="bx ba" x="20" y="372" width="180" height="44"/><text x="110" y="390" text-anchor="middle">Grafana plugin frontend</text><text x="110" y="406" text-anchor="middle" class="m">player per format</text>
+<rect class="bx bd" x="250" y="372" width="230" height="44"/><text x="365" y="390" text-anchor="middle">plugin BFF (ouo-go)</text><text x="365" y="406" text-anchor="middle" class="m">Clearance, joins, vendor APIs</text>
+<path class="ar" marker-end="url(#ah)" d="M200 394H250"/>
+<path class="ar" d="M480 394H740V56"/>
+<path class="ar" marker-end="url(#ah)" d="M740 56H710"/>
+<path class="ar" marker-end="url(#ah)" d="M740 98H710"/>
+<path class="ar" marker-end="url(#ah)" d="M740 140H710"/>
+<path class="ar" marker-end="url(#ah)" d="M740 198H710"/>
+<text x="750" y="130" class="m">LogQL, TraceQL,</text><text x="750" y="146" class="m">PromQL</text>
+<text x="750" y="194" class="m">list, manifest,</text><text x="750" y="210" class="m">chunk bytes</text>
+<rect class="bx bg later" x="600" y="440" width="130" height="34"/><text x="665" y="462" text-anchor="middle">later: Sentry API</text>
+<path class="ar later" marker-end="url(#ah)" d="M365 416V457H600"/>
+</svg>
+<figcaption>Orange is the replay path. Dashed is later work. Muninn has no arrow to a vendor API: that call belongs to the BFF.</figcaption>
+</figure>
+
+<h2 id="ack">Who answers 2xx, and when</h2>
+<p>An SDK may delete a chunk only after a 2xx. So each 2xx on the path has to mean "this is on disk somewhere".</p>
+<div class="steps">
+<div class="step"><span class="n">Hop 1</span><b>SDK to Collector</b>2xx after the chunk is written to the Collector's disk queue with fsync. The SDK deletes its copy.</div>
+<div class="step"><span class="n">Hop 2</span><b>Collector to Muninn</b>2xx after the chunk object is written to the object store. The Collector removes it from the queue.</div>
+<div class="step"><span class="n">Both hops</span><b>At least once</b>A retry sends the same bytes. Muninn stores a chunk once, by its identity and SHA-256.</div>
+</div>
+<p>This works with stock Collector parts as long as nothing between the receiver and the queue returns early. The batch processor does, so the replay pipeline has none. What was checked in the Collector source and what still needs a test: <a href="durable-handoff.md">durable-handoff.md</a>.</p>
+
+<h2 id="fail">When a part fails</h2>
+<div class="btns" id="btns"></div>
+<div id="out" aria-live="polite"></div>
+
+<h2 id="store">Where a chunk lives</h2>
+<p>Object storage only, no database. One immutable object per chunk. The key starts with tenant, project and session, so "the replays of this session" is one prefix listing.</p>
+<pre>muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/c/0000000042   chunk: header + body as sent
+muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/ended.json     the stream's end record
+muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/manifest.json  cache, rebuildable
+muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/deleted.json            tombstone</pre>
+<div class="tbl"><table>
+<tr><th></th><th>Structure chunk</th><th>Pixel chunk</th></tr>
+<tr><td>Content</td><td>Web DOM recording, mobile wireframes</td><td>JPEG frames and tiles, MP4 segments</td></tr>
+<tr><td>Encoding</td><td><code>gzip</code></td><td><code>identity</code>, the codec already compressed it</td></tr>
+<tr><td>Layout and container</td><td colspan="2">The same. Muninn never looks inside the body</td></tr>
+<tr><td>Served with</td><td><code>Content-Encoding: gzip</code>, so the HTTP client inflates it</td><td>Byte ranges, so a video element can seek</td></tr>
+</table></div>
+
+<h2 id="read">Reading it back</h2>
+<p>Three calls, made by the BFF, never by a browser.</p>
+<div class="tbl"><table>
+<tr><th>Call</th><th>Answer</th></tr>
+<tr><td><code>GET …/sessions/{session}/replays</code></td><td>The session's replays with state, time range and size</td></tr>
+<tr><td><code>GET …/replays/{replay}</code></td><td>The manifest: streams, chunks in order, keyframes, formats, missing sequences, and whether each stream is <code>open</code>, <code>complete</code> or <code>partial</code></td></tr>
+<tr><td><code>GET …/streams/{stream}/chunks/{sequence}</code></td><td>The bytes as stored, cacheable for ever</td></tr>
+</table></div>
+<p>The player picks a decoder by <code>ouo.replay.format</code>, starts each segment at its keyframe chunk and skips to the next keyframe after a gap. "Which sessions have a replay" is a Loki question, answered by the reference records.</p>
+
+<h2 id="later">Later, scoped but not designed</h2>
+<ul>
+<li><b>Vendor envelope receivers.</b> One Collector receiver per vendor wire format (Sentry exists for mobile; Datadog and PostHog follow). Each turns the vendor's payload into OTLP for Loki, Tempo and Mimir, and its recordings into <code>ouo.replay.chunk</code> records that take the same route to Muninn. For Muninn a vendor recording is one more format value.</li>
+<li><b>Vendor API querying is the BFF's.</b> Muninn makes no outbound calls and holds no vendor credentials. A Sentry reader is a library in <code>ouo-go</code>, beside the Loki, Tempo, Mimir, Victoria and Muninn clients.</li>
+</ul>
+
+<h2 id="confirm">Decisions to confirm</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>Question</th><th>Recommendation</th></tr>
+<tr><td>Q1</td><td>Muninn ingest: OTLP logs endpoint, or bespoke REST with a custom exporter?</td><td>OTLP endpoint, stock exporter</td></tr>
+<tr><td>Q2</td><td>One SDK endpoint, or a replay port?</td><td>One endpoint, routed by scope</td></tr>
+<tr><td>Q3</td><td>Reference records in Loki</td><td>One per chunk, no body</td></tr>
+<tr><td>Q4</td><td>Object shape</td><td>One container object per chunk; pack later if request cost matters</td></tr>
+<tr><td>Q5</td><td>Database or index</td><td>None. Keys by session</td></tr>
+<tr><td>Q6</td><td>Tenancy</td><td>Tenant header and project from day one</td></tr>
+<tr><td>Q7</td><td>Retention</td><td>Per replay, from its last chunk; lifecycle rule as safety net</td></tr>
+<tr><td>Q8</td><td>Old rum-api replays</td><td>Not migrated; served until they expire</td></tr>
+<tr><td>Q9</td><td>Rest of rum-api</td><td>Decide with the BFF step</td></tr>
+<tr><td>Q10</td><td>Format list and media types</td><td>SDK spec owns it; rrweb bodies as newline-delimited events</td></tr>
+<tr><td>Q11</td><td>Validate in the Collector too?</td><td>No, Muninn only</td></tr>
+<tr><td>Q12</td><td>Collector deployment</td><td>StatefulSet with a volume, 2 GiB queue</td></tr>
+<tr><td>Q13</td><td>Touches in Sentry video</td><td>Become OTel events; the body is the MP4 alone</td></tr>
+<tr><td>Q14</td><td>Muninn port</td><td>3400</td></tr>
+</table></div>
+
+<footer>Sources: <a href="../../../../docs/adr/0019-collector-to-muninn.md">ADR-0019</a>, <a href="../../../../docs/specs/muninn.md">docs/specs/muninn.md</a>, <a href="today-and-target.md">today-and-target.md</a>, <a href="durable-handoff.md">durable-handoff.md</a>, <a href="../../opentelemetry/rum-semantic-conventions/sdk-spec.md">SDK spec draft</a>.</footer>
+</main>
+<script>
+const cases = [
+  ["Muninn is down", ["The Collector's exporter gets no answer and retries with backoff. Chunks pile up in the disk queue.", "SDKs still get 2xx and can forget what they sent. Logs, traces and metrics are not affected.", "When Muninn returns, the queue drains. Nothing is lost unless the queue fills first."]],
+  ["The disk queue is full", ["The replay pipeline refuses new chunks. The receiver answers 503.", "The SDK keeps the chunk in its own storage (72 hours) and retries with backoff.", "Telemetry requests are separate requests on separate pipelines, so they still get 2xx."]],
+  ["The Collector restarts", ["Chunks already acknowledged are on disk and are sent after the restart.", "A request in flight got no answer, so the SDK sends it again. Muninn drops the duplicate."]],
+  ["The object store is slow or failing", ["Muninn answers 503 for the request. The Collector retries it.", "Chunks from that request that were already written are recognised on the retry and not written twice."]],
+  ["The same chunk arrives twice", ["Same identity and same SHA-256: success, nothing written.", "Same identity, different bytes: rejected as a conflict. The first write stays."]],
+  ["A chunk is invalid", ["Muninn rejects that record through OTLP partial success and counts it by reason. The Collector drops it.", "The SDK is not told, since it already got its 2xx from the Collector. The conformance suite is where SDK output is checked."]],
+  ["A chunk arrives after a delete", ["Deleting writes a tombstone that lives 7 days.", "A late chunk for that replay is answered as success and thrown away, so a deleted replay cannot come back."]],
+  ["The tab is killed mid-stream", ["No end record arrives. The stream shows as open for 30 minutes after its last chunk, then as partial.", "The next page of the same origin sends the persisted chunks and an end record. The state is recomputed."]]
+];
+const btns = document.getElementById("btns"), out = document.getElementById("out");
+function show(i){
+  [...btns.children].forEach((b,j)=>b.setAttribute("aria-pressed", String(i===j)));
+  out.replaceChildren(...cases[i][1].map(t=>{const p=document.createElement("p");p.textContent=t;return p;}));
+}
+cases.forEach((c,i)=>{const b=document.createElement("button");b.type="button";b.textContent=c[0];b.onclick=()=>show(i);btns.append(b);});
+show(0);
+</script>
+</body>
+</html>
