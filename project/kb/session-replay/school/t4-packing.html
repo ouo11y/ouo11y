@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to pack · replay-school</title>
+<meta name="description" content="Packing turns captures into bytes: JSON and gzip for structure, JPEG, tiles, WebP or H.264 for pixels. It is pure optimisation. This lesson maps every technique onto bytes and answers the founder's packing questions from the code.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t4-packing">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>How to pack</h1>
+<p class="lede">Packing turns captures into bytes: JSON and gzip for structure, JPEG, tiles, WebP or H.264 for pixels. It is pure optimisation. This lesson maps every technique onto bytes and answers the founder's packing questions from the code.</p>
+<p class="builds">Builds on: <a href="f5-compression.html">Compression basics, and how H.264 skips</a> · <a href="t2-what-to-record.html">What to record</a></p>
+<div class="key">Pack is optimisation only. JPEG, 64 px tiles, WebP or H.264 change bytes and CPU, never what the replay shows or whether masking is right. "Tiles vs video" is not a design question.</div>
+
+<h2 id="map">Each technique, packed</h2>
+<p>The table uses the draft spec's vocabulary from lesson <a href="t5-sending.html">When to send</a>: a <b>chunk</b> is one upload, a <b>segment</b> starts with a keyframe.</p>
+<div class="wrap"><table>
+<tr><th>Technique</th><th>Keyframe = first chunk of a segment</th><th>Deltas</th><th>Body bytes</th><th><code>encoding</code></th><th>Per 5 s chunk (evidence)</th><th>Kept outside the chunk?</th></tr>
+<tr><td><b>rrweb</b> (web)</td><td>Meta + FullSnapshot; a big page's snapshot may span chunks (RPL-6 allows it)</td><td>incremental events</td><td>JSON array of events</td><td>gzip per chunk (or one zlib stream with sync flush, Datadog-style)</td><td>~1.7 KiB at ouo's measured 19.9 KiB/min; ~3.3 KiB for Sentry (39.1); a 10,000-node page ~21 KiB</td><td>nothing; fonts and images by URL</td></tr>
+<tr><td><b>Wireframes</b> (Datadog / PostHog style)</td><td>full wireframe list</td><td>adds / removes / per-field updates</td><td>JSON records</td><td>gzip</td><td>~2.8 KiB (34 KB/min, one simple screen) to 6–60 KiB (Datadog's 73–720 KB/min averages)</td><td>images: inline base64 in the keyframe, or separate records by hash</td></tr>
+<tr><td><b>Frames + tiles</b> (ouo mobile today)</td><td>a full JPEG (already the first frame of every chunk)</td><td>tile patches</td><td>JPEGs + timestamps (+ touches)</td><td><code>identity</code>: JPEG does not compress again</td><td>~3.2 KiB iOS (38.8 KiB/min), ~11.8 KiB Android (142 KiB/min), light journey</td><td>touches: inside today</td></tr>
+<tr><td><b>Screenshots</b> (PostHog style)</td><td>every frame is full</td><td>none</td><td>WebP images</td><td><code>identity</code></td><td>up to ~100 KiB (1.2 MB/min upper bound, inferred)</td><td>—</td></tr>
+<tr><td><b>Video</b> (Sentry style)</td><td>the MP4: one segment = one chunk (RPL-25)</td><td>inside the codec (P-frames)</td><td>MP4 bytes</td><td><code>identity</code></td><td>~4.1 KiB (Sentry iOS 49.5 KiB/min in Step 5) to 14–18 KiB (165–212 KB/min in Step 6)</td><td>touches and breadcrumbs: Sentry ships them as rrweb JSON beside the MP4</td></tr>
+<tr><td><b>Draw commands</b></td><td>full display list</td><td>changed layers</td><td>binary or JSON ops</td><td>gzip</td><td>not measured by anyone in this repo</td><td>bitmaps, by hash</td></tr>
+</table></div>
+<p class="src">Byte sources: ouo and Sentry per minute from Step 5 <a href="../../client-sdk-state/overhead.md">overhead.md</a> (light reference journeys; the 10,000-node page figure is in the same entry); Datadog and Sentry video from Step 6 <a href="../../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a> and Step 4 <a href="../../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Per-chunk values are the per-minute figures divided by 12, not measurements of chunks.</p>
+
+<h2 id="ouo-vs-sentry">ouo tiles versus Sentry video</h2>
+<div class="card"><b>ouo also captures about once a second. What is the difference from Sentry?</b>
+<p>The hook and the rate are the same idea. The differences are in mask and pack:</p>
+<div class="wrap"><table>
+<tr><th></th><th>ouo mobile today</th><th>Sentry</th></tr>
+<tr><td>Static screen</td><td>nothing sent: tiles are hashed, no change means no bytes</td><td>a frame every second anyway: Android re-sends the last bitmap, iOS repeats it inside the video</td></tr>
+<tr><td>Small change (spinner, one field)</td><td>only the changed 64 px tiles, as JPEG patches</td><td>the codec sends only the changed blocks</td></tr>
+<tr><td>Scroll</td><td>every tile changes, so a full JPEG</td><td>video wins: the codec says "these blocks moved up 12 px"</td></tr>
+<tr><td>Masked view moving</td><td>frame dropped (fails closed)</td><td>kept: Android walks the tree after the copy, iOS reads the animation layers' live positions</td></tr>
+</table></div>
+<p class="src"><a href="../../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245">SentryUIRedactBuilder.swift L136–245</a></p>
+</div>
+<div class="card"><b>Why does H.264 encode an unchanged frame almost for free?</b>
+<p>The encoder cuts each frame into 16×16-pixel blocks. In a P-frame (a frame stored as changes from the one before), a block that matches the previous frame is marked <i>skip</i>: about one bit, no pixels. A block that moved costs a short motion vector plus a small correction. So an unchanged frame is a few dozen bytes. The catch: Sentry iOS forces a full picture (key frame) at least every 6 frames (<code>MaxKeyFrameInterval = 6</code>), and every 5 s segment is its own MP4 that starts with one. So a static screen still costs one full picture per segment; Step 6 measured about 36 KB per idle 5 s segment on Android.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a> · <a href="../../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a></p>
+</div>
+<p>The block-by-block version of that answer is the demo in <a href="f5-compression.html#tiles">Compression basics</a>.</p>
+
+<h2 id="browser">How the browser recorders compress</h2>
+<div class="wrap"><table>
+<tr><th>Recorder</th><th>Compression</th></tr>
+<tr><td>rrweb 2.2.2</td><td>none in core</td></tr>
+<tr><td>Sentry 11.11.0</td><td>worker, fflate zlib, streamed per event</td></tr>
+<tr><td>PostHog 1.447.9</td><td>gzip per event field, then gzip of the request</td></tr>
+<tr><td>Datadog v7.17.1</td><td>worker, pako deflate, sync-flush with a ready trailer</td></tr>
+<tr><td>OpenReplay v1.28.0</td><td>gzip only above 24 kB, never on unload</td></tr>
+<tr><td>Highlight (3bf0021)</td><td>worker, fflate zlib + base64 in GraphQL</td></tr>
+<tr><td>Clarity v0.8.77</td><td>native gzip, not for the last beacon</td></tr>
+</table></div>
+<p class="src">From the comparison table in <a href="w5-openreplay-highlight-clarity.html#compare">the web techniques</a>; each cell is backed by a step with source links in that vendor's lesson.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"Which statement matches the course's view of packing?","a":["Choosing H.264 over tiles makes masking safer","Packing changes bytes and CPU, never what the replay shows or whether masking is right","Packing decides the hook"],"c":1,"why":"Masking happens before packing. Packing only decides how the same pixels or records become bytes."},
+{"q":"Why are frames and video chunks labelled <code>encoding: identity</code>?","a":["They are not compressed at all","JPEG and MP4 are already compressed, so gzip would gain almost nothing","The spec forbids gzip"],"c":1,"why":"The bytes are already compressed; another deflate pass would cost CPU and save little."},
+{"q":"A screen is static. What does each send?","a":["ouo: nothing; Sentry: a frame every second, cheap inside the video, plus a key frame per 5 s segment","Both send nothing","Both send a full picture every second"],"c":0,"why":"ouo hashes tiles and sends nothing; Sentry keeps a constant 1 fps and each segment starts with a key frame."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t3-masking-race.html"><small>← previous</small>How to mask: the masking race</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t5-sending.html"><small>next →</small>When to send, and how ouo ships</a>
+</nav>
+</main>
+<script src="school.js"></script>
+
+</body></html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rrweb: the engine · replay-school</title>
+<meta name="description" content="rrweb is the open-source engine most web recorders are built on. It serialises the DOM with node ids, observes every change, and hands small events to the caller. It never uploads anything itself.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="w1-rrweb">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · web</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · web</p>
+<h1>rrweb: the engine</h1>
+<p class="lede">rrweb is the open-source engine most web recorders are built on. It serialises the DOM with node ids, observes every change, and hands small events to the caller. It never uploads anything itself.</p>
+<p class="builds">Builds on: <a href="f2-event-loop-and-frames.html">The event loop and frames</a> · <a href="f4-keyframes-and-deltas.html">Keyframes and deltas</a></p>
+<div class="key">The family tree: <b>rrweb</b> is the engine almost everyone uses. <b>Sentry</b>, <b>PostHog</b> and <b>Highlight</b> each ship their <em>own fork</em> of it and wrap it with buffering, compression and upload. <b>Datadog</b>, <b>OpenReplay</b> and <b>Clarity</b> wrote their own recorders with the same idea (serialise, observe, diff) and different encodings.</div>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p>The other half, rebuilding the page from these events, is lesson <a href="t6-playing.html">How to play</a>.</p>
+<p class="src">Versions read: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Every step links the file and lines at that tag. Wire formats (envelopes, segment framing) are in Step 6: <a href="../../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"Why does a lost full snapshot make the rrweb deltas after it useless?","a":["Deltas are encrypted with the snapshot","Every later event names nodes by id, and only the snapshot tells the player which node each id is","The player refuses to start without one"],"c":1,"why":"The Mirror maps ids to nodes. Recorder and player must agree on ids, which the full snapshot establishes."},
+{"q":"How many Mutation events does one MutationObserver callback produce in rrweb?","a":["At most one","One per record","One per changed node"],"c":0,"why":"Records go through <code>processMutation</code> one by one, then <code>emit()</code> runs once (mutation.ts L129–154). An empty event is not sent."},
+{"q":"Which of these does rrweb itself do?","a":["Compress and upload events","Flush on <code>pagehide</code>","Serialise, observe and hand events to your <code>emit</code>"],"c":2,"why":"Buffering, compression, upload and page-hide handling are the embedding SDK's job."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t6-playing.html"><small>← previous</small>How to play</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="w2-sentry-web.html"><small>next →</small>Sentry on the web</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-rrweb-record',title:'rrweb: record',intro:'Four parts: a <b>serialiser</b> that writes the DOM as JSON with node ids, a <b>Mirror</b> that maps ids to live nodes, <b>observers</b> that turn DOM changes and user input into small events, and <b>emit</b>, which hands every event to the caller. rrweb itself never uploads anything.',
+ boxes:[['opt','record()','options'],['snap','Full snapshot','serialise + ids'],['mir','Mirror','id ↔ node'],['obs','Observers','mutation, input, scroll…'],['buf','MutationBuffer','one batch per callback'],['emit','wrappedEmit','timestamp, plugins, checkout']],
+ steps:[
+ ['opt','<code>record(options)</code> sets defaults: block class <code>rr-block</code>, mask class <code>rr-mask</code>, canvas off, fonts off. Inputs: only passwords are masked unless <code>maskAllInputs</code> is set.',[['record/index.ts L66–103',RW+'rrweb/src/record/index.ts#L66-L103'],['L140–162',RW+'rrweb/src/record/index.ts#L140-L162']]],
+ ['opt','<code>init()</code> takes a full snapshot, then starts observing. It waits for the page\'s <code>load</code> event by default.',[['L588–618',RW+'rrweb/src/record/index.ts#L588-L618']]],
+ ['snap','<code>takeFullSnapshot</code> emits a Meta event (URL, width, height), <b>locks</b> the mutation buffers so nothing changes mid-walk, serialises the document and emits FullSnapshot (type 2), then unlocks: changes queued during the walk come out right after.',[['L344–426',RW+'rrweb/src/record/index.ts#L344-L426']]],
+ ['snap','<code>serializeNodeWithId</code> walks every node. Ids come from a counter that starts at 1. Masking is decided once per subtree; masked text keeps its length (<code>****</code>); a blocked element is kept as an empty box with its width and height only.',[['snapshot.ts L924–1129',RW+'rrweb-snapshot/src/snapshot.ts#L924-L1129'],['masking L498–539',RW+'rrweb-snapshot/src/snapshot.ts#L498-L539'],['blocked L759–767',RW+'rrweb-snapshot/src/snapshot.ts#L759-L767']]],
+ ['mir','The <b>Mirror</b> is a <code>Map&lt;id, Node&gt;</code> plus a <code>WeakMap&lt;Node, serialized&gt;</code>. Every later event refers to nodes by id, so the recorder and the player must agree on ids: this is why a lost full snapshot makes the deltas after it useless.',[['utils.ts L192–262',RW+'rrweb-snapshot/src/utils.ts#L192-L262']]],
+ ['obs','One <code>MutationObserver</code> per document or shadow root, watching attributes, text and children, with old values, over the whole subtree.',[['observer.ts L82–110',RW+'rrweb/src/record/observer.ts#L82-L110']]],
+ ['buf','Each callback\'s records go through <code>processMutation</code> one by one, then <code>emit()</code> once: <b>one observer callback → at most one Mutation event</b>. A node added and removed in the same batch is dropped; a remove-then-add under the same parent is a move.',[['mutation.ts L129–154',RW+'rrweb/src/record/mutation.ts#L129-L154'],['childList L603–674',RW+'rrweb/src/record/mutation.ts#L603-L674']]],
+ ['buf','<code>emit()</code> serialises added nodes parent-first so every add can name its <code>parentId</code> and <code>nextId</code>. Text and attribute changes on nodes added in the same batch are dropped (the add already has the latest value). The event is <code>{adds, removes, texts, attributes}</code>; an empty one is not sent.',[['L156–356',RW+'rrweb/src/record/mutation.ts#L156-L356'],['L359–429',RW+'rrweb/src/record/mutation.ts#L359-L429']]],
+ ['obs','The other observers: mouse positions sampled every 50 ms and sent in batches every 500 ms; scroll throttled at 100 ms; resize at 200 ms; <code>input</code>/<code>change</code> with masking; value setters patched so script-made changes are caught; <code>insertRule</code> wrapped so CSS-in-JS is recorded; media play/pause; canvas.',[['mouse L112–196',RW+'rrweb/src/record/observer.ts#L112-L196'],['scroll L317–358',RW+'rrweb/src/record/observer.ts#L317-L358'],['input L388–487',RW+'rrweb/src/record/observer.ts#L388-L487'],['setters L497–534',RW+'rrweb/src/record/observer.ts#L497-L534'],['stylesheet L598–650',RW+'rrweb/src/record/observer.ts#L598-L650']]],
+ ['emit','<code>wrappedEmit</code> stamps the time, runs plugins, and calls your <code>emit(event, isCheckout)</code>. It counts incremental events and takes a new full snapshot when <code>checkoutEveryNth</code> or <code>checkoutEveryNms</code> is reached (no default).',[['L171–241',RW+'rrweb/src/record/index.ts#L171-L241']]],
+ ['emit','What rrweb does <b>not</b> do: buffering, compression, upload, page-hide handling. Its only <code>pagehide</code> listener stops observing an unloading iframe. All of that is the embedding SDK\'s job, which is where Sentry, PostHog and Highlight differ.',[['iframe-manager.ts L134',RW+'rrweb/src/record/iframe-manager.ts#L134']]]
+ ]});
+})();
+</script>
+</body></html>

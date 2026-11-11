@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Datadog on the web · replay-school</title>
+<meta name="description" content="Datadog wrote its own recorder: mutations are only dirty markers processed in idle time, every snapshot or delta is one compact Change record, and segments are cut to fit the page-close budget.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="w4-datadog-web">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · web</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · web</p>
+<h1>Datadog on the web</h1>
+<p class="lede">Datadog wrote its own recorder: mutations are only dirty markers processed in idle time, every snapshot or delta is one compact Change record, and segments are cut to fit the page-close budget.</p>
+<p class="builds">Builds on: <a href="w1-rrweb.html">rrweb: the engine</a> · <a href="t5-sending.html">When to send, and how ouo ships</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Every step links the file and lines at that tag. Wire formats (envelopes, segment framing) are in Step 6: <a href="../../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"When does Datadog's web recorder take a full snapshot?","a":["Every 5 minutes","At start and on every new RUM view","Every 60 s"],"c":1,"why":"An SPA route change is a new view; there is no timer (startFullSnapshots.ts)."},
+{"q":"How can a closing page finish Datadog's compressed stream without waiting for the worker?","a":["It does not compress on close","Every worker reply carries a ready-made 6-byte stream ending","It sends uncompressed JSON"],"c":1,"why":"The page can close the deflate stream synchronously on unload (startWorker.ts, deflateEncoder.ts)."},
+{"q":"What does Datadog read when it processes a batch of mutation records?","a":["The old values stored in the records","The current DOM: records are only dirty markers","A screenshot"],"c":1,"why":"Records are queued, processed in idle time behind a 16 ms throttle, and the current DOM is read then."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="w3-posthog-web.html"><small>← previous</small>PostHog on the web</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="w5-openreplay-highlight-clarity.html"><small>next →</small>OpenReplay, Highlight, Clarity</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-datadog',title:'Datadog: its own recorder and the "Change" encoding',intro:'Same idea as rrweb, different engineering: mutations are only dirty markers, processed in idle time, and every snapshot or delta is one compact "Change" record.',
+ boxes:[['rec','record()','13 trackers'],['fs','Full snapshot','per RUM view'],['mb','Mutation batch','idle ≤100 ms'],['ch','Change record','typed changes'],['seg','Segment','5 s / 60 KB'],['wk','Deflate worker','sync trailer']],
+ steps:[
+ ['rec','<code>record()</code> creates a scope (node ids, a string table, privacy config) and installs 13 trackers: mutation, move, mouse, scroll, viewport, input, media, stylesheet, focus, visual viewport, view end, canvas content, canvas capture.',[['record.ts L44–107',DD+'browser-rum/src/domain/record/record.ts#L44-L107']]],
+ ['fs','A full snapshot at start and on every new RUM <b>view</b> (an SPA route change), no timer.',[['startFullSnapshots.ts L12–72',DD+'browser-rum/src/domain/record/startFullSnapshots.ts#L12-L72']]],
+ ['ch','Serialising happens inside a <b>transaction</b> that collects typed changes (<code>addNode</code>, <code>setAttributes</code>, <code>setText</code>…) with repeated strings replaced by indices into a string table, and emits one record.',[['serializeFullSnapshot.ts L9–26',DD+'browser-rum/src/domain/record/serialization/serializeFullSnapshot.ts#L9-L26'],['transaction L150–248',DD+'browser-rum/src/domain/record/serialization/serializationTransaction.ts#L150-L248'],['stringTable.ts L22–56',DD+'browser-rum/src/domain/record/encoding/stringTable.ts#L22-L56']]],
+ ['mb','MutationObserver records are queued and processed in <code>requestIdleCallback</code> (at most 100 ms) behind a 16 ms throttle, so several callbacks become one record. Records are only dirty markers; the current DOM is read at processing time.',[['mutationBatch.ts L5–58',DD+'browser-rum/src/domain/record/mutationBatch.ts#L5-L58'],['serializeMutations.ts L48–113',DD+'browser-rum/src/domain/record/serialization/serializeMutations.ts#L48-L113']]],
+ ['ch','Privacy is a level per node inherited from its parent (<code>allow</code>, <code>mask</code>, <code>mask-user-input</code>, <code>hidden</code>…), set with <code>data-dd-privacy</code>. Masked text becomes <code>x</code>s with spaces kept.',[['privacy.ts L21–56',DD+'browser-rum-core/src/domain/privacy.ts#L21-L56'],['spec L575–585',DD+'browser-rum/src/domain/record/trackers/trackMutation.spec.ts#L575-L585']]],
+ ['seg','A segment is cut on a new view, at page exit, after 5 s, or past <b>60,000 compressed bytes</b>, so it fits the browser\'s 64 KB budget for requests sent while the page closes.',[['segmentCollection.ts L15–183',DD+'browser-rum/src/domain/segmentCollection/segmentCollection.ts#L15-L183']]],
+ ['wk','A deflate worker compresses records as they come. Every reply carries a ready-made 6-byte ending, so the page can close the stream <b>synchronously</b> on unload without waiting for the worker.',[['startWorker.ts L92–124',DD+'browser-worker/src/boot/startWorker.ts#L92-L124'],['deflateEncoder.ts L104–125',DD+'browser-rum/src/domain/deflate/deflateEncoder.ts#L104-L125']]]
+ ]});
+})();
+</script>
+</body></html>

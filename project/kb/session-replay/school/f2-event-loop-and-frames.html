@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The event loop and frames · replay-school</title>
+<meta name="description" content="A screen is not redrawn after every change. Code changes the UI, and once per frame the platform turns the result into pixels. Where a recorder can hook into that loop decides what it can know, and when.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f2-event-loop-and-frames">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>The event loop and frames</h1>
+<p class="lede">A screen is not redrawn after every change. Code changes the UI, and once per frame the platform turns the result into pixels. Where a recorder can hook into that loop decides what it can know, and when.</p>
+<p class="builds">Builds on: <a href="f1-pixels-vs-structure.html">Pixels versus structure</a></p>
+<h2 id="dom">The browser: the DOM, the event loop, and MutationObserver</h2>
+<p>The HTML parser builds a tree of <b>nodes</b>: elements (<code>&lt;ul&gt;</code>) with <b>attributes</b> (<code>class="sel"</code>), text nodes, comments. JavaScript changes this tree at any time. The browser does not repaint after each change: it batches them and, once per frame, runs <b>style → layout → paint → composite</b>. Between a script's task and the next frame, the browser runs <b>microtasks</b>, and that is where a <code>MutationObserver</code> receives a list of <b>MutationRecords</b> describing every change since the last delivery: <code>childList</code> (nodes added or removed), <code>attributes</code>, <code>characterData</code> (text).</p>
+<div class="card">
+<div class="btns"><button class="b" id="domPlay" type="button">▶ play</button><button class="b" id="domStep" type="button">step</button><button class="b" id="domReset" type="button">reset</button></div>
+<div class="step-caption" id="domCap">Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.</div>
+<div class="grid2" style="margin-top:10px">
+ <div><div class="lane">DOM tree (what the script and the recorder see)</div><div class="tree" id="domTree"></div></div>
+ <div><div class="lane">Rendered page (what the user sees, after the next frame)</div><div class="page"><div class="bar">shop.example / cart</div><div class="body" id="domPage"></div></div></div>
+</div>
+<div class="lane" style="margin-top:10px">One turn of the event loop</div>
+<div class="pipe" id="loopPipe">
+ <div class="st" data-k="task"><b>Task</b><span class="mut">click handler, timer, fetch callback</span></div>
+ <div class="st" data-k="micro"><b>Microtasks</b><span class="mut">promises, MutationObserver callbacks</span></div>
+ <div class="st" data-k="raf"><b>rAF</b><span class="mut">requestAnimationFrame</span></div>
+ <div class="st" data-k="style"><b>Style</b><span class="mut">match CSS</span></div>
+ <div class="st" data-k="layout"><b>Layout</b><span class="mut">boxes, positions</span></div>
+ <div class="st" data-k="paint"><b>Paint</b><span class="mut">display lists</span></div>
+ <div class="st" data-k="comp"><b>Composite</b><span class="mut">GPU layers → screen</span></div>
+</div>
+<div class="lane">MutationRecords delivered to the observer's callback</div>
+<div class="recs" id="domRecs"></div>
+</div>
+<p>What this gives a recorder for free:</p>
+<ul>
+<li><b>A complete, serialisable description.</b> Walk the tree once and you have everything needed to rebuild the page somewhere else, as text (this is the <em>full snapshot</em>).</li>
+<li><b>A change feed.</b> MutationObserver tells you exactly which nodes changed, asynchronously, batched, without polling (this becomes the <em>incremental</em> events).</li>
+<li><b>Events on the same tree.</b> Input, scroll, pointer, resize, <code>visibilitychange</code>, <code>pagehide</code> can all be listened to by any script.</li>
+</ul>
+<p>What it does <em>not</em> give: pixels the DOM does not describe. A <code>&lt;canvas&gt;</code> or WebGL surface is one element whose content is a bitmap; a <code>&lt;video&gt;</code> is a URL plus a playhead; a cross-origin <code>&lt;iframe&gt;</code> is unreadable; the result of CSS from a stylesheet the recorder cannot fetch is lost. These are the "holes" of DOM replay.</p>
+<p class="src">Sources (specifications, the behaviour browsers implement): <a href="https://dom.spec.whatwg.org/#mutation-observers">DOM Standard §4.3 Mutation observers</a> (records are queued, then delivered in a microtask: <a href="https://dom.spec.whatwg.org/#queue-a-mutation-observer-compound-microtask">queue a mutation observer microtask</a>) · <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model">HTML Standard, event loop processing model</a> (task, microtask checkpoint, then "update the rendering": rAF callbacks, style, layout, paint) · <a href="https://html.spec.whatwg.org/multipage/interaction.html#page-visibility">page visibility</a>.</p>
+<h2 id="frames">What a "frame" means for a recorder</h2>
+<p>Two moments matter in every turn of the loop, and they recur in every lesson after this one:</p>
+<ul>
+<li><b>After the code ran, before anything is drawn.</b> The tree is already changed. On the web this is the microtask checkpoint, where MutationObserver delivers its records. A structure recorder reads here.</li>
+<li><b>After the frame was drawn.</b> The pixels exist. A picture recorder copies here: on iOS a run-loop observer after Core Animation's commit, on Android a draw listener plus a pixel copy, in Flutter a post-frame callback. Lesson <a href="f3-view-trees.html">View trees</a> shows each platform's pipeline, and lesson <a href="t1-hooks.html">When to look</a> the hooks vendors actually use.</li>
+</ul>
+<div class="key">Batching comes for free on the web: many changes in one task arrive as one list of records in one callback. A recorder never has to poll the DOM to find out what changed.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"A click handler calls <code>ul.appendChild(li)</code>. When does a MutationObserver callback see the change?","a":["Immediately, inside <code>appendChild</code>","At the next microtask checkpoint, before the frame is painted","Only after the compositor has put the frame on screen"],"c":1,"why":"Records are queued and delivered in a microtask, after the task finishes and before \"update the rendering\" (DOM Standard §4.3, HTML event loop)."},
+{"q":"One handler changes a heading's text and removes a list item. How many observer callbacks does that produce?","a":["One callback with two records, in order","Two callbacks, one per change","None: text changes are not observed"],"c":0,"why":"Changes made in one task are batched into one delivery. That is why rrweb can emit at most one Mutation event per callback."},
+{"q":"Which of these can a DOM recorder <b>not</b> read from the tree?","a":["The text of a <code>&lt;li&gt;</code>","A <code>class</code> attribute","The bitmap content of a <code>&lt;canvas&gt;</code>"],"c":2,"why":"A canvas is one element whose content is a bitmap: one of the \"holes\" of DOM replay, together with video, cross-origin iframes and unfetchable CSS."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f1-pixels-vs-structure.html"><small>← previous</small>Pixels versus structure</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="f3-view-trees.html"><small>next →</small>View trees, platform by platform</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){var reduce=RS.reduce,esc=RS.esc;
+/* ---------- 1.1 DOM demo ---------- */
+var model,steps,si,timer;
+function init(){
+ model={id:1,tag:'body',kids:[{id:2,tag:'h1',kids:[{id:3,text:'Your cart'}]},{id:4,tag:'ul',attrs:{id:'list'},kids:[{id:5,tag:'li',kids:[{id:6,text:'Tea'}]}]}]};
+ si=0;document.getElementById('domRecs').innerHTML='';mark={};render();cap('Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.');lit(null);
+}
+var mark={};
+function find(n,id){if(n.id===id)return n;for(var k of n.kids||[]){var r=find(k,id);if(r)return r}return null}
+function rows(n,d,out){var a='';if(n.attrs)for(var k in n.attrs)a+=' <span class="at">'+k+'="'+esc(n.attrs[k])+'"</span>';
+ var lab=n.text!==undefined?'<span class="tx">"'+esc(n.text)+'"</span> <span class="mut">#text</span>':'<span class="tag">&lt;'+n.tag+'</span>'+a+'<span class="tag">&gt;</span>';
+ out.push('<div class="tn '+(mark[n.id]||'')+'" style="padding-left:'+(6+d*18)+'px"><span class="mut">'+n.id+'</span> '+lab+'</div>');
+ (n.kids||[]).forEach(function(k){rows(k,d+1,out)});return out}
+function render(){document.getElementById('domTree').innerHTML=rows(model,0,[]).join('');}
+function paintPage(){var ul=find(model,4),h=find(model,3);var html='<div style="font-weight:700;font-size:17px;margin-bottom:6px">'+esc(h.text)+'</div><ul style="margin:0;padding-left:18px">';
+ ul.kids.forEach(function(li){if(mark[li.id]==='gone')return;html+='<li class="'+(li.attrs&&li.attrs['class']||'')+'">'+esc(li.kids[0].text)+'</li>'});document.getElementById('domPage').innerHTML=html+'</ul>';}
+function cap(t){document.getElementById('domCap').innerHTML=t}
+function lit(k){document.querySelectorAll('#loopPipe .st').forEach(function(e){e.classList.toggle('act',e.dataset.k===k)})}
+function rec(o){var d=document.createElement('div');d.className='rec';d.textContent=JSON.stringify(o);document.getElementById('domRecs').prepend(d)}
+steps=[
+ function(){lit('task');var ul=find(model,4);ul.kids.push({id:7,tag:'li',kids:[{id:8,text:'Coffee'}]});mark={7:'new',8:'new'};render();cap('<b>Task:</b> a click handler runs <code>ul.appendChild(li)</code>. The DOM changes <em>now</em>, but nothing is drawn yet and the observer has not been called.')},
+ function(){lit('micro');rec({type:'childList',target:'ul#list (4)',addedNodes:['li (7)'],removedNodes:[],previousSibling:'li (5)'});cap('<b>Microtask checkpoint:</b> the MutationObserver callback receives one <code>childList</code> record. A recorder serialises node 7 and its subtree here. Note: still no pixels.')},
+ function(){lit('style');cap('<b>Update the rendering:</b> style recalculation…')},
+ function(){lit('layout');cap('…layout computes the new box for "Coffee"…')},
+ function(){lit('paint');cap('…paint records drawing commands…')},
+ function(){lit('comp');paintPage();cap('…and the compositor puts the frame on screen. One DOM change, one record, one frame.')},
+ function(){lit('task');var li=find(model,5);li.attrs={'class':'sel'};mark={5:'chg'};render();cap('<b>Task:</b> <code>li.className = "sel"</code> (the user selected Tea).')},
+ function(){lit('micro');rec({type:'attributes',target:'li (5)',attributeName:'class',oldValue:null});cap('<b>Microtask:</b> an <code>attributes</code> record. The recorder only needs to send "node 5, class = sel".')},
+ function(){lit('comp');paintPage();cap('Next frame: Tea is highlighted.')},
+ function(){lit('task');find(model,3).text='Your cart (2)';mark={3:'chg'};var ul=find(model,4);mark[5]='gone';mark[6]='gone';render();cap('<b>Task:</b> one handler does two things: changes the heading text and removes Tea.')},
+ function(){lit('micro');rec({type:'characterData',target:'#text (3)',oldValue:'Your cart'});rec({type:'childList',target:'ul#list (4)',addedNodes:[],removedNodes:['li (5)']});cap('<b>Microtask:</b> <em>both</em> records arrive in <em>one</em> callback, in order. Batching is free: many changes in one task become one delivery.')},
+ function(){lit('comp');var ul=find(model,4);ul.kids=ul.kids.filter(function(k){return k.id!==5});mark={};render();paintPage();cap('Frame. The recorder now holds: a full snapshot of the starting tree plus four small records. That is the whole idea of DOM replay, and the rest of the course builds on it.')}
+];
+function step(){if(si>=steps.length){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';return}steps[si++]()}
+document.getElementById('domStep').onclick=function(){if(si>=steps.length)init();step()};
+document.getElementById('domReset').onclick=function(){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';init()};
+document.getElementById('domPlay').onclick=function(){if(timer){clearInterval(timer);timer=null;this.textContent='▶ play';return}if(si>=steps.length)init();this.textContent='❚❚ pause';step();timer=setInterval(step,reduce?2600:1700)};
+init();paintPage();
+})();
+</script>
+</body></html>

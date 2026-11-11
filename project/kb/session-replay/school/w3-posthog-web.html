@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PostHog on the web · replay-school</title>
+<meta name="description" content="PostHog loads its rrweb fork only when a session will be recorded, throttles noisy nodes, takes a checkout every five minutes, and compresses each mutation field separately.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="w3-posthog-web">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · web</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · web</p>
+<h1>PostHog on the web</h1>
+<p class="lede">PostHog loads its rrweb fork only when a session will be recorded, throttles noisy nodes, takes a checkout every five minutes, and compresses each mutation field separately.</p>
+<p class="builds">Builds on: <a href="w1-rrweb.html">rrweb: the engine</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Every step links the file and lines at that tag. Wire formats (envelopes, segment framing) are in Step 6: <a href="../../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"Why do pages that are never recorded not download rrweb with PostHog?","a":["PostHog does not use rrweb","The recorder is loaded as a separate script only when a session will be recorded","It is cached by the browser"],"c":1,"why":"The core SDK only decides whether to record and lazy-loads the recorder (session-recording.ts L178–228)."},
+{"q":"What does PostHog's per-node token bucket protect against?","a":["Large images","Noisy nodes such as an animating SVG flooding attribute mutations","Slow networks"],"c":1,"why":"100 tokens per node, refilled at 10 per second; attribute mutations beyond that are dropped."},
+{"q":"How does PostHog compress a Mutation event?","a":["Not at all","Each of <code>adds</code>, <code>removes</code>, <code>texts</code>, <code>attributes</code> is gzipped separately, then the whole request is compressed again","With H.264"],"c":1,"why":"Stored as latin1 strings marked <code>cv: '2024-10'</code> (L209–251)."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="w2-sentry-web.html"><small>← previous</small>Sentry on the web</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="w4-datadog-web.html"><small>next →</small>Datadog on the web</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-posthog',title:'PostHog: lazy-loaded rrweb fork, compression per field',intro:'PostHog\'s recorder is loaded only when a session is going to be recorded, and spends its effort on throttling noisy pages and on triggers.',
+ boxes:[['lz','Lazy load','recorder script'],['rr','rrweb fork','options'],['th','Throttle','per-node bucket'],['ck','Checkout','5 min timer'],['cz','Compress','per event field'],['sd','Buffer + send','2 s / 0.9 MB']],
+ steps:[
+ ['lz','The core SDK only decides <em>whether</em> to record. If the recorder is missing it loads it as a separate script and starts in the callback, so pages that are never recorded never download rrweb.',[['session-recording.ts L178–228',PB+'extensions/replay/session-recording.ts#L178-L228'],['recorder.ts L4–28',PB+'entrypoints/recorder.ts#L4-L28']]],
+ ['rr','rrweb options: block class <code>ph-no-capture</code>, mask class <code>ph-mask</code>, all inputs masked; canvas as WebP snapshots at 4 fps (max 12), quality 0.4.',[['canvas config L2926–2966',PH+'#L2926-L2966']]],
+ ['th','A token bucket per node (100 tokens, 10 per second) drops attribute mutations on noisy nodes such as an animating SVG.',[['mutation-throttler.ts L40–58',PB+'extensions/replay/external/mutation-throttler.ts#L40-L58']]],
+ ['ck','A timer takes a full snapshot every 5 minutes (1 minute while a trigger is pending), not while idle. After 5 min without user activity, events are dropped until activity resumes.',[['L1007–1042',PH+'#L1007-L1042'],['idle L184–193',PH+'#L184-L193']]],
+ ['cz','Only FullSnapshot, Mutation and StyleSheetRule events are compressed, and a mutation\'s <code>adds</code>, <code>removes</code>, <code>texts</code> and <code>attributes</code> are gzipped <b>separately</b>, stored as latin1 strings marked <code>cv: \'2024-10\'</code>.',[['L209–251',PH+'#L209-L251']]],
+ ['sd','Events are buffered and sent as <code>$snapshot</code> events every 2 s, or sooner past ~0.9 MB. The request is compressed again as a whole. Nothing is sent before the minimum session duration.',[['buffer L2532–2590',PH+'#L2532-L2590'],['gate L2373–2440',PH+'#L2373-L2440'],['send L2592–2600',PH+'#L2592-L2600'],['posthog-core.ts L2109–2124',PB+'posthog-core.ts#L2109-L2124']]]
+ ]});
+})();
+</script>
+</body></html>

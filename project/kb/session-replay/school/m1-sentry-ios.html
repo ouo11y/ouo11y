@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentry iOS · replay-school</title>
+<meta name="description" content="Sentry iOS takes masked screenshots about once a second, from a run-loop observer, and encodes every five seconds of them as an H.264 MP4 with an rrweb JSON sidecar.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m1-sentry-ios">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · mobile</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · mobile</p>
+<h1>Sentry iOS</h1>
+<p class="lede">Sentry iOS takes masked screenshots about once a second, from a run-loop observer, and encodes every five seconds of them as an H.264 MP4 with an rrweb JSON sidecar.</p>
+<p class="builds">Builds on: <a href="f3-view-trees.html">View trees, platform by platform</a> · <a href="f5-compression.html">Compression basics, and how H.264 skips</a> · <a href="t3-masking-race.html">How to mask: the masking race</a></p>
+<div class="key">Three camps: <b>Sentry</b> ships <em>video</em> (masked screenshots at 1 fps, H.264, one MP4 per 5 s). <b>Datadog</b> ships <em>wireframes</em> with a field-level diff and images sent once by hash. <b>PostHog</b> does both: wireframes (UIKit and Android Views) or one screenshot per changed frame, and forces screenshots on React Native and Flutter. <b>OpenReplay</b> sends JPEG screenshots in gzip archives. React Native is recorded by the <em>native</em> SDKs everywhere; Flutter is recorded <em>in Dart</em> everywhere.</div>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"What wakes Sentry iOS to capture?","a":["A 1 s <code>Timer</code>","A <code>CADisplayLink</code>","A main run-loop observer after Core Animation's commit, only if the loop did work"],"c":2,"why":"Order <code>CFIndex.max</code>, after the commit; an idle app costs nothing (RunLoopCaptureScheduler L48–108)."},
+{"q":"What colour is a Sentry iOS mask box?","a":["Black","The average colour of the area","Transparent with a blur"],"c":1,"why":"SentryDefaultMaskRenderer.swift L14–91."},
+{"q":"A capture's main-thread part takes 200 ms. What does Sentry iOS do?","a":["Keeps 1 fps","Doubles the interval, up to 2 s","Stops recording"],"c":1,"why":"At 150 ms or more the interval doubles up to 2 s (SentrySessionReplay.swift L469–561)."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="w5-openreplay-highlight-clarity.html"><small>← previous</small>OpenReplay, Highlight, Clarity</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m2-sentry-android.html"><small>next →</small>Sentry Android</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-sentry-ios',title:'Sentry iOS: masked screenshots → H.264 video',
+ boxes:[['sch','Scheduler','run-loop observer'],['grd','Guards','animations, back-off'],['red','Redact','CALayer walk'],['ren','Render','drawHierarchy'],['enc','Encode','AVAssetWriter, 5 s'],['seg','Segment','MP4 + rrweb JSON']],
+ steps:[
+ ['sch','No timer and no CADisplayLink: a <code>CFRunLoopObserver</code> on the main run loop at order <code>CFIndex.max</code>, after Core Animation\'s commit. It offers a capture only if the run loop did work this turn, so an idle app costs nothing.',[['L48–79',SI+'SentrySessionReplayRunLoopCaptureScheduler.swift#L48-L79'],['L95–108',SI+'SentrySessionReplayRunLoopCaptureScheduler.swift#L95-L108']]],
+ ['grd','Pacing at 1 fps. If the main-thread part of a capture takes 150 ms or more, the interval doubles up to 2 s. Four or more running animations defer the capture by 250 ms, up to 1 s.',[['SentrySessionReplay.swift L469–561',SI+'SentrySessionReplay.swift#L469-L561'],['CaptureGuard L7–48',SI+'SentrySessionReplayCaptureGuard.swift#L7-L48']]],
+ ['red','The masks come from a walk of the <b>CALayer</b> tree (not UIViews): class lists for text, images and web views, React Native classes built in, per-view mask/unmask, and an opaque view that covers others clips them out. An unreadable sublayer is masked whole.',[['SentryUIRedactBuilder.swift L555–707',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L555-L707'],['RN classes L146–196',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L146-L196']]],
+ ['ren','The window is rendered with <code>drawHierarchy(afterScreenUpdates: false)</code>; each mask is painted with the average colour of its area. The frame is scaled to 1×, written as PNG to disk (crash recovery) and kept in memory.',[['SentryDefaultMaskRenderer.swift L14–91',SC+'Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91'],['SentryOnDemandReplay.swift L104–160',SI+'SentryOnDemandReplay.swift#L104-L160']]],
+ ['enc','Every 5 s the frames become one MP4: H.264 main profile, 20–60 kbps, no B-frames, a key frame at most every 6 frames. Missing seconds are filled by repeating the previous frame, giving a constant 1 fps.',[['L381–440',SI+'SentryOnDemandReplay.swift#L381-L440'],['SentryVideoFrameProcessor.swift L83–173',SI+'SentryVideoFrameProcessor.swift#L83-L173']]],
+ ['seg','The segment is a <code>replay_event</code> plus a recording: rrweb JSON (meta, a <code>video</code> custom event, breadcrumbs, touches) next to the MP4. Background → pause and cut a short segment; foreground → resume. In buffer mode the last 30 s live in memory until an error.',[['SentrySessionReplay.swift L818–886',SI+'SentrySessionReplay.swift#L818-L886'],['pause/resume L261–318',SI+'SentrySessionReplay.swift#L261-L318'],['buffer L365–438',SI+'SentrySessionReplay.swift#L365-L438']]]
+ ]});
+})();
+</script>
+</body></html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compression basics, and how H.264 skips · replay-school</title>
+<meta name="description" content="Replay data is either text (JSON events, wireframes) or images (JPEG, WebP, video). Text shrinks well with general-purpose compression; images are already compressed and need a different trick: send only what changed. This lesson shows four mechanisms, from gzip to the H.264 skip block.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f5-compression">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>Compression basics, and how H.264 skips</h1>
+<p class="lede">Replay data is either text (JSON events, wireframes) or images (JPEG, WebP, video). Text shrinks well with general-purpose compression; images are already compressed and need a different trick: send only what changed. This lesson shows four mechanisms, from gzip to the H.264 skip block.</p>
+<p class="builds">Builds on: <a href="f4-keyframes-and-deltas.html">Keyframes and deltas</a></p>
+<div class="note">The mechanisms on this page are general facts from the published standards (linked in each section), not read in any vendor's code. Vendor-specific numbers are linked to the vendor source or the Step 6 measurements.</div>
+
+<h2 id="deflate">1 · Text: deflate finds repeats</h2>
+<p>gzip and zlib are wrappers around <b>deflate</b>. Deflate does two things: it replaces a run of characters that already appeared by a <b>back-reference</b> (go back <i>d</i> characters, copy <i>n</i>), and it gives frequent symbols shorter bit codes (Huffman coding). Replay JSON is full of repeats, <code>{"id":</code>, <code>"type":</code>, the same tag names, so it shrinks a lot. Press ▶ to watch the back-references being found.</p>
+<div class="card">
+<div class="btns"><button class="b" id="lzPlay" type="button">▶ find repeats</button><span class="mut" style="font-size:12.5px" id="lzStat"></span></div>
+<pre id="lzOut" style="white-space:pre-wrap;min-height:5.5em;font-size:13px;line-height:1.9"></pre>
+<div class="legend"><span><i class="sw" style="background:var(--soft);outline:1px solid var(--line)"></i>literal character</span><span><i class="sw" style="background:var(--acc)"></i>back-reference ↶distance·length</span></div>
+<p class="src">Greedy matching of length 4 or more over the whole string, computed live; real deflate limits the window to 32 KiB and lengths to 258, and then Huffman-codes the result. Illustrative tokens, not a byte-exact stream. Standard: <a href="https://www.rfc-editor.org/rfc/rfc1951">RFC 1951 (deflate)</a>, <a href="https://www.rfc-editor.org/rfc/rfc1952">RFC 1952 (gzip)</a>, <a href="https://www.rfc-editor.org/rfc/rfc1950">RFC 1950 (zlib)</a>.</p>
+</div>
+<p>Two vendor details that only make sense with this picture. Sentry compresses <b>as events arrive</b> in a worker, one zlib stream per upload, so flushing only has to close the stream. Datadog sends each reply with a ready-made stream ending, so a closing page can finish the stream without waiting for the worker (<a href="w2-sentry-web.html">Sentry on the web</a>, <a href="w4-datadog-web.html">Datadog on the web</a>).</p>
+
+<h2 id="base64">2 · base64 costs a third, and gzip cannot win it back on images</h2>
+<p>JSON cannot hold raw bytes, so images inside JSON are written as base64: every 3 bytes become 4 characters from a 64-letter alphabet.</p>
+<div class="card">
+<div class="btns"><button class="b" id="b64Play" type="button">▶ encode "Tea"</button></div>
+<div id="b64Out" style="font:13px ui-monospace,Menlo,monospace;overflow-x:auto"></div>
+<p class="src">Standard: <a href="https://www.rfc-editor.org/rfc/rfc4648">RFC 4648 §4</a>.</p>
+</div>
+<p>So base64 makes a picture 4/3 as large. A JPEG or an MP4 is already compressed: its bytes look random, deflate finds almost no repeats, and the third stays. This is why the draft spec labels JPEG and MP4 chunks <code>encoding: identity</code> and carries the bytes raw in an OTLP protobuf body (lesson <a href="t4-packing.html">How to pack</a>, choice 1).</p>
+
+<h2 id="tiles">3 · Pictures: send only the parts that changed</h2>
+<p>A picture recorder cannot diff text, but it can diff <em>areas</em>. Two ways are in use. <b>ouo's mobile frames</b> cut the image into 64 px tiles, hash each one against the last frame sent, and send nothing, a few changed tiles as JPEG patches, or a full JPEG when more than half changed (<a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rule 6). <b>A video codec</b> such as H.264 does the same at a finer grain, inside the encoder.</p>
+<p>The demo draws two real frames and compares them, pixel by pixel. Pick what the user did between the frames, then switch between the two ways of looking at the change.</p>
+<div class="card">
+<div class="tabs" id="cmpTabs"></div>
+<div class="btns"><span class="mut" style="font-size:12.5px">view as</span><button class="b" id="cmpTiles" type="button">ouo tiles</button><button class="b" id="cmpH264" type="button">H.264 P-frame</button><button class="b" id="cmpKey" type="button">H.264 key frame</button></div>
+<div class="phones">
+ <div><div class="lane">previous frame</div><canvas id="cmpA" width="360" height="630" style="width:180px;height:315px;border:1px solid var(--line);border-radius:12px"></canvas></div>
+ <div><div class="lane">this frame, and what is sent</div><canvas id="cmpB" width="360" height="630" style="width:180px;height:315px;border:1px solid var(--line);border-radius:12px"></canvas></div>
+</div>
+<div class="legend" id="cmpLegend" style="margin-top:6px"></div>
+<div class="step-caption" id="cmpCap" aria-live="polite" style="margin-top:6px"></div>
+<p class="src">Not to scale: tiles are drawn as 45 px and blocks as 15 px on a 180 px wide screen, standing for 64 px tiles and 16×16 blocks of the real image. Block decisions are computed by comparing the two frames, with one candidate motion (the scroll offset). A real encoder searches many vectors, can split a block down to 4×4, and can code any block from scratch even in a P-frame.</p>
+</div>
+
+<h2 id="h264">4 · H.264: I-frames, P-frames and the skip block</h2>
+<ul>
+<li>The encoder cuts each frame into <b>16×16-pixel macroblocks</b>.</li>
+<li>An <b>I-frame</b> (key frame) codes every block from the frame itself. It can be shown alone.</li>
+<li>A <b>P-frame</b> codes each block as a reference into the previous frame. A block that matches it is a <b>skip</b>: no pixels, signalled in about one bit. A block whose content moved costs a short <b>motion vector</b> plus a small correction (the residual). Only blocks with new content cost real pixels.</li>
+<li>So an unchanged frame is a few dozen bytes, and a scroll is mostly motion vectors: this is where video beats tiles, since every tile changes when the list moves.</li>
+</ul>
+<p>Sentry's mobile recorders use this: 1 fps H.264, no B-frames, a key frame at least every 6 frames (<code>MaxKeyFrameInterval = 6</code>), and each 5 s segment is its own MP4 that starts with one (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a>). So a static screen still costs one full picture per segment; Step 6 measured about 36 KB per idle 5 s segment on Android (<a href="../../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a>).</p>
+<p class="src">Standard: <a href="https://www.itu.int/rec/T-REC-H.264">ITU-T H.264</a> (macroblocks, P slices, <code>mb_skip</code>). Read from the standard's concepts, not from any encoder's code.</p>
+<div class="key">Packing never changes what the replay shows or whether masking is right; it only changes bytes and CPU. That is why the course treats "tiles or video" as an optimisation, and spends its design attention on what to record and how to mask.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"Why does rrweb JSON compress well with gzip?","a":["It is already binary","It is full of repeated strings such as <code>{\"id\":</code> and tag names, which deflate replaces with back-references","gzip has a JSON mode"],"c":1,"why":"Deflate replaces repeats with (distance, length) references and Huffman-codes the result."},
+{"q":"A 30 KiB JPEG is put in JSON as base64 and the request is gzipped. Roughly how big is it on the wire?","a":["About 10 KiB","About 30 KiB","About 40 KiB"],"c":2,"why":"base64 makes it 4/3 as large (40 KiB), and gzip cannot shrink JPEG bytes much because they are already compressed."},
+{"q":"The user scrolls a list by a few pixels. Which packing sends the least?","a":["ouo tiles: only the changed tiles","H.264 P-frame: most blocks become motion vectors","Both send a full picture"],"c":1,"why":"Every tile changes on a scroll, so ouo sends a full JPEG. A P-frame says \"these blocks moved up\" with a short vector each."},
+{"q":"Nothing on the screen changes for 5 s. What does Sentry's mobile video still send?","a":["Nothing","One full picture: each 5 s segment is its own MP4 and starts with a key frame","Five full pictures"],"c":1,"why":"The repeated frames are cheap skip blocks, but the segment's first frame is a key frame. ouo tiles send nothing for a static screen."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f4-keyframes-and-deltas.html"><small>← previous</small>Keyframes and deltas</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="f6-masking-data-vs-geometry.html"><small>next →</small>Masking: data versus geometry</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+/* 1 · LZ77 */
+var STR='[{"id":5,"type":2,"tagName":"li","childNodes":[{"id":6,"type":3,"textContent":"Tea"}]},{"id":7,"type":2,"tagName":"li","childNodes":[{"id":8,"type":3,"textContent":"Coffee"}]}]';
+function lz(s){var out=[],i=0;while(i<s.length){var best=0,bd=0;for(var j=0;j<i;j++){var k=0;while(i+k<s.length&&s[j+k]===s[i+k]&&k<258)k++;if(k>best){best=k;bd=i-j}}if(best>=4){out.push({d:bd,n:best,t:s.substr(i,best)});i+=best}else{out.push({c:s[i]});i++}}return out}
+var toks=lz(STR),lt=null;
+function showLz(n){var h='',lit=0,ref=0;toks.forEach(function(t,i){if(i>=n){h+=RS.esc(t.c!==undefined?t.c:t.t);return}if(t.c!==undefined){lit++;h+='<span style="background:var(--soft)">'+RS.esc(t.c)+'</span>'}else{ref++;h+='<span title="'+RS.esc(t.t)+'" style="background:var(--acc);color:#fff;border-radius:4px;padding:1px 4px;margin:0 1px;white-space:nowrap">↶'+t.d+'·'+t.n+'</span>'}});
+ document.getElementById('lzOut').innerHTML=h;document.getElementById('lzStat').textContent=n?STR.length+' characters → '+lit+' literals + '+ref+' back-references':''}
+document.getElementById('lzPlay').onclick=function(){clearInterval(lt);var n=0;lt=setInterval(function(){n++;showLz(n);if(n>=toks.length)clearInterval(lt)},RS.reduce?120:45)};
+showLz(0);
+/* 2 · base64 */
+var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+document.getElementById('b64Play').onclick=function(){var o=document.getElementById('b64Out'),bytes=[84,101,97],bits=bytes.map(function(b){return ('0000000'+b.toString(2)).slice(-8)}).join(''),step=0;
+ function row(lbl,cells,w){return '<div style="display:flex;gap:2px;align-items:center;margin:4px 0"><span class="mut" style="width:62px;flex:none;font-size:11px">'+lbl+'</span>'+cells.map(function(c){return '<span style="display:inline-block;min-width:'+w+'px;text-align:center;background:var(--soft);border-radius:4px;padding:2px 3px">'+c+'</span>'}).join('')+'</div>'}
+ function draw(){var h=row('text',['T','e','a'],86)+row('bytes',bytes.map(function(b){return '0x'+b.toString(16)}),86);
+  if(step>0)h+=row('24 bits',[bits.slice(0,8),bits.slice(8,16),bits.slice(16)],86);
+  if(step>1)h+=row('6-bit groups',[0,1,2,3].map(function(i){return bits.substr(i*6,6)}),63);
+  if(step>2)h+=row('base64',[0,1,2,3].map(function(i){return '<b style="color:var(--acc)">'+A[parseInt(bits.substr(i*6,6),2)]+'</b>'}),63)+'<div class="mut" style="font-size:12.5px;margin-top:4px">3 bytes in, 4 characters out: every image in JSON grows by a third.</div>';
+  o.innerHTML=h}
+ draw();var t=setInterval(function(){step++;draw();if(step>=3)clearInterval(t)},RS.reduce?1400:700)};
+document.getElementById('b64Play').click();
+/* 3 · tiles vs H.264 */
+var S=2,W=180,H=315;
+function scr(c,st){c.setTransform(S,0,0,S,0,0);c.fillStyle='#fff';c.fillRect(0,0,W,H);
+ if(st.screen==='detail'){c.fillStyle='#2b5fa8';c.fillRect(0,0,W,44);c.fillStyle='#fff';c.font='700 15px system-ui';c.textBaseline='middle';c.textAlign='left';c.fillText('Order #1029',12,22);
+  c.fillStyle='#1d1d1b';c.font='13px system-ui';['Status: shipped','2 items','Total £7.40','Deliver to:','12 Baker St'].forEach(function(t,i){c.fillText(t,14,74+i*28)});c.fillStyle='#b4441c';c.fillRect(14,230,152,40);c.fillStyle='#fff';c.font='700 13px system-ui';c.textAlign='center';c.fillText('Track parcel',90,250);return}
+ c.fillStyle='#1d1d1b';c.font='700 15px system-ui';c.textBaseline='middle';c.textAlign='left';c.fillText('Orders',12,22);
+ c.save();c.translate(160,22);c.rotate(st.spin*Math.PI/2);c.strokeStyle='#b4441c';c.lineWidth=2.5;c.beginPath();c.arc(0,0,7,0,Math.PI*1.3);c.stroke();c.restore();
+ c.strokeStyle='#cfcac0';c.lineWidth=1;c.strokeRect(12.5,48.5,155,24);c.fillStyle='#1d1d1b';c.font='12px system-ui';c.fillText('Search: '+st.typed,18,61);
+ c.save();c.beginPath();c.rect(0,80,W,H-80);c.clip();for(var i=0;i<10;i++){var y=84+i*30-st.scroll;c.fillStyle=i%2?'#f6f4ef':'#eef3fb';c.fillRect(8,y,164,26);c.fillStyle='#1d1d1b';c.font='12px system-ui';c.textAlign='left';c.fillText('Order #10'+(20+i),14,y+13);c.textAlign='right';c.fillText('£'+(3+i)+'.20',166,y+13);c.textAlign='left'}c.restore()}
+var BASE={scroll:0,spin:0,typed:'An',screen:'list'};
+var SC={static:['Nothing',{}],spin:['Spinner turns',{spin:1}],type:['Typing',{typed:'Ana'}],scroll:['Scroll 12 px',{scroll:12}],nav:['New screen',{screen:'detail'}]};
+var curS='spin',view='h264';
+function off(st){var c=document.createElement('canvas');c.width=W*S;c.height=H*S;scr(c.getContext('2d'),st);return c}
+function same(a,b,x,y,w,h,dy){for(var yy=y;yy<y+h;yy++){var ya=yy+dy;if(ya<0||ya>=H*S)return false;for(var xx=x;xx<x+w;xx++){var i=(yy*W*S+xx)*4,j=(ya*W*S+xx)*4;if(Math.abs(b[i]-a[j])+Math.abs(b[i+1]-a[j+1])+Math.abs(b[i+2]-a[j+2])>6)return false}}return true}
+var tabs=document.getElementById('cmpTabs');
+Object.keys(SC).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=SC[k][0];b.onclick=function(){curS=k;run()};tabs.appendChild(b)});
+document.getElementById('cmpTiles').onclick=function(){view='tiles';run()};document.getElementById('cmpH264').onclick=function(){view='h264';run()};document.getElementById('cmpKey').onclick=function(){view='key';run()};
+function run(){tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===curS)});['tiles','h264','key'].forEach(function(v){document.getElementById(v==='tiles'?'cmpTiles':v==='h264'?'cmpH264':'cmpKey').classList.toggle('on',v===view)});
+ var stB=Object.assign({},BASE,SC[curS][1]),ca=off(BASE),cb=off(stB);
+ var a=ca.getContext('2d').getImageData(0,0,W*S,H*S).data,b=cb.getContext('2d').getImageData(0,0,W*S,H*S).data;
+ var A=document.getElementById('cmpA').getContext('2d'),B=document.getElementById('cmpB').getContext('2d');A.setTransform(1,0,0,1,0,0);B.setTransform(1,0,0,1,0,0);A.drawImage(ca,0,0);B.drawImage(cb,0,0);
+ var dy=(stB.scroll-BASE.scroll)*S,cap=document.getElementById('cmpCap'),leg=document.getElementById('cmpLegend'),cells=[],i=0;
+ if(view==='tiles'){var T=45*S,ch=0,n=0;for(var y=0;y<H*S;y+=T)for(var x=0;x<W*S;x+=T){n++;if(!same(a,b,x,y,T,T,0)){ch++;cells.push([x,y,T,T,'t'])}}
+  var full=ch>n/2;leg.innerHTML='<span><i class="sw" style="background:#b4441c"></i>changed tile, sent as a JPEG patch</span>';
+  cap.innerHTML='<b>ouo tiles:</b> '+ch+' of '+n+' tiles changed → '+(ch===0?'<b>nothing is sent</b>.':full?'more than half changed, so a <b>full JPEG</b> is sent.':'<b>'+ch+' patch'+(ch>1?'es':'')+'</b> sent.')}
+ else if(view==='key'){var Bk=15*S,nk=0;for(var y2=0;y2<H*S;y2+=Bk)for(var x2=0;x2<W*S;x2+=Bk){nk++;cells.push([x2,y2,Bk,Bk,'c'])}
+  leg.innerHTML='<span><i class="sw" style="background:#b4441c"></i>coded from the frame itself</span>';cap.innerHTML='<b>H.264 key frame:</b> all '+nk+' blocks are coded from this frame alone, whatever changed. Sentry sends one at least every 6 frames and at the start of every 5 s MP4.'}
+ else{var Bs=15*S,sk=0,mv=0,cd=0;for(var y3=0;y3<H*S;y3+=Bs)for(var x3=0;x3<W*S;x3+=Bs){if(same(a,b,x3,y3,Bs,Bs,0)){sk++;cells.push([x3,y3,Bs,Bs,'s'])}else if(dy&&same(a,b,x3,y3,Bs,Bs,dy)){mv++;cells.push([x3,y3,Bs,Bs,'m'])}else{cd++;cells.push([x3,y3,Bs,Bs,'c'])}}
+  leg.innerHTML='<span><i class="sw" style="background:#9a968e"></i>skip (≈1 bit)</span><span><i class="sw" style="background:#2b5fa8"></i>moved: motion vector</span><span><i class="sw" style="background:#b4441c"></i>new pixels coded</span>';
+  cap.innerHTML='<b>H.264 P-frame:</b> '+sk+' skip, '+mv+' moved, '+cd+' coded'+(cd===0&&mv===0?': the frame costs a few bytes.':mv?': the scroll is mostly motion vectors; only the strip that scrolled into view is new.':'.')}
+ B.setTransform(1,0,0,1,0,0);var k=0,N=cells.length,per=Math.max(1,Math.ceil(N/(RS.reduce?1:24)));
+ (function paint(){for(var j=0;j<per&&k<N;j++,k++){var c=cells[k];if(c[4]==='s'){B.fillStyle='rgba(120,116,108,.22)';B.fillRect(c[0],c[1],c[2],c[3])}else if(c[4]==='m'){B.fillStyle='rgba(43,95,168,.28)';B.fillRect(c[0],c[1],c[2],c[3]);B.strokeStyle='#2b5fa8';B.lineWidth=2;B.beginPath();B.moveTo(c[0]+c[2]/2,c[1]+c[3]-6);B.lineTo(c[0]+c[2]/2,c[1]+6);B.lineTo(c[0]+c[2]/2-4,c[1]+11);B.moveTo(c[0]+c[2]/2,c[1]+6);B.lineTo(c[0]+c[2]/2+4,c[1]+11);B.stroke()}else{B.fillStyle='rgba(180,68,28,.30)';B.fillRect(c[0],c[1],c[2],c[3]);if(c[4]==='t'){B.strokeStyle='#b4441c';B.lineWidth=3;B.strokeRect(c[0]+1.5,c[1]+1.5,c[2]-3,c[3]-3)}}}
+  B.strokeStyle='rgba(0,0,0,.08)';B.lineWidth=1;if(k<N)requestAnimationFrame(paint)})();
+}
+run();
+})();
+</script>
+</body></html>

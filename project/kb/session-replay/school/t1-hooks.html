@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>When to look: hooks · replay-school</title>
+<meta name="description" content="A recorder has to decide when to look at the screen. The fundamentals showed what each platform offers; this lesson shows what vendors actually hook, and plays the same 30 seconds of a session through five strategies.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t1-hooks">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>When to look: hooks</h1>
+<p class="lede">A recorder has to decide when to look at the screen. The fundamentals showed what each platform offers; this lesson shows what vendors actually hook, and plays the same 30 seconds of a session through five strategies.</p>
+<p class="builds">Builds on: <a href="f2-event-loop-and-frames.html">The event loop and frames</a> · <a href="f3-view-trees.html">View trees, platform by platform</a> · <a href="f4-keyframes-and-deltas.html">Keyframes and deltas</a></p>
+<p>Every recorder answers three questions about timing:</p>
+<ol>
+<li><b>Keyframe or delta?</b> When do you write the whole screen again, and when only what changed?</li>
+<li><b>What wakes the recorder?</b> A change notification, a timer, a frame callback, a user event, a lifecycle event.</li>
+<li><b>When is a capture not worth sending?</b> Unchanged frames, throttles, idle back-off.</li>
+</ol>
+<p>The fourth, <em>when to send</em>, is lesson <a href="t5-sending.html">When to send</a>.</p>
+
+<h2 id="sim">One session, five strategies</h2>
+<p>The same 30 seconds of a user's session, recorded by five strategies taken from the source. Each mark is one capture: <span class="sw" style="background:var(--acc)"></span>keyframe, <span class="sw" style="background:var(--blue)"></span>delta or changed frame, <span class="sw" style="background:var(--line);outline:1px solid var(--mut)"></span>a frame sent although nothing changed, ▼ a flush (upload). The timing is a simulation that follows each SDK's rules as read in source; it says nothing about bytes, which depend on the format (lesson <a href="t2-what-to-record.html">What to record</a>).</p>
+<div class="card">
+<div class="btns"><button class="b" id="simPlay" type="button">▶ play the session</button></div>
+<div class="wrap"><svg id="simSvg" viewBox="0 0 680 330" style="width:100%;min-width:620px;height:auto;display:block"></svg></div><div class="lane phone-only">scroll the timeline sideways</div>
+<div class="step-caption" id="simCap">The top row is what the user does. Press play.</div>
+</div>
+<div class="wrap"><table>
+<tr><th>Lane</th><th>What wakes it</th><th>Unchanged screen</th><th>Source</th></tr>
+<tr><td><b>Web, rrweb + Sentry</b></td><td>MutationObserver callbacks; input, scroll (100 ms), mouse (50 ms sample, 500 ms batch) listeners</td><td>No events at all: nothing changed, nothing observed</td><td><a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observer.ts#L112-L196">observer.ts mouse</a>, <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observer.ts#L317-L358">scroll</a>; flush <a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L208-L218">debounce 5 s, max 5.5 s</a>, <a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L245-L264">hidden → flush now</a></td></tr>
+<tr><td><b>Sentry Android, 1 fps video</b></td><td>A 1 s loop on the main looper; <code>OnDrawListener</code> only sets a "changed" flag</td><td>Re-emits the last bitmap: one frame every second regardless (the codec makes repeats cheap)</td><td><a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/WindowRecorder.kt#L217-L253">WindowRecorder.kt L217–253</a>, <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a></td></tr>
+<tr><td><b>Datadog iOS, wireframes</b></td><td>Swizzled <code>CALayer</code> display / draw / layout: any layer change schedules a walk, at most every 100 ms</td><td>No layer activity, no walk. A walk with an empty diff writes nothing</td><td><a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117">CALayerSwizzler.swift</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ScreenChangeMonitor/CALayerChangeAggregator.swift#L63-L151">CALayerChangeAggregator.swift L63–151</a></td></tr>
+<tr><td><b>PostHog iOS</b></td><td>Main run-loop observer, throttled to 1 s; a cheap structure fingerprint wakes it early</td><td>Hash equal to the last frame → not sent. After 3 unchanged frames the interval doubles, up to 8 s</td><td><a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/ApplicationRunLoopPublisher.swift#L85-L136">ApplicationRunLoopPublisher.swift</a>, <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayCaptureBackoff.swift#L11-L91">PostHogReplayCaptureBackoff.swift</a></td></tr>
+<tr><td><b>ouo mobile (spec today)</b></td><td>Main run-loop observer (iOS) / <code>OnDrawListener</code> dirty flag (Android); due once per second</td><td>64 px tiles hashed against the last frame sent: nothing changed → nothing sent; few tiles → patches; more than half → full image</td><td><a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rules 2 and 6</td></tr>
+</table></div>
+
+<h2 id="hooks">The hooks, platform by platform</h2>
+<div class="wrap"><table>
+<tr><th></th><th>"Something changed"</th><th>"A frame happened"</th><th>User input</th><th>Lifecycle (flush and pause)</th></tr>
+<tr><td><b>Browser</b></td><td><code>MutationObserver</code></td><td><code>requestAnimationFrame</code> (rrweb flushes canvas commands per frame)</td><td><code>input</code>, <code>change</code>, pointer, <code>scroll</code>, <code>resize</code> listeners</td><td><code>visibilitychange</code> → hidden, <code>pagehide</code>, <code>blur</code>. rrweb itself does none of this (<a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/iframe-manager.ts#L134">only iframes</a>); each SDK adds it</td></tr>
+<tr><td><b>iOS</b></td><td>None public. Datadog swizzles <code>CALayer</code>; PostHog fingerprints the tree</td><td>A main run-loop observer after Core Animation's commit (Sentry at order <code>CFIndex.max</code>: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayRunLoopCaptureScheduler.swift#L48-L79">L48–79</a>, firing only if the loop did work: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayRunLoopCaptureScheduler.swift#L95-L108">L95–108</a>); <code>CADisplayLink</code></td><td>Swizzled <code>UIApplication.sendEvent</code> (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayIntegration.swift#L178-L186">Sentry</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/TouchSnapshotProducer/UIApplicationSwizzler.swift#L34-L59">Datadog</a>)</td><td><code>didEnterBackground</code> → pause and cut a segment, <code>didBecomeActive</code> → resume (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayIntegration.swift#L392-L406">Sentry L392–406</a>, <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L261-L318">L261–318</a>)</td></tr>
+<tr><td><b>Android</b></td><td><code>ViewTreeObserver.OnDrawListener</code>, fired before each frame is recorded (<a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5572">ViewRootImpl L5572</a>); Datadog debounces it by 64 ms (<a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/recorder/Debouncer.kt#L16-L112">Debouncer.kt</a>)</td><td><code>Choreographer</code> frame callbacks (<a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/Choreographer.java#L846-L962">doFrame</a>)</td><td>A wrapped <code>Window.Callback</code></td><td>Activity lifecycle: no started activity → background</td></tr>
+<tr><td><b>Flutter</b></td><td>None; a post-frame callback means "a new frame was built"</td><td><code>SchedulerBinding.addPostFrameCallback</code> (<a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L818">L818</a>), <code>endOfFrame</code> (<a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L847">L847</a>). Datadog: a 100 ms timer that captures only when a post-frame callback set a flag; Sentry: forces a frame every interval even when idle</td><td>Pointer events from the binding</td><td><code>AppLifecycleState</code>; Sentry Flutter skips capture when not <code>resumed</code></td></tr>
+</table></div>
+<p class="src">Flutter details from the cross-platform source reading (sentry-dart 10.3.0, dd-sdk-flutter v1.0.0-preview.17); per-vendor links are in the mobile technique lessons.</p>
+<div class="key">The shape to remember: <b>a change signal decides <em>whether</em> there is anything to capture, a clock decides <em>how often</em> at most, a hash decides <em>whether it is worth sending</em>, and the lifecycle decides <em>when it must go out</em>.</b> The web gets the first for free (MutationObserver). Mobile SDKs approximate it with run-loop observers, draw listeners, swizzled layers or post-frame callbacks, then cap it with a clock.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"The screen is idle for 6 seconds. Which recorder still produces a frame every second?","a":["rrweb on the web","Sentry Android (1 fps video)","Datadog iOS"],"c":1,"why":"Sentry Android's 1 s loop re-emits the last bitmap when nothing was drawn. rrweb sees no mutations; Datadog iOS sees no layer changes."},
+{"q":"How does Datadog iOS learn that something on screen changed?","a":["A public UIKit change notification","It swizzles <code>CALayer</code> display, draw and layout, and merges changes at most every 100 ms","A 1 s timer"],"c":1,"why":"iOS has no public \"something changed\" hook, so Datadog swizzles layer methods (CALayerSwizzler.swift)."},
+{"q":"In the shape to remember, what decides <em>whether it is worth sending</em>?","a":["The clock","A hash of the capture compared with the last one","The lifecycle"],"c":1,"why":"A change signal says whether there is anything to capture, a clock caps how often, a hash drops unchanged captures, the lifecycle forces the send."},
+{"q":"PostHog iOS sees three unchanged frames in a row. What happens to its interval?","a":["It stays at 1 s","It doubles, up to 8 s","It stops capturing until a touch"],"c":1,"why":"PostHogReplayCaptureBackoff doubles the interval after 3 unchanged frames, up to 8 s."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f6-masking-data-vs-geometry.html"><small>← previous</small>Masking: data versus geometry</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t2-what-to-record.html"><small>next →</small>What to record</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){var reduce=RS.reduce,NS=RS.NS,el=RS.el,cssv=RS.cssv;
+var DUR=30;
+var acts=[[0,0.3,'open app','nav'],[2,4.5,'typing','type'],[6,9,'scroll','scroll'],[9,15,'idle','idle'],[15,15.3,'tap → new screen','nav'],[16,20,'spinner','anim'],[21,25,'tab switch / background','bg'],[25,25.3,'back','nav'],[25.3,30,'idle','idle']];
+function actAt(t){for(var i=0;i<acts.length;i++)if(t>=acts[i][0]&&t<acts[i][1])return acts[i][3];return 'idle'}
+function changing(t){var a=actAt(t);return a==='nav'||a==='type'||a==='scroll'||a==='anim'}
+/* build marks per lane: {t, k:'key'|'delta'|'rep'|'flush', b:bytes} */
+function lanes(){var L={web:[],sa:[],dd:[],ph:[],ouo:[]},t,i;
+ /* web */
+ var lastEv=-9,pend=false,firstUnflushed=null,nextScroll=0;
+ for(i=0;i<=DUR*10;i++){t=i/10;var a=actAt(t);
+  if(t===0){L.web.push({t:0,k:'key',b:60});lastEv=0;pend=true;firstUnflushed=0}
+  else if(a==='bg'&&actAt(t-0.1)!=='bg'){if(pend){L.web.push({t:t,k:'flush'});pend=false}}
+  else if(a!=='bg'&&changing(t)&&(a!=='scroll'||t>=nextScroll)&&(a!=='type'||i%3===0)&&(a!=='anim'||i%5===0)){L.web.push({t:t,k:'delta',b:a==='nav'?8:0.3});if(a==='scroll')nextScroll=t+0.1;lastEv=t;if(!pend){firstUnflushed=t}pend=true}
+  if(pend&&(t-lastEv>=5||t-firstUnflushed>=5.5)&&a!=='bg'){L.web.push({t:t,k:'flush'});pend=false}}
+ /* sentry android */
+ for(t=0;t<=DUR;t++){var a2=actAt(t);if(a2==='bg')continue;var ch=t===0||changing(t)||changing(t-0.5)||t===25;L.sa.push({t:t,k:ch?'delta':'rep',b:ch?3.5:0.4})}
+ [5,10,15,20,21,30].forEach(function(f){L.sa.push({t:f,k:'flush'})});
+ /* datadog iOS: on change, at most every 100 ms; key on view change */
+ var lastC=-1;for(i=0;i<=DUR*10;i++){t=i/10;var a3=actAt(t);if(a3==='bg')continue;
+  if((t===0||t===15||t===25)){L.dd.push({t:t,k:'key',b:6});lastC=t;continue}
+  if(changing(t)&&t-lastC>=0.1&&(a3!=='anim'||i%2===0)){L.dd.push({t:t,k:'delta',b:a3==='scroll'?0.6:0.25});lastC=t}}
+ [5,10,15,20,21,26,30].forEach(function(f){L.dd.push({t:f,k:'flush'})});
+ /* posthog iOS: 1 s throttle, hash skip, backoff */
+ var iv=1,unch=0,next=0;for(t=0;t<=DUR;t+=0.5){var a4=actAt(t);if(a4==='bg'){next=t;continue}
+  if(t<next)continue;var c4=t===0||changing(t)||changing(t-0.5);if(c4){L.ph.push({t:t,k:'key',b:3});unch=0;iv=1}else{unch++;if(unch>=3)iv=Math.min(8,iv*2)}next=t+(c4?1:iv)}
+ [2,4,6,8,10,12,15,17,19,21,26].forEach(function(f){L.ph.push({t:f,k:'flush'})});
+ /* ouo */
+ var cs=0;for(t=0;t<=DUR;t++){var a5=actAt(t);if(a5==='bg'){cs=-1;continue}var c5=t===0||t===25||changing(t)||changing(t-0.5);if(!c5)continue;
+  var full=t===0||t===15||t===25||cs<0||t-cs>=5||a5==='scroll';if(full)cs=t;L.ouo.push({t:t,k:full?'key':'delta',b:full?18:(a5==='anim'?1.2:3)})}
+ [5,10,15,20,21,30].forEach(function(f){L.ouo.push({t:f,k:'flush'})});
+ return L}
+var LN=[['web','Web: rrweb + Sentry'],['sa','Sentry Android, 1 fps video'],['dd','Datadog iOS, wireframes'],['ph','PostHog iOS (full snapshots)'],['ouo','ouo mobile, frames + tiles']];
+var svg=document.getElementById('simSvg'),raf=null;
+function X(t){return 160+t*16.5}
+function frame(T){while(svg.firstChild)svg.removeChild(svg.firstChild);var L=lanes();
+ var acc=cssv('--acc'),blu=cssv('--blue'),lin=cssv('--line'),mut=cssv('--mut'),fg=cssv('--fg');
+ /* activity row */
+ el(svg,'text',{x:4,y:26,'font-size':11,'font-weight':600},'User');
+ acts.forEach(function(a){if(a[3]==='idle')return;var col=a[3]==='bg'?mut:acc;el(svg,'rect',{x:X(a[0]),y:14,width:Math.max(4,(a[1]-a[0])*16.5),height:16,rx:3,fill:col,opacity:T>=a[0]?.85:.25});});
+ [[0,'open'],[2.2,'type'],[6.2,'scroll'],[11,'idle'],[15,'tap'],[16.5,'spinner'],[21.3,'hidden'],[25.2,'back']].forEach(function(l){el(svg,'text',{x:X(l[0])+2,y:44,'font-size':10,fill:mut},l[1])});
+ LN.forEach(function(ln,r){var y=72+r*48;el(svg,'text',{x:4,y:y+4,'font-size':11},ln[1]);el(svg,'line',{x1:X(0),y1:y,x2:X(DUR),y2:y,stroke:lin});var kb=0,n=0,rep=0;
+  L[ln[0]].forEach(function(m){if(m.t>T)return;if(m.k==='flush'){el(svg,'text',{x:X(m.t),y:y-9,'text-anchor':'middle','font-size':10,fill:fg},'▼');return}
+   n++;kb+=m.b;if(m.k==='rep')rep++;var h=m.k==='key'?18:m.k==='delta'?10:8;el(svg,'rect',{x:X(m.t)-1.5,y:y-h/2,width:3,height:h,fill:m.k==='key'?acc:m.k==='delta'?blu:lin,stroke:m.k==='rep'?mut:'none','stroke-width':.5})});
+  el(svg,'text',{x:4,y:y+18,'font-size':10,fill:mut},n+' captures'+(rep?' ('+rep+' unchanged)':''))});
+ el(svg,'line',{x1:X(T),y1:8,x2:X(T),y2:322,stroke:fg,'stroke-width':1,'stroke-dasharray':'3 3'});
+ for(var s=0;s<=30;s+=5)el(svg,'text',{x:X(s),y:326,'text-anchor':'middle','font-size':10,fill:mut},s+'s');
+ var cap={nav:'A new screen: change-driven recorders take a keyframe; ouo sends a full image.',type:'Typing: the web gets one input event per keystroke; picture recorders send changed frames at 1 fps.',scroll:'Scrolling changes every pixel: tiles cannot help (ouo sends full images), wireframes send position updates.',idle:'Idle: the web and Datadog go silent. Sentry Android still sends a repeated frame each second; PostHog backs off up to 8 s; ouo sends nothing.',anim:'A spinner: a small area changes every frame. ouo sends small patches; Datadog sees layer changes but tiny diffs.',bg:'Tab hidden / app in background: every SDK flushes now (▼), because the process may die without warning, and stops capturing.'}[actAt(T)];
+ document.getElementById('simCap').innerHTML='<b>t = '+T.toFixed(1)+' s.</b> '+(cap||'');}
+document.getElementById('simPlay').onclick=function(){cancelAnimationFrame(raf);var t0=performance.now(),sp=reduce?0.6:1.6;(function tick(now){var T=Math.min(DUR,(now-t0)/1000*sp);frame(T);if(T<DUR)raf=requestAnimationFrame(tick)})(t0)};
+frame(DUR);document.getElementById('simCap').innerHTML='The whole session is drawn below; press play to watch it unfold and read what each strategy does at each moment.';
+})();
+</script>
+</body></html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to play · replay-school</title>
+<meta name="description" content="A recording is only useful with a player that can rebuild it. For the web that means rebuilding a real DOM, safely, on a clock, with fast seeking. For every other format it means a renderer of its own, which is the hidden cost of supporting several formats.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t6-playing">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>How to play</h1>
+<p class="lede">A recording is only useful with a player that can rebuild it. For the web that means rebuilding a real DOM, safely, on a clock, with fast seeking. For every other format it means a renderer of its own, which is the hidden cost of supporting several formats.</p>
+<p class="builds">Builds on: <a href="f4-keyframes-and-deltas.html">Keyframes and deltas</a> · <a href="t2-what-to-record.html">What to record</a></p>
+<h2 id="rrweb">The rrweb player, step by step</h2>
+<div id="flows"></div>
+<div class="key">The player must never run the user's code. rrweb rebuilds the page in an iframe sandboxed to exactly <code>allow-same-origin</code> and turns recorded <code>&lt;script&gt;</code> tags into <code>&lt;noscript&gt;</code>. And seeking is only fast because many deltas are applied to a virtual DOM and patched into the real one in one diff, the player-side answer to <a href="f4-keyframes-and-deltas.html">keyframes and deltas</a>.</div>
+
+<h2 id="per-format">One player per format</h2>
+<ul>
+<li><b>Play</b> is the hidden cost: every format we record needs a player in the Grafana plugin.</li>
+</ul>
+<div class="wrap"><table>
+<tr><th>Format</th><th>Player in ouo's Grafana plugin</th></tr>
+<tr><td>rrweb (web)</td><td>The plugin's rrweb player</td></tr>
+<tr><td>ouo frames (mobile, today)</td><td>The plugin's frames player</td></tr>
+<tr><td>Video (Sentry bridge)</td><td>Already played as <code>kind: "video"</code> (<a href="../../../../plugins/ouo11y-rum-app/src/utils/video.ts">video.ts</a>, <a href="../../../../docs/adr-archive/0008-sentry-sdk-bridge.md">ADR-0008</a>)</td></tr>
+<tr><td>PostHog wireframes</td><td>rrweb-shaped events, close to the web player. <b>Not checked in the player code yet.</b></td></tr>
+<tr><td>Datadog wireframes</td><td>No open-source Datadog player was found; ouo would write the renderer</td></tr>
+</table></div>
+<div class="card"><b>"My app moves much faster than once a second, yet Sentry replays look acceptable."</b>
+<p>They are 1 fps. Two things hide it (reasoning, not measured): most app time is spent on still screens, where 1 fps loses nothing; and the player draws touches and navigation breadcrumbs from their own timestamps, so taps and screen changes look precise even though the pixels between them are one second apart. A fling or an animation does look like a jump.</p>
+</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"Why is the rrweb replay iframe sandboxed to exactly <code>allow-same-origin</code>?","a":["So that styles load faster","So that replaying a page never runs the user's scripts","So that the iframe can call the recorder"],"c":1,"why":"Without <code>allow-scripts</code> nothing executes; <code>rebuild()</code> refuses any other target, and <code>&lt;script&gt;</code> tags come back as <code>&lt;noscript&gt;</code>."},
+{"q":"How does the rrweb player make seeking to minute 20 fast?","a":["It skips every delta","It applies the sync mutations to a virtual RRDom and patches the real DOM with one keyed diff","It downloads a video of the session"],"c":1,"why":"Thousands of deltas become one patch (replay/index.ts L1407–1431, rrdom diff.ts)."},
+{"q":"Which borrowed format needs the least player work in ouo today?","a":["Sentry video","Datadog wireframes","PostHog wireframes"],"c":0,"why":"The plugin already plays <code>kind: \"video\"</code> from the Sentry bridge. Datadog has no open player; PostHog's fit is not checked."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t5-sending.html"><small>← previous</small>When to send, and how ouo ships</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="w1-rrweb.html"><small>next →</small>rrweb: the engine</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-rrweb-replay',title:'rrweb: replay',intro:'The player is the mirror image: rebuild a real DOM inside a sandboxed iframe, then apply events on a clock. Seeking uses a virtual DOM so thousands of deltas become one patch.',
+ boxes:[['rep','Replayer','setup'],['sb','Sandbox iframe','no scripts'],['tim','Timer','rAF clock'],['reb','rebuild','full snapshot → DOM'],['inc','applyIncremental','mutations, input…'],['vd','RRDom','fast-forward on seek']],
+ steps:[
+ ['rep','<code>new Replayer(events)</code> needs at least two events. Defaults: speed 1, skip inactive off (threshold 10 s), virtual DOM on.',[['replay/index.ts L182–215',RW+'rrweb/src/replay/index.ts#L182-L215']]],
+ ['sb','The page is rebuilt inside an iframe whose <code>sandbox</code> is forced to exactly <code>allow-same-origin</code>: no scripts. <code>rebuild()</code> refuses any other target, and recorded <code>&lt;script&gt;</code> tags come back as <code>&lt;noscript&gt;</code>. Replaying a page must never run the user\'s code.',[['rebuild.ts L777–805',RW+'rrweb-snapshot/src/rebuild.ts#L777-L805'],['L157–191',RW+'rrweb-snapshot/src/rebuild.ts#L157-L191']]],
+ ['tim','Events are sorted by time. To start at an offset, everything before the last Meta event ahead of the target is dropped; events up to the target are applied at once ("sync"); later ones become timer actions.',[['machine.ts L171–218',RW+'rrweb/src/replay/machine.ts#L171-L218']]],
+ ['tim','The Timer is one <code>requestAnimationFrame</code> loop: <code>timeOffset += elapsed × speed</code>, then run every action whose delay has passed. Skip-inactive fast-forwards long gaps between user actions.',[['timer.ts L28–79',RW+'rrweb/src/replay/timer.ts#L28-L79'],['skip L719–758',RW+'rrweb/src/replay/index.ts#L719-L758']]],
+ ['reb','A FullSnapshot resets the mirror and calls <code>rebuild()</code>, which creates real elements in the iframe with the same ids, then scrolls to the recorded offset.',[['index.ts L805–883',RW+'rrweb/src/replay/index.ts#L805-L883'],['rebuild.ts L735–764',RW+'rrweb-snapshot/src/rebuild.ts#L735-L764']]],
+ ['inc','A Mutation event is applied in a fixed order: removes, then adds (each placed by <code>parentId</code> and <code>nextId</code>; adds whose parent is not there yet wait in a queue), then texts, then attributes.',[['L1433–1490',RW+'rrweb/src/replay/index.ts#L1433-L1490'],['L1718–1780',RW+'rrweb/src/replay/index.ts#L1718-L1780']]],
+ ['vd','When seeking, the first mutation builds an <b>RRDom</b> virtual copy of the iframe, all sync mutations go to it, and at the end one keyed diff patches the real DOM, like a React reconciler. This is what makes seeking to minute 20 fast.',[['L1407–1431',RW+'rrweb/src/replay/index.ts#L1407-L1431'],['flush L224–272',RW+'rrweb/src/replay/index.ts#L224-L272'],['rrdom diff.ts L373–400',RW+'rrdom/src/diff.ts#L373-L400']]]
+ ]});
+})();
+</script>
+</body></html>

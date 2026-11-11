@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Masking: data versus geometry · replay-school</title>
+<meta name="description" content="Masking hides private things (names, card numbers, typed text) before the recording leaves the device. With structure it is a change to data. With pixels it is a box painted at a position. That difference decides which recorders can leak.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f6-masking-data-vs-geometry">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>Masking: data versus geometry</h1>
+<p class="lede">Masking hides private things (names, card numbers, typed text) before the recording leaves the device. With structure it is a change to data. With pixels it is a box painted at a position. That difference decides which recorders can leak.</p>
+<p class="builds">Builds on: <a href="f1-pixels-vs-structure.html">Pixels versus structure</a> · <a href="f2-event-loop-and-frames.html">The event loop and frames</a></p>
+<p>Take one private row: <code>Ana Ruiz</code>. A structure recorder and a picture recorder both want it hidden. Move the slider to let the list move a little between the moment the recorder learns <em>where</em> things are and the moment it records them.</p>
+<div class="card">
+<div class="btns"><label style="font-size:13px">list moves by <input type="range" id="mgMove" min="0" max="16" value="0" style="vertical-align:middle;width:150px"> <span id="mgMoveV">0</span> px between the tree walk and the copy</label></div>
+<div class="grid2">
+ <div><div class="lane">Structure: the string is replaced in the record</div><pre id="mgData" style="min-height:200px;white-space:pre-wrap"></pre></div>
+ <div><div class="lane">Pixels: a box is painted where the walk said the text was</div><div class="phones"><canvas id="mgPix" width="320" height="400" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div></div>
+</div>
+<div class="step-caption" id="mgCap" aria-live="polite" style="margin-top:8px"></div>
+</div>
+
+<h2 id="data">Masking as data</h2>
+<p>In tree, wireframe and draw-command recording, the private value passes through the recorder as data, and the recorder rewrites it before writing it down. Nothing about timing can make it slip: the string that leaves is the masked one.</p>
+<div class="wrap"><table>
+<tr><th>Recorder</th><th>What masked text becomes</th><th>Source</th></tr>
+<tr><td>rrweb (web)</td><td>every non-space character becomes <code>*</code>, length kept</td><td><a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb-snapshot/src/snapshot.ts#L498-L539">snapshot.ts L498–539</a></td></tr>
+<tr><td>Datadog (web)</td><td><code>x</code>s, spaces kept</td><td><a href="https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/browser-rum/src/domain/record/trackers/trackMutation.spec.ts#L575-L585">trackMutation.spec.ts L575–585</a></td></tr>
+<tr><td>PostHog wireframes (mobile)</td><td><code>*</code></td><td><a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayIntegration.swift#L1451-L1586">toWireframe L1451–1586</a></td></tr>
+<tr><td>Sentry Android, canvas strategy</td><td>a <code>drawText</code> call becomes a rectangle of the same size</td><td><a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L873-L890">CanvasStrategy.kt L873–890</a></td></tr>
+</table></div>
+<p>The weak spot of data masking is elsewhere: it can only mask what it can <em>read</em>. A view the recorder cannot describe (a custom-drawn chart, a SwiftUI drawing view) has no string to replace, so recorders mask such views whole or leave them out.</p>
+
+<h2 id="geometry">Masking as geometry</h2>
+<p>A picture recorder has two separate facts: the tree walk says <em>where</em> the private text is, the pixel copy says <em>what</em> is on screen. Masking means painting rectangles from the first onto the second. If anything moves between the two moments, a scroll, an animation, a keyboard sliding up, the boxes land on the wrong pixels and part of the text is left visible.</p>
+<div class="key">The decisive difference is <b>where the knowledge of "what is private" meets the data</b>. In tree, wireframe and draw-command capture, masking is a transformation of structured data (a string becomes <code>***</code>). In picture capture, masking is geometry: you compute rectangles from one tree walk and paint them on pixels copied at a slightly different moment. That gap is where picture-based recorders leak, and why their masking code is the biggest part of them.</div>
+<p>Lesson <a href="t3-masking-race.html">How to mask: the masking race</a> plays that race for real, with each vendor's defence.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"A web recorder masks <code>Ana Ruiz</code> while the page scrolls. Can the name leak because of the scroll?","a":["Yes, the mask box can slip","No: the string is replaced in the record before it is written; position does not matter","Only on mobile Safari"],"c":1,"why":"Structure masking is a data transform. Timing cannot make it miss."},
+{"q":"What does rrweb write for a masked <code>Tea</code>?","a":["<code>***</code>, keeping the length","<code>xxx</code>","an empty string"],"c":0,"why":"Every non-space character becomes <code>*</code> (snapshot.ts L498–539). Datadog writes <code>x</code>s with spaces kept."},
+{"q":"Where is a picture recorder's mask most likely to miss?","a":["On a static screen","On a view that moves between the tree walk and the pixel copy","On a screen with no text"],"c":1,"why":"The boxes come from one moment, the pixels from another. Motion in between is the masking race."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f5-compression.html"><small>← previous</small>Compression basics, and how H.264 skips</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t1-hooks.html"><small>next →</small>When to look: hooks</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var K=2,cv=document.getElementById('mgPix'),c=cv.getContext('2d');
+var rows=['Order #1029','Ana Ruiz','12 Baker St','+44 7700 900123'];
+function list(off){c.setTransform(K,0,0,K,0,0);c.fillStyle='#fff';c.fillRect(0,0,160,200);rows.forEach(function(r,i){var y=14+i*44-off;c.fillStyle='#f3f1ec';c.fillRect(8,y,144,32);c.fillStyle='#1d1d1b';c.font='13px system-ui';c.textBaseline='middle';c.textAlign='left';c.fillText(r,16,y+16)})}
+function boxes(){return rows.map(function(r,i){return i===0?null:{x:14,y:14+i*44+8,w:Math.min(134,r.length*7.2),h:16}}).filter(Boolean)}
+function maskStar(s){return s.replace(/\S/g,'*')}
+function draw(){var m=+document.getElementById('mgMove').value;document.getElementById('mgMoveV').textContent=m;
+ list(m);c.fillStyle='#222';boxes().forEach(function(b){c.fillRect(b.x,b.y,b.w,b.h)});
+ document.getElementById('mgData').textContent='// what the structure recorder writes\n'+rows.map(function(r,i){return '{"id":'+(10+i)+',"type":"text","text":"'+(i===0?r:maskStar(r))+'"}'}).join('\n')+'\n\n// list moved by '+m+' px: same record';
+ document.getElementById('mgCap').innerHTML=m===0?'Nothing moved: both sides hide the private rows.':m<5?'A small move: the boxes still mostly cover the text, but the bottom edge of each line peeks out.':'The boxes were placed for where the rows <em>were</em>. The text has moved <b>'+m+' px</b> up and its lower half is readable. The structure record is unchanged.'}
+document.getElementById('mgMove').oninput=draw;
+draw();
+if(!RS.reduce){var v=0,dir=1,t=setInterval(function(){v+=dir;if(v>=12){clearInterval(t)}document.getElementById('mgMove').value=v;draw()},120);document.getElementById('mgMove').addEventListener('input',function(){clearInterval(t)})}
+})();
+</script>
+</body></html>

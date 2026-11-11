@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to mask: the masking race · replay-school</title>
+<meta name="description" content="Picture recorders mask by geometry, and geometry has a race: the tree walk and the pixel copy happen at slightly different moments. Here is the race, and the four defences vendors use against it.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t3-masking-race">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>How to mask: the masking race</h1>
+<p class="lede">Picture recorders mask by geometry, and geometry has a race: the tree walk and the pixel copy happen at slightly different moments. Here is the race, and the four defences vendors use against it.</p>
+<p class="builds">Builds on: <a href="f6-masking-data-vs-geometry.html">Masking: data versus geometry</a> · <a href="f3-view-trees.html">View trees, platform by platform</a></p>
+<p>A picture recorder walks the tree to learn <em>where</em> the private text is, and copies pixels to learn <em>what</em> is on screen. If the list scrolls between the two, the box lands on the wrong pixels. Every picture-based SDK has a defence; pick one and press ▶.</p>
+<div class="card">
+<div class="tabs" id="raceTabs"></div>
+<div class="btns"><button class="b" id="racePlay" type="button">▶ capture one frame while scrolling</button></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+ <div><div class="lane">t₀ tree walk → mask boxes</div><canvas id="raceA" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+ <div><div class="lane">t₁ pixel copy (list moved)</div><canvas id="raceB" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+ <div><div class="lane">frame sent</div><canvas id="raceC" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+</div>
+<div class="step-caption" id="raceCap"></div>
+</div>
+<h2 id="defences">The defences, compared</h2>
+<div class="wrap"><table>
+<tr><th>Defence</th><th>Who</th><th>Idea</th><th>What it gives up</th></tr>
+<tr><td><b>Drop if moving</b></td><td>ouo mobile</td><td>If a scroll view is dragging or decelerating, or a layer animation runs, drop the frame; Android walks again after the copy and drops it if a box moved</td><td>The replay freezes during motion (the player keeps the previous frame)</td></tr>
+<tr><td><b>Walk after the copy</b></td><td>Sentry Android</td><td>Build the hierarchy inside the PixelCopy callback, after the pixels are in hand; skip one unstable frame</td><td>At most one skipped frame per copy</td></tr>
+<tr><td><b>Presentation layers</b></td><td>Sentry iOS</td><td>Walk the CALayer presentation tree (where things are on screen now) and render what the screen last showed</td><td>Nothing is dropped; whether boxes and pixels always agree is not measured</td></tr>
+<tr><td><b>Same frame, no await</b></td><td>Flutter (PostHog, Sentry)</td><td>Walk the render tree and take the image in one synchronous step, so no new frame can be built in between</td><td>Nothing is dropped; only possible because Flutter owns both the tree and the pixels (reasoning)</td></tr>
+</table></div>
+<p class="src">Each row is backed by the source links in the demo captions above.</p>
+<div class="card"><b>Does Sentry drop frames in motion, or capture faster?</b>
+<p>Neither. iOS keeps its rate during scrolling, waits (at most 1 s) while 4 or more animations run, and backs off to one frame per 2 s when a capture takes 150 ms or more. Android skips at most one frame that was drawn during the copy. Sentry trusts its timing; ouo refuses the frame. Neither has been measured for leaks: that is the masking-experiment session.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438">SentrySessionReplay.swift L365–438</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayCaptureGuard.swift#L7-L48">SentrySessionReplayCaptureGuard.swift</a></p>
+</div>
+<div class="note"><b>Not measured yet.</b> No leak rate has been measured for any of these defences, in this repository or elsewhere that we know of. A masking experiment is running as a separate session; its results may add a page here.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"In the naive strategy, what leaks during a 12 px scroll?","a":["Nothing","The bottom of every masked line, because the boxes were computed before the list moved","Only images"],"c":1,"why":"Boxes from t₀, pixels from t₁. The text moved up, the boxes did not."},
+{"q":"What does ouo's mobile recorder do when a masked view is moving?","a":["Grows the boxes","Drops the frame (fails closed)","Blurs the whole screen"],"c":1,"why":"The player keeps showing the previous frame. That is the drop-if-moving rule in the mobile-replay spec."},
+{"q":"Why can Flutter recorders avoid the race?","a":["Flutter is always static","The render tree and the image come from the same frame, with no <code>await</code> in between","Flutter has no text"],"c":1,"why":"PostHog awaits <code>endOfFrame</code>, then walks and calls <code>toImage()</code> synchronously; Sentry's capture is documented \"MUST NOT BE ASYNC\"."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t2-what-to-record.html"><small>← previous</small>What to record</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t4-packing.html"><small>next →</small>How to pack</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+/* ---------- 5.0 masking race ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,K=2;
+['raceA','raceB','raceC'].forEach(function(id){var c=document.getElementById(id);c.width=160*K;c.height=200*K});
+function cx(id){var c=document.getElementById(id).getContext('2d');c.setTransform(K,0,0,K,0,0);return c}
+var rows=['Card •••• 4242','Ana Ruiz','+44 7700 900123','12 Baker St','ana@mail.test','Order #1029'];
+function list(c,off){c.fillStyle='#fff';c.fillRect(0,0,160,200);c.save();c.beginPath();c.rect(0,0,160,200);c.clip();rows.forEach(function(r,i){var y=10+i*34-off;c.fillStyle='#f3f1ec';c.fillRect(8,y,144,28);c.fillStyle='#1d1d1b';c.font='12px system-ui';c.textBaseline='middle';c.fillText(r,16,y+14)});c.restore()}
+function boxes(off){return rows.map(function(r,i){return {x:14,y:10+i*34-off+6,w:Math.min(132,r.length*6.6),h:16}})}
+function paint(c,bs,col){c.fillStyle=col||'#222';bs.forEach(function(b){c.fillRect(b.x,b.y,b.w,b.h)})}
+var M={
+ naive:['Naive',function(){list(cx('raceA'),0);paint(cx('raceA'),boxes(0),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');list(c,12);paint(c,boxes(0));return 'The boxes were computed at t₀, the pixels copied at t₁ after a 12 px scroll: <b>the bottom of every line leaks</b> (look at the phone number and the e-mail).'}],
+ ouo:['ouo: drop if moving',function(){list(cx('raceA'),0);paint(cx('raceA'),boxes(0),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');c.fillStyle='#f1eee7';c.fillRect(0,0,160,200);c.fillStyle='#b4441c';c.font='600 12px system-ui';c.textAlign='center';c.fillText('frame dropped',80,92);c.fillStyle='#66625a';c.font='11px system-ui';c.fillText('(scroll view was moving)',80,110);c.textAlign='left';return '<b>Fail closed.</b> The masker sees a scroll view that is dragging or decelerating (or a moving layer animation) and drops the frame; the player keeps the previous one. Android walks again after the copy and drops the frame if any box moved. Source: <a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, iOS rule 5 and Android rule 4.'}],
+ sentryA:['Sentry Android: walk after the copy',function(){list(cx('raceA'),0);list(cx('raceB'),12);paint(cx('raceB'),boxes(12),'rgba(180,68,28,.55)');var c=cx('raceC');list(c,12);paint(c,boxes(12));return 'Sentry Android builds the view hierarchy <b>in the PixelCopy callback</b>, after the pixels are in hand, and skips one "unstable" frame if a draw happened while the copy was in flight. Boxes and pixels describe the same moment. Source: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/PixelCopyStrategy.kt#L113-L168">PixelCopyStrategy.kt L113–168</a>.'}],
+ sentryI:['Sentry iOS: presentation layers',function(){list(cx('raceA'),6);paint(cx('raceA'),boxes(6),'rgba(180,68,28,.55)');list(cx('raceB'),6);var c=cx('raceC');list(c,6);boxes(6).forEach(function(b){c.fillStyle='#8f8d88';c.fillRect(b.x,b.y,b.w,b.h)});return 'Sentry iOS walks the <b>CALayer presentation tree</b> (where things are on screen now, mid-animation) and renders with <code>drawHierarchy(afterScreenUpdates: false)</code>, which reads what the screen last showed. Each box is filled with the <b>average colour</b> of the area, not black. Sources: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L555-L707">SentryUIRedactBuilder.swift L555–707</a>, <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91">SentryDefaultMaskRenderer.swift L14–91</a>.'}],
+ flutter:['Flutter: same frame, no await',function(){list(cx('raceA'),12);paint(cx('raceA'),boxes(12),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');list(c,12);paint(c,boxes(12));return 'In Flutter the render tree and the image come from the <b>same frame</b>: PostHog awaits <code>endOfFrame</code>, then walks the tree and calls <code>toImage()</code> with no <code>await</code> in between, so no new frame can be built in the gap. Sentry\'s capture is documented "MUST NOT BE ASYNC" for the same reason. Sources: <a href="https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/lib/src/replay/screenshot/screenshot_capturer.dart#L700-L757">screenshot_capturer.dart L700–757</a>, <a href="https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/lib/src/screen_capture/recorder.dart#L57-L131">recorder.dart L57–131</a>.'}]
+};
+var cur='naive',tabs=document.getElementById('raceTabs');
+Object.keys(M).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=M[k][0];b.onclick=function(){cur=k;reset()};tabs.appendChild(b)});
+function reset(){tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===cur)});list(cx('raceA'),0);list(cx('raceB'),0);var c=cx('raceC');c.fillStyle='#f1eee7';c.fillRect(0,0,160,200);document.getElementById('raceCap').innerHTML='Strategy: <b>'+M[cur][0]+'</b>. Press ▶.'}
+document.getElementById('racePlay').onclick=function(){reset();var off=0,t=setInterval(function(){off+=2;list(cx('raceB'),off);if(off>=12){clearInterval(t);document.getElementById('raceCap').innerHTML=M[cur][1]()}},reduce?200:60)};
+reset();
+})();
+</script>
+</body></html>

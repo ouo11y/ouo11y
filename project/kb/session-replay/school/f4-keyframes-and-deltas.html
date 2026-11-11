@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keyframes and deltas · replay-school</title>
+<meta name="description" content="A recording is a first full picture of the screen followed by small changes. The full picture is a keyframe, the changes are deltas. Every format in this course, from rrweb JSON to H.264 video, is built on this split.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f4-keyframes-and-deltas">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>Keyframes and deltas</h1>
+<p class="lede">A recording is a first full picture of the screen followed by small changes. The full picture is a <b>keyframe</b>, the changes are <b>deltas</b>. Every format in this course, from rrweb JSON to H.264 video, is built on this split.</p>
+<p class="builds">Builds on: <a href="f1-pixels-vs-structure.html">Pixels versus structure</a></p>
+<h2 id="names">One idea, many names</h2>
+<p>A <b>keyframe</b> (rrweb: <em>full snapshot</em>; video: <em>I-frame</em>; ouo frames: <em>full image</em>) can be shown on its own. A <b>delta</b> (rrweb: <em>incremental snapshot</em>; Datadog: <em>mutation / Change record</em>; video: <em>P-frame</em>; ouo: <em>patches</em>) only means something on top of the frames before it. Deltas are small, but to show second 50 the player must load the last keyframe before 50 and apply every delta after it. If that keyframe is lost or far back, seeking is slow or impossible. A <b>checkout</b> is a keyframe taken on purpose, mid-session, to bound that cost and to let older data be thrown away (Sentry's error buffer keeps only what follows the last checkout).</p>
+<div class="wrap"><table>
+<tr><th>Format</th><th>Keyframe is called</th><th>Delta is called</th></tr>
+<tr><td>rrweb (web)</td><td>full snapshot</td><td>incremental snapshot</td></tr>
+<tr><td>Datadog</td><td>full snapshot</td><td>mutation / Change record</td></tr>
+<tr><td>Video (H.264)</td><td>I-frame (key frame)</td><td>P-frame</td></tr>
+<tr><td>ouo mobile frames</td><td>full image</td><td>patches (tiles)</td></tr>
+</table></div>
+<h2 id="seek">Seeking: why recorders take checkouts</h2>
+<p>Move the slider. Every blue mark the player has to apply is work it does before it can show you that second. Then change how often a checkout is taken.</p>
+<div class="card">
+<div class="btns"><label style="font-size:13px">checkout every <select id="kfEvery"><option value="0">never (rrweb default)</option><option value="15" selected>15 s</option><option value="5">5 s (ouo chunk / video segment)</option></select></label><label style="font-size:13px">seek to <input type="range" id="kfSeek" min="0" max="60" value="47" style="vertical-align:middle;width:160px"> <span id="kfSeekV">47</span> s</label></div>
+<div class="wrap"><svg id="kfSvg" viewBox="0 0 640 110" style="width:100%;min-width:520px;height:auto;display:block"></svg></div>
+<div class="step-caption" id="kfCap"></div>
+<p class="src">Checkout rules in source: rrweb takes a full snapshot when <code>checkoutEveryNth</code> or <code>checkoutEveryNms</code> is reached, neither set by default (<a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/index.ts#L220-L241">record/index.ts L220–241</a>) · Sentry sets <code>checkoutEveryNms = 60 000</code> in buffer mode (<a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L443-L479">replay.ts L443–479</a>) · PostHog web takes one every 5 min by timer (<a href="https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/extensions/replay/external/lazy-loaded-session-recorder.ts#L1007-L1042">L1007–1042</a>) · Datadog web on every RUM view, no timer (<a href="https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/browser-rum/src/domain/record/startFullSnapshots.ts#L12-L72">startFullSnapshots.ts L12–72</a>) · Datadog iOS on a view id change (<a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Processor/SnapshotProcessor.swift#L99-L127">SnapshotProcessor.swift L99–127</a>) · Sentry video: an H.264 key frame at most every 6 frames (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a>) and every 5 s segment is its own MP4 · ouo frames: the first frame of every chunk is a full image, chunks cut every 5 s (<a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>).</p>
+</div>
+<div class="key">Three things follow from the split. <b>Seeking</b> costs "last keyframe + every delta since". <b>Losing</b> a keyframe makes the deltas after it useless until the next one, because deltas name things that only the keyframe introduced (in rrweb, node ids). <b>Buffering</b> is cheap to bound: a recorder that keeps only the last minute in memory can throw away everything before the last checkout.</div>
+<p>Lesson <a href="f5-compression.html">Compression basics</a> shows the same split inside a video codec, where a P-frame can say "this block did not change" in about one bit.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"A session has a keyframe at 0 s and 15 s. To show second 47, what does the player load?","a":["Every event from 0 s","The keyframe at 15 s and every delta after it up to 47 s","Only the delta at 47 s"],"c":1,"why":"It starts from the last keyframe at or before the target and applies the deltas in between."},
+{"q":"rrweb's default checkout setting is…","a":["every 60 s","every 5 minutes","none: no periodic full snapshot unless <code>checkoutEveryNth</code> or <code>checkoutEveryNms</code> is set"],"c":2,"why":"Neither option is set by default (record/index.ts L220–241). Sentry sets 60 s in buffer mode; PostHog web takes one every 5 min."},
+{"q":"Why does Sentry's error buffer rely on checkouts?","a":["So it can drop everything older than the last checkout and still play what it keeps","Checkouts compress better","The server requires one per minute"],"c":0,"why":"A buffer that keeps only data after the last keyframe is always playable and its size is bounded."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f3-view-trees.html"><small>← previous</small>View trees, platform by platform</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="f5-compression.html"><small>next →</small>Compression basics, and how H.264 skips</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){var reduce=RS.reduce,NS=RS.NS,el=RS.el,cssv=RS.cssv;
+var kfSvg=document.getElementById('kfSvg');
+var deltas=[];(function(){var t=0.4,s=7;while(t<60){deltas.push(+t.toFixed(1));s=(s*9301+49297)%233280;t+=0.2+(s/233280)*1.6}})();
+function kfDraw(){var every=+document.getElementById('kfEvery').value,seek=+document.getElementById('kfSeek').value;document.getElementById('kfSeekV').textContent=seek;
+ while(kfSvg.firstChild)kfSvg.removeChild(kfSvg.firstChild);var X=function(t){return 20+t*10};
+ el(kfSvg,'line',{x1:20,y1:70,x2:620,y2:70,stroke:cssv('--line'),'stroke-width':2});
+ for(var s=0;s<=60;s+=10)el(kfSvg,'text',{x:X(s),y:104,'text-anchor':'middle','font-size':11,fill:cssv('--mut')},s+' s');
+ var keys=[0];if(every)for(var k=every;k<60;k+=every)keys.push(k);
+ var base=0;keys.forEach(function(k){if(k<=seek)base=k});
+ var applied=0;
+ deltas.forEach(function(d){var used=d>base&&d<=seek;if(used)applied++;el(kfSvg,'rect',{x:X(d)-1,y:58,width:2.5,height:12,fill:used?cssv('--blue'):cssv('--line')})});
+ keys.forEach(function(k){el(kfSvg,'rect',{x:X(k)-3,y:34,width:6,height:36,rx:1,fill:k===base?cssv('--acc'):cssv('--mut')})});
+ el(kfSvg,'rect',{x:X(base),y:28,width:Math.max(0,X(seek)-X(base)),height:4,fill:cssv('--acc'),opacity:.5});
+ el(kfSvg,'line',{x1:X(seek),y1:14,x2:X(seek),y2:80,stroke:cssv('--fg'),'stroke-width':1.5,'stroke-dasharray':'3 3'});
+ el(kfSvg,'text',{x:X(seek),y:11,'text-anchor':'middle','font-size':11},'seek');
+ document.getElementById('kfCap').innerHTML='To show second <b>'+seek+'</b> the player loads the keyframe at <b>'+base+' s</b> and applies <b>'+applied+'</b> deltas. '+(every?'Every keyframe after the first also lets the recorder (or a buffer) drop everything older.':'With no checkouts, every seek replays from the very first snapshot, and losing it loses the whole session.');}
+document.getElementById('kfEvery').onchange=kfDraw;document.getElementById('kfSeek').oninput=kfDraw;kfDraw();
+new MutationObserver(kfDraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+</body></html>

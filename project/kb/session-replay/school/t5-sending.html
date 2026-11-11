@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>When to send, and how ouo ships · replay-school</title>
+<meta name="description" content="Capturing and sending are separate decisions. This lesson covers the four triggers for sending, why the page-close moment is the one that matters, and how any technique leaves the device as an ouo.replay.chunk under the draft spec.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="t5-sending">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Topics</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Topics</p>
+<h1>When to send, and how ouo ships</h1>
+<p class="lede">Capturing and sending are separate decisions. This lesson covers the four triggers for sending, why the page-close moment is the one that matters, and how any technique leaves the device as an <code>ouo.replay.chunk</code> under the draft spec.</p>
+<p class="builds">Builds on: <a href="f4-keyframes-and-deltas.html">Keyframes and deltas</a> · <a href="t4-packing.html">How to pack</a></p>
+<h2 id="flush">Four triggers</h2>
+<p>Capturing and sending are separate decisions. Every SDK keeps captured data in a buffer and uploads it on one of four triggers. <b>Time</b>: Sentry web 5 s after the last event (at most 5.5 s), Datadog 5 s, PostHog 2 s, ouo mobile 5 s. <b>Size</b>: Datadog 60,000 compressed bytes, under the browser's 64 KB unload budget; PostHog about 0.9 MB; ouo 1 MiB of images. <b>Lifecycle</b>: tab hidden, page hide, app background. <b>An error</b>: in buffer mode Sentry keeps 30 to 60 s in memory and sends it only when an error happens. Lifecycle is the trigger that matters most, because it is the last moment the code is guaranteed to run. On the web after <code>visibilitychange → hidden</code> the tab may be killed without another event; on iOS, after <code>didEnterBackground</code> the app may be suspended within seconds.</p>
+<p class="src">One limit cuts across options 2 and 3: at page unload all keepalive requests share 64 KiB, and the draft spec keeps them under 60 KiB with telemetry first (TRN-16). A 256 KiB chunk cannot leave during unload; it stays persisted and a later page sends it (TRN-18). Datadog caps segments at 60,000 compressed bytes for the same reason (<a href="w4-datadog-web.html">Datadog on the web</a>).</p>
+<div class="card"><b>When does ouo export frames?</b>
+<p>A chunk closes at the first of: 5 s, 1 MiB of images, pause or background, a session rotation, a screen-size change. It is written to disk, then sent as its own request with retries. A chunk with no frames and no touches is not sent. The draft spec keeps time and lifecycle and lowers the size target to 256 KiB (hard limit 1 MiB).</p>
+<p class="src"><a href="../../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="../../opentelemetry/rum-semantic-conventions/sdk-spec.md">sdk-spec.md</a> §11 (RPL-10)</p>
+</div>
+
+<h2 id="chunk">How ouo would ship it: every technique as an <code>ouo.replay.chunk</code></h2>
+<p>The working assumption: whatever the capture technique, its output leaves the device as <code>ouo.replay.chunk</code> records, with the payload either in the record's body or held elsewhere and referenced. This topic shows what the repository already says, maps each technique from topics 2 to 5 onto that record, and lays out the choices still open. <b>Evidence only: nothing here decides the format.</b></p>
+<h3 id="today">Two layers in the repo: what runs today, and the draft spec</h3>
+<div class="grid2">
+<div class="card" style="margin:0"><b>Today (MVP-era code)</b>
+<ul style="padding-left:18px;margin:6px 0">
+<li>The SDK posts a gzip <b>JSON chunk</b> to <code>POST /v1/replay/chunks</code> on the Collector's <code>ouoreplay</code> receiver (port 4319): <a href="../../../../collector/receiver/ouoreplayreceiver/config.go">config.go</a>.</li>
+<li>Three <code>kind</code>s: <code>rrweb</code> (events), <code>frames</code> (JPEG full images and tile patches, base64 in the JSON: <a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>) and <code>video</code> (MP4 base64, made by the Sentry bridge from Sentry's <code>replay_video</code>: <a href="../../../../docs/specs/sentry-bridge.md">sentry-bridge spec</a> §9–11).</li>
+<li>The receiver validates the chunk and wraps the <b>whole JSON</b> as the bytes body of one log record, with <code>session.id</code>, <code>ouo.replay.seq</code>, <code>ouo.replay.kind</code> and <code>ouo.replay.encoding = json</code>: <a href="../../../../collector/receiver/ouoreplayreceiver/receiver.go">receiver.go</a> (<code>buildLogs</code>).</li>
+<li>The <code>ouoreplay</code> exporter posts the body on to rum-api, which stores one file per chunk; a session cannot mix kinds (409).</li>
+</ul></div>
+<div class="card" style="margin:0"><b>Draft spec (post-MVP Steps 2 and 3)</b>
+<ul style="padding-left:18px;margin:6px 0">
+<li>A chunk is an <b>OTLP log record</b>, event <code>ouo.replay.chunk</code>, scope <code>ouo.replay</code>, sent over OTLP/HTTP <b>protobuf</b> so bytes are not base64'd: <a href="../../opentelemetry/rum-semantic-conventions/sdk-spec.md">sdk-spec.md</a> §11, TRN-1.</li>
+<li>Hierarchy <code>session → replay → stream → segment → chunk</code>; a segment starts with a keyframe and is decodable alone (RPL-6); each chunk body is independently decompressible, and a segment's bodies concatenated are a valid payload of <code>ouo.replay.format</code> (RPL-7).</li>
+<li>Chunks close at 256 KiB compressed (hard limit 1 MiB), 5 s, stream end, or hide/background (RPL-10); a keyframe at least every 5 min and on visibility change (RPL-9).</li>
+<li>Bytes to the Collector, then the Collector stores them and replaces the body with <code>ouo.replay.ref</code> (decision D3, recommended and applied, not yet decided): <a href="../../opentelemetry/rum-semantic-conventions/replay.md">replay.md</a>.</li>
+<li>The format is pluggable and <b>the mobile format is open</b> (§11.6).</li>
+</ul></div>
+</div>
+<div class="wrap" style="margin-top:10px"><table>
+<tr><th>Field</th><th>Today</th><th>Draft spec</th></tr>
+<tr><td>Transport</td><td>custom HTTP JSON, port 4319</td><td>OTLP/HTTP protobuf, own queue (TRN-3)</td></tr>
+<tr><td>Which decoder</td><td><code>ouo.replay.kind</code>: rrweb, frames, video</td><td><code>ouo.replay.format</code> with a version, e.g. <code>rrweb/2</code></td></tr>
+<tr><td>Order</td><td><code>ouo.replay.seq</code> per session</td><td><code>ouo.replay.sequence</code> per stream, plus <code>segment.index</code> and <code>keyframe</code></td></tr>
+<tr><td>Body</td><td>the JSON envelope; images and MP4 as base64 inside it</td><td>the format's bytes, compressed as <code>ouo.replay.encoding</code> says</td></tr>
+<tr><td>Integrity</td><td>validated by structure</td><td><code>ouo.replay.sha256</code>, <code>byte_size</code>; de-duplicated by (replay, stream, sequence)</td></tr>
+<tr><td>Where the body ends up</td><td>rum-api files</td><td>object store; the log store keeps the record with <code>ouo.replay.ref</code></td></tr>
+</table></div>
+<h3 id="builder">One technique, chunked: watch the records being cut and shipped</h3>
+<p>Pick a technique. The strip is 60 s of a session cut into chunks under the draft spec's rules; the box size follows the bytes (estimates from the evidence linked below). Click a chunk to see its record. ▶ sends one through the pipeline.</p>
+<div class="card">
+<div class="tabs" id="chTabs"></div>
+<div class="btns"><button class="b" id="chSend" type="button">▶ ship the selected chunk</button></div>
+<div class="wrap"><svg id="chStrip" viewBox="0 0 640 104" style="width:100%;min-width:560px;height:auto;display:block"></svg></div>
+<div class="wrap"><svg id="chPipe" viewBox="0 0 640 120" style="width:100%;min-width:560px;height:auto;display:block;margin-top:4px"></svg></div><div class="lane phone-only">scroll the strip and the pipeline sideways</div>
+<div class="grid2" style="margin-top:6px">
+ <div><div class="lane">The <code>ouo.replay.chunk</code> record (attributes)</div><pre id="chRec" style="min-height:230px"></pre></div>
+ <div><div class="lane">What is in the body</div><pre id="chBody" style="min-height:120px;white-space:pre-wrap"></pre><div class="step-caption" id="chCap" style="font-size:13px"></div></div>
+</div>
+</div>
+
+<h2 id="choices">The choices still open, with what each costs</h2>
+<div class="wrap"><table>
+<tr><th>Choice</th><th>Option A</th><th>Option B</th><th>Evidence</th></tr>
+<tr><td><b>1. Body packaging</b></td><td>The format's raw bytes in the OTLP body (draft spec)</td><td>A JSON envelope with base64 media inside (today's <code>frames</code> and <code>video</code>)</td><td>base64 costs 4/3 and gzip cannot win it back on JPEG or MP4; PostHog's base64 WebP in JSON relies on request gzip; OpenReplay ships raw <code>[ts][len][jpeg]</code> records</td></tr>
+<tr><td><b>2. Compression</b></td><td>Each chunk its own gzip stream (RPL-7)</td><td>One deflate stream per segment, sync-flushed per chunk (Datadog), or none for media</td><td>Sentry compresses per event in a worker and closes the stream at flush; Datadog's ready trailer lets a page close the stream on unload; JPEG and MP4 are <code>identity</code> either way</td></tr>
+<tr><td><b>3. Segment length</b></td><td>Segment = chunk (every chunk starts with a keyframe: video, ouo frames today)</td><td>Long segments (rrweb, keyframe every 5 min per RPL-9)</td><td>A = any chunk is playable alone, a lost chunk loses 5 s, bigger bytes; B = small deltas, a lost chunk breaks the rest of the segment until the next keyframe (RPL-8), seek cost grows (3.1)</td></tr>
+<tr><td><b>4. Images and other resources</b></td><td>Inline in the chunk that needs them</td><td>Separate records keyed by a hash, sent once per session</td><td>Datadog sends images once by MD5; "decodable alone" (RPL-6) then means "alone plus resources already stored"</td></tr>
+<tr><td><b>5. Touches, navigation, breadcrumbs</b></td><td>Inside the chunk body (Sentry rrweb sidecar, ouo frames)</td><td>Ordinary RUM events, joined by <code>session.id</code> and time</td><td>ouo already emits navigation and tap events as telemetry; duplicates cost bytes, separation means the player joins two sources</td></tr>
+<tr><td><b>6. Where the body lives</b></td><td>Bytes to the Collector, a reference onward (D3 as applied)</td><td>A second upload path straight to object storage, the record carrying the reference from the start</td><td>D3's own text lists what B rewrites (RPL-2, TRN-1, TRN-5, TRN-12); Sentry and Datadog both send bodies through their intake; Loki lines over 256 KB are the reason bodies must not reach the log store</td></tr>
+<tr><td><b>7. Formats per session</b></td><td>One format per session (today: 409 on mixing)</td><td>Format per stream or per chunk (draft spec: the reader picks a decoder per chunk)</td><td>Mixed is real: a web view inside a native app, a screenshot fallback for SwiftUI inside a wireframe session (PostHog's model), a Sentry-bridged video next to native ouo frames</td></tr>
+</table></div>
+<div class="key">What survives every option: the chunk record itself. Identity (<code>session.id</code>, replay, stream, sequence), the keyframe flag, the format and encoding labels and the hash are the same whether the body is rrweb JSON, wireframe records, JPEG tiles or an MP4. That is exactly what RPL-23 asks for ("the hierarchy, identity, chunk attributes, delivery and end rules MUST NOT depend on the format"), and it is why the mobile format can stay open while the transport is built.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"Why is the lifecycle trigger (tab hidden, app background) the one that matters most?","a":["It produces the smallest uploads","It is the last moment the code is guaranteed to run","It is the only trigger Sentry uses"],"c":1,"why":"After <code>visibilitychange → hidden</code> a tab may be killed without another event; after <code>didEnterBackground</code> an iOS app may be suspended within seconds."},
+{"q":"Why does Datadog cap a web segment at 60,000 compressed bytes?","a":["To fit the browser's 64 KB budget for keepalive requests sent while the page closes","Because Loki lines are limited to 60 KB","Because gzip windows are 60 KB"],"c":0,"why":"All keepalive requests at unload share 64 KiB. The draft spec keeps them under 60 KiB for the same reason (TRN-16)."},
+{"q":"In the draft spec, what stays the same whatever the capture technique?","a":["The body format","The chunk record: identity, sequence, keyframe flag, format and encoding labels, hash","The compression"],"c":1,"why":"RPL-23: the hierarchy, identity, chunk attributes, delivery and end rules must not depend on the format. That is why the mobile format can stay open."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="t4-packing.html"><small>← previous</small>How to pack</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="t6-playing.html"><small>next →</small>How to play</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+/* ---------- 6.2 chunk builder ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,NS='http://www.w3.org/2000/svg';
+function el(p,tag,a,txt){var e=document.createElementNS(NS,tag);for(var k in a){var v=a[k];if((k==='fill'||k==='stroke')&&String(v).indexOf('var(')===0)e.style.setProperty(k,v);else e.setAttribute(k,v)}if(txt!==undefined)e.textContent=txt;p.appendChild(e);return e}
+function cssv(n){return 'var('+n+')'}
+/* session: 0-30 active, 30-34 background, 34-60; new screen at 20; idle 44-52 */
+function gen(k){var out=[],seg=-1,seq=0;
+ function add(t0,t1,kb,key){if(key)seg++;out.push({t0:t0,t1:t1,kb:kb,key:key,seg:seg,seq:seq++})}
+ var cuts=[[0,5],[5,10],[10,15],[15,20],[20,25],[25,30],[34,39],[39,44],[44,49],[49,54],[54,60]];
+ cuts.forEach(function(c){var t0=c[0],idle=t0>=44&&t0<54,newScreen=t0===20,afterBg=t0===34,first=t0===0;
+  if(k==='rrweb'){add(t0,c[1],first||afterBg?18:idle?0.2:newScreen?4:1.7,first||afterBg)}
+  else if(k==='wire'){add(t0,c[1],first||afterBg||newScreen?6:idle?0:2.8,first||afterBg||newScreen)}
+  else if(k==='frames'){if(idle)return;add(t0,c[1],newScreen||first||afterBg?12:5,true)}
+  else if(k==='video'){add(t0,c[1],idle?6:16,true)}
+  else if(k==='shots'){if(idle)return;add(t0,c[1],newScreen||first?95:45,true)}});
+ return out.filter(function(c){return c.kb>0})}
+var T={
+ rrweb:{n:'rrweb (web)',fmt:'rrweb/2',enc:'gzip',body:'gzip( [ {"type":4,"data":{"href":…}}, {"type":2,"data":{"node":{…}}}, {"type":3,"data":{"source":0,"adds":[…]}}, … ] )',cap:'One long segment from the first full snapshot; the tab going to the background (30 s) closes the chunk, and the stream continues with a new keyframe and segment when it comes back (RPL-9). The idle stretch costs almost nothing.'},
+ wire:{n:'Wireframes',fmt:'ouo-wireframe/1 (hypothetical)',enc:'gzip',body:'gzip( [ {"type":10,"wireframes":[{"id":6,"type":"shape",…},{"id":9,"type":"text","text":"xxxx"}]}, {"type":11,"adds":[],"removes":[],"updates":[{"id":9,"text":"xxxxx"}]} ] )',cap:'A keyframe per new screen, field-level deltas between, nothing while idle. Images would be separate records keyed by hash, or base64 inside keyframes (option 4).'},
+ frames:{n:'Frames + tiles (ouo today)',fmt:'ouo-frames/2 (today: kind "frames")',enc:'identity',body:'[ts][full JPEG] [ts][patch x,y,w,h][JPEG] [ts][patch…] …   (today: the same inside a JSON envelope, base64)',cap:'Every chunk starts with a full image, so segment = chunk and any chunk plays alone. An idle screen sends no chunk at all.'},
+ video:{n:'Video (Sentry style)',fmt:'video/mp4 h264 (today: kind "video")',enc:'identity',body:'MP4 (ftyp, moov, mdat): 5 frames at 1 fps, one key frame   + touches/breadcrumbs somewhere (option 5)',cap:'One MP4 per 5 s: segment = chunk (RPL-25). An idle screen still produces a chunk, because Sentry repeats frames to keep a constant 1 fps.'},
+ shots:{n:'Screenshots (PostHog style)',fmt:'ouo-screens/1 (hypothetical)',enc:'identity',body:'[ts][WebP] [ts][WebP] …   (PostHog: a "screenshot" wireframe with base64 in rrweb JSON)',cap:'Every frame is a full image; unchanged frames are dropped by hash, so idle is free, but each change costs a whole picture.'}
+};
+var cur='rrweb',sel=0,chunks=[];
+var tabs=document.getElementById('chTabs'),strip=document.getElementById('chStrip'),pipe=document.getElementById('chPipe');
+Object.keys(T).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=T[k].n;b.onclick=function(){cur=k;sel=0;draw()};tabs.appendChild(b)});
+function X(t){return 20+t*10}
+function drawStrip(){while(strip.firstChild)strip.removeChild(strip.firstChild);
+ el(strip,'rect',{x:X(30),y:14,width:40,height:60,fill:cssv('--soft')});el(strip,'text',{x:X(32),y:10,'font-size':9,fill:cssv('--mut')},'bg');
+ el(strip,'text',{x:X(44),y:10,'font-size':9,fill:cssv('--mut')},'idle');el(strip,'text',{x:X(20)+2,y:10,'font-size':9,fill:cssv('--mut')},'new screen');
+ var max=chunks.reduce(function(m,c){return Math.max(m,c.kb)},1);
+ chunks.forEach(function(c,i){var h=6+40*Math.sqrt(c.kb/max);var r=el(strip,'rect',{x:X(c.t0)+1,y:74-h,width:(c.t1-c.t0)*10-2,height:h,rx:2,fill:c.key?cssv('--acc'):cssv('--blue'),stroke:i===sel?cssv('--fg'):'none','stroke-width':2});r.style.cursor='pointer';r.addEventListener('click',function(){sel=i;draw()});
+  el(strip,'text',{x:X(c.t0)+3,y:72-h,'font-size':9,fill:cssv('--mut')},c.kb<1?'<1':Math.round(c.kb))});
+ for(var s=0;s<=60;s+=10)el(strip,'text',{x:X(s),y:88,'text-anchor':'middle','font-size':10,fill:cssv('--mut')},s+'s');
+ el(strip,'text',{x:620,y:100,'text-anchor':'end','font-size':10,fill:cssv('--mut')},'KiB per chunk (estimate)');}
+var P=[[10,'SDK','adapter, chunker, disk'],[178,'Collector','pipeline: scope ouo.replay'],[370,'Object store','body by key'],[512,'Log store','record + ref']];
+function drawPipe(phase){while(pipe.firstChild)pipe.removeChild(pipe.firstChild);
+ P.forEach(function(p){el(pipe,'rect',{x:p[0],y:30,width:118,height:46,rx:8,fill:cssv('--card'),stroke:cssv('--line')});el(pipe,'text',{x:p[0]+59,y:50,'text-anchor':'middle','font-size':12,'font-weight':600},p[1]);el(pipe,'text',{x:p[0]+59,y:66,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},p[2])});
+ el(pipe,'text',{x:153,y:22,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'OTLP/HTTP protobuf');el(pipe,'text',{x:153,y:96,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'bytes body');
+ el(pipe,'line',{x1:128,y1:53,x2:178,y2:53,stroke:cssv('--line'),'stroke-width':2});el(pipe,'line',{x1:296,y1:53,x2:370,y2:53,stroke:cssv('--line'),'stroke-width':2});el(pipe,'path',{d:'M296 70 C 400 112, 470 112, 512 70',fill:'none',stroke:cssv('--line'),'stroke-width':2});
+ el(pipe,'text',{x:404,y:116,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'record, body replaced by ouo.replay.ref (D3)');
+ if(phase){var x=phase.x,y=phase.y;if(phase.rec!==false)el(pipe,'rect',{x:x,y:y,width:18,height:12,rx:2,fill:cssv('--vio')});if(phase.body!==false)el(pipe,'rect',{x:phase.bx===undefined?x+20:phase.bx,y:phase.by===undefined?y:phase.by,width:22,height:12,rx:2,fill:cssv('--acc')})}}
+function rec(c){var t=T[cur];var base=1794390000000;return '{\n  "eventName": "ouo.replay.chunk",\n  "scope": "ouo.replay",\n  "timeUnixNano": '+(base+c.t0*1000)+'000000,\n  "attributes": {\n    "session.id": "3f2a…",\n    "ouo.replay.id": "9c41…",\n    "ouo.replay.stream.id": "b7e0…",\n    "ouo.replay.segment.index": '+c.seg+',\n    "ouo.replay.sequence": '+c.seq+',\n    "ouo.replay.keyframe": '+c.key+',\n    "ouo.replay.start_time": '+(base+c.t0*1000)+',\n    "ouo.replay.end_time": '+(base+c.t1*1000)+',\n    "ouo.replay.format": "'+t.fmt+'",\n    "ouo.replay.encoding": "'+t.enc+'",\n    "ouo.replay.byte_size": '+Math.round(c.kb*1024)+',\n    "ouo.replay.sha256": "e3b0…",\n    "ouo.replay.masked": true,\n    "ouo.replay.mode": "session"\n  },\n  "body": <'+Math.round(c.kb*1024)+' bytes>\n}'}
+function draw(){chunks=gen(cur);if(sel>=chunks.length)sel=0;tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===cur)});drawStrip();drawPipe(null);var c=chunks[sel];
+ document.getElementById('chRec').textContent=rec(c);document.getElementById('chBody').textContent=T[cur].body;
+ var segs=chunks[chunks.length-1].seg+1,tot=chunks.reduce(function(s,c){return s+c.kb},0);
+ document.getElementById('chCap').innerHTML=T[cur].cap+' <b>'+chunks.length+' chunks, '+segs+' segment'+(segs>1?'s':'')+', ~'+Math.round(tot)+' KiB</b> in 60 s (estimate). Attribute names are the draft spec\'s; format ids marked hypothetical are not in any spec.'}
+document.getElementById('chSend').onclick=function(){var f=0,N=reduce?20:60;var iv=setInterval(function(){f++;var p=f/N,ph;
+  if(p<.4){var x=60+(200-60)*(p/.4);ph={x:x,y:47}}
+  else if(p<.7){var q=(p-.4)/.3;ph={x:220,y:47,bx:240+(410-240)*q,by:47}}
+  else{var r=(p-.7)/.3;ph={x:220+(560-220)*r,y:47+Math.sin(r*Math.PI)*40,bx:410,by:47}}
+  drawPipe(ph);var cap=document.getElementById('chCap');
+  if(f===1)cap.innerHTML='<b>1.</b> The adapter emits bytes, the chunker labels them (sequence '+chunks[sel].seq+(chunks[sel].key?', keyframe':'')+'), the chunk is written to disk, then sent as its own OTLP request (RPL-15, TRN-5).';
+  if(f===Math.round(N*.4))cap.innerHTML='<b>2.</b> The Collector routes scope <code>ouo.replay</code> to its own pipeline; the body goes to object storage under a key built from replay, stream and sequence.';
+  if(f===Math.round(N*.7))cap.innerHTML='<b>3.</b> The record continues to the log store with <code>ouo.replay.ref</code> instead of the body, so the log store stays an index of chunks (D3, as applied in the draft spec).';
+  if(f>=N){clearInterval(iv)}},reduce?120:45)};
+draw();
+new MutationObserver(function(){draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+</body></html>

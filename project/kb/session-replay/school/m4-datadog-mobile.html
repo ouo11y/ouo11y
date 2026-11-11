@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Datadog iOS and Android · replay-school</title>
+<meta name="description" content="Datadog mobile records wireframes with a real per-field diff, wakes only when layers change, drops covered nodes, and sends each image once by hash.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="m4-datadog-mobile">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · mobile</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · mobile</p>
+<h1>Datadog iOS and Android</h1>
+<p class="lede">Datadog mobile records wireframes with a real per-field diff, wakes only when layers change, drops covered nodes, and sends each image once by hash.</p>
+<p class="builds">Builds on: <a href="t2-what-to-record.html">What to record</a> · <a href="t1-hooks.html">When to look: hooks</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<p class="src">Versions read: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"Which nodes does Datadog drop before encoding?","a":["Text nodes","Nodes off screen and nodes fully covered by an opaque node above","Images"],"c":1,"why":"NodesFlattener.swift L16–46."},
+{"q":"What does a Datadog mobile update record carry?","a":["The whole wireframe again","Only the changed fields of a node (Heckel diff)","A screenshot"],"c":1,"why":"Diff.swift L93–114; an empty diff writes nothing."},
+{"q":"How is an image identified so it is sent once?","a":["By file name","By an MD5 of a small greyscale rendition (iOS) or of the WebP bytes (Android)","By URL"],"c":1,"why":"UIImage+SessionReplay.swift L19–60, ResourceResolver.kt."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="m3-posthog-mobile.html"><small>← previous</small>PostHog iOS and Android</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m5-openreplay-mobile.html"><small>next →</small>OpenReplay iOS and Android</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t5-datadog',title:'Datadog iOS and Android: wireframes with a real diff',
+ boxes:[['trg','Change signal','CALayer / draw'],['walk','Node recorders','view → node'],['flat','Flatten','drop covered'],['diff','Diff','Heckel, per field'],['res','Resources','images by hash']],
+ steps:[
+ ['trg','iOS swizzles <code>CALayer.display</code>, <code>draw(in:)</code> and <code>layoutSublayers</code>; changes are merged and delivered at most every 100 ms. No layer activity, no work. Android debounces the draw listener by 64 ms under a time bank of 100 ms of capture per second.',[['CALayerSwizzler.swift L18–117',DI+'Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117'],['CALayerChangeAggregator.swift L63–151',DI+'Recorder/ScreenChangeMonitor/CALayerChangeAggregator.swift#L63-L151'],['Debouncer.kt L16–112',DA+'recorder/Debouncer.kt#L16-L112']]],
+ ['walk','Each view is offered to a list of node recorders (UILabel, UIImageView, UISwitch, UISlider, … ; Android mappers TextView, ImageView, Switch, …); the most specific wins and decides whether to walk its subtree. SwiftUI, when enabled, is read from SwiftUI\'s private renderer by key path (<code>_base.viewGraph.renderer</code> on iOS 26). Compose is read from its semantics tree plus reflection for colours.',[['ViewTreeSnapshotBuilder.swift L104–132',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/ViewTreeSnapshotBuilder.swift#L104-L132'],['UIHostingViewRecorder.swift L14–106',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIHostingViewRecorder.swift#L14-L106'],['DefaultRecorderProvider.kt L120–245',DA+'DefaultRecorderProvider.kt#L120-L245'],['AndroidComposeViewMapper.kt L37–55',DAC+'mappers/semantics/AndroidComposeViewMapper.kt#L37-L55']]],
+ ['flat','Nodes outside the screen and nodes fully covered by an opaque node above them are dropped before anything is encoded.',[['NodesFlattener.swift L16–46',DI+'Processor/Flattening/NodesFlattener.swift#L16-L46']]],
+ ['diff','A new RUM view → Meta + Focus + FullSnapshot; otherwise a <b>Heckel diff</b> against the last wireframes: adds with <code>previousId</code>, removes by id, and updates that carry only changed fields. An empty diff writes nothing. Android also forces a full snapshot every 3 s.',[['SnapshotProcessor.swift L99–127',DI+'Processor/SnapshotProcessor.swift#L99-L127'],['Diff.swift L93–114',DI+'Processor/Diffing/Diff.swift#L93-L114'],['RecordedDataProcessor.kt L85–193',DA+'processor/RecordedDataProcessor.kt#L85-L193']]],
+ ['res','Images travel separately: the id is an MD5 of a small greyscale rendition (iOS) or of the WebP bytes (Android), and an id already sent is not sent again. Records are zlib-compressed with sync flush so segments can be concatenated.',[['UIImage+SessionReplay.swift L19–60',DI+'Recorder/Utilities/UIImage+SessionReplay.swift#L19-L60'],['ResourceResolver.kt L60–253',DA+'recorder/resources/ResourceResolver.kt#L60-L253'],['SRCompression.swift L14–30',DI+'Writers/SRCompression.swift#L14-L30']]]
+ ]});
+})();
+</script>
+</body></html>

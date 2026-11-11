@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Session Replay Internals</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--mut:#66625a;--line:#e3dfd6;--card:#fff;--acc:#b4441c;--ok:#2f7d4f;--warn:#a87508;--bad:#b3261e;--blue:#2b5fa8;--vio:#6a3fa0;--soft:#f1eee7;--hl:#fde9c8}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#161513;--fg:#ecebe6;--mut:#a29d93;--line:#34312c;--card:#1f1d1a;--acc:#f08a5d;--ok:#5cc489;--warn:#e0b040;--bad:#ff7a70;--blue:#7fa8ec;--vio:#b796e8;--soft:#262420;--hl:#4a3a1c}}
+:root[data-theme=dark]{--bg:#161513;--fg:#ecebe6;--mut:#a29d93;--line:#34312c;--card:#1f1d1a;--acc:#f08a5d;--ok:#5cc489;--warn:#e0b040;--bad:#ff7a70;--blue:#7fa8ec;--vio:#b796e8;--soft:#262420;--hl:#4a3a1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:28px;margin:0 0 6px;line-height:1.2}h2{font-size:22px;margin:56px 0 8px;padding-top:12px;border-top:2px solid var(--line)}
+h3{font-size:17px;margin:32px 0 6px}
+p,li{max-width:72ch}.mut{color:var(--mut)}a{color:var(--blue)}
+code{font:13px ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:1px 4px;border-radius:4px}
+pre{font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:10px 12px;border-radius:8px;overflow-x:auto;margin:8px 0}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 4px}
+nav.toc a{font-size:13px;text-decoration:none;color:var(--fg);border:1px solid var(--line);background:var(--card);padding:4px 10px;border-radius:999px}
+nav.toc a.todo{color:var(--mut);border-style:dashed}
+.theme{position:fixed;top:10px;right:10px;font-size:12px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;z-index:5}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:14px 0}
+.key{border-left:4px solid var(--acc);background:var(--card);padding:10px 14px;margin:16px 0;border-radius:0 8px 8px 0}
+.src{font-size:12.5px;color:var(--mut)}.src a{color:var(--mut)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+button.b{font:13px system-ui,sans-serif;background:var(--soft);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+button.b.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12.5px}
+/* tree outline */
+.tree{font:13px ui-monospace,Menlo,monospace}
+.tn{display:flex;align-items:center;gap:6px;padding:2px 6px;border-radius:6px;transition:background .4s,opacity .4s,transform .4s;white-space:nowrap}
+.tn .tag{color:var(--blue)}.tn .at{color:var(--vio)}.tn .tx{color:var(--ok)}
+.tn.new{background:var(--hl);animation:pop .6s}
+.tn.chg{background:var(--hl)}
+.tn.gone{opacity:.25;text-decoration:line-through}
+.tn.opaque{opacity:.35}
+@keyframes pop{from{transform:translateX(-14px);opacity:0}to{transform:none;opacity:1}}
+.page{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.page .bar{background:var(--soft);font-size:11px;padding:4px 8px;color:var(--mut)}
+.page .body{padding:10px 14px;min-height:150px;font-size:14px}
+.page li{transition:all .4s}.page .sel{color:var(--acc);font-weight:600}
+.recs{min-height:120px;font:12px/1.4 ui-monospace,Menlo,monospace}
+.rec{background:var(--soft);border-left:3px solid var(--vio);padding:6px 8px;margin:6px 0;border-radius:0 6px 6px 0;animation:pop .5s}
+/* pipeline */
+.pipe{display:flex;flex-wrap:wrap;gap:4px;align-items:stretch;margin:8px 0}
+.tree{overflow-x:auto}
+.st{flex:1 1 80px;min-width:74px;overflow-wrap:anywhere;border:1px solid var(--line);border-radius:8px;padding:6px;font-size:12px;text-align:center;background:var(--card);transition:all .35s}
+.st b{display:block;font-size:12.5px}
+.st.act{background:var(--acc);color:#fff;border-color:var(--acc);transform:translateY(-3px)}
+.st.act .mut{color:#ffe}
+.st.thread{font-size:10.5px;color:var(--mut)}
+.st.act.thread{color:#fff}
+.lane{font-size:11px;color:var(--mut);margin-top:2px}
+.step-caption{min-height:3em;font-size:14px;background:var(--soft);border-radius:8px;padding:8px 10px}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--mut)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.placeholder{border:1px dashed var(--line);border-radius:12px;padding:18px;color:var(--mut)}
+svg text{fill:var(--fg);font:12px system-ui,sans-serif}
+</style></head>
+<body>
+<button class="theme" id="themeBtn" type="button">theme</button>
+<main>
+<h1>How session replay works inside</h1>
+<p class="mut">A walkthrough for the ouo founder, built one topic at a time. Browser, iOS, Android, React Native, Flutter. Every technique flow links to the vendors' source at a pinned release tag. Started 2026-11-10.</p>
+<nav class="toc">
+<a href="#t1">1 · Platform foundations</a>
+<a href="#t2">2 · Capture ideas</a>
+<a href="#t3">3 · When to capture</a>
+<a href="#t4">4 · Browser techniques</a>
+<a href="#t5">5 · Mobile and Flutter</a>
+<a href="#t6">6 · Shipping as chunks</a>
+<a href="#t7">7 · Buzz words aside</a>
+</nav>
+
+<!-- ============================ TOPIC 1 ============================ -->
+<h2 id="t1">1 · Platform foundations: what is on the screen, and who knows about it</h2>
+<p>Every replay technique is an answer to one question: <em>what does the platform let an outsider read about the screen, and when?</em> So we start with how each platform turns a description of the UI into pixels.</p>
+<div class="key">The one idea to keep: on the web the browser hands any script a <b>live, readable, observable tree</b> (the DOM) that fully describes the page. On mobile there is a tree too, but it is <b>private to the app's UI framework</b>, it is not the whole truth (custom drawing, SwiftUI, Compose and Flutter hide inside one view), and nothing notifies you when it changes. That single difference explains why web replay is a text diff and mobile replay is mostly pictures.</div>
+
+<h3 id="t1-dom">1.1 The browser: the DOM, the event loop, and MutationObserver</h3>
+<p>The HTML parser builds a tree of <b>nodes</b>: elements (<code>&lt;ul&gt;</code>) with <b>attributes</b> (<code>class="sel"</code>), text nodes, comments. JavaScript changes this tree at any time. The browser does not repaint after each change: it batches them and, once per frame, runs <b>style → layout → paint → composite</b>. Between a script's task and the next frame, the browser runs <b>microtasks</b>, and that is where a <code>MutationObserver</code> receives a list of <b>MutationRecords</b> describing every change since the last delivery: <code>childList</code> (nodes added or removed), <code>attributes</code>, <code>characterData</code> (text).</p>
+<div class="card">
+<div class="btns"><button class="b" id="domPlay" type="button">▶ play</button><button class="b" id="domStep" type="button">step</button><button class="b" id="domReset" type="button">reset</button></div>
+<div class="step-caption" id="domCap">Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.</div>
+<div class="grid2" style="margin-top:10px">
+ <div><div class="lane">DOM tree (what the script and the recorder see)</div><div class="tree" id="domTree"></div></div>
+ <div><div class="lane">Rendered page (what the user sees, after the next frame)</div><div class="page"><div class="bar">shop.example / cart</div><div class="body" id="domPage"></div></div></div>
+</div>
+<div class="lane" style="margin-top:10px">One turn of the event loop</div>
+<div class="pipe" id="loopPipe">
+ <div class="st" data-k="task"><b>Task</b><span class="mut">click handler, timer, fetch callback</span></div>
+ <div class="st" data-k="micro"><b>Microtasks</b><span class="mut">promises, MutationObserver callbacks</span></div>
+ <div class="st" data-k="raf"><b>rAF</b><span class="mut">requestAnimationFrame</span></div>
+ <div class="st" data-k="style"><b>Style</b><span class="mut">match CSS</span></div>
+ <div class="st" data-k="layout"><b>Layout</b><span class="mut">boxes, positions</span></div>
+ <div class="st" data-k="paint"><b>Paint</b><span class="mut">display lists</span></div>
+ <div class="st" data-k="comp"><b>Composite</b><span class="mut">GPU layers → screen</span></div>
+</div>
+<div class="lane">MutationRecords delivered to the observer's callback</div>
+<div class="recs" id="domRecs"></div>
+</div>
+<p>What this gives a recorder for free:</p>
+<ul>
+<li><b>A complete, serialisable description.</b> Walk the tree once and you have everything needed to rebuild the page somewhere else, as text (this is the <em>full snapshot</em>).</li>
+<li><b>A change feed.</b> MutationObserver tells you exactly which nodes changed, asynchronously, batched, without polling (this becomes the <em>incremental</em> events).</li>
+<li><b>Events on the same tree.</b> Input, scroll, pointer, resize, <code>visibilitychange</code>, <code>pagehide</code> can all be listened to by any script.</li>
+</ul>
+<p>What it does <em>not</em> give: pixels the DOM does not describe. A <code>&lt;canvas&gt;</code> or WebGL surface is one element whose content is a bitmap; a <code>&lt;video&gt;</code> is a URL plus a playhead; a cross-origin <code>&lt;iframe&gt;</code> is unreadable; the result of CSS from a stylesheet the recorder cannot fetch is lost. These are the "holes" of DOM replay.</p>
+<p class="src">Sources (specifications, the behaviour browsers implement): <a href="https://dom.spec.whatwg.org/#mutation-observers">DOM Standard §4.3 Mutation observers</a> (records are queued, then delivered in a microtask: <a href="https://dom.spec.whatwg.org/#queue-a-mutation-observer-compound-microtask">queue a mutation observer microtask</a>) · <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model">HTML Standard, event loop processing model</a> (task, microtask checkpoint, then "update the rendering": rAF callbacks, style, layout, paint) · <a href="https://html.spec.whatwg.org/multipage/interaction.html#page-visibility">page visibility</a>.</p>
+
+<h3 id="t1-native">1.2 Mobile and Flutter: view trees, and what draws the pixels</h3>
+<p>Pick a platform. The top row is how a frame gets to the screen; the tree is what the app holds in memory. Toggle <b>"what a native view walk sees"</b>: that is the view a replay SDK gets when it walks the platform's view hierarchy from the window, which is what every mobile replay SDK does.</p>
+<div class="card">
+<div class="tabs" id="natTabs"></div>
+<div class="btns"><button class="b" id="natPlay" type="button">▶ draw a frame</button><button class="b" id="natSee" type="button">what a native view walk sees</button></div>
+<div class="step-caption" id="natCap"></div>
+<div class="pipe" id="natPipe"></div>
+<div class="grid2" style="margin-top:8px">
+ <div><div class="lane">Tree in memory</div><div class="tree" id="natTree"></div></div>
+ <div><div class="lane">Notes</div><div id="natNotes" style="font-size:14px"></div></div>
+</div>
+</div>
+
+<h3 id="t1-compare">1.3 Side by side</h3>
+<div class="wrap"><table>
+<tr><th></th><th>Unit of UI</th><th>Readable by an SDK?</th><th>Change notification?</th><th>Frame hook</th><th>Where pixels come from</th></tr>
+<tr><td><b>Browser</b></td><td>DOM node</td><td>Yes, fully, any script</td><td><b>Yes</b>: MutationObserver</td><td><code>requestAnimationFrame</code></td><td>Browser paints the DOM; canvas/WebGL/video are opaque bitmaps</td></tr>
+<tr><td><b>iOS UIKit</b></td><td><code>UIView</code> backed by a <code>CALayer</code></td><td>Yes, by walking <code>subviews</code> from the window, on the main thread</td><td>No general one</td><td><code>CADisplayLink</code>, run-loop observers</td><td>Core Animation commits the layer tree to the render server, which draws on the GPU</td></tr>
+<tr><td><b>SwiftUI</b></td><td>View <em>values</em> (structs), diffed by SwiftUI</td><td>Only through the private UIKit views it creates; many are generic drawing views</td><td>No</td><td>same as UIKit</td><td>Rendered into UIKit/Core Animation layers</td></tr>
+<tr><td><b>Android Views</b></td><td><code>View</code> / <code>ViewGroup</code></td><td>Yes, walk from the window's root view</td><td>Partly: <code>ViewTreeObserver</code> (layout, draw, scroll)</td><td><code>Choreographer</code>, <code>OnDrawListener</code></td><td>Views record display lists (RenderNodes); RenderThread draws them on the GPU</td></tr>
+<tr><td><b>Jetpack Compose</b></td><td>Composables → <code>LayoutNode</code>s</td><td>Not as Views: one <code>AndroidComposeView</code>; the semantics tree is the readable side</td><td>No (recomposition is internal)</td><td>same as Views</td><td>LayoutNodes draw into the host view's display list</td></tr>
+<tr><td><b>React Native</b></td><td>React element → shadow node → native view</td><td>The native views, like any native app; the JS tree is in the JS runtime</td><td>No (the mount step is internal)</td><td>native ones</td><td>Real UIKit / Android views, so it inherits the native picture</td></tr>
+<tr><td><b>Flutter</b></td><td>Widget → Element → RenderObject</td><td>Natively: one <code>FlutterView</code>, opaque. In Dart: the render tree is readable</td><td>No, but a post-frame callback every frame</td><td><code>SchedulerBinding</code> frame callbacks</td><td>Flutter's own engine (Impeller / Skia) draws everything into one surface</td></tr>
+</table></div>
+<p class="src">Platform sources are linked in the tab notes above. Apple frameworks are closed source; those rows cite Apple documentation. Lines marked "(docs)" were not read in code.</p>
+
+<!-- ============================ TOPIC 2..6 ============================ -->
+<h2 id="t2">2 · Ideas behind capture: four ways to write a screen down</h2>
+<p>Topic 1 ended with a split: what you can <em>read</em> (a tree) versus what you can only <em>see</em> (pixels). Every replay technique sits somewhere on that line. There are four families, and each one answers "what do we write down?" differently:</p>
+<ol>
+<li><b>Serialise the tree, then diff it.</b> Write the document structure as text once (a full snapshot), then write only what changed. The player rebuilds a real, live copy. This is rrweb, and every web recorder.</li>
+<li><b>Wireframes.</b> Walk the native view tree and turn each view into a typed rectangle: <code>text</code>, <code>image</code>, <code>shape</code>, <code>input</code>, with position and style. The player <em>draws</em> rectangles that look like the app; it never rebuilds the real UI. Datadog, PostHog wireframe mode.</li>
+<li><b>Pictures: screenshots or video.</b> Copy the pixels, paint boxes over private things, compress like images or like a movie. The player shows images. Sentry (video), PostHog screenshot mode, OpenReplay mobile, and ouo's current mobile SDK (JPEG frames with tile patches).</li>
+<li><b>Draw commands.</b> Record the drawing instructions the UI issued (<code>drawRect</code>, <code>drawText</code>, <code>drawImage</code>) instead of their result. The player re-executes them. This is how rrweb records <code>&lt;canvas&gt;</code>, how Sentry Android's <em>canvas</em> strategy masks, and what Flutter's <code>PictureRecorder</code> produces internally.</li>
+</ol>
+
+<div class="card">
+<div class="lane">The same screen, recorded four ways. Pick a technique, then press ▶ to watch the recorder work and the player rebuild.</div>
+<div class="tabs" id="capTabs"></div>
+<div class="btns"><button class="b" id="capPlay" type="button">▶ record and replay</button><label style="font-size:13px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="capMask" checked> default masking</label></div>
+<div class="step-caption" id="capCap"></div>
+<div class="grid2" style="margin-top:8px">
+ <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+  <div><div class="lane">On the device</div><canvas id="capReal" width="180" height="320" style="width:180px;height:320px;border:1px solid var(--line);border-radius:14px"></canvas></div>
+  <div><div class="lane">In the player</div><canvas id="capOut" width="180" height="320" style="width:180px;height:320px;border:1px solid var(--line);border-radius:14px;image-rendering:pixelated"></canvas></div>
+ </div>
+ <div><div class="lane">What goes on the wire (real shape, trimmed)</div><pre id="capWire" style="max-height:260px;min-height:200px"></pre></div>
+</div>
+<div class="wrap"><table id="capMeters" style="margin-top:8px"></table></div>
+<p class="src" id="capSrc"></p>
+</div>
+
+<h3 id="t2-tradeoffs">2.1 What each family costs and loses</h3>
+<div class="wrap"><table>
+<tr><th></th><th>Fidelity</th><th>Bytes</th><th>Device work</th><th>Privacy / masking</th><th>Lost or weak</th></tr>
+<tr><td><b>Tree + diff</b> (web)</td><td>Exact structure, real fonts, selectable text, responsive replay</td><td>Small after the first snapshot; the snapshot can be large (inline CSS, many nodes)</td><td>Serialising big DOMs; mutation storms (Sentry stops past 10,000 records in one callback)</td><td>Easy and early: text and inputs are replaced <em>before</em> they leave the page</td><td>Canvas and WebGL (unless draw commands are recorded), video, cross-origin iframes, CSS the player cannot fetch, anything that depends on server state at replay time</td></tr>
+<tr><td><b>Wireframes</b> (mobile)</td><td>"Looks like" the app: boxes, text, images, colours. Not pixel exact</td><td>Small: about 34 KB/min observed on one simple iOS screen; Datadog's docs average 73 KB/min (Android) to 720 KB/min (iOS) on real apps</td><td>A full view-tree walk on the main thread per capture, then diffing in the background</td><td>Easy: the text is replaced before encoding (Datadog writes <code>x</code>s, PostHog <code>*</code>s)</td><td>Everything without a mapper: custom drawing, maps, charts, video, SwiftUI and Compose unless reverse-engineered (Datadog reads SwiftUI's private display list)</td></tr>
+<tr><td><b>Pictures</b> (mobile)</td><td>What the user saw, including custom drawing and maps, at reduced resolution and frame rate (typically 1 fps)</td><td>Largest: Sentry video 165–212 KB/min masked; PostHog screenshots up to ~1.2 MB/min at 1 change/s (inferred); a static screen still costs about 7 KB/s as Sentry video</td><td>Rendering or copying the window, scaling, JPEG/WebP or H.264 encoding</td><td>Hard: boxes must be painted over the right pixels. If a view moves between the tree walk and the copy, the box misses (ouo drops such frames: "fails closed")</td><td>Scroll smoothness between frames; text is not searchable; anything masked is gone for good</td></tr>
+<tr><td><b>Draw commands</b></td><td>Exact pixels, re-rendered at any size</td><td>Depends on the scene: cheap for simple UI, huge for images and animations (every bitmap must be shipped)</td><td>Intercepting every draw call; serialising arguments</td><td>Precise: mask at the call (<code>drawText</code> → rectangle), no misalignment</td><td>Needs a player that implements the platform's drawing API; versions drift; GPU-only content (video, Metal, GL surfaces) bypasses the calls</td></tr>
+</table></div>
+<p class="src">Byte numbers come from Step 6's measurements and vendor docs, collected in <a href="../vendor-internals/mobile-replay-evidence.md">vendor-internals/mobile-replay-evidence.md</a> (PR #175, which states each method) and Step 4's <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Different apps and screens: these are not like-for-like. No draw-command numbers were measured. Device work is qualitative here; Step 5 owns measured overhead.</p>
+<div class="key">The decisive difference is <b>where the knowledge of "what is private" meets the data</b>. In tree, wireframe and draw-command capture, masking is a transformation of structured data (a string becomes <code>***</code>). In picture capture, masking is geometry: you compute rectangles from one tree walk and paint them on pixels copied at a slightly different moment. That gap is where picture-based recorders leak, and why their masking code is the biggest part of them.</div>
+
+<h3 id="t2-hybrid">2.2 Nobody is pure</h3>
+<ul>
+<li><b>rrweb is tree-based but records canvas as draw commands</b> (or as image snapshots at a set FPS): <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/canvas-manager.ts#L69-L86">canvas-manager.ts L69–86</a> picks commands (<code>sampling.canvas: 'all'</code>) or snapshots (a number); 2D context methods are patched in <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/2d.ts#L31-L55">2d.ts L31–55</a>.</li>
+<li><b>Sentry mobile sends video plus rrweb JSON</b>: touches and breadcrumbs travel as rrweb events next to the MP4 (<a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/test/resources/json/replay_recording.json#L1-L2">replay_recording.json</a>).</li>
+<li><b>PostHog wireframe mode puts a screenshot inside a wireframe</b> (a node of type <code>screenshot</code> with a base64 image), and its "screenshot mode" is exactly that, one node per frame.</li>
+<li><b>Datadog wireframes ship images separately</b>, keyed by an MD5 of a small greyscale rendition, so the same image is sent once (<a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/Utilities/UIImage+SessionReplay.swift#L19-L60">UIImage+SessionReplay.swift L19–60</a>).</li>
+<li><b>Sentry Android has a draw-command path</b>: <code>CanvasStrategy</code> records <code>root.draw()</code> into a <code>Picture</code> through a canvas that turns every <code>drawText</code> into a rectangle (<a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L873-L890">L873–890</a>), then replays the picture off the main thread and still ships video.</li>
+</ul>
+<h2 id="t3">3 · How to know when to capture</h2>
+<p>Topic 2 was <em>what</em> to write down. This topic is <em>when</em>, which comes down to three questions every recorder answers:</p>
+<ol>
+<li><b>Keyframe or delta?</b> When do you write the whole screen again, and when only what changed?</li>
+<li><b>What wakes the recorder?</b> A change notification, a timer, a frame callback, a user event, a lifecycle event.</li>
+<li><b>When is a capture not worth sending?</b> Unchanged frames, throttles, idle back-off.</li>
+</ol>
+<p>A fourth question, <em>when to send</em> (flush), is closely tied to these and is covered in 3.4.</p>
+
+<h3 id="t3-key">3.1 Keyframes and deltas, and why "checkouts" exist</h3>
+<p>A <b>keyframe</b> (rrweb: <em>full snapshot</em>; video: <em>I-frame</em>; ouo frames: <em>full image</em>) can be shown on its own. A <b>delta</b> (rrweb: <em>incremental snapshot</em>; Datadog: <em>mutation / Change record</em>; video: <em>P-frame</em>; ouo: <em>patches</em>) only means something on top of the frames before it. Deltas are small, but to show second 50 the player must load the last keyframe before 50 and apply every delta after it. If that keyframe is lost or far back, seeking is slow or impossible. A <b>checkout</b> is a keyframe taken on purpose, mid-session, to bound that cost and to let older data be thrown away (Sentry's error buffer keeps only what follows the last checkout).</p>
+<div class="card">
+<div class="btns"><label style="font-size:13px">checkout every <select id="kfEvery"><option value="0">never (rrweb default)</option><option value="15" selected>15 s</option><option value="5">5 s (ouo chunk / video segment)</option></select></label><label style="font-size:13px">seek to <input type="range" id="kfSeek" min="0" max="60" value="47" style="vertical-align:middle;width:160px"> <span id="kfSeekV">47</span> s</label></div>
+<svg id="kfSvg" viewBox="0 0 640 110" style="width:100%;height:auto;display:block"></svg>
+<div class="step-caption" id="kfCap"></div>
+<p class="src">Checkout rules in source: rrweb takes a full snapshot when <code>checkoutEveryNth</code> or <code>checkoutEveryNms</code> is reached, neither set by default (<a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/index.ts#L220-L241">record/index.ts L220–241</a>) · Sentry sets <code>checkoutEveryNms = 60 000</code> in buffer mode (<a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L443-L479">replay.ts L443–479</a>) · PostHog web takes one every 5 min by timer (<a href="https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/extensions/replay/external/lazy-loaded-session-recorder.ts#L1007-L1042">L1007–1042</a>) · Datadog web on every RUM view, no timer (<a href="https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/browser-rum/src/domain/record/startFullSnapshots.ts#L12-L72">startFullSnapshots.ts L12–72</a>) · Datadog iOS on a view id change (<a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Processor/SnapshotProcessor.swift#L99-L127">SnapshotProcessor.swift L99–127</a>) · Sentry video: an H.264 key frame at most every 6 frames (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a>) and every 5 s segment is its own MP4 · ouo frames: the first frame of every chunk is a full image, chunks cut every 5 s (<a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>).</p>
+</div>
+
+<h3 id="t3-sim">3.2 What wakes the recorder: one session, five strategies</h3>
+<p>The same 30 seconds of a user's session, recorded by five strategies taken from the source. Each mark is one capture: <span class="sw" style="background:var(--acc)"></span>keyframe, <span class="sw" style="background:var(--blue)"></span>delta or changed frame, <span class="sw" style="background:var(--line);outline:1px solid var(--mut)"></span>a frame sent although nothing changed, ▼ a flush (upload). The timing is a simulation that follows each SDK's rules as read in source; it says nothing about bytes, which depend on the format (topic 2).</p>
+<div class="card">
+<div class="btns"><button class="b" id="simPlay" type="button">▶ play the session</button></div>
+<svg id="simSvg" viewBox="0 0 680 330" style="width:100%;height:auto;display:block"></svg>
+<div class="step-caption" id="simCap">The top row is what the user does. Press play.</div>
+</div>
+<div class="wrap"><table>
+<tr><th>Lane</th><th>What wakes it</th><th>Unchanged screen</th><th>Source</th></tr>
+<tr><td><b>Web, rrweb + Sentry</b></td><td>MutationObserver callbacks; input, scroll (100 ms), mouse (50 ms sample, 500 ms batch) listeners</td><td>No events at all: nothing changed, nothing observed</td><td><a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observer.ts#L112-L196">observer.ts mouse</a>, <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observer.ts#L317-L358">scroll</a>; flush <a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L208-L218">debounce 5 s, max 5.5 s</a>, <a href="https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/replay-internal/src/replay.ts#L245-L264">hidden → flush now</a></td></tr>
+<tr><td><b>Sentry Android, 1 fps video</b></td><td>A 1 s loop on the main looper; <code>OnDrawListener</code> only sets a "changed" flag</td><td>Re-emits the last bitmap: one frame every second regardless (the codec makes repeats cheap)</td><td><a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/WindowRecorder.kt#L217-L253">WindowRecorder.kt L217–253</a>, <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a></td></tr>
+<tr><td><b>Datadog iOS, wireframes</b></td><td>Swizzled <code>CALayer</code> display / draw / layout: any layer change schedules a walk, at most every 100 ms</td><td>No layer activity, no walk. A walk with an empty diff writes nothing</td><td><a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117">CALayerSwizzler.swift</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ScreenChangeMonitor/CALayerChangeAggregator.swift#L63-L151">CALayerChangeAggregator.swift L63–151</a></td></tr>
+<tr><td><b>PostHog iOS</b></td><td>Main run-loop observer, throttled to 1 s; a cheap structure fingerprint wakes it early</td><td>Hash equal to the last frame → not sent. After 3 unchanged frames the interval doubles, up to 8 s</td><td><a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/ApplicationRunLoopPublisher.swift#L85-L136">ApplicationRunLoopPublisher.swift</a>, <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayCaptureBackoff.swift#L11-L91">PostHogReplayCaptureBackoff.swift</a></td></tr>
+<tr><td><b>ouo mobile (spec today)</b></td><td>Main run-loop observer (iOS) / <code>OnDrawListener</code> dirty flag (Android); due once per second</td><td>64 px tiles hashed against the last frame sent: nothing changed → nothing sent; few tiles → patches; more than half → full image</td><td><a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rules 2 and 6</td></tr>
+</table></div>
+
+<h3 id="t3-hooks">3.3 The hooks, platform by platform</h3>
+<div class="wrap"><table>
+<tr><th></th><th>"Something changed"</th><th>"A frame happened"</th><th>User input</th><th>Lifecycle (flush and pause)</th></tr>
+<tr><td><b>Browser</b></td><td><code>MutationObserver</code></td><td><code>requestAnimationFrame</code> (rrweb flushes canvas commands per frame)</td><td><code>input</code>, <code>change</code>, pointer, <code>scroll</code>, <code>resize</code> listeners</td><td><code>visibilitychange</code> → hidden, <code>pagehide</code>, <code>blur</code>. rrweb itself does none of this (<a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/iframe-manager.ts#L134">only iframes</a>); each SDK adds it</td></tr>
+<tr><td><b>iOS</b></td><td>None public. Datadog swizzles <code>CALayer</code>; PostHog fingerprints the tree</td><td>A main run-loop observer after Core Animation's commit (Sentry at order <code>CFIndex.max</code>: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayRunLoopCaptureScheduler.swift#L48-L79">L48–79</a>, firing only if the loop did work: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayRunLoopCaptureScheduler.swift#L95-L108">L95–108</a>); <code>CADisplayLink</code></td><td>Swizzled <code>UIApplication.sendEvent</code> (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayIntegration.swift#L178-L186">Sentry</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/TouchSnapshotProducer/UIApplicationSwizzler.swift#L34-L59">Datadog</a>)</td><td><code>didEnterBackground</code> → pause and cut a segment, <code>didBecomeActive</code> → resume (<a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayIntegration.swift#L392-L406">Sentry L392–406</a>, <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L261-L318">L261–318</a>)</td></tr>
+<tr><td><b>Android</b></td><td><code>ViewTreeObserver.OnDrawListener</code>, fired before each frame is recorded (<a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5572">ViewRootImpl L5572</a>); Datadog debounces it by 64 ms (<a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/recorder/Debouncer.kt#L16-L112">Debouncer.kt</a>)</td><td><code>Choreographer</code> frame callbacks (<a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/Choreographer.java#L846-L962">doFrame</a>)</td><td>A wrapped <code>Window.Callback</code></td><td>Activity lifecycle: no started activity → background</td></tr>
+<tr><td><b>Flutter</b></td><td>None; a post-frame callback means "a new frame was built"</td><td><code>SchedulerBinding.addPostFrameCallback</code> (<a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L818">L818</a>), <code>endOfFrame</code> (<a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L847">L847</a>). Datadog: a 100 ms timer that captures only when a post-frame callback set a flag; Sentry: forces a frame every interval even when idle</td><td>Pointer events from the binding</td><td><code>AppLifecycleState</code>; Sentry Flutter skips capture when not <code>resumed</code></td></tr>
+</table></div>
+<p class="src">Flutter details from the cross-platform source reading (sentry-dart 10.3.0, dd-sdk-flutter v1.0.0-preview.17); per-vendor links are in topic 5.</p>
+
+<h3 id="t3-flush">3.4 When to send</h3>
+<p>Capturing and sending are separate decisions. Every SDK keeps captured data in a buffer and uploads it on one of four triggers. <b>Time</b>: Sentry web 5 s after the last event (at most 5.5 s), Datadog 5 s, PostHog 2 s, ouo mobile 5 s. <b>Size</b>: Datadog 60,000 compressed bytes, under the browser's 64 KB unload budget; PostHog about 0.9 MB; ouo 1 MiB of images. <b>Lifecycle</b>: tab hidden, page hide, app background. <b>An error</b>: in buffer mode Sentry keeps 30 to 60 s in memory and sends it only when an error happens. Lifecycle is the trigger that matters most, because it is the last moment the code is guaranteed to run. On the web after <code>visibilitychange → hidden</code> the tab may be killed without another event; on iOS, after <code>didEnterBackground</code> the app may be suspended within seconds.</p>
+<div class="key">The shape to remember: <b>a change signal decides <em>whether</em> there is anything to capture, a clock decides <em>how often</em> at most, a hash decides <em>whether it is worth sending</em>, and the lifecycle decides <em>when it must go out</em>.</b> The web gets the first for free (MutationObserver). Mobile SDKs approximate it with run-loop observers, draw listeners, swizzled layers or post-frame callbacks, then cap it with a clock.</div>
+<h2 id="t4">4 · Browser techniques, in source</h2>
+<p>Every flow below is a step-through: press <b>next</b> (or ▶) and the box doing the work lights up, with the exact file and lines at a pinned release. Versions: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Wire formats (envelopes, segment framing, Datadog's Change table) are already in Step 6 and not repeated: <a href="../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+<div class="key">The family tree: <b>rrweb</b> is the engine almost everyone uses. <b>Sentry</b>, <b>PostHog</b> and <b>Highlight</b> each ship their <em>own fork</em> of it and wrap it with buffering, compression and upload. <b>Datadog</b>, <b>OpenReplay</b> and <b>Clarity</b> wrote their own recorders with the same idea (serialise, observe, diff) and different encodings.</div>
+<div id="flows"></div>
+
+<h3 id="t4-compare">4.7 The browser recorders side by side</h3>
+<div class="wrap"><table>
+<tr><th>Recorder</th><th>Engine</th><th>Mutation batching</th><th>Checkout (keyframe)</th><th>Flush</th><th>Compression</th></tr>
+<tr><td>rrweb 2.2.2</td><td>itself</td><td>one event per MutationObserver callback</td><td>none unless configured</td><td>caller's <code>emit</code></td><td>none in core</td></tr>
+<tr><td>Sentry 11.11.0</td><td>rrweb fork 2.45.0</td><td>as rrweb; stop above 10,000 records in one callback</td><td>60 s in buffer mode</td><td>5 s after last event, max 5.5 s; hidden/blur now</td><td>worker, fflate zlib, streamed per event</td></tr>
+<tr><td>PostHog 1.447.9</td><td>own rrweb fork</td><td>as rrweb + per-node token bucket (100, refill 10/s)</td><td>every 5 min</td><td>2 s or ~0.9 MB</td><td>gzip per event field, then gzip of the request</td></tr>
+<tr><td>Datadog v7.17.1</td><td>own</td><td>idle callback (≤100 ms) after a 16 ms throttle: many callbacks → one Change record</td><td>every RUM view</td><td>5 s or 60,000 compressed bytes; page exit</td><td>worker, pako deflate, sync-flush with a ready trailer</td></tr>
+<tr><td>OpenReplay v1.28.0</td><td>own, binary messages</td><td>dirty sets, committed every 30 ms tick</td><td>none: the first DOM is a stream of create messages</td><td>every 30 s, 200 kB soft / 1 MB hard</td><td>gzip only above 24 kB, never on unload</td></tr>
+<tr><td>Highlight (3bf0021)</td><td>own rrweb fork</td><td>as fork</td><td>≥10 MB and ≥4 min since the last</td><td>every 2 s</td><td>worker, fflate zlib + base64 in GraphQL</td></tr>
+<tr><td>Clarity v0.8.77</td><td>own</td><td>suspends a mutation repeated 10× outside 3 s after an interaction</td><td>(not read in code)</td><td>(not read in code)</td><td>native gzip, not for the last beacon</td></tr>
+</table></div>
+<p class="src">Each cell is backed by a step in the flows above, except the two marked "(not read in code)".</p>
+<h2 id="t5">5 · Mobile and Flutter techniques, in source</h2>
+<p>Same format as topic 4. Versions: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+<div class="key">Three camps: <b>Sentry</b> ships <em>video</em> (masked screenshots at 1 fps, H.264, one MP4 per 5 s). <b>Datadog</b> ships <em>wireframes</em> with a field-level diff and images sent once by hash. <b>PostHog</b> does both: wireframes (UIKit and Android Views) or one screenshot per changed frame, and forces screenshots on React Native and Flutter. <b>OpenReplay</b> sends JPEG screenshots in gzip archives. React Native is recorded by the <em>native</em> SDKs everywhere; Flutter is recorded <em>in Dart</em> everywhere.</div>
+
+<h3 id="t5-race">5.0 The masking race: why picture recorders are hard</h3>
+<p>A picture recorder walks the tree to learn <em>where</em> the private text is, and copies pixels to learn <em>what</em> is on screen. If the list scrolls between the two, the box lands on the wrong pixels. Every picture-based SDK has a defence; pick one and press ▶.</p>
+<div class="card">
+<div class="tabs" id="raceTabs"></div>
+<div class="btns"><button class="b" id="racePlay" type="button">▶ capture one frame while scrolling</button></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+ <div><div class="lane">t₀ tree walk → mask boxes</div><canvas id="raceA" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+ <div><div class="lane">t₁ pixel copy (list moved)</div><canvas id="raceB" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+ <div><div class="lane">frame sent</div><canvas id="raceC" width="160" height="200" style="width:160px;height:200px;border:1px solid var(--line);border-radius:10px"></canvas></div>
+</div>
+<div class="step-caption" id="raceCap"></div>
+</div>
+
+<div id="flows5"></div>
+
+<h3 id="t5-compare">5.9 Mobile and Flutter side by side</h3>
+<div class="wrap"><table>
+<tr><th>SDK</th><th>Output</th><th>Trigger</th><th>Unchanged screen</th><th>Masking key</th><th>SwiftUI / Compose</th></tr>
+<tr><td>Sentry iOS</td><td>H.264 MP4 per 5 s, 1 fps</td><td>run-loop observer after CA commit, 1 s pacing, back-off to 2 s</td><td>no capture if the loop was idle; encoder repeats last frame</td><td>CALayer walk: class lists, RN classes built in</td><td>SwiftUI by layer class names (iOS 26)</td></tr>
+<tr><td>Sentry Android</td><td>H.264 MP4 per 5 s, 1 fps</td><td>1 s main-looper loop; draw listener sets a flag</td><td>re-sends the last bitmap</td><td>class hierarchy, tags</td><td>Compose via internal LayoutNode semantics; unreadable → masked</td></tr>
+<tr><td>PostHog iOS</td><td>full-snapshot wireframe, or one WebP screenshot node</td><td>run-loop observer, 1 s throttle, back-off to 8 s</td><td>hash equal → dropped</td><td>class checks, <code>ph-no-capture</code></td><td>SwiftUI: screenshot mode only</td></tr>
+<tr><td>PostHog Android</td><td>wireframe + id diff, or screenshot</td><td>draw listener, 1 s throttle</td><td>no changed ids → nothing</td><td>class rules, <code>ph-no-capture</code></td><td>Compose: masks in screenshot mode only</td></tr>
+<tr><td>Datadog iOS</td><td>wireframes, Heckel diff per field</td><td>swizzled CALayer changes, ≤ every 100 ms</td><td>no layer change → no walk; empty diff → no record</td><td>node recorders, privacy overrides</td><td>SwiftUI by reading its private DisplayList (opt-in)</td></tr>
+<tr><td>Datadog Android</td><td>wireframes, Heckel diff; full every 3 s</td><td>draw listener, 64 ms debounce, time bank</td><td>empty diff → no record</td><td>mappers, view tags</td><td>Compose via semantics + reflection</td></tr>
+<tr><td>React Native (all)</td><td colspan="5">recorded by the vendor's native iOS/Android SDK, with RN class names added (<code>RCTParagraphComponentView</code>, <code>ReactTextView</code>…); privacy wrappers are real native views so Fabric cannot flatten them</td></tr>
+<tr><td>Flutter (all)</td><td colspan="5">recorded in Dart from the Element / RenderObject tree, captured with <code>RepaintBoundary.toImage</code> (Sentry, PostHog, OpenReplay) or turned into wireframes in Dart (Datadog); native only encodes and transports</td></tr>
+</table></div>
+
+<h2 id="t6">6 · How ouo would ship it: every technique as an <code>ouo.replay.chunk</code></h2>
+<p>The working assumption: whatever the capture technique, its output leaves the device as <code>ouo.replay.chunk</code> records, with the payload either in the record's body or held elsewhere and referenced. This topic shows what the repository already says, maps each technique from topics 2 to 5 onto that record, and lays out the choices still open. <b>Evidence only: nothing here decides the format.</b></p>
+
+<h3 id="t6-today">6.1 Two layers in the repo: what runs today, and the draft spec</h3>
+<div class="grid2">
+<div class="card" style="margin:0"><b>Today (MVP-era code)</b>
+<ul style="padding-left:18px;margin:6px 0">
+<li>The SDK posts a gzip <b>JSON chunk</b> to <code>POST /v1/replay/chunks</code> on the Collector's <code>ouoreplay</code> receiver (port 4319): <a href="../../../collector/receiver/ouoreplayreceiver/config.go">config.go</a>.</li>
+<li>Three <code>kind</code>s: <code>rrweb</code> (events), <code>frames</code> (JPEG full images and tile patches, base64 in the JSON: <a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>) and <code>video</code> (MP4 base64, made by the Sentry bridge from Sentry's <code>replay_video</code>: <a href="../../../docs/specs/sentry-bridge.md">sentry-bridge spec</a> §9–11).</li>
+<li>The receiver validates the chunk and wraps the <b>whole JSON</b> as the bytes body of one log record, with <code>session.id</code>, <code>ouo.replay.seq</code>, <code>ouo.replay.kind</code> and <code>ouo.replay.encoding = json</code>: <a href="../../../collector/receiver/ouoreplayreceiver/receiver.go">receiver.go</a> (<code>buildLogs</code>).</li>
+<li>The <code>ouoreplay</code> exporter posts the body on to rum-api, which stores one file per chunk; a session cannot mix kinds (409).</li>
+</ul></div>
+<div class="card" style="margin:0"><b>Draft spec (post-MVP Steps 2 and 3)</b>
+<ul style="padding-left:18px;margin:6px 0">
+<li>A chunk is an <b>OTLP log record</b>, event <code>ouo.replay.chunk</code>, scope <code>ouo.replay</code>, sent over OTLP/HTTP <b>protobuf</b> so bytes are not base64'd: <a href="../opentelemetry/rum-semantic-conventions/sdk-spec.md">sdk-spec.md</a> §11, TRN-1.</li>
+<li>Hierarchy <code>session → replay → stream → segment → chunk</code>; a segment starts with a keyframe and is decodable alone (RPL-6); each chunk body is independently decompressible, and a segment's bodies concatenated are a valid payload of <code>ouo.replay.format</code> (RPL-7).</li>
+<li>Chunks close at 256 KiB compressed (hard limit 1 MiB), 5 s, stream end, or hide/background (RPL-10); a keyframe at least every 5 min and on visibility change (RPL-9).</li>
+<li>Bytes to the Collector, then the Collector stores them and replaces the body with <code>ouo.replay.ref</code> (decision D3, recommended and applied, not yet decided): <a href="../opentelemetry/rum-semantic-conventions/replay.md">replay.md</a>.</li>
+<li>The format is pluggable and <b>the mobile format is open</b> (§11.6).</li>
+</ul></div>
+</div>
+<div class="wrap" style="margin-top:10px"><table>
+<tr><th>Field</th><th>Today</th><th>Draft spec</th></tr>
+<tr><td>Transport</td><td>custom HTTP JSON, port 4319</td><td>OTLP/HTTP protobuf, own queue (TRN-3)</td></tr>
+<tr><td>Which decoder</td><td><code>ouo.replay.kind</code>: rrweb, frames, video</td><td><code>ouo.replay.format</code> with a version, e.g. <code>rrweb/2</code></td></tr>
+<tr><td>Order</td><td><code>ouo.replay.seq</code> per session</td><td><code>ouo.replay.sequence</code> per stream, plus <code>segment.index</code> and <code>keyframe</code></td></tr>
+<tr><td>Body</td><td>the JSON envelope; images and MP4 as base64 inside it</td><td>the format's bytes, compressed as <code>ouo.replay.encoding</code> says</td></tr>
+<tr><td>Integrity</td><td>validated by structure</td><td><code>ouo.replay.sha256</code>, <code>byte_size</code>; de-duplicated by (replay, stream, sequence)</td></tr>
+<tr><td>Where the body ends up</td><td>rum-api files</td><td>object store; the log store keeps the record with <code>ouo.replay.ref</code></td></tr>
+</table></div>
+
+<h3 id="t6-builder">6.2 One technique, chunked: watch the records being cut and shipped</h3>
+<p>Pick a technique. The strip is 60 s of a session cut into chunks under the draft spec's rules; the box size follows the bytes (estimates from the evidence linked below). Click a chunk to see its record. ▶ sends one through the pipeline.</p>
+<div class="card">
+<div class="tabs" id="chTabs"></div>
+<div class="btns"><button class="b" id="chSend" type="button">▶ ship the selected chunk</button></div>
+<svg id="chStrip" viewBox="0 0 640 104" style="width:100%;height:auto;display:block"></svg>
+<svg id="chPipe" viewBox="0 0 640 120" style="width:100%;height:auto;display:block;margin-top:4px"></svg>
+<div class="grid2" style="margin-top:6px">
+ <div><div class="lane">The <code>ouo.replay.chunk</code> record (attributes)</div><pre id="chRec" style="min-height:230px"></pre></div>
+ <div><div class="lane">What is in the body</div><pre id="chBody" style="min-height:120px;white-space:pre-wrap"></pre><div class="step-caption" id="chCap" style="font-size:13px"></div></div>
+</div>
+</div>
+
+<h3 id="t6-map">6.3 Each technique mapped onto a chunk</h3>
+<div class="wrap"><table>
+<tr><th>Technique</th><th>Keyframe = first chunk of a segment</th><th>Deltas</th><th>Body bytes</th><th><code>encoding</code></th><th>Per 5 s chunk (evidence)</th><th>Kept outside the chunk?</th></tr>
+<tr><td><b>rrweb</b> (web)</td><td>Meta + FullSnapshot; a big page's snapshot may span chunks (RPL-6 allows it)</td><td>incremental events</td><td>JSON array of events</td><td>gzip per chunk (or one zlib stream with sync flush, Datadog-style)</td><td>~1.7 KiB at ouo's measured 19.9 KiB/min; ~3.3 KiB for Sentry (39.1); a 10,000-node page ~21 KiB</td><td>nothing; fonts and images by URL</td></tr>
+<tr><td><b>Wireframes</b> (Datadog / PostHog style)</td><td>full wireframe list</td><td>adds / removes / per-field updates</td><td>JSON records</td><td>gzip</td><td>~2.8 KiB (34 KB/min, one simple screen) to 6–60 KiB (Datadog's 73–720 KB/min averages)</td><td>images: inline base64 in the keyframe, or separate records by hash</td></tr>
+<tr><td><b>Frames + tiles</b> (ouo mobile today)</td><td>a full JPEG (already the first frame of every chunk)</td><td>tile patches</td><td>JPEGs + timestamps (+ touches)</td><td><code>identity</code>: JPEG does not compress again</td><td>~3.2 KiB iOS (38.8 KiB/min), ~11.8 KiB Android (142 KiB/min), light journey</td><td>touches: inside today</td></tr>
+<tr><td><b>Screenshots</b> (PostHog style)</td><td>every frame is full</td><td>none</td><td>WebP images</td><td><code>identity</code></td><td>up to ~100 KiB (1.2 MB/min upper bound, inferred)</td><td>—</td></tr>
+<tr><td><b>Video</b> (Sentry style)</td><td>the MP4: one segment = one chunk (RPL-25)</td><td>inside the codec (P-frames)</td><td>MP4 bytes</td><td><code>identity</code></td><td>~4.1 KiB (Sentry iOS 49.5 KiB/min in Step 5) to 14–18 KiB (165–212 KB/min in Step 6)</td><td>touches and breadcrumbs: Sentry ships them as rrweb JSON beside the MP4</td></tr>
+<tr><td><b>Draw commands</b></td><td>full display list</td><td>changed layers</td><td>binary or JSON ops</td><td>gzip</td><td>not measured by anyone in this repo</td><td>bitmaps, by hash</td></tr>
+</table></div>
+<p class="src">Byte sources: ouo and Sentry per minute from Step 5 <a href="../client-sdk-state/overhead.md">overhead.md</a> (light reference journeys; the 10,000-node page figure is in the same entry); Datadog and Sentry video from Step 6 <a href="../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a> and Step 4 <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Per-chunk values are the per-minute figures divided by 12, not measurements of chunks.</p>
+
+<h3 id="t6-options">6.4 The choices still open, with what each costs</h3>
+<div class="wrap"><table>
+<tr><th>Choice</th><th>Option A</th><th>Option B</th><th>Evidence from topics 2–5</th></tr>
+<tr><td><b>1. Body packaging</b></td><td>The format's raw bytes in the OTLP body (draft spec)</td><td>A JSON envelope with base64 media inside (today's <code>frames</code> and <code>video</code>)</td><td>base64 costs 4/3 and gzip cannot win it back on JPEG or MP4; PostHog's base64 WebP in JSON relies on request gzip; OpenReplay ships raw <code>[ts][len][jpeg]</code> records</td></tr>
+<tr><td><b>2. Compression</b></td><td>Each chunk its own gzip stream (RPL-7)</td><td>One deflate stream per segment, sync-flushed per chunk (Datadog), or none for media</td><td>Sentry compresses per event in a worker and closes the stream at flush; Datadog's ready trailer lets a page close the stream on unload; JPEG and MP4 are <code>identity</code> either way</td></tr>
+<tr><td><b>3. Segment length</b></td><td>Segment = chunk (every chunk starts with a keyframe: video, ouo frames today)</td><td>Long segments (rrweb, keyframe every 5 min per RPL-9)</td><td>A = any chunk is playable alone, a lost chunk loses 5 s, bigger bytes; B = small deltas, a lost chunk breaks the rest of the segment until the next keyframe (RPL-8), seek cost grows (3.1)</td></tr>
+<tr><td><b>4. Images and other resources</b></td><td>Inline in the chunk that needs them</td><td>Separate records keyed by a hash, sent once per session</td><td>Datadog sends images once by MD5; "decodable alone" (RPL-6) then means "alone plus resources already stored"</td></tr>
+<tr><td><b>5. Touches, navigation, breadcrumbs</b></td><td>Inside the chunk body (Sentry rrweb sidecar, ouo frames)</td><td>Ordinary RUM events, joined by <code>session.id</code> and time</td><td>ouo already emits navigation and tap events as telemetry; duplicates cost bytes, separation means the player joins two sources</td></tr>
+<tr><td><b>6. Where the body lives</b></td><td>Bytes to the Collector, a reference onward (D3 as applied)</td><td>A second upload path straight to object storage, the record carrying the reference from the start</td><td>D3's own text lists what B rewrites (RPL-2, TRN-1, TRN-5, TRN-12); Sentry and Datadog both send bodies through their intake; Loki lines over 256 KB are the reason bodies must not reach the log store</td></tr>
+<tr><td><b>7. Formats per session</b></td><td>One format per session (today: 409 on mixing)</td><td>Format per stream or per chunk (draft spec: the reader picks a decoder per chunk)</td><td>Mixed is real: a web view inside a native app, a screenshot fallback for SwiftUI inside a wireframe session (PostHog's model), a Sentry-bridged video next to native ouo frames</td></tr>
+</table></div>
+<div class="key">What survives every option: the chunk record itself. Identity (<code>session.id</code>, replay, stream, sequence), the keyframe flag, the format and encoding labels and the hash are the same whether the body is rrweb JSON, wireframe records, JPEG tiles or an MP4. That is exactly what RPL-23 asks for ("the hierarchy, identity, chunk attributes, delivery and end rules MUST NOT depend on the format"), and it is why the mobile format can stay open while the transport is built.</div>
+<p class="src">One limit cuts across options 2 and 3: at page unload all keepalive requests share 64 KiB, and the draft spec keeps them under 60 KiB with telemetry first (TRN-16). A 256 KiB chunk cannot leave during unload; it stays persisted and a later page sends it (TRN-18). Datadog caps segments at 60,000 compressed bytes for the same reason (topic 4.5).</p>
+
+
+<!-- ============================ TOPIC 7 ============================ -->
+<h2 id="t7">7 · Buzz words aside: six steps, and which ones to borrow</h2>
+<p>Strip the vendor names and every recorder in topics 4 and 5 is the same six steps. Only two are real design questions, what to record and how to mask; the rest are plumbing or optimisation.</p>
+<div class="pipe" id="t7steps">
+<div class="st"><b>1 · Hook</b><span class="mut">when to look</span></div>
+<div class="st"><b>2 · Record</b><span class="mut">pixels or structure</span></div>
+<div class="st"><b>3 · Mask</b><span class="mut">hide what is private</span></div>
+<div class="st"><b>4 · Pack</b><span class="mut">images, tiles, video, JSON</span></div>
+<div class="st"><b>5 · Ship</b><span class="mut"><code>ouo.replay.chunk</code></span></div>
+<div class="st"><b>6 · Play</b><span class="mut">a player per format</span></div>
+</div>
+<ul>
+<li><b>Hook</b> is a callback or loop you register: MutationObserver on the web, a run-loop observer on iOS, a draw listener plus a 1 s timer on Android, a post-frame callback in Flutter (topic 3).</li>
+<li><b>Record</b> has only two families. <b>Pixels</b>: take a frame. <b>Structure</b>: describe what is on screen. Mobile wireframes and the web's DOM snapshots are the same family; draw commands are structure too, recorded one level lower.</li>
+<li><b>Mask</b> is where the two families really differ. With structure, masking is a data transform (write <code>•••</code> instead of the text) and cannot miss. With pixels, masking is geometry: boxes painted on a picture that was taken at a slightly different moment from the tree walk, so a moving view can slip out (topic 5.0, the masking race).</li>
+<li><b>Pack</b> is optimisation only. JPEG, 64 px tiles, WebP or H.264 change bytes and CPU, never what the replay shows or whether masking is right. "Tiles vs video" is not a design question.</li>
+<li><b>Ship</b> is ours and stays ours: an OTLP log record through the OpenTelemetry SDK (topic 6).</li>
+<li><b>Play</b> is the hidden cost: every format we record needs a player in the Grafana plugin.</li>
+</ul>
+
+<h3 id="t7-borrow">7.1 Borrow map: who writes each step</h3>
+<p>Pick a recorder. Each step shows whether ouo would <span style="color:var(--ok);font-weight:600">borrow</span> it from open source, <span style="color:var(--blue);font-weight:600">already has</span> it, or would <span style="color:var(--warn);font-weight:600">write</span> it.</p>
+<div class="card">
+<div class="tabs" id="bmTabs"></div>
+<div class="pipe" id="bmPipe"></div>
+<div class="step-caption" id="bmCap"></div>
+<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--ok)"></i>borrowed, copied at a pinned tag</span><span><i class="sw" style="background:var(--blue)"></i>already in ouo</span><span><i class="sw" style="background:var(--warn)"></i>ouo writes it</span></div>
+</div>
+
+<h3 id="t7-licences">7.2 Can we copy it? Licences, checked 2026-11-11</h3>
+<div class="wrap"><table>
+<tr><th>Project</th><th>Licence</th><th>What copying needs</th></tr>
+<tr><td>sentry-cocoa, sentry-java, sentry-javascript, sentry-dart</td><td>MIT</td><td>keep the copyright and licence text with the copied files</td></tr>
+<tr><td>posthog-ios, posthog-android</td><td>MIT</td><td>same</td></tr>
+<tr><td>rrweb (already used by the ouo web SDK)</td><td>MIT</td><td>same</td></tr>
+<tr><td>dd-sdk-ios, dd-sdk-android</td><td>Apache-2.0</td><td>keep the licence and NOTICE, mark changed files</td></tr>
+</table></div>
+<p class="src">Read from each repository's <code>LICENSE</code> / <code>LICENSE.md</code> on GitHub. Sentry's server is under a different licence; only the SDKs are MIT. Not legal advice: one look by a lawyer before the first release that ships copied code.</p>
+
+<h3 id="t7-order">7.3 Order: start with the format we can already play</h3>
+<ol>
+<li><b>Sentry video (iOS, then Android).</b> The plugin already plays <code>kind: "video"</code> from the Sentry bridge (<a href="../../../docs/adr-archive/0008-sentry-sdk-bridge.md">ADR-0008</a>, <a href="../../../plugins/ouo11y-rum-app/src/utils/video.ts">video.ts</a>), so the first borrowed recorder needs almost no player work. A spike session is porting the iOS core now.</li>
+<li><b>PostHog wireframes.</b> PostHog writes mobile screens as rrweb-shaped events, close to the web player ouo already has. Not checked in the player code yet.</li>
+<li><b>Datadog wireframes</b> last. Their player was not found in the open; assume ouo writes the renderer.</li>
+</ol>
+<p>Each chunk names its format in <code>ouo.replay.format</code> (for example <code>sentry-video</code>, later <code>posthog-wireframe</code>), so one SDK can carry several recorders and the reader picks a decoder per chunk, as the draft spec already allows (topic 6.4, choice 7).</p>
+<div class="key">What borrowing Sentry's recorder gives up, measured on the Step 5 light journey: a static screen no longer costs zero bytes (Sentry sends a full picture at the start of every 5 s segment), and the drop-if-moving mask check is gone. Bytes: Sentry iOS 49.5 KiB/min vs ouo 38.8; Android about 193 vs 142 (<a href="../client-sdk-state/overhead.md">overhead.md</a>). The drop-if-moving check can be kept as a small patch on the borrowed code if the masking experiment shows Sentry's masking leaks.</div>
+
+<h3 id="t7-qa">7.4 Your questions, answered from the code</h3>
+<div class="card"><b>ouo also captures about once a second. What is the difference from Sentry?</b>
+<p>The hook and the rate are the same idea. The differences are in mask and pack:</p>
+<div class="wrap"><table>
+<tr><th></th><th>ouo mobile today</th><th>Sentry</th></tr>
+<tr><td>Static screen</td><td>nothing sent: tiles are hashed, no change means no bytes</td><td>a frame every second anyway: Android re-sends the last bitmap, iOS repeats it inside the video</td></tr>
+<tr><td>Small change (spinner, one field)</td><td>only the changed 64 px tiles, as JPEG patches</td><td>the codec sends only the changed blocks</td></tr>
+<tr><td>Scroll</td><td>every tile changes, so a full JPEG</td><td>video wins: the codec says "these blocks moved up 12 px"</td></tr>
+<tr><td>Masked view moving</td><td>frame dropped (fails closed)</td><td>kept: Android walks the tree after the copy, iOS reads the animation layers' live positions</td></tr>
+</table></div>
+<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245">SentryUIRedactBuilder.swift L136–245</a></p>
+</div>
+<div class="card"><b>Why does H.264 encode an unchanged frame almost for free?</b>
+<p>The encoder cuts each frame into 16×16-pixel blocks. In a P-frame (a frame stored as changes from the one before), a block that matches the previous frame is marked <i>skip</i>: about one bit, no pixels. A block that moved costs a short motion vector plus a small correction. So an unchanged frame is a few dozen bytes. The catch: Sentry iOS forces a full picture (key frame) at least every 6 frames (<code>MaxKeyFrameInterval = 6</code>), and every 5 s segment is its own MP4 that starts with one. So a static screen still costs one full picture per segment; Step 6 measured about 36 KB per idle 5 s segment on Android.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a> · <a href="../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a></p>
+</div>
+<div class="card"><b>When does ouo export frames?</b>
+<p>A chunk closes at the first of: 5 s, 1 MiB of images, pause or background, a session rotation, a screen-size change. It is written to disk, then sent as its own request with retries. A chunk with no frames and no touches is not sent. The draft spec keeps time and lifecycle and lowers the size target to 256 KiB (hard limit 1 MiB).</p>
+<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="../opentelemetry/rum-semantic-conventions/sdk-spec.md">sdk-spec.md</a> §11 (RPL-10)</p>
+</div>
+<div class="card"><b>Does Sentry drop frames in motion, or capture faster?</b>
+<p>Neither. iOS keeps its rate during scrolling, waits (at most 1 s) while 4 or more animations run, and backs off to one frame per 2 s when a capture takes 150 ms or more. Android skips at most one frame that was drawn during the copy. Sentry trusts its timing; ouo refuses the frame. Neither has been measured for leaks: that is the masking-experiment session.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438">SentrySessionReplay.swift L365–438</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayCaptureGuard.swift#L7-L48">SentrySessionReplayCaptureGuard.swift</a></p>
+</div>
+<div class="card"><b>"My app moves much faster than once a second, yet Sentry replays look acceptable."</b>
+<p>They are 1 fps. Two things hide it (reasoning, not measured): most app time is spent on still screens, where 1 fps loses nothing; and the player draws touches and navigation breadcrumbs from their own timestamps, so taps and screen changes look precise even though the pixels between them are one second apart. A fling or an animation does look like a jump.</p>
+</div>
+<div class="card"><b>Your five cases</b>
+<ol>
+<li><b>One frame a second, masked reliably.</b> The open question; the experiment compares drop-if-moving, walk-after-copy, presentation layers, and two box fixes (union of before/after walks, boxes grown by speed).</li>
+<li><b>Raise the rate when something changes?</b> No pixel recorder does it today. Datadog iOS captures structure up to every 100 ms when layers change, which is cheap because wireframes are small. For pixels, a higher rate costs main-thread time per capture, not mainly bytes. Worth a later experiment within ouo's 100 ms/s time budget.</li>
+<li><b>Several still frames.</b> Already solved by packing: ouo sends nothing; video sends skip blocks.</li>
+<li><b>Only a field, a button or a spinner changes.</b> Also solved by packing: tiles send one tile, video sends a few blocks. Leave it.</li>
+<li><b>When to send, bandwidth or phone compute?</b> Time (5 s), size (256 KiB target), lifecycle (background), and a disk queue for retries. The expensive part on the phone is capture and masking on the main thread, not packing; the spike measures it.</li>
+</ol>
+</div>
+<p class="src">The proposed decision record for this topic is <a href="../../../docs/adr/0018-borrow-the-replay-recorder.md">ADR-0018 (proposed)</a>. It is not accepted until the founder decides.</p>
+
+</main>
+<script>
+(function(){
+/* theme toggle */
+var root=document.documentElement,tb=document.getElementById('themeBtn');
+function cur(){return root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}
+function lbl(){tb.textContent=cur()==='dark'?'☀ light':'☾ dark'}
+tb.onclick=function(){var n=cur()==='dark'?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem('sr-theme',n)}catch(e){}lbl()};
+try{var s=localStorage.getItem('sr-theme');if(s)root.setAttribute('data-theme',s)}catch(e){}lbl();
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+/* ---------- 1.1 DOM demo ---------- */
+var model,steps,si,timer;
+function init(){
+ model={id:1,tag:'body',kids:[{id:2,tag:'h1',kids:[{id:3,text:'Your cart'}]},{id:4,tag:'ul',attrs:{id:'list'},kids:[{id:5,tag:'li',kids:[{id:6,text:'Tea'}]}]}]};
+ si=0;document.getElementById('domRecs').innerHTML='';mark={};render();cap('Press play. A script will change the page four times; watch the tree, the records the observer receives, and the frame pipeline.');lit(null);
+}
+var mark={};
+function find(n,id){if(n.id===id)return n;for(var k of n.kids||[]){var r=find(k,id);if(r)return r}return null}
+function rows(n,d,out){var a='';if(n.attrs)for(var k in n.attrs)a+=' <span class="at">'+k+'="'+esc(n.attrs[k])+'"</span>';
+ var lab=n.text!==undefined?'<span class="tx">"'+esc(n.text)+'"</span> <span class="mut">#text</span>':'<span class="tag">&lt;'+n.tag+'</span>'+a+'<span class="tag">&gt;</span>';
+ out.push('<div class="tn '+(mark[n.id]||'')+'" style="padding-left:'+(6+d*18)+'px"><span class="mut">'+n.id+'</span> '+lab+'</div>');
+ (n.kids||[]).forEach(function(k){rows(k,d+1,out)});return out}
+function render(){document.getElementById('domTree').innerHTML=rows(model,0,[]).join('');}
+function paintPage(){var ul=find(model,4),h=find(model,3);var html='<div style="font-weight:700;font-size:17px;margin-bottom:6px">'+esc(h.text)+'</div><ul style="margin:0;padding-left:18px">';
+ ul.kids.forEach(function(li){if(mark[li.id]==='gone')return;html+='<li class="'+(li.attrs&&li.attrs['class']||'')+'">'+esc(li.kids[0].text)+'</li>'});document.getElementById('domPage').innerHTML=html+'</ul>';}
+function cap(t){document.getElementById('domCap').innerHTML=t}
+function lit(k){document.querySelectorAll('#loopPipe .st').forEach(function(e){e.classList.toggle('act',e.dataset.k===k)})}
+function rec(o){var d=document.createElement('div');d.className='rec';d.textContent=JSON.stringify(o);document.getElementById('domRecs').prepend(d)}
+steps=[
+ function(){lit('task');var ul=find(model,4);ul.kids.push({id:7,tag:'li',kids:[{id:8,text:'Coffee'}]});mark={7:'new',8:'new'};render();cap('<b>Task:</b> a click handler runs <code>ul.appendChild(li)</code>. The DOM changes <em>now</em>, but nothing is drawn yet and the observer has not been called.')},
+ function(){lit('micro');rec({type:'childList',target:'ul#list (4)',addedNodes:['li (7)'],removedNodes:[],previousSibling:'li (5)'});cap('<b>Microtask checkpoint:</b> the MutationObserver callback receives one <code>childList</code> record. A recorder serialises node 7 and its subtree here. Note: still no pixels.')},
+ function(){lit('style');cap('<b>Update the rendering:</b> style recalculation…')},
+ function(){lit('layout');cap('…layout computes the new box for "Coffee"…')},
+ function(){lit('paint');cap('…paint records drawing commands…')},
+ function(){lit('comp');paintPage();cap('…and the compositor puts the frame on screen. One DOM change, one record, one frame.')},
+ function(){lit('task');var li=find(model,5);li.attrs={'class':'sel'};mark={5:'chg'};render();cap('<b>Task:</b> <code>li.className = "sel"</code> (the user selected Tea).')},
+ function(){lit('micro');rec({type:'attributes',target:'li (5)',attributeName:'class',oldValue:null});cap('<b>Microtask:</b> an <code>attributes</code> record. The recorder only needs to send "node 5, class = sel".')},
+ function(){lit('comp');paintPage();cap('Next frame: Tea is highlighted.')},
+ function(){lit('task');find(model,3).text='Your cart (2)';mark={3:'chg'};var ul=find(model,4);mark[5]='gone';mark[6]='gone';render();cap('<b>Task:</b> one handler does two things: changes the heading text and removes Tea.')},
+ function(){lit('micro');rec({type:'characterData',target:'#text (3)',oldValue:'Your cart'});rec({type:'childList',target:'ul#list (4)',addedNodes:[],removedNodes:['li (5)']});cap('<b>Microtask:</b> <em>both</em> records arrive in <em>one</em> callback, in order. Batching is free: many changes in one task become one delivery.')},
+ function(){lit('comp');var ul=find(model,4);ul.kids=ul.kids.filter(function(k){return k.id!==5});mark={};render();paintPage();cap('Frame. The recorder now holds: a full snapshot of the starting tree plus four small records. That is the whole idea of DOM replay, and topic 2 builds on it.')}
+];
+function step(){if(si>=steps.length){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';return}steps[si++]()}
+document.getElementById('domStep').onclick=function(){if(si>=steps.length)init();step()};
+document.getElementById('domReset').onclick=function(){clearInterval(timer);timer=null;document.getElementById('domPlay').textContent='▶ play';init()};
+document.getElementById('domPlay').onclick=function(){if(timer){clearInterval(timer);timer=null;this.textContent='▶ play';return}if(si>=steps.length)init();this.textContent='❚❚ pause';step();timer=setInterval(step,reduce?2600:1700)};
+init();paintPage();
+
+/* ---------- 1.2 native platforms ---------- */
+var P={
+ 'iOS UIKit':{
+  stages:[['Event','touch, timer','main'],['Your code','change views / constraints','main'],['Layout','layoutSubviews','main'],['Display','draw(_:) into layer backing','main'],['CA commit','layer tree sent','main'],['Render server','composites on GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UINavigationController.view'],[2,'UILabel "Your cart"'],[2,'UITableView'],[3,'UITableViewCell'],[4,'UILabel "Tea"'],[4,'UIImageView'],[2,'MKMapView',1],[2,'CustomChartView (draw(_:))',1]],
+  see:'Every UIView is walkable from the key window on the main thread, with its frame, class, text, colours. But a view that draws itself with Core Graphics (<code>draw(_:)</code>), a map, a video or a Metal layer is just a rectangle: its content is pixels.',
+  notes:'Each <code>UIView</code> owns a <code>CALayer</code>. Your code changes views on the main thread; at the end of the run-loop turn Core Animation <b>commits</b> the layer tree to the <b>render server</b> (a separate process) which composites it on the GPU. So the pixels on screen live outside your process: to get them you ask UIKit to <b>re-draw</b> the hierarchy into an image (<code>drawHierarchy(in:afterScreenUpdates:)</code>) or render the layer tree (<code>CALayer.render(in:)</code>). <code>CADisplayLink</code> calls you once per display refresh.<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/uikit/uiview">UIView</a> · <a href="https://developer.apple.com/documentation/quartzcore/calayer">CALayer</a> · <a href="https://developer.apple.com/documentation/uikit/uiview/drawhierarchy(in:afterscreenupdates:)">drawHierarchy(in:afterScreenUpdates:)</a> · <a href="https://developer.apple.com/documentation/quartzcore/cadisplaylink">CADisplayLink</a></p>'},
+ 'SwiftUI':{
+  stages:[['State change','@State / @Observable','main'],['body re-run','new view values','main'],['Diff','SwiftUI graph','main'],['Update hosting views','private UIKit views','main'],['CA commit','','main'],['Render server','GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UIHostingController.view'],[2,'_UIHostingView'],[3,'CGDrawingView (all text)',1],[3,'_UIGraphicsView (shapes, images)',1],[3,'UIKitPlatformViewHost → UISwitch'],[3,'_UIShapeHitTestingView',1]],
+  see:'You wrote <code>VStack { Text("Tea"); Toggle(...) }</code>, but the walk finds generic private drawing views. Text is not a <code>UILabel</code>; you cannot read the string. Only controls SwiftUI backs with real UIKit views appear by type.',
+  notes:'Your <code>View</code>s are <b>values</b>, not objects on screen. SwiftUI keeps its own attribute graph, diffs new values, and updates a small number of private UIKit/Core Animation views it owns. This is why SwiftUI support is the weak spot of every wireframe recorder, and why ouo\'s iOS masker masks <code>SwiftUI.CGDrawingView</code> and <code>_UIGraphicsView</code> by class name (<a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rule 4).<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/swiftui/uihostingcontroller">UIHostingController</a></p>'},
+ 'Android Views':{
+  stages:[['Input','MotionEvent','main'],['Your code','setText, invalidate()','main'],['Choreographer','doFrame (vsync)','main'],['Measure / layout','performTraversals','main'],['Draw','record RenderNode display lists','main'],['RenderThread','replays lists on GPU','render thread'],['SurfaceFlinger','composites windows','system']],
+  tree:[[0,'DecorView'],[1,'LinearLayout'],[2,'TextView "Your cart"'],[2,'RecyclerView'],[3,'ConstraintLayout'],[4,'TextView "Tea"'],[4,'ImageView'],[2,'SurfaceView (video / map)',1],[2,'ChartView (onDraw(Canvas))',1]],
+  see:'Every View is walkable from the window\'s root, with bounds, class, text, drawables. <code>SurfaceView</code>/<code>TextureView</code> (video, maps, camera) and custom <code>onDraw</code> are rectangles with unknown content.',
+  notes:'<code>invalidate()</code> marks a view dirty. On the next vsync <code>Choreographer</code> runs <code>ViewRootImpl.performTraversals()</code>: measure, layout, draw. Since hardware acceleration, <code>draw()</code> does not make pixels: it <b>records</b> canvas commands into each view\'s <code>RenderNode</code>; the RenderThread replays them on the GPU. <code>ViewTreeObserver.OnDrawListener</code> fires on every draw pass, a cheap "something changed" signal; <code>PixelCopy</code> copies the window surface\'s pixels.<p class="src">AOSP <code>android-15.0.0_r1</code>: <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L2888-L2897">scheduleTraversals</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/Choreographer.java#L846-L962">Choreographer.doFrame</a> (input, animation, traversal) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5499-L5704">ViewRootImpl.draw</a> (fires <code>dispatchOnDraw</code> at <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5572">L5572</a>, before the frame is recorded) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ThreadedRenderer.java#L795-L827">ThreadedRenderer.draw</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/graphics/java/android/view/PixelCopy.java#L223-L226">PixelCopy.request(Window)</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/WindowManagerGlobal.java#L144">WindowManagerGlobal.mViews</a></p>'},
+ 'Jetpack Compose':{
+  stages:[['State change','mutableStateOf','main'],['Recompose','composables re-run','main'],['Layout','LayoutNodes measured','main'],['Draw','into host RenderNode','main'],['RenderThread','GPU','render thread']],
+  tree:[[0,'DecorView'],[1,'ComposeView'],[2,'AndroidComposeView (everything below is invisible to a View walk)',1],[3,'LayoutNode Column',1],[4,'LayoutNode Text "Tea"',1],[4,'LayoutNode Switch',1],[2,'semantics tree (readable: text, role, bounds)']],
+  see:'A View walk stops at <code>AndroidComposeView</code>: one View, no children. The way in is the <b>semantics tree</b> (built for accessibility and tests): nodes with bounds, text, role. ouo masks Compose whole today for this reason.',
+  notes:'Compose keeps its own tree of <code>LayoutNode</code>s inside one Android View. Recomposition re-runs only the functions whose state changed. For replay this is the Android equivalent of SwiftUI: the classic recorder\'s view walk sees nothing, so vendors read the semantics tree (public) or the internal <code>LayoutNode</code> tree (by reflection) instead; details in topic 5.<p class="src">androidx at commit <code>3aea5205</code> (the GitHub mirror has no tags): <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidComposeView.android.kt#L2419-L2432">AndroidComposeView.dispatchDraw</a> draws all content itself · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/node/Owner.kt#L67-L70">Owner.root: LayoutNode</a> (internal) · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/semantics/SemanticsOwner.kt#L43-L59">SemanticsOwner</a> (public)</p>'},
+ 'React Native':{
+  stages:[['JS thread','React render, reconcile','JS'],['Fabric commit','shadow tree (C++), Yoga layout','background'],['Mount','create/update native views','main'],['Native draw','UIKit / Android pipeline','main + GPU']],
+  tree:[[0,'(JS) <View><Text>Tea</Text><Image/></View>'],[0,'(C++) ShadowNode tree, Yoga layout'],[0,'UIWindow / DecorView'],[1,'RCTSurfaceView / ReactRootView'],[2,'RCTViewComponentView / ReactViewGroup'],[3,'RCTParagraphComponentView / ReactTextView "Tea"'],[3,'RCTImageComponentView / ReactImageView']],
+  see:'Natively an RN app is an ordinary native app: real views with RN class names. So native replay SDKs work, once they know RN\'s text and image classes. The React tree (component names, props) lives in JS and is not visible to the native walk.',
+  notes:'React reconciles your components in JS. In the new architecture (Fabric) the result is committed as a C++ <b>shadow tree</b> where Yoga computes layout; a diff produces mount instructions that create and update <b>real native views</b>. That is why Sentry, PostHog and Datadog all record RN with their <em>native</em> iOS/Android recorders plus an RN class list. Layout-only <code>&lt;View&gt;</code>s are <b>flattened away</b> and never become native views, so a JS wrapper cannot be relied on to exist natively. And <code>&lt;Text&gt;</code> on iOS is not a <code>UILabel</code>: <code>RCTParagraphComponentView</code> draws the string itself.<p class="src">react-native <code>v0.88.1</code>: <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.cpp#L302-L336">ShadowTree commit</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/MountingCoordinator.cpp#L71-L94">MountingCoordinator</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/internal/sliceChildShadowNodeViewPairs.cpp#L109-L125">view flattening</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/RCTMountingManager.mm#L43-L102">RCTMountingManager (iOS)</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/ComponentViews/Text/RCTParagraphComponentView.mm#L429-L455">RCTParagraphComponentView draws text in drawRect</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt#L578-L612">SurfaceMountingManager (Android)</a></p>'},
+ 'Flutter':{
+  stages:[['Vsync','SchedulerBinding.handleBeginFrame','UI'],['Build','widgets → elements','UI'],['Layout','RenderObjects','UI'],['Paint','PictureRecorder → layer tree','UI'],['Composite','scene to engine','UI'],['Raster','Impeller / Skia on GPU','raster'],['Post-frame','addPostFrameCallback','UI']],
+  tree:[[0,'UIWindow / DecorView'],[1,'FlutterView (one native view, opaque)',1],[0,'(Dart) Widget: Column → Text("Tea")'],[0,'(Dart) Element tree (keeps state)'],[0,'(Dart) RenderObject: RenderFlex → RenderParagraph "Tea"'],[0,'(Dart) Layer tree: OffsetLayer → PictureLayer']],
+  see:'Natively: one <code>FlutterView</code>, a single surface. Nothing inside it is a native view. A native recorder can only take pictures of it. In Dart, though, the render tree is fully readable and Flutter can snapshot any <code>RepaintBoundary</code> to an image.',
+  notes:'Flutter draws <b>everything itself</b>. Widgets are cheap immutable configs; Elements hold the live tree; RenderObjects lay out and paint; painting records drawing commands into <code>Picture</code>s inside a layer tree, which the engine rasterises with Impeller or Skia. Every frame ends with post-frame callbacks, a perfect "a frame was drawn" hook. So Flutter replay is done <b>in Dart</b>, not by the native SDK.<p class="src">flutter <code>3.47.9</code>: <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L312-L349">Widget.createElement</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L6797-L6803">RenderObjectElement.mount → createRenderObject</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L3928-L3932">visitChildElements</a> (what replay maskers walk) · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L1338-L1352">handleDrawFrame → post-frame callbacks</a></p>'}
+};
+var cur1='iOS UIKit',seeOn=false,nt=null;
+var tabs=document.getElementById('natTabs');
+Object.keys(P).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.textContent=k;b.onclick=function(){cur1=k;draw()};tabs.appendChild(b)});
+function draw(){var p=P[cur1];
+ tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.textContent===cur1)});
+ document.getElementById('natPipe').innerHTML=p.stages.map(function(s){return '<div class="st"><b>'+s[0]+'</b><span class="mut">'+s[1]+'</span><div class="st thread" style="border:0;padding:0;background:none">'+s[2]+'</div></div>'}).join('');
+ document.getElementById('natTree').innerHTML=p.tree.map(function(r){return '<div class="tn '+(seeOn&&r[2]?'opaque':'')+'" style="padding-left:'+(6+r[0]*18)+'px">'+(r[2]?'▣ ':'')+esc(r[1])+'</div>'}).join('');
+ document.getElementById('natNotes').innerHTML=p.notes;
+ document.getElementById('natCap').innerHTML=seeOn?'<b>What a native view walk sees:</b> '+p.see:'Press "draw a frame" to follow one frame through '+esc(cur1)+'. ▣ marks parts whose content is pixels, not structure.';
+ document.getElementById('natSee').classList.toggle('on',seeOn);}
+document.getElementById('natSee').onclick=function(){seeOn=!seeOn;draw()};
+document.getElementById('natPlay').onclick=function(){clearInterval(nt);var els=document.querySelectorAll('#natPipe .st'),i=0;
+ nt=setInterval(function(){els.forEach(function(e,j){e.classList.toggle('act',j===i)});var s=P[cur1].stages[i];if(s)document.getElementById('natCap').innerHTML='<b>'+s[0]+'</b> ('+s[2]+' thread): '+s[1];i++;if(i>els.length){clearInterval(nt);els.forEach(function(e){e.classList.remove('act')});draw()}},reduce?1600:900)};
+draw();
+})();
+</script>
+<script>
+/* ---------- 2 · four capture techniques ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var S=2; /* canvas backing scale */
+['capReal','capOut'].forEach(function(id){var c=document.getElementById(id);c.width=180*S;c.height=320*S});
+var EL=[
+ {id:1,k:'bg',x:0,y:0,w:180,h:320},
+ {id:2,k:'text',x:12,y:22,w:110,h:20,t:'Your cart',size:16,bold:1},
+ {id:3,k:'img',x:138,y:16,w:30,h:30},
+ {id:4,k:'text',x:12,y:58,w:60,h:16,t:'Tea',size:13},{id:5,k:'text',x:120,y:58,w:48,h:16,t:'£3.20',size:13,right:1},
+ {id:6,k:'text',x:12,y:84,w:60,h:16,t:'Coffee',size:13},{id:7,k:'text',x:120,y:84,w:48,h:16,t:'£4.20',size:13,right:1},
+ {id:8,k:'text',x:12,y:118,w:80,h:16,t:'Gift wrap',size:13},{id:9,k:'toggle',x:132,y:115,w:36,h:22},
+ {id:10,k:'custom',x:12,y:150,w:156,h:84},
+ {id:11,k:'button',x:12,y:256,w:156,h:38,t:'Pay £7.40'}
+];
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function txt(c,e,s,col){c.fillStyle=col||'#1d1d1b';c.font=(e.bold?'700 ':'')+e.size+'px system-ui,sans-serif';c.textBaseline='middle';c.textAlign=e.right?'right':'left';c.fillText(s,e.right?e.x+e.w:e.x,e.y+e.h/2)}
+function mask(s,ch){return String(s||"").replace(/\S/g,ch)}
+/* real drawing of one element */
+function real(c,e){
+ if(e.k==='bg'){c.fillStyle='#ffffff';c.fillRect(0,0,180,320);c.fillStyle='#eeeeee';c.fillRect(12,103,156,1);c.fillRect(12,76,156,1);return}
+ if(e.k==='text')return txt(c,e,e.t);
+ if(e.k==='img'){c.save();c.beginPath();c.arc(e.x+15,e.y+15,15,0,7);c.clip();var g=c.createLinearGradient(e.x,e.y,e.x+30,e.y+30);g.addColorStop(0,'#f2a65a');g.addColorStop(1,'#b4441c');c.fillStyle=g;c.fillRect(e.x,e.y,30,30);c.fillStyle='#fde3c8';c.beginPath();c.arc(e.x+15,e.y+12,6,0,7);c.fill();c.beginPath();c.arc(e.x+15,e.y+30,11,0,7);c.fill();c.restore();return}
+ if(e.k==='toggle'){c.fillStyle='#34c759';rr(c,e.x,e.y,e.w,e.h,11);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(e.x+e.w-11,e.y+11,9,0,7);c.fill();return}
+ if(e.k==='custom'){c.fillStyle='#f6f4ef';c.fillRect(e.x,e.y,e.w,e.h);var v=[30,52,40,70,58,64,44];v.forEach(function(h,i){c.fillStyle=i===3?'#b4441c':'#2b5fa8';c.fillRect(e.x+8+i*21,e.y+e.h-6-h,14,h)});c.fillStyle='#66625a';c.font='9px system-ui';c.textAlign='left';c.fillText('spend / week',e.x+6,e.y+9);return}
+ if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();txt(c,{x:e.x,y:e.y,w:e.w,h:e.h,size:14,bold:1},'',null);c.fillStyle='#fff';c.font='700 14px system-ui';c.textAlign='center';c.fillText(e.t,e.x+e.w/2,e.y+e.h/2);return}
+}
+function ctx(id){var c=document.getElementById(id).getContext('2d');c.setTransform(S,0,0,S,0,0);return c}
+function drawReal(hl){var c=ctx('capReal');EL.forEach(function(e){real(c,e)});if(hl){c.strokeStyle='#b4441c';c.lineWidth=2;c.strokeRect(hl.x-1,hl.y-1,hl.w+2,hl.h+2)}}
+function clearOut(){var c=ctx('capOut');c.fillStyle='#f1eee7';c.fillRect(0,0,180,320);c.fillStyle='#a29d93';c.font='11px system-ui';c.textAlign='center';c.fillText('waiting for data…',90,160);}
+var masked=true;
+/* per-technique: steps(e) draw into player; wire lines */
+var T={
+ tree:{name:'Tree + diff (rrweb, web)',
+  cap:'The recorder walks the DOM once, gives every node an id and writes it as JSON (the full snapshot). The player builds a <em>real</em> DOM from it in a sandboxed iframe. The chart is a <code>&lt;canvas&gt;</code>: its pixels are not in the tree, so it comes back blank unless canvas recording is turned on.',
+  out:function(c,e){if(e.k==='text'){c.fillStyle='#fff';c.fillRect(e.x,e.y,e.w,e.h);txt(c,e,masked?mask(e.t,'*'):e.t);return}
+   if(e.k==='custom'){c.fillStyle='#ffffff';c.fillRect(e.x,e.y,e.w,e.h);c.strokeStyle='#cccccc';c.setLineDash([3,3]);c.strokeRect(e.x+.5,e.y+.5,e.w-1,e.h-1);c.setLineDash([]);c.fillStyle='#999';c.font='10px system-ui';c.textAlign='center';c.fillText('<canvas> not recorded',e.x+e.w/2,e.y+e.h/2);return}
+   if(e.k==='button'){real(c,{k:'button',x:e.x,y:e.y,w:e.w,h:e.h,t:masked?mask(e.t,'*'):e.t});return}
+   real(c,e)},
+  wire:function(e){var m={bg:'{"id":1,"type":2,"tagName":"body","childNodes":[…]}',text:'{"id":'+e.id+',"type":3,"textContent":"'+(masked&&e.t?mask(e.t,'*'):e.t)+'"}',img:'{"id":3,"type":2,"tagName":"img","attributes":{"src":"https://…/me.jpg"}}',toggle:'{"id":9,"type":2,"tagName":"input","attributes":{"type":"checkbox","checked":true}}',custom:'{"id":10,"type":2,"tagName":"canvas","attributes":{"width":"156"}}',button:'{"id":11,"type":2,"tagName":"button","childNodes":[{"type":3,"textContent":"'+(masked?mask(e.t,'*'):e.t)+'"}]}'};return m[e.k]},
+  head:'// rrweb FullSnapshot (type 2): every node gets an id\n{"type":2,"data":{"node":',
+  tail:'}}\n// later, one change = one small event (rrweb test fixture):\n{"type":3,"data":{"source":0,"adds":[{"parentId":5,"nextId":null,\n  "node":{"type":2,"tagName":"input","id":33}}],\n  "removes":[],"texts":[],"attributes":[]}}',
+  src:'Shapes from <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb-snapshot/src/snapshot.ts#L924-L1129">rrweb-snapshot serializeNodeWithId</a> and the fixture <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/test/events/input.ts#L156-L190">test/events/input.ts</a>. Text masking keeps the length, every non-space character becomes <code>*</code>: <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb-snapshot/src/snapshot.ts#L498-L539">snapshot.ts L498–539</a>.',
+  m:[['Bytes','low after snapshot',2],['Device work','medium',2],['Fidelity','exact (no canvas)',5],['Masking safety','high',5]]},
+ wire:{name:'Wireframes (Datadog, PostHog)',
+  cap:'The recorder walks the native view tree and maps each view it knows to a typed rectangle. The player draws rectangles; it does not run the app. The chart is a custom-drawn view: the recorder sees only its background, so the bars are gone. The avatar becomes an image placeholder unless image privacy allows the bitmap to be uploaded.',
+  out:function(c,e){if(e.k==='bg'){c.fillStyle='#ffffff';c.fillRect(0,0,180,320);return}
+   if(e.k==='text'){txt(c,{x:e.x,y:e.y,w:e.w,h:e.h,size:e.size,bold:e.bold,right:e.right},masked?mask(e.t,'x'):e.t,'#333');return}
+   if(e.k==='img'){c.fillStyle='#d9d6cf';c.fillRect(e.x,e.y,e.w,e.h);c.fillStyle='#777';c.font='8px system-ui';c.textAlign='center';c.fillText('Image',e.x+15,e.y+17);return}
+   if(e.k==='toggle'){c.fillStyle='#34c759';rr(c,e.x,e.y,e.w,e.h,11);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(e.x+e.w-11,e.y+11,9,0,7);c.fill();return}
+   if(e.k==='custom'){c.fillStyle='#f6f4ef';c.fillRect(e.x,e.y,e.w,e.h);return}
+   if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();c.fillStyle='#fff';c.font='700 14px system-ui';c.textAlign='center';c.fillText(masked?mask(e.t,'x'):e.t,e.x+e.w/2,e.y+e.h/2)}},
+  wire:function(e){var b='"id":'+e.id+',"x":'+e.x*2+',"y":'+e.y*2+',"width":'+e.w*2+',"height":'+e.h*2;var m={bg:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#FFFFFFFF"}}',text:'{'+b+',"type":"text","text":"'+(masked&&e.t?mask(e.t,'x'):e.t)+'","textStyle":{"size":'+e.size*2+'}}',img:'{'+b+',"type":"placeholder","label":"Content Image"}',toggle:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#34C759FF","cornerRadius":22}}',custom:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#F6F4EFFF"}}',button:'{'+b+',"type":"text","text":"'+(masked?mask(e.t,'x'):e.t)+'","shapeStyle":{"backgroundColor":"#2B5FA8FF"}}'};return m[e.k]},
+  head:'// Datadog mobile FullSnapshot (type 10), shape as captured\n// from dd-sdk-ios 3.21.0 in Step 6\n{"type":10,"data":{"wireframes":[',
+  tail:']}}\n// later: type 11 with {"adds":[…],"removes":[{"id":7}],\n//   "updates":[{"id":5,"text":"xxxxx"}]}  (Heckel diff, per field)',
+  src:'Real captured wireframes: <a href="../vendor-internals/datadog/wire-format/fixtures/ios/replay-full-snapshot.json">Step 6 fixture replay-full-snapshot.json</a> (PR #175). Mapping view → wireframe: <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98">UILabelRecorder</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIImageViewRecorder.swift#L36-L140">UIImageViewRecorder</a> (image or placeholder); PostHog iOS mapping: <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayIntegration.swift#L1451-L1586">toWireframe</a>. The update record schema: <a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/json/schemas/session-replay/mobile/mutation-payload-schema.json#L1-L51">mutation-payload-schema.json</a>.',
+  m:[['Bytes','low',2],['Device work','medium (tree walk)',3],['Fidelity','"looks like"',3],['Masking safety','high',5]]},
+ pix:{name:'Screenshots / video (Sentry, PostHog, ouo)',
+  cap:'The recorder copies the window\'s pixels, walks the view tree to find rectangles to hide, paints them, scales the image down and encodes it (JPEG/WebP per frame, or H.264 for 5 s of frames). The player shows images. The chart survives, because pixels do not care how they were drawn. The text does not: it is under the boxes, forever.',
+  out:null,
+  wire:null,
+  head:'',tail:'',
+  src:'Sentry iOS paints each box with the <em>average colour</em> of the area: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91">SentryDefaultMaskRenderer.swift L14–91</a>; H.264 settings (key frame every 6 frames, 20–60 kbps): <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a>; Android PixelCopy capture: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/PixelCopyStrategy.kt#L82-L185">PixelCopyStrategy.kt L82–185</a>; text masked one box per line: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/util/MaskRenderer.kt#L43-L110">MaskRenderer.kt L43–110</a>. The video event is the fixture <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/test/resources/json/rrweb_video_event.json#L1-L21">rrweb_video_event.json</a>.',
+  m:[['Bytes','high',4],['Device work','high (render + encode)',4],['Fidelity','what the user saw, 1 fps',4],['Masking safety','geometry, can misalign',2]]},
+ cmd:{name:'Draw commands (rrweb canvas, Sentry Android canvas strategy)',
+  cap:'The recorder intercepts every drawing call and writes it down with its arguments. The player executes the same calls on its own canvas: exact pixels, including the chart. Masking happens at the call: a <code>drawText</code> becomes a <code>drawRect</code> of the same size, so the box can never be in the wrong place.',
+  out:function(c,e){if(e.k==='text'){if(masked){c.fillStyle='#c9c6bf';var w=c.measureText?null:null;rr(c,e.right?e.x+e.w-e.t.length*7:e.x,e.y+3,e.t.length*7,e.h-6,3);c.fill()}else txt(c,e,e.t);return}
+   if(e.k==='button'){c.fillStyle='#2b5fa8';rr(c,e.x,e.y,e.w,e.h,10);c.fill();if(masked){c.fillStyle='#ffffffaa';rr(c,e.x+40,e.y+12,76,14,3);c.fill()}else real(c,e);return}
+   real(c,e)},
+  wire:function(e){var m={bg:'drawColor(#FFFFFF)\ndrawRect(12,76,156,1, #EEEEEE)',text:masked?'drawRect('+e.x+','+e.y+','+e.w+','+e.h+', #C9C6BF)   // was drawText':'drawText("'+e.t+'", '+e.x+', '+e.y+', size='+e.size+')',img:'drawBitmap(<30×30 bitmap>, 138, 16)   // bytes must ship',toggle:'drawRoundRect(132,115,36,22, r=11, #34C759)\ndrawCircle(157,126, r=9, #FFFFFF)',custom:'drawRect(12,150,156,84, #F6F4EF)\ndrawRect(20,198,14,30, #2B5FA8) … ×7 bars',button:'drawRoundRect(12,256,156,38, r=10, #2B5FA8)\n'+(masked?'drawRect(52,268,76,14)   // was drawText':'drawText("Pay £7.40", …)')};return m[e.k]},
+  head:'// illustrative command list (Android Canvas names);\n// rrweb canvas mutations look like {"id":10,"type":0,\n//   "commands":[{"property":"fillRect","args":[8,48,14,30]}]}\n',
+  tail:'',
+  src:'rrweb patches the 2D context and flushes commands once per animation frame as a CanvasMutation event: <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/2d.ts#L31-L55">2d.ts L31–55</a>, <a href="https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/rrweb/src/record/observers/canvas/canvas-manager.ts#L287-L314">canvas-manager.ts L287–314</a>. Sentry Android records <code>root.draw()</code> into a <code>Picture</code> through a masking canvas: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L156-L174">CanvasStrategy.kt L156–174</a>, <code>drawText</code> → rectangle <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/CanvasStrategy.kt#L873-L890">L873–890</a>; it rasterises that picture and still ships video, so its commands never leave the device. Flutter\'s equivalent is <a href="https://github.com/flutter/flutter/blob/3.47.9/engine/src/flutter/lib/ui/painting.dart#L8604">dart:ui PictureRecorder</a>. The Android-style command list above is illustrative, not a vendor format.',
+  m:[['Bytes','varies (bitmaps!)',3],['Device work','medium (intercept)',3],['Fidelity','exact pixels',5],['Masking safety','exact, at the call',5]]}
+};
+var curT='tree',ct=null;
+var tabs=document.getElementById('capTabs');
+Object.keys(T).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=T[k].name.split(' (')[0];b.onclick=function(){curT=k;show()};tabs.appendChild(b)});
+document.getElementById('capMask').onchange=function(){masked=this.checked;show()};
+function meters(){var t=T[curT];document.getElementById('capMeters').innerHTML='<tr>'+t.m.map(function(m){return '<th>'+m[0]+'</th>'}).join('')+'</tr><tr>'+t.m.map(function(m){var w=m[2]*20;return '<td><div style="height:8px;border-radius:4px;background:var(--soft)"><div style="height:8px;border-radius:4px;width:'+w+'%;background:var(--acc)"></div></div><span class="mut" style="font-size:12px">'+m[1]+'</span></td>'}).join('')+'</tr>'}
+function show(){clearInterval(ct);ct=null;var t=T[curT];tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===curT)});
+ document.getElementById('capCap').innerHTML=t.cap;document.getElementById('capSrc').innerHTML=t.src;document.getElementById('capWire').textContent='';drawReal();clearOut();meters();}
+/* picture pipeline */
+function pixFrame(c,scanY){var off=document.createElement('canvas');off.width=60;off.height=107;var o=off.getContext('2d');o.drawImage(document.getElementById('capReal'),0,0,60,107);
+ c.imageSmoothingEnabled=false;c.fillStyle='#f1eee7';c.fillRect(0,0,180,320);c.save();c.beginPath();c.rect(0,0,180,scanY);c.clip();c.drawImage(off,0,0,180,320);c.restore()}
+function pixMasks(c,n){var k=0;EL.forEach(function(e){if(!masked||k>=n)return;if(e.k==='text'||e.k==='img'||(e.k==='button')){k++;c.fillStyle=e.k==='button'?'#2b5fa8':e.k==='img'?'#c97a45':'#9a9a9a';if(e.k==='button'){c.fillStyle='#5a7fb8';c.fillRect(e.x+36,e.y+10,84,18)}else c.fillRect(e.x,e.y+2,e.k==='text'?Math.min(e.w,e.t.length*8):e.w,e.h-4)}})}
+document.getElementById('capPlay').onclick=function(){show();var t=T[curT],c=ctx('capOut'),w=document.getElementById('capWire'),i=0,cap=document.getElementById('capCap');
+ if(curT==='pix'){var y=0,phase=0,fr=0;w.textContent='';
+  ct=setInterval(function(){if(phase===0){y+=16;drawReal({x:0,y:Math.max(0,y-2),w:180,h:2});pixFrame(c,y);cap.innerHTML='<b>1. Copy the window</b> (<code>drawHierarchy</code> on iOS, <code>PixelCopy</code> on Android) and scale it down. Shown here at 1/3 resolution.';if(y>=320){phase=1;y=0}}
+   else if(phase===1){y++;drawReal();pixFrame(c,320);pixMasks(c,y);cap.innerHTML='<b>2. Paint masks</b> from a view-tree walk: every text, image and button title gets a box. '+(masked?'':'(masking is off: nothing is hidden)');if(y>12)phase=2}
+   else{fr++;cap.innerHTML='<b>3. Encode.</b> Frame '+fr+' of 5 goes into the 5 s video segment (H.264 at 1 fps) or out as a JPEG/WebP image. Then the whole MP4 is one binary attachment.';
+    w.textContent='// Sentry: one rrweb custom event describes the MP4\n// that travels next to it in the same envelope (fixture)\n{"type":5,"timestamp":12345678901,"data":{"tag":"video",\n "payload":{"segmentId":0,"size":4000000,"duration":5000,\n  "encoding":"h264","container":"mp4","height":1920,\n  "width":1080,"frameCount":5,"frameRate":1,\n  "frameRateType":"constant","left":100,"top":100}}}\n\n// ouo mobile today: JPEG frames in a JSON chunk\n{"kind":"frames","schema_version":2,"frames":[\n {"ts":…,"reason":"change","jpeg":"/9j/4AAQ…"},\n {"ts":…,"patches":[{"x":0,"y":128,"w":196,"h":64,"jpeg":"…"}]}]}';
+    if(fr>=5){clearInterval(ct);ct=null}}},reduce?400:120);return}
+ var lines=[];c.fillStyle='#ffffff';c.fillRect(0,0,180,320);
+ ct=setInterval(function(){if(i>=EL.length){clearInterval(ct);ct=null;drawReal();w.textContent=t.head+lines.join(curT==='cmd'?'\n':',\n  ')+t.tail;return}
+  var e=EL[i++];drawReal(e.k==='bg'?null:e);t.out(c,e);lines.push(t.wire(e));w.textContent=t.head+lines.join(curT==='cmd'?'\n':',\n  ')+(curT==='cmd'?'':' …');w.scrollTop=w.scrollHeight;
+  cap.innerHTML='<b>'+(curT==='tree'?'Serialise':curT==='wire'?'Map view → wireframe':'Intercept')+'</b> element '+e.id+' ('+e.k+').'+(e.k==='custom'?(curT==='tree'?' A canvas: only the element is in the DOM, not its pixels.':curT==='wire'?' A custom-drawn view: the recorder sees a plain rectangle; the bars are lost.':' The bars are just more draw calls: they replay exactly.'):'')+(e.k==='img'&&curT==='cmd'?' A bitmap: its bytes have to ship.':'')},reduce?900:450)};
+show();
+})();
+</script>
+<script>
+/* ---------- 3 · keyframes and the session simulator ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+var NS='http://www.w3.org/2000/svg';
+function el(p,tag,a,txt){var e=document.createElementNS(NS,tag);for(var k in a){var v=a[k];if((k==='fill'||k==='stroke')&&String(v).indexOf('var(')===0)e.style.setProperty(k,v);else e.setAttribute(k,v)}if(txt!==undefined)e.textContent=txt;p.appendChild(e);return e}
+function cssv(n){return 'var('+n+')'}
+/* 3.1 */
+var kfSvg=document.getElementById('kfSvg');
+var deltas=[];(function(){var t=0.4,s=7;while(t<60){deltas.push(+t.toFixed(1));s=(s*9301+49297)%233280;t+=0.2+(s/233280)*1.6}})();
+function kfDraw(){var every=+document.getElementById('kfEvery').value,seek=+document.getElementById('kfSeek').value;document.getElementById('kfSeekV').textContent=seek;
+ while(kfSvg.firstChild)kfSvg.removeChild(kfSvg.firstChild);var X=function(t){return 20+t*10};
+ el(kfSvg,'line',{x1:20,y1:70,x2:620,y2:70,stroke:cssv('--line'),'stroke-width':2});
+ for(var s=0;s<=60;s+=10)el(kfSvg,'text',{x:X(s),y:104,'text-anchor':'middle','font-size':11,fill:cssv('--mut')},s+' s');
+ var keys=[0];if(every)for(var k=every;k<60;k+=every)keys.push(k);
+ var base=0;keys.forEach(function(k){if(k<=seek)base=k});
+ var applied=0;
+ deltas.forEach(function(d){var used=d>base&&d<=seek;if(used)applied++;el(kfSvg,'rect',{x:X(d)-1,y:58,width:2.5,height:12,fill:used?cssv('--blue'):cssv('--line')})});
+ keys.forEach(function(k){el(kfSvg,'rect',{x:X(k)-3,y:34,width:6,height:36,rx:1,fill:k===base?cssv('--acc'):cssv('--mut')})});
+ el(kfSvg,'rect',{x:X(base),y:28,width:Math.max(0,X(seek)-X(base)),height:4,fill:cssv('--acc'),opacity:.5});
+ el(kfSvg,'line',{x1:X(seek),y1:14,x2:X(seek),y2:80,stroke:cssv('--fg'),'stroke-width':1.5,'stroke-dasharray':'3 3'});
+ el(kfSvg,'text',{x:X(seek),y:11,'text-anchor':'middle','font-size':11},'seek');
+ document.getElementById('kfCap').innerHTML='To show second <b>'+seek+'</b> the player loads the keyframe at <b>'+base+' s</b> and applies <b>'+applied+'</b> deltas. '+(every?'Every keyframe after the first also lets the recorder (or a buffer) drop everything older.':'With no checkouts, every seek replays from the very first snapshot, and losing it loses the whole session.');}
+document.getElementById('kfEvery').onchange=kfDraw;document.getElementById('kfSeek').oninput=kfDraw;kfDraw();
+new MutationObserver(kfDraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* 3.2 simulator: 30 s, 0.1 s steps */
+var DUR=30;
+var acts=[[0,0.3,'open app','nav'],[2,4.5,'typing','type'],[6,9,'scroll','scroll'],[9,15,'idle','idle'],[15,15.3,'tap → new screen','nav'],[16,20,'spinner','anim'],[21,25,'tab switch / background','bg'],[25,25.3,'back','nav'],[25.3,30,'idle','idle']];
+function actAt(t){for(var i=0;i<acts.length;i++)if(t>=acts[i][0]&&t<acts[i][1])return acts[i][3];return 'idle'}
+function changing(t){var a=actAt(t);return a==='nav'||a==='type'||a==='scroll'||a==='anim'}
+/* build marks per lane: {t, k:'key'|'delta'|'rep'|'flush', b:bytes} */
+function lanes(){var L={web:[],sa:[],dd:[],ph:[],ouo:[]},t,i;
+ /* web */
+ var lastEv=-9,pend=false,firstUnflushed=null,nextScroll=0;
+ for(i=0;i<=DUR*10;i++){t=i/10;var a=actAt(t);
+  if(t===0){L.web.push({t:0,k:'key',b:60});lastEv=0;pend=true;firstUnflushed=0}
+  else if(a==='bg'&&actAt(t-0.1)!=='bg'){if(pend){L.web.push({t:t,k:'flush'});pend=false}}
+  else if(a!=='bg'&&changing(t)&&(a!=='scroll'||t>=nextScroll)&&(a!=='type'||i%3===0)&&(a!=='anim'||i%5===0)){L.web.push({t:t,k:'delta',b:a==='nav'?8:0.3});if(a==='scroll')nextScroll=t+0.1;lastEv=t;if(!pend){firstUnflushed=t}pend=true}
+  if(pend&&(t-lastEv>=5||t-firstUnflushed>=5.5)&&a!=='bg'){L.web.push({t:t,k:'flush'});pend=false}}
+ /* sentry android */
+ for(t=0;t<=DUR;t++){var a2=actAt(t);if(a2==='bg')continue;var ch=t===0||changing(t)||changing(t-0.5)||t===25;L.sa.push({t:t,k:ch?'delta':'rep',b:ch?3.5:0.4})}
+ [5,10,15,20,21,30].forEach(function(f){L.sa.push({t:f,k:'flush'})});
+ /* datadog iOS: on change, at most every 100 ms; key on view change */
+ var lastC=-1;for(i=0;i<=DUR*10;i++){t=i/10;var a3=actAt(t);if(a3==='bg')continue;
+  if((t===0||t===15||t===25)){L.dd.push({t:t,k:'key',b:6});lastC=t;continue}
+  if(changing(t)&&t-lastC>=0.1&&(a3!=='anim'||i%2===0)){L.dd.push({t:t,k:'delta',b:a3==='scroll'?0.6:0.25});lastC=t}}
+ [5,10,15,20,21,26,30].forEach(function(f){L.dd.push({t:f,k:'flush'})});
+ /* posthog iOS: 1 s throttle, hash skip, backoff */
+ var iv=1,unch=0,next=0;for(t=0;t<=DUR;t+=0.5){var a4=actAt(t);if(a4==='bg'){next=t;continue}
+  if(t<next)continue;var c4=t===0||changing(t)||changing(t-0.5);if(c4){L.ph.push({t:t,k:'key',b:3});unch=0;iv=1}else{unch++;if(unch>=3)iv=Math.min(8,iv*2)}next=t+(c4?1:iv)}
+ [2,4,6,8,10,12,15,17,19,21,26].forEach(function(f){L.ph.push({t:f,k:'flush'})});
+ /* ouo */
+ var cs=0;for(t=0;t<=DUR;t++){var a5=actAt(t);if(a5==='bg'){cs=-1;continue}var c5=t===0||t===25||changing(t)||changing(t-0.5);if(!c5)continue;
+  var full=t===0||t===15||t===25||cs<0||t-cs>=5||a5==='scroll';if(full)cs=t;L.ouo.push({t:t,k:full?'key':'delta',b:full?18:(a5==='anim'?1.2:3)})}
+ [5,10,15,20,21,30].forEach(function(f){L.ouo.push({t:f,k:'flush'})});
+ return L}
+var LN=[['web','Web: rrweb + Sentry'],['sa','Sentry Android, 1 fps video'],['dd','Datadog iOS, wireframes'],['ph','PostHog iOS (full snapshots)'],['ouo','ouo mobile, frames + tiles']];
+var svg=document.getElementById('simSvg'),raf=null;
+function X(t){return 160+t*16.5}
+function frame(T){while(svg.firstChild)svg.removeChild(svg.firstChild);var L=lanes();
+ var acc=cssv('--acc'),blu=cssv('--blue'),lin=cssv('--line'),mut=cssv('--mut'),fg=cssv('--fg');
+ /* activity row */
+ el(svg,'text',{x:4,y:26,'font-size':11,'font-weight':600},'User');
+ acts.forEach(function(a){if(a[3]==='idle')return;var col=a[3]==='bg'?mut:acc;el(svg,'rect',{x:X(a[0]),y:14,width:Math.max(4,(a[1]-a[0])*16.5),height:16,rx:3,fill:col,opacity:T>=a[0]?.85:.25});});
+ [[0,'open'],[2.2,'type'],[6.2,'scroll'],[11,'idle'],[15,'tap'],[16.5,'spinner'],[21.3,'hidden'],[25.2,'back']].forEach(function(l){el(svg,'text',{x:X(l[0])+2,y:44,'font-size':10,fill:mut},l[1])});
+ LN.forEach(function(ln,r){var y=72+r*48;el(svg,'text',{x:4,y:y+4,'font-size':11},ln[1]);el(svg,'line',{x1:X(0),y1:y,x2:X(DUR),y2:y,stroke:lin});var kb=0,n=0,rep=0;
+  L[ln[0]].forEach(function(m){if(m.t>T)return;if(m.k==='flush'){el(svg,'text',{x:X(m.t),y:y-9,'text-anchor':'middle','font-size':10,fill:fg},'▼');return}
+   n++;kb+=m.b;if(m.k==='rep')rep++;var h=m.k==='key'?18:m.k==='delta'?10:8;el(svg,'rect',{x:X(m.t)-1.5,y:y-h/2,width:3,height:h,fill:m.k==='key'?acc:m.k==='delta'?blu:lin,stroke:m.k==='rep'?mut:'none','stroke-width':.5})});
+  el(svg,'text',{x:4,y:y+18,'font-size':10,fill:mut},n+' captures'+(rep?' ('+rep+' unchanged)':''))});
+ el(svg,'line',{x1:X(T),y1:8,x2:X(T),y2:322,stroke:fg,'stroke-width':1,'stroke-dasharray':'3 3'});
+ for(var s=0;s<=30;s+=5)el(svg,'text',{x:X(s),y:326,'text-anchor':'middle','font-size':10,fill:mut},s+'s');
+ var cap={nav:'A new screen: change-driven recorders take a keyframe; ouo sends a full image.',type:'Typing: the web gets one input event per keystroke; picture recorders send changed frames at 1 fps.',scroll:'Scrolling changes every pixel: tiles cannot help (ouo sends full images), wireframes send position updates.',idle:'Idle: the web and Datadog go silent. Sentry Android still sends a repeated frame each second; PostHog backs off up to 8 s; ouo sends nothing.',anim:'A spinner: a small area changes every frame. ouo sends small patches; Datadog sees layer changes but tiny diffs.',bg:'Tab hidden / app in background: every SDK flushes now (▼), because the process may die without warning, and stops capturing.'}[actAt(T)];
+ document.getElementById('simCap').innerHTML='<b>t = '+T.toFixed(1)+' s.</b> '+(cap||'');}
+document.getElementById('simPlay').onclick=function(){cancelAnimationFrame(raf);var t0=performance.now(),sp=reduce?0.6:1.6;(function tick(now){var T=Math.min(DUR,(now-t0)/1000*sp);frame(T);if(T<DUR)raf=requestAnimationFrame(tick)})(t0)};
+frame(DUR);document.getElementById('simCap').innerHTML='The whole session is drawn below; press play to watch it unfold and read what each strategy does at each moment.';
+})();
+</script>
+<script>
+/* ---------- generic step-through flow (topics 4 and 5) ---------- */
+window.ouoFlow=function(host,f){
+ var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ var w=document.createElement('div');w.className='card';w.id=f.id;
+ var h='<h3 style="margin-top:0">'+f.title+'</h3>'+(f.intro?'<p>'+f.intro+'</p>':'')+'<div class="pipe">'+f.boxes.map(function(b){return '<div class="st" data-b="'+b[0]+'"><b>'+b[1]+'</b><span class="mut">'+(b[2]||'')+'</span></div>'}).join('')+'</div>'+
+  '<div class="btns"><button class="b" data-a="prev" type="button">◀ prev</button><button class="b" data-a="next" type="button">next ▶</button><button class="b" data-a="play" type="button">▶ play all</button><span class="mut" style="font-size:12px;align-self:center" data-n></span></div><div class="step-caption" data-cap style="min-height:5em"></div>';
+ w.innerHTML=h;host.appendChild(w);
+ var i=-1,tm=null,cap=w.querySelector('[data-cap]'),num=w.querySelector('[data-n]');
+ function link(l){return '<a href="'+l[1]+'">'+l[0]+'</a>'}
+ function go(n){i=Math.max(0,Math.min(f.steps.length-1,n));var s=f.steps[i];
+  w.querySelectorAll('.st').forEach(function(e){e.classList.toggle('act',e.dataset.b===s[0])});
+  cap.innerHTML=s[1]+(s[2]&&s[2].length?'<div class="src" style="margin-top:4px">Source: '+s[2].map(link).join(' · ')+'</div>':'');num.textContent='step '+(i+1)+' / '+f.steps.length}
+ w.querySelector('[data-a=prev]').onclick=function(){go(i-1)};
+ w.querySelector('[data-a=next]').onclick=function(){go(i+1)};
+ w.querySelector('[data-a=play]').onclick=function(){var b=this;if(tm){clearInterval(tm);tm=null;b.textContent='▶ play all';return}b.textContent='❚❚ pause';if(i>=f.steps.length-1)i=-1;go(i+1);tm=setInterval(function(){if(i>=f.steps.length-1){clearInterval(tm);tm=null;b.textContent='▶ play all';return}go(i+1)},reduce?6000:4200)};
+ cap.innerHTML=f.steps.length+' steps. Press next.';
+};
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-rrweb-record',title:'4.1 rrweb: record',intro:'Four parts: a <b>serialiser</b> that writes the DOM as JSON with node ids, a <b>Mirror</b> that maps ids to live nodes, <b>observers</b> that turn DOM changes and user input into small events, and <b>emit</b>, which hands every event to the caller. rrweb itself never uploads anything.',
+ boxes:[['opt','record()','options'],['snap','Full snapshot','serialise + ids'],['mir','Mirror','id ↔ node'],['obs','Observers','mutation, input, scroll…'],['buf','MutationBuffer','one batch per callback'],['emit','wrappedEmit','timestamp, plugins, checkout']],
+ steps:[
+ ['opt','<code>record(options)</code> sets defaults: block class <code>rr-block</code>, mask class <code>rr-mask</code>, canvas off, fonts off. Inputs: only passwords are masked unless <code>maskAllInputs</code> is set.',[['record/index.ts L66–103',RW+'rrweb/src/record/index.ts#L66-L103'],['L140–162',RW+'rrweb/src/record/index.ts#L140-L162']]],
+ ['opt','<code>init()</code> takes a full snapshot, then starts observing. It waits for the page\'s <code>load</code> event by default.',[['L588–618',RW+'rrweb/src/record/index.ts#L588-L618']]],
+ ['snap','<code>takeFullSnapshot</code> emits a Meta event (URL, width, height), <b>locks</b> the mutation buffers so nothing changes mid-walk, serialises the document and emits FullSnapshot (type 2), then unlocks: changes queued during the walk come out right after.',[['L344–426',RW+'rrweb/src/record/index.ts#L344-L426']]],
+ ['snap','<code>serializeNodeWithId</code> walks every node. Ids come from a counter that starts at 1. Masking is decided once per subtree; masked text keeps its length (<code>****</code>); a blocked element is kept as an empty box with its width and height only.',[['snapshot.ts L924–1129',RW+'rrweb-snapshot/src/snapshot.ts#L924-L1129'],['masking L498–539',RW+'rrweb-snapshot/src/snapshot.ts#L498-L539'],['blocked L759–767',RW+'rrweb-snapshot/src/snapshot.ts#L759-L767']]],
+ ['mir','The <b>Mirror</b> is a <code>Map&lt;id, Node&gt;</code> plus a <code>WeakMap&lt;Node, serialized&gt;</code>. Every later event refers to nodes by id, so the recorder and the player must agree on ids: this is why a lost full snapshot makes the deltas after it useless.',[['utils.ts L192–262',RW+'rrweb-snapshot/src/utils.ts#L192-L262']]],
+ ['obs','One <code>MutationObserver</code> per document or shadow root, watching attributes, text and children, with old values, over the whole subtree.',[['observer.ts L82–110',RW+'rrweb/src/record/observer.ts#L82-L110']]],
+ ['buf','Each callback\'s records go through <code>processMutation</code> one by one, then <code>emit()</code> once: <b>one observer callback → at most one Mutation event</b>. A node added and removed in the same batch is dropped; a remove-then-add under the same parent is a move.',[['mutation.ts L129–154',RW+'rrweb/src/record/mutation.ts#L129-L154'],['childList L603–674',RW+'rrweb/src/record/mutation.ts#L603-L674']]],
+ ['buf','<code>emit()</code> serialises added nodes parent-first so every add can name its <code>parentId</code> and <code>nextId</code>. Text and attribute changes on nodes added in the same batch are dropped (the add already has the latest value). The event is <code>{adds, removes, texts, attributes}</code>; an empty one is not sent.',[['L156–356',RW+'rrweb/src/record/mutation.ts#L156-L356'],['L359–429',RW+'rrweb/src/record/mutation.ts#L359-L429']]],
+ ['obs','The other observers: mouse positions sampled every 50 ms and sent in batches every 500 ms; scroll throttled at 100 ms; resize at 200 ms; <code>input</code>/<code>change</code> with masking; value setters patched so script-made changes are caught; <code>insertRule</code> wrapped so CSS-in-JS is recorded; media play/pause; canvas.',[['mouse L112–196',RW+'rrweb/src/record/observer.ts#L112-L196'],['scroll L317–358',RW+'rrweb/src/record/observer.ts#L317-L358'],['input L388–487',RW+'rrweb/src/record/observer.ts#L388-L487'],['setters L497–534',RW+'rrweb/src/record/observer.ts#L497-L534'],['stylesheet L598–650',RW+'rrweb/src/record/observer.ts#L598-L650']]],
+ ['emit','<code>wrappedEmit</code> stamps the time, runs plugins, and calls your <code>emit(event, isCheckout)</code>. It counts incremental events and takes a new full snapshot when <code>checkoutEveryNth</code> or <code>checkoutEveryNms</code> is reached (no default).',[['L171–241',RW+'rrweb/src/record/index.ts#L171-L241']]],
+ ['emit','What rrweb does <b>not</b> do: buffering, compression, upload, page-hide handling. Its only <code>pagehide</code> listener stops observing an unloading iframe. All of that is the embedding SDK\'s job, which is where Sentry, PostHog and Highlight differ.',[['iframe-manager.ts L134',RW+'rrweb/src/record/iframe-manager.ts#L134']]]
+ ]});
+ouoFlow(host,{id:'t4-rrweb-replay',title:'4.2 rrweb: replay',intro:'The player is the mirror image: rebuild a real DOM inside a sandboxed iframe, then apply events on a clock. Seeking uses a virtual DOM so thousands of deltas become one patch.',
+ boxes:[['rep','Replayer','setup'],['sb','Sandbox iframe','no scripts'],['tim','Timer','rAF clock'],['reb','rebuild','full snapshot → DOM'],['inc','applyIncremental','mutations, input…'],['vd','RRDom','fast-forward on seek']],
+ steps:[
+ ['rep','<code>new Replayer(events)</code> needs at least two events. Defaults: speed 1, skip inactive off (threshold 10 s), virtual DOM on.',[['replay/index.ts L182–215',RW+'rrweb/src/replay/index.ts#L182-L215']]],
+ ['sb','The page is rebuilt inside an iframe whose <code>sandbox</code> is forced to exactly <code>allow-same-origin</code>: no scripts. <code>rebuild()</code> refuses any other target, and recorded <code>&lt;script&gt;</code> tags come back as <code>&lt;noscript&gt;</code>. Replaying a page must never run the user\'s code.',[['rebuild.ts L777–805',RW+'rrweb-snapshot/src/rebuild.ts#L777-L805'],['L157–191',RW+'rrweb-snapshot/src/rebuild.ts#L157-L191']]],
+ ['tim','Events are sorted by time. To start at an offset, everything before the last Meta event ahead of the target is dropped; events up to the target are applied at once ("sync"); later ones become timer actions.',[['machine.ts L171–218',RW+'rrweb/src/replay/machine.ts#L171-L218']]],
+ ['tim','The Timer is one <code>requestAnimationFrame</code> loop: <code>timeOffset += elapsed × speed</code>, then run every action whose delay has passed. Skip-inactive fast-forwards long gaps between user actions.',[['timer.ts L28–79',RW+'rrweb/src/replay/timer.ts#L28-L79'],['skip L719–758',RW+'rrweb/src/replay/index.ts#L719-L758']]],
+ ['reb','A FullSnapshot resets the mirror and calls <code>rebuild()</code>, which creates real elements in the iframe with the same ids, then scrolls to the recorded offset.',[['index.ts L805–883',RW+'rrweb/src/replay/index.ts#L805-L883'],['rebuild.ts L735–764',RW+'rrweb-snapshot/src/rebuild.ts#L735-L764']]],
+ ['inc','A Mutation event is applied in a fixed order: removes, then adds (each placed by <code>parentId</code> and <code>nextId</code>; adds whose parent is not there yet wait in a queue), then texts, then attributes.',[['L1433–1490',RW+'rrweb/src/replay/index.ts#L1433-L1490'],['L1718–1780',RW+'rrweb/src/replay/index.ts#L1718-L1780']]],
+ ['vd','When seeking, the first mutation builds an <b>RRDom</b> virtual copy of the iframe, all sync mutations go to it, and at the end one keyed diff patches the real DOM, like a React reconciler. This is what makes seeking to minute 20 fast.',[['L1407–1431',RW+'rrweb/src/replay/index.ts#L1407-L1431'],['flush L224–272',RW+'rrweb/src/replay/index.ts#L224-L272'],['rrdom diff.ts L373–400',RW+'rrdom/src/diff.ts#L373-L400']]]
+ ]});
+ouoFlow(host,{id:'t4-sentry',title:'4.3 Sentry: a fork of rrweb, a worker, and a 5-second debounce',intro:'Sentry\'s value is around the engine: when to record (session or error buffer), a guard against mutation storms, and compression off the main thread.',
+ boxes:[['fork','rrweb fork','2.45.0'],['start','startRecording','mode, checkout'],['guard','Mutation guard','750 / 10,000'],['buf','Event buffer','array or worker'],['wk','Worker','fflate zlib stream'],['fl','Flush','debounce, hidden']],
+ steps:[
+ ['fork','The fork adds options upstream lacks: <code>maskAllText</code>, <code>unblockSelector</code>, <code>maskAttributeFn</code>, and an <code>onMutation</code> hook that can drop a whole batch. Canvas recording is injected, so it is not in the bundle unless you add it.',[['record/index.ts L91–134',SF+'index.ts#L91-L134'],['onMutation L125–150',SF+'observer.ts#L125-L150'],['canvas L782–798',SF+'index.ts#L782-L798']]],
+ ['fork','It uses Angular\'s unpatched MutationObserver when present (so recording does not trigger change detection) and still has the older linked-list mutation buffer that upstream replaced.',[['observer.ts L112–124',SF+'observer.ts#L112-L124'],['mutation.ts L45–80',SF+'mutation.ts#L45-L80']]],
+ ['start','<code>startRecording()</code>: in <b>buffer</b> mode a checkout every 60 s, so the in-memory buffer holds at most about 60 s plus the snapshot; in session mode no periodic checkout. Mouse moves are switched off on iPhone and iPad.',[['replay.ts L443–479',SJ+'replay-internal/src/replay.ts#L443-L479'],['sampling L9–22',SJ+'replay-internal/src/util/getRecordingSamplingOptions.ts#L9-L22']]],
+ ['start','A checkout in buffer mode clears the buffer. When an error happens, the buffer is sent and recording switches to session mode.',[['handleRecordingEmit.ts L23–125',SJ+'replay-internal/src/util/handleRecordingEmit.ts#L23-L125']]],
+ ['guard','If one observer callback holds more than 750 records, a <code>replay.mutations</code> breadcrumb is added; above 10,000 the replay is <b>stopped</b>. A page that rewrites itself in a loop must not take the app down.',[['replay.ts L1361–1405',SJ+'replay-internal/src/replay.ts#L1361-L1405']]],
+ ['buf','Events go to a buffer: a Web Worker created from a Blob URL when possible, otherwise a plain array. The proxy starts on the array and switches to the worker once it says <code>init</code>.',[['eventBuffer/index.ts L19–62',SJ+'replay-internal/src/eventBuffer/index.ts#L19-L62'],['EventBufferProxy.ts L20–141',SJ+'replay-internal/src/eventBuffer/EventBufferProxy.ts#L20-L141']]],
+ ['wk','The worker <b>compresses as events arrive</b>: fflate UTF-8 encoder into a zlib stream, <code>[</code> at start, <code>,event</code> per event, <code>]</code> at finish. Flushing only has to close the stream. Protocol: <code>{id, method: init|addEvent|finish|clear, arg}</code>.',[['Compressor.ts L31–79',SJ+'replay-worker/src/Compressor.ts#L31-L79'],['handleMessage.ts L13–62',SJ+'replay-worker/src/handleMessage.ts#L13-L62']]],
+ ['fl','Flush is debounced: 5 s after the last event, at most 5.5 s after the first unsent one. Page hidden or window blur flushes immediately. The upload envelope is in Step 6.',[['replay.ts L208–218',SJ+'replay-internal/src/replay.ts#L208-L218'],['visibility L245–264',SJ+'replay-internal/src/replay.ts#L245-L264']]]
+ ]});
+ouoFlow(host,{id:'t4-posthog',title:'4.4 PostHog: lazy-loaded rrweb fork, compression per field',intro:'PostHog\'s recorder is loaded only when a session is going to be recorded, and spends its effort on throttling noisy pages and on triggers.',
+ boxes:[['lz','Lazy load','recorder script'],['rr','rrweb fork','options'],['th','Throttle','per-node bucket'],['ck','Checkout','5 min timer'],['cz','Compress','per event field'],['sd','Buffer + send','2 s / 0.9 MB']],
+ steps:[
+ ['lz','The core SDK only decides <em>whether</em> to record. If the recorder is missing it loads it as a separate script and starts in the callback, so pages that are never recorded never download rrweb.',[['session-recording.ts L178–228',PB+'extensions/replay/session-recording.ts#L178-L228'],['recorder.ts L4–28',PB+'entrypoints/recorder.ts#L4-L28']]],
+ ['rr','rrweb options: block class <code>ph-no-capture</code>, mask class <code>ph-mask</code>, all inputs masked; canvas as WebP snapshots at 4 fps (max 12), quality 0.4.',[['canvas config L2926–2966',PH+'#L2926-L2966']]],
+ ['th','A token bucket per node (100 tokens, 10 per second) drops attribute mutations on noisy nodes such as an animating SVG.',[['mutation-throttler.ts L40–58',PB+'extensions/replay/external/mutation-throttler.ts#L40-L58']]],
+ ['ck','A timer takes a full snapshot every 5 minutes (1 minute while a trigger is pending), not while idle. After 5 min without user activity, events are dropped until activity resumes.',[['L1007–1042',PH+'#L1007-L1042'],['idle L184–193',PH+'#L184-L193']]],
+ ['cz','Only FullSnapshot, Mutation and StyleSheetRule events are compressed, and a mutation\'s <code>adds</code>, <code>removes</code>, <code>texts</code> and <code>attributes</code> are gzipped <b>separately</b>, stored as latin1 strings marked <code>cv: \'2024-10\'</code>.',[['L209–251',PH+'#L209-L251']]],
+ ['sd','Events are buffered and sent as <code>$snapshot</code> events every 2 s, or sooner past ~0.9 MB. The request is compressed again as a whole. Nothing is sent before the minimum session duration.',[['buffer L2532–2590',PH+'#L2532-L2590'],['gate L2373–2440',PH+'#L2373-L2440'],['send L2592–2600',PH+'#L2592-L2600'],['posthog-core.ts L2109–2124',PB+'posthog-core.ts#L2109-L2124']]]
+ ]});
+ouoFlow(host,{id:'t4-datadog',title:'4.5 Datadog: its own recorder and the "Change" encoding',intro:'Same idea as rrweb, different engineering: mutations are only dirty markers, processed in idle time, and every snapshot or delta is one compact "Change" record.',
+ boxes:[['rec','record()','13 trackers'],['fs','Full snapshot','per RUM view'],['mb','Mutation batch','idle ≤100 ms'],['ch','Change record','typed changes'],['seg','Segment','5 s / 60 KB'],['wk','Deflate worker','sync trailer']],
+ steps:[
+ ['rec','<code>record()</code> creates a scope (node ids, a string table, privacy config) and installs 13 trackers: mutation, move, mouse, scroll, viewport, input, media, stylesheet, focus, visual viewport, view end, canvas content, canvas capture.',[['record.ts L44–107',DD+'browser-rum/src/domain/record/record.ts#L44-L107']]],
+ ['fs','A full snapshot at start and on every new RUM <b>view</b> (an SPA route change), no timer.',[['startFullSnapshots.ts L12–72',DD+'browser-rum/src/domain/record/startFullSnapshots.ts#L12-L72']]],
+ ['ch','Serialising happens inside a <b>transaction</b> that collects typed changes (<code>addNode</code>, <code>setAttributes</code>, <code>setText</code>…) with repeated strings replaced by indices into a string table, and emits one record.',[['serializeFullSnapshot.ts L9–26',DD+'browser-rum/src/domain/record/serialization/serializeFullSnapshot.ts#L9-L26'],['transaction L150–248',DD+'browser-rum/src/domain/record/serialization/serializationTransaction.ts#L150-L248'],['stringTable.ts L22–56',DD+'browser-rum/src/domain/record/encoding/stringTable.ts#L22-L56']]],
+ ['mb','MutationObserver records are queued and processed in <code>requestIdleCallback</code> (at most 100 ms) behind a 16 ms throttle, so several callbacks become one record. Records are only dirty markers; the current DOM is read at processing time.',[['mutationBatch.ts L5–58',DD+'browser-rum/src/domain/record/mutationBatch.ts#L5-L58'],['serializeMutations.ts L48–113',DD+'browser-rum/src/domain/record/serialization/serializeMutations.ts#L48-L113']]],
+ ['ch','Privacy is a level per node inherited from its parent (<code>allow</code>, <code>mask</code>, <code>mask-user-input</code>, <code>hidden</code>…), set with <code>data-dd-privacy</code>. Masked text becomes <code>x</code>s with spaces kept.',[['privacy.ts L21–56',DD+'browser-rum-core/src/domain/privacy.ts#L21-L56'],['spec L575–585',DD+'browser-rum/src/domain/record/trackers/trackMutation.spec.ts#L575-L585']]],
+ ['seg','A segment is cut on a new view, at page exit, after 5 s, or past <b>60,000 compressed bytes</b>, so it fits the browser\'s 64 KB budget for requests sent while the page closes.',[['segmentCollection.ts L15–183',DD+'browser-rum/src/domain/segmentCollection/segmentCollection.ts#L15-L183']]],
+ ['wk','A deflate worker compresses records as they come. Every reply carries a ready-made 6-byte ending, so the page can close the stream <b>synchronously</b> on unload without waiting for the worker.',[['startWorker.ts L92–124',DD+'browser-worker/src/boot/startWorker.ts#L92-L124'],['deflateEncoder.ts L104–125',DD+'browser-rum/src/domain/deflate/deflateEncoder.ts#L104-L125']]]
+ ]});
+ouoFlow(host,{id:'t4-others',title:'4.6 OpenReplay, Highlight and Clarity',intro:'Three more designs worth knowing, one per idea.',
+ boxes:[['or','OpenReplay','binary messages'],['hl','Highlight','rrweb fork, GraphQL'],['cl','Clarity','degrades on purpose']],
+ steps:[
+ ['or','<b>No full-snapshot format.</b> The first DOM is sent as a stream of <code>CreateElementNode</code> / <code>CreateTextNode</code> / <code>SetNodeAttribute</code> messages, the same types used for later changes. Positions are parent id plus sibling index.',[['observer.ts L759–775',OR+'main/app/observer/observer.ts#L759-L775'],['messages.gen.ts L118–125',OR+'common/messages.gen.ts#L118-L125']]],
+ ['or','Messages are tuples encoded as binary varints in a worker, committed every 30 ms, flushed every 30 s, gzipped only above 24 kB and never on unload.',[['ticker.ts L36–47',OR+'main/app/ticker.ts#L36-L47'],['BatchWriter.ts L18–55',OR+'webworker/BatchWriter.ts#L18-L55'],['QueueSender.ts L89–115',OR+'webworker/QueueSender.ts#L89-L115']]],
+ ['hl','Its own rrweb fork; sends every 2 s; a new full snapshot only when at least 10 MB <em>and</em> 4 minutes have passed. The payload is zlib-compressed and base64-encoded in a GraphQL mutation, from a worker.',[['sessions.ts L1–36',HL+'constants/sessions.ts#L1-L36'],['index.tsx L764–796',HL+'index.tsx#L764-L796'],['worker L173–212',HL+'workers/highlight-client-worker.ts#L173-L212']]],
+ ['cl','Its own encoder. When the same mutation repeats 10 times outside a 3 s window after a user interaction, Clarity stops sending it and keeps only the latest, until the user interacts again. Fidelity is traded for cost by design.',[['mutation.ts L220–250',CL+'src/layout/mutation.ts#L220-L250'],['layout.d.ts L156–159',CL+'types/layout.d.ts#L156-L159']]]
+ ]});
+})();
+</script>
+<script>
+/* ---------- 5.0 masking race ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,K=2;
+['raceA','raceB','raceC'].forEach(function(id){var c=document.getElementById(id);c.width=160*K;c.height=200*K});
+function cx(id){var c=document.getElementById(id).getContext('2d');c.setTransform(K,0,0,K,0,0);return c}
+var rows=['Card •••• 4242','Ana Ruiz','+44 7700 900123','12 Baker St','ana@mail.test','Order #1029'];
+function list(c,off){c.fillStyle='#fff';c.fillRect(0,0,160,200);c.save();c.beginPath();c.rect(0,0,160,200);c.clip();rows.forEach(function(r,i){var y=10+i*34-off;c.fillStyle='#f3f1ec';c.fillRect(8,y,144,28);c.fillStyle='#1d1d1b';c.font='12px system-ui';c.textBaseline='middle';c.fillText(r,16,y+14)});c.restore()}
+function boxes(off){return rows.map(function(r,i){return {x:14,y:10+i*34-off+6,w:Math.min(132,r.length*6.6),h:16}})}
+function paint(c,bs,col){c.fillStyle=col||'#222';bs.forEach(function(b){c.fillRect(b.x,b.y,b.w,b.h)})}
+var M={
+ naive:['Naive',function(){list(cx('raceA'),0);paint(cx('raceA'),boxes(0),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');list(c,12);paint(c,boxes(0));return 'The boxes were computed at t₀, the pixels copied at t₁ after a 12 px scroll: <b>the bottom of every line leaks</b> (look at the phone number and the e-mail).'}],
+ ouo:['ouo: drop if moving',function(){list(cx('raceA'),0);paint(cx('raceA'),boxes(0),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');c.fillStyle='#f1eee7';c.fillRect(0,0,160,200);c.fillStyle='#b4441c';c.font='600 12px system-ui';c.textAlign='center';c.fillText('frame dropped',80,92);c.fillStyle='#66625a';c.font='11px system-ui';c.fillText('(scroll view was moving)',80,110);c.textAlign='left';return '<b>Fail closed.</b> The masker sees a scroll view that is dragging or decelerating (or a moving layer animation) and drops the frame; the player keeps the previous one. Android walks again after the copy and drops the frame if any box moved. Source: <a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, iOS rule 5 and Android rule 4.'}],
+ sentryA:['Sentry Android: walk after the copy',function(){list(cx('raceA'),0);list(cx('raceB'),12);paint(cx('raceB'),boxes(12),'rgba(180,68,28,.55)');var c=cx('raceC');list(c,12);paint(c,boxes(12));return 'Sentry Android builds the view hierarchy <b>in the PixelCopy callback</b>, after the pixels are in hand, and skips one "unstable" frame if a draw happened while the copy was in flight. Boxes and pixels describe the same moment. Source: <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/screenshot/PixelCopyStrategy.kt#L113-L168">PixelCopyStrategy.kt L113–168</a>.'}],
+ sentryI:['Sentry iOS: presentation layers',function(){list(cx('raceA'),6);paint(cx('raceA'),boxes(6),'rgba(180,68,28,.55)');list(cx('raceB'),6);var c=cx('raceC');list(c,6);boxes(6).forEach(function(b){c.fillStyle='#8f8d88';c.fillRect(b.x,b.y,b.w,b.h)});return 'Sentry iOS walks the <b>CALayer presentation tree</b> (where things are on screen now, mid-animation) and renders with <code>drawHierarchy(afterScreenUpdates: false)</code>, which reads what the screen last showed. Each box is filled with the <b>average colour</b> of the area, not black. Sources: <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L555-L707">SentryUIRedactBuilder.swift L555–707</a>, <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91">SentryDefaultMaskRenderer.swift L14–91</a>.'}],
+ flutter:['Flutter: same frame, no await',function(){list(cx('raceA'),12);paint(cx('raceA'),boxes(12),'rgba(180,68,28,.55)');list(cx('raceB'),12);var c=cx('raceC');list(c,12);paint(c,boxes(12));return 'In Flutter the render tree and the image come from the <b>same frame</b>: PostHog awaits <code>endOfFrame</code>, then walks the tree and calls <code>toImage()</code> with no <code>await</code> in between, so no new frame can be built in the gap. Sentry\'s capture is documented "MUST NOT BE ASYNC" for the same reason. Sources: <a href="https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/lib/src/replay/screenshot/screenshot_capturer.dart#L700-L757">screenshot_capturer.dart L700–757</a>, <a href="https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/lib/src/screen_capture/recorder.dart#L57-L131">recorder.dart L57–131</a>.'}]
+};
+var cur='naive',tabs=document.getElementById('raceTabs');
+Object.keys(M).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=M[k][0];b.onclick=function(){cur=k;reset()};tabs.appendChild(b)});
+function reset(){tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===cur)});list(cx('raceA'),0);list(cx('raceB'),0);var c=cx('raceC');c.fillStyle='#f1eee7';c.fillRect(0,0,160,200);document.getElementById('raceCap').innerHTML='Strategy: <b>'+M[cur][0]+'</b>. Press ▶.'}
+document.getElementById('racePlay').onclick=function(){reset();var off=0,t=setInterval(function(){off+=2;list(cx('raceB'),off);if(off>=12){clearInterval(t);document.getElementById('raceCap').innerHTML=M[cur][1]()}},reduce?200:60)};
+reset();
+})();
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SA='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',SO='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry/src/main/java/io/sentry/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/',DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',DA='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/kotlin/com/datadog/android/sessionreplay/internal/',DAC='https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay-compose/src/main/kotlin/com/datadog/android/sessionreplay/compose/internal/',SRN='https://github.com/getsentry/sentry-react-native/blob/8.34.0/packages/core/',PRN='https://github.com/PostHog/posthog-js/blob/posthog-react-native@4.86.0/packages/',DRN='https://github.com/DataDog/dd-sdk-reactnative/blob/3.11.0/packages/react-native-session-replay/',ORT='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/',SD='https://github.com/getsentry/sentry-dart/blob/10.3.0/packages/flutter/',PF='https://github.com/PostHog/posthog-flutter/blob/5.60.1/posthog_flutter/',DF='https://github.com/DataDog/dd-sdk-flutter/blob/063586df86e6c435be8a22823d626e11f8f05fa6/packages/datadog_session_replay/',OI='https://github.com/openreplay/ios-tracker/blob/1.0.26/Sources/OpenReplay/',OA='https://github.com/openreplay/android-tracker/blob/v1.1.17/tracker/src/main/java/com/openreplay/tracker/managers/';
+var SI=SC+'Integrations/SessionReplay/';
+var host=document.getElementById('flows5');
+ouoFlow(host,{id:'t5-sentry-ios',title:'5.1 Sentry iOS: masked screenshots → H.264 video',
+ boxes:[['sch','Scheduler','run-loop observer'],['grd','Guards','animations, back-off'],['red','Redact','CALayer walk'],['ren','Render','drawHierarchy'],['enc','Encode','AVAssetWriter, 5 s'],['seg','Segment','MP4 + rrweb JSON']],
+ steps:[
+ ['sch','No timer and no CADisplayLink: a <code>CFRunLoopObserver</code> on the main run loop at order <code>CFIndex.max</code>, after Core Animation\'s commit. It offers a capture only if the run loop did work this turn, so an idle app costs nothing.',[['L48–79',SI+'SentrySessionReplayRunLoopCaptureScheduler.swift#L48-L79'],['L95–108',SI+'SentrySessionReplayRunLoopCaptureScheduler.swift#L95-L108']]],
+ ['grd','Pacing at 1 fps. If the main-thread part of a capture takes 150 ms or more, the interval doubles up to 2 s. Four or more running animations defer the capture by 250 ms, up to 1 s.',[['SentrySessionReplay.swift L469–561',SI+'SentrySessionReplay.swift#L469-L561'],['CaptureGuard L7–48',SI+'SentrySessionReplayCaptureGuard.swift#L7-L48']]],
+ ['red','The masks come from a walk of the <b>CALayer</b> tree (not UIViews): class lists for text, images and web views, React Native classes built in, per-view mask/unmask, and an opaque view that covers others clips them out. An unreadable sublayer is masked whole.',[['SentryUIRedactBuilder.swift L555–707',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L555-L707'],['RN classes L146–196',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L146-L196']]],
+ ['ren','The window is rendered with <code>drawHierarchy(afterScreenUpdates: false)</code>; each mask is painted with the average colour of its area. The frame is scaled to 1×, written as PNG to disk (crash recovery) and kept in memory.',[['SentryDefaultMaskRenderer.swift L14–91',SC+'Core/Tools/ViewCapture/SentryDefaultMaskRenderer.swift#L14-L91'],['SentryOnDemandReplay.swift L104–160',SI+'SentryOnDemandReplay.swift#L104-L160']]],
+ ['enc','Every 5 s the frames become one MP4: H.264 main profile, 20–60 kbps, no B-frames, a key frame at most every 6 frames. Missing seconds are filled by repeating the previous frame, giving a constant 1 fps.',[['L381–440',SI+'SentryOnDemandReplay.swift#L381-L440'],['SentryVideoFrameProcessor.swift L83–173',SI+'SentryVideoFrameProcessor.swift#L83-L173']]],
+ ['seg','The segment is a <code>replay_event</code> plus a recording: rrweb JSON (meta, a <code>video</code> custom event, breadcrumbs, touches) next to the MP4. Background → pause and cut a short segment; foreground → resume. In buffer mode the last 30 s live in memory until an error.',[['SentrySessionReplay.swift L818–886',SI+'SentrySessionReplay.swift#L818-L886'],['pause/resume L261–318',SI+'SentrySessionReplay.swift#L261-L318'],['buffer L365–438',SI+'SentrySessionReplay.swift#L365-L438']]]
+ ]});
+ouoFlow(host,{id:'t5-sentry-android',title:'5.2 Sentry Android: PixelCopy (or Canvas) → MediaCodec',
+ boxes:[['trg','Trigger','dirty flag + 1 s loop'],['cap','Capture','PixelCopy / Canvas'],['msk','Mask','view + Compose walk'],['jpg','Disk','JPEG per frame'],['enc','Encode','MediaCodec AVC']],
+ steps:[
+ ['trg','The window\'s <code>OnDrawListener</code> only sets <code>contentChanged</code>. A runnable on the main looper captures every second; if nothing was drawn it re-emits the last bitmap.',[['ScreenshotRecorder.kt L54–125',SA+'ScreenshotRecorder.kt#L54-L125'],['WindowRecorder.kt L217–253',SA+'WindowRecorder.kt#L217-L253']]],
+ ['cap','Default: <code>PixelCopy</code> of the window into one reusable bitmap; SurfaceViews (video, maps) can be copied separately and composited behind. Alternative: record <code>root.draw()</code> into a <code>Picture</code> through a canvas that turns <code>drawText</code> into rectangles.',[['PixelCopyStrategy.kt L82–185',SA+'screenshot/PixelCopyStrategy.kt#L82-L185'],['CanvasStrategy.kt L156–174',SA+'screenshot/CanvasStrategy.kt#L156-L174']]],
+ ['msk','In the copy callback the view tree is walked: masked by class hierarchy (TextView, ImageView, WebView, video) or tag; text gets one box per line in its text colour, images the average colour. <code>AndroidComposeView</code> is walked through Compose\'s internal LayoutNode semantics; a node whose semantics cannot be read is masked whole.',[['ViewHierarchyNode.kt L303–446',SA+'viewhierarchy/ViewHierarchyNode.kt#L303-L446'],['MaskRenderer.kt L43–110',SA+'util/MaskRenderer.kt#L43-L110'],['ComposeViewHierarchyNode.kt L40–178',SA+'viewhierarchy/ComposeViewHierarchyNode.kt#L40-L178']]],
+ ['jpg','Each frame is compressed to JPEG (quality 10/30/50) into a per-replay folder, which is also how a crashed segment is recovered next launch.',[['ReplayCache.kt L75–91',SA+'ReplayCache.kt#L75-L91']]],
+ ['enc','Every 5 s the JPEGs are decoded again and drawn onto a MediaCodec AVC encoder\'s input surface, one frame per second (repeating the last one when a second has none); the muxer rewrites timestamps to a constant frame rate.',[['ReplayCache.kt L132–242',SA+'ReplayCache.kt#L132-L242'],['SimpleVideoEncoder.kt L61–189',SA+'video/SimpleVideoEncoder.kt#L61-L189'],['SimpleMp4FrameMuxer.kt L39–61',SA+'video/SimpleMp4FrameMuxer.kt#L39-L61']]]
+ ]});
+ouoFlow(host,{id:'t5-posthog',title:'5.3 PostHog iOS and Android: wireframe or screenshot, as rrweb events',
+ boxes:[['sch','Schedule','throttle 1 s'],['wf','Wireframe','view → node'],['ss','Screenshot','one image node'],['eq','Equal?','hash / id diff'],['em','Emit','$snapshot']],
+ steps:[
+ ['sch','iOS: a main run-loop observer (order 2,100,000), throttled to 1 s; after 3 unchanged frames the interval doubles up to 8 s, and a cheap structure fingerprint wakes it. Android: the window\'s draw listener through a 1 s throttler.',[['ApplicationRunLoopPublisher.swift L85–136',PI+'ApplicationRunLoopPublisher.swift#L85-L136'],['backoff L11–91',PI+'Replay/PostHogReplayCaptureBackoff.swift#L11-L91'],['Throttler.kt L8–64',PA+'internal/Throttler.kt#L8-L64']]],
+ ['wf','Wireframe mode walks <code>subviews</code> and maps known classes: label → <code>text</code>, text field → <code>input</code>, switch → <code>toggle</code>, image → <code>image</code> (bitmap only if not sensitive), web view → <code>web_view</code>. Masking replaces text with <code>*</code>. A SwiftUI root is skipped: "enable screenshotMode".',[['toWireframe L1451–1586',PI+'Replay/PostHogReplayIntegration.swift#L1451-L1586'],['SwiftUI skip L1702–1741',PI+'Replay/PostHogReplayIntegration.swift#L1702-L1741'],['Android toWireframe L2766–3064',PA+'PostHogReplayIntegration.kt#L2766-L3064']]],
+ ['ss','Screenshot mode renders the window, paints masks black at native resolution, and encodes WebP quality 0.3 as base64 inside one wireframe node of type <code>screenshot</code>. Android uses PixelCopy and keeps a frame only if no layout happened and no mask moved between two walks.',[['RRWireframe.swift L52–145',PI+'Replay/RRWireframe.swift#L52-L145'],['Android L2449–2736',PA+'PostHogReplayIntegration.kt#L2449-L2736']]],
+ ['eq','iOS hashes the frame (the base64 string, or the wireframe tree without ids) and drops it if equal. Android wireframes diff by node id and send the <em>whole</em> node on any change.',[['frameVerdict L2129–2163',PI+'Replay/PostHogReplayIntegration.swift#L2129-L2163'],['Android diff L1323–1410',PA+'PostHogReplayIntegration.kt#L1323-L1410']]],
+ ['em','iOS always emits an rrweb FullSnapshot (type 2) per changed frame, never a mutation; Android sends type 3 mutations after the first. Touches go as their own rrweb events.',[['L858–875',PI+'Replay/PostHogReplayIntegration.swift#L858-L875'],['touches L697–760',PI+'Replay/PostHogReplayIntegration.swift#L697-L760']]]
+ ]});
+ouoFlow(host,{id:'t5-datadog',title:'5.4 Datadog iOS and Android: wireframes with a real diff',
+ boxes:[['trg','Change signal','CALayer / draw'],['walk','Node recorders','view → node'],['flat','Flatten','drop covered'],['diff','Diff','Heckel, per field'],['res','Resources','images by hash']],
+ steps:[
+ ['trg','iOS swizzles <code>CALayer.display</code>, <code>draw(in:)</code> and <code>layoutSublayers</code>; changes are merged and delivered at most every 100 ms. No layer activity, no work. Android debounces the draw listener by 64 ms under a time bank of 100 ms of capture per second.',[['CALayerSwizzler.swift L18–117',DI+'Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117'],['CALayerChangeAggregator.swift L63–151',DI+'Recorder/ScreenChangeMonitor/CALayerChangeAggregator.swift#L63-L151'],['Debouncer.kt L16–112',DA+'recorder/Debouncer.kt#L16-L112']]],
+ ['walk','Each view is offered to a list of node recorders (UILabel, UIImageView, UISwitch, UISlider, … ; Android mappers TextView, ImageView, Switch, …); the most specific wins and decides whether to walk its subtree. SwiftUI, when enabled, is read from SwiftUI\'s private renderer by key path (<code>_base.viewGraph.renderer</code> on iOS 26). Compose is read from its semantics tree plus reflection for colours.',[['ViewTreeSnapshotBuilder.swift L104–132',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/ViewTreeSnapshotBuilder.swift#L104-L132'],['UIHostingViewRecorder.swift L14–106',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIHostingViewRecorder.swift#L14-L106'],['DefaultRecorderProvider.kt L120–245',DA+'DefaultRecorderProvider.kt#L120-L245'],['AndroidComposeViewMapper.kt L37–55',DAC+'mappers/semantics/AndroidComposeViewMapper.kt#L37-L55']]],
+ ['flat','Nodes outside the screen and nodes fully covered by an opaque node above them are dropped before anything is encoded.',[['NodesFlattener.swift L16–46',DI+'Processor/Flattening/NodesFlattener.swift#L16-L46']]],
+ ['diff','A new RUM view → Meta + Focus + FullSnapshot; otherwise a <b>Heckel diff</b> against the last wireframes: adds with <code>previousId</code>, removes by id, and updates that carry only changed fields. An empty diff writes nothing. Android also forces a full snapshot every 3 s.',[['SnapshotProcessor.swift L99–127',DI+'Processor/SnapshotProcessor.swift#L99-L127'],['Diff.swift L93–114',DI+'Processor/Diffing/Diff.swift#L93-L114'],['RecordedDataProcessor.kt L85–193',DA+'processor/RecordedDataProcessor.kt#L85-L193']]],
+ ['res','Images travel separately: the id is an MD5 of a small greyscale rendition (iOS) or of the WebP bytes (Android), and an id already sent is not sent again. Records are zlib-compressed with sync flush so segments can be concatenated.',[['UIImage+SessionReplay.swift L19–60',DI+'Recorder/Utilities/UIImage+SessionReplay.swift#L19-L60'],['ResourceResolver.kt L60–253',DA+'recorder/resources/ResourceResolver.kt#L60-L253'],['SRCompression.swift L14–30',DI+'Writers/SRCompression.swift#L14-L30']]]
+ ]});
+ouoFlow(host,{id:'t5-rn',title:'5.5 React Native: the native SDKs do the recording',intro:'No vendor records React Native from JavaScript. The JS package configures the native recorder, adds React Native view classes to its lists, and provides privacy components that become real native views.',
+ boxes:[['sen','Sentry RN','video'],['ph','PostHog RN','screenshots'],['dd','Datadog RN','wireframes'],['or','OpenReplay RN','JPEGs']],
+ steps:[
+ ['sen','Options cross the bridge once, at native init. iOS turns the booleans into class names (<code>RCTParagraphComponentView</code>, <code>RCTImageComponentView</code>, <code>RNSVGSvgView</code>…).',[['mobilereplay.ts L47–200',SRN+'src/js/replay/mobilereplay.ts#L47-L200'],['RNSentryReplay.mm L58–91',SRN+'ios/RNSentryReplay.mm#L58-L91']]],
+ ['sen','<code>&lt;Mask&gt;</code> is a native host component, so Fabric cannot flatten it. The native redactor recognises it by its <b>class</b> and masks the whole subtree. If the native view is missing it falls back to a plain View and warns about leaking PII.',[['CustomMask.tsx L13–65',SRN+'src/js/replay/CustomMask.tsx#L13-L65'],['RNSentryReplay.mm L93–110',SRN+'ios/RNSentryReplay.mm#L93-L110']]],
+ ['ph','PostHog RN forces <b>screenshot mode</b> on both platforms (never wireframes). A view is marked private with the string <code>ph-no-capture</code> in its accessibility id or label. The "mask all text inputs" flag also masks all RN static text.',[['iOS plugin L405–445',PRN+'react-native-plugin/ios/PosthogReactNativePlugin.swift#L405-L445'],['UIView+Util.swift L76–104',PI+'Replay/UIView%2BUtil.swift#L76-L104'],['RN text masking L967–1003',PI+'Replay/PostHogReplayIntegration.swift#L967-L1003']]],
+ ['dd','Datadog RN adds native mappers for RN views. On iOS Fabric it reads text straight from the C++ <code>ParagraphProps</code>; on Android Fabric it reads the text colour from a private field by reflection. <code>&lt;PrivacyView&gt;</code> props become view tags (Android) or per-view overrides (iOS).',[['ReactNativeSessionReplayExtensionSupport.kt L36–45',DRN+'android/src/main/kotlin/com/datadog/reactnative/sessionreplay/ReactNativeSessionReplayExtensionSupport.kt#L36-L45'],['RCTFabricWrapper.mm L28–69',DRN+'ios/Sources/RCTFabricWrapper.mm#L28-L69'],['PrivacyView.tsx L57–78',DRN+'src/components/SessionReplayView/PrivacyView.tsx#L57-L78']]],
+ ['or','OpenReplay RN wraps its native trackers (older pinned versions). Its privacy marker is a childless native view placed as an absolutely positioned <em>sibling</em>, because Fabric\'s interop layer and view flattening break a wrapping view.',[['ios ReactNativeORSanitizedViewManager.swift L16–37',ORT+'tracker-reactnative/ios/ReactNativeORSanitizedViewManager.swift#L16-L37'],['podspec L18',ORT+'tracker-reactnative/openreplay-react-native.podspec#L18']]]
+ ]});
+ouoFlow(host,{id:'t5-flutter',title:'5.6 Flutter: everyone records in Dart',intro:'A native recorder sees one opaque FlutterView, so every vendor captures inside the Flutter framework and uses the native SDK only to encode or upload.',
+ boxes:[['sen','Sentry Flutter','image → native video'],['ph','PostHog Flutter','image → screenshot node'],['dd','Datadog Flutter','Dart wireframes'],['or','OpenReplay Flutter','image → JPEG']],
+ steps:[
+ ['sen','A <code>RepaintBoundary</code> at the root. Capture is <code>toImage()</code> plus, in the same synchronous task, a breadth-first Element walk masking by <b>Widget</b> type (<code>Text</code>, <code>EditableText</code>, <code>RichText</code>, <code>Image</code>).',[['recorder.dart L57–131',SD+'lib/src/screen_capture/recorder.dart#L57-L131'],['widget_filter.dart L26–89',SD+'lib/src/screen_capture/widget_filter.dart#L26-L89'],['privacy options L31–133',SD+'lib/src/screen_capture/sentry_privacy_options.dart#L31-L133']]],
+ ['sen','It forces a frame every second even on an idle screen and never skips duplicates (the idle-frame filler is commented out: "we\'ve decided to capture on every frame"). On Android, Dart <em>pushes</em> raw RGBA to sentry-java over JNI from a worker isolate; on iOS, sentry-cocoa <em>pulls</em> each frame over a method channel. Native encodes the MP4.',[['scheduled_recorder.dart L191–256',SD+'lib/src/replay/scheduled_recorder.dart#L191-L256'],['android_replay_recorder.dart L143–181',SD+'lib/src/native/java/android_replay_recorder.dart#L143-L181'],['iOS provider L24–41',SD+'darwin/sentry_flutter/Sources/sentry_flutter_objc/SentryFlutterReplayScreenshotProvider.m#L24-L41']]],
+ ['ph','A timer at the throttle delay registers a post-frame callback; no frame is forced, so an idle screen captures nothing. After <code>endOfFrame</code> it walks the tree and calls <code>toImage()</code> with no <code>await</code> between. An FNV hash of the raw pixels drops unchanged frames. Masks key on <b>RenderObject</b> types (<code>RenderParagraph</code>, <code>RenderImage</code>, <code>RenderEditable</code>).',[['change_detector.dart L43–71',PF+'lib/src/replay/change_detector.dart#L43-L71'],['screenshot_capturer.dart L700–757',PF+'lib/src/replay/screenshot/screenshot_capturer.dart#L700-L757'],['hash L495–524',PF+'lib/src/replay/screenshot/screenshot_capturer.dart#L495-L524'],['parsers L10–22',PF+'lib/src/replay/element_parsers/element_parsers_const.dart#L10-L22']]],
+ ['ph','The PNG goes to native over a method channel; iOS wraps it as a <code>screenshot</code> wireframe in an rrweb FullSnapshot, Android re-encodes WebP q30. Native PostHog skips its own scheduler on Flutter.',[['native_communicator.dart L10–29',PF+'lib/src/replay/native_communicator.dart#L10-L29'],['PosthogFlutterPlugin.swift L1218–1270',PF+'darwin/posthog_flutter/Sources/posthog_flutter/PosthogFlutterPlugin.swift#L1218-L1270']]],
+ ['dd','Datadog builds <b>wireframes in Dart</b>: a 100 ms timer captures only if a post-frame callback set a flag; an Element walk matches Widget types (<code>RichText</code>, <code>RawImage</code>, Material and Cupertino controls) to recorders; a background isolate diffs; native only transports.',[['datadog_session_replay.dart L150–233',DF+'lib/src/datadog_session_replay.dart#L150-L233'],['recorder.dart L194–214',DF+'lib/src/capture/recorder.dart#L194-L214'],['processor.dart L97–136',DF+'lib/src/processor/processor.dart#L97-L136']]],
+ ['or','OpenReplay follows repaints with a self-re-registering post-frame callback (throttled to 333 ms), uses <code>toImageSync()</code>, blurs opt-in sanitized views in Dart, and native drops a frame whose 64-bit FNV hash is unchanged before JPEG-encoding.',[['screenshot_manager.dart L26–60',ORT+'tracker-flutter/openreplay/lib/src/capture/screenshot_manager.dart#L26-L60'],['OpenreplayPlugin.swift L58–104',ORT+'tracker-flutter/openreplay/ios/openreplay/Sources/openreplay/OpenreplayPlugin.swift#L58-L104']]]
+ ]});
+ouoFlow(host,{id:'t5-openreplay',title:'5.7 OpenReplay iOS and Android: JPEG archives',
+ boxes:[['rate','Rate','from server'],['cap','Capture','drawHierarchy / PixelCopy'],['msk','Mask','opt-in only'],['arc','Archive','gzip of JPEGs']],
+ steps:[
+ ['rate','The server\'s start response sets fps and quality (iOS); Android loops at 1000/500/300 ms for low/standard/high.',[['ORTracker.swift L99–106',OI+'ORTracker.swift#L99-L106'],['ScreenshotManager.kt L131–151',OA+'ScreenshotManager.kt#L131-L151']]],
+ ['cap','iOS: <code>drawHierarchy(afterScreenUpdates: false)</code> on main, mask compositing and JPEG encoding off main, a frame dropped if the encoder is behind. Android: PixelCopy with a Canvas fallback.',[['ScreenCapture.swift L140–190',OI+'ScreenCapture/ScreenCapture.swift#L140-L190'],['ScreenshotManager.kt L657–766',OA+'ScreenshotManager.kt#L657-L766']]],
+ ['msk','Masking is <b>opt-in only</b>: views registered with <code>addIgnoredView</code>, a SwiftUI <code>.sensitive()</code> modifier or a sensitive text field. Nothing is masked by default.',[['ScreenCapture.swift L410–435',OI+'ScreenCapture/ScreenCapture.swift#L410-L435']]],
+ ['arc','Frames are packed as <code>[timestamp][length][jpeg]…</code>, gzipped and uploaded as a separate archive, apart from the event stream.',[['ScreenCapture.swift L318–366',OI+'ScreenCapture/ScreenCapture.swift#L318-L366']]]
+ ]});
+})();
+</script>
+<script>
+/* ---------- 6.2 chunk builder ---------- */
+(function(){
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,NS='http://www.w3.org/2000/svg';
+function el(p,tag,a,txt){var e=document.createElementNS(NS,tag);for(var k in a){var v=a[k];if((k==='fill'||k==='stroke')&&String(v).indexOf('var(')===0)e.style.setProperty(k,v);else e.setAttribute(k,v)}if(txt!==undefined)e.textContent=txt;p.appendChild(e);return e}
+function cssv(n){return 'var('+n+')'}
+/* session: 0-30 active, 30-34 background, 34-60; new screen at 20; idle 44-52 */
+function gen(k){var out=[],seg=-1,seq=0;
+ function add(t0,t1,kb,key){if(key)seg++;out.push({t0:t0,t1:t1,kb:kb,key:key,seg:seg,seq:seq++})}
+ var cuts=[[0,5],[5,10],[10,15],[15,20],[20,25],[25,30],[34,39],[39,44],[44,49],[49,54],[54,60]];
+ cuts.forEach(function(c){var t0=c[0],idle=t0>=44&&t0<54,newScreen=t0===20,afterBg=t0===34,first=t0===0;
+  if(k==='rrweb'){add(t0,c[1],first||afterBg?18:idle?0.2:newScreen?4:1.7,first||afterBg)}
+  else if(k==='wire'){add(t0,c[1],first||afterBg||newScreen?6:idle?0:2.8,first||afterBg||newScreen)}
+  else if(k==='frames'){if(idle)return;add(t0,c[1],newScreen||first||afterBg?12:5,true)}
+  else if(k==='video'){add(t0,c[1],idle?6:16,true)}
+  else if(k==='shots'){if(idle)return;add(t0,c[1],newScreen||first?95:45,true)}});
+ return out.filter(function(c){return c.kb>0})}
+var T={
+ rrweb:{n:'rrweb (web)',fmt:'rrweb/2',enc:'gzip',body:'gzip( [ {"type":4,"data":{"href":…}}, {"type":2,"data":{"node":{…}}}, {"type":3,"data":{"source":0,"adds":[…]}}, … ] )',cap:'One long segment from the first full snapshot; the tab going to the background (30 s) closes the chunk, and the stream continues with a new keyframe and segment when it comes back (RPL-9). The idle stretch costs almost nothing.'},
+ wire:{n:'Wireframes',fmt:'ouo-wireframe/1 (hypothetical)',enc:'gzip',body:'gzip( [ {"type":10,"wireframes":[{"id":6,"type":"shape",…},{"id":9,"type":"text","text":"xxxx"}]}, {"type":11,"adds":[],"removes":[],"updates":[{"id":9,"text":"xxxxx"}]} ] )',cap:'A keyframe per new screen, field-level deltas between, nothing while idle. Images would be separate records keyed by hash, or base64 inside keyframes (option 4).'},
+ frames:{n:'Frames + tiles (ouo today)',fmt:'ouo-frames/2 (today: kind "frames")',enc:'identity',body:'[ts][full JPEG] [ts][patch x,y,w,h][JPEG] [ts][patch…] …   (today: the same inside a JSON envelope, base64)',cap:'Every chunk starts with a full image, so segment = chunk and any chunk plays alone. An idle screen sends no chunk at all.'},
+ video:{n:'Video (Sentry style)',fmt:'video/mp4 h264 (today: kind "video")',enc:'identity',body:'MP4 (ftyp, moov, mdat): 5 frames at 1 fps, one key frame   + touches/breadcrumbs somewhere (option 5)',cap:'One MP4 per 5 s: segment = chunk (RPL-25). An idle screen still produces a chunk, because Sentry repeats frames to keep a constant 1 fps.'},
+ shots:{n:'Screenshots (PostHog style)',fmt:'ouo-screens/1 (hypothetical)',enc:'identity',body:'[ts][WebP] [ts][WebP] …   (PostHog: a "screenshot" wireframe with base64 in rrweb JSON)',cap:'Every frame is a full image; unchanged frames are dropped by hash, so idle is free, but each change costs a whole picture.'}
+};
+var cur='rrweb',sel=0,chunks=[];
+var tabs=document.getElementById('chTabs'),strip=document.getElementById('chStrip'),pipe=document.getElementById('chPipe');
+Object.keys(T).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.dataset.k=k;b.textContent=T[k].n;b.onclick=function(){cur=k;sel=0;draw()};tabs.appendChild(b)});
+function X(t){return 20+t*10}
+function drawStrip(){while(strip.firstChild)strip.removeChild(strip.firstChild);
+ el(strip,'rect',{x:X(30),y:14,width:40,height:60,fill:cssv('--soft')});el(strip,'text',{x:X(32),y:10,'font-size':9,fill:cssv('--mut')},'bg');
+ el(strip,'text',{x:X(44),y:10,'font-size':9,fill:cssv('--mut')},'idle');el(strip,'text',{x:X(20)+2,y:10,'font-size':9,fill:cssv('--mut')},'new screen');
+ var max=chunks.reduce(function(m,c){return Math.max(m,c.kb)},1);
+ chunks.forEach(function(c,i){var h=6+40*Math.sqrt(c.kb/max);var r=el(strip,'rect',{x:X(c.t0)+1,y:74-h,width:(c.t1-c.t0)*10-2,height:h,rx:2,fill:c.key?cssv('--acc'):cssv('--blue'),stroke:i===sel?cssv('--fg'):'none','stroke-width':2});r.style.cursor='pointer';r.addEventListener('click',function(){sel=i;draw()});
+  el(strip,'text',{x:X(c.t0)+3,y:72-h,'font-size':9,fill:cssv('--mut')},c.kb<1?'<1':Math.round(c.kb))});
+ for(var s=0;s<=60;s+=10)el(strip,'text',{x:X(s),y:88,'text-anchor':'middle','font-size':10,fill:cssv('--mut')},s+'s');
+ el(strip,'text',{x:620,y:100,'text-anchor':'end','font-size':10,fill:cssv('--mut')},'KiB per chunk (estimate)');}
+var P=[[10,'SDK','adapter, chunker, disk'],[178,'Collector','pipeline: scope ouo.replay'],[370,'Object store','body by key'],[512,'Log store','record + ref']];
+function drawPipe(phase){while(pipe.firstChild)pipe.removeChild(pipe.firstChild);
+ P.forEach(function(p){el(pipe,'rect',{x:p[0],y:30,width:118,height:46,rx:8,fill:cssv('--card'),stroke:cssv('--line')});el(pipe,'text',{x:p[0]+59,y:50,'text-anchor':'middle','font-size':12,'font-weight':600},p[1]);el(pipe,'text',{x:p[0]+59,y:66,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},p[2])});
+ el(pipe,'text',{x:153,y:22,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'OTLP/HTTP protobuf');el(pipe,'text',{x:153,y:96,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'bytes body');
+ el(pipe,'line',{x1:128,y1:53,x2:178,y2:53,stroke:cssv('--line'),'stroke-width':2});el(pipe,'line',{x1:296,y1:53,x2:370,y2:53,stroke:cssv('--line'),'stroke-width':2});el(pipe,'path',{d:'M296 70 C 400 112, 470 112, 512 70',fill:'none',stroke:cssv('--line'),'stroke-width':2});
+ el(pipe,'text',{x:404,y:116,'text-anchor':'middle','font-size':9.5,fill:cssv('--mut')},'record, body replaced by ouo.replay.ref (D3)');
+ if(phase){var x=phase.x,y=phase.y;if(phase.rec!==false)el(pipe,'rect',{x:x,y:y,width:18,height:12,rx:2,fill:cssv('--vio')});if(phase.body!==false)el(pipe,'rect',{x:phase.bx===undefined?x+20:phase.bx,y:phase.by===undefined?y:phase.by,width:22,height:12,rx:2,fill:cssv('--acc')})}}
+function rec(c){var t=T[cur];var base=1794390000000;return '{\n  "eventName": "ouo.replay.chunk",\n  "scope": "ouo.replay",\n  "timeUnixNano": '+(base+c.t0*1000)+'000000,\n  "attributes": {\n    "session.id": "3f2a…",\n    "ouo.replay.id": "9c41…",\n    "ouo.replay.stream.id": "b7e0…",\n    "ouo.replay.segment.index": '+c.seg+',\n    "ouo.replay.sequence": '+c.seq+',\n    "ouo.replay.keyframe": '+c.key+',\n    "ouo.replay.start_time": '+(base+c.t0*1000)+',\n    "ouo.replay.end_time": '+(base+c.t1*1000)+',\n    "ouo.replay.format": "'+t.fmt+'",\n    "ouo.replay.encoding": "'+t.enc+'",\n    "ouo.replay.byte_size": '+Math.round(c.kb*1024)+',\n    "ouo.replay.sha256": "e3b0…",\n    "ouo.replay.masked": true,\n    "ouo.replay.mode": "session"\n  },\n  "body": <'+Math.round(c.kb*1024)+' bytes>\n}'}
+function draw(){chunks=gen(cur);if(sel>=chunks.length)sel=0;tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.k===cur)});drawStrip();drawPipe(null);var c=chunks[sel];
+ document.getElementById('chRec').textContent=rec(c);document.getElementById('chBody').textContent=T[cur].body;
+ var segs=chunks[chunks.length-1].seg+1,tot=chunks.reduce(function(s,c){return s+c.kb},0);
+ document.getElementById('chCap').innerHTML=T[cur].cap+' <b>'+chunks.length+' chunks, '+segs+' segment'+(segs>1?'s':'')+', ~'+Math.round(tot)+' KiB</b> in 60 s (estimate). Attribute names are the draft spec\'s; format ids marked hypothetical are not in any spec.'}
+document.getElementById('chSend').onclick=function(){var f=0,N=reduce?20:60;var iv=setInterval(function(){f++;var p=f/N,ph;
+  if(p<.4){var x=60+(200-60)*(p/.4);ph={x:x,y:47}}
+  else if(p<.7){var q=(p-.4)/.3;ph={x:220,y:47,bx:240+(410-240)*q,by:47}}
+  else{var r=(p-.7)/.3;ph={x:220+(560-220)*r,y:47+Math.sin(r*Math.PI)*40,bx:410,by:47}}
+  drawPipe(ph);var cap=document.getElementById('chCap');
+  if(f===1)cap.innerHTML='<b>1.</b> The adapter emits bytes, the chunker labels them (sequence '+chunks[sel].seq+(chunks[sel].key?', keyframe':'')+'), the chunk is written to disk, then sent as its own OTLP request (RPL-15, TRN-5).';
+  if(f===Math.round(N*.4))cap.innerHTML='<b>2.</b> The Collector routes scope <code>ouo.replay</code> to its own pipeline; the body goes to object storage under a key built from replay, stream and sequence.';
+  if(f===Math.round(N*.7))cap.innerHTML='<b>3.</b> The record continues to the log store with <code>ouo.replay.ref</code> instead of the body, so the log store stays an index of chunks (D3, as applied in the draft spec).';
+  if(f>=N){clearInterval(iv)}},reduce?120:45)};
+draw();
+new MutationObserver(function(){draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SJ='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',
+DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',
+PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/PostHogReplayIntegration.kt';
+var STEPS=['Hook','Record','Mask','Pack','Ship','Play'];
+var CH='<code>ouo.replay.chunk</code> through the OpenTelemetry Logs SDK, with <code>ouo.replay.format</code> naming the format (topic 6).';
+var R=[
+{n:'Sentry video',s:[
+['b','Run-loop observer on iOS, draw listener plus a 1 s loop on Android; 1 fps, back-off and the animation guard come with it.',[['SentrySessionReplay.swift',SC+'Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438'],['WindowRecorder.kt',SJ+'WindowRecorder.kt#L84-L115']]],
+['b','Pixels: render the window (iOS) or PixelCopy (Android).',[['SentryViewPhotographer.swift',SC+'Core/Tools/ViewCapture/SentryViewPhotographer.swift#L66-L96'],['ScreenshotRecorder.kt',SJ+'ScreenshotRecorder.kt#L54-L97']]],
+['b','Boxes from the view tree, painted with the average colour. ouo may add its drop-if-moving check on top, depending on the masking experiment.',[['SentryUIRedactBuilder.swift',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245']]],
+['b','H.264 MP4 per 5 s segment (AVAssetWriter / MediaCodec), hardware encoder.',[['SentryOnDemandReplay.swift',SC+'Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440']]],
+['o',CH+' The seam: Sentry\'s envelope and hub are cut out and replaced by an ouo segment callback.',[]],
+['x','The plugin already plays <code>kind: "video"</code> from the Sentry bridge (ADR-0008).',[['video.ts','../../../plugins/ouo11y-rum-app/src/utils/video.ts']]]]},
+{n:'PostHog wireframes',s:[
+['b','Run-loop observer at order 2,100,000 with a 1 s throttle and back-off up to 8 s.',[['ApplicationRunLoopPublisher.swift',PI+'ApplicationRunLoopPublisher.swift#L85-L136']]],
+['b','Structure: one wireframe per view (text, image, shape), or a screenshot where a view cannot be described.',[['PostHogReplayIntegration.kt',PA+'#L1242-L1301']]],
+['b','A data transform: masked text is replaced before it is written. Screenshot fallback frames still need boxes.',[['PostHogReplayIntegration.kt',PA+'#L2449-L2736']]],
+['b','rrweb-shaped JSON events; a full snapshot per changed frame, deduplicated by hash.',[]],
+['o',CH,[]],
+['w','Close to the rrweb player ouo already ships for the web, but mobile wireframes need a small renderer. Not checked in code yet.',[]]]},
+{n:'Datadog wireframes',s:[
+['b','Swizzled CALayer changes (iOS, at most every 100 ms); a full snapshot every 3 s on Android.',[['CALayerSwizzler.swift',DI+'Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117']]],
+['b','Structure: node recorders per view class; SwiftUI through a private renderer.',[['ViewTreeRecorder.swift',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/ViewTreeRecorder.swift#L30-L145']]],
+['b','A data transform per node recorder.',[['UILabelRecorder.swift',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98']]],
+['b','Heckel diff of wireframes; images sent once by MD5.',[['Diff+SRWireframes.swift',DI+'Processor/Diffing/Diff+SRWireframes.swift#L31-L40']]],
+['o',CH,[]],
+['w','ouo writes the renderer: no open-source Datadog player was found.',[]]]},
+{n:'rrweb (web, today)',s:[
+['x','MutationObserver and input listeners. The ouo web SDK already uses rrweb.',[]],
+['x','Structure: the DOM, serialised with node ids.',[]],
+['x','A data transform: masked text keeps its length as <code>****</code>.',[]],
+['x','JSON events, gzip.',[]],
+['o',CH+' Today the web SDK posts to the receiver on port 4319; the OTLP path is the draft spec.',[]],
+['x','The plugin\'s rrweb player.',[]]]},
+{n:'ouo frames (mobile, today)',s:[
+['x','About 1 fps within a 100 ms/s time budget; navigation-only mode on low-RAM devices.',[['mobile-replay.md','../../../docs/specs/mobile-replay.md']]],
+['x','Pixels.',[]],
+['x','Boxes from the view tree; the frame is dropped if a masked view moved (fails closed).',[]],
+['x','JPEG frames with 64 px tile patches; nothing sent for a static screen (ADR-0014).',[['ADR-0014','../../../docs/adr-archive/0014-replay-tiles-in-frames.md']]],
+['x','Custom JSON envelope today; <code>ouo.replay.chunk</code> in the draft spec.',[]],
+['x','The plugin\'s frames player.',[]]]}
+];
+var COL={b:'var(--ok)',x:'var(--blue)',o:'var(--blue)',w:'var(--warn)'},LBL={b:'borrowed',x:'already in ouo',o:'ouo (already planned)',w:'ouo writes it'};
+var tabs=document.getElementById('bmTabs'),pipe=document.getElementById('bmPipe'),cap=document.getElementById('bmCap');if(!tabs)return;
+var cur=0,step=0;
+function render(){
+ tabs.querySelectorAll('button').forEach(function(b,i){b.classList.toggle('on',i===cur)});
+ var r=R[cur];
+ pipe.innerHTML=r.s.map(function(s,i){return '<div class="st'+(i===step?' act':'')+'" data-i="'+i+'" style="cursor:pointer;border-top:5px solid '+COL[s[0]]+'"><b>'+(i+1)+' · '+STEPS[i]+'</b><span class="mut">'+LBL[s[0]]+'</span></div>'}).join('');
+ pipe.querySelectorAll('.st').forEach(function(e){e.onclick=function(){step=+e.dataset.i;render()}});
+ var s=r.s[step];
+ cap.innerHTML='<b>'+r.n+' · '+STEPS[step]+'</b>: '+s[1]+(s[2].length?'<div class="src" style="margin-top:4px">Source: '+s[2].map(function(l){return '<a href="'+l[1]+'">'+l[0]+'</a>'}).join(' · ')+'</div>':'');
+}
+R.forEach(function(r,i){var b=document.createElement('button');b.className='b';b.type='button';b.textContent=r.n;b.onclick=function(){cur=i;step=0;render()};tabs.appendChild(b)});
+render();
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,auto=null;
+if(!reduce){auto=setInterval(function(){step=(step+1)%6;render()},2600);
+ document.getElementById('t7-borrow').parentNode.querySelector('#bmTabs').addEventListener('click',function(){clearInterval(auto)});
+ pipe.addEventListener('click',function(){clearInterval(auto)});}
+})();
+</script>
+</body></html>

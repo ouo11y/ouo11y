@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>View trees, platform by platform · replay-school</title>
+<meta name="description" content="Every platform holds a tree of UI objects in memory. How readable that tree is, and how much of the screen it really describes, is different on each one. This is why the same replay idea turns into very different code on iOS, Android, React Native and Flutter.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="f3-view-trees">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Fundamentals</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Fundamentals</p>
+<h1>View trees, platform by platform</h1>
+<p class="lede">Every platform holds a tree of UI objects in memory. How readable that tree is, and how much of the screen it really describes, is different on each one. This is why the same replay idea turns into very different code on iOS, Android, React Native and Flutter.</p>
+<p class="builds">Builds on: <a href="f1-pixels-vs-structure.html">Pixels versus structure</a> · <a href="f2-event-loop-and-frames.html">The event loop and frames</a></p>
+<h2 id="native">Mobile and Flutter: view trees, and what draws the pixels</h2>
+<p>Pick a platform. The top row is how a frame gets to the screen; the tree is what the app holds in memory. Toggle <b>"what a native view walk sees"</b>: that is the view a replay SDK gets when it walks the platform's view hierarchy from the window, which is what every mobile replay SDK does.</p>
+<div class="card">
+<div class="tabs" id="natTabs"></div>
+<div class="btns"><button class="b" id="natPlay" type="button">▶ draw a frame</button><button class="b" id="natSee" type="button">what a native view walk sees</button></div>
+<div class="step-caption" id="natCap"></div>
+<div class="pipe" id="natPipe"></div>
+<div class="grid2" style="margin-top:8px">
+ <div><div class="lane">Tree in memory</div><div class="tree" id="natTree"></div></div>
+ <div><div class="lane">Notes</div><div id="natNotes" style="font-size:14px"></div></div>
+</div>
+</div>
+<h2 id="compare">Side by side</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Unit of UI</th><th>Readable by an SDK?</th><th>Change notification?</th><th>Frame hook</th><th>Where pixels come from</th></tr>
+<tr><td><b>Browser</b></td><td>DOM node</td><td>Yes, fully, any script</td><td><b>Yes</b>: MutationObserver</td><td><code>requestAnimationFrame</code></td><td>Browser paints the DOM; canvas/WebGL/video are opaque bitmaps</td></tr>
+<tr><td><b>iOS UIKit</b></td><td><code>UIView</code> backed by a <code>CALayer</code></td><td>Yes, by walking <code>subviews</code> from the window, on the main thread</td><td>No general one</td><td><code>CADisplayLink</code>, run-loop observers</td><td>Core Animation commits the layer tree to the render server, which draws on the GPU</td></tr>
+<tr><td><b>SwiftUI</b></td><td>View <em>values</em> (structs), diffed by SwiftUI</td><td>Only through the private UIKit views it creates; many are generic drawing views</td><td>No</td><td>same as UIKit</td><td>Rendered into UIKit/Core Animation layers</td></tr>
+<tr><td><b>Android Views</b></td><td><code>View</code> / <code>ViewGroup</code></td><td>Yes, walk from the window's root view</td><td>Partly: <code>ViewTreeObserver</code> (layout, draw, scroll)</td><td><code>Choreographer</code>, <code>OnDrawListener</code></td><td>Views record display lists (RenderNodes); RenderThread draws them on the GPU</td></tr>
+<tr><td><b>Jetpack Compose</b></td><td>Composables → <code>LayoutNode</code>s</td><td>Not as Views: one <code>AndroidComposeView</code>; the semantics tree is the readable side</td><td>No (recomposition is internal)</td><td>same as Views</td><td>LayoutNodes draw into the host view's display list</td></tr>
+<tr><td><b>React Native</b></td><td>React element → shadow node → native view</td><td>The native views, like any native app; the JS tree is in the JS runtime</td><td>No (the mount step is internal)</td><td>native ones</td><td>Real UIKit / Android views, so it inherits the native picture</td></tr>
+<tr><td><b>Flutter</b></td><td>Widget → Element → RenderObject</td><td>Natively: one <code>FlutterView</code>, opaque. In Dart: the render tree is readable</td><td>No, but a post-frame callback every frame</td><td><code>SchedulerBinding</code> frame callbacks</td><td>Flutter's own engine (Impeller / Skia) draws everything into one surface</td></tr>
+</table></div>
+<p class="src">Platform sources are linked in the tab notes above. Apple frameworks are closed source; those rows cite Apple documentation. Lines marked "(docs)" were not read in code.</p>
+<div class="key">The pattern: a native view walk reads <b>UIKit and Android Views</b> well, sees <b>SwiftUI and Jetpack Compose</b> as a few opaque drawing views, sees <b>React Native</b> as ordinary native views with RN class names, and sees <b>Flutter</b> as one opaque surface. That is why React Native is recorded by the native SDKs and Flutter is recorded in Dart, as the cross-platform technique lessons show.</div>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[
+{"q":"A native view walk on iOS reaches a SwiftUI screen. What does it find for a <code>Text(\"Tea\")</code>?","a":["A <code>UILabel</code> whose text is \"Tea\"","A generic private drawing view; the string cannot be read","Nothing: SwiftUI has no views at all"],"c":1,"why":"SwiftUI renders through a few private UIKit views it owns, such as <code>CGDrawingView</code>. ouo's iOS masker masks those classes for this reason."},
+{"q":"Why do replay SDKs record a Flutter app in Dart instead of with their native iOS or Android recorder?","a":["Natively a Flutter app is one opaque <code>FlutterView</code>; the readable tree lives in Dart","Flutter forbids native code","Native recorders are slower"],"c":0,"why":"Flutter draws everything itself into one surface. In Dart the Element and RenderObject trees are readable and any <code>RepaintBoundary</code> can be snapshotted."},
+{"q":"On Android, what is a cheap \"something changed\" signal a recorder can register?","a":["<code>ViewTreeObserver.OnDrawListener</code>","<code>PixelCopy</code>","<code>SurfaceFlinger</code>"],"c":0,"why":"It fires on every draw pass (ViewRootImpl dispatches it before the frame is recorded). PixelCopy is how pixels are copied, not a signal."}
+]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="f2-event-loop-and-frames.html"><small>← previous</small>The event loop and frames</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="f4-keyframes-and-deltas.html"><small>next →</small>Keyframes and deltas</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){var reduce=RS.reduce,esc=RS.esc;
+var P={
+ 'iOS UIKit':{
+  stages:[['Event','touch, timer','main'],['Your code','change views / constraints','main'],['Layout','layoutSubviews','main'],['Display','draw(_:) into layer backing','main'],['CA commit','layer tree sent','main'],['Render server','composites on GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UINavigationController.view'],[2,'UILabel "Your cart"'],[2,'UITableView'],[3,'UITableViewCell'],[4,'UILabel "Tea"'],[4,'UIImageView'],[2,'MKMapView',1],[2,'CustomChartView (draw(_:))',1]],
+  see:'Every UIView is walkable from the key window on the main thread, with its frame, class, text, colours. But a view that draws itself with Core Graphics (<code>draw(_:)</code>), a map, a video or a Metal layer is just a rectangle: its content is pixels.',
+  notes:'Each <code>UIView</code> owns a <code>CALayer</code>. Your code changes views on the main thread; at the end of the run-loop turn Core Animation <b>commits</b> the layer tree to the <b>render server</b> (a separate process) which composites it on the GPU. So the pixels on screen live outside your process: to get them you ask UIKit to <b>re-draw</b> the hierarchy into an image (<code>drawHierarchy(in:afterScreenUpdates:)</code>) or render the layer tree (<code>CALayer.render(in:)</code>). <code>CADisplayLink</code> calls you once per display refresh.<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/uikit/uiview">UIView</a> · <a href="https://developer.apple.com/documentation/quartzcore/calayer">CALayer</a> · <a href="https://developer.apple.com/documentation/uikit/uiview/drawhierarchy(in:afterscreenupdates:)">drawHierarchy(in:afterScreenUpdates:)</a> · <a href="https://developer.apple.com/documentation/quartzcore/cadisplaylink">CADisplayLink</a></p>'},
+ 'SwiftUI':{
+  stages:[['State change','@State / @Observable','main'],['body re-run','new view values','main'],['Diff','SwiftUI graph','main'],['Update hosting views','private UIKit views','main'],['CA commit','','main'],['Render server','GPU','other process']],
+  tree:[[0,'UIWindow'],[1,'UIHostingController.view'],[2,'_UIHostingView'],[3,'CGDrawingView (all text)',1],[3,'_UIGraphicsView (shapes, images)',1],[3,'UIKitPlatformViewHost → UISwitch'],[3,'_UIShapeHitTestingView',1]],
+  see:'You wrote <code>VStack { Text("Tea"); Toggle(...) }</code>, but the walk finds generic private drawing views. Text is not a <code>UILabel</code>; you cannot read the string. Only controls SwiftUI backs with real UIKit views appear by type.',
+  notes:'Your <code>View</code>s are <b>values</b>, not objects on screen. SwiftUI keeps its own attribute graph, diffs new values, and updates a small number of private UIKit/Core Animation views it owns. This is why SwiftUI support is the weak spot of every wireframe recorder, and why ouo\'s iOS masker masks <code>SwiftUI.CGDrawingView</code> and <code>_UIGraphicsView</code> by class name (<a href="../../../../docs/specs/mobile-replay.md">mobile-replay spec</a>, capture rule 4).<p class="src">(docs, closed source) <a href="https://developer.apple.com/documentation/swiftui/uihostingcontroller">UIHostingController</a></p>'},
+ 'Android Views':{
+  stages:[['Input','MotionEvent','main'],['Your code','setText, invalidate()','main'],['Choreographer','doFrame (vsync)','main'],['Measure / layout','performTraversals','main'],['Draw','record RenderNode display lists','main'],['RenderThread','replays lists on GPU','render thread'],['SurfaceFlinger','composites windows','system']],
+  tree:[[0,'DecorView'],[1,'LinearLayout'],[2,'TextView "Your cart"'],[2,'RecyclerView'],[3,'ConstraintLayout'],[4,'TextView "Tea"'],[4,'ImageView'],[2,'SurfaceView (video / map)',1],[2,'ChartView (onDraw(Canvas))',1]],
+  see:'Every View is walkable from the window\'s root, with bounds, class, text, drawables. <code>SurfaceView</code>/<code>TextureView</code> (video, maps, camera) and custom <code>onDraw</code> are rectangles with unknown content.',
+  notes:'<code>invalidate()</code> marks a view dirty. On the next vsync <code>Choreographer</code> runs <code>ViewRootImpl.performTraversals()</code>: measure, layout, draw. Since hardware acceleration, <code>draw()</code> does not make pixels: it <b>records</b> canvas commands into each view\'s <code>RenderNode</code>; the RenderThread replays them on the GPU. <code>ViewTreeObserver.OnDrawListener</code> fires on every draw pass, a cheap "something changed" signal; <code>PixelCopy</code> copies the window surface\'s pixels.<p class="src">AOSP <code>android-15.0.0_r1</code>: <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L2888-L2897">scheduleTraversals</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/Choreographer.java#L846-L962">Choreographer.doFrame</a> (input, animation, traversal) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5499-L5704">ViewRootImpl.draw</a> (fires <code>dispatchOnDraw</code> at <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ViewRootImpl.java#L5572">L5572</a>, before the frame is recorded) · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/ThreadedRenderer.java#L795-L827">ThreadedRenderer.draw</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/graphics/java/android/view/PixelCopy.java#L223-L226">PixelCopy.request(Window)</a> · <a href="https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/core/java/android/view/WindowManagerGlobal.java#L144">WindowManagerGlobal.mViews</a></p>'},
+ 'Jetpack Compose':{
+  stages:[['State change','mutableStateOf','main'],['Recompose','composables re-run','main'],['Layout','LayoutNodes measured','main'],['Draw','into host RenderNode','main'],['RenderThread','GPU','render thread']],
+  tree:[[0,'DecorView'],[1,'ComposeView'],[2,'AndroidComposeView (everything below is invisible to a View walk)',1],[3,'LayoutNode Column',1],[4,'LayoutNode Text "Tea"',1],[4,'LayoutNode Switch',1],[2,'semantics tree (readable: text, role, bounds)']],
+  see:'A View walk stops at <code>AndroidComposeView</code>: one View, no children. The way in is the <b>semantics tree</b> (built for accessibility and tests): nodes with bounds, text, role. ouo masks Compose whole today for this reason.',
+  notes:'Compose keeps its own tree of <code>LayoutNode</code>s inside one Android View. Recomposition re-runs only the functions whose state changed. For replay this is the Android equivalent of SwiftUI: the classic recorder\'s view walk sees nothing, so vendors read the semantics tree (public) or the internal <code>LayoutNode</code> tree (by reflection) instead; details in the mobile technique lessons.<p class="src">androidx at commit <code>3aea5205</code> (the GitHub mirror has no tags): <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidComposeView.android.kt#L2419-L2432">AndroidComposeView.dispatchDraw</a> draws all content itself · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/node/Owner.kt#L67-L70">Owner.root: LayoutNode</a> (internal) · <a href="https://github.com/androidx/androidx/blob/3aea5205fde166e0f234d814697111cebf0be582/compose/ui/ui/src/commonMain/kotlin/androidx/compose/ui/semantics/SemanticsOwner.kt#L43-L59">SemanticsOwner</a> (public)</p>'},
+ 'React Native':{
+  stages:[['JS thread','React render, reconcile','JS'],['Fabric commit','shadow tree (C++), Yoga layout','background'],['Mount','create/update native views','main'],['Native draw','UIKit / Android pipeline','main + GPU']],
+  tree:[[0,'(JS) <View><Text>Tea</Text><Image/></View>'],[0,'(C++) ShadowNode tree, Yoga layout'],[0,'UIWindow / DecorView'],[1,'RCTSurfaceView / ReactRootView'],[2,'RCTViewComponentView / ReactViewGroup'],[3,'RCTParagraphComponentView / ReactTextView "Tea"'],[3,'RCTImageComponentView / ReactImageView']],
+  see:'Natively an RN app is an ordinary native app: real views with RN class names. So native replay SDKs work, once they know RN\'s text and image classes. The React tree (component names, props) lives in JS and is not visible to the native walk.',
+  notes:'React reconciles your components in JS. In the new architecture (Fabric) the result is committed as a C++ <b>shadow tree</b> where Yoga computes layout; a diff produces mount instructions that create and update <b>real native views</b>. That is why Sentry, PostHog and Datadog all record RN with their <em>native</em> iOS/Android recorders plus an RN class list. Layout-only <code>&lt;View&gt;</code>s are <b>flattened away</b> and never become native views, so a JS wrapper cannot be relied on to exist natively. And <code>&lt;Text&gt;</code> on iOS is not a <code>UILabel</code>: <code>RCTParagraphComponentView</code> draws the string itself.<p class="src">react-native <code>v0.88.1</code>: <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.cpp#L302-L336">ShadowTree commit</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/MountingCoordinator.cpp#L71-L94">MountingCoordinator</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactCommon/react/renderer/mounting/internal/sliceChildShadowNodeViewPairs.cpp#L109-L125">view flattening</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/RCTMountingManager.mm#L43-L102">RCTMountingManager (iOS)</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/React/Fabric/Mounting/ComponentViews/Text/RCTParagraphComponentView.mm#L429-L455">RCTParagraphComponentView draws text in drawRect</a> · <a href="https://github.com/facebook/react-native/blob/v0.88.1/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt#L578-L612">SurfaceMountingManager (Android)</a></p>'},
+ 'Flutter':{
+  stages:[['Vsync','SchedulerBinding.handleBeginFrame','UI'],['Build','widgets → elements','UI'],['Layout','RenderObjects','UI'],['Paint','PictureRecorder → layer tree','UI'],['Composite','scene to engine','UI'],['Raster','Impeller / Skia on GPU','raster'],['Post-frame','addPostFrameCallback','UI']],
+  tree:[[0,'UIWindow / DecorView'],[1,'FlutterView (one native view, opaque)',1],[0,'(Dart) Widget: Column → Text("Tea")'],[0,'(Dart) Element tree (keeps state)'],[0,'(Dart) RenderObject: RenderFlex → RenderParagraph "Tea"'],[0,'(Dart) Layer tree: OffsetLayer → PictureLayer']],
+  see:'Natively: one <code>FlutterView</code>, a single surface. Nothing inside it is a native view. A native recorder can only take pictures of it. In Dart, though, the render tree is fully readable and Flutter can snapshot any <code>RepaintBoundary</code> to an image.',
+  notes:'Flutter draws <b>everything itself</b>. Widgets are cheap immutable configs; Elements hold the live tree; RenderObjects lay out and paint; painting records drawing commands into <code>Picture</code>s inside a layer tree, which the engine rasterises with Impeller or Skia. Every frame ends with post-frame callbacks, a perfect "a frame was drawn" hook. So Flutter replay is done <b>in Dart</b>, not by the native SDK.<p class="src">flutter <code>3.47.9</code>: <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L312-L349">Widget.createElement</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L6797-L6803">RenderObjectElement.mount → createRenderObject</a> · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/widgets/framework.dart#L3928-L3932">visitChildElements</a> (what replay maskers walk) · <a href="https://github.com/flutter/flutter/blob/3.47.9/packages/flutter/lib/src/scheduler/binding.dart#L1338-L1352">handleDrawFrame → post-frame callbacks</a></p>'}
+};
+var cur1='iOS UIKit',seeOn=false,nt=null;
+var tabs=document.getElementById('natTabs');
+Object.keys(P).forEach(function(k){var b=document.createElement('button');b.className='b';b.type='button';b.textContent=k;b.onclick=function(){cur1=k;draw()};tabs.appendChild(b)});
+function draw(){var p=P[cur1];
+ tabs.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.textContent===cur1)});
+ document.getElementById('natPipe').innerHTML=p.stages.map(function(s){return '<div class="st"><b>'+s[0]+'</b><span class="mut">'+s[1]+'</span><div class="st thread" style="border:0;padding:0;background:none">'+s[2]+'</div></div>'}).join('');
+ document.getElementById('natTree').innerHTML=p.tree.map(function(r){return '<div class="tn '+(seeOn&&r[2]?'opaque':'')+'" style="padding-left:'+(6+r[0]*18)+'px">'+(r[2]?'▣ ':'')+esc(r[1])+'</div>'}).join('');
+ document.getElementById('natNotes').innerHTML=p.notes;
+ document.getElementById('natCap').innerHTML=seeOn?'<b>What a native view walk sees:</b> '+p.see:'Press "draw a frame" to follow one frame through '+esc(cur1)+'. ▣ marks parts whose content is pixels, not structure.';
+ document.getElementById('natSee').classList.toggle('on',seeOn);}
+document.getElementById('natSee').onclick=function(){seeOn=!seeOn;draw()};
+document.getElementById('natPlay').onclick=function(){clearInterval(nt);var els=document.querySelectorAll('#natPipe .st'),i=0;
+ nt=setInterval(function(){els.forEach(function(e,j){e.classList.toggle('act',j===i)});var s=P[cur1].stages[i];if(s)document.getElementById('natCap').innerHTML='<b>'+s[0]+'</b> ('+s[2]+' thread): '+s[1];i++;if(i>els.length){clearInterval(nt);els.forEach(function(e){e.classList.remove('act')});draw()}},reduce?1600:900)};
+draw();
+})();
+</script>
+</body></html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenReplay, Highlight, Clarity · replay-school</title>
+<meta name="description" content="Three more designs, one idea each: OpenReplay has no full-snapshot format at all, Highlight checkpoints rarely and ships through GraphQL, and Clarity degrades fidelity on purpose to save cost.">
+<link rel="stylesheet" href="school.css">
+<script>try{var s=localStorage.getItem('sr-theme');if(s)document.documentElement.setAttribute('data-theme',s)}catch(e){}</script>
+</head>
+<body data-page="w5-openreplay-highlight-clarity">
+<header class="top"><a class="brand" href="index.html">replay<i>-</i>school</a><span class="crumb">Techniques · web</span><button class="theme" id="themeBtn" type="button">theme</button><span class="bar"></span></header>
+<main>
+<p class="kicker">Techniques · web</p>
+<h1>OpenReplay, Highlight, Clarity</h1>
+<p class="lede">Three more designs, one idea each: OpenReplay has no full-snapshot format at all, Highlight checkpoints rarely and ships through GraphQL, and Clarity degrades fidelity on purpose to save cost.</p>
+<p class="builds">Builds on: <a href="w1-rrweb.html">rrweb: the engine</a></p>
+<p>Press <b>next</b> (or ▶ play all): the box doing the work lights up and the caption names the exact file and lines at a pinned release.</p>
+<div id="flows"></div>
+<h2 id="compare">The browser recorders side by side</h2>
+<div class="wrap"><table>
+<tr><th>Recorder</th><th>Engine</th><th>Mutation batching</th><th>Checkout (keyframe)</th><th>Flush</th><th>Compression</th></tr>
+<tr><td>rrweb 2.2.2</td><td>itself</td><td>one event per MutationObserver callback</td><td>none unless configured</td><td>caller's <code>emit</code></td><td>none in core</td></tr>
+<tr><td>Sentry 11.11.0</td><td>rrweb fork 2.45.0</td><td>as rrweb; stop above 10,000 records in one callback</td><td>60 s in buffer mode</td><td>5 s after last event, max 5.5 s; hidden/blur now</td><td>worker, fflate zlib, streamed per event</td></tr>
+<tr><td>PostHog 1.447.9</td><td>own rrweb fork</td><td>as rrweb + per-node token bucket (100, refill 10/s)</td><td>every 5 min</td><td>2 s or ~0.9 MB</td><td>gzip per event field, then gzip of the request</td></tr>
+<tr><td>Datadog v7.17.1</td><td>own</td><td>idle callback (≤100 ms) after a 16 ms throttle: many callbacks → one Change record</td><td>every RUM view</td><td>5 s or 60,000 compressed bytes; page exit</td><td>worker, pako deflate, sync-flush with a ready trailer</td></tr>
+<tr><td>OpenReplay v1.28.0</td><td>own, binary messages</td><td>dirty sets, committed every 30 ms tick</td><td>none: the first DOM is a stream of create messages</td><td>every 30 s, 200 kB soft / 1 MB hard</td><td>gzip only above 24 kB, never on unload</td></tr>
+<tr><td>Highlight (3bf0021)</td><td>own rrweb fork</td><td>as fork</td><td>≥10 MB and ≥4 min since the last</td><td>every 2 s</td><td>worker, fflate zlib + base64 in GraphQL</td></tr>
+<tr><td>Clarity v0.8.77</td><td>own</td><td>suspends a mutation repeated 10× outside 3 s after an interaction</td><td>(not read in code)</td><td>(not read in code)</td><td>native gzip, not for the last beacon</td></tr>
+</table></div>
+<p class="src">Each cell is backed by a step in the flows above, except the two marked "(not read in code)".</p>
+<p class="src">Versions read: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Every step links the file and lines at that tag. Wire formats (envelopes, segment framing) are in Step 6: <a href="../../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+
+<section class="check">
+<h2 id="check">Check yourself <span class="score"></span></h2>
+<script type="application/json" class="quiz-data">[{"q":"How does OpenReplay send the first DOM?","a":["As a JSON full snapshot","As a stream of create-node and set-attribute messages, the same types used for later changes","As a screenshot"],"c":1,"why":"It has no full-snapshot format; positions are parent id plus sibling index."},
+{"q":"When does Highlight take a new full snapshot?","a":["Every 60 s","Only when at least 10 MB and 4 minutes have passed","On every route change"],"c":1,"why":"sessions.ts L1–36: both thresholds must be met."},
+{"q":"What does Clarity do with a mutation repeated 10 times outside a 3 s window after an interaction?","a":["Sends all ten","Stops sending it and keeps only the latest until the user interacts again","Stops the recording"],"c":1,"why":"Fidelity traded for cost by design (mutation.ts L220–250)."}]</script>
+</section>
+
+<nav class="pn" aria-label="Lessons">
+<a class="prev" href="w4-datadog-web.html"><small>← previous</small>Datadog on the web</a>
+<a class="toc" href="index.html">Contents</a>
+<a class="next" href="m1-sentry-ios.html"><small>next →</small>Sentry iOS</a>
+</nav>
+</main>
+<script src="school.js"></script>
+<script>
+(function(){
+var RW='https://github.com/rrweb-io/rrweb/blob/rrweb%402.2.2/packages/',SF='https://github.com/getsentry/rrweb/blob/2.45.0/packages/rrweb/src/record/',SJ='https://github.com/getsentry/sentry-javascript/blob/11.11.0/packages/',PB='https://github.com/PostHog/posthog-js/blob/posthog-js%401.447.9/packages/browser/src/',PH=PB+'extensions/replay/external/lazy-loaded-session-recorder.ts',DD='https://github.com/DataDog/browser-sdk/blob/v7.17.1/packages/',OR='https://github.com/openreplay/openreplay/blob/v1.28.0/tracker/tracker/src/',HL='https://github.com/highlight/highlight/blob/3bf002113e555d1ba3d4df648ed44e3503a27e96/sdk/highlight-run/src/client/',CL='https://github.com/microsoft/clarity/blob/v0.8.77/packages/clarity-js/';
+var host=document.getElementById('flows');
+ouoFlow(host,{id:'t4-others',title:'OpenReplay, Highlight and Clarity',intro:'Three more designs worth knowing, one per idea.',
+ boxes:[['or','OpenReplay','binary messages'],['hl','Highlight','rrweb fork, GraphQL'],['cl','Clarity','degrades on purpose']],
+ steps:[
+ ['or','<b>No full-snapshot format.</b> The first DOM is sent as a stream of <code>CreateElementNode</code> / <code>CreateTextNode</code> / <code>SetNodeAttribute</code> messages, the same types used for later changes. Positions are parent id plus sibling index.',[['observer.ts L759–775',OR+'main/app/observer/observer.ts#L759-L775'],['messages.gen.ts L118–125',OR+'common/messages.gen.ts#L118-L125']]],
+ ['or','Messages are tuples encoded as binary varints in a worker, committed every 30 ms, flushed every 30 s, gzipped only above 24 kB and never on unload.',[['ticker.ts L36–47',OR+'main/app/ticker.ts#L36-L47'],['BatchWriter.ts L18–55',OR+'webworker/BatchWriter.ts#L18-L55'],['QueueSender.ts L89–115',OR+'webworker/QueueSender.ts#L89-L115']]],
+ ['hl','Its own rrweb fork; sends every 2 s; a new full snapshot only when at least 10 MB <em>and</em> 4 minutes have passed. The payload is zlib-compressed and base64-encoded in a GraphQL mutation, from a worker.',[['sessions.ts L1–36',HL+'constants/sessions.ts#L1-L36'],['index.tsx L764–796',HL+'index.tsx#L764-L796'],['worker L173–212',HL+'workers/highlight-client-worker.ts#L173-L212']]],
+ ['cl','Its own encoder. When the same mutation repeats 10 times outside a 3 s window after a user interaction, Clarity stops sending it and keeps only the latest, until the user interacts again. Fidelity is traded for cost by design.',[['mutation.ts L220–250',CL+'src/layout/mutation.ts#L220-L250'],['layout.d.ts L156–159',CL+'types/layout.d.ts#L156-L159']]]
+ ]});
+})();
+</script>
+</body></html>
