@@ -135,7 +135,7 @@ OTLP/HTTP, as specified by OTLP 1.x: the request is an `ExportLogsServiceRequest
 |---|---|---|
 | 200, `partial_success` unset | Every record stored, already stored, or tombstoned | Removes the request from its queue |
 | 200, `rejected_log_records` > 0 | Valid records stored, the rest rejected for good | Removes the request, logs the message |
-| 400 | Body is not a decodable OTLP logs request | Drops, counts |
+| 400 | Body is not a decodable OTLP logs request, or the tenant header is malformed | Drops, counts |
 | 401 | Missing or wrong token or tenant | Drops, counts |
 | 413 | Request too large | Drops, counts |
 | 415 | Unsupported content type or encoding | Drops, counts |

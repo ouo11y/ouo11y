@@ -18,6 +18,8 @@ What is already decided, and not reopened here:
 
 - The Collector setup on `main`, its replay receiver and exporter, the MVP envelope and its `kind` names, and rum-api's replay sink are MVP-only and will be removed. **This design is a new Collector configuration for the spec wire only. It keeps no compatibility with the MVP names or with what rum-api expects**, and plans no period in which both run.
 
+Kept from the current Collector, because they are not replay-specific and not MVP wire: project authentication (`ouoauth` over basic auth), the rate limiter (`ouoratelimit`), project stamping (`resource/project`) and CORS on the OTLP receiver. "Stock components" below refers to the replay path behind them.
+
 For orientation only, the MVP path is described in [today-and-target.md](../../project/kb/muninn/collector-path/today-and-target.md).
 
 The SDK spec leaves one requirement to this step: an SDK may delete a chunk only after a 2xx, so the Collector must answer 2xx only once the chunk is on its fsync-backed disk queue (TRN-12).
@@ -87,7 +89,7 @@ Facts checked in the Collector v0.160 source and what still needs a test are in 
 - **`ended.json`.** The `ouo.replay.ended` record of the stream. Create-only; the first one stays.
 - **`deleted.json`.** A tombstone per replay, so a chunk that arrives late from a queue cannot bring a deleted replay back while the tombstone lives.
 - **No stored manifest.** The manifest is computed on read from one listing and the chunk headers, which never change and so can be cached in memory. Every object is create-only.
-- **Structure and pixel chunks** share this layout. They differ only in what the reader does: structure chunks are small, gzip-compressed and concatenated per segment; pixel chunks are stored without a second compression and served with byte ranges.
+- **Structure and pixel chunks** share this layout. They differ only in what the reader does: structure chunks are small, gzip-compressed and concatenated per segment; pixel chunks are stored without a second compression and decoded as images or video.
 - **No database and no time partition.** The only lookup Muninn serves is by session, and the key gives it. Searching sessions is Loki's job, through the session events and the reference records.
 
 ## 6. Read API
@@ -164,8 +166,8 @@ For Muninn nothing changes: a vendor recording is one more value of `ouo.replay.
 | Q11 | Validate chunks in the Collector so an SDK sees a rejection? | **No.** Validate in Muninn only; the conformance suite checks SDK output against the same rules |
 | Q12 | Collector deployment with a disk queue | **StatefulSet with a volume per replica** in Helm, a named volume in compose. Queue 2 GiB by default |
 | Q13 | Vendor video recordings: where do touches go once the body is the MP4? | **Touches become OTel events.** The chunk body is the MP4 alone |
-| Q15 | The SDK spec must take the four stricter rules of the Muninn spec, section 3.3 | **Yes, before SDKs are built against it** |
 | Q14 | Muninn's default port | **3400** |
+| Q15 | The SDK spec must take the four stricter rules of the Muninn spec, section 3.3 | **Yes, before SDKs are built against it** |
 
 ## 11. Consequences
 
