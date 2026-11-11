@@ -1,3 +1,4 @@
+import OuoReplay
 import OuoSDK
 import UIKit
 
@@ -5,7 +6,8 @@ import UIKit
 /// comes from the environment (`SIMCTL_CHILD_*` on the simulator): OUO_OTLP (collector OTLP/HTTP),
 /// OUO_REPLAY (its replay receiver, when not OUO_OTLP's port 4318 plus one),
 /// OUO_BACKEND (the demo backend), OUO_ACTION (the journey, Journey.swift), OUO_OFF=1 (no SDK: the
-/// benchmark's `none` cell), OUO_TAP_LABELS=0 (the labels kill switch), OUO_DEBUG=1.
+/// benchmark's `none` cell), OUO_TAP_LABELS=0 (the labels kill switch), OUO_DEBUG=1, OUO_RECORDER
+/// (`frames`, the default, or `sentry-video`: the Sentry-derived replay recorder, a spike).
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         let env = ProcessInfo.processInfo.environment
@@ -22,6 +24,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         config.replaySampleRate = 1
         config.tapLabels = env["OUO_TAP_LABELS"] != "0"
         config.debug = env["OUO_DEBUG"] == "1"
+        // Spike: OUO_RECORDER=sentry-video records with the Sentry-derived recorder core.
+        if let r = env["OUO_RECORDER"].flatMap(ReplayRecorderKind.init(rawValue:)) { config.replayRecorder = r }
         let t0 = CFAbsoluteTimeGetCurrent()
         Ouo.start(config)
         Journey.note("launch", ["sdk": true, "startMs": (CFAbsoluteTimeGetCurrent() - t0) * 1000])

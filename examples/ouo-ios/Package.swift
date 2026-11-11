@@ -10,6 +10,6 @@ let package = Package(
     platforms: [.iOS(.v15)],
     dependencies: [.package(path: "../../sdk/ios")],
     targets: [
-        .executableTarget(name: "OuoExample", dependencies: [.product(name: "OuoSDK", package: "ios")]),
+        .executableTarget(name: "OuoExample", dependencies: [.product(name: "OuoSDK", package: "ios"), .product(name: "OuoReplay", package: "ios")]),
     ]
 )
