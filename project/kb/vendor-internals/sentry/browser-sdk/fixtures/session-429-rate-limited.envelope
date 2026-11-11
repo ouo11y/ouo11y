@@ -1,0 +1,3 @@
+{"sent_at":"2026-11-10T03:38:03.775Z","sdk":{"name":"sentry.javascript.react","version":"11.11.0"}}
+{"type":"session"}
+{"sid":"acce6f49ef0f4c86b6277cdf56a6a0c5","init":true,"started":"2026-11-10T03:38:03.762Z","timestamp":"2026-11-10T03:38:03.770Z","status":"ok","errors":0,"did":"demo-user-1","attrs":{"release":"sentry-web-demo@1.0.0","environment":"step6","ip_address":"{{auto}}","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"}}

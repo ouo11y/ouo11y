@@ -1,0 +1,26 @@
+{
+  "case": "limit-101-client-reports",
+  "note": "max_client_reports_count = 100",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:28.665Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 9362,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:28.642Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"}}\n{\"type\":\"client_report\",\"length\":53}\n{\"timestamp\":1794280828.642984,\"discarded_events\":[]}\n{\"type\":\"client_report\",\"length\":53}\n{\"timestamp\":1794280828.643025,\"discarded_events\":[]}\n{\"type\":\"client_report\",\"length\":54}\n{\"timestamp\":1794280828.6430342,\"discarded_events\":[]}\n{\"type\":\"client_report\",\"length\":54}\n{\"timestamp\":1794280828.6430411,\"discarded_events\":[]}\n{\"type\":\"client_report\",\"length\":54}\n{\"timestamp\":1794280828.6430469,\"discarded_even"
+  },
+  "response": {
+    "status": 413,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"envelope exceeded size limits for type 'client_report' (https://develop.sentry.dev/sdk/envelopes/#size-limits)\"}",
+    "ms": 17.0
+  }
+}

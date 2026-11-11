@@ -1,0 +1,26 @@
+{
+  "case": "item-session-in-error-envelope",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:21:02.613Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 642,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:21:02.608Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"9a605f1404b04b4b86ed25ef3ec9dfea\"}\n{\"type\":\"event\",\"length\":184}\n{\"event_id\":\"9a605f1404b04b4b86ed25ef3ec9dfea\",\"message\":\"step6-wire with session\",\"timestamp\":1794280862.576164,\"contexts\":{\"replay\":{\"replay_id\":\"3e3606782cdc4c1dad59847f384b628c\"}}}\n{\"type\":\"session\",\"length\":198}\n{\"sid\":\"4200f50f-413a-451e-b5ee-ad0d4d47c2b9\",\"init\":true,\"started\":\"2026-11-10T03:21:02.576Z\",\"timestamp\":\"2026-11-10T03:21:02.576Z\",\"status\":\"ok\",\"errors\":"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"9a605f1404b04b4b86ed25ef3ec9dfea\"}",
+    "ms": 4.4
+  }
+}

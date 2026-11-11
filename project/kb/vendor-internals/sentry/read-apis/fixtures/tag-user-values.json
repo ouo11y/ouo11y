@@ -1,0 +1,29 @@
+[
+ {
+  "key": "user",
+  "name": "ip:0.0.0.0",
+  "value": "ip:0.0.0.0",
+  "count": 20,
+  "lastSeen": "2026-11-10T03:27:35Z",
+  "firstSeen": "2026-11-10T03:17:48Z",
+  "query": "user.ip:\"0.0.0.0\""
+ },
+ {
+  "key": "user",
+  "name": "id:probe-user-1",
+  "value": "id:probe-user-1",
+  "count": 5,
+  "lastSeen": "2026-11-10T03:25:01Z",
+  "firstSeen": "2026-11-10T03:22:07Z",
+  "query": "user.id:\"probe-user-1\""
+ },
+ {
+  "key": "user",
+  "name": "id:40997118-5E1D-445C-962E-21CE57DD43D6",
+  "value": "id:40997118-5E1D-445C-962E-21CE57DD43D6",
+  "count": 3,
+  "lastSeen": "2026-10-27T22:58:17Z",
+  "firstSeen": "2026-10-27T22:57:42Z",
+  "query": "user.id:\"40997118-5E1D-445C-962E-21CE57DD43D6\""
+ }
+]

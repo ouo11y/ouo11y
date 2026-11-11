@@ -1,0 +1,16 @@
+{
+ "item_header": {
+  "type": "client_report",
+  "length": 108
+ },
+ "payload": {
+  "timestamp": 1794295013.168,
+  "discarded_events": [
+   {
+    "reason": "no_parent_span",
+    "category": "span",
+    "quantity": 1
+   }
+  ]
+ }
+}

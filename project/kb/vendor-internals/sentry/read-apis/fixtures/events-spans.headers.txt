@@ -1,0 +1,5 @@
+GET /api/0/organizations/sentry/events/?dataset=spans&project=-1&statsPeriod=30d&per_page=5&field=id&field=span.op&field=span.description&field=trace&field=parent_span&field=precise.start_ts&field=precise.finish_ts&field=replay.id&field=is_transaction&query=trace:e07ca7724b82497092cd68359cd35ff3
+HTTP 200
+Content-Type: application/json
+Content-Length: 1380
+link: <https://sentry.ouo.localhost/api/0/organizations/sentry/events/?dataset=spans&project=-1&statsPeriod=30d&per_page=5&field=id&field=span.op&field=span.description&field=trace&field=parent_span&field=precise.start_ts&field=precise.finish_ts&field=replay.id&field=is_transaction&query=trace%3Ae07ca7724b82497092cd68359cd35ff3&cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1", <https://sentry.ouo.localhost/api/0/organizations/sentry/events/?dataset=spans&project=-1&statsPeriod=30d&per_page=5&field=id&field=span.op&field=span.description&field=trace&field=parent_span&field=precise.start_ts&field=precise.finish_ts&field=replay.id&field=is_transaction&query=trace%3Ae07ca7724b82497092cd68359cd35ff3&cursor=0:5:0>; rel="next"; results="false"; cursor="0:5:0"

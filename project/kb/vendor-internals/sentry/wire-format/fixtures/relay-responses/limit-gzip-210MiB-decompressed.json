@@ -1,0 +1,27 @@
+{
+  "case": "limit-gzip-210MiB-decompressed",
+  "note": "214144 compressed bytes, 210 MiB after gunzip (> max_envelope_size 200 MiB)",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:38.632Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope",
+      "Content-Encoding": "gzip"
+    },
+    "body_bytes": 214144,
+    "body_preview": "<binary, first bytes 1f8b08000000000002ffeccb410a8250>"
+  },
+  "response": {
+    "status": 413,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "text/plain; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "Failed to buffer the request body: length limit exceeded",
+    "ms": 1382.2
+  }
+}

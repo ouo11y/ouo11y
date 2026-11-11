@@ -1,0 +1,25 @@
+{
+  "case": "auth-version-5",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.433Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=5, sentry_client=step6.wire/0.0.1"
+    },
+    "body_bytes": 697,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.417Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"766a970befbe474593331de1e181ecb0\"}\n{\"type\":\"event\",\"content_type\":\"application/json\",\"length\":436}\n{\"event_id\":\"766a970befbe474593331de1e181ecb0\",\"message\":\"step6-wire v5\",\"level\":\"error\",\"platform\":\"javascript\",\"timestamp\":1794280827.417993,\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\",\"tags\":{\"step6\":\"wire\"},\"exception\":{\"values\":[{\"type\":\"TypeError\",\"value\":\"step6-wire v5\",\"mechanism\":{\"type\":\"onerror\",\"handled\":false},\"stacktra"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"766a970befbe474593331de1e181ecb0\"}",
+    "ms": 15.0
+  }
+}

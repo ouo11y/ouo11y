@@ -1,0 +1,700 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "filename": "view-hierarchy.json",
+  "type": "attachment",
+  "attachment_type": "event.view_hierarchy",
+  "length": 9902
+ },
+ "payload": {
+  "rendering_system": "android_view_system",
+  "windows": [
+   {
+    "type": "com.android.internal.policy.DecorView",
+    "width": 1080.0,
+    "height": 2400.0,
+    "x": 0.0,
+    "y": 0.0,
+    "visibility": "visible",
+    "alpha": 1.0,
+    "children": [
+     {
+      "type": "android.widget.LinearLayout",
+      "width": 1080.0,
+      "height": 2400.0,
+      "x": 0.0,
+      "y": 0.0,
+      "visibility": "visible",
+      "alpha": 1.0,
+      "children": [
+       {
+        "type": "android.view.ViewStub",
+        "identifier": "action_mode_bar_stub",
+        "width": 0.0,
+        "height": 0.0,
+        "x": 0.0,
+        "y": 0.0,
+        "visibility": "gone",
+        "alpha": 1.0
+       },
+       {
+        "type": "android.widget.FrameLayout",
+        "width": 1080.0,
+        "height": 2400.0,
+        "x": 0.0,
+        "y": 0.0,
+        "visibility": "visible",
+        "alpha": 1.0,
+        "children": [
+         {
+          "type": "androidx.appcompat.widget.FitWindowsLinearLayout",
+          "identifier": "action_bar_root",
+          "width": 1080.0,
+          "height": 2400.0,
+          "x": 0.0,
+          "y": 0.0,
+          "visibility": "visible",
+          "alpha": 1.0,
+          "children": [
+           {
+            "type": "androidx.appcompat.widget.ViewStubCompat",
+            "identifier": "action_mode_bar_stub",
+            "width": 0.0,
+            "height": 0.0,
+            "x": 0.0,
+            "y": 0.0,
+            "visibility": "gone",
+            "alpha": 1.0
+           },
+           {
+            "type": "androidx.appcompat.widget.ContentFrameLayout",
+            "identifier": "content",
+            "width": 1080.0,
+            "height": 2400.0,
+            "x": 0.0,
+            "y": 0.0,
+            "visibility": "visible",
+            "alpha": 1.0,
+            "children": [
+             {
+              "type": "com.facebook.react.runtime.ReactSurfaceView",
+              "width": 1080.0,
+              "height": 2400.0,
+              "x": 0.0,
+              "y": 0.0,
+              "visibility": "visible",
+              "alpha": 1.0,
+              "children": [
+               {
+                "type": "com.facebook.react.views.view.ReactViewGroup",
+                "width": 1080.0,
+                "height": 2400.0,
+                "x": 0.0,
+                "y": 0.0,
+                "visibility": "visible",
+                "alpha": 1.0,
+                "children": [
+                 {
+                  "type": "com.th3rdwave.safeareacontext.SafeAreaProvider",
+                  "width": 1080.0,
+                  "height": 2400.0,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "visibility": "visible",
+                  "alpha": 1.0,
+                  "children": [
+                   {
+                    "type": "com.swmansion.rnscreens.ScreenStack",
+                    "width": 1080.0,
+                    "height": 2400.0,
+                    "x": 0.0,
+                    "y": 0.0,
+                    "visibility": "visible",
+                    "alpha": 1.0,
+                    "children": [
+                     {
+                      "type": "com.swmansion.rnscreens.stack.views.ScreensCoordinatorLayout",
+                      "width": 1080.0,
+                      "height": 2400.0,
+                      "x": 0.0,
+                      "y": 0.0,
+                      "visibility": "visible",
+                      "alpha": 1.0,
+                      "children": [
+                       {
+                        "type": "com.swmansion.rnscreens.Screen",
+                        "width": 1080.0,
+                        "height": 2125.0,
+                        "x": 0.0,
+                        "y": 275.0,
+                        "visibility": "visible",
+                        "alpha": 1.0,
+                        "children": [
+                         {
+                          "type": "com.swmansion.rnscreens.ScreenContentWrapper",
+                          "width": 1080.0,
+                          "height": 2125.0,
+                          "x": 0.0,
+                          "y": 0.0,
+                          "visibility": "visible",
+                          "alpha": 1.0,
+                          "children": [
+                           {
+                            "type": "com.facebook.react.views.scroll.ReactScrollView",
+                            "width": 1080.0,
+                            "height": 2125.0,
+                            "x": 0.0,
+                            "y": 0.0,
+                            "visibility": "visible",
+                            "alpha": 1.0,
+                            "children": [
+                             {
+                              "type": "com.facebook.react.views.view.ReactViewGroup",
+                              "width": 996.0,
+                              "height": 2933.0,
+                              "x": 42.0,
+                              "y": 42.0,
+                              "visibility": "visible",
+                              "alpha": 1.0,
+                              "children": [
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 85.0,
+                                "x": 0.0,
+                                "y": 0.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.text.ReactTextView",
+                                "width": 954.0,
+                                "height": 43.0,
+                                "x": 21.0,
+                                "y": 21.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.text.ReactTextView",
+                                "width": 996.0,
+                                "height": 47.0,
+                                "x": 0.0,
+                                "y": 137.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 111.0,
+                                "x": 0.0,
+                                "y": 195.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 347.0,
+                                  "height": 57.0,
+                                  "x": 0.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 },
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 136.0,
+                                  "height": 51.0,
+                                  "x": 860.0,
+                                  "y": 29.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 110.0,
+                                "x": 0.0,
+                                "y": 306.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 412.0,
+                                  "height": 57.0,
+                                  "x": 0.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 },
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 115.0,
+                                  "height": 51.0,
+                                  "x": 881.0,
+                                  "y": 29.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 111.0,
+                                "x": 0.0,
+                                "y": 416.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 345.0,
+                                  "height": 57.0,
+                                  "x": 0.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 },
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 115.0,
+                                  "height": 51.0,
+                                  "x": 881.0,
+                                  "y": 29.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 537.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 162.0,
+                                  "height": 51.0,
+                                  "x": 417.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.text.ReactTextView",
+                                "width": 996.0,
+                                "height": 47.0,
+                                "x": 0.0,
+                                "y": 682.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 751.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 466.0,
+                                  "height": 51.0,
+                                  "x": 265.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 875.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 377.0,
+                                  "height": 51.0,
+                                  "x": 309.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 1000.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 158.0,
+                                  "height": 51.0,
+                                  "x": 419.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 1124.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 497.0,
+                                  "height": 51.0,
+                                  "x": 249.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.text.ReactTextView",
+                                "width": 996.0,
+                                "height": 47.0,
+                                "x": 0.0,
+                                "y": 1269.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 1338.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 249.0,
+                                  "height": 51.0,
+                                  "x": 373.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 1462.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 165.0,
+                                  "height": 51.0,
+                                  "x": 415.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 1587.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 291.0,
+                                  "height": 51.0,
+                                  "x": 352.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 1711.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 628.0,
+                                  "height": 51.0,
+                                  "x": 184.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.text.ReactTextView",
+                                "width": 996.0,
+                                "height": 47.0,
+                                "x": 0.0,
+                                "y": 1856.0,
+                                "visibility": "visible",
+                                "alpha": 1.0
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 1925.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 228.0,
+                                  "height": 51.0,
+                                  "x": 384.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 2049.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 332.0,
+                                  "height": 51.0,
+                                  "x": 332.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 2174.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 393.0,
+                                  "height": 51.0,
+                                  "x": 301.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 2298.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 355.0,
+                                  "height": 51.0,
+                                  "x": 320.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 2444.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 456.0,
+                                  "height": 51.0,
+                                  "x": 270.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 104.0,
+                                "x": 0.0,
+                                "y": 2568.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 208.0,
+                                  "height": 51.0,
+                                  "x": 394.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               },
+                               {
+                                "type": "com.facebook.react.views.view.ReactViewGroup",
+                                "width": 996.0,
+                                "height": 103.0,
+                                "x": 0.0,
+                                "y": 2693.0,
+                                "visibility": "visible",
+                                "alpha": 1.0,
+                                "children": [
+                                 {
+                                  "type": "com.facebook.react.views.text.ReactTextView",
+                                  "width": 91.0,
+                                  "height": 51.0,
+                                  "x": 452.0,
+                                  "y": 26.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0
+                                 }
+                                ]
+                               }
+                              ]
+                             }
+                            ]
+                           }
+                          ]
+                         },
+                         {
+                          "type": "com.swmansion.rnscreens.ScreenStackHeaderConfig",
+                          "width": 1080.0,
+                          "height": 0.0,
+                          "x": 0.0,
+                          "y": -275.0,
+                          "visibility": "visible",
+                          "alpha": 1.0
+                         }
+                        ]
+                       },
+                       {
+                        "type": "com.google.android.material.appbar.AppBarLayout",
+                        "width": 1080.0,
+                        "height": 275.0,
+                        "x": 0.0,
+                        "y": 0.0,
+                        "visibility": "visible",
+                        "alpha": 1.0,
+                        "children": [
+                         {
+                          "type": "com.swmansion.rnscreens.CustomToolbar",
+                          "width": 1080.0,
+                          "height": 275.0,
+                          "x": 0.0,
+                          "y": 0.0,
+                          "visibility": "visible",
+                          "alpha": 1.0,
+                          "children": [
+                           {
+                            "type": "androidx.appcompat.widget.ActionMenuView",
+                            "width": 0.0,
+                            "height": 147.0,
+                            "x": 1080.0,
+                            "y": 128.0,
+                            "visibility": "visible",
+                            "alpha": 1.0
+                           },
+                           {
+                            "type": "androidx.appcompat.widget.AppCompatTextView",
+                            "width": 301.0,
+                            "height": 71.0,
+                            "x": 42.0,
+                            "y": 166.0,
+                            "visibility": "visible",
+                            "alpha": 1.0
+                           }
+                          ]
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

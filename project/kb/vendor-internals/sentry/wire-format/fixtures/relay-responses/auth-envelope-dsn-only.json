@@ -1,0 +1,25 @@
+{
+  "case": "auth-envelope-dsn-only",
+  "note": "no header/query auth: Relay reads dsn from the envelope header (browser tunnel / sendBeacon style)",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.302Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "Content-Type": "text/plain;charset=UTF-8"
+    },
+    "body_bytes": 709,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.274Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"139b738df2e148c19f042bb6cbcbd4ab\"}\n{\"type\":\"event\",\"content_type\":\"application/json\",\"length\":448}\n{\"event_id\":\"139b738df2e148c19f042bb6cbcbd4ab\",\"message\":\"step6-wire dsn auth\",\"level\":\"error\",\"platform\":\"javascript\",\"timestamp\":1794280827.274915,\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\",\"tags\":{\"step6\":\"wire\"},\"exception\":{\"values\":[{\"type\":\"TypeError\",\"value\":\"step6-wire dsn auth\",\"mechanism\":{\"type\":\"onerror\",\"handled\":fals"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"139b738df2e148c19f042bb6cbcbd4ab\"}",
+    "ms": 27.7
+  }
+}

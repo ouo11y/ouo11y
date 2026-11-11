@@ -1,0 +1,108 @@
+{
+ "event_id": "d3edc3158b2b42c6964019dca1ed0c6b",
+ "platform": "cocoa",
+ "dist": "1",
+ "replay_id": "d3edc3158b2b42c6964019dca1ed0c6b",
+ "user": {
+  "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+ },
+ "timestamp": 1794295173.160464,
+ "tags": {
+  "event.origin": "ios",
+  "event.environment": "native"
+ },
+ "contexts": {
+  "app": {
+   "build_type": "simulator",
+   "app_version": "1.0.0",
+   "app_identifier": "dev.ouo.sentrydemo",
+   "app_start_time": "2026-11-10T07:19:38Z",
+   "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+   "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+   "app_build": "1",
+   "app_memory": 45072384,
+   "view_names": [
+    "Home"
+   ],
+   "app_name": "sentrydemo"
+  },
+  "os": {
+   "build": "26A434",
+   "rooted": false,
+   "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142",
+   "name": "iOS",
+   "version": "27.0"
+  },
+  "device": {
+   "processor_count": 10,
+   "model_id": "simulator",
+   "free_memory": 88768512,
+   "thermal_state": "nominal",
+   "family": "iOS",
+   "screen_height_pixels": 874,
+   "simulator": true,
+   "screen_width_pixels": 402,
+   "low_power_mode": false,
+   "locale": "xx_XX",
+   "connection_type": "wifi",
+   "arch": "arm64",
+   "memory_size": 34359738368,
+   "model": "iPhone19,2",
+   "usable_memory": 18596659200
+  },
+  "ota_updates": {
+   "is_enabled": false
+  },
+  "trace": {
+   "span_id": "ac4a5c55cc6bdacc",
+   "trace_id": "3da37277329342c9a89d86cd4ffd87cc"
+  },
+  "culture": {
+   "locale": "xx_XX",
+   "timezone": "Etc/Redacted",
+   "display_name": "Redacted (Redacted)",
+   "calendar": "Gregorian Calendar",
+   "is_24_hour_format": false
+  }
+ },
+ "segment_id": 1,
+ "extra": {},
+ "release": "sentry-demo@1.0.0+1",
+ "type": "replay_video",
+ "replay_type": "session",
+ "sdk": {
+  "packages": [
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   }
+  ],
+  "features": [
+   "dataSwizzling",
+   "metrics",
+   "experimentalViewRenderer",
+   "viewHierarchy"
+  ],
+  "integrations": [
+   "Metrics",
+   "SessionReplay",
+   "ANRTracking",
+   "Crash",
+   "AutoBreadcrumbTracking",
+   "WatchdogTerminationTracking",
+   "Screenshot",
+   "ViewHierarchy",
+   "NetworkTracking",
+   "AutoSessionTracking",
+   "AppStartTracking",
+   "FramesTracking"
+  ],
+  "name": "sentry.cocoa.react-native",
+  "settings": {
+   "infer_ip": "never"
+  },
+  "version": "9.33.0"
+ },
+ "replay_start_timestamp": 1794295168.160464,
+ "environment": "development"
+}

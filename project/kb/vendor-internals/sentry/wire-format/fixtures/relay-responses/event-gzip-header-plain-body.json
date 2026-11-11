@@ -1,0 +1,27 @@
+{
+  "case": "event-gzip-header-plain-body",
+  "note": "Content-Encoding gzip but body not compressed",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.154Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope",
+      "Content-Encoding": "gzip"
+    },
+    "body_bytes": 710,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.150Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"94ffff78accc4fd79ba6fa6dd10c6cc5\"}\n{\"type\":\"event\",\"content_type\":\"application/json\",\"length\":449}\n{\"event_id\":\"94ffff78accc4fd79ba6fa6dd10c6cc5\",\"message\":\"step6-wire bad gzip\",\"level\":\"error\",\"platform\":\"javascript\",\"timestamp\":1794280827.1508029,\"release\":\"step6-wire@1.0.0\",\"environment\":\"wire\",\"tags\":{\"step6\":\"wire\"},\"exception\":{\"values\":[{\"type\":\"TypeError\",\"value\":\"step6-wire bad gzip\",\"mechanism\":{\"type\":\"onerror\",\"handled\":fal"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "text/plain; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "Failed to buffer the request body: Invalid gzip header",
+    "ms": 3.3
+  }
+}

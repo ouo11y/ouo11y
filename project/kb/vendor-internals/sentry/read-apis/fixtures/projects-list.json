@@ -1,0 +1,162 @@
+[
+ {
+  "team": {
+   "id": "1",
+   "slug": "sentry",
+   "name": "Sentry"
+  },
+  "teams": [
+   {
+    "id": "1",
+    "slug": "sentry",
+    "name": "Sentry"
+   }
+  ],
+  "id": "1",
+  "name": "Internal",
+  "slug": "internal",
+  "isBookmarked": false,
+  "isMember": true,
+  "access": [
+   "team:admin",
+   "org:read",
+   "member:read",
+   "team:read",
+   "project:read",
+   "event:write",
+   "event:read",
+   "alerts:read",
+   "project:releases",
+   "team:write",
+   "project:write",
+   "org:integrations",
+   "project:admin",
+   "event:admin",
+   "alerts:write"
+  ],
+  "hasAccess": true,
+  "dateCreated": "2026-10-17T21:33:29.828205Z",
+  "environments": [],
+  "features": [
+   "discard-groups",
+   "custom-inbound-filters",
+   "rate-limits",
+   "servicehooks",
+   "issue-action-log-write-to-db",
+   "span-metrics-extraction",
+   "span-metrics-extraction-addons",
+   "releases"
+  ],
+  "firstEvent": null,
+  "firstTransactionEvent": false,
+  "hasSessions": true,
+  "hasProfiles": true,
+  "hasReplays": false,
+  "hasFeedbacks": false,
+  "hasNewFeedbacks": false,
+  "hasMonitors": false,
+  "hasMinifiedStackTrace": false,
+  "hasInsightsHttp": false,
+  "hasInsightsDb": false,
+  "hasInsightsAssets": false,
+  "hasInsightsAppStart": false,
+  "hasInsightsScreenLoad": false,
+  "hasInsightsVitals": false,
+  "hasInsightsCaches": false,
+  "hasInsightsQueues": false,
+  "hasInsightsAgentMonitoring": false,
+  "hasInsightsMCP": false,
+  "hasLogs": true,
+  "hasTraceMetrics": true,
+  "platform": null,
+  "platforms": [],
+  "latestRelease": {
+   "version": "frontend@26.10.0+da07b233acfb0c32d5e507f991059b3949c9f271"
+  },
+  "hasUserReports": false,
+  "hasFlags": false,
+  "latestDeploys": null
+ },
+ {
+  "team": {
+   "id": "1",
+   "slug": "sentry",
+   "name": "Sentry"
+  },
+  "teams": [
+   {
+    "id": "1",
+    "slug": "sentry",
+    "name": "Sentry"
+   }
+  ],
+  "id": "2",
+  "name": "sentry-demo",
+  "slug": "sentry-demo",
+  "isBookmarked": false,
+  "isMember": true,
+  "access": [
+   "team:admin",
+   "org:read",
+   "member:read",
+   "team:read",
+   "project:read",
+   "event:write",
+   "event:read",
+   "alerts:read",
+   "project:releases",
+   "team:write",
+   "project:write",
+   "org:integrations",
+   "project:admin",
+   "event:admin",
+   "alerts:write"
+  ],
+  "hasAccess": true,
+  "dateCreated": "2026-10-17T21:36:26.536396Z",
+  "environments": [
+   "smoke",
+   "development",
+   "read-api-probe"
+  ],
+  "features": [
+   "discard-groups",
+   "custom-inbound-filters",
+   "rate-limits",
+   "servicehooks",
+   "issue-action-log-write-to-db",
+   "span-metrics-extraction",
+   "span-metrics-extraction-addons",
+   "releases"
+  ],
+  "firstEvent": "2026-10-17T21:37:53Z",
+  "firstTransactionEvent": true,
+  "hasSessions": true,
+  "hasProfiles": false,
+  "hasReplays": true,
+  "hasFeedbacks": false,
+  "hasNewFeedbacks": false,
+  "hasMonitors": false,
+  "hasMinifiedStackTrace": true,
+  "hasInsightsHttp": true,
+  "hasInsightsDb": false,
+  "hasInsightsAssets": false,
+  "hasInsightsAppStart": true,
+  "hasInsightsScreenLoad": true,
+  "hasInsightsVitals": true,
+  "hasInsightsCaches": false,
+  "hasInsightsQueues": false,
+  "hasInsightsAgentMonitoring": false,
+  "hasInsightsMCP": false,
+  "hasLogs": true,
+  "hasTraceMetrics": true,
+  "platform": "react-native",
+  "platforms": [],
+  "latestRelease": {
+   "version": "read-api-probe@1.0.9"
+  },
+  "hasUserReports": false,
+  "hasFlags": false,
+  "latestDeploys": null
+ }
+]

@@ -1,0 +1,26 @@
+{
+  "case": "otlp-traces-bad-content-type",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.446Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/traces",
+    "headers": {
+      "Content-Type": "text/plain",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 1,
+    "body_preview": "x"
+  },
+  "response": {
+    "status": 415,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"code\":3,\"message\":\"unsupported content type: text/plain\"}",
+    "ms": 26.5
+  }
+}

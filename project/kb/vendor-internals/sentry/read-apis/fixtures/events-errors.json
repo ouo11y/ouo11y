@@ -1,0 +1,57 @@
+{
+ "data": [
+  {
+   "title": "WebhookProbeError: webhook probe 2d2dcec6",
+   "user.id": null,
+   "replayId": "ac9012ea665c41b58b9657eb3296861d",
+   "timestamp": "2026-11-10T03:27:35+00:00",
+   "trace": "2d2dcec65ab44dce93d52475e392b4d2",
+   "issue.id": 20,
+   "id": "2d2dcec65ab44dce93d52475e392b4d2",
+   "project.name": "sentry-demo",
+   "issue": "SENTRY-DEMO-8"
+  },
+  {
+   "title": "ProbeError: read-api latency probe aef21a92",
+   "user.id": "probe-user-1",
+   "replayId": "a09d6828f29b4d14aa6fef61d96ac592",
+   "timestamp": "2026-11-10T03:25:01+00:00",
+   "trace": "cceae366e6e94107a05146ad1f03c99f",
+   "issue.id": 19,
+   "id": "aef21a92c7924adb9557ecd21228f486",
+   "project.name": "sentry-demo",
+   "issue": "SENTRY-DEMO-7"
+  }
+ ],
+ "meta": {
+  "fields": {
+   "title": "string",
+   "user.id": "string",
+   "replayId": "string",
+   "timestamp": "date",
+   "trace": "string",
+   "issue.id": "integer",
+   "id": "string",
+   "project.name": "string"
+  },
+  "units": {
+   "title": null,
+   "user.id": null,
+   "replayId": null,
+   "timestamp": null,
+   "trace": null,
+   "issue.id": null,
+   "id": null,
+   "project.name": null
+  },
+  "isMetricsData": false,
+  "isMetricsExtractedData": false,
+  "tips": {
+   "query": null,
+   "columns": null
+  },
+  "datasetReason": "unchanged",
+  "dataset": "errors",
+  "dataScanned": "full"
+ }
+}

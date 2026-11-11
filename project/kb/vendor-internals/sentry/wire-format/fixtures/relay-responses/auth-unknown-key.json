@@ -1,0 +1,25 @@
+{
+  "case": "auth-unknown-key",
+  "note": "well-formed key that no project has",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.389Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=0000000000000000000000000000beef, sentry_version=7"
+    },
+    "body_bytes": 103,
+    "body_preview": "{\"event_id\":\"1ffba243b89d42b5b7dcf4e1474b6064\"}\n{\"type\":\"event\",\"length\":25}\n{\"message\":\"unknown key\"}\n"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"1ffba243b89d42b5b7dcf4e1474b6064\"}",
+    "ms": 11.6
+  }
+}

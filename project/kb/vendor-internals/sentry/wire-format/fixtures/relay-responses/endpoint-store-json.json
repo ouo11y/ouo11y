@@ -1,0 +1,26 @@
+{
+  "case": "endpoint-store-json",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.035Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/store/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/json"
+    },
+    "body_bytes": 164,
+    "body_preview": "{\"event_id\": \"afb97a2b0c0e4d1f89b265604eca6a4f\", \"message\": \"step6-wire legacy store\", \"level\": \"warning\", \"platform\": \"javascript\", \"timestamp\": 1794280844.015179}"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"afb97a2b0c0e4d1f89b265604eca6a4f\"}",
+    "ms": 20.6
+  }
+}

@@ -1,0 +1,327 @@
+[
+ [
+  {
+   "data": {
+    "height": 874,
+    "width": 402,
+    "href": ""
+   },
+   "timestamp": 1793141797070,
+   "type": 4
+  },
+  {
+   "data": {
+    "tag": "video",
+    "payload": {
+     "frameCount": 5,
+     "frameRateType": "constant",
+     "height": 874,
+     "encoding": "h264",
+     "duration": 5000,
+     "container": "mp4",
+     "width": 402,
+     "size": 4101,
+     "frameRate": 1,
+     "segmentId": 0,
+     "left": 0,
+     "top": 0,
+     "timestamp": 1793141797.070858
+    }
+   },
+   "timestamp": 1793141797070,
+   "type": 5
+  },
+  {
+   "type": 5,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "level": "debug",
+     "category": "console",
+     "timestamp": 1793141797.072418,
+     "type": "default",
+     "message": "Running \"main\"",
+     "data": {
+      "arguments": [
+       "Running \"main\""
+      ],
+      "logger": "console"
+     }
+    }
+   },
+   "timestamp": 1793141797072
+  },
+  {
+   "timestamp": 1793141797632,
+   "type": 5,
+   "data": {
+    "payload": {
+     "timestamp": 1793141797.632642,
+     "type": "default",
+     "data": {
+      "url": "http://localhost:34501/api/products",
+      "__span": "ae98c2211490e5fe",
+      "status_code": 200,
+      "method": "GET"
+     },
+     "level": "info",
+     "category": "fetch"
+    },
+    "tag": "breadcrumb"
+   }
+  },
+  {
+   "data": {
+    "payload": {
+     "maskAllImages": true,
+     "errorSampleRate": 1,
+     "nativeSdkName": "sentry.cocoa.react-native",
+     "maskAllText": true,
+     "quality": "medium",
+     "sessionSampleRate": 1,
+     "nativeSdkVersion": "9.31.0",
+     "maskedViewClasses": "RCTImageComponentView, RCTParagraphComponentView",
+     "networkDetailHasUrls": false
+    },
+    "tag": "options"
+   },
+   "timestamp": 1793141797070,
+   "type": 5
+  }
+ ],
+ [
+  {
+   "timestamp": 1793141802070,
+   "data": {
+    "width": 402,
+    "href": "",
+    "height": 874
+   },
+   "type": 4
+  },
+  {
+   "timestamp": 1793141802070,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "container": "mp4",
+     "duration": 5000,
+     "size": 5843,
+     "height": 874,
+     "left": 0,
+     "width": 402,
+     "frameRateType": "constant",
+     "segmentId": 1,
+     "encoding": "h264",
+     "frameCount": 5,
+     "top": 0,
+     "frameRate": 1,
+     "timestamp": 1793141802.070858
+    }
+   },
+   "type": 5
+  },
+  {
+   "timestamp": 1793141805534,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "timestamp": 1793141805.5344682,
+     "level": "info",
+     "message": "HeaderBackContext > ScrollView > Pressable > View",
+     "type": "default",
+     "data": {
+      "path": [
+       {
+        "name": "View"
+       },
+       {
+        "name": "Pressable"
+       },
+       {
+        "name": "ScrollView"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       },
+       {
+        "name": "View"
+       }
+      ]
+     },
+     "category": "ui.tap"
+    }
+   },
+   "type": 5
+  },
+  {
+   "timestamp": 1793141805452,
+   "type": 3,
+   "data": {
+    "pointerId": 1,
+    "source": 2,
+    "id": 0,
+    "y": 156,
+    "type": 7,
+    "pointerType": 2,
+    "x": 100
+   }
+  },
+  {
+   "timestamp": 1793141805461,
+   "data": {
+    "source": 2,
+    "x": 100,
+    "y": 156,
+    "type": 9,
+    "id": 0,
+    "pointerType": 2,
+    "pointerId": 1
+   },
+   "type": 3
+  }
+ ],
+ [
+  {
+   "timestamp": 1793141807070,
+   "type": 4,
+   "data": {
+    "href": "",
+    "height": 874,
+    "width": 402
+   }
+  },
+  {
+   "timestamp": 1793141807070,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "size": 4160,
+     "container": "mp4",
+     "segmentId": 2,
+     "frameRateType": "constant",
+     "height": 874,
+     "timestamp": 1793141807.070858,
+     "frameRate": 1,
+     "encoding": "h264",
+     "duration": 6000,
+     "width": 402,
+     "top": 0,
+     "frameCount": 6,
+     "left": 0
+    }
+   },
+   "type": 5
+  },
+  {
+   "timestamp": 1793141812002,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "timestamp": 1793141812.002617,
+     "level": "info",
+     "data": {
+      "path": [
+       {
+        "name": "Text"
+       },
+       {
+        "name": "View"
+       },
+       {
+        "name": "Pressable"
+       },
+       {
+        "name": "View"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       },
+       {
+        "name": "View"
+       }
+      ]
+     },
+     "message": "View > Pressable > View > Text",
+     "type": "default",
+     "category": "ui.tap"
+    }
+   },
+   "type": 5
+  },
+  {
+   "timestamp": 1793141811991,
+   "type": 3,
+   "data": {
+    "type": 7,
+    "y": 225,
+    "pointerId": 2,
+    "x": 200,
+    "pointerType": 2,
+    "id": 0,
+    "source": 2
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1793141811991,
+   "data": {
+    "pointerId": 2,
+    "y": 225,
+    "x": 200,
+    "source": 2,
+    "pointerType": 2,
+    "type": 9,
+    "id": 0
+   }
+  }
+ ]
+]

@@ -1,0 +1,305 @@
+{
+ "segment_header": {
+  "segment_id": 2
+ },
+ "events": [
+  {
+   "type": 4,
+   "timestamp": 1794282929080,
+   "data": {
+    "href": "",
+    "height": 912,
+    "width": 416
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282929080,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "segmentId": 2,
+     "size": 155525,
+     "duration": 7000,
+     "encoding": "h264",
+     "container": "mp4",
+     "height": 912,
+     "width": 416,
+     "frameCount": 7,
+     "frameRate": 1,
+     "frameRateType": "constant",
+     "left": 0,
+     "top": 0
+    }
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282930705,
+   "data": {
+    "source": 2,
+    "type": 7,
+    "id": 0,
+    "x": 208.0,
+    "y": 684.0,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282930707,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282930.707,
+     "category": "ui.tap",
+     "message": "action-fetch-500 > action-fetch-500 > action-fetch-500 > action-fetch-500",
+     "level": "info",
+     "data": {
+      "path": [
+       {
+        "label": "action-fetch-500"
+       },
+       {
+        "name": "View",
+        "label": "action-fetch-500"
+       },
+       {
+        "name": "Pressable",
+        "label": "action-fetch-500"
+       },
+       {
+        "label": "action-fetch-500"
+       },
+       {
+        "name": "View"
+       },
+       {
+        "name": "ScrollView"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       },
+       {
+        "name": "View"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282931125,
+   "data": {
+    "source": 2,
+    "type": 9,
+    "id": 0,
+    "x": 208.0,
+    "y": 342.0,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282934012,
+   "data": {
+    "source": 2,
+    "type": 7,
+    "id": 0,
+    "x": 208.0,
+    "y": 809.02001953125,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794282934014,
+   "data": {
+    "source": 2,
+    "type": 9,
+    "id": 0,
+    "x": 208.0,
+    "y": 809.02001953125,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282934024,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282934.024,
+     "category": "ui.tap",
+     "message": "action-native-crash > action-native-crash > Native crash > Native crash",
+     "level": "info",
+     "data": {
+      "path": [
+       {
+        "label": "Native crash"
+       },
+       {
+        "name": "Text",
+        "label": "Native crash"
+       },
+       {
+        "label": "action-native-crash"
+       },
+       {
+        "name": "View",
+        "label": "action-native-crash"
+       },
+       {
+        "name": "Pressable",
+        "label": "action-native-crash"
+       },
+       {
+        "label": "action-native-crash"
+       },
+       {
+        "label": "03:55:19 rum mode sentry (stored), device 3506ce80 Products"
+       },
+       {
+        "label": "Products"
+       },
+       {
+        "name": "View",
+        "label": "Products"
+       },
+       {
+        "label": "Products"
+       },
+       {
+        "name": "ScrollView"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282934024,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282934.024,
+     "category": "demo.action",
+     "message": "native-crash",
+     "level": "info",
+     "data": {}
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282934025,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282934.025,
+     "category": "console",
+     "message": "[sentry-demo] native-crash: crashing",
+     "level": "debug",
+     "data": {
+      "logger": "console",
+      "arguments": [
+       "[sentry-demo] native-crash: crashing"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282935195,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282935.195,
+     "category": "device.event",
+     "message": "Low memory",
+     "level": "warning",
+     "data": {
+      "level": 40,
+      "action": "LOW_MEMORY"
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282935202,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282935.202,
+     "category": "app.background",
+     "data": {}
+    }
+   }
+  }
+ ]
+}

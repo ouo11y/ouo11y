@@ -1,0 +1,28 @@
+{
+ "sdk": {
+  "packages": [
+   {
+    "version": "8.34.0",
+    "name": "npm:@sentry/react-native"
+   }
+  ],
+  "integrations": [
+   "NetworkTracking",
+   "AutoSessionTracking",
+   "SessionReplay",
+   "Crash"
+  ],
+  "settings": {
+   "infer_ip": "never"
+  },
+  "features": [
+   "dataSwizzling",
+   "viewHierarchy",
+   "metrics",
+   "experimentalViewRenderer"
+  ],
+  "name": "sentry.cocoa.react-native",
+  "version": "9.33.0"
+ },
+ "sent_at": "2026-11-10T07:16:51.967Z"
+}

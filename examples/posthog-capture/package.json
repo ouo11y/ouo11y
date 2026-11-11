@@ -1,0 +1,14 @@
+{
+  "name": "posthog-capture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Step 6 vendor research: capture posthog-js traffic on a local endpoint",
+  "scripts": {
+    "start": "node server.mjs",
+    "drive": "node drive.mjs"
+  },
+  "dependencies": {
+    "posthog-js": "1.447.6"
+  }
+}

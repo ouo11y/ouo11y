@@ -1,0 +1,99 @@
+{
+ "segment_header": {
+  "segment_id": 0
+ },
+ "events": [
+  {
+   "type": 5,
+   "timestamp": 1794282748276,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282748.276,
+     "category": "device.connectivity",
+     "data": {
+      "state": "wifi"
+     }
+    }
+   }
+  },
+  {
+   "type": 4,
+   "timestamp": 1794282748458,
+   "data": {
+    "href": "",
+    "height": 912,
+    "width": 416
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282748458,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "segmentId": 0,
+     "size": 38508,
+     "duration": 5000,
+     "encoding": "h264",
+     "container": "mp4",
+     "height": 912,
+     "width": 416,
+     "frameCount": 5,
+     "frameRate": 1,
+     "frameRateType": "constant",
+     "left": 0,
+     "top": 0
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282749444,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794282749.444,
+     "category": "device.battery",
+     "data": {
+      "level": 100,
+      "charging": true
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794282755532,
+   "data": {
+    "tag": "options",
+    "payload": {
+     "unmaskedViewClasses": [
+      "android.widget.TextView",
+      "android.widget.ImageView"
+     ],
+     "nativeSdkVersion": "8.62.0",
+     "errorSampleRate": 1.0,
+     "networkDetailHasUrls": false,
+     "maskAllImages": false,
+     "maskAllText": false,
+     "maskedViewClasses": [
+      "android.webkit.WebView",
+      "android.widget.VideoView",
+      "androidx.camera.view.PreviewView",
+      "androidx.media3.ui.PlayerView",
+      "com.google.android.exoplayer2.ui.PlayerView",
+      "com.google.android.exoplayer2.ui.StyledPlayerView",
+      "io.sentry.react.replay.RNSentryReplayMask"
+     ],
+     "nativeSdkName": "sentry.java.android.react-native",
+     "sessionSampleRate": 1.0,
+     "quality": "medium",
+     "screenshotStrategy": "pixelCopy"
+    }
+   }
+  }
+ ]
+}

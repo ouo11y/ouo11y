@@ -91,7 +91,7 @@ the real bridge and backend, then runs the same `verify.py`.
 | `handled-error` | `Sentry.captureException`: `event`, level `error`, mechanism `generic`, `handled: true`; the session `errors` count goes up |
 | `message` | breadcrumb plus `Sentry.captureMessage(..., "info")`: `event` level `info`, no exception |
 | `feedback` | `Sentry.captureException`, then `Sentry.captureFeedback` (`feedback` item: an event of type `feedback` with `contexts.feedback`) and a hand-built legacy `user_report` item naming the error (what `captureUserFeedback` sent before SDK 8 removed it). The bridge maps both to `feedback` records (spec section 9c) |
-| `unhandled-rejection` | `Promise.reject` nobody awaits: `event` level `error`, mechanism `onunhandledrejection` but `handled: true` (sic, SDK 8.30); session stays `ok`, `errors` + 1; the app keeps running |
+| `unhandled-rejection` | `Promise.reject` nobody awaits: `event` level `error`, mechanism `onunhandledrejection` but `handled: true` (sic, SDK 8.30; Android 8.34 starts a new health session on every captured JS error, see `project/kb/vendor-internals/sentry/mobile-sdks/wire-capture.md`); session stays `ok`, `errors` + 1; the app keeps running |
 | `js-fatal` | `throw` inside `setTimeout`: `event` level `fatal`, mechanism `onerror`, `handled: false`, sent together with the session update `crashed` before RN terminates the app (Release). Opt-in in the journey (`--js-fatal`) |
 | `native-crash` | `Sentry.nativeCrash()`: on the **next** launch sentry-cocoa sends `event` (level `fatal`, `EXC_BAD_ACCESS`, mechanism `mach`, `handled: false`) + session `crashed` in one envelope, after the new session's `init` |
 | `browse-catalog` | new trace (`startNewTrace`), `ui.action` transaction `browse catalog` with manual spans `load catalog`, `load product details` (4 parallel `GET /api/products/{id}`), `rank products`; one `Sentry.logger.info` |
@@ -135,6 +135,8 @@ plugin changes from this checkout: build from source instead by leaving
 | `APP_VERSION`, `BUILD_NUMBER` | `1.0.0`, `1`: release `sentry-demo@1.0.0+1`, dist `1` |
 | `SENTRY_ENVIRONMENT` | `development` |
 | `SENTRY_DEBUG=1` | SDK debug logging (JS and native), off by default |
+| `SENTRY_CAPTURE_ALL=1` | Off by default. Adds `attachScreenshot`, `attachViewHierarchy`, `profilesSampleRate: 1` and `enableCaptureFailedRequests`, so every optional item type is sent (screenshots, view hierarchies, `profile` items). Used for the Step 6 wire captures |
+| `SENTRY_REPLAY_MASK=default` | Off by default (the demo replays unmasked). Keeps Sentry's default replay masking (all text, images, vectors) |
 | rollout variables | see "Rollout modes" below |
 
 The values are baked into the embedded JS bundle, so rebuild after a change.
@@ -152,6 +154,34 @@ Needs full Xcode (`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, th
 and CocoaPods. `ios/` is generated and gitignored. `pod install` downloads the prebuilt
 `Sentry.xcframework` from the sentry-cocoa GitHub release (cached in
 `~/Library/Caches/sentry-react-native/`).
+
+## Android build and wire research (Step 6)
+
+Added on 2026-11-10 for `project/kb/vendor-internals/sentry/mobile-sdks/`. Nothing below changes the
+iOS flow above: the new variables are off by default, and `app.config.ts` only gains an `android`
+block and the `withAndroidCleartext` plugin (Android manifest only). The committed pin stays at
+`@sentry/react-native` 8.32.0, which the bridge journey in CI uses. The Step 6 captures were made
+with the latest stable release installed locally on top of it, without saving it
+(`npm install --no-save @sentry/react-native@8.34.0 @sentry/core@10.78.0`); 8.34.0 bundles
+sentry-cocoa 9.33.0 and sentry-android 8.62.0.
+
+```bash
+# Android (JDK 17, ANDROID_HOME; project/kb-archive/android-setup.md). From the emulator the Mac is 10.0.2.2.
+SENTRY_DSN=http://<key>@10.0.2.2:4531/<project> BACKEND_URL=http://10.0.2.2:<port> \
+  OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=sentry scripts/build-android.sh --serial emulator-5580
+python3 -I scripts/android-journey.py --serial emulator-5580                 # full journey with real taps
+python3 -I scripts/android-journey.py --serial emulator-5580 --phases replay --replay-seconds 120
+# iOS: fixed-length replay journey (bytes per minute)
+scripts/replay-journey.sh --device <udid> --seconds 120
+# decode a sentrytap capture: one folder per request, replay parts split, summary.json, ids.json
+python3 -I scripts/extract.py <capture dir> <out dir>
+python3 -I scripts/mp4info.py <segment.mp4>     # codec, profile, size, frames, bit rate (no ffprobe needed)
+```
+
+`scripts/android-journey.py` taps buttons by their testID (`uiautomator dump`), because a Release
+build cannot be driven through the file mailbox (`run-as` fails) and deep links pause the activity.
+`scripts/build-ios.sh` now calls `./node_modules/.bin/expo` instead of `npx expo` (npx walked up to
+the repository's workspace root from a worktree and failed).
 
 ## Rollout modes: Sentry, both, or ouo, picked at runtime
 

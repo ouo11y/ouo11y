@@ -1,0 +1,847 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "Selected rrweb events from /s/ with the cv 2024-10 gzip fields decoded by server.mjs: Meta(4), FullSnapshot(2), network plugin(6), custom(5) $remote_config_received/$session_options/$recording_started, MouseMove(3.1), MouseInteraction(3.2), Mutation(3.0), Input(3.5), console plugin(6)."
+  },
+  "path": "/s/",
+  "headers": {
+    "host": "posthog-capture.localhost:4570",
+    "content-length": "6943",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "content-type": "text/plain",
+    "accept": "*/*",
+    "origin": "http://posthog-capture.localhost:4570",
+    "sec-fetch-mode": "cors"
+  },
+  "envelope": {
+    "uuid": "01a1c381-0555-7470-b52b-2321906d9c0a",
+    "event": "$snapshot",
+    "properties": {
+      "$snapshot_bytes": 26662,
+      "$snapshot_data": "<89 rrweb events; selection below>",
+      "$session_id": "01a1c380-ee3a-7f3c-86a1-56e08bd74251",
+      "$window_id": "01a1c380-ee3a-7f3c-86a1-56e16de154a0",
+      "$lib": "web",
+      "$lib_version": "1.447.6",
+      "$snapshot_host": "posthog-capture.localhost",
+      "token": "phc_<redacted>",
+      "$config_defaults": "2026-08-30",
+      "distinct_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53"
+    },
+    "timestamp": "2026-11-10T03:29:35.061Z",
+    "sent_at": "2026-11-10T03:29:36.077Z"
+  },
+  "selection": [
+    {
+      "type": 4,
+      "data": {
+        "href": "http://posthog-capture.localhost:4570/",
+        "width": 1280,
+        "height": 813
+      },
+      "timestamp": 1794281369224
+    },
+    {
+      "type": 2,
+      "data": {
+        "node": {
+          "type": 0,
+          "childNodes": [
+            {
+              "type": 1,
+              "name": "html",
+              "publicId": "",
+              "systemId": "",
+              "id": 2
+            },
+            {
+              "type": 2,
+              "tagName": "html",
+              "attributes": {
+                "lang": "en"
+              },
+              "childNodes": [
+                {
+                  "type": 2,
+                  "tagName": "head",
+                  "attributes": {},
+                  "childNodes": [
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 5
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "meta",
+                      "attributes": {
+                        "charset": "utf-8"
+                      },
+                      "childNodes": [],
+                      "id": 6
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 7
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "meta",
+                      "attributes": {
+                        "name": "viewport",
+                        "content": "width=device-width, initial-scale=1"
+                      },
+                      "childNodes": [],
+                      "id": 8
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 9
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "title",
+                      "attributes": {},
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "posthog-capture demo",
+                          "id": 11
+                        }
+                      ],
+                      "id": 10
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 12
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "style",
+                      "attributes": {},
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "body { font: 16px / 1.4 system-ui, sans-serif; margin: 24px; max-width: 720px; }button, input { font: inherit; margin: 4px 0px; padding: 6px 10px; }#list li { padding: 2px 0px; }.card { border: 1px solid rgb(204, 204, 204); border-radius: 8px; padding: 12px; margin: 12px 0px; }",
+                          "isStyle": true,
+                          "id": 14
+                        }
+                      ],
+                      "id": 13
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n  ",
+                      "id": 15
+                    }
+                  ],
+                  "id": 4
+                },
+                {
+                  "type": 3,
+                  "textContent": "\n  ",
+                  "id": 16
+                },
+                {
+                  "type": 2,
+                  "tagName": "body",
+                  "attributes": {},
+                  "childNodes": [
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 18
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "h1",
+                      "attributes": {
+                        "id": "title"
+                      },
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "posthog-capture demo",
+                          "id": 20
+                        }
+                      ],
+                      "id": 19
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 21
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "p",
+                      "attributes": {},
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "Each control below triggers one PostHog feature. The capture server logs what the SDK sends.",
+                          "id": 23
+                        }
+                      ],
+                      "id": 22
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n\n    ",
+                      "id": 24
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "div",
+                      "attributes": {
+                        "class": "card"
+                      },
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 26
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-click",
+                            "data-ph-capture-attribute-step": "first"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Plain click (autocapture)",
+                              "id": 28
+                            }
+                          ],
+                          "id": 27
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 29
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-rage"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Rage click me",
+                              "id": 31
+                            }
+                          ],
+                          "id": 30
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 32
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "span",
+                          "attributes": {
+                            "id": "dead",
+                            "style": "cursor: pointer"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Dead click target",
+                              "id": 34
+                            }
+                          ],
+                          "id": 33
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n    ",
+                          "id": 35
+                        }
+                      ],
+                      "id": 25
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n\n    ",
+                      "id": 36
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "div",
+                      "attributes": {
+                        "class": "card"
+                      },
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 38
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "form",
+                          "attributes": {
+                            "id": "form",
+                            "onsubmit": "event.preventDefault(); document.getElementById('form-out').textContent = 'submitted'"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "\n        ",
+                              "id": 40
+                            },
+                            {
+                              "type": 2,
+                              "tagName": "input",
+                              "attributes": {
+                                "id": "name",
+                                "name": "name",
+                                "placeholder": "name (text input)"
+                              },
+                              "childNodes": [],
+                              "id": 41
+                            },
+                            {
+                              "type": 3,
+                              "textContent": "\n        ",
+                              "id": 42
+                            },
+                            {
+                              "type": 2,
+                              "tagName": "input",
+                              "attributes": {
+                                "id": "password",
+                                "name": "password",
+                                "type": "password",
+                                "placeholder": "password"
+                              },
+                              "childNodes": [],
+                              "id": 43
+                            },
+                            {
+                              "type": 3,
+                              "textContent": "\n        ",
+                              "id": 44
+                            },
+                            {
+                              "type": 2,
+                              "tagName": "input",
+                              "attributes": {
+                                "id": "captured",
+                                "name": "captured",
+                                "data-ph-capture-value": "",
+                                "placeholder": "value captured"
+                              },
+                              "childNodes": [],
+                              "id": 45
+                            },
+                            {
+                              "type": 3,
+                              "textContent": "\n        ",
+                              "id": 46
+                            },
+                            {
+                              "type": 2,
+                              "tagName": "button",
+                              "attributes": {
+                                "id": "submit",
+                                "type": "submit"
+                              },
+                              "childNodes": [
+                                {
+                                  "type": 3,
+                                  "textContent": "Submit form",
+                                  "id": 48
+                                }
+                              ],
+                              "id": 47
+                            },
+                            {
+                              "type": 3,
+                              "textContent": "\n        ",
+                              "id": 49
+                            },
+                            {
+                              "type": 2,
+                              "tagName": "span",
+                              "attributes": {
+                                "id": "form-out"
+                              },
+                              "childNodes": [],
+                              "id": 50
+                            },
+                            {
+                              "type": 3,
+                              "textContent": "\n      ",
+                              "id": 51
+                            }
+                          ],
+                          "id": 39
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n    ",
+                          "id": 52
+                        }
+                      ],
+                      "id": 37
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n\n    ",
+                      "id": 53
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "div",
+                      "attributes": {
+                        "class": "card"
+                      },
+                      "childNodes": [
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 55
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-fetch"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "fetch /api/demo",
+                              "id": 57
+                            }
+                          ],
+                          "id": 56
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 58
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-fetch-fail"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "fetch /api/demo-fail (500)",
+                              "id": 60
+                            }
+                          ],
+                          "id": 59
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 61
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-throw"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Throw error",
+                              "id": 63
+                            }
+                          ],
+                          "id": 62
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 64
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-reject"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Unhandled rejection",
+                              "id": 66
+                            }
+                          ],
+                          "id": 65
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 67
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-console"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "console.log/warn/error",
+                              "id": 69
+                            }
+                          ],
+                          "id": 68
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 70
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-manual"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Manual capture + identify + captureException",
+                              "id": 72
+                            }
+                          ],
+                          "id": 71
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 73
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-mutate"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "Add 200 list items (DOM mutations)",
+                              "id": 75
+                            }
+                          ],
+                          "id": 74
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n      ",
+                          "id": 76
+                        },
+                        {
+                          "type": 2,
+                          "tagName": "button",
+                          "attributes": {
+                            "id": "btn-nav"
+                          },
+                          "childNodes": [
+                            {
+                              "type": 3,
+                              "textContent": "pushState to /page-2",
+                              "id": 78
+                            }
+                          ],
+                          "id": 77
+                        },
+                        {
+                          "type": 3,
+                          "textContent": "\n    ",
+                          "id": 79
+                        }
+                      ],
+                      "id": 54
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 80
+                    },
+                    {
+                      "type": 2,
+                      "tagName": "ul",
+                      "attributes": {
+                        "id": "list"
+                      },
+                      "childNodes": [],
+                      "id": 81
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n\n    ",
+                      "id": 82
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n    ",
+                      "id": 83
+                    },
+                    {
+                      "type": 3,
+                      "textContent": "\n  \n\n",
+                      "id": 84
+                    }
+                  ],
+                  "id": 17
+                }
+              ],
+              "id": 3
+            }
+          ],
+          "id": 1
+        },
+        "initialOffset": {
+          "left": 0,
+          "top": 0
+        }
+      },
+      "timestamp": 1794281369233,
+      "cv": "2024-10",
+      "_decodedFrom": "cv 2024-10"
+    },
+    {
+      "type": 6,
+      "data": {
+        "plugin": "rrweb/network@1",
+        "payload": {
+          "requests": [
+            {
+              "name": "http://posthog-capture.localhost:4570/api/demo?x=1",
+              "entryType": "resource",
+              "startTime": 5911,
+              "duration": 1.5999999046325684,
+              "navigationId": 1594,
+              "initiatorType": "fetch",
+              "deliveryType": "",
+              "nextHopProtocol": "http/1.1",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "application/json",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 5911.300000190735,
+              "domainLookupStart": 5911.600000143051,
+              "domainLookupEnd": 5911.700000047684,
+              "connectStart": 5911.700000047684,
+              "secureConnectionStart": 0,
+              "connectEnd": 5911.900000095367,
+              "requestStart": 5911.900000095367,
+              "responseStart": 5912.800000190735,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 5912.800000190735,
+              "responseEnd": 5912.900000095367,
+              "transferSize": 330,
+              "encodedBodySize": 30,
+              "decodedBodySize": 30,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "endTime": 5913,
+              "timeOrigin": 1794281369009,
+              "timestamp": 1794281374920,
+              "method": "GET",
+              "status": 200,
+              "requestHeaders": {
+                "x-demo": "yes"
+              },
+              "requestBody": "",
+              "responseHeaders": {
+                "access-control-allow-credentials": "redacted",
+                "access-control-allow-headers": "*",
+                "access-control-allow-origin": "*",
+                "connection": "keep-alive",
+                "content-type": "application/json",
+                "date": "Tue, 10 Nov 2026 03:29:34 GMT",
+                "keep-alive": "timeout=5",
+                "transfer-encoding": "chunked"
+              },
+              "responseBody": "Chunked Transfer-Encoding is not supported"
+            }
+          ]
+        }
+      },
+      "timestamp": 1794281374929
+    },
+    {
+      "type": 5,
+      "data": {
+        "tag": "$remote_config_received",
+        "payload": {
+          "cache_timestamp": 1794281369183,
+          "enabled": true,
+          "endpoint": "/s/",
+          "consoleLogRecordingEnabled": true,
+          "recorderVersion": "v2",
+          "sampleRate": null,
+          "minimumDurationMilliseconds": null,
+          "linkedFlag": null,
+          "networkPayloadCapture": {
+            "capturePerformance": {
+              "network_timing": true,
+              "web_vitals": true,
+              "web_vitals_allowed_metrics": null
+            },
+            "recordHeaders": true,
+            "recordBody": true
+          },
+          "masking": null,
+          "urlTriggers": [],
+          "urlBlocklist": [],
+          "eventTriggers": [],
+          "triggerMatchType": null,
+          "scriptConfig": null,
+          "recordCanvas": false,
+          "version": 1,
+          "canvasRecording": {
+            "enabled": false
+          }
+        }
+      },
+      "timestamp": 1794281369241
+    },
+    {
+      "type": 5,
+      "data": {
+        "tag": "$session_options",
+        "payload": {
+          "sessionRecordingOptions": {
+            "blockClass": "ph-no-capture",
+            "ignoreClass": "ph-ignore-input",
+            "maskTextClass": "ph-mask",
+            "maskAllInputs": true,
+            "maskInputOptions": {
+              "password": true
+            },
+            "maskAllElementAttributes": false,
+            "slimDOMOptions": {
+              "script": true
+            },
+            "collectFonts": false,
+            "inlineStylesheet": true,
+            "inlineStylesheetBudgetRules": 10000,
+            "recordCrossOriginIframes": false
+          },
+          "activePlugins": [
+            "rrweb/console@1",
+            "rrweb/network@1"
+          ]
+        }
+      },
+      "timestamp": 1794281369241
+    },
+    {
+      "type": 5,
+      "data": {
+        "tag": "$recording_started",
+        "payload": {
+          "reason": "recording_initialized"
+        }
+      },
+      "timestamp": 1794281369242
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 1,
+        "positions": [
+          {
+            "x": 136,
+            "y": 164,
+            "id": 27,
+            "timeOffset": 0
+          }
+        ]
+      },
+      "timestamp": 1794281373052
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 2,
+        "type": 1,
+        "id": 27,
+        "x": 136.671875,
+        "y": 164.8203125
+      },
+      "timestamp": 1794281373060
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 0,
+        "texts": [],
+        "attributes": [],
+        "removes": [],
+        "adds": [
+          {
+            "parentId": 50,
+            "nextId": null,
+            "node": {
+              "type": 3,
+              "textContent": "submitted",
+              "id": 85
+            }
+          }
+        ]
+      },
+      "timestamp": 1794281374785,
+      "cv": "2024-10",
+      "_decodedFrom": "cv 2024-10"
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 5,
+        "text": "*",
+        "isChecked": false,
+        "id": 41
+      },
+      "timestamp": 1794281374429
+    },
+    {
+      "type": 6,
+      "data": {
+        "plugin": "rrweb/console@1",
+        "payload": {
+          "level": "log",
+          "trace": [
+            "$.onclick (http://posthog-capture.localhost:4570/:73:50)"
+          ],
+          "payload": [
+            "\"demo log\"",
+            "{\"a\":1}"
+          ]
+        }
+      },
+      "timestamp": 1794281375185
+    }
+  ]
+}

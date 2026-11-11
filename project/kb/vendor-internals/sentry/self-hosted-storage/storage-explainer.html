@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentry Self-Hosted Storage</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#6b6a64;--line:#cfccc1;--card:#ffffff;--relay:#2f6f9f;--kafka:#b5651d;--cons:#3f8a4f;--store:#8a3f7a;--code:#f1efe8}
+@media (prefers-color-scheme: dark){:root{--bg:#161614;--fg:#ecebe6;--muted:#a3a198;--line:#45443e;--card:#1f1f1c;--relay:#7fb6df;--kafka:#e0a46a;--cons:#86c995;--store:#d39acb;--code:#2a2a26}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:32px 0 8px}
+p.sub{color:var(--muted);margin:0 0 16px}
+code{font:13px ui-monospace,Menlo,monospace;background:var(--code);padding:1px 4px;border-radius:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.scroll{overflow-x:auto}
+svg text{fill:var(--fg);font:11.5px system-ui,sans-serif}
+svg .m{font:11px ui-monospace,Menlo,monospace}
+svg .h{font-weight:700;font-size:12.5px}
+.legend span{display:inline-block;margin-right:14px;font-size:13px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<main>
+<h1>Self-hosted Sentry storage</h1>
+<p class="sub">Self-hosted Sentry 26.10.0 (feature-complete), observed on a local stack 2026-11-10 and read from Relay/Sentry/Snuba source at 26.10.0. Details in <code>index.md</code>.</p>
+<div class="legend"><span><i style="background:var(--relay)"></i>Relay</span><span><i style="background:var(--kafka)"></i>Kafka topic</span><span><i style="background:var(--cons)"></i>consumer / task</span><span><i style="background:var(--store)"></i>store</span></div>
+
+<h2>1. Pipeline</h2>
+<div class="card scroll">
+<svg viewBox="0 0 1150 640" width="100%" style="min-width:900px" role="img" aria-label="Relay to Kafka topics to consumers to ClickHouse, nodestore, filestore and Postgres">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+<g stroke="var(--muted)" stroke-width="1.3" fill="none" marker-end="url(#ar)">
+<!-- relay to topics -->
+<path d="M140,320 C170,320 170,40 205,40"/><path d="M140,320 C170,320 170,100 205,100"/><path d="M140,320 C170,320 170,160 205,160"/><path d="M140,320 C170,320 170,220 205,220"/><path d="M140,320 C170,320 170,280 205,280"/><path d="M140,320 L205,340"/><path d="M140,320 C170,320 170,400 205,400"/><path d="M140,320 C170,320 170,460 205,460"/><path d="M140,320 C170,320 170,520 205,520"/><path d="M140,320 C170,320 170,580 205,580"/>
+<!-- topics to consumers -->
+<path d="M385,40 L440,40"/><path d="M385,100 L440,100"/><path d="M385,160 L440,160"/><path d="M385,220 L440,220"/><path d="M385,280 L440,280"/><path d="M385,340 L440,340"/><path d="M385,400 L440,400"/><path d="M385,460 L440,460"/><path d="M385,520 L440,520"/><path d="M385,580 L440,580"/>
+<!-- consumers to second topics -->
+<path d="M640,40 L690,40"/><path d="M640,100 L690,100"/><path d="M640,220 L690,220"/><path d="M640,280 L690,400"/><path d="M640,340 L690,340"/><path d="M640,400 L690,460"/><path d="M640,460 L690,520"/>
+<!-- second topics to stores -->
+<path d="M850,40 L920,60"/><path d="M850,100 L920,60"/><path d="M850,220 L920,60"/><path d="M850,340 L920,60"/><path d="M850,400 L920,60"/><path d="M850,460 L920,60"/><path d="M850,520 L920,60"/>
+<path d="M640,160 L920,60"/><path d="M640,580 L920,60"/>
+<path d="M640,40 C780,40 780,250 920,250"/><path d="M640,100 C780,100 780,250 920,250"/>
+<path d="M640,400 C780,400 780,360 920,360"/><path d="M640,40 C800,40 800,470 920,470"/><path d="M640,520 C780,520 780,580 920,580"/>
+</g>
+<!-- Relay -->
+<rect x="10" y="280" width="130" height="80" rx="8" fill="none" stroke="var(--relay)" stroke-width="2"/>
+<text class="h" x="22" y="305">Relay</text><text x="22" y="324">processing mode</text><text x="22" y="342">quotas in Redis</text>
+<!-- topics -->
+<g fill="none" stroke="var(--kafka)" stroke-width="2">
+<rect x="205" y="25" width="180" height="30" rx="6"/><rect x="205" y="85" width="180" height="30" rx="6"/><rect x="205" y="145" width="180" height="30" rx="6"/><rect x="205" y="205" width="180" height="30" rx="6"/><rect x="205" y="265" width="180" height="30" rx="6"/><rect x="205" y="325" width="180" height="30" rx="6"/><rect x="205" y="385" width="180" height="30" rx="6"/><rect x="205" y="445" width="180" height="30" rx="6"/><rect x="205" y="505" width="180" height="30" rx="6"/><rect x="205" y="565" width="180" height="30" rx="6"/>
+</g>
+<g class="m"><text x="213" y="45">ingest-events / -attachments</text><text x="213" y="105">ingest-transactions</text><text x="213" y="165">snuba-items (logs, metrics)</text><text x="213" y="225">ingest-feedback-events</text><text x="213" y="285">ingest-spans</text><text x="213" y="345">ingest-metrics (sessions)</text><text x="213" y="405">ingest-replay-recordings</text><text x="213" y="465">profiles</text><text x="213" y="525">ingest-monitors</text><text x="213" y="585">outcomes</text></g>
+<!-- consumers -->
+<g fill="none" stroke="var(--cons)" stroke-width="2">
+<rect x="440" y="25" width="200" height="30" rx="6"/><rect x="440" y="85" width="200" height="30" rx="6"/><rect x="440" y="145" width="200" height="30" rx="6"/><rect x="440" y="205" width="200" height="30" rx="6"/><rect x="440" y="265" width="200" height="30" rx="6"/><rect x="440" y="325" width="200" height="30" rx="6"/><rect x="440" y="385" width="200" height="30" rx="6"/><rect x="440" y="445" width="200" height="30" rx="6"/><rect x="440" y="505" width="200" height="30" rx="6"/><rect x="440" y="565" width="200" height="30" rx="6"/>
+</g>
+<g><text x="448" y="45">events/attachments-consumer + save_event</text><text x="448" y="105">transactions-consumer</text><text x="448" y="165">snuba-eap-items-consumer</text><text x="448" y="225">ingest-feedback (issue platform)</text><text x="448" y="285">process-spans (Redis buffer)</text><text x="448" y="345">metrics-consumer (indexer)</text><text x="448" y="405">taskbroker raw → replay task</text><text x="448" y="465">taskbroker raw → vroom</text><text x="448" y="525">ingest-monitors</text><text x="448" y="585">snuba-outcomes-consumer</text></g>
+<!-- second topics -->
+<g fill="none" stroke="var(--kafka)" stroke-width="2" stroke-dasharray="4 3">
+<rect x="690" y="25" width="160" height="30" rx="6"/><rect x="690" y="85" width="160" height="30" rx="6"/><rect x="690" y="205" width="160" height="30" rx="6"/><rect x="690" y="325" width="160" height="30" rx="6"/><rect x="690" y="385" width="160" height="30" rx="6"/><rect x="690" y="445" width="160" height="30" rx="6"/><rect x="690" y="505" width="160" height="30" rx="6"/>
+</g>
+<g class="m"><text x="698" y="45">events</text><text x="698" y="105">transactions</text><text x="698" y="225">generic-events</text><text x="698" y="345">snuba-metrics</text><text x="698" y="405">snuba-items (spans)</text><text x="698" y="465">ingest-replay-events</text><text x="698" y="525">processed-profiles…</text></g>
+<!-- stores -->
+<g fill="none" stroke="var(--store)" stroke-width="2.5">
+<rect x="920" y="20" width="220" height="150" rx="8"/><rect x="920" y="215" width="220" height="80" rx="8"/><rect x="920" y="325" width="220" height="80" rx="8"/><rect x="920" y="435" width="220" height="80" rx="8"/><rect x="920" y="545" width="220" height="80" rx="8"/>
+</g>
+<text class="h" x="932" y="42">ClickHouse (Snuba)</text>
+<g class="m"><text x="932" y="62">errors_local</text><text x="932" y="78">transactions_local</text><text x="932" y="94">eap_items_1_local</text><text x="932" y="110">replays_local (metadata)</text><text x="932" y="126">search_issues_local_v2</text><text x="932" y="142">metrics_*_v2, outcomes_*</text><text x="932" y="158">profiles, profile_chunks</text></g>
+<text class="h" x="932" y="237">Nodestore</text><text x="932" y="256">seaweedfs bucket nodestore</text><text x="932" y="274">md5(project:event) → zstd JSON</text>
+<text class="h" x="932" y="347">Filestore /data/files</text><text x="932" y="366">replays: 90/&lt;proj&gt;/&lt;replay&gt;/&lt;seg&gt;</text><text x="932" y="384">zlib rrweb (+ packed video)</text>
+<text class="h" x="932" y="457">Postgres</text><text x="932" y="476">groups, releases, user reports,</text><text x="932" y="494">attachments meta, monitors</text>
+<text class="h" x="932" y="567">seaweedfs profiles</text><text x="932" y="586">vroom profile blobs</text>
+</svg>
+</div>
+
+<h2>2. What to read for each signal</h2>
+<div class="card scroll">
+<table>
+<tr><th>Signal</th><th>Searchable rows</th><th>Full payload</th><th>Retention here</th></tr>
+<tr><td>Error</td><td><code>errors_local</code></td><td>nodestore (seaweedfs)</td><td>90 d TTL / S3 lifecycle</td></tr>
+<tr><td>Transaction</td><td><code>transactions_local</code> + spans in EAP</td><td>nodestore</td><td>90 d</td></tr>
+<tr><td>Span, log, trace metric</td><td><code>eap_items_1_local</code> (item_type 1, 3, 8)</td><td>same row (attribute maps)</td><td>90 d</td></tr>
+<tr><td>Replay</td><td><code>replays_local</code>, <code>replays_aggregated_local</code></td><td>filestore segment files</td><td>rows 90 d; files: no cleanup job found</td></tr>
+<tr><td>Feedback</td><td><code>search_issues_local_v2</code> (6001)</td><td>nodestore</td><td>90 d</td></tr>
+<tr><td>Session</td><td>only aggregates in <code>metrics_*_v2</code></td><td>none</td><td>raw 7 d, aggregates 90 d</td></tr>
+<tr><td>Outcomes</td><td><code>outcomes_raw/hourly/daily</code></td><td>—</td><td>30 d / 90 d / 13 months</td></tr>
+<tr><td>Attachment</td><td><code>sentry_eventattachment</code></td><td>inline (&lt;192 B ASCII) or filestore</td><td>date_expires = +90 d</td></tr>
+</table>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,3 @@
+{}
+{"type":"client_report"}
+{"timestamp":1794281852.189,"discarded_events":[{"reason":"network_error","category":"session","quantity":2},{"reason":"network_error","category":"profile","quantity":1},{"reason":"network_error","category":"span","quantity":10},{"reason":"network_error","category":"replay","quantity":4},{"reason":"network_error","category":"error","quantity":3}]}

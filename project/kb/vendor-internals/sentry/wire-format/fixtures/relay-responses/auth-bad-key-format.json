@@ -1,0 +1,25 @@
+{
+  "case": "auth-bad-key-format",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.377Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=nothex, sentry_version=7"
+    },
+    "body_bytes": 99,
+    "body_preview": "{\"event_id\":\"eb19faf71f5c49ef9ddd3fef91d07acd\"}\n{\"type\":\"event\",\"length\":21}\n{\"message\":\"no auth\"}\n"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"bad sentry DSN public key\",\"causes\":[\"invalid project key\"]}",
+    "ms": 8.1
+  }
+}

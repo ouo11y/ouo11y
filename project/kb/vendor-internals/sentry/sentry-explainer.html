@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentry end to end</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5f5d57;--line:#d9d6cc;--card:#fff;--accent:#3b5bdb;--sdk:#e7f0ff;--relay:#fff1d6;--kafka:#efe6ff;--store:#e3f6ea;--api:#ffe6e6;--warn:#b54708}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181a;--fg:#ecebe6;--muted:#a3a19a;--line:#3a3b3e;--card:#202124;--accent:#8ea8ff;--sdk:#1f2a40;--relay:#3a2f17;--kafka:#2c2340;--store:#1b3325;--api:#3d2020;--warn:#f79009}}
+:root[data-theme="dark"]{--bg:#17181a;--fg:#ecebe6;--muted:#a3a19a;--line:#3a3b3e;--card:#202124;--accent:#8ea8ff;--sdk:#1f2a40;--relay:#3a2f17;--kafka:#2c2340;--store:#1b3325;--api:#3d2020;--warn:#f79009}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1040px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:1.9rem;margin:0 0 .3em}h2{margin-top:2.2em;font-size:1.3rem;border-bottom:1px solid var(--line);padding-bottom:.3em}
+p,li{max-width:72ch}.muted{color:var(--muted)}
+a{color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.grid .card{margin:0}
+.grid h3{margin:.1em 0 .4em;font-size:1rem}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font:13px system-ui,sans-serif}
+svg .small{font-size:11px;fill:var(--muted)}
+.sdk{fill:var(--sdk)}.relay{fill:var(--relay)}.kafka{fill:var(--kafka)}.store{fill:var(--store)}.api{fill:var(--api)}
+svg rect{stroke:var(--line)}
+svg line,svg path.arrow{stroke:var(--muted);stroke-width:1.4;fill:none}
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.scroll{overflow-x:auto}
+code{font-size:.9em;background:color-mix(in srgb,var(--line) 40%,transparent);padding:1px 4px;border-radius:4px}
+.warn{color:var(--warn);font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>Sentry end to end</h1>
+<p class="muted">Step 6 of the post-MVP plan, researched 2026-11-10. Versions: <code>@sentry/browser</code> 11.11.0, sentry-cocoa 9.33.0, sentry-java 8.63.0, <code>@sentry/react-native</code> 8.34.0, self-hosted Sentry, Relay and Snuba 26.10.0. Every number here comes from the linked kb entries, where each claim has its source (code at a tag, docs, or an observed capture).</p>
+
+<p>ouo rides on top of Sentry in three ways: (a) the Sentry SDK sends to Sentry and Muninn reads back through Sentry's API; (b) the Sentry SDK sends to our collector, which forwards to Sentry and keeps a copy; (c) our own SDK sends to us. This page follows one piece of data through every stage that matters for those three paths.</p>
+
+<h2>The whole path</h2>
+<svg viewBox="0 0 1000 470" role="img" aria-label="Sentry data path from SDKs through Relay and Kafka to stores and read APIs">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+<!-- SDKs -->
+<rect class="sdk" x="10" y="20" width="170" height="70" rx="8"/><text x="22" y="45">Browser SDK 11.11</text><text class="small" x="22" y="64">rrweb replay, span v2,</text><text class="small" x="22" y="79">logs, metrics, profiles</text>
+<rect class="sdk" x="10" y="105" width="170" height="70" rx="8"/><text x="22" y="130">iOS (cocoa 9.33)</text><text class="small" x="22" y="149">SentryCrash, video replay,</text><text class="small" x="22" y="164">30-file disk cache</text>
+<rect class="sdk" x="10" y="190" width="170" height="70" rx="8"/><text x="22" y="215">Android (java 8.63)</text><text class="small" x="22" y="234">ANR via ApplicationExitInfo,</text><text class="small" x="22" y="249">video replay, disk cache</text>
+<rect class="sdk" x="10" y="275" width="170" height="70" rx="8"/><text x="22" y="300">React Native 8.34</text><text class="small" x="22" y="319">JS layer, envelopes cross</text><text class="small" x="22" y="334">the bridge to native</text>
+<!-- collector path b -->
+<rect class="api" x="10" y="370" width="170" height="70" rx="8"/><text x="22" y="395">ouo collector</text><text class="small" x="22" y="414">topology (b): tees envelopes</text><text class="small" x="22" y="429">to Sentry and to ouo</text>
+<!-- Relay -->
+<rect class="relay" x="240" y="120" width="170" height="150" rx="8"/><text x="252" y="145">Relay 26.10.0</text><text class="small" x="252" y="166">/api/&lt;id&gt;/envelope/</text><text class="small" x="252" y="182">/api/&lt;id&gt;/otlp/v1/…</text><text class="small" x="252" y="198">auth, size limits,</text><text class="small" x="252" y="214">rate limits (429),</text><text class="small" x="252" y="230">PII scrub, normalise,</text><text class="small" x="252" y="246">one event-like item</text><text class="small" x="252" y="262">per envelope</text>
+<!-- Kafka -->
+<rect class="kafka" x="470" y="20" width="200" height="330" rx="8"/><text x="482" y="45">Kafka topics</text>
+<text class="small" x="482" y="70">ingest-events</text><text class="small" x="482" y="88">ingest-attachments</text><text class="small" x="482" y="106">ingest-transactions</text><text class="small" x="482" y="124">ingest-feedback-events</text><text class="small" x="482" y="142">ingest-spans</text><text class="small" x="482" y="160">snuba-items (logs, metrics)</text><text class="small" x="482" y="178">ingest-replay-recordings</text><text class="small" x="482" y="196">profiles</text><text class="small" x="482" y="214">ingest-metrics (sessions)</text><text class="small" x="482" y="232">ingest-monitors</text><text class="small" x="482" y="250">outcomes</text><text class="small" x="482" y="276">consumers + taskworker</text><text class="small" x="482" y="294">turn these into rows</text><text class="small" x="482" y="312">and objects (83 topics</text><text class="small" x="482" y="330">exist in total)</text>
+<!-- Stores -->
+<rect class="store" x="730" y="20" width="250" height="80" rx="8"/><text x="742" y="45">ClickHouse</text><text class="small" x="742" y="64">errors, transactions, replays,</text><text class="small" x="742" y="80">eap_items (spans, logs, metrics),</text><text class="small" x="742" y="94">session metrics, outcomes</text>
+<rect class="store" x="730" y="110" width="250" height="60" rx="8"/><text x="742" y="135">Nodestore (seaweedfs, zstd)</text><text class="small" x="742" y="154">full event JSON; Postgres table empty</text>
+<rect class="store" x="730" y="180" width="250" height="60" rx="8"/><text x="742" y="205">Filestore (sentry-data volume)</text><text class="small" x="742" y="224">replay segments, zlib, per segment</text>
+<rect class="store" x="730" y="250" width="250" height="60" rx="8"/><text x="742" y="275">Postgres</text><text class="small" x="742" y="294">projects, issues (groups), releases</text>
+<!-- API -->
+<rect class="api" x="730" y="350" width="250" height="90" rx="8"/><text x="742" y="375">Sentry web API /api/0/</text><text class="small" x="742" y="394">replays + recording segments,</text><text class="small" x="742" y="410">issues, events, trace, sessions</text><text class="small" x="742" y="426">→ Muninn, topology (a)</text>
+<!-- arrows -->
+<path class="arrow" d="M180 55 L240 160" marker-end="url(#ar)"/><path class="arrow" d="M180 140 L240 180" marker-end="url(#ar)"/><path class="arrow" d="M180 225 L240 205" marker-end="url(#ar)"/><path class="arrow" d="M180 310 L240 230" marker-end="url(#ar)"/><path class="arrow" d="M180 405 L240 255" marker-end="url(#ar)"/>
+<path class="arrow" d="M410 195 L470 195" marker-end="url(#ar)"/>
+<path class="arrow" d="M670 60 L730 60" marker-end="url(#ar)"/><path class="arrow" d="M670 140 L730 140" marker-end="url(#ar)"/><path class="arrow" d="M670 210 L730 210" marker-end="url(#ar)"/><path class="arrow" d="M670 280 L730 280" marker-end="url(#ar)"/>
+<path class="arrow" d="M855 310 L855 350" marker-end="url(#ar)"/>
+</svg>
+<p class="muted">Kafka topic names come from Relay's <code>StoreService</code> at 26.10.0 and from the running stack. Details: <a href="self-hosted-storage/pipeline.md">pipeline.md</a>, <a href="self-hosted-storage/storage-explainer.html">storage explainer</a>.</p>
+
+<h2>Stage by stage</h2>
+<div class="grid">
+<div class="card"><h3>1. Browser SDK</h3><p>In 11.x spans are sent by default as streamed <code>span</code> v2 items with typed attributes, not transactions, so <code>beforeSendTransaction</code> no longer runs. A replay segment is <code>{"segment_id":N}\n</code> plus a zlib stream. Client reports go out only on page hide. Closing a tab 300 ms after activity lost that segment. Errors only is 29.4 KiB gzip; adding tracing and replay brings it to 90.7 KiB.</p><p><a href="browser-sdk/index.md">browser-sdk/</a> · <a href="browser-sdk/browser-sdk-explainer.html">explainer</a></p></div>
+<div class="card"><h3>2. Mobile SDKs</h3><p>On iOS and Android any HTTP 4xx or 5xx deletes the envelope; only network errors keep it, with no backoff timer. The disk cache holds 30 envelopes (a file count, not a byte cap). Replay is video segments; it pauses while offline or rate-limited, so the recording has a gap. In React Native, JS <code>beforeSend</code> never sees events the native SDKs create. Video replay (H.264, 1 fps, 5 s segments) measured 165 KB/min on iOS and 212 KB/min on Android with default masking.</p><p><a href="mobile-sdks/index.md">mobile-sdks/</a></p></div>
+<div class="card"><h3>3. Relay (wire format)</h3><p>Relay knows 23 item types. Only one event-like item fits in an envelope: an error plus a <code>replay_event</code> gets a 413 for the whole envelope. A gzip <code>replay_recording</code> body is accepted with 200 and then dropped silently. Two trailing newlines or CRLF line endings get a 400. Self-hosted does not scrub rrweb recordings for PII by default. Relay also takes OTLP traces and logs.</p><p><a href="wire-format/index.md">wire-format/</a> · <a href="wire-format/wire-format-explainer.html">explainer</a></p></div>
+<div class="card"><h3>4. Storage</h3><p>Full events live in nodestore, which is a seaweedfs bucket compressed with zstd (the Postgres table is empty). Replay segments are files in filestore. Spans, logs and trace metrics share one ClickHouse table (<code>eap_items_1_local</code>). Sessions exist only as metric aggregates. Retention is 90 days here (<code>SENTRY_EVENT_RETENTION_DAYS</code>).</p><p><a href="self-hosted-storage/index.md">self-hosted-storage/</a></p></div>
+<div class="card"><h3>5. Read APIs (Muninn)</h3><p>Four public replay endpoints: list, details, segment list, and per-segment download. The mobile video endpoint works but is experimental. Replays appear 2.4–5.4 s after the SDK sends them, errors after 5.5–7.6 s, spans after 14.5–18 s and sessions after about 50 s. There is no replay webhook, so Muninn must poll. Self-hosted applies no API rate limits.</p><p><a href="read-apis/index.md">read-apis/</a> · <a href="read-apis/read-apis-explainer.html">explainer</a></p></div>
+</div>
+
+<h2>What this means for each topology</h2>
+<div class="scroll"><table>
+<tr><th>Topology</th><th>What we learned</th><th>Where</th></tr>
+<tr><td>(a) SDK → Sentry, Muninn reads back</td><td>Every replay segment can be downloaded, but the segment list does not say which segments it holds, so gaps are invisible. Replay time windows filter on SDK timestamps, so late data needs overlapping scans. There is no per-session record, so a session can only be rebuilt from replays and events. Muninn needs an internal integration token with <code>org:read project:read event:read</code>.</td><td><a href="read-apis/muninn-sync-recipe.md">muninn-sync-recipe.md</a></td></tr>
+<tr><td>(b) SDK → ouo collector → Sentry</td><td>Our receiver translates 7 of Relay's 23 item types and none of the browser replay items. On a 429 it drops items that Sentry accepted. The collector must keep Relay's framing rules (one event-like item per envelope, no CRLF, no extra trailing newline) and pass through CORS and rate-limit headers: browsers ignore a 429 they cannot read.</td><td><a href="wire-format/ouo-receiver-gaps.md">ouo-receiver-gaps.md</a></td></tr>
+<tr><td>(c) our SDK → us</td><td>Sentry's choices are now documented to copy or avoid: zlib replay segments of about 5 s, a 60 s on-error buffer, a 30-file disk cache, deleting envelopes on any 4xx/5xx, and video for mobile replay.</td><td><a href="browser-sdk/replay-browser.md">replay-browser.md</a>, <a href="mobile-sdks/index.md">mobile-sdks/</a></td></tr>
+</table></div>
+
+<h2>Traps that cost us time</h2>
+<ul>
+<li class="warn">A 200 from Relay does not mean the data was stored. A gzip replay body (dropped with no outcome), a replay event without its recording (discarded as invalid), and a legacy <code>user_report</code> sent next to a <code>feedback</code> item all got a 200 and were not stored.</li>
+<li>Replay recordings mix units: <code>performanceSpan</code> and <code>ui.focus</code> breadcrumbs use float seconds, everything else uses milliseconds.</li>
+<li>The DSN public key shows up inside compressed replay network bodies (the <code>baggage</code> header), so redacting fixtures means decompressing them first.</li>
+<li>A message event in 11.x carries a synthetic stack, so Sentry titled one message event "Of", the minified name of the function that sent it.</li>
+<li>If the <code>taskbroker</code> consumer stalls, Relay answers 200 and holds the data until it is restarted (<code>project/kb-archive/sentry-self-hosted.md</code>).</li>
+</ul>
+
+<p class="muted">Other vendors: <a href="../datadog/datadog-explainer.html">Datadog</a>, <a href="../posthog/posthog-explainer.html">PostHog</a>. Feature-level comparison: <a href="../../client-sdk-features/feature-matrix.html">Step 4 matrix</a>.</p>
+</main>
+</body>
+</html>

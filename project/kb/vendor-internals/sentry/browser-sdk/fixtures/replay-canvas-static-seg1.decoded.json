@@ -1,0 +1,215 @@
+{
+ "envelope_header": {
+  "event_id": "9e2e7dd99de441ccad1f2d100ecd556e",
+  "sent_at": "2026-11-10T03:40:20.938Z",
+  "sdk": {
+   "name": "sentry.javascript.react",
+   "version": "11.11.0"
+  }
+ },
+ "items": [
+  {
+   "item_header": {
+    "type": "replay_event"
+   },
+   "payload": {
+    "type": "replay_event",
+    "replay_start_timestamp": 1794282007.991,
+    "timestamp": 1794282020.936,
+    "error_ids": [],
+    "trace_ids": [
+     "5521ab746b0c4ed691e8f24245d62da5"
+    ],
+    "segment_names": [
+     "/page/1",
+     "demo.work"
+    ],
+    "urls": [
+     "http://127.0.0.1:4521/page/1?canvas=1&static=1&sample=0"
+    ],
+    "replay_id": "9e2e7dd99de441ccad1f2d100ecd556e",
+    "segment_id": 1,
+    "replay_type": "session",
+    "request": {
+     "url": "http://127.0.0.1:4521/page/1?canvas=1&static=1&sample=0",
+     "headers": {
+      "Referer": "http://127.0.0.1:4521/?offline=1&replay=buffer",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+     }
+    },
+    "contexts": {
+     "profile": {
+      "profiler_id": "a5667962fc124d7baa315bf583ec23fc"
+     },
+     "react": {
+      "version": "19.2.0"
+     },
+     "culture": {
+      "locale": "en-US",
+      "timezone": "Etc/Redacted",
+      "calendar": "gregory"
+     }
+    },
+    "event_id": "9e2e7dd99de441ccad1f2d100ecd556e",
+    "environment": "step6",
+    "release": "sentry-web-demo@1.0.0",
+    "sdk": {
+     "integrations": [
+      "EventFilters",
+      "FunctionToString",
+      "ConversationId",
+      "BrowserApiErrors",
+      "Breadcrumbs",
+      "Console",
+      "GlobalHandlers",
+      "LinkedErrors",
+      "Dedupe",
+      "HttpContext",
+      "CultureContext",
+      "BrowserSession",
+      "BrowserTracing",
+      "Replay",
+      "Feedback",
+      "BrowserProfiling",
+      "HttpClient",
+      "ConsoleLogs",
+      "ReplayCanvas",
+      "WebVitals"
+     ],
+     "name": "sentry.javascript.react",
+     "version": "11.11.0",
+     "settings": {
+      "infer_ip": "auto"
+     }
+    },
+    "tags": {
+     "demo": "step6"
+    },
+    "user": {
+     "id": "demo-user-1"
+    },
+    "transaction": "/page/1",
+    "platform": "javascript"
+   }
+  },
+  {
+   "item_header": {
+    "type": "replay_recording",
+    "length": 765
+   },
+   "recording_header": {
+    "segment_id": 1
+   },
+   "compression": "zlib",
+   "first_bytes_hex": "789c",
+   "events": [
+    {
+     "type": 5,
+     "timestamp": 1794282015734,
+     "data": {
+      "tag": "breadcrumb",
+      "payload": {
+       "timestamp": 1794282015.734,
+       "type": "default",
+       "category": "navigation",
+       "data": {
+        "from": "/?canvas=1&static=1&sample=0",
+        "to": "/page/1?canvas=1&static=1&sample=0"
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794282015.736,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "navigation.push",
+       "description": "http://127.0.0.1:4521/page/1?canvas=1&static=1&sample=0",
+       "startTimestamp": 1794282015.736,
+       "endTimestamp": 1794282015.736,
+       "data": {}
+      }
+     }
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 0,
+      "texts": [],
+      "attributes": [],
+      "removes": [
+       {
+        "parentId": 7,
+        "id": 8
+       }
+      ],
+      "adds": [
+       {
+        "parentId": 7,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**** *",
+         "id": 71
+        }
+       }
+      ]
+     },
+     "timestamp": 1794282015737
+    },
+    {
+     "type": 5,
+     "timestamp": 1794282015.6061,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794282015.6061,
+       "endTimestamp": 1794282015.7318,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "467",
+          "content-type": "application/json"
+         },
+         "size": 467,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "79c0e8f1e09b4a0cbcd9c62fdba177bf-845998360e3ccdb3-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=79c0e8f1e09b4a0cbcd9c62fdba177bf,sentry-replay_id=9e2e7dd99de441ccad1f2d100ecd556e,sentry-sampled=true,sentry-sample_rand=0.7151367298701281,sentry-sample_rate=1",
+          "traceparent": "00-79c0e8f1e09b4a0cbcd9c62fdba177bf-a17ecbe8f5a05f1f-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794282020.935,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "memory",
+       "description": "memory",
+       "startTimestamp": 1794282020.935,
+       "endTimestamp": 1794282020.935,
+       "data": {
+        "memory": {
+         "jsHeapSizeLimit": 4395630592,
+         "totalJSHeapSize": 10418066,
+         "usedJSHeapSize": 9021786
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

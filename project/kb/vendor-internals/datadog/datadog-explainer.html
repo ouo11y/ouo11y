@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datadog RUM internals</title>
+<style>
+:root{
+  --bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--card:#ffffff;--line:#d9d5cc;
+  --a:#6d4fc4;--a-soft:#ece6fb;--b:#1f7a6d;--b-soft:#dff2ee;--c:#b4561b;--c-soft:#f9e6d9;--code:#f2efe8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16161a;--fg:#ecebe6;--muted:#a7a49b;--card:#1f1f25;--line:#3a3a42;
+    --a:#a993f0;--a-soft:#2c2645;--b:#5cc3b2;--b-soft:#173430;--c:#f0a06b;--c-soft:#3a2617;--code:#26262d;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16161a;--fg:#ecebe6;--muted:#a7a49b;--card:#1f1f25;--line:#3a3a42;
+  --a:#a993f0;--a-soft:#2c2645;--b:#5cc3b2;--b-soft:#173430;--c:#f0a06b;--c-soft:#3a2617;--code:#26262d;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:1.9rem;margin:0 0 4px}
+h2{font-size:1.3rem;margin:40px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+p.lede{color:var(--muted);margin:0 0 20px}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:.82rem}
+.meta{font-size:.85rem;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card b{display:block;font-size:1.5rem}
+.card span{color:var(--muted);font-size:.86rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem;margin:10px 0;background:var(--card)}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.tablewrap{overflow-x:auto}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font:13px system-ui,sans-serif}
+svg .small{font-size:11px;fill:var(--muted)}
+svg .box-a{fill:var(--a-soft);stroke:var(--a)}
+svg .box-b{fill:var(--b-soft);stroke:var(--b)}
+svg .box-c{fill:var(--c-soft);stroke:var(--c)}
+svg .box-n{fill:var(--card);stroke:var(--line)}
+svg .arrow{stroke:var(--muted);stroke-width:1.5;fill:none;marker-end:url(#arr)}
+svg .lane{fill:none;stroke:var(--line);stroke-dasharray:4 4}
+ol.findings li{margin:6px 0}
+.tabs{display:flex;gap:6px;margin:10px 0}
+.tabs button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;padding:4px 10px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--a-soft);border-color:var(--a)}
+.panel[hidden]{display:none}
+a{color:var(--a)}
+</style>
+</head>
+<body>
+<main>
+<h1>Datadog RUM internals</h1>
+<p class="lede">What the Datadog SDKs send, how they batch and retry, and what a replay segment looks like. The data comes from a local capture of the browser SDK 7.17.0 and dd-sdk-ios 3.21.0, plus source at pinned tags. Step 6 vendor research, 2026-11-10.</p>
+<p class="meta">Details and sources: <a href="index.md">index.md</a>. Fixtures: <a href="wire-format/fixtures/index.md">wire-format/fixtures</a>. Demo: <a href="../../../../examples/datadog-capture/README.md">examples/datadog-capture</a>.</p>
+
+<div class="grid">
+  <div class="card"><b>66.8 KB</b><span>datadog-rum.js gzip; +11.6 KB recorder chunk, +22.1 KB logs (measured)</span></div>
+  <div class="card"><b>16 KiB · 50 · 30 s</b><span>browser batch flush: bytes / events / time, plus page exit by sendBeacon</span></div>
+  <div class="card"><b>5 MB · 1000 · 18 h</b><span>mobile batch file: size / events / max age on disk</span></div>
+  <div class="card"><b>~35–40 KB/min</b><span>observed replay on a simple page (web) and screen (iOS), masked by default</span></div>
+</div>
+
+<h2>1. From SDK to intake</h2>
+<p>Browser and mobile follow the same model: collect events, assemble them, batch them, compress them, POST them. They differ in where the batch lives (memory or disk) and in how they authenticate (URL parameters or headers).</p>
+<svg viewBox="0 0 940 400" role="img" aria-label="Diagram: browser SDK batches in memory and posts to browser-intake with URL parameters; mobile SDKs write batch files to disk and upload them with DD headers">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+  <rect class="lane" x="6" y="8" width="928" height="180" rx="10"/>
+  <text x="18" y="30" font-weight="600">Browser 7.17.0</text>
+  <rect class="box-a" x="18" y="48" width="150" height="62" rx="8"/>
+  <text x="30" y="72">Collectors</text><text class="small" x="30" y="92">views, actions, resources,</text><text class="small" x="30" y="104">errors, long tasks, vitals</text>
+  <rect class="box-a" x="196" y="48" width="150" height="62" rx="8"/>
+  <text x="208" y="72">LifeCycle → assembly</text><text class="small" x="208" y="92">context, usr, beforeSend,</text><text class="small" x="208" y="104">3000/min rate limit</text>
+  <rect class="box-a" x="374" y="48" width="170" height="62" rx="8"/>
+  <text x="386" y="72">Batch (in memory)</text><text class="small" x="386" y="92">views upserted by id</text><text class="small" x="386" y="104">flush 16 KiB · 50 · 30 s · exit</text>
+  <rect class="box-a" x="572" y="48" width="150" height="62" rx="8"/>
+  <text x="584" y="72">Deflate worker</text><text class="small" x="584" y="92">replay: always</text><text class="small" x="584" y="104">RUM: opt-in</text>
+  <rect class="box-c" x="750" y="48" width="172" height="62" rx="8"/>
+  <text x="762" y="72">browser-intake-…</text><text class="small" x="762" y="92">/api/v2/rum · logs · replay</text><text class="small" x="762" y="104">→ 202 Accepted</text>
+  <path class="arrow" d="M168 79 H194"/><path class="arrow" d="M346 79 H372"/><path class="arrow" d="M544 79 H570"/><path class="arrow" d="M722 79 H748"/>
+  <text class="small" x="18" y="140">fetch (no keepalive) normally; sendBeacon on visibility hidden / pagehide / beforeunload (split under 16 KiB)</text>
+  <text class="small" x="18" y="158">retry 408/429/5xx/offline in memory: 1 s → 60 s backoff, 20 MiB queue; lost when the tab closes</text>
+  <text class="small" x="18" y="176">auth in URL: ?ddsource=browser&amp;dd-api-key=pub…&amp;dd-evp-origin=browser&amp;dd-request-id=…&amp;batch_time=…&amp;_dd.api=fetch|beacon</text>
+  <rect class="lane" x="6" y="204" width="928" height="186" rx="10"/>
+  <text x="18" y="226" font-weight="600">iOS 3.21.0 / Android 3.16.0</text>
+  <rect class="box-b" x="18" y="244" width="150" height="62" rx="8"/>
+  <text x="30" y="268">Features</text><text class="small" x="30" y="288">RUM, Logs, Trace,</text><text class="small" x="30" y="300">Session Replay, Crash</text>
+  <rect class="box-b" x="196" y="244" width="150" height="62" rx="8"/>
+  <text x="208" y="268">Consent-aware storage</text><text class="small" x="208" y="288">pending dir → granted dir</text><text class="small" x="208" y="300">per feature</text>
+  <rect class="box-b" x="374" y="244" width="170" height="62" rx="8"/>
+  <text x="386" y="268">Batch files on disk</text><text class="small" x="386" y="288">≤5 MB · ≤1000 events</text><text class="small" x="386" y="300">max age 18–24 h</text>
+  <rect class="box-b" x="572" y="244" width="150" height="62" rx="8"/>
+  <text x="584" y="268">Upload worker</text><text class="small" x="584" y="288">adaptive delay; battery &gt;10 %,</text><text class="small" x="584" y="300">no low-power mode</text>
+  <rect class="box-c" x="750" y="244" width="172" height="62" rx="8"/>
+  <text x="762" y="268">intake /api/v2/…</text><text class="small" x="762" y="288">deflate (iOS) / gzip (Android)</text><text class="small" x="762" y="300">DD-* auth headers</text>
+  <path class="arrow" d="M168 275 H194"/><path class="arrow" d="M346 275 H372"/><path class="arrow" d="M544 275 H570"/><path class="arrow" d="M722 275 H748"/>
+  <text class="small" x="18" y="336">retry 408/429/5xx/network, batch kept on disk; 400/401/403/413 drop the batch</text>
+  <text class="small" x="18" y="354">observed: data of a killed, offline iOS session uploaded on the next launch (new session id after relaunch)</text>
+  <text class="small" x="18" y="372">RN: JS calls go straight to the native SDKs (100-call buffer before init); native does all persistence</text>
+</svg>
+
+<h2>2. What a replay request looks like</h2>
+<p>Every platform uses a multipart request with a deflated <code>segment</code> part and an <code>event</code> metadata part. Inside the segment, the browser and mobile record formats differ.</p>
+<svg viewBox="0 0 940 430" role="img" aria-label="Diagram: multipart replay request with segment and event parts; the segment contains records; browser records use a change list with a string table, mobile records use wireframes">
+  <rect class="box-n" x="10" y="10" width="300" height="410" rx="10"/>
+  <text x="24" y="34" font-weight="600">POST /api/v2/replay</text>
+  <text class="small" x="24" y="52">multipart/form-data</text>
+  <rect class="box-c" x="24" y="66" width="272" height="150" rx="8"/>
+  <text x="36" y="88">part "segment"</text>
+  <text class="small" x="36" y="106">browser: 1 per request (&lt;session&gt;-&lt;start&gt;)</text>
+  <text class="small" x="36" y="122">mobile: file0, file1 … (N per request)</text>
+  <text class="small" x="36" y="140">zlib deflate of</text>
+  <text class="small" x="36" y="156">{"records":[…], application, session,</text>
+  <text class="small" x="36" y="172"> view, start, end, records_count,</text>
+  <text class="small" x="36" y="188"> has_full_snapshot, source,</text>
+  <text class="small" x="36" y="204"> index_in_view, creation_reason}\n</text>
+  <rect class="box-c" x="24" y="230" width="272" height="96" rx="8"/>
+  <text x="36" y="252">part "event" (application/json)</text>
+  <text class="small" x="36" y="272">same metadata without records,</text>
+  <text class="small" x="36" y="288">+ raw_segment_size, compressed_segment_size</text>
+  <text class="small" x="36" y="306">browser: object · mobile: array</text>
+  <text class="small" x="24" y="350">observed browser: 7 272 B raw → 2 498 B</text>
+  <text class="small" x="24" y="368">observed iOS: 4 612 B raw → 956 B</text>
+  <text class="small" x="24" y="386">flush: 5 s or 60 KB (browser); per view</text>
+  <text class="small" x="24" y="404">images: separate "image" parts, by hash</text>
+  <path class="arrow" d="M296 140 H340"/>
+  <rect class="box-a" x="344" y="10" width="286" height="410" rx="10"/>
+  <text x="358" y="34" font-weight="600">Browser records (v7)</text>
+  <text class="small" x="358" y="56">4 Meta → 6 Focus → 2 FullSnapshot (format 1)</text>
+  <text class="small" x="358" y="74">3 Incremental: mouse, scroll, touch, resize</text>
+  <text class="small" x="358" y="92">12 Change: DOM mutations, text, input</text>
+  <text class="small" x="358" y="110">7 ViewEnd · 8 VisualViewport · 9 Frustration</text>
+  <rect class="box-n" x="358" y="124" width="258" height="150" rx="6"/>
+  <text class="small" x="368" y="144">change list, e.g.</text>
+  <text class="small" x="368" y="162">[11,[1,"#document","HTML",…]]  strings</text>
+  <text class="small" x="368" y="180">[1,[null,0],[0,2,[87,55]],…]   nodes</text>
+  <text class="small" x="368" y="198">[5,[106,734,22.5]]             size</text>
+  <text class="small" x="368" y="216">[12,[97,110]] input → "***"</text>
+  <text class="small" x="368" y="240">numbers = string-table refs;</text>
+  <text class="small" x="368" y="258">node ids implicit, insertion relative</text>
+  <text class="small" x="358" y="298">Not rrweb: no nested node tree,</text>
+  <text class="small" x="358" y="316">no source-0 mutations. Needs a</text>
+  <text class="small" x="358" y="334">converter for the rrweb player.</text>
+  <text class="small" x="358" y="364">privacy default mask-user-input:</text>
+  <text class="small" x="358" y="382">typed values never sent</text>
+  <rect class="box-b" x="644" y="10" width="286" height="410" rx="10"/>
+  <text x="658" y="34" font-weight="600">Mobile records (wireframes)</text>
+  <text class="small" x="658" y="56">4 Meta → 6 Focus → 10 FullSnapshot</text>
+  <text class="small" x="658" y="74">11 Incremental: 0 mutation, 2 touch,</text>
+  <text class="small" x="658" y="92">4 resize, 9 pointer, 10 composition</text>
+  <rect class="box-n" x="658" y="108" width="258" height="166" rx="6"/>
+  <rect x="672" y="120" width="230" height="140" rx="4" fill="none" stroke="var(--b)"/>
+  <rect x="682" y="132" width="210" height="16" rx="2" fill="var(--b-soft)" stroke="var(--b)"/>
+  <text class="small" x="688" y="144">text "xxxxx xxxxxxx xxxx"</text>
+  <rect x="682" y="156" width="210" height="20" rx="4" fill="var(--card)" stroke="var(--line)"/>
+  <text class="small" x="688" y="170">text "***"  (input)</text>
+  <rect x="682" y="184" width="210" height="22" rx="2" fill="none" stroke="var(--c)" stroke-dasharray="3 3"/>
+  <text class="small" x="688" y="199">placeholder "Image"</text>
+  <rect x="682" y="214" width="210" height="34" rx="10" fill="var(--b-soft)" stroke="var(--b)"/>
+  <text class="small" x="688" y="235">shape #00C3D0 radius 12</text>
+  <text class="small" x="658" y="298">types: shape, text, image,</text>
+  <text class="small" x="658" y="316">placeholder, webview, embedded-content</text>
+  <text class="small" x="658" y="334">each: id, x, y, width, height, clip</text>
+  <text class="small" x="658" y="364">defaults: text maskAll, images maskAll,</text>
+  <text class="small" x="658" y="382">touches hide. No pixels except</text>
+  <text class="small" x="658" y="400">allowed images.</text>
+</svg>
+
+<h2>3. Wire details by platform</h2>
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-p="web">Browser</button>
+  <button role="tab" aria-selected="false" data-p="ios">iOS</button>
+  <button role="tab" aria-selected="false" data-p="and">Android</button>
+</div>
+<div class="panel" id="p-web"><div class="tablewrap"><table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Auth</td><td><code>dd-api-key</code> = client token in the URL; no custom headers (sendBeacon cannot set them)</td></tr>
+<tr><td>RUM body</td><td>NDJSON, <code>text/plain;charset=UTF-8</code>; deflate with <code>dd-evp-encoding=deflate</code> when enabled (9.1× observed)</td></tr>
+<tr><td>Tags</td><td><code>ddtags</code> string inside each event (not in the URL in v7)</td></tr>
+<tr><td>Views</td><td>upserted per batch; <code>view_update</code> diffs on by default but <b>off when <code>proxy</code> is set</b></td></tr>
+<tr><td>Trace headers</td><td><code>traceparent</code> (64-bit id, upper half zero), <code>tracestate: dd=s:1;o:rum</code>, <code>x-datadog-*</code>, <code>baggage: session.id,user.id</code></td></tr>
+</table></div></div>
+<div class="panel" id="p-ios" hidden><div class="tablewrap"><table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Auth</td><td>headers <code>DD-API-KEY</code>, <code>DD-EVP-ORIGIN: ios</code>, <code>DD-EVP-ORIGIN-VERSION</code>, <code>DD-REQUEST-ID</code>, RUM <code>DD-IDEMPOTENCY-KEY</code></td></tr>
+<tr><td>RUM</td><td><code>?ddsource=ios</code>, NDJSON, <code>Content-Encoding: deflate</code> (5.1× observed)</td></tr>
+<tr><td>Logs</td><td>JSON array, deflate</td></tr>
+<tr><td>Replay</td><td>no query; N segments per request; <code>event</code> = JSON array</td></tr>
+<tr><td>Upload</td><td>batch 3/10/35 s; delay 0.5/2/5 s × 1…10; retry 408/429/5xx</td></tr>
+</table></div></div>
+<div class="panel" id="p-and" hidden><div class="tablewrap"><table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Auth</td><td>same <code>DD-*</code> headers; <code>?ddsource=android</code> on every request</td></tr>
+<tr><td>Compression</td><td>gzip body (release builds); replay segments zlib per part</td></tr>
+<tr><td>Disk</td><td>TLV batch files under <code>cacheDir/datadog-…/&lt;feature&gt;-v2</code></td></tr>
+<tr><td>Replay</td><td>OnDraw capture, 64 ms debounce, 100 ms/s time bank, full snapshot every 3 s, WebP images by MD5</td></tr>
+<tr><td>Sampling</td><td>Knuth factor on session id, same as browser</td></tr>
+</table></div></div>
+
+<h2>4. Reading the data back (bridge)</h2>
+<div class="tablewrap"><table>
+<tr><th>Need</th><th>API</th><th>Notes</th></tr>
+<tr><td>Events</td><td><code>POST /api/v2/rum/events/search</code></td><td>cursor paging (<code>meta.page.after</code>), limit ≤ 1000, <code>rum_apps_read</code>; returns intake-shaped JSON</td></tr>
+<tr><td>Aggregates</td><td><code>POST /api/v2/rum/analytics/aggregate</code></td><td>count, percentiles, timeseries, group_by</td></tr>
+<tr><td>Replay segments</td><td><code>GET /api/v2/rum/replay/sessions/{s}/views/{v}/segments</code></td><td>documented endpoint, <b>undocumented payload</b>; <code>rum_session_replay_read</code>; <code>X-Paging</code></td></tr>
+<tr><td>Bulk</td><td>RUM Export Pipelines to S3/GCS/Azure</td><td>NDJSON.gz or Parquet; replays not mentioned</td></tr>
+<tr><td>Limits</td><td><code>X-RateLimit-*</code> headers</td><td>no published number for RUM endpoints; retention 30 d (15 d resources, long tasks, vitals)</td></tr>
+</table></div>
+
+<h2>5. Findings</h2>
+<ol class="findings">
+<li><b>The browser replay is no longer rrweb.</b> v7 sends a compact "Change" encoding by default: a string table with roles, implicit node ids and relative insertion points. The docs still say rrweb.</li>
+<li><b>Mobile replay is pure wireframes.</b> Typed rectangles (shape, text, image, placeholder, webview) are masked on the device. The observed iOS cost was about 34 KB/min on a simple screen; the docs average is about 12 KB/s on iOS and 1.2 KB/s on Android.</li>
+<li><b>The browser keeps nothing across page loads.</b> The retry queue is in memory and the exit flush is a beacon, without fetch keepalive. Mobile writes batches to disk first, and they survived an app kill in our test.</li>
+<li><b>Sampling is deterministic and the same everywhere</b> (Knuth factor on the session id). Replay and trace rates are children of the session rate.</li>
+<li><b>Replay segments can now be read through a public API</b>, but the response format is undocumented. A bridge must reverse-engineer and version it.</li>
+</ol>
+
+<script>
+document.querySelectorAll('.tabs button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tabs button').forEach(function(x){x.setAttribute('aria-selected', String(x===b));});
+    document.querySelectorAll('.panel').forEach(function(p){p.hidden = p.id !== 'p-' + b.dataset.p;});
+  });
+});
+</script>
+</main>
+</body>
+</html>

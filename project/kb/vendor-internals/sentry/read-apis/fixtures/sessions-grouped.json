@@ -1,0 +1,103 @@
+{
+ "groups": [
+  {
+   "by": {
+    "project": 8,
+    "release": "step6-wire@1.0.0"
+   },
+   "totals": {
+    "sum(session)": 10,
+    "count_unique(user)": 1,
+    "crash_free_rate(session)": 1.0
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     10
+    ],
+    "count_unique(user)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1
+    ],
+    "crash_free_rate(session)": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     1.0
+    ]
+   }
+  },
+  {
+   "by": {
+    "project": 2,
+    "release": "read-api-probe@1.0.0"
+   },
+   "totals": {
+    "sum(session)": 3,
+    "count_unique(user)": 1,
+    "crash_free_rate(session)": 1.0
+   },
+   "series": {
+    "sum(session)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     3
+    ],
+    "count_unique(user)": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1
+    ],
+    "crash_free_rate(session)": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     1.0
+    ]
+   }
+  }
+ ],
+ "start": "2026-11-03T00:00:00Z",
+ "end": "2026-11-11T00:00:00Z",
+ "intervals": [
+  "2026-11-03T00:00:00Z",
+  "2026-11-04T00:00:00Z",
+  "2026-11-05T00:00:00Z",
+  "2026-11-06T00:00:00Z",
+  "2026-11-07T00:00:00Z",
+  "2026-11-08T00:00:00Z",
+  "2026-11-09T00:00:00Z",
+  "2026-11-10T00:00:00Z"
+ ],
+ "query": ""
+}

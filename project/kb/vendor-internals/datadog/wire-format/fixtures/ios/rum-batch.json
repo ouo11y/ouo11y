@@ -1,0 +1,802 @@
+{
+  "receivedAt": "2026-11-10T03:34:07.598Z",
+  "method": "POST",
+  "proxyUrl": "/api/v2/rum?ddsource=ios",
+  "forwardPath": "/api/v2/rum",
+  "forwardParams": {
+    "ddsource": "ios"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "accept": "*/*",
+    "content-encoding": "deflate",
+    "dd-evp-origin": "ios",
+    "accept-encoding": "gzip, deflate",
+    "dd-api-key": "<redacted dd-api-key>",
+    "dd-request-id": "<redacted dd-request-id>",
+    "content-length": "2632",
+    "user-agent": "DDCapture/1.0 CFNetwork (<redacted>)",
+    "connection": "keep-alive",
+    "content-type": "text/plain;charset=UTF-8",
+    "dd-evp-origin-version": "3.21.0",
+    "dd-idempotency-key": "<redacted dd-idempotency-key>"
+  },
+  "bodyBytes": 2632,
+  "body": {
+    "kind": "ndjson",
+    "encoding": "deflate",
+    "inflatedBytes": 13415,
+    "events": [
+      {
+        "version": "1.0",
+        "application": {
+          "current_locale": "en-US",
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "build_version": "1",
+        "connectivity": {
+          "interfaces": [
+            "wifi"
+          ],
+          "status": "connected"
+        },
+        "session": {
+          "has_timeseries": false,
+          "id": "00000000-0000-4000-8000-000000000062",
+          "has_replay": false,
+          "type": "user",
+          "is_main_process": true,
+          "is_active": true
+        },
+        "type": "view",
+        "_dd": {
+          "format_version": 2,
+          "configuration": {
+            "trace_sample_rate": 100,
+            "session_sample_rate": 100
+          },
+          "document_version": 1,
+          "session": {
+            "plan": 1,
+            "session_precondition": "user_app_launch"
+          },
+          "replay_stats": {}
+        },
+        "view": {
+          "cpu_ticks_count": 0,
+          "action": {
+            "count": 0
+          },
+          "frozen_frame": {
+            "count": 0
+          },
+          "is_slow_rendered": false,
+          "is_active": true,
+          "crash": {
+            "count": 0
+          },
+          "id": "00000000-0000-4000-8000-000000000063",
+          "long_task": {
+            "count": 0
+          },
+          "frustration": {
+            "count": 0
+          },
+          "custom_timings": {},
+          "memory_max": 12241152,
+          "cpu_ticks_per_second": 0,
+          "error": {
+            "count": 0
+          },
+          "name": "ApplicationLaunch",
+          "resource": {
+            "count": 0
+          },
+          "url": "com/datadog/application-launch/view",
+          "memory_average": 12241152,
+          "time_spent": 3403100967,
+          "slow_frames": []
+        },
+        "feature_flags": {},
+        "date": 1794281640125,
+        "source": "ios",
+        "context": {},
+        "os": {
+          "build": "26A434",
+          "version_major": "27",
+          "version": "27.0",
+          "name": "iOS"
+        },
+        "service": "datadog-capture-ios",
+        "device": {
+          "time_zone": "<redacted time zone>",
+          "total_ram": 32768,
+          "type": "mobile",
+          "locale": "en-US",
+          "brightness_level": 0.5,
+          "brand": "Apple",
+          "logical_cpu_count": 10,
+          "model": "iPhone18,1 Simulator",
+          "name": "iPhone",
+          "architecture": "arm64e",
+          "locales": [
+            "en-US"
+          ],
+          "power_saving_mode": false
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000064"
+        }
+      },
+      {
+        "service": "dd-sdk-ios",
+        "type": "telemetry",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000063"
+        },
+        "_dd": {
+          "format_version": 2
+        },
+        "version": "3.21.0",
+        "date": 1794281643529,
+        "effective_sample_rate": 100,
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062"
+        },
+        "source": "ios",
+        "telemetry": {
+          "status": "debug",
+          "os": {
+            "build": "26A434",
+            "name": "iOS",
+            "version": "27.0"
+          },
+          "process_uptime": 3404,
+          "device": {
+            "brand": "Apple",
+            "model": "iPhone18,1 Simulator",
+            "total_ram": 32768,
+            "architecture": "arm64e",
+            "logical_cpu_count": 10
+          },
+          "type": "log",
+          "message": "URLSession duration breakdown enabled (without FPH Tracing configured)"
+        }
+      },
+      {
+        "date": 1794281643538,
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "source": "ios",
+        "service": "datadog-capture-ios",
+        "device": {
+          "power_saving_mode": false,
+          "locale": "en-US",
+          "brand": "Apple",
+          "name": "iPhone",
+          "brightness_level": 0.5,
+          "model": "iPhone18,1 Simulator",
+          "logical_cpu_count": 10,
+          "type": "mobile",
+          "total_ram": 32768,
+          "locales": [
+            "en-US"
+          ],
+          "time_zone": "<redacted time zone>",
+          "architecture": "arm64e"
+        },
+        "context": {},
+        "type": "long_task",
+        "os": {
+          "version_major": "27",
+          "build": "26A434",
+          "version": "27.0",
+          "name": "iOS"
+        },
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000063",
+          "url": "com/datadog/application-launch/view",
+          "name": "ApplicationLaunch"
+        },
+        "connectivity": {
+          "status": "connected",
+          "interfaces": [
+            "wifi"
+          ]
+        },
+        "_dd": {
+          "configuration": {
+            "session_sample_rate": 100
+          },
+          "format_version": 2,
+          "session": {
+            "session_precondition": "user_app_launch",
+            "plan": 1
+          }
+        },
+        "version": "1.0",
+        "usr": {
+          "id": "user-123",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "name": "Demo User"
+        },
+        "build_version": "1",
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062",
+          "type": "user",
+          "has_replay": true,
+          "is_main_process": true,
+          "has_timeseries": false
+        },
+        "long_task": {
+          "id": "00000000-0000-4000-8000-000000000065",
+          "is_frozen_frame": false,
+          "duration": 243832946
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local"
+      },
+      {
+        "view": {
+          "long_task": {
+            "count": 1
+          },
+          "time_spent": 3657349944,
+          "url": "com/datadog/application-launch/view",
+          "id": "00000000-0000-4000-8000-000000000063"
+        },
+        "usr": {
+          "name": "Demo User",
+          "id": "user-123",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064"
+        },
+        "type": "view_update",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "current_locale": "en-US"
+        },
+        "date": 1794281640125,
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062",
+          "type": "user",
+          "is_main_process": true,
+          "has_replay": true,
+          "is_active": true,
+          "has_timeseries": false
+        },
+        "_dd": {
+          "configuration": {
+            "session_replay_experimental_features": [],
+            "session_replay_sample_rate": 100,
+            "session_sample_rate": 100,
+            "trace_sample_rate": 100,
+            "start_session_replay_recording_manually": false
+          },
+          "replay_stats": {},
+          "session": {
+            "plan": 1,
+            "session_precondition": "user_app_launch"
+          },
+          "format_version": 2,
+          "document_version": 2
+        }
+      },
+      {
+        "view": {
+          "is_active": false,
+          "id": "00000000-0000-4000-8000-000000000063",
+          "time_spent": 3658123970,
+          "url": "com/datadog/application-launch/view"
+        },
+        "date": 1794281640125,
+        "_dd": {
+          "session": {
+            "session_precondition": "user_app_launch",
+            "plan": 1
+          },
+          "format_version": 2,
+          "configuration": {
+            "start_session_replay_recording_manually": false,
+            "session_replay_experimental_features": [],
+            "session_sample_rate": 100,
+            "trace_sample_rate": 100,
+            "session_replay_sample_rate": 100
+          },
+          "document_version": 3,
+          "replay_stats": {}
+        },
+        "usr": {
+          "name": "Demo User",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "id": "user-123"
+        },
+        "type": "view_update",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "current_locale": "en-US"
+        },
+        "session": {
+          "has_timeseries": false,
+          "is_active": true,
+          "has_replay": true,
+          "id": "00000000-0000-4000-8000-000000000062",
+          "is_main_process": true,
+          "type": "user"
+        }
+      },
+      {
+        "version": "1.0",
+        "application": {
+          "current_locale": "en-US",
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "build_version": "1",
+        "connectivity": {
+          "status": "connected",
+          "interfaces": [
+            "wifi"
+          ]
+        },
+        "session": {
+          "type": "user",
+          "has_timeseries": false,
+          "id": "00000000-0000-4000-8000-000000000062",
+          "is_active": true,
+          "has_replay": true,
+          "is_main_process": true
+        },
+        "type": "view",
+        "_dd": {
+          "replay_stats": {},
+          "format_version": 2,
+          "document_version": 1,
+          "configuration": {
+            "session_replay_sample_rate": 100,
+            "trace_sample_rate": 100,
+            "session_sample_rate": 100,
+            "session_replay_experimental_features": [],
+            "start_session_replay_recording_manually": false
+          },
+          "session": {
+            "plan": 1,
+            "session_precondition": "user_app_launch"
+          }
+        },
+        "view": {
+          "long_task": {
+            "count": 0
+          },
+          "is_slow_rendered": false,
+          "action": {
+            "count": 0
+          },
+          "time_spent": 1,
+          "crash": {
+            "count": 0
+          },
+          "frozen_frame": {
+            "count": 0
+          },
+          "error": {
+            "count": 0
+          },
+          "frustration": {
+            "count": 0
+          },
+          "custom_timings": {},
+          "name": "DDCapture.HomeViewController",
+          "memory_max": 19712400,
+          "resource": {
+            "count": 0
+          },
+          "memory_average": 19712400,
+          "url": "DDCapture.HomeViewController",
+          "id": "00000000-0000-4000-8000-000000000066",
+          "is_active": true,
+          "cpu_ticks_count": 0,
+          "slow_frames": []
+        },
+        "feature_flags": {},
+        "date": 1794281643783,
+        "source": "ios",
+        "context": {},
+        "os": {
+          "version": "27.0",
+          "build": "26A434",
+          "version_major": "27",
+          "name": "iOS"
+        },
+        "service": "datadog-capture-ios",
+        "device": {
+          "name": "iPhone",
+          "power_saving_mode": false,
+          "brightness_level": 0.5,
+          "locale": "en-US",
+          "architecture": "arm64e",
+          "brand": "Apple",
+          "model": "iPhone18,1 Simulator",
+          "locales": [
+            "en-US"
+          ],
+          "logical_cpu_count": 10,
+          "type": "mobile",
+          "total_ram": 32768,
+          "time_zone": "<redacted time zone>"
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "id": "user-123",
+          "name": "Demo User"
+        }
+      },
+      {
+        "date": 1794281640125,
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000066",
+          "name": "DDCapture.HomeViewController",
+          "url": "DDCapture.HomeViewController"
+        },
+        "version": "1.0",
+        "_dd": {
+          "format_version": 2
+        },
+        "connectivity": {
+          "status": "connected",
+          "interfaces": [
+            "wifi"
+          ]
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "service": "datadog-capture-ios",
+        "vital": {
+          "startup_type": "cold_start",
+          "duration": 3659917712,
+          "type": "app_launch",
+          "id": "00000000-0000-4000-8000-000000000067",
+          "app_launch_metric": "ttid",
+          "name": "time_to_initial_display",
+          "is_prewarmed": false
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062",
+          "is_main_process": true,
+          "type": "user",
+          "has_replay": true,
+          "has_timeseries": false
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "device": {
+          "name": "iPhone",
+          "total_ram": 32768,
+          "type": "mobile",
+          "locales": [
+            "en-US"
+          ],
+          "locale": "en-US",
+          "logical_cpu_count": 10,
+          "model": "iPhone18,1 Simulator",
+          "power_saving_mode": false,
+          "brand": "Apple",
+          "time_zone": "<redacted time zone>",
+          "architecture": "arm64e",
+          "brightness_level": 0.5
+        },
+        "context": {},
+        "source": "ios",
+        "type": "vital",
+        "build_version": "1",
+        "os": {
+          "name": "iOS",
+          "version": "27.0",
+          "build": "26A434",
+          "version_major": "27"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064"
+        }
+      },
+      {
+        "date": 1794281643882,
+        "device": {
+          "name": "iPhone",
+          "total_ram": 32768,
+          "type": "mobile",
+          "locales": [
+            "en-US"
+          ],
+          "locale": "en-US",
+          "logical_cpu_count": 10,
+          "model": "iPhone18,1 Simulator",
+          "power_saving_mode": false,
+          "brand": "Apple",
+          "time_zone": "<redacted time zone>",
+          "brightness_level": 0.5,
+          "architecture": "arm64e"
+        },
+        "_dd": {
+          "session": {
+            "plan": 1,
+            "session_precondition": "user_app_launch"
+          },
+          "format_version": 2,
+          "configuration": {
+            "session_sample_rate": 100
+          }
+        },
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000066",
+          "url": "DDCapture.HomeViewController",
+          "name": "DDCapture.HomeViewController"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062",
+          "has_timeseries": false,
+          "has_replay": true,
+          "type": "user",
+          "is_main_process": true
+        },
+        "type": "long_task",
+        "usr": {
+          "id": "user-123",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "name": "Demo User"
+        },
+        "version": "1.0",
+        "os": {
+          "build": "26A434",
+          "version": "27.0",
+          "name": "iOS",
+          "version_major": "27"
+        },
+        "source": "ios",
+        "connectivity": {
+          "status": "connected",
+          "interfaces": [
+            "wifi"
+          ]
+        },
+        "long_task": {
+          "id": "00000000-0000-4000-8000-000000000068",
+          "duration": 272483110,
+          "is_frozen_frame": false
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "context": {},
+        "service": "datadog-capture-ios",
+        "build_version": "1"
+      },
+      {
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000066",
+          "is_slow_rendered": true,
+          "long_task": {
+            "count": 1
+          },
+          "url": "DDCapture.HomeViewController",
+          "refresh_rate_average": 54.928629850778336,
+          "refresh_rate_min": 39.71451873256108,
+          "time_spent": 371631026
+        },
+        "_dd": {
+          "session": {
+            "plan": 1,
+            "session_precondition": "user_app_launch"
+          },
+          "document_version": 2,
+          "configuration": {
+            "session_replay_experimental_features": [],
+            "session_replay_sample_rate": 100,
+            "session_sample_rate": 100,
+            "trace_sample_rate": 100,
+            "start_session_replay_recording_manually": false
+          },
+          "format_version": 2,
+          "replay_stats": {}
+        },
+        "date": 1794281643783,
+        "usr": {
+          "id": "user-123",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "name": "Demo User"
+        },
+        "session": {
+          "has_replay": true,
+          "id": "00000000-0000-4000-8000-000000000062",
+          "has_timeseries": false,
+          "is_main_process": true,
+          "type": "user",
+          "is_active": true
+        },
+        "type": "view_update",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "current_locale": "en-US"
+        }
+      },
+      {
+        "date": 1794281645775,
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000066",
+          "name": "DDCapture.HomeViewController",
+          "url": "DDCapture.HomeViewController"
+        },
+        "version": "1.0",
+        "_dd": {
+          "session": {
+            "session_precondition": "user_app_launch",
+            "plan": 1
+          },
+          "format_version": 2,
+          "trace_id": "6af290ad00000000d4a8c45039885b6e",
+          "span_id": "2470661104097052662",
+          "configuration": {
+            "session_sample_rate": 100
+          },
+          "rule_psr": 1
+        },
+        "connectivity": {
+          "status": "connected",
+          "interfaces": [
+            "wifi"
+          ]
+        },
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "service": "datadog-capture-ios",
+        "resource": {
+          "provider": {
+            "domain": "127.0.0.1",
+            "type": "first party"
+          },
+          "connect": {
+            "start": 33753037,
+            "duration": 0
+          },
+          "duration": 66179037,
+          "first_byte": {
+            "start": 36808014,
+            "duration": 28668046
+          },
+          "dns": {
+            "start": 32752991,
+            "duration": 0
+          },
+          "status_code": 200,
+          "delivery_type": "other",
+          "decoded_body_size": 28,
+          "download": {
+            "start": 65476060,
+            "duration": 216961
+          },
+          "transfer_size": 225,
+          "encoded_body_size": 37,
+          "method": "GET",
+          "url": "http://127.0.0.1:4560/api/ok",
+          "id": "00000000-0000-4000-8000-000000000069",
+          "request": {
+            "encoded_body_size": 0,
+            "decoded_body_size": 0
+          },
+          "size": 28,
+          "type": "native"
+        },
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000062",
+          "type": "user",
+          "has_timeseries": false,
+          "has_replay": true,
+          "is_main_process": true
+        },
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "device": {
+          "model": "iPhone18,1 Simulator",
+          "time_zone": "<redacted time zone>",
+          "brightness_level": 0.5,
+          "locales": [
+            "en-US"
+          ],
+          "architecture": "arm64e",
+          "locale": "en-US",
+          "logical_cpu_count": 10,
+          "name": "iPhone",
+          "total_ram": 32768,
+          "power_saving_mode": false,
+          "brand": "Apple",
+          "type": "mobile"
+        },
+        "context": {},
+        "source": "ios",
+        "type": "resource",
+        "build_version": "1",
+        "os": {
+          "version": "27.0",
+          "name": "iOS",
+          "version_major": "27",
+          "build": "26A434"
+        },
+        "usr": {
+          "id": "user-123",
+          "name": "Demo User",
+          "anonymous_id": "00000000-0000-4000-8000-000000000064"
+        }
+      },
+      {
+        "view": {
+          "resource": {
+            "count": 1
+          },
+          "cpu_ticks_count": 830,
+          "id": "00000000-0000-4000-8000-000000000066",
+          "refresh_rate_average": 59.32188559422759,
+          "cpu_ticks_per_second": 402.93746560585464,
+          "is_slow_rendered": false,
+          "time_spent": 2059872985,
+          "refresh_rate_min": 3.5138310248756253,
+          "url": "DDCapture.HomeViewController",
+          "memory_max": 20302224,
+          "memory_average": 20128553.6,
+          "slow_frames": [
+            {
+              "start": 108513042,
+              "duration": 267923000
+            }
+          ]
+        },
+        "_dd": {
+          "session": {
+            "session_precondition": "user_app_launch",
+            "plan": 1
+          },
+          "document_version": 3,
+          "format_version": 2,
+          "replay_stats": {
+            "records_count": 3
+          },
+          "configuration": {
+            "session_replay_sample_rate": 100,
+            "session_sample_rate": 100,
+            "trace_sample_rate": 100,
+            "start_session_replay_recording_manually": false,
+            "session_replay_experimental_features": []
+          }
+        },
+        "usr": {
+          "anonymous_id": "00000000-0000-4000-8000-000000000064",
+          "id": "user-123",
+          "name": "Demo User"
+        },
+        "type": "view_update",
+        "date": 1794281643783,
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "current_locale": "en-US"
+        },
+        "session": {
+          "has_replay": true,
+          "is_active": true,
+          "type": "user",
+          "has_timeseries": false,
+          "id": "00000000-0000-4000-8000-000000000062",
+          "is_main_process": true
+        }
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/ios-run1/0003-rum-view+telemetry+long_task+view_update+vital+resource.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

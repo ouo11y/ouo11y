@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentry mobile SDKs</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1f24;--muted:#5d6370;--line:#d7d4cc;--card:#ffffff;--js:#e8f0fe;--jsb:#3b6fd8;--nat:#eef7ec;--natb:#3c8a3a;--disk:#fff4e0;--diskb:#c07a10;--net:#f6ecfb;--netb:#8a46b5;--warn:#b3261e}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171b;--fg:#e8e6e1;--muted:#a3a8b3;--line:#3a3d44;--card:#1d2026;--js:#1c2a44;--jsb:#7ea3f0;--nat:#1b2e1d;--natb:#79c276;--disk:#33280f;--diskb:#e7b35a;--net:#2c1f36;--netb:#c597e6;--warn:#f2857c}}
+:root[data-theme="dark"]{--bg:#15171b;--fg:#e8e6e1;--muted:#a3a8b3;--line:#3a3d44;--card:#1d2026;--js:#1c2a44;--jsb:#7ea3f0;--nat:#1b2e1d;--natb:#79c276;--disk:#33280f;--diskb:#e7b35a;--net:#2c1f36;--netb:#c597e6;--warn:#f2857c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.7rem;margin:.2em 0}
+h2{font-size:1.25rem;margin:2em 0 .4em;border-bottom:1px solid var(--line);padding-bottom:.2em}
+p,li{max-width:72ch}
+.meta{color:var(--muted);font-size:.9rem}
+figure{margin:1em 0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;overflow-x:auto}
+figcaption{color:var(--muted);font-size:.88rem;margin-top:6px}
+svg{width:100%;height:auto;min-width:640px;font-family:inherit}
+svg text{fill:var(--fg);font-size:13px}
+svg .small{font-size:11px;fill:var(--muted)}
+.js{fill:var(--js);stroke:var(--jsb)} .nat{fill:var(--nat);stroke:var(--natb)} .disk{fill:var(--disk);stroke:var(--diskb)} .net{fill:var(--net);stroke:var(--netb)}
+.box{stroke-width:1.5}
+.arrow{stroke:var(--fg);stroke-width:1.4;fill:none;marker-end:url(#ah)}
+.warnline{stroke:var(--warn);stroke-width:1.4;fill:none;stroke-dasharray:4 3;marker-end:url(#ahw)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin:.6em 0}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--card)}
+.wrap{overflow-x:auto}
+code{font-size:.9em}
+.tabs button{font:inherit;padding:4px 10px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{border-color:var(--jsb);font-weight:600}
+.bar{height:14px;background:var(--jsb);border-radius:3px}
+.bar.m{background:var(--natb)}
+</style>
+</head>
+<body>
+<main>
+<h1>Sentry mobile SDKs: how data leaves the phone</h1>
+<p class="meta">@sentry/react-native 8.34.0 bundles sentry-cocoa 9.33.0 (iOS) and sentry-android 8.62.0 (Android); the native sources were read at sentry-cocoa 9.33.0 and sentry-java 8.63.0. Research date 2026-11-10. Diagrams summarise the kb entries next to this page: <a href="react-native/architecture.md">react-native/architecture.md</a>, <a href="ios/reliability.md">ios/reliability.md</a>, <a href="android/reliability.md">android/reliability.md</a>, <a href="replay-mobile.md">replay-mobile.md</a>, <a href="wire-capture.md">wire-capture.md</a>. Numbers marked "observed" come from the captures on 2026-11-10.</p>
+
+<h2>1. React Native: the JS layer and the native layer</h2>
+<p>JS captures errors, spans, logs and feedback, then hands every envelope to native as one base64 string. Native owns HTTP, the disk cache, sessions, crashes and the replay pixels. JS never sees an HTTP response or a rate limit.</p>
+<figure>
+<svg viewBox="0 0 900 360" role="img" aria-label="React Native JS layer passes envelopes to the native SDK which owns transport and disk">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="currentColor" style="fill:var(--fg)"/></marker>
+<marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" style="fill:var(--warn)"/></marker></defs>
+<rect class="box js" x="20" y="20" width="390" height="210" rx="10"/>
+<text x="36" y="44" font-weight="600">JS layer (Hermes)</text>
+<text x="36" y="70">ReactNativeClient (@sentry/core 10.78.0)</text>
+<text x="36" y="94">ErrorUtils / promise rejection handlers</text>
+<text x="36" y="118">tracing: navigation, app start, TTID/TTFD, fetch/XHR</text>
+<text x="36" y="142">logs (batched), feedback widget, beforeSend</text>
+<text x="36" y="166">mobileReplayIntegration: options + breadcrumbs only</text>
+<text x="36" y="190">NativeTransport: envelope → bytes → base64</text>
+<text class="small" x="36" y="214">sdk.name sentry.javascript.react-native</text>
+<rect class="box nat" x="490" y="20" width="390" height="210" rx="10"/>
+<text x="506" y="44" font-weight="600">Native SDK (cocoa 9.33.0 / android 8.62.0)</text>
+<text x="506" y="70">captureEnvelope: + session update</text>
+<text x="506" y="94">crash handlers, ANR / app hang, MetricKit</text>
+<text x="506" y="118">release-health sessions (30 s background)</text>
+<text x="506" y="142">replay capture + H.264 encoder</text>
+<text x="506" y="166">envelope disk cache (30 items) + HTTP (gzip)</text>
+<text x="506" y="190">rate limits, client reports</text>
+<text class="small" x="506" y="214">sdk.name sentry.cocoa.react-native / sentry.java.android.react-native</text>
+<path class="arrow" d="M410 110 H488"/>
+<text class="small" x="414" y="102">RNSentry.captureEnvelope</text>
+<text class="small" x="414" y="128">(base64, {hardCrashed})</text>
+<path class="arrow" d="M488 160 H412"/>
+<text class="small" x="414" y="176">scope sync back: device</text>
+<text class="small" x="414" y="190">contexts, app start, frames</text>
+<rect class="box net" x="490" y="270" width="390" height="70" rx="10"/>
+<text x="506" y="296" font-weight="600">POST /api/&lt;project&gt;/envelope/</text>
+<text class="small" x="506" y="318">X-Sentry-Auth header, Content-Encoding: gzip, one envelope per request</text>
+<path class="arrow" d="M685 230 V268"/>
+<rect class="box js" x="20" y="270" width="390" height="70" rx="10"/>
+<text x="36" y="296">JS beforeSend never sees native events</text>
+<text class="small" x="36" y="318">(native crash, ANR, app hang): function options are stripped before native init</text>
+</svg>
+<figcaption>The JS → native hand-over. Sources: react-native/architecture.md sections 3 and 4; observed User-Agent is always the native SDK.</figcaption>
+</figure>
+
+<h2>2. A crash: disk first, send later (or not)</h2>
+<div class="tabs" role="group" aria-label="platform"><button type="button" data-p="ios" aria-pressed="true">iOS</button> <button type="button" data-p="android" aria-pressed="false">Android</button></div>
+<figure id="crash-ios">
+<svg viewBox="0 0 900 300" role="img" aria-label="iOS native crash written by SentryCrash then converted at next launch">
+<rect class="box nat" x="20" y="30" width="200" height="90" rx="10"/><text x="34" y="56" font-weight="600">Crash (Mach/signal)</text><text class="small" x="34" y="80">SentryCrash writes raw JSON</text><text class="small" x="34" y="98">async-signal-safe, no event yet</text>
+<rect class="box disk" x="270" y="30" width="220" height="90" rx="10"/><text x="284" y="56" font-weight="600">Caches/SentryCrash/…/Reports</text><text class="small" x="284" y="80">max 5 reports; replay frames as PNG</text><text class="small" x="284" y="98">+ crashInfo in replay/&lt;id&gt;/</text>
+<rect class="box nat" x="540" y="30" width="330" height="90" rx="10"/><text x="554" y="56" font-weight="600">Next launch</text><text class="small" x="554" y="80">1. new session init  2. event + crashed session</text><text class="small" x="554" y="98">3. recovered last replay segment (cocoa sdk)</text>
+<path class="arrow" d="M220 75 H268"/><path class="arrow" d="M490 75 H538"/>
+<rect class="box disk" x="270" y="170" width="220" height="90" rx="10"/><text x="284" y="196" font-weight="600">io.sentry/&lt;hash&gt;/envelopes</text><text class="small" x="284" y="220">every envelope stored before send</text><text class="small" x="284" y="238">30 items, oldest dropped</text>
+<rect class="box net" x="540" y="170" width="330" height="90" rx="10"/><text x="554" y="196" font-weight="600">HTTP</text><text class="small" x="554" y="220">2xx: delete. 4xx/5xx: delete (no retry)</text><text class="small" x="554" y="238">no response: keep, resend on next trigger</text>
+<path class="arrow" d="M705 120 V168"/><path class="arrow" d="M538 215 H492"/>
+<text class="small" x="20" y="290">Observed: iOS JS fatal was sent before the process exited; native crash at the next launch (fixtures ios/10, ios/11, ios/12).</text>
+</svg>
+</figure>
+<figure id="crash-android" hidden>
+<svg viewBox="0 0 900 300" role="img" aria-label="Android JVM crash flushed before death, NDK and JS fatal at next launch">
+<rect class="box nat" x="20" y="30" width="220" height="90" rx="10"/><text x="34" y="56" font-weight="600">JVM uncaught exception</text><text class="small" x="34" y="80">handler waits up to flushTimeout</text><text class="small" x="34" y="98">(4 s Android) for the transport</text>
+<rect class="box net" x="290" y="30" width="250" height="90" rx="10"/><text x="304" y="56" font-weight="600">Sent from the dying process</text><text class="small" x="304" y="80">event + crashed + attachments</text><text class="small" x="304" y="98">then a 7 s replay segment (observed)</text>
+<path class="arrow" d="M240 75 H288"/>
+<rect class="box nat" x="20" y="170" width="220" height="90" rx="10"/><text x="34" y="196" font-weight="600">JS fatal / NDK crash</text><text class="small" x="34" y="220">storeHardCrashEnvelope / outbox</text><text class="small" x="34" y="238">ANR v2: ApplicationExitInfo</text>
+<rect class="box disk" x="290" y="170" width="250" height="90" rx="10"/><text x="304" y="196" font-weight="600">cacheDir/sentry/&lt;hash&gt;/</text><text class="small" x="304" y="220">*.envelope (30), outbox/, replay_&lt;id&gt;/</text><text class="small" x="304" y="238">session.json, .scope-cache/</text>
+<rect class="box nat" x="590" y="170" width="290" height="90" rx="10"/><text x="604" y="196" font-weight="600">Next launch</text><text class="small" x="604" y="220">SendCachedEnvelope: new init first,</text><text class="small" x="604" y="238">then fatal + crashed (observed JS fatal)</text>
+<path class="arrow" d="M240 215 H288"/><path class="arrow" d="M540 215 H588"/>
+<text class="small" x="20" y="290">Retry: only on IOException / offline; 4xx and 5xx delete the file. A full 30-slot queue drops envelopes.</text>
+</svg>
+</figure>
+
+<h2>3. Replay: from screen to 5-second mp4 segments</h2>
+<figure>
+<svg viewBox="0 0 900 250" role="img" aria-label="Replay pipeline: capture at 1 fps, mask, store frames on disk, encode H.264 every 5 s, send msgpack replay_video item">
+<rect class="box nat" x="10" y="40" width="150" height="100" rx="10"/><text x="22" y="64" font-weight="600">Capture 1 fps</text><text class="small" x="22" y="86">iOS drawHierarchy</text><text class="small" x="22" y="104">Android PixelCopy</text><text class="small" x="22" y="122">main thread</text>
+<rect class="box nat" x="190" y="40" width="150" height="100" rx="10"/><text x="202" y="64" font-weight="600">Mask</text><text class="small" x="202" y="86">text, images, web,</text><text class="small" x="202" y="104">video (default on)</text><text class="small" x="202" y="122">background queue</text>
+<rect class="box disk" x="370" y="40" width="150" height="100" rx="10"/><text x="382" y="64" font-weight="600">Frames on disk</text><text class="small" x="382" y="86">iOS PNG, Android JPEG</text><text class="small" x="382" y="104">crash recovery</text><text class="small" x="382" y="122">buffer mode: 30 s</text>
+<rect class="box nat" x="550" y="40" width="150" height="100" rx="10"/><text x="562" y="64" font-weight="600">Encode H.264</text><text class="small" x="562" y="86">5 s → 5 frames</text><text class="small" x="562" y="104">iOS Main 402x874</text><text class="small" x="562" y="122">Android Baseline 416x912</text>
+<rect class="box net" x="730" y="40" width="160" height="100" rx="10"/><text x="742" y="64" font-weight="600">replay_video item</text><text class="small" x="742" y="86">msgpack map:</text><text class="small" x="742" y="104">replay_event, recording,</text><text class="small" x="742" y="122">replay_video (mp4)</text>
+<path class="arrow" d="M160 90 H188"/><path class="arrow" d="M340 90 H368"/><path class="arrow" d="M520 90 H548"/><path class="arrow" d="M700 90 H728"/>
+<rect class="box js" x="370" y="170" width="330" height="60" rx="10"/><text x="382" y="194" font-weight="600">rrweb events alongside the video</text><text class="small" x="382" y="214">meta, video, breadcrumbs (fetch, console, nav), touches, options</text>
+<path class="arrow" d="M700 200 C760 200 800 170 805 142"/>
+</svg>
+<figcaption>Sources: replay-mobile.md section 1. One envelope per segment; masking is drawn into the pixels before encoding.</figcaption>
+</figure>
+
+<h3>Observed bytes for a scripted 2-minute journey</h3>
+<p>Wire bytes (gzip envelopes) per minute, medium quality. Blue: demo with masking off; green: Sentry's default masking.</p>
+<div class="wrap"><table>
+<thead><tr><th>Run</th><th>KB/min</th><th style="width:45%">Scale (0 to 450 KB/min)</th><th>Segments</th><th>Avg video kbps</th></tr></thead>
+<tbody>
+<tr><td>iOS, unmasked</td><td>415</td><td><div class="bar" style="width:92%"></div></td><td>24</td><td>54.7</td></tr>
+<tr><td>iOS, default masking</td><td>165</td><td><div class="bar m" style="width:37%"></div></td><td>24</td><td>20.8</td></tr>
+<tr><td>Android, unmasked</td><td>421</td><td><div class="bar" style="width:94%"></div></td><td>26</td><td>62.5</td></tr>
+<tr><td>Android, default masking</td><td>212</td><td><div class="bar m" style="width:47%"></div></td><td>26</td><td>34.6</td></tr>
+</tbody></table></div>
+
+<h2>4. iOS and Android differ on the wire</h2>
+<div class="wrap"><table>
+<thead><tr><th>Topic</th><th>iOS</th><th>Android</th></tr></thead>
+<tbody>
+<tr><td>Health session on a handled JS error</td><td>same session, errors +1</td><td>session ends (<code>exited</code>), new session starts</td></tr>
+<tr><td>JS fatal</td><td>sent before exit (observed)</td><td>stored, sent at next launch</td></tr>
+<tr><td>Native crash</td><td>next launch</td><td>JVM: sent from the dying process</td></tr>
+<tr><td>sid / seq</td><td>UUID / 1, 2, …</td><td>32 hex / ms timestamp</td></tr>
+<tr><td>Replay msgpack key order</td><td>varies per segment</td><td>fixed</td></tr>
+<tr><td>Replay envelope DSC header</td><td>none</td><td><code>trace</code> with <code>replay_id</code></td></tr>
+<tr><td>JS profile item</td><td><code>platform: javascript</code>, ~470 KB raw each</td><td><code>platform: android</code> + nested <code>js_profile</code></td></tr>
+</tbody></table></div>
+</main>
+<script>
+(function(){
+  var btns=document.querySelectorAll('.tabs button');
+  for(var i=0;i<btns.length;i++){btns[i].addEventListener('click',function(e){
+    var p=e.currentTarget.getAttribute('data-p');
+    for(var j=0;j<btns.length;j++){btns[j].setAttribute('aria-pressed',btns[j]===e.currentTarget?'true':'false');}
+    document.getElementById('crash-ios').hidden=(p!=='ios');
+    document.getElementById('crash-android').hidden=(p!=='android');
+  });}
+})();
+</script>
+</body>
+</html>

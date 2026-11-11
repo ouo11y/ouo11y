@@ -1,0 +1,185 @@
+{
+ "note": "Runs 2 and 3 reused release read-api-probe@1.0.0, so their 'sessions' value only proves the query was already satisfied by run 1; ignore it. Runs 4 and 5 used unique releases. Poll loop resolution is about 1 s (13 checks per loop, 0.5 s sleep).",
+ "runs": [
+  {
+   "sent_at": "2026-11-10T03:22:07Z",
+   "ids": {
+    "event_id": "d9d98a105d2e4f4bb81fac57ce8c2678",
+    "trace_id": "e07ca7724b82497092cd68359cd35ff3",
+    "replay_id": "9c8eeaac6fea41589a7dfe71d2fd4113",
+    "transaction_id": "dfc27f819067494bb39e85cb371c7c7f",
+    "session_id": "2ba436dc-c154-4df4-9a93-fab9defd8735"
+   },
+   "ingest_status": {
+    "error": 200,
+    "transaction": 200,
+    "log": 200,
+    "session": 200,
+    "replay_seg0": 200,
+    "replay_seg1": 200
+   },
+   "seconds_until_visible": {
+    "replay_list": 3.27,
+    "replay_details": 3.64,
+    "replay_by_error_id": 3.95,
+    "logs_dataset": 5.01,
+    "replay_list_both_segments": 5.24,
+    "replay_segments_both": 5.38,
+    "discover_transactions": 6.33,
+    "trace_endpoint": 6.61,
+    "eventid_lookup": 7.36,
+    "project_event_details": 7.54,
+    "discover_errors": 7.62,
+    "spans_dataset": 18.02,
+    "sessions": 52.71
+   },
+   "never_visible": [],
+   "polls": 72,
+   "timeout_s": 240.0
+  },
+  {
+   "sent_at": "2026-11-10T03:23:09Z",
+   "ids": {
+    "event_id": "144551e8e8f14fc2844a5dcd3e4e932c",
+    "trace_id": "826c6c50f385403285cca965240daa34",
+    "replay_id": "59957c582f034674907d3318e17c007e",
+    "transaction_id": "664a07e83ea944508208da9027b7ffef",
+    "session_id": "3b454eb4-9946-4792-915e-59ee0e7dc7fa"
+   },
+   "ingest_status": {
+    "error": 200,
+    "transaction": 200,
+    "log": 200,
+    "session": 200,
+    "replay_seg0": 200,
+    "replay_seg1": 200
+   },
+   "seconds_until_visible": {
+    "sessions": 2.04,
+    "logs_dataset": 3.6,
+    "replay_list": 4.1,
+    "replay_list_both_segments": 4.25,
+    "replay_details": 4.62,
+    "replay_segments_both": 4.79,
+    "replay_by_error_id": 4.96,
+    "discover_transactions": 5.83,
+    "eventid_lookup": 6.75,
+    "project_event_details": 6.98,
+    "discover_errors": 7.27,
+    "trace_endpoint": 7.67,
+    "spans_dataset": 15.79
+   },
+   "never_visible": [],
+   "polls": 18,
+   "timeout_s": 240.0
+  },
+  {
+   "sent_at": "2026-11-10T03:23:26Z",
+   "ids": {
+    "event_id": "508104e18a4e4ebf98f53938c1be0db9",
+    "trace_id": "d054d0e46ee24391bd104740e8138455",
+    "replay_id": "27c4797b11e445a1a33700ff87d78b53",
+    "transaction_id": "5a3cb227847e4c938919e42aabab3d65",
+    "session_id": "f638cb65-a112-40eb-aebb-1e6cbe30f245"
+   },
+   "ingest_status": {
+    "error": 200,
+    "transaction": 200,
+    "log": 200,
+    "session": 200,
+    "replay_seg0": 200,
+    "replay_seg1": 200
+   },
+   "seconds_until_visible": {
+    "sessions": 0.8,
+    "logs_dataset": 3.23,
+    "replay_list": 3.44,
+    "replay_list_both_segments": 3.5,
+    "replay_details": 3.72,
+    "replay_segments_both": 3.87,
+    "replay_by_error_id": 4.02,
+    "eventid_lookup": 5.5,
+    "project_event_details": 5.7,
+    "discover_errors": 5.77,
+    "discover_transactions": 5.85,
+    "trace_endpoint": 6.12,
+    "spans_dataset": 15.2
+   },
+   "never_visible": [],
+   "polls": 21,
+   "timeout_s": 240.0
+  },
+  {
+   "sent_at": "2026-11-10T03:24:12Z",
+   "ids": {
+    "event_id": "3e0d563e187b45a99fac06dafdc46812",
+    "trace_id": "f8e50e2bc5984271bd674eb8c62ac0d4",
+    "replay_id": "5bd68ecea04346149cf0338ae94e2363",
+    "transaction_id": "23916e6b45c74485a5789dae1bda8e49",
+    "session_id": "fd3ae3b4-7f0f-497b-a135-7ba524a965c3"
+   },
+   "ingest_status": {
+    "error": 200,
+    "transaction": 200,
+    "log": 200,
+    "session": 200,
+    "replay_seg0": 200,
+    "replay_seg1": 200
+   },
+   "seconds_until_visible": {
+    "replay_details": 2.37,
+    "replay_by_error_id": 2.52,
+    "logs_dataset": 3.54,
+    "replay_list": 3.73,
+    "replay_list_both_segments": 3.8,
+    "replay_segments_both": 3.87,
+    "eventid_lookup": 5.5,
+    "project_event_details": 5.67,
+    "discover_errors": 5.78,
+    "discover_transactions": 5.89,
+    "trace_endpoint": 6.2,
+    "spans_dataset": 14.92,
+    "sessions": 48.72
+   },
+   "never_visible": [],
+   "polls": 73,
+   "timeout_s": 240.0
+  },
+  {
+   "sent_at": "2026-11-10T03:25:01Z",
+   "ids": {
+    "event_id": "aef21a92c7924adb9557ecd21228f486",
+    "trace_id": "cceae366e6e94107a05146ad1f03c99f",
+    "replay_id": "a09d6828f29b4d14aa6fef61d96ac592",
+    "transaction_id": "5eabb7c98d294592a5234f394c9b3787",
+    "session_id": "082cde6d-0508-4c8b-aa59-c25c7daabc17"
+   },
+   "ingest_status": {
+    "error": 200,
+    "transaction": 200,
+    "log": 200,
+    "session": 200,
+    "replay_seg0": 200,
+    "replay_seg1": 200
+   },
+   "seconds_until_visible": {
+    "logs_dataset": 2.53,
+    "replay_list": 4.5,
+    "replay_list_both_segments": 4.58,
+    "replay_details": 4.77,
+    "replay_segments_both": 4.94,
+    "replay_by_error_id": 5.13,
+    "eventid_lookup": 6.05,
+    "project_event_details": 6.38,
+    "discover_errors": 6.46,
+    "discover_transactions": 6.57,
+    "trace_endpoint": 6.79,
+    "spans_dataset": 14.48,
+    "sessions": 50.06
+   },
+   "never_visible": [],
+   "polls": 73,
+   "timeout_s": 240.0
+  }
+ ]
+}

@@ -1,0 +1,34 @@
+{
+ "file": "replay_video.mp4",
+ "size_bytes": 8215,
+ "major_brand": "mp42",
+ "compatible_brands": [
+  "isom",
+  "mp42"
+ ],
+ "duration_s": 5.0,
+ "tracks": [
+  {
+   "timescale": 90000,
+   "duration_s": 5.0,
+   "handler": "vide",
+   "codec_tag": "avc1",
+   "width": 416,
+   "height": 912,
+   "codec": "h264",
+   "profile": "Baseline",
+   "level": 4.1,
+   "sample_deltas": [
+    [
+     5,
+     90000
+    ]
+   ],
+   "keyframes": 1,
+   "frames": 5
+  }
+ ],
+ "mdat_bytes": 4983,
+ "avg_fps": 1.0,
+ "avg_bitrate_bps": 7973
+}

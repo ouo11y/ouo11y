@@ -1,0 +1,13 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "attachment",
+  "length": 41,
+  "attachment_type": "event.view_hierarchy",
+  "filename": "view-hierarchy.json"
+ },
+ "payload": {
+  "rendering_system": "UIKIT",
+  "windows": []
+ }
+}

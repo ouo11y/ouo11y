@@ -1,0 +1,21 @@
+{
+ "event_id": "df9f24edb14a44c4b4b3f1429d977edb",
+ "sdk": {
+  "integrations": [],
+  "packages": [],
+  "settings": {
+   "infer_ip": "never"
+  },
+  "version": "8.34.0",
+  "name": "sentry.javascript.react-native",
+  "features": []
+ },
+ "trace": {
+  "release": "sentry-demo@1.0.0+1",
+  "environment": "development",
+  "public_key": "<redacted>",
+  "trace_id": "c1d27479e66b4c7db0d509c0583cf135",
+  "replay_id": "1f83973a53684417b81ff592390b41a2"
+ },
+ "sent_at": "2026-11-10T07:18:04.230Z"
+}

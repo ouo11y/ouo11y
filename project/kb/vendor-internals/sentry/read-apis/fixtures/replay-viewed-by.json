@@ -1,0 +1,12 @@
+{
+ "data": {
+  "viewed_by": [
+   {
+    "id": "2",
+    "name": "user@example.invalid",
+    "username": "user@example.invalid",
+    "email": "user@example.invalid"
+   }
+  ]
+ }
+}

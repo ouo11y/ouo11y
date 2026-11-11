@@ -1,0 +1,1864 @@
+{
+ "item_header": {
+  "length": 62292,
+  "type": "event"
+ },
+ "payload": {
+  "breadcrumbs": [
+   {
+    "message": "Breadcrumb Tracking",
+    "timestamp": "2026-11-10T07:19:23.137Z",
+    "level": "info",
+    "type": "debug",
+    "category": "started"
+   },
+   {
+    "message": "[sentry-demo] rum mode sentry (stored), device 7e137208",
+    "timestamp": "2026-11-10T07:19:23.159Z",
+    "level": "debug",
+    "data": {
+     "arguments": [
+      "[sentry-demo] rum mode sentry (stored), device 7e137208"
+     ],
+     "logger": "console"
+    },
+    "category": "console",
+    "origin": "react-native"
+   },
+   {
+    "message": "[rollout] next launch: sentry",
+    "timestamp": "2026-11-10T07:19:23.159Z",
+    "level": "debug",
+    "data": {
+     "arguments": [
+      "[rollout] next launch: sentry"
+     ],
+     "logger": "console"
+    },
+    "category": "console",
+    "origin": "react-native"
+   },
+   {
+    "message": "Running \"main\"",
+    "timestamp": "2026-11-10T07:19:23.162Z",
+    "level": "debug",
+    "data": {
+     "arguments": [
+      "Running \"main\""
+     ],
+     "logger": "console"
+    },
+    "category": "console",
+    "origin": "react-native"
+   },
+   {
+    "data": {
+     "screen": "RNSNavigationController",
+     "window": "<UIWindow: 0x0000000105e04000; opaque = true>",
+     "parentViewController": "UIViewController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "window_windowLevel": "0.0",
+     "is_window_rootViewController": "false"
+    },
+    "timestamp": "2026-11-10T07:19:23.319Z",
+    "level": "info",
+    "type": "navigation",
+    "category": "ui.lifecycle"
+   },
+   {
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x0000000105e04000; opaque = true>",
+     "title": "sentry-demo",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0"
+    },
+    "timestamp": "2026-11-10T07:19:23.323Z",
+    "level": "info",
+    "type": "navigation",
+    "category": "ui.lifecycle"
+   },
+   {
+    "category": "navigation",
+    "origin": "react-native",
+    "data": {
+     "to": "Home"
+    },
+    "level": "info",
+    "message": "Navigation to Home",
+    "type": "navigation",
+    "timestamp": "2026-11-10T07:19:23.325Z"
+   },
+   {
+    "data": {
+     "__span": "87fb9f5edd974d32",
+     "method": "GET",
+     "status_code": 200,
+     "url": "http://localhost:4539/api/products"
+    },
+    "timestamp": "2026-11-10T07:19:23.327Z",
+    "level": "info",
+    "type": "http",
+    "category": "fetch",
+    "origin": "react-native"
+   },
+   {
+    "message": "b23be0e38fe94403a27e6d3a8d3b5ce9",
+    "timestamp": "2026-11-10T07:19:24.249Z",
+    "level": "info",
+    "category": "sentry.transaction",
+    "origin": "react-native"
+   },
+   {
+    "message": "native-crash",
+    "timestamp": "2026-11-10T07:19:30.232Z",
+    "level": "info",
+    "category": "demo.action",
+    "origin": "react-native"
+   },
+   {
+    "message": "[sentry-demo] native-crash: crashing",
+    "timestamp": "2026-11-10T07:19:30.232Z",
+    "level": "debug",
+    "data": {
+     "arguments": [
+      "[sentry-demo] native-crash: crashing"
+     ],
+     "logger": "console"
+    },
+    "category": "console",
+    "origin": "react-native"
+   }
+  ],
+  "threads": {
+   "values": [
+    {
+     "id": 0,
+     "current": false,
+     "crashed": true,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "dyld",
+        "instruction_addr": "0x00000001038c1e80",
+        "image_addr": "0x0000000103890000",
+        "in_app": false
+       },
+       {
+        "in_app": false,
+        "instruction_addr": "0x0000000103a0c350",
+        "image_addr": "0x0000000000000000"
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102f0a8c8",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c53d7c94",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c5535e30",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices",
+        "instruction_addr": "0x00000002219199ac",
+        "image_addr": "0x0000000221917000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01de040",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e34fc",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e42e4",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642a9a0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642ae44",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6452890",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6435fb8",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e641b6a0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React",
+        "instruction_addr": "0x000000010635f07c",
+        "image_addr": "0x0000000106054000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React",
+        "instruction_addr": "0x0000000106359cc0",
+        "image_addr": "0x0000000106054000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028bc94",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028ba10",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028e840",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102d6f8a8",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       }
+      ],
+      "registers": {
+       "x21": "0x00000001c0093800",
+       "x2": "0x0000000000000000",
+       "x16": "0x000000010317fb0a",
+       "x3": "0x0000000000000000",
+       "x22": "0x000000010c2cd400",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000102d6f8a4",
+       "cpsr": "0x0000000040000000",
+       "x5": "0x0000000000000000",
+       "x23": "0x000000010c2cd540",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000000",
+       "lr": "0x0000000102e147f0",
+       "x7": "0x0000000000000000",
+       "x24": "0x000000022e6b44c0",
+       "x11": "0x0000000000000000",
+       "x8": "0x0000000000000000",
+       "x19": "0x000000010c5de040",
+       "x25": "0x0000000105c36ec0",
+       "x9": "0x000000010976e408",
+       "x12": "0x000000010976e400",
+       "fp": "0x000000016d0c09e0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000102d6f8a8",
+       "x27": "0x0000000000000000",
+       "x14": "0xffffffffffffffff",
+       "x20": "0x0000000222481260",
+       "x0": "0x000000010317fae0",
+       "sp": "0x000000016d0c09e0",
+       "x28": "0x0000000000000114",
+       "x15": "0x0000000000000002",
+       "x1": "0x0000000103082650"
+      }
+     },
+     "main": true
+    },
+    {
+     "id": 1,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x000000016d14b0a0",
+       "x2": "0x0000000000000001",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x000000016d14b098",
+       "x4": "0x00000000000001a0",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000000000020",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000010ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x0000000000000000",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x000000000000001b",
+       "x19": "0x000000016d14b000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016d14b0e0",
+       "x12": "0x000000000000ffef",
+       "fp": "0x000000016d14ab50",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000003700000001",
+       "x20": "0x0000000000000001",
+       "x0": "0x0000000000000100",
+       "sp": "0x000000016d14ab30",
+       "x28": "0x0000000000000000",
+       "x15": "0x001ffea500000001",
+       "x1": "0x000000016d14ab80"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 2,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000000000000",
+       "x2": "0x0000000000000000",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000064006",
+       "x4": "0x0000000000064006",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000000000000",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000020ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x0000000000000000",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x0000000000000078",
+       "x19": "0x000000016d1d7000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016d1d70e0",
+       "x12": "0x0000000000000000",
+       "fp": "0x000000016d1d6fe0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000000",
+       "x20": "0x0000000000000000",
+       "x0": "0x0000000000000004",
+       "sp": "0x000000016d1d6fc0",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000000000000",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 3,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000000000000",
+       "x2": "0x0000000000000000",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000064003",
+       "x4": "0x005ffc0000000000",
+       "x17": "0x0000000000000004",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000000000155",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000004ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x0000000000000403",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x0000000000000078",
+       "x19": "0x000000016d263000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016d2630e0",
+       "x12": "0x0000000000000000",
+       "fp": "0x000000016d262fe0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000800000001",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000004000000001",
+       "x20": "0x0000000000000000",
+       "x0": "0x0000000000000004",
+       "sp": "0x000000016d262fc0",
+       "x28": "0x0000000000000000",
+       "x15": "0x000000010c437138",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 4,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000000000000",
+       "x2": "0x0000000000000000",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000064006",
+       "x4": "0x00000000000003c0",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x000000000000002a",
+       "x23": "0x0000000000000000",
+       "x6": "0x002e30000040cb18",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000020ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x002e30000040d2c8",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x0000000000000078",
+       "x19": "0x000000016d2ef000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016d2ef0e0",
+       "x12": "0x0000000000007800",
+       "fp": "0x000000016d2eefe0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000038",
+       "x20": "0x0000000000000000",
+       "x0": "0x0000000000000004",
+       "sp": "0x000000016d2eefc0",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000104aa0000",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 5,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3ac7c",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642f71c",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642ffd4",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e64250c8",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6424600",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6435fb8",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e641b6a0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102d42b84",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102dc1c84",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102ede508",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102eddd98",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102ef2244",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102ea2c34",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102e04764",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102ef2550",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c43f3680",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c43f3a80",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c33cf524",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c33cf154",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c33eb1c0",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c34d968c",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c34dc954",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c340ead4",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "instruction_addr": "0x00000001c3406aa4",
+        "image_addr": "0x00000001c3145000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000000000000",
+       "x2": "0x000001127fff76c0",
+       "x16": "0x0000000000000000",
+       "x3": "0x0000000000000192",
+       "x22": "0x00000000000000d9",
+       "x4": "0x0000000000000191",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000020000000",
+       "x5": "0x000004b4800000c0",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000117034000",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000bbfffffff80",
+       "lr": "0x0000000000000000",
+       "x7": "0x000000016d3790fc",
+       "x24": "0x0000000117c4404c",
+       "x11": "0x0000022500014880",
+       "x8": "0x00000000000012d8",
+       "x19": "0x0000000117034000",
+       "x25": "0xfffffffe800000c0",
+       "x9": "0x0000000000000000",
+       "x12": "0x0000028dfffeb900",
+       "fp": "0x000000016d379a50",
+       "x26": "0xfffffffe800000c0",
+       "x13": "0xfffffffffffffc98",
+       "pc": "0x00000001c3406aa4",
+       "x27": "0x00000000ffffffff",
+       "x14": "0x00000002fffffe80",
+       "x20": "0x000000016d378f5f",
+       "x0": "0x000000016d379a60",
+       "sp": "0x000000016d378ea0",
+       "x28": "0x0000092a00008a00",
+       "x15": "0x0000000000000000",
+       "x1": "0x0000028f7ffeb840"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 6,
+     "current": false,
+     "crashed": false,
+     "name": "com.facebook.react.runtime.JavaScript",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/Foundation.framework/Foundation",
+        "instruction_addr": "0x00000001c05e452c",
+        "image_addr": "0x00000001c04b7000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React",
+        "instruction_addr": "0x000000010630530c",
+        "image_addr": "0x0000000106054000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01de040",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e31e0",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e4010",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8edc",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ad0c58",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8b5c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000790300000000",
+       "x2": "0x0000000200000000",
+       "x16": "0xffffffffffffffd1",
+       "x3": "0x0000790300000000",
+       "x22": "0x0000000000000000",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000000000004",
+       "cpsr": "0x0000000000000000",
+       "x5": "0x0000790300000000",
+       "x23": "0x0000790300000000",
+       "x6": "0x0000000000000002",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000000",
+       "lr": "0x0000000103ada0e4",
+       "x7": "0x00000000ffffffff",
+       "x24": "0x0000000507000806",
+       "x11": "0x0000000000000002",
+       "x8": "0x0000000000000000",
+       "x19": "0x00000000ffffffff",
+       "x25": "0x000000016d491db8",
+       "x9": "0x0000000400000000",
+       "x12": "0x0000000000000000",
+       "fp": "0x000000016d491d20",
+       "x26": "0x0000000200000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103ac8b5c",
+       "x27": "0xfffffffffffffbbf",
+       "x14": "0x0000000000007903",
+       "x20": "0x0000000000000002",
+       "x0": "0x000000016d491db8",
+       "sp": "0x000000016d491cd0",
+       "x28": "0x0000000103b10000",
+       "x15": "0x0000000000000c00",
+       "x1": "0x0000000507000806"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 7,
+     "current": false,
+     "crashed": false,
+     "name": "hades",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/hermesvm.framework/hermesvm",
+        "instruction_addr": "0x000000010543186c",
+        "image_addr": "0x00000001052b4000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/hermesvm.framework/hermesvm",
+        "instruction_addr": "0x00000001054318f8",
+        "image_addr": "0x00000001052b4000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libc++.1.dylib",
+        "instruction_addr": "0x00000001d41cda1c",
+        "image_addr": "0x00000001d41ac000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103acc024",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x000000016d51f0e0",
+       "x2": "0x0000000000000000",
+       "x16": "0x0000000000000131",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000000000",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000040000000",
+       "x5": "0x00000000000000a0",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000000",
+       "lr": "0x0000000103b3eb44",
+       "x7": "0x0000000000000000",
+       "x24": "0x0000000000000000",
+       "x11": "0x0000000000000002",
+       "x8": "0x000000016d51eeb8",
+       "x19": "0x0000000105cda7c0",
+       "x25": "0x0000000000000100",
+       "x9": "0x0000000000000000",
+       "x12": "0x0000000000000002",
+       "fp": "0x000000016d51ef30",
+       "x26": "0x0000000000000001",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103acc024",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000000",
+       "x20": "0x0000000105cda800",
+       "x0": "0x0000000105cda800",
+       "sp": "0x000000016d51eea0",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000000000000",
+       "x1": "0x0000000100000100"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 8,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102d757ac",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libsystem_c.dylib",
+        "instruction_addr": "0x00000001c82969b8",
+        "image_addr": "0x00000001c8224000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103acbe54",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x00000001031a6cd4",
+       "x2": "0x0000000000000001",
+       "x16": "0x000000000000014e",
+       "x3": "0x0000000000000001",
+       "x22": "0x00000001031a6ce4",
+       "x4": "0x0000000000000001",
+       "x17": "0x0000000000000001",
+       "cpsr": "0x0000000040000000",
+       "x5": "0x0000000000000000",
+       "x23": "0x00000001031a6ce8",
+       "x6": "0x0000000000000034",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000011",
+       "lr": "0x00000001c8296bbc",
+       "x7": "0x0000000000000000",
+       "x24": "0x00000001031a6ce0",
+       "x11": "0x00c26000004871bc",
+       "x8": "0x000000022ebc8034",
+       "x19": "0x000000016d5aaf40",
+       "x25": "0x0000000000000039",
+       "x9": "0x0000000000004003",
+       "x12": "0x0000000000087800",
+       "fp": "0x000000016d5aaf30",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103acbe54",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000007",
+       "x20": "0x000000016d5aaf50",
+       "x0": "0x0000000000000903",
+       "sp": "0x000000016d5aaf00",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000104aa0000",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 9,
+     "current": false,
+     "crashed": false,
+     "name": "SentryCrash Exception Handler (Secondary)",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102d5f718",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8edc",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ad0c58",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8b5c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000600f00000000",
+       "x2": "0x0000000000000000",
+       "x16": "0xffffffffffffffd1",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000000000",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000000000000",
+       "x5": "0x0000600f00000000",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000244",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000244",
+       "lr": "0x0000000103ada0e4",
+       "x7": "0x0000000000000000",
+       "x24": "0x0000000400000002",
+       "x11": "0x0000000000000000",
+       "x8": "0x0000000000000000",
+       "x19": "0x0000000000000000",
+       "x25": "0x000000016d636d44",
+       "x9": "0x0000000400000000",
+       "x12": "0x0000000000000000",
+       "fp": "0x000000016d6366e0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103ac8b5c",
+       "x27": "0xfffffffffffffbbf",
+       "x14": "0x000000000000600f",
+       "x20": "0x0000000000000244",
+       "x0": "0x000000016d636d44",
+       "sp": "0x000000016d636690",
+       "x28": "0x0000000103b10000",
+       "x15": "0x0000000000000244",
+       "x1": "0x0000000400000002"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 10,
+     "current": true,
+     "crashed": false,
+     "name": "SentryCrash Exception Handler (Primary)",
+     "stacktrace": {
+      "frames": [
+       {
+        "in_app": false,
+        "instruction_addr": "0x0000000000000000",
+        "image_addr": "0x0000000000000000"
+       }
+      ]
+     },
+     "main": false
+    },
+    {
+     "id": 11,
+     "current": false,
+     "crashed": false,
+     "name": "io.sentry.app-hang-tracker",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/Foundation.framework/Foundation",
+        "instruction_addr": "0x00000001c05e35f0",
+        "image_addr": "0x00000001c04b7000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102dc1c84",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102df4384",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/Foundation.framework/Foundation",
+        "instruction_addr": "0x00000001c05e2f08",
+        "image_addr": "0x00000001c04b7000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103acbe54",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000105e5dca0",
+       "x2": "0x0000000000000001",
+       "x16": "0x000000000000014e",
+       "x3": "0x0000000000000001",
+       "x22": "0x0000000000000001",
+       "x4": "0x0000000000000000",
+       "x17": "0x00000001c05e2e74",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000017d78400",
+       "x23": "0x00000002227fa9a0",
+       "x6": "0x015e900000464a62",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000011",
+       "lr": "0x00000001c8296bbc",
+       "x7": "0x015e900000465202",
+       "x24": "0x00000001c06e93b0",
+       "x11": "0x0000000000000007",
+       "x8": "0x000000022ebc8034",
+       "x19": "0x0000000000000000",
+       "x25": "0x000000016d74edd0",
+       "x9": "0x0000000000000003",
+       "x12": "0x0000000000000001",
+       "fp": "0x000000016d74ed30",
+       "x26": "0x000000016d74edc0",
+       "x13": "0x000000010957e070",
+       "pc": "0x0000000103acbe54",
+       "x27": "0x00000001097b6540",
+       "x14": "0x000000022e6dda28",
+       "x20": "0x000000016d74ed60",
+       "x0": "0x0000000000000903",
+       "sp": "0x000000016d74ed00",
+       "x28": "0x0000000000000000",
+       "x15": "0x000000022e6dda28",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 12,
+     "current": false,
+     "crashed": false,
+     "name": "com.apple.NSURLConnectionLoader",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/Foundation.framework/Foundation",
+        "instruction_addr": "0x00000001c05e452c",
+        "image_addr": "0x00000001c04b7000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CFNetwork.framework/CFNetwork",
+        "instruction_addr": "0x00000001cb62a6c0",
+        "image_addr": "0x00000001cb431000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01de040",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e31e0",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e4010",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8edc",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ad0c58",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8b5c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000850300000000",
+       "x2": "0x0000000200000000",
+       "x16": "0xffffffffffffffd1",
+       "x3": "0x0000850300000000",
+       "x22": "0x0000000000000000",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000000000002",
+       "cpsr": "0x0000000000000000",
+       "x5": "0x0000850300000000",
+       "x23": "0x0000850300000000",
+       "x6": "0x0000000000000002",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000000",
+       "lr": "0x0000000103ada0e4",
+       "x7": "0x00000000ffffffff",
+       "x24": "0x0000000507000806",
+       "x11": "0x0000000000000002",
+       "x8": "0x0000000000000000",
+       "x19": "0x00000000ffffffff",
+       "x25": "0x000000016d7d9d48",
+       "x9": "0x0000000400000000",
+       "x12": "0x0000000000000000",
+       "fp": "0x000000016d7d9cb0",
+       "x26": "0x0000000200000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103ac8b5c",
+       "x27": "0xfffffffffffffbbf",
+       "x14": "0x0000000000008503",
+       "x20": "0x0000000000000002",
+       "x0": "0x000000016d7d9d48",
+       "sp": "0x000000016d7d9c60",
+       "x28": "0x0000000103b10000",
+       "x15": "0x0000000000000c00",
+       "x1": "0x0000000507000806"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 13,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x000000016d97f0a0",
+       "x2": "0x0000000000000001",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x000000016d97f098",
+       "x4": "0x00000000000001a0",
+       "x17": "0x00000001c015b3cc",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000000000020",
+       "x23": "0x0000000000000000",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000004ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x0000000000000000",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x000000000000001b",
+       "x19": "0x000000016d97f000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016d97f0e0",
+       "x12": "0x000000000000ffef",
+       "fp": "0x000000016d97eb50",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000000",
+       "x20": "0x0000000000000001",
+       "x0": "0x0000000000000100",
+       "sp": "0x000000016d97eb30",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000000000000",
+       "x1": "0x000000016d97eb80"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 14,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103aca68c",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x0000000000000000",
+       "x2": "0x0000000000000000",
+       "x16": "0x0000000000000170",
+       "x3": "0x0000000000000000",
+       "x22": "0x0000000000064006",
+       "x4": "0x0000000000000300",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x000000000000002a",
+       "x23": "0x0000000000000000",
+       "x6": "0x0001a0000043f400",
+       "x18": "0x0000000000000000",
+       "x10": "0x00000000000020ff",
+       "lr": "0x0000000103b3acc8",
+       "x7": "0x0001a0000043fc00",
+       "x24": "0x0000000000000000",
+       "x11": "0x00000000000000ff",
+       "x8": "0x0000000000000078",
+       "x19": "0x000000016db23000",
+       "x25": "0x0000000000000000",
+       "x9": "0x000000016db230e0",
+       "x12": "0x0000000000008000",
+       "fp": "0x000000016db22fe0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103aca68c",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000038",
+       "x20": "0x0000000000000000",
+       "x0": "0x0000000000000004",
+       "sp": "0x000000016db22fc0",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000104aa0000",
+       "x1": "0x0000000000000000"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 15,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642e3e0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e641d384",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8af0",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x000000003b9aca00",
+       "x2": "0x000000003b9ac9d6",
+       "x16": "0xffffffffffffffda",
+       "x3": "0x0000000fffffc088",
+       "x22": "0x000000012a05f200",
+       "x4": "0x0000000000000228",
+       "x17": "0x0000000000000006",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000000000000080",
+       "x23": "0x0000000000000000",
+       "x6": "0x0106100000464a42",
+       "x18": "0x0000000000000000",
+       "x10": "0xc000000000000002",
+       "lr": "0x00000001e6450934",
+       "x7": "0x0106100000465234",
+       "x24": "0x000000010c4a5838",
+       "x11": "0x0000000007270e00",
+       "x8": "0x000000003b9ac9d6",
+       "x19": "0x0000254d29fb7020",
+       "x25": "0xffffffff02000000",
+       "x9": "0x0000000000000003",
+       "x12": "0x0000000004c4b400",
+       "fp": "0x000000016d406f30",
+       "x26": "0xffffffff77ffffff",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000103ac8af0",
+       "x27": "0x0000000000000000",
+       "x14": "0x000000000000001e",
+       "x20": "0x000000010c4a58c0",
+       "x0": "0x000000000000830f",
+       "sp": "0x000000016d406f10",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000104aa0000",
+       "x1": "0x3b9ac9d600000004"
+      }
+     },
+     "main": false
+    },
+    {
+     "id": 16,
+     "current": false,
+     "crashed": false,
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "/usr/lib/system/libsystem_pthread.dylib",
+        "instruction_addr": "0x0000000103b3e680",
+        "image_addr": "0x0000000103b38000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642e3e0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e641d384",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/usr/lib/system/libsystem_kernel.dylib",
+        "instruction_addr": "0x0000000103ac8af0",
+        "image_addr": "0x0000000103ac8000",
+        "in_app": false
+       }
+      ],
+      "registers": {
+       "x21": "0x000000003b9aca00",
+       "x2": "0x000000003b9ac9ac",
+       "x16": "0xffffffffffffffda",
+       "x3": "0x0000000fffffc088",
+       "x22": "0x000000012a05f200",
+       "x4": "0x00000e2100000000",
+       "x17": "0x0000000000000000",
+       "cpsr": "0x0000000080000000",
+       "x5": "0x0000c11300000000",
+       "x23": "0x0000000000000000",
+       "x6": "0x000000000000002c",
+       "x18": "0x0000000000000000",
+       "x10": "0xc000000000000002",
+       "lr": "0x00000001e6450934",
+       "x7": "0x0000000000000000",
+       "x24": "0x000000010c4a5838",
+       "x11": "0x0000000007270e00",
+       "x8": "0x000000003b9ac9ac",
+       "x19": "0x0000254d29fb70dd",
+       "x25": "0xffffffff02000000",
+       "x9": "0x0000000000000003",
+       "x12": "0x0000000004c4b400",
+       "fp": "0x000000016d866f30",
+       "x26": "0xffffffff77ffffff",
+       "x13": "0x0000000000000020",
+       "pc": "0x0000000103ac8af0",
+       "x27": "0x0000000000000000",
+       "x14": "0x0000000000000000",
+       "x20": "0x000000010c4a58c0",
+       "x0": "0x000000000000830f",
+       "sp": "0x000000016d866f10",
+       "x28": "0x0000000000000000",
+       "x15": "0x0000000000000000",
+       "x1": "0x3b9ac9ac00000004"
+      }
+     },
+     "main": false
+    }
+   ]
+  },
+  "platform": "cocoa",
+  "tags": {
+   "event.origin": "ios",
+   "event.environment": "native"
+  },
+  "level": "fatal",
+  "dist": "1",
+  "environment": "development",
+  "timestamp": 1794295170,
+  "exception": {
+   "values": [
+    {
+     "value": "Exception 1, Code 1, Subcode 0 >\nAttempted to dereference null pointer.",
+     "mechanism": {
+      "synthetic": true,
+      "handled": false,
+      "meta": {
+       "signal": {
+        "code": 0,
+        "number": 11,
+        "code_name": "SEGV_NOOP",
+        "name": "SIGSEGV"
+       },
+       "mach_exception": {
+        "code": 1,
+        "subcode": 0,
+        "exception": 1,
+        "name": "EXC_BAD_ACCESS"
+       }
+      },
+      "type": "mach"
+     },
+     "thread_id": 0,
+     "type": "EXC_BAD_ACCESS",
+     "stacktrace": {
+      "frames": [
+       {
+        "package": "dyld",
+        "instruction_addr": "0x00000001038c1e80",
+        "image_addr": "0x0000000103890000",
+        "in_app": false
+       },
+       {
+        "in_app": false,
+        "instruction_addr": "0x0000000103a0c350",
+        "image_addr": "0x0000000000000000"
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102f0a8c8",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c53d7c94",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore",
+        "instruction_addr": "0x00000001c5535e30",
+        "image_addr": "0x00000001c3bff000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices",
+        "instruction_addr": "0x00000002219199ac",
+        "image_addr": "0x0000000221917000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01de040",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e34fc",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c01e42e4",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642a9a0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e642ae44",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6452890",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e6435fb8",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib",
+        "instruction_addr": "0x00000001e641b6a0",
+        "image_addr": "0x00000001e641a000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React",
+        "instruction_addr": "0x000000010635f07c",
+        "image_addr": "0x0000000106054000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React",
+        "instruction_addr": "0x0000000106359cc0",
+        "image_addr": "0x0000000106054000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028bc94",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028ba10",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "instruction_addr": "0x00000001c028e840",
+        "image_addr": "0x00000001c014a000",
+        "in_app": false
+       },
+       {
+        "package": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo",
+        "instruction_addr": "0x0000000102d6f8a8",
+        "image_addr": "0x0000000102d3c000",
+        "in_app": true
+       }
+      ],
+      "registers": {
+       "x21": "0x00000001c0093800",
+       "x2": "0x0000000000000000",
+       "x16": "0x000000010317fb0a",
+       "x3": "0x0000000000000000",
+       "x22": "0x000000010c2cd400",
+       "x4": "0x0000000000000000",
+       "x17": "0x0000000102d6f8a4",
+       "cpsr": "0x0000000040000000",
+       "x5": "0x0000000000000000",
+       "x23": "0x000000010c2cd540",
+       "x6": "0x0000000000000000",
+       "x18": "0x0000000000000000",
+       "x10": "0x0000000000000000",
+       "lr": "0x0000000102e147f0",
+       "x7": "0x0000000000000000",
+       "x24": "0x000000022e6b44c0",
+       "x11": "0x0000000000000000",
+       "x8": "0x0000000000000000",
+       "x19": "0x000000010c5de040",
+       "x25": "0x0000000105c36ec0",
+       "x9": "0x000000010976e408",
+       "x12": "0x000000010976e400",
+       "fp": "0x000000016d0c09e0",
+       "x26": "0x0000000000000000",
+       "x13": "0x0000000000000000",
+       "pc": "0x0000000102d6f8a8",
+       "x27": "0x0000000000000000",
+       "x14": "0xffffffffffffffff",
+       "x20": "0x0000000222481260",
+       "x0": "0x000000010317fae0",
+       "sp": "0x000000016d0c09e0",
+       "x28": "0x0000000000000114",
+       "x15": "0x0000000000000002",
+       "x1": "0x0000000103082650"
+      }
+     }
+    }
+   ]
+  },
+  "contexts": {
+   "app": {
+    "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+    "app_version": "1.0.0",
+    "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+    "app_start_time": "2026-11-10T07:19:23Z",
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_build": "1",
+    "build_type": "simulator",
+    "in_foreground": true,
+    "app_name": "sentrydemo",
+    "is_active": false
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "device": {
+    "model_id": "simulator",
+    "free_memory": 119635968,
+    "screen_height_pixels": 874,
+    "family": "iOS",
+    "screen_width_pixels": 402,
+    "simulator": true,
+    "low_power_mode": false,
+    "locale": "xx_XX",
+    "arch": "arm64",
+    "memory_size": 34359738368,
+    "model": "iPhone19,2",
+    "usable_memory": 19043303424
+   },
+   "replay": {
+    "replay_id": "d3edc3158b2b42c6964019dca1ed0c6b"
+   },
+   "trace": {
+    "trace_id": "e00848a0efdb418f87c4dcc0374267d8",
+    "span_id": "810e71dbabfadcf6"
+   },
+   "os": {
+    "build": "26A434",
+    "rooted": false,
+    "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142",
+    "name": "iOS",
+    "version": "27.0"
+   }
+  },
+  "event_id": "9bc95b97fd304a2dae1bf404142d0f49",
+  "sdk": {
+   "packages": [
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    }
+   ],
+   "features": [
+    "dataSwizzling",
+    "metrics",
+    "experimentalViewRenderer",
+    "viewHierarchy"
+   ],
+   "settings": {
+    "infer_ip": "never"
+   },
+   "name": "sentry.cocoa.react-native",
+   "integrations": [
+    "SessionReplay",
+    "NetworkTracking",
+    "AutoSessionTracking",
+    "Crash"
+   ],
+   "version": "9.33.0"
+  },
+  "debug_meta": {
+   "images": [
+    {
+     "debug_id": "D341DDCB-7969-3A9C-8E03-0CF4751398A9",
+     "image_addr": "0x0000000103890000",
+     "type": "macho",
+     "image_size": 786432,
+     "code_file": "dyld"
+    },
+    {
+     "image_vmaddr": "0x0000000100000000",
+     "debug_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+     "image_addr": "0x0000000102d3c000",
+     "type": "macho",
+     "image_size": 4030464,
+     "code_file": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/sentrydemo"
+    },
+    {
+     "image_vmaddr": "0x00000001d41ac000",
+     "debug_id": "05BDBB32-0AA2-3EA6-B7DE-2F3A7C79D047",
+     "image_addr": "0x00000001d41ac000",
+     "type": "macho",
+     "image_size": 585156,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libc++.1.dylib"
+    },
+    {
+     "image_vmaddr": "0x00000001c3145000",
+     "debug_id": "04A5A7AC-9526-38D4-97C3-56B67AC8B38E",
+     "image_addr": "0x00000001c3145000",
+     "type": "macho",
+     "image_size": 7724416,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics"
+    },
+    {
+     "debug_id": "DDAFB7D5-6123-3CA5-B62D-66DE201F76C7",
+     "image_addr": "0x0000000106054000",
+     "type": "macho",
+     "image_size": 4489216,
+     "code_file": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/React.framework/React"
+    },
+    {
+     "debug_id": "2019110A-2283-362F-B4E3-32D6CD90B09D",
+     "image_addr": "0x00000001052b4000",
+     "type": "macho",
+     "image_size": 2162688,
+     "code_file": "/Users/<user>/Library/Developer/CoreSimulator/Devices/37B91140-2BA9-4CC7-9676-E4876E61AB3F/data/Containers/Bundle/Application/EE19D7EB-DCEA-473C-A5A4-AF2C0FF993F9/sentrydemo.app/Frameworks/hermesvm.framework/hermesvm"
+    },
+    {
+     "image_vmaddr": "0x00000001c04b7000",
+     "debug_id": "49FCDA5F-A93E-3259-857C-FC75AC2C7B03",
+     "image_addr": "0x00000001c04b7000",
+     "type": "macho",
+     "image_size": 17443021,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/Foundation.framework/Foundation"
+    },
+    {
+     "image_vmaddr": "0x00000001c014a000",
+     "debug_id": "D2C8AA56-482C-35EA-B4D3-54C2B5F58ADC",
+     "image_addr": "0x00000001c014a000",
+     "type": "macho",
+     "image_size": 3588624,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+    },
+    {
+     "image_vmaddr": "0x00000001e641a000",
+     "debug_id": "A0EA2486-B842-3BA5-AEDF-210E821D01F7",
+     "image_addr": "0x00000001e641a000",
+     "type": "macho",
+     "image_size": 281688,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libdispatch.dylib"
+    },
+    {
+     "image_vmaddr": "0x00000001c8224000",
+     "debug_id": "80E2962C-3A3D-3A25-B5EF-A179BB2754A3",
+     "image_addr": "0x00000001c8224000",
+     "type": "macho",
+     "image_size": 517216,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/system/libsystem_c.dylib"
+    },
+    {
+     "debug_id": "B07862D0-C2DE-3AED-898C-88190E38064E",
+     "image_addr": "0x0000000103ac8000",
+     "type": "macho",
+     "image_size": 262144,
+     "code_file": "/usr/lib/system/libsystem_kernel.dylib"
+    },
+    {
+     "debug_id": "08833BEC-E49C-31B7-85FD-6EF2BAC2B425",
+     "image_addr": "0x0000000103b38000",
+     "type": "macho",
+     "image_size": 65536,
+     "code_file": "/usr/lib/system/libsystem_pthread.dylib"
+    },
+    {
+     "image_vmaddr": "0x00000001cb431000",
+     "debug_id": "DEA675C8-69EC-3F33-8C59-4AE8F4ACFA2E",
+     "image_addr": "0x00000001cb431000",
+     "type": "macho",
+     "image_size": 3464140,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CFNetwork.framework/CFNetwork"
+    },
+    {
+     "image_vmaddr": "0x0000000221917000",
+     "debug_id": "B5C0C276-A8C5-3E18-895F-2E4DBDA804A8",
+     "image_addr": "0x0000000221917000",
+     "type": "macho",
+     "image_size": 31996,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices"
+    },
+    {
+     "image_vmaddr": "0x00000001c3bff000",
+     "debug_id": "E9CBEBE9-BFEE-3385-AF52-D32C606E46BE",
+     "image_addr": "0x00000001c3bff000",
+     "type": "macho",
+     "image_size": 37171821,
+     "code_file": "/private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.OlOSO1/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore"
+    }
+   ]
+  },
+  "user": {
+   "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+  },
+  "release": "sentry-demo@1.0.0+1"
+ }
+}

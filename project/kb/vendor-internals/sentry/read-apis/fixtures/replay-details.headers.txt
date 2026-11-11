@@ -1,0 +1,4 @@
+GET /api/0/organizations/sentry/replays/de88d54498d146168841dd3baf693e08/
+HTTP 200
+Content-Type: application/json
+Content-Length: 2105

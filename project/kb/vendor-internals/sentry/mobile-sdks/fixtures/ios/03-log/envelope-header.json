@@ -1,0 +1,13 @@
+{
+ "sent_at": "2026-11-10T07:16:56.898Z",
+ "sdk": {
+  "packages": [],
+  "settings": {
+   "infer_ip": "never"
+  },
+  "integrations": [],
+  "features": [],
+  "name": "sentry.javascript.react-native",
+  "version": "8.34.0"
+ }
+}

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PostHog Internals Explainer</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --card: #ffffff; --line: #d8d4ca;
+  --a: #2f6fb3; --a-soft: #e3eef9; --b: #b3622f; --b-soft: #f8e9de; --c: #3a8a5a; --c-soft: #e2f2e8;
+  --d: #7a4fb0; --d-soft: #eee6f8; --code: #f1efe9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --fg: #ecebe6; --muted: #a8a59c; --card: #201f1c; --line: #3a3833;
+    --a: #7fb2e8; --a-soft: #1f3247; --b: #e5a073; --b-soft: #3f2a1d; --c: #7fcb9c; --c-soft: #1d3426;
+    --d: #b99be6; --d-soft: #2e2440; --code: #26251f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --fg: #ecebe6; --muted: #a8a59c; --card: #201f1c; --line: #3a3833;
+  --a: #7fb2e8; --a-soft: #1f3247; --b: #e5a073; --b-soft: #3f2a1d; --c: #7fcb9c; --c-soft: #1d3426;
+  --d: #b99be6; --d-soft: #2e2440; --code: #26251f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.9rem; margin: 0 0 4px; }
+h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+p.lede { color: var(--muted); margin-top: 0; }
+.meta { font-size: .85rem; color: var(--muted); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+pre { background: var(--code); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .muted { fill: var(--muted); font-size: 11px; }
+svg .box-a { fill: var(--a-soft); stroke: var(--a); }
+svg .box-b { fill: var(--b-soft); stroke: var(--b); }
+svg .box-c { fill: var(--c-soft); stroke: var(--c); }
+svg .box-d { fill: var(--d-soft); stroke: var(--d); }
+svg .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+svg .ahead { fill: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 8px 0; }
+th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+.wrap { overflow-x: auto; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.tabs button { font: inherit; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--a-soft); border-color: var(--a); }
+.pill { display: inline-block; font-size: .78rem; padding: 1px 8px; border-radius: 999px; background: var(--c-soft); color: var(--c); }
+.pill.read { background: var(--d-soft); color: var(--d); }
+ul.key li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>PostHog internals</h1>
+<p class="lede">How PostHog captures RUM data on web and mobile, what goes over the wire, and where the server keeps it. Step 6 vendor research for ouo.</p>
+<p class="meta">posthog-js 1.447.6 · posthog-ios 3.94.3 · posthog-android 3.76.1 · posthog-react-native 4.85.4 · PostHog server at commit d231ab17 · researched 2026-11-10.
+<span class="pill">observed</span> = seen in our local capture. <span class="pill read">read</span> = read from source. Details and line-level sources are in the Markdown entries next to this file (<a href="index.md">index.md</a>).</p>
+
+<h2>1. Five things to know</h2>
+<ul class="key">
+<li><b>Two ingestion streams.</b> Analytics events go to <code>/e/</code> or <code>/i/v0/e/</code>. Replay goes to <code>/s/</code>, which is a separate capture deployment and a separate Kafka topic. Errors are ordinary <code>$exception</code> events that capture splits off by name. <span class="pill">observed</span></li>
+<li><b>Web replay is rrweb with partial compression.</b> FullSnapshot and Mutation payloads are gzipped per event (<code>cv: "2024-10"</code>). Clicks, console and network stay plain JSON, so the server can count activity without decompressing. <span class="pill">observed</span></li>
+<li><b>Mobile replay is rrweb events carrying a "wireframe" node tree</b> (or one screenshot node). The server stores it as sent, and the player turns it into HTML at playback. <span class="pill read">read</span></li>
+<li><b>Web delivery is in memory.</b> There is a 3 s batch timer, retries with exponential backoff (10 tries), and one sendBeacon at pagehide. Native mobile uses one file per event and retries without limit. <span class="pill">observed</span> <span class="pill read">read</span></li>
+<li><b>Replay storage is blocks in S3 indexed by ClickHouse.</b> Snappy-compressed NDJSON blocks are appended into shared objects and addressed by byte range. <code>session_replay_events</code> holds the block URLs and the counters. Deletion is crypto-shredding. <span class="pill read">read</span></li>
+</ul>
+
+<h2>2. The capture path</h2>
+<div class="card">
+<svg viewBox="0 0 900 360" role="img" aria-labelledby="t1">
+<title id="t1">From SDK to storage</title>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ahead"/></marker></defs>
+<rect x="10" y="20" width="170" height="120" rx="10" class="box-a"/>
+<text x="24" y="44" font-weight="600">posthog-js</text>
+<text x="24" y="66" class="muted">RequestQueue 3 s, gzip</text>
+<text x="24" y="84" class="muted">RetryQueue (memory)</text>
+<text x="24" y="102" class="muted">sendBeacon at pagehide</text>
+<text x="24" y="120" class="muted">recorder: 2 s buffer, ≤0.9 MB</text>
+<rect x="10" y="190" width="170" height="120" rx="10" class="box-a"/>
+<text x="24" y="214" font-weight="600">iOS / Android / RN</text>
+<text x="24" y="236" class="muted">file per event queue</text>
+<text x="24" y="254" class="muted">flushAt 20 / 30 s timer</text>
+<text x="24" y="272" class="muted">replay queue + buffer</text>
+<text x="24" y="290" class="muted">gzip, Content-Encoding</text>
+<rect x="250" y="20" width="170" height="80" rx="10" class="box-b"/>
+<text x="264" y="44" font-weight="600">capture (events)</text>
+<text x="264" y="66" class="muted">/e/ /i/v0/e/ /batch/</text>
+<text x="264" y="84" class="muted">20 MB body</text>
+<rect x="250" y="130" width="170" height="80" rx="10" class="box-b"/>
+<text x="264" y="154" font-weight="600">capture (recordings)</text>
+<text x="264" y="176" class="muted">/s/ · 25 MB body</text>
+<text x="264" y="194" class="muted">1 MB after gunzip</text>
+<rect x="250" y="240" width="170" height="70" rx="10" class="box-b"/>
+<text x="264" y="264" font-weight="600">logs service</text>
+<text x="264" y="286" class="muted">/i/v1/logs (OTLP/JSON)</text>
+<rect x="490" y="10" width="190" height="40" rx="8" class="box-c"/><text x="502" y="35">events_plugin_ingestion</text>
+<rect x="490" y="60" width="190" height="40" rx="8" class="box-c"/><text x="502" y="85">ingestion-errortracking-main</text>
+<rect x="490" y="110" width="190" height="40" rx="8" class="box-c"/><text x="502" y="135">heatmaps_ingestion</text>
+<rect x="490" y="160" width="190" height="56" rx="8" class="box-c"/><text x="502" y="183">session_recording_</text><text x="502" y="201">snapshot_item_events</text>
+<rect x="740" y="10" width="150" height="90" rx="10" class="box-d"/>
+<text x="752" y="34" font-weight="600">ClickHouse</text>
+<text x="752" y="56" class="muted">events (JSON props)</text>
+<text x="752" y="74" class="muted">raw_sessions_v3 (MV)</text>
+<text x="752" y="92" class="muted">persons</text>
+<rect x="740" y="140" width="150" height="70" rx="10" class="box-d"/>
+<text x="752" y="164" font-weight="600">S3 / SeaweedFS</text>
+<text x="752" y="186" class="muted">snappy NDJSON blocks</text>
+<rect x="740" y="230" width="150" height="70" rx="10" class="box-d"/>
+<text x="752" y="254" font-weight="600">ClickHouse</text>
+<text x="752" y="276" class="muted">session_replay_events</text>
+<path d="M180 70 L248 60" class="arrow"/>
+<path d="M180 110 L248 165" class="arrow"/>
+<path d="M180 125 L248 270" class="arrow"/>
+<path d="M180 240 L248 75" class="arrow"/>
+<path d="M180 260 L248 180" class="arrow"/>
+<path d="M420 50 L488 30" class="arrow"/>
+<path d="M420 60 L488 80" class="arrow"/>
+<path d="M420 70 L488 130" class="arrow"/>
+<path d="M420 170 L488 188" class="arrow"/>
+<path d="M680 30 L738 50" class="arrow"/>
+<path d="M680 180 L738 175" class="arrow"/>
+<path d="M680 200 L738 260" class="arrow"/>
+<text x="490" y="250" class="muted">replay consumer: group per session,</text>
+<text x="490" y="266" class="muted">flush at 100 MB or 10 s</text>
+<text x="10" y="345" class="muted">Exceptions go on to cymbal (symbolication and grouping). Logs are served outside rust/capture. Sources: rust/capture router.rs, config.rs; nodejs session replay pipeline.</text>
+</svg>
+</div>
+
+<h2>3. How web replay is chunked</h2>
+<div class="card">
+<svg viewBox="0 0 900 270" role="img" aria-labelledby="t2">
+<title id="t2">Web replay chunking</title>
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ahead"/></marker></defs>
+<rect x="10" y="20" width="200" height="200" rx="10" class="box-a"/>
+<text x="24" y="44" font-weight="600">rrweb emit</text>
+<text x="24" y="68" class="muted">4 Meta · 2 FullSnapshot*</text>
+<text x="24" y="86" class="muted">3.0 Mutation* · 3.1 MouseMove</text>
+<text x="24" y="104" class="muted">3.2 Click · 3.3 Scroll · 3.5 Input</text>
+<text x="24" y="122" class="muted">5 Custom ($posthog_config …)</text>
+<text x="24" y="140" class="muted">6 network@1 · console@1</text>
+<text x="24" y="170" class="muted">* gzip → latin1 string</text>
+<text x="24" y="188" class="muted">  marked cv "2024-10"</text>
+<rect x="260" y="20" width="200" height="200" rx="10" class="box-b"/>
+<text x="274" y="44" font-weight="600">buffer → $snapshot</text>
+<text x="274" y="68" class="muted">flush every 2 s, or</text>
+<text x="274" y="86" class="muted">at ~0.9 MB, or</text>
+<text x="274" y="104" class="muted">on session or window change</text>
+<text x="274" y="134" class="muted">props: $snapshot_data[],</text>
+<text x="274" y="152" class="muted">$snapshot_bytes, $session_id,</text>
+<text x="274" y="170" class="muted">$window_id, $snapshot_host</text>
+<rect x="510" y="20" width="170" height="200" rx="10" class="box-c"/>
+<text x="524" y="44" font-weight="600">POST /s/</text>
+<text x="524" y="68" class="muted">batchKey "recordings"</text>
+<text x="524" y="86" class="muted">bare JSON array</text>
+<text x="524" y="104" class="muted">of $snapshot events</text>
+<text x="524" y="122" class="muted">gzip body, text/plain</text>
+<text x="524" y="140" class="muted">no ?compression</text>
+<rect x="730" y="20" width="160" height="200" rx="10" class="box-d"/>
+<text x="742" y="44" font-weight="600">capture → Kafka</text>
+<text x="742" y="68" class="muted">whole batch = one</text>
+<text x="742" y="86" class="muted">$snapshot_items msg</text>
+<text x="742" y="104" class="muted">keyed by session id</text>
+<text x="742" y="134" class="muted">block line:</text>
+<text x="742" y="152" class="muted">[windowId, event]</text>
+<path d="M210 120 L258 120" class="arrow" marker-end="url(#ah2)"/>
+<path d="M460 120 L508 120" class="arrow" marker-end="url(#ah2)"/>
+<path d="M680 120 L728 120" class="arrow" marker-end="url(#ah2)"/>
+<text x="10" y="252" class="muted">Observed in one 20 s demo session: 89 rrweb events in the first $snapshot (26.7 KB JSON), replay total 12 KB on the wire.</text>
+</svg>
+</div>
+
+<h2>4. Replay storage and read-back</h2>
+<div class="card">
+<svg viewBox="0 0 900 230" role="img" aria-labelledby="t3">
+<title id="t3">Replay blocks in object storage</title>
+<defs><marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ahead"/></marker></defs>
+<text x="10" y="24" font-weight="600">S3 object  session_recordings/30d/1794…-a1b2c3d4e5f60718</text>
+<rect x="10" y="36" width="140" height="44" class="box-c"/><text x="20" y="63">session A block</text>
+<rect x="150" y="36" width="110" height="44" class="box-b"/><text x="160" y="63">session B</text>
+<rect x="260" y="36" width="180" height="44" class="box-a"/><text x="270" y="63">session C block</text>
+<rect x="440" y="36" width="120" height="44" class="box-c"/><text x="450" y="63">session A</text>
+<rect x="560" y="36" width="80" height="44" class="box-d"/><text x="570" y="63">…</text>
+<text x="10" y="100" class="muted">snappy (default) · optional per-session encryption · each block addressed as ?range=bytes=start-end</text>
+<rect x="10" y="120" width="420" height="96" rx="10" class="box-d"/>
+<text x="24" y="144" font-weight="600">session_replay_events (AggregatingMergeTree)</text>
+<text x="24" y="166" class="muted">block_urls[], block_first/last_timestamps[]</text>
+<text x="24" y="184" class="muted">click/keypress/console counts, active_milliseconds</text>
+<text x="24" y="202" class="muted">snapshot_source, snapshot_mode_v2, retention_period_days, is_deleted</text>
+<rect x="480" y="120" width="410" height="96" rx="10" class="box-a"/>
+<text x="494" y="144" font-weight="600">API read-back</text>
+<text x="494" y="166" class="muted">GET …/snapshots → sources [{blob_key: "0".."n"}]</text>
+<text x="494" y="184" class="muted">GET …?source=blob_v2&amp;start_blob_key=0&amp;end_blob_key=19</text>
+<text x="494" y="202" class="muted">→ application/jsonl, ≤20 blocks per call (personal key)</text>
+<path d="M200 118 L200 84" class="arrow" marker-end="url(#ah3)"/>
+<path d="M432 168 L478 168" class="arrow" marker-end="url(#ah3)"/>
+</svg>
+<p class="meta">Retention picks the prefix (30d, 90d, 1y, 5y). The cloud default is 30 d, and self-hosted defaults to 5 y. ClickHouse has no TTL. Deleting a recording deletes its key (crypto-shredding) and sets <code>is_deleted</code>.</p>
+</div>
+
+<h2>5. Mobile replay: wireframe or screenshot</h2>
+<div class="tabs" role="tablist">
+<button role="tab" aria-selected="true" data-tab="wf">Wireframe (native default)</button>
+<button role="tab" aria-selected="false" data-tab="ss">Screenshot (RN, Flutter, opt-in native)</button>
+</div>
+<div class="card" id="tab-wf">
+<svg viewBox="0 0 900 250" role="img" aria-labelledby="t4">
+<title id="t4">Wireframe mode</title>
+<rect x="20" y="10" width="180" height="230" rx="18" class="box-a"/>
+<rect x="36" y="40" width="148" height="18" class="box-d"/><text x="42" y="54" class="muted">text "*******"</text>
+<rect x="36" y="70" width="148" height="28" class="box-b"/><text x="42" y="89" class="muted">input text_area</text>
+<rect x="36" y="110" width="40" height="22" rx="11" class="box-c"/><text x="84" y="126" class="muted">input toggle</text>
+<rect x="36" y="144" width="80" height="80" class="box-d"/><text x="42" y="188" class="muted">image (masked)</text>
+<text x="240" y="30" font-weight="600">Each view becomes a typed node</text>
+<text x="240" y="54" class="muted">{id, x, y, width, height, type, inputType, text, value, checked,</text>
+<text x="240" y="72" class="muted"> options, max, base64?, style{color, backgroundColor, fontSize, …}, childWireframes[]}</text>
+<text x="240" y="102" class="muted">iOS: every changed frame is a full snapshot (type 2), hashed to skip repeats.</text>
+<text x="240" y="120" class="muted">Android: first a full snapshot, then type 3 mutations (adds / removes / updates).</text>
+<text x="240" y="150" class="muted">Small: about 1–5 KB per frame (inferred from the web DOM proxy).</text>
+<text x="240" y="168" class="muted">SwiftUI, Compose and WebViews are not faithful. Fonts are approximated.</text>
+<text x="240" y="198" class="muted">maskAllTextInputs (default true) masks ALL text, labels included,</text>
+<text x="240" y="216" class="muted">as "*" × length. maskAllImages (default true) drops base64.</text>
+</svg>
+</div>
+<div class="card" id="tab-ss" hidden>
+<svg viewBox="0 0 900 250" role="img" aria-labelledby="t5">
+<title id="t5">Screenshot mode</title>
+<rect x="20" y="10" width="180" height="230" rx="18" class="box-b"/>
+<rect x="36" y="40" width="148" height="184" class="box-c"/>
+<rect x="46" y="60" width="128" height="14" fill="#000"/><rect x="46" y="96" width="128" height="22" fill="#000"/>
+<text x="54" y="160" class="muted">pixels, masks painted</text>
+<text x="240" y="30" font-weight="600">One node: type "screenshot" with base64</text>
+<text x="240" y="54" class="muted">data:image/webp;base64,… · quality 0.3 / 30 · 1 px per point or dp by default</text>
+<text x="240" y="84" class="muted">Measured proxy (Chrome, 402×874, WebP q30): 6.8–23 KB per frame, +33% as base64.</text>
+<text x="240" y="102" class="muted">At native 3× density: 39–76 KB. The demo page's rrweb DOM was 1.3 KB gzip.</text>
+<text x="240" y="132" class="muted">Pixel-accurate for SwiftUI, Compose, Flutter, WebViews. No text search.</text>
+<text x="240" y="150" class="muted">Privacy depends on finding the views to mask. iOS drops a frame if masking fails.</text>
+<text x="240" y="180" class="muted">Android: 413 handling halves the batch ("png images exceed our max. limit in kafka").</text>
+<text x="240" y="198" class="muted">Capture server: 1 MB decompressed per replay request.</text>
+</svg>
+</div>
+
+<h2>6. Where PostHog differs from the docs (observed)</h2>
+<div class="wrap">
+<table>
+<tr><th>Topic</th><th>Expectation</th><th>What we saw</th></tr>
+<tr><td>Compression flag</td><td><code>?compression=gzip-js</code></td><td>No flag and no Content-Encoding. A gzip body as text/plain, sniffed by magic bytes server-side</td></tr>
+<tr><td>Bot filter</td><td>Bots dropped</td><td>HeadlessChrome sent zero events until the UA was overridden</td></tr>
+<tr><td>Endpoint</td><td><code>/e/</code></td><td><code>/e/</code> before remote config, then <code>/i/v0/e/</code>. Retries keep the old URL</td></tr>
+<tr><td>Replay metadata</td><td>—</td><td><code>$posthog_config</code> custom event echoes the full init config, token included, into every recording</td></tr>
+<tr><td>$pageleave</td><td>At pagehide</td><td>Missing after a DevTools navigation in headless Chrome. Present with a synthetic pagehide. Unverified headed</td></tr>
+<tr><td>Bundle</td><td>—</td><td>array.js 120.5 KB gzip, plus lazy-recorder 68.8 KB and surveys 47.7 KB (loaded by default), about 262 KB total</td></tr>
+</table>
+</div>
+<p class="meta">Raw evidence: <a href="wire-format/fixtures/web-s-snapshot-raw.json">web-s-snapshot-raw.json</a>, <a href="wire-format/fixtures/web-i-v0-e-batch.json">web-i-v0-e-batch.json</a>, <a href="wire-format/fixtures/web-retry-500.json">web-retry-500.json</a>. Harness: <a href="../../../../examples/posthog-capture/README.md">examples/posthog-capture</a>.</p>
+</main>
+<script>
+document.querySelectorAll('.tabs button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('.tabs button').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)) })
+    document.getElementById('tab-wf').hidden = b.dataset.tab !== 'wf'
+    document.getElementById('tab-ss').hidden = b.dataset.tab !== 'ss'
+  })
+})
+</script>
+</body>
+</html>

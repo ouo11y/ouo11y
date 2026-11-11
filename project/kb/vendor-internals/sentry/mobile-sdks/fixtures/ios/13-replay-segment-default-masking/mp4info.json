@@ -1,0 +1,35 @@
+{
+ "file": "replay_video.mp4",
+ "size_bytes": 16443,
+ "major_brand": "mp42",
+ "compatible_brands": [
+  "isom",
+  "mp41",
+  "mp42"
+ ],
+ "mdat_bytes": 15631,
+ "duration_s": 6.0,
+ "tracks": [
+  {
+   "timescale": 600,
+   "duration_s": 6.0,
+   "handler": "vide",
+   "codec_tag": "avc1",
+   "width": 402,
+   "height": 874,
+   "codec": "h264",
+   "profile": "Main",
+   "level": 3.1,
+   "sample_deltas": [
+    [
+     6,
+     600
+    ]
+   ],
+   "keyframes": 1,
+   "frames": 6
+  }
+ ],
+ "avg_fps": 1.0,
+ "avg_bitrate_bps": 20841
+}

@@ -1,0 +1,24 @@
+{
+  "case": "limit-nginx-101MiB-raw",
+  "note": "raw body > nginx client_max_body_size 100m",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.012Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 105906221,
+    "body_preview": "<binary, first bytes 7b7d0a7b2274797065223a2261747461>"
+  },
+  "response": {
+    "status": 413,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "text/html"
+    },
+    "body": "<html>\r\n<head><title>413 Request Entity Too Large</title></head>\r\n<body>\r\n<center><h1>413 Request Entity Too Large</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+    "ms": 5275.1
+  }
+}

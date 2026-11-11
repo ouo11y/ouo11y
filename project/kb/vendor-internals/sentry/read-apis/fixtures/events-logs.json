@@ -1,0 +1,46 @@
+{
+ "data": [
+  {
+   "timestamp": "2026-11-10T03:22:07+00:00",
+   "message": "probe log d9d98a10",
+   "severity": "info",
+   "trace": "e07ca7724b82497092cd68359cd35ff3",
+   "observed_timestamp": "1794280928059807758",
+   "timestamp_precise": 1794280927971887000
+  }
+ ],
+ "meta": {
+  "fields": {
+   "timestamp": "string",
+   "message": "string",
+   "severity": "string",
+   "trace": "string",
+   "observed_timestamp": "number",
+   "timestamp_precise": "number"
+  },
+  "units": {
+   "timestamp": null,
+   "message": null,
+   "severity": null,
+   "trace": null,
+   "observed_timestamp": null,
+   "timestamp_precise": null
+  },
+  "isMetricsData": false,
+  "isMetricsExtractedData": false,
+  "tips": {},
+  "datasetReason": "unchanged",
+  "dataset": "logs",
+  "dataScanned": "full",
+  "bytesScanned": 13890,
+  "routingHint": "eyJ2IjogMSwgInRpZXIiOiAxLCAidHMiOiAxNzk0MjgxNjE1fQ==",
+  "accuracy": {
+   "confidence": [
+    {}
+   ]
+  }
+ },
+ "confidence": [
+  {}
+ ]
+}

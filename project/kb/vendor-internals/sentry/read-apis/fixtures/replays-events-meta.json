@@ -1,0 +1,58 @@
+{
+ "data": [
+  {
+   "title": "Error: Cart total is NaN",
+   "timestamp": "2026-10-27T22:57:49.856000+00:00",
+   "error.type": [
+    "Error"
+   ],
+   "issue.id": 8,
+   "level": "fatal",
+   "id": "ac04cdd88f6e4d0c9459b9ee74736c42",
+   "project.name": "tiny-shop-mobile",
+   "issue": "TINY-SHOP-MOBILE-2"
+  },
+  {
+   "title": "Error: Coupon service timed out",
+   "timestamp": "2026-10-27T22:57:42.798000+00:00",
+   "error.type": [
+    "Error"
+   ],
+   "issue.id": 9,
+   "level": "error",
+   "id": "63b24436196d488581dbe1ea34e8de73",
+   "project.name": "tiny-shop-mobile",
+   "issue": "TINY-SHOP-MOBILE-3"
+  }
+ ],
+ "meta": {
+  "fields": {
+   "title": "string",
+   "timestamp": "date",
+   "error.type": "array",
+   "issue.id": "integer",
+   "level": "string",
+   "timestamp_ms": "string",
+   "id": "string",
+   "project.name": "string"
+  },
+  "units": {
+   "title": null,
+   "timestamp": null,
+   "error.type": null,
+   "issue.id": null,
+   "level": null,
+   "timestamp_ms": null,
+   "id": null,
+   "project.name": null
+  },
+  "isMetricsData": false,
+  "isMetricsExtractedData": false,
+  "tips": {
+   "query": null,
+   "columns": null
+  },
+  "datasetReason": "unchanged",
+  "dataScanned": "full"
+ }
+}

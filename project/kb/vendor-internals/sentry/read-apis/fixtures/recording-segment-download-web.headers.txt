@@ -1,0 +1,5 @@
+GET /api/0/projects/sentry/step6-wire/replays/62649a29ef4440bfa140a17c472d1ba3/recording-segments/0/?download
+HTTP 200
+Content-Type: application/json
+Content-Length: 1018
+content-disposition: attachment; filename="90/8/62649a29ef4440bfa140a17c472d1ba3/0"

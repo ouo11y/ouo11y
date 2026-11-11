@@ -1,0 +1,16 @@
+{
+  "name": "datadog-capture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Runs the Datadog browser SDK against a local capture server and records every intake request (Step 6 vendor research).",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "serve": "node server.mjs",
+    "drive": "node drive.mjs"
+  },
+  "dependencies": {
+    "@datadog/browser-logs": "7.17.0",
+    "@datadog/browser-rum": "7.17.0"
+  }
+}

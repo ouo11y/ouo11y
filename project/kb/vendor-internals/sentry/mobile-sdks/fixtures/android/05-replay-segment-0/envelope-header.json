@@ -1,0 +1,58 @@
+{
+ "event_id": "4b867ec3a33d429e8cb93a51eeebefd2",
+ "sdk": {
+  "name": "sentry.javascript.react-native",
+  "version": "8.34.0",
+  "packages": [
+   {
+    "name": "maven:io.sentry:sentry",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-core",
+    "version": "8.62.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-replay",
+    "version": "8.62.0"
+   },
+   {
+    "name": "npm:@sentry/react-native",
+    "version": "8.34.0"
+   },
+   {
+    "name": "maven:io.sentry:sentry-android-ndk",
+    "version": "8.62.0"
+   }
+  ],
+  "integrations": [
+   "ReplayCustomMasking",
+   "Screenshot",
+   "ViewHierarchy",
+   "PerfettoContinuousProfiling",
+   "UncaughtExceptionHandler",
+   "ShutdownHook",
+   "SendCachedEnvelope",
+   "Ndk",
+   "AppLifecycle",
+   "AnrV2",
+   "ActivityLifecycle",
+   "ActivityBreadcrumbs",
+   "UserInteraction",
+   "AppComponentsBreadcrumbs",
+   "NetworkBreadcrumbs",
+   "Replay",
+   "EnvelopeFileObserver",
+   "SystemEventsBreadcrumbs"
+  ]
+ },
+ "trace": {
+  "trace_id": "7138a555973244799409c27eb53f0387",
+  "public_key": "<redacted>",
+  "release": "sentry-demo@1.0.0+1",
+  "environment": "development",
+  "sample_rand": "0.7933574405079528",
+  "replay_id": "4b867ec3a33d429e8cb93a51eeebefd2"
+ },
+ "sent_at": "2026-11-10T03:52:35.540Z"
+}

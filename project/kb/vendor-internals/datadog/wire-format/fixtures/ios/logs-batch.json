@@ -1,0 +1,144 @@
+{
+  "receivedAt": "2026-11-10T03:34:13.509Z",
+  "method": "POST",
+  "proxyUrl": "/api/v2/logs?ddsource=ios",
+  "forwardPath": "/api/v2/logs",
+  "forwardParams": {
+    "ddsource": "ios"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "accept": "*/*",
+    "content-encoding": "deflate",
+    "dd-evp-origin": "ios",
+    "accept-encoding": "gzip, deflate",
+    "dd-api-key": "<redacted dd-api-key>",
+    "dd-request-id": "<redacted dd-request-id>",
+    "content-length": "785",
+    "user-agent": "DDCapture/1.0 CFNetwork (<redacted>)",
+    "connection": "keep-alive",
+    "content-type": "application/json",
+    "dd-evp-origin-version": "3.21.0"
+  },
+  "bodyBytes": 785,
+  "body": {
+    "kind": "json-array",
+    "encoding": "deflate",
+    "inflatedBytes": 2471,
+    "events": [
+      {
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "os": {
+          "version_major": "27",
+          "build": "26A434",
+          "version": "27.0",
+          "name": "iOS"
+        },
+        "date": "2026-11-10T03:34:07.846Z",
+        "logger.name": "capture",
+        "version": "1.0",
+        "network.client.is_expensive": false,
+        "network.client.link_quality": "unknown",
+        "view.id": "00000000-0000-4000-8000-000000000066",
+        "_dd": {
+          "device": {
+            "architecture": "arm64e"
+          }
+        },
+        "service": "datadog-capture-ios",
+        "status": "error",
+        "order.id": 42,
+        "session_id": "00000000-0000-4000-8000-000000000062",
+        "build_version": "1",
+        "network.client.is_constrained": false,
+        "logger.thread_name": "main",
+        "network.client.reachability": "yes",
+        "usr.name": "Demo User",
+        "usr.anonymous_id": "00000000-0000-4000-8000-000000000064",
+        "message": "Demo error log",
+        "network.client.available_interfaces": [
+          "wifi"
+        ],
+        "usr.id": "user-123",
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "device": {
+          "model": "iPhone18,1 Simulator",
+          "name": "iPhone",
+          "type": "mobile",
+          "power_saving_mode": false,
+          "locales": [
+            "en-US"
+          ],
+          "brightness_level": 0.5,
+          "brand": "Apple",
+          "logical_cpu_count": 10,
+          "locale": "en-US",
+          "architecture": "arm64e",
+          "time_zone": "<redacted time zone>",
+          "total_ram": 32768
+        },
+        "logger.version": "3.21.0",
+        "network.client.supports_ipv4": false,
+        "network.client.supports_ipv6": false
+      },
+      {
+        "usr.anonymous_id": "00000000-0000-4000-8000-000000000064",
+        "build_version": "1",
+        "device": {
+          "model": "iPhone18,1 Simulator",
+          "time_zone": "<redacted time zone>",
+          "brightness_level": 0.5,
+          "locales": [
+            "en-US"
+          ],
+          "architecture": "arm64e",
+          "locale": "en-US",
+          "logical_cpu_count": 10,
+          "name": "iPhone",
+          "total_ram": 32768,
+          "power_saving_mode": false,
+          "brand": "Apple",
+          "type": "mobile"
+        },
+        "logger.thread_name": "main",
+        "usr.name": "Demo User",
+        "application_id": "00000000-0000-4000-8000-000000000000",
+        "session_id": "00000000-0000-4000-8000-000000000062",
+        "network.client.is_constrained": false,
+        "version": "1.0",
+        "service": "datadog-capture-ios",
+        "logger.version": "3.21.0",
+        "usr.id": "user-123",
+        "logger.name": "capture",
+        "os": {
+          "build": "26A434",
+          "version_major": "27",
+          "version": "27.0",
+          "name": "iOS"
+        },
+        "status": "info",
+        "network.client.available_interfaces": [
+          "wifi"
+        ],
+        "network.client.supports_ipv4": false,
+        "ddtags": "service:datadog-capture-ios,version:1.0,sdk_version:3.21.0,env:local",
+        "network.client.supports_ipv6": false,
+        "_dd": {
+          "device": {
+            "architecture": "arm64e"
+          }
+        },
+        "message": "Demo info log",
+        "network.client.link_quality": "unknown",
+        "view.id": "00000000-0000-4000-8000-000000000066",
+        "network.client.is_expensive": false,
+        "network.client.reachability": "yes",
+        "date": "2026-11-10T03:34:07.846Z"
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/ios-run1/0007-logs-error+info.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

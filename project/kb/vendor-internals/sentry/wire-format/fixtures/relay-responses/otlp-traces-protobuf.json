@@ -1,0 +1,26 @@
+{
+  "case": "otlp-traces-protobuf",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.419Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/traces",
+    "headers": {
+      "Content-Type": "application/x-protobuf",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 131,
+    "body_preview": "<binary, first bytes 0a80010a230a210a0c73657276696365>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/x-protobuf",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "",
+    "ms": 69.3
+  }
+}

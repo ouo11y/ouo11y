@@ -1,0 +1,272 @@
+{
+  "_note": "observed 2026-11-10: seaweedfs bucket nodestore, key nodestore/<md5(\"8:<event_id>\")>, Content-Encoding zstd; value = default JSON line, then subkey name line, then subkey JSON (BaseNodeStorage._encode). IPs redacted.",
+  "default": {
+    "_metrics": {
+      "bytes.ingested.event": 442,
+      "bytes.stored.event": 2794
+    },
+    "_ref": 8,
+    "_ref_version": 2,
+    "contexts": {
+      "trace": {
+        "span_id": "ff562c370e33407b",
+        "status": "unknown",
+        "trace_id": "ff562c370e33407b98236dd8193d01da",
+        "type": "trace"
+      }
+    },
+    "culprit": "boom(app.js)",
+    "environment": "wire",
+    "errors": [
+      {
+        "symbolicator_type": "missing_source",
+        "type": "js_no_source",
+        "url": "app.js"
+      }
+    ],
+    "event_id": "ff562c370e33407b98236dd8193d01da",
+    "exception": {
+      "values": [
+        {
+          "mechanism": {
+            "data": null,
+            "description": null,
+            "exception_id": null,
+            "handled": false,
+            "help_link": null,
+            "is_exception_group": null,
+            "meta": null,
+            "parent_id": null,
+            "source": null,
+            "synthetic": null,
+            "type": "onerror"
+          },
+          "raw_stacktrace": {
+            "frames": [
+              {
+                "abs_path": "app.js",
+                "addr_mode": null,
+                "colno": 5,
+                "context_line": null,
+                "data": {
+                  "client_in_app": true
+                },
+                "errors": null,
+                "filename": "app.js",
+                "function": "boom",
+                "image_addr": null,
+                "in_app": true,
+                "instruction_addr": null,
+                "lineno": 10,
+                "lock": null,
+                "module": null,
+                "package": null,
+                "parent_index": null,
+                "platform": null,
+                "post_context": null,
+                "pre_context": null,
+                "raw_function": null,
+                "sample_count": null,
+                "source_link": null,
+                "symbol": null,
+                "symbol_addr": null,
+                "trust": null,
+                "vars": null
+              }
+            ]
+          },
+          "stacktrace": {
+            "frames": [
+              {
+                "abs_path": "app.js",
+                "addr_mode": null,
+                "colno": 5,
+                "context_line": null,
+                "data": {
+                  "client_in_app": true,
+                  "symbolicated": false
+                },
+                "errors": null,
+                "filename": "app.js",
+                "function": "boom",
+                "image_addr": null,
+                "in_app": true,
+                "instruction_addr": null,
+                "lineno": 10,
+                "lock": null,
+                "module": null,
+                "package": null,
+                "parent_index": null,
+                "platform": null,
+                "post_context": null,
+                "pre_context": null,
+                "raw_function": null,
+                "sample_count": null,
+                "source_link": null,
+                "symbol": null,
+                "symbol_addr": null,
+                "trust": null,
+                "vars": null
+              }
+            ]
+          },
+          "type": "TypeError",
+          "value": "step6-wire plain"
+        }
+      ]
+    },
+    "fingerprint": [
+      "{{ default }}"
+    ],
+    "grouping_config": {
+      "enhancements": "KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA#KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA#KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA",
+      "id": "newstyle:2026-01-20"
+    },
+    "hashes": [
+      "e0ad1529dea8b94772ffc02c54a39731"
+    ],
+    "key_id": "8",
+    "level": "error",
+    "location": "app.js",
+    "logentry": {
+      "formatted": "step6-wire plain",
+      "message": null,
+      "params": null
+    },
+    "logger": "",
+    "metadata": {
+      "filename": "app.js",
+      "function": "boom",
+      "in_app_frame_mix": "in-app-only",
+      "synthetic": false,
+      "type": "TypeError",
+      "value": "step6-wire plain"
+    },
+    "nodestore_insert": 1794280846.528945,
+    "platform": "javascript",
+    "project": 8,
+    "received": 1794280827.035136,
+    "release": "step6-wire@1.0.0",
+    "sdk": {
+      "integrations": null,
+      "name": "step6.wire",
+      "packages": null,
+      "version": "0.0.1"
+    },
+    "symbolicated_in_app": false,
+    "tags": [
+      [
+        "step6",
+        "wire"
+      ],
+      [
+        "level",
+        "error"
+      ],
+      [
+        "environment",
+        "wire"
+      ],
+      [
+        "sentry:release",
+        "step6-wire@1.0.0"
+      ],
+      [
+        "sentry:user",
+        "ip:0.0.0.0"
+      ],
+      [
+        "interface_type",
+        "exception"
+      ],
+      [
+        "mechanism",
+        "onerror"
+      ],
+      [
+        "handled",
+        "no"
+      ]
+    ],
+    "timestamp": 1794280827.027945,
+    "title": "TypeError: step6-wire plain",
+    "type": "error",
+    "user": {
+      "ip_address": "0.0.0.0",
+      "sentry_user": "ip:0.0.0.0"
+    },
+    "version": "7"
+  },
+  "subkeys": {
+    "unprocessed": {
+      "_metrics": {
+        "bytes.ingested.event": 442
+      },
+      "contexts": {
+        "trace": {
+          "span_id": "ff562c370e33407b",
+          "status": "unknown",
+          "trace_id": "ff562c370e33407b98236dd8193d01da",
+          "type": "trace"
+        }
+      },
+      "environment": "wire",
+      "event_id": "ff562c370e33407b98236dd8193d01da",
+      "exception": {
+        "values": [
+          {
+            "mechanism": {
+              "handled": false,
+              "type": "onerror"
+            },
+            "stacktrace": {
+              "frames": [
+                {
+                  "abs_path": "app.js",
+                  "colno": 5,
+                  "filename": "app.js",
+                  "function": "boom",
+                  "in_app": true,
+                  "lineno": 10
+                }
+              ]
+            },
+            "type": "TypeError",
+            "value": "step6-wire plain"
+          }
+        ]
+      },
+      "grouping_config": {
+        "enhancements": "KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA#KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA#KLUv_SAd6QAAkwORuGFsbC1wbGF0Zm9ybXM6MjAyNi0wMS0yMJA",
+        "id": "newstyle:2026-01-20"
+      },
+      "key_id": "8",
+      "level": "error",
+      "logentry": {
+        "formatted": "step6-wire plain"
+      },
+      "logger": "",
+      "platform": "javascript",
+      "project": 8,
+      "received": 1794280827.035136,
+      "release": "step6-wire@1.0.0",
+      "sdk": {
+        "name": "step6.wire",
+        "version": "0.0.1"
+      },
+      "tags": [
+        [
+          "step6",
+          "wire"
+        ]
+      ],
+      "timestamp": 1794280827.027945,
+      "type": "error",
+      "user": {
+        "ip_address": "0.0.0.0",
+        "sentry_user": "ip:0.0.0.0"
+      },
+      "version": "7"
+    }
+  }
+}

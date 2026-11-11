@@ -1,0 +1,24 @@
+{
+  "case": "endpoint-nel",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.135Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/nel/?sentry_key=<redacted-public-key>",
+    "headers": {
+      "Content-Type": "application/reports+json"
+    },
+    "body_bytes": 285,
+    "body_preview": "[{\"age\": 0, \"type\": \"network-error\", \"url\": \"http://localhost/step6\", \"user_agent\": \"step6\", \"body\": {\"elapsed_time\": 10, \"method\": \"GET\", \"phase\": \"connection\", \"protocol\": \"http/1.1\", \"referrer\": \"\", \"sampling_fraction\": 1, \"server_ip\": \"\", \"status_code\": 0, \"type\": \"tcp.refused\"}}]"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "",
+    "ms": 41.7
+  }
+}

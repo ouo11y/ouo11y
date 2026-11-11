@@ -1,0 +1,26 @@
+{
+  "case": "item-check_in",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.700Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 442,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:20:27.694Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"}}\n{\"type\":\"check_in\",\"length\":258}\n{\"check_in_id\":\"7777f79c5c5746738f75887af77c550c\",\"monitor_slug\":\"step6-wire-cron\",\"status\":\"ok\",\"duration\":1.25,\"environment\":\"wire\",\"monitor_config\":{\"schedule\":{\"type\":\"crontab\",\"value\":\"*/5 * * * *\"},\"checkin_margin\":5,\"max_runtime\":10,\"timezone\":\"UTC\"}}\n"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 6.1
+  }
+}

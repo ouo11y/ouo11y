@@ -1,0 +1,510 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "event",
+  "length": 8105
+ },
+ "payload": {
+  "timestamp": "2026-11-10T03:55:34.341Z",
+  "exception": {
+   "values": [
+    {
+     "type": "RuntimeException",
+     "value": "TEST - Sentry Client Crash (only works in release mode)",
+     "module": "java.lang",
+     "thread_id": 50,
+     "stacktrace": {
+      "frames": [
+       {
+        "filename": "Thread.java",
+        "function": "run",
+        "module": "java.lang.Thread",
+        "lineno": 1012,
+        "native": false
+       },
+       {
+        "filename": "D8$$SyntheticClass",
+        "function": "run",
+        "module": "com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion$$ExternalSyntheticLambda0",
+        "lineno": 0,
+        "native": false
+       },
+       {
+        "function": "$r8$lambda$YYXYCFexeoKtAeDpeNYkxZZlpbA",
+        "module": "com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion",
+        "lineno": 0,
+        "native": false
+       },
+       {
+        "filename": "MessageQueueThreadImpl.kt",
+        "function": "startNewBackgroundThread$lambda$0",
+        "module": "com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion",
+        "lineno": 152,
+        "native": false
+       },
+       {
+        "filename": "Looper.java",
+        "function": "loop",
+        "module": "android.os.Looper",
+        "lineno": 317,
+        "native": false
+       },
+       {
+        "filename": "Looper.java",
+        "function": "loopOnce",
+        "module": "android.os.Looper",
+        "lineno": 232,
+        "native": false
+       },
+       {
+        "filename": "MessageQueueThreadHandler.kt",
+        "function": "dispatchMessage",
+        "module": "com.facebook.react.bridge.queue.MessageQueueThreadHandler",
+        "lineno": 21,
+        "native": false
+       },
+       {
+        "filename": "Handler.java",
+        "function": "dispatchMessage",
+        "module": "android.os.Handler",
+        "lineno": 100,
+        "native": false
+       },
+       {
+        "filename": "Handler.java",
+        "function": "handleCallback",
+        "module": "android.os.Handler",
+        "lineno": 959,
+        "native": false
+       },
+       {
+        "filename": "NativeRunnable.java",
+        "function": "run",
+        "module": "com.facebook.jni.NativeRunnable",
+        "native": true
+       },
+       {
+        "filename": "RNSentryModule.java",
+        "function": "crash",
+        "module": "io.sentry.react.RNSentryModule",
+        "lineno": 48,
+        "native": false
+       },
+       {
+        "filename": "RNSentryModuleImpl.java",
+        "function": "crash",
+        "module": "io.sentry.react.RNSentryModuleImpl",
+        "lineno": 276,
+        "native": false
+       }
+      ]
+     },
+     "mechanism": {
+      "type": "expoReactHost",
+      "handled": false,
+      "exception_id": 0
+     }
+    }
+   ]
+  },
+  "fingerprint": [],
+  "modules": {},
+  "event_id": "a553fbeaac63446eadf93c7555e9b5dc",
+  "contexts": {
+   "app": {
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_start_time": "2026-11-10T03:55:18.620Z",
+    "app_name": "sentry-demo",
+    "app_version": "1.0.0",
+    "app_build": "1",
+    "permissions": {
+     "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION": "granted",
+     "ACCESS_NETWORK_STATE": "granted",
+     "INTERNET": "granted",
+     "SYSTEM_ALERT_WINDOW": "not_granted",
+     "VIBRATE": "granted"
+    },
+    "in_foreground": true,
+    "view_names": [
+     "Home"
+    ],
+    "is_split_apks": false
+   },
+   "device": {
+    "manufacturer": "Google",
+    "brand": "google",
+    "family": "sdk_gphone64_arm64",
+    "model": "sdk_gphone64_arm64",
+    "model_id": "AE3A.240806.043",
+    "archs": [
+     "arm64-v8a"
+    ],
+    "battery_level": 100.0,
+    "charging": true,
+    "online": true,
+    "orientation": "portrait",
+    "simulator": true,
+    "memory_size": 4111405056,
+    "free_memory": 2700148736,
+    "low_memory": false,
+    "storage_size": 10411143168,
+    "free_storage": 9175339008,
+    "screen_width_pixels": 1080,
+    "screen_height_pixels": 2400,
+    "screen_density": 2.625,
+    "screen_dpi": 420,
+    "boot_time": "2026-11-10T03:46:03.034Z",
+    "timezone": "Etc/Redacted",
+    "id": "a3113c529723466cac6eef793508a734",
+    "connection_type": "wifi",
+    "battery_temperature": 25.0,
+    "locale": "en_US",
+    "processor_count": 4,
+    "processor_frequency": 0.0,
+    "chipset": "AOSP ranchu"
+   },
+   "os": {
+    "name": "Android",
+    "version": "15",
+    "build": "sdk_gphone64_arm64-userdebug 15 AE3A.240806.043 12960925 dev-keys",
+    "kernel_version": "6.6.30-android15-8-gdd9c02ccfe27-ab11987101-4k",
+    "rooted": false
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "trace": {
+    "trace_id": "d7e315e2f897482f89b350b953607cfc",
+    "span_id": "0b08841146864104",
+    "parent_span_id": "9ff1cb91ca74b510",
+    "op": "default",
+    "origin": "manual",
+    "data": {
+     "thread.name": "mqt_v_native",
+     "thread.id": "6361"
+    }
+   }
+  },
+  "sdk": {
+   "name": "sentry.java.android.react-native",
+   "version": "8.62.0",
+   "packages": [
+    {
+     "name": "maven:io.sentry:sentry",
+     "version": "8.62.0"
+    },
+    {
+     "name": "maven:io.sentry:sentry-android-core",
+     "version": "8.62.0"
+    },
+    {
+     "name": "maven:io.sentry:sentry-android-replay",
+     "version": "8.62.0"
+    },
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    },
+    {
+     "name": "maven:io.sentry:sentry-android-ndk",
+     "version": "8.62.0"
+    }
+   ],
+   "integrations": [
+    "ReplayCustomMasking",
+    "Screenshot",
+    "ViewHierarchy",
+    "PerfettoContinuousProfiling",
+    "UncaughtExceptionHandler",
+    "ShutdownHook",
+    "SendCachedEnvelope",
+    "Ndk",
+    "AppLifecycle",
+    "AnrV2",
+    "ActivityLifecycle",
+    "ActivityBreadcrumbs",
+    "UserInteraction",
+    "AppComponentsBreadcrumbs",
+    "NetworkBreadcrumbs",
+    "Replay",
+    "EnvelopeFileObserver",
+    "SystemEventsBreadcrumbs"
+   ]
+  },
+  "tags": {
+   "event.origin": "android",
+   "event.environment": "java",
+   "isSideLoaded": "true"
+  },
+  "release": "sentry-demo@1.0.0+1",
+  "environment": "development",
+  "platform": "java",
+  "user": {
+   "id": "a3113c529723466cac6eef793508a734"
+  },
+  "dist": "1",
+  "breadcrumbs": [
+   {
+    "timestamp": "2026-11-10T03:55:19.051Z",
+    "type": "navigation",
+    "data": {
+     "state": "foreground"
+    },
+    "category": "app.lifecycle",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.025Z",
+    "message": "[sentry-demo] rum mode sentry (stored), device 3506ce80",
+    "data": {
+     "logger": "console",
+     "arguments": [
+      "[sentry-demo] rum mode sentry (stored), device 3506ce80"
+     ]
+    },
+    "category": "console",
+    "origin": "react-native",
+    "level": "debug"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.027Z",
+    "message": "[rollout] next launch: sentry",
+    "data": {
+     "logger": "console",
+     "arguments": [
+      "[rollout] next launch: sentry"
+     ]
+    },
+    "category": "console",
+    "origin": "react-native",
+    "level": "debug"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.027Z",
+    "message": "Running \"main\"",
+    "data": {
+     "logger": "console",
+     "arguments": [
+      "Running \"main\""
+     ]
+    },
+    "category": "console",
+    "origin": "react-native",
+    "level": "debug"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.086Z",
+    "type": "system",
+    "data": {
+     "action": "NETWORK_AVAILABLE"
+    },
+    "category": "network.event",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.086Z",
+    "type": "system",
+    "data": {
+     "upload_bandwidth": 12000,
+     "action": "NETWORK_CAPABILITIES_CHANGED",
+     "vpn_active": false,
+     "signal_strength": -50,
+     "network_type": "wifi",
+     "download_bandwidth": 30000
+    },
+    "category": "network.event",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:19.153Z",
+    "message": "Navigation to Home",
+    "type": "navigation",
+    "data": {
+     "to": "Home"
+    },
+    "category": "navigation",
+    "origin": "react-native",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:20.451Z",
+    "message": "f8a960ec877846c9bb872f2171369cd1",
+    "data": {},
+    "category": "sentry.transaction",
+    "origin": "react-native",
+    "level": "info",
+    "event_id": "f8a960ec877846c9bb872f2171369cd1"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:20.512Z",
+    "type": "system",
+    "data": {
+     "level": 100,
+     "charging": true,
+     "action": "BATTERY_CHANGED"
+    },
+    "category": "device.event",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:30.707Z",
+    "message": "Touch event within element: action-fetch-500",
+    "type": "user",
+    "data": {
+     "path": [
+      {
+       "label": "action-fetch-500"
+      },
+      {
+       "name": "View",
+       "label": "action-fetch-500"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-fetch-500"
+      },
+      {
+       "label": "action-fetch-500"
+      },
+      {
+       "name": "View"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      },
+      {
+       "name": "View"
+      }
+     ]
+    },
+    "category": "touch",
+    "origin": "react-native",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:34.024Z",
+    "message": "Touch event within element: Native crash",
+    "type": "user",
+    "data": {
+     "path": [
+      {
+       "label": "Native crash"
+      },
+      {
+       "name": "Text",
+       "label": "Native crash"
+      },
+      {
+       "label": "action-native-crash"
+      },
+      {
+       "name": "View",
+       "label": "action-native-crash"
+      },
+      {
+       "name": "Pressable",
+       "label": "action-native-crash"
+      },
+      {
+       "label": "action-native-crash"
+      },
+      {
+       "label": "03:55:19 rum mode sentry (stored), device 3506ce80 Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "View",
+       "label": "Products"
+      },
+      {
+       "label": "Products"
+      },
+      {
+       "name": "ScrollView"
+      },
+      {
+       "name": "HeaderBackContext"
+      },
+      {
+       "name": "HeaderShownContext"
+      },
+      {
+       "name": "HeaderHeightContext"
+      },
+      {
+       "name": "Animated(Anonymous)"
+      },
+      {
+       "name": "Screen"
+      },
+      {
+       "name": "FrameContext"
+      },
+      {
+       "name": "ThemeContext"
+      },
+      {
+       "name": "LinkingContext"
+      },
+      {
+       "name": "LocaleDirContext"
+      }
+     ]
+    },
+    "category": "touch",
+    "origin": "react-native",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:34.024Z",
+    "message": "native-crash",
+    "data": {},
+    "category": "demo.action",
+    "origin": "react-native",
+    "level": "info"
+   },
+   {
+    "timestamp": "2026-11-10T03:55:34.025Z",
+    "message": "[sentry-demo] native-crash: crashing",
+    "data": {
+     "logger": "console",
+     "arguments": [
+      "[sentry-demo] native-crash: crashing"
+     ]
+    },
+    "category": "console",
+    "origin": "react-native",
+    "level": "debug"
+   }
+  ]
+ }
+}

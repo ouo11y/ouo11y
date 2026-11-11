@@ -1,0 +1,1215 @@
+{
+ "item_header": {
+  "length": 21396,
+  "type": "event"
+ },
+ "payload": {
+  "exception": {
+   "values": [
+    {
+     "type": "Error",
+     "value": "sentry-demo fatal JS error from setTimeout",
+     "stacktrace": {
+      "frames": [
+       {
+        "filename": "app:///main.jsbundle",
+        "function": "anonymous",
+        "in_app": true,
+        "lineno": 1,
+        "colno": 1822981
+       }
+      ]
+     },
+     "mechanism": {
+      "type": "onerror",
+      "handled": false
+     }
+    }
+   ]
+  },
+  "level": "fatal",
+  "debug_meta": {
+   "images": [
+    {
+     "type": "sourcemap",
+     "code_file": "app:///main.jsbundle",
+     "debug_id": "2772c6ae-bb2a-4cb7-9487-475093a203c5"
+    }
+   ]
+  },
+  "request": {
+   "url": "",
+   "headers": {}
+  },
+  "event_id": "4baf14b65cd94fb59f499e69a1b160ee",
+  "timestamp": 1794295155.663,
+  "environment": "development",
+  "release": "sentry-demo@1.0.0+1",
+  "dist": "1",
+  "sdk": {
+   "integrations": [
+    "ReactNativeErrorHandlers",
+    "NativeLinkedErrors",
+    "InboundFilters",
+    "FunctionToString",
+    "Breadcrumbs",
+    "Dedupe",
+    "HttpContext",
+    "Release",
+    "EventOrigin",
+    "SdkInfo",
+    "ReactNativeInfo",
+    "RewriteFrames",
+    "DebugMeta",
+    "DeviceContext",
+    "ModulesLoader",
+    "LogEnricher",
+    "ConsoleLogs",
+    "Screenshot",
+    "ViewHierarchy",
+    "HermesProfiling",
+    "AppStart",
+    "NativeFrames",
+    "StallTracking",
+    "AppRegistry",
+    "ReactNativeTracing",
+    "TimeToDisplay",
+    "HttpClient",
+    "ExpoContext",
+    "ExpoConstants",
+    "ExpoUpdatesListener",
+    "ExpoRouter",
+    "MobileReplay",
+    "PrimitiveTagIntegration",
+    "TurboModuleContext",
+    "ReactNavigation",
+    "ReactNativeProfiler",
+    "TouchEventBoundary"
+   ],
+   "name": "sentry.javascript.react-native",
+   "version": "8.34.0",
+   "packages": [
+    {
+     "name": "sentry.cocoa.react-native",
+     "version": "9.33.0"
+    },
+    {
+     "name": "npm:@sentry/react-native",
+     "version": "8.34.0"
+    }
+   ],
+   "settings": {
+    "infer_ip": "never"
+   }
+  },
+  "tags": {
+   "hermes": "True",
+   "ouo.rum.mode": "sentry",
+   "event.origin": "javascript",
+   "event.environment": "javascript"
+  },
+  "breadcrumbs": [
+   {
+    "timestamp": 1794295041.266,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] browse-catalog: 6 products, 4 details"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] browse-catalog: 6 products, 4 details"
+   },
+   {
+    "timestamp": 1794295041.279,
+    "category": "sentry.transaction",
+    "event_id": "9f993e0bee0440088bd6b2675d224d99",
+    "level": "info",
+    "message": "9f993e0bee0440088bd6b2675d224d99"
+   },
+   {
+    "timestamp": 1794295044.114,
+    "category": "demo.action",
+    "message": "search",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295044.724,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products?delay=600",
+     "__span": "b1e946522e38da55",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295044.75,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] search tent: 1 hits"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] search tent: 1 hits"
+   },
+   {
+    "timestamp": 1794295044.77,
+    "category": "sentry.transaction",
+    "event_id": "8084dab5fed843ef86d1ae3c22ccbf2e",
+    "level": "info",
+    "message": "8084dab5fed843ef86d1ae3c22ccbf2e"
+   },
+   {
+    "timestamp": 1794295047.448,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Product",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295047.457,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Product",
+    "data": {
+     "from": "Home",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295047.462,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1004",
+     "__span": "ab659efb241b4851",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "Product",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0"
+    },
+    "timestamp": 1794295047.967
+   },
+   {
+    "timestamp": 1794295048.502,
+    "category": "sentry.transaction",
+    "event_id": "fee1b6c9060a42ddaa7a8e0cd825b6a2",
+    "level": "info",
+    "message": "fee1b6c9060a42ddaa7a8e0cd825b6a2"
+   },
+   {
+    "timestamp": 1794295050.781,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Home",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295050.794,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "from": "Product",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295050.8,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "bda8956c5e2c0ec4",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "sentry-demo",
+     "parentViewController": "RNSNavigationController",
+     "window_isKeyWindow": "true",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0",
+     "beingPresented": "false"
+    },
+    "timestamp": 1794295051.318
+   },
+   {
+    "timestamp": 1794295051.831,
+    "category": "sentry.transaction",
+    "event_id": "367c7a73a2524a39a3b6a02b4fa6c34e",
+    "level": "info",
+    "message": "367c7a73a2524a39a3b6a02b4fa6c34e"
+   },
+   {
+    "timestamp": 1794295052.864,
+    "category": "demo.action",
+    "message": "checkout",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.871,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "8870a04932d0d987",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.877,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "be662fedbc2d8d4e",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.882,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "813b8fa54f6cc6fe",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.887,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "8347b7358f3b8b7d",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.901,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/checkout",
+     "__span": "9b44a8bf66cc8bca",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295052.902,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout: order ord-000002"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] checkout: order ord-000002"
+   },
+   {
+    "timestamp": 1794295052.922,
+    "category": "sentry.transaction",
+    "event_id": "e0f30a31d101465e9e8fd8d5de6cfc73",
+    "level": "info",
+    "message": "e0f30a31d101465e9e8fd8d5de6cfc73"
+   },
+   {
+    "timestamp": 1794295056.198,
+    "category": "demo.action",
+    "message": "checkout-fail",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295056.208,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "b41a169eef523064",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295056.215,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "8e16f48512718308",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295056.221,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "9cc708ff4ef7e757",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295056.227,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "8af8c7f105f102f3",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295056.242,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/checkout",
+     "__span": "b31d3f6791108038",
+     "status_code": 500
+    },
+    "type": "http",
+    "level": "error"
+   },
+   {
+    "timestamp": 1794295056.243,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout-fail: HTTP 500 from http://localhost:4539/api/checkout"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] checkout-fail: HTTP 500 from http://localhost:4539/api/checkout"
+   },
+   {
+    "timestamp": 1794295056.267,
+    "category": "sentry.transaction",
+    "event_id": "a933f9b272e64de29b90c2664118a575",
+    "level": "info",
+    "message": "a933f9b272e64de29b90c2664118a575"
+   },
+   {
+    "timestamp": 1794295059.114,
+    "category": "demo.action",
+    "message": "browse-catalog",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.122,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "8f155b6bcf9ec7ab",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.133,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1004",
+     "__span": "8a70d441aca8e567",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.133,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1003",
+     "__span": "a669cf83cae2bbe8",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.134,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1001",
+     "__span": "a8c9c350811b97ef",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.134,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1002",
+     "__span": "a000d1d88f2d9dd4",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295059.175,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] browse-catalog: 6 products, 4 details"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] browse-catalog: 6 products, 4 details"
+   },
+   {
+    "timestamp": 1794295059.199,
+    "category": "sentry.transaction",
+    "event_id": "5c392778bf144898b4cee10cc12ba7c1",
+    "level": "info",
+    "message": "5c392778bf144898b4cee10cc12ba7c1"
+   },
+   {
+    "timestamp": 1794295062.448,
+    "category": "demo.action",
+    "message": "search",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295063.059,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products?delay=600",
+     "__span": "b5632676b4462408",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295063.09,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] search tent: 1 hits"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] search tent: 1 hits"
+   },
+   {
+    "timestamp": 1794295063.136,
+    "category": "sentry.transaction",
+    "event_id": "d09001885058415285e44c62d2988016",
+    "level": "info",
+    "message": "d09001885058415285e44c62d2988016"
+   },
+   {
+    "timestamp": 1794295065.364,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Product",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295065.373,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Product",
+    "data": {
+     "from": "Home",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295065.377,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1005",
+     "__span": "b4a623f640f65334",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "Product",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "window_windowLevel": "0.0",
+     "is_window_rootViewController": "false"
+    },
+    "timestamp": 1794295065.874
+   },
+   {
+    "timestamp": 1794295066.395,
+    "category": "sentry.transaction",
+    "event_id": "911bc2a1dd0449af917dbf72e1d98917",
+    "level": "info",
+    "message": "911bc2a1dd0449af917dbf72e1d98917"
+   },
+   {
+    "timestamp": 1794295068.698,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Home",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295068.714,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "from": "Product",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295068.721,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "b72dce8b611ac429",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "sentry-demo",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "window_windowLevel": "0.0",
+     "is_window_rootViewController": "false"
+    },
+    "timestamp": 1794295069.234
+   },
+   {
+    "timestamp": 1794295069.747,
+    "category": "sentry.transaction",
+    "event_id": "2ddee1846eed4160b48d79301933b394",
+    "level": "info",
+    "message": "2ddee1846eed4160b48d79301933b394"
+   },
+   {
+    "timestamp": 1794295070.78,
+    "category": "demo.action",
+    "message": "checkout",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.788,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "a33cfb54ea2bd656",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.794,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "a43916815bfe33bc",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.799,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "ba8becdbac0c8881",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.803,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "8603b08d428dcc5c",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.816,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/checkout",
+     "__span": "98e142eaef95a588",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295070.817,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout: order ord-000003"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] checkout: order ord-000003"
+   },
+   {
+    "timestamp": 1794295070.836,
+    "category": "sentry.transaction",
+    "event_id": "4c7f0724e02f4a779257360be54ecbe9",
+    "level": "info",
+    "message": "4c7f0724e02f4a779257360be54ecbe9"
+   },
+   {
+    "timestamp": 1794295074.114,
+    "category": "demo.action",
+    "message": "checkout-fail",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295074.123,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "835fa858063ae9d3",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295074.13,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "a8fc6b5076ab6403",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295074.136,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "b784135c116c272d",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295074.141,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/cart",
+     "__span": "9d70812ca659e1c9",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295074.153,
+    "category": "fetch",
+    "data": {
+     "method": "POST",
+     "url": "http://localhost:4539/api/checkout",
+     "__span": "a297ba91c37e0bb1",
+     "status_code": 500
+    },
+    "type": "http",
+    "level": "error"
+   },
+   {
+    "timestamp": 1794295074.154,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] checkout-fail: HTTP 500 from http://localhost:4539/api/checkout"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] checkout-fail: HTTP 500 from http://localhost:4539/api/checkout"
+   },
+   {
+    "timestamp": 1794295074.177,
+    "category": "sentry.transaction",
+    "event_id": "8ff74eaff39944798cd187dad522c3c6",
+    "level": "info",
+    "message": "8ff74eaff39944798cd187dad522c3c6"
+   },
+   {
+    "timestamp": 1794295077.448,
+    "category": "demo.action",
+    "message": "handled-error",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295077.45,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] handled-error: event 5c4c7235"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] handled-error: event 5c4c7235"
+   },
+   {
+    "timestamp": 1794295077.644,
+    "category": "sentry.event",
+    "event_id": "5c4c723568de497d82ea3178e92d605c",
+    "level": "error",
+    "message": "Error: sentry-demo handled error: coupon service unavailable"
+   },
+   {
+    "timestamp": 1794295079.531,
+    "category": "demo.action",
+    "message": "message",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295079.531,
+    "category": "demo",
+    "message": "user opened the promo sheet",
+    "level": "info",
+    "data": {
+     "promo": "AUTUMN"
+    }
+   },
+   {
+    "timestamp": 1794295079.533,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] message: event c090d7ea"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] message: event c090d7ea"
+   },
+   {
+    "timestamp": 1794295079.637,
+    "category": "sentry.event",
+    "event_id": "c090d7ea41044438a4b7d6c4f4175909",
+    "level": "info",
+    "message": "sentry-demo custom message: promo sheet opened"
+   },
+   {
+    "timestamp": 1794295082.031,
+    "category": "demo.action",
+    "message": "unhandled-rejection",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295082.032,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] unhandled-rejection: rejected a promise"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] unhandled-rejection: rejected a promise"
+   },
+   {
+    "timestamp": 1794295084.114,
+    "category": "demo.action",
+    "message": "feedback",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295084.114,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] feedback: sent about event f8a059b4"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] feedback: sent about event f8a059b4"
+   },
+   {
+    "timestamp": 1794295084.141,
+    "category": "sentry.event",
+    "event_id": "df9f24edb14a44c4b4b3f1429d977edb",
+    "level": "info",
+    "message": "df9f24edb14a44c4b4b3f1429d977edb"
+   },
+   {
+    "timestamp": 1794295084.144,
+    "category": "sentry.event",
+    "event_id": "a1da3f4d049d42469883a53bf0c527fa",
+    "level": "error",
+    "message": "Error: sentry-demo unhandled promise rejection"
+   },
+   {
+    "timestamp": 1794295084.24,
+    "category": "sentry.event",
+    "event_id": "f8a059b4b7a24d1882ed3c022007d2c6",
+    "level": "error",
+    "message": "Error: sentry-demo pay button error"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "inactive"
+    },
+    "timestamp": 1794295099.425
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "background"
+    },
+    "timestamp": 1794295106.521
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "foreground"
+    },
+    "timestamp": 1794295140.635
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "app.lifecycle",
+    "data": {
+     "state": "active"
+    },
+    "timestamp": 1794295141.076
+   },
+   {
+    "timestamp": 1794295148.948,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Product",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295148.968,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Product",
+    "data": {
+     "from": "Home",
+     "to": "Product"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295148.979,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products/p-1003",
+     "__span": "94774987f0071314",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "Product",
+     "parentViewController": "RNSNavigationController",
+     "beingPresented": "false",
+     "window_isKeyWindow": "true",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0"
+    },
+    "timestamp": 1794295149.491
+   },
+   {
+    "timestamp": 1794295150.018,
+    "category": "sentry.transaction",
+    "event_id": "c2bb4f1177b54b918c31e03fecc9ead2",
+    "level": "info",
+    "message": "c2bb4f1177b54b918c31e03fecc9ead2"
+   },
+   {
+    "timestamp": 1794295152.28,
+    "category": "navigation.dispatch",
+    "type": "navigation",
+    "message": "Dispatched NAVIGATE to Home",
+    "data": {
+     "action_type": "NAVIGATE",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295152.294,
+    "category": "navigation",
+    "type": "navigation",
+    "message": "Navigation to Home",
+    "data": {
+     "from": "Product",
+     "to": "Home"
+    },
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295152.3,
+    "category": "fetch",
+    "data": {
+     "method": "GET",
+     "url": "http://localhost:4539/api/products",
+     "__span": "b7b3ecf68dd73e23",
+     "status_code": 200
+    },
+    "type": "http",
+    "level": "info"
+   },
+   {
+    "type": "navigation",
+    "level": "info",
+    "category": "ui.lifecycle",
+    "data": {
+     "screen": "RNSScreen",
+     "window": "<UIWindow: 0x00000001089f8000; opaque = true>",
+     "title": "sentry-demo",
+     "parentViewController": "RNSNavigationController",
+     "window_isKeyWindow": "true",
+     "is_window_rootViewController": "false",
+     "window_windowLevel": "0.0",
+     "beingPresented": "false"
+    },
+    "timestamp": 1794295152.822
+   },
+   {
+    "timestamp": 1794295153.337,
+    "category": "sentry.transaction",
+    "event_id": "d2ca16079e4f43cea79b6042cc1e8438",
+    "level": "info",
+    "message": "d2ca16079e4f43cea79b6042cc1e8438"
+   },
+   {
+    "timestamp": 1794295155.597,
+    "category": "demo.action",
+    "message": "js-fatal",
+    "level": "info"
+   },
+   {
+    "timestamp": 1794295155.597,
+    "category": "console",
+    "data": {
+     "arguments": [
+      "[sentry-demo] js-fatal: throwing from setTimeout"
+     ],
+     "logger": "console"
+    },
+    "level": "debug",
+    "message": "[sentry-demo] js-fatal: throwing from setTimeout"
+   }
+  ],
+  "platform": "javascript",
+  "contexts": {
+   "trace": {
+    "trace_id": "1f1d7e72514f4fefa4011f25a4e599ad",
+    "span_id": "9148c6422fd76026"
+   },
+   "app": {
+    "view_names": [
+     "Home"
+    ],
+    "build_type": "simulator",
+    "app_version": "1.0.0",
+    "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+    "app_start_time": "2026-11-10T07:16:51Z",
+    "app_identifier": "dev.ouo.sentrydemo",
+    "app_build": "1",
+    "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+    "app_memory": 77627392,
+    "app_name": "sentrydemo",
+    "in_foreground": true
+   },
+   "os": {
+    "name": "iOS",
+    "build": "26A434",
+    "version": "27.0",
+    "rooted": false,
+    "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142"
+   },
+   "device": {
+    "processor_count": 10,
+    "model_id": "simulator",
+    "screen_height_pixels": 874,
+    "free_memory": 160595968,
+    "family": "iOS",
+    "thermal_state": "nominal",
+    "low_power_mode": false,
+    "screen_width_pixels": 402,
+    "simulator": true,
+    "locale": "xx_XX",
+    "connection_type": "wifi",
+    "arch": "arm64",
+    "memory_size": 34359738368,
+    "model": "iPhone19,2",
+    "usable_memory": 20052623360
+   },
+   "ota_updates": {
+    "is_enabled": false
+   },
+   "react_native_context": {
+    "turbo_module": true,
+    "fabric": true,
+    "react_native_version": "0.86.3",
+    "expo": true,
+    "js_engine": "hermes",
+    "hermes_version": "250829098.0.17",
+    "hermes_debug_info": false
+   },
+   "expo_constants": {
+    "execution_environment": "bare",
+    "debug_mode": false,
+    "session_id": "D7B1F486-C612-445D-8C8A-015D30CDFF4B",
+    "status_bar_height": 0
+   },
+   "replay": {
+    "replay_id": "fde07bb7086e4940b17767af12f1daa9"
+   }
+  },
+  "user": {
+   "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+  },
+  "modules": {}
+ }
+}

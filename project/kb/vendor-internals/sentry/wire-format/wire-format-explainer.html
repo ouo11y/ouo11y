@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentry Wire Format</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#6b6a64;--line:#d9d6cc;--card:#ffffff;--a:#2f6f9f;--b:#b5651d;--c:#3f8a4f;--d:#8a3f7a;--warn:#b3261e;--code:#f1efe8}
+@media (prefers-color-scheme: dark){:root{--bg:#161614;--fg:#ecebe6;--muted:#a3a198;--line:#3a3934;--card:#1f1f1c;--a:#7fb6df;--b:#e0a46a;--c:#86c995;--d:#d39acb;--warn:#f08b84;--code:#2a2a26}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 8px}
+p.sub{color:var(--muted);margin:0 0 20px}
+code{font:13px ui-monospace,Menlo,monospace;background:var(--code);padding:1px 4px;border-radius:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0}
+svg text{fill:var(--fg);font:12px ui-monospace,Menlo,monospace}
+svg .lbl{font:12px system-ui,sans-serif;fill:var(--muted)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:var(--card)}
+input{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);width:100%;max-width:360px}
+.tag{display:inline-block;padding:0 6px;border-radius:9px;font-size:12px;border:1px solid var(--line)}
+.bad{color:var(--warn);font-weight:600}
+ul{padding-left:20px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sentry wire format</h1>
+<p class="sub">Relay 26.10.0 / self-hosted Sentry 26.10.0. Researched 2026-11-10 from Relay source and ~100 requests sent to a local Relay. Details: <code>index.md</code> in this folder.</p>
+
+<h2>1. Envelope framing</h2>
+<div class="card scroll">
+<svg viewBox="0 0 1040 330" width="100%" role="img" aria-label="Envelope framing: header line, then item header and payload pairs">
+  <rect x="10" y="20" width="700" height="34" rx="6" fill="none" stroke="var(--a)" stroke-width="2"/>
+  <text x="22" y="42">{"event_id":"62649a…","sent_at":"…","dsn":"…","sdk":{…},"trace":{…}}</text>
+  <text x="720" y="42">\n</text><text class="lbl" x="760" y="42">envelope header: one JSON line</text>
+  <rect x="40" y="74" width="420" height="30" rx="6" fill="none" stroke="var(--b)" stroke-width="2"/>
+  <text x="52" y="94">{"type":"replay_event","length":612}</text>
+  <text x="470" y="94">\n</text><text class="lbl" x="510" y="94">item header: JSON line, "type" required</text>
+  <rect x="40" y="110" width="660" height="30" rx="6" fill="none" stroke="var(--c)" stroke-width="2"/>
+  <text x="52" y="130">{"replay_id":"62649a…","segment_id":0,…}   ← exactly 612 bytes</text>
+  <text x="710" y="130">\n</text><text class="lbl" x="750" y="130">payload: length bytes, then \n or EOF</text>
+  <rect x="40" y="160" width="420" height="30" rx="6" fill="none" stroke="var(--b)" stroke-width="2"/>
+  <text x="52" y="180">{"type":"replay_recording","length":447}</text><text x="470" y="180">\n</text>
+  <rect x="40" y="196" width="660" height="30" rx="6" fill="none" stroke="var(--c)" stroke-width="2"/>
+  <text x="52" y="216">{"segment_id":0}\n &lt;zlib bytes, may contain \n&gt;</text><text x="710" y="216">\n</text>
+  <rect x="40" y="246" width="420" height="30" rx="6" fill="none" stroke="var(--b)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="52" y="266">{"type":"client_report"}</text><text class="lbl" x="480" y="266">no length: payload runs to next \n</text>
+  <rect x="40" y="282" width="660" height="30" rx="6" fill="none" stroke="var(--c)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="52" y="302">{"timestamp":…,"discarded_events":[…]}</text><text x="710" y="302">\n</text><text class="lbl" x="750" y="302">one trailing \n ok, two → 400</text>
+</svg>
+</div>
+<div class="card">
+<ul>
+<li>Header lines end with <code>\n</code> (CRLF → <span class="bad">400</span>). Blank lines between items are accepted; a second trailing newline is <span class="bad">400 unexpected end of file</span>.</li>
+<li>Max 500 items. Only <b>one</b> of event / transaction / security / feedback / replay_event per envelope; else <span class="bad">413</span> for the whole envelope.</li>
+<li>Content-Encoding: gzip, deflate (zlib), br, zstd. <code>x-gzip</code> → 415, raw deflate → 400. Limits apply after decompression.</li>
+<li>Auth: exactly one of <code>X-Sentry-Auth</code>, <code>Authorization: Sentry|Basic</code>, <code>?sentry_key=</code>, or the envelope <code>dsn</code>. Two at once → 401. <code>sentry_version</code> &gt; 7 → 400.</li>
+<li>200 means "queued". Validation, quotas, filters, scrubbing happen after; drops show only as outcomes.</li>
+</ul>
+</div>
+
+<h2>2. Every item type</h2>
+<input id="q" placeholder="Filter, e.g. replay, eap, ingest-spans" aria-label="Filter item types">
+<div class="card scroll" style="max-height:620px;overflow:auto">
+<table id="t">
+<thead><tr><th>type</th><th>payload</th><th>data category</th><th>size limit</th><th>Kafka (self-hosted)</th><th>stored in</th><th>observed</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<h2>3. Rate-limit header</h2>
+<div class="card scroll">
+<svg viewBox="0 0 900 110" width="100%" role="img" aria-label="X-Sentry-Rate-Limits grammar">
+<text x="10" y="30">x-sentry-rate-limits: 33:default;error;security:key:key_quota</text>
+<line x1="190" y1="40" x2="190" y2="70" stroke="var(--a)"/><text class="lbl" x="150" y="88">retry_after (s)</text>
+<line x1="320" y1="40" x2="320" y2="70" stroke="var(--b)"/><text class="lbl" x="260" y="88">categories (; list, empty = all)</text>
+<line x1="440" y1="40" x2="440" y2="70" stroke="var(--c)"/><text class="lbl" x="430" y="104">scope: organization|project|key</text>
+<line x1="515" y1="40" x2="515" y2="70" stroke="var(--d)"/><text class="lbl" x="560" y="88">reason_code [: namespaces]</text>
+</svg>
+<p>Observed on a 429 with <code>retry-after: 33</code> after setting a 1/60 s key limit. A mixed envelope (limited error + session) got 429 while the session was still accepted.</p>
+</div>
+</main>
+<script>
+const rows=[
+["event","event JSON","error (or default)","1 MiB, one event-like item","ingest-events / ingest-attachments","errors_local + nodestore","stored"],
+["transaction","event JSON with spans[]","transaction, transaction_indexed, span, span_indexed","1 MiB","ingest-transactions; spans → ingest-spans","transactions_local + EAP spans + nodestore","stored"],
+["security","CSP/HPKP/Expect-CT event","security","1 MiB","ingest-events","errors_local","via /security/"],
+["raw_security","browser report JSON","security","1 MiB","ingest-events","errors_local","filtered invalid-csp"],
+["form_data","multipart fields","—","1 MiB","merged into event","—","not tested"],
+["user_report","{event_id,name,email,comments}","feedback","200 MiB (attachment bucket)","ingest-attachments","sentry_userreport","see feedback notes"],
+["feedback","event with contexts.feedback","feedback","1 MiB","ingest-feedback-events","search_issues (6001) + Postgres group","stored"],
+["attachment","raw bytes + filename, attachment_type","attachment (bytes), attachment_item","200 MiB each, 30 per envelope","ingest-attachments","Postgres inline <192 B, else filestore","stored inline"],
+["unreal_report","UE4 crash zip","error","200 MiB","ingest-attachments","errors_local","via /unreal/"],
+["session","{sid,did,init,started,timestamp,status,errors,attrs.release}","session","10 MiB, 100 per envelope","ingest-metrics (as metrics)","metrics_*_v2 only, no raw session","metrics rows"],
+["sessions","{aggregates[],attrs}","session","10 MiB","ingest-metrics","metrics_*_v2","not tested"],
+["client_report","{timestamp,discarded_events[]…}","none","100 KiB, 100 items","outcomes","outcomes_raw_local (client_discard)","stored"],
+["metric_buckets","bucket JSON (Relay-to-Relay)","none","1 MiB","ingest-metrics (sessions only)","metrics_*_v2","not tested"],
+["span","v2 container {items:[…]} or v1 span","span, span_indexed","10 MiB per span, 12 MiB container, 25 v1 spans","ingest-spans → process-spans → snuba-items","eap_items_1_local item_type 1","stored"],
+["log","container {items:[…]}","log_item, log_byte","2 MiB per log, 12 MiB container","snuba-items","eap_items_1_local item_type 3","stored"],
+["trace_metric","container {items:[…]}","trace_metric, trace_metric_byte","1 MiB per metric","snuba-items","eap_items_1_local item_type 8","stored"],
+["replay_event","replay JSON (replay_id, segment_id…)","replay","1 MiB, event bucket","inside ingest-replay-recordings","replays_local","stored"],
+["replay_recording","{\"segment_id\":N}\\n + zlib rrweb (gzip is dropped)","replay","10 MiB compressed, 100 MiB inflated","ingest-replay-recordings → taskbroker","filestore /data/files/<ret>/<proj>/<replay>/<seg>","stored"],
+["replay_video","msgpack {replay_event, replay_recording, replay_video}","replay","10 MiB","ingest-replay-recordings","filestore (packed video+rrweb) + replays_local","stored"],
+["profile","Sample profile JSON","profile, profile_indexed, profile_backend|ui","50 MiB","profiles → taskbroker → vroom","seaweedfs profiles + profiles_local","not tested"],
+["profile_chunk","continuous profile chunk, header platform","profile_chunk or profile_chunk_ui","50 MiB","profiles → vroom","seaweedfs profiles + profile_chunks_local","minimal chunk invalid"],
+["check_in","{check_in_id,monitor_slug,status,monitor_config}","monitor","100 KiB","ingest-monitors","Postgres sentry_monitorcheckin","monitor created"],
+["integration","internal only (OTLP, NEL, Vercel)","log or span","12 MiB","—","—","400 from SDKs"],
+["unknown","anything else","none","—","dropped by processing Relay","—","200, dropped"]
+];
+const tb=document.querySelector("#t tbody");
+function render(f){tb.innerHTML="";for(const r of rows){if(f&&!r.join(" ").toLowerCase().includes(f))continue;const tr=document.createElement("tr");r.forEach((c,i)=>{const td=document.createElement("td");if(i===0){const s=document.createElement("code");s.textContent=c;td.appendChild(s)}else td.textContent=c;tr.appendChild(td)});tb.appendChild(tr)}}
+render("");document.getElementById("q").addEventListener("input",e=>render(e.target.value.trim().toLowerCase()));
+</script>
+</body>
+</html>

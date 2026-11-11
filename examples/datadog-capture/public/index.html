@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Datadog capture demo</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; margin: 24px; max-width: 760px; }
+      button { margin: 4px 4px 4px 0; padding: 6px 10px; }
+      .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin: 12px 0; }
+      img { width: 64px; height: 64px; background: #8ac; display: block; }
+      #log { font: 12px ui-monospace, monospace; white-space: pre-wrap; background: #f4f4f4; padding: 8px; }
+    </style>
+    <!-- SDK CDN bundles served from node_modules by server.mjs (no CDN, no network) -->
+    <script src="/vendor/rum/datadog-rum.js"></script>
+    <script src="/vendor/logs/datadog-logs.js"></script>
+    <script src="/app.js"></script>
+  </head>
+  <body>
+    <h1 id="title">Datadog capture demo</h1>
+    <p>Every Datadog request goes to <code>/intake</code> on this server and is written to <code>captures/</code>.</p>
+
+    <div class="card">
+      <h2>Interactions</h2>
+      <button id="btn-action" data-dd-action-name="named click">Named click</button>
+      <button id="btn-plain">Plain button text</button>
+      <button id="btn-dead">Dead button (no handler)</button>
+      <button id="btn-custom">addAction + timing + vital</button>
+    </div>
+
+    <div class="card">
+      <h2>Network</h2>
+      <button id="btn-fetch-ok">fetch /api/ok</button>
+      <button id="btn-fetch-fail">fetch /api/fail (500)</button>
+      <button id="btn-xhr-slow">XHR /api/slow</button>
+    </div>
+
+    <div class="card">
+      <h2>Errors and logs</h2>
+      <button id="btn-throw">throw Error</button>
+      <button id="btn-reject">unhandled rejection</button>
+      <button id="btn-console">console.error</button>
+      <button id="btn-adderror">addError</button>
+      <button id="btn-log">logger.info / warn</button>
+      <button id="btn-longtask">300 ms long task</button>
+    </div>
+
+    <div class="card">
+      <h2>Replay privacy</h2>
+      <label>Name <input id="name" type="text" placeholder="type here" /></label>
+      <label>Password <input id="pw" type="password" /></label>
+      <p class="secret" data-dd-privacy="mask">This paragraph is masked with data-dd-privacy="mask".</p>
+      <p data-dd-privacy="hidden">This paragraph is hidden.</p>
+      <img alt="placeholder image" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' fill='%2388aacc'/></svg>" />
+      <button id="btn-mutate">Mutate DOM</button>
+    </div>
+
+    <div class="card">
+      <h2>Navigation</h2>
+      <button id="btn-nav">pushState to /checkout/42</button>
+    </div>
+
+    <div id="log"></div>
+  </body>
+</html>

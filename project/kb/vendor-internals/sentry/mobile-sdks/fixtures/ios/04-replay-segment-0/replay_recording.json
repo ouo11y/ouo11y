@@ -1,0 +1,113 @@
+{
+ "segment_header": {
+  "segment_id": 0
+ },
+ "events": [
+  {
+   "data": {
+    "href": "",
+    "height": 874,
+    "width": 402
+   },
+   "type": 4,
+   "timestamp": 1794295012001
+  },
+  {
+   "data": {
+    "tag": "video",
+    "payload": {
+     "duration": 5000,
+     "width": 402,
+     "top": 0,
+     "segmentId": 0,
+     "container": "mp4",
+     "size": 31389,
+     "timestamp": 1794295012.001419,
+     "encoding": "h264",
+     "frameRate": 1,
+     "frameRateType": "constant",
+     "height": 874,
+     "left": 0,
+     "frameCount": 5
+    }
+   },
+   "type": 5,
+   "timestamp": 1794295012001
+  },
+  {
+   "timestamp": 1794295012003,
+   "data": {
+    "payload": {
+     "data": {
+      "arguments": [
+       "Running \"main\""
+      ],
+      "logger": "console"
+     },
+     "level": "debug",
+     "type": "default",
+     "message": "Running \"main\"",
+     "timestamp": 1794295012.003087,
+     "category": "console"
+    },
+    "tag": "breadcrumb"
+   },
+   "type": 5
+  },
+  {
+   "type": 5,
+   "data": {
+    "payload": {
+     "category": "fetch",
+     "type": "default",
+     "level": "info",
+     "data": {
+      "url": "http://localhost:4539/api/products",
+      "method": "GET",
+      "__span": "9e295521f0dc06fe",
+      "status_code": 200
+     },
+     "timestamp": 1794295012.441819
+    },
+    "tag": "breadcrumb"
+   },
+   "timestamp": 1794295012441
+  },
+  {
+   "timestamp": 1794295016625,
+   "data": {
+    "payload": {
+     "type": "default",
+     "level": "info",
+     "data": {
+      "__span": "93eb6811a0ce3502",
+      "url": "http://localhost:4539/api/products/p-1001",
+      "status_code": 200,
+      "method": "GET"
+     },
+     "category": "fetch",
+     "timestamp": 1794295016.62552
+    },
+    "tag": "breadcrumb"
+   },
+   "type": 5
+  },
+  {
+   "data": {
+    "tag": "options",
+    "payload": {
+     "quality": "medium",
+     "maskAllImages": false,
+     "nativeSdkVersion": "9.33.0",
+     "errorSampleRate": 1,
+     "nativeSdkName": "sentry.cocoa.react-native",
+     "maskAllText": false,
+     "sessionSampleRate": 1,
+     "networkDetailHasUrls": false
+    }
+   },
+   "type": 5,
+   "timestamp": 1794295012001
+  }
+ ]
+}

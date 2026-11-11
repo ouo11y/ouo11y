@@ -1,0 +1,6 @@
+GET /api/0/organizations/sentry/replays/?project=-1&statsPeriod=30d&per_page=3&field=id&field=project_id&field=started_at&field=finished_at&field=count_segments&field=platform
+HTTP 200
+Content-Type: application/json
+Content-Length: 565
+link: <https://sentry.ouo.localhost/api/0/organizations/sentry/replays/?project=-1&statsPeriod=30d&per_page=3&field=id&field=project_id&field=started_at&field=finished_at&field=count_segments&field=platform&cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1", <https://sentry.ouo.localhost/api/0/organizations/sentry/replays/?project=-1&statsPeriod=30d&per_page=3&field=id&field=project_id&field=started_at&field=finished_at&field=count_segments&field=platform&cursor=0:3:0>; rel="next"; results="true"; cursor="0:3:0"
+x-data-source: scalar-subquery

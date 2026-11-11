@@ -1,0 +1,49 @@
+discover_local	Merge('default', '^errors_local$|^transactions_local$')
+eap_item_co_occurring_attrs_1_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(date)) PRIMARY KEY (organization_id, project_id, date, item_type, key_hash) ORDER BY (organization_id, project_id, date, item_type, key_hash, retention_days) TTL date + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_item_co_occurring_attrs_2_local	SummingMergeTree PARTITION BY (retention_days, toMonday(date)) PRIMARY KEY (organization_id, project_id, date, item_type, key_hash) ORDER BY (organization_id, project_id, date, item_type, key_hash, retention_days) TTL date + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_item_co_occurring_attrs_3_mv	
+eap_item_co_occurring_attrs_4_mv	
+eap_items_1_downsample_512_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_1_downsample_512_mv_10	
+eap_items_1_downsample_64_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_1_downsample_64_mv_10	
+eap_items_1_downsample_8_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_1_downsample_8_mv_10	
+eap_items_1_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_2_downsample_512_local	ReplacingMergeTree(version) PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_2_downsample_512_mv_1	
+eap_items_2_downsample_64_local	ReplacingMergeTree(version) PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_2_downsample_64_mv_1	
+eap_items_2_downsample_8_local	ReplacingMergeTree(version) PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+eap_items_2_downsample_8_mv_1	
+eap_items_2_local	ReplacingMergeTree(version) PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (organization_id, project_id, item_type, timestamp) ORDER BY (organization_id, project_id, item_type, timestamp, trace_id, item_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+errors_local	ReplacingMergeTree(deleted) PARTITION BY (retention_days, toMonday(timestamp)) ORDER BY (project_id, toStartOfDay(timestamp), primary_hash, cityHash64(event_id)) SAMPLE BY cityHash64(event_id) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192, min_bytes_for_wide_part = 1, enable_vertical_merge_algorithm = 1, min_rows_for_wide_part = 0, ttl_only_drop_parts = 1
+functions_local	
+functions_mv_local	AggregatingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (project_id, transaction_name, timestamp, depth, parent_fingerprint, fingerprint) ORDER BY (project_id, transaction_name, timestamp, depth, parent_fingerprint, fingerprint, name, package, path, is_application, platform, environment, release, os_name, os_version, retention_days) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 2048, allow_nullable_key = 1
+functions_raw_local	MergeTree PARTITION BY toStartOfInterval(timestamp, toIntervalHour(12)) ORDER BY (project_id, transaction_name, timestamp) TTL timestamp + toIntervalDay(1) SETTINGS index_granularity = 8192
+functions_v2_local	
+group_attributes_local	ReplacingMergeTree(deleted) ORDER BY (project_id, group_id) SETTINGS index_granularity = 8192
+groupassignee_local	ReplacingMergeTree(offset) ORDER BY (project_id, group_id) SETTINGS index_granularity = 8192
+groupedmessage_local	ReplacingMergeTree(offset) ORDER BY (project_id, id) SAMPLE BY id SETTINGS index_granularity = 8192
+llm_proxy_cost_raw_local	MergeTree PARTITION BY toStartOfMonth(timestamp) ORDER BY (org_id, project_id, timestamp) TTL timestamp + toIntervalDay(365) SETTINGS index_granularity = 8192
+metrics_counters_polymorphic_mv_v4_local	
+metrics_counters_v2_local	AggregatingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (use_case_id, org_id, project_id, metric_id, granularity, timestamp) ORDER BY (use_case_id, org_id, project_id, metric_id, granularity, timestamp, tags.key, tags.value, retention_days) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 2048
+metrics_distributions_polymorphic_mv_v4_local	
+metrics_distributions_v2_local	AggregatingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (use_case_id, org_id, project_id, metric_id, granularity, timestamp) ORDER BY (use_case_id, org_id, project_id, metric_id, granularity, timestamp, tags.key, tags.value, retention_days) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 2048
+metrics_raw_v2_local	MergeTree PARTITION BY toStartOfInterval(timestamp, toIntervalDay(3)) ORDER BY (use_case_id, metric_type, org_id, project_id, metric_id, timestamp) TTL timestamp + toIntervalDay(7) SETTINGS index_granularity = 8192
+metrics_sets_polymorphic_mv_v4_local	
+metrics_sets_v2_local	AggregatingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) PRIMARY KEY (use_case_id, org_id, project_id, metric_id, granularity, timestamp) ORDER BY (use_case_id, org_id, project_id, metric_id, granularity, timestamp, tags.key, tags.value, retention_days) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 2048
+migrations_local	ReplacingMergeTree(version) ORDER BY (group, migration_id) SETTINGS index_granularity = 8192
+outcomes_daily_local_v2	SummingMergeTree PARTITION BY toStartOfMonth(timestamp) ORDER BY (org_id, project_id, key_id, outcome, reason, timestamp, category) TTL timestamp + toIntervalMonth(13) SETTINGS index_granularity = 8192
+outcomes_hourly_local	SummingMergeTree PARTITION BY toMonday(timestamp) PRIMARY KEY (org_id, project_id, key_id, outcome, reason, timestamp) ORDER BY (org_id, project_id, key_id, outcome, reason, timestamp, category) TTL timestamp + toIntervalDay(90) SETTINGS index_granularity = 256
+outcomes_mv_daily_local_v3	
+outcomes_mv_hourly_local_v2	
+outcomes_raw_local	MergeTree PARTITION BY toMonday(timestamp) ORDER BY (org_id, project_id, timestamp) TTL timestamp + toIntervalDay(30) SETTINGS index_granularity = 16384
+profile_chunks_local	ReplacingMergeTree PARTITION BY (retention_days, toStartOfDay(start_timestamp)) ORDER BY (project_id, profiler_id, start_timestamp, cityHash64(chunk_id)) SAMPLE BY cityHash64(chunk_id) TTL toDateTime(end_timestamp) + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+profiles_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(received)) ORDER BY (organization_id, project_id, toStartOfDay(received), cityHash64(profile_id)) SAMPLE BY cityHash64(profile_id) TTL received + toIntervalDay(retention_days) SETTINGS index_granularity = 8192, enable_vertical_merge_algorithm = 0
+replays_aggregated_local	AggregatingMergeTree PARTITION BY (retention_days, toMonday(to_hour_timestamp)) ORDER BY (project_id, to_hour_timestamp, replay_id, retention_days) TTL to_hour_timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+replays_aggregation_mv	
+replays_local	ReplacingMergeTree PARTITION BY (retention_days, toMonday(timestamp)) ORDER BY (project_id, toStartOfDay(timestamp), cityHash64(replay_id), event_hash) TTL timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+search_issues_local	ReplacingMergeTree(deleted) PARTITION BY (retention_days, toMonday(receive_timestamp)) ORDER BY (project_id, toStartOfDay(receive_timestamp), primary_hash, cityHash64(occurrence_id)) SAMPLE BY cityHash64(occurrence_id) TTL receive_timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+search_issues_local_v2	ReplacingMergeTree(deleted) PARTITION BY (retention_days, toMonday(client_timestamp)) ORDER BY (project_id, toStartOfDay(client_timestamp), primary_hash, cityHash64(occurrence_id)) SAMPLE BY cityHash64(occurrence_id) TTL client_timestamp + toIntervalDay(retention_days) SETTINGS index_granularity = 8192
+transactions_local	ReplacingMergeTree(deleted) PARTITION BY (retention_days, toMonday(finish_ts)) ORDER BY (project_id, toStartOfDay(finish_ts), transaction_name, cityHash64(span_id)) SAMPLE BY cityHash64(span_id) TTL finish_ts + toIntervalDay(retention_days) SETTINGS index_granularity = 8192

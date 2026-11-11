@@ -1,0 +1,361 @@
+{
+ "envelope_header": {
+  "event_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+  "sent_at": "2026-11-10T03:35:58.090Z",
+  "sdk": {
+   "name": "sentry.javascript.react",
+   "version": "11.11.0"
+  }
+ },
+ "items": [
+  {
+   "item_header": {
+    "type": "replay_event"
+   },
+   "payload": {
+    "type": "replay_event",
+    "replay_start_timestamp": 1794281732.3313,
+    "timestamp": 1794281758.089,
+    "error_ids": [
+     "fa04c5d3bfd74988ac33ce917f6b25b3",
+     "a08d6dfc0860454e8df1c104429e28f0",
+     "79e5c13a531f44c98065ce70e7797ae4",
+     "b1000736be2f4205885934676ccb6894",
+     "eee4f4df29d34047858083524359102e",
+     "87f9cee00bfa4820bb22762c088681ee"
+    ],
+    "trace_ids": [
+     "e62f290989b94cc58202e3fa6ac63131",
+     "79966169ef284bd9ae1cb0b623f5b965"
+    ],
+    "segment_names": [
+     "GET 127.0.0.1",
+     "demo.work",
+     "Navigation"
+    ],
+    "urls": [
+     "http://127.0.0.1:4521/page/1",
+     "http://127.0.0.1:4521/page/2"
+    ],
+    "replay_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+    "segment_id": 1,
+    "replay_type": "session",
+    "request": {
+     "url": "http://127.0.0.1:4521/page/2",
+     "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.1 Chrome/152.0.7977.167 Safari/537.36"
+     }
+    },
+    "contexts": {
+     "trace": {
+      "span_id": "91c3d9e5d245c6bf",
+      "trace_id": "a7060e539d1d434d846bba0adb95e807"
+     },
+     "profile": {
+      "profiler_id": "af575ee410db4e8288cf628e99e72d9f"
+     },
+     "react": {
+      "version": "19.2.0"
+     },
+     "culture": {
+      "locale": "en-US",
+      "timezone": "Etc/Redacted",
+      "calendar": "gregory"
+     }
+    },
+    "event_id": "bb6e59678173435bb7cc1cc1d3f8620a",
+    "environment": "step6",
+    "release": "sentry-web-demo@1.0.0",
+    "sdk": {
+     "integrations": [
+      "EventFilters",
+      "FunctionToString",
+      "ConversationId",
+      "BrowserApiErrors",
+      "Breadcrumbs",
+      "Console",
+      "GlobalHandlers",
+      "LinkedErrors",
+      "Dedupe",
+      "HttpContext",
+      "CultureContext",
+      "BrowserSession",
+      "BrowserTracing",
+      "Replay",
+      "Feedback",
+      "BrowserProfiling",
+      "HttpClient",
+      "ConsoleLogs",
+      "SpanStreaming",
+      "WebVitals"
+     ],
+     "name": "sentry.javascript.react",
+     "version": "11.11.0",
+     "settings": {
+      "infer_ip": "auto"
+     }
+    },
+    "tags": {
+     "demo": "step6"
+    },
+    "user": {
+     "id": "demo-user-1"
+    },
+    "transaction": "/page/2",
+    "platform": "javascript"
+   }
+  },
+  {
+   "item_header": {
+    "type": "replay_recording",
+    "length": 1047
+   },
+   "recording_header": {
+    "segment_id": 1
+   },
+   "compression": "zlib",
+   "first_bytes_hex": "789c",
+   "events": [
+    {
+     "type": 5,
+     "timestamp": 1794281746.7963,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/hello",
+       "startTimestamp": 1794281746.7963,
+       "endTimestamp": 1794281746.9244,
+       "data": {
+        "method": "GET",
+        "statusCode": 200,
+        "response": {
+         "headers": {
+          "content-length": "466",
+          "content-type": "application/json"
+         },
+         "size": 466,
+         "body": {
+          "path": "/api/hello",
+          "sentry-trace": "e62f290989b94cc58202e3fa6ac63131-bfd370326e454d6f-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=e62f290989b94cc58202e3fa6ac63131,sentry-replay_id=bb6e59678173435bb7cc1cc1d3f8620a,sentry-sampled=true,sentry-sample_rand=0.866375041749666,sentry-sample_rate=1",
+          "traceparent": "00-e62f290989b94cc58202e3fa6ac63131-bfd370326e454d6f-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281748.4276001,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "resource.fetch",
+       "description": "/api/fail",
+       "startTimestamp": 1794281748.4276001,
+       "endTimestamp": 1794281748.5527,
+       "data": {
+        "method": "GET",
+        "statusCode": 503,
+        "response": {
+         "headers": {
+          "content-length": "465",
+          "content-type": "application/json"
+         },
+         "size": 465,
+         "body": {
+          "path": "/api/fail",
+          "sentry-trace": "e62f290989b94cc58202e3fa6ac63131-a00128984bfa69a4-1",
+          "baggage": "sentry-environment=step6,sentry-release=sentry-web-demo%401.0.0,sentry-public_key=00000000000000000000000000000000,sentry-trace_id=e62f290989b94cc58202e3fa6ac63131,sentry-replay_id=bb6e59678173435bb7cc1cc1d3f8620a,sentry-sampled=true,sentry-sample_rand=0.866375041749666,sentry-sample_rate=1",
+          "traceparent": "00-e62f290989b94cc58202e3fa6ac63131-a00128984bfa69a4-01"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 5,
+      "text": "****************",
+      "isChecked": false,
+      "id": 28
+     },
+     "timestamp": 1794281752586
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281753094,
+     "data": {
+      "tag": "breadcrumb",
+      "payload": {
+       "timestamp": 1794281753.094,
+       "type": "default",
+       "category": "console",
+       "data": {
+        "arguments": [
+         "demo: console.warn captured as log"
+        ],
+        "logger": "console"
+       },
+       "level": "warning",
+       "message": "demo: console.warn captured as log"
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281754609,
+     "data": {
+      "tag": "breadcrumb",
+      "payload": {
+       "timestamp": 1794281754.609,
+       "type": "default",
+       "category": "sentry.feedback",
+       "data": {
+        "feedbackId": "dbdf927e9e614c00b559e7795613f2a5"
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281755114,
+     "data": {
+      "tag": "breadcrumb",
+      "payload": {
+       "timestamp": 1794281755.114,
+       "type": "default",
+       "category": "navigation",
+       "data": {
+        "from": "/",
+        "to": "/page/1"
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281755.115,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "navigation.push",
+       "description": "http://127.0.0.1:4521/page/1",
+       "startTimestamp": 1794281755.115,
+       "endTimestamp": 1794281755.115,
+       "data": {}
+      }
+     }
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 0,
+      "texts": [],
+      "attributes": [],
+      "removes": [
+       {
+        "parentId": 7,
+        "id": 8
+       }
+      ],
+      "adds": [
+       {
+        "parentId": 7,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**** *",
+         "id": 71
+        }
+       }
+      ]
+     },
+     "timestamp": 1794281755116
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281757117,
+     "data": {
+      "tag": "breadcrumb",
+      "payload": {
+       "timestamp": 1794281757.117,
+       "type": "default",
+       "category": "navigation",
+       "data": {
+        "from": "/page/1",
+        "to": "/page/2"
+       }
+      }
+     }
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281757.118,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "navigation.push",
+       "description": "http://127.0.0.1:4521/page/2",
+       "startTimestamp": 1794281757.118,
+       "endTimestamp": 1794281757.118,
+       "data": {
+        "previous": "http://127.0.0.1:4521/page/1"
+       }
+      }
+     }
+    },
+    {
+     "type": 3,
+     "data": {
+      "source": 0,
+      "texts": [],
+      "attributes": [],
+      "removes": [
+       {
+        "parentId": 7,
+        "id": 71
+       }
+      ],
+      "adds": [
+       {
+        "parentId": 7,
+        "nextId": null,
+        "node": {
+         "type": 3,
+         "textContent": "**** *",
+         "id": 72
+        }
+       }
+      ]
+     },
+     "timestamp": 1794281757119
+    },
+    {
+     "type": 5,
+     "timestamp": 1794281758.089,
+     "data": {
+      "tag": "performanceSpan",
+      "payload": {
+       "op": "memory",
+       "description": "memory",
+       "startTimestamp": 1794281758.089,
+       "endTimestamp": 1794281758.089,
+       "data": {
+        "memory": {
+         "jsHeapSizeLimit": 4395630592,
+         "totalJSHeapSize": 9240425,
+         "usedJSHeapSize": 6750253
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

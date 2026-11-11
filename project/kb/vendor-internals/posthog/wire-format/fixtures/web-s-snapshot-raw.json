@@ -1,0 +1,648 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "POST /s/ after gunzip of the HTTP body, BEFORE decoding the per-event gzip. FullSnapshot data and Mutation adds/removes/texts/attributes are gzip bytes as latin1 strings (cv \"2024-10\"). One $snapshot event held 89 rrweb events, $snapshot_bytes=26662; trimmed to the first 12 (the $posthog_config custom event, which echoes the whole init config, removed)."
+  },
+  "ts": "2026-11-10T03:29:36.085Z",
+  "method": "POST",
+  "path": "/s/",
+  "query": {},
+  "headers": {
+    "host": "posthog-capture.localhost:4570",
+    "content-length": "6943",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "content-type": "text/plain",
+    "accept": "*/*",
+    "origin": "http://posthog-capture.localhost:4570",
+    "sec-fetch-mode": "cors"
+  },
+  "decode": {
+    "rawBytes": 6943,
+    "contentType": "text/plain",
+    "steps": [
+      "gunzip"
+    ],
+    "decodedBytes": 29014
+  },
+  "body": [
+    {
+      "uuid": "01a1c381-0555-7470-b52b-2321906d9c0a",
+      "event": "$snapshot",
+      "properties": {
+        "$snapshot_bytes": 26662,
+        "$snapshot_data": [
+          {
+            "type": 4,
+            "data": {
+              "href": "http://posthog-capture.localhost:4570/",
+              "width": 1280,
+              "height": 813
+            },
+            "timestamp": 1794281369224
+          },
+          {
+            "type": 2,
+            "data": "\u001f\b\u0000\u0000\u0000\u0000\u0000\u0000\u0013½XÛnã6\u0010ý\u0001û\u0010\u0007\u001cK¾eµØ¶Y b/h¶Om\u001fhq,±I¤l\u0007ÿ½Ð²7KKN·}#3s\u000egx8ä\bÉD\u0007br$ÑÄ#qÊ3öA2Ô$ú½}\u001fxDÐ\r¤f\u0011äÅ*ãñ;F\"B<¢´ÁMûÄ\u0019Â£×Ú\u001e14ùpfNQ|U2ÈdT$$\"(ÈÑ\u0011ÿÜ\u0007Rö¥\u000fáÔ#\u0006÷æ')\f\nC\"ò\u0000\u0000hPÎ\u001d(7hè3qJÆÒGaÖþý3¬Ö>\u0017ÏËÁ×\u0004ofËqKeGbëuÇIß0Üò\u0018ýêÁ\u0003.¸á4óuL3|\u0013¸ÀÞ\u000f\u0005ûÊ\u0001ÖpáKmRø1ÍM¡\u0010\u0018nd\u00130\b\rÆ`2\u0014dàª:mþ\u0005ÊdOpµ\u0014&`ïá\u000eñ\fêª÷\u000bî¦Bû\u001a\u0015_¿\rU\t\u0017\u0011³|_>íëD°\f'åãª0F2Gya¬c.RTÜtö³|\u000fAN\u0019ã\" \f\u001dÔ>¾Ë¸6q8tÃÖà8©bpT\fU\u0004A¾\u0007-3Î@%«Q8yÐþ¹}Ýò\u0015e¼Ð\u0011ÜÅ\fÂE)èbs®\u001f«*°IÁÌ¦mÚ¶6ióÖb6Ð`áÈr§o£\u000bÁ½K¾g+³\u001cß,oQ÷áÄNà«¡u\u001f\u0006\u000e¸ù§ã-S(%FÉ\fVÉ\u001d\u0018Å\u0004\u0006)\u0010>Im~\t¬\fÆð9EhéhT[TÉDÃ.¥\u0006Lðøð\u000bh\u0014L[ÔÓi\u0018^dzÎuæàÊøö¹dgTk\u0012r9\fÏN\u001d¯è¬·j\u001d½ VFøqÆã¿G\u00185ÔÏÓ6Û¾\u001dîk9È+mãûQ. ò\u000e#Z\u0018Ù8¾m\u0001ßÛ]öPGÓ%ñ}4\u0015M®(ý_i\rö\r6¡§Vë§ýZo\u0001OjS\u0007\\Vw\u000eõv\u0010¸PZª\brÉA5Ä\u0003RÖ0T%hZHVý¦}ê×Ñ°ú\u0017Î/©«(ÿ³e0uiâZªÍ×§»ù\".V\u001b^úÄ-\n3ÎUõûkZdftû\u001aMù)Aó6Ãòß\u001fÞ±ÑMéÂ¹¹\u001d 7pSû4Èn®§dIÍ&\u000eRÕÞüuVU+fûáæ)Ïh©Ì\u0018ªæ%ÊØõ&ëê¿fÁzïÐº*þ\u0002Új½uOÞÔ®Nßó°\u001f\\ðû«ü\u0014¾Kº/Ào¤í\u0004þÉ/uK³\u0002ë3È9ê\u0003XK\u0017ËëïK6/Ù\u0016`g¾y\u001e\\ÀÕxh\u0016V\u0005ÃýlØwð]rïVÏv-ºæo~xÏ;É\u001fÜæÌCksê¹ÕôÿVÊ¹ëXÙ·®ÑÄéð°Õp¸£9¿;i çËvæýGÑ\u000e³KÝ\u0007aö×g/\u0006^YÃh>´\u001dÌÂ6Áóþê°\u001c\u0016®6¸IÜ\rÿ¹\u001c\u000e¨TmdÛÊ..·²çx]zØÛqá_\u0018_¡\u001a¿\n!ÚWÎ+\b\u000b\u000b|øµV®«ÞX\n-¯9(5\u0006ãL&w;ªÄÝÙ¬¿²àûï1ºk\u0017×ß\u0007~CEA¯¨ò÷Õx{(ú\u001e8Caøú\t¾o_¾ÝÇ¤ci\u0015n9¤1h­\\\n×Ë¨0Ô\\\u001f\u0018p2êî\u001bÜh\u0018=||\u000f\u001f.n×ïÒö´Ë¾Cý)\u001e´\u0004Ý^qö.túXò\u0006#á.§\túa\u000bÀî¥Ëþ½´µ±E8ï§ÚØÜ»J°x~7Z,'Üyw¹RÎ\u0003÷«S;²¯³+=·c»;\u001f»÷XA\f\u001ei.#?®×Õýéd¸6Õe³9&Çã?WÉÅ¯\u0016\u0000\u0000",
+            "timestamp": 1794281369233,
+            "cv": "2024-10"
+          },
+          {
+            "type": 6,
+            "data": {
+              "plugin": "rrweb/network@1",
+              "payload": {
+                "requests": [
+                  {
+                    "name": "http://posthog-capture.localhost:4570/",
+                    "entryType": "navigation",
+                    "startTime": 0,
+                    "duration": 167.40000009536743,
+                    "navigationId": 1594,
+                    "initiatorType": "navigation",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/html",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 1.8000001907348633,
+                    "domainLookupStart": 1.8000001907348633,
+                    "domainLookupEnd": 1.8000001907348633,
+                    "connectStart": 1.8000001907348633,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 1.8000001907348633,
+                    "requestStart": 4.6000001430511475,
+                    "responseStart": 26.5,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 26.5,
+                    "responseEnd": 27.700000047683716,
+                    "transferSize": 4543,
+                    "encodedBodySize": 4243,
+                    "decodedBodySize": 4243,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "unloadEventStart": 0,
+                    "unloadEventEnd": 0,
+                    "domInteractive": 154.30000019073486,
+                    "domContentLoadedEventStart": 154.30000019073486,
+                    "domContentLoadedEventEnd": 154.60000014305115,
+                    "domComplete": 167.30000019073486,
+                    "loadEventStart": 167.40000009536743,
+                    "loadEventEnd": 167.40000009536743,
+                    "type": "navigate",
+                    "redirectCount": 0,
+                    "activationStart": 0,
+                    "criticalCHRestart": 0,
+                    "notRestoredReasons": null,
+                    "confidence": {
+                      "randomizedTriggerRate": 0.4994798,
+                      "value": "low"
+                    },
+                    "endTime": 28,
+                    "timeOrigin": 1794281369008,
+                    "timestamp": 1794281369008,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/dist/array.js",
+                    "entryType": "resource",
+                    "startTime": 35,
+                    "duration": 17.40000009536743,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 34.90000009536743,
+                    "domainLookupStart": 34.90000009536743,
+                    "domainLookupEnd": 34.90000009536743,
+                    "connectStart": 34.90000009536743,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 34.90000009536743,
+                    "requestStart": 39.200000047683716,
+                    "responseStart": 49.700000047683716,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 49.700000047683716,
+                    "responseEnd": 52.30000019073486,
+                    "transferSize": 375856,
+                    "encodedBodySize": 375556,
+                    "decodedBodySize": 375556,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 52,
+                    "timeOrigin": 1794281369009,
+                    "timestamp": 1794281369043,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/web-vitals-with-attribution.js",
+                    "entryType": "resource",
+                    "startTime": 86,
+                    "duration": 8.099999904632568,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 86.40000009536743,
+                    "domainLookupStart": 86.40000009536743,
+                    "domainLookupEnd": 86.40000009536743,
+                    "connectStart": 86.40000009536743,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 86.40000009536743,
+                    "requestStart": 87.30000019073486,
+                    "responseStart": 93.30000019073486,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 93.30000019073486,
+                    "responseEnd": 94.5,
+                    "transferSize": 27327,
+                    "encodedBodySize": 27027,
+                    "decodedBodySize": 27027,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 95,
+                    "timeOrigin": 1794281369009,
+                    "timestamp": 1794281369095,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/exception-autocapture.js",
+                    "entryType": "resource",
+                    "startTime": 87,
+                    "duration": 14.099999904632568,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 86.90000009536743,
+                    "domainLookupStart": 86.90000009536743,
+                    "domainLookupEnd": 86.90000009536743,
+                    "connectStart": 86.90000009536743,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 86.90000009536743,
+                    "requestStart": 87.40000009536743,
+                    "responseStart": 95.40000009536743,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 95.40000009536743,
+                    "responseEnd": 101,
+                    "transferSize": 18131,
+                    "encodedBodySize": 17831,
+                    "decodedBodySize": 17831,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 101,
+                    "timeOrigin": 1794281369009,
+                    "timestamp": 1794281369095,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/dead-clicks-autocapture.js",
+                    "entryType": "resource",
+                    "startTime": 87,
+                    "duration": 29.800000190734863,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 87,
+                    "domainLookupStart": 87.5,
+                    "domainLookupEnd": 87.5,
+                    "connectStart": 87.5,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 87.90000009536743,
+                    "requestStart": 87.90000009536743,
+                    "responseStart": 114.90000009536743,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 114.90000009536743,
+                    "responseEnd": 116.80000019073486,
+                    "transferSize": 24347,
+                    "encodedBodySize": 24047,
+                    "decodedBodySize": 24047,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 117,
+                    "timeOrigin": 1794281369009,
+                    "timestamp": 1794281369096,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/array/phc_<redacted>/config.js",
+                    "entryType": "resource",
+                    "startTime": 90,
+                    "duration": 69.40000009536743,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 90.40000009536743,
+                    "domainLookupStart": 90.80000019073486,
+                    "domainLookupEnd": 90.80000019073486,
+                    "connectStart": 90.80000019073486,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 91.30000019073486,
+                    "requestStart": 91.30000019073486,
+                    "responseStart": 118.70000004768372,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 118.70000004768372,
+                    "responseEnd": 159.80000019073486,
+                    "transferSize": 300,
+                    "encodedBodySize": 0,
+                    "decodedBodySize": 0,
+                    "responseStatus": 404,
+                    "serverTiming": [],
+                    "endTime": 160,
+                    "timeOrigin": 1794281369009,
+                    "timestamp": 1794281369099,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/array/phc_<redacted>/config",
+                    "entryType": "resource",
+                    "startTime": 167,
+                    "duration": 3.799999952316284,
+                    "navigationId": 1594,
+                    "initiatorType": "fetch",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "application/json",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 167.10000014305115,
+                    "domainLookupStart": 167.10000014305115,
+                    "domainLookupEnd": 167.10000014305115,
+                    "connectStart": 167.10000014305115,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 167.10000014305115,
+                    "requestStart": 168.5,
+                    "responseStart": 170.70000004768372,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 170.70000004768372,
+                    "responseEnd": 170.90000009536743,
+                    "transferSize": 1225,
+                    "encodedBodySize": 925,
+                    "decodedBodySize": 925,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 171,
+                    "timeOrigin": 1794281369008,
+                    "timestamp": 1794281369175,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/surveys.js",
+                    "entryType": "resource",
+                    "startTime": 173,
+                    "duration": 6.200000047683716,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 173.10000014305115,
+                    "domainLookupStart": 173.10000014305115,
+                    "domainLookupEnd": 173.10000014305115,
+                    "connectStart": 173.10000014305115,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 173.10000014305115,
+                    "requestStart": 173.40000009536743,
+                    "responseStart": 177.60000014305115,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 177.60000014305115,
+                    "responseEnd": 179.30000019073486,
+                    "transferSize": 144249,
+                    "encodedBodySize": 143949,
+                    "decodedBodySize": 143949,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 179,
+                    "timeOrigin": 1794281369008,
+                    "timestamp": 1794281369181,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/logs.js",
+                    "entryType": "resource",
+                    "startTime": 174,
+                    "duration": 9.899999856948853,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 173.60000014305115,
+                    "domainLookupStart": 173.60000014305115,
+                    "domainLookupEnd": 173.60000014305115,
+                    "connectStart": 173.60000014305115,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 173.60000014305115,
+                    "requestStart": 174.10000014305115,
+                    "responseStart": 182.60000014305115,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 182.60000014305115,
+                    "responseEnd": 183.5,
+                    "transferSize": 7506,
+                    "encodedBodySize": 7206,
+                    "decodedBodySize": 7206,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 184,
+                    "timeOrigin": 1794281369008,
+                    "timestamp": 1794281369181,
+                    "isInitial": true
+                  },
+                  {
+                    "name": "http://posthog-capture.localhost:4570/static/1.447.6/lazy-recorder.js",
+                    "entryType": "resource",
+                    "startTime": 174,
+                    "duration": 26.299999952316284,
+                    "navigationId": 1594,
+                    "initiatorType": "script",
+                    "deliveryType": "",
+                    "nextHopProtocol": "http/1.1",
+                    "renderBlockingStatus": "non-blocking",
+                    "contentType": "text/javascript",
+                    "contentEncoding": "",
+                    "workerStart": 0,
+                    "workerRouterEvaluationStart": 0,
+                    "workerCacheLookupStart": 0,
+                    "workerMatchedSourceType": "",
+                    "workerFinalSourceType": "",
+                    "redirectStart": 0,
+                    "redirectEnd": 0,
+                    "fetchStart": 174.30000019073486,
+                    "domainLookupStart": 174.5,
+                    "domainLookupEnd": 174.5,
+                    "connectStart": 174.5,
+                    "secureConnectionStart": 0,
+                    "connectEnd": 174.70000004768372,
+                    "requestStart": 174.70000004768372,
+                    "responseStart": 198.5,
+                    "firstInterimResponseStart": 0,
+                    "finalResponseHeadersStart": 198.5,
+                    "responseEnd": 200.60000014305115,
+                    "transferSize": 221407,
+                    "encodedBodySize": 221107,
+                    "decodedBodySize": 221107,
+                    "responseStatus": 200,
+                    "serverTiming": [],
+                    "endTime": 201,
+                    "timeOrigin": 1794281369008,
+                    "timestamp": 1794281369182,
+                    "isInitial": true
+                  }
+                ],
+                "isInitial": true
+              }
+            },
+            "timestamp": 1794281369241
+          },
+          {
+            "type": 5,
+            "data": {
+              "tag": "$remote_config_received",
+              "payload": {
+                "cache_timestamp": 1794281369183,
+                "enabled": true,
+                "endpoint": "/s/",
+                "consoleLogRecordingEnabled": true,
+                "recorderVersion": "v2",
+                "sampleRate": null,
+                "minimumDurationMilliseconds": null,
+                "linkedFlag": null,
+                "networkPayloadCapture": {
+                  "capturePerformance": {
+                    "network_timing": true,
+                    "web_vitals": true,
+                    "web_vitals_allowed_metrics": null
+                  },
+                  "recordHeaders": true,
+                  "recordBody": true
+                },
+                "masking": null,
+                "urlTriggers": [],
+                "urlBlocklist": [],
+                "eventTriggers": [],
+                "triggerMatchType": null,
+                "scriptConfig": null,
+                "recordCanvas": false,
+                "version": 1,
+                "canvasRecording": {
+                  "enabled": false
+                }
+              }
+            },
+            "timestamp": 1794281369241
+          },
+          {
+            "type": 5,
+            "data": {
+              "tag": "$session_options",
+              "payload": {
+                "sessionRecordingOptions": {
+                  "blockClass": "ph-no-capture",
+                  "ignoreClass": "ph-ignore-input",
+                  "maskTextClass": "ph-mask",
+                  "maskAllInputs": true,
+                  "maskInputOptions": {
+                    "password": true
+                  },
+                  "maskAllElementAttributes": false,
+                  "slimDOMOptions": {
+                    "script": true
+                  },
+                  "collectFonts": false,
+                  "inlineStylesheet": true,
+                  "inlineStylesheetBudgetRules": 10000,
+                  "recordCrossOriginIframes": false
+                },
+                "activePlugins": [
+                  "rrweb/console@1",
+                  "rrweb/network@1"
+                ]
+              }
+            },
+            "timestamp": 1794281369241
+          },
+          {
+            "type": 5,
+            "data": {
+              "tag": "$recording_started",
+              "payload": {
+                "reason": "recording_initialized"
+              }
+            },
+            "timestamp": 1794281369242
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 1,
+              "positions": [
+                {
+                  "x": 136,
+                  "y": 164,
+                  "id": 27,
+                  "timeOffset": 0
+                }
+              ]
+            },
+            "timestamp": 1794281373052
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 2,
+              "type": 1,
+              "id": 27,
+              "x": 136.671875,
+              "y": 164.8203125
+            },
+            "timestamp": 1794281373060
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 2,
+              "type": 5,
+              "id": 27
+            },
+            "timestamp": 1794281373063
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 2,
+              "type": 0,
+              "id": 27,
+              "x": 136.671875,
+              "y": 164.8203125
+            },
+            "timestamp": 1794281373067
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 2,
+              "type": 2,
+              "id": 27,
+              "x": 136,
+              "y": 164,
+              "pointerType": 0
+            },
+            "timestamp": 1794281373073
+          },
+          {
+            "type": 3,
+            "data": {
+              "source": 1,
+              "positions": [
+                {
+                  "x": 302,
+                  "y": 164,
+                  "id": 30,
+                  "timeOffset": 0
+                }
+              ]
+            },
+            "timestamp": 1794281373712
+          }
+        ],
+        "$session_id": "01a1c380-ee3a-7f3c-86a1-56e08bd74251",
+        "$window_id": "01a1c380-ee3a-7f3c-86a1-56e16de154a0",
+        "$lib": "web",
+        "$lib_version": "1.447.6",
+        "$snapshot_host": "posthog-capture.localhost",
+        "token": "phc_<redacted>",
+        "$config_defaults": "2026-08-30",
+        "distinct_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53"
+      },
+      "timestamp": "2026-11-10T03:29:35.061Z",
+      "sent_at": "2026-11-10T03:29:36.077Z"
+    }
+  ],
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "Ok"
+    }
+  }
+}

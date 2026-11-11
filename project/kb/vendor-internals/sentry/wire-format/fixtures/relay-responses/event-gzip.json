@@ -1,0 +1,27 @@
+{
+  "case": "event-gzip",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.045Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope",
+      "Content-Encoding": "gzip"
+    },
+    "body_bytes": 432,
+    "body_preview": "<binary, first bytes 1f8b08000000000002ff9552cb6ee330>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"cb9a8a6067a640e2aebf76ef8b2e7e27\"}",
+    "ms": 5.2
+  }
+}

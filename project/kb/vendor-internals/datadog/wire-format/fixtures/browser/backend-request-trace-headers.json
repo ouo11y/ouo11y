@@ -1,0 +1,31 @@
+{
+  "receivedAt": "2026-11-10T03:15:33.105Z",
+  "method": "GET",
+  "url": "/api/ok",
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "x-datadog-origin": "rum",
+    "x-datadog-parent-id": "8709554717462664884",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-ch-ua": "\"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"156\", \"Google Chrome\";v=\"156\"",
+    "sec-ch-ua-mobile": "?0",
+    "baggage": "session.id=00000000-0000-4000-8000-000000000002,user.id=user-123",
+    "x-datadog-trace-id": "18358853661375668934",
+    "traceparent": "00-0000000000000000fec7c022b9ad22c6-78de8ddece3096b4-01",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "tracestate": "dd=s:1;o:rum",
+    "x-datadog-sampling-priority": "1",
+    "accept": "*/*",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/?run=1794280527016",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000001&id=00000000-0000-4000-8000-000000000002&created=1794280527132&expire=1794281432993&c=0"
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run1-default/0003-backend-api-ok.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)"
+  }
+}

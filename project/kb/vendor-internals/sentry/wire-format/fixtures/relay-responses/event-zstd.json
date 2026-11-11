@@ -1,0 +1,27 @@
+{
+  "case": "event-zstd",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:27.149Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope",
+      "Content-Encoding": "zstd"
+    },
+    "body_bytes": 439,
+    "body_preview": "<binary, first bytes 28b52ffd60bd016d0d00265c5323306b>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"id\":\"0fbca83b8e8a43ec860b0f7d6c73044e\"}",
+    "ms": 7.2
+  }
+}

@@ -1,0 +1,88 @@
+{
+ "release": "sentry-demo@1.0.0+1",
+ "trace_ids": [
+  "8d6c3c0f69ac48ea92786d5a39ff77d2",
+  "eb28130e5ca14f7c9e807736c17c320c"
+ ],
+ "tags": {},
+ "environment": "development",
+ "dist": "1",
+ "contexts": {
+  "app": {
+   "build_type": "simulator",
+   "app_version": "1.0.0",
+   "app_identifier": "dev.ouo.sentrydemo",
+   "app_start_time": "2026-11-10T07:25:54Z",
+   "device_app_hash": "983e9fc1f5aa84d99cf2a015679a0cfcacdd8353",
+   "app_id": "92E4854B-F44E-379E-945B-83D59983F99D",
+   "app_build": "1",
+   "app_memory": 71745536,
+   "view_names": [
+    "Home"
+   ],
+   "app_name": "sentrydemo"
+  },
+  "os": {
+   "build": "26A434",
+   "rooted": false,
+   "kernel_version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142",
+   "name": "iOS",
+   "version": "27.0"
+  },
+  "device": {
+   "processor_count": 10,
+   "model_id": "simulator",
+   "free_memory": 114343936,
+   "thermal_state": "nominal",
+   "family": "iOS",
+   "screen_height_pixels": 874,
+   "simulator": true,
+   "screen_width_pixels": 402,
+   "low_power_mode": false,
+   "locale": "xx_XX",
+   "connection_type": "wifi",
+   "arch": "arm64",
+   "memory_size": 34359738368,
+   "model": "iPhone19,2",
+   "usable_memory": 19309428736
+  },
+  "ota_updates": {
+   "is_enabled": false
+  },
+  "trace": {
+   "trace_id": "a390fe060d4d4da98904b5d6de88808d",
+   "span_id": "bfbef9ed741044bb"
+  },
+  "culture": {
+   "locale": "xx_XX",
+   "timezone": "Etc/Redacted",
+   "display_name": "Redacted (Redacted)",
+   "calendar": "Gregorian Calendar",
+   "is_24_hour_format": false
+  }
+ },
+ "replay_type": "session",
+ "platform": "cocoa",
+ "replay_id": "552fa83b9e58461193a52b8ba35abe69",
+ "timestamp": 1794295570.650614,
+ "user": {
+  "id": "798FE998-D391-4C5A-A8E6-70C96F258CAC"
+ },
+ "type": "replay_video",
+ "sdk": {
+  "version": "8.34.0",
+  "name": "sentry.javascript.react-native"
+ },
+ "urls": [
+  "Home",
+  "Home",
+  "Home",
+  "Home",
+  "Home",
+  "Home"
+ ],
+ "extra": {},
+ "event_id": "552fa83b9e58461193a52b8ba35abe69",
+ "replay_start_timestamp": 1794295564.650614,
+ "segment_id": 2
+}

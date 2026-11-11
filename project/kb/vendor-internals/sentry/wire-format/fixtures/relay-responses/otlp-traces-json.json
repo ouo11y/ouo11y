@@ -1,0 +1,26 @@
+{
+  "case": "otlp-traces-json",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.244Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/integration/otlp/v1/traces",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Sentry-Auth": "sentry sentry_key=<redacted-public-key>"
+    },
+    "body_bytes": 520,
+    "body_preview": "{\"resourceSpans\": [{\"resource\": {\"attributes\": [{\"key\": \"service.name\", \"value\": {\"stringValue\": \"step6-wire-otlp\"}}]}, \"scopeSpans\": [{\"scope\": {\"name\": \"step6\"}, \"spans\": [{\"traceId\": \"91f40a983d294df29abaf2cbb0755c8c\", \"spanId\": \"2ee5868cc38c46a1\", \"parentSpanId\": \"33fd8de3cca34db5\", \"name\": \"otlp json span\", \"kind\": 3, \"startTimeUnixNano\": \"1794280826528055040\", \"endTimeUnixNano\": \"1794280827528055040\", \"attributes\": [{\"key\": \"http.request.method\", \"value\": {\"stringValue\": \"GET\"}}], \"status\": {\"code\": 1}}]}]}]}"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{}",
+    "ms": 6.3
+  }
+}

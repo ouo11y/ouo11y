@@ -1,0 +1,17 @@
+{
+ "item_header": {
+  "content_type": "application/json",
+  "type": "client_report",
+  "length": 122
+ },
+ "payload": {
+  "timestamp": "2026-11-10T03:55:34.470Z",
+  "discarded_events": [
+   {
+    "reason": "event_processor",
+    "category": "error",
+    "quantity": 1
+   }
+  ]
+ }
+}

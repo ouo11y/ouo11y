@@ -1,0 +1,72 @@
+{
+ "segment_header": {
+  "segment_id": 1
+ },
+ "events": [
+  {
+   "type": 4,
+   "timestamp": 1794295168160,
+   "data": {
+    "height": 874,
+    "width": 402,
+    "href": ""
+   }
+  },
+  {
+   "timestamp": 1794295168160,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "top": 0,
+     "frameCount": 5,
+     "encoding": "h264",
+     "size": 31156,
+     "left": 0,
+     "frameRateType": "constant",
+     "height": 874,
+     "timestamp": 1794295168.160464,
+     "frameRate": 1,
+     "duration": 5000,
+     "container": "mp4",
+     "segmentId": 1,
+     "width": 402
+    }
+   },
+   "type": 5
+  },
+  {
+   "timestamp": 1794295170232,
+   "type": 5,
+   "data": {
+    "payload": {
+     "level": "info",
+     "message": "native-crash",
+     "timestamp": 1794295170.232,
+     "category": "demo.action",
+     "type": "default"
+    },
+    "tag": "breadcrumb"
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295170232,
+   "data": {
+    "payload": {
+     "level": "debug",
+     "message": "[sentry-demo] native-crash: crashing",
+     "category": "console",
+     "data": {
+      "logger": "console",
+      "arguments": [
+       "[sentry-demo] native-crash: crashing"
+      ]
+     },
+     "timestamp": 1794295170.232,
+     "type": "default"
+    },
+    "tag": "breadcrumb"
+   }
+  }
+ ]
+}

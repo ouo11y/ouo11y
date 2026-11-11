@@ -1,0 +1,72 @@
+{
+ "data": [
+  {
+   "id": "b0160ad8b1364e7b",
+   "span.op": "pageload",
+   "span.description": "/probe",
+   "trace": "e07ca7724b82497092cd68359cd35ff3",
+   "parent_span": null,
+   "precise.start_ts": 1794280926.971887,
+   "precise.finish_ts": 1794280927.971887,
+   "replay.id": "9c8eeaac6fea41589a7dfe71d2fd4113",
+   "is_transaction": true,
+   "project.name": "sentry-demo"
+  },
+  {
+   "id": "4e10425e55b04546",
+   "span.op": "http.client",
+   "span.description": "GET /probe-api",
+   "trace": "e07ca7724b82497092cd68359cd35ff3",
+   "parent_span": "b0160ad8b1364e7b",
+   "precise.start_ts": 1794280927.171887,
+   "precise.finish_ts": 1794280927.771887,
+   "replay.id": "9c8eeaac6fea41589a7dfe71d2fd4113",
+   "is_transaction": false,
+   "project.name": "sentry-demo"
+  }
+ ],
+ "meta": {
+  "fields": {
+   "id": "string",
+   "span.op": "string",
+   "span.description": "string",
+   "trace": "string",
+   "parent_span": "string",
+   "precise.start_ts": "number",
+   "precise.finish_ts": "number",
+   "replay.id": "string",
+   "is_transaction": "boolean",
+   "project.name": "string"
+  },
+  "units": {
+   "id": null,
+   "span.op": null,
+   "span.description": null,
+   "trace": null,
+   "parent_span": null,
+   "precise.start_ts": null,
+   "precise.finish_ts": null,
+   "replay.id": null,
+   "is_transaction": null,
+   "project.name": null
+  },
+  "isMetricsData": false,
+  "isMetricsExtractedData": false,
+  "tips": {},
+  "datasetReason": "unchanged",
+  "dataset": "spans",
+  "dataScanned": "full",
+  "bytesScanned": 16122,
+  "routingHint": "eyJ2IjogMSwgInRpZXIiOiAxLCAidHMiOiAxNzk0MjgxNjE1fQ==",
+  "accuracy": {
+   "confidence": [
+    {},
+    {}
+   ]
+  }
+ },
+ "confidence": [
+  {},
+  {}
+ ]
+}

@@ -24,6 +24,10 @@ interface Extra {
    * (scripts/perf, src/rollout.ts) and src/perf.ts records JS frames.
    */
   perfModes: boolean;
+  /** SENTRY_CAPTURE_ALL=1: screenshot, view hierarchy, profiles, failed requests (src/sentry.ts). */
+  sentryCaptureAll: boolean;
+  /** SENTRY_REPLAY_MASK=default: Sentry's default replay masking instead of the demo's unmasked replay. */
+  replayMaskDefault: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -46,4 +50,6 @@ export const config: Extra = {
   ouoProjectId: extra.ouoProjectId ?? "demo",
   ouoProjectToken: extra.ouoProjectToken ?? "pt_dev_demo_0000000000000000",
   perfModes: extra.perfModes ?? false,
+  sentryCaptureAll: extra.sentryCaptureAll ?? false,
+  replayMaskDefault: extra.replayMaskDefault ?? false,
 };

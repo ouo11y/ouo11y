@@ -1,0 +1,25 @@
+{
+  "case": "endpoint-unreal-garbage",
+  "note": "",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:20:44.224Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/unreal/<redacted-public-key>/",
+    "headers": {
+      "Content-Type": "application/octet-stream"
+    },
+    "body_bytes": 19,
+    "body_preview": "not an unreal crash"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "text/plain; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "12b68116-eee3-48f3-834b-8b810ddb989d",
+    "ms": 52.1
+  }
+}

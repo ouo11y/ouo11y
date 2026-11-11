@@ -1,0 +1,220 @@
+{
+  "_fixture": {
+    "source": "observed: examples/posthog-capture, posthog-js 1.447.6, headless Chrome, 2026-11-10",
+    "note": "Requests received after Page.navigate(about:blank): sec-fetch-mode no-cors = navigator.sendBeacon. Body still gzip with Content-Type text/plain. No $pageleave arrived in this headless run (see reliability notes)."
+  },
+  "events": {
+    "ts": "2026-11-10T03:29:43.676Z",
+    "method": "POST",
+    "path": "/i/v0/e/",
+    "query": {},
+    "headers": {
+      "host": "posthog-capture.localhost:4570",
+      "content-length": "1235",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "content-type": "text/plain",
+      "accept": "*/*",
+      "origin": "http://posthog-capture.localhost:4570",
+      "sec-fetch-mode": "no-cors"
+    },
+    "decode": {
+      "rawBytes": 1235,
+      "contentType": "text/plain",
+      "steps": [
+        "gunzip"
+      ],
+      "decodedBytes": 2814
+    },
+    "body": [
+      {
+        "uuid": "01a1c381-26c3-7b32-a642-0c4a901b8326",
+        "event": "$$heatmap",
+        "properties": {
+          "$os": "Mac OS X",
+          "$os_version": "10.15.7",
+          "$browser": "Chrome",
+          "$device_type": "Desktop",
+          "$timezone": "Etc/Redacted",
+          "$timezone_offset": -120,
+          "$current_url": "http://posthog-capture.localhost:4570/page-2",
+          "$host": "posthog-capture.localhost:4570",
+          "$pathname": "/page-2",
+          "$raw_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+          "$browser_version": 157,
+          "$browser_language": "en-US",
+          "$browser_language_prefix": "en",
+          "$screen_height": 600,
+          "$screen_width": 800,
+          "$viewport_height": 813,
+          "$viewport_width": 1280,
+          "$lib": "web",
+          "$lib_version": "1.447.6",
+          "$insert_id": "h39576tnno6wxuih",
+          "$time": 1794281383.62,
+          "$sdk_dist_channel": "cdn",
+          "$initialization_time": "2026-11-10T03:29:29.091Z",
+          "$configured_session_timeout_ms": 1800000,
+          "distinct_id": "user-123",
+          "$device_id": "01a1c380-ee0a-7775-bca9-06f4379b3a53",
+          "$autocapture_disabled_server_side": false,
+          "$web_vitals_enabled_server_side": true,
+          "$web_vitals_allowed_metrics": null,
+          "$exception_capture_enabled_server_side": true,
+          "$dead_clicks_enabled_server_side": true,
+          "$debug_first_full_snapshot_timestamp": 1794281369233,
+          "$user_id": "user-123",
+          "$sdk_debug_extensions_init_method": "synchronous",
+          "$sdk_debug_extensions_init_time_ms": 3,
+          "$referrer": "$direct",
+          "$referring_domain": "$direct",
+          "$session_recording_start_reason": "recording_initialized",
+          "$active_feature_flags": [
+            "demo-flag"
+          ],
+          "$feature_flag_payloads": {
+            "demo-flag": null
+          },
+          "$feature_flag_request_id": "00000000-0000-0000-0000-000000000000",
+          "$feature/demo-flag": true,
+          "$heatmap_data": {
+            "http://posthog-capture.localhost:4570/page-2": [
+              {
+                "x": 136,
+                "y": 164,
+                "target_fixed": false,
+                "type": "click"
+              }
+            ]
+          },
+          "token": "phc_<redacted>",
+          "$config_defaults": "2026-08-30",
+          "$session_id": "01a1c380-ee3a-7f3c-86a1-56e08bd74251",
+          "$window_id": "01a1c380-ee3a-7f3c-86a1-56e16de154a0",
+          "$session_entry_referrer": "$direct",
+          "$session_entry_referring_domain": "$direct",
+          "$session_entry_url": "http://posthog-capture.localhost:4570/",
+          "$session_entry_host": "posthog-capture.localhost:4570",
+          "$session_entry_pathname": "/",
+          "$sdk_debug_replay_event_trigger_status": "trigger_disabled",
+          "$sdk_debug_replay_linked_flag_trigger_status": "trigger_disabled",
+          "$sdk_debug_replay_url_trigger_status": "trigger_disabled",
+          "$recording_status": "active",
+          "$sdk_debug_replay_internal_buffer_length": 4,
+          "$sdk_debug_replay_flushed_size": 36317,
+          "$sdk_debug_replay_rrweb_error": false,
+          "$sdk_debug_retry_queue_size": 0,
+          "$lib_custom_api_host": "http://posthog-capture.localhost:4570",
+          "$pageview_id": "01a1c381-0e47-72ac-988b-dcd754e04e94",
+          "$is_identified": true,
+          "$process_person_profile": true,
+          "$lib_rate_limit_remaining_tokens": 99
+        },
+        "timestamp": "2026-11-10T03:29:43.619Z"
+      }
+    ],
+    "bodyEnvelope": {
+      "api_key": "phc_<redacted>",
+      "batch": "<1 events, see body>",
+      "sent_at": "2026-11-10T03:29:43.669Z"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "status": "Ok"
+      }
+    }
+  },
+  "snapshots": {
+    "ts": "2026-11-10T03:29:43.679Z",
+    "method": "POST",
+    "path": "/s/",
+    "query": {},
+    "headers": {
+      "host": "posthog-capture.localhost:4570",
+      "content-length": "408",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "content-type": "text/plain",
+      "accept": "*/*",
+      "origin": "http://posthog-capture.localhost:4570",
+      "sec-fetch-mode": "no-cors"
+    },
+    "decode": {
+      "rawBytes": 408,
+      "contentType": "text/plain",
+      "steps": [
+        "gunzip"
+      ],
+      "decodedBytes": 874
+    },
+    "body": [
+      {
+        "uuid": "01a1c381-26c4-72cd-8dac-051c11e2c7cb",
+        "event": "$snapshot",
+        "properties": {
+          "$snapshot_bytes": 386,
+          "$snapshot_data": [
+            {
+              "type": 3,
+              "data": {
+                "source": 2,
+                "type": 1,
+                "id": 3,
+                "x": 136.671875,
+                "y": -435.1796875
+              },
+              "timestamp": 1794281383488
+            },
+            {
+              "type": 3,
+              "data": {
+                "source": 2,
+                "type": 6,
+                "id": 77
+              },
+              "timestamp": 1794281383488
+            },
+            {
+              "type": 3,
+              "data": {
+                "source": 2,
+                "type": 0,
+                "id": 3,
+                "x": 136.671875,
+                "y": -435.1796875
+              },
+              "timestamp": 1794281383489
+            },
+            {
+              "type": 3,
+              "data": {
+                "source": 2,
+                "type": 2,
+                "id": 3,
+                "x": 136,
+                "y": -436,
+                "pointerType": 0
+              },
+              "timestamp": 1794281383490
+            }
+          ],
+          "$session_id": "01a1c380-ee3a-7f3c-86a1-56e08bd74251",
+          "$window_id": "01a1c380-ee3a-7f3c-86a1-56e16de154a0",
+          "$lib": "web",
+          "$lib_version": "1.447.6",
+          "$snapshot_host": "posthog-capture.localhost",
+          "token": "phc_<redacted>",
+          "$config_defaults": "2026-08-30",
+          "distinct_id": "user-123"
+        },
+        "timestamp": "2026-11-10T03:29:43.620Z",
+        "sent_at": "2026-11-10T03:29:43.671Z"
+      }
+    ],
+    "response": {
+      "status": 200,
+      "body": {
+        "status": "Ok"
+      }
+    }
+  }
+}

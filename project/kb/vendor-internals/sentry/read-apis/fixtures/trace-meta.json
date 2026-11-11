@@ -1,0 +1,17 @@
+{
+ "errorsCount": 1,
+ "logsCount": 1.0,
+ "metricsCount": 0,
+ "performanceIssuesCount": 0,
+ "spansCount": 2.0,
+ "transactionChildCountMap": [
+  {
+   "transaction.event_id": "dfc27f819067494bb39e85cb371c7c7f",
+   "count()": 2.0
+  }
+ ],
+ "spansCountMap": {
+  "pageload": 1.0,
+  "http.client": 1.0
+ }
+}

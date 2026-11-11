@@ -1,0 +1,26 @@
+{
+  "case": "combo-event-plus-replay_event",
+  "note": "error event and replay_event in one envelope share the 'event' size limit (count 1)",
+  "observed": "self-hosted Sentry 26.10.0 (Relay 26.10.0) via nginx at localhost:9000, 2026-11-10T03:21:02.593Z",
+  "request": {
+    "method": "POST",
+    "path": "/api/8/envelope/",
+    "headers": {
+      "X-Sentry-Auth": "Sentry sentry_key=<redacted-public-key>, sentry_version=7, sentry_client=step6.wire/0.0.1",
+      "Content-Type": "application/x-sentry-envelope"
+    },
+    "body_bytes": 924,
+    "body_preview": "{\"sent_at\":\"2026-11-10T03:21:02.576Z\",\"dsn\":\"http://<redacted-public-key>@localhost:9000/8\",\"sdk\":{\"name\":\"step6.wire\",\"version\":\"0.0.1\"},\"event_id\":\"9a605f1404b04b4b86ed25ef3ec9dfea\"}\n{\"type\":\"event\",\"length\":198}\n{\"event_id\":\"9a605f1404b04b4b86ed25ef3ec9dfea\",\"message\":\"step6-wire error+replay same envelope\",\"timestamp\":1794280862.576164,\"contexts\":{\"replay\":{\"replay_id\":\"3e3606782cdc4c1dad59847f384b628c\"}}}\n{\"type\":\"replay_event\",\"length\":325}\n{\"type\":\"replay_event\",\"replay_id\":\"3e3606782cdc4c1dad59847f384b628c\",\"event_id\":\"3e3606782cdc4c1dad59847f384b628c\",\"segment_id\":0,\"replay"
+  },
+  "response": {
+    "status": 413,
+    "headers": {
+      "Server": "nginx",
+      "Content-Type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-sentry-error,x-sentry-rate-limits,retry-after"
+    },
+    "body": "{\"detail\":\"envelope exceeded size limits for type 'replay_event' (https://develop.sentry.dev/sdk/envelopes/#size-limits)\"}",
+    "ms": 16.2
+  }
+}

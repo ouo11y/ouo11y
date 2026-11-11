@@ -1,0 +1,148 @@
+{
+ "segment_header": {
+  "segment_id": 2
+ },
+ "events": [
+  {
+   "type": 4,
+   "timestamp": 1794295416336,
+   "data": {
+    "href": "",
+    "height": 912,
+    "width": 416
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295416336,
+   "data": {
+    "tag": "video",
+    "payload": {
+     "segmentId": 2,
+     "size": 8215,
+     "duration": 5000,
+     "encoding": "h264",
+     "container": "mp4",
+     "height": 912,
+     "width": 416,
+     "frameCount": 5,
+     "frameRate": 1,
+     "frameRateType": "constant",
+     "left": 0,
+     "top": 0
+    }
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794295419198,
+   "data": {
+    "source": 2,
+    "type": 7,
+    "id": 0,
+    "x": 208.0,
+    "y": 238.63999938964844,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 3,
+   "timestamp": 1794295419202,
+   "data": {
+    "source": 2,
+    "type": 9,
+    "id": 0,
+    "x": 208.0,
+    "y": 238.63999938964844,
+    "pointerType": 2,
+    "pointerId": 0
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295419208,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794295419.208,
+     "category": "ui.tap",
+     "message": "btn-Add to cart > btn-Add to cart > btn-Add to cart > Text",
+     "level": "info",
+     "data": {
+      "path": [
+       {
+        "name": "Text"
+       },
+       {
+        "label": "btn-Add to cart"
+       },
+       {
+        "name": "View",
+        "label": "btn-Add to cart"
+       },
+       {
+        "name": "Pressable",
+        "label": "btn-Add to cart"
+       },
+       {
+        "name": "View"
+       },
+       {
+        "name": "HeaderBackContext"
+       },
+       {
+        "name": "HeaderShownContext"
+       },
+       {
+        "name": "HeaderHeightContext"
+       },
+       {
+        "name": "Animated(Anonymous)"
+       },
+       {
+        "name": "Screen"
+       },
+       {
+        "name": "FrameContext"
+       },
+       {
+        "name": "ThemeContext"
+       },
+       {
+        "name": "LinkingContext"
+       },
+       {
+        "name": "LocaleDirContext"
+       },
+       {
+        "name": "View"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "type": 5,
+   "timestamp": 1794295419278,
+   "data": {
+    "tag": "breadcrumb",
+    "payload": {
+     "type": "default",
+     "timestamp": 1794295419.278,
+     "category": "console",
+     "message": "[sentry-demo] cart: 2 lines",
+     "level": "debug",
+     "data": {
+      "logger": "console",
+      "arguments": [
+       "[sentry-demo] cart: 2 lines"
+      ]
+     }
+    }
+   }
+  }
+ ]
+}

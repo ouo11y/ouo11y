@@ -1,0 +1,146 @@
+{
+  "receivedAt": "2026-11-10T03:16:14.409Z",
+  "method": "POST",
+  "proxyUrl": "/intake?ddforward=%2Fapi%2Fv2%2Frum%3Fddsource%3Dbrowser%26dd-api-key%3D%3Credacted%3E%26dd-evp-origin-version%3D7.17.0%26dd-evp-origin%3Dbrowser%26dd-request-id%3D%3Credacted%3E%26batch_time%3D1794280574407%26_dd.api%3Dbeacon",
+  "forwardPath": "/api/v2/rum",
+  "forwardParams": {
+    "ddsource": "browser",
+    "dd-api-key": "<redacted client token>",
+    "dd-evp-origin-version": "7.17.0",
+    "dd-evp-origin": "browser",
+    "dd-request-id": "<redacted>",
+    "batch_time": "1794280574407",
+    "_dd.api": "beacon"
+  },
+  "headers": {
+    "host": "127.0.0.1:4560",
+    "connection": "keep-alive",
+    "content-length": "4776",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (<redacted>)",
+    "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Google Chrome\";v=\"157\", \"Chromium\";v=\"157\"",
+    "content-type": "text/plain;charset=UTF-8",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "origin": "http://127.0.0.1:4560",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://127.0.0.1:4560/checkout/42",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "cookie": "_dd_s_v2=aid=00000000-0000-4000-8000-000000000020&id=00000000-0000-4000-8000-000000000021&created=1794280555921&expire=1794281473313&c=0"
+  },
+  "bodyBytes": 4776,
+  "body": {
+    "kind": "ndjson",
+    "encoding": "identity",
+    "inflatedBytes": 4776,
+    "events": [
+      {
+        "type": "telemetry",
+        "date": 1794280555843,
+        "service": "browser-rum-sdk",
+        "version": "7.17.0",
+        "source": "browser",
+        "_dd": {
+          "format_version": 2
+        },
+        "telemetry": {
+          "type": "usage",
+          "usage": {
+            "feature": "set-user"
+          },
+          "runtime_env": {
+            "is_local_file": false,
+            "is_worker": false
+          },
+          "connectivity": {
+            "status": "connected",
+            "effective_type": "4g"
+          },
+          "sdk_setup": "cdn",
+          "sdk_name": "rum"
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1",
+        "experimental_features": []
+      },
+      {
+        "type": "telemetry",
+        "date": 1794280555844,
+        "service": "browser-rum-sdk",
+        "version": "7.17.0",
+        "source": "browser",
+        "_dd": {
+          "format_version": 2
+        },
+        "telemetry": {
+          "type": "usage",
+          "usage": {
+            "feature": "set-global-context-property"
+          },
+          "runtime_env": {
+            "is_local_file": false,
+            "is_worker": false
+          },
+          "connectivity": {
+            "status": "connected",
+            "effective_type": "4g"
+          },
+          "sdk_setup": "cdn",
+          "sdk_name": "rum"
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1",
+        "experimental_features": []
+      },
+      {
+        "type": "telemetry",
+        "date": 1794280561744,
+        "service": "browser-rum-sdk",
+        "version": "7.17.0",
+        "source": "browser",
+        "_dd": {
+          "format_version": 2
+        },
+        "telemetry": {
+          "type": "usage",
+          "usage": {
+            "feature": "add-action"
+          },
+          "runtime_env": {
+            "is_local_file": false,
+            "is_worker": false
+          },
+          "connectivity": {
+            "status": "connected",
+            "effective_type": "4g"
+          },
+          "sdk_setup": "cdn",
+          "sdk_name": "rum"
+        },
+        "ddtags": "sdk_version:7.17.0,env:local,service:datadog-capture,version:0.0.1",
+        "experimental_features": [],
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000021"
+        },
+        "anonymous_id": "00000000-0000-4000-8000-000000000020",
+        "application": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        },
+        "action": {
+          "id": [
+            "00000000-0000-4000-8000-000000000047",
+            "00000000-0000-4000-8000-000000000048"
+          ]
+        },
+        "view": {
+          "id": "00000000-0000-4000-8000-000000000022"
+        }
+      }
+    ]
+  },
+  "_fixture": {
+    "capturedFrom": "examples/datadog-capture/captures/run2-compress-viewupdates/0008-rum-telemetry.json",
+    "redaction": "UUIDs replaced by stable placeholders; client token, request ids, idempotency keys, user-agent redacted; part bodies decoded (binary bodies not kept)",
+    "truncated": "body.events cut to the first 3 of 7"
+  }
+}
