@@ -27,7 +27,7 @@ The components in bold are ours, one Go module each:
 collector/
   builder.yaml                          ocb manifest (dist name ouo-collector, output ./dist)
   Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ouo11y/collector)
-  receiver/ouoreplayreceiver/           POST /v1/replay/chunks -> one log record per chunk
+  receiver/ouoreplayreceiver/           POST /v1/replay/chunks (rrweb, frames, video) -> one log record per chunk
   receiver/ouosentryreceiver/           POST /api/{id}/envelope/ -> forward to Sentry unchanged, then
                                         sessions, errors, spans, logs, replay breadcrumbs and video
                                         replay chunks (ADR-0008)
