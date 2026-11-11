@@ -40,6 +40,9 @@ const (
 	AttrReplaySeq      = "ouo.replay.seq"
 	AttrReplayKind     = "ouo.replay.kind"
 	AttrReplayEncoding = "ouo.replay.encoding"
+	// AttrReplayFormat names the payload format when the chunk declares one
+	// (sdk-spec section 11.3), for example "sentry-video".
+	AttrReplayFormat = "ouo.replay.format"
 	// ResourceServiceName is the service.name of the replay stream's resource.
 	ResourceServiceName = "ouo-replay"
 	// AuthUsernameAttribute is the client.Info.Auth attribute the basicauth
@@ -170,10 +173,10 @@ func (r *replayReceiver) handleChunk(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
 		return
 	}
-	if rrwebLimit := r.cfg.MaxRRWebChunkBytes; rrwebLimit > 0 && int64(len(body)) > rrwebLimit && peekKind(body) != KindFrames {
+	if rrwebLimit := r.cfg.MaxRRWebChunkBytes; rrwebLimit > 0 && int64(len(body)) > rrwebLimit && !binaryKind(peekKind(body)) {
 		r.reject(ctx, projectID, KindRRWeb, "size")
 		writeError(w, http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("rrweb chunk larger than %d bytes (only kind \"frames\" may be up to %d bytes)", rrwebLimit, limit))
+			fmt.Sprintf("rrweb chunk larger than %d bytes (only kinds \"frames\" and \"video\" may be up to %d bytes)", rrwebLimit, limit))
 		return
 	}
 
@@ -280,6 +283,9 @@ func buildLogs(projectID string, c chunk, body []byte) plog.Logs {
 	attrs.PutInt(AttrReplaySeq, int64(c.Seq))
 	attrs.PutStr(AttrReplayKind, c.Kind)
 	attrs.PutStr(AttrReplayEncoding, dataFormat)
+	if c.Format != "" {
+		attrs.PutStr(AttrReplayFormat, c.Format)
+	}
 	return ld
 }
 
@@ -355,3 +361,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+// binaryKind reports whether a chunk kind carries images or video, which may
+// use the whole request body limit rather than the rrweb one.
+func binaryKind(kind string) bool { return kind == KindFrames || kind == KindVideo }

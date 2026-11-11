@@ -41,17 +41,30 @@ public enum OuoReplay {
         uploader(config).release(sessionId: sessionId, keep: keep)
     }
 
+    /// Main-thread milliseconds of each capture, by whichever recorder runs (overhead comparison).
+    public static let captureStats = CaptureStats()
+
     #if canImport(UIKit)
-    private static var recorder: ReplayRecorder?
+    private static var recorder: ReplayRecording?
 
     /// Starts capturing. Calling it again replaces the previous configuration.
     public static func start(_ config: OuoReplayConfig) {
         onMain {
             recorder?.stop()
-            let r = ReplayRecorder(config: config)
+            let r: ReplayRecording
+            switch config.recorder {
+            case .frames: r = ReplayRecorder(config: config)
+            case .sentryVideo: r = VideoReplayRecorder(config: config)
+            }
             recorder = r
             r.start()
         }
+    }
+
+    /// The recorder in use, nil when not started.
+    public static var recorderKind: ReplayRecorderKind? {
+        if Thread.isMainThread { return recorder?.kind }
+        return DispatchQueue.main.sync { recorder?.kind }
     }
 
     /// Stops the timer and flushes. Frames are not captured until `resume()`.

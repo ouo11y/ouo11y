@@ -147,7 +147,13 @@ func TestParseChunk(t *testing.T) {
 		{"bad session", `{"session_id":"../x","seq":0,"events":[]}`, "session_id", ""},
 		{"seq range", `{"session_id":"abc","seq":1000000,"events":[]}`, "seq", ""},
 		{"events missing", `{"session_id":"abc","seq":0}`, "events missing", ""},
-		{"unknown kind", `{"kind":"video","session_id":"abc","seq":0}`, "kind must be", ""},
+		{"unknown kind", `{"kind":"mpeg","session_id":"abc","seq":0}`, "kind must be", ""},
+		{"video", string(videoChunk(`"AAAAGGZ0eXBtcDQy"`, 1)), "", KindVideo},
+		{"video unpadded", string(videoChunk(`"AAAAGGZ0eXBtcDQyAA"`, 1)), "", KindVideo},
+		{"video not mp4", string(videoChunk(`"aGVsbG8gd29ybGQh"`, 1)), "ftyp", ""},
+		{"video schema 2", string(videoChunk(`"AAAAGGZ0eXBtcDQy"`, 2)), "schema_version 2", ""},
+		{"video missing", `{"kind":"video","schema_version":1,"session_id":"abc","seq":0,"started_at":1,"ended_at":2,"viewport":{"width":1,"height":1}}`, "video missing", ""},
+		{"video container", `{"kind":"video","schema_version":1,"session_id":"abc","seq":0,"started_at":1,"ended_at":2,"viewport":{"width":1,"height":1},"video":{"container":"webm","mp4":"AAAAGGZ0eXBtcDQy"}}`, "container", ""},
 		{"frames no schema", `{"kind":"frames","session_id":"abc","seq":0,"started_at":1,"ended_at":2,"viewport":{"width":1,"height":1},"frames":[]}`, "schema_version missing", ""},
 		{"frames bad jpeg", `{"kind":"frames","schema_version":1,"session_id":"abc","seq":0,"started_at":1,"ended_at":2,"viewport":{"width":1,"height":1},"frames":[{"ts":1,"jpeg":"aGVsbG8="}]}`, "JPEG marker", ""},
 		{"touch phase", `{"kind":"frames","schema_version":1,"session_id":"abc","seq":0,"started_at":1,"ended_at":2,"viewport":{"width":1,"height":1},"frames":[],"touches":[{"ts":1,"x":1,"y":1,"phase":"tap"}]}`, "phase", ""},
@@ -168,6 +174,20 @@ func TestParseChunk(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
 			}
 		})
+	}
+	if c, err := parseChunk(videoChunk(`"AAAAGGZ0eXBtcDQy"`, 1)); err != nil || c.Format != "sentry-video" || c.Frames != 5 || c.Touches != 1 {
+		t.Fatalf("video chunk: %+v, %v", c, err)
+	}
+	if !binaryKind(peekKind(videoChunk(`"AAAAGGZ0eXBtcDQy"`, 1))) || binaryKind(KindRRWeb) {
+		t.Fatal("binaryKind mismatch")
+	}
+	ld := buildLogs("p1", chunk{Kind: KindVideo, Format: "sentry-video", SessionID: "s", StartedAt: 1}, nil)
+	if v, ok := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).Attributes().Get(AttrReplayFormat); !ok || v.Str() != "sentry-video" {
+		t.Fatal("ouo.replay.format not set on a video chunk")
+	}
+	ld = buildLogs("p1", chunk{Kind: KindFrames, SessionID: "s", StartedAt: 1}, nil)
+	if _, ok := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).Attributes().Get(AttrReplayFormat); ok {
+		t.Fatal("ouo.replay.format set without a format")
 	}
 	if peekKind(framesChunk(0)) != KindFrames || peekKind(rrwebChunk(0)) != KindRRWeb || peekKind([]byte("nope")) != KindRRWeb {
 		t.Fatal("peekKind mismatch")
@@ -462,4 +482,10 @@ func TestServer(t *testing.T) {
 	if ld.LogRecordCount() != 1 {
 		t.Fatal("expected one record per request")
 	}
+}
+
+// videoChunk is a `kind: "video"` chunk as the iOS SDK's Sentry-derived
+// recorder sends it; mp4 is a JSON string (the smallest "ftyp" header).
+func videoChunk(mp4 string, schema int) []byte {
+	return []byte(fmt.Sprintf(`{"kind":"video","schema_version":%d,"format":"sentry-video","session_id":"abc","seq":0,"started_at":1700000000000,"ended_at":1700000005000,"viewport":{"width":402,"height":874,"scale":1},"platform":"ios","mode":"session","video":{"container":"mp4","encoding":"h264","duration_ms":5000,"frame_count":5,"frame_rate":1,"mp4":%s},"touches":[{"ts":1700000001000,"x":10,"y":20,"phase":"began"}],"masked":true}`, schema, mp4))
 }

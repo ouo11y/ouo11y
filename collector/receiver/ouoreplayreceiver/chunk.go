@@ -21,7 +21,14 @@ import (
 const (
 	KindRRWeb  = "rrweb"
 	KindFrames = "frames"
+	// KindVideo is an mp4 segment (ADR-0008). The Sentry bridge produces it
+	// from Sentry envelopes; the iOS SDK's Sentry-derived recorder posts it
+	// here, with `format` naming the payload.
+	KindVideo = "video"
 )
+
+// mp4Brand is the box type every mp4 starts with, at offset 4.
+var mp4Brand = []byte("ftyp")
 
 // errInvalid wraps every validation failure (HTTP 400).
 var errInvalid = errors.New("invalid chunk")
@@ -41,7 +48,10 @@ const maxSchemaVersion = 2
 
 // chunk is the validated envelope of one upload.
 type chunk struct {
-	Kind      string
+	Kind string
+	// Format is the optional top-level `format` (ouo.replay.format), for
+	// example "sentry-video".
+	Format    string
 	SessionID string
 	Seq       int
 	StartedAt int64
@@ -76,6 +86,7 @@ func parseChunk(body []byte) (chunk, error) {
 		kindSet                                           bool
 		vp                                                viewport
 		frames                                            frameChecker
+		videoRaw                                          json.RawMessage
 	)
 	for dec.More() {
 		keyTok, err := dec.Token()
@@ -88,6 +99,17 @@ func parseChunk(body []byte) (chunk, error) {
 			kindSet = true
 			if err := dec.Decode(&c.Kind); err != nil {
 				return c, fmt.Errorf("%w: kind: %v", errInvalid, err)
+			}
+		case "format":
+			if err := dec.Decode(&c.Format); err != nil {
+				return c, fmt.Errorf("%w: format: %v", errInvalid, err)
+			}
+			if len(c.Format) > 64 {
+				return c, fmt.Errorf("%w: format longer than 64 characters", errInvalid)
+			}
+		case "video":
+			if err := dec.Decode(&videoRaw); err != nil {
+				return c, fmt.Errorf("%w: video: %v", errInvalid, err)
 			}
 		case "schema_version":
 			var v int
@@ -167,11 +189,15 @@ func parseChunk(body []byte) (chunk, error) {
 		if c.EndedAt < c.StartedAt {
 			c.EndedAt = c.StartedAt
 		}
-	case KindFrames:
+	case KindFrames, KindVideo:
 		if schemaVersion == nil {
 			return c, fmt.Errorf("%w: schema_version missing", errInvalid)
 		}
-		if *schemaVersion < 1 || *schemaVersion > maxSchemaVersion {
+		maxVersion := maxSchemaVersion
+		if c.Kind == KindVideo {
+			maxVersion = 1 // ADR-0014: video stays at 1
+		}
+		if *schemaVersion < 1 || *schemaVersion > maxVersion {
 			return c, fmt.Errorf("%w: schema_version %d not supported", errInvalid, *schemaVersion)
 		}
 		if c.StartedAt <= 0 {
@@ -189,6 +215,17 @@ func parseChunk(body []byte) (chunk, error) {
 		if vp.Scale < 0 {
 			return c, fmt.Errorf("%w: viewport scale must be positive", errInvalid)
 		}
+		if !seenTouches {
+			c.Touches = 0
+		}
+		if c.Kind == KindVideo {
+			n, err := checkVideo(videoRaw)
+			if err != nil {
+				return c, err
+			}
+			c.Frames = n
+			break
+		}
 		if !seenFrames {
 			return c, fmt.Errorf("%w: frames missing", errInvalid)
 		}
@@ -199,9 +236,55 @@ func parseChunk(body []byte) (chunk, error) {
 			c.Touches = 0
 		}
 	default:
-		return c, fmt.Errorf("%w: kind must be %q or %q", errInvalid, KindRRWeb, KindFrames)
+		return c, fmt.Errorf("%w: kind must be %q, %q or %q", errInvalid, KindRRWeb, KindFrames, KindVideo)
 	}
 	return c, nil
+}
+
+// checkVideo validates the `video` object the way rum-api's parseVideo does
+// (container "mp4", mp4 non-empty base64 of a file with `ftyp` at offset 4,
+// non-negative duration_ms and frame_count) and returns frame_count. The size
+// is bounded by the request body limit.
+func checkVideo(raw json.RawMessage) (int, error) {
+	if raw == nil {
+		return 0, fmt.Errorf("%w: video missing", errInvalid)
+	}
+	var v struct {
+		Container  string `json:"container"`
+		MP4        string `json:"mp4"`
+		DurationMS *int64 `json:"duration_ms"`
+		FrameCount *int   `json:"frame_count"`
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return 0, fmt.Errorf("%w: video must be an object: %v", errInvalid, err)
+	}
+	if v.Container != "mp4" {
+		return 0, fmt.Errorf("%w: video.container must be \"mp4\"", errInvalid)
+	}
+	if v.DurationMS != nil && *v.DurationMS < 0 {
+		return 0, fmt.Errorf("%w: video.duration_ms must not be negative", errInvalid)
+	}
+	if v.FrameCount != nil && *v.FrameCount < 0 {
+		return 0, fmt.Errorf("%w: video.frame_count must not be negative", errInvalid)
+	}
+	if v.MP4 == "" {
+		return 0, fmt.Errorf("%w: video.mp4 must be non-empty base64", errInvalid)
+	}
+	enc := base64.StdEncoding
+	if len(v.MP4)%4 != 0 {
+		enc = base64.RawStdEncoding
+	}
+	mp4, err := enc.DecodeString(v.MP4)
+	if err != nil {
+		return 0, fmt.Errorf("%w: video.mp4 is not valid base64: %v", errInvalid, err)
+	}
+	if len(mp4) < 8 || !bytes.Equal(mp4[4:8], mp4Brand) {
+		return 0, fmt.Errorf("%w: video.mp4 is not an mp4 (no ftyp box at offset 4)", errInvalid)
+	}
+	if v.FrameCount != nil {
+		return *v.FrameCount, nil
+	}
+	return 0, nil
 }
 
 // countArray consumes a JSON array at the decoder's position, calling each

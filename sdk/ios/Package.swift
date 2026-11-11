@@ -3,7 +3,7 @@ import PackageDescription
 
 // OuoReplay: iOS session replay capture for ouo (ADR-0006, docs/specs/mobile-replay.md).
 //
-// Two targets on purpose:
+// Targets:
 //  - OuoReplayCore is pure Swift + Foundation (+ zlib): chunk models, chunk builder, seq store,
 //    frame dedupe, redaction geometry, gzip and the uploader. It builds and tests on macOS with
 //    only the Command Line Tools installed.
@@ -25,6 +25,7 @@ let package = Package(
     products: [
         .library(name: "OuoReplay", targets: ["OuoReplay"]),
         .library(name: "OuoReplayCore", targets: ["OuoReplayCore"]),
+        .library(name: "OuoReplaySentryCore", targets: ["OuoReplaySentryCore"]),
         .library(name: "OuoCrash", targets: ["OuoCrash"]),
         .library(name: "OuoVitals", targets: ["OuoVitals"]),
         .library(name: "OuoSDK", targets: ["OuoSDK"]),
@@ -36,7 +37,17 @@ let package = Package(
         ),
         .target(
             name: "OuoReplay",
-            dependencies: ["OuoReplayCore"]
+            dependencies: ["OuoReplayCore", "OuoReplaySentryCore"]
+        ),
+        // Spike: sentry-cocoa's session-replay recorder core (MIT), copied by
+        // scripts/sentry-core-sync.sh into Upstream/ and driven by SentryCoreRecorder. OuoReplay
+        // uses it when `OuoReplayConfig.recorder` is `.sentryVideo`. The ObjC target holds the one
+        // Objective-C helper it needs (catching a Core Animation NSException while redacting).
+        .target(name: "OuoReplaySentryCoreObjC"),
+        .target(
+            name: "OuoReplaySentryCore",
+            dependencies: ["OuoReplaySentryCoreObjC"],
+            exclude: ["UPSTREAM_TAG"]
         ),
         // Native crash capture (checklist G1): async-signal-safe C handlers plus the Swift API.
         .target(name: "OuoCrashCore"),

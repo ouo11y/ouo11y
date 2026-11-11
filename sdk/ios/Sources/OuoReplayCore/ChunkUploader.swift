@@ -191,16 +191,40 @@ public final class ChunkUploader {
     /// Encodes, compresses and writes the chunk to the queue folder before returning (the spool
     /// is cleared after this returns), then starts sending. Safe from any thread.
     public func enqueue(_ chunk: FrameChunk) {
-        let body: Data
+        let json: Data
         do {
-            body = try Gzip.compress(try chunk.encodedJSON())
+            json = try chunk.encodedJSON()
         } catch {
             logger.warn("could not encode chunk seq=\(chunk.seq): \(error)")
             return
         }
+        enqueue(json: json, sessionId: chunk.sessionId, seq: chunk.seq, summary: "\(chunk.frames.count) frames \(chunk.touches.count) touches")
+    }
+
+    /// A `kind: "video"` chunk (the Sentry-derived recorder), queued like a frames chunk.
+    public func enqueue(_ chunk: VideoChunk) {
+        let json: Data
+        do {
+            json = try chunk.encodedJSON()
+        } catch {
+            logger.warn("could not encode video chunk seq=\(chunk.seq): \(error)")
+            return
+        }
+        enqueue(json: json, sessionId: chunk.sessionId, seq: chunk.seq, summary: "video \(chunk.video.frameCount) frames \(chunk.video.durationMs) ms \(chunk.touches.count) touches")
+    }
+
+    /// Compresses and queues one chunk body of any kind; the headers carry `sessionId` and `seq`.
+    public func enqueue(json: Data, sessionId: String, seq: Int, summary: String = "") {
+        let body: Data
+        do {
+            body = try Gzip.compress(json)
+        } catch {
+            logger.warn("could not compress chunk seq=\(seq): \(error)")
+            return
+        }
         // Disk full or not writable: the queue sends it once from memory rather than nothing; a
         // held chunk is dropped instead (its session's keep/drop decision has not been made).
-        let tag = "\(chunk.sessionId).\(chunk.seq).json.gz"
+        let tag = "\(sessionId).\(seq).json.gz"
         if config.hold {
             guard held.put(body, tag: tag, sendIfRefused: false) else {
                 lock.withLock { droppedHere += 1 }
@@ -209,7 +233,7 @@ public final class ChunkUploader {
         } else if !queued.put(body, tag: tag) {
             return
         }
-        logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
+        logger.log("\(config.hold ? "held" : "queued") session=\(sessionId) seq=\(seq) \(summary) \(body.count) bytes gzip")
     }
 
     /// Tries to send what is queued (this process's chunks and those an earlier one left) and
