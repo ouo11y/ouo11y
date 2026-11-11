@@ -68,7 +68,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 </nav>
 
 <h2 id="path">The path</h2>
-<p>A chunk is an ordinary OTLP log record: event <code>ouo.replay.chunk</code>, scope <code>ouo.replay</code>, the recording bytes as its body. It goes to the same endpoint as all other telemetry. The Collector separates it by scope name and nothing else in the stack needs a replay-specific wire format.</p>
+<p>A chunk is an ordinary OTLP log record: event <code>ouo.replay.chunk</code>, scope <code>ouo.replay</code>, the recording bytes as its body. It goes to the same endpoint as all other telemetry. The Collector separates it by scope name and nothing else in the stack needs a replay-specific wire format. This is a new Collector configuration for that wire only: the MVP replay receiver, exporter, envelope names and rum-api's replay store are removed, with no compatibility.</p>
 <figure>
 <svg viewBox="0 0 940 500" role="img" aria-label="Architecture: SDKs send OTLP to the Collector, which routes replay chunks through a disk queue to Muninn and everything else to Loki, Tempo and Mimir. The plugin BFF reads all four.">
 <defs>
@@ -89,7 +89,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 <rect class="bx bb" x="384" y="62" width="152" height="44"/><text x="460" y="80" text-anchor="middle">reference copy</text><text x="460" y="96" text-anchor="middle" class="m">no body, + ouo.replay.ref</text>
 <rect class="bx bb" x="384" y="120" width="152" height="44"/><text x="460" y="138" text-anchor="middle">logs, traces, metrics</text><text x="460" y="154" text-anchor="middle" class="m">batched</text>
 <rect class="bx bc" x="384" y="178" width="152" height="44"/><text x="460" y="196" text-anchor="middle">replay pipeline</text><text x="460" y="212" text-anchor="middle" class="m">disk queue, fsync</text>
-<rect class="bx bg later" x="214" y="240" width="322" height="44"/><text x="375" y="258" text-anchor="middle">later: vendor envelope receivers</text><text x="375" y="274" text-anchor="middle" class="m">ouosentry, ouodatadog, ouoposthog</text>
+<rect class="bx bg later" x="214" y="240" width="322" height="44"/><text x="375" y="258" text-anchor="middle">later: vendor envelope receivers</text><text x="375" y="274" text-anchor="middle" class="m">Sentry, Datadog, PostHog</text>
 
 <rect class="bx ba" x="600" y="40" width="110" height="32"/><text x="655" y="61" text-anchor="middle">Loki</text>
 <rect class="bx ba" x="600" y="82" width="110" height="32"/><text x="655" y="103" text-anchor="middle">Tempo</text>
@@ -145,17 +145,16 @@ footer{margin-top:60px;color:var(--muted);font-size:.87rem;border-top:1px solid 
 <div id="out" aria-live="polite"></div>
 
 <h2 id="store">Where a chunk lives</h2>
-<p>Object storage only, no database. One immutable object per chunk. The key starts with tenant, project and session, so "the replays of this session" is one prefix listing.</p>
+<p>Object storage only, no database and no stored index. Every object is written once and never changed, so replicas cannot overwrite each other. One object per chunk. The key starts with tenant, project and session, so "the replays of this session" is one prefix listing.</p>
 <pre>muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/c/0000000042   chunk: header + body as sent
 muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/ended.json     the stream's end record
-muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/&lt;stream&gt;/manifest.json  cache, rebuildable
 muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/deleted.json            tombstone</pre>
 <div class="tbl"><table>
 <tr><th></th><th>Structure chunk</th><th>Pixel chunk</th></tr>
 <tr><td>Content</td><td>Web DOM recording, mobile wireframes</td><td>JPEG frames and tiles, MP4 segments</td></tr>
 <tr><td>Encoding</td><td><code>gzip</code></td><td><code>identity</code>, the codec already compressed it</td></tr>
 <tr><td>Layout and container</td><td colspan="2">The same. Muninn never looks inside the body</td></tr>
-<tr><td>Served with</td><td><code>Content-Encoding: gzip</code>, so the HTTP client inflates it</td><td>Byte ranges, so a video element can seek</td></tr>
+<tr><td>Served as</td><td>The stored bytes with <code>Content-Encoding: gzip</code>, so the BFF's HTTP client inflates them</td><td>The stored bytes, whole. A chunk is at most 1 MiB</td></tr>
 </table></div>
 
 <h2 id="read">Reading it back</h2>
@@ -164,13 +163,14 @@ muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/deleted.jso
 <tr><th>Call</th><th>Answer</th></tr>
 <tr><td><code>GET …/sessions/{session}/replays</code></td><td>The session's replays with state, time range and size</td></tr>
 <tr><td><code>GET …/replays/{replay}</code></td><td>The manifest: streams, chunks in order, keyframes, formats, missing sequences, and whether each stream is <code>open</code>, <code>complete</code> or <code>partial</code></td></tr>
-<tr><td><code>GET …/streams/{stream}/chunks/{sequence}</code></td><td>The bytes as stored, cacheable for ever</td></tr>
+<tr><td><code>GET …/streams/{stream}/chunks/{sequence}</code></td><td>The bytes as stored</td></tr>
 </table></div>
-<p>The player picks a decoder by <code>ouo.replay.format</code>, starts each segment at its keyframe chunk and skips to the next keyframe after a gap. "Which sessions have a replay" is a Loki question, answered by the reference records.</p>
+<p>The player picks a decoder by <code>ouo.replay.format</code>, starts each segment at its keyframe chunk and skips to the next keyframe after a gap. "Which sessions have a replay" is a Loki question, answered by the reference records. They are a hint: only Muninn knows which chunks exist.</p>
+<div class="note"><p>Muninn is stricter than the SDK spec draft on four points: replay and stream ids are 32 lowercase hex, encoding is <code>gzip</code> or <code>identity</code>, the format id has a fixed syntax, and a chunk is never empty. A chunk that breaks one is lost after the SDK already got its 2xx, so these have to enter the SDK spec.</p></div>
 
 <h2 id="later">Later, scoped but not designed</h2>
 <ul>
-<li><b>Vendor envelope receivers.</b> One Collector receiver per vendor wire format (Sentry exists for mobile; Datadog and PostHog follow). Each turns the vendor's payload into OTLP for Loki, Tempo and Mimir, and its recordings into <code>ouo.replay.chunk</code> records that take the same route to Muninn. For Muninn a vendor recording is one more format value.</li>
+<li><b>Vendor envelope receivers.</b> One Collector receiver per vendor wire format: Sentry, Datadog, PostHog. Each turns the vendor's payload into OTLP for Loki, Tempo and Mimir, and its recordings into <code>ouo.replay.chunk</code> records that take the same route to Muninn. For Muninn a vendor recording is one more format value.</li>
 <li><b>Vendor API querying is the BFF's.</b> Muninn makes no outbound calls and holds no vendor credentials. A Sentry reader is a library in <code>ouo-go</code>, beside the Loki, Tempo, Mimir, Victoria and Muninn clients.</li>
 </ul>
 
@@ -180,17 +180,18 @@ muninn/&lt;tenant&gt;/&lt;project&gt;/&lt;session&gt;/&lt;replay&gt;/deleted.jso
 <tr><td>Q1</td><td>Muninn ingest: OTLP logs endpoint, or bespoke REST with a custom exporter?</td><td>OTLP endpoint, stock exporter</td></tr>
 <tr><td>Q2</td><td>One SDK endpoint, or a replay port?</td><td>One endpoint, routed by scope</td></tr>
 <tr><td>Q3</td><td>Reference records in Loki</td><td>One per chunk, no body</td></tr>
-<tr><td>Q4</td><td>Object shape</td><td>One container object per chunk; pack later if request cost matters</td></tr>
+<tr><td>Q4</td><td>Object shape</td><td>One create-only container object per chunk, no stored manifest; pack later if request cost matters</td></tr>
 <tr><td>Q5</td><td>Database or index</td><td>None. Keys by session</td></tr>
 <tr><td>Q6</td><td>Tenancy</td><td>Tenant header and project from day one</td></tr>
-<tr><td>Q7</td><td>Retention</td><td>Per replay, from its last chunk; lifecycle rule as safety net</td></tr>
-<tr><td>Q8</td><td>Old rum-api replays</td><td>Not migrated; served until they expire</td></tr>
-<tr><td>Q9</td><td>Rest of rum-api</td><td>Decide with the BFF step</td></tr>
+<tr><td>Q7</td><td>Retention</td><td>Per replay, from its last chunk, by a sweeper that lists keys; lifecycle rule as safety net</td></tr>
+<tr><td>Q8</td><td>Replays stored by the MVP path</td><td>Not migrated, not readable through Muninn; removed with the MVP</td></tr>
+<tr><td>Q9</td><td>Rest of rum-api once its replay code is gone</td><td>Decide with the BFF step</td></tr>
 <tr><td>Q10</td><td>Format list and media types</td><td>SDK spec owns it; rrweb bodies as newline-delimited events</td></tr>
 <tr><td>Q11</td><td>Validate in the Collector too?</td><td>No, Muninn only</td></tr>
 <tr><td>Q12</td><td>Collector deployment</td><td>StatefulSet with a volume, 2 GiB queue</td></tr>
-<tr><td>Q13</td><td>Touches in Sentry video</td><td>Become OTel events; the body is the MP4 alone</td></tr>
+<tr><td>Q13</td><td>Touches in vendor video</td><td>Become OTel events; the body is the MP4 alone</td></tr>
 <tr><td>Q14</td><td>Muninn port</td><td>3400</td></tr>
+<tr><td>Q15</td><td>The four stricter rules enter the SDK spec</td><td>Yes, before SDKs are built against it</td></tr>
 </table></div>
 
 <footer>Sources: <a href="../../../../docs/adr/0019-collector-to-muninn.md">ADR-0019</a>, <a href="../../../../docs/specs/muninn.md">docs/specs/muninn.md</a>, <a href="today-and-target.md">today-and-target.md</a>, <a href="durable-handoff.md">durable-handoff.md</a>, <a href="../../opentelemetry/rum-semantic-conventions/sdk-spec.md">SDK spec draft</a>.</footer>
@@ -200,10 +201,10 @@ const cases = [
   ["Muninn is down", ["The Collector's exporter gets no answer and retries with backoff. Chunks pile up in the disk queue.", "SDKs still get 2xx and can forget what they sent. Logs, traces and metrics are not affected.", "When Muninn returns, the queue drains. Nothing is lost unless the queue fills first."]],
   ["The disk queue is full", ["The replay pipeline refuses new chunks. The receiver answers 503.", "The SDK keeps the chunk in its own storage (72 hours) and retries with backoff.", "Telemetry requests are separate requests on separate pipelines, so they still get 2xx."]],
   ["The Collector restarts", ["Chunks already acknowledged are on disk and are sent after the restart.", "A request in flight got no answer, so the SDK sends it again. Muninn drops the duplicate."]],
-  ["The object store is slow or failing", ["Muninn answers 503 for the request. The Collector retries it.", "Chunks from that request that were already written are recognised on the retry and not written twice."]],
+  ["The object store is slow or failing", ["Muninn answers 503 for the request, as it does for any failure of its own. The Collector retries it.", "Chunks from that request that were already written are recognised on the retry and not written twice."]],
   ["The same chunk arrives twice", ["Same identity and same SHA-256: success, nothing written.", "Same identity, different bytes: rejected as a conflict. The first write stays."]],
-  ["A chunk is invalid", ["Muninn rejects that record through OTLP partial success and counts it by reason. The Collector drops it.", "The SDK is not told, since it already got its 2xx from the Collector. The conformance suite is where SDK output is checked."]],
-  ["A chunk arrives after a delete", ["Deleting writes a tombstone that lives 7 days.", "A late chunk for that replay is answered as success and thrown away, so a deleted replay cannot come back."]],
+  ["A chunk is invalid", ["Muninn rejects that record through OTLP partial success and counts it by reason. The Collector drops it.", "The SDK is not told, since it already got its 2xx from the Collector. Only Muninn's metrics show it. The conformance suite is where SDK output is checked."]],
+  ["A chunk arrives after a delete", ["Deleting writes a tombstone per replay that lives 7 days. A late chunk for that replay is answered as success and thrown away.", "Before a tombstone is removed, everything under the replay is deleted once more, which catches a chunk written during the delete.", "A chunk held back longer than 7 days is stored again as a partial replay and goes with retention."]],
   ["The tab is killed mid-stream", ["No end record arrives. The stream shows as open for 30 minutes after its last chunk, then as partial.", "The next page of the same origin sends the persisted chunks and an end record. The state is recomputed."]]
 ];
 const btns = document.getElementById("btns"), out = document.getElementById("out");

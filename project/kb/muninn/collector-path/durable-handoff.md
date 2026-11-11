@@ -2,7 +2,7 @@
 
 > Can the stock OTLP receiver, routing connector and `otlp_http` exporter give "the SDK gets 2xx only after the chunk is on disk with fsync" (SDK spec TRN-12)? What is checked and what is not?
 
-Checked on 2026-11-11 by reading the Collector v0.160.0 modules in the local Go module cache (the version in [builder.yaml](../../../../collector/builder.yaml)). Nothing was run. Confidence per row.
+Checked on 2026-11-11 by reading the Collector v0.160.0 modules in the local Go module cache (the version in [builder.yaml](../../../../collector/builder.yaml)), by the author and again by the reviewer of the pull request. Nothing was run. Confidence per row.
 
 ## Why it should work
 
@@ -21,7 +21,14 @@ Every component between the receiver and the exporter's queue is called synchron
 | The sending queue's settings are `enabled`, `queue_size`, `sizer`, `storage`, `block_on_overflow`, `wait_for_result`, `num_consumers`, `batch` | `exporter/exporterhelper/internal/queuebatch/config.go` | High |
 | The persistent queue writes the item and its index to the storage client in one `Batch` call inside the put, before returning | `exporter/exporterhelper/internal/queue/persistent_queue.go` | High |
 | The `otlp_http` exporter retries only 429, 502, 503 and 504, and reads `Retry-After` on 429 and 503 | `exporter/otlphttpexporter/otlp.go` | High |
-| The `otlp_http` exporter reads a partial-success body and reports it; it does not retry it | same file | High |
+| The `otlp_http` exporter reads a partial-success body, logs a warning and returns success. It does not retry it and counts nothing | same file | High |
+| The routing connector accepts a condition on the scope name in the log context. Its log parser enables the path contexts `log`, `scope`, `instrumentation_scope` (older alias), `resource` and `otelcol` | `connector/routingconnector` (contrib) | High |
+| An error from one of two routed pipelines reaches the receiver: the connector joins and returns consumer errors whatever `error_mode` is, and the fan-out calls every consumer | `connector/routingconnector`; fan-out read at v0.162.0, the only cached version | Medium |
+| A full queue with `block_on_overflow: false` returns `ErrQueueIsFull`, a plain non-permanent error, so the receiver answers 503 | `exporter/exporterhelper` | High |
+| `sizer: bytes` works with a persistent queue; the byte size is persisted | `exporter/exporterhelper` | High |
+| `set(log.body, nil)` does **nothing** in OTTL at v0.160 unless feature gate `ottl.set.allowNil` is on (alpha, off by default): it logs one warning and leaves the body. A reference copy built with it would send the full chunk to Loki | `pkg/ottl/ottlfuncs/func_set.go` (contrib) | High |
+| The fan-out deep-copies the request for a pipeline that mutates, so the reference pipeline costs one extra copy of the body per chunk | fan-out, v0.162.0 | Medium |
+| The persistent queue holds its mutex across the storage write on enqueue, and writes again on dispatch and on completion: about three serialised storage transactions per chunk | `exporter/exporterhelper/internal/queue/persistent_queue.go` | High |
 
 These match the SDK retry table (TRN-6), so both hops behave the same way.
 
@@ -30,17 +37,15 @@ These match the SDK retry table (TRN-6), so both hops behave the same way.
 | Open point | How to test |
 |---|---|
 | The file storage extension's `fsync` setting exists in v0.160 and makes each `Batch` durable. The module is not in the local cache | Add `extension/storage/filestorage` to `builder.yaml`, set `fsync: true`, kill -9 the Collector right after a 2xx, restart, count chunks at a fake Muninn |
-| The routing connector accepts a condition on the scope name in the log context (`instrumentation_scope.name == "ouo.replay"`) | Config test with a mixed request |
-| An error from one of two routed pipelines reaches the receiver | Fill the queue, expect 503 at the SDK side |
-| A full queue with `block_on_overflow: false` returns a non-permanent error | Same test. If it is permanent, the receiver answers 500, which the SDK does not retry, and a small processor or `wait_for_result` is needed |
-| Cost of one fsync per chunk | Measure chunks per second on the CI runner's disk. At 12 chunks per recording minute per session, 1000 concurrent recording sessions are 200 writes per second |
-| `sizer: bytes` works with a persistent queue and `queue_size` in bytes | Config test |
-| Memory: the routing connector gives two pipelines the same data; the reference pipeline drops the body | Heap profile with 1 MiB chunks |
+| Routing, error propagation and the full-queue answer, read in source above, behave the same when run | One end-to-end test: mixed request, then fill the queue and expect 503 at the SDK side while telemetry still gets 2xx |
+| Cost of the synced writes | Measure chunks per second on the CI runner's disk. At 12 chunks per recording minute per session, 1000 concurrent recording sessions are 200 chunks per second, so about 600 synced transactions per second through one mutex |
+| The Loki copy really has no chunk bytes | Assert on the record Loki stores |
+| Memory with 1 MiB chunks, given the extra copy | Heap profile |
 | Request metadata (the authenticated project) is not needed after the queue, because `resource/project` stamps it before | Covered by the end-to-end test |
 
 ## Sketch of the configuration
 
-Illustrative, not tested. Key names are from the source read above except where the table says otherwise.
+Illustrative, not tested. It is a **new configuration for the spec wire only**: it has no MVP replay receiver or exporter, no rum-api, and no Sentry bridge, and it is not meant to be merged into the current `deploy/compose/collector/config.yaml`. Key names are from the source read above except where the table says otherwise.
 
 ```yaml
 extensions:
@@ -50,19 +55,21 @@ extensions:
 
 connectors:
   routing/replay:
+    error_mode: propagate          # the default ignores a failing condition and would send a chunk, body included, to the logs pipeline
     default_pipelines: [logs]
     table:
       - context: log
-        condition: instrumentation_scope.name == "ouo.replay"
+        condition: scope.name == "ouo.replay"
         pipelines: [logs/replay, logs/replay-index]
 
 processors:
   transform/replay-ref:
+    error_mode: propagate
     log_statements:
       - context: log
         statements:
           - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
-          - set(log.body, nil) where log.event_name == "ouo.replay.chunk"
+          - set(log.body, "") where log.event_name == "ouo.replay.chunk"   # not nil: see the table above
 
 exporters:
   otlp_http/muninn:
@@ -71,6 +78,7 @@ exporters:
     timeout: 30s
     headers:
       Authorization: Bearer ${env:MUNINN_INGEST_TOKEN}
+      X-Scope-OrgID: ${env:MUNINN_TENANT}      # one tenant per Collector in the first version
     sending_queue:
       enabled: true
       storage: file_storage/replay

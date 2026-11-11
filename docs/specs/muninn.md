@@ -25,7 +25,7 @@ The chunk model itself (session, replay, stream, segment, chunk; attributes; del
 
 | Name | Source | Syntax |
 |---|---|---|
-| Tenant | `X-Scope-OrgID` header | `^[a-z0-9][a-z0-9_-]{0,63}$`. `anonymous` when multi-tenancy is off |
+| Tenant | `X-Scope-OrgID` header | `^[a-z0-9][a-z0-9_-]{0,63}$`. `anonymous` when multi-tenancy is off. Bad syntax answers 400, a missing header 401 |
 | Project | Resource attribute `ouo.project.id` on ingest; path parameter on reads | `^[a-z0-9][a-z0-9._-]{0,63}$` |
 | Session | `session.id` | `^[0-9a-f]{32}$` |
 | Replay | `ouo.replay.id` | `^[0-9a-f]{32}$` |
@@ -64,6 +64,8 @@ Muninn stores two kinds of OTLP log record. Both MUST be in an instrumentation s
 | `ouo.replay.source.vendor`, `ouo.replay.source.id` | string | no | Set by vendor receivers only |
 | `ouo.replay.ref` | string | must be absent | Set only on the Loki copy ([COL-6](#5-collector-requirements)) |
 
+Resource attributes other than `ouo.project.id` are not stored. `time_unix_nano` is stored and returned, not interpreted.
+
 - **MUN-6** Muninn MUST store every attribute of an accepted record, including ones this table does not list, and return them unchanged on read. Total attribute size per record is limited to 16 KiB.
 - **MUN-7** `ouo.replay.format` names the format and its version, for example `rrweb/2`. The list of formats, their class (structure or pixel) and their media types belongs to the SDK spec, section 11.6. Muninn MUST store a chunk whose format it does not know (RPL-24).
 
@@ -85,7 +87,18 @@ Two classes of format exist, and Muninn handles both the same way:
 | `ouo.replay.end_reason` | yes | Stored as sent |
 | `ouo.replay.last_sequence` | when any chunk was produced | Range |
 
-- **MUN-8** A stream has at most one stored end record. A later end record for the same stream replaces the stored one only if it has `end_state=partial` and the stored one has `complete`; otherwise the first stays. Both cases answer success.
+- **MUN-8** A stream has at most one stored end record, written create-only. The first one stored stays; a later one for the same stream is answered as success and not stored.
+
+### 3.3 Required of the SDK spec
+
+Muninn is stricter than the SDK spec draft in four places. An SDK that breaks one of them gets its 2xx from the Collector and then loses the chunk at Muninn without being told, so the SDK spec has to state them before SDKs are built against it:
+
+| SDK spec today | Muninn requires |
+|---|---|
+| `ouo.replay.id`, `ouo.replay.stream.id`: "128-bit random" | Written as 32 lowercase hex characters, like `session.id` (SES-1) |
+| `ouo.replay.encoding`: "for example `gzip`" | Exactly `gzip` or `identity` |
+| `ouo.replay.format`: no syntax | 1 to 64 characters of `[a-z0-9./_-]` |
+| Nothing about a capture window with no data | A chunk body is never empty. A window with nothing to send produces no chunk and does not consume a sequence number |
 
 ## 4. Ingest API
 
@@ -97,19 +110,20 @@ OTLP/HTTP, as specified by OTLP 1.x: the request is an `ExportLogsServiceRequest
 
 | Header | Rule |
 |---|---|
-| `Content-Type` | `application/x-protobuf` MUST be supported. `application/json` MAY be supported; if not, 415 |
+| `Content-Type` | `application/x-protobuf`. Anything else 415 (OTLP/JSON is not accepted in the first version) |
 | `Content-Encoding` | absent, `identity` or `gzip`. Anything else 415 |
-| `X-Scope-OrgID` | Required when multi-tenancy is on (401 if missing). Ignored when off |
+| `X-Scope-OrgID` | Required when multi-tenancy is on (401 if missing, 400 if malformed). Ignored when off |
 | `Authorization: Bearer <ingest token>` | Required when an ingest token is configured (401 otherwise). Compared in constant time |
 
 ### 4.1 Processing rules
 
+- **MUN-9** Muninn MUST answer 503 for every failure of its own on the ingest path, including an unexpected internal error. It MUST NOT answer any other 5xx: the Collector's exporter drops a request on every status outside 429, 502, 503 and 504, and by then the SDK has already deleted the chunk.
 - **MUN-10** The request body MUST NOT exceed `limits.max_request_bytes` (default 16 MiB), compressed or decompressed. Larger: 413, nothing stored.
 - **MUN-11** Each record is validated on its own against [section 3](#3-records). An invalid record is **rejected**: it is not stored, it is counted in `partial_success.rejected_log_records`, and `partial_success.error_message` names the first reason. Other records in the request are unaffected.
 - **MUN-12** A record outside scope `ouo.replay`, or with another event name, or under a resource without a valid `ouo.project.id`, is rejected with reason `not_replay`, `unknown_event` or `no_project`.
 - **MUN-13** A chunk whose identity is already stored with the **same** `ouo.replay.sha256` MUST be answered as success and MUST NOT be written again.
 - **MUN-14** A chunk whose identity is already stored with a **different** hash MUST be rejected with reason `conflict`. The first write stays.
-- **MUN-15** A record whose session or replay has a tombstone ([section 8](#8-delete-api)) MUST be answered as success and MUST NOT be stored. It is counted with outcome `tombstoned`.
+- **MUN-15** A record whose replay has a tombstone ([section 8](#8-delete-api)) MUST be answered as success and MUST NOT be stored. It is counted with outcome `tombstoned`.
 - **MUN-16** Muninn MUST answer 2xx only after every accepted chunk and end record of the request is durably stored: the object-store write has returned success, and on the filesystem store the file and its directory entry are synced.
 - **MUN-17** If any valid record cannot be stored for a transient reason (object store unreachable, timeout, throttled), Muninn MUST answer 503 for the whole request. Records of that request that were already stored become no-ops on the retry (MUN-13).
 - **MUN-18** Muninn MUST NOT assume arrival order. A chunk may arrive before a lower sequence, after its stream's end record, or days late.
@@ -125,8 +139,9 @@ OTLP/HTTP, as specified by OTLP 1.x: the request is an `ExportLogsServiceRequest
 | 401 | Missing or wrong token or tenant | Drops, counts |
 | 413 | Request too large | Drops, counts |
 | 415 | Unsupported content type or encoding | Drops, counts |
-| 429 with `Retry-After` | Tenant or project over its ingest limit | Retries after the delay |
-| 503 with `Retry-After` | Transient storage failure, or Muninn is starting or stopping | Retries with backoff |
+| 503 with `Retry-After` | Transient storage failure, an internal error, or Muninn is starting or stopping | Retries with backoff |
+
+A 401, 404 or 413 between Collector and Muninn means a configuration fault (wrong token, wrong URL, limits out of step) and loses chunks. Operators MUST alert on the Collector's failed-send counter for the Muninn exporter. Rejections through partial success appear only in Muninn's metrics; the exporter logs them and counts nothing.
 
 Rejection reasons, used in `error_message` and in metrics: `not_replay`, `unknown_event`, `no_project`, `bad_id`, `missing_attribute`, `bad_attribute`, `too_large`, `hash_mismatch`, `size_mismatch`, `conflict`.
 
@@ -139,13 +154,13 @@ These bind the ouo-collector configuration and any other Collector that feeds Mu
 - **COL-3** The replay pipeline MUST NOT contain a batch processor or any other component that returns before its downstream has accepted the data.
 - **COL-4** The replay pipeline's exporter MUST use a persistent sending queue on local disk with fsync. The Collector MUST answer the SDK 2xx only after the request is written to that queue. This is the "durably accepted" of TRN-12.
 - **COL-5** The queue MUST be bounded (default 2 GiB). When it is full the Collector MUST answer the SDK 503 (or 429) and MUST NOT block the request or drop silently. A full replay queue MUST NOT affect the logs, traces or metrics pipelines.
-- **COL-6** For every `ouo.replay.chunk` record, the Collector MUST also send Loki a copy **without the body** and with `ouo.replay.ref` set. `ouo.replay.ended` records are sent to both Muninn and Loki unchanged.
+- **COL-6** For every `ouo.replay.chunk` record, the Collector MUST also send Loki a copy **without the chunk bytes** (an empty body) and with `ouo.replay.ref` set. `ouo.replay.ended` records are sent to both Muninn and Loki unchanged.
 - **COL-7** `ouo.replay.ref` is `muninn:/<project>/<session.id>/<ouo.replay.id>/<ouo.replay.stream.id>/<ouo.replay.sequence>`. Consumers MUST treat it as opaque apart from that it names one chunk within the tenant.
 - **COL-8** The Collector MUST retry a request to Muninn on 429, 502, 503, 504 and network failure, honouring `Retry-After`, with no overall time limit, and MUST reuse the same bytes. It MUST drop and count a request on any other status.
-- **COL-9** The Collector MUST send the tenant in `X-Scope-OrgID` when Muninn runs multi-tenant, and MUST overwrite any `ouo.project.id` supplied by a client.
+- **COL-9** The Collector MUST overwrite any `ouo.project.id` supplied by a client. When Muninn runs multi-tenant, the exporter sends one fixed `X-Scope-OrgID`: in the first version a Collector serves one tenant. A Collector shared by tenants is later work.
 - **COL-10** The Collector MUST NOT compress the request to Muninn a second time when it carries chunk bodies.
 
-A reference record in Loki is a hint. It can exist for a chunk Muninn never stored (queue overflow after the copy was sent) and it can be duplicated.
+A reference record in Loki is a hint. The copy is handed to the logs pipeline on every attempt, before the queue write is known to have succeeded. So a reference can exist for a chunk Muninn never stored, each SDK retry against a full queue adds another reference, and "has a replay" answered from Loki can be true for a replay Muninn does not hold.
 
 - **RDR-1** A reader MUST treat Muninn as the only authority on which chunks exist.
 
@@ -155,11 +170,9 @@ Normative for operators and for compatibility between Muninn versions. Readers M
 
 ```text
 [<prefix>/]muninn/schema.json
-[<prefix>/]muninn/<tenant>/<project>/<session>/deleted.json
 [<prefix>/]muninn/<tenant>/<project>/<session>/<replay>/deleted.json
 [<prefix>/]muninn/<tenant>/<project>/<session>/<replay>/<stream>/c/<sequence as 10 digits>
 [<prefix>/]muninn/<tenant>/<project>/<session>/<replay>/<stream>/ended.json
-[<prefix>/]muninn/<tenant>/<project>/<session>/<replay>/<stream>/manifest.json
 ```
 
 Backends: S3-compatible object storage, or a local filesystem with the same relative paths.
@@ -188,19 +201,20 @@ Header:
 ```
 
 - **MUN-20** A chunk object MUST be created with a create-only write (S3 `If-None-Match: *`; filesystem: write a temporary file, sync, hard-link to the final name). If the object exists, Muninn reads its header and applies MUN-13 or MUN-14.
-- **MUN-21** A chunk object MUST NOT be modified after creation.
+- **MUN-21** No object except `schema.json` is ever modified after creation. Chunk objects, end records and tombstones are create-only, so replicas cannot overwrite each other.
 - **MUN-22** Structure and pixel chunks MUST use the same key layout and container.
 
 ### 6.2 Other objects
 
 | Object | Content | Written |
 |---|---|---|
-| `ended.json` | The end record's attributes and `received_at` | On `ouo.replay.ended`, per MUN-8 |
-| `manifest.json` | The headers of all chunks of the stream, plus the end record | When the stream becomes `complete`, or `partial` by idle time. A cache: Muninn MUST be able to rebuild it from the chunk objects, and MUST rebuild it when a chunk arrives after it was written |
+| `ended.json` | The end record's attributes, `time_unix_nano` and `received_at` | On `ouo.replay.ended`, create-only (MUN-8) |
 | `deleted.json` | `{"deleted_at": ms, "by": "api" \| "retention"}` | On delete, per [section 8](#8-delete-api) |
 | `schema.json` | Highest layout version written to this store, and by which Muninn version | At start. Muninn MUST refuse to start on a store with a newer layout version than it knows |
 
-On S3 every object except `schema.json` carries the tag `ouo-retention=<n>d` ([section 9](#9-retention-and-tenancy)).
+There is no stored manifest or index in the first version. A replay's manifest is computed on read: one listing of the replay prefix (one request per 1000 objects) and one ranged read of each chunk header. Headers never change, so a replica MAY cache them in memory by object key without any invalidation; the listing is always fresh. A stored manifest for closed streams is a later optimisation and must not be the only source of truth.
+
+On S3 every object except `schema.json` carries a retention tag ([section 9](#9-retention-and-tenancy)).
 
 ## 7. Read API
 
@@ -237,7 +251,7 @@ A session with no replay answers 200 with an empty list. Replays are ordered by 
 ### 7.2 Get a replay
 
 ```
-GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}[?from=<ms>&to=<ms>]
+GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}
 ```
 
 200:
@@ -258,7 +272,7 @@ GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}[?from=<
       "state": "partial",
       "start_time": 1794400000000,
       "end_time": 1794400312000,
-      "end": { "end_state": "complete", "end_reason": "pagehide", "last_sequence": 63 },
+      "end": { "end_state": "complete", "end_reason": "pagehide", "last_sequence": 63, "time_unix_nano": "…" },
       "missing": [[17, 17]],
       "chunks": [
         {
@@ -271,6 +285,7 @@ GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}[?from=<
           "encoding": "gzip",
           "byte_size": 20311,
           "sha256": "…",
+          "received_at": 1794400003120,
           "attributes": { "ouo.replay.masked": true, "ouo.replay.mode": "session", "ouo.view.id": "…" },
           "path": "/api/v1/projects/shop-web/sessions/…/replays/…/streams/…/chunks/0"
         }
@@ -283,13 +298,15 @@ GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}[?from=<
 - `chunks` is ordered by `sequence`. `attributes` holds every stored attribute that has no field of its own.
 - `end` is `null` when no end record is stored.
 - `missing` lists inclusive sequence ranges that are not held, between 0 and the highest of `last_sequence` and the highest held sequence.
-- `from` and `to` (ms since epoch) limit `chunks` to those whose time range overlaps the window. Each stream then also includes the last keyframe chunk at or before `from` and the chunks between it and the window, so the first returned segment is decodable. Totals and `missing` always cover the whole replay.
+- A stream that holds only an end record is listed with no chunks, state `partial`, and `missing` covering 0 to `last_sequence` when that is present.
+- `start_time`, `end_time`, `chunk_count` and `byte_size` are computed from the chunks held.
+- The answer is not paged in the first version. A chunk entry is about 300 bytes, so an hour of recording is about 0.2 MB of JSON before gzip and the 24-hour session maximum about 5 MB.
 - 404 when the replay does not exist or is deleted.
 
 **State.**
 
 - **MUN-30** A stream is `complete` when an end record is stored with `end_state=complete` and every sequence from 0 to `last_sequence` is held.
-- **MUN-31** A stream is `open` when it is not complete, no end record is stored, and its newest chunk was received less than `stream_idle_timeout` (default 30 min) ago.
+- **MUN-31** A stream is `open` when it is not complete, no end record is stored, and its most recently received chunk (highest `received_at`) arrived less than `stream_idle_timeout` (default 30 min) ago.
 - **MUN-32** Otherwise a stream is `partial`. State is computed, not final: a late chunk can turn `partial` into `complete`.
 - **MUN-33** A replay is `open` if any stream is open, `complete` if all streams are complete, else `partial`.
 
@@ -299,30 +316,40 @@ GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}[?from=<
 GET /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}/streams/{stream_id}/chunks/{sequence}
 ```
 
-200 (or 206): the body bytes exactly as stored.
+200: the body bytes exactly as stored.
 
 | Response header | Value |
 |---|---|
 | `Content-Type` | The media type of the chunk's format from the SDK spec's format registry; `application/octet-stream` for a format Muninn has no entry for |
 | `Content-Encoding` | `gzip` when the chunk's encoding is `gzip`; absent for `identity` |
 | `ETag` | `"<ouo.replay.sha256>"` |
-| `Cache-Control` | `private, max-age=31536000, immutable` |
 | `Content-Length` | Stored body length |
-| `Accept-Ranges` | `bytes` for `identity` chunks; `none` for `gzip` chunks |
 | `X-Ouo-Replay-Format` | The chunk's `ouo.replay.format` |
 
-- **MUN-34** Muninn MUST honour `Range` on `identity` chunks (206, `Content-Range`) and `If-None-Match` on all chunks (304).
-- **MUN-35** Muninn MUST NOT decompress a `gzip` chunk for a client. A client that does not accept gzip gets 406.
+- **MUN-34** Muninn MUST NOT decompress a `gzip` chunk for a client. Its client is the BFF, which MUST accept gzip.
 - 404 when the chunk is not held.
 
-### 7.4 Reader rules
+Byte ranges, conditional requests and a call that returns a run of chunks in one response are left out of the first version. A chunk is at most 1 MiB and is fetched whole.
+
+### 7.4 Status codes of reads and deletes
+
+| Status | When |
+|---|---|
+| 200 | Read answered. A session with no replays is 200 with an empty list |
+| 204 | Delete done, or nothing to delete |
+| 400 | An identifier or the tenant header is malformed |
+| 401 | Missing or wrong read token, or missing tenant header |
+| 404 | The replay or chunk does not exist, is deleted, or belongs to another tenant or project |
+| 503 | The object store is unavailable |
+
+### 7.5 Reader rules
 
 - **RDR-2** A reader MUST choose a decoder by `format` and MUST show a chunk of unknown format as stored but not playable (RPL-24).
 - **RDR-3** A segment is playable from its keyframe chunk up to the first missing sequence. After a gap, a reader MUST resume at the next chunk with `keyframe=true`.
 - **RDR-4** A reader MUST order chunks by `sequence` within a stream and place streams on the session timeline by `start_time` and `end_time`. One replay can have several streams, which can overlap (two tabs).
 - **RDR-5** Role-based redaction and access checks are the BFF's. Muninn returns what is stored.
 
-### 7.5 Health
+### 7.6 Health
 
 `GET /ready` answers 200 when the object store is reachable, 503 otherwise. `GET /healthz` answers 200 while the process runs. Neither needs a token.
 
@@ -333,18 +360,24 @@ DELETE /api/v1/projects/{project}/sessions/{session_id}/replays
 DELETE /api/v1/projects/{project}/sessions/{session_id}/replays/{replay_id}
 ```
 
-- **MUN-40** A delete MUST first write the tombstone (`deleted.json` at the session or replay prefix), then remove every other object under that prefix, then answer 204. It is idempotent: deleting what is absent answers 204 and still writes the tombstone.
-- **MUN-41** A tombstone MUST be kept for `tombstone_ttl` (default 7 days, longer than the SDK's 72 h persistence and any Collector queue delay), then removed by the sweeper.
-- **MUN-42** Reads of a tombstoned session or replay answer as if it does not exist.
-- **MUN-43** Every delete through the API MUST be recorded as a log record sent to the Collector, with tenant, project, session, replay and the number of objects removed.
+- **MUN-40** Deleting a replay MUST first write the tombstone (`deleted.json` at the replay prefix, create-only), then remove every other object under that prefix, then answer 204. It is idempotent.
+- **MUN-41** Deleting a session's replays deletes each replay found under the session prefix, each with its own tombstone. There is no session-level tombstone, so a new replay in the same session (for example after consent is granted again) is stored normally.
+- **MUN-42** A tombstone MUST be kept for `tombstone_ttl` (default 7 days). Before the sweeper removes a tombstone it MUST delete every other object under the replay prefix again, which removes any chunk that slipped in between an ingest's tombstone check and the delete.
+- **MUN-43** Reads of a tombstoned replay answer as if it does not exist.
+- **MUN-44** Every delete through the API MUST be recorded as a log record sent to the Collector, with tenant, project, session, replay and the number of objects removed. The tombstone is the durable evidence; the log record is best effort.
+
+Known windows, accepted in the first version:
+
+- A chunk held back longer than `tombstone_ttl` (the SDK persists for 72 h; a Collector queue retries without a time limit while Muninn is down) arrives after the tombstone is gone and is stored. It shows as a `partial` replay and is removed by retention.
+- A replay whose first chunk arrives only after its session's replays were deleted has no tombstone and is stored.
 
 Delete by user, by project or by time range is composed by the caller (the BFF or an operator tool), which finds the sessions in Loki and calls these endpoints.
 
 ## 9. Retention and tenancy
 
 - **MUN-50** Retention is configured as a default (720 h) with an override per project. `0` keeps replays forever.
-- **MUN-51** A sweeper MUST delete a replay when its newest chunk's `received_at` is older than the project's retention, as a whole, with a tombstone marked `retention`. It MUST be safe to run in several replicas at once.
-- **MUN-52** On S3, objects MUST be tagged `ouo-retention=<n>d` where n is the project's retention in whole days plus 2, and Muninn MAY own the matching bucket lifecycle rules. The rules are a safety net for when Muninn is down; the sweeper is what makes a replay disappear as a whole.
+- **MUN-51** A sweeper MUST delete a replay, as a whole and with a tombstone marked `retention`, when the newest object under its prefix is older than the project's retention. It finds this by listing each project's keys with their last-modified times, every `retention.sweep_interval`. That is one list request per 1000 objects stored; a cheaper index (for example a day marker per replay) is a later optimisation. The sweeper MUST be safe to run in several replicas at once.
+- **MUN-52** On S3, objects MUST be tagged `ouo-retention=<n>d`, where n is the project's retention in whole days plus the days of `tombstone_ttl`, or `ouo-retention=keep` for retention `0`. Muninn MAY own the matching bucket lifecycle rules. The rules are a safety net for when Muninn is down; the sweeper is what makes a replay disappear as a whole. A changed retention applies to the sweeper at once and to tags only for objects written afterwards.
 - **MUN-53** A request for one tenant MUST NOT read, list or delete another tenant's keys. A request for one project MUST NOT reach another project's keys.
 - **MUN-54** With multi-tenancy off, Muninn MUST use tenant `anonymous` and ignore `X-Scope-OrgID`.
 
@@ -355,7 +388,6 @@ Delete by user, by project or by time range is composed by the caller (the BFF o
 | `limits.max_chunk_bytes` | 1 048 576 | Record rejected, `too_large` |
 | `limits.max_attribute_bytes` | 16 384 | Record rejected, `bad_attribute` |
 | `limits.max_request_bytes` | 16 777 216 | 413 |
-| `limits.ingest_bytes_per_second` (per tenant and per project) | unlimited | 429 with `Retry-After` |
 | `stream_idle_timeout` | 30 min | Stream becomes `partial` |
 | `tombstone_ttl` | 168 h | Tombstone removed |
 | `retention.default` | 720 h | Replay swept |
@@ -387,16 +419,17 @@ Checked by a suite that runs against a real Muninn with a filesystem store and a
 |---|---|
 | MUN-5, MUN-11, MUN-12 | A table of bad records: each is rejected with its reason, counted, and its neighbours in the same request are stored |
 | MUN-6, MUN-7 | A chunk with an unknown format and unknown attributes is stored and returned unchanged |
-| MUN-8 | End record replacement table |
+| MUN-8, MUN-21 | Two end records for one stream: the first stays |
+| MUN-9 | Injected internal error on ingest answers 503 |
 | MUN-10 | Request over the limit answers 413 and stores nothing |
 | MUN-13, MUN-14, MUN-20, MUN-21 | Same chunk twice from two replicas at once: one object, two successes. Same identity with other bytes: `conflict`, first bytes still served |
-| MUN-15, MUN-40 to MUN-42 | Delete, then send a late chunk: success, not stored, replay still absent |
+| MUN-15, MUN-40 to MUN-44 | Delete, then send a late chunk: success, not stored, replay still absent. Chunk written during a delete is gone after the tombstone is swept. New replay in a session whose replays were deleted is stored |
 | MUN-16, MUN-17 | Object store paused: 503, then retry stores everything once. Kill Muninn right after a 2xx: the chunk is readable after restart |
 | MUN-18 | Chunks in reverse order, end record first: same manifest as in order |
 | MUN-30 to MUN-33 | State table: complete, gap, no end record before and after idle timeout, late chunk closing a gap |
-| MUN-34, MUN-35 | Range on an `identity` chunk; `Content-Encoding` on a `gzip` chunk; 304; 406 |
+| MUN-34 | `Content-Encoding` on a `gzip` chunk, none on an `identity` chunk; bytes equal the bytes sent |
 | MUN-50 to MUN-52 | Fake clock past retention: replay gone as a whole, tombstone present, tags set |
 | MUN-53, MUN-54 | Cross-tenant and cross-project reads answer 404 |
 | COL-1 to COL-5, COL-8 | Against the real ouo-collector: 2xx only after the queue write (kill the Collector right after a 2xx, restart, chunk reaches Muninn); Muninn down, telemetry still flows; queue full answers 503; restart drains the queue |
-| COL-6, COL-7 | Loki holds one record per chunk with the reference and no body |
+| COL-6, COL-7 | Loki holds a record per chunk with the reference and an empty body |
 | RDR-1 to RDR-5 | Player tests in the plugin, against recorded manifests |
