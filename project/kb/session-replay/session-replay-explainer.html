@@ -72,6 +72,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <a href="#t4">4 · Browser techniques</a>
 <a href="#t5">5 · Mobile and Flutter</a>
 <a href="#t6">6 · Shipping as chunks</a>
+<a href="#t7">7 · Buzz words aside</a>
 </nav>
 
 <!-- ============================ TOPIC 1 ============================ -->
@@ -170,7 +171,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <tr><td><b>Pictures</b> (mobile)</td><td>What the user saw, including custom drawing and maps, at reduced resolution and frame rate (typically 1 fps)</td><td>Largest: Sentry video 165–212 KB/min masked; PostHog screenshots up to ~1.2 MB/min at 1 change/s (inferred); a static screen still costs about 7 KB/s as Sentry video</td><td>Rendering or copying the window, scaling, JPEG/WebP or H.264 encoding</td><td>Hard: boxes must be painted over the right pixels. If a view moves between the tree walk and the copy, the box misses (ouo drops such frames: "fails closed")</td><td>Scroll smoothness between frames; text is not searchable; anything masked is gone for good</td></tr>
 <tr><td><b>Draw commands</b></td><td>Exact pixels, re-rendered at any size</td><td>Depends on the scene: cheap for simple UI, huge for images and animations (every bitmap must be shipped)</td><td>Intercepting every draw call; serialising arguments</td><td>Precise: mask at the call (<code>drawText</code> → rectangle), no misalignment</td><td>Needs a player that implements the platform's drawing API; versions drift; GPU-only content (video, Metal, GL surfaces) bypasses the calls</td></tr>
 </table></div>
-<p class="src">Byte numbers come from Step 6's measurements and vendor docs, collected in <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/mobile-replay-evidence.md">vendor-internals/mobile-replay-evidence.md</a> (PR #175, which states each method) and Step 4's <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Different apps and screens: these are not like-for-like. No draw-command numbers were measured. Device work is qualitative here; Step 5 owns measured overhead.</p>
+<p class="src">Byte numbers come from Step 6's measurements and vendor docs, collected in <a href="../vendor-internals/mobile-replay-evidence.md">vendor-internals/mobile-replay-evidence.md</a> (PR #175, which states each method) and Step 4's <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Different apps and screens: these are not like-for-like. No draw-command numbers were measured. Device work is qualitative here; Step 5 owns measured overhead.</p>
 <div class="key">The decisive difference is <b>where the knowledge of "what is private" meets the data</b>. In tree, wireframe and draw-command capture, masking is a transformation of structured data (a string becomes <code>***</code>). In picture capture, masking is geometry: you compute rectangles from one tree walk and paint them on pixels copied at a slightly different moment. That gap is where picture-based recorders leak, and why their masking code is the biggest part of them.</div>
 
 <h3 id="t2-hybrid">2.2 Nobody is pure</h3>
@@ -229,7 +230,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <p>Capturing and sending are separate decisions. Every SDK keeps captured data in a buffer and uploads it on one of four triggers. <b>Time</b>: Sentry web 5 s after the last event (at most 5.5 s), Datadog 5 s, PostHog 2 s, ouo mobile 5 s. <b>Size</b>: Datadog 60,000 compressed bytes, under the browser's 64 KB unload budget; PostHog about 0.9 MB; ouo 1 MiB of images. <b>Lifecycle</b>: tab hidden, page hide, app background. <b>An error</b>: in buffer mode Sentry keeps 30 to 60 s in memory and sends it only when an error happens. Lifecycle is the trigger that matters most, because it is the last moment the code is guaranteed to run. On the web after <code>visibilitychange → hidden</code> the tab may be killed without another event; on iOS, after <code>didEnterBackground</code> the app may be suspended within seconds.</p>
 <div class="key">The shape to remember: <b>a change signal decides <em>whether</em> there is anything to capture, a clock decides <em>how often</em> at most, a hash decides <em>whether it is worth sending</em>, and the lifecycle decides <em>when it must go out</em>.</b> The web gets the first for free (MutationObserver). Mobile SDKs approximate it with run-loop observers, draw listeners, swizzled layers or post-frame callbacks, then cap it with a clock.</div>
 <h2 id="t4">4 · Browser techniques, in source</h2>
-<p>Every flow below is a step-through: press <b>next</b> (or ▶) and the box doing the work lights up, with the exact file and lines at a pinned release. Versions: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Wire formats (envelopes, segment framing, Datadog's Change table) are already in Step 6 and not repeated: <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
+<p>Every flow below is a step-through: press <b>next</b> (or ▶) and the box doing the work lights up, with the exact file and lines at a pinned release. Versions: rrweb <code>2.2.2</code>, Sentry's rrweb fork <code>2.45.0</code>, sentry-javascript <code>11.11.0</code>, posthog-js <code>1.447.9</code>, Datadog browser-sdk <code>v7.17.1</code>, OpenReplay <code>v1.28.0</code>, Highlight at commit <code>3bf0021</code>, Clarity <code>v0.8.77</code>. Wire formats (envelopes, segment framing, Datadog's Change table) are already in Step 6 and not repeated: <a href="../vendor-internals/sentry/browser-sdk/replay-browser.md">Sentry replay-browser.md</a>, <a href="../vendor-internals/sentry/wire-format/replay-wire.md">replay-wire.md</a>, <a href="../vendor-internals/datadog/wire-format/browser-replay-format.md">Datadog browser-replay-format.md</a>.</p>
 <div class="key">The family tree: <b>rrweb</b> is the engine almost everyone uses. <b>Sentry</b>, <b>PostHog</b> and <b>Highlight</b> each ship their <em>own fork</em> of it and wrap it with buffering, compression and upload. <b>Datadog</b>, <b>OpenReplay</b> and <b>Clarity</b> wrote their own recorders with the same idea (serialise, observe, diff) and different encodings.</div>
 <div id="flows"></div>
 
@@ -246,7 +247,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 </table></div>
 <p class="src">Each cell is backed by a step in the flows above, except the two marked "(not read in code)".</p>
 <h2 id="t5">5 · Mobile and Flutter techniques, in source</h2>
-<p>Same format as topic 4. Versions: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
+<p>Same format as topic 4. Versions: sentry-cocoa <code>9.33.0</code>, sentry-java <code>8.63.0</code>, posthog-ios <code>3.94.3</code>, posthog-android <code>android-v3.76.1</code>, dd-sdk-ios <code>3.21.0</code>, dd-sdk-android <code>3.16.0</code>, sentry-react-native <code>8.34.0</code>, posthog-react-native <code>4.86.0</code>, dd-sdk-reactnative <code>3.11.0</code>, sentry-dart <code>10.3.0</code>, posthog-flutter <code>5.60.1</code>, dd-sdk-flutter <code>v1.0.0-preview.17</code> (a pre-release, linked by commit), OpenReplay iOS <code>1.0.26</code>, Android <code>v1.1.17</code>. Measured bytes and wire formats are in Step 6: <a href="../vendor-internals/sentry/mobile-sdks/replay-mobile.md">Sentry replay-mobile.md</a>, <a href="../vendor-internals/datadog/mobile-sdks/mobile-replay-wireframes.md">Datadog mobile-replay-wireframes.md</a>, <a href="../vendor-internals/posthog/mobile-sdks/replay-wireframe-vs-screenshot.md">PostHog replay-wireframe-vs-screenshot.md</a>.</p>
 <div class="key">Three camps: <b>Sentry</b> ships <em>video</em> (masked screenshots at 1 fps, H.264, one MP4 per 5 s). <b>Datadog</b> ships <em>wireframes</em> with a field-level diff and images sent once by hash. <b>PostHog</b> does both: wireframes (UIKit and Android Views) or one screenshot per changed frame, and forces screenshots on React Native and Flutter. <b>OpenReplay</b> sends JPEG screenshots in gzip archives. React Native is recorded by the <em>native</em> SDKs everywhere; Flutter is recorded <em>in Dart</em> everywhere.</div>
 
 <h3 id="t5-race">5.0 The masking race: why picture recorders are hard</h3>
@@ -331,7 +332,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <tr><td><b>Video</b> (Sentry style)</td><td>the MP4: one segment = one chunk (RPL-25)</td><td>inside the codec (P-frames)</td><td>MP4 bytes</td><td><code>identity</code></td><td>~4.1 KiB (Sentry iOS 49.5 KiB/min in Step 5) to 14–18 KiB (165–212 KB/min in Step 6)</td><td>touches and breadcrumbs: Sentry ships them as rrweb JSON beside the MP4</td></tr>
 <tr><td><b>Draw commands</b></td><td>full display list</td><td>changed layers</td><td>binary or JSON ops</td><td>gzip</td><td>not measured by anyone in this repo</td><td>bitmaps, by hash</td></tr>
 </table></div>
-<p class="src">Byte sources: ouo and Sentry per minute from Step 5 <a href="../client-sdk-state/overhead.md">overhead.md</a> (light reference journeys; the 10,000-node page figure is in the same entry); Datadog and Sentry video from Step 6 <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a> and Step 4 <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Per-chunk values are the per-minute figures divided by 12, not measurements of chunks.</p>
+<p class="src">Byte sources: ouo and Sentry per minute from Step 5 <a href="../client-sdk-state/overhead.md">overhead.md</a> (light reference journeys; the 10,000-node page figure is in the same entry); Datadog and Sentry video from Step 6 <a href="../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a> and Step 4 <a href="../client-sdk-features/mobile-replay-format-evidence.md">mobile-replay-format-evidence.md</a>. Per-chunk values are the per-minute figures divided by 12, not measurements of chunks.</p>
 
 <h3 id="t6-options">6.4 The choices still open, with what each costs</h3>
 <div class="wrap"><table>
@@ -346,6 +347,93 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 </table></div>
 <div class="key">What survives every option: the chunk record itself. Identity (<code>session.id</code>, replay, stream, sequence), the keyframe flag, the format and encoding labels and the hash are the same whether the body is rrweb JSON, wireframe records, JPEG tiles or an MP4. That is exactly what RPL-23 asks for ("the hierarchy, identity, chunk attributes, delivery and end rules MUST NOT depend on the format"), and it is why the mobile format can stay open while the transport is built.</div>
 <p class="src">One limit cuts across options 2 and 3: at page unload all keepalive requests share 64 KiB, and the draft spec keeps them under 60 KiB with telemetry first (TRN-16). A 256 KiB chunk cannot leave during unload; it stays persisted and a later page sends it (TRN-18). Datadog caps segments at 60,000 compressed bytes for the same reason (topic 4.5).</p>
+
+
+<!-- ============================ TOPIC 7 ============================ -->
+<h2 id="t7">7 · Buzz words aside: six steps, and which ones to borrow</h2>
+<p>Strip the vendor names and every recorder in topics 4 and 5 is the same six steps. Only two are real design questions, what to record and how to mask; the rest are plumbing or optimisation.</p>
+<div class="pipe" id="t7steps">
+<div class="st"><b>1 · Hook</b><span class="mut">when to look</span></div>
+<div class="st"><b>2 · Record</b><span class="mut">pixels or structure</span></div>
+<div class="st"><b>3 · Mask</b><span class="mut">hide what is private</span></div>
+<div class="st"><b>4 · Pack</b><span class="mut">images, tiles, video, JSON</span></div>
+<div class="st"><b>5 · Ship</b><span class="mut"><code>ouo.replay.chunk</code></span></div>
+<div class="st"><b>6 · Play</b><span class="mut">a player per format</span></div>
+</div>
+<ul>
+<li><b>Hook</b> is a callback or loop you register: MutationObserver on the web, a run-loop observer on iOS, a draw listener plus a 1 s timer on Android, a post-frame callback in Flutter (topic 3).</li>
+<li><b>Record</b> has only two families. <b>Pixels</b>: take a frame. <b>Structure</b>: describe what is on screen. Mobile wireframes and the web's DOM snapshots are the same family; draw commands are structure too, recorded one level lower.</li>
+<li><b>Mask</b> is where the two families really differ. With structure, masking is a data transform (write <code>•••</code> instead of the text) and cannot miss. With pixels, masking is geometry: boxes painted on a picture that was taken at a slightly different moment from the tree walk, so a moving view can slip out (topic 5.0, the masking race).</li>
+<li><b>Pack</b> is optimisation only. JPEG, 64 px tiles, WebP or H.264 change bytes and CPU, never what the replay shows or whether masking is right. "Tiles vs video" is not a design question.</li>
+<li><b>Ship</b> is ours and stays ours: an OTLP log record through the OpenTelemetry SDK (topic 6).</li>
+<li><b>Play</b> is the hidden cost: every format we record needs a player in the Grafana plugin.</li>
+</ul>
+
+<h3 id="t7-borrow">7.1 Borrow map: who writes each step</h3>
+<p>Pick a recorder. Each step shows whether ouo would <span style="color:var(--ok);font-weight:600">borrow</span> it from open source, <span style="color:var(--blue);font-weight:600">already has</span> it, or would <span style="color:var(--warn);font-weight:600">write</span> it.</p>
+<div class="card">
+<div class="tabs" id="bmTabs"></div>
+<div class="pipe" id="bmPipe"></div>
+<div class="step-caption" id="bmCap"></div>
+<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--ok)"></i>borrowed, copied at a pinned tag</span><span><i class="sw" style="background:var(--blue)"></i>already in ouo</span><span><i class="sw" style="background:var(--warn)"></i>ouo writes it</span></div>
+</div>
+
+<h3 id="t7-licences">7.2 Can we copy it? Licences, checked 2026-11-11</h3>
+<div class="wrap"><table>
+<tr><th>Project</th><th>Licence</th><th>What copying needs</th></tr>
+<tr><td>sentry-cocoa, sentry-java, sentry-javascript, sentry-dart</td><td>MIT</td><td>keep the copyright and licence text with the copied files</td></tr>
+<tr><td>posthog-ios, posthog-android</td><td>MIT</td><td>same</td></tr>
+<tr><td>rrweb (already used by the ouo web SDK)</td><td>MIT</td><td>same</td></tr>
+<tr><td>dd-sdk-ios, dd-sdk-android</td><td>Apache-2.0</td><td>keep the licence and NOTICE, mark changed files</td></tr>
+</table></div>
+<p class="src">Read from each repository's <code>LICENSE</code> / <code>LICENSE.md</code> on GitHub. Sentry's server is under a different licence; only the SDKs are MIT. Not legal advice: one look by a lawyer before the first release that ships copied code.</p>
+
+<h3 id="t7-order">7.3 Order: start with the format we can already play</h3>
+<ol>
+<li><b>Sentry video (iOS, then Android).</b> The plugin already plays <code>kind: "video"</code> from the Sentry bridge (<a href="../../../docs/adr-archive/0008-sentry-sdk-bridge.md">ADR-0008</a>, <a href="../../../plugins/ouo11y-rum-app/src/utils/video.ts">video.ts</a>), so the first borrowed recorder needs almost no player work. A spike session is porting the iOS core now.</li>
+<li><b>PostHog wireframes.</b> PostHog writes mobile screens as rrweb-shaped events, close to the web player ouo already has. Not checked in the player code yet.</li>
+<li><b>Datadog wireframes</b> last. Their player was not found in the open; assume ouo writes the renderer.</li>
+</ol>
+<p>Each chunk names its format in <code>ouo.replay.format</code> (for example <code>sentry-video</code>, later <code>posthog-wireframe</code>), so one SDK can carry several recorders and the reader picks a decoder per chunk, as the draft spec already allows (topic 6.4, choice 7).</p>
+<div class="key">What borrowing Sentry's recorder gives up, measured on the Step 5 light journey: a static screen no longer costs zero bytes (Sentry sends a full picture at the start of every 5 s segment), and the drop-if-moving mask check is gone. Bytes: Sentry iOS 49.5 KiB/min vs ouo 38.8; Android about 193 vs 142 (<a href="../client-sdk-state/overhead.md">overhead.md</a>). The drop-if-moving check can be kept as a small patch on the borrowed code if the masking experiment shows Sentry's masking leaks.</div>
+
+<h3 id="t7-qa">7.4 Your questions, answered from the code</h3>
+<div class="card"><b>ouo also captures about once a second. What is the difference from Sentry?</b>
+<p>The hook and the rate are the same idea. The differences are in mask and pack:</p>
+<div class="wrap"><table>
+<tr><th></th><th>ouo mobile today</th><th>Sentry</th></tr>
+<tr><td>Static screen</td><td>nothing sent: tiles are hashed, no change means no bytes</td><td>a frame every second anyway: Android re-sends the last bitmap, iOS repeats it inside the video</td></tr>
+<tr><td>Small change (spinner, one field)</td><td>only the changed 64 px tiles, as JPEG patches</td><td>the codec sends only the changed blocks</td></tr>
+<tr><td>Scroll</td><td>every tile changes, so a full JPEG</td><td>video wins: the codec says "these blocks moved up 12 px"</td></tr>
+<tr><td>Masked view moving</td><td>frame dropped (fails closed)</td><td>kept: Android walks the tree after the copy, iOS reads the animation layers' live positions</td></tr>
+</table></div>
+<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245">SentryUIRedactBuilder.swift L136–245</a></p>
+</div>
+<div class="card"><b>Why does H.264 encode an unchanged frame almost for free?</b>
+<p>The encoder cuts each frame into 16×16-pixel blocks. In a P-frame (a frame stored as changes from the one before), a block that matches the previous frame is marked <i>skip</i>: about one bit, no pixels. A block that moved costs a short motion vector plus a small correction. So an unchanged frame is a few dozen bytes. The catch: Sentry iOS forces a full picture (key frame) at least every 6 frames (<code>MaxKeyFrameInterval = 6</code>), and every 5 s segment is its own MP4 that starts with one. So a static screen still costs one full picture per segment; Step 6 measured about 36 KB per idle 5 s segment on Android.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440">SentryOnDemandReplay.swift L381–440</a> · <a href="../vendor-internals/mobile-replay-evidence.md">mobile-replay-evidence.md</a></p>
+</div>
+<div class="card"><b>When does ouo export frames?</b>
+<p>A chunk closes at the first of: 5 s, 1 MiB of images, pause or background, a session rotation, a screen-size change. It is written to disk, then sent as its own request with retries. A chunk with no frames and no touches is not sent. The draft spec keeps time and lifecycle and lowers the size target to 256 KiB (hard limit 1 MiB).</p>
+<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="../opentelemetry/rum-semantic-conventions/sdk-spec.md">sdk-spec.md</a> §11 (RPL-10)</p>
+</div>
+<div class="card"><b>Does Sentry drop frames in motion, or capture faster?</b>
+<p>Neither. iOS keeps its rate during scrolling, waits (at most 1 s) while 4 or more animations run, and backs off to one frame per 2 s when a capture takes 150 ms or more. Android skips at most one frame that was drawn during the copy. Sentry trusts its timing; ouo refuses the frame. Neither has been measured for leaks: that is the masking-experiment session.</p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438">SentrySessionReplay.swift L365–438</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayCaptureGuard.swift#L7-L48">SentrySessionReplayCaptureGuard.swift</a></p>
+</div>
+<div class="card"><b>"My app moves much faster than once a second, yet Sentry replays look acceptable."</b>
+<p>They are 1 fps. Two things hide it (reasoning, not measured): most app time is spent on still screens, where 1 fps loses nothing; and the player draws touches and navigation breadcrumbs from their own timestamps, so taps and screen changes look precise even though the pixels between them are one second apart. A fling or an animation does look like a jump.</p>
+</div>
+<div class="card"><b>Your five cases</b>
+<ol>
+<li><b>One frame a second, masked reliably.</b> The open question; the experiment compares drop-if-moving, walk-after-copy, presentation layers, and two box fixes (union of before/after walks, boxes grown by speed).</li>
+<li><b>Raise the rate when something changes?</b> No pixel recorder does it today. Datadog iOS captures structure up to every 100 ms when layers change, which is cheap because wireframes are small. For pixels, a higher rate costs main-thread time per capture, not mainly bytes. Worth a later experiment within ouo's 100 ms/s time budget.</li>
+<li><b>Several still frames.</b> Already solved by packing: ouo sends nothing; video sends skip blocks.</li>
+<li><b>Only a field, a button or a spinner changes.</b> Also solved by packing: tiles send one tile, video sends a few blocks. Leave it.</li>
+<li><b>When to send, bandwidth or phone compute?</b> Time (5 s), size (256 KiB target), lifecycle (background), and a disk queue for retries. The expensive part on the phone is capture and masking on the main thread, not packing; the spike measures it.</li>
+</ol>
+</div>
+<p class="src">The proposed decision record for this topic is <a href="../../../docs/adr/0018-borrow-the-replay-recorder.md">ADR-0018 (proposed)</a>. It is not accepted until the founder decides.</p>
 
 </main>
 <script>
@@ -503,7 +591,7 @@ var T={
   wire:function(e){var b='"id":'+e.id+',"x":'+e.x*2+',"y":'+e.y*2+',"width":'+e.w*2+',"height":'+e.h*2;var m={bg:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#FFFFFFFF"}}',text:'{'+b+',"type":"text","text":"'+(masked&&e.t?mask(e.t,'x'):e.t)+'","textStyle":{"size":'+e.size*2+'}}',img:'{'+b+',"type":"placeholder","label":"Content Image"}',toggle:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#34C759FF","cornerRadius":22}}',custom:'{'+b+',"type":"shape","shapeStyle":{"backgroundColor":"#F6F4EFFF"}}',button:'{'+b+',"type":"text","text":"'+(masked?mask(e.t,'x'):e.t)+'","shapeStyle":{"backgroundColor":"#2B5FA8FF"}}'};return m[e.k]},
   head:'// Datadog mobile FullSnapshot (type 10), shape as captured\n// from dd-sdk-ios 3.21.0 in Step 6\n{"type":10,"data":{"wireframes":[',
   tail:']}}\n// later: type 11 with {"adds":[…],"removes":[{"id":7}],\n//   "updates":[{"id":5,"text":"xxxxx"}]}  (Heckel diff, per field)',
-  src:'Real captured wireframes: <a href="https://github.com/ouo11y/ouo11y/blob/claude/step6-vendor-research/project/kb/vendor-internals/datadog/wire-format/fixtures/ios/replay-full-snapshot.json">Step 6 fixture replay-full-snapshot.json</a> (PR #175). Mapping view → wireframe: <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98">UILabelRecorder</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIImageViewRecorder.swift#L36-L140">UIImageViewRecorder</a> (image or placeholder); PostHog iOS mapping: <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayIntegration.swift#L1451-L1586">toWireframe</a>. The update record schema: <a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/json/schemas/session-replay/mobile/mutation-payload-schema.json#L1-L51">mutation-payload-schema.json</a>.',
+  src:'Real captured wireframes: <a href="../vendor-internals/datadog/wire-format/fixtures/ios/replay-full-snapshot.json">Step 6 fixture replay-full-snapshot.json</a> (PR #175). Mapping view → wireframe: <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98">UILabelRecorder</a>, <a href="https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UIImageViewRecorder.swift#L36-L140">UIImageViewRecorder</a> (image or placeholder); PostHog iOS mapping: <a href="https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/Replay/PostHogReplayIntegration.swift#L1451-L1586">toWireframe</a>. The update record schema: <a href="https://github.com/DataDog/dd-sdk-android/blob/3.16.0/features/dd-sdk-android-session-replay/src/main/json/schemas/session-replay/mobile/mutation-payload-schema.json#L1-L51">mutation-payload-schema.json</a>.',
   m:[['Bytes','low',2],['Device work','medium (tree walk)',3],['Fidelity','"looks like"',3],['Masking safety','high',5]]},
  pix:{name:'Screenshots / video (Sentry, PostHog, ouo)',
   cap:'The recorder copies the window\'s pixels, walks the view tree to find rectangles to hide, paints them, scales the image down and encodes it (JPEG/WebP per frame, or H.264 for 5 s of frames). The player shows images. The chart survives, because pixels do not care how they were drawn. The text does not: it is under the boxes, forever.',
@@ -868,6 +956,69 @@ document.getElementById('chSend').onclick=function(){var f=0,N=reduce?20:60;var 
   if(f>=N){clearInterval(iv)}},reduce?120:45)};
 draw();
 new MutationObserver(function(){draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+<script>
+(function(){
+var SC='https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/',SJ='https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/',
+DI='https://github.com/DataDog/dd-sdk-ios/blob/3.21.0/DatadogSessionReplay/Sources/',PI='https://github.com/PostHog/posthog-ios/blob/3.94.3/PostHog/',
+PA='https://github.com/PostHog/posthog-android/blob/android-v3.76.1/posthog-android/src/main/java/com/posthog/android/replay/PostHogReplayIntegration.kt';
+var STEPS=['Hook','Record','Mask','Pack','Ship','Play'];
+var CH='<code>ouo.replay.chunk</code> through the OpenTelemetry Logs SDK, with <code>ouo.replay.format</code> naming the format (topic 6).';
+var R=[
+{n:'Sentry video',s:[
+['b','Run-loop observer on iOS, draw listener plus a 1 s loop on Android; 1 fps, back-off and the animation guard come with it.',[['SentrySessionReplay.swift',SC+'Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438'],['WindowRecorder.kt',SJ+'WindowRecorder.kt#L84-L115']]],
+['b','Pixels: render the window (iOS) or PixelCopy (Android).',[['SentryViewPhotographer.swift',SC+'Core/Tools/ViewCapture/SentryViewPhotographer.swift#L66-L96'],['ScreenshotRecorder.kt',SJ+'ScreenshotRecorder.kt#L54-L97']]],
+['b','Boxes from the view tree, painted with the average colour. ouo may add its drop-if-moving check on top, depending on the masking experiment.',[['SentryUIRedactBuilder.swift',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245']]],
+['b','H.264 MP4 per 5 s segment (AVAssetWriter / MediaCodec), hardware encoder.',[['SentryOnDemandReplay.swift',SC+'Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440']]],
+['o',CH+' The seam: Sentry\'s envelope and hub are cut out and replaced by an ouo segment callback.',[]],
+['x','The plugin already plays <code>kind: "video"</code> from the Sentry bridge (ADR-0008).',[['video.ts','../../../plugins/ouo11y-rum-app/src/utils/video.ts']]]]},
+{n:'PostHog wireframes',s:[
+['b','Run-loop observer at order 2,100,000 with a 1 s throttle and back-off up to 8 s.',[['ApplicationRunLoopPublisher.swift',PI+'ApplicationRunLoopPublisher.swift#L85-L136']]],
+['b','Structure: one wireframe per view (text, image, shape), or a screenshot where a view cannot be described.',[['PostHogReplayIntegration.kt',PA+'#L1242-L1301']]],
+['b','A data transform: masked text is replaced before it is written. Screenshot fallback frames still need boxes.',[['PostHogReplayIntegration.kt',PA+'#L2449-L2736']]],
+['b','rrweb-shaped JSON events; a full snapshot per changed frame, deduplicated by hash.',[]],
+['o',CH,[]],
+['w','Close to the rrweb player ouo already ships for the web, but mobile wireframes need a small renderer. Not checked in code yet.',[]]]},
+{n:'Datadog wireframes',s:[
+['b','Swizzled CALayer changes (iOS, at most every 100 ms); a full snapshot every 3 s on Android.',[['CALayerSwizzler.swift',DI+'Recorder/ScreenChangeMonitor/CALayerSwizzler.swift#L18-L117']]],
+['b','Structure: node recorders per view class; SwiftUI through a private renderer.',[['ViewTreeRecorder.swift',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/ViewTreeRecorder.swift#L30-L145']]],
+['b','A data transform per node recorder.',[['UILabelRecorder.swift',DI+'Recorder/ViewTreeSnapshotProducer/ViewTreeSnapshot/NodeRecorders/UILabelRecorder.swift#L29-L98']]],
+['b','Heckel diff of wireframes; images sent once by MD5.',[['Diff+SRWireframes.swift',DI+'Processor/Diffing/Diff+SRWireframes.swift#L31-L40']]],
+['o',CH,[]],
+['w','ouo writes the renderer: no open-source Datadog player was found.',[]]]},
+{n:'rrweb (web, today)',s:[
+['x','MutationObserver and input listeners. The ouo web SDK already uses rrweb.',[]],
+['x','Structure: the DOM, serialised with node ids.',[]],
+['x','A data transform: masked text keeps its length as <code>****</code>.',[]],
+['x','JSON events, gzip.',[]],
+['o',CH+' Today the web SDK posts to the receiver on port 4319; the OTLP path is the draft spec.',[]],
+['x','The plugin\'s rrweb player.',[]]]},
+{n:'ouo frames (mobile, today)',s:[
+['x','About 1 fps within a 100 ms/s time budget; navigation-only mode on low-RAM devices.',[['mobile-replay.md','../../../docs/specs/mobile-replay.md']]],
+['x','Pixels.',[]],
+['x','Boxes from the view tree; the frame is dropped if a masked view moved (fails closed).',[]],
+['x','JPEG frames with 64 px tile patches; nothing sent for a static screen (ADR-0014).',[['ADR-0014','../../../docs/adr-archive/0014-replay-tiles-in-frames.md']]],
+['x','Custom JSON envelope today; <code>ouo.replay.chunk</code> in the draft spec.',[]],
+['x','The plugin\'s frames player.',[]]]}
+];
+var COL={b:'var(--ok)',x:'var(--blue)',o:'var(--blue)',w:'var(--warn)'},LBL={b:'borrowed',x:'already in ouo',o:'ouo (already planned)',w:'ouo writes it'};
+var tabs=document.getElementById('bmTabs'),pipe=document.getElementById('bmPipe'),cap=document.getElementById('bmCap');if(!tabs)return;
+var cur=0,step=0;
+function render(){
+ tabs.querySelectorAll('button').forEach(function(b,i){b.classList.toggle('on',i===cur)});
+ var r=R[cur];
+ pipe.innerHTML=r.s.map(function(s,i){return '<div class="st'+(i===step?' act':'')+'" data-i="'+i+'" style="cursor:pointer;border-top:5px solid '+COL[s[0]]+'"><b>'+(i+1)+' · '+STEPS[i]+'</b><span class="mut">'+LBL[s[0]]+'</span></div>'}).join('');
+ pipe.querySelectorAll('.st').forEach(function(e){e.onclick=function(){step=+e.dataset.i;render()}});
+ var s=r.s[step];
+ cap.innerHTML='<b>'+r.n+' · '+STEPS[step]+'</b>: '+s[1]+(s[2].length?'<div class="src" style="margin-top:4px">Source: '+s[2].map(function(l){return '<a href="'+l[1]+'">'+l[0]+'</a>'}).join(' · ')+'</div>':'');
+}
+R.forEach(function(r,i){var b=document.createElement('button');b.className='b';b.type='button';b.textContent=r.n;b.onclick=function(){cur=i;step=0;render()};tabs.appendChild(b)});
+render();
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,auto=null;
+if(!reduce){auto=setInterval(function(){step=(step+1)%6;render()},2600);
+ document.getElementById('t7-borrow').parentNode.querySelector('#bmTabs').addEventListener('click',function(){clearInterval(auto)});
+ pipe.addEventListener('click',function(){clearInterval(auto)});}
 })();
 </script>
 </body></html>
