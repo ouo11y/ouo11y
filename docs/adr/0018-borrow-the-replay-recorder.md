@@ -1,4 +1,4 @@
-# ADR-0018: Borrow the mobile replay recorder core instead of writing it
+# ADR-0018 Borrow the mobile replay recorder core instead of writing it
 
 Status: **proposed** (2026-11-11). Not accepted until the founder decides.
 
@@ -14,6 +14,8 @@ Every replay recorder is six steps: hook, record (pixels or structure), mask, pa
 4. **Masking**: keep ouo's drop-if-moving check as a patch on the copied code if the masking experiment shows the borrowed masking leaks.
 
 ## Consequences
+
+- The OTLP `ouo.replay.chunk` path (sdk-spec §11, decision D3) is not built, and today's `ouoreplay` receiver accepts only `rrweb` and `frames`; `video` comes in only through the Sentry bridge. "Sentry video first" therefore needs either the OTLP path or `video` accepted by `ouoreplay`.
 
 - Less recorder code to own; upstream fixes arrive through the diff script.
 - A static screen costs one full picture per 5 s segment instead of zero bytes; light-journey bytes rise about 30% (Sentry iOS 49.5 vs ouo 38.8 KiB/min, Android about 193 vs 142, [overhead.md](../../project/kb/client-sdk-state/overhead.md)).

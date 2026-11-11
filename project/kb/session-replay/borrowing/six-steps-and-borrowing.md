@@ -26,7 +26,7 @@ Copy the recorder core (hook, record, mask, pack) at a pinned tag, keep the noti
 
 ## Order
 
-1. **Sentry video**, iOS then Android: the plugin already plays `kind: "video"` from the Sentry bridge ([ADR-0008](../../../../docs/adr-archive/0008-sentry-sdk-bridge.md)). A spike session ports the iOS core.
+1. **Sentry video**, iOS then Android: the plugin already plays `kind: "video"`, which today arrives only through the Sentry bridge ([ADR-0008](../../../../docs/adr-archive/0008-sentry-sdk-bridge.md)). The OTLP `ouo.replay.chunk` path is not built and `ouoreplay` rejects `video`, so an ouo SDK sending video needs one of the two. A spike session ports the iOS core.
 2. **PostHog wireframes**: rrweb-shaped events, close to the existing web player (not checked in player code).
 3. **Datadog wireframes**: no open-source player found; ouo would write the renderer.
 

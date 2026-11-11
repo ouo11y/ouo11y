@@ -10,7 +10,7 @@
 
 ## Verified, and how
 
-- The report opened in the built-in browser: every topic, its animations and toggles, at desktop and 375 px width, light and dark; no console errors; no element wider than the viewport at 375 px (checked with a script over every element).
+- The report opened in the built-in browser: every topic, its animations and toggles, at desktop and 375 px width, light and dark; no console errors; no element wider than the viewport at 375 px. The first check ran only on page load and missed two overflows the reviewer found (the topic 1 Compose picker widened the page to 603 px; the topic 6 record boxes overflowed by 4 px). Fixed with `min-width:0` on grid columns; the check now clicks every control at 375 px and measures the page after each click.
 - Source links: spot checks of line ranges against the pinned tags during the run, plus an automated check over the report and every entry in `project/kb/session-replay/`: 673 GitHub URLs (337 files at their tags, fetched raw, each line range within the file; 33 directory and repo links returned 200). Three ranges ran one to three lines past the end of their file and were clamped.
 - `lychee --offline` clean.
 

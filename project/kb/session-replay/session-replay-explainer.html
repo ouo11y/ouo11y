@@ -23,7 +23,7 @@ nav.toc a.todo{color:var(--mut);border-style:dashed}
 .btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 button.b{font:13px system-ui,sans-serif;background:var(--soft);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
 button.b.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid2>*{min-width:0}
 @media (max-width:720px){.grid2{grid-template-columns:1fr}}
 .wrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
@@ -286,7 +286,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <div class="card" style="margin:0"><b>Today (MVP-era code)</b>
 <ul style="padding-left:18px;margin:6px 0">
 <li>The SDK posts a gzip <b>JSON chunk</b> to <code>POST /v1/replay/chunks</code> on the Collector's <code>ouoreplay</code> receiver (port 4319): <a href="../../../collector/receiver/ouoreplayreceiver/config.go">config.go</a>.</li>
-<li>Three <code>kind</code>s: <code>rrweb</code> (events), <code>frames</code> (JPEG full images and tile patches, base64 in the JSON: <a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>) and <code>video</code> (MP4 base64, made by the Sentry bridge from Sentry's <code>replay_video</code>: <a href="../../../docs/specs/sentry-bridge.md">sentry-bridge spec</a> §9–11).</li>
+<li><code>ouoreplay</code> accepts two <code>kind</code>s: <code>rrweb</code> (events) and <code>frames</code> (JPEG full images and tile patches, base64 in the JSON: <a href="../../../docs/specs/mobile-replay.md">mobile-replay spec</a>; <a href="../../../collector/receiver/ouoreplayreceiver/chunk.go">chunk.go</a>). A third, <code>video</code> (MP4 base64), is made only by the Sentry bridge, the <code>ouosentry</code> receiver on port 4320, from Sentry's <code>replay_video</code>: <a href="../../../docs/specs/sentry-bridge.md">sentry-bridge spec</a> §9–11.</li>
 <li>The receiver validates the chunk and wraps the <b>whole JSON</b> as the bytes body of one log record, with <code>session.id</code>, <code>ouo.replay.seq</code>, <code>ouo.replay.kind</code> and <code>ouo.replay.encoding = json</code>: <a href="../../../collector/receiver/ouoreplayreceiver/receiver.go">receiver.go</a> (<code>buildLogs</code>).</li>
 <li>The <code>ouoreplay</code> exporter posts the body on to rum-api, which stores one file per chunk; a session cannot mix kinds (409).</li>
 </ul></div>
@@ -302,7 +302,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <div class="wrap" style="margin-top:10px"><table>
 <tr><th>Field</th><th>Today</th><th>Draft spec</th></tr>
 <tr><td>Transport</td><td>custom HTTP JSON, port 4319</td><td>OTLP/HTTP protobuf, own queue (TRN-3)</td></tr>
-<tr><td>Which decoder</td><td><code>ouo.replay.kind</code>: rrweb, frames, video</td><td><code>ouo.replay.format</code> with a version, e.g. <code>rrweb/2</code></td></tr>
+<tr><td>Which decoder</td><td><code>ouo.replay.kind</code>: rrweb, frames (and video from the Sentry bridge)</td><td><code>ouo.replay.format</code> with a version, e.g. <code>rrweb/2</code></td></tr>
 <tr><td>Order</td><td><code>ouo.replay.seq</code> per session</td><td><code>ouo.replay.sequence</code> per stream, plus <code>segment.index</code> and <code>keyframe</code></td></tr>
 <tr><td>Body</td><td>the JSON envelope; images and MP4 as base64 inside it</td><td>the format's bytes, compressed as <code>ouo.replay.encoding</code> says</td></tr>
 <tr><td>Integrity</td><td>validated by structure</td><td><code>ouo.replay.sha256</code>, <code>byte_size</code>; de-duplicated by (replay, stream, sequence)</td></tr>
@@ -390,7 +390,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 
 <h3 id="t7-order">7.3 Order: start with the format we can already play</h3>
 <ol>
-<li><b>Sentry video (iOS, then Android).</b> The plugin already plays <code>kind: "video"</code> from the Sentry bridge (<a href="../../../docs/adr-archive/0008-sentry-sdk-bridge.md">ADR-0008</a>, <a href="../../../plugins/ouo11y-rum-app/src/utils/video.ts">video.ts</a>), so the first borrowed recorder needs almost no player work. A spike session is porting the iOS core now.</li>
+<li><b>Sentry video (iOS, then Android).</b> The plugin already plays <code>kind: "video"</code>, which today arrives only through the Sentry bridge (<a href="../../../docs/adr-archive/0008-sentry-sdk-bridge.md">ADR-0008</a>, <a href="../../../plugins/ouo11y-rum-app/src/utils/video.ts">video.ts</a>), so the first borrowed recorder needs almost no player work. A spike session is porting the iOS core now. The OTLP <code>ouo.replay.chunk</code> path is not built yet, and <code>ouoreplay</code> rejects <code>video</code>, so the first borrowed recorder needs one of the two.</li>
 <li><b>PostHog wireframes.</b> PostHog writes mobile screens as rrweb-shaped events, close to the web player ouo already has. Not checked in the player code yet.</li>
 <li><b>Datadog wireframes</b> last. Their player was not found in the open; assume ouo writes the renderer.</li>
 </ol>
@@ -407,7 +407,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 <tr><td>Scroll</td><td>every tile changes, so a full JPEG</td><td>video wins: the codec says "these blocks moved up 12 px"</td></tr>
 <tr><td>Masked view moving</td><td>frame dropped (fails closed)</td><td>kept: Android walks the tree after the copy, iOS reads the animation layers' live positions</td></tr>
 </table></div>
-<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245">SentryUIRedactBuilder.swift L136–245</a></p>
+<p class="src"><a href="../../../docs/specs/mobile-replay.md">mobile-replay.md</a> · <a href="https://github.com/getsentry/sentry-java/blob/8.63.0/sentry-android-replay/src/main/java/io/sentry/android/replay/ScreenshotRecorder.kt#L54-L97">ScreenshotRecorder.kt L54–97</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L437-L472">SentryUIRedactBuilder.swift L437–472</a></p>
 </div>
 <div class="card"><b>Why does H.264 encode an unchanged frame almost for free?</b>
 <p>The encoder cuts each frame into 16×16-pixel blocks. In a P-frame (a frame stored as changes from the one before), a block that matches the previous frame is marked <i>skip</i>: about one bit, no pixels. A block that moved costs a short motion vector plus a small correction. So an unchanged frame is a few dozen bytes. The catch: Sentry iOS forces a full picture (key frame) at least every 6 frames (<code>MaxKeyFrameInterval = 6</code>), and every 5 s segment is its own MP4 that starts with one. So a static screen still costs one full picture per segment; Step 6 measured about 36 KB per idle 5 s segment on Android.</p>
@@ -419,7 +419,7 @@ svg text{fill:var(--fg);font:12px system-ui,sans-serif}
 </div>
 <div class="card"><b>Does Sentry drop frames in motion, or capture faster?</b>
 <p>Neither. iOS keeps its rate during scrolling, waits (at most 1 s) while 4 or more animations run, and backs off to one frame per 2 s when a capture takes 150 ms or more. Android skips at most one frame that was drawn during the copy. Sentry trusts its timing; ouo refuses the frame. Neither has been measured for leaks: that is the masking-experiment session.</p>
-<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438">SentrySessionReplay.swift L365–438</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayCaptureGuard.swift#L7-L48">SentrySessionReplayCaptureGuard.swift</a></p>
+<p class="src"><a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L462-L571">SentrySessionReplay.swift L462–571</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplay.swift#L649-L667">CapturePacing L649–667</a> · <a href="https://github.com/getsentry/sentry-cocoa/blob/9.33.0/Sources/Swift/Integrations/SessionReplay/SentrySessionReplayCaptureGuard.swift#L7-L48">SentrySessionReplayCaptureGuard.swift</a></p>
 </div>
 <div class="card"><b>"My app moves much faster than once a second, yet Sentry replays look acceptable."</b>
 <p>They are 1 fps. Two things hide it (reasoning, not measured): most app time is spent on still screens, where 1 fps loses nothing; and the player draws touches and navigation breadcrumbs from their own timestamps, so taps and screen changes look precise even though the pixels between them are one second apart. A fling or an animation does look like a jump.</p>
@@ -967,9 +967,9 @@ var STEPS=['Hook','Record','Mask','Pack','Ship','Play'];
 var CH='<code>ouo.replay.chunk</code> through the OpenTelemetry Logs SDK, with <code>ouo.replay.format</code> naming the format (topic 6).';
 var R=[
 {n:'Sentry video',s:[
-['b','Run-loop observer on iOS, draw listener plus a 1 s loop on Android; 1 fps, back-off and the animation guard come with it.',[['SentrySessionReplay.swift',SC+'Integrations/SessionReplay/SentrySessionReplay.swift#L365-L438'],['WindowRecorder.kt',SJ+'WindowRecorder.kt#L84-L115']]],
+['b','Run-loop observer on iOS, draw listener plus a 1 s loop on Android; 1 fps, back-off and the animation guard come with it.',[['SentrySessionReplay.swift',SC+'Integrations/SessionReplay/SentrySessionReplay.swift#L462-L571'],['CapturePacing',SC+'Integrations/SessionReplay/SentrySessionReplay.swift#L649-L667'],['WindowRecorder.kt',SJ+'WindowRecorder.kt#L84-L115']]],
 ['b','Pixels: render the window (iOS) or PixelCopy (Android).',[['SentryViewPhotographer.swift',SC+'Core/Tools/ViewCapture/SentryViewPhotographer.swift#L66-L96'],['ScreenshotRecorder.kt',SJ+'ScreenshotRecorder.kt#L54-L97']]],
-['b','Boxes from the view tree, painted with the average colour. ouo may add its drop-if-moving check on top, depending on the masking experiment.',[['SentryUIRedactBuilder.swift',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L136-L245']]],
+['b','Boxes from the view tree, painted with the average colour. ouo may add its drop-if-moving check on top, depending on the masking experiment.',[['SentryUIRedactBuilder.swift',SC+'Core/Tools/ViewCapture/SentryUIRedactBuilder.swift#L437-L472']]],
 ['b','H.264 MP4 per 5 s segment (AVAssetWriter / MediaCodec), hardware encoder.',[['SentryOnDemandReplay.swift',SC+'Integrations/SessionReplay/SentryOnDemandReplay.swift#L381-L440']]],
 ['o',CH+' The seam: Sentry\'s envelope and hub are cut out and replaced by an ouo segment callback.',[]],
 ['x','The plugin already plays <code>kind: "video"</code> from the Sentry bridge (ADR-0008).',[['video.ts','../../../plugins/ouo11y-rum-app/src/utils/video.ts']]]]},
