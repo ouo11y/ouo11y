@@ -12,5 +12,8 @@ Owns `sdk/browser` (`@ouo11y/browser`).
   - [2026-10-24-session-lifecycle.md](summaries/2026-10-24-session-lifecycle.md) N45: rotation on user change, `endSession`, `clearUser`, `device.id`, rum-api `device_id`
   - [2026-10-24-n36a-delivery.md](summaries/2026-10-24-n36a-delivery.md) N36 part A: delivery layer (retry, gzip, keepalive split, IndexedDB offline store), first-party endpoint docs, network-fault e2e in three engines
   - [2026-11-03-p1-privacy-defaults.md](summaries/2026-11-03-p1-privacy-defaults.md) P1 (client JUHI): `maskAllText` default on with `ouo-unmask`, click names masked, `excludeRoutes`, RN `excludeScreens` / `hideScreen()`, hidden marker in the plugin, ADR-0003 revision
+  - [2026-11-12-rebuild-on-the-spec.md](summaries/2026-11-12-rebuild-on-the-spec.md) Rebuilt on the client SDK spec (ADR-0020): spec API and wire, sessions, bypass set, consent, URL sanitising, OTLP replay (structure supported, pixel experimental), fault injection, 157 of 157 web MUSTs recorded with tests, demo app and live-stack verification
+- `scripts/` [build_compliance.py](scripts/build_compliance.py) builds the per-requirement compliance report
+- `findings/` [web-compliance.json](findings/web-compliance.json) the data behind that report
 - `reports/` HTML reports
   - [long-sessions-2026-10-24.html](reports/long-sessions-2026-10-24.html) 1 h soak (Chromium, WebKit) and rrweb cost on 10k / 50k elements

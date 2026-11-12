@@ -67,11 +67,11 @@ App-supplied event and attribute names starting with `session.` or `ouo.` are re
 | `sampling.bypass.perSessionCap` | `10` | Unhandled errors sent from a session that is not sampled |
 | `replay.mode` | `off` | `session` records the whole session; `buffer` keeps a ring and sends it after an unhandled error or `replay.capture()` |
 | `replay.sessionRate`, `replay.bufferRate` | `0`, `0` | Fraction of sampled sessions that record, per mode |
-| `replay.format` | `structure` | `structure` or `pixel` ([Replay](#replay)) |
+| `replay.format` | `structure` | `structure` is the supported format. `pixel` is experimental ([Replay](#replay)) |
 | `replay.bufferSeconds` | `60` | What the buffer ring holds at least |
 | `replay.chunkMaxBytes`, `replay.chunkMaxMs` | 262 144, 5000 | Chunk bounds. Hard limit 1 MiB |
 | `replay.keyframeIntervalMs` | 300 000 | A new keyframe and segment at least this often |
-| `replay.pixelMaxFps`, `replay.pixelMaxSide` | `1`, `1000` | Pixel format only |
+| `replay.pixelMaxFps`, `replay.pixelMaxSide` | `1`, `1000` | Pixel format only (experimental) |
 | `consent.required` | `false` | Start with consent pending |
 | `privacy.urlQueryAllow` | none | Query keys whose values are kept |
 | `privacy.keepUrlFragment` | `false` | Keep the fragment (sanitised when query-shaped) |
@@ -136,9 +136,9 @@ A replay is a series of `ouo.replay.chunk` log records, sent as OTLP/HTTP protob
 
 Chunks are written to IndexedDB before their first send and removed when the Collector accepts them. A later page of the same origin sends what a closed page left behind and ends its stream as `partial`.
 
-Two formats, chosen with `replay.format`:
+Two formats, chosen with `replay.format`. **`structure` is the supported one. `pixel` is experimental**: it is off unless asked for, no player reads it yet, and it may change or be removed.
 
-| | `structure` (`rrweb/2`) | `pixel` (`ouo.frames/1`) |
+| | `structure` (`rrweb/2`) | `pixel` (`ouo.frames/1`), experimental |
 |---|---|---|
 | What is recorded | A description of the DOM: a full snapshot, then what a MutationObserver and input listeners see | Images of the viewport |
 | When | On every DOM change | When the DOM changes, scrolls or resizes, at most `pixelMaxFps` times a second; nothing while the page is still or hidden |

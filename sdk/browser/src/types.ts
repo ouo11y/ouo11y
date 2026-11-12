@@ -22,8 +22,8 @@ export type BeforeSend = (record: OutgoingRecord) => OutgoingRecord | null | und
 export type ReplayMode = "off" | "session" | "buffer";
 /**
  * What replay records. `structure`: a description of the DOM, driven by a MutationObserver, with
- * text replaced by `***` (format `rrweb/2`). `pixel`: masked images of the viewport, taken when the
- * DOM changes (format `ouo.frames/1`).
+ * text replaced by `***` (format `rrweb/2`); the supported format. `pixel`: masked images of the
+ * viewport, taken when the DOM changes (format `ouo.frames/1`); experimental, and no player reads it yet.
  */
 export type ReplayFormat = "structure" | "pixel";
 
@@ -68,7 +68,7 @@ export interface OuoConfig {
     sessionRate?: number;
     /** Fraction of sampled sessions that keep a ring in `buffer` mode. Default 0. */
     bufferRate?: number;
-    /** Default `structure`. */
+    /** Default `structure`, the supported format. `pixel` is experimental. */
     format?: ReplayFormat;
     /** Seconds the buffer ring holds at least. Default 60. */
     bufferSeconds?: number;
