@@ -72,7 +72,7 @@ describe("next to Sentry: one Hermes rejection tracker", () => {
     uninstall();
   });
 
-  // Spec ERR-3 (ADR-0019 step A): instead of warning that Sentry lost its rejections, ouo hands
+  // Spec ERR-3 (ADR-0021 step A): instead of warning that Sentry lost its rejections, ouo hands
   // them to Sentry's current scope, as Sentry's own (replaced) tracker did.
   it("hands the rejection to an initialised Sentry when the app forwards nothing", () => {
     const { host, reject } = fakeHermes();

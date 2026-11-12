@@ -1,5 +1,5 @@
 /**
- * Fault injection (spec section 14, method F; ERR-1, ERR-2, ERR-3, ERR-5, ERR-6; ADR-0019
+ * Fault injection (spec section 14, method F; ERR-1, ERR-2, ERR-3, ERR-5, ERR-6; ADR-0021
  * decision 4). Every seam where SDK code runs on behalf of the host gets a fault, and each test
  * asserts that (a) nothing reaches the host, (b) patched fetch / XHR give exactly what the
  * unpatched one gives, (c) the previous global error handler and the rejection forwarding still

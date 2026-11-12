@@ -1,7 +1,7 @@
 import type { DebugLogger } from "./logger";
 
 /**
- * Failure isolation (spec ERR-1, ERR-5, ERR-6; ADR-0019 decision 4): the one place where SDK
+ * Failure isolation (spec ERR-1, ERR-5, ERR-6; ADR-0021 decision 4): the one place where SDK
  * code is allowed to fail. Every entry point of the SDK (public API, patched fetch / XHR,
  * global handlers, console patch, timers, listeners, OTel processors and exporters, native
  * module calls and callbacks) runs inside `guard.run` or a function made by `guard.wrap`.

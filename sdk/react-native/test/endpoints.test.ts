@@ -116,7 +116,7 @@ describe("initRUM configuration errors", () => {
   const base = { endpoint: "http://otel.test:4318", service: { name: "mobile-store", version: "2.3.0", environment: "test" }, storage: new MemoryAsyncStorage() };
   type Options = Parameters<typeof initRUM>[0];
 
-  // Spec CFG-1 (ADR-0019 step A): invalid configuration no longer throws; the SDK is a no-op.
+  // Spec CFG-1 (ADR-0021 step A): invalid configuration no longer throws; the SDK is a no-op.
   it("is a no-op that installs nothing when projectId or projectToken is missing", () => {
     const before = globalThis.fetch;
     for (const bad of [

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0019 step
+Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0021 step
 A: the names, scope, session id and sampling rules, protobuf and replay over OTLP are step B).
 
 ### Changed

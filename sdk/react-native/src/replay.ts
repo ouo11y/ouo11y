@@ -24,7 +24,7 @@ export interface NativeReplayModule {
   heldReplaySessions?(endpoint: string, options: NativeStartOptions): Promise<NativeHeldSession[]>;
   /** Sends (`keep`) or deletes a held session's chunks. */
   releaseHeldReplay?(endpoint: string, options: NativeStartOptions, sessionId: string, keep: boolean): void;
-  /** Spec API `replay.capture`, `replay.mask`, `replay.unmask`: native support lands with step B of ADR-0019; called when present. */
+  /** Spec API `replay.capture`, `replay.mask`, `replay.unmask`: native support lands with step B of ADR-0021; called when present. */
   capture?(): void;
   mask?(target: unknown): void;
   unmask?(target: unknown): void;

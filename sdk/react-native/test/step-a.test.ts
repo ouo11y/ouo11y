@@ -1,5 +1,5 @@
 /**
- * ADR-0019 step A, part 1: configuration that never throws (CFG-1..3), the spec's API surface
+ * ADR-0021 step A, part 1: configuration that never throws (CFG-1..3), the spec's API surface
  * (API-1, API-3, API-6, LIF-4, LIF-5, REL-5), `beforeSend` (CFG-4), drop counting (ERR-7, ERR-8),
  * no global registration (REL-4), truncation at source (REC-8), the spec version (VER-2).
  */
