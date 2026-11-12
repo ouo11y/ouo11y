@@ -53,7 +53,7 @@ internal class TouchRecorder(private val density: () -> Float, private val onTou
       if (now - lastMoveAt < moveIntervalMs) return
       lastMoveAt = now
     }
-    val d = density()
+    val d = density().let { if (it.isFinite() && it > 0f) it else 1f }
     onTouch(Touch(now, (e.getX(0) / d).toDouble(), (e.getY(0) / d).toDouble(), phase))
   }
 
@@ -61,7 +61,13 @@ internal class TouchRecorder(private val density: () -> Float, private val onTou
     var active = true
 
     override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-      if (active && event != null) runCatching { record(event) }
+      // Never let the recorder change what the app's own callback sees or throws.
+      if (active && event != null) {
+        try {
+          record(event)
+        } catch (ignored: Throwable) {
+        }
+      }
       return delegate.dispatchTouchEvent(event)
     }
 

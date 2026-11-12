@@ -2,12 +2,16 @@ package dev.ouo.replay
 
 import android.graphics.Matrix
 import android.graphics.RectF
+import android.os.Build
+import android.text.InputType
 import android.text.Layout
+import android.text.method.PasswordTransformationMethod
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
 import dev.ouo.replay.core.Box
+import dev.ouo.replay.core.ReplayMaskRegistry
 import dev.ouo.replay.core.ViewNode
 
 /**
@@ -16,13 +20,18 @@ import dev.ouo.replay.core.ViewNode
  * parents' offsets, scroll and transforms (a moving `Animated` transform moves its mask), its
  * visibility, alpha and string tag, and for text views the box of each laid-out line, so a label
  * is masked line by line instead of as one block (per-line text masks).
+ *
+ * Every walk also marks secure inputs (password input types, a password `TransformationMethod`,
+ * password, card and one-time-code autofill hints), which nothing unmasks on the OTLP path, and
+ * reads the host's view-level masks from [masks] by view id (a React tag in React Native): the one
+ * registry every recorder reads.
  */
-internal class ViewWalker(private val maxDepth: Int = 64) {
+internal class ViewWalker(private val maxDepth: Int = 64, private val masks: ReplayMaskRegistry = ReplayMaskRegistry.shared) {
   private val superclasses = HashMap<Class<*>, List<String>>()
 
-  fun walk(root: View): ViewNode = visit(root, Matrix(), 0)
+  fun walk(root: View): ViewNode = visit(root, Matrix(), 0, masks.snapshot())
 
-  private fun visit(view: View, parent: Matrix, depth: Int): ViewNode {
+  private fun visit(view: View, parent: Matrix, depth: Int, overrides: ReplayMaskRegistry.Snapshot): ViewNode {
     val m = Matrix(parent)
     if (depth > 0) {
       val p = view.parent as? View
@@ -33,19 +42,22 @@ internal class ViewWalker(private val maxDepth: Int = 64) {
     val hidden = view.visibility != View.VISIBLE
     val group = view as? ViewGroup
     val truncated = depth >= maxDepth && group != null && group.childCount > 0
+    val tag = view.tag as? String
     val children =
       if (hidden || truncated || group == null) emptyList()
-      else (0 until group.childCount).mapNotNull { i -> group.getChildAt(i)?.let { visit(it, m, depth + 1) } }
+      else (0 until group.childCount).mapNotNull { i -> group.getChildAt(i)?.let { visit(it, m, depth + 1, overrides) } }
     return ViewNode(
       className = view.javaClass.name,
       superclassNames = superclassNames(view.javaClass),
       frame = frame,
       hidden = hidden,
       alpha = view.alpha,
-      tag = view.tag as? String,
+      tag = tag,
       textLines = if (hidden) null else textLines(view, m),
       truncated = truncated,
       children = children,
+      secure = isSecure(view),
+      maskOverride = overrides.override(view.id.takeIf { it > 0 }, tag),
     )
   }
 
@@ -59,6 +71,31 @@ internal class ViewWalker(private val maxDepth: Int = 64) {
       }
       out
     }
+
+  /** A password or other secure field. When it cannot be read, it is one (fails closed). */
+  private fun isSecure(view: View): Boolean {
+    if (view !is TextView) return false
+    return try {
+      val type = view.inputType
+      val cls = type and InputType.TYPE_MASK_CLASS
+      val variation = type and InputType.TYPE_MASK_VARIATION
+      val password =
+        (cls == InputType.TYPE_CLASS_TEXT &&
+          (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+            variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+            variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
+          (cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
+      password || view.transformationMethod is PasswordTransformationMethod || hasSecureHint(view)
+    } catch (e: Throwable) {
+      true
+    }
+  }
+
+  private fun hasSecureHint(view: View): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    val hints = view.autofillHints ?: return false
+    return hints.any { h -> SECURE_HINTS.any { h.contains(it, ignoreCase = true) } }
+  }
 
   /** Line boxes in window pixels; null when the layout is unknown (the whole view is masked). */
   private fun textLines(view: View, m: Matrix): List<Box>? {
@@ -101,5 +138,8 @@ internal class ViewWalker(private val maxDepth: Int = 64) {
 
     /** Pixels added on both sides of a line: italic overhang and anti-aliasing reach past the advance. */
     const val LINE_SLOP = 2f
+
+    /** Substrings of the autofill hints that mark a field secure (password, card data, one-time codes). */
+    val SECURE_HINTS = listOf("password", "creditCard", "smsOTPCode", "otp", "2faAppOTPCode")
   }
 }

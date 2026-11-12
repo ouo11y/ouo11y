@@ -10,6 +10,7 @@ import dev.ouo.replay.core.Box
 import dev.ouo.replay.core.Frame
 import dev.ouo.replay.core.FrameReason
 import dev.ouo.replay.core.Patch
+import dev.ouo.replay.core.PixelFrames
 import dev.ouo.replay.core.TileDiffer
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -25,7 +26,11 @@ import kotlin.math.roundToInt
  * - [compose] (compose thread): paints the masks black, hashes the 64 px tiles against the last
  *   frame sent and encodes a full JPEG or one JPEG per changed rectangle (ADR-0014).
  */
-internal class ScreenCapturer(private val maxLongestSide: Int, private val jpegQuality: Int) {
+internal class ScreenCapturer(maxLongestSide: Int, jpegQuality: Int) {
+  // `Bitmap.compress` throws on a quality outside 0..100 (on the compose thread, which crashed the app).
+  private val jpegQuality = PixelFrames.jpegQuality(jpegQuality)
+  private val maxLongestSide = maxLongestSide.coerceIn(64, 4096)
+
   private var bitmap: Bitmap? = null
   private var pixels = ByteArray(0)
   private val black = Paint().apply { color = 0xFF000000.toInt() }

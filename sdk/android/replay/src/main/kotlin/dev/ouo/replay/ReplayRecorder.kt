@@ -19,12 +19,15 @@ import dev.ouo.replay.core.FileSeqStore
 import dev.ouo.replay.core.FrameReason
 import dev.ouo.replay.core.Logger
 import dev.ouo.replay.core.RedactionPlanner
+import dev.ouo.replay.core.ReplayEndReason
+import dev.ouo.replay.core.ReplayTrigger
 import dev.ouo.replay.core.TileDiffer
 import dev.ouo.replay.core.Touch
 import dev.ouo.replay.core.Viewport
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /**
@@ -41,26 +44,57 @@ import kotlin.math.abs
  *   and the hand-off to the uploader. One capture in flight.
  * - Background (no started activity): capture stops and the chunk is flushed; foreground resumes
  *   with an immediate full frame. Touches are recorded but never trigger a capture.
+ *
+ * With [OuoReplayConfig.otlp] (ADR-0021 decision 5) the same looks go to the [OtlpPipeline]: the
+ * `ouo-frames/3` format adapter, the segments and chunks of the client SDK spec and the OTLP disk
+ * queue, instead of the legacy `ChunkBuilder` and `ChunkUploader`, which are then never touched.
+ * On that path masking is strict: a secure input is always masked and a mask inside an unmasked
+ * subtree wins.
+ *
+ * Failure isolation (client SDK spec ERR-1): every callback the platform or an executor runs here
+ * (draw listener, handler runnables, lifecycle callbacks, the copy's completion, compose-thread
+ * blocks) catches `Throwable`, counts it and drops the frame; after [FAULT_LIMIT] of them capture
+ * stops for this recorder (ERR-6).
  */
 internal class ReplayRecorder(private val app: Application, private val config: OuoReplayConfig, activity: Activity?) {
   private val logger = logger(config.debug)
   private val main = Handler(Looper.getMainLooper())
-  private val rules = config.redactionRules
+  private val otlp = config.otlp
+  private val rules = if (otlp != null) config.redactionRules.copy(strict = true) else config.redactionRules
   private val planner = RedactionPlanner(rules)
   private val walker = ViewWalker()
   private val capturer = ScreenCapturer(config.maxLongestSide, config.jpegQuality)
+  private val faults = AtomicInteger()
+  private val maskDrops = AtomicInteger()
+
+  /** The spec wire; null on the legacy path. */
+  private val pipeline: OtlpPipeline? = otlp?.let { o ->
+    try {
+      OtlpPipeline(app, config, o, capturer, logger)
+    } catch (e: Throwable) {
+      faults.incrementAndGet()
+      null
+    }
+  }
+
+  /** OTLP was asked for but cannot run (no pipeline, no session id): nothing is recorded, never the legacy wire unasked. */
+  private var stopped = otlp != null && pipeline == null
+
+  // The legacy path: made on first use, never touched when OTLP was asked for.
   private val differ = TileDiffer()
-  private val uploader = OuoReplay.uploader(app, config)
-  private val spool = ChunkSpool(File(OuoReplayConfig.directory(app), SPOOL))
-  val mode = config.mode.resolved(totalMemory(app))
-  private val pacer = CapturePacer(mode, config.frameInterval)
-  private val builder = ChunkBuilder(
-    ChunkBuilder.Config(config.flushIntervalMs, platform = "android", masked = rules.masksAnything, mode = mode.wire),
-    Viewport(0.0, 0.0, 1.0),
-    config.sessionId,
-    FileSeqStore(File(OuoReplayConfig.directory(app), SEQ)),
-    spool = spool,
-  ) { chunk -> uploader.enqueue(chunk) }
+  private val uploader by lazy { OuoReplay.uploader(app, config) }
+  private val spool by lazy { ChunkSpool(File(OuoReplayConfig.directory(app), SPOOL)) }
+  val mode = (otlp?.cadence ?: config.mode).resolved(totalMemory(app))
+  private val pacer = CapturePacer(mode, config.frameInterval.let { if (it.isFinite()) it else 1.0 })
+  private val builder by lazy {
+    ChunkBuilder(
+      ChunkBuilder.Config(config.flushIntervalMs, platform = "android", masked = rules.masksAnything, mode = mode.wire),
+      Viewport(0.0, 0.0, 1.0),
+      config.sessionId,
+      FileSeqStore(File(OuoReplayConfig.directory(app), SEQ)),
+      spool = spool,
+    ) { chunk -> uploader.enqueue(chunk) }
+  }
   private val touches = TouchRecorder({ app.resources.displayMetrics.density }) { t -> handle(t) }
 
   // Main thread from here on.
@@ -74,18 +108,81 @@ internal class ReplayRecorder(private val app: Application, private val config: 
   private var inFlight = false
   private var dirty = true
   private var observed: View? = null
-  private val drawListener = ViewTreeObserver.OnDrawListener { onDraw() }
-  private val pass = Runnable { captureIfDue() }
+  private val drawListener = ViewTreeObserver.OnDrawListener { safely("draw") { onDraw() } }
+  private val pass = Runnable { safely("pass") { captureIfDue() } }
   private val keepAlive = object : Runnable {
     override fun run() {
-      if (!isRecording) return
-      compose.execute { builder.flushIfDue() }
-      main.postDelayed(this, 1000)
+      safely("tick") {
+        if (!isRecording) return@safely
+        val p = pipeline
+        if (p != null) {
+          if (!p.isActive) {
+            // The store refused a chunk or the stream disabled itself: the end record is out.
+            logger.warn("replay stopped: the stream ended")
+            stopped = true
+            stopCapture()
+            return@safely
+          }
+          p.tick()
+        } else {
+          onCompose("legacy.flushIfDue") { builder.flushIfDue() }
+        }
+        main.postDelayed(this, 1000)
+      }
+    }
+  }
+
+  /**
+   * Runs a main-thread callback so that nothing it throws reaches the app. A capture that failed
+   * half-way is abandoned (the frame is dropped), and past [FAULT_LIMIT] capture stops.
+   */
+  private inline fun safely(seam: String, block: () -> Unit) {
+    try {
+      block()
+    } catch (e: Throwable) {
+      try {
+        fault(seam, e)
+        pendingCapture = null
+        inFlight = false
+        dirty = true
+        if (faults.get() >= FAULT_LIMIT) disable() else schedule()
+      } catch (ignored: Throwable) {
+      }
+    }
+  }
+
+  private fun fault(seam: String, e: Throwable) {
+    faults.incrementAndGet()
+    // The class only: a message could hold what was on screen (ERR-8).
+    logger.warn("$seam failed: ${e.javaClass.simpleName}")
+  }
+
+  /** Too many errors: capture stops, and over OTLP the stream ends with reason `error`. */
+  private fun disable() {
+    if (stopped) return
+    stopped = true
+    logger.warn("replay disabled after ${faults.get()} errors")
+    stopCapture()
+    pipeline?.end(ReplayEndReason.ERROR)
+  }
+
+  /** Runs [block] on the compose thread; whatever it throws is counted there. */
+  private fun onCompose(seam: String, block: () -> Unit) {
+    try {
+      compose.execute {
+        try {
+          block()
+        } catch (e: Throwable) {
+          fault(seam, e)
+        }
+      }
+    } catch (e: Throwable) {
+      fault(seam, e)
     }
   }
 
   private val lifecycle = object : Application.ActivityLifecycleCallbacks {
-    override fun onActivityStarted(a: Activity) {
+    override fun onActivityStarted(a: Activity) = safely("lifecycle.started") {
       started++
       if (started == 1 && !pausedByHost) {
         logger.log("foreground: resume with an immediate frame")
@@ -93,7 +190,7 @@ internal class ReplayRecorder(private val app: Application, private val config: 
       }
     }
 
-    override fun onActivityResumed(a: Activity) {
+    override fun onActivityResumed(a: Activity) = safely("lifecycle.resumed") {
       current = WeakReference(a)
       if (isRecording) {
         pacer.requestFrame(FrameReason.RESUME, now())
@@ -101,12 +198,12 @@ internal class ReplayRecorder(private val app: Application, private val config: 
       }
     }
 
-    override fun onActivityStopped(a: Activity) {
+    override fun onActivityStopped(a: Activity) = safely("lifecycle.stopped") {
       started = maxOf(0, started - 1)
       if (started == 0) {
         logger.log("background: stop capturing, flush")
         stopCapture()
-        flush(null)
+        closeForGap()
       }
     }
 
@@ -120,17 +217,26 @@ internal class ReplayRecorder(private val app: Application, private val config: 
   }
 
   fun start() {
-    recoverSpool(app, config)
+    val p = pipeline
+    if (otlp != null) {
+      if (p == null || !p.start()) {
+        stopped = true
+        logger.warn("replay not started")
+        return
+      }
+    } else {
+      recoverSpool(app, config)
+    }
     app.registerActivityLifecycleCallbacks(lifecycle)
     pausedByHost = false
     if (started > 0) resumeCapture()
-    logger.log("started endpoint=${config.endpoint} project=${config.projectId} mode=${mode.wire} interval=${config.frameInterval}s")
+    logger.log("started endpoint=${config.endpoint} project=${config.projectId} cadence=${mode.wire} interval=${config.frameInterval}s")
   }
 
   fun pause() {
     pausedByHost = true
     stopCapture()
-    flush(null)
+    closeForGap()
     logger.log("paused")
   }
 
@@ -140,44 +246,102 @@ internal class ReplayRecorder(private val app: Application, private val config: 
     logger.log("resumed")
   }
 
-  fun stop() {
+  /** Stops for good. Over OTLP the stream ends with `ouo.replay.ended` and [reason]; the legacy recorder just stops. */
+  fun stop(reason: ReplayEndReason = ReplayEndReason.STOP) {
     stopCapture()
-    flush(null)
-    app.unregisterActivityLifecycleCallbacks(lifecycle)
+    val p = pipeline
+    if (p != null) {
+      if (!stopped) p.end(reason)
+    } else if (otlp == null) {
+      flush(null)
+    }
+    stopped = true
+    runCatching { app.unregisterActivityLifecycleCallbacks(lifecycle) }
+  }
+
+  /** Consent withdrawn (PRV-4): capture stops, no end record, and what is queued is deleted. [completion] runs on another thread. */
+  fun discard(completion: (() -> Unit)?) {
+    stopCapture()
+    stopped = true
+    runCatching { app.unregisterActivityLifecycleCallbacks(lifecycle) }
+    val p = pipeline
+    // Never on the main thread: the completion deletes files.
+    if (p != null) p.discard(completion) else onCompose("discard") { completion?.invoke() }
+  }
+
+  /** The chunk closes; over OTLP what is captured next starts a new segment (RPL-8 to RPL-10). */
+  private fun closeForGap() {
+    val p = pipeline
+    if (p != null) p.closeForGap() else flush(null)
   }
 
   fun flush(completion: (() -> Unit)?) {
+    val done: (() -> Unit)? = completion?.let { c ->
+      {
+        main.post {
+          try {
+            c()
+          } catch (e: Throwable) {
+            fault("flush.completion", e)
+          }
+        }
+      }
+    }
+    val p = pipeline
+    if (p != null) return p.flush(done)
+    if (otlp != null) {
+      done?.invoke()
+      return
+    }
     // Behind every capture already handed to the compose thread, so their frames are in the chunk.
-    compose.execute {
+    onCompose("legacy.flush") {
       builder.flush()
-      uploader.drain { completion?.let { main.post(it) } }
+      uploader.drain { done?.invoke() }
     }
   }
 
   fun sessionDidRotate(newId: String) {
     logger.log("session rotated -> $newId")
-    compose.execute {
+    val p = pipeline
+    if (p != null) {
+      if (!stopped) p.rotate(newId)
+      return
+    }
+    if (otlp != null) return
+    onCompose("legacy.rotate") {
       builder.sessionDidRotate(newId)
       differ.reset()
     }
   }
 
+  /** Buffer mode: sends the ring and records on as a session. */
+  fun capture(trigger: ReplayTrigger) {
+    if (!stopped) pipeline?.capture(trigger)
+  }
+
+  fun setViewId(id: String) {
+    pipeline?.setViewId(id)
+  }
+
+  /** Counters of the OTLP path under the names of the iOS recorder; empty on the legacy path. */
+  fun diagnostics(): Map<String, Int> = pipeline?.diagnostics(maskDrops.get(), faults.get()) ?: emptyMap()
+
   /**
    * A new screen (or a feedback asking for the screen): its frame in `navigation` mode; in
    * `session` mode the next interval frame, even when nothing drew since the last one (as on iOS,
-   * whose interval frames do not wait for a draw). Either way that frame is a full image.
+   * whose interval frames do not wait for a draw). On the legacy path that frame is a full image.
    */
   fun screenDidChange() {
-    compose.execute { differ.reset() }
+    if (otlp == null) onCompose("differ.reset") { differ.reset() }
     pacer.screenDidChange(now())
     dirty = true
     schedule()
   }
 
   private fun resumeCapture() {
-    if (isRecording) return
+    if (isRecording || stopped) return
     isRecording = true
-    compose.execute { differ.reset() }
+    if (otlp == null) onCompose("differ.reset") { differ.reset() }
     pacer.requestFrame(FrameReason.RESUME, now())
     main.removeCallbacks(keepAlive)
     main.postDelayed(keepAlive, 1000)
@@ -199,7 +363,9 @@ internal class ReplayRecorder(private val app: Application, private val config: 
   }
 
   private fun handle(t: Touch) {
-    if (isRecording) compose.execute { builder.add(t) }
+    if (!isRecording) return
+    val p = pipeline
+    if (p != null) p.touch(t) else onCompose("legacy.touch") { builder.add(t) }
   }
 
   private fun onDraw() {
@@ -210,13 +376,13 @@ internal class ReplayRecorder(private val app: Application, private val config: 
       pendingCapture = null
       val start = now()
       val before = plan(p.target.root)
-      main.postAtFrontOfQueue { copyAndCompose(p.target, p.reason, before, now() - start + p.spent) }
+      main.postAtFrontOfQueue { safely("copy") { copyAndCompose(p.target, p.reason, before, now() - start + p.spent) } }
       return
     }
     if (dirty) return
     dirty = true
     // Not from inside the draw: the pass walks the tree.
-    main.post { schedule() }
+    main.post { safely("schedule") { schedule() } }
   }
 
   private fun observe(root: View?) {
@@ -266,12 +432,14 @@ internal class ReplayRecorder(private val app: Application, private val config: 
 
   /** The draw a pending capture waits for did not come (the window stopped drawing): drop it. */
   private val drawTimeout = Runnable {
-    val p = pendingCapture ?: return@Runnable
-    pendingCapture = null
-    inFlight = false
-    pacer.dropped(p.reason, now())
-    dirty = true
-    schedule()
+    safely("drawTimeout") {
+      val p = pendingCapture ?: return@safely
+      pendingCapture = null
+      inFlight = false
+      pacer.dropped(p.reason, now())
+      dirty = true
+      schedule()
+    }
   }
 
   private class PendingCapture(val target: WindowSpy.Target, val reason: FrameReason, val spent: Double)
@@ -280,7 +448,13 @@ internal class ReplayRecorder(private val app: Application, private val config: 
 
   /** Masks of the tree as it is, in window pixels; null when the walk failed (the frame is dropped). */
   private fun plan(root: View): List<Box>? =
-    runCatching { planner.rects(walker.walk(root), Box(0f, 0f, root.width.toFloat(), root.height.toFloat())) }.getOrNull()
+    try {
+      planner.rects(walker.walk(root), Box(0f, 0f, root.width.toFloat(), root.height.toFloat()))
+    } catch (e: Throwable) {
+      // PRV-8: the masked state of this frame is not known.
+      fault("walk", e)
+      null
+    }
 
   /** Main thread, `inFlight` set: copies the window, walks again, and hands the frame to the compose thread. */
   private fun copyAndCompose(target: WindowSpy.Target, reason: FrameReason, before: List<Box>?, spentBefore: Double) {
@@ -299,34 +473,51 @@ internal class ReplayRecorder(private val app: Application, private val config: 
     val scale = bitmap.width.toFloat() / w
     val ts = System.currentTimeMillis()
     capturer.copy(target, bitmap, main) { ok ->
-      val t1 = now()
-      val after = if (ok && root.isAttachedToWindow && root.width == w && root.height == h) plan(root) else null
-      pacer.spent(spentBefore + (now() - t1), t1)
-      if (after == null || !same(before, after)) {
-        logger.log("frame ${reason.wire} dropped: ${if (after == null) "copy failed" else "a masked view moved"}")
-        inFlight = false
-        pacer.motion(t1)
-        pacer.dropped(reason, t1)
-        dirty = true
-        return@copy schedule()
-      }
-      val density = app.resources.displayMetrics.density
-      val viewport = Viewport(w / density.toDouble(), h / density.toDouble(), bitmap.width / (w / density.toDouble()))
-      compose.execute {
-        var failed = false
-        builder.updateViewport(viewport)
-        when (val r = capturer.compose(bitmap, before, scale, differ, builder.needsFullFrame, ts, reason)) {
-          is ScreenCapturer.Result.Made -> {
-            builder.add(r.frame)
-            logger.log("frame ${reason.wire} ${if (r.frame.isFull) "full" else "${r.frame.patches?.size} patches"} ${r.frame.imageBytes} bytes, ${before.size} masks")
-          }
-          ScreenCapturer.Result.Failed -> failed = true
-          ScreenCapturer.Result.Unchanged -> {}
-        }
-        main.post {
+      safely("copied") {
+        val t1 = now()
+        val after = if (ok && root.isAttachedToWindow && root.width == w && root.height == h) plan(root) else null
+        pacer.spent(spentBefore + (now() - t1), t1)
+        if (after == null || !same(before, after)) {
+          logger.log("frame ${reason.wire} dropped: ${if (after == null) "copy failed" else "a masked view moved"}")
+          maskDrops.incrementAndGet()
           inFlight = false
-          if (failed) pacer.dropped(reason, now())
-          schedule()
+          pacer.motion(t1)
+          pacer.dropped(reason, t1)
+          dirty = true
+          return@safely schedule()
+        }
+        val density = app.resources.displayMetrics.density.let { if (it.isFinite() && it > 0f) it else 1f }
+        val points = w / density.toDouble()
+        val viewport = Viewport(points, h / density.toDouble(), bitmap.width / points)
+        val p = pipeline
+        onCompose("compose.frame") {
+          // Anything that throws here (the encoder, the disk, the adapter) drops this frame only.
+          var failed = true
+          try {
+            if (p != null) {
+              failed = !p.look(PixelLook(bitmap, before, scale, bitmap.width / points, reason), ts)
+            } else {
+              builder.updateViewport(viewport)
+              when (val r = capturer.compose(bitmap, before, scale, differ, builder.needsFullFrame, ts, reason)) {
+                is ScreenCapturer.Result.Made -> {
+                  builder.add(r.frame)
+                  logger.log("frame ${reason.wire} ${if (r.frame.isFull) "full" else "${r.frame.patches?.size} patches"} ${r.frame.imageBytes} bytes, ${before.size} masks")
+                  failed = false
+                }
+                ScreenCapturer.Result.Failed -> {}
+                ScreenCapturer.Result.Unchanged -> failed = false
+              }
+            }
+          } finally {
+            val dropped = failed
+            main.post {
+              safely("composed") {
+                inFlight = false
+                if (dropped) pacer.dropped(reason, now())
+                schedule()
+              }
+            }
+          }
         }
       }
     }
@@ -343,6 +534,9 @@ internal class ReplayRecorder(private val app: Application, private val config: 
 
     /** How long a capture waits for the draw of a changed tree before it is dropped. */
     const val DRAW_TIMEOUT_MS = 1000L
+
+    /** Errors caught on the main and compose threads after which capture stops (ERR-6). */
+    const val FAULT_LIMIT = 20
 
     /** Shared by every recorder, so a restarted recorder recovers the spool only after the previous one cut its chunk. */
     val compose = Executors.newSingleThreadExecutor { r -> Thread(r, "ouo-replay-compose").apply { isDaemon = true } }

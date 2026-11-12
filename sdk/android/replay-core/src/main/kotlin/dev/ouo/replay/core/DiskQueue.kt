@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
  * A folder of requests waiting for the collector (mobile SDK spec C11): each body is a file written
  * before anything is sent and removed when the collector answers. Network errors and OTLP/HTTP's
  * retryable answers (429, 502, 503, 504: [retryable]) leave it in place and retry after a backoff
- * (at least `Retry-After`), on [drain] and in the next process, so an outage, a crash or a kill
+ * with full jitter (at least `Retry-After`, capped at 300 s), on [drain] and in the next process, so an outage, a crash or a kill
  * mid-request loses nothing. Any other answer is final: 2xx is sent, the rest is rejected (removed
  * and counted), so a request answered 500 every time does not block the queue (checklist N55). Sent oldest first, one request at a time. Bounded by bytes, the
  * oldest dropped first, never the one in flight nor the newest. The Swift `DiskQueue` of `sdk/ios`,
@@ -30,16 +30,38 @@ class DiskQueue(
   private val transport: Transport?,
   private val logger: Logger = Logger.NONE,
   private val now: () -> EpochMillis = System::currentTimeMillis,
+  /** Records a 2xx answer refused (OTLP `partial_success`); more than 0 removes the entry and counts it, without a retry. */
+  private val rejectedRecords: (HttpAnswer) -> Long = { 0 },
+  /** Told, on the queue's thread, what became of each entry that left the folder. Must not block. */
+  private val onOutcome: ((tag: String, outcome: Outcome) -> Unit)? = null,
   private val request: (Entry, ByteArray) -> HttpRequest?,
 ) {
+  /** Why an entry left the folder. */
+  enum class Outcome { SENT, PARTIAL_REJECTED, REJECTED_STATUS, EVICTED, UNREADABLE }
+
   data class Config(
     val maxBytes: Long,
     /** Wait before retrying after the nth failure in a row, in ms. Injected so tests do not wait. */
-    val retryDelayMs: (Int) -> Long = doubling(60_000),
+    val retryDelayMs: (Int) -> Long = fullJitter(),
+    /** `Retry-After` is honoured up to this (client SDK spec TRN-8). */
+    val retryAfterCapMs: Long = 300_000,
+    /** Entries kept; beyond it the oldest go first, like the byte bound. */
+    val maxEntries: Int = Int.MAX_VALUE,
   ) {
     companion object {
       /** 1 s doubling up to [capMs]. */
       fun doubling(capMs: Long): (Int) -> Long = { n -> minOf(1000L shl (maxOf(1, n) - 1).coerceAtMost(20), capMs) }
+
+      /**
+       * Exponential backoff with full jitter (client SDK spec TRN-7): the nth retry waits a random
+       * time up to `initialMs * 2^(n-1)`, itself capped at [maxMs], and never less than a tenth of
+       * [initialMs] so a failing endpoint is not hammered. [random] returns a value in `[0, 1]`.
+       */
+      fun fullJitter(initialMs: Long = 1_000, maxMs: Long = 300_000, random: () -> Double = Math::random): (Int) -> Long = { n ->
+        val ceiling = minOf(maxMs, initialMs shl (n.coerceIn(1, 32) - 1).coerceAtMost(40))
+        val r = random()
+        maxOf(initialMs / 10, (ceiling * (if (r.isFinite()) r.coerceIn(0.0, 1.0) else 1.0)).toLong())
+      }
     }
   }
 
@@ -82,6 +104,10 @@ class DiskQueue(
   @Volatile var rejected = 0
     private set
 
+  /** Entries a 2xx answer refused through `partial_success` (removed, not retried). */
+  @Volatile var partialRejected = 0
+    private set
+
   /**
    * Writes [body] as the newest entry before returning, applies the bounds, then starts sending.
    * When the disk refuses it, it is sent once from memory unless [sendIfRefused] is false, and
@@ -102,8 +128,9 @@ class DiskQueue(
         true
       } catch (e: Exception) {
         logger.warn("could not queue $tag on disk ($e)${if (sendIfRefused) ", sending it once from memory" else ""}")
+        runCatching { File(directory, "$name.tmp").delete() }
         if (sendIfRefused && transport != null) {
-          Entry.of(file)?.let { entry -> request(entry, body)?.let { req -> io.execute { transport.send(req) } } }
+          runCatching { Entry.of(file)?.let { entry -> request(entry, body)?.let { req -> io.execute { runCatching { transport?.send(req) } } } } }
         }
         false
       }
@@ -155,19 +182,30 @@ class DiskQueue(
   private fun enforceBound() {
     val es = list(directory)
     var total = es.sumOf { it.bytes }
+    var count = es.size
     // Oldest first; never the newest, nor the one in flight (its answer removes it).
     for (victim in es.dropLast(1)) {
-      if (total <= config.maxBytes) break
+      if (total <= config.maxBytes && count <= config.maxEntries) break
       if (victim.file == inFlight) continue
       total -= victim.bytes
+      count--
       drop(victim, "queue bound")
     }
   }
 
-  private fun drop(e: Entry, why: String) {
+  private fun drop(e: Entry, why: String, outcome: Outcome = Outcome.EVICTED) {
     e.file.delete()
     dropped++
     logger.warn("dropped ${e.tag} ($why)")
+    tell(e, outcome)
+  }
+
+  private fun tell(e: Entry, outcome: Outcome) {
+    val cb = onOutcome ?: return
+    try {
+      cb(e.tag, outcome)
+    } catch (ignored: Throwable) {
+    }
   }
 
   private fun pump() {
@@ -184,16 +222,21 @@ class DiskQueue(
       return
     }
     val body = runCatching { head.file.readBytes() }.getOrNull()
-    val req = body?.let { request(head, it) }
+    val req = body?.let { b -> runCatching { request(head, b) }.getOrNull() }
     if (req == null) {
-      drop(head, "unreadable")
+      drop(head, "unreadable", Outcome.UNREADABLE)
       pump()
       return
     }
     inFlight = head.file
     io.execute {
-      val answer = t.send(req)
-      executor.execute { finish(head, answer) }
+      // A transport that throws is a request that did not arrive: the entry must not stay in flight for ever.
+      val answer = try {
+        t.send(req)
+      } catch (e: Throwable) {
+        HttpAnswer(0)
+      }
+      runCatching { executor.execute { finish(head, answer) } }
     }
   }
 
@@ -203,9 +246,21 @@ class DiskQueue(
     when {
       status in 200..299 -> {
         head.file.delete()
-        sent++
         failures = 0
-        logger.log("sent ${head.tag}")
+        val refused = try {
+          rejectedRecords(answer)
+        } catch (e: Throwable) {
+          0L
+        }
+        if (refused > 0) {
+          partialRejected++
+          logger.warn("${head.tag} refused by the receiver (partial success, $refused rejected), dropped (not retryable)")
+          tell(head, Outcome.PARTIAL_REJECTED)
+        } else {
+          sent++
+          logger.log("sent ${head.tag}")
+          tell(head, Outcome.SENT)
+        }
         pump()
       }
       status == 0 || retryable(status) ->
@@ -214,6 +269,7 @@ class DiskQueue(
         head.file.delete()
         rejected++
         logger.warn("${head.tag} rejected: HTTP $status, dropped (not retryable)")
+        tell(head, Outcome.REJECTED_STATUS)
         pump()
       }
     }
@@ -221,7 +277,7 @@ class DiskQueue(
 
   private fun retryLater(head: Entry, why: String, retryAfterSeconds: Double?) {
     failures++
-    val delay = maxOf(config.retryDelayMs(failures), ((retryAfterSeconds ?: 0.0) * 1000).toLong())
+    val delay = retryDelay(config.retryDelayMs(failures), retryAfterSeconds, config.retryAfterCapMs)
     logger.warn("sending ${head.tag} failed ($why), kept on disk, retry in $delay ms")
     finishWaiters()
     if (retryScheduled) return
@@ -241,6 +297,15 @@ class DiskQueue(
   companion object {
     /** OTLP/HTTP's retryable answers: 429, 502, 503 and 504. Any other status is final. */
     fun retryable(status: Int): Boolean = status == 429 || status == 502 || status == 503 || status == 504
+
+    /**
+     * The wait before a retry: `Retry-After` when the receiver sent one, capped at [capMs] (TRN-8:
+     * a receiver cannot park the queue for a day), else the backoff. Never negative.
+     */
+    fun retryDelay(backoffMs: Long, retryAfterSeconds: Double?, capMs: Long): Long {
+      val asked = retryAfterSeconds?.takeIf { it.isFinite() && it >= 0 } ?: return maxOf(0L, backoffMs)
+      return minOf((asked.coerceAtMost(1e9) * 1000).toLong(), maxOf(0L, capMs))
+    }
 
     fun pad(n: Long, width: Int): String = n.toString().padStart(width, '0')
 
