@@ -16,7 +16,8 @@ const PERSIST_THROTTLE_MS = 1000;
 /** A hung AsyncStorage read must not delay `session.start` for longer than this. */
 const STORAGE_READ_TIMEOUT_MS = 1500;
 
-export type EndReason = "inactivity" | "max_duration" | "background" | "crash" | "terminated";
+/** `manual`: `restartSession()`; `shutdown`: `shutdown()` (spec SES-7). */
+export type EndReason = "inactivity" | "max_duration" | "background" | "crash" | "terminated" | "manual" | "shutdown";
 
 /** What is persisted under `ouo.session`. Timestamps are Unix epoch milliseconds. */
 export interface SessionRecord {
@@ -212,6 +213,30 @@ export class SessionManager {
     }
   }
 
+  /** `setUser(null)`: back to a new anonymous id. */
+  clearUser(): void {
+    this.user = { id: uuidv4(), anonymous: true };
+    this.process.user = this.user;
+    void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
+    if (this.current) {
+      this.current.userId = this.user.id;
+      this.persist(this.current, true);
+    }
+  }
+
+  /** `restartSession()`: ends the session with reason `manual` and starts the next one, linked to it. */
+  restart(): void {
+    const now = this.clock.now();
+    if (this.current) this.end(this.current, "manual", now);
+    this.create(now, true);
+  }
+
+  /** `shutdown()`: ends the active session with reason `shutdown`. The next `init` starts a new one. */
+  shutdown(): void {
+    if (this.current) this.end(this.current, "shutdown", this.clock.now());
+    this.clearTimer();
+  }
+
   /** Activity rule: refresh lastActivity, persist throttled, detect expiry first. */
   touch(): void {
     const now = this.clock.now();
@@ -375,7 +400,7 @@ export class SessionManager {
         return persisted.startedAt + this.maxDurationMs;
       case "background":
         return (persisted.backgroundAt ?? persisted.lastActivity) + this.backgroundTimeoutMs;
-      case "terminated":
+      default:
         return Math.min(persisted.lastActivity, now);
     }
   }

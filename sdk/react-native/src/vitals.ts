@@ -13,6 +13,7 @@
  * value that was not measured).
  */
 import type { DebugLogger } from "./logger";
+import { guard } from "./guard";
 import type { EventEmitter } from "./telemetry/events";
 import type { Attrs, VitalsOptions } from "./types";
 
@@ -86,8 +87,11 @@ const valid = (v: number): boolean => Number.isFinite(v) && v >= 0 && v <= MAX_D
 export function createVitals(deps: VitalsDeps): Vitals {
   const { events, logger } = deps;
   const now = deps.now ?? Date.now;
-  const raf = deps.requestFrame ?? ((cb: () => void) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => cb()) : setTimeout(cb, 16)));
-  const setTimer = deps.setTimer ?? ((fn: () => void, t: number) => setTimeout(fn, t));
+  // Every frame and timer callback runs inside the guard (ERR-1).
+  const requestFrame = deps.requestFrame ?? ((cb: () => void) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => cb()) : setTimeout(cb, 16)));
+  const raf = (cb: () => void): void => void requestFrame(guard.wrap("vitals.frame", cb));
+  const startTimer = deps.setTimer ?? ((fn: () => void, t: number) => setTimeout(fn, t));
+  const setTimer = (fn: () => void, t: number): unknown => startTimer(guard.wrap("timer.vitals", fn), t);
   const clearTimer = deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
   const enabled = deps.options?.enabled !== false;
   const native = deps.native;

@@ -7,8 +7,10 @@ import type { AttrValue } from "../types";
 export const PLATFORM = "mobile";
 
 /** Attributes every span and log record must carry (spec: identifiers carried on every signal). */
-export function correlationAttributes(session: SessionManager, serviceVersion: string): Record<string, AttrValue> {
+export function correlationAttributes(session: SessionManager, serviceVersion: string, globals?: () => Record<string, AttrValue>): Record<string, AttrValue> {
   const attrs: Record<string, AttrValue> = {
+    // `setGlobalAttributes`: under the SDK's own attributes, which win on a clash.
+    ...globals?.(),
     "session.id": session.id(),
     "user.id": session.userId(),
     "ouo.user.anonymous": session.isAnonymousUser(),
@@ -25,10 +27,11 @@ export class SessionSpanProcessor implements SpanProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly globals?: () => Record<string, AttrValue>,
   ) {}
 
   onStart(span: Span, _parentContext: Context): void {
-    span.setAttributes(correlationAttributes(this.session, this.serviceVersion));
+    span.setAttributes(correlationAttributes(this.session, this.serviceVersion, this.globals));
   }
 
   onEnd(_span: ReadableSpan): void {}
@@ -52,6 +55,7 @@ export class SessionLogProcessor implements LogRecordProcessor {
   constructor(
     private readonly session: SessionManager,
     private readonly serviceVersion: string,
+    private readonly globals?: () => Record<string, AttrValue>,
   ) {}
 
   onEmit(record: SdkLogRecord): void {
@@ -67,10 +71,13 @@ export class SessionLogProcessor implements LogRecordProcessor {
       set("ouo.user.anonymous", this.session.isAnonymousUser());
       const current = this.session.peek();
       if (current && current.id === existing["session.id"] && current.previousId) set("session.previous_id", current.previousId);
-      return;
+    } else {
+      const attrs = correlationAttributes(this.session, this.serviceVersion);
+      for (const key of Object.keys(attrs)) set(key, attrs[key]!);
     }
-    const attrs = correlationAttributes(this.session, this.serviceVersion);
-    for (const key of Object.keys(attrs)) set(key, attrs[key]!);
+    // `setGlobalAttributes`, last: what the record or the SDK already set wins.
+    const globals = this.globals?.();
+    if (globals) for (const key of Object.keys(globals)) set(key, globals[key]!);
   }
 
   forceFlush(): Promise<void> {

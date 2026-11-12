@@ -116,19 +116,30 @@ describe("initRUM configuration errors", () => {
   const base = { endpoint: "http://otel.test:4318", service: { name: "mobile-store", version: "2.3.0", environment: "test" }, storage: new MemoryAsyncStorage() };
   type Options = Parameters<typeof initRUM>[0];
 
-  it("throws a clear error when projectId or projectToken is missing and installs nothing", () => {
+  // Spec CFG-1 (ADR-0019 step A): invalid configuration no longer throws; the SDK is a no-op.
+  it("is a no-op that installs nothing when projectId or projectToken is missing", () => {
     const before = globalThis.fetch;
-    expect(() => initRUM({ ...base, projectToken: "pt_x" } as unknown as Options)).toThrow(/projectId.*is required \(ADR-0007\)/);
-    expect(() => initRUM({ ...base, projectId: "demo" } as unknown as Options)).toThrow(/projectToken.*is required \(ADR-0007\)/);
-    expect(() => initRUM({ ...base, projectId: "", projectToken: "pt_x" })).toThrow(/projectId/);
-    expect(() => initRUM({ ...base, projectId: "demo", projectToken: "" })).toThrow(/projectToken/);
+    for (const bad of [
+      { ...base, projectToken: "pt_x" },
+      { ...base, projectId: "demo" },
+      { ...base, projectId: "", projectToken: "pt_x" },
+      { ...base, projectId: "demo", projectToken: "" },
+      { ...base, projectId: "a:b", projectToken: "pt_x" },
+    ]) {
+      const rum = initRUM(bad as unknown as Options);
+      expect(rum.getSessionId()).toBeUndefined();
+      expect(() => rum.recordEvent("x")).not.toThrow();
+    }
     // Nothing was registered: fetch is still the stub and no instance exists.
     expect(globalThis.fetch).toBe(before);
     expect(getRUM()).toBeUndefined();
   });
 
-  it("throws when endpoint is missing", () => {
-    expect(() => initRUM({ ...base, endpoint: "", projectId: "demo", projectToken: "pt_x" })).toThrow(/endpoint/);
+  it("is a no-op when endpoint is missing or not a URL", () => {
+    for (const endpoint of ["", "otel.example.com", undefined, 42]) {
+      const rum = initRUM({ ...base, endpoint, projectId: "demo", projectToken: "pt_x" } as unknown as Options);
+      expect(rum.getSessionId()).toBeUndefined();
+    }
     expect(getRUM()).toBeUndefined();
   });
 

@@ -1,6 +1,7 @@
 import type { Context, Span } from "@opentelemetry/api";
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { isDropEvent, type DropCounter } from "./drops";
 
 /**
  * Deterministic session sampling, shared with rum-api's server-side cap
@@ -48,6 +49,17 @@ const sessionOf = (attrs: Record<string, unknown>): string | undefined => {
 };
 
 /**
+ * True when a batch processor's queue is full, so the record handed to it next is dropped
+ * (spec ERR-7). The OTel batch processors drop silently and expose no counter; this reads their
+ * queue defensively and answers false when the fields are not there.
+ */
+function queueFull(batch: unknown): boolean {
+  const b = batch as { _maxQueueSize?: unknown; _finishedLogRecords?: unknown; _finishedSpans?: unknown };
+  const queue = Array.isArray(b._finishedLogRecords) ? b._finishedLogRecords : Array.isArray(b._finishedSpans) ? b._finishedSpans : undefined;
+  return queue !== undefined && typeof b._maxQueueSize === "number" && queue.length >= b._maxQueueSize;
+}
+
+/**
  * Forwards a log record to `inner` only when its session is in the session sample. Runs after
  * `SessionLogProcessor`, which stamps `session.id` on every record.
  */
@@ -55,11 +67,18 @@ export class SampledLogProcessor implements LogRecordProcessor {
   constructor(
     private readonly inner: LogRecordProcessor,
     private readonly rate: number,
+    private readonly drops?: DropCounter,
   ) {}
 
   onEmit(record: SdkLogRecord, context?: Context): void {
     const id = sessionOf(record.attributes);
-    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) return;
+    // The SDK's own drop report is never counted as a drop (it would report itself).
+    const counted = this.drops && !isDropEvent(record.attributes["event.name"]) ? this.drops : undefined;
+    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) {
+      counted?.count("log", "sampling");
+      return;
+    }
+    if (counted && queueFull(this.inner)) counted.count("log", "queue_full");
     this.inner.onEmit(record, context);
   }
 
@@ -77,6 +96,7 @@ export class SampledSpanProcessor implements SpanProcessor {
   constructor(
     private readonly inner: SpanProcessor,
     private readonly rate: number,
+    private readonly drops?: DropCounter,
   ) {}
 
   onStart(span: Span, parentContext: Context): void {
@@ -85,7 +105,11 @@ export class SampledSpanProcessor implements SpanProcessor {
 
   onEnd(span: ReadableSpan): void {
     const id = sessionOf(span.attributes);
-    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) return;
+    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) {
+      this.drops?.count("span", "sampling");
+      return;
+    }
+    if (this.drops && queueFull(this.inner)) this.drops.count("span", "queue_full");
     this.inner.onEnd(span);
   }
 

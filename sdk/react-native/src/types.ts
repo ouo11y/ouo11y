@@ -1,4 +1,5 @@
-import type { Span, SpanContext } from "@opentelemetry/api";
+import type { Span, SpanContext, TracerProvider } from "@opentelemetry/api";
+import type { LoggerProvider } from "@opentelemetry/api-logs";
 import type { Gesture } from "./taps";
 
 /** Primitive attribute values accepted by the public API. */
@@ -130,6 +131,41 @@ export interface TransportOptions {
    * backoff. The oldest are dropped beyond the bounds. False sends from memory only. Default on.
    */
   offline?: OfflineOptions | false;
+  /** How long `shutdown()` waits for its last flush, in milliseconds. Default 2000. */
+  shutdownDeadlineMs?: number;
+}
+
+/** What `beforeSend` receives: a copy of a log record (an event, a log line, an exception) or of an ended span. */
+export interface BeforeSendRecord {
+  type: "log" | "span";
+  /** `event.name` of a log record (`log` for a plain log line), the name of a span. */
+  name: string;
+  /** Body of a log record, when it is text. */
+  body?: string;
+  attributes: Attrs;
+}
+
+/**
+ * Runs on every log record and span before it is kept or sent (spec CFG-4). Return the record
+ * (changed or not) to send it, `null` or `false` to drop it; returning nothing sends the record
+ * as the hook left it. A hook that throws sends the unmodified record. Replay chunks never pass
+ * through it. Keep it fast: it runs on the JS thread for every record.
+ */
+export type BeforeSend = (record: BeforeSendRecord) => BeforeSendRecord | null | false | void;
+
+export interface DiagnosticsOptions {
+  /** Internal errors after which the SDK stops capture and becomes a no-op (spec ERR-6). Default 20. */
+  selfDisableThreshold?: number;
+}
+
+export interface OtelOptions {
+  /**
+   * Also register the SDK's tracer provider, logger provider, propagator and context manager as
+   * the OpenTelemetry globals (`trace.getTracer(...)`, `context.active()`). Default false: the
+   * SDK works on its own instances and never replaces a global the app registered (spec REL-4).
+   * Reach the providers with `getTracerProvider()` and `getLoggerProvider()` either way.
+   */
+  registerGlobal?: boolean;
 }
 
 export interface OfflineOptions {
@@ -294,12 +330,13 @@ export interface RUMOptions {
   /**
    * Project id, the user name of the HTTP Basic credential (`Authorization: Basic
    * base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload.
-   * Required; `initRUM` throws without it.
+   * Required: without it the SDK is a no-op (a diagnostic says so when `debug` is on).
    */
   projectId: string;
   /**
    * Project token, the password of the Basic credential. Public by nature (it only grants the
-   * right to write telemetry into one project); required, `initRUM` throws without it.
+   * right to write telemetry into one project); required, the SDK is a no-op without it. It is
+   * never written to a diagnostic, a URL or a record.
    */
   projectToken: string;
   service: ServiceOptions;
@@ -320,7 +357,11 @@ export interface RUMOptions {
   transport?: TransportOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;
-  /** Log SDK decisions to the console with the `[ouo]` prefix. */
+  /** Change or drop records before they are kept or sent. */
+  beforeSend?: BeforeSend;
+  diagnostics?: DiagnosticsOptions;
+  otel?: OtelOptions;
+  /** Log SDK decisions to the console with the `[ouo]` prefix. Diagnostics never contain record payloads or the project token. */
   debug?: boolean;
 }
 
@@ -338,6 +379,16 @@ export interface RUMReplay {
    */
   hideScreen(): void;
   showScreen(): void;
+  /** Start recording the current session again after `stop()` (spec API: `replay.start`). The replay sample still decides whether the session is recorded. */
+  start(): void;
+  /** Stop recording until `start()`. */
+  stop(): void;
+  /** Send the buffered replay now. Forwarded to the native recorder when it supports it; a no-op until then. */
+  capture(): void;
+  /** Mask a view (a ref or a native tag). Forwarded to the native recorder when it supports it; a no-op until then. */
+  mask(target: unknown): void;
+  /** Undo `mask` for a view. Forwarded to the native recorder when it supports it; a no-op until then. */
+  unmask(target: unknown): void;
 }
 
 /** `rum.feedback(...)` (docs/specs/mobile-sdk.md C10): what the user wrote, as the app passes it. */
@@ -360,11 +411,27 @@ export interface RUMSession {
   previousId(): string | undefined;
 }
 
+/**
+ * Every function is safe to call at any time (spec API-1): before the session is ready, after
+ * `shutdown()`, without the native module, with any argument. It is then a no-op that does not
+ * throw. Attribute keys starting with `session.` or `ouo.` are reserved (API-3): they are
+ * dropped and counted, except `ouo.exception.fingerprint`.
+ */
 export interface RUM {
-  setUser(user: UserOptions): void;
-  /** Report a handled, non-fatal exception. */
+  /** Set the user id (`setUser("u-1")` or `setUser({ id: "u-1" })`), or clear it with `null`: a new anonymous id. */
+  setUser(user: UserOptions | string | null): void;
+  /** Attributes for every later record (spans and log records). Replaces the previous set; `{}` clears it. */
+  setGlobalAttributes(attributes: Attrs): void;
+  /**
+   * Report a handled exception: `ouo.exception.source = "manual"`, `ouo.exception.handled = true`
+   * unless the attributes set it. The attributes may carry `ouo.exception.fingerprint`.
+   */
+  recordException(error: unknown, attributes?: Attrs): void;
+  /** Alias of `recordException`. */
   captureError(err: unknown, context?: Attrs): void;
-  /** Emit a custom event (an OTel log record with `event.name = name`). */
+  /** Emit a custom event (an OTel log record with `event.name = name`); `body` defaults to the name. Names starting with `session.` or `ouo.` are dropped. */
+  recordEvent(name: string, attributes?: Attrs, body?: string): void;
+  /** Alias of `recordEvent` without a body. */
   addEvent(name: string, attrs?: Attrs): void;
   /** Emit a `navigation` event and count it as activity. */
   trackNavigation(path: string, attrs?: Attrs): void;
@@ -390,7 +457,8 @@ export interface RUM {
   startSpan(name: string, options?: SpanOptions): Span;
   /**
    * Run `fn` inside a new span and end it when `fn` returns or its promise settles. A throw or
-   * rejection sets the span status to error, records the exception on the span and rethrows.
+   * rejection sets the span status to error, is reported as an `exception` log record with the
+   * span's trace id and span id (no span event, spec REL-7) and is rethrown.
    * The span is active while `fn` runs synchronously: requests started, logs and errors reported
    * there join its trace. After an `await`, pass the span on with `startSpan(name, { parent })`.
    */
@@ -408,6 +476,20 @@ export interface RUM {
   session: RUMSession;
   /** Resolves once the persisted session state was read and `session.start` was emitted. */
   ready: Promise<void>;
-  /** Force export of pending spans, log records and replay chunks. */
+  /** Force export of pending spans, log records and replay chunks. Never rejects. */
   flush(): Promise<void>;
+  /** The current session id, or undefined when the SDK is not running. */
+  getSessionId(): string | undefined;
+  /** End the session (`ouo.session.end_reason = "manual"`) and start a new one linked to it. */
+  restartSession(): void;
+  /**
+   * Stop the SDK (spec LIF-4): capture stops, every hook is removed, the session ends
+   * (`ouo.session.end_reason = "shutdown"`) and what is queued is flushed, for at most
+   * `transport.shutdownDeadlineMs`. `init` can be called again afterwards.
+   */
+  shutdown(): Promise<void>;
+  /** The SDK's OpenTelemetry tracer provider: spans from its tracers carry the session attributes (spec REL-5). */
+  getTracerProvider(): TracerProvider;
+  /** The SDK's OpenTelemetry logger provider: records from its loggers carry the session attributes. */
+  getLoggerProvider(): LoggerProvider;
 }

@@ -1,3 +1,5 @@
+import type { DropCounter, DropReason } from "../drops";
+import { guard } from "../guard";
 import type { DebugLogger } from "../logger";
 import { systemClock, type Clock, type TimerHandle } from "../session/clock";
 import { withTimeout } from "../session/storage";
@@ -26,6 +28,8 @@ interface Item {
   url: string;
   /** Body length in UTF-16 code units: bytes for OTLP JSON, which is ASCII but for user strings. */
   bytes: number;
+  /** Records in the request, for the drop count (absent in an index written by an older SDK: counted as 1). */
+  n?: number;
 }
 
 interface Index {
@@ -41,6 +45,8 @@ export interface OutboxOptions {
   maxBytes?: number;
   maxEntries?: number;
   clock?: Clock;
+  /** Counts the records of every request dropped here (spec ERR-7). */
+  drops?: DropCounter;
 }
 
 /**
@@ -80,6 +86,7 @@ export class Outbox {
   private readonly maxBytes: number;
   private readonly maxEntries: number;
   private readonly clock: Clock;
+  private readonly drops: DropCounter | undefined;
 
   private index: Index = { next: 1, items: [] };
   /** Bodies queued by this process: sent from memory, so a failing storage only costs the next launch. */
@@ -106,6 +113,7 @@ export class Outbox {
     this.maxBytes = opts.maxBytes ?? DEFAULT_OUTBOX_MAX_BYTES;
     this.maxEntries = opts.maxEntries ?? DEFAULT_OUTBOX_MAX_ENTRIES;
     this.clock = opts.clock ?? systemClock;
+    this.drops = opts.drops;
     this.loaded = this.load();
   }
 
@@ -115,15 +123,21 @@ export class Outbox {
   }
 
   /** Persists the request, then sends it unless a retry is already scheduled. Never rejects. */
-  async put(url: string, body: string): Promise<void> {
+  put(url: string, body: string, records = 1): Promise<void> {
+    return guard.run("outbox.put", () => this.doPut(url, body, records), Promise.resolve());
+  }
+
+  private async doPut(url: string, body: string, records: number): Promise<void> {
     await this.loaded;
-    const item: Item = { id: this.index.next++, url, bytes: body.length };
+    const item: Item = { id: this.index.next++, url, bytes: body.length, n: records };
     this.index.items.push(item);
     this.bodies.set(item.id, body);
     this.enforceBound();
     // Index first: a kill before the body is written leaves an entry the drain skips.
     this.persistIndex();
-    if (this.persistent) await this.guard(this.storage.setItem(bodyKey(item.id), body));
+    if (this.persistent) await this.guard(() => this.storage.setItem(bodyKey(item.id), body));
+    // Memory only (spec TRN-15): the request is still sent, but a kill now loses it. Counted.
+    else this.count(item, "persistence_failed");
     if (this.retryTimer === null) void this.drain();
   }
 
@@ -133,10 +147,15 @@ export class Outbox {
    */
   drain(): Promise<void> {
     if (this.draining) return this.draining;
-    this.draining = this.run().finally(() => {
-      this.draining = null;
-    });
-    return this.draining;
+    // Cleared by the run itself, in the same turn it ends: a `put` right after must start a new drain.
+    const draining = guard.run("outbox.drain", () =>
+      this.run().finally(() => {
+        this.draining = null;
+      }),
+    );
+    if (!draining) return Promise.resolve();
+    this.draining = draining;
+    return draining;
   }
 
   stop(): void {
@@ -159,7 +178,7 @@ export class Outbox {
       this.inFlight = head.id;
       let res: SendResult;
       try {
-        const body = this.bodies.get(head.id) ?? (await this.guard(this.storage.getItem(bodyKey(head.id)), null));
+        const body = this.bodies.get(head.id) ?? (await this.guard(() => this.storage.getItem(bodyKey(head.id)), null));
         if (body === null) {
           this.inFlight = null;
           this.remove(head, "body missing (killed while it was written)");
@@ -179,6 +198,7 @@ export class Outbox {
       }
       if (!retryable(res.status)) {
         this.stats.rejected++;
+        this.count(head, "rejected");
         this.logger.warn(`delivery: ${head.url} rejected with HTTP ${res.status}, dropped (not retryable)`);
         this.forget(head);
         continue;
@@ -197,7 +217,7 @@ export class Outbox {
   private async load(): Promise<void> {
     let raw: string | null | typeof TIMED_OUT;
     try {
-      raw = await withTimeout<string | null | typeof TIMED_OUT>(this.storage.getItem(OUTBOX_KEY), LOAD_TIMEOUT_MS, TIMED_OUT);
+      raw = await withTimeout<string | null | typeof TIMED_OUT>(Promise.resolve().then(() => this.storage.getItem(OUTBOX_KEY)), LOAD_TIMEOUT_MS, TIMED_OUT);
     } catch {
       raw = TIMED_OUT;
     }
@@ -229,8 +249,13 @@ export class Outbox {
     }
   }
 
+  private count(item: Item, reason: DropReason): void {
+    this.drops?.count(/\/v1\/traces(?:[?#]|$)/.test(item.url) ? "span" : "log", reason, item.n ?? 1);
+  }
+
   private remove(item: Item, why: string): void {
     this.stats.dropped++;
+    this.count(item, "outbox_evicted");
     this.logger.warn(`delivery: dropped ${item.bytes} B for ${item.url} (${why})`);
     this.forget(item);
   }
@@ -239,13 +264,13 @@ export class Outbox {
   private forget(item: Item): void {
     this.index.items = this.index.items.filter((i) => i.id !== item.id);
     this.bodies.delete(item.id);
-    if (this.persistent) void this.guard(this.storage.removeItem(bodyKey(item.id)));
+    if (this.persistent) void this.guard(() => this.storage.removeItem(bodyKey(item.id)));
     this.persistIndex();
   }
 
   private persistIndex(): void {
     if (!this.persistent) return;
-    void this.guard(this.storage.setItem(OUTBOX_KEY, JSON.stringify(this.index)));
+    void this.guard(() => this.storage.setItem(OUTBOX_KEY, JSON.stringify(this.index)));
   }
 
   private cancelRetry(): void {
@@ -253,9 +278,10 @@ export class Outbox {
     this.retryTimer = null;
   }
 
-  private async guard<T>(p: Promise<T>, fallback?: T): Promise<T> {
+  /** A storage call that throws or rejects is the environment's failure: logged, not an SDK error. */
+  private async guard<T>(call: () => Promise<T>, fallback?: T): Promise<T> {
     try {
-      return await p;
+      return await call();
     } catch (err) {
       this.logger.warn("delivery: storage error", err);
       return fallback as T;

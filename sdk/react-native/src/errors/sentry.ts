@@ -3,22 +3,47 @@ import type { Attrs, SentryClientLike, SentryEventLike } from "../types";
 import { exceptionAttributes } from "./classify";
 import type { ReportedErrors } from "./dedupe";
 
+interface SentryScopeLike {
+  getClient?: () => unknown;
+  captureException?: (error: unknown, hint?: unknown) => unknown;
+}
+
 /**
- * Best effort: whether a Sentry client already exists (the `__SENTRY__` carrier of @sentry/core
- * 8 to 10, read defensively). Used only to warn about the shared promise rejection tracker.
+ * Best effort: the current scope of an initialised Sentry SDK (the `__SENTRY__` carrier of
+ * @sentry/core 8 to 10, read defensively); undefined when there is no client.
  */
-export function sentryClientPresent(): boolean {
+function sentryScope(): SentryScopeLike | undefined {
   try {
     const carrier = (globalThis as { __SENTRY__?: Record<string, unknown> }).__SENTRY__;
-    if (!carrier || typeof carrier !== "object") return false;
+    if (!carrier || typeof carrier !== "object") return undefined;
     for (const value of Object.values(carrier)) {
-      const scope = (value as { defaultCurrentScope?: { getClient?: () => unknown } } | null)?.defaultCurrentScope;
-      if (scope && typeof scope.getClient === "function" && scope.getClient()) return true;
+      const scope = (value as { defaultCurrentScope?: SentryScopeLike } | null)?.defaultCurrentScope;
+      if (scope && typeof scope.getClient === "function" && scope.getClient()) return scope;
     }
   } catch {
     // unknown carrier shape
   }
-  return false;
+  return undefined;
+}
+
+/** Whether a Sentry client already exists. */
+export function sentryClientPresent(): boolean {
+  return sentryScope() !== undefined;
+}
+
+/**
+ * Spec ERR-3 for promise rejections. Hermes keeps a single rejection tracker, offers no getter
+ * for it and is frozen, so the tracker Sentry registered before ouo cannot be called. What that
+ * tracker did is `captureException(error, { mechanism: onunhandledrejection, handled })` on the
+ * current scope; this does the same, so Sentry keeps getting unhandled rejections without the
+ * app forwarding them. Returns whether a Sentry scope took it. `forwardSentryErrors` does not
+ * send this event back (its mechanism is one of ouo's own captures).
+ */
+export function forwardRejectionToSentry(error: unknown): boolean {
+  const scope = sentryScope();
+  if (!scope || typeof scope.captureException !== "function") return false;
+  scope.captureException(error, { originalException: error, mechanism: { type: "onunhandledrejection", handled: true } });
+  return true;
 }
 
 /** Sentry mechanisms of errors ouo captures itself: its global handler chains to Sentry's, and it forwards rejections. */

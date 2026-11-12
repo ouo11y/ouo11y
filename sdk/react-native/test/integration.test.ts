@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initRUM, type RUMInternal } from "../src/index";
 import { CRASH_STORAGE_KEY } from "../src/session/manager";
 import { MemoryAsyncStorage } from "../src/session/storage";
@@ -271,12 +271,14 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
   it("case 5 through AppState: a long background stay rotates the session and flushes", async () => {
     const captured = installFetchStub();
     const storage = new MemoryAsyncStorage();
-    const rum = initRUM({ ...makeOptions(storage, "2.4.0"), session: { backgroundTimeoutMs: 40 } }) as RUMInternal;
+    // The shortest background timeout the SDK accepts is a minute (spec CFG-2): the clock is moved past it.
+    const rum = initRUM({ ...makeOptions(storage, "2.4.0"), session: { backgroundTimeoutMs: 60_000 } }) as RUMInternal;
     await rum.ready;
     const first = rum.session.id();
     AppState.__emit("inactive");
     AppState.__emit("background");
-    await sleep(80);
+    const backgroundedAt = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => backgroundedAt + 61_000);
     AppState.__emit("active");
     expect(rum.session.id()).not.toBe(first);
     expect(rum.session.previousId()).toBe(first);

@@ -196,14 +196,14 @@ describe("G3 span and log API", () => {
       rum.log.info("checkout started", { "cart.items": 3 });
       rum.captureError(new Error("coupon invalid"));
       return 42;
-    }, { attributes: { "ouo.flow": "checkout" } });
+    }, { attributes: { "app.flow": "checkout" } });
     expect(value).toBe(42);
     await inner;
     await rum.flush();
     const root = captured.spans.find((s) => s.name === "checkout")!;
     const http = captured.spans.find((s) => s.name === "HTTP POST")!;
     expect(attr(root.attributes, "cart.items")).toBe(3);
-    expect(attr(root.attributes, "ouo.flow")).toBe("checkout");
+    expect(attr(root.attributes, "app.flow")).toBe("checkout");
     expect(attr(root.attributes, "session.id")).toBe(rum.session.id());
     expect(http.traceId).toBe(root.traceId);
     expect(http.parentSpanId).toBe(root.spanId);
@@ -223,7 +223,7 @@ describe("G3 span and log API", () => {
     expect(attr(err.attributes, "ouo.exception.trace_link")).toBe("active_span");
   });
 
-  it("withSpan: a rejection marks the span, records the exception and rethrows; the unhandled error joins that span", async () => {
+  it("withSpan: a rejection marks the span, reports the exception as a log record and rethrows; the unhandled error joins that span", async () => {
     const { rum, captured } = await start();
     const boom = new Error("payment declined");
     await expect(
@@ -236,10 +236,18 @@ describe("G3 span and log API", () => {
     await rum.flush();
     const pay = captured.spans.find((s) => s.name === "pay")!;
     expect(pay.status?.code).toBe(SpanStatusCode.ERROR);
-    expect(pay.events?.[0]?.name).toBe("exception");
-    const err = captured.byName("exception")[0]!;
-    expect(err.spanId).toBe(pay.spanId);
-    expect(attr(err.attributes, "ouo.exception.trace_link")).toBe("span");
+    // No span event (spec REL-7): the error is an `exception` log record with the span's ids (SIG-33).
+    expect(pay.events ?? []).toEqual([]);
+    const errors = captured.byName("exception");
+    // One from the span (the error escaped it), one from the app's captureError.
+    expect(errors).toHaveLength(2);
+    for (const err of errors) {
+      expect(err.traceId).toBe(pay.traceId);
+      expect(err.spanId).toBe(pay.spanId);
+      expect(attr(err.attributes, "ouo.exception.trace_link")).toBe("span");
+    }
+    expect(attr(errors[0]!.attributes, "ouo.exception.source")).toBeUndefined();
+    expect(attr(errors[1]!.attributes, "ouo.exception.source")).toBe("manual");
   });
 
   it("startSpan: explicit parent across an await, null for a new trace; log levels", async () => {

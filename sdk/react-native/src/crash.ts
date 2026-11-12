@@ -1,3 +1,4 @@
+import { guard } from "./guard";
 import type { DebugLogger } from "./logger";
 import { loadNativeReplayModule } from "./replay";
 import type { CrashMarker } from "./session/manager";
@@ -287,11 +288,14 @@ export function createNativeCrashCapture(opts: NativeCrashCaptureOptions): Nativ
         // Listening first: the native side starts the hang watchdog in installCrashReporter.
         const onHang = opts.onHang;
         if (onHang && typeof native?.addListener === "function") {
-          hangs = native.addListener("onHang", (payload) => {
-            const report = typeof payload?.report === "string" ? parseNativeCrash(payload.report) : undefined;
-            if (report?.mechanism === "hang") onHang(report);
-            else logger.warn("native hang: unreadable report dropped");
-          });
+          hangs = native.addListener(
+            "onHang",
+            guard.wrap("native.onHang", (payload: { report?: string }) => {
+              const report = typeof payload?.report === "string" ? parseNativeCrash(payload.report) : undefined;
+              if (report?.mechanism === "hang") onHang(report);
+              else logger.warn("native hang: unreadable report dropped");
+            }),
+          );
         }
         active = installNative!(sessionId, startedAtMs) !== false;
         logger.log("native crash capture installed", active);
@@ -308,8 +312,9 @@ export function createNativeCrashCapture(opts: NativeCrashCaptureOptions): Nativ
       }
     },
     stop(): void {
-      hangs?.remove();
+      const h = hangs;
       hangs = undefined;
+      guard.run("native.onHang.remove", () => h?.remove?.());
     },
   };
 }

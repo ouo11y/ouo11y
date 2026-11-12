@@ -1,4 +1,5 @@
 import { AppState, type AppStateStatus } from "react-native";
+import { guard } from "./guard";
 import type { DebugLogger } from "./logger";
 
 /** `ouo.app.state` values, as the Sentry bridge maps sentry-cocoa's `app.*` breadcrumbs (spec section 9a). */
@@ -37,6 +38,6 @@ export function installAppStateListener(hooks: AppStateHooks): () => void {
     }
     if (changed && state === "foreground") hooks.onLifecycle?.(state);
   };
-  const sub = AppState.addEventListener("change", handler);
-  return () => sub.remove();
+  const sub = AppState.addEventListener("change", guard.wrap("appstate", handler));
+  return () => sub?.remove?.();
 }

@@ -2,6 +2,8 @@ import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 import type { LogRecordExporter, ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { JsonLogsSerializer, JsonTraceSerializer } from "@opentelemetry/otlp-transformer";
+import { isDropEvent } from "../drops";
+import { guard } from "../guard";
 import type { Outbox } from "./outbox";
 
 interface Serializer<T> {
@@ -18,18 +20,32 @@ export class OutboxExporter<T> {
     private readonly serializer: Serializer<T>,
     private readonly url: string,
     private readonly outbox: Outbox,
+    /** How many of the items count as records when the request is dropped (not the SDK's own drop reports). */
+    private readonly records: (items: T[]) => number = (items) => items.length,
   ) {}
 
+  /** Inside the guard (ERR-1): a serializer or outbox that throws fails the export, it does not throw into the batcher. */
   export(items: T[], resultCallback: (result: ExportResult) => void): void {
-    const bytes = items.length > 0 ? this.serializer.serializeRequest(items) : undefined;
-    if (!bytes) {
-      resultCallback({ code: ExportResultCode.SUCCESS });
-      return;
+    let answered = false;
+    const answer = (result: ExportResult): void => {
+      if (answered) return;
+      answered = true;
+      resultCallback(result);
+    };
+    const failed = (error: unknown): void => {
+      guard.report("exporter", error);
+      answer({ code: ExportResultCode.FAILED, error: error instanceof Error ? error : new Error(String(error)) });
+    };
+    try {
+      const bytes = items.length > 0 ? this.serializer.serializeRequest(items) : undefined;
+      if (!bytes) {
+        answer({ code: ExportResultCode.SUCCESS });
+        return;
+      }
+      this.outbox.put(this.url, utf8Decode(bytes), this.records(items)).then(() => answer({ code: ExportResultCode.SUCCESS }), failed);
+    } catch (error) {
+      failed(error);
     }
-    this.outbox.put(this.url, utf8Decode(bytes)).then(
-      () => resultCallback({ code: ExportResultCode.SUCCESS }),
-      (error: Error) => resultCallback({ code: ExportResultCode.FAILED, error }),
-    );
   }
 
   forceFlush(): Promise<void> {
@@ -46,7 +62,12 @@ export function createTraceExporter(url: string, outbox: Outbox): SpanExporter {
 }
 
 export function createLogExporter(url: string, outbox: Outbox): LogRecordExporter {
-  return new OutboxExporter<ReadableLogRecord>(JsonLogsSerializer as Serializer<ReadableLogRecord>, url, outbox);
+  return new OutboxExporter<ReadableLogRecord>(
+    JsonLogsSerializer as Serializer<ReadableLogRecord>,
+    url,
+    outbox,
+    (items) => items.filter((r) => !isDropEvent(r.attributes["event.name"])).length,
+  );
 }
 
 /** UTF-8 bytes to a string; `TextDecoder` where the runtime has it (Hermes may not). */

@@ -42,3 +42,11 @@ export class StackContextManager implements ContextManager {
     return this;
   }
 }
+
+/**
+ * The SDK's own context manager (spec REL-4): `withSpan`, the request spans and the records
+ * emitted inside them read and set the active context here, not on the OpenTelemetry global, so
+ * the SDK works whether or not a global context manager is registered (and never replaces one).
+ * With `otel.registerGlobal` this same instance is registered as the global.
+ */
+export const sdkContext = new StackContextManager();

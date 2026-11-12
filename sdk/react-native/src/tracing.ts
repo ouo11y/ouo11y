@@ -1,6 +1,8 @@
-import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context, type Span, type SpanContext, type SpanKind, type Tracer } from "@opentelemetry/api";
+import { INVALID_SPAN_CONTEXT, ROOT_CONTEXT, SpanStatusCode, trace, type Context, type Span, type SpanContext, type SpanKind, type Tracer } from "@opentelemetry/api";
 import { SeverityNumber } from "@opentelemetry/api-logs";
 import { serializeError } from "./errors/classify";
+import { guard } from "./guard";
+import { sdkContext as context } from "./telemetry/context";
 import type { EventEmitter } from "./telemetry/events";
 import type { Attrs, LogLevel, RUMLog, SpanOptions } from "./types";
 
@@ -54,11 +56,19 @@ export interface SpanApi {
   withSpan<T>(name: string, fn: (span: Span) => T, options?: SpanOptions): T;
 }
 
-/** Public span API (checklist G3) on the SDK's tracer: every span gets the session attributes. */
-export function createSpanApi(tracer: Tracer, linker: TraceLinker): SpanApi {
+/** What `startSpan` returns when the SDK cannot make a span: valid to call, records nothing. */
+export const noopSpan = (): Span => trace.wrapSpanContext(INVALID_SPAN_CONTEXT);
+
+/**
+ * Public span API (checklist G3) on the SDK's tracer: every span gets the session attributes.
+ * `onError` receives an error that escaped `withSpan`, after the span was linked to it: it is
+ * reported as an `exception` log record with the span's ids (spec SIG-33), never as a span
+ * event (REL-7).
+ */
+export function createSpanApi(tracer: Tracer, linker: TraceLinker, onError?: (error: unknown) => void): SpanApi {
   const start = (name: string, options: SpanOptions = {}): Span =>
     tracer.startSpan(
-      name,
+      String(name),
       {
         ...(options.attributes ? { attributes: options.attributes } : {}),
         ...(options.kind !== undefined ? { kind: options.kind as SpanKind } : {}),
@@ -66,38 +76,43 @@ export function createSpanApi(tracer: Tracer, linker: TraceLinker): SpanApi {
       },
       parentContext(options.parent),
     );
-  const fail = (span: Span, err: unknown): void => {
-    const s = serializeError(err);
-    span.recordException({ name: s.type, message: s.message, ...(s.stacktrace ? { stack: s.stacktrace } : {}) });
-    span.setStatus({ code: SpanStatusCode.ERROR, message: s.message });
-    linker.rememberError(err, span);
+  // The SDK's part of `withSpan` runs inside the guard; the app's function does not.
+  const end = (span: Span, failed?: { error: unknown }): void => {
+    guard.run("withSpan.end", () => {
+      if (failed) {
+        const s = serializeError(failed.error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: s.message });
+        linker.rememberError(failed.error, span);
+        onError?.(failed.error);
+      }
+      span.end();
+    });
   };
   return {
-    startSpan: start,
+    startSpan: (name, options) => guard.run("startSpan", () => start(name, options ?? {})) ?? noopSpan(),
     withSpan<T>(name: string, fn: (span: Span) => T, options?: SpanOptions): T {
-      const span = start(name, options);
+      if (typeof fn !== "function") return undefined as T;
+      const span = guard.run("withSpan.start", () => start(name, options ?? {})) ?? noopSpan();
       let result: T;
       try {
         result = context.with(trace.setSpan(context.active(), span), () => fn(span));
       } catch (err) {
-        fail(span, err);
-        span.end();
+        end(span, { error: err });
         throw err;
       }
       if (result && typeof (result as { then?: unknown }).then === "function") {
         return (result as unknown as Promise<unknown>).then(
           (v) => {
-            span.end();
+            end(span);
             return v;
           },
           (err: unknown) => {
-            fail(span, err);
-            span.end();
+            end(span, { error: err });
             throw err;
           },
         ) as unknown as T;
       }
-      span.end();
+      end(span);
       return result;
     },
   };
@@ -120,18 +135,20 @@ const MAX_MESSAGE = 1024;
  * `Sentry.logger.*` entries (spec section 7a), so both read alike in rum-api's logs view.
  * The record carries the session attributes and the active span's trace id and span id.
  */
-export function createLogApi(events: EventEmitter): RUMLog {
+export function createLogApi(events: EventEmitter, clean: (attrs: unknown) => Attrs = (a) => (a && typeof a === "object" ? (a as Attrs) : {})): RUMLog {
   const emit = (level: LogLevel, message: string, attrs?: Attrs, options?: { span?: Span }): void => {
-    const sev = LEVELS[level];
-    const body = String(message);
-    events.emitRecord({
-      eventName: "log",
-      body,
-      timestamp: Date.now(),
-      severityNumber: sev.number,
-      severityText: sev.text,
-      attributes: { ...(attrs ?? {}), "event.name": "log", message: body.length > MAX_MESSAGE ? body.slice(0, MAX_MESSAGE) : body },
-      context: options?.span ? trace.setSpan(context.active(), options.span) : context.active(),
+    guard.run("log", () => {
+      const sev = LEVELS[level] ?? LEVELS.info;
+      const body = String(message);
+      events.emitRecord({
+        eventName: "log",
+        body,
+        timestamp: Date.now(),
+        severityNumber: sev.number,
+        severityText: sev.text,
+        attributes: { ...clean(attrs), "event.name": "log", message: body.length > MAX_MESSAGE ? body.slice(0, MAX_MESSAGE) : body },
+        context: options?.span && typeof options.span.spanContext === "function" ? trace.setSpan(context.active(), options.span) : context.active(),
+      });
     });
   };
   const log = ((level: LogLevel, message: string, attrs?: Attrs, options?: { span?: Span }) => emit(level, message, attrs, options)) as RUMLog;

@@ -1,6 +1,6 @@
 # ADR-0019 React Native SDK: keep the OpenTelemetry JS core and extend it, in two steps
 
-Status: proposed (2026-11-11, React Native SDK session). Decisions 2 and 6 depart from the draft SDK spec and go to the founder with Step 7.
+Status: proposed (2026-11-11, React Native SDK session). Decision 3 is the founder's (2026-11-11). Decision 2 departs from the draft SDK spec and goes to the founder with Step 7.
 
 ## Context
 
@@ -21,9 +21,10 @@ What works today and is on OpenTelemetry: the OTel JS logger and tracer provider
 
 1. **Keep and extend.** The package is not archived. The OTel JS API and SDK stay the core; every new layer is an OTel processor, exporter or a module beside them. The only code retired is the custom replay upload (`/v1/replay/chunks`) once decision 5 lands.
 2. **JavaScript owns the session, the telemetry queue and the exporter.** The founder decided on 2026-11-10 that React Native keeps the OTel JS SDK. The draft spec says the opposite (SIG-42: owned by native), written when a native SDK under React Native was assumed. Proposed change for Step 7: SIG-42 becomes "one session and one telemetry queue, owned by one layer; the other layer reads the session id and sampling decision from it". Native keeps what only native can do: crash, hang, app start, frames, replay capture, and the replay queue.
-3. **Two steps, because consumers read the wire.** rum-api, the plugin and the CI suites read today's event names and the `event_name` label. A conformant wire breaks them, and they are not this package's to change.
-   - **Step A, wire-compatible.** Every must that does not rename a record or change what consumers key on: failure isolation with fault-injection tests, `beforeSend`, consent, URL sanitising, the sampling bypass set, configuration that never throws, drop counting and self-disable, the spec's API surface (old names kept as aliases), public `shutdown`, propagation fixes, transport fixes, truncation. Mergeable on green CI as it is.
-   - **Step B, the spec wire.** Names, scope `ouo.rum`, `schema_url`, `ouo.view.id`, session and sampling id rules, protobuf, and replay over OTLP. Built and verified against a fake Collector and the simulators; merged when the Collector maps the new names for the current consumers or the consumers move (decision for the founder, asked 2026-11-11).
+3. **Spec wire only, in two pull requests.** rum-api, the plugin and the CI suites read the MVP event names and the `event_name` label, so a conformant wire breaks them. The founder decided on 2026-11-11 that the MVP names and the current collector path are MVP-only and will be removed: the SDK emits the spec wire with no compatibility mapping and no `wire` switch, and this package does not edit those consumers. The work is split only to keep each review readable:
+   - **Step A**: the layers that do not exist yet: failure isolation with fault-injection tests, `beforeSend`, consent, URL sanitising, the sampling bypass set, configuration that never throws, drop counting and self-disable, the spec's API surface (old names kept as aliases), public `shutdown`, propagation and transport fixes, truncation.
+   - **Step B**: names, scope `ouo.rum`, `schema_url`, `ouo.view.id`, session and sampling id rules, protobuf, and replay over OTLP.
+   - CI checks that assert the MVP wire against rum-api (`tests/e2e/mobile/conformance.mjs`, `examples/ouo-mobile/scripts/verify.py`) fail once the names change. They are not skipped or edited: each pull request lists the failing jobs and why, and the founder, who alone merges, decides.
 4. **Failure isolation is one mechanism, tested by injection.** Every entry point (public API, patched `fetch` and XHR, global handlers, timers, AppState and navigation listeners, processors, exporters, native module methods and callbacks) runs inside one guard that catches, counts and, past `diagnostics.selfDisableThreshold`, turns the SDK into a no-op. A fault-injection suite throws from each seam and asserts the host call still returns what it would without the SDK.
 5. **Replay: native capture, native queue, OTLP envelope.**
    - When to look stays as it is: the run loop on iOS, the draw listener on Android.
@@ -35,14 +36,13 @@ What works today and is on OpenTelemetry: the OTel JS logger and tracer provider
 
 ## Consequences
 
-- No flag day inside the package: step A ships to current users without a backend change.
 - Until step B merges, the package is not conformant at `0.1.0-draft`: the name, scope and replay rows stay open and are listed in the agent summary.
-- Step B makes React Native replay unreadable by today's rum-api replay sink. It needs the Collector route to Muninn (or an interim route) before it merges.
+- Step B makes React Native sessions and replay unreadable by today's rum-api and plugin until the Collector route to Muninn and the new read side exist. That is accepted.
 - The JavaScript layer stays the single place where session and sampling are decided; native reads both through the bridge. A crash before the bridge is up is attributed through the persisted session, as today.
 - Two replay formats double the reader work in the plugin. The format id on every chunk (RPL-24) keeps that a reader concern.
 
 ## Alternatives considered
 
 - **Archive and rewrite on a native core** (the draft's SIG-42). Rejected: it discards working, tested OTel JS code, contradicts the founder's 2026-11-10 direction, and waits on native SDKs planned for Step 12.
-- **One PR with a `wire: mvp | spec` switch.** Rejected for now: two wires in one release double the test matrix; kept as the fallback if the Collector mapping is not wanted.
+- **A `wire: mvp | spec` switch, or a Collector mapping back to MVP names.** Rejected by the founder: the MVP wire is being removed, not carried.
 - **Chunks through the JS exporter.** Rejected: 256 KiB of base64 over the bridge every few seconds, and a crash loses the open chunk.

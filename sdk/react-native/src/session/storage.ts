@@ -26,7 +26,11 @@ export class MemoryAsyncStorage implements AsyncKeyValueStorage {
   }
 }
 
-/** Wraps any AsyncStorage-like object so a throwing or rejecting implementation never breaks the SDK. */
+/**
+ * Wraps any AsyncStorage-like object so a throwing or rejecting implementation never breaks the
+ * SDK. A storage failure is the environment's, not an SDK error: it is logged, not counted
+ * towards self-disable.
+ */
 export function safeStorage(inner: AsyncKeyValueStorage, onError?: (err: unknown) => void): AsyncKeyValueStorage {
   const guard = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     try {
