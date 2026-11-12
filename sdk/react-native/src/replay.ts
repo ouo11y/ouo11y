@@ -71,7 +71,11 @@ export interface NativeReplayModule {
   setViewId?(id: string): void;
   mask?(reactTag: number): void;
   unmask?(reactTag: number): void;
-  /** Stops without an end record and deletes every replay record not yet accepted (consent withdrawn). */
+  /**
+   * Consent withdrawn: stops without an end record and deletes every replay record not yet
+   * accepted, end records included. One call, so no record can be queued between a stop and the
+   * delete.
+   */
   discardPending?(): Promise<void>;
   /** What replay dropped or could not do in this process, by reason. */
   replayDiagnostics?(): Record<string, number>;
@@ -555,10 +559,17 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       if (next === allowed) return;
       allowed = next;
       if (!next) {
-        // Consent withdrawn (PRV-4): stop, then delete every replay record not yet accepted.
+        // Consent withdrawn (PRV-4): nothing further is sent. `discardPending` alone stops the
+        // recorder without an end record and deletes every replay record not yet accepted; a
+        // `stop` first would queue `ouo.replay.ended`. Only a build without it falls back to `stop`.
         if (active) pendingStart = currentId;
-        stopNative("stop");
-        void call("discardPending");
+        if (native && typeof native.discardPending === "function") {
+          active = false;
+          activePlan = undefined;
+          void call("discardPending");
+        } else {
+          stopNative("stop");
+        }
         return;
       }
       const id = pendingStart ?? currentId;

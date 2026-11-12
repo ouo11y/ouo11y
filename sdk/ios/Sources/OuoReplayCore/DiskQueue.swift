@@ -188,6 +188,18 @@ public final class DiskQueue {
         }
     }
 
+    /// Deletes every entry unsent, in one step on the queue: no send starts between two deletes.
+    /// A request already on the wire may still arrive. Returns how many were deleted.
+    @discardableResult
+    public func removeAll() -> Int {
+        queue.sync {
+            let es = Self.list(directory)
+            for e in es { try? FileManager.default.removeItem(at: e.url) }
+            stats.dropped += es.count
+            return es.count
+        }
+    }
+
     /// Moves an entry into `other` under the same name (it keeps its place in the order), then lets
     /// `other` apply its bounds and send.
     public func move(_ e: Entry, to other: DiskQueue) {

@@ -615,7 +615,7 @@ describe("replay over OTLP: the native calls", () => {
     expect(older.stop).toHaveBeenCalledTimes(1);
   });
 
-  it("consent: not started until allowed; withdrawal stops, then deletes what was not sent", async () => {
+  it("consent: not started until allowed; withdrawal discards in one call, with no stop (no end record, PRV-4)", async () => {
     const native = fakeNative();
     const order: string[] = [];
     native.stop.mockImplementation(() => void order.push("stop"));
@@ -629,8 +629,12 @@ describe("replay over OTLP: the native calls", () => {
     c.setAllowed(true);
     expect(native.start).toHaveBeenCalledTimes(1);
     c.setAllowed(false);
-    expect(order).toEqual(["stop", "discardPending"]);
+    // `stop` would queue `ouo.replay.ended`: the one native call stops and deletes.
+    expect(order).toEqual(["discardPending"]);
     expect(c.active).toBe(false);
+    // Given again: a new recording for the current session.
+    c.setAllowed(true);
+    expect(native.start).toHaveBeenCalledTimes(2);
     await Promise.resolve();
     // Withdrawn before anything was recorded: still deletes what an earlier run left.
     const native2 = fakeNative();
@@ -638,6 +642,22 @@ describe("replay over OTLP: the native calls", () => {
     c2.setAllowed(false);
     expect(native2.stop).not.toHaveBeenCalled();
     expect(native2.discardPending).toHaveBeenCalledTimes(1);
+    // A build without discardPending still stops.
+    const { discardPending: _gone, ...older } = fakeNative();
+    const c3 = createReplayController({ ...base, options: { enabled: true }, native: older });
+    c3.start("s");
+    c3.setAllowed(false);
+    expect(older.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("PRV-4: withdrawing consent while recording calls only discardPending", () => {
+    const calls: string[] = [];
+    const native = fakeNative();
+    for (const k of ["stop", "endSession", "pause", "discardPending"] as const) native[k].mockImplementation(() => void calls.push(k));
+    const c = createReplayController({ ...base, endpoint: "http://otel.test:4318", projectId: "p", projectToken: "t", options: { enabled: true }, native });
+    c.start("0123456789abcdef0123456789abcdef");
+    c.setAllowed(false);
+    expect(calls).toEqual(["discardPending"]);
   });
 });
 
@@ -727,7 +747,7 @@ describe("initRUM: replay follows the session, errors, consent and shutdown", ()
     expect(extra.unmask.mock.calls).toEqual([[22]]);
   });
 
-  it("an unsampled session and a session without replay consent record nothing; withdrawal stops and discards", async () => {
+  it("an unsampled session and a session without replay consent record nothing; withdrawal discards without a stop", async () => {
     const unsampled = initRUM(options({}, { session: { sampleRate: 0 } })) as RUMInternal;
     await unsampled.ready;
     expect(nativeReplay.start).not.toHaveBeenCalled();
@@ -741,7 +761,8 @@ describe("initRUM: replay follows the session, errors, consent and shutdown", ()
     rum.setConsent({ replay: true });
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
     rum.setConsent({ replay: false });
-    expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
+    // The one call stops and deletes; a `stop` would queue `ouo.replay.ended` (PRV-4).
+    expect(nativeReplay.stop).not.toHaveBeenCalled();
     expect(extra.discardPending).toHaveBeenCalledTimes(1);
   });
 

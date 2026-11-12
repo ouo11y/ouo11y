@@ -170,7 +170,8 @@ describe("consent", () => {
     const { rum, captured } = await start({ replay: { enabled: true } }, new MemoryAsyncStorage());
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
     rum.setConsent({ replay: false });
-    expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
+    // One call: no `stop`, so no `ouo.replay.ended` is queued (PRV-4).
+    expect(nativeReplay.stop).not.toHaveBeenCalled();
     expect(discardPending).toHaveBeenCalledTimes(1);
     expect(rum.replay.isRecording()).toBe(false);
     // A session rotation does not bring it back.

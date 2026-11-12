@@ -56,7 +56,7 @@ const SEAMS: ReadonlyArray<readonly [seam: string, fault: string, coveredBy: str
   ["native replay: mask, unmask", "throw; refs that are not views", "native module"],
   ["native replay: sessionDidRotate", "throws on restartSession", "native module"],
   ["native replay: endSession, flush", "throw / reject on shutdown", "native module"],
-  ["native replay: stop, discardPending", "throw / reject on consent withdrawal and self-disable", "native module"],
+  ["native replay: stop, discardPending", "throw / reject on stop, consent withdrawal and self-disable", "native module"],
   ["native replay: replayDiagnostics", "throws", "native module"],
   ["native module: callbacks", "onHang delivers garbage", "native module"],
   ["native module: missing or half-present", "no module, only start()", "native module"],
@@ -668,7 +668,7 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
       await callEverything(rum, [undefined, "ok"]);
       rum.recordException(new Error("needs the native error context"));
       // Every replay call: the first unhandled error (capture), navigation (setViewId), masks,
-      // a rotation, consent withdrawn (stop, discardPending) and given again, then shutdown below.
+      // a rotation, consent withdrawn (discardPending) and given again, then shutdown below.
       g.ErrorUtils!.getGlobalHandler()(new Error("sends the buffer"), false);
       rum.trackNavigation("/A");
       rum.trackNavigation("/B");

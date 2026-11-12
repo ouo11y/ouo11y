@@ -121,14 +121,13 @@ class ReplayDelivery(
 
   /**
    * Deletes every record not yet accepted (consent withdrawn, an app-initiated clear: TRN-13, not
-   * counted as a loss and not reported to the stream). Returns how many were deleted. A request
-   * already on the wire may still arrive.
+   * counted as a loss and not reported to the stream). Returns how many were deleted. One step on
+   * the queue's own thread, so no send starts half way; a request already on the wire may still
+   * arrive.
    */
   fun discardPending(): Int =
     try {
-      val entries = queue.entries()
-      entries.forEach { queue.remove(it) }
-      entries.size
+      queue.removeAll()
     } catch (e: Throwable) {
       0
     }

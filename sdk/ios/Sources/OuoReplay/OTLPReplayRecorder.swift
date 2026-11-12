@@ -23,7 +23,7 @@ import OuoReplaySentryCore
 /// `OuoReplayCatch`; a look that fails is dropped and counted; after `faultLimit` faults on the
 /// main thread, or the stream's own limit, capture stops and the stream ends with reason `error`.
 final class OTLPReplayRecorder: ReplayRecording {
-    private static let queue = DispatchQueue(label: "dev.ouo.replay.otlp", qos: .utility)
+    static let queue = DispatchQueue(label: "dev.ouo.replay.otlp", qos: .utility)
     private static let faultLimit = 20
 
     private let config: OuoReplayConfig
@@ -101,9 +101,43 @@ final class OTLPReplayRecorder: ReplayRecording {
         return ReplayStream(sessionId: sessionId, replayId: replayId, scope: options.scope, config: options.streamConfig, adapter: adapter, sink: delivery, store: store, logger: logger)
     }
 
+    // MARK: streams still ending (main thread)
+
+    /// Streams whose end waits for the video core's last segment (`end`). A new recorder starts
+    /// only once none is left: they share the one open-stream file, and a start before their end
+    /// read it as a stream a kill left open and sent a false `partial` end for it (RPL-20). A
+    /// consent withdrawal abandons them, so their end record is never sent (PRV-4).
+    private static var ending: [ReplayStream] = []
+    private static var afterEnding: [() -> Void] = []
+
+    private static func whenNoneEnding(_ then: @escaping () -> Void) {
+        if ending.isEmpty { then() } else { afterEnding.append(then) }
+    }
+
+    private static func runAfterEndingIfIdle() {
+        guard ending.isEmpty, !afterEnding.isEmpty else { return }
+        let waiting = afterEnding
+        afterEnding = []
+        waiting.forEach { $0() }
+    }
+
+    /// Consent withdrawn: every stream still ending ends without a record. On the queue, so before
+    /// anything the caller queues next.
+    static func abandonEnding() {
+        let streams = ending
+        ending = []
+        if !streams.isEmpty { queue.async { streams.forEach { $0.abandon() } } }
+        runAfterEndingIfIdle()
+    }
+
     // MARK: lifecycle
 
     func start() {
+        Self.whenNoneEnding { [weak self] in self?.begin() }
+    }
+
+    private func begin() {
+        guard !stopped else { return }
         // The stream a kill left open ends first (RPL-20), then what earlier runs queued is sent.
         // On the queue, so before any chunk of this process.
         let previousExit = options.previousExit
@@ -166,11 +200,17 @@ final class OTLPReplayRecorder: ReplayRecording {
         observers = []
         detachTouchObserver()
         let stream = self.stream
+        Self.ending.append(stream)
         afterVideoSegment { [delivery] in
-            Self.queue.async {
-                stream.end(reason: reason)
-                delivery.drain {}
+            // Gone from the list: consent was withdrawn meanwhile, the stream ends without a record.
+            if Self.ending.contains(where: { $0 === stream }) {
+                Self.ending.removeAll { $0 === stream }
+                Self.queue.async {
+                    stream.end(reason: reason)
+                    delivery.drain {}
+                }
             }
+            Self.runAfterEndingIfIdle()
         }
     }
 
@@ -181,14 +221,15 @@ final class OTLPReplayRecorder: ReplayRecording {
         video.flush(completion: then)
     }
 
-    /// Consent withdrawn (PRV-4): capture stops, nothing further is sent (no end record either) and
-    /// what is queued is deleted.
+    /// Consent withdrawn (PRV-4): capture stops, nothing further is sent (no end record either, not
+    /// even of a stream still ending) and what is queued is deleted.
     func discard(completion: (() -> Void)?) {
         stopCapture()
         stopped = true
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers = []
         detachTouchObserver()
+        Self.abandonEnding()
         let stream = self.stream
         Self.queue.async { [delivery] in
             stream.abandon()

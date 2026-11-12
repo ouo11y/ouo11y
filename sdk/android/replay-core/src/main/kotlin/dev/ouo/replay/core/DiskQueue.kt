@@ -159,6 +159,14 @@ class DiskQueue(
     dropped++
   }
 
+  /** Deletes every entry unsent, in one step on the queue: no send starts between two deletes. A request already on the wire may still arrive. Returns how many were deleted. */
+  fun removeAll(): Int = onQueue {
+    val es = list(directory)
+    es.forEach { it.file.delete() }
+    dropped += es.size
+    es.size
+  }
+
   /** Moves an entry into [other] under the same name, then lets [other] apply its bounds and send. */
   fun move(e: Entry, other: DiskQueue) {
     onQueue {

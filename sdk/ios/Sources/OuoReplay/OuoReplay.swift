@@ -107,7 +107,9 @@ public enum OuoReplay {
                 recorder = nil
                 r.discard { finish() }
             } else {
-                DispatchQueue.global(qos: .utility).async(execute: finish)
+                // A stream a `stop` left ending sends no end record; the files go behind it.
+                OTLPReplayRecorder.abandonEnding()
+                OTLPReplayRecorder.queue.async(execute: finish)
             }
         }
         #else

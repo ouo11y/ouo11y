@@ -132,13 +132,12 @@ public final class ReplayDelivery: ReplaySink {
     }
 
     /// Deletes every record not yet accepted (consent withdrawn, an app-initiated clear: TRN-13,
-    /// not counted as a loss and not reported to the stream). Returns how many were deleted. A
-    /// request already on the wire may still arrive.
+    /// not counted as a loss and not reported to the stream). Returns how many were deleted. One
+    /// step on the queue's own thread, so no send starts half way; a request already on the wire
+    /// may still arrive.
     @discardableResult
     public func discardPending() -> Int {
-        let entries = queue.entries()
-        entries.forEach { queue.remove($0) }
-        return entries.count
+        queue.removeAll()
     }
 
     /// The same for a folder no delivery was made for in this process.
