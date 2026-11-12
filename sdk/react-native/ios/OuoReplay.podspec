@@ -20,6 +20,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'OuoReplayCore'
   s.dependency 'OuoReplayObjC'
+  s.dependency 'OuoReplaySentryCore'
 
   s.source_files = 'OuoReplay/**/*.swift'
   s.pod_target_xcconfig = {

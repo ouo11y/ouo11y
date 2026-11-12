@@ -211,15 +211,17 @@ opts in to visibility (Sentry's mobile replay ships the same default). To opt ou
 - `maskInputs: false` shows typed text. Only set it if you really mean it.
 - `maskClasses: ["MyChartView"]` (`RedactionRules.extraClasses`) masks additional class names.
 
-### Spike: the Sentry-derived recorder
+### Video segments: the Sentry-derived recorder
 
-`OuoReplayConfig(recorder: .sentryVideo)` (or `OuoConfig.replayRecorder = .sentryVideo`) records
-with sentry-cocoa 9.33.0's recorder core (MIT, copied into `Sources/OuoReplaySentryCore`, see
-`THIRD_PARTY_NOTICES` and `scripts/sentry-core-sync.sh`) instead: 1 frame/s, 5 s H.264 segments,
-sent as `kind: "video"` chunks with `format: "sentry-video"` (docs/specs/mobile-replay.md). Its
-masking is Sentry's: text and images masked by default, frames are **not** dropped while a masked
-view moves, and `ouo-mask` / `ouo-unmask` identifiers are not read. A spike: not for production
-until the founder decides on ADR-0018.
+`replay.mode: "pixel/video"` on the OTLP path (React Native, `ReplayOTLPOptions.recorder =
+.pixelVideo`) records with sentry-cocoa 9.33.0's recorder core (MIT, copied into
+`Sources/OuoReplaySentryCore`, see `NOTICE`, `THIRD_PARTY_NOTICES` and
+`scripts/sentry-core-sync.sh`): 1 frame/s, 5 s H.264 segments, one `ouo-video/1` chunk per
+segment (docs/specs/mobile-replay.md). Its masking is the frames recorder's plan, not Sentry's:
+the same classes, overrides and secure-field rule, no look during a view controller transition,
+and no frame while a masked view moves. On the legacy upload path the same core runs behind
+`OuoReplayConfig(recorder: .sentryVideo)` (`kind: "video"` chunks), a spike until ADR-0018 is
+decided.
 
 Per-view overrides through `accessibilityIdentifier` (React Native `testID`), honoured whatever
 the options above say:

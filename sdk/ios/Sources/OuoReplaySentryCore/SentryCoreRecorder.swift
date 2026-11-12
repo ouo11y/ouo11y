@@ -15,6 +15,19 @@ import Foundation
 #if canImport(UIKit) && (os(iOS) || os(tvOS) || os(visionOS))
 import UIKit
 
+/// What ouo's masking says about one capture (main thread), answered by the plan the frames
+/// recorder uses (`ViewTreeBuilder` + `RedactionPlanner`, strict rules, `ReplayMaskRegistry`).
+public enum OuoMaskPlan: Equatable {
+    /// Paint these rectangles (window points) black, then the frame may be encoded.
+    case mask([CGRect])
+    /// Not now (a view controller transition runs, or animations are about to settle): look again
+    /// shortly. No frame is taken.
+    case wait
+    /// The masked state cannot be established (a masked view is moving, the walk failed): no
+    /// frame (PRV-8).
+    case drop
+}
+
 public final class SentryCoreRecorder: OuoSegmentRecorder {
     public struct Options {
         public var maskAllText: Bool
@@ -33,6 +46,11 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
         public var enableFastViewRendering: Bool
         /// Where frames (PNG, for the encoder) and the mp4 files are written while a segment is open.
         public var directory: URL
+        /// ouo's masking. Set: Sentry's redaction walk (`SentryUIRedactBuilder`, presentation
+        /// layers) is not used; every capture asks this first, renders only on `.mask`, and paints
+        /// the rectangles black off the main thread, so masking is the frames recorder's exactly.
+        /// Nil: the spike's behaviour, Sentry's own masking.
+        public var plan: ((UIView) -> OuoMaskPlan)?
 
         public init(
             maskAllText: Bool = true,
@@ -45,7 +63,8 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
             sizeScale: Float = 1,
             enableViewRendererV2: Bool = true,
             enableFastViewRendering: Bool = false,
-            directory: URL = SentryCoreRecorder.defaultDirectory
+            directory: URL = SentryCoreRecorder.defaultDirectory,
+            plan: ((UIView) -> OuoMaskPlan)? = nil
         ) {
             self.maskAllText = maskAllText
             self.maskAllImages = maskAllImages
@@ -58,6 +77,7 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
             self.enableViewRendererV2 = enableViewRendererV2
             self.enableFastViewRendering = enableFastViewRendering
             self.directory = directory
+            self.plan = plan
         }
     }
 
@@ -66,15 +86,20 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
         return caches.appendingPathComponent("ouo/replay/sentry-core", isDirectory: true)
     }
 
-    /// `ouo.replay.format` of what this recorder produces.
-    public static let formatName = "sentry-video"
+    /// `ouo.replay.format` of what this recorder produces: H.264 mp4 segments (`ouo-video/1` on the
+    /// OTLP path; the spike's legacy chunk carries the same name).
+    public static let formatName = "ouo-video/1"
     public var format: String { Self.formatName }
     public var onSegment: ((OuoReplaySegment) -> Void)?
     public var onCapture: ((OuoCaptureTiming) -> Void)?
+    /// A capture the plan refused with `.drop` (main thread).
+    public var onDrop: (() -> Void)?
 
     private let options: Options
     private let redactOptions: SentryRedactDefaultOptions
     private let photographer: SentryViewPhotographer
+    private let renderer: SentryViewRenderer
+    private let maskQueue = SentryDispatchQueueWrapper(utility: "dev.ouo.replay.sentry-core.mask", relativePriority: 0)
     private let replayMaker: SentryOnDemandReplay
     private let scheduler = DefaultSentrySessionReplayRunLoopCaptureScheduler<CFRunLoopObserver>()
     private let framesDirectory: URL
@@ -104,6 +129,7 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
         let renderer: SentryViewRenderer = options.enableViewRendererV2
             ? SentryViewRendererV2(enableFastViewRendering: options.enableFastViewRendering)
             : SentryDefaultViewRenderer()
+        self.renderer = renderer
         photographer = SentryViewPhotographer(renderer: renderer, redactOptions: redact, enableMaskRendererV2: options.enableViewRendererV2)
         // The asset worker must have a higher priority than the processing queue, which waits on
         // it (upstream createDispatchQueues).
@@ -217,24 +243,69 @@ public final class SentryCoreRecorder: OuoSegmentRecorder {
             return
         }
 
+        if let plan = options.plan {
+            captureWithOuoMasking(rootView, plan: plan, at: now, deferral: deferral, isInteraction: isInteraction)
+            return
+        }
         processingScreenshot = true
         photographer.timedImage(view: rootView) { [weak self, replayMaker] image, metadata in
             replayMaker.addFrameAsync(timestamp: now, maskedViewImage: image, forScreen: nil)
             self?.onCapture?(OuoCaptureTiming(mainThread: metadata.mainThreadDuration, background: metadata.maskDuration))
             DispatchQueue.main.async {
-                guard let self else { return }
-                self.processingScreenshot = false
-                if deferral == .captureAfterDeferral {
-                    self.adaptiveScreenshotInterval = 0
-                } else if !isInteraction {
-                    self.updateAdaptiveScreenshotInterval(metadata.mainThreadDuration)
-                }
-                let finishedAt = Date()
-                self.lastScreenshotAt = finishedAt
-                self.scheduleNextScreenshot(after: self.screenshotInterval(usesAdaptiveBackoff: !isInteraction), from: finishedAt)
-                if self.running { self.cutSegmentIfDue(finishedAt) }
+                self?.captureFinished(mainThread: metadata.mainThreadDuration, deferral: deferral, isInteraction: isInteraction)
             }
         }
+    }
+
+    /// ouo's masking: plan, then render, on the main thread back to back (the same pass sees the
+    /// same committed tree); paint and encode off it. A refused plan takes no frame and looks again
+    /// after the deferral interval.
+    private func captureWithOuoMasking(_ rootView: UIView, plan: (UIView) -> OuoMaskPlan, at now: Date, deferral: DeferralDecision, isInteraction: Bool) {
+        let t0 = ProcessInfo.processInfo.systemUptime
+        let decision = plan(rootView)
+        guard case .mask(let rects) = decision else {
+            if decision == .drop { onDrop?() }
+            onCapture?(OuoCaptureTiming(mainThread: ProcessInfo.processInfo.systemUptime - t0, background: 0))
+            scheduleNextScreenshot(after: CapturePacing.captureDeferralInterval, from: Date())
+            cutSegmentIfDue(now)
+            return
+        }
+        let size = rootView.bounds.size
+        let image = renderer.render(view: rootView)
+        let mainThread = ProcessInfo.processInfo.systemUptime - t0
+        processingScreenshot = true
+        maskQueue.dispatchAsync { [weak self, replayMaker] in
+            let b0 = ProcessInfo.processInfo.systemUptime
+            let masked = Self.paint(image, size: size, rects: rects)
+            replayMaker.addFrameAsync(timestamp: now, maskedViewImage: masked, forScreen: nil)
+            self?.onCapture?(OuoCaptureTiming(mainThread: mainThread, background: ProcessInfo.processInfo.systemUptime - b0))
+            DispatchQueue.main.async {
+                self?.captureFinished(mainThread: mainThread, deferral: deferral, isInteraction: isInteraction)
+            }
+        }
+    }
+
+    /// The frame at 1x (one pixel per point, what the video is encoded at) with `rects` filled
+    /// black: the frames recorder's mask, so both pixel recorders look the same where they mask.
+    static func paint(_ image: UIImage, size: CGSize, rects: [CGRect]) -> UIImage {
+        SentryGraphicsImageRenderer(size: size, scale: 1).image { context in
+            image.draw(in: CGRect(origin: .zero, size: size))
+            context.cgContext.setFillColor(UIColor.black.cgColor)
+            context.cgContext.fill(rects)
+        }
+    }
+
+    private func captureFinished(mainThread: TimeInterval, deferral: DeferralDecision, isInteraction: Bool) {
+        processingScreenshot = false
+        if deferral == .captureAfterDeferral {
+            adaptiveScreenshotInterval = 0
+        } else if !isInteraction {
+            updateAdaptiveScreenshotInterval(mainThread)
+        }
+        let finishedAt = Date()
+        lastScreenshotAt = finishedAt
+        scheduleNextScreenshot(after: screenshotInterval(usesAdaptiveBackoff: !isInteraction), from: finishedAt)
+        if running { cutSegmentIfDue(finishedAt) }
     }
 
     /// `immediate`: the first frame is due now (ouo: a start or resume opens with a frame).

@@ -37,6 +37,15 @@ enum ViewTreeBuilder {
         return entry
     }
 
+    /// The content offset each scroll view had at the last walk (every recorder). A programmatic
+    /// scroll (`setContentOffset(_:animated: true)`) moves the offset from a display link: no layer
+    /// animation, not dragging, not decelerating, and the presentation layer equals the model, yet
+    /// the render lags the model by a frame, so text slid out from under its mask (the
+    /// `pixel/video` leak measurement found it in both pixel recorders). An offset that changed
+    /// since the last walk counts as moving: masked content in it drops the frame, and the next
+    /// look, once the offset holds, takes it.
+    private static let lastOffsets = NSMapTable<UIScrollView, NSValue>.weakToStrongObjects()
+
     /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields
     /// and the host's overrides from the mask registry.
     struct Detail {
@@ -104,8 +113,13 @@ enum ViewTreeBuilder {
             return !inPlaceKeyPaths.contains(path)
         }
         // Scrolling moves content without an animation, and the screen shows the previous offset.
-        if let scroll = view as? UIScrollView, scroll.isDragging || scroll.isDecelerating {
-            moving = true
+        if let scroll = view as? UIScrollView {
+            if scroll.isDragging || scroll.isDecelerating { moving = true }
+            if !view.isHidden {
+                let offset = scroll.contentOffset
+                if let last = lastOffsets.object(forKey: scroll)?.cgPointValue, last != offset { moving = true }
+                lastOffsets.setObject(NSValue(cgPoint: offset), forKey: scroll)
+            }
         }
         var children: [ViewNode] = []
         var truncated = false

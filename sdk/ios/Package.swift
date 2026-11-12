@@ -93,6 +93,12 @@ let package = Package(
             name: "OuoCrashTests",
             dependencies: ["OuoCrash", "OuoCrashProbe"]
         ),
+        // UIKit only (empty elsewhere): the masking plan both pixel recorders use and the video
+        // core's mask, on the iOS Simulator (`xcodebuild test`, see test.sh).
+        .testTarget(
+            name: "OuoReplayUIKitTests",
+            dependencies: ["OuoReplay", "OuoReplaySentryCore"]
+        ),
         .testTarget(
             name: "OuoReplayCoreTests",
             dependencies: ["OuoReplayCore"],

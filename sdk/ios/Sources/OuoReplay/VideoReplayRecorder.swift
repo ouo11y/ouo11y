@@ -3,9 +3,11 @@ import UIKit
 import OuoReplayCore
 import OuoReplaySentryCore
 
-/// Spike (`OuoReplayConfig.recorder = .sentryVideo`): replay captured by sentry-cocoa's recorder
-/// core (OuoReplaySentryCore, `SentryCoreRecorder`), shipped as ouo `kind: "video"` chunks with
-/// `format: "sentry-video"` through the same uploader, outbox and credential as the frames recorder.
+/// Spike, legacy upload path (`OuoReplayConfig.recorder = .sentryVideo`, no `otlp`): replay
+/// captured by sentry-cocoa's recorder core (OuoReplaySentryCore, `SentryCoreRecorder`) with ouo's
+/// masking (`ReplayMaskPlanner`), shipped as ouo `kind: "video"` chunks with `format:
+/// "ouo-video/1"` through the same uploader, outbox and credential as the frames recorder. The
+/// OTLP path (`replay.mode: "pixel/video"`) is `OTLPReplayRecorder`.
 ///
 /// The core captures, masks and encodes; this class only feeds it the app lifecycle, adds ouo's
 /// touches, session id and seq, and wraps every finished segment as one chunk. A chunk is one
@@ -39,17 +41,14 @@ final class VideoReplayRecorder: ReplayRecording {
         let logger = ReplayLogger(enabled: config.debug)
         self.logger = logger
         uploader = OuoReplay.uploader(config)
-        let classes = config.maskClasses.compactMap { NSClassFromString($0) }
-        core = SentryCoreRecorder(options: .init(
-            maskAllText: config.maskText || config.maskInputs,
-            maskAllImages: config.maskImages,
-            maskedViewClasses: classes
-        ))
+        let planner = ReplayMaskPlanner(rules: config.redactionRules)
+        core = SentryCoreRecorder(options: .init(plan: { planner.plan($0) }))
         if config.debug {
             OuoSentryCoreLog.minimum = .debug
             OuoSentryCoreLog.sink = { level, message in logger.log("sentry-core \(level): \(message)") }
         }
-        let masked = config.maskText || config.maskInputs || config.maskImages || !config.maskClasses.isEmpty
+        // Secure fields are always masked (strict rules), so masking ran on every frame.
+        let masked = true
         core.onCapture = { timing in OuoReplay.captureStats.record(millis: timing.mainThread * 1000) }
         core.onSegment = { [weak self] segment in self?.ship(segment, masked: masked) }
         touchObserver.onTouch = { [weak self] touch in self?.add(touch) }
