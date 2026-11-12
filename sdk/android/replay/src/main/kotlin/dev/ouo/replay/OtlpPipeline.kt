@@ -31,6 +31,11 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
   private val compose = ReplayRecorder.compose
   private val faults = AtomicInteger()
 
+  // Declared before `stream`: its initializer reads them (Kotlin initializes in declaration order).
+  /** The adapter of the stream in use: the video adapter holds an open segment to drop on discard. */
+  @Volatile private var adapter: ReplayFormatAdapter? = null
+  private val videoDirectory = File(OuoReplayConfig.directory(context), "video")
+
   /** The stream itself is thread-safe; the reference changes on a session rotation. */
   @Volatile private var stream: ReplayStream = makeStream(sessionId(), options.replayId)
 
@@ -39,10 +44,6 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
   } catch (e: Throwable) {
     ""
   }
-
-  /** The adapter of the stream in use: the video adapter holds an open segment to drop on discard. */
-  @Volatile private var adapter: ReplayFormatAdapter? = null
-  private val videoDirectory = File(OuoReplayConfig.directory(context), "video")
 
   private fun makeStream(sessionId: String, replayId: String?): ReplayStream {
     // Secure fields are masked whatever the options say, so masking always ran on a frame.
