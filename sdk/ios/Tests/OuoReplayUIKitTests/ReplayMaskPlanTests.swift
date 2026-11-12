@@ -149,9 +149,9 @@ import UIKit
     }
 
     /// A programmatic scroll moves the offset from a display link: no layer animation, not
-    /// dragging, yet the render lags the model. An offset that changed since the last look drops
-    /// the frame; once it holds, the next look masks.
-    @Test func AScrollOffsetThatMovedSinceTheLastLookDropsTheFrame() {
+    /// dragging, yet the render lags the model. An offset that changed within the settle time
+    /// drops the frame; once it held that long, the next look masks.
+    @Test func AScrollOffsetThatJustMovedDropsTheFrame() {
         ReplayMaskRegistry.shared.reset()
         let w = window()
         let scroll = UIScrollView(frame: w.bounds)
@@ -164,6 +164,8 @@ import UIKit
         scroll.contentOffset = CGPoint(x: 0, y: 936)
         #expect(scroll.layer.animationKeys() == nil && !scroll.isDragging && !scroll.isDecelerating)
         #expect(planner.plan(w) == .drop)
+        #expect(planner.plan(w) == .drop)
+        RunLoop.main.run(until: Date().addingTimeInterval(ScrollMotion.settle + 0.05))
         let r = rects(planner.plan(w))
         #expect(covers(r, scroll.convert(text.frame, to: nil)))
     }

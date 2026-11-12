@@ -37,15 +37,6 @@ enum ViewTreeBuilder {
         return entry
     }
 
-    /// The content offset each scroll view had at the last walk (every recorder). A programmatic
-    /// scroll (`setContentOffset(_:animated: true)`) moves the offset from a display link: no layer
-    /// animation, not dragging, not decelerating, and the presentation layer equals the model, yet
-    /// the render lags the model by a frame, so text slid out from under its mask (the
-    /// `pixel/video` leak measurement found it in both pixel recorders). An offset that changed
-    /// since the last walk counts as moving: masked content in it drops the frame, and the next
-    /// look, once the offset holds, takes it.
-    private static let lastOffsets = NSMapTable<UIScrollView, NSValue>.weakToStrongObjects()
-
     /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields
     /// and the host's overrides from the mask registry.
     struct Detail {
@@ -115,11 +106,7 @@ enum ViewTreeBuilder {
         // Scrolling moves content without an animation, and the screen shows the previous offset.
         if let scroll = view as? UIScrollView {
             if scroll.isDragging || scroll.isDecelerating { moving = true }
-            if !view.isHidden {
-                let offset = scroll.contentOffset
-                if let last = lastOffsets.object(forKey: scroll)?.cgPointValue, last != offset { moving = true }
-                lastOffsets.setObject(NSValue(cgPoint: offset), forKey: scroll)
-            }
+            if !view.isHidden, ScrollMotion.isMoving(scroll, now: ProcessInfo.processInfo.systemUptime) { moving = true }
         }
         var children: [ViewNode] = []
         var truncated = false
@@ -150,6 +137,50 @@ enum ViewTreeBuilder {
             secure: secure,
             maskOverride: maskOverride
         )
+    }
+}
+
+/// Whether a scroll view's content is moving right now, when nothing on its layer says so. A
+/// programmatic scroll (`setContentOffset(_:animated: true)`) moves the offset from a display link:
+/// no layer animation, not dragging, not decelerating, the presentation layer equal to the model,
+/// yet the render lags the model by a frame, so text slid out from under its mask (found by the
+/// `pixel/video` leak measurement, in both pixel recorders). The scroll views a walk meets are
+/// sampled once per main run-loop pass (an observer before Core Animation's commit); one whose
+/// offset changed within `settle` is moving, so masked content in it drops the frame. Main thread.
+enum ScrollMotion {
+    static let settle: TimeInterval = 0.1
+    private static let watched = NSHashTable<UIScrollView>.weakObjects()
+    private static let lastOffset = NSMapTable<UIScrollView, NSValue>.weakToStrongObjects()
+    private static let changedAt = NSMapTable<UIScrollView, NSNumber>.weakToStrongObjects()
+    private static var observer: CFRunLoopObserver?
+
+    static func isMoving(_ scroll: UIScrollView, now: TimeInterval) -> Bool {
+        sample(scroll, now: now)
+        if !watched.contains(scroll) {
+            watched.add(scroll)
+            installIfNeeded()
+        }
+        guard let at = changedAt.object(forKey: scroll)?.doubleValue else { return false }
+        return now - at < settle
+    }
+
+    private static func sample(_ scroll: UIScrollView, now: TimeInterval) {
+        let offset = scroll.contentOffset
+        if let last = lastOffset.object(forKey: scroll)?.cgPointValue, last != offset {
+            changedAt.setObject(NSNumber(value: now), forKey: scroll)
+        }
+        lastOffset.setObject(NSValue(cgPoint: offset), forKey: scroll)
+    }
+
+    /// One observer for the process; the table is weak, so a gone scroll view costs nothing.
+    private static func installIfNeeded() {
+        guard observer == nil else { return }
+        let o = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, 0) { _, _ in
+            let now = ProcessInfo.processInfo.systemUptime
+            for scroll in watched.allObjects { sample(scroll, now: now) }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), o, .commonModes)
+        observer = o
     }
 }
 #endif
