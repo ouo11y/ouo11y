@@ -126,6 +126,16 @@ function patterns(v: unknown, path: string, note: Note): UrlPattern[] {
   return v.filter((p): p is UrlPattern => (typeof p === "string" && p !== "") || p instanceof RegExp);
 }
 
+/**
+ * `structure` is the only replay format this release records. `pixel` is under development: asking
+ * for it records structure instead, with a diagnostic, so unverified code never runs in an app.
+ */
+function replayFormat(replay: Bag, note: Note): ReplayFormat {
+  const v = oneOf(replay, "format", "replay.format", ["structure", "pixel"] as const, "structure", note);
+  if (v === "pixel") note("replay.format", "pixel is under development, recording structure instead");
+  return "structure";
+}
+
 /** A relative endpoint (`/otel`, a first-party proxy route) resolved against the page. */
 function resolveEndpoint(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.trim() === "") return null;
@@ -234,7 +244,7 @@ export function resolveConfig(input: unknown, note: Note): Config | null {
       mode: oneOf(replay, "mode", "replay.mode", ["off", "session", "buffer"] as const, "off", note),
       sessionRate: num(replay, "sessionRate", "replay.sessionRate", 0, 0, 1, note),
       bufferRate: num(replay, "bufferRate", "replay.bufferRate", 0, 0, 1, note),
-      format: oneOf(replay, "format", "replay.format", ["structure", "pixel"] as const, "structure", note),
+      format: replayFormat(replay, note),
       bufferSeconds: num(replay, "bufferSeconds", "replay.bufferSeconds", 60, 5, 600, note),
       chunkMaxBytes: num(replay, "chunkMaxBytes", "replay.chunkMaxBytes", 256 * 1024, 4 * 1024, CHUNK_HARD_LIMIT, note),
       chunkMaxMs: num(replay, "chunkMaxMs", "replay.chunkMaxMs", 5000, 250, 60_000, note),

@@ -129,6 +129,7 @@ export class ReplayEngine {
   private triggered: Trigger | undefined;
   private out: Outgoing[] = [];
   private sending = false;
+  private inflight: Outgoing | null = null;
   /** Page hide: chunks are stored now and sent by `flushUnload`, after telemetry (LIF-7). */
   private unloading = false;
   private retryTimer: TimerHandle | null = null;
@@ -228,6 +229,8 @@ export class ReplayEngine {
   flushUnload(): void {
     this.unloading = false;
     for (const o of [...this.out]) {
+      // The chunk already on its way is not sent a second time.
+      if (o === this.inflight) continue;
       const sent = this.d.http.post(this.d.logsUrl, o.entry.body, { contentType: PROTOBUF_CONTENT_TYPE, mustKeepalive: true, rejected: protoRejected });
       // The answer may never be seen: the stored copy stays until one is (TRN-19).
       void quiet(
@@ -530,7 +533,9 @@ export class ReplayEngine {
     try {
       while (this.out.length > 0) {
         const o = this.out[0]!;
+        this.inflight = o;
         const res = await this.d.http.post(this.d.logsUrl, o.entry.body, { contentType: PROTOBUF_CONTENT_TYPE, rejected: protoRejected });
+        this.inflight = null;
         if (!res || res.kind === "retry") {
           o.failures++;
           const delay = retryDelay(o.failures, res?.kind === "retry" ? res.retryAfterMs : undefined, this.d.settings.retryInitialMs, this.d.settings.retryMaxMs, this.d.random);
@@ -550,6 +555,7 @@ export class ReplayEngine {
       }
       if (this.ended && this.row.ended) await quiet(this.d.outbox?.deleteStream(this.streamId));
     } finally {
+      this.inflight = null;
       this.sending = false;
     }
   }

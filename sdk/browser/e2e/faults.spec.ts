@@ -54,7 +54,6 @@ const FAULTS: Array<[string, string, ((page: Page) => Promise<void>)?]> = [
   ["collector very slow", "replay=session", (page) => setCollectorFault(page, { delayMs: 5000 })],
   ["every SDK internal throws", "replay=session&fault=*"],
   ["replay cannot load or mask", "replay=session&fault=replay.load,replay.mask"],
-  ["pixel replay, masking throws", "replay=session&format=pixel&fault=replay.mask"],
   ["storage and the outbox throw", "replay=session&fault=store.open,store.put"],
 ];
 

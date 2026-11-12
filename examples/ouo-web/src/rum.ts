@@ -29,8 +29,6 @@ export const config = {
   replaySampleRate: rate(env.VITE_OUO_REPLAY_SAMPLE_RATE, 1),
   // `buffer`: keep the last minute in memory and send it only after an unhandled error.
   replayMode: env.VITE_OUO_REPLAY_MODE === "buffer" || env.VITE_OUO_REPLAY_MODE === "off" ? env.VITE_OUO_REPLAY_MODE : ("session" as const),
-  // `structure` (a description of the DOM, text replaced by ***) or `pixel` (masked images of the viewport).
-  replayFormat: env.VITE_OUO_REPLAY_FORMAT === "pixel" ? ("pixel" as const) : ("structure" as const),
 } as const;
 
 export function storedUserId(): string | undefined {
@@ -57,7 +55,7 @@ init({
   // Replay masks all text and every input by default. The public storefront (header, catalogue,
   // chaos panel) is marked `data-ouo-unmask` so its replay stays readable; the cart, checkout,
   // order and session footer stay masked.
-  replay: { mode: config.replayMode, sessionRate: config.replaySampleRate, bufferRate: config.replaySampleRate, format: config.replayFormat },
+  replay: { mode: config.replayMode, sessionRate: config.replaySampleRate, bufferRate: config.replaySampleRate },
   debug: config.debug,
 });
 if (initialUser) sdkSetUser(initialUser);

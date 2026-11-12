@@ -133,7 +133,6 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `sampling.sessionRate`: fraction of sessions that send telemetry |
 | `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sessionRate` / `replay.bufferRate`: fraction of sampled sessions that record replay |
 | `VITE_OUO_REPLAY_MODE` | `session` | `replay.mode`: `session`, `buffer` (kept in memory, sent after an unhandled error) or `off` |
-| `VITE_OUO_REPLAY_FORMAT` | `structure` | `replay.format`: `structure` (DOM description, text as `***`; the supported format) or `pixel` (masked images of the viewport; experimental) |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
 token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are

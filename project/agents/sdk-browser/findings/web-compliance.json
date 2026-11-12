@@ -1324,7 +1324,7 @@
    "before": "partial",
    "now": "met",
    "methods": "W,H",
-   "where": "sdk/browser/test/replay.test.ts 'masks text as ***'; pixel clone test; sdk/browser/e2e/replay.spec.ts (both formats, secrets searched in the output)",
+   "where": "sdk/browser/test/replay.test.ts 'masks text as ***'; sdk/browser/e2e/replay.spec.ts (secrets searched in the output)",
    "note": ""
   },
   {
@@ -1346,7 +1346,7 @@
    "before": "met",
    "now": "met",
    "methods": "F",
-   "where": "sdk/browser/test/replay.test.ts 'a frame the adapter could not mask'; sdk/browser/e2e/faults.spec.ts ('replay cannot load or mask', 'pixel replay, masking throws')",
+   "where": "sdk/browser/test/replay.test.ts 'a frame the adapter could not mask'; sdk/browser/e2e/faults.spec.ts ('replay cannot load or mask')",
    "note": ""
   },
   {
@@ -1665,7 +1665,7 @@
    "before": "not_met",
    "now": "met",
    "methods": "U",
-   "where": "sdk/browser/src/replay/adapter.ts; two adapters and a stub pass the same engine",
+   "where": "sdk/browser/src/replay/adapter.ts; the structure adapter and a stub pass the same engine",
    "note": ""
   },
   {

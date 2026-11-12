@@ -67,11 +67,11 @@ App-supplied event and attribute names starting with `session.` or `ouo.` are re
 | `sampling.bypass.perSessionCap` | `10` | Unhandled errors sent from a session that is not sampled |
 | `replay.mode` | `off` | `session` records the whole session; `buffer` keeps a ring and sends it after an unhandled error or `replay.capture()` |
 | `replay.sessionRate`, `replay.bufferRate` | `0`, `0` | Fraction of sampled sessions that record, per mode |
-| `replay.format` | `structure` | `structure` is the supported format. `pixel` is experimental ([Replay](#replay)) |
+| `replay.format` | `structure` | `structure` is the only supported format. `pixel` is under development: asking for it records `structure` ([Replay](#replay)) |
 | `replay.bufferSeconds` | `60` | What the buffer ring holds at least |
 | `replay.chunkMaxBytes`, `replay.chunkMaxMs` | 262 144, 5000 | Chunk bounds. Hard limit 1 MiB |
 | `replay.keyframeIntervalMs` | 300 000 | A new keyframe and segment at least this often |
-| `replay.pixelMaxFps`, `replay.pixelMaxSide` | `1`, `1000` | Pixel format only (experimental) |
+| `replay.pixelMaxFps`, `replay.pixelMaxSide` | `1`, `1000` | Pixel format only (under development, not used) |
 | `consent.required` | `false` | Start with consent pending |
 | `privacy.urlQueryAllow` | none | Query keys whose values are kept |
 | `privacy.keepUrlFragment` | `false` | Keep the fragment (sanitised when query-shaped) |
@@ -136,9 +136,9 @@ A replay is a series of `ouo.replay.chunk` log records, sent as OTLP/HTTP protob
 
 Chunks are written to IndexedDB before their first send and removed when the Collector accepts them. A later page of the same origin sends what a closed page left behind and ends its stream as `partial`.
 
-Two formats, chosen with `replay.format`. **`structure` is the supported one. `pixel` is experimental**: it is off unless asked for, no player reads it yet, and it may change or be removed.
+**`structure` is the only replay format this release records.** A second format, `pixel`, is under development and paused: its code is in the package behind the same adapter interface, but `replay.format: "pixel"` records `structure` instead, with a diagnostic when `debug` is on. The table describes both so the design is on record.
 
-| | `structure` (`rrweb/2`) | `pixel` (`ouo.frames/1`), experimental |
+| | `structure` (`rrweb/2`) | `pixel` (`ouo.frames/1`), under development |
 |---|---|---|
 | What is recorded | A description of the DOM: a full snapshot, then what a MutationObserver and input listeners see | Images of the viewport |
 | When | On every DOM change | When the DOM changes, scrolls or resizes, at most `pixelMaxFps` times a second; nothing while the page is still or hidden |
@@ -148,7 +148,7 @@ Two formats, chosen with `replay.format`. **`structure` is the supported one. `p
 
 Unmask with `data-ouo-unmask` on an element (its subtree is recorded as written); `data-ouo-mask` inside it masks again and always wins; `data-ouo-block` blocks an element entirely. Password, payment and one-time-code fields are always masked and cannot be unmasked. If masking fails for an event or a frame, it is dropped and counted, never sent.
 
-Limits of the pixel format: styles from cross-origin stylesheets, web fonts, the scroll position of inner scroll containers and anything painted outside the DOM are not reproduced, and a page of more than 20 000 nodes is not captured. Under a Content-Security-Policy it needs `img-src data:`.
+Known limits of the pixel format as it stands: styles from cross-origin stylesheets, web fonts, the scroll position of inner scroll containers and anything painted outside the DOM are not reproduced, and a page of more than 20 000 nodes is not captured. Under a Content-Security-Policy it needs `img-src data:`.
 
 ## React
 
@@ -183,7 +183,7 @@ The SDK uses the OpenTelemetry JS API and SDK: one logger provider and one trace
 
 - Browsers: Chrome and Edge 94, Firefox 93, Safari 16.4 and later (ES2022). CI checks the built files with `es-check` and imports them in Node.
 - Initial JavaScript is about 49 KB gzip (`index.js` plus its shared chunk); replay loads only in sessions that record. Budgets are in `size-budget.json` and checked in CI.
-- Tests: `npm test` (unit, wire against a fake Collector, and fault injection in every SDK internal), `npm run test:e2e` (Chromium, Firefox and WebKit: page lifecycle, tabs, IndexedDB, both replay formats, a strict Content-Security-Policy with Trusted Types, and the same page journey with the SDK off and under every fault, compared). `_internal.injectFault(name)` is the test hook; it is not public API.
+- Tests: `npm test` (unit, wire against a fake Collector, and fault injection in every SDK internal), `npm run test:e2e` (Chromium, Firefox and WebKit: page lifecycle, tabs, IndexedDB, structure replay, a strict Content-Security-Policy with Trusted Types, and the same page journey with the SDK off and under every fault, compared). `_internal.injectFault(name)` is the test hook; it is not public API.
 - Storage: `localStorage` keys start with `ouo.`; the IndexedDB database is `ouo-outbox`. The SDK never clears storage it does not own.
 
 ## Development

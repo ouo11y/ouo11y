@@ -28,7 +28,7 @@ if (q.get("sdk") !== "0") {
     serviceVersion: "1.0.0",
     environment: "e2e",
     sampling: { sessionRate: num("sample", 1) },
-    replay: { mode: q.get("replay") ?? "off", sessionRate: 1, bufferRate: 1, format: q.get("format") ?? "structure", chunkMaxMs: 500, pixelMaxFps: 4 },
+    replay: { mode: q.get("replay") ?? "off", sessionRate: 1, bufferRate: 1, chunkMaxMs: 500 },
     consent: { required: q.get("consent") === "1" },
     propagation: { sessionBaggage: q.get("baggage") === "1" },
     instrumentations: { resourceTiming: q.get("resources") === "1" },

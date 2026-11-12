@@ -44,7 +44,7 @@ The old sources are not copied to an archive folder: they are in git history at 
 
 ### Replay formats
 
-`structure` is the supported format and the only one for the pilot (founder, 2026-11-12). `pixel` is built and tested but experimental: off unless `replay.format: "pixel"` is set, with no player yet.
+`structure` is the only format this release records. **`pixel` is under development and paused** (founder, 2026-11-12: not needed now). Its adapter stays in the package behind the format seam the spec requires (RPL-27), but configuration never selects it: `replay.format: "pixel"` records `structure` instead, with a diagnostic. Falling back was chosen over leaving replay off because an app that asked for replay gets a masked, supported recording rather than none. The table below records the design for when the work resumes.
 
 | | `structure` | `pixel` |
 |---|---|---|
@@ -63,7 +63,7 @@ No source was copied from Sentry, Datadog or PostHog. Dependencies, each with it
 |---|---|---|
 | `@opentelemetry/api`, `api-logs`, `core`, `resources`, `sdk-logs`, `sdk-trace-base`, `sdk-trace-web`, `otlp-transformer`, `instrumentation`, `instrumentation-fetch`, `instrumentation-xml-http-request`, `opentelemetry-browser-detector`, `semantic-conventions` | Apache-2.0 | The base the SDK is built on. All were already dependencies |
 | `web-vitals` | Apache-2.0 | The reference implementation of the vitals; now its attribution build, for INP attribution (SIG-02) |
-| `rrweb` | MIT | The structure recorder. The same library Sentry and PostHog build their web replay on; Datadog's own serializer was not needed |
+| `rrweb` | MIT | The structure recorder. **A deviation from "Sentry first":** this is upstream `rrweb` 2.1.7, which the SDK already used and patched, not Sentry's fork (`@sentry-internal/rrweb`, also MIT). Sentry's fork adds unmasking by selector and other changes; the unmask rules here are done with upstream's `maskTextFn` / `maskInputFn`. Whether to move to Sentry's fork is open for the founder. Datadog's own serializer was not needed |
 | Removed: `@opentelemetry/instrumentation-document-load` | | Replaced by a 20-line span made after `load` |
 
 ### OpenTelemetry globals

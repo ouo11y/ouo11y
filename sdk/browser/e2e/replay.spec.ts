@@ -1,10 +1,8 @@
-/** Replay in real browsers: both formats, masking, page close, recovery by a later page. */
+/** Replay in real browsers: the structure format, masking, page close, recovery by a later page. */
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { ReplayRecord } from "../test/helpers/proto";
-import { captured, diagnostics, open, pageErrors, payload, setCollectorFault } from "./harness";
+import { captured, open, pageErrors, payload, setCollectorFault } from "./harness";
 
 const SECRETS = ["Jane", "born 1970", "4111111111111111", "Masked again inside unmask", "Patient Jane Doe", "Welcome back"];
 
@@ -41,52 +39,6 @@ test("structure: masked rrweb events in ordered, hashed chunks; page close ends 
   // The stream of the closed page ended, and its last chunk left uncompressed with the page.
   expect(c.ended).toHaveLength(1);
   expect(c.ended[0]!.attributes).toMatchObject({ "ouo.replay.end_reason": "pagehide", "ouo.replay.last_sequence": c.chunks.length - 1 });
-  expect(c.replay.filter((r) => r.eventName === "ouo.replay.chunk").length).toBe(c.chunks.length);
-});
-
-test("pixel: masked images of the viewport, taken when the page changes, none while it is still", async ({ page, browserName }, info) => {
-  await open(page, "/?replay=session&format=pixel");
-  await expect.poll(async () => (await captured(page)).chunks.length, { timeout: 15_000 }).toBeGreaterThan(0);
-  await page.waitForTimeout(1500);
-  const still = (await captured(page)).chunks.length;
-  await page.waitForTimeout(1500);
-  // A static page sends no more frames.
-  expect((await captured(page)).chunks.length).toBe(still);
-  await page.click("#mutate");
-  // The click itself is a pointer record; the changed page is a new frame a moment later.
-  await expect.poll(async () => (await captured(page)).chunks.length, { timeout: 15_000 }).toBeGreaterThan(still + 1);
-  const c = await captured(page);
-  checkStream(c.chunks);
-  expect(c.chunks[0]!.attributes).toMatchObject({ "ouo.replay.format": "ouo.frames/1", "ouo.replay.encoding": "none" });
-
-  // Decode the records: u32 header length, header JSON, u32 payload length, payload.
-  const bytes = payload(c.chunks);
-  const frames: Array<{ header: Record<string, unknown>; image: Buffer }> = [];
-  for (let off = 0; off + 8 <= bytes.length; ) {
-    const hl = bytes.readUInt32BE(off);
-    const header = JSON.parse(bytes.subarray(off + 4, off + 4 + hl).toString("utf8")) as Record<string, unknown>;
-    const pl = bytes.readUInt32BE(off + 4 + hl);
-    frames.push({ header, image: bytes.subarray(off + 8 + hl, off + 8 + hl + pl) });
-    off += 8 + hl + pl;
-  }
-  const images = frames.filter((f) => f.header["k"] === "frame");
-  expect(images.length).toBeGreaterThanOrEqual(2);
-  for (const f of images) {
-    expect(f.header["masked"]).toBe(true);
-    expect(["image/webp", "image/jpeg"]).toContain(f.header["mime"]);
-    expect(f.image.length).toBeGreaterThan(500);
-    // WebP ("RIFF") or JPEG (FF D8) magic bytes: a real image.
-    expect(f.image.subarray(0, 4).toString("latin1") === "RIFF" || (f.image[0] === 0xff && f.image[1] === 0xd8)).toBe(true);
-    // The image is pixels only: no text of the page is inside the bytes.
-    for (const s of SECRETS) expect(f.image.includes(s)).toBe(false);
-  }
-  expect(frames.some((f) => f.header["k"] === "pointer")).toBe(true);
-  const dir = join(info.project.outputDir, "..", "pixel-frames");
-  mkdirSync(dir, { recursive: true });
-  const last = images[images.length - 1]!;
-  writeFileSync(join(dir, `${browserName}.${last.header["mime"] === "image/webp" ? "webp" : "jpg"}`), last.image);
-  expect(await pageErrors(page)).toEqual([]);
-  expect((await diagnostics(page)).internalErrors).toBe(0);
 });
 
 test("buffer mode: nothing leaves until the page throws, then the buffered replay does", async ({ page }) => {

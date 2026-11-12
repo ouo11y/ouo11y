@@ -46,7 +46,15 @@ export async function captured(page: Page) {
   const logs: Log[] = c.logs.flatMap((l) => l.resourceLogs.flatMap((r) => r.scopeLogs.flatMap((s) => s.logRecords.map((lr) => ({ ...lr, eventName: lr.eventName ?? "", attributes: attrs(lr.attributes), scope: s.scope?.name ?? "" })))));
   const replay: ReplayRecord[] = c.replay.flatMap((b64) => decodeProtoLogs(new Uint8Array(Buffer.from(b64, "base64"))));
   const events = (name: string): Log[] => logs.filter((l) => l.eventName === name);
-  const chunks = replay.filter((r) => r.eventName === "ouo.replay.chunk").sort((a, b) => Number(a.attributes["ouo.replay.sequence"]) - Number(b.attributes["ouo.replay.sequence"]));
+  // Delivery is at least once: a chunk identity (stream, sequence) that arrived twice is one chunk.
+  const seen = new Set<string>();
+  const chunks = replay
+    .filter((r) => r.eventName === "ouo.replay.chunk")
+    .filter((r) => {
+      const key = `${String(r.attributes["ouo.replay.stream.id"])}/${String(r.attributes["ouo.replay.sequence"])}`;
+      return seen.has(key) ? false : (seen.add(key), true);
+    })
+    .sort((a, b) => Number(a.attributes["ouo.replay.sequence"]) - Number(b.attributes["ouo.replay.sequence"]));
   const ended = replay.filter((r) => r.eventName === "ouo.replay.ended");
   return { spans, logs, events, replay, chunks, ended, rejected: c.rejected, faulted: c.faulted, requests: c.requests };
 }

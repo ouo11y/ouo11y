@@ -23,7 +23,8 @@ export type ReplayMode = "off" | "session" | "buffer";
 /**
  * What replay records. `structure`: a description of the DOM, driven by a MutationObserver, with
  * text replaced by `***` (format `rrweb/2`); the supported format. `pixel`: masked images of the
- * viewport, taken when the DOM changes (format `ouo.frames/1`); experimental, and no player reads it yet.
+ * viewport, taken when the DOM changes (format `ouo.frames/1`); under development: asking for it records
+ * `structure` instead.
  */
 export type ReplayFormat = "structure" | "pixel";
 
@@ -68,7 +69,7 @@ export interface OuoConfig {
     sessionRate?: number;
     /** Fraction of sampled sessions that keep a ring in `buffer` mode. Default 0. */
     bufferRate?: number;
-    /** Default `structure`, the supported format. `pixel` is experimental. */
+    /** Default `structure`, the only supported format. `pixel` is under development and records `structure`. */
     format?: ReplayFormat;
     /** Seconds the buffer ring holds at least. Default 60. */
     bufferSeconds?: number;
@@ -78,7 +79,7 @@ export interface OuoConfig {
     chunkMaxMs?: number;
     /** Default 300 000. */
     keyframeIntervalMs?: number;
-    /** Pixel format only: most frames per second. Default 1, at most 4. */
+    /** Pixel format (under development) only: most frames per second. Default 1, at most 4. */
     pixelMaxFps?: number;
     /** Pixel format only: longest side of a frame in pixels. Default 1000. */
     pixelMaxSide?: number;

@@ -7,7 +7,7 @@ Branch `claude/web-sdk-full-8e1953`. Decision record: [ADR-0020](../../../../doc
 - **Audit.** The Step 5 report ([compliance.md](../../../kb/client-sdk-state/compliance.md)) is the definition of full-feature: 157 MUSTs apply to the web, 42 were met by 0.3.1.
 - **Decision.** Keep the package, the OpenTelemetry base, the build and the safety pieces; rewrite the API, sessions, sampling, signals, privacy, transport queues and replay. Spec wire only, no compatibility mode (founder, relayed 2026-11-12).
 - **Build.** `sdk/browser/src` is new except `guard`, the clock, gzip, the keepalive budget and the storage wrapper. Module map: [how-the-web-sdk-is-built.md](../../../kb/client-sdk-web/architecture/how-the-web-sdk-is-built.md).
-- **Replay.** `ouo.replay.chunk` / `ouo.replay.ended` log records as OTLP protobuf on `/v1/logs`. Structure (`rrweb/2`, text as `***`) is the supported format. Pixel (`ouo.frames/1`) is built and tested but marked experimental and off by default (founder, 2026-11-12: structure is the only mode for the pilot).
+- **Replay.** `ouo.replay.chunk` / `ouo.replay.ended` log records as OTLP protobuf on `/v1/logs`. Structure (`rrweb/2`, text as `***`) is the supported format. Pixel (`ouo.frames/1`) is under development and paused (founder, 2026-11-12: not needed now): its adapter stays behind the format seam, but `replay.format: "pixel"` records structure instead, and its e2e test was removed.
 - **Failure isolation.** Every public function, listener, observer, timer and patched function contains its errors; `_internal.injectFault` is the test hook; after 20 internal errors the SDK emits `ouo.sdk.disabled` once and turns itself off.
 - **Demo app.** `examples/ouo-web` moved to the new API; `scripts/verify.py` checks the spec wire.
 
@@ -17,14 +17,13 @@ Branch `claude/web-sdk-full-8e1953`. Decision record: [ADR-0020](../../../../doc
 |---|---|
 | `npm test` in `sdk/browser` (vitest, jsdom, a fake Collector that decodes OTLP JSON and protobuf) | 166 tests in 8 files pass |
 | Fault injection: a throw at each of 10 named SDK internals, and at all of them at once | The page sees no error, its handlers, requests and history calls are unchanged (`test/safety.test.ts`) |
-| `npm run test:e2e` (Playwright 1.64.1: Chromium, Firefox, WebKit) | 45 of 45 pass: page lifecycle, two tabs, IndexedDB, both replay formats, strict CSP with Trusted Types, and one page journey compared with the SDK off and under 9 faults |
+| `npm run test:e2e` (Playwright 1.64.1: Chromium, Firefox, WebKit) | 42 of 42 pass: page lifecycle, two tabs, IndexedDB, structure replay, strict CSP with Trusted Types, and one page journey compared with the SDK off and under 8 faults |
 | `npm run test:soak`, 2 minutes per engine with replay on | Listeners, observers, pending timers and (Chromium) heap do not grow |
-| `npm run size:check`, `npm run compat:check` | Pass. Initial JS 49.4 KB gzip (index 41.7 + shared chunk 7.0 + two small chunks); engine 7.3, structure 55.4, pixel 2.8 |
+| `npm run size:check`, `npm run compat:check` | Pass. Initial JS 49.4 KB gzip (index 41.7 + shared chunk 7.0 + two small chunks); engine 7.3, structure 55.4 |
 | Live stack: `deploy/envs/ouo-env up websdk`, then `examples/ouo-web/scripts/run.sh --env websdk` (Chromium) | 39 of 39 checks pass: spec event names in Loki, 13 backend requests as 13 one-span traces plus one `documentLoad` in Tempo, `session.id` from baggage on every backend span, rum-api lists the session and symbolicates the render error |
-| Pixel frames | Looked at one frame per engine: text starred out, the unmasked heading readable, inputs empty, the image a grey box |
 | Per requirement | [web-sdk-compliance.html](../../../kb/client-sdk-web/compliance/web-sdk-compliance.html): 157 of 157 MUSTs recorded as met, each with its test |
 
-Not verified: a real back/forward-cache restore and a real prerender (both shown with synthetic events in jsdom); the Step 5 overhead harness (CPU, memory, bytes per minute) was not re-run, only the bundle size; Firefox and WebKit were not run against the live stack locally (CI does); the pixel format's cost on a large page.
+Not verified: a real back/forward-cache restore and a real prerender (both shown with synthetic events in jsdom); the Step 5 overhead harness (CPU, memory, bytes per minute) was not re-run, only the bundle size; Firefox and WebKit were not run against the live stack locally (CI does).
 
 ## What is left, and what the next agent must know
 

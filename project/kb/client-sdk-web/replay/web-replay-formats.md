@@ -15,9 +15,9 @@ A chunk may end in the middle of a unit (a large unit is split across chunks, ne
 
 A reader feeds the events to rrweb's replayer unchanged.
 
-## `ouo.frames/1` (pixel), experimental
+## `ouo.frames/1` (pixel), under development
 
-Built and tested, but not a supported mode: structure is the only replay mode for the pilot (founder, 2026-11-12). It is off unless `replay.format: "pixel"` is set, and no player reads it yet.
+Paused (founder, 2026-11-12: not needed now). The web SDK does not emit this format: `replay.format: "pixel"` records `rrweb/2` instead. What follows describes the adapter as it stands in `sdk/browser/src/replay/pixel.ts`, for when the work resumes.
 
 - Unit: `u32 header length | header (UTF-8 JSON) | u32 payload length | payload`, lengths big endian.
 - `{"k":"frame","t":<ms>,"w":<px>,"h":<px>,"vw":<css px>,"vh":<css px>,"sx":<scroll x>,"sy":<scroll y>,"dpr":<n>,"mime":"image/webp"|"image/jpeg","masked":true}` with the image as payload. Every frame is a full image of the viewport, so every frame is a keyframe and every chunk decodes alone.
@@ -36,7 +36,7 @@ Built and tested, but not a supported mode: structure is the only replay mode fo
 
 The live page is never drawn, only the masked clone, so the "masking race" of screenshot-based recorders does not exist here: there is no moment at which an unmasked pixel could be captured. A frame whose cloning or drawing throws is dropped and counted (`ouo.replay.frame`, `mask_failed`).
 
-### What was measured
+### What was measured before the pause
 
 On the e2e page (`sdk/browser/e2e/pages/app.html`, 1280x720 viewport), in Playwright 1.64.1:
 

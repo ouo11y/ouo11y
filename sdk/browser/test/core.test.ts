@@ -198,6 +198,12 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
     expect(notes.join("\n")).not.toMatch(/SECRET|canary/);
   });
 
+  it("the pixel replay format is under development: asking for it records structure, with a diagnostic", () => {
+    notes.length = 0;
+    expect(resolveConfig({ ...base, replay: { mode: "session", format: "pixel" } }, note)!.replay.format).toBe("structure");
+    expect(notes.join("\n")).toContain("replay.format: pixel is under development");
+  });
+
   it("matches URL patterns: exact, prefix, RegExp", () => {
     expect(matchesUrl(["https://api.test/a"], "https://api.test/a")).toBe(true);
     expect(matchesUrl(["https://api.test/*"], "https://api.test/b/c")).toBe(true);
