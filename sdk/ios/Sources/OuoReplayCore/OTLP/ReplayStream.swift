@@ -164,7 +164,10 @@ public struct ReplayStreamStats: Equatable, Sendable {
 /// - **Partial** (RPL-17, RPL-18, RPL-21): a chunk the queue lost or refused marks the stream
 ///   partial and starts a new segment; a refusal also ends the stream (`max_size`).
 ///
-/// Thread-safe: one lock around everything, the adapter included.
+/// Thread-safe: one lock around everything, the adapter included. That lock is held across
+/// encoding and disk writes, so it is never taken by the state a caller reads (`isActive`,
+/// `isPartial`, `stats`, `producedChunks`): those are a copy published under a lock of their own,
+/// held only to copy a few integers, so a main-thread read never waits for an encode (ERR-4).
 public final class ReplayStream {
     public let sessionId: String
     public let replayId: String
@@ -208,13 +211,28 @@ public final class ReplayStream {
     private var needSegment = true
     private var segmentStartedAt: EpochMillis = 0
     private var segmentIndex = -1
-    private var nextSequence = 0
-    private var partial = false
-    private var ended = false
+    private var nextSequence = 0 { didSet { publish { $0.nextSequence = nextSequence } } }
+    private var partial = false { didSet { publish { $0.partial = partial } } }
+    private var ended = false { didSet { publish { $0.ended = ended } } }
     private var triggered = false
     private var trigger: ReplayTrigger?
     private var viewId: String?
-    private var counters = ReplayStreamStats()
+    private var counters = ReplayStreamStats() { didSet { publish { $0.stats = counters } } }
+
+    /// What readers see, changed only together with the fields above (under `lock`).
+    private struct Published {
+        var ended = false
+        var partial = false
+        var nextSequence = 0
+        var stats = ReplayStreamStats()
+    }
+
+    private let publishedLock = NSLock()
+    private var published = Published()
+
+    private func publish(_ change: (inout Published) -> Void) {
+        publishedLock.withLock { change(&published) }
+    }
 
     /// `replayId`: 32 lowercase hex characters from the caller, or nil (or anything else) for a
     /// fresh one. The stream id is always fresh: one per process lifetime (RPL-5).
@@ -256,13 +274,14 @@ public final class ReplayStream {
     // MARK: state
 
     /// False once the stream ended (stopped, refused by the store, or disabled by its own errors).
-    public var isActive: Bool { lock.withLock { !ended } }
-    public var isPartial: Bool { lock.withLock { partial } }
-    public var stats: ReplayStreamStats { lock.withLock { counters } }
-    /// Chunks waiting in the ring (buffer mode before its trigger).
+    /// Never waits for an encode or a write in progress.
+    public var isActive: Bool { publishedLock.withLock { !published.ended } }
+    public var isPartial: Bool { publishedLock.withLock { published.partial } }
+    public var stats: ReplayStreamStats { publishedLock.withLock { published.stats } }
+    /// Chunks waiting in the ring (buffer mode before its trigger). Waits for the stream's lock.
     public var bufferedChunks: Int { lock.withLock { ring.reduce(0) { $0 + $1.chunks.count } } }
     /// The next sequence: the number of chunks produced so far.
-    public var producedChunks: Int { lock.withLock { nextSequence } }
+    public var producedChunks: Int { publishedLock.withLock { published.nextSequence } }
 
     private var buffering: Bool { config.mode == .buffer && !triggered }
 

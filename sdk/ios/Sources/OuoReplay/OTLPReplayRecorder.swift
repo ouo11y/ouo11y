@@ -112,7 +112,11 @@ final class OTLPReplayRecorder: ReplayRecording {
             delivery.drain {}
         }
         delivery.onLoss = { [weak self] streamId in
-            DispatchQueue.main.async { self?.stream.chunkLost(streamId: streamId) }
+            // The reference on the main thread, the stream's lock on the queue.
+            DispatchQueue.main.async {
+                guard let stream = self?.stream else { return }
+                Self.queue.async { stream.chunkLost(streamId: streamId) }
+            }
         }
         guard !stream.sessionId.isEmpty else {
             // `session.id` is required on every chunk (RPL-13): without one nothing is recorded.
@@ -230,7 +234,9 @@ final class OTLPReplayRecorder: ReplayRecording {
     /// The screen at a feedback, kept even when nothing changed: a keyframe (and so a segment).
     func frameForFeedback() {
         guard isRecording, video == nil else { return }
-        stream.markGap()
+        // On the queue: the stream's lock is held while it encodes, the main thread never takes it.
+        let stream = self.stream
+        Self.queue.async { stream.markGap() }
         let now = ProcessInfo.processInfo.systemUptime
         pacer.requestFrame(.feedback, at: now)
         scheduleWake(now: now)
@@ -319,6 +325,7 @@ final class OTLPReplayRecorder: ReplayRecording {
     }
 
     /// The stream ended on its own (the store refused a chunk, or too many errors): stop looking.
+    /// `isActive` is published state: it never waits for an encode on `queue`.
     private func stopIfEnded() -> Bool {
         guard !stream.isActive else { return false }
         if isRecording {

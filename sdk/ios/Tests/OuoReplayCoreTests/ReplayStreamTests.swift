@@ -573,4 +573,40 @@ import Testing
         #expect(store.state == nil)
         #expect(!s.isActive)
     }
+
+    // MARK: the main thread never waits for the stream's work (ERR-4)
+
+    /// A sink whose write takes 300 ms, like a slow disk.
+    private final class SlowSink: ReplaySink {
+        let started = DispatchSemaphore(value: 0)
+        func put(_ request: Data, streamId: String, sequence: Int?) -> Bool {
+            started.signal()
+            Thread.sleep(forTimeInterval: 0.3)
+            return true
+        }
+    }
+
+    @Test func StateReadsDoNotWaitForASlowWrite() async throws {
+        let sink = SlowSink()
+        let s = ReplayStream(sessionId: "0123456789abcdef0123456789abcdef", scope: testScope, adapter: StubAdapter(), sink: sink)
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue(label: "encode").async {
+            s.look(StubLook(content: "a"), at: 1)
+            s.flush()
+            done.signal()
+        }
+        // The write has begun and holds the stream's lock.
+        #expect(sink.started.wait(timeout: .now() + 2) == .success)
+        let t0 = Date()
+        let active = s.isActive
+        _ = s.stats
+        _ = s.isPartial
+        _ = s.producedChunks
+        let waited = Date().timeIntervalSince(t0)
+        #expect(active)
+        #expect(waited < 0.05, "state reads blocked \(Int(waited * 1000)) ms behind the sink write")
+        #expect(done.wait(timeout: .now() + 2) == .success)
+        #expect(s.stats.chunks == 1)
+        #expect(s.producedChunks == 1)
+    }
 }

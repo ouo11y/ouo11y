@@ -202,7 +202,8 @@ data class ReplayStreamStats(
  * - **Partial** (RPL-17, RPL-18, RPL-21): a chunk the queue lost or refused marks the stream
  *   partial and starts a new segment; a refusal also ends the stream (`max_size`).
  *
- * Thread-safe: one lock around everything, the adapter included. No method throws: what the
+ * Thread-safe: one lock around everything, the adapter included; the state a caller reads
+ * ([isActive], [isPartial], [stats], [producedChunks]) is volatile and never takes it. No method throws: what the
  * adapter, the sink or the store throws is counted as an error (ERR-1), and after
  * `selfDisableThreshold` of them the stream ends with reason `error` (ERR-6).
  */
@@ -241,26 +242,29 @@ class ReplayStream(
   private var needSegment = true
   private var segmentStartedAt = 0L
   private var segmentIndex = -1
-  private var nextSequence = 0
-  private var partial = false
-  private var ended = false
+  // Written under `lock`, read without it: the lock is held across encoding and disk writes, and a
+  // main-thread read must never wait for those (ERR-4). `counters` is immutable, so a read sees a
+  // whole set.
+  @Volatile private var nextSequence = 0
+  @Volatile private var partial = false
+  @Volatile private var ended = false
   private var triggered = false
   private var trigger: ReplayTrigger? = null
   private var viewId: String? = null
-  private var counters = ReplayStreamStats()
+  @Volatile private var counters = ReplayStreamStats()
 
   // ---- state ----
 
-  /** False once the stream ended (stopped, refused by the store, or disabled by its own errors). */
-  val isActive: Boolean get() = synchronized(lock) { !ended }
-  val isPartial: Boolean get() = synchronized(lock) { partial }
-  val stats: ReplayStreamStats get() = synchronized(lock) { counters }
+  /** False once the stream ended (stopped, refused by the store, or disabled by its own errors). Never waits for an encode or a write in progress. */
+  val isActive: Boolean get() = !ended
+  val isPartial: Boolean get() = partial
+  val stats: ReplayStreamStats get() = counters
 
-  /** Chunks waiting in the ring (buffer mode before its trigger). */
+  /** Chunks waiting in the ring (buffer mode before its trigger). Waits for the stream's lock. */
   val bufferedChunks: Int get() = synchronized(lock) { ring.sumOf { it.chunks.size } }
 
   /** The next sequence: the number of chunks produced so far. */
-  val producedChunks: Int get() = synchronized(lock) { nextSequence }
+  val producedChunks: Int get() = nextSequence
 
   private val buffering: Boolean get() = config.mode == ReplayCaptureMode.BUFFER && !triggered
 

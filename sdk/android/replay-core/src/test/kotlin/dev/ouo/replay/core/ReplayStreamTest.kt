@@ -310,4 +310,35 @@ class ReplayStreamTest {
     assertEquals(1, c.selfDisableThreshold)
     assertEquals(15_000L, ReplayStreamConfig(bufferSeconds = 60.0).ringSegmentMs)
   }
+
+  /** The main thread reads the stream's state while the compose thread writes a chunk: it must not wait for that write (ERR-4). */
+  @Test
+  fun stateReadsDoNotWaitForASlowWrite() {
+    val started = java.util.concurrent.CountDownLatch(1)
+    val slow = object : ReplaySink {
+      override fun put(request: ByteArray, streamId: String, sequence: Int?): Boolean {
+        started.countDown()
+        Thread.sleep(300)
+        return true
+      }
+    }
+    val s = stream(slow)
+    val writer = Thread {
+      s.look(StubLook("a"), 1000)
+      s.flush()
+    }
+    writer.start()
+    assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS))
+    val t0 = System.nanoTime()
+    val active = s.isActive
+    s.stats
+    s.isPartial
+    s.producedChunks
+    val waitedMs = (System.nanoTime() - t0) / 1_000_000
+    assertTrue(active)
+    assertTrue("state reads blocked $waitedMs ms behind the sink write", waitedMs < 50)
+    writer.join(2000)
+    assertEquals(1, s.stats.chunks)
+    assertEquals(1, s.producedChunks)
+  }
 }
