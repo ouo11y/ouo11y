@@ -297,7 +297,8 @@ describe("public API per spec 3.1", () => {
   it("replay.start / stop / capture / mask / unmask reach the native module when it has the method", async () => {
     const extra = { capture: vi.fn(), mask: vi.fn() };
     g.expo = { modules: { OuoReplay: { ...nativeReplay, ...extra } } };
-    const { rum } = await start({ replay: { enabled: true } });
+    // A session recording into a buffer: the only kind `capture()` has something to send for.
+    const { rum } = await start({ replay: { enabled: true, sampleRate: 0, onErrorSampleRate: 1 } });
     expect(rum.replay.isRecording()).toBe(true);
     sdk.replay.stop();
     expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
@@ -306,7 +307,7 @@ describe("public API per spec 3.1", () => {
     sdk.replay.capture();
     sdk.replay.mask(42);
     expect(() => sdk.replay.unmask(42)).not.toThrow(); // not in this native module: a no-op
-    expect(extra.capture).toHaveBeenCalledTimes(1);
+    expect(extra.capture.mock.calls).toEqual([["manual"]]);
     expect(extra.mask).toHaveBeenCalledWith(42);
     delete g.expo;
   });

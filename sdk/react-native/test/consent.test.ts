@@ -97,7 +97,8 @@ describe("consent", () => {
     rum.setConsent({ replay: true });
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
     expect((nativeReplay.start.mock.calls[0]![1] as { sessionId: string }).sessionId).toBe(id);
-    expect(recoverPendingChunk).toHaveBeenCalledTimes(1);
+    // Legacy upload path only: replay over OTLP never calls it (the native queue recovers by itself).
+    expect(recoverPendingChunk).not.toHaveBeenCalled();
   });
 
   it("PRV-2: a denial discards what was held; nothing is ever sent or written", async () => {

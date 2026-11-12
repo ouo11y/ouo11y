@@ -22,7 +22,7 @@ export interface TracingOptions {
    * client span. A request that already carries a `traceparent` is never changed.
    */
   propagateTo?: Array<RegExp | string>;
-  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` / `replayEndpoint` are always ignored. */
+  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` are always ignored. */
   ignoreUrls?: Array<RegExp | string>;
 }
 
@@ -71,23 +71,44 @@ export interface UserOptions {
 }
 
 /**
- * Session replay (ADR-0006): native screenshot capture through the `OuoReplay` Expo module
- * (iOS and Android). Off unless `enabled: true`. Needs a development build
- * (`npx expo prebuild && npx expo run:ios`); in Expo Go and on web it silently stays off.
+ * What a replay records (ADR-0021 decision 5). One string, no shorthand (`pixel` or `structure`
+ * alone is not a mode), and the SDK never picks between two: a per-OS choice is the app's code,
+ * `Platform.select({ ios: "pixel/video", android: "pixel/frames" })`.
+ *
+ * - `pixel/frames` (default): masked JPEG frames and tile patches. iOS and Android.
+ * - `pixel/video`: masked frames encoded as H.264 segments. Not in this build yet.
+ * - `structure/wireframe`: the view tree as rectangles, text as `***`. Not in this build yet.
+ *
+ * (`structure/dom`, rrweb, is the web SDK's.) A value that is not a mode, or a mode this build
+ * cannot record, leaves replay off with one warning in the debug log; it never throws.
  */
-/**
- * `session`: a frame per `frameInterval` while the screen changes. `navigation`: one frame per
- * screen (start, resume, every route change). `auto`: `navigation` on devices with less than
- * 3.5 GiB of RAM, `session` otherwise.
- */
-export type ReplayMode = "auto" | "session" | "navigation";
+export type ReplayMode = "pixel/frames" | "pixel/video" | "structure/wireframe";
 
+/**
+ * When a frame is taken. `session`: a frame per `frameInterval` while the screen changes.
+ * `navigation`: one frame per screen (start, resume, every route change). `auto`: `navigation`
+ * on devices with less than 3.5 GiB of RAM, `session` otherwise.
+ */
+export type ReplayCadence = "auto" | "session" | "navigation";
+
+/**
+ * Session replay: native capture through the `OuoReplay` Expo module (iOS and Android), sent as
+ * OTLP log records to `${endpoint}/v1/logs` by the native module's own disk queue. Off unless
+ * `enabled: true`. Needs a development build (`npx expo prebuild && npx expo run:ios`); in Expo
+ * Go and on web it silently stays off. Replay records only in sessions inside the session
+ * sample, and only with replay consent.
+ */
 export interface ReplayOptions {
   /** Default false. */
   enabled?: boolean;
-  /** What is captured. Default `auto`. */
-  mode?: ReplayMode;
-  /** Shortest time between two frames in `session` mode, in seconds. Default 1. */
+  /**
+   * What is recorded. Default `pixel/frames`. The values `auto`, `session` and `navigation`
+   * (what this option meant before 0.4) are deprecated here: they are read as `cadence`.
+   */
+  mode?: ReplayMode | ReplayCadence;
+  /** When a frame is taken. Default `auto`. */
+  cadence?: ReplayCadence;
+  /** Shortest time between two frames with the `session` cadence, in seconds. Default 1. */
   frameInterval?: number;
   /**
    * Redact labels and React Native `<Text>` (not inputs). Default true. Set to `false` when
@@ -116,36 +137,14 @@ export interface ReplayOptions {
    */
   sampleRate?: number;
   /**
-   * Fraction of the sessions left out by `sampleRate` that start recording at their first
-   * error (`captureError`, unhandled errors and rejections), 0 to 1. Default 0. Recording
-   * covers the rest of the session from the error on: the native recorder keeps no buffer
-   * of the frames before it.
+   * Fraction of the sessions left out by `sampleRate` that record into a buffer, 0 to 1.
+   * Default 0. The buffer holds the last `bufferSeconds` on the device and sends nothing; the
+   * first unhandled exception, crash or hang (or `rum.replay.capture()`) sends it, and recording
+   * goes on for the rest of the session. The replay then starts before the error.
    */
   onErrorSampleRate?: number;
-  /**
-   * Next-launch keep/drop (client-side tail sampling). When set, a session's replay chunks stay
-   * on the device and, at the next launch, this is called once per finished session with its
-   * summary; the chunks are sent when it returns true and deleted otherwise. A throw keeps them.
-   * Keep sessions with `feedback > 0` too: their replay is the screenshot of that feedback (C10).
-   * Held chunks beyond 10 MB are deleted unsent, the oldest first. iOS only.
-   */
-  keepAtNextLaunch?: (session: HeldReplaySession) => boolean | Promise<boolean>;
-}
-
-/** What `replay.keepAtNextLaunch` knows about a finished session whose replay is on the device. */
-export interface HeldReplaySession {
-  sessionId: string;
-  chunks: number;
-  bytes: number;
-  /** When its first and last chunk were cut (epoch ms). */
-  firstChunkAt: number;
-  lastChunkAt: number;
-  /** The session ended with a crash (JS fatal error or native crash). */
-  crashed: boolean;
-  /** Exceptions reported in the session (unhandled, `console.error`, `captureError`). */
-  errors: number;
-  /** Feedback sent in the session (`rum.feedback`): its replay is the feedback's screenshot, keep it. */
-  feedback: number;
+  /** How many seconds the buffer of an on-error session holds. Default 60. */
+  bufferSeconds?: number;
 }
 
 /** How telemetry reaches the collector (README, "Delivery"). */
@@ -372,19 +371,12 @@ export interface RUMOptions {
   /**
    * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
    * `http://localhost:4318` (ADR-0007). The SDK posts traces to `${endpoint}/v1/traces` and
-   * events to `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced.
+   * events and replay chunks to `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced.
    */
   endpoint: string;
   /**
-   * Base URL of the collector's replay receiver; chunks go to `${replayEndpoint}/v1/replay/chunks`.
-   * Optional: defaults to `endpoint` with port 4318 replaced by 4319 (the collector's default
-   * replay port), or to `endpoint` itself when it uses any other port (a proxy such as
-   * `https://otel.example.com` routes `/v1/replay/*` to the receiver itself).
-   */
-  replayEndpoint?: string;
-  /**
    * Project id, the user name of the HTTP Basic credential (`Authorization: Basic
-   * base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload.
+   * base64("<projectId>:<projectToken>")`) sent on every OTLP export, replay chunks included.
    * Required: without it the SDK is a no-op (a diagnostic says so when `debug` is on).
    */
   projectId: string;
@@ -446,13 +438,26 @@ export interface RUMReplay {
   showScreen(): void;
   /** Start recording the current session again after `stop()` (spec API: `replay.start`). The replay sample still decides whether the session is recorded. */
   start(): void;
-  /** Stop recording until `start()`. */
+  /** Stop recording until `start()`. The replay stream ends (`ouo.replay.ended`, reason `stop`). */
   stop(): void;
-  /** Send the buffered replay now. Forwarded to the native recorder when it supports it; a no-op until then. */
+  /**
+   * Send the buffered replay now (`ouo.replay.trigger = manual`) and record on for the rest of
+   * the session. Only a session recording into a buffer (`replay.onErrorSampleRate`) has one;
+   * elsewhere it is a no-op.
+   */
   capture(): void;
-  /** Mask a view (a ref or a native tag). Forwarded to the native recorder when it supports it; a no-op until then. */
+  /**
+   * Mask a view in the replay, whatever the `mask*` options say: pass a ref (`useRef`), a
+   * component instance or a native tag. Mask wins over unmask. The registration belongs to the
+   * native view: after a JS reload, or when the view is unmounted and mounted again, call it
+   * again (for example in an effect). `testID="ouo-mask"` on a view does the same without code.
+   */
   mask(target: unknown): void;
-  /** Undo `mask` for a view. Forwarded to the native recorder when it supports it; a no-op until then. */
+  /**
+   * Show a view and what is inside it in the replay although a `mask*` option would redact it.
+   * A mask inside it still masks, and secure fields are always masked. Same lifetime as `mask`.
+   * `testID="ouo-unmask"` on a view does the same without code.
+   */
   unmask(target: unknown): void;
 }
 

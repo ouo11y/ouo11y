@@ -57,10 +57,7 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
     let endpoints: ResolvedEndpoints;
     try {
       if (typeof options.endpoint !== "string" || !/^https?:\/\/[^\s/?#]+/i.test(options.endpoint.trim())) throw new Error("not an http(s) URL");
-      endpoints = resolveEndpoints({
-        endpoint: options.endpoint,
-        ...(typeof options.replayEndpoint === "string" ? { replayEndpoint: options.replayEndpoint } : {}),
-      });
+      endpoints = resolveEndpoints({ endpoint: options.endpoint });
     } catch {
       return fatal("init: `endpoint` (the collector OTLP/HTTP base URL, for example https://otel.example.com) is missing or invalid");
     }
@@ -108,6 +105,7 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
       return isObject(v) ? v : {};
     };
 
+    if ((options as { replayEndpoint?: unknown }).replayEndpoint !== undefined) diagnostics.push("replayEndpoint is no longer an option: replay chunks go to `${endpoint}/v1/logs` (ignored)");
     const session = section("session");
     const sampling = section("sampling");
     const bypass = isObject(sampling["bypass"]) ? sampling["bypass"] : {};

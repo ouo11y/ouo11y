@@ -8,7 +8,7 @@ import { createNoopLogger, logs, type LoggerProvider as LoggerProviderApi } from
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BasicTracerProvider, BatchSpanProcessor, SamplingDecision } from "@opentelemetry/sdk-trace-base";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState } from "react-native";
+import { AppState, findNodeHandle } from "react-native";
 
 import { installAppStateListener } from "./appstate";
 import { appAttributes, isReservedName, primitiveAttributes } from "./attributes";
@@ -38,7 +38,7 @@ import { activeRoutePath, createNavigationTracker, type NavigationStateLike } fr
 import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
-import { createReplayController, loadNativeReplayModule, REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY } from "./replay";
+import { createReplayController, loadNativeReplayModule, type ReplayTrigger } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor } from "./sampling";
 import { guardedClock } from "./session/clock";
 import { uuidv4 } from "./session/ids";
@@ -67,16 +67,14 @@ export { activeRoutePath, type NavigationStateLike } from "./navigation";
 export { normalizeStack, type NormalizedStack, type StackFrame } from "./errors/stack";
 export { touchedComponent, type FiberLike, type Gesture, type TouchedComponent } from "./taps";
 export { getRUM } from "./instance";
-export { type NativeReplayModule, type NativeStartOptions } from "./replay";
+export { NATIVE_REPLAY_MODES, REPLAY_MODES, type NativeReplayModule, type NativeStartOptions } from "./replay";
 export { sampled, samplingHash, SAMPLING_SALT } from "./sampling";
 export { DROP_EVENT, type DropReason, type DropSignal } from "./drops";
 export {
   AUTHORIZATION_HEADER,
   DEFAULT_OTLP_PORT,
-  DEFAULT_REPLAY_PORT,
   base64Encode,
   basicAuthorization,
-  defaultReplayEndpoint,
   resolveEndpoints,
   type EndpointOptions,
   type ResolvedEndpoints,
@@ -270,23 +268,6 @@ function build(
   });
   if (consent.telemetry !== true) outbox.hold();
 
-  // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
-  const sessionSampleRate = config.session.sampleRate;
-  const replayOptions = options.replay && typeof options.replay === "object" ? options.replay : undefined;
-  const replay = createReplayController({
-    endpoint: endpoints.replayEndpoint,
-    projectId,
-    projectToken,
-    options: replayOptions,
-    sessionSampleRate,
-    native: nativeModule ?? null,
-    storage,
-    allowed: replayAllowed(),
-    // The gap in the replay, on the session's timeline (the frame chunks have no event channel).
-    onHidden: (reason) => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": reason }),
-    logger,
-  });
-
   // ---- native crashes (signals, uncaught NSExceptions) and foreground terminations: the previous
   // run's report, taken once; main-thread hangs arrive as events once they are over (C3) ----
   const nativeCrash = createNativeCrashCapture({
@@ -296,6 +277,33 @@ function build(
     onHang: (report) => emitException(undefined, nativeCrashAttributes(report), report.timestamp_ms),
   });
   const crashed = nativeCrash.pending;
+
+  const resource = buildResource(config.service, options.device && typeof options.device === "object" ? options.device : {}, primitiveAttributes(options.resource));
+
+  // ---- replay (ADR-0021 decision 5): native capture and queue; each chunk is an OTLP log record
+  // sent to the logs URL with the Basic credential, on the same resource as telemetry ----
+  const sessionSampleRate = config.session.sampleRate;
+  const replayOptions = options.replay && typeof options.replay === "object" ? options.replay : undefined;
+  const replay = createReplayController({
+    endpoint: endpoints.endpoint,
+    logsUrl: endpoints.logs,
+    projectId,
+    projectToken,
+    options: replayOptions,
+    sessionSampleRate,
+    sessionDecision: (id) => session.sampledFor(id),
+    resource: primitiveAttributes(resource.attributes),
+    scopeVersion: SDK_VERSION,
+    // What the SDK knows about how the previous run ended: the native side closes that run's open stream with it.
+    ...(crashed ? { previousExit: crashed.mechanism === "termination" ? ("background_kill" as const) : ("crash" as const) } : {}),
+    native: nativeModule ?? null,
+    findNodeHandle: (ref) => (typeof findNodeHandle === "function" ? findNodeHandle(ref as never) : undefined),
+    allowed: replayAllowed(),
+    // The gap in the replay, on the session's timeline (the chunks have no event channel).
+    onHidden: (reason) => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": reason }),
+    logger,
+  });
+
 
   const initialUserId = typeof options.user?.id === "string" && options.user.id ? options.user.id : undefined;
   const session = new SessionManager({
@@ -322,7 +330,6 @@ function build(
   const foreground = AppState.currentState !== "background";
   const foregroundNow = (): boolean => AppState.currentState !== "background";
 
-  const resource = buildResource(config.service, options.device && typeof options.device === "object" ? options.device : {}, primitiveAttributes(options.resource));
   // `setGlobalAttributes`: on every later span and log record.
   let globalAttributes: Attrs = {};
   const globals = (): Attrs => globalAttributes;
@@ -435,7 +442,8 @@ function build(
   // ---- exceptions: one record per error (dedupe), with the trace it belongs to (G5) ----
   const reported = new ReportedErrors();
   const emitException = (error: unknown, own: Attrs, at: number = Date.now()): void => {
-    replay.onError();
+    // The first bypass-set record sends a buffered replay (unhandled exception, crash, hang).
+    if (own["ouo.exception.handled"] === false) replay.capture(replayTrigger(own));
     const attrs = { ...screenContextAttributes(screenContext(session.active()?.id ?? "")), ...deviceContextAttributes(locale, nativeModule as NativeErrorContextModule | undefined, logger), ...own };
     const link = linker.contextFor(error);
     if (!link) {
@@ -490,7 +498,6 @@ function build(
         // What earlier runs could not send: OTLP batches, and the replay chunks they held.
         void outbox.drain();
         const ended = session.peekLastEnded();
-        void guard.run("replay.held", () => replay.decideHeld(session.peek()?.id ?? "", ended?.endReason === "crash" ? ended.id : undefined));
         logger.log("session ready", session.peek()?.id ?? null, "previous", session.peek()?.previousId ?? null);
         if (crashed && !isReactNativeFatal(crashed)) {
           // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
@@ -519,11 +526,10 @@ function build(
 
   // ---- instrumentation ----
   const patterns = (v: unknown): Array<RegExp | string> => (Array.isArray(v) ? v.filter((p) => typeof p === "string" || p instanceof RegExp) : []);
-  // The SDK's own uploads are never traced: the OTLP exports and the replay chunks.
+  // The SDK's own uploads are never traced: the OTLP exports, replay chunks among them (the logs URL).
   const ignoreUrls: Array<RegExp | string> = [
     new RegExp(`^${escapeRegExp(endpoints.traces)}(?:[/?#]|$)`),
     new RegExp(`^${escapeRegExp(endpoints.logs)}(?:[/?#]|$)`),
-    new RegExp(`^${escapeRegExp(endpoints.replayChunks)}(?:[/?#]|$)`),
     // Dev only: LogBox asks Metro to symbolicate every error stack, and @sentry/react-native asks
     // its Metro middleware for source context; those are not app requests (they were spans and
     // timeline requests after a crashed session's session.end, checklist Q1).
@@ -618,8 +624,7 @@ function build(
     endpoint: endpoints.endpoint,
     traces: endpoints.traces,
     logs: endpoints.logs,
-    replayChunks: replay.active ? endpoints.replayChunks : null,
-    replayEndpointDerived: endpoints.replayEndpointDerived,
+    replay: replay.mode ?? null,
     projectId,
     session: first?.id ?? null,
     sampling: { session: sessionSampleRate, replay: replayOptions?.sampleRate ?? 1, replayOnError: replayOptions?.onErrorSampleRate ?? 0 },
@@ -669,6 +674,8 @@ function build(
       closed = true;
       if (getRUM() === rum) setRUM(undefined);
     }
+    // LIF-4: the replay stream ends with the session (`ouo.replay.ended`, reason `session_end`), then what is open is flushed.
+    if (end) guard.run("replay.end", () => replay.end());
     const replayFlushed = end ? guard.run("replay.flush", () => replay.flush(), RESOLVED) : RESOLVED;
     stopCapture();
     // Each step on its own: one that fails must not keep the others from running.
@@ -691,7 +698,7 @@ function build(
   };
 
   // ---- consent (PRV-1 to PRV-4) ----
-  const SDK_KEYS = [SESSION_STORAGE_KEY, CRASH_STORAGE_KEY, USER_STORAGE_KEY, CONTEXT_STORAGE_KEY, REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY];
+  const SDK_KEYS = [SESSION_STORAGE_KEY, CRASH_STORAGE_KEY, USER_STORAGE_KEY, CONTEXT_STORAGE_KEY];
   // Transitions run one after the other, each to its end: a grant right after a denial waits
   // for the denial's deletes, a denial during a grant's writes waits for them and then deletes.
   let consentTail: Promise<void> = RESOLVED;
@@ -811,7 +818,6 @@ function build(
       onActivity();
       const screenshot = input.screenshot === true && replay.isRecording();
       if (screenshot) record.attrs["ouo.feedback.screenshot"] = true;
-      replay.onFeedback();
       record.attrs["ouo.last_events"] = lastEventsAttribute(recent.read(session.active()?.id ?? ""));
       events.emit("feedback", record.attrs, "info", Date.now(), { body: record.body });
       // Then a masked frame of the screen the user reports on (`navigation` mode: once it settled;
@@ -837,9 +843,9 @@ function build(
         replay.pause();
         replay.stop();
       }),
-      capture: api("replay.capture", () => replay.forward("capture")),
-      mask: api("replay.mask", (target: unknown) => replay.forward("mask", target)),
-      unmask: api("replay.unmask", (target: unknown) => replay.forward("unmask", target)),
+      capture: api("replay.capture", () => replay.capture("manual")),
+      mask: api("replay.mask", (target: unknown) => replay.mask(target)),
+      unmask: api("replay.unmask", (target: unknown) => replay.unmask(target)),
     },
     session: {
       // The valid session's id, else the last one's: reading it is not activity and starts no session.
@@ -906,6 +912,13 @@ export const replay = {
   mask: (target: unknown): void => forward((r) => r.replay.mask(target), undefined),
   unmask: (target: unknown): void => forward((r) => r.replay.unmask(target), undefined),
 };
+
+/** `ouo.replay.trigger` for the bypass-set record that sends a buffered replay. */
+function replayTrigger(attrs: Attrs): ReplayTrigger {
+  const kind = attrs["ouo.exception.kind"];
+  if (kind === "hang") return "hang";
+  return kind === "native" || kind === "termination" || attrs["ouo.exception.fatal"] === true ? "crash" : "error";
+}
 
 /** `app.screen.name`: the route name, the last segment of a navigation path. */
 function screenName(path: string): string {
