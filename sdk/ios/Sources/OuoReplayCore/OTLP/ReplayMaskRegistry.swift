@@ -11,28 +11,35 @@ import Foundation
 /// recorder reads the same snapshot. For one view, a mask wins over an unmask; for a tag, the last
 /// call decides which set it is in. What an override means in a tree (a mask inside an unmasked
 /// subtree still masks, a secure field is masked whatever is said here: PRV-6, PRV-7) is the
-/// redaction planner's, under `RedactionRules.strict`. Thread-safe and bounded.
+/// redaction planner's, under `RedactionRules.strict`. Thread-safe.
+///
+/// Bounded (ERR-9) and fail closed: each set keeps at most `limit` tags. A refused unmask leaves
+/// the view masked, the safe side. A mask is never refused: once the masked set is full the
+/// registry is saturated, and until `reset()` every view with a React tag is masked (the React
+/// root has one, so the whole React screen is covered) and no unmask by tag is honoured.
 public final class ReplayMaskRegistry {
     public static let shared = ReplayMaskRegistry()
-    /// Tags kept per set (ERR-9). Beyond it a new tag is refused and counted: a refused unmask
-    /// leaves the view masked, which is the safe side.
+    /// Tags kept per set (ERR-9).
     public static let limit = 10_000
 
     /// What a walk reads: the two tag sets as they were when it started.
     public struct Snapshot: Sendable, Equatable {
         public var masked: Set<Int>
         public var unmasked: Set<Int>
+        /// A mask came when the masked set was full: every tagged view is masked.
+        public var saturated: Bool
 
-        public init(masked: Set<Int> = [], unmasked: Set<Int> = []) {
+        public init(masked: Set<Int> = [], unmasked: Set<Int> = [], saturated: Bool = false) {
             self.masked = masked
             self.unmasked = unmasked
+            self.saturated = saturated
         }
 
         /// The host's override for one view, from its React tag (nil for a view that has none) and
         /// its accessibility identifier. Mask wins.
         public func override(reactTag: Int?, accessibilityIdentifier: String?) -> ViewNode.MaskOverride? {
             if accessibilityIdentifier == RedactionRules.maskIdentifier { return .mask }
-            if let reactTag, masked.contains(reactTag) { return .mask }
+            if let reactTag, saturated || masked.contains(reactTag) { return .mask }
             if accessibilityIdentifier == RedactionRules.unmaskIdentifier { return .unmask }
             if let reactTag, unmasked.contains(reactTag) { return .unmask }
             return nil
@@ -48,7 +55,12 @@ public final class ReplayMaskRegistry {
     public func mask(reactTag tag: Int) {
         lock.withLock {
             state.unmasked.remove(tag)
-            guard state.masked.contains(tag) || state.masked.count < Self.limit else { refusedCount += 1; return }
+            guard state.masked.contains(tag) || state.masked.count < Self.limit else {
+                // Fail closed: the tag cannot be kept, so every tagged view is masked.
+                refusedCount += 1
+                state.saturated = true
+                return
+            }
             state.masked.insert(tag)
         }
     }
@@ -70,6 +82,6 @@ public final class ReplayMaskRegistry {
         lock.withLock { state }
     }
 
-    /// Calls refused because a set was full.
+    /// Calls refused because a set was full (a refused mask saturates the registry).
     public var refused: Int { lock.withLock { refusedCount } }
 }

@@ -295,4 +295,25 @@ class ReplayFaultTest {
     assertEquals(listOf(Box(0f, 300f, 500f, 400f)), RedactionPlanner().rects(label.copy(maskOverride = true), window))
     assertEquals(emptyList<Box>(), RedactionPlanner(RedactionRules(strict = true)).rects(label.copy(maskOverride = false), window))
   }
+
+  /** A mask refused at the limit must not leave its view unmasked: the registry fails closed. */
+  @Test
+  fun aFullMaskRegistryStillMasks() {
+    val r = ReplayMaskRegistry()
+    r.unmask(500_000)
+    for (tag in 1..ReplayMaskRegistry.LIMIT) r.mask(tag)
+    assertFalse(r.snapshot().saturated)
+    r.mask(999_999)
+    val snap = r.snapshot()
+    assertEquals(true, snap.override(999_999, null))
+    // Saturated: every tagged view is masked, an unmask by tag is not honoured.
+    assertEquals(true, snap.override(500_000, null))
+    assertEquals(true, snap.override(123_456_789, null))
+    // Memory stays bounded.
+    assertEquals(ReplayMaskRegistry.LIMIT, snap.masked.size)
+    // A new JavaScript runtime starts over.
+    r.reset()
+    assertEquals(ReplayMaskRegistry.Snapshot(), r.snapshot())
+    assertNull(r.snapshot().override(999_999, null))
+  }
 }

@@ -269,4 +269,24 @@ import CoreGraphics
         registry.mask(reactTag: 1)
         #expect(registry.refused == 100)
     }
+
+    /// A mask refused at the limit must not leave its view unmasked: the registry fails closed.
+    @Test func AFullRegistryStillMasks() {
+        let r = ReplayMaskRegistry()
+        r.unmask(reactTag: 500_000)
+        for tag in 1...ReplayMaskRegistry.limit { r.mask(reactTag: tag) }
+        #expect(!r.snapshot().saturated)
+        r.mask(reactTag: 999_999)
+        let snap = r.snapshot()
+        #expect(snap.override(reactTag: 999_999, accessibilityIdentifier: nil) == .mask)
+        // Saturated: every tagged view is masked, an unmask by tag is not honoured.
+        #expect(snap.override(reactTag: 500_000, accessibilityIdentifier: nil) == .mask)
+        #expect(snap.override(reactTag: 123_456_789, accessibilityIdentifier: nil) == .mask)
+        // Memory stays bounded.
+        #expect(snap.masked.count == ReplayMaskRegistry.limit)
+        // A new JavaScript runtime starts over.
+        r.reset()
+        #expect(r.snapshot() == ReplayMaskRegistry.Snapshot())
+        #expect(r.snapshot().override(reactTag: 999_999, accessibilityIdentifier: nil) == nil)
+    }
 }
