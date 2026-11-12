@@ -11,7 +11,8 @@
 //   `--status N` alone answers every request with N; `--retry-after S` adds the header to
 //   those answers. A request answered with a fault is counted, not recorded.
 // - Replay: a protobuf log request whose scope is `ouo.replay` is decoded with the small reader
-//   below. Each chunk body goes to `<out>/<stream>-<seq>.ndjson.gz` and one JSON line per record
+//   below. Each chunk body goes to `<out>/<stream>-<seq>.ndjson.gz` (an `ouo-video/1` chunk's mp4 to
+//   `<out>/<stream>-<seq>.mp4`) and one JSON line per record
 //   (attributes, sizes) to `<out>/records.jsonl`.
 // - `GET /__report` (JSON) and SIGINT (text, exit code 1 on a failed rule) give the verdict on
 //   the rules of spec section 11 this can check, and the telemetry event names seen.
@@ -27,6 +28,25 @@ export const REPLAY_SCOPE = "ouo.replay";
 export const CHUNK_EVENT = "ouo.replay.chunk";
 export const ENDED_EVENT = "ouo.replay.ended";
 export const MAX_CHUNK_BYTES = 1024 * 1024;
+export const VIDEO_FORMAT = "ouo-video/1";
+/** The event a segment starts with: a full frame (`ouo-frames/3`) or a whole video segment (`ouo-video/1`). */
+const KEYFRAME_TYPES = ["frame", "video"];
+
+/**
+ * An `ouo-video/1` body: `{"t","type":"video","end","w","h","scale","fps","frames","mp4","touches"}\n<mp4>`,
+ * `mp4` the byte length after the newline, an ISO BMFF file (`ftyp` at offset 4). Throws when it is not one.
+ */
+export function parseVideoBody(body) {
+  const nl = body.indexOf(0x0a);
+  if (nl < 0) throw new Error("no header line");
+  const header = JSON.parse(body.subarray(0, nl).toString("utf8"));
+  const mp4 = body.subarray(nl + 1);
+  if (header.type !== "video" || typeof header.t !== "number" || typeof header.end !== "number") throw new Error("the header is not a video event");
+  if (header.mp4 !== mp4.length) throw new Error(`header says ${header.mp4} mp4 bytes, ${mp4.length} follow`);
+  if (mp4.length < 8 || mp4.subarray(4, 8).toString("latin1") !== "ftyp") throw new Error("the payload is not an mp4 (no ftyp)");
+  if (!Array.isArray(header.touches)) throw new Error("touches is not an array");
+  return { header, mp4 };
+}
 
 // ---- protobuf: just enough to read an OTLP logs or traces request ----
 
@@ -196,9 +216,9 @@ export const RULES = {
   chunk_attributes: "RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14)",
   body_size: "a chunk body is at most 1 MiB",
   hash_and_size: "RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received",
-  body_decodes: "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`",
+  body_decodes: "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (ouo-video/1: a header line, then an mp4 of the length it names)",
   sequence: "per stream the sequences are 0, 1, 2, ... with no gap",
-  keyframe: "the first chunk of each segment has keyframe=true and starts with a `frame` event",
+  keyframe: "the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1)",
   ended: "RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen",
 };
 
@@ -264,10 +284,20 @@ export function createCollector(options = {}) {
     check("hash_and_size", sha === a["ouo.replay.sha256"]?.value && body.length === a["ouo.replay.byte_size"]?.value, `${what}: sha256 ${a["ouo.replay.sha256"]?.value} / byte_size ${a["ouo.replay.byte_size"]?.value}, received ${sha} / ${body.length}`);
 
     const encoding = a["ouo.replay.encoding"]?.value;
+    const format = a["ouo.replay.format"]?.value;
     let firstType;
     let lines = 0;
+    let mp4;
     try {
-      const text = (encoding === "gzip" ? gunzipSync(body) : body).toString("utf8");
+      const decoded = encoding === "gzip" ? gunzipSync(body) : body;
+      if (format === VIDEO_FORMAT) {
+        // ouo-video/1: one JSON header line, then the mp4 of the length it names.
+        const video = parseVideoBody(decoded);
+        firstType = video.header.type;
+        lines = 1;
+        mp4 = video.mp4;
+      }
+      const text = mp4 ? "" : decoded.toString("utf8");
       for (const line of text.split("\n")) {
         if (line === "") continue;
         const event = JSON.parse(line);
@@ -286,7 +316,9 @@ export function createCollector(options = {}) {
       s.chunks.set(seq, { segment: a["ouo.replay.segment.index"]?.value, keyframe: a["ouo.replay.keyframe"]?.value, firstType, bytes: body.length, lines });
     }
     if (out) {
-      writeFileSync(join(out, `${String(id).replace(/[^0-9a-zA-Z_-]/g, "_")}-${seq}.ndjson${encoding === "gzip" ? ".gz" : ""}`), body);
+      const base = join(out, `${String(id).replace(/[^0-9a-zA-Z_-]/g, "_")}-${seq}`);
+      if (mp4) writeFileSync(`${base}.mp4`, mp4);
+      else writeFileSync(`${base}.ndjson${encoding === "gzip" ? ".gz" : ""}`, body);
       appendFileSync(join(out, "records.jsonl"), `${JSON.stringify({ event: CHUNK_EVENT, attributes: plain(a), bodyBytes: body.length, lines, firstType, resource: plain(record.resource), scope: record.scope, schemaUrl: record.schemaUrl || record.resourceSchemaUrl })}\n`);
     }
   }
@@ -362,7 +394,7 @@ export function createCollector(options = {}) {
         }
         for (const [segment, [seq, c]] of firstOfSegment) {
           checked.keyframe++;
-          if (c.keyframe !== true || c.firstType !== "frame") failures.keyframe.push(`stream ${id} segment ${segment}: its first chunk (seq ${seq}) has keyframe=${c.keyframe} and starts with "${c.firstType}"`);
+          if (c.keyframe !== true || !KEYFRAME_TYPES.includes(c.firstType)) failures.keyframe.push(`stream ${id} segment ${segment}: its first chunk (seq ${seq}) has keyframe=${c.keyframe} and starts with "${c.firstType}"`);
         }
       }
       if (s.ended.length > 0) {

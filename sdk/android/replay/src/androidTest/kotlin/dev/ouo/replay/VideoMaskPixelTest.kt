@@ -13,6 +13,9 @@ import dev.ouo.replay.core.FrameReason
 import dev.ouo.replay.core.RedactionPlanner
 import dev.ouo.replay.core.RedactionRules
 import dev.ouo.replay.core.ReplayMaskRegistry
+import dev.ouo.replay.core.Touch
+import dev.ouo.replay.core.TouchPhase
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -51,10 +54,25 @@ class VideoMaskPixelTest {
           assertTrue("PixelCopy failed", ok)
           val adapter = VideoFormatAdapter(capturer, dir)
           assertTrue(adapter.events(PixelLook(bmp, rects, windowScale, windowScale * density.toDouble(), FrameReason.TIMER), 10_000).isEmpty())
+          assertEquals(null, adapter.touchEvent(Touch(10_200, 12.5, 40.0, TouchPhase.BEGAN)))
+          adapter.touchEvent(Touch(20_000, 1.0, 1.0, TouchPhase.ENDED)) // after the segment: not in it
           val seg = adapter.pending(11_500, closing = true).single()
           assertTrue(seg.segment && seg.keyframe)
-          assertEquals("ftyp", String(seg.json, 4, 4, Charsets.US_ASCII))
-          val f = File(dir, "out.mp4").apply { writeBytes(seg.json) }
+          // The iOS body: a JSON header line, then the mp4 of the length it names.
+          val nl = seg.json.indexOf('\n'.code.toByte())
+          val header = JSONObject(String(seg.json, 0, nl, Charsets.UTF_8))
+          val mp4 = seg.json.copyOfRange(nl + 1, seg.json.size)
+          assertEquals(listOf("t", "type", "end", "w", "h", "scale", "fps", "frames", "mp4", "touches"), header.keys().asSequence().toList())
+          assertEquals("video", header.getString("type"))
+          assertEquals(listOf(10_000L, 12_000L), listOf(header.getLong("t"), header.getLong("end")))
+          assertEquals(listOf(1, 2, mp4.size), listOf(header.getInt("fps"), header.getInt("frames"), header.getInt("mp4")))
+          assertEquals(0, header.getInt("w") % 16)
+          assertTrue(header.getDouble("scale") in 0.9..1.1)
+          val touches = header.getJSONArray("touches")
+          assertEquals(1, touches.length())
+          assertEquals("{\"t\":10200,\"x\":12.5,\"y\":40,\"phase\":\"began\"}", touches.getJSONObject(0).toString())
+          assertEquals("ftyp", String(mp4, 4, 4, Charsets.US_ASCII))
+          val f = File(dir, "out.mp4").apply { parentFile?.mkdirs(); writeBytes(mp4) }
           val r = MediaMetadataRetriever()
           r.setDataSource(f.path)
           val frame = r.getFrameAtIndex(0)!!

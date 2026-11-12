@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { CHUNK_MUST, createCollector, decodeLogsRequest, decodeSpanNames, formatReport } from "./fake-collector.mjs";
+import { CHUNK_MUST, createCollector, decodeLogsRequest, decodeSpanNames, formatReport, parseVideoBody } from "./fake-collector.mjs";
 
 // The cross-platform golden `ouo.replay.chunk` request: the bytes sdk/ios writes
 // (sdk/ios/Tests/OuoReplayCoreTests/ReplayEnvelopeTests.swift, `goldenHex`) and sdk/android must match.
@@ -121,6 +121,30 @@ test("a well-formed stream passes every rule", () => {
   assert.equal(r.streams.find((s) => s.stream === "a").duplicates, 1);
   assert.equal(r.streams.find((s) => s.stream === "a").highestSequence, 3);
   assert.match(formatReport(r), /verdict: PASS/);
+});
+
+// An `ouo-video/1` body: the header line, then a (fake) mp4 with `ftyp` at offset 4.
+function videoBody(t, mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(12)]), lie = 0) {
+  const header = { t, type: "video", end: t + 5000, w: 416, h: 912, scale: 1.01, fps: 1, frames: 5, mp4: mp4.length + lie, touches: [{ t: t + 10, x: 1, y: 2, phase: "began" }] };
+  return Buffer.concat([Buffer.from(`${JSON.stringify(header)}\n`), mp4]);
+}
+const video = (stream, sequence, body) =>
+  chunk(stream, sequence, { body, attributes: { "ouo.replay.format": "ouo-video/1", "ouo.replay.encoding": "identity", "ouo.replay.segment.index": sequence, "ouo.replay.keyframe": true } });
+
+test("ouo-video/1: one segment per chunk, a header line then the mp4", () => {
+  const c = createCollector();
+  send(c, video("v", 0, videoBody(1)));
+  send(c, video("v", 1, videoBody(5001)));
+  send(c, ended("v", 1));
+  const r = c.report();
+  assert.equal(r.verdict, "pass", formatReport(r));
+  assert.equal(parseVideoBody(videoBody(1)).header.frames, 5);
+  // A header that names the wrong length, or a payload that is not an mp4, does not decode.
+  for (const bad of [videoBody(1, undefined, 1), videoBody(1, Buffer.from("not an mp4 at all"))]) {
+    const c2 = createCollector();
+    send(c2, video("w", 0, bad));
+    assert.equal(c2.report().rules.body_decodes.result, "fail");
+  }
 });
 
 test("each rule fails on the request that breaks it", () => {
