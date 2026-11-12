@@ -1,3 +1,4 @@
+import OuoReplay
 import OuoSDK
 import UIKit
 
@@ -59,6 +60,36 @@ enum Journey {
                 checkout()
             }
             after(5) { note("feedback", ["id": Ouo.feedback("golden feedback", contact: "ada@example.com", screenshot: true) ?? ""]) }
+        case "replaydemo":
+            // Home, Products (masked card), Cart (promo input), then a long statement scrolled
+            // down and up in animated steps and two fast flings, then back to Home. About 45 s.
+            after(1) { push(Products.controller()) }
+            after(4) { push(CartViewController()) }
+            after(7) {
+                let statement = StatementViewController(style: .plain)
+                push(statement)
+                var step = 0
+                Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { t in
+                    step += 1
+                    let tv = statement.tableView!
+                    let maxY = max(0, tv.contentSize.height - tv.bounds.height + tv.adjustedContentInset.bottom)
+                    switch step {
+                    case 1...12: tv.setContentOffset(CGPoint(x: 0, y: min(maxY, tv.contentOffset.y + 260)), animated: true)
+                    case 13: tv.setContentOffset(CGPoint(x: 0, y: -tv.adjustedContentInset.top), animated: true)
+                    case 14...25: tv.setContentOffset(CGPoint(x: 0, y: min(maxY, tv.contentOffset.y + 260)), animated: true)
+                    case 26:
+                        // A fling: 2000 pt in 0.6 s, the way a fast swipe decelerates.
+                        UIView.animate(withDuration: 0.6, delay: 0, options: .curveEaseOut) { tv.contentOffset.y = -tv.adjustedContentInset.top }
+                    case 28:
+                        UIView.animate(withDuration: 0.6, delay: 0, options: .curveEaseOut) { tv.contentOffset.y = maxY * 0.6 }
+                    case 31:
+                        t.invalidate()
+                        nav.popToRootViewController(animated: true)
+                        after(3) { note("replaydemo-done", ["captureStats": captureStats()]) }
+                    default: break
+                    }
+                }
+            }
         case "hang":
             after(1.5) { push(CartViewController()) }
             after(3) {
@@ -103,6 +134,14 @@ enum Journey {
         default:
             break
         }
+    }
+
+    /// Main-thread milliseconds per capture of the replay recorder in use (OuoReplay.captureStats).
+    static func captureStats() -> [String: Any] {
+        let s = OuoReplay.captureStats.snapshot()
+        return ["recorder": OuoReplay.recorderKind?.rawValue ?? "none", "count": s.count, "totalMs": s.totalMillis,
+                "meanMs": s.meanMillis, "p50Ms": s.percentile(0.5), "p90Ms": s.percentile(0.9), "p99Ms": s.percentile(0.99),
+                "maxMs": s.samples.max() ?? 0]
     }
 
     /// Class names of the view tree and of the layers without a view: what replay's masking sees.

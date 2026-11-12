@@ -98,7 +98,7 @@ rum-api stores and serves frames unchanged. Upgrade order: rum-api and plugin, t
 
 ## Storage
 
-rum-api stores every chunk as `replays/<session_id>/<seq %06d>.json.gz`. `meta.json` gains `"kind": "rrweb" | "frames"` taken from the first chunk; mixing kinds in one session is rejected with 409.
+rum-api stores every chunk as `replays/<session_id>/<seq %06d>.json.gz`. `meta.json` gains `"kind": "rrweb" | "frames" | "video"` taken from the first chunk; mixing kinds in one session is rejected with 409.
 
 ## API
 
@@ -129,6 +129,26 @@ OuoReplay.flush()
 ```
 
 React Native: `initRUM({ replay: { enabled: true, mode: "auto" } })` starts it through the Expo module; `rum.replay.pause()/resume()/isRecording()` mirror the web API; the JS session manager calls `sessionDidRotate` on rotation.
+
+## Video chunks from the iOS SDK (spike, proposed ADR-0018)
+
+Behind `OuoReplayConfig.recorder = .sentryVideo` (`OuoConfig.replayRecorder`, default `.frames`) the iOS SDK records with sentry-cocoa's recorder core, copied into `sdk/ios/Sources/OuoReplaySentryCore` ([kb](../../project/kb/session-replay/borrowing/sentry-ios-recorder-spike.md)), and posts `kind: "video"` chunks to the same `POST /v1/replay/chunks`, with the same headers, outbox and credential as frame chunks. One chunk is one segment: up to 5 s at 1 frame/s, H.264 in an mp4 that starts with a keyframe, so every chunk is decodable alone.
+
+```json
+{
+  "kind": "video", "schema_version": 1, "format": "sentry-video",
+  "session_id": "uuid", "seq": 0, "started_at": 1760000000000, "ended_at": 1760000005000,
+  "viewport": { "width": 402, "height": 874, "scale": 1 }, "platform": "ios", "mode": "session",
+  "video": { "container": "mp4", "encoding": "h264", "duration_ms": 5000, "frame_count": 5, "frame_rate": 1, "mp4": "<base64>" },
+  "touches": [ { "ts": 1760000001200, "x": 120.5, "y": 640.0, "phase": "began" } ],
+  "masked": true
+}
+```
+
+- The shape is the Sentry bridge's video chunk (ADR-0008) without `source`, plus `format` and `mode`. `viewport` is the video size at scale 1 (the core renders one pixel per point), so touches in points land on it unchanged.
+- `format` names the payload; the collector copies it to the log attribute `ouo.replay.format` (sdk-spec section 11.3). It is optional: frames and rrweb chunks have none.
+- The collector's `ouoreplay` receiver validates a video chunk the way rum-api does (`schema_version` 1, `video.container` `"mp4"`, `video.mp4` non-empty base64 of a file with `ftyp` at offset 4, non-negative `duration_ms` and `frame_count`) and applies the body limit of frame chunks, not the rrweb one.
+- Masking is Sentry's: it does not drop a frame when a masked view moves (the frames recorder does), and `.ouoUnmask()` is not honoured. Not built in the spike: the crash spool, `navigation` mode and feedback frames.
 
 ## Never-record screens (React Native, ADR-0006 revision 3)
 

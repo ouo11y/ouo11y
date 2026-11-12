@@ -14,7 +14,23 @@ import OuoReplayCore
 /// alone touches `differ` and `builder`. A chunk's first frame, the frame after a resume or a
 /// screen change, and a frame whose tiles changed over more than half its area are full images;
 /// other frames carry only their changed rectangles (ADR-0014).
-final class ReplayRecorder {
+/// What `OuoReplay` drives: the frames recorder below or the Sentry-derived `VideoReplayRecorder`.
+protocol ReplayRecording: AnyObject {
+    var kind: ReplayRecorderKind { get }
+    var mode: ReplayMode { get }
+    var isRecording: Bool { get }
+    func start()
+    func pause()
+    func resume()
+    func stop()
+    func flush(completion: (() -> Void)?)
+    func sessionDidRotate(newId: String)
+    func screenDidChange()
+    func frameForFeedback()
+}
+
+final class ReplayRecorder: ReplayRecording {
+    let kind = ReplayRecorderKind.frames
     /// Instruments: "snapshot" intervals are the main-thread part of each capture ("walk" inside
     /// it), "compose" the capture-queue part (subsystem dev.ouo.replay, category capture).
     static let signposter = OSSignposter(subsystem: "dev.ouo.replay", category: "capture")
@@ -246,7 +262,10 @@ final class ReplayRecorder {
         let rects = decision == .wait ? nil : capturer.plan(walk.tree, bounds: window.bounds)
         guard case .capture(let reason) = decision, let rects else {
             sp.endInterval("snapshot", snapshotState)
-            pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            let spent = ProcessInfo.processInfo.systemUptime - start
+            // A walk that took no frame (animation wait, masked view moving) still cost the main thread.
+            OuoReplay.captureStats.record(millis: spent * 1000)
+            pacer.spent(spent, now: start)
             if case .capture(let reason) = decision {
                 logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
                 pacer.dropped(reason, now: start)
@@ -255,7 +274,9 @@ final class ReplayRecorder {
         }
         let snapshot = capturer.snapshot(window: window, tree: walk.tree, rects: rects)
         sp.endInterval("snapshot", snapshotState)
-        pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+        let spent = ProcessInfo.processInfo.systemUptime - start
+        OuoReplay.captureStats.record(millis: spent * 1000)
+        pacer.spent(spent, now: start)
         guard let snapshot else {
             pacer.dropped(reason, now: start)
             return

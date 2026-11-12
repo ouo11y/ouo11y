@@ -3,23 +3,6 @@ import UIKit
 import OuoReplayCore
 import OuoReplayObjC
 
-/// What `OuoReplay` drives: the recorder that uploads to `/v1/replay/chunks` (`ReplayRecorder`) or
-/// the one that sends OTLP log records (`OTLPReplayRecorder`).
-protocol ReplayRecording: AnyObject {
-    var isRecording: Bool { get }
-    var mode: ReplayMode { get }
-    func start()
-    func pause()
-    func resume()
-    func stop()
-    func flush(completion: (() -> Void)?)
-    func sessionDidRotate(newId: String)
-    func screenDidChange()
-    func frameForFeedback()
-}
-
-extension ReplayRecorder: ReplayRecording {}
-
 /// The frames recorder (`mode: "pixel/frames"`) over OTLP (ADR-0021 decision 5, client SDK spec
 /// 11). "When to look" is the legacy recorder's: the main run-loop observer and the `CapturePacer`.
 /// What a look becomes is the format adapter's (`ouo-frames/3`); numbering, chunking, the buffer
@@ -43,6 +26,7 @@ final class OTLPReplayRecorder: ReplayRecording {
     private let store: FileReplayStateStore
     private let touchObserver = TouchObserver.make()
     let mode: ReplayMode
+    var kind: ReplayRecorderKind { .frames }
 
     /// Main thread from here on. The stream itself is thread-safe; the reference changes on a
     /// session rotation.
