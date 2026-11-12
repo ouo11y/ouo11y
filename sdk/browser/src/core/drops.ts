@@ -62,14 +62,6 @@ export class DropCounter {
     return out;
   }
 
-  /** Puts reports back (they could not be sent yet: no session). */
-  restore(reports: DropReport[]): void {
-    for (const r of reports) {
-      const key = `${r.signal}\n${r.reason}`;
-      this.counts.set(key, (this.counts.get(key) ?? 0) + r.count);
-    }
-  }
-
   total(signal?: string, reason?: DropReason): number {
     let n = 0;
     for (const [key, count] of this.totals) {

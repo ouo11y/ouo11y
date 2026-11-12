@@ -223,9 +223,9 @@
    "text": "- **LIF-4** `shutdown` MUST stop all capture, remove every hook it installed, emit `session.end` if a session is active, close open replay streams (**RPL-20**), and attempt a flush bounded by `transport.shutdownDeadlineMs` (*default* 2 s).",
    "before": "partial",
    "now": "met",
-   "methods": "U,W",
-   "where": "sdk/browser/test/wire.test.ts 'shutdown ends the session'; safety.test.ts 'listeners, patches and timers are gone'; replay.test.ts (ended record at shutdown)",
-   "note": ""
+   "methods": "U,W,H",
+   "where": "sdk/browser/test/wire.test.ts 'shutdown ends the session'; safety.test.ts 'listeners, patches and timers are gone'; sdk/browser/e2e/locks.spec.ts (session.end at shutdown in three engines, last tab only)",
+   "note": "The web-vitals library offers no way to stop: its observers and listeners stay, inert, after shutdown"
   },
   {
    "id": "LIF-5",
@@ -400,7 +400,7 @@
    "before": "partial",
    "now": "met",
    "methods": "U,H",
-   "where": "sdk/browser/test/session.test.ts 'two tabs share one session and emit one start'; sdk/browser/e2e/sdk.spec.ts 'two tabs share one session'",
+   "where": "sdk/browser/test/session.test.ts 'two tabs share one session and emit one start'; review.test.ts (asynchronous lock); sdk/browser/e2e/sdk.spec.ts 'two tabs share one session'; locks.spec.ts (one end across two tabs)",
    "note": "Web Lock where available; write, re-read and adopt always"
   },
   {
@@ -873,7 +873,7 @@
    "before": "met",
    "now": "met",
    "methods": "W",
-   "where": "Same test",
+   "where": "Same test; review.test.ts 'a reused init does not carry the SDK's trace header to an origin outside the allow-list'",
    "note": ""
   },
   {
@@ -1027,7 +1027,7 @@
    "before": "partial",
    "now": "met",
    "methods": "F",
-   "where": "sdk/browser/test/wire.test.ts (identical retry bytes); replay.test.ts 'retries reuse the bytes'",
+   "where": "sdk/browser/test/wire.test.ts (identical retry bytes); replay.test.ts 'retries reuse the bytes'; review.test.ts 'a batch is delivered once' (one owner per failed batch)",
    "note": ""
   },
   {
@@ -1136,9 +1136,9 @@
    "text": "- **TRN-19** Because a keepalive response may never be observed, a chunk sent at unload MUST stay persisted until a later page confirms acceptance by resend. Muninn de-duplicates by chunk identity.",
    "before": "not_met",
    "now": "met",
-   "methods": "F",
-   "where": "sdk/browser/test/replay.test.ts 'page hide: ... stored with the end record'",
-   "note": ""
+   "methods": "F,H",
+   "where": "sdk/browser/test/replay.test.ts 'page hide: ... stored with the end record'; sdk/browser/e2e/replay.spec.ts 'collector down ...'",
+   "note": "The stored copy is deleted when a 2xx is observed, by this page or a later one (TRN-12); it stays when no answer is seen"
   },
   {
    "id": "SMP-1",
@@ -1290,8 +1290,8 @@
    "text": "- **PRV-2** Records created while pending MAY be held in a bounded memory buffer. On grant they MUST be processed normally. On denial they MUST be discarded.",
    "before": "not_met",
    "now": "met",
-   "methods": "W",
-   "where": "sdk/browser/test/wire.test.ts 'pending ...', 'denied while pending'",
+   "methods": "W,H",
+   "where": "sdk/browser/test/wire.test.ts 'pending ...', 'denied while pending'; review.test.ts 'records held for the start are not sent'",
    "note": ""
   },
   {
@@ -1312,9 +1312,9 @@
    "text": "- **PRV-4** On withdrawal, the SDK MUST stop capture of that category, emit nothing further for it, delete unsent persisted data for it, and clear the persisted session. A later grant MUST start a new session without `session.previous_id`.",
    "before": "not_met",
    "now": "met",
-   "methods": "W",
-   "where": "sdk/browser/test/wire.test.ts 'withdrawal ends the session with reason consent'",
-   "note": ""
+   "methods": "W,H",
+   "where": "sdk/browser/test/wire.test.ts 'withdrawal ends the session with reason consent'; sdk/browser/e2e/locks.spec.ts (consent end emitted, nothing sent afterwards, two tabs)",
+   "note": "A replay stream whose consent is withdrawn gets no end record: nothing more may be emitted"
   },
   {
    "id": "PRV-5",
@@ -1401,7 +1401,7 @@
    "before": "not_met",
    "now": "met",
    "methods": "W",
-   "where": "sdk/browser/test/wire.test.ts 'enduser.id appears only after setUser'",
+   "where": "sdk/browser/test/wire.test.ts 'enduser.id appears only after setUser'; review.test.ts 'the cleared user does not come back' (two tabs)",
    "note": ""
   },
   {
@@ -1500,7 +1500,7 @@
    "before": "partial",
    "now": "met",
    "methods": "F",
-   "where": "sdk/browser/test/replay.test.ts 'a chunk refused with 400 ... a new keyframe first'",
+   "where": "sdk/browser/test/replay.test.ts 'a chunk refused with 400 ... a new keyframe first', 'after a rejected chunk the rest of its segment is not sent'",
    "note": ""
   },
   {
@@ -1577,8 +1577,8 @@
    "before": "not_met",
    "now": "met",
    "methods": "F",
-   "where": "sdk/browser/test/replay.test.ts 'persisted before its first send'",
-   "note": ""
+   "where": "sdk/browser/test/replay.test.ts 'the request for a chunk leaves only after the outbox has it'",
+   "note": "At page close the write and the keepalive request start in the same task: nothing can be awaited there"
   },
   {
    "id": "RPL-16",
@@ -1643,8 +1643,8 @@
    "before": "not_met",
    "now": "met",
    "methods": "F,H",
-   "where": "sdk/browser/test/replay.test.ts 'a later page ... says the stream ended partial'; sdk/browser/e2e/replay.spec.ts",
-   "note": ""
+   "where": "sdk/browser/test/replay.test.ts 'a later page ... says the stream ended partial', 'recovering a dead page's stream does not disturb the stream this page records'; sdk/browser/e2e/replay.spec.ts",
+   "note": "Exception by PRV-4: a stream whose consent is withdrawn is discarded without an end record"
   },
   {
    "id": "RPL-21",
@@ -1742,7 +1742,7 @@
    "before": "not_met",
    "now": "met",
    "methods": "F",
-   "where": "sdk/browser/test/safety.test.ts 'after the threshold of internal errors ...'",
+   "where": "sdk/browser/test/safety.test.ts 'after the threshold of internal errors ...'; review.test.ts 'shutdown() then init() without awaiting'",
    "note": ""
   },
   {

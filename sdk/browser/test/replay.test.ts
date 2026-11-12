@@ -262,12 +262,12 @@ class StubAdapter implements ReplayAdapter {
 
 function harness(o: { mode?: "session" | "buffer"; compress?: boolean; chunkMaxBytes?: number; outbox?: MemoryOutbox | null; bufferSeconds?: number } = {}) {
   const cfg = resolveConfig({ endpoint: BASE, serviceName: "web-store" }, () => undefined)!;
-  let sink: ((r: never) => void) | undefined;
   const drops = new DropCounter();
   const pipeline = createPipeline({
     cfg,
     drops,
     stamp: () => ({ id: "a".repeat(32), sampled: true, expired: false, user: undefined }),
+    baggageSessionId: () => undefined,
     viewId: () => "view1",
     documentUrl: () => "http://localhost/",
     sanitize: (u) => u,
@@ -275,7 +275,6 @@ function harness(o: { mode?: "session" | "buffer"; compress?: boolean; chunkMaxB
     active: () => true,
     logSink: () => undefined,
     spanSink: () => undefined,
-    replaySink: () => sink as never,
   });
   const adapter = new StubAdapter(o.compress ?? false);
   const endings: EndReason[] = [];
@@ -287,10 +286,7 @@ function harness(o: { mode?: "session" | "buffer"; compress?: boolean; chunkMaxB
     replayId: "b".repeat(32),
     sessionId: "a".repeat(32),
     viewId: () => "view1",
-    logger: pipeline.replayLogger,
-    setSink: (fn: unknown) => {
-      sink = fn as never;
-    },
+    makeRecord: pipeline.makeReplayRecord,
     http,
     logsUrl: `${BASE}/v1/logs`,
     outbox,
@@ -301,7 +297,7 @@ function harness(o: { mode?: "session" | "buffer"; compress?: boolean; chunkMaxB
     onEnded: (reason: EndReason) => void endings.push(reason),
   };
   const engine = new ReplayEngine(deps);
-  return { engine, adapter, drops, outbox, endings, pipeline, deps, http, setSink: deps.setSink };
+  return { engine, adapter, drops, outbox, endings, pipeline, deps, http };
 }
 
 const bodyText = (c: ReplayRecord): string => new TextDecoder().decode(c.body!);
@@ -322,7 +318,7 @@ describe("engine contract with a stub format (RPL-4 to RPL-11, RPL-15 to RPL-21,
     checkStream(list);
     expect(list.map(bodyText)).toEqual(["K0ab", "K1c", "d"]);
     expect(list.map((c) => [c.attributes["ouo.replay.sequence"], c.attributes["ouo.replay.segment.index"], c.attributes["ouo.replay.keyframe"]])).toEqual([[0, 0, true], [1, 1, true], [2, 1, false]]);
-    expect(list[0]!.attributes).toMatchObject({ "ouo.replay.format": "stub/1", "ouo.replay.encoding": "none" });
+    expect(list[0]!.attributes).toMatchObject({ "ouo.replay.format": "stub/1", "ouo.replay.encoding": "identity" });
     expect(ended()[0]!.attributes).toMatchObject({ "ouo.replay.end_state": "complete", "ouo.replay.last_sequence": 2, "ouo.replay.end_reason": "stop" });
     expect(h.endings).toEqual(["stop"]);
   });
@@ -456,7 +452,7 @@ describe("engine contract with a stub format (RPL-4 to RPL-11, RPL-15 to RPL-21,
     await collector.settled();
     const list = chunks();
     expect(list).toHaveLength(1);
-    expect(list[0]!.attributes["ouo.replay.encoding"]).toBe("none");
+    expect(list[0]!.attributes["ouo.replay.encoding"]).toBe("identity");
     expect(bodyText(list[0]!)).toBe("K0abc");
     expect(list[0]!.attributes["ouo.replay.sha256"]).toBe(hash(list[0]!.body!));
     expect(ended()[0]!.attributes).toMatchObject({ "ouo.replay.end_reason": "pagehide", "ouo.replay.end_state": "complete", "ouo.replay.last_sequence": 0 });
@@ -481,7 +477,7 @@ describe("engine contract with a stub format (RPL-4 to RPL-11, RPL-15 to RPL-21,
     const next = harness({ outbox });
     // jsdom has no Web Locks: without them a stream is taken over once it has been quiet for two minutes.
     const later = { ...systemClock, now: () => Date.now() + 180_000 };
-    const clean = await recoverStreams({ outbox, http: next.http, logsUrl: `${BASE}/v1/logs`, logger: next.pipeline.replayLogger, setSink: next.setSink, drops: next.drops, clock: later, ttlMs: 72 * 3_600_000, own: new Set() });
+    const clean = await recoverStreams({ outbox, http: next.http, logsUrl: `${BASE}/v1/logs`, makeRecord: next.pipeline.makeReplayRecord, drops: next.drops, clock: later, ttlMs: 72 * 3_600_000, own: new Set() });
     await collector.settled();
     expect(clean).toBe(true);
     expect(chunks().map(bodyText)).toEqual(["K0a", "b"]);
@@ -490,6 +486,75 @@ describe("engine contract with a stub format (RPL-4 to RPL-11, RPL-15 to RPL-21,
     expect(ended()[0]!.attributes).toMatchObject({ "ouo.replay.stream.id": h.engine.streamId, "session.id": "a".repeat(32), "ouo.replay.end_state": "partial", "ouo.replay.last_sequence": 1, "ouo.replay.end_reason": "background_kill" });
     expect((await outbox.list(Date.now(), Infinity)).entries).toHaveLength(0);
     expect(await outbox.streams()).toHaveLength(0);
+  });
+
+  it("the request for a chunk leaves only after the outbox has it, and the stored copy goes once it is accepted (RPL-15)", async () => {
+    const order: string[] = [];
+    const outbox = new (class extends MemoryOutbox {
+      override async put(e: Parameters<MemoryOutbox["put"]>[0]) {
+        await wait(40);
+        order.push("stored");
+        return super.put(e);
+      }
+    })(64 * 1024 * 1024);
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      // Only this test's chunk: engines of earlier tests may still be retrying.
+      if (new TextDecoder().decode(init?.body as Uint8Array).includes("persist-me")) order.push("sent");
+      return real(input, init);
+    });
+    const h = harness({ outbox });
+    h.engine.start();
+    h.adapter.push("persist-me");
+    await h.engine.end("stop");
+    await collector.settled();
+    // Stored (the chunk), sent (the chunk), stored (the end record).
+    expect(order.slice(0, 2)).toEqual(["stored", "sent"]);
+    expect(order.filter((x) => x === "sent")).toHaveLength(1);
+    expect((await outbox.list(Date.now(), Infinity)).entries).toHaveLength(0);
+  });
+
+  it("recovering a dead page's stream does not disturb the stream this page records", async () => {
+    const outbox = new MemoryOutbox(64 * 1024 * 1024);
+    await outbox.putStream({ stream: "d".repeat(32), replay: "e".repeat(32), session: "f".repeat(32), last: 0, ended: false, partial: false, mode: "session", updatedAt: Date.now() - 600_000 });
+    const h = harness({ outbox });
+    h.engine.start();
+    h.adapter.push("a");
+    await wait(150);
+    const later = { ...systemClock, now: () => Date.now() + 180_000 };
+    await recoverStreams({ outbox, http: h.http, logsUrl: `${BASE}/v1/logs`, makeRecord: h.pipeline.makeReplayRecord, drops: h.drops, clock: later, ttlMs: 72 * 3_600_000, own: new Set([h.engine.streamId]) });
+    await collector.settled();
+    expect(ended().map((e) => e.attributes["ouo.replay.stream.id"])).toEqual(["d".repeat(32)]);
+    h.adapter.push("b");
+    await wait(200);
+    await collector.settled();
+    expect(h.drops.total("ouo.replay.chunk", "internal_error")).toBe(0);
+    expect(chunks().filter((c) => c.attributes["ouo.replay.stream.id"] === h.engine.streamId)).toHaveLength(2);
+    expect(h.adapter.keyframes).toBe(0);
+    await h.engine.end("stop");
+  });
+
+  it("after a rejected chunk the rest of its segment is not sent (RPL-8)", async () => {
+    const h = harness();
+    collector.setAlways({ status: 503 });
+    h.engine.start();
+    h.adapter.push("a");
+    await wait(130);
+    h.adapter.push("b");
+    await wait(130);
+    h.adapter.push("c");
+    await wait(130);
+    // Three chunks of segment 0 wait; the first is refused for good.
+    collector.setAlways(undefined);
+    collector.next({ status: 400 });
+    await wait(300);
+    h.adapter.push("d");
+    await h.engine.end("stop");
+    await collector.settled();
+    const list = chunks();
+    expect(list.every((c) => Number(c.attributes["ouo.replay.segment.index"]) >= 1)).toBe(true);
+    expect(list[0]!.attributes["ouo.replay.keyframe"]).toBe(true);
+    expect(ended()[0]!.attributes["ouo.replay.end_state"]).toBe("partial");
   });
 
   it("a frame the adapter could not mask is counted and makes the stream partial (PRV-8)", async () => {

@@ -12,6 +12,7 @@ Found on 2026-11-11 and 2026-11-12 with `@opentelemetry/api` 1.9.1, `sdk-logs` /
 | `otlp-transformer`'s root import pulls every serializer | The protobuf writer landed in the eager chunk (+3.6 KB gzip) | Import `@opentelemetry/otlp-transformer/build/esm/logs/json`, `.../trace/json`, `.../logs/protobuf` |
 | The protobuf logs serializer is hand-written | No `protobufjs` at runtime; it also deserialises the response (`partialSuccess`) | Used for replay chunks: 7 KB gzip with the engine |
 | A `Uint8Array` body is `bytesValue` only if `instanceof Uint8Array` holds | In jsdom the test's `TextEncoder` returns a Node-realm array and the body is encoded as something else | Wrap once: `new Uint8Array(b.buffer, b.byteOffset, b.byteLength)` (a view, no copy) |
+| The fetch instrumentation writes the injected headers onto the caller's init (`options.headers = headers`) or `Request` | An app that reuses one init object sends the next request with the previous `traceparent`, also to origins outside the allow-list | Wrap `fetch` above the instrumentation and hand it a shallow copy of the init (and `new Request(input)`); treat a header value the SDK injected earlier as its own |
 | Context and propagation exist only as globals | The instrumentations cannot be handed a private context manager or propagator | Register them when the host has none; leave a host's own |
 | `browserDetector` sets `user_agent.original` even when `browser.brands` exists | The spec says to omit it then | Copy the detected attributes and delete it |
 | A number as `timestamp` | Treated as epoch ms when it is larger than `performance.timeOrigin`, as `performance.now()` otherwise | Always pass epoch ms |
@@ -27,6 +28,16 @@ Found on 2026-11-11 and 2026-11-12 with `@opentelemetry/api` 1.9.1, `sdk-logs` /
 | WebKit and a refused connection | Playwright's `pageerror` gets "... due to access control checks" lines: the browser's network log, not an exception | Filter them in the transcript comparison |
 | Dead-click detection | An observer installed a microtask after the click misses what the page's handler did in the same task | Install it in the capture phase of the click |
 | SVG `foreignObject` from a `blob:` URL | Taints the canvas in Chromium | A `data:` URL |
+
+## Web Locks (what jsdom cannot show)
+
+Found by the review of PR #182; every one passed in jsdom, which has no Web Locks.
+
+- A lock released by resolving its holder's promise is **not free in the same task**: an `ifAvailable` request right after it gets `null` in Chromium, Firefox and WebKit. To ask "am I the last tab", count holders with `navigator.locks.query()` instead of releasing and re-requesting.
+- A lock callback runs later than the code after `locks.request()`. Anything the callback emits must not depend on state the caller changes right after (consent flipped to denied, storage cleared): do those steps after the lock work has settled.
+- Records held while a lock is awaited must be checked again when released (consent may have been denied meanwhile).
+- To test lock paths in jsdom, define `locks` on the real `navigator` with `Object.defineProperty`. A stub made with `Object.create(navigator)` throws "Illegal invocation" on `navigator.userAgent`, the SDK turns itself off, and the test passes for the wrong reason.
+- Every lock-dependent rule needs one real-browser test: `sdk/browser/e2e/locks.spec.ts`.
 
 ## jsdom and vitest
 

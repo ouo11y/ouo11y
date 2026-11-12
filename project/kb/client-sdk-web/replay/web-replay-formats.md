@@ -4,7 +4,7 @@ What the web SDK puts in the body of an `ouo.replay.chunk` record (spec section 
 
 > the payload of a segment = the decompressed bodies of its chunks, concatenated in `ouo.replay.sequence` order.
 
-A chunk may end in the middle of a unit (a large unit is split across chunks, never truncated), so a reader must concatenate before it parses. Each body decompresses alone. `ouo.replay.encoding` is per chunk: `gzip` normally, `none` for the chunk a page closes with (nothing can be awaited then).
+A chunk may end in the middle of a unit (a large unit is split across chunks, never truncated), so a reader must concatenate before it parses. Each body decompresses alone. `ouo.replay.encoding` is per chunk: `gzip` normally, `identity` for the chunk a page closes with (nothing can be awaited then). These are the two values the Muninn design accepts.
 
 ## `rrweb/2` (`replay.mode: "structure/dom"`)
 

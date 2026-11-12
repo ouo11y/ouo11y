@@ -12,7 +12,7 @@
  * body as bytes, sent as OTLP/HTTP protobuf (RPL-2, TRN-1). The record is made through the Logs
  * API of the SDK's logger provider and handed back here by its processor.
  */
-import type { AnyValue, Logger } from "@opentelemetry/api-logs";
+import type { AnyValue } from "@opentelemetry/api-logs";
 import { ProtobufLogsSerializer } from "@opentelemetry/otlp-transformer/build/esm/logs/protobuf";
 import type { ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import { CHUNK_HARD_LIMIT } from "../config";
@@ -43,9 +43,8 @@ export interface EngineDeps {
   replayId: string;
   sessionId: string;
   viewId(): string | undefined;
-  logger: Logger;
-  /** Routes the `ouo.replay` records the logger makes back to this engine. */
-  setSink(fn: ((record: ReadableLogRecord) => void) | undefined): void;
+  /** Makes one `ouo.replay` record through the Logs API (the pipeline's factory). */
+  makeRecord(name: string, attributes: Record<string, AnyValue>, time: number, observed: number, body?: Uint8Array): ReadableLogRecord | undefined;
   http: Http;
   logsUrl: string;
   outbox: Outbox | null;
@@ -69,7 +68,7 @@ interface RawChunk {
 
 interface Encoded {
   body: Uint8Array;
-  encoding: "gzip" | "none";
+  encoding: "gzip" | "identity";
   start: number;
   end: number;
   keyframe: boolean;
@@ -82,6 +81,8 @@ interface Outgoing {
   segment: number;
   /** Outbox id once persisted. */
   id: number | null;
+  /** Settles when the outbox has the chunk (or could not take it). The send waits for it (RPL-15). */
+  persisted: Promise<void>;
   failures: number;
 }
 
@@ -138,7 +139,6 @@ export class ReplayEngine {
   private needKeyframe = false;
   private ended = false;
   private running = false;
-  private captured: ReadableLogRecord | undefined;
   private releaseLock: (() => void) | undefined;
   private row: StreamRow;
 
@@ -155,9 +155,6 @@ export class ReplayEngine {
   start(): void {
     if (this.running || this.ended) return;
     this.running = true;
-    this.d.setSink((record) => {
-      this.captured = record;
-    });
     // Held for the page's lifetime: a later page may only take over a stream whose lock is free.
     const l = locks();
     if (l?.request) {
@@ -237,6 +234,7 @@ export class ReplayEngine {
         sent.then(async (res) => {
           if (!res || res.kind === "retry") return;
           this.out = this.out.filter((x) => x !== o);
+          await o.persisted;
           if (o.id !== null) await this.d.outbox?.delete(o.id);
         }),
       );
@@ -324,7 +322,7 @@ export class ReplayEngine {
     if (!raw) return;
     attempt(() => {
       for (const part of this.split(concat(raw.pieces, raw.bytes), CHUNK_HARD_LIMIT)) {
-        const c: Encoded = { body: part.body, encoding: "none", start: raw.start, end: raw.end, keyframe: raw.keyframe && part.first, view: raw.view };
+        const c: Encoded = { body: part.body, encoding: "identity", start: raw.start, end: raw.end, keyframe: raw.keyframe && part.first, view: raw.view };
         if (this.shipping) this.shipNow(c, sha256Sync(c.body));
       }
     });
@@ -343,7 +341,7 @@ export class ReplayEngine {
     while (parts.length > 0) {
       const part = parts.shift()!;
       let body = part;
-      let encoding: "gzip" | "none" = "none";
+      let encoding: "gzip" | "identity" = "identity";
       if (gzip) {
         body = await gzipBytes(part);
         encoding = "gzip";
@@ -425,12 +423,7 @@ export class ReplayEngine {
   private record(name: string, attributes: Record<string, AnyValue>, time: number, body?: Uint8Array): Uint8Array | undefined {
     return attempt(() => {
       point("replay.record");
-      this.captured = undefined;
-      // A view made here, so the serializer recognises the bytes whatever made the buffer.
-      const bytes = body && new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
-      this.d.logger.emit({ eventName: name, timestamp: time, observedTimestamp: this.d.clock.now(), attributes, ...(bytes ? { body: bytes as AnyValue } : {}) });
-      const rec = this.captured as ReadableLogRecord | undefined;
-      this.captured = undefined;
+      const rec = this.d.makeRecord(name, attributes, time, this.d.clock.now(), body);
       return rec ? serialize(rec) : undefined;
     });
   }
@@ -459,7 +452,6 @@ export class ReplayEngine {
         this.enqueue({ kind: "replay", signal: "replay", body: payload, records: 1, createdAt: this.d.clock.now(), stream: this.streamId, seq: -1 }, this.segment);
       }
     }
-    this.d.setSink(undefined);
     this.releaseLock?.();
     this.releaseLock = undefined;
     this.d.onEnded(reason);
@@ -468,12 +460,12 @@ export class ReplayEngine {
   // ---- delivery ----
 
   private enqueue(entry: OutboxEntry, segment: number): void {
-    const o: Outgoing = { entry, bytes: entry.body.byteLength, segment, id: null, failures: 0 };
+    const o: Outgoing = { entry, bytes: entry.body.byteLength, segment, id: null, persisted: Promise.resolve(), failures: 0 };
     this.out.push(o);
     this.saveRow();
     // Persisted before the first send (RPL-15); the write is started now, also at page hide.
     if (this.d.outbox) {
-      void quiet(
+      o.persisted = quiet(
         this.d.outbox.put(entry).then((r) => {
           o.id = r.id;
           this.evicted(r.evicted);
@@ -533,6 +525,8 @@ export class ReplayEngine {
     try {
       while (this.out.length > 0) {
         const o = this.out[0]!;
+        await o.persisted;
+        if (this.out[0] !== o) continue;
         this.inflight = o;
         const res = await this.d.http.post(this.d.logsUrl, o.entry.body, { contentType: PROTOBUF_CONTENT_TYPE, rejected: protoRejected });
         this.inflight = null;
@@ -550,7 +544,14 @@ export class ReplayEngine {
         if (o.id !== null) await quiet(this.d.outbox?.delete(o.id));
         if (res.kind !== "ok") {
           this.d.drops.add("ouo.replay.chunk", res.kind === "partial" ? "partial_rejected" : "rejected_status");
-          if (o.entry.seq !== -1) this.lost();
+          if (o.entry.seq !== -1) {
+            // The segment is broken: what is left of it cannot be decoded and is not sent (RPL-8).
+            const rest = this.out.filter((x) => x.segment === o.segment && x.entry.seq !== -1);
+            this.out = this.out.filter((x) => !rest.includes(x));
+            for (const x of rest) void quiet(x.persisted.then(() => (x.id !== null ? this.d.outbox?.delete(x.id) : undefined)));
+            if (rest.length > 0) this.d.drops.add("ouo.replay.chunk", "backlog", rest.length);
+            this.lost();
+          }
         }
       }
       if (this.ended && this.row.ended) await quiet(this.d.outbox?.deleteStream(this.streamId));
@@ -585,8 +586,7 @@ export interface RecoveryDeps {
   outbox: Outbox;
   http: Http;
   logsUrl: string;
-  logger: Logger;
-  setSink(fn: ((record: ReadableLogRecord) => void) | undefined): void;
+  makeRecord(name: string, attributes: Record<string, AnyValue>, time: number, observed: number, body?: Uint8Array): ReadableLogRecord | undefined;
   drops: DropCounter;
   clock: Clock;
   ttlMs: number;
@@ -627,27 +627,19 @@ export async function recoverStreams(d: RecoveryDeps): Promise<boolean> {
       // The row may not have been rewritten at page close; a stored end record says the same.
       if (!row.ended && row.last >= 0 && !mine.some((m) => m.seq === -1)) {
         // The page died before it could say the stream was over.
-        let rec: ReadableLogRecord | undefined;
-        d.setSink((r) => {
-          rec = r;
-        });
-        try {
-          d.logger.emit({
-            eventName: "ouo.replay.ended",
-            timestamp: row.updatedAt,
-            observedTimestamp: d.clock.now(),
-            attributes: {
-              "session.id": row.session,
-              "ouo.replay.id": row.replay,
-              "ouo.replay.stream.id": row.stream,
-              "ouo.replay.end_state": "partial",
-              "ouo.replay.last_sequence": row.last,
-              "ouo.replay.end_reason": "background_kill",
-            },
-          });
-        } finally {
-          d.setSink(undefined);
-        }
+        const rec = d.makeRecord(
+          "ouo.replay.ended",
+          {
+            "session.id": row.session,
+            "ouo.replay.id": row.replay,
+            "ouo.replay.stream.id": row.stream,
+            "ouo.replay.end_state": "partial",
+            "ouo.replay.last_sequence": row.last,
+            "ouo.replay.end_reason": "background_kill",
+          },
+          row.updatedAt,
+          d.clock.now(),
+        );
         if (rec) {
           const res = await d.http.post(d.logsUrl, serialize(rec), { contentType: PROTOBUF_CONTENT_TYPE, rejected: protoRejected });
           if (!res || res.kind === "retry") return false;

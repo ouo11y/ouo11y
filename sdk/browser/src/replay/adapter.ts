@@ -26,7 +26,7 @@ export interface AdapterSink {
 export interface ReplayAdapter {
   /** `ouo.replay.format`. */
   readonly format: string;
-  /** Whether chunk bodies are gzipped by the engine (`ouo.replay.encoding`: `gzip`, else `none`). */
+  /** Whether chunk bodies are gzipped by the engine (`ouo.replay.encoding`: `gzip`, else `identity`). */
   readonly compress: boolean;
   /** Begins recording; the first data is a keyframe. */
   start(sink: AdapterSink): void;

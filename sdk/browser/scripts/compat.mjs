@@ -13,7 +13,6 @@ const KNOWN = [
   [/^react\.js$/, "ouo.react.component_stack", /src\/react\/index\.ts$/],
   [/^engine-.*\.js$/, "ouo.replay.sha256", /src\/replay\/engine\.ts$/],
   [/^structure-.*\.js$/, "takeFullSnapshot", /rrweb|src\/replay\/structure\.ts$/],
-  [/^pixel-.*\.js$/, "foreignObject", /src\/replay\/pixel\.ts$/],
   // Shared chunks: any mapping is enough.
   [/^chunk-.*\.js$/, null, /./],
 ];

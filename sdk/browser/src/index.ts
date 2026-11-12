@@ -87,7 +87,6 @@ class Runtime {
   private replayConsent: ConsentState;
   private unloading = false;
   private dropTimer: TimerHandle | null = null;
-  private replaySink: ((record: ReadableLogRecord) => void) | undefined;
   private releaseTab: (() => void) | undefined;
   private documentUrlRaw = "";
   private documentUrlClean = "";
@@ -106,7 +105,7 @@ class Runtime {
 
     const gate = (): "open" | "hold" => (this.telemetryConsent === "pending" ? "hold" : "open");
     const hidden = (): boolean => this.hidden();
-    const queue = { http: this.http, outbox: () => this.outbox(), drops: this.drops, settings: cfg.transport, logger: this.log, gate, hidden };
+    const queue = { http: this.http, outbox: () => this.outbox(), onStored: (id: number) => this.drainer?.own(id), drops: this.drops, settings: cfg.transport, logger: this.log, gate, hidden };
     this.logs = new TelemetryQueue<ReadableLogRecord>({
       ...queue,
       signal: "logs",
@@ -139,8 +138,8 @@ class Runtime {
       active: () => this.active(),
       logSink: (record) => this.logs.add(record),
       spanSink: (span) => this.traces.add(span),
+      baggageSessionId: () => (this.telemetryConsent === "granted" ? this.session.id() : undefined),
       onSpanStart: () => this.notify(this.networkListeners),
-      replaySink: () => this.replaySink,
     });
     this.emitter = new Emitter({
       logger: this.pipeline.logger,
@@ -167,7 +166,9 @@ class Runtime {
           this.emitter.emit("session.start", attrs, { stamp: this.stampOf(rec), first: true, time: rec.start });
         },
         onEnd: (rec, reason) => {
-          if (rec.s) this.emitter.emit("session.end", { "ouo.session.end_reason": reason }, { stamp: this.stampOf(rec), first: true, time: rec.last });
+          // The end of a session whose consent was withdrawn is the last record of that consent:
+          // it is announced under the session lock, after the state has changed.
+          if (rec.s) this.emitter.emit("session.end", { "ouo.session.end_reason": reason }, { stamp: this.stampOf(rec), first: true, time: rec.last, always: reason === "consent" });
         },
         onChange: () => {
           this.replay.evaluate();
@@ -184,10 +185,7 @@ class Runtime {
       drops: this.drops,
       log: this.log,
       storage: this.storage,
-      logger: this.pipeline.replayLogger,
-      setSink: (fn) => {
-        this.replaySink = fn;
-      },
+      makeRecord: this.pipeline.makeReplayRecord,
       http: this.http,
       outbox: () => this.outbox(),
       session: () => this.session.current(),
@@ -242,6 +240,11 @@ class Runtime {
     };
   }
 
+  /** User presence. No session starts or is kept alive once telemetry consent is denied. */
+  private activity(): void {
+    if (this.active()) this.session.activity();
+  }
+
   // ---- start ----
 
   start(): void {
@@ -269,7 +272,7 @@ class Runtime {
     // page-load navigation carry both.
     this.view.next(undefined, true);
     this.session.start(document.visibilityState === "visible");
-    const act = (): void => this.session.activity();
+    const act = (): void => this.activity();
     const passive = { capture: true, passive: true } as const;
     for (const type of ["pointerdown", "keydown", "wheel", "touchmove"]) this.cleanup.push(listen(globalThis, type, act, passive));
     this.cleanup.push(
@@ -289,7 +292,7 @@ class Runtime {
         onNavigation: () => {
           // A navigation is activity when someone can see it: a tab loading in the background
           // starts no session until it is shown.
-          if (document.visibilityState === "visible") this.session.activity();
+          if (document.visibilityState === "visible") act();
           this.notify(this.navigationListeners);
         },
         navigation: inst.navigation,
@@ -327,6 +330,9 @@ class Runtime {
       );
       if (off) this.cleanup.push(off);
     }
+    // Page hide, step one (LIF-7): requests still in flight end as abandoned spans. Registered
+    // before the vitals' own page-hide listener, which is step two.
+    this.cleanup.push(listen(globalThis, "pagehide", () => this.pipeline.abandonOpenSpans()));
     // Before the lifecycle listeners below: final vitals are emitted on hide and must be in the flush.
     if (inst.webVitals) {
       const off = on(() =>
@@ -346,8 +352,7 @@ class Runtime {
     this.holdTabLock();
     this.replay.evaluate();
     this.drainer = new OutboxDrainer({
-      // Resolved at each use: nothing is opened while consent is pending.
-      outbox: this.lazyOutbox() as Outbox,
+      outbox: () => this.outbox(),
       http: this.http,
       urls: { logs: cfg.logsUrl, traces: cfg.tracesUrl },
       rejected: { logs: jsonRejected("logs"), traces: jsonRejected("traces") },
@@ -355,21 +360,13 @@ class Runtime {
       ttlMs: cfg.transport.persistTtlMs,
       retryInitialMs: cfg.transport.retryInitialMs,
       retryMaxMs: cfg.transport.retryMaxMs,
-      gate: () => (this.outbox() ? "open" : "hold"),
+      gate: () => (this.telemetryConsent === "granted" ? "open" : "hold"),
       hidden: () => this.hidden(),
     });
     this.drainer.schedule(1000);
-    this.clock.setTimeout(() => this.replay.recover(), 1500);
+    const recover = this.clock.setTimeout(() => this.replay.recover(), 1500);
+    this.cleanup.push(() => this.clock.clearTimeout(recover));
     this.log.log(`${SDK_NAME} ${SDK_VERSION} started (spec ${SPEC_VERSION})`);
-  }
-
-  /** An outbox facade whose methods find the real outbox when called. */
-  private lazyOutbox(): Pick<Outbox, "list" | "body" | "delete"> {
-    return {
-      list: (now, ttl) => this.outbox()?.list(now, ttl) ?? Promise.resolve({ entries: [], expired: [] }),
-      body: (id) => this.outbox()?.body(id) ?? Promise.resolve(undefined),
-      delete: (id) => this.outbox()?.delete(id) ?? Promise.resolve(),
-    };
   }
 
   /** A shared Web Lock held while this tab runs the SDK: `shutdown` uses it to tell whether it is the last one. */
@@ -384,13 +381,13 @@ class Runtime {
     );
   }
 
+  /** Whether no other tab of this origin runs the SDK: it holds the only `ouo.tab` lock. */
   private async lastTab(): Promise<boolean> {
     const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
-    this.releaseTab?.();
-    this.releaseTab = undefined;
-    if (!locks?.request) return true;
+    if (!locks?.query) return true;
     try {
-      return (await locks.request("ouo.tab", { mode: "exclusive", ifAvailable: true }, (lock) => lock !== null)) === true;
+      const held = (await locks.query()).held ?? [];
+      return held.filter((l) => l.name === "ouo.tab").length <= 1;
     } catch {
       return true;
     }
@@ -409,7 +406,7 @@ class Runtime {
           void this.logs.flush();
           void this.traces.flush();
         } else {
-          this.session.activity();
+          this.activity();
           this.replay.onVisible();
           this.drainer?.schedule(0);
           this.replay.recover();
@@ -418,10 +415,10 @@ class Runtime {
     );
     off(
       listen(globalThis, "pagehide", () => {
-        // In this order (LIF-7): abandon open spans, (final vitals were emitted by their own
-        // listener), close the replay chunk and end the stream, flush telemetry, then replay.
+        // In this order (LIF-7): open spans were abandoned and final vitals emitted by the two
+        // listeners registered before this one; now close the replay chunk and end the stream,
+        // flush telemetry, then replay.
         this.unloading = true;
-        this.pipeline.abandonOpenSpans();
         const engine = this.replay.onPageHide();
         this.reportDrops();
         void this.logs.flush();
@@ -436,7 +433,7 @@ class Runtime {
         if (!(e as PageTransitionEvent).persisted) return;
         // Restored from the back/forward cache (LIF-8): a new view, the session re-evaluated, a new replay stream.
         this.navigation?.restored();
-        this.session.activity();
+        this.activity();
         this.replay.evaluate();
       }),
     );
@@ -544,13 +541,26 @@ class Runtime {
           this.logs.discard();
           this.traces.discard();
         }
-        const flushed = wasGranted ? Promise.all([this.session.settled().then(() => this.logs.flush()), this.traces.flush()]) : Promise.resolve();
         this.telemetryConsent = "denied";
         const outbox = this.outboxInstance;
-        void quiet(flushed.then(() => outbox?.clear()));
-        this.session.sever();
-        this.storage.forget();
         void this.replay.withdraw();
+        // In order: the session's end is announced (under the session lock, so only once the
+        // lock is granted), the stored session is forgotten, what was collected with consent gets
+        // one last attempt, and whatever is still unsent, in memory or stored, is deleted (PRV-4).
+        void quiet(
+          this.session
+            .settled()
+            .then(() => {
+              this.session.sever();
+              this.storage.forget();
+              return wasGranted ? Promise.all([this.logs.flush(), this.traces.flush()]) : undefined;
+            })
+            .then(() => {
+              this.logs.discard();
+              this.traces.discard();
+              return outbox?.clear();
+            }),
+        );
       }
     }
     if (typeof c.replay === "boolean") {
@@ -719,7 +729,10 @@ export function shutdown(): Promise<void> {
     const rt = runtime;
     if (!rt) return Promise.resolve();
     runtime = undefined;
-    return quiet(rt.disabled ? undefined : rt.shutdown()).then(() => configureGuard(undefined));
+    return quiet(rt.disabled ? undefined : rt.shutdown()).then(() => {
+      // Not when `init` was called again meanwhile: the guard then belongs to the new instance.
+      if (!runtime) configureGuard(undefined);
+    });
   }, Promise.resolve());
 }
 

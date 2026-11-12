@@ -236,7 +236,10 @@ export class SessionManager {
     if (other.id === this.rec?.id) {
       this.rec.last = Math.max(this.rec.last, other.last);
       if (other.a) this.rec.a = 1;
-      if (other.u !== undefined) this.rec.u = this.user = other.u;
+      // Also when it was cleared: a logout in one tab is a logout in all.
+      this.user = other.u;
+      if (other.u === undefined) delete this.rec.u;
+      else this.rec.u = other.u;
       if (other.e && this.live) {
         this.rec.e = 1;
         this.live = false;
@@ -315,10 +318,9 @@ export class SessionManager {
           this.write(cur);
           this.opts.hooks.onEnd(cur, reason);
         }
-      } else if (!cur) {
-        rec.e = 1;
-        this.opts.hooks.onEnd(rec, reason);
       }
+      // No stored record (storage was cleared from outside): no tab can know it is the one to
+      // announce the end, so none does. Consumers treat `session.end` as a hint (SES-8).
       rec.e = 1;
       this.opts.hooks.onChange(null);
     });

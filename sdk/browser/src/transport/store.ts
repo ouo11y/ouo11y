@@ -8,7 +8,7 @@
  *
  * Bodies are stored as they are sent; request headers (the project credential) are not stored.
  */
-import { point } from "../guard";
+import { guard, point } from "../guard";
 
 export type OutboxKind = "replay" | "telemetry" | "bypass";
 
@@ -207,13 +207,13 @@ export class IdbOutbox implements Outbox {
     const trim = this.db.transaction([META, BODY], "readwrite");
     const metas = trim.objectStore(META);
     const all = metas.getAll();
-    all.onsuccess = () => {
+    all.onsuccess = guard(() => {
       for (const m of toEvict(all.result as OutboxMeta[], this.maxBytes, id)) {
         metas.delete(m.id);
         trim.objectStore(BODY).delete(m.id);
         evicted.push(m);
       }
-    };
+    });
     await done(trim);
     return { id, evicted };
   }
@@ -224,7 +224,7 @@ export class IdbOutbox implements Outbox {
     const entries: OutboxMeta[] = [];
     const expired: OutboxMeta[] = [];
     const all = metas.getAll();
-    all.onsuccess = () => {
+    all.onsuccess = guard(() => {
       for (const m of all.result as OutboxMeta[]) {
         if (now - m.createdAt > ttlMs) {
           metas.delete(m.id);
@@ -232,7 +232,7 @@ export class IdbOutbox implements Outbox {
           expired.push(m);
         } else entries.push(m);
       }
-    };
+    });
     await done(tx);
     return { entries: entries.sort((a, b) => a.id - b.id), expired };
   }
@@ -262,13 +262,13 @@ export class IdbOutbox implements Outbox {
       tx.objectStore(STREAMS).clear();
     } else {
       const all = metas.getAll();
-      all.onsuccess = () => {
+      all.onsuccess = guard(() => {
         for (const m of all.result as OutboxMeta[]) {
           if (m.kind !== kind) continue;
           metas.delete(m.id);
           tx.objectStore(BODY).delete(m.id);
         }
-      };
+      });
       if (kind === "replay") tx.objectStore(STREAMS).clear();
     }
     await done(tx);
@@ -353,11 +353,6 @@ export class ResilientOutbox implements Outbox {
 
   get kind(): "indexeddb" | "memory" {
     return this.failed ? "memory" : "indexeddb";
-  }
-
-  /** Resolves once the outbox knows whether IndexedDB works. */
-  ready(): Promise<void> {
-    return this.idb.then(() => undefined);
   }
 
   private async use<T>(op: string, fn: (s: IdbOutbox) => Promise<T>, fallback: () => Promise<T>): Promise<T> {

@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import type { ReplayRecord } from "../test/helpers/proto";
-import { captured, open, pageErrors, payload, setCollectorFault } from "./harness";
+import { captured, open, pageErrors, payload, setCollectorFault, unique } from "./harness";
 
 const SECRETS = ["Jane", "born 1970", "4111111111111111", "Masked again inside unmask", "Patient Jane Doe", "Welcome back"];
 
@@ -26,9 +26,10 @@ test("structure: masked rrweb events in ordered, hashed chunks; page close ends 
   await page.goto("about:blank");
   await page.waitForTimeout(800);
   const c = await captured(page);
-  checkStream(c.chunks);
-  expect(c.chunks[0]!.attributes["ouo.replay.format"]).toBe("rrweb/2");
-  const text = payload(c.chunks).toString("utf8");
+  const chunks = unique(c.chunks);
+  checkStream(chunks);
+  expect(chunks[0]!.attributes["ouo.replay.format"]).toBe("rrweb/2");
+  const text = payload(chunks).toString("utf8");
   const events = text.split("\n").filter(Boolean).map((l) => JSON.parse(l) as { type: number });
   expect(events[0]!.type).toBe(4);
   expect(events[1]!.type).toBe(2);
@@ -38,7 +39,7 @@ test("structure: masked rrweb events in ordered, hashed chunks; page close ends 
   expect(text).not.toContain("avatar.svg");
   // The stream of the closed page ended, and its last chunk left uncompressed with the page.
   expect(c.ended).toHaveLength(1);
-  expect(c.ended[0]!.attributes).toMatchObject({ "ouo.replay.end_reason": "pagehide", "ouo.replay.last_sequence": c.chunks.length - 1 });
+  expect(c.ended[0]!.attributes).toMatchObject({ "ouo.replay.end_reason": "pagehide", "ouo.replay.last_sequence": chunks.length - 1 });
 });
 
 test("buffer mode: nothing leaves until the page throws, then the buffered replay does", async ({ page }) => {

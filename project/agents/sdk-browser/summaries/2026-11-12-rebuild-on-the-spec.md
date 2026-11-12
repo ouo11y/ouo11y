@@ -15,15 +15,19 @@ Branch `claude/web-sdk-full-8e1953`. Decision record: [ADR-0020](../../../../doc
 
 | Check | Result |
 |---|---|
-| `npm test` in `sdk/browser` (vitest, jsdom, a fake Collector that decodes OTLP JSON and protobuf) | 170 tests in 8 files pass |
+| `npm test` in `sdk/browser` (vitest, jsdom, a fake Collector that decodes OTLP JSON and protobuf) | 181 tests in 9 files pass |
 | Fault injection: a throw at each of 10 named SDK internals, and at all of them at once | The page sees no error, its handlers, requests and history calls are unchanged (`test/safety.test.ts`) |
-| `npm run test:e2e` (Playwright 1.64.1: Chromium, Firefox, WebKit) | 42 of 42 pass: page lifecycle, two tabs, IndexedDB, structure replay, strict CSP with Trusted Types, and one page journey compared with the SDK off and under 8 faults |
+| `npm run test:e2e` (Playwright 1.64.1: Chromium, Firefox, WebKit) | 54 of 54 pass: page lifecycle, the Web Lock paths (session end at shutdown and consent withdrawal, last tab), two tabs, IndexedDB, structure replay, strict CSP with Trusted Types, and one page journey compared with the SDK off and under 8 faults |
 | `npm run test:soak`, 2 minutes per engine with replay on | Listeners, observers, pending timers and (Chromium) heap do not grow |
 | `npm run size:check`, `npm run compat:check` | Pass. Initial JS 49.4 KB gzip (index 41.7 + shared chunk 7.0 + two small chunks); engine 7.3, structure 55.4 |
 | Live stack: `deploy/envs/ouo-env up websdk`, then `examples/ouo-web/scripts/run.sh --env websdk` (Chromium) | 39 of 39 checks pass: spec event names in Loki, 13 backend requests as 13 one-span traces plus one `documentLoad` in Tempo, `session.id` from baggage on every backend span, rum-api lists the session and symbolicates the render error |
 | Per requirement | [web-sdk-compliance.html](../../../kb/client-sdk-web/compliance/web-sdk-compliance.html): 157 of 157 MUSTs recorded as met, each with its test |
 
 Not verified: a real back/forward-cache restore and a real prerender (both shown with synthetic events in jsdom); the Step 5 overhead harness (CPU, memory, bytes per minute) was not re-run, only the bundle size; Firefox and WebKit were not run against the live stack locally (CI does).
+
+## Review (PR #182, second session)
+
+Verdict on the first round: changes needed, eleven findings. All were fixed or answered in the PR's `Author:` comment. The recurring cause: paths that depend on Web Locks, several tabs or a consent race were tested only in jsdom, which has no Web Locks. The fixes: a reused `fetch` init no longer carries a stale `traceparent`; `session.end` is emitted at shutdown (last tab, counted with `locks.query()`) and at consent withdrawal; recovery of a dead replay stream no longer silences the live one (one record factory); held records are dropped when consent is denied; a cleared user stays cleared across tabs; a failed batch has one owner (no duplicate after an outage); a replay chunk is sent only after it is stored. Regression tests: `sdk/browser/test/review.test.ts`, `sdk/browser/e2e/locks.spec.ts`. Lessons: [otel-js-and-browser-quirks.md](../../../kb/client-sdk-web/lessons/otel-js-and-browser-quirks.md).
 
 ## What is left, and what the next agent must know
 

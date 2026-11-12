@@ -50,6 +50,31 @@ export function installNetwork(d: NetworkDeps): () => void {
   // up over init and shutdown cycles). What is still the SDK's own wrapper at shutdown is put
   // back; a wrapper another tool added on top is left alone (GR-HDR-4).
   const disable = registerInstrumentations({ instrumentations, tracerProvider: d.tracerProvider });
+  // The fetch instrumentation writes the trace headers onto the init or Request it was given.
+  // An app that reuses that object would send the next request with this one's `traceparent`,
+  // also to origins that must not get one. So the instrumentation is given a copy.
+  const traced = g.fetch;
+  if (traced && traced !== before.fetch) {
+    const wrapper = function ouoFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      let i = input;
+      let o = init;
+      try {
+        if (init && typeof init === "object") o = { ...init };
+        if (typeof Request === "function" && input instanceof Request) i = new Request(input);
+      } catch {
+        // A Request that cannot be copied (its body was used) goes through as it is.
+        i = input;
+      }
+      return traced.call(this, i, o);
+    } as typeof fetch & { __original?: unknown };
+    // Exports look for the function below the instrumentation here (transport/http.ts).
+    wrapper.__original = (traced as { __original?: unknown }).__original ?? before.fetch;
+    try {
+      g.fetch = wrapper;
+    } catch {
+      // A locked global keeps the instrumentation's wrapper.
+    }
+  }
   const patched = { fetch: g.fetch, open: xhr?.open, send: xhr?.send };
   return () => {
     disable();

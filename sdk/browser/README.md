@@ -35,7 +35,7 @@ Every function is safe to call before `init`, after `shutdown`, on the server an
 | Function | Effect |
 |---|---|
 | `init(config)` | Start the SDK. A second call is ignored |
-| `shutdown()` | Stop capture, remove every hook, end the session, flush within `transport.shutdownDeadlineMs`. `init` may be called again |
+| `shutdown()` | Stop capture, remove every hook, end the session (when no other tab of the site still runs the SDK), flush within `transport.shutdownDeadlineMs`. `init` may be called again. The `web-vitals` library cannot be told to stop observing, so its observers stay, inert, until the page goes |
 | `flush()` | Export what is queued. Resolves when done or on the deadline; never rejects |
 | `getSessionId()` | The current session id, or `undefined` |
 | `restartSession()` | End this session and start a new one |
@@ -117,7 +117,7 @@ Every record carries `session.id` (32 hex characters), `ouo.view.id` (a new id f
 ## Sessions and sampling
 
 - A session starts on user activity: pointer down, key down, wheel or touch scroll, a navigation in a visible page, or the page becoming visible. `init` in a visible page counts. Telemetry, timers and requests do not extend it, so a tab that only polls starts no session.
-- It ends after 30 minutes without activity, at 4 hours, on `restartSession()`, when a different user is set, and on `shutdown()` in the last open tab. Reaching the maximum with the user present rolls to a new session at once.
+- It ends after 30 minutes without activity, at 4 hours, on `restartSession()`, when a different user is set, and on `shutdown()` in the last open tab (counted with the Web Locks API). Reaching the maximum with the user present rolls to a new session at once.
 - All same-origin tabs share one session through `localStorage` (key `ouo.session`). Each `session.start` and `session.end` is emitted by exactly one tab, under a Web Lock where the browser has one. Where `localStorage` is blocked the session lives in memory for the page. Cookies are never used.
 - Sampling is decided once per session from the id (the first 8 hex characters against `sampling.sessionRate`; the next 8 against the replay rate), so every tab agrees. A session that is not sampled sends only unhandled errors, marked `ouo.sampling.bypass=true` and capped per session. With no valid session, an unhandled error goes out marked `ouo.session.expired=true` and everything else is dropped and counted.
 
@@ -169,14 +169,15 @@ The SDK uses the OpenTelemetry JS API and SDK: one logger provider and one trace
 
 - The tracer and logger providers are not registered globally unless `otel.registerGlobalProviders` is set. Use `getTracerProvider()` and `getLoggerProvider()`.
 - The fetch and XHR instrumentations need a global context manager and propagator. The SDK registers its own only when the host has none; a host that registered OpenTelemetry first keeps what it registered, and then its propagator decides which headers are sent.
-- An app-set `traceparent`, `tracestate` or `baggage` header is never overwritten.
+- An app-set `traceparent`, `tracestate` or `baggage` header is never overwritten, and the app's own `fetch` init or `Request` object is never written to: the instrumentation works on a copy, so an object the app reuses does not carry one request's trace headers into the next.
+- `baggage: session.id` is sent only once telemetry consent is granted.
 
 ## Delivery
 
 - Batches every 5 s or at 512 records, gzipped. `429` and `503` are retried honouring `Retry-After`; `502`, `504` and network failures are retried with exponential backoff and full jitter; any other status is dropped and counted. A `2xx` with rejected records is not retried.
 - When the queue is full the oldest ordinary records go first; unhandled errors go last.
 - At page hide everything queued leaves with `fetch` `keepalive`, within 60 KiB in total, errors first, then telemetry, then a replay chunk if it fits. No `unload` or `beforeunload` handler is registered, so the back/forward cache keeps working.
-- A batch the Collector could not take is copied to IndexedDB and sent by this or a later page (one tab at a time). Stored data expires after 72 hours and is capped at 5 MiB; replay is evicted before telemetry, telemetry before unhandled errors. On WebKit an IndexedDB write that starts while the page is closing does not commit, so a record made in the last moment before close while the Collector is down can be lost there.
+- A batch the Collector could not take is handed to the IndexedDB outbox, which then is the only one to retry it, from this or a later page (one tab at a time), so it is not sent twice. Stored data expires after 72 hours and is capped at 5 MiB; replay is evicted before telemetry, telemetry before unhandled errors. On WebKit an IndexedDB write that starts while the page is closing does not commit, so a record made in the last moment before close while the Collector is down can be lost there.
 
 ## Compatibility and safety
 

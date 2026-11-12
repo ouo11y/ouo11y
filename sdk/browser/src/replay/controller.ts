@@ -4,7 +4,7 @@
  * SMP-9, RPL-19, PRV-3), loads the engine and the format adapter on demand, and passes the page
  * lifecycle on. Everything heavy is in the lazy chunks.
  */
-import type { Logger } from "@opentelemetry/api-logs";
+import type { AnyValue } from "@opentelemetry/api-logs";
 import type { ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import type { Config } from "../config";
 import type { Clock } from "../core/clock";
@@ -28,8 +28,7 @@ export interface ControllerDeps {
   drops: DropCounter;
   log: DebugLogger;
   storage: KeyValueStorage;
-  logger: Logger;
-  setSink(fn: ((record: ReadableLogRecord) => void) | undefined): void;
+  makeRecord(name: string, attributes: Record<string, AnyValue>, time: number, observed: number, body?: Uint8Array): ReadableLogRecord | undefined;
   http: Http;
   /** Null while nothing may be stored. */
   outbox(): Outbox | null;
@@ -73,7 +72,9 @@ export class ReplayController {
     if (eng && (!want || eng.sessionId !== want.session.id)) {
       this.engine = undefined;
       this.generation++;
-      void quiet(eng.end(want ? "session_end" : this.stopped ? "stop" : this.d.consented() ? "session_end" : "consent"));
+      // Consent withdrawal does not come through here: `withdraw()` discards the stream without
+      // an end record, because nothing more may be emitted (PRV-4).
+      void quiet(eng.end(!want && this.stopped ? "stop" : "session_end"));
     }
     if (want && !this.engine && !this.starting) {
       const generation = ++this.generation;
@@ -105,8 +106,7 @@ export class ReplayController {
       replayId: this.replayId(session.id, this.fresh),
       sessionId: session.id,
       viewId: this.d.viewId,
-      logger: this.d.logger,
-      setSink: this.d.setSink,
+      makeRecord: this.d.makeRecord,
       http: this.d.http,
       logsUrl: cfg.logsUrl,
       outbox: this.d.outbox(),
@@ -208,8 +208,7 @@ export class ReplayController {
           outbox,
           http: this.d.http,
           logsUrl: this.d.cfg.logsUrl,
-          logger: this.d.logger,
-          setSink: this.d.setSink,
+          makeRecord: this.d.makeRecord,
           drops: this.d.drops,
           clock: this.d.clock,
           ttlMs: this.d.cfg.transport.persistTtlMs,

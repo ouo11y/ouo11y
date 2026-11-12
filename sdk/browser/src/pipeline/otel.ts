@@ -17,7 +17,7 @@ import {
   type Tracer,
   type TracerProvider,
 } from "@opentelemetry/api";
-import { logs, type Logger } from "@opentelemetry/api-logs";
+import { logs, type AnyValue, type Logger } from "@opentelemetry/api-logs";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { browserDetector } from "@opentelemetry/opentelemetry-browser-detector";
 import { detectResources, resourceFromAttributes, type Resource } from "@opentelemetry/resources";
@@ -45,10 +45,10 @@ export interface PipelineDeps {
   /** Where finished records go. */
   logSink(record: ReadableLogRecord): void;
   spanSink(span: ReadableSpan): void;
+  /** The session id that may go to the app's backends as baggage: none before consent or without a session. */
+  baggageSessionId(): string | undefined;
   /** A span started: a request is under way (dead clicks read this). */
   onSpanStart?(): void;
-  /** Replay records (scope `ouo.replay`); set by the replay engine while it runs. */
-  replaySink(): ((record: ReadableLogRecord) => void) | undefined;
 }
 
 export interface Pipeline {
@@ -58,8 +58,12 @@ export interface Pipeline {
   /** Scope `ouo.rum`. */
   logger: Logger;
   tracer: Tracer;
-  /** Scope `ouo.replay`. */
-  replayLogger: Logger;
+  /**
+   * Makes one record on scope `ouo.replay` through the Logs API and returns it, synchronously.
+   * The replay engine and the recovery of dead streams both use it, so neither can take the
+   * record the other asked for.
+   */
+  makeReplayRecord(name: string, attributes: Record<string, AnyValue>, time: number, observed: number, body?: Uint8Array): ReadableLogRecord | undefined;
   /** A provider whose every tracer is the `ouo.rum` tracer, for the bundled instrumentations (REC-5). */
   rumTracerProvider: TracerProvider;
   /** Ends every span still open with `ouo.span.abandoned=true` (LIF-7). */
@@ -191,13 +195,16 @@ class RumSpanProcessor implements SpanProcessor {
  * truncation and `beforeSend`.
  */
 class RouterLogProcessor implements LogRecordProcessor {
+  /** Set for the duration of one `makeReplayRecord` call. */
+  onReplay: ((record: ReadableLogRecord) => void) | undefined;
+
   constructor(private readonly d: PipelineDeps) {}
 
   onEmit(record: SdkLogRecord): void {
     attempt(() => {
       const scope = record.instrumentationScope.name;
       if (scope === SCOPE_REPLAY) {
-        this.d.replaySink()?.(record);
+        this.onReplay?.(record);
         return;
       }
       if (scope === SCOPE_RUM) {
@@ -246,16 +253,24 @@ const TRACE_HEADERS = ["traceparent", "tracestate", "baggage"];
 /** Trace header values this SDK injected lately, so the XHR shim can tell its own from the app's. */
 const injected: string[] = [];
 
-function has(carrier: unknown, name: string): boolean {
-  if (!carrier || typeof carrier !== "object") return false;
-  if (typeof Headers !== "undefined" && carrier instanceof Headers) return carrier.has(name);
-  return Object.keys(carrier).some((k) => k.toLowerCase() === name);
+function read(carrier: unknown, name: string): string | undefined {
+  if (!carrier || typeof carrier !== "object") return undefined;
+  if (typeof Headers !== "undefined" && carrier instanceof Headers) return carrier.get(name) ?? undefined;
+  for (const k of Object.keys(carrier)) if (k.toLowerCase() === name) return String((carrier as Record<string, unknown>)[k]);
+  return undefined;
+}
+
+/** The app set this header itself: it is there, and it is not a value this SDK injected earlier. */
+function appSet(carrier: unknown, name: string): boolean {
+  const v = read(carrier, name);
+  return v !== undefined && !injected.includes(v);
 }
 
 /**
  * W3C Trace Context, plus `baggage: session.id=<id>` when configured (PRP-1, PRP-6). Never
- * touches a request that already carries `traceparent`, and never replaces a `baggage` header the
- * app set (PRP-3).
+ * touches a request on which the app set `traceparent`, and never replaces a `baggage` header the
+ * app set (PRP-3). A value this SDK injected into an object the app reuses is the SDK's own and
+ * is replaced.
  */
 export class RumPropagator implements TextMapPropagator {
   private readonly w3c = new W3CTraceContextPropagator();
@@ -266,7 +281,7 @@ export class RumPropagator implements TextMapPropagator {
   ) {}
 
   inject(context: Context, carrier: unknown, setter: TextMapSetter): void {
-    if (has(carrier, "traceparent")) return;
+    if (appSet(carrier, "traceparent")) return;
     const record: TextMapSetter = {
       set: (c, key, value) => {
         if (injected.length >= 32) injected.shift();
@@ -275,7 +290,7 @@ export class RumPropagator implements TextMapPropagator {
       },
     };
     this.w3c.inject(context, carrier, record);
-    if (!this.sessionBaggage || has(carrier, "baggage")) return;
+    if (!this.sessionBaggage || appSet(carrier, "baggage")) return;
     const id = this.sessionId();
     if (id) record.set(carrier, "baggage", `session.id=${id}`);
   }
@@ -340,7 +355,8 @@ export function createPipeline(d: PipelineDeps): Pipeline {
   const resource = buildResource(d.cfg);
   const cleanup: Array<() => unknown> = [];
 
-  const loggerProvider = new LoggerProvider({ resource, processors: [new RouterLogProcessor(d)] });
+  const router = new RouterLogProcessor(d);
+  const loggerProvider = new LoggerProvider({ resource, processors: [router] });
   const spans = new RumSpanProcessor(d);
   const tracerProvider = new BasicTracerProvider({ resource, sampler: new SessionSampler(d), spanProcessors: [spans] });
 
@@ -356,10 +372,7 @@ export function createPipeline(d: PipelineDeps): Pipeline {
   contextManager.enable();
   if (otelContext.setGlobalContextManager(contextManager)) cleanup.push(() => otelContext.disable());
   else contextManager.disable();
-  const propagator = new RumPropagator(d.cfg.propagation.sessionBaggage, () => {
-    const s = d.stamp();
-    return s.expired ? undefined : s.id;
-  });
+  const propagator = new RumPropagator(d.cfg.propagation.sessionBaggage, d.baggageSessionId);
   if (propagation.setGlobalPropagator(propagator)) cleanup.push(() => propagation.disable());
 
   if (d.cfg.otel.registerGlobalProviders) {
@@ -373,7 +386,21 @@ export function createPipeline(d: PipelineDeps): Pipeline {
     tracerProvider,
     logger,
     tracer,
-    replayLogger,
+    makeReplayRecord(name, attributes, time, observed, body) {
+      let made: ReadableLogRecord | undefined;
+      const outer = router.onReplay;
+      router.onReplay = (record) => {
+        made = record;
+      };
+      try {
+        // A view made here, so the serializer recognises the bytes whatever made the buffer.
+        const bytes = body && new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+        replayLogger.emit({ eventName: name, timestamp: time, observedTimestamp: observed, attributes, ...(bytes ? { body: bytes as AnyValue } : {}) });
+      } finally {
+        router.onReplay = outer;
+      }
+      return made;
+    },
     rumTracerProvider: { getTracer: () => tracer },
     abandonOpenSpans() {
       for (const span of [...spans.open]) {

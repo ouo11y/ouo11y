@@ -7,8 +7,9 @@
  * - A flush every `flushIntervalMs`, or at once when `maxBatchRecords` are waiting (TRN-4).
  * - Bypass records (unhandled errors) travel in their own batches, so a full queue can evict
  *   ordinary records first, oldest first (TRN-11).
- * - A batch that must be retried keeps its serialized body (TRN-10) and waits in memory until it
- *   is accepted, rejected, or evicted by the queue limit (TRN-9).
+ * - A batch that must be retried keeps its serialized body (TRN-10) and has one owner: the
+ *   outbox when it can be stored (its drainer retries it), else this queue's memory, until it is
+ *   accepted, rejected, or evicted by the queue limit (TRN-9).
  * - While `gate()` says `hold` (consent pending) nothing is sent or stored (PRV-1).
  */
 import { systemClock, type Clock, type TimerHandle } from "../core/clock";
@@ -40,6 +41,8 @@ export interface QueueOptions<T> {
   http: Http;
   /** Null while nothing may be stored (consent pending) or persistence is off. */
   outbox(): Outbox | null;
+  /** A batch was handed to the outbox under this id: the drainer owns it from here. */
+  onStored?(id: number): void;
   drops: DropCounter;
   settings: QueueSettings;
   logger: DebugLogger;
@@ -59,8 +62,6 @@ interface Batch {
   names: Map<string, number>;
   failures: number;
   due: number;
-  /** Outbox id, once a copy is stored: a batch that failed once, or one sent at page hide. */
-  stored?: Promise<number | null>;
 }
 
 export const JSON_CONTENT_TYPE = "application/json";
@@ -76,7 +77,7 @@ export class TelemetryQueue<T> {
   /** The last answer was a failure: what is sent at page hide is also stored. */
   private failing = false;
   private readonly clock: Clock;
-  readonly stats = { sent: 0, retried: 0 };
+  readonly stats = { sent: 0 };
 
   constructor(private readonly o: QueueOptions<T>) {
     this.clock = o.clock ?? systemClock;
@@ -132,7 +133,6 @@ export class TelemetryQueue<T> {
   /** Drops what is queued (consent denied or withdrawn). */
   discard(): void {
     this.queue = [];
-    for (const b of this.retries) void quiet(this.forget(b));
     this.retries = [];
   }
 
@@ -178,55 +178,56 @@ export class TelemetryQueue<T> {
     this.pending.add(p);
   }
 
-  /** Stores a copy of the batch for a later page, once. */
-  private store(batch: Batch): Promise<number | null> {
+  /** Hands the batch to the outbox. Resolves to its id there, or null when it could not be stored. */
+  private async store(batch: Batch): Promise<number | null> {
     const outbox = this.o.outbox();
-    if (!outbox) return Promise.resolve(null);
-    batch.stored ??= outbox.put({ kind: batch.bypass ? "bypass" : "telemetry", signal: this.o.signal, body: batch.body, records: batch.records, createdAt: this.clock.now() }).then(
-      (r) => {
-        this.countEvicted(r.evicted);
-        return r.id;
-      },
-      () => null,
-    );
-    return batch.stored;
-  }
-
-  private async forget(batch: Batch): Promise<void> {
-    const id = await batch.stored;
-    delete batch.stored;
-    if (id !== null && id !== undefined) await this.o.outbox()?.delete(id);
+    if (!outbox) return null;
+    try {
+      const r = await outbox.put({ kind: batch.bypass ? "bypass" : "telemetry", signal: this.o.signal, body: batch.body, records: batch.records, createdAt: this.clock.now() });
+      this.countEvicted(r.evicted);
+      if (r.id !== null) this.o.onStored?.(r.id);
+      return r.id;
+    } catch {
+      return null;
+    }
   }
 
   private async send(batch: Batch, urgent: boolean): Promise<void> {
     const { http, url } = this.o;
     const post = { contentType: JSON_CONTENT_TYPE, rejected: this.o.rejected };
     if (!urgent) {
-      this.settle(batch, (await http.post(url, batch.body, { ...post, gzip: true }))!);
+      await this.settle(batch, (await http.post(url, batch.body, { ...post, gzip: true }))!);
       return;
     }
     // Page hide: the request leaves with keepalive if the budget allows. A copy goes to the
     // outbox for a later page when the collector has been failing, the browser is offline or
     // the budget is spent; not otherwise, or every page close would send its last batch twice.
     const offline = (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
-    let stored = this.failing || offline || batch.stored ? this.store(batch) : null;
+    let stored = this.failing || offline ? this.store(batch) : null;
     let res = await http.post(url, batch.body, { ...post, mustKeepalive: true });
     if (res === null) {
       stored ??= this.store(batch);
       // A plain request, in case the page lives on.
       res = (await http.post(url, batch.body, post))!;
     }
-    // Not accepted and safely stored: the outbox drainer of this or a later page takes over.
-    if (res.kind === "retry" && stored && (await stored) !== null) {
+    const id = stored ? await stored : null;
+    if (res.kind === "retry" && id !== null) {
+      // Not accepted and safely stored: the outbox owns it now.
       this.failing = true;
       return;
     }
-    this.settle(batch, res);
+    // Answered for good: the stored copy, if any, must not be sent again.
+    if (id !== null) await this.o.outbox()?.delete(id);
+    await this.settle(batch, res, id !== null);
   }
 
-  private settle(batch: Batch, res: PostResult): void {
+  /**
+   * What an answer means for a batch. A batch the collector could not take has one owner: the
+   * outbox when it could be stored (the drainer of this or a later page retries it, so it is
+   * never sent by two parties), this queue's memory otherwise (TRN-9).
+   */
+  private async settle(batch: Batch, res: PostResult, storeTried = false): Promise<void> {
     this.failing = res.kind === "retry";
-    if (res.kind !== "retry" && batch.stored) void quiet(this.forget(batch));
     if (res.kind === "ok") {
       this.stats.sent += batch.records;
       return;
@@ -245,12 +246,9 @@ export class TelemetryQueue<T> {
       for (const [name, n] of batch.names) this.o.drops.add(name, "queue_full", n);
       return;
     }
-    // A batch the collector could not take is at risk if the page closes: keep a copy now,
-    // while there is time to write it.
-    void this.store(batch);
+    if (batch.failures === 0 && !storeTried && (await this.store(batch)) !== null) return;
     batch.failures++;
     batch.due = this.clock.now() + retryDelay(batch.failures, res.retryAfterMs, this.o.settings.retryInitialMs, this.o.settings.retryMaxMs, this.o.random);
-    this.stats.retried++;
     this.retries.push(batch);
     this.armRetry();
   }
@@ -274,7 +272,6 @@ export class TelemetryQueue<T> {
   private evict(forBypass: boolean): boolean {
     const drop = (b: Batch): void => {
       this.retries.splice(this.retries.indexOf(b), 1);
-      void quiet(this.forget(b));
       for (const [name, n] of b.names) this.o.drops.add(name, "queue_full", n);
     };
     const oldRetry = this.retries.find((b) => !b.bypass);
@@ -306,7 +303,8 @@ export class TelemetryQueue<T> {
 }
 
 export interface DrainerOptions {
-  outbox: Outbox;
+  /** Null while nothing may be stored. */
+  outbox(): Outbox | null;
   http: Http;
   urls: { logs: string; traces: string };
   rejected: { logs(body: Uint8Array): number; traces(body: Uint8Array): number };
@@ -320,7 +318,10 @@ export interface DrainerOptions {
 }
 
 const DRAIN_LOCK = "ouo.outbox";
-/** Entries younger than this are left alone: the page that stored them may still be sending them. */
+/**
+ * Entries another page stored at its page hide are left alone this long: that page may still be
+ * sending them. Entries this page handed over (`own`) are the drainer's from the start.
+ */
 export const DRAIN_GRACE_MS = 15_000;
 
 /**
@@ -332,6 +333,7 @@ export class OutboxDrainer {
   private failures = 0;
   private running: Promise<void> | null = null;
   private closed = false;
+  private readonly owned = new Set<number>();
   private readonly clock: Clock;
 
   constructor(private readonly o: DrainerOptions) {
@@ -345,6 +347,13 @@ export class OutboxDrainer {
       this.timer = null;
       void this.drain();
     }, Math.max(0, ms));
+  }
+
+  /** A batch this page could not deliver is in the outbox under `id`: retry it from here. */
+  own(id: number): void {
+    if (this.owned.size >= 4096) this.owned.clear();
+    this.owned.add(id);
+    if (this.timer === null && !this.running) this.schedule(retryDelay(this.failures + 1, undefined, this.o.retryInitialMs, this.o.retryMaxMs));
   }
 
   drain(): Promise<void> {
@@ -362,7 +371,9 @@ export class OutboxDrainer {
   }
 
   private async run(): Promise<void> {
-    const { outbox, http, drops } = this.o;
+    const { http, drops } = this.o;
+    const outbox = this.o.outbox();
+    if (!outbox) return;
     const now = this.clock.now();
     const { entries, expired } = await outbox.list(now, this.o.ttlMs);
     for (const m of expired) drops.add(m.signal === "replay" ? "ouo.replay.chunk" : m.signal, "expired", m.records);
@@ -370,7 +381,7 @@ export class OutboxDrainer {
     for (const m of entries) {
       if (m.kind === "replay") continue; // The replay engine drains its own, stream by stream.
       if (this.closed || this.o.hidden()) return;
-      if (now - m.createdAt < DRAIN_GRACE_MS) {
+      if (now - m.createdAt < DRAIN_GRACE_MS && !this.owned.has(m.id)) {
         young = true;
         continue;
       }
@@ -388,6 +399,7 @@ export class OutboxDrainer {
         return;
       }
       this.failures = 0;
+      this.owned.delete(m.id);
       await outbox.delete(m.id);
       if (res.kind === "partial") drops.add(signal, "partial_rejected", res.rejected);
       else if (res.kind === "reject") drops.add(signal, "rejected_status", m.records);
