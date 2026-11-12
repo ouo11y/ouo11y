@@ -39,6 +39,10 @@ public final class DiskQueue {
         /// (spec TRN-8, the OTLP replay queue): a 429 or 503 that carries `Retry-After` waits
         /// exactly that, capped at this many seconds; everything else waits `retryDelay`.
         public var retryAfterCap: TimeInterval?
+        /// With `retryAfterCap`: no `Retry-After` waits less than this, so `Retry-After: 0` from a
+        /// misbehaving proxy cannot drive back-to-back requests (a tenth of the 1 s initial backoff,
+        /// the floor `ReplayDelivery.fullJitter` keeps too).
+        public var minRetryDelay: TimeInterval = 0.1
 
         public init(maxBytes: Int, maxEntries: Int = .max, retryDelay: @escaping @Sendable (Int) -> TimeInterval) {
             self.maxBytes = maxBytes
@@ -324,10 +328,14 @@ public final class DiskQueue {
             return max(config.retryDelay(failures), retryAfter ?? 0)
         }
         if let retryAfter, retryAfter.isFinite, retryAfter >= 0, status == 429 || status == 503 {
-            return min(retryAfter, cap)
+            return max(minRetry(config), min(retryAfter, cap))
         }
         let backoff = config.retryDelay(failures)
         return backoff.isFinite ? min(max(0, backoff), cap) : cap
+    }
+
+    private static func minRetry(_ config: Config) -> TimeInterval {
+        config.minRetryDelay.isFinite ? max(0, config.minRetryDelay) : 0.1
     }
 
     /// The head stays on disk; `drain`, the next process or this timer retries it.

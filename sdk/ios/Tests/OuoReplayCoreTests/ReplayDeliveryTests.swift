@@ -137,7 +137,11 @@ import Testing
         #expect(DiskQueue.delay(config, failures: 1, status: 429, retryAfter: 5) == 5)
         #expect(DiskQueue.delay(config, failures: 1, status: 503, retryAfter: 120) == 120)
         #expect(DiskQueue.delay(config, failures: 1, status: 429, retryAfter: 3600) == 300)
-        #expect(DiskQueue.delay(config, failures: 1, status: 503, retryAfter: 0) == 0)
+        // `Retry-After: 0` (or a negative value) does not make the queue spin: the minimum wait.
+        #expect(DiskQueue.delay(config, failures: 1, status: 503, retryAfter: 0) == 0.1)
+        var jitter = DiskQueue.Config(maxBytes: 1 << 20, retryDelay: ReplayDelivery.fullJitter())
+        jitter.retryAfterCap = 300
+        #expect(DiskQueue.delay(jitter, failures: 10, status: 503, retryAfter: 0) >= 0.1)
         // No header, or not a usable one: the backoff.
         #expect(DiskQueue.delay(config, failures: 1, status: 429, retryAfter: nil) == 7)
         #expect(DiskQueue.delay(config, failures: 1, status: 429, retryAfter: -1) == 7)

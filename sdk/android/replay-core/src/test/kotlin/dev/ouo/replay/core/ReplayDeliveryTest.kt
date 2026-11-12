@@ -146,7 +146,9 @@ class ReplayDeliveryTest {
     // Retry-After is honoured, up to the cap; without one, the backoff.
     assertEquals(7_000L, DiskQueue.retryDelay(500, 7.0, 300_000))
     assertEquals(300_000L, DiskQueue.retryDelay(500, 86_400.0, 300_000))
-    assertEquals(0L, DiskQueue.retryDelay(500, 0.0, 300_000))
+    // `Retry-After: 0` does not make the queue spin: the minimum wait.
+    assertEquals(100L, DiskQueue.retryDelay(500, 0.0, 300_000))
+    assertTrue(DiskQueue.retryDelay(500, 0.0, 300_000) >= 100)
     assertEquals(500L, DiskQueue.retryDelay(500, null, 300_000))
     assertEquals(500L, DiskQueue.retryDelay(500, -3.0, 300_000))
     assertEquals(500L, DiskQueue.retryDelay(500, Double.NaN, 300_000))

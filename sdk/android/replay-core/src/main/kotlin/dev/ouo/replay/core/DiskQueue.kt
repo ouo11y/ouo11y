@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
  * A folder of requests waiting for the collector (mobile SDK spec C11): each body is a file written
  * before anything is sent and removed when the collector answers. Network errors and OTLP/HTTP's
  * retryable answers (429, 502, 503, 504: [retryable]) leave it in place and retry after a backoff
- * with full jitter (at least `Retry-After`, capped at 300 s), on [drain] and in the next process, so an outage, a crash or a kill
+ * with full jitter (on 429 and 503 after `Retry-After`, capped at 300 s), on [drain] and in the next process, so an outage, a crash or a kill
  * mid-request loses nothing. Any other answer is final: 2xx is sent, the rest is rejected (removed
  * and counted), so a request answered 500 every time does not block the queue (checklist N55). Sent oldest first, one request at a time. Bounded by bytes, the
  * oldest dropped first, never the one in flight nor the newest. The Swift `DiskQueue` of `sdk/ios`,
@@ -271,8 +271,9 @@ class DiskQueue(
         }
         pump()
       }
+      // TRN-8: `Retry-After` counts on 429 and 503 only, as on iOS.
       status == 0 || retryable(status) ->
-        retryLater(head, if (status == 0) "network error" else "HTTP $status", answer.retryAfterSeconds)
+        retryLater(head, if (status == 0) "network error" else "HTTP $status", answer.retryAfterSeconds.takeIf { status == 429 || status == 503 })
       else -> {
         head.file.delete()
         rejected++
@@ -308,12 +309,17 @@ class DiskQueue(
 
     /**
      * The wait before a retry: `Retry-After` when the receiver sent one, capped at [capMs] (TRN-8:
-     * a receiver cannot park the queue for a day), else the backoff. Never negative.
+     * a receiver cannot park the queue for a day), else the backoff. Never negative, and a
+     * `Retry-After` never under [MIN_RETRY_MS]: `Retry-After: 0` from a misbehaving proxy must not
+     * drive back-to-back requests.
      */
     fun retryDelay(backoffMs: Long, retryAfterSeconds: Double?, capMs: Long): Long {
       val asked = retryAfterSeconds?.takeIf { it.isFinite() && it >= 0 } ?: return maxOf(0L, backoffMs)
-      return minOf((asked.coerceAtMost(1e9) * 1000).toLong(), maxOf(0L, capMs))
+      return maxOf(MIN_RETRY_MS, minOf((asked.coerceAtMost(1e9) * 1000).toLong(), maxOf(0L, capMs)))
     }
+
+    /** The shortest wait a `Retry-After` can ask for: a tenth of the 1 s initial backoff, the floor [Config.fullJitter] keeps too. */
+    const val MIN_RETRY_MS = 100L
 
     fun pad(n: Long, width: Int): String = n.toString().padStart(width, '0')
 
