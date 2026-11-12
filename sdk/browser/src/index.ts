@@ -1,416 +1,832 @@
-import { context, diag, DiagLogLevel, propagation, trace, type DiagLogger } from "@opentelemetry/api";
-import { logs } from "@opentelemetry/api-logs";
-import { registerInstrumentations, type Instrumentation } from "@opentelemetry/instrumentation";
-import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
-import { LoggerProvider } from "@opentelemetry/sdk-logs";
-import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
+/**
+ * `@ouo11y/browser`: the ouo Real User Monitoring SDK for browsers, built on the OpenTelemetry
+ * API and SDK. It implements the ouo client SDK spec, version {@link SPEC_VERSION}.
+ *
+ * The public API is the set of functions exported here (SDK spec section 3.1). Every one of them
+ * is safe to call before `init`, after `shutdown`, on the server and with any argument: it is
+ * then a no-op and never throws (API-1). The golden rule behind all of it: the app must not pay
+ * for the SDK's failures.
+ */
+import { ProxyTracerProvider, type TracerProvider } from "@opentelemetry/api";
+import { createNoopLogger, type LoggerProvider } from "@opentelemetry/api-logs";
+import { JsonLogsSerializer } from "@opentelemetry/otlp-transformer/build/esm/logs/json";
+import { JsonTraceSerializer } from "@opentelemetry/otlp-transformer/build/esm/trace/json";
+import type { ReadableLogRecord } from "@opentelemetry/sdk-logs";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-import { installActivityListeners } from "./activity";
-import { installClickTracking } from "./interactions/clicks";
-import { FallbackContextManager } from "./interactions/context";
-import { FilteringSpanProcessor, InteractionTracker } from "./interactions/tracker";
-import { installLongTasks } from "./longtasks";
-import { exceptionAttributes } from "./errors/classify";
-import { claimError, installErrorCapture } from "./errors/install";
-import { basicAuthorization, deriveIngestUrls, ingestHeaders } from "./ingest";
-import { attempt, guard, quiet, setGuardReporter } from "./guard";
-import { createDelivery, createLogExporter, createTraceExporter } from "./transport";
-import { createLogger } from "./logger";
-import { installNavigation } from "./navigation";
-import { createNetworkInstrumentations } from "./network";
-import { ReplayChunker } from "./replay/chunker";
-import { ReplayRecorder, UNMASK_CLASS } from "./replay/recorder";
-import { createChunkUploader } from "./replay/uploader";
-import { loadDeviceId } from "./session/device";
-import { SESSION_STORAGE_KEY, SessionManager } from "./session/manager";
-import { LocalStorage } from "./session/storage";
-import { PageLogRecordProcessor, PageSpanProcessor } from "./telemetry/batch";
-import { RouteState, SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
-import { EventEmitter } from "./telemetry/events";
-import { SessionPropagator } from "./telemetry/propagator";
-import { buildResource } from "./telemetry/resource";
-import { SampledLogProcessor, SessionSampler } from "./telemetry/sampling";
-import type { Attrs, RUM, RUMOptions, UserOptions } from "./types";
-import { installWebVitals } from "./vitals";
-import { SDK_NAME, SDK_VERSION } from "./version";
+import { resolveConfig, type Config } from "./config";
+import { systemClock, type TimerHandle } from "./core/clock";
+import { DropCounter, type DropReason } from "./core/drops";
+import { hasSecureRandom } from "./core/ids";
+import { appAttributes, reservedName, truncate, type Attrs } from "./core/limits";
+import { sanitizeStack, sanitizeUrl, type UrlPolicy } from "./core/url";
+import { attempt, configureGuard, contain, guardedFailures, injectFault, listen, quiet } from "./guard";
+import { createLogger, silentLogger, type DebugLogger } from "./logger";
+import { Emitter } from "./pipeline/emitter";
+import { createPipeline, installXhrHeaderGuard, type Pipeline } from "./pipeline/otel";
+import { ReplayController } from "./replay/controller";
+import { SessionManager, SESSION_KEY, type SessionRecord, type Stamp } from "./session/manager";
+import { ConsentStorage } from "./session/storage";
+import { installClicks } from "./signals/clicks";
+import { exceptionAttributes, installErrorCapture, markReported } from "./signals/errors";
+import { installNavigation, ViewState, type NavigationHandle } from "./signals/navigation";
+import { installNetwork } from "./signals/network";
+import { installWebVitals } from "./signals/vitals";
+import { Http } from "./transport/http";
+import { OutboxDrainer, TelemetryQueue } from "./transport/queue";
+import { ResilientOutbox, type Outbox } from "./transport/store";
+import type { Consent, NavigationOptions, OuoConfig } from "./types";
+import { SDK_NAME, SDK_VERSION, SPEC_VERSION } from "./version";
 
 export type * from "./types";
-export { SDK_VERSION } from "./version";
-export type { ReplayChunk } from "./replay/chunker";
-export { basicAuthorization, deriveIngestUrls, deriveReplayEndpoint, type IngestUrls } from "./ingest";
+export { basicAuth } from "./config";
+export { SDK_NAME, SDK_VERSION, SPEC_VERSION, SCHEMA_URL } from "./version";
 
-let instance: (RUM & { _uninstall(): Promise<void> }) | undefined;
+type ConsentState = "pending" | "granted" | "denied";
 
-/** The instance `initRUM` returned, or undefined before it was called (framework integrations use it). */
-export function getRUM(): RUM | undefined {
-  return instance;
+/** What `diagnostics()` returns: counts only, never a payload (ERR-8). */
+export interface Diagnostics {
+  /** `running`, `off` (never started or shut down) or `disabled` (turned itself off). */
+  state: "running" | "off" | "disabled";
+  sessionId: string | undefined;
+  /** SDK exceptions contained since `init`. */
+  internalErrors: number;
+  /** Records dropped since `init`, by `signal` and `reason`. */
+  dropped: Array<{ signal: string; reason: string; count: number }>;
+  sent: { logs: number; spans: number; requests: number; bytes: number };
+  replayRecording: boolean;
+  consent: { telemetry: ConsentState; replay: ConsentState };
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const jsonRejected = (kind: "logs" | "traces") => (body: Uint8Array): number => {
+  const serializer = kind === "logs" ? JsonLogsSerializer : JsonTraceSerializer;
+  const res = serializer.deserializeResponse(body) as { partialSuccess?: { rejectedLogRecords?: number | string; rejectedSpans?: number | string } } | undefined;
+  return Number(res?.partialSuccess?.rejectedLogRecords ?? res?.partialSuccess?.rejectedSpans ?? 0) || 0;
+};
+
+class Runtime {
+  readonly clock = systemClock;
+  readonly drops = new DropCounter();
+  readonly view = new ViewState();
+  readonly log: DebugLogger;
+  private readonly storage: ConsentStorage;
+  private readonly urlPolicy: UrlPolicy;
+  private readonly http: Http;
+  private outboxInstance: ResilientOutbox | null = null;
+  readonly pipeline: Pipeline;
+  private readonly emitter: Emitter;
+  private readonly session: SessionManager;
+  private readonly logs: TelemetryQueue<ReadableLogRecord>;
+  private readonly traces: TelemetryQueue<ReadableSpan>;
+  private drainer: OutboxDrainer | null = null;
+  private readonly replay: ReplayController;
+  private navigation: NavigationHandle | undefined;
+  private readonly cleanup: Array<() => unknown> = [];
+  private globals: Attrs = {};
+  private telemetryConsent: ConsentState;
+  private replayConsent: ConsentState;
+  private unloading = false;
+  private dropTimer: TimerHandle | null = null;
+  private replaySink: ((record: ReadableLogRecord) => void) | undefined;
+  private releaseTab: (() => void) | undefined;
+  private documentUrlRaw = "";
+  private documentUrlClean = "";
+  private readonly networkListeners = new Set<() => void>();
+  private readonly navigationListeners = new Set<() => void>();
+  private readonly errorListeners = new Set<() => void>();
+  stopped = false;
+  disabled = false;
+
+  constructor(readonly cfg: Config) {
+    this.log = createLogger(cfg.debug);
+    this.telemetryConsent = this.replayConsent = cfg.consentRequired ? "pending" : "granted";
+    this.storage = new ConsentStorage(!cfg.consentRequired);
+    this.urlPolicy = { queryAllow: cfg.privacy.urlQueryAllow, keepFragment: cfg.privacy.keepUrlFragment, hook: cfg.sanitizeUrl };
+    this.http = new Http({ headers: cfg.headers, timeoutMs: cfg.transport.timeoutMs });
+
+    const gate = (): "open" | "hold" => (this.telemetryConsent === "pending" ? "hold" : "open");
+    const hidden = (): boolean => this.hidden();
+    const queue = { http: this.http, outbox: () => this.outbox(), drops: this.drops, settings: cfg.transport, logger: this.log, gate, hidden };
+    this.logs = new TelemetryQueue<ReadableLogRecord>({
+      ...queue,
+      signal: "logs",
+      url: cfg.logsUrl,
+      serialize: (items) => JsonLogsSerializer.serializeRequest(items),
+      rejected: jsonRejected("logs"),
+      isBypass: (r) => r.eventName === "exception" && r.attributes["ouo.exception.handled"] === false,
+      nameOf: (r) => r.eventName ?? "log",
+    });
+    this.traces = new TelemetryQueue<ReadableSpan>({
+      ...queue,
+      signal: "traces",
+      url: cfg.tracesUrl,
+      serialize: (items) => JsonTraceSerializer.serializeRequest(items),
+      rejected: jsonRejected("traces"),
+      isBypass: () => false,
+      nameOf: () => "span",
+    });
+
+    const stamp = (): Stamp => this.session.stamp();
+    const globalAttributes = (): Attrs => (this.view.name ? { ...this.globals, "ouo.view.name": this.view.name } : this.globals);
+    this.pipeline = createPipeline({
+      cfg,
+      drops: this.drops,
+      stamp,
+      viewId: () => this.view.id,
+      documentUrl: () => this.documentUrl(),
+      sanitize: (url) => this.sanitize(url),
+      globalAttributes,
+      active: () => this.active(),
+      logSink: (record) => this.logs.add(record),
+      spanSink: (span) => this.traces.add(span),
+      onSpanStart: () => this.notify(this.networkListeners),
+      replaySink: () => this.replaySink,
+    });
+    this.emitter = new Emitter({
+      logger: this.pipeline.logger,
+      clock: this.clock,
+      drops: this.drops,
+      stamp,
+      viewId: () => this.view.id,
+      documentUrl: () => this.documentUrl(),
+      globalAttributes,
+      beforeSend: cfg.beforeSend,
+      bypassCap: cfg.sampling.bypassCap,
+      active: () => this.active(),
+    });
+    this.session = new SessionManager({
+      storage: this.storage,
+      inactivityTimeoutMs: cfg.session.inactivityTimeoutMs,
+      maxDurationMs: cfg.session.maxDurationMs,
+      sessionRate: cfg.sampling.sessionRate,
+      hooks: {
+        onStart: (rec) => {
+          if (!rec.s) return;
+          const attrs: Attrs = { "ouo.session.sample_rate": rec.rate };
+          if (rec.prev && rec.prev !== rec.id) attrs["session.previous_id"] = rec.prev;
+          this.emitter.emit("session.start", attrs, { stamp: this.stampOf(rec), first: true, time: rec.start });
+        },
+        onEnd: (rec, reason) => {
+          if (rec.s) this.emitter.emit("session.end", { "ouo.session.end_reason": reason }, { stamp: this.stampOf(rec), first: true, time: rec.last });
+        },
+        onChange: () => {
+          this.replay.evaluate();
+          this.armDropReport();
+        },
+        hold: () => this.emitter.hold(),
+        release: () => this.emitter.release(),
+        restamp: (from, to) => this.emitter.restamp(from, to),
+      },
+    });
+    this.replay = new ReplayController({
+      cfg,
+      clock: this.clock,
+      drops: this.drops,
+      log: this.log,
+      storage: this.storage,
+      logger: this.pipeline.replayLogger,
+      setSink: (fn) => {
+        this.replaySink = fn;
+      },
+      http: this.http,
+      outbox: () => this.outbox(),
+      session: () => this.session.current(),
+      viewId: () => this.view.id,
+      sanitize: (url) => this.sanitize(url),
+      consented: () => this.replayConsent === "granted" && this.telemetryConsent === "granted",
+    });
+  }
+
+  // ---- state ----
+
+  active(): boolean {
+    return !this.stopped && !this.disabled && this.telemetryConsent !== "denied";
+  }
+
+  private hidden(): boolean {
+    return this.unloading || document.visibilityState === "hidden";
+  }
+
+  /** The outbox, created on first use and only once storage is allowed (PRV-1). */
+  private outbox(): Outbox | null {
+    if (!this.cfg.transport.persist || this.telemetryConsent !== "granted") return null;
+    this.outboxInstance ??= new ResilientOutbox({ maxBytes: this.cfg.transport.persistMaxBytes, onDegrade: () => this.drops.add("outbox", "storage_error") });
+    return this.outboxInstance;
+  }
+
+  sanitize(url: string): string {
+    return sanitizeUrl(url, this.urlPolicy);
+  }
+
+  private documentUrl(): string {
+    const raw = location.href;
+    if (raw !== this.documentUrlRaw) {
+      this.documentUrlRaw = raw;
+      this.documentUrlClean = this.sanitize(raw);
+    }
+    return this.documentUrlClean;
+  }
+
+  private stampOf(rec: SessionRecord): Stamp {
+    return { id: rec.id, sampled: rec.s, expired: false, user: rec.u };
+  }
+
+  private notify(listeners: Set<() => void>): void {
+    for (const fn of listeners) attempt(fn);
+  }
+
+  private subscribe(listeners: Set<() => void>) {
+    return (fn: () => void): (() => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    };
+  }
+
+  // ---- start ----
+
+  start(): void {
+    const { cfg } = this;
+    const inst = cfg.instrumentations;
+    const on = <T>(install: () => T): T | undefined => attempt(install);
+
+    // Network first: its patches must be in place before the page's first request.
+    this.cleanup.push(installXhrHeaderGuard());
+    const offNetwork = on(() =>
+      installNetwork({ tracerProvider: this.pipeline.rumTracerProvider, fetch: inst.fetch, xhr: inst.xhr, propagateTo: cfg.propagation.urls, ignoreUrls: cfg.otel.ignoreUrls, endpoint: cfg.endpoint }),
+    );
+    if (offNetwork) this.cleanup.push(offNetwork);
+
+    this.cleanup.push(
+      this.emitter.subscribe((name, _attrs, bypass) => {
+        if (!bypass) return;
+        // Any bypass-set record triggers a buffered replay (SMP-12) and marks an error click.
+        this.replay.trigger("error");
+        if (name === "exception") this.notify(this.errorListeners);
+      }),
+    );
+
+    // The view and the session exist before the first record, so `session.start` and the
+    // page-load navigation carry both.
+    this.view.next(undefined, true);
+    this.session.start(document.visibilityState === "visible");
+    const act = (): void => this.session.activity();
+    const passive = { capture: true, passive: true } as const;
+    for (const type of ["pointerdown", "keydown", "wheel", "touchmove"]) this.cleanup.push(listen(globalThis, type, act, passive));
+    this.cleanup.push(
+      listen(globalThis, "storage", (e) => {
+        const ev = e as StorageEvent;
+        if (ev.key === SESSION_KEY) this.session.handleStorage(ev.newValue);
+      }),
+    );
+
+    this.navigation = on(() =>
+      installNavigation({
+        clock: this.clock,
+        view: this.view,
+        tracer: this.pipeline.tracer,
+        sanitize: (url) => this.sanitize(url),
+        emit: (name, attrs, o) => this.emitter.emit(name, attrs, o),
+        onNavigation: () => {
+          // A navigation is activity when someone can see it: a tab loading in the background
+          // starts no session until it is shown.
+          if (document.visibilityState === "visible") this.session.activity();
+          this.notify(this.navigationListeners);
+        },
+        navigation: inst.navigation,
+        hashNavigation: inst.hashNavigation,
+        documentLoad: inst.documentLoad,
+        navigationTiming: inst.navigationTiming,
+        resourceTiming: inst.resourceTiming,
+        ignoreResource: (url) => url.startsWith(`${cfg.endpoint}/v1/`),
+      }),
+    );
+    if (this.navigation) this.cleanup.push(this.navigation.uninstall);
+
+    if (inst.errors) {
+      const off = on(() =>
+        installErrorCapture({
+          emit: (attrs) => this.emitter.emit("exception", attrs, { severity: "ERROR", bypass: true }),
+          sanitize: (url) => this.sanitize(url),
+          sanitizeStack: (stack) => sanitizeStack(stack, this.urlPolicy),
+        }),
+      );
+      if (off) this.cleanup.push(off);
+    }
+    if (inst.clicks || inst.frustration) {
+      const off = on(() =>
+        installClicks({
+          clock: this.clock,
+          clicks: inst.clicks,
+          frustration: inst.frustration,
+          emitClick: (attrs) => this.emitter.emit("browser.user_action.click", attrs),
+          emitFrustration: (attrs, time) => this.emitter.emit("ouo.user_action.frustration", attrs, { time }),
+          onNetwork: this.subscribe(this.networkListeners),
+          onNavigation: this.subscribe(this.navigationListeners),
+          onError: this.subscribe(this.errorListeners),
+        }),
+      );
+      if (off) this.cleanup.push(off);
+    }
+    // Before the lifecycle listeners below: final vitals are emitted on hide and must be in the flush.
+    if (inst.webVitals) {
+      const off = on(() =>
+        installWebVitals({
+          emit: (attrs, o) => this.emitter.emit("browser.web_vital", attrs, o),
+          hardViewId: () => this.view.hardId,
+          attributionBody: inst.vitalAttributionBody,
+        }),
+      );
+      if (off) this.cleanup.push(off);
+    }
+
+    this.installLifecycle();
+    this.drops.onFirst(() => this.armDropReport());
+    this.holdTabLock();
+    this.replay.evaluate();
+    this.drainer = new OutboxDrainer({
+      // Resolved at each use: nothing is opened while consent is pending.
+      outbox: this.lazyOutbox() as Outbox,
+      http: this.http,
+      urls: { logs: cfg.logsUrl, traces: cfg.tracesUrl },
+      rejected: { logs: jsonRejected("logs"), traces: jsonRejected("traces") },
+      drops: this.drops,
+      ttlMs: cfg.transport.persistTtlMs,
+      retryInitialMs: cfg.transport.retryInitialMs,
+      retryMaxMs: cfg.transport.retryMaxMs,
+      gate: () => (this.outbox() ? "open" : "hold"),
+      hidden: () => this.hidden(),
+    });
+    this.drainer.schedule(1000);
+    this.clock.setTimeout(() => this.replay.recover(), 1500);
+    this.log.log(`${SDK_NAME} ${SDK_VERSION} started (spec ${SPEC_VERSION})`);
+  }
+
+  /** An outbox facade whose methods find the real outbox when called. */
+  private lazyOutbox(): Pick<Outbox, "list" | "body" | "delete"> {
+    return {
+      list: (now, ttl) => this.outbox()?.list(now, ttl) ?? Promise.resolve({ entries: [], expired: [] }),
+      body: (id) => this.outbox()?.body(id) ?? Promise.resolve(undefined),
+      delete: (id) => this.outbox()?.delete(id) ?? Promise.resolve(),
+    };
+  }
+
+  /** A shared Web Lock held while this tab runs the SDK: `shutdown` uses it to tell whether it is the last one. */
+  private holdTabLock(): void {
+    const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
+    if (!locks?.request) return;
+    void quiet(
+      locks.request("ouo.tab", { mode: "shared" }, () => new Promise<void>((resolve) => {
+        this.releaseTab = resolve;
+        if (this.stopped) resolve();
+      })),
+    );
+  }
+
+  private async lastTab(): Promise<boolean> {
+    const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
+    this.releaseTab?.();
+    this.releaseTab = undefined;
+    if (!locks?.request) return true;
+    try {
+      return (await locks.request("ouo.tab", { mode: "exclusive", ifAvailable: true }, (lock) => lock !== null)) === true;
+    } catch {
+      return true;
+    }
+  }
+
+  // ---- lifecycle (SDK spec section 4.2) ----
+
+  private installLifecycle(): void {
+    const off = (fn: () => void): void => void this.cleanup.push(fn);
+    off(
+      listen(document, "visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          this.session.persist();
+          this.reportDrops();
+          this.replay.onHidden();
+          void this.logs.flush();
+          void this.traces.flush();
+        } else {
+          this.session.activity();
+          this.replay.onVisible();
+          this.drainer?.schedule(0);
+          this.replay.recover();
+        }
+      }),
+    );
+    off(
+      listen(globalThis, "pagehide", () => {
+        // In this order (LIF-7): abandon open spans, (final vitals were emitted by their own
+        // listener), close the replay chunk and end the stream, flush telemetry, then replay.
+        this.unloading = true;
+        this.pipeline.abandonOpenSpans();
+        const engine = this.replay.onPageHide();
+        this.reportDrops();
+        void this.logs.flush();
+        void this.traces.flush();
+        attempt(() => engine?.flushUnload());
+        this.session.persist();
+      }),
+    );
+    off(
+      listen(globalThis, "pageshow", (e) => {
+        this.unloading = false;
+        if (!(e as PageTransitionEvent).persisted) return;
+        // Restored from the back/forward cache (LIF-8): a new view, the session re-evaluated, a new replay stream.
+        this.navigation?.restored();
+        this.session.activity();
+        this.replay.evaluate();
+      }),
+    );
+    off(
+      listen(document, "freeze", () => {
+        void this.logs.flush();
+        void this.traces.flush();
+      }),
+    );
+    off(listen(document, "resume", () => void this.session.stamp()));
+    off(listen(globalThis, "online", () => this.drainer?.schedule(0)));
+  }
+
+  // ---- drop reports (ERR-7) ----
+
+  private armDropReport(): void {
+    if (this.dropTimer !== null || this.stopped) return;
+    this.dropTimer = this.clock.setTimeout(() => {
+      this.dropTimer = null;
+      this.reportDrops();
+    }, this.cfg.transport.flushIntervalMs);
+  }
+
+  private reportDrops(): void {
+    if (!this.active()) return;
+    const stamp = this.session.stamp();
+    // No session to send them in: the counts wait for the next one.
+    if (stamp.expired || !stamp.sampled) return;
+    for (const r of this.drops.take()) {
+      this.emitter.emit("ouo.sdk.dropped", { "ouo.sdk.drop.signal": r.signal, "ouo.sdk.drop.reason": r.reason, "ouo.sdk.drop.count": r.count }, { internal: true, stamp });
+    }
+  }
+
+  // ---- public API ----
+
+  sessionId(): string | undefined {
+    return this.active() ? this.session.id() : undefined;
+  }
+
+  restartSession(): void {
+    if (this.active()) this.session.restart();
+  }
+
+  setUser(id: string | null): void {
+    this.session.setUser(id);
+  }
+
+  setGlobalAttributes(map: unknown): void {
+    this.globals = appAttributes(map, (reason) => this.drops.add("attribute", reason));
+  }
+
+  recordEvent(name: string, attributes: unknown, body: unknown): void {
+    if (name === "" || reservedName(name)) {
+      this.drops.add(truncate(name || "event", 64), "reserved_name");
+      return;
+    }
+    const attrs = appAttributes(attributes, (reason) => this.drops.add("attribute", reason));
+    this.emitter.emit(truncate(name, 128), attrs, body === undefined ? {} : { body: safeBody(body) });
+  }
+
+  recordException(error: unknown, attributes: unknown, sdk: Attrs = {}): void {
+    const attrs = appAttributes(attributes, (reason) => this.drops.add("attribute", reason));
+    const handled = attrs["ouo.exception.handled"] === false ? false : true;
+    markReported(error);
+    this.emitter.emit(
+      "exception",
+      {
+        ...attrs,
+        ...sdk,
+        ...exceptionAttributes(error, { source: "manual", handled, sanitize: (url) => this.sanitize(url), sanitizeStack: (stack) => sanitizeStack(stack, this.urlPolicy) }),
+      },
+      { severity: "ERROR", bypass: !handled },
+    );
+  }
+
+  trackNavigation(name: string, o: NavigationOptions): void {
+    this.navigation?.track(truncate(name, 256), { url: typeof o.url === "string" ? o.url : undefined, id: typeof o.id === "string" ? o.id : undefined });
+  }
+
+  replayApi(action: "start" | "stop" | "capture"): void {
+    if (!this.active()) return;
+    if (action === "start") this.replay.start();
+    else if (action === "stop") this.replay.stop();
+    else this.replay.trigger("manual");
+  }
+
+  setConsent(c: Consent): void {
+    if (typeof c.telemetry === "boolean") {
+      if (c.telemetry && this.telemetryConsent !== "granted") {
+        const wasDenied = this.telemetryConsent === "denied";
+        this.telemetryConsent = "granted";
+        this.storage.persist();
+        // After a withdrawal the next session is a new start with no previous id (PRV-4).
+        if (wasDenied) this.session.start(document.visibilityState === "visible");
+        else this.session.persist();
+        void this.logs.flush();
+        void this.traces.flush();
+        this.drainer?.schedule(0);
+      } else if (!c.telemetry && this.telemetryConsent !== "denied") {
+        const wasGranted = this.telemetryConsent === "granted";
+        // What was collected with consent may still leave; what was only buffered may not (PRV-2).
+        if (wasGranted) this.session.end("consent");
+        else {
+          this.logs.discard();
+          this.traces.discard();
+        }
+        const flushed = wasGranted ? Promise.all([this.session.settled().then(() => this.logs.flush()), this.traces.flush()]) : Promise.resolve();
+        this.telemetryConsent = "denied";
+        const outbox = this.outboxInstance;
+        void quiet(flushed.then(() => outbox?.clear()));
+        this.session.sever();
+        this.storage.forget();
+        void this.replay.withdraw();
+      }
+    }
+    if (typeof c.replay === "boolean") {
+      const next: ConsentState = c.replay ? "granted" : "denied";
+      if (next !== this.replayConsent) {
+        this.replayConsent = next;
+        if (c.replay) this.replay.evaluate();
+        else void this.replay.withdraw();
+      }
+    }
+    this.replay.evaluate();
+  }
+
+  async flush(): Promise<void> {
+    await this.session.settled();
+    this.reportDrops();
+    await Promise.all([this.logs.flush(), this.traces.flush()]);
+  }
+
+  /** Removes every hook and stops every timer. Synchronous: nothing of the SDK runs on the page afterwards. */
+  uninstall(): void {
+    this.stopped = true;
+    for (const off of this.cleanup.splice(0).reverse()) attempt(off);
+    if (this.dropTimer !== null) this.clock.clearTimeout(this.dropTimer);
+    this.dropTimer = null;
+    this.drainer?.close();
+    this.session.stop();
+    this.releaseTab?.();
+  }
+
+  /** LIF-4: stop capture, remove hooks, end the session and the replay stream, flush within the deadline. */
+  async shutdown(): Promise<void> {
+    const deadline = this.cfg.transport.shutdownDeadlineMs;
+    const work = (async () => {
+      const closing = this.replay.close("stop", deadline);
+      if (await this.lastTab()) this.session.end("shutdown");
+      await this.session.settled();
+      this.reportDrops();
+      // Hooks go only now, so the last records above still pass through the emitter.
+      this.uninstall();
+      await Promise.all([this.logs.flush(), this.traces.flush(), closing]);
+    })();
+    await Promise.race([quiet(work), new Promise((resolve) => setTimeout(resolve, deadline))]);
+    this.uninstall();
+    this.logs.close();
+    this.traces.close();
+    await quiet(this.pipeline.close());
+  }
+
+  /** ERR-6: after too many internal errors the SDK says so once and turns itself off. */
+  disable(): void {
+    if (this.disabled || this.stopped) return;
+    this.log.warn("too many internal errors, the SDK turned itself off");
+    attempt(() => this.emitter.emit("ouo.sdk.disabled", { "ouo.sdk.internal_errors": guardedFailures() }, { internal: true, severity: "WARN" }));
+    this.disabled = true;
+    attempt(() => void this.replay.close("error", 0));
+    attempt(() => void this.logs.flush());
+    this.uninstall();
+    this.logs.close();
+    this.traces.close();
+    void quiet(this.pipeline.close());
+  }
+
+  diagnostics(): Diagnostics {
+    const dropped: Diagnostics["dropped"] = [];
+    for (const [key, count] of this.drops.totals) {
+      const [signal, reason] = key.split("\n") as [string, DropReason];
+      dropped.push({ signal, reason, count });
+    }
+    return {
+      state: this.disabled ? "disabled" : this.stopped ? "off" : "running",
+      sessionId: this.sessionId(),
+      internalErrors: guardedFailures(),
+      dropped,
+      sent: { logs: this.logs.stats.sent, spans: this.traces.stats.sent, requests: this.http.stats.requests, bytes: this.http.stats.bytes },
+      replayRecording: this.replay.recording(),
+      consent: { telemetry: this.telemetryConsent, replay: this.replayConsent },
+    };
+  }
 }
 
-/** What `initRUM` returns where it cannot run (no `window`, server rendering) or failed to start. */
-function noopRUM(): RUM & { _uninstall(): Promise<void> } {
-  const done = (): Promise<void> => Promise.resolve();
-  return {
-    setUser: () => undefined,
-    clearUser: () => undefined,
-    endSession: () => undefined,
-    captureError: () => undefined,
-    addEvent: () => undefined,
-    setRoute: () => undefined,
-    replay: { pause: () => undefined, resume: () => undefined, isRecording: () => false },
-    session: { id: () => "", userId: () => "", deviceId: () => "" },
-    flush: done,
-    shutdown: done,
-    deliveryStats: () => ({ sent: 0, retried: 0, queued: 0, dropped: 0, droppedBytes: 0, dropReasons: {}, rawBytes: 0, wireBytes: 0 }),
-    _uninstall: done,
-  };
+/** A body the Logs API can carry: a string, number, boolean, or a JSON-safe object of bounded size. */
+function safeBody(body: unknown): unknown {
+  if (typeof body === "string") return truncate(body, 32 * 1024);
+  if (typeof body === "number" || typeof body === "boolean") return body;
+  try {
+    const json = JSON.stringify(body);
+    return json !== undefined && json.length <= 32 * 1024 ? (JSON.parse(json) as unknown) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+let runtime: Runtime | undefined;
+/** `init` was called and the SDK is waiting for a prerendered page to activate (LIF-10). */
+let waiting: (() => void) | undefined;
+
+const live = (): Runtime | undefined => (runtime && !runtime.stopped && !runtime.disabled ? runtime : undefined);
+
+/** Runs a public API body: never throws into the app, whatever happens inside (API-1, ERR-1). */
+function api<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch (err) {
+    contain(err);
+    return fallback;
+  }
 }
 
 /**
- * Initialise the ouo browser SDK. Call once, as early as possible. A second call is a no-op
- * that warns and returns the running instance; after `shutdown()` it starts a new one.
- *
- * Throws only for a configuration error (a missing endpoint, project id or token), so a
- * misconfigured app fails at its first run. Everything else is contained: on the server (no
- * `window`) it returns an inert instance, and if the browser lacks something the SDK needs it
- * warns, removes what it had installed and returns an inert instance.
+ * Starts the SDK. Call once, as early as possible. Never throws: an unusable configuration makes
+ * the SDK a no-op (CFG-1), a second call is ignored (LIF-1), and on the server or in a runtime
+ * without a DOM nothing happens at all (LIF-9). Returns without waiting for storage or the
+ * network (LIF-2).
  */
-export function initRUM(options: RUMOptions): RUM {
-  if (instance) {
-    console.warn("[ouo] initRUM called twice; returning the existing instance");
-    return instance;
-  }
-  // Fail fast, before any provider or listener exists: a missing id or token means nothing would be accepted.
-  const urls = deriveIngestUrls({
-    endpoint: options.endpoint,
-    replayEndpoint: options.replayEndpoint,
-    projectId: options.projectId,
-    projectToken: options.projectToken,
-  });
-  const authorization = basicAuthorization(options.projectId, options.projectToken);
-  // Server rendering (Next.js, Remix, Node): nothing to observe, nothing installed.
-  if (typeof window === "undefined" || typeof document === "undefined") return noopRUM();
-
-  const cleanup: Array<() => unknown> = [];
-  try {
-    instance = install(options, urls, authorization, cleanup);
-    return instance;
-  } catch (err) {
-    console.warn("[ouo] could not start, the SDK is off", err);
-    for (const off of cleanup.reverse()) attempt(off);
-    setGuardReporter(undefined);
-    instance = undefined;
-    return noopRUM();
-  }
-}
-
-function install(
-  options: RUMOptions,
-  urls: ReturnType<typeof deriveIngestUrls>,
-  authorization: string,
-  cleanup: Array<() => unknown>,
-): RUM & { _uninstall(): Promise<void> } {
-  const authHeaders = ingestHeaders(authorization);
-  const logger = createLogger(options.debug === true);
-  setGuardReporter((err) => logger.warn("contained", err));
-  if (options.debug) {
-    // Never console.error here: the SDK instruments console.error and would report its own diagnostics as exceptions.
-    const otelDiag: DiagLogger = {
-      error: (...args) => console.warn("[ouo:otel]", ...args),
-      warn: (...args) => console.warn("[ouo:otel]", ...args),
-      info: (...args) => console.log("[ouo:otel]", ...args),
-      debug: (...args) => console.log("[ouo:otel]", ...args),
-      verbose: (...args) => console.log("[ouo:otel]", ...args),
-    };
-    if (diag.setLogger(otelDiag, DiagLogLevel.INFO)) cleanup.push(() => diag.disable());
-  }
-
-  // Before the lifecycle handlers below: it marks the page hidden before their flush runs.
-  const delivery = createDelivery(options.transport, logger);
-  // First in, last out: closed after the providers' final flush.
-  cleanup.push(() => delivery.close());
-
-  const serviceVersion = options.service.version;
-  const storage = new LocalStorage();
-  const deviceId = loadDeviceId(storage);
-
-  // Late-bound: the session manager emits session.start inside start(), after these exist.
-  let events: EventEmitter;
-  let recorder: ReplayRecorder | undefined;
-
-  const session = new SessionManager({
-    storage,
-    ...(options.session?.inactivityTimeoutMs !== undefined ? { inactivityTimeoutMs: options.session.inactivityTimeoutMs } : {}),
-    ...(options.session?.maxDurationMs !== undefined ? { maxDurationMs: options.session.maxDurationMs } : {}),
-    ...(options.user?.id ? { initialUserId: options.user.id } : {}),
-    deviceId,
-    ...(options.session?.sampleRate !== undefined ? { sessionSampleRate: options.session.sampleRate } : {}),
-    logger,
-    onEvent: (event) => events.emit(event.name, event.attributes, "info"),
-    onRotate: (next, previousId) => recorder?.onRotate(next, previousId),
-  });
-
-  const resource = buildResource(options.service, deviceId);
-  const route = new RouteState();
-
-  // ---- logs (events) ----
-  const logExporter = createLogExporter({ url: urls.logs, headers: authHeaders, delivery });
-  // Not the OTel BatchLogRecordProcessor: it drops a flush requested while one is running,
-  // which loses what is emitted at page hide (src/telemetry/batch.ts).
-  const logBatch = new PageLogRecordProcessor(logExporter, {
-    scheduledDelayMillis: 1000,
-    maxExportBatchSize: 64,
-    maxQueueSize: 2048,
-    onDrop: () => delivery.countQueueDrop("logs"),
-  });
-  const loggerProvider = new LoggerProvider({
-    resource,
-    processors: [new SessionLogProcessor(session, serviceVersion, route), new SampledLogProcessor(session, logBatch)],
-  });
-  if (logs.setGlobalLoggerProvider(loggerProvider) === loggerProvider) cleanup.push(() => logs.disable());
-  cleanup.push(() => loggerProvider.shutdown());
-  events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
-
-  // ---- traces ----
-  const traceExporter = createTraceExporter({ url: urls.traces, headers: authHeaders, delivery });
-  // Late-bound: the tracker is a span processor of the provider it gets its tracer from.
-  let tracerProvider: WebTracerProvider;
-  const tracker = new InteractionTracker({
-    tracer: () => tracerProvider.getTracer(SDK_NAME, SDK_VERSION),
-    ...(options.tracing?.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.tracing.idleTimeoutMs } : {}),
-  });
-  tracerProvider = new WebTracerProvider({
-    resource,
-    sampler: new SessionSampler(session),
-    spanProcessors: [
-      new SessionSpanProcessor(session, serviceVersion, route),
-      tracker,
-      new FilteringSpanProcessor(
-        new PageSpanProcessor(traceExporter, {
-          scheduledDelayMillis: 2000,
-          maxExportBatchSize: 64,
-          maxQueueSize: 1024,
-          onDrop: () => delivery.countQueueDrop("traces"),
-        }),
-        (span) => tracker.shouldExport(span),
-      ),
-    ],
-  });
-  cleanup.push(() => tracerProvider.shutdown());
-  // What WebTracerProvider.register does, keeping track of which globals are ours: an app that
-  // registered its own OpenTelemetry first keeps it, and shutdown only removes the SDK's.
-  const contextManager = new FallbackContextManager();
-  contextManager.setFallback(() => tracker.activeContext());
-  if (trace.setGlobalTracerProvider(tracerProvider)) cleanup.push(() => trace.disable());
-  if (propagation.setGlobalPropagator(new SessionPropagator(session))) cleanup.push(() => propagation.disable());
-  contextManager.enable();
-  if (context.setGlobalContextManager(contextManager)) cleanup.push(() => context.disable());
-  else contextManager.disable();
-
-  // ---- session ----
-  session.start();
-  cleanup.push(() => session.stop());
-  const onActivity = (): void => session.touch();
-  cleanup.push(installActivityListeners(onActivity));
-  const onStorage = guard((e: StorageEvent): void => {
-    if (e.key === SESSION_STORAGE_KEY) session.handleStorageEvent(e.newValue);
-  });
-  globalThis.addEventListener("storage", onStorage);
-  cleanup.push(() => globalThis.removeEventListener("storage", onStorage));
-
-  // ---- instrumentation ----
-  // The exporters and the uploader already call the un-instrumented fetch; this keeps any
-  // other path to the ingest URLs (XHR, a second fetch wrapper) out of the traces too.
-  const ignoreUrls: Array<RegExp | string> = [
-    new RegExp(`^${escapeRegExp(urls.endpoint)}/v1/`),
-    new RegExp(`^${escapeRegExp(urls.replayEndpoint)}/v1/replay/`),
-    ...(options.tracing?.ignoreUrls ?? []),
-  ];
-  const instrumentations: Instrumentation[] = createNetworkInstrumentations({
-    events,
-    logger,
-    propagateTo: options.tracing?.propagateTo ?? [],
-    ignoreUrls,
-    onActivity,
-  });
-  if (options.tracing?.documentLoad !== false) {
-    instrumentations.push(new DocumentLoadInstrumentation({ ignoreNetworkEvents: true, ignorePerformancePaintEvents: true }));
-  }
-  cleanup.push(registerInstrumentations({ instrumentations, tracerProvider, loggerProvider }));
-
-  cleanup.push(installErrorCapture({ events, logger }));
-  cleanup.push(
-    installNavigation({
-    events,
-    onActivity,
-      tracker: options.tracing?.softNavigations === false ? undefined : tracker,
-    }),
-  );
-  cleanup.push(
-    installClickTracking({
-      tracker,
-      events,
-      spans: options.tracing?.interactions !== false,
-      rageClicks: options.clicks?.rageClicks ?? {},
-      deadClicks: options.clicks?.deadClicks !== false,
-      // Click labels follow the replay's text masking (ADR-0003 revision 2026-11-03).
-      unmask: options.replay?.maskAllText === false ? undefined : `.${UNMASK_CLASS}${options.replay?.unmaskTextSelector ? `,${options.replay.unmaskTextSelector}` : ""}`,
-      mask: options.replay?.maskTextSelector,
-    }),
-  );
-  // Optional platform features: a browser without them gets the rest of the SDK.
-  if (options.longTasks !== false) {
-    try {
-      cleanup.push(installLongTasks(events, options.longTasks ?? {}));
-    } catch (err) {
-      logger.warn("long task observer unavailable", err);
+export function init(config: OuoConfig): void {
+  api(() => {
+    const debug = (config as { debug?: unknown } | null | undefined)?.debug === true;
+    const log = debug ? createLogger(true) : silentLogger;
+    if (runtime || waiting) {
+      log.warn("init called twice; the second call is ignored");
+      return;
     }
-  }
-  try {
-    // A tab opened in the background (and every tab of an automation pane) is hidden from the
-    // start: web-vitals then rightly reports no FCP, LCP, CLS or INP for this page view.
-    if (document.visibilityState === "hidden") logger.log("page loaded hidden: only TTFB is reported for this page view");
-    cleanup.push(installWebVitals(events));
-  } catch (err) {
-    logger.warn("web-vitals unavailable", err);
-  }
-
-  // ---- replay ----
-  const replayEnabled = options.replay?.enabled !== false;
-  const chunker = new ReplayChunker({
-    sessionId: () => session.id(),
-    nextSeq: () => session.nextReplaySeq(),
-    upload: createChunkUploader({ replayEndpoint: urls.replayEndpoint, authorization, logger, delivery }),
-    ...(options.replay?.flushIntervalMs !== undefined ? { flushIntervalMs: options.replay.flushIntervalMs } : {}),
-    ...(options.replay?.maxChunkBytes !== undefined ? { maxChunkBytes: options.replay.maxChunkBytes } : {}),
-    logger,
-  });
-  cleanup.push(() => chunker.stop());
-  recorder = new ReplayRecorder({
-    enabled: replayEnabled,
-    sampleRate: options.replay?.sampleRate ?? 1,
-    onErrorSampleRate: options.replay?.onErrorSampleRate ?? 0,
-    onSkip: (reason, bytes) => events.emit("ouo.replay.skipped", { "ouo.replay.skip_reason": reason, "ouo.replay.snapshot_bytes": bytes }, "warn"),
-    privacy: options.replay,
-    onHidden: () => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": "route" }),
-    session,
-    chunker,
-    logger,
-  });
-  const rec = recorder;
-  cleanup.push(() => rec.shutdown());
-  void quiet(recorder.start());
-  // Error-triggered replay: the first error of a buffering session uploads its replay.
-  // Never-record routes: a navigation is emitted synchronously from the history call.
-  cleanup.push(
-    events.subscribe((name, _attrs, severity) => {
-      if (name === "navigation") recorder?.onRoute();
-      if (name === "exception" && severity === "error") recorder?.onError();
-    }),
-  );
-
-  // ---- lifecycle flushes ----
-  const flush = (): Promise<void> =>
-    quiet(
-      // Console errors are reported one microtask late (errors/install.ts): let them land first.
-      Promise.resolve().then(() => Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), chunker.flush()])),
-    );
-  const flushHidden = (keepalive: boolean): void => {
-    // Open click and soft-navigation spans end now so the flush carries them.
-    tracker.endAll("hidden");
-    void quiet(Promise.all([loggerProvider.forceFlush(), tracerProvider.forceFlush(), chunker.flush({ keepalive })]));
-  };
-  // Registered after web-vitals so final vitals emitted on hide are included in the flush.
-  const onVisibility = guard((): void => {
-    if (document.visibilityState === "hidden") flushHidden(false);
-  });
-  const onPageHide = guard((): void => {
-    flushHidden(true);
-    session.stop();
-  });
-  document.addEventListener("visibilitychange", onVisibility);
-  globalThis.addEventListener("pagehide", onPageHide);
-  cleanup.push(() => {
-    document.removeEventListener("visibilitychange", onVisibility);
-    globalThis.removeEventListener("pagehide", onPageHide);
-  });
-
-  // Self-diagnostics: the derived URLs and the project id once, never the token or the header value.
-  logger.log(`${SDK_NAME}@${SDK_VERSION} initialised`, {
-    endpoint: urls.endpoint,
-    replayEndpoint: urls.replayEndpoint,
-    traces: urls.traces,
-    logs: urls.logs,
-    replay: replayEnabled ? urls.replay : null,
-    projectId: options.projectId.trim(),
-    session: session.id(),
-    user: session.userId(),
-  });
-
-  let stopped: Promise<void> | null = null;
-  const shutdown = (): Promise<void> => {
-    stopped ??= (async () => {
-      await flush();
-      // Reverse order of installation; the providers' shutdown (last pushed first) flushes again.
-      const pending: unknown[] = [];
-      for (const off of cleanup.reverse()) pending.push(attempt(off));
-      await quiet(Promise.all(pending));
-      setGuardReporter(undefined);
-      if (instance === rum) instance = undefined;
-      logger.log("shut down");
-    })();
-    return stopped;
-  };
-
-  const rum: RUM & { _uninstall(): Promise<void> } = {
-    // Public methods are called by the app: they never throw into it.
-    setUser(user: UserOptions): void {
-      attempt(() => {
-        session.setUser(user.id);
-        logger.log("user set", user.id);
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    const cfg = resolveConfig(config, (key, problem) => log.warn(`config ${key}: ${problem}`));
+    if (!cfg) return;
+    if (!hasSecureRandom()) {
+      log.warn("no secure random generator, the SDK is off");
+      return;
+    }
+    const boot = (): void => {
+      waiting = undefined;
+      const rt = new Runtime(cfg);
+      runtime = rt;
+      configureGuard({ report: (err) => rt.log.warn("contained an internal error", err), threshold: cfg.selfDisableThreshold, onThreshold: () => rt.disable() });
+      try {
+        rt.start();
+      } catch (err) {
+        // A browser without something the SDK needs: remove what was installed and stay off.
+        rt.log.warn("could not start, the SDK is off", err);
+        rt.uninstall();
+        runtime = undefined;
+        configureGuard(undefined);
+      }
+    };
+    // A prerendered page starts no session and sends nothing until it activates.
+    if ((document as Document & { prerendering?: boolean }).prerendering === true) {
+      const off = listen(document, "prerenderingchange", () => {
+        off();
+        if (waiting) boot();
       });
-    },
-    clearUser(): void {
-      attempt(() => {
-        session.clearUser();
-        logger.log("user cleared", session.userId());
-      });
-    },
-    endSession(): void {
-      attempt(() => session.endSession());
-    },
-    captureError(err: unknown, context?: Attrs): void {
-      attempt(() => {
-        claimError(err);
-        events.emit("exception", exceptionAttributes(err, "captured", context), "error");
-      });
-    },
-    addEvent(name: string, attrs?: Attrs): void {
-      attempt(() => events.emit(name, { ...(attrs ?? {}), "ouo.event.custom": true }));
-    },
-    setRoute(name: string): void {
-      attempt(() => {
-        route.name = name || undefined;
-        if (name) tracker.current("navigation")?.span.setAttribute("app.screen.name", name);
-      });
-    },
-    replay: {
-      pause: () => attempt(() => recorder?.pause()),
-      resume: () => attempt(() => recorder?.resume()),
-      isRecording: () => attempt(() => recorder?.isRecording() ?? false, false),
-    },
-    session: {
-      id: () => attempt(() => session.id(), ""),
-      userId: () => attempt(() => session.userId(), ""),
-      deviceId: () => deviceId,
-    },
-    flush,
-    shutdown,
-    _uninstall: shutdown,
-    deliveryStats: () => ({ ...delivery.stats, dropReasons: { ...delivery.stats.dropReasons } }),
-  };
-  return rum;
+      waiting = off;
+      return;
+    }
+    boot();
+  }, undefined);
 }
+
+/** Stops capture, removes every hook, ends the session and flushes within `transport.shutdownDeadlineMs`. `init` may be called again afterwards. */
+export function shutdown(): Promise<void> {
+  return api(() => {
+    if (waiting) {
+      waiting();
+      waiting = undefined;
+    }
+    const rt = runtime;
+    if (!rt) return Promise.resolve();
+    runtime = undefined;
+    return quiet(rt.disabled ? undefined : rt.shutdown()).then(() => configureGuard(undefined));
+  }, Promise.resolve());
+}
+
+/** Exports what is queued. Resolves when it is sent, or on the shutdown deadline. Never rejects. */
+export function flush(): Promise<void> {
+  return api(() => {
+    const rt = live();
+    if (!rt) return Promise.resolve();
+    return Promise.race([quiet(rt.flush()), new Promise<void>((resolve) => setTimeout(resolve, rt.cfg.transport.shutdownDeadlineMs))]);
+  }, Promise.resolve());
+}
+
+/** The current session id, or undefined when there is none. */
+export function getSessionId(): string | undefined {
+  return api(() => live()?.sessionId(), undefined);
+}
+
+/** Ends the current session and starts a new one. */
+export function restartSession(): void {
+  api(() => live()?.restartSession(), undefined);
+}
+
+/** Sets `enduser.id` on later records; `null` clears it. A different user starts a new session. */
+export function setUser(id: string | null): void {
+  api(() => {
+    if (id === null) live()?.setUser(null);
+    else if (typeof id === "string" && id.trim() !== "") live()?.setUser(truncate(id.trim(), 256));
+  }, undefined);
+}
+
+/** Updates consent. Only the keys given change. */
+export function setConsent(consent: Consent): void {
+  api(() => {
+    if (consent && typeof consent === "object") live()?.setConsent(consent);
+  }, undefined);
+}
+
+/** Attributes for every later record. Replaces the previous set. Names starting with `session.` or `ouo.` are rejected. */
+export function setGlobalAttributes(attributes: Attrs): void {
+  api(() => live()?.setGlobalAttributes(attributes), undefined);
+}
+
+/** A custom event. Names starting with `session.` or `ouo.` are rejected and counted. */
+export function recordEvent(name: string, attributes?: Attrs, body?: unknown): void {
+  api(() => {
+    if (typeof name === "string") live()?.recordEvent(name.trim(), attributes, body);
+  }, undefined);
+}
+
+/** A handled error. Attributes may include `ouo.exception.fingerprint` and `ouo.exception.handled`. */
+export function recordException(error: unknown, attributes?: Attrs): void {
+  api(() => live()?.recordException(error, attributes), undefined);
+}
+
+/** Declares a soft navigation the SDK cannot see, or names the one it just saw (a route template). */
+export function trackNavigation(name: string, options?: NavigationOptions): void {
+  api(() => {
+    if (typeof name === "string" && name !== "") live()?.trackNavigation(name, options && typeof options === "object" ? options : {});
+  }, undefined);
+}
+
+const noopTracerProvider = new ProxyTracerProvider();
+const noopLoggerProvider: LoggerProvider = { getLogger: () => createNoopLogger() };
+
+/** The SDK's tracer provider: spans made with it get the session and view attributes and the same export. */
+export function getTracerProvider(): TracerProvider {
+  return api(() => live()?.pipeline.tracerProvider ?? noopTracerProvider, noopTracerProvider);
+}
+
+/** The SDK's logger provider: records emitted through it get the session and view attributes and the same export. */
+export function getLoggerProvider(): LoggerProvider {
+  return api(() => live()?.pipeline.loggerProvider ?? noopLoggerProvider, noopLoggerProvider);
+}
+
+export const replay = {
+  /** Starts recording again after `stop()`, if this session is sampled for replay and consent allows. */
+  start(): void {
+    api(() => live()?.replayApi("start"), undefined);
+  },
+  /** Stops recording and ends the stream. */
+  stop(): void {
+    api(() => live()?.replayApi("stop"), undefined);
+  },
+  /** Sends a buffered replay from here on (`replay.mode: "buffer"`). */
+  capture(): void {
+    api(() => live()?.replayApi("capture"), undefined);
+  },
+};
+
+/** Counts for debugging and support. Never a payload. */
+export function diagnostics(): Diagnostics {
+  const off: Diagnostics = {
+    state: runtime?.disabled ? "disabled" : "off",
+    sessionId: undefined,
+    internalErrors: guardedFailures(),
+    dropped: [],
+    sent: { logs: 0, spans: 0, requests: 0, bytes: 0 },
+    replayRecording: false,
+    consent: { telemetry: "pending", replay: "pending" },
+  };
+  return api(() => runtime?.diagnostics() ?? off, off);
+}
+
+/**
+ * Not public API. `recordException` for the SDK's own framework entries (they may set `ouo.*`
+ * attributes), and the fault-injection hook of the test suites (GR-CRASH-7).
+ */
+export const _internal = {
+  recordException(error: unknown, attributes: Attrs | undefined, sdk: Attrs): void {
+    api(() => live()?.recordException(error, attributes, sdk), undefined);
+  },
+  injectFault,
+};

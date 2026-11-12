@@ -89,3 +89,52 @@ export class LocalStorage implements KeyValueStorage {
     this.memory = memory;
   }
 }
+
+/**
+ * Storage that honours consent (PRV-1, PRV-4): memory while consent is pending or denied,
+ * `localStorage` once granted. `persist()` moves what memory holds into `localStorage`;
+ * `forget()` removes the SDK's keys from it and goes back to memory.
+ */
+export class ConsentStorage implements KeyValueStorage {
+  private memory = new MemoryStorage();
+  private disk: LocalStorage | null = null;
+  private readonly keys = new Set<string>();
+
+  constructor(persistent: boolean, private readonly area?: () => Storage | null | undefined) {
+    if (persistent) this.disk = new LocalStorage(this.area);
+  }
+
+  persistent(): boolean {
+    return this.disk !== null && !this.disk.inMemory();
+  }
+
+  persist(): void {
+    if (this.disk) return;
+    const disk = new LocalStorage(this.area);
+    for (const key of this.keys) {
+      const v = this.memory.get(key);
+      if (v !== null) disk.set(key, v);
+    }
+    this.disk = disk;
+    this.memory = new MemoryStorage();
+  }
+
+  forget(): void {
+    for (const key of this.keys) this.disk?.remove(key);
+    this.disk = null;
+    this.memory = new MemoryStorage();
+    this.keys.clear();
+  }
+
+  get(key: string): string | null {
+    return (this.disk ?? this.memory).get(key);
+  }
+  set(key: string, value: string): void {
+    this.keys.add(key);
+    (this.disk ?? this.memory).set(key, value);
+  }
+  remove(key: string): void {
+    this.keys.delete(key);
+    (this.disk ?? this.memory).remove(key);
+  }
+}
