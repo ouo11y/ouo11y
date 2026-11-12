@@ -29,6 +29,7 @@ import type { Clock, TimerHandle } from "../core/clock";
 import { systemClock } from "../core/clock";
 import { attempt, guard, listen, point, quiet } from "../guard";
 import type { AdapterSink, ReplayAdapter } from "./adapter";
+import { blocked, inputMasked, textMasked } from "./mask";
 
 export interface PixelOptions {
   /** Most frames per second. */
@@ -36,7 +37,6 @@ export interface PixelOptions {
   /** Longest side of a frame in pixels. */
   pixelMaxSide: number;
 }
-import { blocked, inputMasked, textMasked } from "./mask";
 
 export const FRAMES_FORMAT = "ouo.frames/1";
 const XHTML = "http://www.w3.org/1999/xhtml";

@@ -53,7 +53,7 @@ const common: Options = {
 };
 
 // Two builds with the same output layout as one: dist/index.js plus its lazily loaded replay
-// chunks (engine, structure with rrweb, pixel), and dist/react.js. They share no code (the React entry imports the SDK by its package
+// chunks (the engine, and the structure recorder with rrweb), and dist/react.js. They share no code (the React entry imports the SDK by its package
 // name), so splitting them only lets the React entry carry its own banner.
 export default defineConfig([
   {
