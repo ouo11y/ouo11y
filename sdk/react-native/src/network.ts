@@ -18,6 +18,8 @@ export interface NetworkOptions {
   requestEvents?: boolean;
   /** Remembers failed requests and rejected errors, so errors carry the request's trace (G5). */
   linker?: TraceLinker;
+  /** Sanitises the URL the SDK records (PRV-10); the request itself is untouched. Default: as is. */
+  sanitizeUrl?: (url: string) => string;
   /** Injects the trace headers. `init` passes the SDK's own; default the OpenTelemetry global (spec REL-4). */
   propagator?: TextMapPropagator;
 }
@@ -166,7 +168,9 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
       if (matchesAny(url, opts.ignoreUrls)) return undefined;
       onActivity();
       const method = requestMethod(input, init);
-      const span = startClientSpan(tracer, method, url);
+      // What is recorded is the sanitised URL; matching and the request use the real one.
+      const recorded = opts.sanitizeUrl ? opts.sanitizeUrl(url) : url;
+      const span = startClientSpan(tracer, method, recorded);
       let nextInit = init;
       if (matchesAny(url, opts.propagateTo)) {
         const requestHeaders = input && typeof input === "object" && "headers" in (input as object) ? (input as Request).headers : undefined;
@@ -176,7 +180,7 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
         });
         nextInit = { ...(init ?? {}), headers: bag.toInit() };
       }
-      return { url, method, span, nextInit };
+      return { url: recorded, method, span, nextInit };
     });
     if (!before) return original.call(this ?? globalThis, input, init);
     const { url, method, span } = before;
@@ -302,10 +306,11 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
       const state = this.__ouoXhr;
       if (!state || state.skip) return undefined;
       onActivity();
-      const { method, url } = state;
+      const { method } = state;
+      const url = opts.sanitizeUrl ? opts.sanitizeUrl(state.url) : state.url;
       const span = startClientSpan(tracer, method, url);
 
-      if (matchesAny(url, opts.propagateTo)) {
+      if (matchesAny(state.url, opts.propagateTo)) {
         const carrier: Record<string, string> = {};
         inject(opts, trace.setSpan(context.active(), span), carrier);
         for (const [name, value] of Object.entries(carrier)) {

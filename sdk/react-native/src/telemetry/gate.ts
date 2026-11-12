@@ -5,6 +5,7 @@ import { MAX_STRING_BYTES, truncateAttributes } from "../attributes";
 import { isDropEvent, type DropCounter } from "../drops";
 import { guard } from "../guard";
 import type { DebugLogger } from "../logger";
+import { sanitizeUrlsInText, type UrlSanitizer } from "../privacy";
 import { cutUtf8 } from "../text";
 import type { AttrValue, BeforeSend, BeforeSendRecord } from "../types";
 
@@ -12,6 +13,7 @@ import type { AttrValue, BeforeSend, BeforeSendRecord } from "../types";
  * The gate every record passes before it is kept anywhere (the last-events buffer, the persisted
  * error context, the batch queue, the offline store) and exported (spec CFG-4, PRV-14, REC-8):
  *
+ * 0. URLs are sanitised (PRV-10): `url.full` and the URLs in `exception.stacktrace`.
  * 1. `beforeSend` sees a copy of the record and may change it or drop it (null or false). A hook
  *    that throws means the unmodified record goes on. Replay chunks never pass here: they are
  *    not log records, the native recorder sends them.
@@ -45,6 +47,14 @@ function applyAttributes(target: Record<string, unknown>, next: unknown): void {
   for (const key of Object.keys(wanted)) if (isAttrValue(wanted[key])) target[key] = wanted[key];
 }
 
+function sanitizeUrls(attributes: Record<string, unknown>, sanitize: UrlSanitizer | undefined): void {
+  if (!sanitize) return;
+  const url = attributes["url.full"];
+  if (typeof url === "string") attributes["url.full"] = sanitize(url);
+  const stack = attributes["exception.stacktrace"];
+  if (typeof stack === "string") attributes["exception.stacktrace"] = sanitizeUrlsInText(stack, sanitize);
+}
+
 function finish(attributes: Record<string, unknown>, logger: DebugLogger): void {
   const removed = truncateAttributes(attributes);
   if (removed.length > 0) logger.warn("record over the attribute limit, attributes removed:", removed.join(", "));
@@ -58,12 +68,14 @@ export class LogGate implements LogRecordProcessor {
     private readonly drops: DropCounter,
     private readonly logger: DebugLogger,
     private readonly next: LogRecordProcessor[],
+    private readonly sanitize?: UrlSanitizer,
   ) {}
 
   onEmit(record: SdkLogRecord, context?: Context): void {
     this.first.onEmit(record, context);
     const attributes = record.attributes as Record<string, unknown>;
     const name = String(attributes["event.name"] ?? record.eventName ?? "log");
+    sanitizeUrls(attributes, this.sanitize);
     if (!isDropEvent(name)) {
       const out = decide(this.hook, () => ({ type: "log", name, ...(typeof record.body === "string" ? { body: record.body } : {}), attributes: { ...attributes } as Record<string, AttrValue> }), this.drops, "log");
       if (out === "drop") return;
@@ -92,6 +104,7 @@ export class SpanGate implements SpanProcessor {
     private readonly drops: DropCounter,
     private readonly logger: DebugLogger,
     private readonly next: SpanProcessor,
+    private readonly sanitize?: UrlSanitizer,
   ) {}
 
   onStart(span: Span, parentContext: Context): void {
@@ -101,6 +114,7 @@ export class SpanGate implements SpanProcessor {
   onEnd(span: ReadableSpan): void {
     // An ended span is read-only through its API; its attribute map is still the one exported.
     const attributes = span.attributes as Record<string, unknown>;
+    sanitizeUrls(attributes, this.sanitize);
     const out = decide(this.hook, () => ({ type: "span", name: span.name, attributes: { ...attributes } as Record<string, AttrValue> }), this.drops, "span");
     if (out === "drop") return;
     if (out) {

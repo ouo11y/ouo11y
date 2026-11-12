@@ -153,6 +153,13 @@ export interface BeforeSendRecord {
  */
 export type BeforeSend = (record: BeforeSendRecord) => BeforeSendRecord | null | false | void;
 
+export interface PrivacyOptions {
+  /** Query keys whose values are kept in recorded URLs; every other query value becomes `REDACTED` (spec PRV-10). Default none. */
+  urlQueryAllow?: string[];
+  /** Keep the fragment of recorded URLs (a query-shaped fragment is sanitised like a query). Default false. */
+  keepUrlFragment?: boolean;
+}
+
 export interface DiagnosticsOptions {
   /** Internal errors after which the SDK stops capture and becomes a no-op (spec ERR-6). Default 20. */
   selfDisableThreshold?: number;
@@ -359,6 +366,13 @@ export interface RUMOptions {
   storage?: AsyncKeyValueStorage;
   /** Change or drop records before they are kept or sent. */
   beforeSend?: BeforeSend;
+  privacy?: PrivacyOptions;
+  /**
+   * Runs on every URL the SDK records (`url.full`, URLs in stack traces) after its own
+   * sanitising: credentials and query values are already `REDACTED` and the fragment is gone.
+   * Return the URL to record. A hook that throws leaves the sanitised URL.
+   */
+  sanitizeUrl?: (url: string) => string;
   diagnostics?: DiagnosticsOptions;
   otel?: OtelOptions;
   /** Log SDK decisions to the console with the `[ouo]` prefix. Diagnostics never contain record payloads or the project token. */

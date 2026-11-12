@@ -221,7 +221,7 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     expect(byName("session.end")).toHaveLength(0);
     expect(byName("http.request.failed")).toHaveLength(1);
     expect(attr(byName("http.request.failed")[0]!.attributes, "http.response.status_code")).toBe(500);
-    expect(attr(byName("http.request.failed")[0]!.attributes, "url.full")).toBe(`${BACKEND}/api/checkout?fail=500`);
+    expect(attr(byName("http.request.failed")[0]!.attributes, "url.full")).toBe(`${BACKEND}/api/checkout?fail=REDACTED`); // query values are redacted (spec PRV-10)
     expect(attr(byName("navigation")[0]!.attributes, "url.path")).toBe("/Cart");
     expect(attr(byName("cart.added")[0]!.attributes, "ouo.event.custom")).toBe(true);
     const exceptions = byName("exception").map((l) => ({

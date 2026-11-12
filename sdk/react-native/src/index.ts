@@ -32,6 +32,7 @@ import { forwardSentryErrors } from "./errors/sentry";
 import { guard, guardNative } from "./guard";
 import { getRUM, setRUM } from "./instance";
 import { createLogger } from "./logger";
+import { createUrlSanitizer } from "./privacy";
 import { activeRoutePath, createNavigationTracker, type NavigationStateLike } from "./navigation";
 import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders } from "./endpoints";
@@ -226,6 +227,9 @@ function build(
   const rawStorage: AsyncKeyValueStorage = validStorage(options.storage) ? options.storage : AsyncStorage;
   const storage = safeStorage(rawStorage, (err) => logger.warn("storage error", err));
 
+  // PRV-10: every URL the SDK records goes through this first.
+  const sanitizeUrl = createUrlSanitizer(config.urlPrivacy);
+
   // Every record the SDK drops, by signal and reason (ERR-7); reported as `ouo.sdk.dropped` below.
   const drops = new DropCounter();
   hooks.push(() => drops.stop());
@@ -336,7 +340,7 @@ function build(
             sessionSampleRate,
             drops,
           ),
-        ]),
+        ], sanitizeUrl),
         () => drops.count("log", "self_disabled"),
       ),
     ],
@@ -368,6 +372,7 @@ function build(
             sessionSampleRate,
             drops,
           ),
+          sanitizeUrl,
         ),
         () => drops.count("span", "self_disabled"),
       ),
@@ -492,6 +497,7 @@ function build(
     requestEvents: timeline.requests,
     linker,
     propagator,
+    sanitizeUrl,
   };
   hooks.push(installFetchInstrumentation(networkOptions));
   // axios and other XHR clients; fetch's own XHR is skipped (traced by the fetch wrapper).

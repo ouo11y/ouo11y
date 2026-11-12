@@ -2,6 +2,7 @@ import { requireCredentials, resolveEndpoints, type ResolvedEndpoints } from "./
 import { DEFAULT_SELF_DISABLE_THRESHOLD } from "./guard";
 import { sampleRate } from "./sampling";
 import { DEFAULT_BACKGROUND_TIMEOUT_MS, DEFAULT_INACTIVITY_TIMEOUT_MS, DEFAULT_MAX_DURATION_MS } from "./session/manager";
+import type { UrlPrivacy } from "./privacy";
 import type { BeforeSend, RUMOptions, ServiceOptions } from "./types";
 
 /** Spec CFG-2: inactivity and background timeouts are at least a minute, the maximum duration at most a day. */
@@ -21,6 +22,7 @@ export interface Config {
   shutdownDeadlineMs: number;
   fatalFlushTimeoutMs: number;
   beforeSend: BeforeSend | undefined;
+  urlPrivacy: UrlPrivacy;
   registerGlobal: boolean;
   debug: boolean;
   options: RUMOptions;
@@ -111,6 +113,13 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
     if (typeof options.beforeSend === "function") beforeSend = options.beforeSend;
     else if (options.beforeSend !== undefined) diagnostics.push("beforeSend is not a function: ignored");
 
+    const privacy = section("privacy");
+    const queryAllow = privacy["urlQueryAllow"];
+    if (queryAllow !== undefined && !Array.isArray(queryAllow)) diagnostics.push("privacy.urlQueryAllow is not an array: ignored");
+    let sanitizeUrl: ((url: string) => string) | undefined;
+    if (typeof options.sanitizeUrl === "function") sanitizeUrl = options.sanitizeUrl;
+    else if (options.sanitizeUrl !== undefined) diagnostics.push("sanitizeUrl is not a function: ignored");
+
     return {
       config: {
         endpoints,
@@ -126,6 +135,11 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
         shutdownDeadlineMs: duration("transport.shutdownDeadlineMs", transport["shutdownDeadlineMs"], DEFAULT_SHUTDOWN_DEADLINE_MS, 0, 30_000),
         fatalFlushTimeoutMs: duration("errors.fatalFlushTimeoutMs", errors["fatalFlushTimeoutMs"], DEFAULT_FATAL_FLUSH_TIMEOUT_MS, 0, 30_000),
         beforeSend,
+        urlPrivacy: {
+          queryAllow: Array.isArray(queryAllow) ? queryAllow.filter((k): k is string => typeof k === "string") : [],
+          keepFragment: privacy["keepUrlFragment"] === true,
+          hook: sanitizeUrl,
+        },
         registerGlobal: otel["registerGlobal"] === true,
         debug: options.debug === true,
         options,
