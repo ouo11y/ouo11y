@@ -114,7 +114,8 @@ describe("XMLHttpRequest instrumentation (axios and other XHR clients)", () => {
     });
     expect(span!.status.code).toBe(0);
     expect(emitted).toHaveLength(0);
-    expect(onActivity).toHaveBeenCalledTimes(1);
+    // A request is not session activity (spec SES-5).
+    expect(onActivity).not.toHaveBeenCalled();
     uninstall();
   });
 

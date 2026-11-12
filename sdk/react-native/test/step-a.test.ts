@@ -399,7 +399,7 @@ describe("drop counting (ERR-7, ERR-9)", () => {
     try {
       const counter = new DropCounter();
       const reports: string[][] = [];
-      counter.onReport((list) => reports.push(list.map((d) => `${d.signal}/${d.reason}=${d.count}`)));
+      counter.onReport((list) => void reports.push(list.map((d) => `${d.signal}/${d.reason}=${d.count}`)));
       for (let i = 0; i < 1000; i++) counter.count("log", "sampling");
       counter.count("span", "queue_full", 3);
       counter.count("log", "sampling", 0);

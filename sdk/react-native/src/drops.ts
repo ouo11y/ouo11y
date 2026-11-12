@@ -47,7 +47,8 @@ export interface DropCount {
   count: number;
 }
 
-export type DropListener = (drops: DropCount[]) => void;
+/** Returns false when the counts could not be reported now (no session to report them on): they are kept for the next report. */
+export type DropListener = (drops: DropCount[]) => boolean | void;
 
 /** True for the SDK's own drop event: never counted, so reporting cannot feed itself. */
 export function isDropEvent(name: unknown): boolean {
@@ -95,8 +96,7 @@ export class DropCounter {
     this.timer = undefined;
     if (this.pending.size === 0 || !this.report || this.stopped) return;
     const drops = Array.from(this.pending.values());
-    this.pending.clear();
-    this.report(drops);
+    if (this.report(drops) !== false) this.pending.clear();
   }
 
   /** No more reports; counting goes on (totals). */

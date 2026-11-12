@@ -26,6 +26,19 @@ export interface TracingOptions {
   ignoreUrls?: Array<RegExp | string>;
 }
 
+export interface SamplingOptions {
+  /** The spec's name for `session.sampleRate`; wins when both are set. */
+  sessionRate?: number;
+  bypass?: {
+    /**
+     * An unsampled session still sends its unhandled exceptions, crashes and hangs, marked
+     * `ouo.sampling.bypass = true`: at most this many per session (crashes are not capped).
+     * Default 10.
+     */
+    perSessionCap?: number;
+  };
+}
+
 export interface PropagationOptions {
   /**
    * Also send W3C `baggage: session.id=<id>` on the requests that get `traceparent`
@@ -45,8 +58,10 @@ export interface SessionOptions {
   /**
    * Fraction of sessions whose telemetry (spans, events, logs, errors) and replay are sent,
    * 0 to 1. Default 1. The decision is a deterministic hash of the session id (the rule
-   * rum-api applies for a per-project server-side cap), so it holds for the whole session
-   * and a session never sends part of its signals.
+   * rum-api applies for a per-project server-side cap), made once when the session starts and
+   * kept with it. A session outside the sample sends only its bypass set (unhandled exceptions,
+   * crashes, hangs; see `sampling.bypass`), and its requests still carry `traceparent`, with
+   * the sampled flag clear.
    */
   sampleRate?: number;
 }
@@ -364,6 +379,7 @@ export interface RUMOptions {
   service: ServiceOptions;
   tracing?: TracingOptions;
   propagation?: PropagationOptions;
+  sampling?: SamplingOptions;
   replay?: ReplayOptions;
   session?: SessionOptions;
   user?: UserOptions;

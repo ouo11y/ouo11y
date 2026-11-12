@@ -317,7 +317,8 @@ describe("SessionManager (docs/specs/session-lifecycle.md, mobile)", () => {
     expect(third.events[0]!.attributes["user.id"]).toBe("user-42");
   });
 
-  it("persists activity at most once per second and immediately on structural changes", async () => {
+  // Spec SES-6: at most once per 5 s (it was once per second).
+  it("persists activity at most once per 5 s and immediately on structural changes", async () => {
     const storage = new MemoryAsyncStorage();
     const spy = vi.spyOn(storage, "setItem");
     const { manager } = launch(storage);
@@ -325,7 +326,7 @@ describe("SessionManager (docs/specs/session-lifecycle.md, mobile)", () => {
     spy.mockClear();
     manager.touch();
     manager.touch();
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(4500);
     manager.touch();
     expect(spy.mock.calls.filter((c) => c[0] === SESSION_STORAGE_KEY)).toHaveLength(0);
     vi.advanceTimersByTime(600);

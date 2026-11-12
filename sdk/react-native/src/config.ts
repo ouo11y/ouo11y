@@ -1,6 +1,6 @@
 import { requireCredentials, resolveEndpoints, type ResolvedEndpoints } from "./endpoints";
 import { DEFAULT_SELF_DISABLE_THRESHOLD } from "./guard";
-import { sampleRate } from "./sampling";
+import { DEFAULT_BYPASS_PER_SESSION_CAP, sampleRate } from "./sampling";
 import { DEFAULT_BACKGROUND_TIMEOUT_MS, DEFAULT_INACTIVITY_TIMEOUT_MS, DEFAULT_MAX_DURATION_MS } from "./session/manager";
 import type { UrlPrivacy } from "./privacy";
 import { DEFAULT_MAX_REQUEST_BYTES } from "./transport/exporter";
@@ -19,6 +19,7 @@ export interface Config {
   projectToken: string;
   service: ServiceOptions;
   session: { inactivityTimeoutMs: number; maxDurationMs: number; backgroundTimeoutMs: number; sampleRate: number };
+  bypassPerSessionCap: number;
   selfDisableThreshold: number;
   shutdownDeadlineMs: number;
   maxRequestBytes: number;
@@ -106,6 +107,8 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
     };
 
     const session = section("session");
+    const sampling = section("sampling");
+    const bypass = isObject(sampling["bypass"]) ? sampling["bypass"] : {};
     const transport = section("transport");
     const errors = section("errors");
     const diagnosticsOptions = section("diagnostics");
@@ -131,8 +134,10 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
           inactivityTimeoutMs: duration("session.inactivityTimeoutMs", session["inactivityTimeoutMs"], DEFAULT_INACTIVITY_TIMEOUT_MS, MIN_TIMEOUT_MS, Infinity),
           maxDurationMs: duration("session.maxDurationMs", session["maxDurationMs"], DEFAULT_MAX_DURATION_MS, MIN_TIMEOUT_MS, MAX_SESSION_DURATION_MS),
           backgroundTimeoutMs: duration("session.backgroundTimeoutMs", session["backgroundTimeoutMs"], DEFAULT_BACKGROUND_TIMEOUT_MS, MIN_TIMEOUT_MS, Infinity),
-          sampleRate: rate("session.sampleRate", session["sampleRate"], 1),
+          // `sampling.sessionRate` is the spec's name; `session.sampleRate` the one this SDK had.
+          sampleRate: sampling["sessionRate"] !== undefined ? rate("sampling.sessionRate", sampling["sessionRate"], 1) : rate("session.sampleRate", session["sampleRate"], 1),
         },
+        bypassPerSessionCap: Math.floor(duration("sampling.bypass.perSessionCap", bypass["perSessionCap"], DEFAULT_BYPASS_PER_SESSION_CAP, 1, 1000)),
         selfDisableThreshold: Math.floor(duration("diagnostics.selfDisableThreshold", diagnosticsOptions["selfDisableThreshold"], DEFAULT_SELF_DISABLE_THRESHOLD, 1, Infinity)),
         shutdownDeadlineMs: duration("transport.shutdownDeadlineMs", transport["shutdownDeadlineMs"], DEFAULT_SHUTDOWN_DEADLINE_MS, 0, 30_000),
         maxRequestBytes: Math.floor(duration("transport.maxRequestBytes", transport["maxRequestBytes"], DEFAULT_MAX_REQUEST_BYTES, 1024, 16 * 1024 * 1024)),

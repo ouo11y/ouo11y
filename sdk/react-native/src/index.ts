@@ -6,7 +6,7 @@ const shims = installShims();
 import { context, diag, DiagLogLevel, propagation, ProxyTracerProvider, trace, type DiagLogger, type Span, type TracerProvider } from "@opentelemetry/api";
 import { createNoopLogger, logs, type LoggerProvider as LoggerProviderApi } from "@opentelemetry/api-logs";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
-import { BasicTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { BasicTracerProvider, BatchSpanProcessor, SamplingDecision } from "@opentelemetry/sdk-trace-base";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 
@@ -289,6 +289,7 @@ function build(
     backgroundTimeoutMs: config.session.backgroundTimeoutMs,
     ...(initialUserId ? { initialUserId } : {}),
     serviceVersion,
+    sampleRate: sessionSampleRate,
     logger,
     ...(crashed ? { nativeCrash: crashMarker(crashed) } : {}),
     onEvent: (event) => events.emit(event.name, event.attributes, "info", event.timestamp),
@@ -297,6 +298,11 @@ function build(
       nativeCrash.setSessionId(next.id, next.startedAt);
     },
   });
+
+  // SMP-1: the decision persisted with the session, for the records of the current and the last session.
+  const sessionDecision = (id: string): boolean | undefined => session.sampledFor(id);
+  // LIF-13: a background launch (a push, a background fetch) starts no session and no replay.
+  const foreground = AppState.currentState !== "background";
 
   const resource = buildResource(config.service, options.device && typeof options.device === "object" ? options.device : {}, primitiveAttributes(options.resource));
   // `setGlobalAttributes`: on every later span and log record.
@@ -340,6 +346,8 @@ function build(
             }),
             sessionSampleRate,
             drops,
+            sessionDecision,
+            config.bypassPerSessionCap,
           ),
         ], sanitizeUrl),
         () => drops.count("log", "self_disabled"),
@@ -348,13 +356,28 @@ function build(
   });
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
   drops.onReport((list) => {
+    // Without a valid session the report would be dropped itself: kept until there is one.
+    if (!session.active()) return false;
     for (const d of list) events.emit(DROP_EVENT, { "ouo.sdk.drop.reason": d.reason, "ouo.sdk.drop.signal": d.signal, "ouo.sdk.drop.count": d.count });
+    return true;
   });
 
   // ---- traces ----
   const traceExporter = createTraceExporter(endpoints.traces, outbox, limits);
   const tracerProvider = new BasicTracerProvider({
     resource,
+    // PRP-4, SMP-4: the sampled flag of every span (and of the `traceparent` it propagates) is the
+    // session's decision. An unsampled span is still recorded, so its request is still traced
+    // downstream with the flag clear; it is not exported.
+    sampler: {
+      shouldSample: () => ({
+        decision: guard.run("sampler", () => {
+          const current = session.active();
+          return current && current.sampled !== false ? SamplingDecision.RECORD_AND_SAMPLED : SamplingDecision.RECORD;
+        }, SamplingDecision.RECORD),
+      }),
+      toString: () => "OuoSessionSampler",
+    },
     spanProcessors: [
       guarded("processor.session", new SessionSpanProcessor(session, serviceVersion, globals), () => {}),
       guarded(
@@ -372,6 +395,7 @@ function build(
             }),
             sessionSampleRate,
             drops,
+            sessionDecision,
           ),
           sanitizeUrl,
         ),
@@ -395,7 +419,7 @@ function build(
   const reported = new ReportedErrors();
   const emitException = (error: unknown, own: Attrs, at: number = Date.now()): void => {
     replay.onError();
-    const attrs = { ...screenContextAttributes(screenContext(session.id())), ...deviceContextAttributes(locale, nativeModule as NativeErrorContextModule | undefined, logger), ...own };
+    const attrs = { ...screenContextAttributes(screenContext(session.active()?.id ?? "")), ...deviceContextAttributes(locale, nativeModule as NativeErrorContextModule | undefined, logger), ...own };
     const link = linker.contextFor(error);
     if (!link) {
       events.emit("exception", attrs, "error", at);
@@ -445,13 +469,13 @@ function build(
   const ready = guard.run(
     "ready",
     () =>
-      session.start().then(async () => {
+      session.start(foreground).then(async () => {
         vitals.sessionReady();
         // What earlier runs could not send: OTLP batches, and the replay chunks they held.
         void outbox.drain();
         const ended = session.peekLastEnded();
-        void guard.run("replay.held", () => replay.decideHeld(session.id(), ended?.endReason === "crash" ? ended.id : undefined));
-        logger.log("session ready", session.id(), "previous", session.previousId() ?? null);
+        void guard.run("replay.held", () => replay.decideHeld(session.peek()?.id ?? "", ended?.endReason === "crash" ? ended.id : undefined));
+        logger.log("session ready", session.peek()?.id ?? null, "previous", session.peek()?.previousId ?? null);
         if (crashed && !isReactNativeFatal(crashed)) {
           // The crashed session's fatal exception (ADR-0004: crashed), stamped at the crash time. Its
           // session.end (reason crash, same time) was emitted by the cold start just before.
@@ -470,10 +494,12 @@ function build(
   );
   const onActivity = (): void => session.touch();
   // The native recorder keys chunks by the session id it is told; rotations arrive through onRotate.
-  replay.start(session.id());
+  const first = session.peek();
+  if (first) replay.start(first.id);
   hooks.push(() => replay.stop());
   // After Sentry.init when both run: ouo's handlers then run first and chain to Sentry's.
-  nativeCrash.install(session.id(), session.startedAt());
+  // In a background launch there is no session yet: its id arrives through onRotate.
+  nativeCrash.install(first?.id ?? "", first?.startedAt ?? Date.now());
 
   // ---- instrumentation ----
   const patterns = (v: unknown): Array<RegExp | string> => (Array.isArray(v) ? v.filter((p) => typeof p === "string" || p instanceof RegExp) : []);
@@ -494,7 +520,6 @@ function build(
     logger,
     propagateTo: patterns(options.tracing?.propagateTo),
     ignoreUrls,
-    onActivity,
     requestEvents: timeline.requests,
     linker,
     propagator,
@@ -578,7 +603,7 @@ function build(
     replayChunks: replay.active ? endpoints.replayChunks : null,
     replayEndpointDerived: endpoints.replayEndpointDerived,
     projectId,
-    session: session.id(),
+    session: first?.id ?? null,
     sampling: { session: sessionSampleRate, replay: replayOptions?.sampleRate ?? 1, replayOnError: replayOptions?.onErrorSampleRate ?? 0 },
   });
 
@@ -725,7 +750,8 @@ function build(
       hideScreen: api("replay.hideScreen", () => replay.hideScreen()),
       showScreen: api("replay.showScreen", () => replay.showScreen()),
       start: api("replay.start", () => {
-        replay.start(session.id());
+        const current = session.active();
+        if (current) replay.start(current.id);
         replay.resume();
       }),
       stop: api("replay.stop", () => {
@@ -738,13 +764,14 @@ function build(
       unmask: api("replay.unmask", (target: unknown) => replay.forward("unmask", target)),
     },
     session: {
-      id: api("session.id", () => session.id(), ""),
+      // The valid session's id, else the last one's: reading it is not activity and starts no session.
+      id: api("session.id", () => session.active()?.id ?? session.peekLastEnded()?.id ?? "", ""),
       userId: api("session.userId", () => session.userId(), ""),
-      previousId: api("session.previousId", () => session.previousId()),
+      previousId: api("session.previousId", () => session.active()?.previousId),
     },
     ready,
     flush: api("flush", flush, RESOLVED),
-    getSessionId: api("getSessionId", () => session.id()),
+    getSessionId: api("getSessionId", () => session.active()?.id),
     restartSession: api("restartSession", () => session.restart()),
     // Not through `api`: shutdown also has to work once the SDK disabled itself.
     shutdown: () => guard.host("shutdown", () => close(true).catch(() => undefined), RESOLVED),

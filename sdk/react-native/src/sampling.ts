@@ -68,27 +68,52 @@ function queueFull(batch: unknown): boolean {
   return queue !== undefined && typeof b._maxQueueSize === "number" && queue.length >= b._maxQueueSize;
 }
 
+/** The decision of a session: the one persisted with it (spec SMP-1), else the hash of its id. */
+export type SessionDecision = (sessionId: string) => boolean | undefined;
+
+export const DEFAULT_BYPASS_PER_SESSION_CAP = 10;
+
 /**
  * Forwards a log record to `inner` only when its session is in the session sample. Runs after
  * `SessionLogProcessor`, which stamps `session.id` on every record.
+ *
+ * An unsampled session still sends its bypass set (spec SMP-3, SMP-5): each such record is
+ * marked `ouo.sampling.bypass = true` (SMP-6), and at most `bypassCap` of them go out per
+ * session; fatal ones (a crash: at most one per session) are not capped (SMP-7).
  */
 export class SampledLogProcessor implements LogRecordProcessor {
+  private bypassed: { session: string; count: number } | undefined;
+
   constructor(
     private readonly inner: LogRecordProcessor,
     private readonly rate: number,
     private readonly drops?: DropCounter,
+    private readonly decision?: SessionDecision,
+    private readonly bypassCap: number = DEFAULT_BYPASS_PER_SESSION_CAP,
   ) {}
 
   onEmit(record: SdkLogRecord, context?: Context): void {
     const id = sessionOf(record.attributes);
     // The SDK's own drop report is never counted as a drop (it would report itself).
     const counted = this.drops && !isDropEvent(record.attributes["event.name"]) ? this.drops : undefined;
-    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) {
-      counted?.count("log", "sampling");
-      return;
+    if (id !== undefined && !(this.decision?.(id) ?? sampled(id, this.rate, SAMPLING_SALT.session))) {
+      if (!this.bypass(id, record.attributes)) {
+        counted?.count("log", "sampling");
+        return;
+      }
+      record.setAttribute("ouo.sampling.bypass", true);
     }
     if (counted && queueFull(this.inner)) counted.count("log", "queue_full");
     this.inner.onEmit(record, context);
+  }
+
+  private bypass(id: string, attributes: Record<string, unknown>): boolean {
+    if (!isBypassRecord(attributes)) return false;
+    if (attributes["ouo.exception.fatal"] === true) return true;
+    if (this.bypassed?.session !== id) this.bypassed = { session: id, count: 0 };
+    if (this.bypassed.count >= this.bypassCap) return false;
+    this.bypassed.count++;
+    return true;
   }
 
   forceFlush(): Promise<void> {
@@ -106,6 +131,7 @@ export class SampledSpanProcessor implements SpanProcessor {
     private readonly inner: SpanProcessor,
     private readonly rate: number,
     private readonly drops?: DropCounter,
+    private readonly decision?: SessionDecision,
   ) {}
 
   onStart(span: Span, parentContext: Context): void {
@@ -114,7 +140,7 @@ export class SampledSpanProcessor implements SpanProcessor {
 
   onEnd(span: ReadableSpan): void {
     const id = sessionOf(span.attributes);
-    if (id !== undefined && !sampled(id, this.rate, SAMPLING_SALT.session)) {
+    if (id !== undefined && !(this.decision?.(id) ?? sampled(id, this.rate, SAMPLING_SALT.session))) {
       this.drops?.count("span", "sampling");
       return;
     }

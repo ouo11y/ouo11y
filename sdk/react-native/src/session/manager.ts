@@ -2,6 +2,7 @@ import type { DebugLogger } from "../logger";
 import type { AsyncKeyValueStorage, Attrs } from "../types";
 import type { Clock } from "./clock";
 import { systemClock } from "./clock";
+import { SAMPLING_SALT, sampled } from "../sampling";
 import { uuidv4 } from "./ids";
 import { withTimeout } from "./storage";
 
@@ -11,8 +12,8 @@ export const CRASH_STORAGE_KEY = "ouo.crash";
 export const DEFAULT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_MAX_DURATION_MS = 4 * 60 * 60 * 1000;
 export const DEFAULT_BACKGROUND_TIMEOUT_MS = 30 * 1000;
-/** Activity is persisted at most once per second (spec: activity rules). */
-const PERSIST_THROTTLE_MS = 1000;
+/** The last-activity time is written to storage at most once per 5 s (spec SES-6). */
+export const PERSIST_THROTTLE_MS = 5000;
 /** A hung AsyncStorage read must not delay `session.start` for longer than this. */
 const STORAGE_READ_TIMEOUT_MS = 1500;
 
@@ -32,6 +33,8 @@ export interface SessionRecord {
   backgroundAt?: number;
   endedAt?: number;
   endReason?: EndReason;
+  /** The sampling decision, made once when the session started (spec SMP-1). Absent in records of older SDKs. */
+  sampled?: boolean;
 }
 
 /** What is persisted under `ouo.crash` by the fatal error handler. */
@@ -86,6 +89,8 @@ export interface SessionManagerOptions {
   initialUserId?: string;
   /** Stored with the session record and copied onto its session.end. */
   serviceVersion?: string;
+  /** `session.sampleRate`, 0 to 1: decided per session at its start and kept with it. Default 1. */
+  sampleRate?: number;
   /** Defaults to a global per process; injectable so tests can simulate a cold start. */
   process?: ProcessState;
   /**
@@ -122,6 +127,9 @@ export class SessionManager {
   private readonly serviceVersion: string | undefined;
   private readonly logger: DebugLogger | undefined;
   private readonly nativeCrash: CrashMarker | undefined;
+  private readonly sampleRate: number;
+  /** Made up once for bypass records when no session id is known at all (spec SES-10). */
+  private orphanId: string | undefined;
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
@@ -145,6 +153,7 @@ export class SessionManager {
     this.serviceVersion = options.serviceVersion;
     this.logger = options.logger;
     this.nativeCrash = options.nativeCrash;
+    this.sampleRate = options.sampleRate ?? 1;
     this.user = this.initialUser(options.initialUserId);
   }
 
@@ -154,13 +163,17 @@ export class SessionManager {
    * run is ended (`crash` / `inactivity` / `max_duration` / `background` / `terminated`)
    * and `session.start` is emitted with `session.previous_id`.
    */
-  start(): Promise<void> {
+  start(foreground = true): Promise<void> {
     if (this.startPromise) return this.startPromise;
-    this.startPromise = this.doStart();
+    this.startPromise = this.doStart(foreground);
     return this.startPromise;
   }
 
-  private doStart(): Promise<void> {
+  /**
+   * `foreground` false is a background launch (a push, a background fetch): the previous run's
+   * session is still closed, but no session starts until the first activity (spec LIF-13).
+   */
+  private doStart(foreground: boolean): Promise<void> {
     const now = this.clock.now();
 
     const cached = this.process.record;
@@ -174,13 +187,41 @@ export class SessionManager {
         return Promise.resolve();
       }
       this.end(cached, reason, now);
-      this.create(now, true);
+      if (foreground) this.create(now, true);
       return Promise.resolve();
     }
 
     // Cold start: new session now, session.start once the previous run's record is known.
-    const rec = this.create(now, false);
-    return this.resolveColdStart(rec);
+    return this.resolveColdStart(foreground ? this.create(now, false) : null, now);
+  }
+
+  /**
+   * The valid session, without creating one (spec SES-10: telemetry, timers and network never
+   * start a session; activity does, through `touch`). An expired session is ended here.
+   */
+  active(): SessionRecord | undefined {
+    const rec = this.current;
+    if (!rec) return undefined;
+    const now = this.clock.now();
+    const reason = this.expiredReason(rec, now);
+    if (!reason) return rec;
+    this.expire(rec, reason, now);
+    return this.current ?? undefined;
+  }
+
+  /**
+   * The session id for a bypass-set record emitted while no session is valid (SES-10): the last
+   * session's, or one made up for the purpose (no `session.start` is emitted for it).
+   */
+  lastId(): string {
+    return this.current?.id ?? this.lastEnded?.id ?? (this.orphanId ??= uuidv4());
+  }
+
+  /** The sampling decision of a session this manager knows (the current or the last ended one). */
+  sampledFor(id: string): boolean | undefined {
+    if (this.current?.id === id) return this.current.sampled;
+    if (this.lastEnded?.id === id) return this.lastEnded.sampled;
+    return undefined;
   }
 
   /** Active session id. Lazily creates a session when the previous one has ended. */
@@ -303,7 +344,7 @@ export class SessionManager {
 
   // ---- internals ----
 
-  private async resolveColdStart(rec: SessionRecord): Promise<void> {
+  private async resolveColdStart(rec: SessionRecord | null, now: number): Promise<void> {
     const [rawSession, rawCrash, rawUser] = await withTimeout(
       Promise.all([
         this.storage.getItem(SESSION_STORAGE_KEY),
@@ -323,7 +364,7 @@ export class SessionManager {
         // No user given at init: the user an earlier run set with `setUser` is still the user.
         this.user = { id: persistedUser.id, anonymous: false };
         this.process.user = this.user;
-        rec.userId = this.user.id;
+        if (rec) rec.userId = this.user.id;
       } else {
         // An anonymous id written by an older SDK: not used any more (PRV-13), and removed.
         void this.storage.removeItem(USER_STORAGE_KEY);
@@ -331,25 +372,27 @@ export class SessionManager {
     }
 
     const crash = this.pickCrash(jsCrash, persisted);
-    if (persisted && persisted.id !== rec.id) {
+    // A session created meanwhile (the app came to the foreground during a background launch's read).
+    const mine = rec ?? this.current;
+    if (persisted && persisted.id !== mine?.id) {
       if (!persisted.endedAt) {
         const reason = this.coldStartReason(persisted, crash);
-        const endedAt = this.coldStartEndedAt(persisted, reason, crash, rec.startedAt);
+        const endedAt = this.coldStartEndedAt(persisted, reason, crash, rec?.startedAt ?? now);
         this.endPersisted(persisted, reason, endedAt);
-      } else {
+      } else if (!this.lastEnded) {
         this.lastEnded = persisted;
       }
-      rec.previousId = persisted.id;
+      if (rec) rec.previousId = persisted.id;
     }
-    const lost = this.crashedUnpersisted(persisted, rec);
+    const lost = this.crashedUnpersisted(persisted, mine?.id, rec?.startedAt ?? now);
     if (lost) {
       this.endPersisted(lost, "crash", lost.lastActivity);
-      rec.previousId = lost.id;
+      if (rec) rec.previousId = lost.id;
     }
     if (jsCrash) void this.storage.removeItem(CRASH_STORAGE_KEY);
 
     this.pendingStart = null;
-    if (this.current === rec) {
+    if (rec && this.current === rec) {
       this.persist(rec, true);
       this.emitStart(rec);
       this.onRotate?.(rec, rec.previousId);
@@ -372,10 +415,10 @@ export class SessionManager {
    * write landed, in its first second). Rebuilt from the crash report so it still ends, from its
    * start, with reason crash.
    */
-  private crashedUnpersisted(persisted: SessionRecord | null, rec: SessionRecord): SessionRecord | null {
+  private crashedUnpersisted(persisted: SessionRecord | null, currentId: string | undefined, now: number): SessionRecord | null {
     const native = this.nativeCrash;
-    if (!native?.sessionId || native.sessionId === rec.id || native.sessionId === persisted?.id) return null;
-    const at = Math.min(native.at, rec.startedAt);
+    if (!native?.sessionId || native.sessionId === currentId || native.sessionId === persisted?.id) return null;
+    const at = Math.min(native.at, now);
     const startedAt = native.startedAt !== undefined && native.startedAt <= at ? native.startedAt : at;
     const lost: SessionRecord = { id: native.sessionId, startedAt, lastActivity: at, userId: this.userId() };
     if (this.serviceVersion !== undefined) lost.serviceVersion = this.serviceVersion;
@@ -415,6 +458,17 @@ export class SessionManager {
     return this.create(now, true);
   }
 
+  /**
+   * Ends an expired session. At the maximum duration with the app in the foreground the user is
+   * present: the next session starts at once, linked to it (spec SES-9). Otherwise the next one
+   * starts with the next activity.
+   */
+  private expire(rec: SessionRecord, reason: EndReason, now: number): void {
+    const present = reason === "max_duration" && rec.backgroundAt === undefined;
+    this.end(rec, reason, now);
+    if (present) this.create(now, true);
+  }
+
   /** Earliest deadline wins: inactivity, max duration, or background stay (when backgrounded). */
   private expiredReason(rec: SessionRecord, now: number): EndReason | undefined {
     const deadlines: Array<[EndReason, number]> = [
@@ -435,6 +489,8 @@ export class SessionManager {
       lastActivity: now,
       userId: this.userId(),
     };
+    // SMP-1: decided once, here, and persisted with the session.
+    rec.sampled = sampled(rec.id, this.sampleRate, SAMPLING_SALT.session);
     if (this.serviceVersion !== undefined) rec.serviceVersion = this.serviceVersion;
     if (previousId) rec.previousId = previousId;
     this.current = rec;
@@ -454,6 +510,8 @@ export class SessionManager {
     const attributes: Attrs = {
       "session.id": rec.id,
       "ouo.session.started_at": rec.startedAt,
+      // Lets consumers scale counts of sampled sessions (spec SMP-3).
+      "ouo.session.sample_rate": this.sampleRate,
     };
     if (rec.userId) attributes["user.id"] = rec.userId;
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
@@ -525,8 +583,9 @@ export class SessionManager {
     const now = this.clock.now();
     const reason = this.expiredReason(rec, now);
     if (reason) {
-      // Ended lazily: the replacement session is created on the next activity.
-      this.end(rec, reason, now);
+      // Ended lazily (the replacement session is created on the next activity), except at the
+      // maximum duration with the user present.
+      this.expire(rec, reason, now);
     } else {
       this.schedule();
     }

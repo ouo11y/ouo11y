@@ -67,7 +67,7 @@ describe("url helpers", () => {
 });
 
 describe("fetch instrumentation", () => {
-  it("creates a CLIENT span with HTTP attributes and counts activity", async () => {
+  it("creates a CLIENT span with HTTP attributes; a request is not activity", async () => {
     const { exporter, emitted, onActivity, uninstall } = setup();
     const res = await fetch("http://localhost:8082/api/products", { method: "get" });
     expect(res.status).toBe(200);
@@ -83,7 +83,8 @@ describe("fetch instrumentation", () => {
       "url.path": "/api/products",
       "http.response.status_code": 200,
     });
-    expect(onActivity).toHaveBeenCalledTimes(1);
+    // A request is not session activity (spec SES-5).
+    expect(onActivity).not.toHaveBeenCalled();
     expect(emitted).toHaveLength(0);
     uninstall();
     expect(globalThis.fetch).toBe(fetchMock);

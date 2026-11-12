@@ -75,6 +75,11 @@ export class LogGate implements LogRecordProcessor {
     this.first.onEmit(record, context);
     const attributes = record.attributes as Record<string, unknown>;
     const name = String(attributes["event.name"] ?? record.eventName ?? "log");
+    // SES-10: no valid session and not a bypass-set record.
+    if (attributes["session.id"] === undefined) {
+      if (!isDropEvent(name)) this.drops.count("log", "no_session");
+      return;
+    }
     sanitizeUrls(attributes, this.sanitize);
     if (!isDropEvent(name)) {
       const out = decide(this.hook, () => ({ type: "log", name, ...(typeof record.body === "string" ? { body: record.body } : {}), attributes: { ...attributes } as Record<string, AttrValue> }), this.drops, "log");
@@ -114,6 +119,11 @@ export class SpanGate implements SpanProcessor {
   onEnd(span: ReadableSpan): void {
     // An ended span is read-only through its API; its attribute map is still the one exported.
     const attributes = span.attributes as Record<string, unknown>;
+    // SES-10: the span started while no session was valid.
+    if (attributes["session.id"] === undefined) {
+      this.drops.count("span", "no_session");
+      return;
+    }
     sanitizeUrls(attributes, this.sanitize);
     const out = decide(this.hook, () => ({ type: "span", name: span.name, attributes: { ...attributes } as Record<string, AttrValue> }), this.drops, "span");
     if (out === "drop") return;

@@ -320,6 +320,8 @@ describe("session sampling (8b)", () => {
     expect(captured.requests.some((r) => r.url === `${BACKEND}/api/products`)).toBe(true);
     await off._uninstall();
 
+    // A new process: within one, a re-init resumes the session, and its sampling decision with it (spec SMP-1).
+    delete g.__ouoSessionProcessState;
     const on = initRUM({ ...makeOptions(new MemoryAsyncStorage()), session: { sampleRate: 1 } }) as RUMInternal;
     await on.ready;
     on.addEvent("cart.added");

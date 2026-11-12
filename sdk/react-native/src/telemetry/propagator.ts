@@ -19,12 +19,14 @@ export class SessionPropagator implements TextMapPropagator {
   ) {}
 
   inject(context: Context, carrier: unknown, setter: TextMapSetter): void {
-    if (!this.sessionBaggage) {
+    // The valid session's id, as on the records; none while no session is valid.
+    const id = this.session.active()?.id;
+    if (!this.sessionBaggage || !id) {
       this.inner.inject(context, carrier, setter);
       return;
     }
     const existing = propagation.getBaggage(context) ?? propagation.createBaggage();
-    this.inner.inject(propagation.setBaggage(context, existing.setEntry("session.id", { value: this.session.id() })), carrier, setter);
+    this.inner.inject(propagation.setBaggage(context, existing.setEntry("session.id", { value: id })), carrier, setter);
   }
 
   extract(context: Context, carrier: unknown, getter: TextMapGetter): Context {

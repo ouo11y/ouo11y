@@ -12,8 +12,8 @@ export interface NetworkOptions {
   logger: DebugLogger;
   propagateTo: Array<RegExp | string>;
   ignoreUrls: Array<RegExp | string>;
-  /** Called on every outbound request (activity rule). */
-  onActivity: () => void;
+  /** @deprecated Not called: network requests are not session activity (spec SES-5). */
+  onActivity?: () => void;
   /** Emit `http.request` for answered requests below 500 (timeline, checklist G4). Default false. */
   requestEvents?: boolean;
   /** Remembers failed requests and rejected errors, so errors carry the request's trace (G5). */
@@ -143,7 +143,8 @@ function startClientSpan(tracer: Tracer, method: string, url: string): Span {
 
 /**
  * Wraps `globalThis.fetch`: one CLIENT span per request, `traceparent` + `baggage` on
- * matching URLs, `http.request.failed` on 5xx / network failure, session activity.
+ * matching URLs, `http.request.failed` on 5xx / network failure. A request is not session
+ * activity (spec SES-5).
  * The original is kept on `fetch.__original` so the OTLP exporter bypasses the wrapper.
  */
 export function installFetchInstrumentation(opts: NetworkOptions): () => void {
@@ -154,7 +155,7 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
     return () => {};
   }
   if (original.__ouo) return () => {};
-  const { tracer, events, onActivity } = opts;
+  const { tracer, events } = opts;
 
   const emitFailed = failedRequestEmitter(events, opts.linker);
   const emitRequest = requestEmitter(opts);
@@ -166,7 +167,6 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
     const before = guard.run("fetch.before", () => {
       const url = requestUrl(input);
       if (matchesAny(url, opts.ignoreUrls)) return undefined;
-      onActivity();
       const method = requestMethod(input, init);
       // What is recorded is the sanitised URL; matching and the request use the real one.
       const recorded = opts.sanitizeUrl ? opts.sanitizeUrl(url) : url;
@@ -278,7 +278,7 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
     return () => {};
   }
   if (proto.__ouo) return () => {};
-  const { tracer, events, onActivity } = opts;
+  const { tracer, events } = opts;
   const emitFailed = failedRequestEmitter(events, opts.linker);
   const emitRequest = requestEmitter(opts);
   const original = { open: proto.open, setRequestHeader: proto.setRequestHeader, send: proto.send };
@@ -308,7 +308,6 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
     const onSendError = guard.run("xhr.send", () => {
       const state = this.__ouoXhr;
       if (!state || state.skip) return undefined;
-      onActivity();
       const { method } = state;
       const url = opts.sanitizeUrl ? opts.sanitizeUrl(state.url) : state.url;
       const span = startClientSpan(tracer, method, url);
