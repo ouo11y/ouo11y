@@ -22,8 +22,28 @@ A: the names, scope, session id and sampling rules, protobuf and replay over OTL
 - Debug output no longer prints event attributes, the user id or the first characters of the
   project token; the double-init warning is printed only with `debug`.
 
+- Sessions start only on activity (touch, navigation, foreground): requests, timers and
+  telemetry no longer extend or start one, and while none is valid records are dropped
+  (`no_session`). A background launch starts no session. At the maximum duration in the
+  foreground the next session starts at once. The last activity is persisted every 5 s at most.
+- An unsampled session now sends its bypass set (unhandled exceptions, crashes, hangs, marked
+  `ouo.sampling.bypass`), capped per session; the sampling decision is persisted with the
+  session; unsampled requests propagate `traceparent` with the sampled flag clear.
+- No `baggage` header unless `propagation.sessionBaggage` is set, and then only `session.id`;
+  a request that already has a `traceparent` is never changed.
+- No anonymous `user.id`: records carry `user.id` only after `setUser`; `session.userId()` is
+  `""` until then.
+- Recorded URLs are sanitised: credentials and query values become `REDACTED`, fragments are
+  removed.
+- Delivery: backoff with full jitter up to 300 s (was a fixed doubling up to 30 s),
+  `Retry-After` capped at 300 s.
+
 ### Added
 
+- Consent: `consent.required`, `setConsent({ telemetry, replay })`.
+- `privacy.urlQueryAllow`, `privacy.keepUrlFragment`, `sanitizeUrl`.
+- `sampling.sessionRate`, `sampling.bypass.perSessionCap`, `ouo.session.sample_rate` on
+  `session.start`, `propagation.sessionBaggage`, `transport.maxRequestBytes`.
 - Failure isolation: one guard around every entry point, a fault-injection suite, self-disable
   after `diagnostics.selfDisableThreshold` internal errors.
 - Spec API: `init`, `shutdown`, `flush`, `getSessionId`, `restartSession`, `setUser(id | null)`,
