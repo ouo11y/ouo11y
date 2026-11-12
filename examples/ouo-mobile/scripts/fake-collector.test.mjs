@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { CHUNK_MUST, createCollector, decodeLogsRequest, decodeSpanNames, formatReport } from "./fake-collector.mjs";
+import { CHUNK_MUST, createCollector, decodeLogsRequest, decodeSpanNames, decodeVideoBody, formatReport, mp4Boxes } from "./fake-collector.mjs";
 
 // The cross-platform golden `ouo.replay.chunk` request: the bytes sdk/ios writes
 // (sdk/ios/Tests/OuoReplayCoreTests/ReplayEnvelopeTests.swift, `goldenHex`) and sdk/android must match.
@@ -151,6 +151,48 @@ test("each rule fails on the request that breaks it", () => {
     const rule = name.split(" ")[0];
     assert.equal(r.rules[rule].result, "fail", `${name}: ${formatReport(r)}`);
     assert.equal(r.verdict, "fail", name);
+  }
+});
+
+// ---- ouo-video/1: a header line, then an mp4 (boxes ftyp, moov, mdat) ----
+const box = (type, payload = Buffer.alloc(0)) => {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(8 + payload.length);
+  head.write(type, 4, "latin1");
+  return Buffer.concat([head, payload]);
+};
+const MP4 = Buffer.concat([box("ftyp", Buffer.from("mp42\0\0\0\0mp42isom")), box("moov", Buffer.alloc(16)), box("mdat", Buffer.alloc(32, 7))]);
+const videoBody = (header = {}, mp4 = MP4) =>
+  Buffer.concat([Buffer.from(JSON.stringify({ t: 1, type: "video", end: 5001, w: 402, h: 874, scale: 1, fps: 1, frames: 5, mp4: mp4.length, touches: [{ t: 2, x: 1.5, y: 2, phase: "began" }], ...header }) + "\n"), mp4]);
+const videoChunk = (stream, sequence, body = videoBody(), attributes = {}) =>
+  chunk(stream, sequence, { body, attributes: { "ouo.replay.format": "ouo-video/1", "ouo.replay.encoding": "identity", "ouo.replay.keyframe": true, "ouo.replay.segment.index": sequence, ...attributes } });
+
+test("ouo-video/1: every chunk a segment with a header line and an mp4 passes every rule", () => {
+  assert.deepEqual(mp4Boxes(MP4).boxes, ["ftyp", "moov", "mdat"]);
+  assert.equal(decodeVideoBody(videoBody()).mp4.length, MP4.length);
+  const c = createCollector();
+  [0, 1, 2].forEach((n) => send(c, videoChunk("v", n)));
+  send(c, ended("v", 2));
+  const r = c.report();
+  assert.equal(r.verdict, "pass", formatReport(r));
+  for (const [name, rule] of Object.entries(r.rules)) assert.equal(rule.result, "pass", name);
+});
+
+test("ouo-video/1: each broken body fails body_decodes", () => {
+  const cases = {
+    gzip: videoChunk("v", 0, videoBody(), { "ouo.replay.encoding": "gzip" }),
+    "no header line": videoChunk("v", 0, MP4),
+    "wrong length": videoChunk("v", 0, videoBody({ mp4: 3 })),
+    "not video": videoChunk("v", 0, videoBody({ type: "frame" })),
+    "bad touches": videoChunk("v", 0, videoBody({ touches: [{ t: 1 }] })),
+    "not an mp4": videoChunk("v", 0, videoBody({}, Buffer.from("0000moovxxxxxxxxxxxx"))),
+    "truncated mp4": videoChunk("v", 0, videoBody({}, MP4.subarray(0, MP4.length - 3))),
+    "no mdat": videoChunk("v", 0, videoBody({}, Buffer.concat([box("ftyp", Buffer.alloc(8)), box("moov")]))),
+  };
+  for (const [name, record] of Object.entries(cases)) {
+    const c = createCollector();
+    send(c, record);
+    assert.equal(c.report().rules.body_decodes.result, "fail", name);
   }
 });
 

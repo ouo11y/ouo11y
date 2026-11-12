@@ -11,8 +11,9 @@
 //   `--status N` alone answers every request with N; `--retry-after S` adds the header to
 //   those answers. A request answered with a fault is counted, not recorded.
 // - Replay: a protobuf log request whose scope is `ouo.replay` is decoded with the small reader
-//   below. Each chunk body goes to `<out>/<stream>-<seq>.ndjson.gz` and one JSON line per record
-//   (attributes, sizes) to `<out>/records.jsonl`.
+//   below. Each chunk body goes to `<out>/<stream>-<seq>.ndjson.gz` (an `ouo-video/1` chunk's mp4
+//   to `<out>/<stream>-<seq>.mp4`) and one JSON line per record (attributes, sizes) to
+//   `<out>/records.jsonl`.
 // - `GET /__report` (JSON) and SIGINT (text, exit code 1 on a failed rule) give the verdict on
 //   the rules of spec section 11 this can check, and the telemetry event names seen.
 
@@ -27,6 +28,46 @@ export const REPLAY_SCOPE = "ouo.replay";
 export const CHUNK_EVENT = "ouo.replay.chunk";
 export const ENDED_EVENT = "ouo.replay.ended";
 export const MAX_CHUNK_BYTES = 1024 * 1024;
+export const VIDEO_FORMAT = "ouo-video/1";
+
+/**
+ * The top-level boxes of an ISO base media file (mp4), or a reason it is not one: the boxes must
+ * tile the bytes exactly, the first is `ftyp`, and `moov` and `mdat` are there.
+ */
+export function mp4Boxes(buf) {
+  const boxes = [];
+  let i = 0;
+  while (i < buf.length) {
+    if (i + 8 > buf.length) return { error: `truncated box header at ${i}` };
+    let size = buf.readUInt32BE(i);
+    const type = buf.toString("latin1", i + 4, i + 8);
+    if (size === 1) {
+      if (i + 16 > buf.length) return { error: `truncated large box at ${i}` };
+      size = Number(buf.readBigUInt64BE(i + 8));
+    } else if (size === 0) size = buf.length - i;
+    if (size < 8 || i + size > buf.length) return { error: `box "${type}" at ${i} has size ${size}, ${buf.length - i} bytes left` };
+    boxes.push(type);
+    i += size;
+  }
+  if (boxes[0] !== "ftyp") return { error: `first box is "${boxes[0]}", not ftyp` };
+  for (const need of ["moov", "mdat"]) if (!boxes.includes(need)) return { error: `no ${need} box (${boxes.join(",")})` };
+  return { boxes };
+}
+
+/** `ouo-video/1`: one JSON header line, then exactly `header.mp4` bytes of mp4 (docs/specs/mobile-replay.md). */
+export function decodeVideoBody(body) {
+  const nl = body.indexOf(0x0a);
+  if (nl < 0) throw new Error("no header line");
+  const header = JSON.parse(body.toString("utf8", 0, nl));
+  if (typeof header.t !== "number" || header.type !== "video") throw new Error("the header has no numeric t or its type is not video");
+  for (const k of ["end", "w", "h", "fps", "frames", "mp4"]) if (typeof header[k] !== "number") throw new Error(`header.${k} is not a number`);
+  if (!Array.isArray(header.touches) || header.touches.some((x) => typeof x.t !== "number" || typeof x.x !== "number" || typeof x.y !== "number" || typeof x.phase !== "string")) throw new Error("header.touches is not a list of {t, x, y, phase}");
+  const mp4 = body.subarray(nl + 1);
+  if (mp4.length !== header.mp4) throw new Error(`header.mp4 says ${header.mp4} bytes, ${mp4.length} follow`);
+  const boxes = mp4Boxes(mp4);
+  if (boxes.error) throw new Error(`not an mp4: ${boxes.error}`);
+  return { header, mp4 };
+}
 
 // ---- protobuf: just enough to read an OTLP logs or traces request ----
 
@@ -196,9 +237,9 @@ export const RULES = {
   chunk_attributes: "RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14)",
   body_size: "a chunk body is at most 1 MiB",
   hash_and_size: "RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received",
-  body_decodes: "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`",
+  body_decodes: "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`; ouo-video/1: encoding identity, a header line and a well-formed mp4",
   sequence: "per stream the sequences are 0, 1, 2, ... with no gap",
-  keyframe: "the first chunk of each segment has keyframe=true and starts with a `frame` event",
+  keyframe: "the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1, where every chunk is a segment)",
   ended: "RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen",
 };
 
@@ -264,9 +305,21 @@ export function createCollector(options = {}) {
     check("hash_and_size", sha === a["ouo.replay.sha256"]?.value && body.length === a["ouo.replay.byte_size"]?.value, `${what}: sha256 ${a["ouo.replay.sha256"]?.value} / byte_size ${a["ouo.replay.byte_size"]?.value}, received ${sha} / ${body.length}`);
 
     const encoding = a["ouo.replay.encoding"]?.value;
+    const format = a["ouo.replay.format"]?.value;
     let firstType;
     let lines = 0;
-    try {
+    if (format === VIDEO_FORMAT) {
+      try {
+        if (encoding !== "identity") throw new Error(`ouo.replay.encoding is "${encoding}", not identity`);
+        const { header, mp4 } = decodeVideoBody(body);
+        firstType = header.type;
+        lines = 1;
+        check("body_decodes", true, "");
+        if (out) writeFileSync(join(out, `${String(id).replace(/[^0-9a-zA-Z_-]/g, "_")}-${seq}.mp4`), mp4);
+      } catch (err) {
+        check("body_decodes", false, `${what}: ${err.message}`);
+      }
+    } else try {
       const text = (encoding === "gzip" ? gunzipSync(body) : body).toString("utf8");
       for (const line of text.split("\n")) {
         if (line === "") continue;
@@ -286,7 +339,7 @@ export function createCollector(options = {}) {
       s.chunks.set(seq, { segment: a["ouo.replay.segment.index"]?.value, keyframe: a["ouo.replay.keyframe"]?.value, firstType, bytes: body.length, lines });
     }
     if (out) {
-      writeFileSync(join(out, `${String(id).replace(/[^0-9a-zA-Z_-]/g, "_")}-${seq}.ndjson${encoding === "gzip" ? ".gz" : ""}`), body);
+      if (format !== VIDEO_FORMAT) writeFileSync(join(out, `${String(id).replace(/[^0-9a-zA-Z_-]/g, "_")}-${seq}.ndjson${encoding === "gzip" ? ".gz" : ""}`), body);
       appendFileSync(join(out, "records.jsonl"), `${JSON.stringify({ event: CHUNK_EVENT, attributes: plain(a), bodyBytes: body.length, lines, firstType, resource: plain(record.resource), scope: record.scope, schemaUrl: record.schemaUrl || record.resourceSchemaUrl })}\n`);
     }
   }
@@ -362,7 +415,7 @@ export function createCollector(options = {}) {
         }
         for (const [segment, [seq, c]] of firstOfSegment) {
           checked.keyframe++;
-          if (c.keyframe !== true || c.firstType !== "frame") failures.keyframe.push(`stream ${id} segment ${segment}: its first chunk (seq ${seq}) has keyframe=${c.keyframe} and starts with "${c.firstType}"`);
+          if (c.keyframe !== true || (c.firstType !== "frame" && c.firstType !== "video")) failures.keyframe.push(`stream ${id} segment ${segment}: its first chunk (seq ${seq}) has keyframe=${c.keyframe} and starts with "${c.firstType}"`);
         }
       }
       if (s.ended.length > 0) {
