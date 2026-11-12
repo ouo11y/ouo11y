@@ -35,6 +35,10 @@ public final class DiskQueue {
         public var maxEntries: Int
         /// Wait before retrying after the nth failure in a row. Injected so tests do not wait.
         public var retryDelay: @Sendable (Int) -> TimeInterval
+        /// Nil (the default): a retry waits the longer of `retryDelay` and `Retry-After`. Set
+        /// (spec TRN-8, the OTLP replay queue): a 429 or 503 that carries `Retry-After` waits
+        /// exactly that, capped at this many seconds; everything else waits `retryDelay`.
+        public var retryAfterCap: TimeInterval?
 
         public init(maxBytes: Int, maxEntries: Int = .max, retryDelay: @escaping @Sendable (Int) -> TimeInterval) {
             self.maxBytes = maxBytes
@@ -85,6 +89,20 @@ public final class DiskQueue {
     private var retryScheduled = false
     private var drainWaiters: [() -> Void] = []
     private var stats = (sent: 0, dropped: 0, rejected: 0)
+
+    /// How an entry left the queue.
+    public enum Outcome {
+        /// A 2xx answer (its body may still reject records: the owner reads it).
+        case sent(ChunkResponse)
+        /// A final status that is not 2xx.
+        case rejected(Int)
+        /// Removed unsent: the queue's bounds, or a file that could not be read.
+        case dropped(String)
+    }
+
+    /// Told when an entry leaves the queue. Runs on the queue's own serial queue, so it must not
+    /// call back into this queue synchronously. Set it before the first `put`.
+    public var onOutcome: ((Entry, Outcome) -> Void)?
 
     /// `request` builds what is sent for an entry and its body (nil drops the entry: it cannot be
     /// sent). Without `transport` the queue only holds.
@@ -239,6 +257,7 @@ public final class DiskQueue {
         try? FileManager.default.removeItem(at: e.url)
         stats.dropped += 1
         logger.warn("dropped \(e.tag) (\(why))")
+        onOutcome?(e, .dropped(why))
     }
 
     private func pump() {
@@ -271,23 +290,38 @@ public final class DiskQueue {
             stats.sent += 1
             failures = 0
             logger.log("sent \(head.tag)")
+            if let onOutcome, let response = try? result.get() { onOutcome(head, .sent(response)) }
             pump()
         case .success(let status) where Self.retryable(status):
-            retryLater(head, "HTTP \(status)", retryAfter: (try? result.get())?.retryAfter)
+            retryLater(head, "HTTP \(status)", status: status, retryAfter: (try? result.get())?.retryAfter)
         case .success(let status):
             try? FileManager.default.removeItem(at: head.url)
             stats.rejected += 1
             logger.warn("\(head.tag) rejected: HTTP \(status), dropped (not retryable)")
+            onOutcome?(head, .rejected(status))
             pump()
         case .failure(let error):
-            retryLater(head, "\(error)", retryAfter: nil)
+            retryLater(head, "\(error)", status: nil, retryAfter: nil)
         }
     }
 
+    /// Seconds before the next try after the `failures`th failure in a row. `status` is nil for a
+    /// transport failure.
+    static func delay(_ config: Config, failures: Int, status: Int?, retryAfter: TimeInterval?) -> TimeInterval {
+        guard let cap = config.retryAfterCap else {
+            return max(config.retryDelay(failures), retryAfter ?? 0)
+        }
+        if let retryAfter, retryAfter.isFinite, retryAfter >= 0, status == 429 || status == 503 {
+            return min(retryAfter, cap)
+        }
+        let backoff = config.retryDelay(failures)
+        return backoff.isFinite ? min(max(0, backoff), cap) : cap
+    }
+
     /// The head stays on disk; `drain`, the next process or this timer retries it.
-    private func retryLater(_ head: Entry, _ why: String, retryAfter: TimeInterval?) {
+    private func retryLater(_ head: Entry, _ why: String, status: Int?, retryAfter: TimeInterval?) {
         failures += 1
-        let delay = max(config.retryDelay(failures), retryAfter ?? 0)
+        let delay = Self.delay(config, failures: failures, status: status, retryAfter: retryAfter)
         logger.warn("sending \(head.tag) failed (\(why)), kept on disk, retry in \(delay) s")
         finishWaiters()
         guard !retryScheduled else { return }

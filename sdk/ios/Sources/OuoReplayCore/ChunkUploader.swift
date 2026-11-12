@@ -8,10 +8,14 @@ public struct ChunkResponse: Equatable, ExpressibleByIntegerLiteral {
     public var status: Int
     /// `Retry-After` in seconds (the receiver sends whole seconds with 429 and 503).
     public var retryAfter: TimeInterval?
+    /// The response body, when the transport kept it: the OTLP replay queue reads
+    /// `partial_success` from it (`ReplayDelivery`). The chunk uploader ignores it.
+    public var body: Data?
 
-    public init(status: Int, retryAfter: TimeInterval? = nil) {
+    public init(status: Int, retryAfter: TimeInterval? = nil, body: Data? = nil) {
         self.status = status
         self.retryAfter = retryAfter
+        self.body = body
     }
 
     public init(integerLiteral status: Int) {
@@ -40,10 +44,10 @@ public final class URLSessionTransport: ChunkTransport {
     }
 
     public func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Swift.Error>) -> Void) {
-        let task = session.dataTask(with: request) { _, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
             if let error { completion(.failure(error)); return }
             let http = response as? HTTPURLResponse
-            completion(.success(ChunkResponse(status: http?.statusCode ?? 0, retryAfter: http?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init))))
+            completion(.success(ChunkResponse(status: http?.statusCode ?? 0, retryAfter: http?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init), body: data)))
         }
         task.resume()
     }
