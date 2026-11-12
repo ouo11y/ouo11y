@@ -193,7 +193,7 @@ describe("sampling: decided once, bypass set, sampled flag", () => {
     all.stop();
   });
 
-  it("SMP-3..7: an unsampled session sends only its bypass set, marked, capped; crashes are not capped", async () => {
+  it("SMP-3..7: an unsampled session sends only its bypass set, marked and capped (a JS error marked fatal can repeat, so it is capped too)", async () => {
     const { rum, captured, storage } = await start({ sampling: { sessionRate: 0, bypass: { perSessionCap: 2 } } });
     const id = rum.getSessionId()!;
     rum.recordEvent("not.sent");
@@ -203,14 +203,14 @@ describe("sampling: decided once, bypass set, sampled flag", () => {
     unhandled("unhandled 1");
     unhandled("unhandled 2");
     unhandled("unhandled 3: over the cap");
-    g.ErrorUtils!.getGlobalHandler()(new Error("fatal: never capped"), true);
+    g.ErrorUtils!.getGlobalHandler()(new Error("fatal, over the cap"), true);
     await sleep(20);
     await rum.flush();
     expect(JSON.parse(storage.peek(SESSION_STORAGE_KEY)!).sampled).toBe(false);
     // No session.start, no spans, no ordinary events.
     expect([...new Set(names(captured))]).toEqual(["exception"]);
     expect(captured.spans).toHaveLength(0);
-    expect(captured.logs.map((l) => attr(l.attributes, "exception.message"))).toEqual(["unhandled 1", "unhandled 2", "fatal: never capped"]);
+    expect(captured.logs.map((l) => attr(l.attributes, "exception.message"))).toEqual(["unhandled 1", "unhandled 2"]);
     for (const l of captured.logs) {
       expect(attr(l.attributes, "ouo.sampling.bypass")).toBe(true);
       expect(attr(l.attributes, "session.id")).toBe(id);

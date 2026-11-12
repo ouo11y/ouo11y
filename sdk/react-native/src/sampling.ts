@@ -68,7 +68,11 @@ function queueFull(batch: unknown): boolean {
   return queue !== undefined && typeof b._maxQueueSize === "number" && queue.length >= b._maxQueueSize;
 }
 
-/** The decision of a session: the one persisted with it (spec SMP-1), else the hash of its id. */
+/**
+ * Whether a session is in the sample: the decision made at its start and persisted with it
+ * (spec SMP-1). Undefined for a session the SDK has no decision for (a record of an older SDK
+ * version): such a record is sent.
+ */
 export type SessionDecision = (sessionId: string) => boolean | undefined;
 
 export const DEFAULT_BYPASS_PER_SESSION_CAP = 10;
@@ -79,16 +83,15 @@ export const DEFAULT_BYPASS_PER_SESSION_CAP = 10;
  *
  * An unsampled session still sends its bypass set (spec SMP-3, SMP-5): each such record is
  * marked `ouo.sampling.bypass = true` (SMP-6), and at most `bypassCap` of them go out per
- * session; fatal ones (a crash: at most one per session) are not capped (SMP-7).
+ * session; a native crash or termination (at most one per session) is not capped (SMP-7).
  */
 export class SampledLogProcessor implements LogRecordProcessor {
   private bypassed: { session: string; count: number } | undefined;
 
   constructor(
     private readonly inner: LogRecordProcessor,
-    private readonly rate: number,
+    private readonly decision: SessionDecision,
     private readonly drops?: DropCounter,
-    private readonly decision?: SessionDecision,
     private readonly bypassCap: number = DEFAULT_BYPASS_PER_SESSION_CAP,
   ) {}
 
@@ -96,7 +99,7 @@ export class SampledLogProcessor implements LogRecordProcessor {
     const id = sessionOf(record.attributes);
     // The SDK's own drop report is never counted as a drop (it would report itself).
     const counted = this.drops && !isDropEvent(record.attributes["event.name"]) ? this.drops : undefined;
-    if (id !== undefined && !(this.decision?.(id) ?? sampled(id, this.rate, SAMPLING_SALT.session))) {
+    if (id !== undefined && this.decision(id) === false) {
       if (!this.bypass(id, record.attributes)) {
         counted?.count("log", "sampling");
         return;
@@ -109,7 +112,10 @@ export class SampledLogProcessor implements LogRecordProcessor {
 
   private bypass(id: string, attributes: Record<string, unknown>): boolean {
     if (!isBypassRecord(attributes)) return false;
-    if (attributes["ouo.exception.fatal"] === true) return true;
+    // Not capped: the records that end the process, of which a session has at most one (a native
+    // crash, a termination). A JS error marked fatal can repeat (LogBox, Expo web) and is capped.
+    const kind = attributes["ouo.exception.kind"];
+    if (kind === "native" || kind === "termination") return true;
     if (this.bypassed?.session !== id) this.bypassed = { session: id, count: 0 };
     if (this.bypassed.count >= this.bypassCap) return false;
     this.bypassed.count++;
@@ -129,9 +135,8 @@ export class SampledLogProcessor implements LogRecordProcessor {
 export class SampledSpanProcessor implements SpanProcessor {
   constructor(
     private readonly inner: SpanProcessor,
-    private readonly rate: number,
+    private readonly decision: SessionDecision,
     private readonly drops?: DropCounter,
-    private readonly decision?: SessionDecision,
   ) {}
 
   onStart(span: Span, parentContext: Context): void {
@@ -140,7 +145,7 @@ export class SampledSpanProcessor implements SpanProcessor {
 
   onEnd(span: ReadableSpan): void {
     const id = sessionOf(span.attributes);
-    if (id !== undefined && !(this.decision?.(id) ?? sampled(id, this.rate, SAMPLING_SALT.session))) {
+    if (id !== undefined && this.decision(id) === false) {
       this.drops?.count("span", "sampling");
       return;
     }

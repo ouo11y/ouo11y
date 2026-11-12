@@ -130,6 +130,8 @@ export class SessionManager {
   private readonly sampleRate: number;
   /** Made up once for bypass records when no session id is known at all (spec SES-10). */
   private orphanId: string | undefined;
+  /** Consent denied: no session starts (see `forget`). */
+  private suspended = false;
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
@@ -265,6 +267,7 @@ export class SessionManager {
 
   /** `restartSession()`: ends the session with reason `manual` and starts the next one, linked to it. */
   restart(): void {
+    if (this.suspended) return;
     const now = this.clock.now();
     if (this.current) this.end(this.current, "manual", now);
     this.create(now, true);
@@ -279,9 +282,11 @@ export class SessionManager {
   /**
    * Consent withdrawn (spec PRV-4): the session is forgotten without a `session.end`, and so is
    * the last ended one, so the session a later grant starts has no `session.previous_id`. The
-   * caller deletes the persisted record.
+   * caller deletes the persisted record. No session starts until `resume()`: activity while
+   * consent is denied is not recorded, and no id is made that could leave the device.
    */
   forget(): void {
+    this.suspended = true;
     this.clearTimer();
     this.current = null;
     this.lastEnded = null;
@@ -290,8 +295,14 @@ export class SessionManager {
     delete this.process.record;
   }
 
+  /** Consent granted again: activity starts sessions again. */
+  resume(): void {
+    this.suspended = false;
+  }
+
   /** Activity rule: refresh lastActivity, persist throttled, detect expiry first. */
   touch(): void {
+    if (this.suspended) return;
     const now = this.clock.now();
     const session = this.ensure();
     session.lastActivity = now;
@@ -300,6 +311,7 @@ export class SessionManager {
 
   /** AppState -> background / inactive. Persists immediately so a kill in background is attributable. */
   onBackground(): void {
+    if (this.suspended) return;
     const rec = this.current;
     if (!rec || rec.backgroundAt !== undefined) return;
     rec.backgroundAt = this.clock.now();
@@ -310,6 +322,7 @@ export class SessionManager {
 
   /** AppState -> active. Rotates the session when the background stay exceeded the timeout (spec rule 2). */
   onForeground(): void {
+    if (this.suspended) return;
     const rec = this.current;
     const now = this.clock.now();
     if (rec) {

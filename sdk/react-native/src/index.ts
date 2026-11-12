@@ -191,7 +191,14 @@ function start(options: RUMOptions): RUM {
     },
   });
   try {
-    return build(config, logger, hooks, stopCapture, (fn) => (afterDisable = fn));
+    const rum = build(config, logger, hooks, stopCapture, (fn) => (afterDisable = fn));
+    // Self-disable reached while starting (ERR-6): the hooks installed after it are removed too.
+    if (guard.disabled) {
+      stopCapture();
+      afterDisable();
+      return noopRUM();
+    }
+    return rum;
   } catch (err) {
     logger.warn("init failed; the SDK is a no-op", err);
     stopCapture();
@@ -261,7 +268,7 @@ function build(
     drops,
     ...(maxBytes !== undefined ? { maxBytes } : {}),
   });
-  if (consent.telemetry !== true) outbox.pause();
+  if (consent.telemetry !== true) outbox.hold();
 
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
   const sessionSampleRate = config.session.sampleRate;
@@ -355,9 +362,8 @@ function build(
               maxQueueSize: 2048,
               exportTimeoutMillis: 10000,
             }),
-            sessionSampleRate,
-            drops,
             sessionDecision,
+            drops,
             config.bypassPerSessionCap,
           ),
         ], sanitizeUrl),
@@ -405,11 +411,9 @@ function build(
               maxQueueSize: 1024,
               exportTimeoutMillis: 10000,
             }),
-            sessionSampleRate,
-            drops,
             sessionDecision,
+            drops,
           ),
-          sanitizeUrl,
         ),
         () => drops.count("span", "self_disabled"),
         telemetryAllowed,
@@ -464,7 +468,6 @@ function build(
   // another is running, so a flush right after the background flush would resolve too early.
   let flushing: Promise<void> = RESOLVED;
   const flush = (): Promise<void> => (flushing = flushing.then(flushOnce, flushOnce));
-  const flushWithin = (ms: number): Promise<void> => withTimeout(guard.run("flush", flush, RESOLVED), ms, undefined);
 
   // ---- vitals (G2, docs/specs/mobile-vitals.md) ----
   const vitalsOptions = options.vitals && typeof options.vitals === "object" ? options.vitals : undefined;
@@ -554,7 +557,9 @@ function build(
       onFatal: async (error) => {
         const s = serializeError(error);
         logger.warn("fatal error, writing crash marker and flushing", s.type);
-        await Promise.all([session.markCrash({ type: s.type, message: s.message }), flushWithin(config.fatalFlushTimeoutMs)]);
+        // One bound for the crash marker and the flush together (ERR-3): a storage that does not
+        // answer must not keep the previous handler (LogBox, the native crash, Sentry) from running.
+        await withTimeout(Promise.all([session.markCrash({ type: s.type, message: s.message }), guard.run("flush", flush, RESOLVED)]), config.fatalFlushTimeoutMs, undefined);
       },
     }),
   );
@@ -687,39 +692,57 @@ function build(
 
   // ---- consent (PRV-1 to PRV-4) ----
   const SDK_KEYS = [SESSION_STORAGE_KEY, CRASH_STORAGE_KEY, USER_STORAGE_KEY, CONTEXT_STORAGE_KEY, REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY];
+  // Transitions run one after the other, each to its end: a grant right after a denial waits
+  // for the denial's deletes, a denial during a grant's writes waits for them and then deletes.
+  let consentTail: Promise<void> = RESOLVED;
+  let consentQueued = 0;
+  const serial = (task: () => Promise<void>): void => {
+    const run = (): Promise<void> => guard.run("consent", task, RESOLVED);
+    // Idle: the task starts now, so a grant has its session before `setConsent` returns.
+    const done = consentQueued++ === 0 ? run() : consentTail.then(run);
+    consentTail = done.then(() => void consentQueued--);
+  };
+  // Capture of telemetry stops at once: the processors record nothing, the offline store neither
+  // sends nor writes, the session is forgotten and none starts.
+  const stopTelemetry = (): void => {
+    consent.telemetry = false;
+    outbox.hold();
+    session.forget();
+    replay.setAllowed(false);
+  };
   const setConsent = (next: Consent): void => {
     if (!next || typeof next !== "object") return;
-    const before = { ...consent };
-    if (typeof next.telemetry === "boolean") consent.telemetry = next.telemetry;
     if (typeof next.replay === "boolean") consent.replay = next.replay;
-    if (consent.telemetry !== before.telemetry) {
-      if (consent.telemetry) {
-        // Granted. After a denial the session starts anew, without a previous id (PRV-4); what
-        // was held while pending is written out and sent.
-        if (before.telemetry === false) {
-          session.forget();
-          if (foregroundNow()) session.touch();
+    if (next.telemetry === false) {
+      stopTelemetry();
+      serial(async () => {
+        // Again: a grant queued before this denial ran in between.
+        stopTelemetry();
+        // The batch queues hand over what they hold, so it is discarded with the rest.
+        await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush()]).catch(() => undefined);
+        const keys = [...SDK_KEYS, ...outbox.keys()];
+        consentStorage.hold();
+        await outbox.clear();
+        await consentStorage.purge(keys);
+      });
+    } else if (next.telemetry === true) {
+      serial(async () => {
+        if (consent.telemetry !== true) {
+          const denied = consent.telemetry === false;
+          consent.telemetry = true;
+          session.resume();
+          // After a denial the session starts anew, without a previous id (PRV-4).
+          if (denied && foregroundNow()) session.touch();
+          // What was held while pending is written out, then sent.
+          // After each wait: a denial made meanwhile stopped capture already and deletes next.
+          await consentStorage.allow();
+          if (consent.telemetry !== true) return;
+          await outbox.release();
+          if (consent.telemetry !== true) return;
+          void outbox.drain();
         }
-        outbox.resume();
-        void guard.run("consent.grant", () => consentStorage.allow().then(() => outbox.drain()), RESOLVED);
-      } else {
-        // Denied or withdrawn: nothing further is recorded (the processors stop at once), what is
-        // queued in memory and on the device is deleted, and the session is forgotten.
-        outbox.pause();
-        session.forget();
-        void guard.run(
-          "consent.withdraw",
-          async () => {
-            // The batch queues hand over what they hold, so it can be discarded with the rest.
-            await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush()]).catch(() => undefined);
-            const keys = [...SDK_KEYS, ...outbox.keys()];
-            consentStorage.hold();
-            await outbox.clear();
-            await consentStorage.purge(keys);
-          },
-          RESOLVED,
-        );
-      }
+        replay.setAllowed(replayAllowed());
+      });
     }
     replay.setAllowed(replayAllowed());
     logger.log("consent", { telemetry: consent.telemetry ?? "pending", replay: consent.replay ?? "pending" });
@@ -746,7 +769,8 @@ function build(
     addEvent: (name: string, attrs?: Attrs) => recordEvent(name, attrs),
     trackNavigation: api("trackNavigation", (path: string, attrs?: Attrs): void => {
       if (typeof path !== "string") return;
-      navigation.track(path, appAttributes(attrs, drops));
+      // A deep-link path can carry a query: sanitised like any URL the SDK records (PRV-10).
+      navigation.track(sanitizeUrl(path), appAttributes(attrs, drops));
     }),
     recordActivity: api("recordActivity", onActivity),
     trackTap: api("trackTap", (target: string, path?: string, gesture: Gesture = "tap"): void => {
@@ -788,7 +812,7 @@ function build(
       const screenshot = input.screenshot === true && replay.isRecording();
       if (screenshot) record.attrs["ouo.feedback.screenshot"] = true;
       replay.onFeedback();
-      record.attrs["ouo.last_events"] = lastEventsAttribute(recent.read(session.id()));
+      record.attrs["ouo.last_events"] = lastEventsAttribute(recent.read(session.active()?.id ?? ""));
       events.emit("feedback", record.attrs, "info", Date.now(), { body: record.body });
       // Then a masked frame of the screen the user reports on (`navigation` mode: once it settled;
       // `session` mode: the next interval frame, drawn or not). Asked for after the record is

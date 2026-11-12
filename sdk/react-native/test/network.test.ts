@@ -17,16 +17,14 @@ function setup(opts: { propagateTo?: Array<RegExp | string>; ignoreUrls?: Array<
   const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
   const emitted: Emitted[] = [];
   const events = { emit: (name: string, attrs: Record<string, unknown> = {}) => emitted.push({ name, attrs }) } as unknown as EventEmitter;
-  const onActivity = vi.fn();
   const uninstall = installFetchInstrumentation({
     tracer: provider.getTracer("test"),
     events,
     logger: createLogger(false),
     propagateTo: opts.propagateTo ?? [],
     ignoreUrls: opts.ignoreUrls ?? [],
-    onActivity,
   });
-  return { exporter, emitted, onActivity, uninstall };
+  return { exporter, emitted, uninstall };
 }
 
 type FetchMock = ReturnType<typeof vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>>;
@@ -68,7 +66,7 @@ describe("url helpers", () => {
 
 describe("fetch instrumentation", () => {
   it("creates a CLIENT span with HTTP attributes; a request is not activity", async () => {
-    const { exporter, emitted, onActivity, uninstall } = setup();
+    const { exporter, emitted, uninstall } = setup();
     const res = await fetch("http://localhost:8082/api/products", { method: "get" });
     expect(res.status).toBe(200);
     const spans = exporter.getFinishedSpans();
@@ -83,8 +81,6 @@ describe("fetch instrumentation", () => {
       "url.path": "/api/products",
       "http.response.status_code": 200,
     });
-    // A request is not session activity (spec SES-5).
-    expect(onActivity).not.toHaveBeenCalled();
     expect(emitted).toHaveLength(0);
     uninstall();
     expect(globalThis.fetch).toBe(fetchMock);
@@ -154,10 +150,9 @@ describe("fetch instrumentation", () => {
   });
 
   it("ignores configured URLs and exposes the original fetch for the exporter", async () => {
-    const { exporter, onActivity, uninstall } = setup({ ignoreUrls: [/^http:\/\/localhost:4328\//] });
+    const { exporter, uninstall } = setup({ ignoreUrls: [/^http:\/\/localhost:4328\//] });
     await fetch("http://localhost:4328/v1/traces", { method: "POST" });
     expect(exporter.getFinishedSpans()).toHaveLength(0);
-    expect(onActivity).not.toHaveBeenCalled();
     expect((globalThis.fetch as unknown as { __original: unknown }).__original).toBe(fetchMock);
     uninstall();
   });

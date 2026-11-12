@@ -12,8 +12,6 @@ export interface NetworkOptions {
   logger: DebugLogger;
   propagateTo: Array<RegExp | string>;
   ignoreUrls: Array<RegExp | string>;
-  /** @deprecated Not called: network requests are not session activity (spec SES-5). */
-  onActivity?: () => void;
   /** Emit `http.request` for answered requests below 500 (timeline, checklist G4). Default false. */
   requestEvents?: boolean;
   /** Remembers failed requests and rejected errors, so errors carry the request's trace (G5). */
@@ -160,11 +158,13 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
   const emitFailed = failedRequestEmitter(events, opts.linker);
   const emitRequest = requestEmitter(opts);
 
+  // False once uninstalled: a wrapper another SDK captured (it patched after ouo) then only passes through.
+  let installed = true;
   // ERR-2: the app's call is `original.call(...)` with what the app passed, and its result,
   // rejection and timing are the original's. Everything the SDK adds runs inside the guard: when
   // it fails (or the SDK disabled itself) the request goes out untouched.
   const wrapped: WrappedFetch = function ouoFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const before = guard.run("fetch.before", () => {
+    const before = !installed ? undefined : guard.run("fetch.before", () => {
       const url = requestUrl(input);
       if (matchesAny(url, opts.ignoreUrls)) return undefined;
       const method = requestMethod(input, init);
@@ -234,6 +234,8 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
   wrapped.__ouo = true;
   g.fetch = wrapped;
   return () => {
+    installed = false;
+    // Only when it is still ours: a patch installed after it calls ours and must stay.
     if (g.fetch === wrapped) g.fetch = original;
   };
 }
@@ -286,8 +288,9 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
   // ERR-2: `original.*.call(this, ...)` is the app's call, made exactly once with the app's
   // arguments; a throw from it is the original's and goes to the app. The SDK's part runs
   // inside the guard and is skipped when it fails or when the SDK disabled itself.
+  let installed = true;
   proto.open = function ouoOpen(this: XhrLike, method: string, url: string | URL, ...rest: unknown[]): void {
-    guard.run("xhr.open", () => {
+    if (installed) guard.run("xhr.open", () => {
       const u = typeof url === "string" ? url : String(url);
       this.__ouoXhr = {
         method: String(method || "GET").toUpperCase(),
@@ -300,12 +303,12 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
   };
 
   proto.setRequestHeader = function ouoSetRequestHeader(this: XhrLike, name: string, value: string): void {
-    guard.run("xhr.setRequestHeader", () => this.__ouoXhr?.headers.add(String(name).toLowerCase()));
+    if (installed) guard.run("xhr.setRequestHeader", () => this.__ouoXhr?.headers.add(String(name).toLowerCase()));
     return original.setRequestHeader.call(this, name, value);
   };
 
   proto.send = function ouoSend(this: XhrLike, body?: unknown): void {
-    const onSendError = guard.run("xhr.send", () => {
+    const onSendError = !installed ? undefined : guard.run("xhr.send", () => {
       const state = this.__ouoXhr;
       if (!state || state.skip) return undefined;
       const { method } = state;
@@ -370,11 +373,15 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
     }
   };
   proto.__ouo = true;
+  const ours = { open: proto.open, setRequestHeader: proto.setRequestHeader, send: proto.send };
 
   return () => {
-    proto.open = original.open;
-    proto.setRequestHeader = original.setRequestHeader;
-    proto.send = original.send;
+    installed = false;
+    // Each method only when it is still ours: a patch another SDK installed after ouo calls
+    // ours, which from here only passes through, and must stay.
+    for (const method of ["open", "setRequestHeader", "send"] as const) {
+      if (proto[method] === ours[method]) (proto as unknown as Record<string, unknown>)[method] = original[method];
+    }
     delete proto.__ouo;
   };
 }

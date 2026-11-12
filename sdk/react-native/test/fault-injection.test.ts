@@ -24,7 +24,8 @@ import { attr, BACKEND, baseOptions, g, installErrorUtils, installFetchStub, sle
 
 /**
  * The seams. `covered by` names the test below that injects a fault there; the last test of the
- * file fails when a row has no test.
+ * file fails when a row has no test. That a new timer or listener in `src/` is guarded at all is
+ * checked against the source by test/hardening.test.ts ("every timer, frame and listener ...").
  */
 const SEAMS: ReadonlyArray<readonly [seam: string, fault: string, coveredBy: string]> = [
   ["public API: every function", "malformed arguments (undefined, null, cyclic, huge, non-Error throws)", "public API: malformed inputs"],

@@ -13,9 +13,10 @@ import type { AttrValue, BeforeSend, BeforeSendRecord } from "../types";
  * The gate every record passes before it is kept anywhere (the last-events buffer, the persisted
  * error context, the batch queue, the offline store) and exported (spec CFG-4, PRV-14, REC-8):
  *
- * 0. URLs are sanitised (PRV-10): `url.full` and the URLs in `exception.stacktrace`.
+ * 0. URLs inside `exception.stacktrace` and `exception.message` are sanitised (PRV-10).
  * 1. `beforeSend` sees a copy of the record and may change it or drop it (null or false). A hook
- *    that throws means the unmodified record goes on. Replay chunks never pass here: they are
+ *    that throws means the unmodified record goes on. A record the hook itself emits (it logs
+ *    what it dropped) skips the hook, so the hook cannot re-enter. Replay chunks never pass here: they are
  *    not log records, the native recorder sends them.
  * 2. Attribute values are truncated at source.
  *
@@ -25,14 +26,19 @@ import type { AttrValue, BeforeSend, BeforeSendRecord } from "../types";
 
 type Decision = BeforeSendRecord | "drop" | undefined;
 
+/** True while the app's hook runs: what it records itself (an event, a log line) does not go through the hook again (ERR-5). */
+let inHook = false;
+
 function decide(hook: BeforeSend | undefined, snapshot: () => BeforeSendRecord, drops: DropCounter, signal: "log" | "span"): Decision {
-  if (!hook) return undefined;
+  if (!hook || inHook) return undefined;
   let copy: BeforeSendRecord | undefined;
+  inHook = true;
   const out = guard.host("beforeSend", () => {
     copy = snapshot();
     const result = hook(copy);
     return result === null || result === false ? ("drop" as const) : result && typeof result === "object" ? result : copy;
   });
+  inHook = false;
   if (out === "drop") drops.count(signal, "before_send");
   return out;
 }
@@ -47,12 +53,13 @@ function applyAttributes(target: Record<string, unknown>, next: unknown): void {
   for (const key of Object.keys(wanted)) if (isAttrValue(wanted[key])) target[key] = wanted[key];
 }
 
+/** URLs inside an exception's text (PRV-10). Request URLs are sanitised where they are captured. */
 function sanitizeUrls(attributes: Record<string, unknown>, sanitize: UrlSanitizer | undefined): void {
   if (!sanitize) return;
-  const url = attributes["url.full"];
-  if (typeof url === "string") attributes["url.full"] = sanitize(url);
-  const stack = attributes["exception.stacktrace"];
-  if (typeof stack === "string") attributes["exception.stacktrace"] = sanitizeUrlsInText(stack, sanitize);
+  for (const key of ["exception.stacktrace", "exception.message"]) {
+    const text = attributes[key];
+    if (typeof text === "string") attributes[key] = sanitizeUrlsInText(text, sanitize);
+  }
 }
 
 function finish(attributes: Record<string, unknown>, logger: DebugLogger): void {
@@ -109,7 +116,6 @@ export class SpanGate implements SpanProcessor {
     private readonly drops: DropCounter,
     private readonly logger: DebugLogger,
     private readonly next: SpanProcessor,
-    private readonly sanitize?: UrlSanitizer,
   ) {}
 
   onStart(span: Span, parentContext: Context): void {
@@ -124,7 +130,6 @@ export class SpanGate implements SpanProcessor {
       this.drops.count("span", "no_session");
       return;
     }
-    sanitizeUrls(attributes, this.sanitize);
     const out = decide(this.hook, () => ({ type: "span", name: span.name, attributes: { ...attributes } as Record<string, AttrValue> }), this.drops, "span");
     if (out === "drop") return;
     if (out) {

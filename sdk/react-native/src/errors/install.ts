@@ -54,6 +54,9 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
     HermesInternal?: Partial<RejectionTracker>;
   };
   const restores: Array<() => void> = [];
+  // False once uninstalled: a patch that could not be removed (another SDK patched after ouo,
+  // the Hermes rejection tracker) then only passes through.
+  let active = true;
   const reported = opts.reported ?? new ReportedErrors();
   const emitException = opts.emitException ?? ((_error: unknown, attrs: Attrs) => events.emit("exception", attrs, "error"));
 
@@ -84,7 +87,7 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
         called = true;
         if (previous && previous !== handler) previous(error, isFatal);
       };
-      const wait = guard.run("errors.global", () => {
+      const wait = !active ? undefined : guard.run("errors.global", () => {
         const fatal = isFatal === true;
         if (reentrant || !reportable(error, fatal)) return undefined;
         reentrant = true;
@@ -133,7 +136,7 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
 
   // ---- unhandled promise rejections ----
   const onUnhandled = (_id: number, error: unknown): void => {
-    guard.run("errors.rejection", () => {
+    if (active) guard.run("errors.rejection", () => {
       if (reported.add(error)) emitException(error, exceptionAttributes(error ?? "Unhandled rejection", "unhandledrejection", false));
     });
     // ERR-3: the rejection goes on. Hermes keeps one tracker and gives no way to read the one
@@ -176,7 +179,7 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
     const patched = function ouoConsoleError(this: unknown, ...args: unknown[]): void {
       // The app's call first, untouched; the SDK's part after it, inside the guard.
       original.apply(this === undefined ? console : this, args);
-      if (reentrant) return;
+      if (reentrant || !active) return;
       reentrant = true;
       guard.run("errors.console", () => {
         // React logs the error it caught (an error boundary, a render error) with the Error
@@ -197,6 +200,7 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   }
 
   return () => {
+    active = false;
     for (const r of restores.splice(0)) guard.host("errors.uninstall", r);
   };
 }

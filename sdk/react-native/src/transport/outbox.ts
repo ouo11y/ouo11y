@@ -107,8 +107,14 @@ export class Outbox {
   private failures = 0;
   private retryTimer: TimerHandle | null = null;
   private stopped = false;
-  /** Consent pending or withdrawn: requests are kept, none is sent. */
-  private paused = false;
+  /** Consent pending or withdrawn: requests are kept in memory only, none is sent and nothing is written. */
+  private held = false;
+  /** Requests an earlier run stored that were dropped while held: their bodies are removed on `release`. */
+  private orphans: number[] = [];
+  /** Ids below this were stored by an earlier run. */
+  private storedBelow = 0;
+  /** Ids whose body this process wrote to storage. */
+  private readonly stored = new Set<number>();
   /** False when the stored index could not be read: nothing is written or removed in storage. */
   private persistent = true;
 
@@ -148,10 +154,13 @@ export class Outbox {
     this.enforceBound();
     // Index first: a kill before the body is written leaves an entry the drain skips.
     this.persistIndex();
-    if (this.persistent) await this.guard(() => this.storage.setItem(bodyKey(item.id), body));
+    if (this.writable) {
+      this.stored.add(item.id);
+      await this.guard(() => this.storage.setItem(bodyKey(item.id), body));
+    }
     // Memory only (spec TRN-15): the request is still sent, but a kill now loses it. Counted.
-    else this.count(item, "persistence_failed");
-    if (this.retryTimer === null && !this.paused) void this.drain();
+    else if (!this.persistent) this.count(item, "persistence_failed");
+    if (this.retryTimer === null && !this.held) void this.drain();
   }
 
   /**
@@ -176,24 +185,46 @@ export class Outbox {
     this.cancelRetry();
   }
 
-  /** Consent (spec PRV-1): while paused nothing is sent; requests wait within the bounds. */
-  pause(): void {
-    this.paused = true;
-    this.cancelRetry();
-  }
-
-  resume(): void {
-    this.paused = false;
-  }
-
-  /** The storage keys this outbox uses now: the index and one per waiting request. */
-  keys(): string[] {
-    return [OUTBOX_KEY, ...this.index.items.map((i) => bodyKey(i.id))];
+  /** Whether this outbox writes to storage: the stored index was readable, and consent is not held. */
+  private get writable(): boolean {
+    return this.persistent && !this.held;
   }
 
   /**
-   * Consent withdrawn (PRV-4): forgets every waiting request, in memory. Not counted as drops
-   * (spec TRN-13). The caller deletes `keys()` from the persistent storage first.
+   * Consent pending or withdrawn (spec PRV-1): nothing is sent and nothing is written. Requests
+   * wait in memory, within the bounds.
+   */
+  hold(): void {
+    this.held = true;
+    this.cancelRetry();
+  }
+
+  /** Consent granted: what waited in memory is written out, then sending goes on (`drain`). */
+  async release(): Promise<void> {
+    await this.loaded;
+    if (!this.held) return;
+    this.held = false;
+    if (!this.persistent) return;
+    for (const id of this.orphans.splice(0)) await this.guard(() => this.storage.removeItem(bodyKey(id)));
+    this.persistIndex();
+    for (const item of this.index.items.slice()) {
+      const body = this.bodies.get(item.id);
+      // Held again meanwhile (consent withdrawn): the rest stays in memory.
+      if (this.held) return;
+      if (body === undefined || item.id < this.storedBelow || this.stored.has(item.id)) continue;
+      this.stored.add(item.id);
+      await this.guard(() => this.storage.setItem(bodyKey(item.id), body));
+    }
+  }
+
+  /** The storage keys this outbox may have written: the index and one per stored request. */
+  keys(): string[] {
+    return [OUTBOX_KEY, ...this.index.items.map((i) => bodyKey(i.id)), ...this.orphans.map(bodyKey)];
+  }
+
+  /**
+   * Consent withdrawn (PRV-4): forgets every waiting request. Not counted as drops (spec
+   * TRN-13). The caller takes `keys()` first and deletes them from the persistent storage.
    */
   async clear(): Promise<void> {
     await this.loaded;
@@ -201,16 +232,17 @@ export class Outbox {
     this.failures = 0;
     this.index.items = [];
     this.bodies.clear();
-    this.persistIndex();
+    this.orphans = [];
+    this.stored.clear();
   }
 
   // ---- internals ----
 
   private async run(): Promise<void> {
     await this.loaded;
-    if (this.paused) return;
+    if (this.held) return;
     this.cancelRetry();
-    while (!this.stopped && !this.paused) {
+    while (!this.stopped && !this.held) {
       const head = this.index.items[0];
       if (!head) {
         this.failures = 0;
@@ -280,6 +312,7 @@ export class Outbox {
       const parsed = JSON.parse(raw) as Index;
       if (parsed && Array.isArray(parsed.items) && typeof parsed.next === "number") {
         this.index = parsed;
+        this.storedBelow = parsed.next;
         if (parsed.items.length > 0) this.logger.log(`delivery: ${parsed.items.length} request(s) left by an earlier run`);
       }
     } catch {
@@ -315,12 +348,15 @@ export class Outbox {
   private forget(item: Item): void {
     this.index.items = this.index.items.filter((i) => i.id !== item.id);
     this.bodies.delete(item.id);
-    if (this.persistent) void this.guard(() => this.storage.removeItem(bodyKey(item.id)));
+    const inStorage = item.id < this.storedBelow || this.stored.delete(item.id);
+    if (this.writable) void this.guard(() => this.storage.removeItem(bodyKey(item.id)));
+    // Held: its body cannot be removed now; `release` or the caller of `keys()` does it.
+    else if (this.held && inStorage) this.orphans.push(item.id);
     this.persistIndex();
   }
 
   private persistIndex(): void {
-    if (!this.persistent) return;
+    if (!this.writable) return;
     void this.guard(() => this.storage.setItem(OUTBOX_KEY, JSON.stringify(this.index)));
   }
 

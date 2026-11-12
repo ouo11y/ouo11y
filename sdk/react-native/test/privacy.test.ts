@@ -16,7 +16,15 @@ describe("redactUrl vectors", () => {
     ["https://u:p@ss@api.test/a", "https://REDACTED:REDACTED@api.test/a"],
     ["https://api.test/a?token=abc&page=2&q=shoes", "https://api.test/a?token=REDACTED&page=2&q=REDACTED"],
     ["https://api.test/a?sort%20by=price&x=1", "https://api.test/a?sort%20by=price&x=REDACTED"],
-    ["https://api.test/a?flag&empty=&k=v=w", "https://api.test/a?flag&empty=REDACTED&k=REDACTED"],
+    // A part without "=" cannot be told from a value: redacted unless listed.
+    ["https://api.test/a?flag&empty=&k=v=w", "https://api.test/a?REDACTED&empty=REDACTED&k=REDACTED"],
+    ["https://api.test/cb?eyJhbGciOiJIUzI1NiJ9.SECRET", "https://api.test/cb?REDACTED"],
+    ["https://api.test/a?page&x=1", "https://api.test/a?page&x=REDACTED"],
+    ["https://api.test/a?", "https://api.test/a?"],
+    // Scheme-relative userinfo.
+    ["//user:pw@host.test/p?k=v", "//REDACTED:REDACTED@host.test/p?k=REDACTED"],
+    ["https://api.test/a@b/c", "https://api.test/a@b/c"],
+    ["/reset?token=SECRET1", "/reset?token=REDACTED"],
     ["https://api.test/a?email=a@b.c", "https://api.test/a?email=REDACTED"],
     ["https://api.test/a?bad=%E0%A4%A&%zz=1", "https://api.test/a?bad=REDACTED&%zz=REDACTED"],
     ["https://api.test/a#section", "https://api.test/a", "https://api.test/a#section"],
@@ -42,8 +50,6 @@ describe("createUrlSanitizer", () => {
     const out = sanitize("https://u:p@api.test/users/42?token=t&page=3#top");
     expect(out).toBe("https://REDACTED:REDACTED@api.test/users/:id?token=REDACTED&page=3");
     expect(hook).toHaveBeenCalledWith("https://REDACTED:REDACTED@api.test/users/42?token=REDACTED&page=3");
-    // Its own output is a fixed point: not hooked again.
-    expect(sanitize(out)).toBe(out);
     expect(hook).toHaveBeenCalledTimes(1);
 
     guard.reset();
@@ -80,10 +86,14 @@ describe("what is sent", () => {
 
   it("url.full of request spans and events, their bodies, last events and stack traces carry no secret; the request itself is untouched", async () => {
     const captured = installFetchStub();
+    const hooked: string[] = [];
     const rum = initRUM({
       ...baseOptions(),
       privacy: { urlQueryAllow: ["page"] },
-      sanitizeUrl: (url: string) => url.replace(/\/orders\/\d+/, "/orders/:id"),
+      sanitizeUrl: (url: string) => {
+        hooked.push(url);
+        return url.replace(/\/orders\/\d+/, "/orders/:id");
+      },
     } as RUMOptions) as RUMInternal;
     await rum.ready;
     await fetch(`${BACKEND.replace("://", "://bob:hunter2@")}/orders/991?card=4111111111111111&page=2#pay`);
@@ -91,7 +101,8 @@ describe("what is sent", () => {
     const err = new Error("load failed");
     err.stack = `Error: load failed\n    at fetchIt (https://cdn.test/chunk.js?auth=s3cr3t:3:9)`;
     rum.recordException(err);
-    rum.getTracerProvider().getTracer("app").startSpan("host", { attributes: { "url.full": "https://x.test/?pw=hunter2" } }).end();
+    rum.recordException(new Error("GET https://u:hunter2@api.test/x?key=s3cr3t failed"));
+    rum.trackNavigation("/reset?token=s3cr3t&page=1");
     await rum.flush();
 
     const everything = JSON.stringify([captured.logs, captured.spans]);
@@ -103,7 +114,11 @@ describe("what is sent", () => {
     const failed = captured.byName("http.request.failed")[0]!;
     expect(attr(failed.attributes, "url.full")).toBe(`${BACKEND}/orders/:id?fail=REDACTED&ssn=REDACTED`);
     expect(String(attr(captured.byName("exception")[0]!.attributes, "ouo.last_events"))).toContain("card=REDACTED");
-    expect(attr(captured.spans.find((s) => s.name === "host")!.attributes, "url.full")).toBe("https://x.test/?pw=REDACTED");
+    expect(attr(captured.byName("exception")[1]!.attributes, "exception.message")).toBe("GET https://REDACTED:REDACTED@api.test/x?key=REDACTED failed");
+    const nav = captured.byName("navigation")[0]!;
+    expect(attr(nav.attributes, "url.path")).toBe("/reset?token=REDACTED&page=1");
+    // Each request URL went through the app's hook exactly once.
+    expect(hooked.filter((u) => u.includes("/orders/"))).toHaveLength(2);
     // The app's own requests went out exactly as written.
     expect(captured.requests.map((r) => r.url)).toEqual([`${BACKEND.replace("://", "://bob:hunter2@")}/orders/991?card=4111111111111111&page=2#pay`, `${BACKEND}/orders/5?fail=500&ssn=123-45-6789`]);
   });
