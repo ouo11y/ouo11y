@@ -11,3 +11,5 @@ Owns `sdk/react-native` (`@ouo11y/react-native`) and `examples/ouo-mobile` (Expo
   - [2026-11-04-b3-hermes-sourcemaps.md](summaries/2026-11-04-b3-hermes-sourcemaps.md) — B3: Hermes debug ids from Metro (bare + Expo), OTA-safe uploads (hot-updater wrapper), `ouo.exception.debug_ids` from the RN SDK, rum-api reads Hermes columns as bytecode offsets and accepts `[in app]` frames
   - [2026-11-12-step-a-missing-layers.md](summaries/2026-11-12-step-a-missing-layers.md) — full-feature run, step A: ADR-0021, guard and fault injection, spec API, beforeSend, consent, sanitising, bypass set, drop counting; unit tests only
 - [notes/](notes/index.md) working notes
+- `reports/`
+  - [rn-replay-otlp-ios/](reports/rn-replay-otlp-ios/index.md) — replay over OTLP verified on the iOS Simulator: fake Collector verdicts, retry and drop evidence, masked frames
