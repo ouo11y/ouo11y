@@ -131,6 +131,27 @@ public final class ReplayDelivery: ReplaySink {
         queue.drain(completion: completion)
     }
 
+    /// Deletes every record not yet accepted (consent withdrawn, an app-initiated clear: TRN-13,
+    /// not counted as a loss and not reported to the stream). Returns how many were deleted. A
+    /// request already on the wire may still arrive.
+    @discardableResult
+    public func discardPending() -> Int {
+        let entries = queue.entries()
+        entries.forEach { queue.remove($0) }
+        return entries.count
+    }
+
+    /// The same for a folder no delivery was made for in this process.
+    @discardableResult
+    public static func discardPending(in directory: URL) -> Int {
+        let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        var removed = 0
+        for url in urls where DiskQueue.Entry(url: url) != nil {
+            if (try? FileManager.default.removeItem(at: url)) != nil { removed += 1 }
+        }
+        return removed
+    }
+
     /// On the disk queue's serial queue: must not call back into it.
     private func finished(_ entry: DiskQueue.Entry, _ outcome: DiskQueue.Outcome) {
         var lost = false
