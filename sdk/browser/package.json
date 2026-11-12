@@ -64,10 +64,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "size": "node scripts/size.mjs",
-    "playground": "npm run build && vite --config playground/vite.config.mjs",
     "size:check": "node scripts/size.mjs --check",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
-    "compat:check": "es-check es2022 --module 'dist/*.js' && node scripts/compat.mjs"
+    "compat:check": "es-check es2022 --module 'dist/*.js' && node scripts/compat.mjs",
+    "test:soak": "playwright test -c e2e/soak.config.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
