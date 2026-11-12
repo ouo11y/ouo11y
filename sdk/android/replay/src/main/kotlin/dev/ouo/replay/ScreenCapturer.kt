@@ -10,6 +10,7 @@ import dev.ouo.replay.core.Box
 import dev.ouo.replay.core.Frame
 import dev.ouo.replay.core.FrameReason
 import dev.ouo.replay.core.Patch
+import dev.ouo.replay.core.PixelFrames
 import dev.ouo.replay.core.TileDiffer
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -27,7 +28,7 @@ import kotlin.math.roundToInt
  */
 internal class ScreenCapturer(maxLongestSide: Int, jpegQuality: Int) {
   // `Bitmap.compress` throws on a quality outside 0..100 (on the compose thread, which crashed the app).
-  private val jpegQuality = jpegQuality.coerceIn(1, 100)
+  private val jpegQuality = PixelFrames.jpegQuality(jpegQuality)
   private val maxLongestSide = maxLongestSide.coerceIn(64, 4096)
 
   private var bitmap: Bitmap? = null
