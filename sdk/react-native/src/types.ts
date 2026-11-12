@@ -53,7 +53,7 @@ export interface SessionOptions {
   inactivityTimeoutMs?: number;
   /** Default 4 hours. */
   maxDurationMs?: number;
-  /** Background longer than this ends the session on foreground. Default 30 seconds. */
+  /** Background longer than this ends the session on foreground. Default 15 minutes, at least 1 minute (spec CFG-2). */
   backgroundTimeoutMs?: number;
   /**
    * Fraction of sessions whose telemetry (spans, events, logs, errors) and replay are sent,

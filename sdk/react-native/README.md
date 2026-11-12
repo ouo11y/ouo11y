@@ -339,7 +339,7 @@ const rum: RUM = initRUM({
   projectToken: "pt_dev_demo_0000000000000000",   // required
   service: { name: "mobile-store", version: "2.3.0", environment: "local" },
   tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
-  session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
+  session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 15 * 60_000 },
   user: { id: "user-1" },          // optional; without it records carry no user.id until setUser
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
@@ -476,7 +476,7 @@ native transport. Replay already goes out as `ouo.replay.chunk` over OTLP.
 - A background launch (a push, a background fetch) starts no session and no replay; the first
   move to the foreground does.
 - `AppState`: `background` records the timestamp; `active` after more than
-  `backgroundTimeoutMs` (30 s) ends the session (`background`) and starts a new one.
+  `backgroundTimeoutMs` (15 min, at least 1 min) ends the session (`background`) and starts a new one.
   `inactive` is ignored. An in-process timer ends an expired session even without a
   foreground event; the replacement is created on the next activity. At the maximum duration
   with the app in the foreground the next session starts at once, linked to the old one.

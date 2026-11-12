@@ -46,6 +46,8 @@ telemetry are step B).
 
 ### Changed
 
+- `session.backgroundTimeoutMs` defaults to 15 minutes (spec section 3.2), not 30 s. The old default sat below the one-minute minimum of CFG-2.
+
 - `initRUM` no longer throws on a missing or invalid `endpoint`, `projectId`, `projectToken` or
   `service.name`: it returns a no-op instance and says why when `debug` is on.
 - `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` below one minute are raised to

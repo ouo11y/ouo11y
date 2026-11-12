@@ -102,7 +102,7 @@ describe("configuration never throws (CFG-1, CFG-2, CFG-3)", () => {
     }
     // Defaults when nothing is given; a rate below 0 clamps to 0; NaN is the default.
     const plain = normalizeOptions(base).config!;
-    expect(plain.session).toEqual({ inactivityTimeoutMs: 30 * 60_000, backgroundTimeoutMs: 30_000, maxDurationMs: 4 * 3600_000, sampleRate: 1 });
+    expect(plain.session).toEqual({ inactivityTimeoutMs: 30 * 60_000, backgroundTimeoutMs: 15 * 60_000, maxDurationMs: 4 * 3600_000, sampleRate: 1 });
     expect(normalizeOptions({ ...base, session: { sampleRate: -2 } }).config!.session.sampleRate).toBe(0);
     expect(normalizeOptions({ ...base, session: { sampleRate: NaN } }).config!.session.sampleRate).toBe(1);
   });
