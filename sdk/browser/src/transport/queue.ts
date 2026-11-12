@@ -360,6 +360,12 @@ export class OutboxDrainer {
     if (this.closed || this.o.gate() === "hold") return Promise.resolve();
     this.running ??= quiet(this.withLock(() => this.run())).finally(() => {
       this.running = null;
+      // Entries handed over while this run was past its listing, or while another tab held the
+      // drain lock, are still this page's to send: come back for them. Not while the page is
+      // hidden (the return to visible schedules a drain).
+      if (this.owned.size > 0 && this.timer === null && !this.closed && !this.o.hidden()) {
+        this.schedule(retryDelay(this.failures + 1, undefined, this.o.retryInitialMs, this.o.retryMaxMs));
+      }
     });
     return this.running;
   }

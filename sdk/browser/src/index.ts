@@ -87,6 +87,7 @@ class Runtime {
   private replayConsent: ConsentState;
   private unloading = false;
   private dropTimer: TimerHandle | null = null;
+  private tabLock = false;
   private releaseTab: (() => void) | undefined;
   private documentUrlRaw = "";
   private documentUrlClean = "";
@@ -166,9 +167,7 @@ class Runtime {
           this.emitter.emit("session.start", attrs, { stamp: this.stampOf(rec), first: true, time: rec.start });
         },
         onEnd: (rec, reason) => {
-          // The end of a session whose consent was withdrawn is the last record of that consent:
-          // it is announced under the session lock, after the state has changed.
-          if (rec.s) this.emitter.emit("session.end", { "ouo.session.end_reason": reason }, { stamp: this.stampOf(rec), first: true, time: rec.last, always: reason === "consent" });
+          if (rec.s) this.emitter.emit("session.end", { "ouo.session.end_reason": reason }, { stamp: this.stampOf(rec), first: true, time: rec.last });
         },
         onChange: () => {
           this.replay.evaluate();
@@ -369,16 +368,27 @@ class Runtime {
     this.log.log(`${SDK_NAME} ${SDK_VERSION} started (spec ${SPEC_VERSION})`);
   }
 
-  /** A shared Web Lock held while this tab runs the SDK: `shutdown` uses it to tell whether it is the last one. */
+  /**
+   * A shared Web Lock held while this tab runs the SDK and is not in the back/forward cache:
+   * `shutdown` counts its holders to tell whether this is the last tab.
+   */
   private holdTabLock(): void {
     const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
-    if (!locks?.request) return;
+    if (!locks?.request || this.tabLock) return;
+    this.tabLock = true;
     void quiet(
       locks.request("ouo.tab", { mode: "shared" }, () => new Promise<void>((resolve) => {
-        this.releaseTab = resolve;
-        if (this.stopped) resolve();
+        // Dropped again before it was granted: let go at once.
+        if (!this.tabLock || this.stopped) resolve();
+        else this.releaseTab = resolve;
       })),
     );
+  }
+
+  private dropTabLock(): void {
+    this.tabLock = false;
+    this.releaseTab?.();
+    this.releaseTab = undefined;
   }
 
   /** Whether no other tab of this origin runs the SDK: it holds the only `ouo.tab` lock. */
@@ -419,6 +429,9 @@ class Runtime {
         // listeners registered before this one; now close the replay chunk and end the stream,
         // flush telemetry, then replay.
         this.unloading = true;
+        // A held Web Lock can keep a page out of the back/forward cache: none is held past here
+        // (the replay stream's lock goes with the stream). Taken again when the page is shown.
+        this.dropTabLock();
         const engine = this.replay.onPageHide();
         this.reportDrops();
         void this.logs.flush();
@@ -430,6 +443,7 @@ class Runtime {
     off(
       listen(globalThis, "pageshow", (e) => {
         this.unloading = false;
+        this.holdTabLock();
         if (!(e as PageTransitionEvent).persisted) return;
         // Restored from the back/forward cache (LIF-8): a new view, the session re-evaluated, a new replay stream.
         this.navigation?.restored();
@@ -535,31 +549,28 @@ class Runtime {
         this.drainer?.schedule(0);
       } else if (!c.telemetry && this.telemetryConsent !== "denied") {
         const wasGranted = this.telemetryConsent === "granted";
-        // What was collected with consent may still leave; what was only buffered may not (PRV-2).
-        if (wasGranted) this.session.end("consent");
+        // All in this task, so a grant that follows at once finds a clean slate: the session's
+        // end is announced while its consent still holds, then the stored session is forgotten.
+        // What was only buffered while consent was pending is not sent at all (PRV-2).
+        if (wasGranted) this.session.endNow("consent");
         else {
           this.logs.discard();
           this.traces.discard();
         }
         this.telemetryConsent = "denied";
-        const outbox = this.outboxInstance;
+        this.session.sever();
+        this.storage.forget();
         void this.replay.withdraw();
-        // In order: the session's end is announced (under the session lock, so only once the
-        // lock is granted), the stored session is forgotten, what was collected with consent gets
-        // one last attempt, and whatever is still unsent, in memory or stored, is deleted (PRV-4).
+        // What was collected with consent gets one last attempt; whatever is still unsent after
+        // it, in memory or stored, is deleted (PRV-4). Not if consent was granted again meanwhile.
+        const outbox = this.outboxInstance;
         void quiet(
-          this.session
-            .settled()
-            .then(() => {
-              this.session.sever();
-              this.storage.forget();
-              return wasGranted ? Promise.all([this.logs.flush(), this.traces.flush()]) : undefined;
-            })
-            .then(() => {
-              this.logs.discard();
-              this.traces.discard();
-              return outbox?.clear();
-            }),
+          (wasGranted ? Promise.all([this.logs.flush(), this.traces.flush()]) : Promise.resolve()).then(() => {
+            if (this.telemetryConsent !== "denied") return undefined;
+            this.logs.discard();
+            this.traces.discard();
+            return outbox?.clear();
+          }),
         );
       }
     }
@@ -588,7 +599,7 @@ class Runtime {
     this.dropTimer = null;
     this.drainer?.close();
     this.session.stop();
-    this.releaseTab?.();
+    this.dropTabLock();
   }
 
   /** LIF-4: stop capture, remove hooks, end the session and the replay stream, flush within the deadline. */

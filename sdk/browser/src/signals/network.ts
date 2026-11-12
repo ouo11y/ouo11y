@@ -52,14 +52,16 @@ export function installNetwork(d: NetworkDeps): () => void {
   const disable = registerInstrumentations({ instrumentations, tracerProvider: d.tracerProvider });
   // The fetch instrumentation writes the trace headers onto the init or Request it was given.
   // An app that reuses that object would send the next request with this one's `traceparent`,
-  // also to origins that must not get one. So the instrumentation is given a copy.
+  // also to origins that must not get one. So the instrumentation is given a stand-in.
   const traced = g.fetch;
   if (traced && traced !== before.fetch) {
     const wrapper = function ouoFetch(this: unknown, input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       let i = input;
       let o = init;
       try {
-        if (init && typeof init === "object") o = { ...init };
+        // Inherits every field of the app's init, own or not, like the platform reads them;
+        // what the instrumentation writes lands on this object, not on the app's.
+        if (init && typeof init === "object") o = Object.create(init) as RequestInit;
         if (typeof Request === "function" && input instanceof Request) i = new Request(input);
       } catch {
         // A Request that cannot be copied (its body was used) goes through as it is.

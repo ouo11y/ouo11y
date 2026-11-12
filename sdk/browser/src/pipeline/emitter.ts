@@ -44,8 +44,6 @@ export interface EmitOptions {
   first?: boolean;
   /** An SDK diagnostic (`ouo.sdk.dropped`): never rate limited, never counted as a drop. */
   internal?: boolean;
-  /** Emitted even when the SDK no longer is active (`session.end` of a withdrawn consent). */
-  always?: boolean;
 }
 
 export interface EmitterDeps {
@@ -98,7 +96,7 @@ export class Emitter {
   }
 
   emit(name: string, attributes: Attrs = {}, o: EmitOptions = {}): void {
-    if (!this.d.active() && !o.always) return;
+    if (!this.d.active()) return;
     point("emit");
     const now = this.d.clock.now();
     const stamp = o.stamp ?? this.d.stamp();

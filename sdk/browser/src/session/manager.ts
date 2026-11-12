@@ -161,6 +161,15 @@ export class SessionManager {
     this.finish(reason);
   }
 
+  /**
+   * Ends the session in this very task, without waiting for the session lock (consent
+   * withdrawal: the end must be announced before anything else changes). The `e` mark in the
+   * stored record still keeps a second tab from announcing it again.
+   */
+  endNow(reason: EndReason): void {
+    this.finish(reason, true);
+  }
+
   /** Forget the stored session; the next one has no `session.previous_id` (PRV-4). */
   sever(): void {
     this.live = false;
@@ -304,12 +313,12 @@ export class SessionManager {
     }, () => this.opts.hooks.release());
   }
 
-  private finish(reason: EndReason): void {
+  private finish(reason: EndReason, now = false): void {
     const rec = this.rec;
     if (!rec || !this.live) return;
     this.live = false;
     this.disarm();
-    this.locked(() => {
+    const run = (): void => {
       const cur = this.read();
       if (cur && cur.id === rec.id) {
         if (!cur.e) {
@@ -323,7 +332,9 @@ export class SessionManager {
       // announce the end, so none does. Consumers treat `session.end` as a hint (SES-8).
       rec.e = 1;
       this.opts.hooks.onChange(null);
-    });
+    };
+    if (now) attempt(run);
+    else this.locked(run);
   }
 
   private adopt(other: SessionRecord): void {

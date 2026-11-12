@@ -213,3 +213,114 @@ describe("F. consent denied while a session start is being confirmed under the W
     expect(collector.events("session.end")).toHaveLength(0);
   });
 });
+
+// ---- second round of the review ----
+
+describe("H. consent denied then granted in the same task (a CMP setting a default, then the stored choice)", () => {
+  for (const required of [true, false]) {
+    it(`consent.required=${required}: the session that starts on the grant survives, is stored and its records are sent`, async () => {
+      ouo.init({ endpoint: BASE, serviceName: "web-store", consent: { required }, transport: { flushIntervalMs: 50, persist: { enabled: false } } });
+      ouo.setConsent({ telemetry: false });
+      ouo.setConsent({ telemetry: true });
+      const sid = ouo.getSessionId();
+      expect(sid).toMatch(/^[0-9a-f]{32}$/);
+      ouo.recordEvent("after.grant");
+      await wait(300);
+      await ouo.flush();
+      await collector.settled();
+      expect(ouo.getSessionId()).toBe(sid);
+      expect(localStorage.getItem("ouo.session")).toContain(sid!);
+      expect(collector.events("after.grant")).toHaveLength(1);
+      expect(collector.events("session.start").filter((e) => e.attributes["session.id"] === sid)).toHaveLength(1);
+    });
+  }
+});
+
+describe("I. the fetch wrapper leaves the call as the app made it", () => {
+  it("an init whose fields are inherited (a class instance, Object.create) still reaches fetch", async () => {
+    ouo.init({ endpoint: BASE, serviceName: "web-store", transport: { flushIntervalMs: 50, persist: { enabled: false } } });
+    const defaults = { method: "POST", headers: { "x-app": "1" } };
+    const init = Object.create(defaults) as RequestInit;
+    await fetch("http://localhost:3000/api/a", init);
+    // The app's own object is not written to.
+    expect(Object.keys(init)).toEqual([]);
+    expect(collector.app[0]!.headers["x-app"]).toBe("1");
+  });
+});
+
+class SlowClock implements Clock {
+  t = 1_700_000_000_000;
+  private timers = new Map<number, { at: number; fn: () => void }>();
+  private next = 1;
+  now(): number {
+    return this.t;
+  }
+  setTimeout(fn: () => void, ms: number): unknown {
+    this.timers.set(this.next, { at: this.t + ms, fn });
+    return this.next++;
+  }
+  clearTimeout(h: unknown): void {
+    this.timers.delete(h as number);
+  }
+  async advance(ms: number): Promise<void> {
+    const end = this.t + ms;
+    for (;;) {
+      const due = [...this.timers.entries()].filter(([, v]) => v.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      this.timers.delete(due[0]);
+      this.t = Math.max(this.t, due[1].at);
+      due[1].fn();
+      for (let i = 0; i < 30; i++) await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    this.t = end;
+  }
+}
+
+describe("J. a batch handed to the outbox while the drainer is in the middle of a run", () => {
+  it("is delivered without waiting for another failure, a tab switch or a reload", async () => {
+    const clock = new SlowClock();
+    const outbox = new MemoryOutbox(1024 * 1024);
+    const delivered: string[] = [];
+    let failNext = 0;
+    let slow: (() => void) | undefined;
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      const text = new TextDecoder().decode(init.body as Uint8Array);
+      if (failNext > 0) {
+        failNext--;
+        return new Response("", { status: 503 });
+      }
+      if (text === "one" && !delivered.includes("one-started")) {
+        delivered.push("one-started");
+        await new Promise<void>((r) => (slow = r)); // the drainer's POST of batch one is slow
+      }
+      delivered.push(text);
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const http = new Http({ headers: {}, timeoutMs: 600_000, clock, fetchImpl });
+    const drops = new DropCounter();
+    let drainer!: OutboxDrainer;
+    const queue = new TelemetryQueue<string>({
+      signal: "logs", url: "http://c/v1/logs", serialize: (items) => new TextEncoder().encode(items.join(",")), rejected: () => 0, isBypass: () => false, nameOf: () => "e",
+      http, outbox: () => outbox, onStored: (id) => drainer.own(id), drops, logger: silentLogger, gate: () => "open", hidden: () => false, clock, random: () => 1,
+      settings: { flushIntervalMs: 1000, maxBatchRecords: 10, maxRequestBytes: 1 << 20, maxQueueRecords: 100, retryInitialMs: 1000, retryMaxMs: 30_000 },
+    });
+    drainer = new OutboxDrainer({
+      outbox: () => outbox, http, urls: { logs: "http://c/v1/logs", traces: "http://c/v1/traces" }, rejected: { logs: () => 0, traces: () => 0 }, drops,
+      ttlMs: 72 * 3_600_000, retryInitialMs: 1000, retryMaxMs: 30_000, gate: () => "open", hidden: () => false, clock,
+    });
+    failNext = 1;
+    queue.add("one");
+    await clock.advance(1000); // flush: 503, handed to the outbox, drainer scheduled
+    await clock.advance(1100); // drainer runs and is now waiting on the slow POST of "one"
+    expect(delivered).toEqual(["one-started"]);
+    failNext = 1;
+    queue.add("two");
+    await clock.advance(1000); // flush: 503, handed to the outbox while the drainer is running
+    slow!();
+    await clock.advance(10 * 60_000); // ten minutes, nothing else happens on the page
+    queue.close();
+    drainer.close();
+    expect(delivered.filter((d) => d !== "one-started")).toEqual(["one", "two"]);
+  });
+});
