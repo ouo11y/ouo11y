@@ -380,6 +380,18 @@ public final class ReplayStream {
         lock.withLock { finish(reason) }
     }
 
+    /// Ends the stream without a record and forgets its state (consent withdrawn, PRV-4: nothing
+    /// further is emitted). What it buffered is dropped.
+    public func abandon() {
+        lock.withLock {
+            ended = true
+            open = nil
+            ring = []
+            ringBytes = 0
+            store?.clear()
+        }
+    }
+
     /// Ends the stream a kill left open in an earlier process (RPL-20): `ouo.replay.ended` with
     /// `partial`. Call before this process's stream produces a chunk. True when a record was sent.
     @discardableResult
