@@ -405,9 +405,15 @@ public final class ReplayStream {
 
     // MARK: internals (under `lock`)
 
+    /// `to - from`, saturating: a clock can hand over any pair of times.
+    private static func elapsed(from: EpochMillis, to: EpochMillis) -> Int64 {
+        let (value, overflow) = to.subtractingReportingOverflow(from)
+        return overflow ? (to > from ? .max : .min) : value
+    }
+
     private func segmentDue(_ t: EpochMillis) -> Bool {
         let interval = buffering ? config.ringSegmentMs : config.keyframeIntervalMs
-        return t < segmentStartedAt || t - segmentStartedAt >= interval
+        return t < segmentStartedAt || Self.elapsed(from: segmentStartedAt, to: t) >= interval
     }
 
     private func noteError() {
@@ -481,7 +487,7 @@ public final class ReplayStream {
 
     private func closeIfOld(_ t: EpochMillis) {
         guard let o = open else { return }
-        if t < o.start || t - o.start >= config.chunkMaxMs { closeChunk() }
+        if t < o.start || Self.elapsed(from: o.start, to: t) >= config.chunkMaxMs { closeChunk() }
     }
 
     private func closeChunk(compressed: Data? = nil) {
@@ -541,7 +547,7 @@ public final class ReplayStream {
     /// oldest goes once the one after it started `bufferSeconds` ago or earlier.
     private func evictRing(now t: EpochMillis) {
         let window = Int64(config.bufferSeconds * 1000)
-        while ring.count > 1, ring[1].startedAt <= t - window {
+        while ring.count > 1, Self.elapsed(from: ring[1].startedAt, to: t) >= window {
             dropOldestSegment()
         }
         while ring.count > 1, ringBytes > config.ringMaxBytes {
