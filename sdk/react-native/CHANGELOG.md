@@ -3,7 +3,46 @@
 ## Unreleased
 
 Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0021 step
-A: the names, scope, session id and sampling rules, protobuf and replay over OTLP are step B).
+A plus replay over OTLP: the names, scope, session id and sampling rules and protobuf for
+telemetry are step B).
+
+### Breaking: replay over OTLP (ADR-0021 decision 5)
+
+- **Replay chunks are OTLP log records.** The native module sends each chunk as one protobuf
+  request to `${endpoint}/v1/logs` (scope `ouo.replay`, event `ouo.replay.chunk`) and ends a
+  stream with `ouo.replay.ended`. The custom upload to `/v1/replay/chunks` is gone from the
+  package, so replay needs a collector route for these records: the MVP replay receiver on
+  port 4319 no longer gets anything from this SDK.
+- **Removed `replayEndpoint`** (and the derived port 4319, `defaultReplayEndpoint`,
+  `DEFAULT_REPLAY_PORT`, `ResolvedEndpoints.replayEndpoint` / `replayChunks` /
+  `replayEndpointDerived`). Replaced by `endpoint`: chunks go to its logs route. A
+  `replayEndpoint` still passed is ignored, with a diagnostic.
+- **`replay.mode` now says what is recorded**: `pixel/frames` (default), `pixel/video`,
+  `structure/wireframe`; only `pixel/frames` is in this build. A value that is not a mode, or
+  a mode this build cannot record, leaves replay off with one warning. The old values `auto`,
+  `session`, `navigation` moved to the new **`replay.cadence`**; passed as `mode` they are read
+  as the cadence, with a deprecation warning.
+- **Removed `replay.keepAtNextLaunch`** and the `HeldReplaySession` type (next-launch
+  keep/drop). Replaced by buffer on error: `replay.onErrorSampleRate` with the new
+  `replay.bufferSeconds` keeps the last seconds on the device and sends them at the first
+  unhandled exception, crash or hang, or on `rum.replay.capture()`.
+- `replay.onErrorSampleRate` changed meaning accordingly: the session records into a buffer
+  from its start and the replay begins before the error; it used to start recording at the
+  error. Only the bypass set triggers it now (not a handled `captureError` or `console.error`).
+- A session rotation into a session that is not recorded ends the replay stream; it used to
+  pause the recorder.
+
+### Added (replay)
+
+- `rum.replay.capture()`, `rum.replay.mask(ref)` / `unmask(ref)` reach the native recorder
+  (refs are resolved with `findNodeHandle`); every screen change sets a fresh `ouo.view.id` on
+  the chunks; `shutdown()` ends the stream with reason `session_end`; withdrawing replay
+  consent stops the recorder and deletes the chunks not yet accepted.
+- The replay records carry the telemetry's resource attributes and
+  `schema_url = https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev`; the native side is
+  told how the previous run ended (`crash`, `background_kill`) and ends its open stream so.
+- `examples/ouo-mobile/scripts/fake-collector.mjs`: a dependency-free fake Collector that
+  injects faults and checks the replay rules of the SDK spec on what it receives.
 
 ### Changed
 
