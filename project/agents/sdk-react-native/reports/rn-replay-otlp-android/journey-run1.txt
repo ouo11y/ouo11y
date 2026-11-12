@@ -1,0 +1,18 @@
+Run 1: journey-android.sh, no backend (8 screens, typing, background, force-stop, relaunch)
+
+verdict: PASS
+requests: 35 (faults injected: 0; accepted logs 24, traces 11)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (8 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (7 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (7 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (7 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (7 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (14 checked)
+  [PASS] sequence: per stream the sequences are 0, 1, 2, ... with no gap (2 checked)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (2 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (1 checked)
+  stream b339d77c974e422bb33f8d197f9691d2: 5 chunk(s), highest sequence 4, 26164 bytes, 0 duplicate(s), ended: partial/background_kill/last=4
+  stream 11527693585b1afa1f09326e2257e805: 2 chunk(s), highest sequence 1, 5922 bytes, 0 duplicate(s), ended: no
+  telemetry events: navigation=10, ouo.stall=5, session.start=2, ouo.app.start=2, http.request.failed=11, ouo.screen.display=10, app.jank=8, ui.tap=1, app.lifecycle=2, session.end=1
+  telemetry session.id: b0ac0ae3-bd40-4aa0-b755-ea1c6916cfeb=41, 10db4ae2-fae8-46b3-8919-40518f87a34e=11
+  spans: HTTP GET=9, HTTP POST=2
