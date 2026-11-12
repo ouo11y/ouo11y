@@ -100,8 +100,9 @@ public class OuoReplayModule: Module {
     /// (`replayDiagnostics()`), and options replay cannot run with leave it off. Keys:
     /// - `otlp: { logsUrl: string, resource?: { [key]: string | number | boolean }, schemaUrl?: string,
     ///   scopeVersion?: string, previousExit?: "crash" | "background_kill" }`
-    /// - `mode?: "pixel/frames"` (default; `pixel/video` and `structure/wireframe` are not in this
-    ///   build and leave replay off)
+    /// - `mode?: "pixel/frames" | "pixel/video"` (default `pixel/frames`, `ouo-frames/3`;
+    ///   `pixel/video` records H.264 segments, `ouo-video/1`, with the same masking;
+    ///   `structure/wireframe` is not in this build and leaves replay off)
     /// - `cadence?: "auto" | "session" | "navigation"` (what `mode` means on the legacy path)
     /// - `buffer?: { seconds?: number }` (present: keep a ring of that many seconds, default 60,
     ///   and send on `capture(trigger)`; absent: record the whole session)

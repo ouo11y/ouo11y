@@ -1,0 +1,10 @@
+ouo11y-ios (sdk/ios)
+Copyright 2026 the ouo11y authors. Licensed under the Apache License, Version 2.0.
+
+This product includes software from sentry-cocoa 9.33.0
+(https://github.com/getsentry/sentry-cocoa, tag 9.33.0), Copyright (c) 2015 Sentry,
+used under the MIT License: the session-replay recorder core in
+Sources/OuoReplaySentryCore/Upstream/ and Sources/OuoReplaySentryCoreObjC/ (copied), and portions
+of Sources/OuoReplaySentryCore/Seams.swift and SentryCoreRecorder.swift (adapted). The full MIT
+license text is in THIRD_PARTY_NOTICES. React Native apps record `replay.mode: "pixel/video"`
+with this code.

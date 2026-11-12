@@ -1,6 +1,17 @@
 import Foundation
 @_exported import OuoReplayCore
 
+/// Which recorder captures the replay.
+public enum ReplayRecorderKind: String, Sendable {
+    /// ouo's own recorder: JPEG frames with tile patches, `kind: "frames"` (ADR-0006, ADR-0014).
+    case frames
+    /// Spike: sentry-cocoa's recorder core (OuoReplaySentryCore): 1 frame/s H.264 segments of 5 s,
+    /// `kind: "video"` with `format: "sentry-video"`. Masking is Sentry's (it does not drop a frame
+    /// when a masked view moves); `mode`, `jpegQuality`, `maxLongestSide`, `flushInterval`,
+    /// `maskInputs` (inputs are masked as text) and `maskWebViews` do not apply.
+    case sentryVideo = "sentry-video"
+}
+
 /// Host configuration (docs/specs/mobile-replay.md, "Host API").
 public struct OuoReplayConfig {
     /// Replay receiver base URL (the collector's `ouoreplay` port, 4319 by default, or the proxy
@@ -51,6 +62,9 @@ public struct OuoReplayConfig {
     /// The OTLP replay queue's folder and the open stream's file, beside `outboxURL`.
     var otlpOutboxURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("outbox-otlp", isDirectory: true) }
     var otlpStateURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("open-stream.json") }
+    /// The legacy upload path's recorder (`otlp` nil). Default `.frames`. With `otlp` the
+    /// recorder is `otlp.recorder` (`replay.mode`).
+    public var recorder: ReplayRecorderKind
 
     public init(
         endpoint: URL,
@@ -71,7 +85,8 @@ public struct OuoReplayConfig {
         seqStore: SeqStore = UserDefaultsSeqStore(),
         spoolURL: URL = ChunkSpool.defaultURL,
         outboxURL: URL = ChunkUploader.defaultDirectory,
-        holdUploads: Bool = false
+        holdUploads: Bool = false,
+        recorder: ReplayRecorderKind = .frames
     ) {
         self.endpoint = endpoint
         self.projectId = projectId
@@ -92,6 +107,7 @@ public struct OuoReplayConfig {
         self.spoolURL = spoolURL
         self.outboxURL = outboxURL
         self.holdUploads = holdUploads
+        self.recorder = recorder
     }
 
     /// `Basic base64("<projectId>:<projectToken>")`, what `ChunkUploader` puts in `Authorization`.

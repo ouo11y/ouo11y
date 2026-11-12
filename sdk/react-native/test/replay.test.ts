@@ -468,14 +468,17 @@ describe("replay.mode (ADR-0021 decision 5)", () => {
     expect(resolveReplayMode(undefined)).toEqual({ mode: "pixel/frames", cadence: "auto" });
     expect(resolveReplayMode({ mode: "pixel/frames", cadence: "navigation" })).toEqual({ mode: "pixel/frames", cadence: "navigation" });
     // Valid modes this build cannot record: off, one warning.
-    for (const mode of ["pixel/video", "structure/wireframe"] as const) {
-      const r = resolveReplayMode({ mode });
+    const android = new Set<ReplayMode>(["pixel/frames"]);
+    for (const [mode, supported] of [["pixel/video", android], ["structure/wireframe", NATIVE_REPLAY_MODES]] as const) {
+      const r = resolveReplayMode({ mode }, supported);
       expect(r.mode).toBeUndefined();
       expect(r.warning).toMatch(/not available in this build/);
     }
-    // One line makes a mode available: the supported set.
+    // One line makes a mode available: the supported set. The tests run as iOS (the mock's
+    // Platform.OS), where pixel/video records.
     expect(resolveReplayMode({ mode: "pixel/video" }, new Set<ReplayMode>(["pixel/frames", "pixel/video"]))).toEqual({ mode: "pixel/video", cadence: "auto" });
-    expect(NATIVE_REPLAY_MODES.has("pixel/frames")).toBe(true);
+    expect(resolveReplayMode({ mode: "pixel/video" })).toEqual({ mode: "pixel/video", cadence: "auto" });
+    expect([...NATIVE_REPLAY_MODES]).toEqual(["pixel/frames", "pixel/video"]);
     expect(REPLAY_MODES).toEqual(["pixel/frames", "pixel/video", "structure/wireframe"]);
     // Not modes: shorthand, the web-only mode, junk.
     for (const mode of ["pixel", "structure", "structure/dom", "frames", "", 5, {}, true]) {
@@ -493,10 +496,24 @@ describe("replay.mode (ADR-0021 decision 5)", () => {
     expect(resolveReplayMode({ cadence: "junk" as never }).cadence).toBe("auto");
   });
 
+  it("pixel/video is supported on iOS only", async () => {
+    // A fresh module graph whose react-native stand-in says Android.
+    vi.resetModules();
+    try {
+      const rn = await import("./mocks/react-native");
+      rn.Platform.OS = "android";
+      const onAndroid = await import("../src/replay");
+      expect([...onAndroid.NATIVE_REPLAY_MODES]).toEqual(["pixel/frames"]);
+      expect(onAndroid.resolveReplayMode({ mode: "pixel/video" }).mode).toBeUndefined();
+    } finally {
+      vi.resetModules();
+    }
+  });
+
   it("an unusable mode leaves replay off with one warning and never throws; a deprecated one records", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
-    for (const mode of ["pixel/video", "pixel", "structure/dom", 42]) {
+    for (const mode of ["structure/wireframe", "pixel", "structure/dom", 42]) {
       warn.mockClear();
       const native = fakeNative();
       let c!: ReturnType<typeof createReplayController>;

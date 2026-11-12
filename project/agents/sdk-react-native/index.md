@@ -9,10 +9,8 @@ Owns `sdk/react-native` (`@ouo11y/react-native`) and `examples/ouo-mobile` (Expo
   - [2026-10-10-phase-8a-rev2.md](summaries/2026-10-10-phase-8a-rev2.md) — Phase 8a revision 2: the collector is the edge; `endpoint` = collector, `projectId` + `projectToken` as HTTP Basic, derived `replayEndpoint` (RN, Swift, demo app, guide)
   - [2026-10-23-b2-bridge-parity.md](summaries/2026-10-23-b2-bridge-parity.md) — batch 2: span and log API, timeline (taps, lifecycle, requests), Sentry forwarding, device model, trace id on errors, stack paths, JS vitals, Q1 fatal de-duplication; native hooks still needed for app start and frames
   - [2026-11-04-b3-hermes-sourcemaps.md](summaries/2026-11-04-b3-hermes-sourcemaps.md) — B3: Hermes debug ids from Metro (bare + Expo), OTA-safe uploads (hot-updater wrapper), `ouo.exception.debug_ids` from the RN SDK, rum-api reads Hermes columns as bytecode offsets and accepts `[in app]` frames
+  - [2026-11-12-rn-replay-video-ios.md](summaries/2026-11-12-rn-replay-video-ios.md) — `replay.mode: "pixel/video"` on iOS: the Sentry spike over OTLP as `ouo-video/1`, frames masking, the transition leak traced and fixed, a scroll leak in both recorders fixed, 20-run OCR proof
   - [2026-11-12-step-a-missing-layers.md](summaries/2026-11-12-step-a-missing-layers.md) — full-feature run, step A: ADR-0021, guard and fault injection, spec API, beforeSend, consent, sanitising, bypass set, drop counting; unit tests only
   - [2026-11-12-rn-replay-otlp-android.md](summaries/2026-11-12-rn-replay-otlp-android.md) — replay over OTLP (`pixel/frames`) end to end on an Android emulator: every section-11 rule passes, faults handled, masking checked on decoded frames
-- `reports/`
-  - [rn-replay-otlp-android/](reports/rn-replay-otlp-android/index.md) — collector verdicts and two masked frames of the Android emulator run (2026-11-12)
 - [notes/](notes/index.md) working notes
-- `reports/`
-  - [rn-replay-otlp-ios/](reports/rn-replay-otlp-ios/index.md) — replay over OTLP verified on the iOS Simulator: fake Collector verdicts, retry and drop evidence, masked frames
+- [reports/](reports/index.md) evidence folders (OCR results, frames, collector reports)

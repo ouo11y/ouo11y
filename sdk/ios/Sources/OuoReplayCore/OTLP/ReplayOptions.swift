@@ -6,13 +6,18 @@ import Foundation
 public enum ReplayRecorderMode: String, Sendable, CaseIterable {
     /// ouo's own recorder: masked JPEG frames and tile patches, `ouo-frames/3`. The default.
     case pixelFrames = "pixel/frames"
-    /// `ouo-video/1`. Not in this build.
+    /// H.264 video segments recorded by sentry-cocoa's recorder core with ouo's masking,
+    /// `ouo-video/1`. iOS (UIKit) only.
     case pixelVideo = "pixel/video"
     /// `ouo-wireframe/1`. Not in this build.
     case structureWireframe = "structure/wireframe"
 
     /// What this build of the iOS SDK can record.
+    #if canImport(UIKit)
+    public static let supported: Set<ReplayRecorderMode> = [.pixelFrames, .pixelVideo]
+    #else
     public static let supported: Set<ReplayRecorderMode> = [.pixelFrames]
+    #endif
 }
 
 /// The OTLP replay options of `start(endpoint, options)`, read from what JavaScript passed

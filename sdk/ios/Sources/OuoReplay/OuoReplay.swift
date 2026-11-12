@@ -41,6 +41,9 @@ public enum OuoReplay {
         uploader(config).release(sessionId: sessionId, keep: keep)
     }
 
+    /// Main-thread milliseconds of each capture, by whichever recorder runs (overhead comparison).
+    public static let captureStats = CaptureStats()
+
     // MARK: OTLP replay (ADR-0021 decision 5), the parts that need no UIKit
 
     private static let otlpLock = NSLock()
@@ -140,7 +143,11 @@ public enum OuoReplay {
                 r.start()
                 return
             }
-            let r = ReplayRecorder(config: config)
+            let r: ReplayRecording
+            switch config.recorder {
+            case .frames: r = ReplayRecorder(config: config)
+            case .sentryVideo: r = VideoReplayRecorder(config: config)
+            }
             recorder = r
             r.start()
         }
@@ -167,6 +174,12 @@ public enum OuoReplay {
             if let r = recorder as? OTLPReplayRecorder { r.end(reason) } else { recorder?.stop() }
             recorder = nil
         }
+    }
+
+    /// The recorder in use, nil when not started.
+    public static var recorderKind: ReplayRecorderKind? {
+        if Thread.isMainThread { return recorder?.kind }
+        return DispatchQueue.main.sync { recorder?.kind }
     }
 
     /// Stops the timer and flushes. Frames are not captured until `resume()`.

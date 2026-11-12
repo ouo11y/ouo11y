@@ -1,3 +1,5 @@
+// Spawns OuoCrashProbe with Process: macOS only (the package's iOS test build skips it).
+#if os(macOS)
 import Foundation
 import Testing
 @testable import OuoCrash
@@ -180,3 +182,4 @@ import Testing
         #expect(!plain.contains("frames"))
     }
 }
+#endif

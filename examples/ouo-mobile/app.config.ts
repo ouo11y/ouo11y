@@ -39,6 +39,8 @@ const config: ExpoConfig = {
     projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
     projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
+    // EXPO_PUBLIC_OUO_REPLAY_MODE: what replay records (`pixel/frames`, the default, or `pixel/video`, iOS).
+    replayMode: process.env.EXPO_PUBLIC_OUO_REPLAY_MODE ?? "pixel/frames",
     // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
     // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
     conformance: process.env.OUO_CONFORMANCE === "1",

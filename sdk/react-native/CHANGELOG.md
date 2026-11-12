@@ -18,7 +18,8 @@ telemetry are step B).
   `replayEndpointDerived`). Replaced by `endpoint`: chunks go to its logs route. A
   `replayEndpoint` still passed is ignored, with a diagnostic.
 - **`replay.mode` now says what is recorded**: `pixel/frames` (default), `pixel/video`,
-  `structure/wireframe`; only `pixel/frames` is in this build. A value that is not a mode, or
+  `structure/wireframe`; `pixel/frames` is in this build, and `pixel/video` on iOS (H.264
+  segments, `ouo-video/1`, recorded by sentry-cocoa's recorder core with ouo's masking). A value that is not a mode, or
   a mode this build cannot record, leaves replay off with one warning. The old values `auto`,
   `session`, `navigation` moved to the new **`replay.cadence`**; passed as `mode` they are read
   as the cadence, with a deprecation warning.

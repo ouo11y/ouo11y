@@ -317,7 +317,7 @@ final class ReplayControl {
             endpoint: c.replayEndpoint, projectId: c.projectId, projectToken: c.projectToken,
             sessionId: { box.value }, mode: c.replayMode,
             maskText: c.replayMask.text, maskInputs: c.replayMask.inputs, maskImages: c.replayMask.images, maskWebViews: c.replayMask.webViews,
-            debug: c.debug
+            debug: c.debug, recorder: c.replayRecorder
         )
         self.box = box
     }

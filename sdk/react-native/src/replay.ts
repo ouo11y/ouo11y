@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { guard } from "./guard";
 import type { DebugLogger } from "./logger";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
@@ -91,10 +92,10 @@ export const DEFAULT_BUFFER_SECONDS = 60;
 /** Every value `replay.mode` may have on mobile (`structure/dom` is web only). No shorthand. */
 export const REPLAY_MODES: readonly ReplayMode[] = ["pixel/frames", "pixel/video", "structure/wireframe"];
 /**
- * The modes the native module of this package can record. The one place to add a mode when its
- * recorder ships (`pixel/video`: one line here).
+ * The modes the native module of this package can record, per platform. The one place to add a
+ * mode when its recorder ships. `pixel/video` is iOS only.
  */
-export const NATIVE_REPLAY_MODES: ReadonlySet<ReplayMode> = new Set<ReplayMode>(["pixel/frames"]);
+export const NATIVE_REPLAY_MODES: ReadonlySet<ReplayMode> = new Set<ReplayMode>(Platform.OS === "ios" ? ["pixel/frames", "pixel/video"] : ["pixel/frames"]);
 const CADENCES: readonly ReplayCadence[] = ["auto", "session", "navigation"];
 
 export interface ResolvedReplayMode {

@@ -1,4 +1,4 @@
-import { initRUM, type RUM } from "@ouo11y/react-native";
+import { initRUM, type ReplayMode, type RUM } from "@ouo11y/react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 
@@ -10,6 +10,8 @@ interface Extra {
   projectId: string;
   projectToken: string;
   environment: string;
+  /** `replay.mode` (EXPO_PUBLIC_OUO_REPLAY_MODE): `pixel/frames` or, on iOS, `pixel/video`. */
+  replayMode: ReplayMode;
   /** The golden app of the Android conformance suite (OUO_CONFORMANCE=1, app.config.ts). */
   conformance?: boolean;
   /** The SDK's debug log in a Release build (OUO_DEBUG=1, app.config.ts). */
@@ -24,6 +26,7 @@ export const config: Extra = {
   projectId: extra.projectId ?? "demo",
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
+  replayMode: extra.replayMode ?? "pixel/frames",
   conformance: extra.conformance === true,
   debug: extra.debug === true,
 };
@@ -52,14 +55,14 @@ export const rum: RUM = initRUM({
   },
   // Native session replay (ADR-0021 decision 5): needs the development build (npx expo run:ios);
   // a no-op in Expo Go and on web. `mode` is what is recorded (`pixel/frames`: masked frames and
-  // tile patches). Each chunk is one OTLP log record (`ouo.replay.chunk`) the native module posts
+  // tile patches; `pixel/video`, iOS: masked H.264 segments; EXPO_PUBLIC_OUO_REPLAY_MODE). Each chunk is one OTLP log record (`ouo.replay.chunk`) the native module posts
   // to `${endpoint}/v1/logs` with the Basic credential, from its own disk queue.
   // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
   // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
   // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".
   // The conformance build keeps every default (spec C8.2: text, inputs, images and web views
   // masked) and ends a session after 5 s in the background (C1.1 without a 30 s wait).
-  replay: config.conformance ? { enabled: true, mode: "pixel/frames" } : { enabled: true, mode: "pixel/frames", maskText: false },
+  replay: config.conformance ? { enabled: true, mode: config.replayMode } : { enabled: true, mode: config.replayMode, maskText: false },
   ...(config.conformance ? { session: { backgroundTimeoutMs: 5000 } } : {}),
   debug: __DEV__ || config.debug === true,
 });

@@ -4,8 +4,15 @@
 # (Library/Developer/Frameworks/Testing.framework + Library/Developer/usr/lib), which
 # SwiftPM does not search by default; this script points the compiler, linker and dyld there.
 # See project/kb-archive/xcode-setup.md.
+#
+# `test.sh --uikit <simulator udid>` runs the UIKit tests instead (OuoReplayUIKitTests: the masking
+# plan of both pixel recorders and the video core's mask), with xcodebuild on that simulator.
 set -eu
 cd "$(dirname "$0")"
+if [ "${1:-}" = "--uikit" ]; then
+  exec xcodebuild test -quiet -scheme ouo11y-ios-Package -destination "id=${2:?usage: test.sh --uikit <simulator udid>}" \
+    -derivedDataPath .build/xcode-uikit -only-testing:OuoReplayUIKitTests
+fi
 DEV="$(xcode-select -p)"
 case "$DEV" in
   *Xcode.app*) exec swift test "$@" ;;

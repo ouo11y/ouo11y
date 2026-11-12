@@ -2,29 +2,21 @@
 import UIKit
 import OuoReplayCore
 import OuoReplayObjC
+import OuoReplaySentryCore
 
-/// What `OuoReplay` drives: the recorder that uploads to `/v1/replay/chunks` (`ReplayRecorder`) or
-/// the one that sends OTLP log records (`OTLPReplayRecorder`).
-protocol ReplayRecording: AnyObject {
-    var isRecording: Bool { get }
-    var mode: ReplayMode { get }
-    func start()
-    func pause()
-    func resume()
-    func stop()
-    func flush(completion: (() -> Void)?)
-    func sessionDidRotate(newId: String)
-    func screenDidChange()
-    func frameForFeedback()
-}
-
-extension ReplayRecorder: ReplayRecording {}
-
-/// The frames recorder (`mode: "pixel/frames"`) over OTLP (ADR-0021 decision 5, client SDK spec
-/// 11). "When to look" is the legacy recorder's: the main run-loop observer and the `CapturePacer`.
-/// What a look becomes is the format adapter's (`ouo-frames/3`); numbering, chunking, the buffer
-/// ring and the end record are `ReplayStream`'s; the disk queue is `ReplayDelivery`'s. Host mask
-/// overrides come from `ReplayMaskRegistry`, which does not depend on this recorder.
+/// The pixel recorders over OTLP (ADR-0021 decision 5, client SDK spec 11), picked by
+/// `replay.mode`:
+///
+/// - `pixel/frames` (`ouo-frames/3`): "when to look" is the legacy recorder's (the main run-loop
+///   observer and the `CapturePacer`); each look is a `PixelLook` for `PixelFormatAdapter`.
+/// - `pixel/video` (`ouo-video/1`): sentry-cocoa's recorder core (`SentryCoreRecorder`) paces,
+///   renders and encodes 5 s H.264 segments; its masking is ours (`ReplayMaskPlanner`, the same
+///   plan as frames). Each finished segment, with the touches made during it, is one `VideoLook`
+///   for `VideoFormatAdapter`, so one chunk and one segment (RPL-25).
+///
+/// Numbering, chunking, the buffer ring and the end record are `ReplayStream`'s; the disk queue is
+/// `ReplayDelivery`'s. Host mask overrides come from `ReplayMaskRegistry`, which does not depend
+/// on this recorder.
 ///
 /// Main thread: the pacer, the view walk, the masking plan and the render.
 /// `queue`: everything else. Failure isolation (ERR-1): UIKit calls that can raise run inside
@@ -43,6 +35,12 @@ final class OTLPReplayRecorder: ReplayRecording {
     private let store: FileReplayStateStore
     private let touchObserver = TouchObserver.make()
     let mode: ReplayMode
+    var kind: ReplayRecorderKind { video == nil ? .frames : .sentryVideo }
+    /// `pixel/video`: the core that captures, masks (with our plan) and encodes. Nil for frames.
+    private let video: SentryCoreRecorder?
+    /// Touches waiting for the video segment they were made in (any thread).
+    private let touchLock = NSLock()
+    private var pendingTouches: [Touch] = []
 
     /// Main thread from here on. The stream itself is thread-safe; the reference changes on a
     /// session rotation.
@@ -70,16 +68,36 @@ final class OTLPReplayRecorder: ReplayRecording {
         self.logger = logger
         self.delivery = delivery
         self.store = store
-        let mode = options.cadence.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+        // The video core looks at its own pace (1 frame/s while the screen changes): a session.
+        let mode = options.recorder == .pixelVideo ? .session : options.cadence.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
         self.mode = mode
         self.pacer = CapturePacer(mode: mode, interval: config.frameInterval)
         self.capturer = ScreenCapturer(rules: rules, jpegQuality: config.jpegQuality, maxLongestSide: config.maxLongestSide, logger: logger)
         self.stream = Self.makeStream(sessionId: config.sessionId(), replayId: options.replayId, config: config, options: options, rules: rules, delivery: delivery, store: store, logger: logger)
+        if options.recorder == .pixelVideo {
+            let planner = ReplayMaskPlanner(rules: rules)
+            let core = SentryCoreRecorder(options: .init(
+                directory: config.outboxURL.deletingLastPathComponent().appendingPathComponent("video-frames", isDirectory: true),
+                plan: { planner.plan($0) }
+            ))
+            if config.debug {
+                OuoSentryCoreLog.minimum = .debug
+                OuoSentryCoreLog.sink = { level, message in logger.log("video core \(level): \(message)") }
+            }
+            video = core
+            core.onCapture = { timing in OuoReplay.captureStats.record(millis: timing.mainThread * 1000) }
+            core.onDrop = { [weak self] in self?.maskDrops += 1 }
+            core.onSegment = { [weak self] segment in self?.ship(segment) }
+        } else {
+            video = nil
+        }
     }
 
     private static func makeStream(sessionId: String, replayId: String?, config: OuoReplayConfig, options: ReplayOTLPOptions, rules: RedactionRules, delivery: ReplayDelivery, store: FileReplayStateStore, logger: ReplayLogger) -> ReplayStream {
         // Secure fields are masked whatever the options say, so masking always ran on a frame.
-        let adapter = PixelFormatAdapter(jpegQuality: config.jpegQuality, masked: true)
+        let adapter: ReplayFormatAdapter = options.recorder == .pixelVideo
+            ? VideoFormatAdapter(masked: true)
+            : PixelFormatAdapter(jpegQuality: config.jpegQuality, masked: true)
         return ReplayStream(sessionId: sessionId, replayId: replayId, scope: options.scope, config: options.streamConfig, adapter: adapter, sink: delivery, store: store, logger: logger)
     }
 
@@ -144,10 +162,19 @@ final class OTLPReplayRecorder: ReplayRecording {
         observers = []
         detachTouchObserver()
         let stream = self.stream
-        Self.queue.async { [delivery] in
-            stream.end(reason: reason)
-            delivery.drain {}
+        afterVideoSegment { [delivery] in
+            Self.queue.async {
+                stream.end(reason: reason)
+                delivery.drain {}
+            }
         }
+    }
+
+    /// Runs `then` (main thread) once the video core handed over the segment it had open, so a
+    /// stream ends or rotates after its last chunk. At once for frames.
+    private func afterVideoSegment(_ then: @escaping () -> Void) {
+        guard let video else { return then() }
+        video.flush(completion: then)
     }
 
     /// Consent withdrawn (PRV-4): capture stops, nothing further is sent (no end record either) and
@@ -178,6 +205,12 @@ final class OTLPReplayRecorder: ReplayRecording {
     /// replay and stream start for `newId`. A buffer starts over untriggered.
     func sessionDidRotate(newId: String) {
         guard !stopped, !newId.isEmpty, newId != stream.sessionId else { return }
+        // The open video segment belongs to the old session: cut it first.
+        afterVideoSegment { [weak self] in self?.rotate(to: newId) }
+    }
+
+    private func rotate(to newId: String) {
+        guard !stopped, newId != stream.sessionId else { return }
         let old = stream
         stream = Self.makeStream(sessionId: newId, replayId: nil, config: config, options: options, rules: rules, delivery: delivery, store: store, logger: logger)
         Self.queue.async { [delivery] in
@@ -188,7 +221,7 @@ final class OTLPReplayRecorder: ReplayRecording {
     }
 
     func screenDidChange() {
-        guard isRecording else { return }
+        guard isRecording, video == nil else { return }
         let now = ProcessInfo.processInfo.systemUptime
         pacer.screenDidChange(now: now)
         scheduleWake(now: now)
@@ -196,7 +229,7 @@ final class OTLPReplayRecorder: ReplayRecording {
 
     /// The screen at a feedback, kept even when nothing changed: a keyframe (and so a segment).
     func frameForFeedback() {
-        guard isRecording else { return }
+        guard isRecording, video == nil else { return }
         stream.markGap()
         let now = ProcessInfo.processInfo.systemUptime
         pacer.requestFrame(.feedback, at: now)
@@ -250,6 +283,14 @@ final class OTLPReplayRecorder: ReplayRecording {
     private func resumeCapture() {
         guard !isRecording, !stopped else { return }
         isRecording = true
+        if let video {
+            if let window = ScreenCapturer.keyWindow() { attachTouchObserverIfNeeded(window) }
+            video.start()
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
+            RunLoop.main.add(timer, forMode: .common)
+            keepAlive = timer
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         pacer.requestFrame(.resume, at: now)
         let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { [weak self] _, _ in
@@ -272,6 +313,8 @@ final class OTLPReplayRecorder: ReplayRecording {
         keepAlive = nil
         wakeTimer?.invalidate()
         wakeTimer = nil
+        // Cuts the open segment; it still reaches the stream (`ship`).
+        if isRecording { video?.pause() }
         isRecording = false
     }
 
@@ -305,6 +348,13 @@ final class OTLPReplayRecorder: ReplayRecording {
 
     private func handle(_ touch: Touch) {
         guard isRecording else { return }
+        if video != nil {
+            touchLock.withLock {
+                pendingTouches.append(touch)
+                if pendingTouches.count > 2000 { pendingTouches.removeFirst(pendingTouches.count - 2000) }
+            }
+            return
+        }
         let stream = self.stream
         Self.queue.async { stream.touch(touch) }
     }
@@ -313,7 +363,7 @@ final class OTLPReplayRecorder: ReplayRecording {
         guard isRecording, !stopIfEnded(), let window = ScreenCapturer.keyWindow() else { return }
         let start = ProcessInfo.processInfo.systemUptime
         defer { scheduleWake(now: start) }
-        if Self.isTransitioning(window.rootViewController) {
+        if ReplayMaskPlanner.isTransitioning(window.rootViewController) {
             pacer.motion(now: start)
             return
         }
@@ -370,6 +420,30 @@ final class OTLPReplayRecorder: ReplayRecording {
         }
     }
 
+    /// The core's processing queue: one finished segment becomes one look, with the touches made
+    /// during it. On to the main thread for the current stream (a rotation waits for this segment),
+    /// then to the stream's queue.
+    private func ship(_ segment: OuoReplaySegment) {
+        let start = EpochMillis((segment.start.timeIntervalSince1970 * 1000).rounded())
+        let end = EpochMillis((segment.end.timeIntervalSince1970 * 1000).rounded())
+        let touches: [Touch] = touchLock.withLock {
+            let taken = pendingTouches.filter { $0.ts < end }
+            pendingTouches.removeAll { $0.ts < end }
+            return taken
+        }
+        // The core renders one pixel per point.
+        let look = VideoLook(mp4: segment.mp4, start: start, end: end, width: segment.width, height: segment.height, scale: 1, frameCount: segment.frameCount, frameRate: segment.frameRate, touches: touches)
+        logger.log("video segment \(segment.frameCount) frames \(segment.width)x\(segment.height) \(segment.mp4.count) bytes")
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let stream = self.stream
+            Self.queue.async { [delivery] in
+                stream.look(look, at: start)
+                delivery.drain {}
+            }
+        }
+    }
+
     private func scheduleWake(now: TimeInterval) {
         guard isRecording, let at = pacer.wakeAt(now: now), at > now else { return }
         let fire = Date(timeIntervalSinceNow: at - now)
@@ -378,12 +452,6 @@ final class OTLPReplayRecorder: ReplayRecording {
         let t = Timer(fire: fire, interval: 0, repeats: false) { _ in }
         RunLoop.main.add(t, forMode: .common)
         wakeTimer = t
-    }
-
-    private static func isTransitioning(_ vc: UIViewController?) -> Bool {
-        guard let vc else { return false }
-        if vc.transitionCoordinator != nil { return true }
-        return isTransitioning(vc.presentedViewController) || vc.children.contains { isTransitioning($0) }
     }
 
     private func attachTouchObserverIfNeeded(_ window: UIWindow) {

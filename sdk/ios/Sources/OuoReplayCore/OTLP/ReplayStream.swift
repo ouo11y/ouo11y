@@ -286,7 +286,11 @@ public final class ReplayStream {
                 if (error as? ReplayFormatError) != .maskingFailed { noteError() }
                 return
             }
-            append(events)
+            if adapter.selfContainedSegments {
+                appendSegment(events)
+            } else {
+                append(events)
+            }
         }
     }
 
@@ -466,6 +470,46 @@ public final class ReplayStream {
             if let end = open?.end, event.t > end { open?.end = event.t }
             closeIfFull()
             closeIfOld(event.t)
+        }
+    }
+
+    /// RPL-25: one look of a self-contained format is one segment in one chunk. Nothing is added
+    /// to its body and it is never cut (a cut video plays in neither half): a body over the hard
+    /// limit is dropped and counted.
+    private func appendSegment(_ events: [ReplayEvent]) {
+        guard let event = events.first else { return }
+        guard events.count == 1, event.keyframe, !event.json.isEmpty, event.json.count <= config.maxEventBytes else {
+            counters.eventsDropped += 1
+            noteError()
+            return
+        }
+        closeChunk()
+        guard !ended else { return }
+        let body: Data
+        do {
+            body = try adapter.compress(event.json)
+        } catch {
+            counters.eventsDropped += 1
+            noteError()
+            return
+        }
+        guard !body.isEmpty, body.count <= ReplayStreamConfig.hardLimitBytes else {
+            logger.warn("segment dropped: \(body.count) bytes is over the chunk limit")
+            counters.framesDropped += 1
+            needSegment = true
+            return
+        }
+        let end = max(event.t, event.until ?? event.t)
+        let chunk = Pending(body: body, start: event.t, end: end, keyframe: true, viewId: viewId)
+        needSegment = false
+        segmentStartedAt = event.t
+        if buffering {
+            ring.append(RingSegment(startedAt: event.t, chunks: [chunk]))
+            ringBytes += body.count
+            evictRing(now: end)
+        } else {
+            segmentIndex += 1
+            emit(chunk)
         }
     }
 

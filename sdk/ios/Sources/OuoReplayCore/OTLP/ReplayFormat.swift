@@ -8,13 +8,17 @@ public struct ReplayEvent: Sendable, Equatable {
     public var t: EpochMillis
     /// The event alone restores the whole screen: a segment can start with it (RPL-6).
     public var keyframe: Bool
-    /// The JSON object, UTF-8, without the trailing newline.
+    /// The JSON object, UTF-8, without the trailing newline. For a format with
+    /// `selfContainedSegments`, the whole chunk body before `compress(_:)` instead.
     public var json: Data
+    /// Epoch milliseconds the event covers up to (a video segment's end); nil for an instant.
+    public var until: EpochMillis?
 
-    public init(t: EpochMillis, keyframe: Bool, json: Data) {
+    public init(t: EpochMillis, keyframe: Bool, json: Data, until: EpochMillis? = nil) {
         self.t = t
         self.keyframe = keyframe
         self.json = json
+        self.until = until
     }
 }
 
@@ -51,6 +55,10 @@ public protocol ReplayFormatAdapter: AnyObject {
     var encoding: String { get }
     /// `ouo.replay.masked`: masking ran on this content.
     var masked: Bool { get }
+    /// RPL-25: every look is a whole segment that goes out as one chunk of its own (a video
+    /// format). `events(for:at:)` then returns one keyframe event whose `json` is the chunk body;
+    /// the stream never adds lines to it, never cuts it and starts a new segment for each.
+    var selfContainedSegments: Bool { get }
     /// The next look must produce a keyframe, even when the screen did not change.
     func requestKeyframe()
     /// The events of one look, already masked: none when nothing changed. Throws when the frame
@@ -64,6 +72,8 @@ public protocol ReplayFormatAdapter: AnyObject {
 
 public extension ReplayFormatAdapter {
     var encoding: String { "gzip" }
+
+    var selfContainedSegments: Bool { false }
 
     func compress(_ payload: Data) throws -> Data {
         try Gzip.compress(payload)
