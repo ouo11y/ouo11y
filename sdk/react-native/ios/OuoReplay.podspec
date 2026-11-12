@@ -19,6 +19,7 @@ Pod::Spec.new do |s|
   s.frameworks     = 'UIKit'
 
   s.dependency 'OuoReplayCore'
+  s.dependency 'OuoReplayObjC'
 
   s.source_files = 'OuoReplay/**/*.swift'
   s.pod_target_xcconfig = {

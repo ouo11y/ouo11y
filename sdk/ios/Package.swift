@@ -34,9 +34,12 @@ let package = Package(
             name: "OuoReplayCore",
             linkerSettings: [.linkedLibrary("z")]
         ),
+        // One Objective-C function: contains an NSException raised by a UIKit call made while the
+        // OTLP replay recorder walks or renders the host's views (Swift cannot catch one).
+        .target(name: "OuoReplayObjC"),
         .target(
             name: "OuoReplay",
-            dependencies: ["OuoReplayCore"]
+            dependencies: ["OuoReplayCore", "OuoReplayObjC"]
         ),
         // Native crash capture (checklist G1): async-signal-safe C handlers plus the Swift API.
         .target(name: "OuoCrashCore"),

@@ -37,13 +37,60 @@ enum ViewTreeBuilder {
         return entry
     }
 
-    static func walk(_ window: UIWindow, maxDepth: Int = 64) -> Walk {
+    /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields
+    /// and the host's overrides from the mask registry.
+    struct Detail {
+        var masks = ReplayMaskRegistry.Snapshot()
+    }
+
+    static func walk(_ window: UIWindow, maxDepth: Int = 64, detail: Detail? = nil) -> Walk {
         var animations = 0
-        let tree = node(for: window, maxDepth: maxDepth, animations: &animations)
+        let tree = node(for: window, maxDepth: maxDepth, animations: &animations, detail: detail)
         return Walk(tree: tree, animations: animations)
     }
 
-    private static func node(for view: UIView, maxDepth: Int, animations: inout Int) -> ViewNode {
+    // MARK: detail (OTLP replay path)
+
+    private static let reactTagSelector = NSSelectorFromString("reactTag")
+    /// Content types that hold a secret whether or not the field hides its characters.
+    private static let secretContentTypes: Set<UITextContentType> = [.password, .newPassword, .oneTimeCode, .creditCardNumber]
+
+    /// The React tag of a React Native view: Paper keeps it in `reactTag`, Fabric in `tag`.
+    private static func reactTag(of view: UIView, className: String) -> Int? {
+        if view.responds(to: reactTagSelector), let n = view.perform(reactTagSelector)?.takeUnretainedValue() as? NSNumber {
+            return n.intValue
+        }
+        return view.tag > 0 && className.hasPrefix("RCT") ? view.tag : nil
+    }
+
+    /// The text field or text view behind an input node (React Native's Fabric input wraps it), and
+    /// whether what it holds is a secret (PRV-7).
+    private static func input(of view: UIView, names: (name: String, superclasses: [String])) -> (field: UIView, secure: Bool)? {
+        func describe(_ v: UIView) -> (field: UIView, secure: Bool)? {
+            if let f = v as? UITextField {
+                return (f, f.isSecureTextEntry || f.textContentType.map(secretContentTypes.contains) ?? false)
+            }
+            if let t = v as? UITextView {
+                return (t, t.isSecureTextEntry || t.textContentType.map(secretContentTypes.contains) ?? false)
+            }
+            return nil
+        }
+        if let own = describe(view) { return own }
+        guard RedactionRules.inputClasses.contains(names.name) || names.superclasses.contains(where: RedactionRules.inputClasses.contains) else { return nil }
+        for sub in view.subviews {
+            if let inner = describe(sub) { return inner }
+        }
+        return (view, false)
+    }
+
+    private static func node(for view: UIView, maxDepth: Int, animations: inout Int, detail: Detail?) -> ViewNode {
+        var secure = false
+        var maskOverride: ViewNode.MaskOverride?
+        if let detail {
+            let names = names(of: type(of: view))
+            secure = input(of: view, names: names)?.secure ?? false
+            maskOverride = detail.masks.override(reactTag: reactTag(of: view, className: names.name), accessibilityIdentifier: view.accessibilityIdentifier)
+        }
         let frame = view.convert(view.bounds, to: nil)
         let names = names(of: type(of: view))
         let layer = view.layer
@@ -64,7 +111,7 @@ enum ViewTreeBuilder {
         var truncated = false
         if !invisible {
             if maxDepth > 0 {
-                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations) }
+                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations, detail: detail) }
             } else {
                 truncated = !view.subviews.isEmpty
             }
@@ -85,7 +132,9 @@ enum ViewTreeBuilder {
             animating: !keys.isEmpty,
             moving: moving,
             truncated: truncated,
-            children: children
+            children: children,
+            secure: secure,
+            maskOverride: maskOverride
         )
     }
 }
