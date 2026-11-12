@@ -3,12 +3,12 @@ package dev.ouo.reactnative
 import android.content.Context
 import dev.ouo.replay.OuoReplay
 import dev.ouo.replay.OuoReplayConfig
-import dev.ouo.replay.OuoReplayFormat
-import dev.ouo.replay.OuoReplayOtlp
 import dev.ouo.replay.core.Gzip
 import dev.ouo.replay.core.HttpRequest
+import dev.ouo.replay.core.ReplayEndReason
+import dev.ouo.replay.core.ReplayMaskRegistry
 import dev.ouo.replay.core.ReplayMode
-import dev.ouo.replay.core.ReplayOptions
+import dev.ouo.replay.core.ReplayOTLPOptions
 import dev.ouo.replay.core.UrlConnectionTransport
 import dev.ouo.signals.Signals
 import expo.modules.kotlin.Promise
@@ -16,23 +16,57 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
 import java.util.concurrent.Executors
 
 /**
- * Options passed by `initRUM({ replay })` through `start(endpoint, options)`: the iOS module's
- * `StartOptions`, read as a plain map by [ReplayOptions.parse] so that a wrong type or an absurd
- * number from JavaScript becomes a default, never an exception (client SDK spec ERR-1).
- *
- * Legacy keys (all optional): `sessionId`, `projectId`, `projectToken` (ADR-0007), `mode` ("auto",
- * "session" or "navigation"), `frameInterval`, `maskText`, `maskInputs`, `maskImages`,
- * `maskWebViews`, `debug`, `holdUploads`, and `jpegQuality` (1..100), `maxLongestSide`.
- *
- * Replay over OTLP (ADR-0019 decision 5), used only when `otlp` is present:
- * `otlp: { logsUrl, resource: { [key]: string | number | boolean }, schemaUrl, scopeVersion }`,
- * `format` ("pixel" | "structure"), `replayMode` ("session" | "buffer"), `bufferSeconds`,
- * `replayId` (32 hex), `keyframeIntervalMs`, `chunkMaxBytes`.
+ * Options of the legacy upload path, passed by `initRUM({ replay })`: the iOS module's
+ * `StartOptions`. `recoverPendingChunk`, `heldReplaySessions` and `releaseHeldReplay` take it as
+ * before; `start` reads the same keys from a plain object ([legacyOptions]) because it must first
+ * see whether `otlp` is there.
  */
-typealias StartOptions = Map<String, Any?>
+class StartOptions : Record {
+  @Field val sessionId: String = ""
+
+  /** Project credential (ADR-0007), validated by JS first. */
+  @Field val projectId: String = ""
+
+  @Field val projectToken: String = ""
+
+  /** "auto", "session" or "navigation"; anything else is auto. */
+  @Field val mode: String = "auto"
+
+  @Field val frameInterval: Double = 1.0
+
+  @Field val maskText: Boolean = true
+
+  @Field val maskInputs: Boolean = true
+
+  @Field val maskImages: Boolean = true
+
+  @Field val maskWebViews: Boolean = true
+
+  @Field val debug: Boolean = false
+
+  /** Keep chunks on the device until JS releases their session (`replay.keepAtNextLaunch`). */
+  @Field val holdUploads: Boolean = false
+}
+
+/** The legacy options of `start`, read from the object JavaScript passed: the fields and defaults of [StartOptions]. */
+private class LegacyStart(raw: Map<String, Any?>) {
+  val sessionId = raw["sessionId"] as? String ?: ""
+  val projectId = raw["projectId"] as? String ?: ""
+  val projectToken = raw["projectToken"] as? String ?: ""
+  val mode = raw["mode"] as? String ?: "auto"
+  val frameInterval = ReplayOTLPOptions.number(raw["frameInterval"]) ?: 1.0
+  val maskText = raw["maskText"] as? Boolean ?: true
+  val maskInputs = raw["maskInputs"] as? Boolean ?: true
+  val maskImages = raw["maskImages"] as? Boolean ?: true
+  val maskWebViews = raw["maskWebViews"] as? Boolean ?: true
+  val debug = raw["debug"] as? Boolean ?: false
+  val holdUploads = raw["holdUploads"] as? Boolean ?: false
+}
 
 private class InvalidEndpointException(endpoint: String) : CodedException("ERR_OUO_REPLAY_ENDPOINT", "invalid replay endpoint: $endpoint", null)
 
@@ -61,52 +95,76 @@ class OuoReplayModule : Module() {
   private val context: Context
     get() = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
 
+  private fun config(endpoint: String, options: StartOptions): OuoReplayConfig =
+    config(endpoint, options.projectId, options.projectToken, options.mode, options.frameInterval, options.maskText, options.maskInputs, options.maskImages, options.maskWebViews, options.debug, options.holdUploads)
+
   /** The legacy path: throws to JS, as it always did, on an endpoint or a credential it cannot use. */
-  private fun config(endpoint: String, raw: StartOptions): OuoReplayConfig {
-    val options = ReplayOptions.parse(raw)
-    OuoReplay.reportInvalidOptions(options.problems)
+  private fun config(
+    endpoint: String, rawProjectId: String, rawToken: String, mode: String, frameInterval: Double,
+    maskText: Boolean, maskInputs: Boolean, maskImages: Boolean, maskWebViews: Boolean, debug: Boolean, holdUploads: Boolean,
+  ): OuoReplayConfig {
     val url = endpoint.trim()
     if (!(url.startsWith("http://") || url.startsWith("https://"))) throw InvalidEndpointException(endpoint)
-    if (options.projectId.isEmpty() || options.projectToken.isEmpty()) throw MissingCredentialException()
-    return config(url, options)
-  }
-
-  private fun config(url: String, options: ReplayOptions): OuoReplayConfig {
-    val projectId = options.projectId
-    val token = options.projectToken
+    val projectId = rawProjectId.trim()
+    val token = rawToken.trim()
+    if (projectId.isEmpty() || token.isEmpty()) throw MissingCredentialException()
     return OuoReplayConfig(
       endpoint = url,
       projectId = projectId,
       projectToken = token,
       sessionId = { sessionId },
-      mode = ReplayMode.of(options.mode),
-      frameInterval = options.frameInterval,
-      maskText = options.maskText,
-      maskInputs = options.maskInputs,
-      maskImages = options.maskImages,
-      maskWebViews = options.maskWebViews,
-      debug = options.debug,
-      jpegQuality = options.jpegQuality,
-      maxLongestSide = options.maxLongestSide,
-      holdUploads = options.holdUploads,
-      otlp = options.otlp?.let { OuoReplayOtlp(it.logsUrl, it.resource, it.schemaUrl, it.scopeVersion) },
-      format = if (options.format == ReplayOptions.FORMAT_STRUCTURE) OuoReplayFormat.STRUCTURE else OuoReplayFormat.PIXEL,
-      delivery = options.delivery,
-      bufferSeconds = options.bufferSeconds,
-      replayId = options.replayId,
-      keyframeIntervalMs = options.keyframeIntervalMs,
-      chunkMaxBytes = options.chunkMaxBytes,
+      mode = ReplayMode.of(mode),
+      frameInterval = frameInterval,
+      maskText = maskText,
+      maskInputs = maskInputs,
+      maskImages = maskImages,
+      maskWebViews = maskWebViews,
+      debug = debug,
+      holdUploads = holdUploads,
     )
   }
 
-  /** Runs a native entry point so that nothing it throws reaches JavaScript or the app (client SDK spec ERR-1). */
-  private inline fun <T> guarded(fallback: T, block: () -> T): T =
+  /** `start` with `options.otlp`: nothing here throws; what cannot be used is counted (`replayDiagnostics`). */
+  private fun startOtlp(endpoint: String, options: Map<String, Any?>, otlp: ReplayOTLPOptions, found: List<String>) {
+    val (common, more) = ReplayOTLPOptions.Common.parse(options)
+    val problems = found + more
+    if (common.projectId.isEmpty() || common.projectToken.isEmpty()) {
+      // The collector answers 401 without the credential: nothing would arrive.
+      OuoReplay.noteOptionProblems(problems + "projectId and projectToken are required", common.debug)
+      return
+    }
+    if (common.sessionId.isNotEmpty()) sessionId = common.sessionId
+    val config = OuoReplayConfig(
+      endpoint = endpoint.trim().ifEmpty { otlp.logsUrl },
+      projectId = common.projectId,
+      projectToken = common.projectToken,
+      sessionId = { sessionId },
+      frameInterval = common.frameInterval,
+      maskText = common.maskText,
+      maskInputs = common.maskInputs,
+      maskImages = common.maskImages,
+      maskWebViews = common.maskWebViews,
+      debug = common.debug,
+      otlp = otlp,
+    )
+    OuoReplay.noteOptionProblems(problems, common.debug)
+    OuoReplay.start(context, config, appContext.currentActivity)
+  }
+
+  /** Runs a native entry point of the OTLP path so that nothing it throws reaches JavaScript or the app (client SDK spec ERR-1). */
+  private inline fun guarded(block: () -> Unit) {
     try {
       block()
     } catch (e: Throwable) {
-      OuoReplay.reportInvalidOptions(listOf("native"))
-      fallback
+      runCatching { OuoReplay.noteOptionProblems(listOf("native call failed: ${e.javaClass.simpleName}")) }
     }
+  }
+
+  /** A React tag from JavaScript: a positive whole number, anything else is ignored. */
+  private fun tag(value: Double?): Int? {
+    if (value == null || !value.isFinite() || value < 1 || value > 2_147_483_647 || value != Math.rint(value)) return null
+    return value.toInt()
+  }
 
   /** FrameMetrics listens per window: the current activity's, once there is one (see OnActivityEntersForeground). */
   private fun attachFrames() = Signals.attachCurrent(appContext.currentActivity)
@@ -122,6 +180,8 @@ class OuoReplayModule : Module() {
     OnCreate {
       appContext.reactContext?.let { Signals.init(it) }
       attachFrames()
+      // A new JavaScript runtime hands out React tags again: masks set by the last one are void.
+      ReplayMaskRegistry.shared.reset()
     }
 
     // The activity's onResume can run before Signals registered its lifecycle callbacks, with no
@@ -131,52 +191,87 @@ class OuoReplayModule : Module() {
     OnActivityEntersForeground { attachFrames() }
 
     /**
-     * `start(endpoint: string, options: object): void`. Without `options.otlp` this is the legacy
-     * recorder, exactly as before (it throws on a bad endpoint or a missing credential). With
-     * `options.otlp` replay goes over OTLP and this never throws: options that cannot be used are
-     * replaced by defaults and counted, and an unusable `otlp` starts nothing (see `replayStatus`).
+     * `start(endpoint: string, options: object)`.
+     *
+     * Without `options.otlp` this is the upload path that existed before, with the options read as
+     * before ([StartOptions]; `mode` is `auto | session | navigation`).
+     *
+     * With `options.otlp` replay goes out as OTLP log records (ADR-0021 decision 5) and nothing
+     * here throws: a value that cannot be used falls back to its default and is counted
+     * (`replayDiagnostics()`), and options replay cannot run with leave it off. Keys:
+     * - `otlp: { logsUrl: string, resource?: { [key]: string | number | boolean }, schemaUrl?: string,
+     *   scopeVersion?: string, previousExit?: "crash" | "background_kill" }`
+     * - `mode?: "pixel/frames"` (default; `pixel/video` and `structure/wireframe` are not in this
+     *   build and leave replay off)
+     * - `cadence?: "auto" | "session" | "navigation"` (what `mode` means on the legacy path)
+     * - `buffer?: { seconds?: number }` (present: keep a ring of that many seconds, default 60,
+     *   and send on `capture(trigger)`; absent: record the whole session)
+     * - `replayId?: string` (32 lowercase hex), `keyframeIntervalMs?: number`, `chunkMaxBytes?: number`
+     * - `sessionId`, `projectId`, `projectToken`, `frameInterval`, `maskText`, `maskInputs`,
+     *   `maskImages`, `maskWebViews`, `debug` as before
      */
-    Function("start") { endpoint: String, options: StartOptions ->
-      val parsed = ReplayOptions.parse(options)
-      if (parsed.otlp == null && !parsed.otlpInvalid) {
-        val config = config(endpoint, options)
-        if (parsed.sessionId.isNotEmpty()) sessionId = parsed.sessionId
-        OuoReplay.start(context, config, appContext.currentActivity)
-      } else {
-        guarded(Unit) {
-          OuoReplay.reportInvalidOptions(parsed.problems)
-          if (!parsed.otlpInvalid) {
-            if (parsed.sessionId.isNotEmpty()) sessionId = parsed.sessionId
-            OuoReplay.start(context, config(endpoint.trim(), parsed), appContext.currentActivity)
-          }
+    Function("start") { endpoint: String, options: Map<String, Any?> ->
+      when (val parsed = ReplayOTLPOptions.parse(options)) {
+        is ReplayOTLPOptions.Parsed.Legacy -> {
+          val o = LegacyStart(options)
+          val config = config(endpoint, o.projectId, o.projectToken, o.mode, o.frameInterval, o.maskText, o.maskInputs, o.maskImages, o.maskWebViews, o.debug, o.holdUploads)
+          if (o.sessionId.isNotEmpty()) sessionId = o.sessionId
+          OuoReplay.start(context, config, appContext.currentActivity)
         }
+        is ReplayOTLPOptions.Parsed.Off -> guarded { OuoReplay.noteOptionProblems(parsed.problems, options["debug"] as? Boolean ?: false) }
+        is ReplayOTLPOptions.Parsed.Otlp -> guarded { startOtlp(endpoint, options, parsed.options, parsed.problems) }
       }
     }
 
-    // ---- replay over OTLP (ADR-0019 decision 5); no effect on the legacy path unless noted ----
-
-    /** `capture(trigger: "error" | "crash" | "anr" | "hang" | "manual"): void`. Buffer mode: sends the ring, then records as a session. */
-    Function("capture") { trigger: String -> guarded(Unit) { OuoReplay.capture(trigger) } }
-
-    /** `setViewId(id: string): void`. The `ouo.view.id` of the chunks opened from now on; "" clears it. */
-    Function("setViewId") { id: String -> guarded(Unit) { OuoReplay.setViewId(id) } }
-
-    /** `mask(reactTag: number): void`. Masks that view in both formats and on the legacy path. Mask wins over unmask. */
-    Function("mask") { reactTag: Int -> guarded(Unit) { OuoReplay.mask(reactTag) } }
-
-    /** `unmask(reactTag: number): void`. Shows that view's subtree; secure inputs and masked views inside stay masked. */
-    Function("unmask") { reactTag: Int -> guarded(Unit) { OuoReplay.unmask(reactTag) } }
-
-    /** `clearMask(reactTag: number): void`. Forgets mask and unmask for that view (call when it unmounts). */
-    Function("clearMask") { reactTag: Int -> guarded(Unit) { OuoReplay.clearMask(reactTag) } }
-
-    /** `endSession(): void`. Stops replay; over OTLP the stream ends with `ouo.replay.ended`, reason `session_end`. */
-    Function("endSession") { guarded(Unit) { OuoReplay.endSession() } }
+    // ---- OTLP replay (ADR-0021 decision 5) ----
 
     /**
-     * `replayStatus(): { recording, otlp, format?, replayId?, streamId?, lastSequence?, partial?, triggered?, stopped?, counts: { [reason]: number }, errors }`.
+     * `capture(trigger: string)`: buffer mode only. Sends the ring and records on as a session.
+     * `trigger` is `error`, `crash`, `anr`, `hang` or `manual`; anything else counts as `manual`.
      */
-    Function("replayStatus") { guarded(emptyMap<String, Any>()) { OuoReplay.status() } }
+    Function("capture") { trigger: String? -> guarded { OuoReplay.capture(trigger ?: "manual") } }
+
+    /** `setViewId(id: string)`: the screen the next chunks belong to (`ouo.view.id`). */
+    Function("setViewId") { id: String? -> guarded { OuoReplay.setViewId(id ?: "") } }
+
+    /** `mask(reactTag: number)`: masks that view in every recorder. Mask wins over unmask. */
+    Function("mask") { reactTag: Double? -> guarded { tag(reactTag)?.let { OuoReplay.mask(it) } } }
+
+    /**
+     * `unmask(reactTag: number)`: shows that view and what is inside it. A mask inside it still
+     * masks, and a secure field is always masked.
+     */
+    Function("unmask") { reactTag: Double? -> guarded { tag(reactTag)?.let { OuoReplay.unmask(it) } } }
+
+    /**
+     * `endSession()`: stops and ends the stream with `ouo.replay.ended`, reason `session_end`
+     * (`stop()` ends it with reason `stop`).
+     */
+    Function("endSession") { guarded { OuoReplay.stop(ReplayEndReason.SESSION_END) } }
+
+    /**
+     * `discardPending(): Promise<void>`: stops the recorder without an end record and deletes
+     * every replay record not yet accepted (consent withdrawn).
+     */
+    AsyncFunction("discardPending") { promise: Promise ->
+      try {
+        OuoReplay.discardPending(context) { promise.resolve(null) }
+      } catch (e: Throwable) {
+        promise.resolve(null)
+      }
+    }
+
+    /**
+     * `replayDiagnostics(): { [counter: string]: number }`: what replay dropped or could not do
+     * in this process, by reason (frames, events, chunks lost or rejected, option problems).
+     */
+    Function("replayDiagnostics") {
+      try {
+        OuoReplay.diagnostics()
+      } catch (e: Throwable) {
+        emptyMap<String, Int>()
+      }
+    }
 
     /** Sends the chunk a crash left open in the previous run; JS calls it before its sampling decision. */
     Function("recoverPendingChunk") { endpoint: String, options: StartOptions ->
@@ -241,7 +336,6 @@ class OuoReplayModule : Module() {
     /** A route change: the frame for the new screen in navigation mode. */
     Function("screenDidChange") { OuoReplay.screenDidChange() }
 
-    /** `stop(): void`. Over OTLP the stream ends with `ouo.replay.ended`, reason `stop`. */
     Function("stop") { OuoReplay.stop() }
 
     // ---- native crashes, hangs and terminations (docs/specs/mobile-sdk.md C2, C3) ----
