@@ -1,0 +1,152 @@
+{
+ "what": "Root-cause trace of the spike's transition leak (Sentry masking, presentation-layer walk), replaydemo journey, iOS 27.0 simulator, 5 runs. Per capture: layers and text layers in the model tree vs the presentation tree, transition running, and whether OCR found readable text in that frame.",
+ "runs": [
+  {
+   "run": 1,
+   "captures": 46,
+   "frames": 53,
+   "capturesWithShortPresentationTree": [],
+   "framesWithReadableText": []
+  },
+  {
+   "run": 2,
+   "captures": 50,
+   "frames": 54,
+   "capturesWithShortPresentationTree": [
+    {
+     "ts": 1794520068351,
+     "transition": false,
+     "model": {
+      "layers": 38,
+      "text": 5
+     },
+     "presentation": {
+      "layers": 28,
+      "text": 1
+     },
+     "sentryRegions": {
+      "clipBegin": 2,
+      "redact": 2,
+      "clipEnd": 2
+     }
+    },
+    {
+     "ts": 1794520074619,
+     "transition": false,
+     "model": {
+      "anim": 1,
+      "text": 23,
+      "layers": 119
+     },
+     "presentation": {
+      "layers": 25,
+      "text": 1
+     },
+     "sentryRegions": {
+      "clipEnd": 2,
+      "clipBegin": 2,
+      "redact": 2
+     }
+    }
+   ],
+   "framesWithReadableText": [
+    {
+     "frame": "00001-002.png",
+     "ts": 1794520068690,
+     "text": [
+      "Espresso cup, 4.50",
+      "Card ending 4242",
+      "Total 4.50",
+      "Add to cart"
+     ]
+    },
+    {
+     "frame": "00002-002.png",
+     "ts": 1794520074690,
+     "text": [
+      "Ada Lovelace #1 card 4242 4242",
+      "4242 0037",
+      "IBAN DE89 3704 0044 0532 0130 01 balance 113.1",
+      "Ada Lovelace #2 card 4242 4242"
+     ]
+    }
+   ]
+  },
+  {
+   "run": 3,
+   "captures": 49,
+   "frames": 54,
+   "capturesWithShortPresentationTree": [
+    {
+     "ts": 1794520133717,
+     "transition": false,
+     "model": {
+      "layers": 38,
+      "text": 5
+     },
+     "presentation": {
+      "text": 1,
+      "layers": 28
+     },
+     "sentryRegions": {
+      "redact": 2,
+      "clipEnd": 2,
+      "clipBegin": 2
+     }
+    },
+    {
+     "ts": 1794520136852,
+     "transition": false,
+     "model": {
+      "layers": 41,
+      "text": 4
+     },
+     "presentation": {
+      "layers": 25,
+      "text": 1
+     },
+     "sentryRegions": {
+      "clipEnd": 2,
+      "clipBegin": 2,
+      "redact": 2
+     }
+    }
+   ],
+   "framesWithReadableText": [
+    {
+     "frame": "00001-002.png",
+     "ts": 1794520134066,
+     "text": [
+      "Espresso cup, 4.50",
+      "Card ending 4242",
+      "Total 4.50",
+      "Add to cart"
+     ]
+    },
+    {
+     "frame": "00001-005.png",
+     "ts": 1794520137066,
+     "text": [
+      "SECRET-42",
+      "Item 1",
+      "Checkout"
+     ]
+    }
+   ]
+  },
+  {
+   "run": 4,
+   "captures": 49,
+   "frames": 54,
+   "capturesWithShortPresentationTree": [],
+   "framesWithReadableText": []
+  },
+  {
+   "run": 5,
+   "captures": 50,
+   "frames": 54,
+   "capturesWithShortPresentationTree": [],
+   "framesWithReadableText": []
+  }
+ ]
+}
