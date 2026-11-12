@@ -113,7 +113,9 @@ test("a well-formed stream passes every rule", () => {
   send(c, chunk("a", 3, { attributes: { "ouo.replay.segment.index": 1, "ouo.replay.keyframe": true } }, [{ t: 9, type: "frame" }]));
   send(c, ended("a", 3));
   // A buffered stream with its trigger, still open.
-  send(c, chunk("b", 0, { attributes: { "ouo.replay.mode": "buffer", "ouo.replay.trigger": "error" } }));
+  send(c, chunk("b", 0, { attributes: { "ouo.replay.mode": "buffer", "ouo.replay.trigger": "error", "ouo.view.id": "v1" } }));
+  // Telemetry of the same session and view (the replay chunks must carry the telemetry's ids).
+  c.accept("/v1/logs", PROTO, request("ouo.rum", [{ event: "navigation", attributes: { "session.id": "s".repeat(32), "ouo.view.id": "v1" } }]));
   const r = c.report();
   assert.equal(r.verdict, "pass", formatReport(r));
   for (const [name, rule] of Object.entries(r.rules)) assert.equal(rule.result, "pass", name);
@@ -143,6 +145,14 @@ test("each rule fails on the request that breaks it", () => {
     ended: (c) => [chunk("a", 0), chunk("a", 1), ended("a", 0)].forEach((r) => send(c, r)),
     "ended (twice)": (c) => [chunk("a", 0), ended("a", 0), ended("a", 0)].forEach((r) => send(c, r)),
     "ended (reason)": (c) => [chunk("a", 0), ended("a", 0, { "ouo.replay.end_reason": "because" })].forEach((r) => send(c, r)),
+    same_session: (c) => {
+      send(c, chunk("a", 0));
+      c.accept("/v1/logs", { "content-type": "application/json" }, Buffer.from(JSON.stringify({ resourceLogs: [{ scopeLogs: [{ scope: { name: "x" }, logRecords: [{ eventName: "navigation", attributes: [{ key: "session.id", value: { stringValue: "other" } }] }] }] }] })));
+    },
+    view_ids: (c) => {
+      send(c, chunk("a", 0, { attributes: { "ouo.view.id": "v-replay" } }));
+      c.accept("/v1/logs", PROTO, request("ouo.rum", [{ event: "navigation", attributes: { "session.id": "s".repeat(32), "ouo.view.id": "v-telemetry" } }]));
+    },
   };
   for (const [name, run] of Object.entries(cases)) {
     const c = createCollector();
