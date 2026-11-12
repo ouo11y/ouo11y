@@ -269,7 +269,8 @@ initRUM({
   once when the session starts and kept with it. A session outside it sends no spans, events,
   logs or replay, and no `session.start`; it still sends its **bypass set**: unhandled
   exceptions, native crashes, terminations and hangs, marked `ouo.sampling.bypass = true`, at
-  most `sampling.bypass.perSessionCap` (10) per session (fatal ones are not capped). Its
+  most `sampling.bypass.perSessionCap` (10) per session (a native crash and a termination are
+  not capped). Its
   requests still carry `traceparent`, with the sampled flag clear. `session.start` carries
   `ouo.session.sample_rate`.
 - `replay.sampleRate` (default 1): sessions (inside the session sample) recorded from their start.
@@ -353,7 +354,8 @@ await shutdown();                                // stop capture, remove every h
   (`resource`) are configuration and are not checked.
 - **`beforeSend`.** `init({ beforeSend: (record) => record })` runs on every log record and span
   before it is kept anywhere or sent. Return the record (changed or not), or `null` / `false` to
-  drop it. A hook that throws sends the unmodified record. `exception.message` and
+  drop it. A hook that throws sends the unmodified record; a record the hook itself emits
+  skips the hook. `exception.message` and
   `exception.stacktrace` pass through it; replay chunks never do.
 - **Failure isolation.** No SDK failure reaches the app: every entry point runs inside one guard
   (`src/guard.ts`), patched `fetch` / `XMLHttpRequest` return what the originals return, and the
@@ -385,19 +387,22 @@ persistent storage and starts no replay. What it records meanwhile waits in memo
 offline store's bounds, and is sent on grant or discarded on denial. Withdrawing telemetry
 consent stops capture at once, deletes the offline store and the persisted session, user and
 error context, and forgets the session: a later grant starts a new one without
-`session.previous_id`. Replay needs its own consent and telemetry consent (a replay belongs to
+`session.previous_id`. While telemetry is denied no session starts at all. Changes are applied
+in the order they are made, each to its end. Replay needs its own consent and telemetry consent (a replay belongs to
 a session); withdrawing it stops the recorder. Deleting replay chunks already written by the
 native recorder needs native support that lands with step B. Consent is not persisted by the
 SDK: call `setConsent` on every launch.
 
 ### Privacy: URLs
 
-Every URL the SDK records (`url.full` of request spans and request events, URLs in stack
-traces) is sanitised before the record is kept or sent: `user:password@` becomes
-`REDACTED:REDACTED@`, every query value becomes `REDACTED` unless its key is listed in
+Every URL the SDK captures (`url.full` of request spans and request events, the path given to
+`trackNavigation`, URLs inside `exception.stacktrace` and `exception.message`) is sanitised
+before the record is kept or sent: `user:password@` becomes `REDACTED:REDACTED@`, every query
+value (and every query part without `=`) becomes `REDACTED` unless its key is listed in
 `privacy.urlQueryAllow`, and the fragment is removed (`privacy.keepUrlFragment` keeps it, with a
 query-shaped fragment sanitised). `sanitizeUrl: (url) => string` then runs on the result, for
-example to replace ids in paths. The request the app makes is never changed.
+example to replace ids in paths. The request the app makes is never changed, and a `url.full`
+the app sets on its own spans is left as the app wrote it (`beforeSend` sees it).
 
 ### Spec version
 

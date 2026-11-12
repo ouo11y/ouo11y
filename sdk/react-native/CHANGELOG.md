@@ -27,14 +27,19 @@ A: the names, scope, session id and sampling rules, protobuf and replay over OTL
   (`no_session`). A background launch starts no session. At the maximum duration in the
   foreground the next session starts at once. The last activity is persisted every 5 s at most.
 - An unsampled session now sends its bypass set (unhandled exceptions, crashes, hangs, marked
-  `ouo.sampling.bypass`), capped per session; the sampling decision is persisted with the
+  `ouo.sampling.bypass`), capped per session (only a native crash and a termination are exempt); the sampling decision is persisted with the
   session; unsampled requests propagate `traceparent` with the sampled flag clear.
 - No `baggage` header unless `propagation.sessionBaggage` is set, and then only `session.id`;
   a request that already has a `traceparent` is never changed.
 - No anonymous `user.id`: records carry `user.id` only after `setUser`; `session.userId()` is
   `""` until then.
-- Recorded URLs are sanitised: credentials and query values become `REDACTED`, fragments are
-  removed.
+- Recorded URLs are sanitised where they are captured (request URLs, the `trackNavigation`
+  path, URLs inside `exception.stacktrace` and `exception.message`): credentials, query values
+  and query parts without `=` become `REDACTED`, fragments are removed.
+- A fatal error reaches the previous global handler after at most `errors.fatalFlushTimeoutMs`,
+  also when storage does not answer.
+- Uninstalling (shutdown, self-disable) no longer removes a `fetch`, `XMLHttpRequest`,
+  `console.error` or global-handler patch that another SDK installed after ouo's.
 - Delivery: backoff with full jitter up to 300 s (was a fixed doubling up to 30 s),
   `Retry-After` capped at 300 s.
 
