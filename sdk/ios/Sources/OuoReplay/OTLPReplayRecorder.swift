@@ -20,12 +20,13 @@ protocol ReplayRecording: AnyObject {
 
 extension ReplayRecorder: ReplayRecording {}
 
-/// Replay over OTLP (ADR-0019 decision 5, client SDK spec 11). "When to look" is the legacy
-/// recorder's: the main run-loop observer and the `CapturePacer`. What a look becomes is the
-/// format adapter's (`ouo-frames/3` or `ouo-wireframe/1`); numbering, chunking, the buffer ring and
-/// the end record are `ReplayStream`'s; the disk queue is `ReplayDelivery`'s.
+/// The frames recorder (`mode: "pixel/frames"`) over OTLP (ADR-0021 decision 5, client SDK spec
+/// 11). "When to look" is the legacy recorder's: the main run-loop observer and the `CapturePacer`.
+/// What a look becomes is the format adapter's (`ouo-frames/3`); numbering, chunking, the buffer
+/// ring and the end record are `ReplayStream`'s; the disk queue is `ReplayDelivery`'s. Host mask
+/// overrides come from `ReplayMaskRegistry`, which does not depend on this recorder.
 ///
-/// Main thread: the pacer, the view walk, the masking plan and (pixel format) the render.
+/// Main thread: the pacer, the view walk, the masking plan and the render.
 /// `queue`: everything else. Failure isolation (ERR-1): UIKit calls that can raise run inside
 /// `OuoReplayCatch`; a look that fails is dropped and counted; after `faultLimit` faults on the
 /// main thread, or the stream's own limit, capture stops and the stream ends with reason `error`.
@@ -69,7 +70,7 @@ final class OTLPReplayRecorder: ReplayRecording {
         self.logger = logger
         self.delivery = delivery
         self.store = store
-        let mode = config.mode.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
+        let mode = options.cadence.resolved(physicalMemory: ProcessInfo.processInfo.physicalMemory)
         self.mode = mode
         self.pacer = CapturePacer(mode: mode, interval: config.frameInterval)
         self.capturer = ScreenCapturer(rules: rules, jpegQuality: config.jpegQuality, maxLongestSide: config.maxLongestSide, logger: logger)
@@ -77,11 +78,8 @@ final class OTLPReplayRecorder: ReplayRecording {
     }
 
     private static func makeStream(sessionId: String, replayId: String?, config: OuoReplayConfig, options: ReplayOTLPOptions, rules: RedactionRules, delivery: ReplayDelivery, store: FileReplayStateStore, logger: ReplayLogger) -> ReplayStream {
-        let adapter: ReplayFormatAdapter
-        switch options.format {
-        case .pixel: adapter = PixelFormatAdapter(jpegQuality: config.jpegQuality, masked: rules.masksAnything)
-        case .structure: adapter = WireframeFormatAdapter(rules: rules)
-        }
+        // Secure fields are masked whatever the options say, so masking always ran on a frame.
+        let adapter = PixelFormatAdapter(jpegQuality: config.jpegQuality, masked: true)
         return ReplayStream(sessionId: sessionId, replayId: replayId, scope: options.scope, config: options.streamConfig, adapter: adapter, sink: delivery, store: store, logger: logger)
     }
 
@@ -119,7 +117,7 @@ final class OTLPReplayRecorder: ReplayRecording {
         ]
         pausedByHost = false
         resumeCapture()
-        logger.log("started otlp logs=\(options.logsUrl.absoluteString) format=\(options.format.rawValue) replayMode=\(options.mode.rawValue) replay=\(stream.replayId) stream=\(stream.streamId)")
+        logger.log("started otlp logs=\(options.logsUrl.absoluteString) mode=\(options.recorder.rawValue) cadence=\(mode.rawValue) buffer=\(options.bufferSeconds.map { "\($0)s" } ?? "off") replay=\(stream.replayId) stream=\(stream.streamId)")
     }
 
     func pause() {
@@ -149,6 +147,22 @@ final class OTLPReplayRecorder: ReplayRecording {
         Self.queue.async { [delivery] in
             stream.end(reason: reason)
             delivery.drain {}
+        }
+    }
+
+    /// Consent withdrawn (PRV-4): capture stops, nothing further is sent (no end record either) and
+    /// what is queued is deleted.
+    func discard(completion: (() -> Void)?) {
+        stopCapture()
+        stopped = true
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        observers = []
+        detachTouchObserver()
+        let stream = self.stream
+        Self.queue.async { [delivery] in
+            stream.abandon()
+            delivery.discardPending()
+            completion?()
         }
     }
 
@@ -306,8 +320,7 @@ final class OTLPReplayRecorder: ReplayRecording {
         guard !captureInFlight, pacer.isDue(now: start) else { return }
         attachTouchObserverIfNeeded(window)
         let ts = Clock.nowMillis()
-        let masks = ReplayViewMasks.shared.snapshot()
-        let detail = ViewTreeBuilder.Detail(masked: masks.masked, unmasked: masks.unmasked, style: options.format == .structure, rules: rules)
+        let detail = ViewTreeBuilder.Detail(masks: ReplayMaskRegistry.shared.snapshot())
         var walked: ViewTreeBuilder.Walk?
         let walkFault = OuoReplayCatch { walked = ViewTreeBuilder.walk(window, detail: detail) }
         guard let walk = walked, walkFault == nil else {
@@ -321,29 +334,22 @@ final class OTLPReplayRecorder: ReplayRecording {
             return
         }
         let bounds = window.bounds
-        let look: ReplayLook
-        switch options.format {
-        case .structure:
-            // Rectangles and masked text come from the model, not from pixels that may trail it.
-            look = TreeLook(root: walk.tree, window: bounds, scale: Double(window.screen.scale))
-        case .pixel:
-            // Masking fails closed before the render: a masked view on a moving layer drops the frame.
-            guard let rects = capturer.plan(walk.tree, bounds: bounds) else {
-                pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
-                pacer.dropped(reason, now: start)
-                maskDrops += 1
-                return
-            }
-            var snapshot: ScreenCapturer.Snapshot?
-            let renderFault = OuoReplayCatch { snapshot = self.capturer.snapshot(window: window, tree: walk.tree, rects: rects) }
-            guard let snap = snapshot, renderFault == nil else {
-                pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
-                pacer.dropped(reason, now: start)
-                if renderFault != nil { fault("render", renderFault) }
-                return
-            }
-            look = PixelLook(image: snap.image, rects: snap.rects, width: Double(bounds.width), height: Double(bounds.height), scale: Double(snap.scale), reason: reason)
+        // Masking fails closed before the render: a masked view on a moving layer drops the frame.
+        guard let rects = capturer.plan(walk.tree, bounds: bounds) else {
+            pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            pacer.dropped(reason, now: start)
+            maskDrops += 1
+            return
         }
+        var snapshot: ScreenCapturer.Snapshot?
+        let renderFault = OuoReplayCatch { snapshot = self.capturer.snapshot(window: window, tree: walk.tree, rects: rects) }
+        guard let snap = snapshot, renderFault == nil else {
+            pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            pacer.dropped(reason, now: start)
+            if renderFault != nil { fault("render", renderFault) }
+            return
+        }
+        let look = PixelLook(image: snap.image, rects: snap.rects, width: Double(bounds.width), height: Double(bounds.height), scale: Double(snap.scale), reason: reason)
         pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
         captureInFlight = true
         let stream = self.stream

@@ -1,5 +1,5 @@
-// Copies the Swift (and C) sources of sdk/ios into sdk/react-native/ios so the CocoaPods specs
-// (OuoReplayCore, OuoReplay, OuoCrashCore, OuoCrash, OuoVitalsCore, OuoVitals .podspec) can glob them: CocoaPods does not accept
+// Copies the Swift (and C, Objective-C) sources of sdk/ios into sdk/react-native/ios so the CocoaPods specs
+// (OuoReplayCore, OuoReplay, OuoReplayObjC, OuoCrashCore, OuoCrash, OuoVitalsCore, OuoVitals .podspec) can glob them: CocoaPods does not accept
 // source_files outside the podspec directory. sdk/ios stays the source of truth; the copies
 // are gitignored and refreshed by `npm run build`.
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -16,10 +16,10 @@ if (!existsSync(source)) {
 }
 
 let files = 0;
-const sourceFile = (p) => p.endsWith(".swift") || p.endsWith(".c") || p.endsWith(".h");
+const sourceFile = (p) => p.endsWith(".swift") || p.endsWith(".c") || p.endsWith(".m") || p.endsWith(".h");
 const countFiles = (dir) =>
   readdirSync(dir, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? countFiles(join(dir, e.name)) : sourceFile(e.name) ? 1 : 0), 0);
-for (const module of ["OuoReplayCore", "OuoReplay", "OuoCrashCore", "OuoCrash", "OuoVitalsCore", "OuoVitals"]) {
+for (const module of ["OuoReplayCore", "OuoReplay", "OuoReplayObjC", "OuoCrashCore", "OuoCrash", "OuoVitalsCore", "OuoVitals"]) {
   const from = join(source, module);
   const to = join(target, module);
   rmSync(to, { recursive: true, force: true });

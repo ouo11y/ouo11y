@@ -43,6 +43,14 @@ public struct OuoReplayConfig {
     /// Keep chunks on the device until the host releases their session (`OuoReplay.releaseHeld`):
     /// the next-launch keep/drop decision. Default false: chunks are sent as they are cut.
     public var holdUploads: Bool
+    /// Set: replay goes out as OTLP log records (ADR-0021 decision 5) with these options, and
+    /// `mode`, `flushInterval`, `seqStore`, `spoolURL` and `holdUploads` above are not used (the
+    /// cadence is `otlp.cadence`). Nil (the default): the upload path to `/v1/replay/chunks`.
+    public var otlp: ReplayOTLPOptions?
+
+    /// The OTLP replay queue's folder and the open stream's file, beside `outboxURL`.
+    var otlpOutboxURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("outbox-otlp", isDirectory: true) }
+    var otlpStateURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("open-stream.json") }
 
     public init(
         endpoint: URL,
