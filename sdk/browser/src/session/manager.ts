@@ -325,7 +325,9 @@ export class SessionManager {
           cur.e = 1;
           cur.last = Math.max(cur.last, rec.last);
           this.write(cur);
-          this.opts.hooks.onEnd(cur, reason);
+          // A session whose start was never announced (it ended while the start was still
+          // waiting for the session lock) has no end to announce either.
+          if (cur.a) this.opts.hooks.onEnd(cur, reason);
         }
       }
       // No stored record (storage was cleared from outside): no tab can know it is the one to

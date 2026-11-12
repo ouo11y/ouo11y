@@ -39,7 +39,8 @@ Found by the review of PR #182; every one passed in jsdom, which has no Web Lock
 - To test lock paths in jsdom, define `locks` on the real `navigator` with `Object.defineProperty`. A stub made with `Object.create(navigator)` throws "Illegal invocation" on `navigator.userAgent`, the SDK turns itself off, and the test passes for the wrong reason.
 - Every lock-dependent rule needs one real-browser test: `sdk/browser/e2e/locks.spec.ts`.
 - A held Web Lock is on MDN's list of reasons a page is kept out of the back/forward cache. The SDK drops its tab lock at `pagehide` and takes it again at `pageshow`; the replay stream's lock ends with the stream at `pagehide`. Whether a page with the SDK is actually restored from the cache was not measured (a Playwright probe was inconclusive: the page without the SDK was not restored either); check once in a real Chrome (DevTools, Application, Back/forward cache).
-- Copy an app's `fetch` init with `Object.create(init)`, not `{ ...init }`: a spread drops inherited fields (an init made with `Object.create(defaults)`, a class instance with getters), and the request goes out as a bare GET.
+- Copying an app's `fetch` init has two ways to lose fields. `{ ...init }` drops inherited ones (an init made with `Object.create(defaults)`, a class instance with getters). `Object.create(init)` has no own fields, so an interceptor installed below the SDK that spreads the init copies nothing and a POST goes out as a bare GET. `copyInit` in `sdk/browser/src/signals/network.ts` makes every member, inherited or not, an own property.
+- A set of "entries I own" needs a way out besides "I sent it": another tab may deliver or evict the entry. Prune the set against what the store still lists, or the owner polls forever.
 - A step deferred past an `await` must check that the state it acts on still holds: consent denied and then granted in the same task ran the withdrawal's cleanup on the new session.
 
 ## jsdom and vitest

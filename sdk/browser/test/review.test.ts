@@ -161,10 +161,11 @@ function useLocks(locks: unknown): void {
   Object.defineProperty(navigator, "locks", { configurable: true, value: locks });
 }
 
+afterEach(() => {
+  delete (navigator as unknown as { locks?: unknown }).locks;
+});
+
 describe("F. consent denied while a session start is being confirmed under the Web Lock", () => {
-  afterEach(() => {
-    delete (navigator as unknown as { locks?: unknown }).locks;
-  });
 
   it("records held for the start are not sent, and nothing leaves after the denial", async () => {
     // A lock manager that grants asynchronously, like a browser's.
@@ -322,5 +323,108 @@ describe("J. a batch handed to the outbox while the drainer is in the middle of 
     queue.close();
     drainer.close();
     expect(delivered.filter((d) => d !== "one-started")).toEqual(["one", "two"]);
+  });
+});
+
+// ---- third round of the review ----
+
+describe("K. a fetch wrapper the app or a library installed before the SDK, which copies the init", () => {
+  it("still sees the method, body and headers the app passed", async () => {
+    const below = globalThis.fetch;
+    const seen: Array<{ method: string | undefined; body: unknown; app: string | null }> = [];
+    // The common interceptor shape: add something, pass the rest on.
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const next = { ...init, credentials: "include" as const };
+      if (!String(input).startsWith(BASE)) seen.push({ method: next.method, body: next.body, app: new Headers(next.headers).get("x-app") });
+      return below(input, next);
+    });
+    ouo.init({ endpoint: BASE, serviceName: "web-store", transport: { flushIntervalMs: 50, persist: { enabled: false } } });
+    await fetch("http://localhost:3000/api/orders", { method: "POST", body: "{\"a\":1}", headers: { "x-app": "1" } });
+    expect(seen).toEqual([{ method: "POST", body: "{\"a\":1}", app: "1" }]);
+  });
+});
+
+class PollClock implements Clock {
+  t = 1_700_000_000_000;
+  private timers = new Map<number, { at: number; fn: () => void }>();
+  private next = 1;
+  now(): number {
+    return this.t;
+  }
+  setTimeout(fn: () => void, ms: number): unknown {
+    this.timers.set(this.next, { at: this.t + ms, fn });
+    return this.next++;
+  }
+  clearTimeout(h: unknown): void {
+    this.timers.delete(h as number);
+  }
+  async advance(ms: number): Promise<void> {
+    const end = this.t + ms;
+    for (;;) {
+      const due = [...this.timers.entries()].filter(([, v]) => v.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      this.timers.delete(due[0]);
+      this.t = Math.max(this.t, due[1].at);
+      due[1].fn();
+      for (let i = 0; i < 30; i++) await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    this.t = end;
+  }
+}
+
+describe("L. an owned entry that left the outbox by another way (another tab sent it, the cap evicted it)", () => {
+  it("does not leave the drainer polling the outbox for the rest of the page", async () => {
+    const clock = new PollClock();
+    const outbox = new MemoryOutbox(1024 * 1024);
+    let lists = 0;
+    const list = outbox.list.bind(outbox);
+    outbox.list = (now, ttl) => {
+      lists++;
+      return list(now, ttl);
+    };
+    const http = new Http({ headers: {}, timeoutMs: 5000, clock, fetchImpl: (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch });
+    const drainer = new OutboxDrainer({
+      outbox: () => outbox, http, urls: { logs: "http://c/v1/logs", traces: "http://c/v1/traces" }, rejected: { logs: () => 0, traces: () => 0 }, drops: new DropCounter(),
+      ttlMs: 72 * 3_600_000, retryInitialMs: 1000, retryMaxMs: 30_000, gate: () => "open", hidden: () => false, clock,
+    });
+    const { id } = await outbox.put({ kind: "telemetry", signal: "logs", body: new Uint8Array([1]), records: 1, createdAt: clock.now() });
+    drainer.own(id!);
+    await outbox.delete(id!); // another tab's drainer delivered it and deleted it
+    await clock.advance(10 * 60_000);
+    drainer.close();
+    expect(lists).toBeLessThan(5);
+  });
+});
+
+describe("M. init and a denial in the same task (consent not required, the app applies a stored 'no' right after init)", () => {
+  it("sends no session.end for a session whose start was never sent", async () => {
+    const locks = { request: (_n: string, _o: unknown, cb: () => unknown) => new Promise((r) => setTimeout(() => r(cb()), 20)), query: async () => ({ held: [] }) };
+    useLocks(locks);
+    ouo.init({ endpoint: BASE, serviceName: "web-store", transport: { flushIntervalMs: 50, persist: { enabled: false } } });
+    ouo.setConsent({ telemetry: false });
+    await wait(400);
+    await collector.settled();
+    expect(collector.logs.map((l) => l.eventName)).toEqual([]);
+  });
+});
+
+describe("N. the copy of a fetch init loses nothing, own or inherited", () => {
+  it("keeps own properties, inherited properties and prototype getters, and leaves the original untouched", async () => {
+    const { copyInit } = await import("../src/signals/network");
+    class Init {
+      get method(): string {
+        return "PUT";
+      }
+    }
+    const withGetter = new Init() as RequestInit;
+    const inherited = Object.create({ credentials: "include", headers: { "x-app": "1" } }) as RequestInit;
+    (inherited as { body?: string }).body = "b";
+    expect({ ...copyInit(withGetter) }).toEqual({ method: "PUT" });
+    expect({ ...copyInit(inherited) }).toEqual({ credentials: "include", headers: { "x-app": "1" }, body: "b" });
+    const own: RequestInit = { method: "POST", headers: { a: "1" } };
+    const copy = copyInit(own);
+    (copy as { headers: unknown }).headers = new Headers({ traceparent: "x" });
+    expect(own).toEqual({ method: "POST", headers: { a: "1" } });
   });
 });

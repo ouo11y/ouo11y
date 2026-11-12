@@ -383,6 +383,12 @@ export class OutboxDrainer {
     const now = this.clock.now();
     const { entries, expired } = await outbox.list(now, this.o.ttlMs);
     for (const m of expired) drops.add(m.signal === "replay" ? "ouo.replay.chunk" : m.signal, "expired", m.records);
+    // An entry this page handed over that is no longer there (another tab delivered it, the cap
+    // evicted it, it expired) is nobody's to send any more.
+    if (this.owned.size > 0) {
+      const present = new Set(entries.map((m) => m.id));
+      for (const id of this.owned) if (!present.has(id)) this.owned.delete(id);
+    }
     let young = false;
     for (const m of entries) {
       if (m.kind === "replay") continue; // The replay engine drains its own, stream by stream.

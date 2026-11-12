@@ -30,6 +30,27 @@ function toOtel(patterns: UrlPattern[]): Array<string | RegExp> {
   return patterns.map((p) => (typeof p === "string" && p.endsWith("*") ? new RegExp(`^${escapeRegExp(p.slice(0, -1))}`) : p));
 }
 
+/** Every member of `RequestInit` the platform reads (and a few it may read tomorrow). */
+const INIT_KEYS = ["method", "headers", "body", "mode", "credentials", "cache", "redirect", "referrer", "referrerPolicy", "integrity", "keepalive", "signal", "priority", "window", "duplex"];
+
+/**
+ * A copy of the app's `fetch` init for the instrumentation to write its headers on, so the
+ * app's object is never changed. It must lose nothing in either direction: the platform reads
+ * init members through the prototype chain (an init made with `Object.create(defaults)`, a class
+ * instance with getters), and an interceptor installed below the SDK may copy the init with a
+ * spread, which keeps own properties only. So every member, inherited or not, becomes an own
+ * property of the copy.
+ */
+export function copyInit(init: RequestInit): RequestInit {
+  const copy: Record<string, unknown> = {};
+  const src = init as Record<string, unknown>;
+  for (const key in src) copy[key] = src[key];
+  for (const key of INIT_KEYS) {
+    if (!(key in copy) && src[key] !== undefined) copy[key] = src[key];
+  }
+  return copy as RequestInit;
+}
+
 export function installNetwork(d: NetworkDeps): () => void {
   const ignoreUrls = [new RegExp(`^${escapeRegExp(d.endpoint)}/v1/`), ...toOtel(d.ignoreUrls)];
   const common = {
@@ -59,9 +80,7 @@ export function installNetwork(d: NetworkDeps): () => void {
       let i = input;
       let o = init;
       try {
-        // Inherits every field of the app's init, own or not, like the platform reads them;
-        // what the instrumentation writes lands on this object, not on the app's.
-        if (init && typeof init === "object") o = Object.create(init) as RequestInit;
+        if (init && typeof init === "object") o = copyInit(init);
         if (typeof Request === "function" && input instanceof Request) i = new Request(input);
       } catch {
         // A Request that cannot be copied (its body was used) goes through as it is.
