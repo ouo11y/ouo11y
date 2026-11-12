@@ -45,19 +45,22 @@ class DiskQueue(
     val retryDelayMs: (Int) -> Long = fullJitter(),
     /** `Retry-After` is honoured up to this (client SDK spec TRN-8). */
     val retryAfterCapMs: Long = 300_000,
+    /** Entries kept; beyond it the oldest go first, like the byte bound. */
+    val maxEntries: Int = Int.MAX_VALUE,
   ) {
     companion object {
       /** 1 s doubling up to [capMs]. */
       fun doubling(capMs: Long): (Int) -> Long = { n -> minOf(1000L shl (maxOf(1, n) - 1).coerceAtMost(20), capMs) }
 
       /**
-       * Exponential backoff with full jitter (client SDK spec TRN-7): a uniform wait in
-       * `[0, min(maxMs, initialMs * 2^(n-1))]`, so clients that failed together do not retry together.
-       * [random] returns a value in `[0, 1)`.
+       * Exponential backoff with full jitter (client SDK spec TRN-7): the nth retry waits a random
+       * time up to `initialMs * 2^(n-1)`, itself capped at [maxMs], and never less than a tenth of
+       * [initialMs] so a failing endpoint is not hammered. [random] returns a value in `[0, 1]`.
        */
       fun fullJitter(initialMs: Long = 1_000, maxMs: Long = 300_000, random: () -> Double = Math::random): (Int) -> Long = { n ->
-        val ceiling = minOf(maxMs, initialMs shl (maxOf(1, n) - 1).coerceAtMost(30))
-        (random().coerceIn(0.0, 1.0) * (ceiling + 1)).toLong().coerceIn(0, ceiling)
+        val ceiling = minOf(maxMs, initialMs shl (n.coerceIn(1, 32) - 1).coerceAtMost(40))
+        val r = random()
+        maxOf(initialMs / 10, (ceiling * (if (r.isFinite()) r.coerceIn(0.0, 1.0) else 1.0)).toLong())
       }
     }
   }
@@ -179,11 +182,13 @@ class DiskQueue(
   private fun enforceBound() {
     val es = list(directory)
     var total = es.sumOf { it.bytes }
+    var count = es.size
     // Oldest first; never the newest, nor the one in flight (its answer removes it).
     for (victim in es.dropLast(1)) {
-      if (total <= config.maxBytes) break
+      if (total <= config.maxBytes && count <= config.maxEntries) break
       if (victim.file == inFlight) continue
       total -= victim.bytes
+      count--
       drop(victim, "queue bound")
     }
   }
@@ -272,9 +277,7 @@ class DiskQueue(
 
   private fun retryLater(head: Entry, why: String, retryAfterSeconds: Double?) {
     failures++
-    // Retry-After is a floor on the backoff, itself capped (TRN-8): a receiver cannot park the queue for a day.
-    val asked = ((retryAfterSeconds ?: 0.0).coerceIn(0.0, 1e9) * 1000).toLong().coerceAtMost(config.retryAfterCapMs)
-    val delay = maxOf(0L, maxOf(config.retryDelayMs(failures), asked))
+    val delay = retryDelay(config.retryDelayMs(failures), retryAfterSeconds, config.retryAfterCapMs)
     logger.warn("sending ${head.tag} failed ($why), kept on disk, retry in $delay ms")
     finishWaiters()
     if (retryScheduled) return
@@ -294,6 +297,15 @@ class DiskQueue(
   companion object {
     /** OTLP/HTTP's retryable answers: 429, 502, 503 and 504. Any other status is final. */
     fun retryable(status: Int): Boolean = status == 429 || status == 502 || status == 503 || status == 504
+
+    /**
+     * The wait before a retry: `Retry-After` when the receiver sent one, capped at [capMs] (TRN-8:
+     * a receiver cannot park the queue for a day), else the backoff. Never negative.
+     */
+    fun retryDelay(backoffMs: Long, retryAfterSeconds: Double?, capMs: Long): Long {
+      val asked = retryAfterSeconds?.takeIf { it.isFinite() && it >= 0 } ?: return maxOf(0L, backoffMs)
+      return minOf((asked.coerceAtMost(1e9) * 1000).toLong(), maxOf(0L, capMs))
+    }
 
     fun pad(n: Long, width: Int): String = n.toString().padStart(width, '0')
 

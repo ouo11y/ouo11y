@@ -38,26 +38,16 @@ data class ViewNode(
   val truncated: Boolean = false,
   val children: List<ViewNode> = emptyList(),
   /**
-   * A password or other secure input (or one whose kind could not be read): always masked, whatever
-   * the rules, tags and overrides say (client SDK spec PRV-7).
+   * A password or other secure input (or one whose kind could not be read). Under
+   * [RedactionRules.strict] it is masked whatever the rules, tags and overrides say (PRV-7).
    */
   val secure: Boolean = false,
-  /** View-level masking set by the host at run time: true masks the view, false unmasks its subtree, null follows the rules. Mask wins. */
+  /**
+   * View-level masking set by the host for this view (the React Native `mask(reactTag)` and
+   * `unmask(reactTag)`), as [ReplayMaskRegistry] resolved it: true masks the view, false unmasks
+   * its subtree, null follows the rules. Mask wins.
+   */
   val maskOverride: Boolean? = null,
-  /** What the structure format (`ouo-wireframe/1`) draws; null when the walk did not collect it. */
-  val wire: WireStyle? = null,
-)
-
-/** Colours are ARGB ints, lengths are window pixels. [text] is the source text: it only leaves the device when no mask applies. */
-data class WireStyle(
-  val text: String? = null,
-  val bg: Int? = null,
-  val fg: Int? = null,
-  val radius: Float? = null,
-  val borderWidth: Float? = null,
-  val borderColor: Int? = null,
-  val fontSize: Float? = null,
-  val align: String? = null,
 )
 
 /** What a view is to the masking rules. */
@@ -70,6 +60,12 @@ data class RedactionRules(
   val maskImages: Boolean = true,
   val maskWebViews: Boolean = true,
   val extraClasses: Set<String> = emptySet(),
+  /**
+   * The OTLP path (client SDK spec PRV-6, PRV-7): a secure input is always masked, and an unmasked
+   * subtree is still walked so that a mask or a secure input inside it wins. False (the default)
+   * keeps the behaviour the native SDK shipped with: `ouo-unmask` opts its whole subtree out.
+   */
+  val strict: Boolean = false,
 ) {
   /** True when any rule masks (the chunk's `masked` flag). */
   val masksAnything: Boolean get() = maskText || maskInputs || maskImages || maskWebViews || extraClasses.isNotEmpty()
@@ -120,16 +116,16 @@ class RedactionPlanner(val rules: RedactionRules = RedactionRules()) {
     if (node.hidden || node.alpha <= 0.01f) return
     val clipped = node.frame.intersect(window)
     val visible = !clipped.isEmpty
-    // Mask wins over unmask, and a secure input is masked whatever anything says (PRV-7).
-    val forced = node.tag == RedactionRules.MASK_TAG || node.maskOverride == true || node.secure
+    // Mask wins over unmask, and under `strict` a secure input is masked whatever anything says (PRV-7).
+    val forced = node.tag == RedactionRules.MASK_TAG || node.maskOverride == true || (rules.strict && node.secure)
     if (visible && (forced || node.truncated)) {
       out.add(clipped)
       return
     }
-    // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels); the walk goes
-    // on only for the secure inputs and the explicit masks inside it.
+    // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels). Under
+    // `strict` the subtree is still walked: a mask or a secure input inside it wins.
     if (unmasked || node.tag == RedactionRules.UNMASK_TAG || node.maskOverride == false) {
-      for (child in node.children) visit(child, window, out, true)
+      if (rules.strict) for (child in node.children) visit(child, window, out, true)
       return
     }
     // A masked view covers its subtree; text is masked per line and its children are still walked.
