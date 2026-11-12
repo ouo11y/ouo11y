@@ -3,7 +3,7 @@
  * `serviceName` makes the SDK a no-op; every other bad value falls back to its default and
  * out-of-range numbers are clamped, each with one diagnostic that names the key and never a value.
  */
-import type { BeforeSend, OuoConfig, ReplayFormat, ReplayMode, UrlPattern } from "./types";
+import type { BeforeSend, UrlPattern } from "./types";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
@@ -20,16 +20,14 @@ export interface Config {
   session: { inactivityTimeoutMs: number; maxDurationMs: number };
   sampling: { sessionRate: number; bypassCap: number };
   replay: {
-    mode: ReplayMode;
+    /** False when `replay.mode` is not a technique this platform has: replay stays off. */
+    enabled: boolean;
     sessionRate: number;
     bufferRate: number;
-    format: ReplayFormat;
     bufferSeconds: number;
     chunkMaxBytes: number;
     chunkMaxMs: number;
     keyframeIntervalMs: number;
-    pixelMaxFps: number;
-    pixelMaxSide: number;
   };
   consentRequired: boolean;
   privacy: { urlQueryAllow: ReadonlySet<string>; keepUrlFragment: boolean };
@@ -126,14 +124,19 @@ function patterns(v: unknown, path: string, note: Note): UrlPattern[] {
   return v.filter((p): p is UrlPattern => (typeof p === "string" && p !== "") || p instanceof RegExp);
 }
 
+/** The one replay technique of the web SDK; on the wire it is `ouo.replay.format: "rrweb/2"`. */
+export const REPLAY_MODE = "structure/dom";
+
 /**
- * `structure` is the only replay format this release records. `pixel` is under development: asking
- * for it records structure instead, with a diagnostic, so unverified code never runs in an app.
+ * `replay.mode` picks the technique, and the web has one. Unset is `structure/dom`. Anything else
+ * (another platform's technique, a shorthand such as `structure` or `pixel`) leaves replay off
+ * with a warning: recording with a technique the app did not ask for would be worse than none.
  */
-function replayFormat(replay: Bag, note: Note): ReplayFormat {
-  const v = oneOf(replay, "format", "replay.format", ["structure", "pixel"] as const, "structure", note);
-  if (v === "pixel") note("replay.format", "pixel is under development, recording structure instead");
-  return "structure";
+function replayEnabled(replay: Bag, note: Note): boolean {
+  const v = replay["mode"];
+  if (v === undefined || v === REPLAY_MODE) return true;
+  note("replay.mode", `not valid on the web (the only value is "${REPLAY_MODE}"), replay is off`);
+  return false;
 }
 
 /** A relative endpoint (`/otel`, a first-party proxy route) resolved against the page. */
@@ -241,16 +244,13 @@ export function resolveConfig(input: unknown, note: Note): Config | null {
       bypassCap: Math.floor(num(bag(sampling["bypass"]), "perSessionCap", "sampling.bypass.perSessionCap", 10, 0, 1000, note)),
     },
     replay: {
-      mode: oneOf(replay, "mode", "replay.mode", ["off", "session", "buffer"] as const, "off", note),
+      enabled: replayEnabled(replay, note),
       sessionRate: num(replay, "sessionRate", "replay.sessionRate", 0, 0, 1, note),
       bufferRate: num(replay, "bufferRate", "replay.bufferRate", 0, 0, 1, note),
-      format: replayFormat(replay, note),
       bufferSeconds: num(replay, "bufferSeconds", "replay.bufferSeconds", 60, 5, 600, note),
       chunkMaxBytes: num(replay, "chunkMaxBytes", "replay.chunkMaxBytes", 256 * 1024, 4 * 1024, CHUNK_HARD_LIMIT, note),
       chunkMaxMs: num(replay, "chunkMaxMs", "replay.chunkMaxMs", 5000, 250, 60_000, note),
       keyframeIntervalMs: num(replay, "keyframeIntervalMs", "replay.keyframeIntervalMs", 300_000, 5000, HOUR, note),
-      pixelMaxFps: num(replay, "pixelMaxFps", "replay.pixelMaxFps", 1, 0.1, 4, note),
-      pixelMaxSide: Math.floor(num(replay, "pixelMaxSide", "replay.pixelMaxSide", 1000, 200, 2000, note)),
     },
     consentRequired: bool(bag(c["consent"]), "required", "consent.required", false, note),
     privacy: {

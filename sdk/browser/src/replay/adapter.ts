@@ -1,14 +1,15 @@
 /**
  * The format seam of replay (SDK spec section 11.6, RPL-27). The engine owns the hierarchy
  * (replay, stream, segment, chunk), identity, bounds, delivery and end rules; an adapter owns
- * what is recorded and how it is encoded. The two formats the web SDK ships:
+ * what is recorded and how it is encoded. The web SDK records one format:
  *
- * - `rrweb/2` (structure): a description of the DOM, driven by a MutationObserver, as rrweb
- *   events, one JSON document per line. Text is replaced by `***`.
- * - `ouo.frames/1` (pixel): masked images of the viewport, taken when the DOM changes, as a
- *   sequence of length-prefixed records.
+ * - `rrweb/2` (technique `structure/dom`): a description of the DOM, driven by a MutationObserver,
+ *   as rrweb events, one JSON document per line. Text is replaced by `***`.
  *
- * Both are streams of self-delimiting units, so the concatenation of a segment's chunk bodies is
+ * `pixel.ts` holds a second adapter, `ouo.frames/1` (masked images of the viewport), that is under
+ * development and paused: nothing selects it and it is not in the build.
+ *
+ * A format is a stream of self-delimiting units, so the concatenation of a segment's chunk bodies is
  * a valid payload of the format and a unit may be split across chunks (RPL-7, RPL-11).
  */
 import type { DropReason } from "../core/drops";
@@ -37,6 +38,4 @@ export interface ReplayAdapter {
 
 export interface AdapterOptions {
   sanitize(url: string): string;
-  pixelMaxFps: number;
-  pixelMaxSide: number;
 }

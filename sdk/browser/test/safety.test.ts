@@ -131,7 +131,7 @@ describe("fault injection in every internal (ERR-1, GR-CRASH-2, GR-CRASH-4, GR-C
   it.each(POINTS)("a throw at `%s` never reaches the page, and the app's own calls are unchanged", async (name) => {
     const page = pageErrors();
     ouo._internal.injectFault(name);
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1 } });
+    ouo.init({ ...base, replay: { sessionRate: 1 } });
     const appHandler = vi.fn();
     document.getElementById("b")!.addEventListener("click", appHandler);
     expect(() => {
@@ -159,7 +159,7 @@ describe("fault injection in every internal (ERR-1, GR-CRASH-2, GR-CRASH-4, GR-C
 
   it("a fault in one feature leaves the others working: errors still export when replay cannot load", async () => {
     ouo._internal.injectFault("replay.load");
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1 } });
+    ouo.init({ ...base, replay: { sessionRate: 1 } });
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("still reported"), message: "still reported" }));
     await ouo.flush();
     await collector.settled();

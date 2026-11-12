@@ -37,23 +37,21 @@ Rewritten (their design, not their details, was against the spec):
 | Signals | `web_vital`, `navigation`, click and soft-navigation spans, `ouo.rage_click`, `http.request.failed`, console errors | The spec's events; spans only for requests and `documentLoad` (made after the fact by the SDK, replacing `@opentelemetry/instrumentation-document-load`, which cannot be told to emit no child spans) |
 | Privacy | None | Consent (pending, granted, denied; telemetry and replay apart), URL sanitising, `beforeSend`, no user id before `setUser`, no device id |
 | Transport | One queue of stored requests for everything; retried 500 and 408 | A telemetry queue per signal with the spec's response table, oldest-ordinary-first eviction and drop accounting; replay on its own queue |
-| Replay | Custom JSON to a separate receiver on port 4319 | `ouo.replay.chunk` and `ouo.replay.ended` log records on `/v1/logs` as OTLP protobuf, made through the Logs API; an engine that owns the hierarchy and delivery; two format adapters behind one interface |
+| Replay | Custom JSON to a separate receiver on port 4319 | `ouo.replay.chunk` and `ouo.replay.ended` log records on `/v1/logs` as OTLP protobuf, made through the Logs API; an engine that owns the hierarchy and delivery; the format behind an adapter interface |
 | Robustness | Counted contained failures | Counts them, reports drops as `ouo.sdk.dropped`, turns itself off at the threshold, and ships a fault-injection hook that the tests use in every internal |
 
 The old sources are not copied to an archive folder: they are in git history at `browser-v0.3.1` (commit `27f7101e`), and an in-tree copy would be built, linted and link-checked for no reader.
 
-### Replay formats
+### Replay: one option for the technique, rates for whether
 
-`structure` is the only format this release records. **`pixel` is under development and paused** (founder, 2026-11-12: not needed now). Its adapter stays in the package behind the format seam the spec requires (RPL-27), but configuration never selects it: `replay.format: "pixel"` records `structure` instead, with a diagnostic. Falling back was chosen over leaving replay off because an app that asked for replay gets a masked, supported recording rather than none. The table below records the design for when the work resumes.
+Founder decisions of 2026-11-12, relayed from the pilot-planning session:
 
-| | `structure` | `pixel` |
-|---|---|---|
-| `ouo.replay.format` | `rrweb/2` | `ouo.frames/1` |
-| When to look | rrweb's MutationObserver and input listeners | A MutationObserver, scroll, resize and input mark the page dirty; at most `pixelMaxFps` frames a second |
-| What is recorded | DOM description; text is `***` | A masked clone of the page, drawn through SVG `foreignObject` to a canvas, as WebP or JPEG |
-| Masking race | None: rrweb masks while serialising | None on the web: the live page is never drawn. Only a clone that was masked first is |
+- **`replay.mode` names the technique**, by what a chunk holds, and the format id goes on the wire in `ouo.replay.format`: `structure/dom` is `rrweb/2` (web); `structure/wireframe`, `pixel/frames` and `pixel/video` are React Native's. On the web the only valid value is `structure/dom`, which is also the default. There is no shorthand. A value that is not valid on the platform leaves replay off with a warning and never throws.
+- **Structure is the only web technique for the pilot.** A pixel recorder for the web (`ouo.frames/1`: a masked clone of the page drawn through SVG `foreignObject`) was built and worked in the three engines, then paused as not needed now. Its source stays in `src/replay/pixel.ts`, marked under development, outside the build: nothing imports it and no option selects it.
 
-The pixel recorder is our own code (about 250 lines). None of Sentry, Datadog or PostHog records pixels on the web, so there was nothing to borrow.
+A consequence this ADR decides: the spec's section 3.2 uses `replay.mode` for `off` / `session` / `buffer`. With the name taken by the technique, **whether a session records is decided by the two rates alone**. One number, the second 8 hex characters of the session id as a fraction (SMP-8), is read against them: below `replay.sessionRate` the session is recorded whole; in the next `replay.bufferRate` of the range it keeps a ring and sends it after a trigger; otherwise it records nothing. Both default to 0, which is the spec's default of off. The wire attribute `ouo.replay.mode` (`session` or `buffer`, spec section 11.3) is unchanged. Step 7 should carry this into the spec's configuration table.
+
+The format seam the spec requires (RPL-27) is `src/replay/adapter.ts`; the engine is tested against it with a stub format.
 
 ### Third-party code
 
@@ -76,5 +74,5 @@ The tracer and logger providers are not registered globally unless `otel.registe
 - **Spec compliance.** Every MUST of the spec that applies to the web is implemented; the record, per requirement, with the test that shows it, is in [web-sdk-compliance.html](../../project/kb/client-sdk-web/compliance/web-sdk-compliance.html).
 - **The MVP read path sees less.** rum-api still lists the session, its timeline, traces and symbolicated errors from the new wire (verified with the demo journey). It does not know the new event names as vitals, clicks or navigations, and the Grafana plugin's player cannot play the new replay: chunks now arrive on `/v1/logs`, where the current collector configuration forwards them to Loki, body included. Nothing here changes rum-api, the plugin or the collector; that is the Muninn and plugin work of Steps 8 and 9.
 - **Removed on purpose** (the spec or the target list says so): the anonymous user id and `device.id`, `console.error` as an error, `http.request.failed`, click and soft-navigation spans, long-task events (gated by SIG-30), `sendBeacon`, the multi-tab replay lease (streams are per page now), and `replay.excludeRoutes` (an app can call `replay.stop()` and `replay.start()`; a first-class never-record list is not in the spec and is left for Step 7 to decide).
-- **Size.** Initial JavaScript is 49.4 KB gzip (0.3.1: 44.2; the Step 5 budget proposal: 50). Replay loads only when a session records: the engine 7.3 KB, then structure 55.4 KB or pixel 2.8 KB.
+- **Size.** Initial JavaScript is 49.4 KB gzip (0.3.1: 44.2; the Step 5 budget proposal: 50). Replay loads only when a session records: the engine 7.3 KB, then the structure recorder 55.4 KB.
 - **React Native** is not touched. No shared core package was created; the pure helpers RN may want (id and sampling rule, URL sanitiser, drop counter) are in `sdk/browser/src/core/`.

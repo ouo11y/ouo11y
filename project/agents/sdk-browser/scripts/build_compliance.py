@@ -131,7 +131,7 @@ R = {
     "SMP-6": ("met", "W", "Same as SMP-3 (ouo.sampling.bypass)", ""),
     "SMP-7": ("met", "W", "Same as SMP-3 (cap, counted)", ""),
     "SMP-8": ("met", "U", T + "core.test.ts 'golden vectors', 'the two decisions are independent'", ""),
-    "SMP-9": ("met", "W", T + "replay.test.ts 'does not record: session not sampled'", ""),
+    "SMP-9": ("met", "W", T + "replay.test.ts 'does not record: session not sampled'", "The option that picks session or buffer recording is the pair of rates, not the spec's replay.mode (ADR-0020)"),
     "SMP-10": ("met", "U", T + "replay.test.ts 'the buffer ring keeps whole segments'", ""),
     "SMP-11": ("met", "U", "Same test (nothing stored or sent before a trigger)", ""),
     "SMP-12": ("met", "W,H", T + "replay.test.ts 'buffer mode sends nothing until an unhandled error', 'replay.capture()'; " + E + "replay.spec.ts", ""),

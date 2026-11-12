@@ -34,5 +34,10 @@ export function isSessionId(v: unknown): v is string {
 export function sampledAt(id: string, rate: number, offset: 0 | 8): boolean {
   if (!(rate > 0)) return false;
   if (rate >= 1) return true;
-  return parseInt(id.slice(offset, offset + 8), 16) / 0x1_0000_0000 < rate;
+  return fractionAt(id, offset) < rate;
+}
+
+/** The 8 hex characters at `offset` as a number in [0, 1). */
+export function fractionAt(id: string, offset: 0 | 8): number {
+  return parseInt(id.slice(offset, offset + 8), 16) / 0x1_0000_0000;
 }

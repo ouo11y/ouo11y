@@ -1,12 +1,12 @@
 # Web replay formats
 
-What the web SDK puts in the body of an `ouo.replay.chunk` record (spec section 11.3 has the attributes). Both formats are streams of self-delimiting units, so for either one:
+What the web SDK puts in the body of an `ouo.replay.chunk` record (spec section 11.3 has the attributes). The customer option is `replay.mode`, the technique; the format id is on the wire in `ouo.replay.format`. The web has one technique, `structure/dom`, whose format is `rrweb/2`. A format is a stream of self-delimiting units, so:
 
 > the payload of a segment = the decompressed bodies of its chunks, concatenated in `ouo.replay.sequence` order.
 
-A chunk may end in the middle of a unit (a large unit is split across chunks, never truncated), so a reader must concatenate before it parses. Each body decompresses alone. `ouo.replay.encoding` is per chunk: `gzip` normally, `none` for the chunk a page closes with (nothing can be awaited then) and for every `ouo.frames/1` chunk (images are already compressed).
+A chunk may end in the middle of a unit (a large unit is split across chunks, never truncated), so a reader must concatenate before it parses. Each body decompresses alone. `ouo.replay.encoding` is per chunk: `gzip` normally, `none` for the chunk a page closes with (nothing can be awaited then).
 
-## `rrweb/2` (structure)
+## `rrweb/2` (`replay.mode: "structure/dom"`)
 
 - Unit: one rrweb 2 event as JSON, followed by `\n` (UTF-8). So the payload is newline-delimited JSON.
 - A segment starts with a `Meta` event (type 4) and the `FullSnapshot` (type 2) after it. `ouo.replay.keyframe=true` marks the chunk that begins with the `Meta` event.
@@ -17,7 +17,7 @@ A reader feeds the events to rrweb's replayer unchanged.
 
 ## `ouo.frames/1` (pixel), under development
 
-Paused (founder, 2026-11-12: not needed now). The web SDK does not emit this format: `replay.format: "pixel"` records `rrweb/2` instead. What follows describes the adapter as it stands in `sdk/browser/src/replay/pixel.ts`, for when the work resumes.
+Paused (founder, 2026-11-12: not needed now). The web SDK does not emit this format and no option selects it; the source is in `sdk/browser/src/replay/pixel.ts`, outside the build. What follows describes the adapter as it stood when it was paused, for when the work resumes.
 
 - Unit: `u32 header length | header (UTF-8 JSON) | u32 payload length | payload`, lengths big endian.
 - `{"k":"frame","t":<ms>,"w":<px>,"h":<px>,"vw":<css px>,"vh":<css px>,"sx":<scroll x>,"sy":<scroll y>,"dpr":<n>,"mime":"image/webp"|"image/jpeg","masked":true}` with the image as payload. Every frame is a full image of the viewport, so every frame is a keyframe and every chunk decodes alone.

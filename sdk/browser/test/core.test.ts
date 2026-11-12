@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { matchesUrl, resolveConfig } from "../src/config";
 import { DropCounter } from "../src/core/drops";
-import { isSessionId, newSessionId, newViewId, sampledAt } from "../src/core/ids";
+import { fractionAt, isSessionId, newSessionId, newViewId, sampledAt } from "../src/core/ids";
 import { appAttributes, MAX_STACK_BYTES, MAX_STRING_BYTES, reservedName, truncate, truncateAttributes } from "../src/core/limits";
 import { cssSelector } from "../src/core/selector";
 import { redactUrl, sanitizeStack, sanitizeUrl } from "../src/core/url";
@@ -26,6 +26,12 @@ describe("ids and sampling (SES-1, SMP-2, SMP-8)", () => {
     expect(sampledAt(id, 0.75, 8)).toBe(false);
     expect(sampledAt("ffffffff00000000" + "0".repeat(16), 1, 0)).toBe(true);
     expect(sampledAt("00000000" + "0".repeat(24), 0, 0)).toBe(false);
+  });
+
+  it("one fraction decides between a full replay, a buffered one and none", () => {
+    const id = "ffffffff40000000" + "0".repeat(16); // replay fraction 0.25
+    expect(fractionAt(id, 8)).toBe(0.25);
+    expect(fractionAt(id, 0)).toBeGreaterThan(0.99);
   });
 
   it("the two decisions are independent over many ids", () => {
@@ -137,7 +143,7 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
     expect(c.logsUrl).toBe("https://otel.test/v1/logs");
     expect(c.session).toEqual({ inactivityTimeoutMs: 1_800_000, maxDurationMs: 14_400_000 });
     expect(c.sampling).toEqual({ sessionRate: 1, bypassCap: 10 });
-    expect(c.replay.mode).toBe("off");
+    expect(c.replay).toMatchObject({ enabled: true, sessionRate: 0, bufferRate: 0 });
     expect(c.replay.chunkMaxBytes).toBe(256 * 1024);
     expect(c.replay.chunkMaxMs).toBe(5000);
     expect(c.replay.keyframeIntervalMs).toBe(300_000);
@@ -161,7 +167,7 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
         ...base,
         session: { inactivityTimeoutMs: 5, maxDurationMs: 99 * 3_600_000 },
         sampling: { sessionRate: 7, bypass: { perSessionCap: "many" } },
-        replay: { mode: "video", sessionRate: -1, chunkMaxBytes: 50 * 1024 * 1024, format: 3 },
+        replay: { mode: "video", sessionRate: -1, chunkMaxBytes: 50 * 1024 * 1024 },
         consent: { required: "yes" },
         privacy: { urlQueryAllow: "utm_source" },
         beforeSend: "not a function",
@@ -174,10 +180,9 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
     )!;
     expect(c.session).toEqual({ inactivityTimeoutMs: 60_000, maxDurationMs: 24 * 3_600_000 });
     expect(c.sampling).toEqual({ sessionRate: 1, bypassCap: 10 });
-    expect(c.replay.mode).toBe("off");
+    expect(c.replay.enabled).toBe(false);
     expect(c.replay.sessionRate).toBe(0);
     expect(c.replay.chunkMaxBytes).toBe(1024 * 1024);
-    expect(c.replay.format).toBe("structure");
     expect(c.consentRequired).toBe(false);
     expect(c.privacy.urlQueryAllow.size).toBe(0);
     expect(c.beforeSend).toBeUndefined();
@@ -198,10 +203,14 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
     expect(notes.join("\n")).not.toMatch(/SECRET|canary/);
   });
 
-  it("the pixel replay format is under development: asking for it records structure, with a diagnostic", () => {
-    notes.length = 0;
-    expect(resolveConfig({ ...base, replay: { mode: "session", format: "pixel" } }, note)!.replay.format).toBe("structure");
-    expect(notes.join("\n")).toContain("replay.format: pixel is under development");
+  it("replay.mode picks the technique: structure/dom by default, anything else leaves replay off with a warning", () => {
+    expect(resolveConfig(base, note)!.replay.enabled).toBe(true);
+    expect(resolveConfig({ ...base, replay: { mode: "structure/dom" } }, note)!.replay.enabled).toBe(true);
+    for (const mode of ["pixel/frames", "pixel/video", "structure/wireframe", "structure", "pixel", "session", 7, null]) {
+      notes.length = 0;
+      expect(resolveConfig({ ...base, replay: { mode, sessionRate: 1 } }, note)!.replay.enabled).toBe(false);
+      expect(notes.join("\n")).toContain("replay.mode: not valid on the web");
+    }
   });
 
   it("matches URL patterns: exact, prefix, RegExp", () => {

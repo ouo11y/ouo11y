@@ -22,7 +22,7 @@ init({
   serviceName: "web-store",
   serviceVersion: "1.4.2",
   environment: "production",
-  replay: { mode: "session", sessionRate: 0.1 },
+  replay: { sessionRate: 0.1 }, // record one session in ten
 });
 ```
 
@@ -65,13 +65,12 @@ App-supplied event and attribute names starting with `session.` or `ouo.` are re
 | `session.maxDurationMs` | 14 400 000 | At most 24 hours |
 | `sampling.sessionRate` | `1` | Fraction of sessions that send telemetry |
 | `sampling.bypass.perSessionCap` | `10` | Unhandled errors sent from a session that is not sampled |
-| `replay.mode` | `off` | `session` records the whole session; `buffer` keeps a ring and sends it after an unhandled error or `replay.capture()` |
-| `replay.sessionRate`, `replay.bufferRate` | `0`, `0` | Fraction of sampled sessions that record, per mode |
-| `replay.format` | `structure` | `structure` is the only supported format. `pixel` is under development: asking for it records `structure` ([Replay](#replay)) |
+| `replay.mode` | `structure/dom` | The replay technique. The web has one, and it is the only valid value: any other leaves replay off, with a warning |
+| `replay.sessionRate` | `0` | Fraction of sampled sessions recorded from start to end |
+| `replay.bufferRate` | `0` | Fraction of sampled sessions, besides those, that keep a ring in memory and send it after an unhandled error or `replay.capture()` |
 | `replay.bufferSeconds` | `60` | What the buffer ring holds at least |
 | `replay.chunkMaxBytes`, `replay.chunkMaxMs` | 262 144, 5000 | Chunk bounds. Hard limit 1 MiB |
 | `replay.keyframeIntervalMs` | 300 000 | A new keyframe and segment at least this often |
-| `replay.pixelMaxFps`, `replay.pixelMaxSide` | `1`, `1000` | Pixel format only (under development, not used) |
 | `consent.required` | `false` | Start with consent pending |
 | `privacy.urlQueryAllow` | none | Query keys whose values are kept |
 | `privacy.keepUrlFragment` | `false` | Keep the fragment (sanitised when query-shaped) |
@@ -136,19 +135,19 @@ A replay is a series of `ouo.replay.chunk` log records, sent as OTLP/HTTP protob
 
 Chunks are written to IndexedDB before their first send and removed when the Collector accepts them. A later page of the same origin sends what a closed page left behind and ends its stream as `partial`.
 
-**`structure` is the only replay format this release records.** A second format, `pixel`, is under development and paused: its code is in the package behind the same adapter interface, but `replay.format: "pixel"` records `structure` instead, with a diagnostic when `debug` is on. The table describes both so the design is on record.
+**Whether a session records** is decided by two rates, read against one number derived from the session id: with `sessionRate: 0.1, bufferRate: 0.5`, one session in ten is recorded whole, half of all sessions keep the last minute in memory and send it only after an unhandled error or `replay.capture()` (then go on recording), and the rest record nothing. Both rates default to 0, so replay is off until one is set.
 
-| | `structure` (`rrweb/2`) | `pixel` (`ouo.frames/1`), under development |
+**How it records** is `replay.mode`. The web SDK has one technique:
+
+| `replay.mode` | `ouo.replay.format` | What a chunk holds |
 |---|---|---|
-| What is recorded | A description of the DOM: a full snapshot, then what a MutationObserver and input listeners see | Images of the viewport |
-| When | On every DOM change | When the DOM changes, scrolls or resizes, at most `pixelMaxFps` times a second; nothing while the page is still or hidden |
-| Masking | Text nodes become `***`; form values become `***`; images, video and canvas are recorded as empty boxes | The page is cloned, the clone is masked (text becomes `*` per character, form values removed, media replaced by grey boxes), and only the clone is drawn |
-| Body | One JSON rrweb event per line, gzipped | Records of `u32 header length, header JSON, u32 payload length, payload` (big endian); the payload is a WebP or JPEG image. Not compressed again |
-| Lazy chunk | about 55 KB gzip | about 3 KB gzip |
+| `structure/dom` | `rrweb/2` | A description of the DOM: a full snapshot, then what a MutationObserver and input listeners see, as one JSON rrweb event per line, gzipped |
+
+Masking is done on the device before a byte is encoded: text nodes become `***`, form values become `***`, and images, video and canvas are recorded as empty boxes. The lazy chunk for it is about 55 KB gzip and loads only in a session that records.
+
+The other ouo techniques (`structure/wireframe`, `pixel/frames`, `pixel/video`) belong to React Native. A pixel recorder for the web is under development and paused; its source is in `src/replay/pixel.ts`, outside the build.
 
 Unmask with `data-ouo-unmask` on an element (its subtree is recorded as written); `data-ouo-mask` inside it masks again and always wins; `data-ouo-block` blocks an element entirely. Password, payment and one-time-code fields are always masked and cannot be unmasked. If masking fails for an event or a frame, it is dropped and counted, never sent.
-
-Known limits of the pixel format as it stands: styles from cross-origin stylesheets, web fonts, the scroll position of inner scroll containers and anything painted outside the DOM are not reproduced, and a page of more than 20 000 nodes is not captured. Under a Content-Security-Policy it needs `img-src data:`.
 
 ## React
 

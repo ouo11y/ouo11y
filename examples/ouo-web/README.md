@@ -131,8 +131,8 @@ Copy `.env.example` to `.env` and adjust.
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo11y/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
 | `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `sampling.sessionRate`: fraction of sessions that send telemetry |
-| `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sessionRate` / `replay.bufferRate`: fraction of sampled sessions that record replay |
-| `VITE_OUO_REPLAY_MODE` | `session` | `replay.mode`: `session`, `buffer` (kept in memory, sent after an unhandled error) or `off` |
+| `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | fraction of sampled sessions that record replay: passed as `replay.sessionRate`, or as `replay.bufferRate` when the mode below is `buffer` |
+| `VITE_OUO_REPLAY_MODE` | `session` | the demo's own switch: `session` (record the whole session), `buffer` (kept in memory, sent after an unhandled error) or `off`. The SDK's `replay.mode` is the technique and stays at its default, `structure/dom` |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
 token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are

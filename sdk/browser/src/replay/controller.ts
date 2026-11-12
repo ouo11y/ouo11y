@@ -1,6 +1,6 @@
 /**
  * The part of replay that lives in the core bundle: it decides whether this session records
- * (mode, replay sampling from the second 8 hex characters of the session id, consent: SMP-8,
+ * (replay sampling from the second 8 hex characters of the session id, consent: SMP-8,
  * SMP-9, RPL-19, PRV-3), loads the engine and the format adapter on demand, and passes the page
  * lifecycle on. Everything heavy is in the lazy chunks.
  */
@@ -9,7 +9,7 @@ import type { ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import type { Config } from "../config";
 import type { Clock } from "../core/clock";
 import type { DropCounter } from "../core/drops";
-import { randomHex, sampledAt } from "../core/ids";
+import { fractionAt, randomHex } from "../core/ids";
 import { attempt, point, quiet } from "../guard";
 import type { DebugLogger } from "../logger";
 import type { SessionRecord } from "../session/manager";
@@ -51,13 +51,19 @@ export class ReplayController {
 
   constructor(private readonly d: ControllerDeps) {}
 
-  /** Whether the current session records, and how. */
+  /**
+   * Whether the current session records, and how. One number decides, the second 8 hex characters
+   * of the session id as a fraction (SMP-8): below `sessionRate` the whole session is recorded;
+   * in the next `bufferRate` of the range a ring is kept and sent after a trigger; otherwise nothing.
+   */
   private wanted(): { mode: "session" | "buffer"; session: SessionRecord } | null {
-    const { mode, sessionRate, bufferRate } = this.d.cfg.replay;
-    if (mode === "off" || this.stopped || this.closed || !this.d.consented()) return null;
+    const { enabled, sessionRate, bufferRate } = this.d.cfg.replay;
+    if (!enabled || this.stopped || this.closed || !this.d.consented()) return null;
     const session = this.d.session();
     if (!session || !session.s) return null;
-    return sampledAt(session.id, mode === "session" ? sessionRate : bufferRate, 8) ? { mode, session } : null;
+    const at = fractionAt(session.id, 8);
+    if (at < sessionRate) return { mode: "session", session };
+    return at < sessionRate + bufferRate ? { mode: "buffer", session } : null;
   }
 
   /** Brings recording in line with the session, consent and API state. Safe to call at any time. */
@@ -91,10 +97,7 @@ export class ReplayController {
     point("replay.load");
     const { cfg } = this.d;
     const mod = await import("./engine");
-    const adapter =
-      cfg.replay.format === "pixel"
-        ? (await import("./pixel")).createPixelAdapter({ sanitize: this.d.sanitize, pixelMaxFps: cfg.replay.pixelMaxFps, pixelMaxSide: cfg.replay.pixelMaxSide }, this.d.clock)
-        : (await import("./structure")).createStructureAdapter({ sanitize: this.d.sanitize, pixelMaxFps: cfg.replay.pixelMaxFps, pixelMaxSide: cfg.replay.pixelMaxSide });
+    const adapter = (await import("./structure")).createStructureAdapter({ sanitize: this.d.sanitize });
     if (generation !== this.generation || this.closed) return;
     const engine = new mod.ReplayEngine({
       adapter,

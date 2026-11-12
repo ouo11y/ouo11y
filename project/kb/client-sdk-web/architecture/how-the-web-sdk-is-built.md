@@ -24,9 +24,10 @@ DOM changes    ─► replay adapter ─► replay/engine ─► OTel Logger (sc
 | `pipeline/otel.ts` | Resource, providers, span sampler and processor, log router, propagator, XHR header guard |
 | `signals/` | Errors, web vitals, clicks and frustration, navigation and views, network wiring |
 | `transport/` | One HTTP POST (`http.ts`), the telemetry queue and the outbox drainer (`queue.ts`), the outbox (`store.ts`), retry rules, keepalive budget, gzip |
-| `replay/controller.ts` | In the core bundle: decides whether this session records, loads the engine and an adapter on demand |
+| `replay/controller.ts` | In the core bundle: decides whether this session records (the two rates), loads the engine and the adapter on demand |
 | `replay/engine.ts` | Lazy: streams, segments, chunks, ring buffer, hashing, persistence, delivery, end records, recovery |
-| `replay/structure.ts`, `replay/pixel.ts` | Lazy: the two format adapters behind `replay/adapter.ts` |
+| `replay/structure.ts` | Lazy: the `rrweb/2` format adapter behind `replay/adapter.ts` |
+| `replay/pixel.ts` | Under development and paused: a pixel adapter that nothing imports and the build leaves out |
 
 ## Where OpenTelemetry ends
 

@@ -28,7 +28,8 @@ if (q.get("sdk") !== "0") {
     serviceVersion: "1.0.0",
     environment: "e2e",
     sampling: { sessionRate: num("sample", 1) },
-    replay: { mode: q.get("replay") ?? "off", sessionRate: 1, bufferRate: 1, chunkMaxMs: 500 },
+    // ?replay=session records the whole session, ?replay=buffer keeps a ring until an error.
+    replay: { sessionRate: q.get("replay") === "session" ? 1 : 0, bufferRate: q.get("replay") === "buffer" ? 1 : 0, chunkMaxMs: 500 },
     consent: { required: q.get("consent") === "1" },
     propagation: { sessionBaggage: q.get("baggage") === "1" },
     instrumentations: { resourceTiming: q.get("resources") === "1" },

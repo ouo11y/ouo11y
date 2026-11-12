@@ -27,7 +27,8 @@ export const config = {
   // Sampling: fractions 0..1, every session with a full replay by default.
   sessionSampleRate: rate(env.VITE_OUO_SESSION_SAMPLE_RATE, 1),
   replaySampleRate: rate(env.VITE_OUO_REPLAY_SAMPLE_RATE, 1),
-  // `buffer`: keep the last minute in memory and send it only after an unhandled error.
+  // The demo's own switch, turned into the SDK's two replay rates below. `buffer`: keep the last
+  // minute in memory and send it only after an unhandled error.
   replayMode: env.VITE_OUO_REPLAY_MODE === "buffer" || env.VITE_OUO_REPLAY_MODE === "off" ? env.VITE_OUO_REPLAY_MODE : ("session" as const),
 } as const;
 
@@ -55,7 +56,10 @@ init({
   // Replay masks all text and every input by default. The public storefront (header, catalogue,
   // chaos panel) is marked `data-ouo-unmask` so its replay stays readable; the cart, checkout,
   // order and session footer stay masked.
-  replay: { mode: config.replayMode, sessionRate: config.replaySampleRate, bufferRate: config.replaySampleRate },
+  replay: {
+    sessionRate: config.replayMode === "session" ? config.replaySampleRate : 0,
+    bufferRate: config.replayMode === "buffer" ? config.replaySampleRate : 0,
+  },
   debug: config.debug,
 });
 if (initialUser) sdkSetUser(initialUser);

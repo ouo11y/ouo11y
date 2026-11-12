@@ -803,7 +803,7 @@ export const replay = {
   stop(): void {
     api(() => live()?.replayApi("stop"), undefined);
   },
-  /** Sends a buffered replay from here on (`replay.mode: "buffer"`). */
+  /** Sends a buffered replay from here on (a session that keeps a ring, `replay.bufferRate`). */
   capture(): void {
     api(() => live()?.replayApi("capture"), undefined);
   },

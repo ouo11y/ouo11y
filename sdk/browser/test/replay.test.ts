@@ -82,7 +82,7 @@ afterEach(async () => {
 
 describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, PRV-6)", () => {
   it("sends ouo.replay.chunk records as OTLP protobuf, one per request, with identity, order, keyframes and hashes", async () => {
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { sessionRate: 1, chunkMaxMs: 250 } });
     await until(() => chunks().length >= 1, 5000);
     document.body.appendChild(Object.assign(document.createElement("p"), { textContent: "Added later secret" }));
     await until(() => chunks().length >= 2, 5000);
@@ -125,7 +125,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it("masks text as ***, form values, text attributes and blocks images; unmask and mask attributes work; secrets cannot be unmasked", async () => {
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { sessionRate: 1, chunkMaxMs: 250 } });
     await until(() => chunks().length >= 1, 5000);
     const city = document.getElementById("city") as HTMLInputElement;
     city.value = "Alexandria";
@@ -150,7 +150,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it("buffer mode sends nothing until an unhandled error, then the ring and what follows, marked (SMP-10 to SMP-12)", async () => {
-    ouo.init({ ...base, replay: { mode: "buffer", bufferRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { bufferRate: 1, chunkMaxMs: 250 } });
     document.body.appendChild(document.createElement("section"));
     await wait(900);
     expect(collector.replay).toHaveLength(0);
@@ -169,7 +169,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it("replay.capture() triggers a buffered replay manually", async () => {
-    ouo.init({ ...base, replay: { mode: "buffer", bufferRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { bufferRate: 1, chunkMaxMs: 250 } });
     await until(() => ouo.diagnostics().replayRecording, 5000);
     await wait(400);
     ouo.replay.capture();
@@ -178,10 +178,12 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it.each([
-    ["mode off", { replay: { mode: "off", sessionRate: 1 } }],
-    ["replay rate 0", { replay: { mode: "session", sessionRate: 0 } }],
-    ["session not sampled", { sampling: { sessionRate: 0 }, replay: { mode: "session", sessionRate: 1 } }],
-    ["replay consent missing", { consent: { required: true }, replay: { mode: "session", sessionRate: 1 } }],
+    ["no rate set", {}],
+    ["a technique of another platform", { replay: { mode: "pixel/frames", sessionRate: 1 } as never }],
+    ["a shorthand", { replay: { mode: "structure", sessionRate: 1 } as never }],
+    ["replay rate 0", { replay: { sessionRate: 0, bufferRate: 0 } }],
+    ["session not sampled", { sampling: { sessionRate: 0 }, replay: { sessionRate: 1 } }],
+    ["replay consent missing", { consent: { required: true }, replay: { sessionRate: 1 } }],
   ] as Array<[string, Partial<ouo.OuoConfig>]>)("does not record: %s (SMP-9, RPL-19, PRV-3)", async (_name, extra) => {
     ouo.init({ ...base, ...extra });
     if (extra.consent) ouo.setConsent({ telemetry: true });
@@ -191,7 +193,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it("replay consent starts recording; withdrawing it stops and a new grant is a new replay (PRV-3, PRV-4)", async () => {
-    ouo.init({ ...base, consent: { required: true }, replay: { mode: "session", sessionRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, consent: { required: true }, replay: { sessionRate: 1, chunkMaxMs: 250 } });
     ouo.setConsent({ telemetry: true, replay: true });
     await until(() => chunks().length >= 1, 5000);
     const first = chunks()[0]!.attributes["ouo.replay.id"];
@@ -207,7 +209,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
   });
 
   it("replay.stop() ends the stream; replay.start() begins a new replay with a new id and stream", async () => {
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { sessionRate: 1, chunkMaxMs: 250 } });
     await until(() => chunks().length >= 1, 5000);
     ouo.replay.stop();
     await until(() => ended().length === 1, 5000);
@@ -224,7 +226,7 @@ describe("structure replay on the wire (SIG-26, SIG-27, RPL-1 to RPL-14, PRV-5, 
       const type = new Headers(init?.headers).get("content-type");
       return type === "application/x-protobuf" ? new Promise<Response>(() => undefined) : real(input, init);
     });
-    ouo.init({ ...base, replay: { mode: "session", sessionRate: 1, chunkMaxMs: 250 } });
+    ouo.init({ ...base, replay: { sessionRate: 1, chunkMaxMs: 250 } });
     await until(() => ouo.diagnostics().replayRecording, 5000);
     await wait(400);
     ouo.recordEvent("cart.add");

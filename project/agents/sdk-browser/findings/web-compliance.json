@@ -1237,7 +1237,7 @@
    "now": "met",
    "methods": "W",
    "where": "sdk/browser/test/replay.test.ts 'does not record: session not sampled'",
-   "note": ""
+   "note": "The option that picks session or buffer recording is the pair of rates, not the spec's replay.mode (ADR-0020)"
   },
   {
    "id": "SMP-10",

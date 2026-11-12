@@ -1,4 +1,7 @@
 /**
+ * UNDER DEVELOPMENT, PAUSED (founder, 2026-11-12). Nothing selects this adapter and it is not in
+ * the build; `replay.mode` has one value on the web, `structure/dom`.
+ *
  * The pixel format, `ouo.frames/1`: images of the viewport, taken when the DOM changes.
  *
  * When to look: a MutationObserver, scroll, resize and input events mark the page dirty; a frame
@@ -25,7 +28,14 @@
 import type { Clock, TimerHandle } from "../core/clock";
 import { systemClock } from "../core/clock";
 import { attempt, guard, listen, point, quiet } from "../guard";
-import type { AdapterOptions, AdapterSink, ReplayAdapter } from "./adapter";
+import type { AdapterSink, ReplayAdapter } from "./adapter";
+
+export interface PixelOptions {
+  /** Most frames per second. */
+  pixelMaxFps: number;
+  /** Longest side of a frame in pixels. */
+  pixelMaxSide: number;
+}
 import { blocked, inputMasked, textMasked } from "./mask";
 
 export const FRAMES_FORMAT = "ouo.frames/1";
@@ -147,7 +157,7 @@ function collectCss(): string {
   return css.replace(/@import[^;]+;/g, "").replace(/url\((?!["']?data:)[^)]*\)/g, "none");
 }
 
-export function createPixelAdapter(o: AdapterOptions, clock: Clock = systemClock): ReplayAdapter {
+export function createPixelAdapter(o: PixelOptions, clock: Clock = systemClock): ReplayAdapter {
   let sink: AdapterSink | undefined;
   let dirty = true;
   let busy = false;

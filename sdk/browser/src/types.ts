@@ -19,14 +19,13 @@ export interface OutgoingRecord {
 
 export type BeforeSend = (record: OutgoingRecord) => OutgoingRecord | null | undefined | false | void;
 
-export type ReplayMode = "off" | "session" | "buffer";
 /**
- * What replay records. `structure`: a description of the DOM, driven by a MutationObserver, with
- * text replaced by `***` (format `rrweb/2`); the supported format. `pixel`: masked images of the
- * viewport, taken when the DOM changes (format `ouo.frames/1`); under development: asking for it records
- * `structure` instead.
+ * The replay technique, named by what a chunk holds. On the web there is one: `structure/dom`, a
+ * description of the DOM driven by a MutationObserver, with text replaced by `***`. It goes on the
+ * wire as `ouo.replay.format: "rrweb/2"`. The other ouo techniques (`structure/wireframe`,
+ * `pixel/frames`, `pixel/video`) belong to React Native and are not valid here.
  */
-export type ReplayFormat = "structure" | "pixel";
+export type ReplayMode = "structure/dom";
 
 export interface Consent {
   telemetry?: boolean;
@@ -63,14 +62,18 @@ export interface OuoConfig {
     };
   };
   replay?: {
-    /** Default `off`. */
+    /**
+     * The technique. Default, and the only valid value on the web, `structure/dom`. Any other
+     * value leaves replay off, with a warning. Whether a session records is decided by the rates.
+     */
     mode?: ReplayMode;
-    /** Fraction of sampled sessions recorded in `session` mode. Default 0. */
+    /** Fraction of sampled sessions recorded from start to end. Default 0. */
     sessionRate?: number;
-    /** Fraction of sampled sessions that keep a ring in `buffer` mode. Default 0. */
+    /**
+     * Fraction of sampled sessions, besides those, that keep the last `bufferSeconds` in memory
+     * and send them, and what follows, after an unhandled error or `replay.capture()`. Default 0.
+     */
     bufferRate?: number;
-    /** Default `structure`, the only supported format. `pixel` is under development and records `structure`. */
-    format?: ReplayFormat;
     /** Seconds the buffer ring holds at least. Default 60. */
     bufferSeconds?: number;
     /** Default 256 KiB (compressed), hard limit 1 MiB. */
@@ -79,10 +82,6 @@ export interface OuoConfig {
     chunkMaxMs?: number;
     /** Default 300 000. */
     keyframeIntervalMs?: number;
-    /** Pixel format (under development) only: most frames per second. Default 1, at most 4. */
-    pixelMaxFps?: number;
-    /** Pixel format only: longest side of a frame in pixels. Default 1000. */
-    pixelMaxSide?: number;
   };
   consent?: {
     /** Start with consent pending: nothing is sent or stored until `setConsent`. Default false. */
