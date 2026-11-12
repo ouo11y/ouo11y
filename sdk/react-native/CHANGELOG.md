@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0019 step
+A: the names, scope, session id and sampling rules, protobuf and replay over OTLP are step B).
+
+### Changed
+
+- `initRUM` no longer throws on a missing or invalid `endpoint`, `projectId`, `projectToken` or
+  `service.name`: it returns a no-op instance and says why when `debug` is on.
+- `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` below one minute are raised to
+  one minute, `session.maxDurationMs` above 24 hours is lowered to 24 hours.
+- App-supplied event names and attribute keys starting with `session.` or `ouo.` are dropped and
+  counted (except `ouo.exception.fingerprint`).
+- The SDK no longer registers its providers, propagator and context manager as OpenTelemetry
+  globals; `otel.registerGlobal: true` restores that.
+- `withSpan` reports an error as an `exception` log record with the span's ids, not as a span
+  event. String attributes are truncated (stack 25 KiB, others 4 KiB, 64 KB per record).
+- Next to Sentry, ouo hands unhandled rejections to Sentry itself when
+  `errors.onUnhandledRejection` is not set.
+- Debug output no longer prints event attributes, the user id or the first characters of the
+  project token; the double-init warning is printed only with `debug`.
+
+### Added
+
+- Failure isolation: one guard around every entry point, a fault-injection suite, self-disable
+  after `diagnostics.selfDisableThreshold` internal errors.
+- Spec API: `init`, `shutdown`, `flush`, `getSessionId`, `restartSession`, `setUser(id | null)`,
+  `setGlobalAttributes`, `recordEvent`, `recordException`, `trackNavigation`,
+  `getTracerProvider`, `getLoggerProvider`, `replay.start/stop/capture/mask/unmask`.
+- `beforeSend`, drop counting with the `ouo.sdk.dropped` event, `transport.shutdownDeadlineMs`.
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
 
 ### Breaking

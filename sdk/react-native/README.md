@@ -96,7 +96,9 @@ other port or none (a proxy such as `https://otel.example.com` routes `/v1/repla
 receiver). The collector's `basicauth` extension checks the credential (401 when missing or
 unknown; the user name is the project id, the password the token), its rate limiter and body
 limits apply, and it stamps `ouo.project.id` on every resource from the authenticated user name.
-`initRUM` throws a `TypeError` when `projectId` or `projectToken` is missing or empty. The token
+`initRUM` never throws: when `endpoint`, `projectId`, `projectToken` or `service.name` is missing
+or invalid it returns an instance whose every function is a no-op, and says why in the console
+when `debug` is on. The token never appears in a diagnostic, a URL or a record. The token
 is public (it only allows writing telemetry into one project), so shipping it in the app bundle
 is expected, exactly like every RUM vendor's key. The header value is built with the SDK's own
 base64 encoder (`basicAuthorization`, `base64Encode`): `btoa` is not available on every React
@@ -310,6 +312,62 @@ await rum.flush();                              // force export of spans and log
 
 `initRUM` returns the same instance on repeated calls; `getRUM()` returns it from anywhere.
 
+### Spec API
+
+The package implements the API of the ouo SDK spec (section 3.1) next to the names above, which
+stay as aliases. Each is a module-level function and a method of the instance:
+
+```ts
+import { init, shutdown, flush, getSessionId, restartSession, setUser, setGlobalAttributes, recordEvent,
+  recordException, trackNavigation, getTracerProvider, getLoggerProvider, replay } from "@ouo11y/react-native";
+
+init(options);                                   // = initRUM
+setUser("user-1"); setUser(null);                // null: back to a new anonymous id
+setGlobalAttributes({ tenant: "acme" });         // on every later span and log record
+recordEvent("cart.added", { "product.id": "p-1" }, "Added p-1"); // = addEvent, with an optional body
+recordException(err, { "ouo.exception.fingerprint": "cart-total" }); // = captureError; source=manual, handled=true
+restartSession();                                // session.end (reason manual), then a new session
+getTracerProvider().getTracer("app");            // OpenTelemetry access: records carry the session attributes
+getLoggerProvider().getLogger("app");
+replay.start(); replay.stop(); replay.capture(); replay.mask(ref); replay.unmask(ref);
+await shutdown();                                // stop capture, remove every hook, session.end (reason shutdown), bounded flush
+```
+
+- **Safe at any time.** Every function can be called before `init`, after `shutdown`, without
+  the native module and with any argument: it is then a no-op that does not throw.
+- **Reserved names.** Event names and attribute keys starting with `session.` or `ouo.` belong to
+  the SDK: an app-supplied one is dropped and counted (`ouo.exception.fingerprint` and, on
+  `recordException`, `ouo.exception.handled` are the exceptions). Resource attributes
+  (`resource`) are configuration and are not checked.
+- **`beforeSend`.** `init({ beforeSend: (record) => record })` runs on every log record and span
+  before it is kept anywhere or sent. Return the record (changed or not), or `null` / `false` to
+  drop it. A hook that throws sends the unmodified record. `exception.message` and
+  `exception.stacktrace` pass through it; replay chunks never do.
+- **Failure isolation.** No SDK failure reaches the app: every entry point runs inside one guard
+  (`src/guard.ts`), patched `fetch` / `XMLHttpRequest` return what the originals return, and the
+  previous global error handler always runs. After `diagnostics.selfDisableThreshold` (20)
+  internal errors the SDK removes its hooks and becomes a no-op until the next `init`.
+- **Dropped records are counted.** By signal and reason (`queue_full`, `outbox_evicted`,
+  `rejected`, `sampling`, `before_send`, `reserved_name`, `invalid`, `persistence_failed`,
+  `self_disabled`), and reported as `ouo.sdk.dropped` events (`ouo.sdk.drop.reason`,
+  `ouo.sdk.drop.signal`, `ouo.sdk.drop.count`) at most once a second.
+- **No OpenTelemetry globals.** The SDK uses its own tracer and logger providers, propagator and
+  context manager and registers none of them globally, so it never replaces one the app
+  registered. `otel: { registerGlobal: true }` registers them (when the slot is free) for apps
+  that call `trace.getTracer(...)` themselves.
+- **Limits.** `exception.stacktrace` is cut to 25 KiB (top frames kept), other string attributes
+  and bodies to 4 KiB, and a record's attributes stay under 64 KB (the largest are removed).
+- **Clamps.** `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` are at least one
+  minute, `session.maxDurationMs` at most 24 hours, rates within 0 to 1.
+
+### Spec version
+
+This release implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`) and is **not yet
+conformant**: it is step A of ADR-0019. Still open, for step B: the spec's event and attribute
+names, the `ouo.rum` scope and `schema_url`, `ouo.view.id`, the session id format and sampling
+hash, OTLP protobuf, replay as `ouo.replay.chunk` over OTLP, and native `replay.capture` /
+`mask` / `unmask`.
+
 ## Sessions (mobile rules)
 
 - Cold start: a new session is created synchronously (its id is usable at once). The
@@ -421,9 +479,10 @@ bridge writes them, and frames of the app's code end with `[in app]` (not native
 `InternalBytecode`, not `node_modules`), so the same error groups across devices.
 
 Hermes keeps one promise rejection tracker: every `enablePromiseRejectionTracker` call replaces
-the previous one, and `HermesInternal` is frozen, so the tracker cannot be shared. The SDK
-initialised last gets unhandled rejections. `errors.onUnhandledRejection` hands each rejection
-on after ouo recorded it (to Sentry, see "Next to Sentry").
+the previous one, there is no getter for it and `HermesInternal` is frozen, so the tracker
+registered before cannot be called. The SDK initialised last gets unhandled rejections. After
+recording one, ouo hands it on: to `errors.onUnhandledRejection` when the app set it, else to
+the current scope of an initialised Sentry SDK (see "Next to Sentry").
 
 ## Network
 
@@ -446,7 +505,10 @@ The SDK runs in an app that keeps `@sentry/react-native`, the way an APM agent a
 OpenTelemetry SDK can run side by side while a team moves over. Verified on the iOS Simulator
 with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-native 8.30.0, Hermes).
 
-1. **Initialise ouo after Sentry** and forward unhandled rejections to it:
+1. **Initialise ouo after Sentry.** Unhandled rejections are handed to Sentry by ouo itself
+   (`scope.captureException(e, { mechanism: { type: "onunhandledrejection", handled: true } })`
+   on Sentry's current scope, unit-tested against the `__SENTRY__` carrier of @sentry/core 8 to
+   10; not yet re-verified on a device). To forward them yourself instead:
 
    ```js
    // index.js: imports run in order, and before any code in this file
@@ -466,8 +528,8 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
    ```
 
    Hermes keeps one rejection tracker and the SDK initialised last owns it; ouo records each
-   rejection and hands it to Sentry, so both report it once. Without the hook, the SDK warns in
-   debug mode that Sentry stopped getting rejections. Initialised the other way round, Sentry
+   rejection and hands it to Sentry, so both report it once. With the hook set, ouo calls only
+   the hook. Initialised the other way round, Sentry
    owns the tracker and ouo never sees a rejection.
 2. **Trace headers**: initialised last, ouo's fetch and XHR wrappers run first and set
    `traceparent`; Sentry then adds `sentry-trace` and its `baggage` entries but no second
@@ -505,7 +567,8 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
 tracer: every span gets the session attributes and is exported with the request spans.
 `options`: `attributes`, `kind` (`SpanKind`), `startTime`, `parent` (a span or span context;
 `null` starts a new trace). `withSpan` ends the span when `fn` returns or its promise settles; a
-throw or rejection sets the status to error, records the exception on the span and rethrows.
+throw or rejection sets the status to error, is reported as an `exception` log record with the
+span's trace id and span id (never as a span event) and is rethrown.
 
 React Native has no async context, so the span is the active one only while `fn` runs
 synchronously: requests started there are its children (and the backend joins its trace),
