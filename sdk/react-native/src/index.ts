@@ -318,10 +318,10 @@ function build(
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
-      guarded("processor.session", new SessionLogProcessor(session, serviceVersion, globals), () => {}),
       guarded(
         "processor.log",
-        new LogGate(config.beforeSend, drops, logger, [
+        // The gate stamps the session attributes first: a record that cannot get them goes nowhere.
+        new LogGate(new SessionLogProcessor(session, serviceVersion, globals), config.beforeSend, drops, logger, [
           recent,
           contextPersister,
           // Session sampling (8b): records of a session outside the sample are never exported.
@@ -410,13 +410,17 @@ function build(
     requests: options.timeline?.requests !== false,
   };
 
-  const flush = async (): Promise<void> => {
+  const flushOnce = async (): Promise<void> => {
     session.persistNow();
     drops.flush();
     await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), replay.flush()]);
     // The batches are persisted by now; this tries to send them (and what earlier runs left).
     await outbox.drain();
   };
+  // One at a time: the OTel batch processors return at once from a `forceFlush` made while
+  // another is running, so a flush right after the background flush would resolve too early.
+  let flushing: Promise<void> = RESOLVED;
+  const flush = (): Promise<void> => (flushing = flushing.then(flushOnce, flushOnce));
   const flushWithin = (ms: number): Promise<void> => withTimeout(guard.run("flush", flush, RESOLVED), ms, undefined);
 
   // ---- vitals (G2, docs/specs/mobile-vitals.md) ----
@@ -588,11 +592,12 @@ function build(
     if (isReservedName(name)) return drops.count("log", "reserved_name");
     events.emit(name, { ...appAttributes(attributes, drops), "ouo.event.custom": true }, "info", Date.now(), typeof body === "string" ? { body } : {});
   });
-  const spanOptions = (o: SpanOptions | undefined): SpanOptions => (o && typeof o === "object" ? { ...o, attributes: appAttributes(o.attributes, drops) } : {});
+  // Read inside `guard.host`: options with a throwing getter are the app's mistake, not an SDK error.
+  const spanOptions = (o: SpanOptions | undefined): SpanOptions =>
+    guard.host("spanOptions", () => (o && typeof o === "object" ? { ...o, attributes: appAttributes(o.attributes, drops) } : {}), {});
 
   // Stops everything that is not capture: timers, the retry loop, the globals the SDK registered.
   const release = (): void => {
-    session.stop();
     drops.stop();
     events.close();
     outbox.stop();
@@ -601,7 +606,7 @@ function build(
   // Self-disable (ERR-6): what is queued is not sent; the providers are closed so no timer stays.
   onSelfDisable(() => {
     closed = true;
-    release();
+    guard.host("release", release);
     void Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown()]).catch(() => undefined);
     if (getRUM() === rum) setRUM(undefined);
   });
@@ -616,27 +621,22 @@ function build(
     }
     const replayFlushed = end ? guard.run("replay.flush", () => replay.flush(), RESOLVED) : RESOLVED;
     stopCapture();
-    if (end) guard.run("session.shutdown", () => session.shutdown());
-    session.stop();
-    drops.flush();
-    drops.stop();
-    const exported = guard.run("shutdown", () => Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown(), replayFlushed]).then(() => undefined), RESOLVED);
-    if (end) {
-      // One deadline for the whole flush (`transport.shutdownDeadlineMs`).
-      await withTimeout(
-        exported.then(() => outbox.drain()),
-        config.shutdownDeadlineMs,
-        undefined,
-      );
-    } else {
+    // Each step on its own: one that fails must not keep the others from running.
+    if (end) guard.run("shutdown.session", () => session.shutdown());
+    guard.run("shutdown.persist", () => session.stop());
+    guard.run("shutdown.drops", () => drops.flush());
+    const exported = guard.run("shutdown.export", () => Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown(), replayFlushed]).then(() => undefined), RESOLVED);
+    // `end`: one deadline for the whole flush (`transport.shutdownDeadlineMs`). Else the shutdown
+    // persisted its last batches and started sending them: wait for that send, so no request
+    // outlives the instance, but bounded, so an app offline or on a hung request does not wait
+    // on it. What is not sent stays in the outbox for the next launch (C11).
+    if (end) await withTimeout(exported.then(() => outbox.drain()), config.shutdownDeadlineMs, undefined);
+    else {
       await exported;
-      // The shutdown persisted its last batches and started sending them: wait for that send, so
-      // no request outlives the instance, but bounded, so an app offline or on a hung request
-      // does not wait on it. What is not sent stays in the outbox for the next launch (C11).
       await withTimeout(outbox.drain(), UNINSTALL_DRAIN_TIMEOUT_MS, undefined);
     }
     closed = true;
-    release();
+    guard.host("release", release);
     if (getRUM() === rum) setRUM(undefined);
   };
 
@@ -744,7 +744,7 @@ function build(
     getTracerProvider: () => tracerProvider,
     getLoggerProvider: () => loggerProvider,
     _rootMounted: api("rootMounted", () => vitals.rootMounted()),
-    _uninstall: () => close(false),
+    _uninstall: () => close(false).catch(() => undefined),
   };
   setRUM(rum);
   return rum;

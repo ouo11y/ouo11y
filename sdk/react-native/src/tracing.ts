@@ -2,6 +2,7 @@ import { INVALID_SPAN_CONTEXT, ROOT_CONTEXT, SpanStatusCode, trace, type Context
 import { SeverityNumber } from "@opentelemetry/api-logs";
 import { serializeError } from "./errors/classify";
 import { guard } from "./guard";
+import { safeString } from "./text";
 import { sdkContext as context } from "./telemetry/context";
 import type { EventEmitter } from "./telemetry/events";
 import type { Attrs, LogLevel, RUMLog, SpanOptions } from "./types";
@@ -68,7 +69,7 @@ export const noopSpan = (): Span => trace.wrapSpanContext(INVALID_SPAN_CONTEXT);
 export function createSpanApi(tracer: Tracer, linker: TraceLinker, onError?: (error: unknown) => void): SpanApi {
   const start = (name: string, options: SpanOptions = {}): Span =>
     tracer.startSpan(
-      String(name),
+      safeString(name),
       {
         ...(options.attributes ? { attributes: options.attributes } : {}),
         ...(options.kind !== undefined ? { kind: options.kind as SpanKind } : {}),
@@ -138,8 +139,8 @@ const MAX_MESSAGE = 1024;
 export function createLogApi(events: EventEmitter, clean: (attrs: unknown) => Attrs = (a) => (a && typeof a === "object" ? (a as Attrs) : {})): RUMLog {
   const emit = (level: LogLevel, message: string, attrs?: Attrs, options?: { span?: Span }): void => {
     guard.run("log", () => {
-      const sev = LEVELS[level] ?? LEVELS.info;
-      const body = String(message);
+      const sev = (typeof level === "string" ? LEVELS[level] : undefined) ?? LEVELS.info;
+      const body = safeString(message);
       events.emitRecord({
         eventName: "log",
         body,

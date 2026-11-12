@@ -52,6 +52,8 @@ function finish(attributes: Record<string, unknown>, logger: DebugLogger): void 
 
 export class LogGate implements LogRecordProcessor {
   constructor(
+    /** Runs first (the session attributes): the hook sees the record as it would be sent. */
+    private readonly first: LogRecordProcessor,
     private readonly hook: BeforeSend | undefined,
     private readonly drops: DropCounter,
     private readonly logger: DebugLogger,
@@ -59,6 +61,7 @@ export class LogGate implements LogRecordProcessor {
   ) {}
 
   onEmit(record: SdkLogRecord, context?: Context): void {
+    this.first.onEmit(record, context);
     const attributes = record.attributes as Record<string, unknown>;
     const name = String(attributes["event.name"] ?? record.eventName ?? "log");
     if (!isDropEvent(name)) {
