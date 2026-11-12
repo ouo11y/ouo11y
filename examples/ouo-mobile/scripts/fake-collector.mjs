@@ -14,7 +14,8 @@
 //   below. Each chunk body goes to `<out>/<stream>-<seq>.ndjson.gz` and one JSON line per record
 //   (attributes, sizes) to `<out>/records.jsonl`.
 // - `GET /__report` (JSON) and SIGINT (text, exit code 1 on a failed rule) give the verdict on
-//   the rules of spec section 11 this can check, and the telemetry event names seen.
+//   the rules of spec section 11 this can check, the telemetry event names and `session.id` values
+//   seen, and for each replay request answered with a fault whether it was retried with the same bytes.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -208,11 +209,15 @@ export function createCollector(options = {}) {
   const state = {
     requests: 0,
     faults: 0,
+    /** Replay requests answered with a fault: `{ request, sha256, retried }`, `retried` set when the same request (event, stream, sequence) is accepted later. */
+    faulted: [],
     /** Requests accepted, by path. */
     accepted: { "/v1/logs": 0, "/v1/traces": 0 },
     /** Telemetry (not replay) event names and span names, with counts. */
     events: {},
     spans: {},
+    /** Telemetry (not replay) `session.id` values (record attribute, else resource), with counts. */
+    sessions: {},
     /** stream id -> { chunks: Map<seq, chunk>, duplicates, ended: [] } */
     streams: new Map(),
     failures: Object.fromEntries(Object.keys(RULES).map((r) => [r, []])),
@@ -305,8 +310,32 @@ export function createCollector(options = {}) {
     if (out) appendFileSync(join(out, "records.jsonl"), `${JSON.stringify({ event: ENDED_EVENT, attributes: plain(a) })}\n`);
   }
 
+  /** `"<event> <stream> <sequence>"` for a replay request (protobuf logs), else undefined. Never throws. */
+  function replayRequest(path, headers, raw) {
+    try {
+      if (path !== "/v1/logs") return undefined;
+      const body = String(headers["content-encoding"] ?? "").toLowerCase() === "gzip" ? gunzipSync(raw) : raw;
+      if (body.length === 0 || body[0] === 0x7b) return undefined;
+      const r = decodeLogsRequest(body).find((x) => x.scope.name === REPLAY_SCOPE);
+      return r ? `${r.eventName} ${r.attributes["ouo.replay.stream.id"]?.value} ${r.attributes["ouo.replay.sequence"]?.value ?? "-"}` : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** A replay request answered with a fault, so that its retry can be compared byte for byte. */
+  function faulted(path, headers, raw) {
+    const request = replayRequest(path, headers, raw);
+    if (request && state.faulted.length < 50) state.faulted.push({ request, sha256: createHash("sha256").update(raw).digest("hex"), retried: "not_yet" });
+  }
+
   /** One accepted request. `body` is the raw body as received (still compressed). */
   function accept(path, headers, raw) {
+    if (state.faulted.length) {
+      const request = replayRequest(path, headers, raw);
+      const sha = createHash("sha256").update(raw).digest("hex");
+      for (const f of state.faulted) if (f.request === request && f.retried !== "same_bytes") f.retried = f.sha256 === sha ? "same_bytes" : "different_bytes";
+    }
     const encoded = String(headers["content-encoding"] ?? "").toLowerCase();
     const body = encoded === "gzip" ? gunzipSync(raw) : raw;
     const type = String(headers["content-type"] ?? "").toLowerCase();
@@ -325,6 +354,8 @@ export function createCollector(options = {}) {
             // Replay is protobuf by spec (TRN-1): a JSON chunk cannot carry a bytes body untouched.
             if (sl.scope?.name === REPLAY_SCOPE) fail("body_decodes", `a replay record (${name}) arrived as JSON, not protobuf`);
             count(state.events, name);
+            const sid = lr.attributes?.find((x) => x.key === "session.id")?.value?.stringValue ?? rl.resource?.attributes?.find((x) => x.key === "session.id")?.value?.stringValue;
+            if (sid) count(state.sessions, sid);
           }
         }
       }
@@ -332,7 +363,12 @@ export function createCollector(options = {}) {
     }
     const records = decodeLogsRequest(body);
     const replay = records.filter((r) => r.scope.name === REPLAY_SCOPE);
-    for (const r of records) if (r.scope.name !== REPLAY_SCOPE) count(state.events, r.eventName || "(no event name)");
+    for (const r of records) {
+      if (r.scope.name === REPLAY_SCOPE) continue;
+      count(state.events, r.eventName || "(no event name)");
+      const sid = r.attributes["session.id"] ?? r.resource["session.id"];
+      if (sid?.type === "string" && sid.value) count(state.sessions, sid.value);
+    }
     if (replay.length === 0) return;
     check("one_chunk_per_request", records.length === 1, `a replay request holds ${records.length} records`);
     for (const r of replay) {
@@ -381,8 +417,9 @@ export function createCollector(options = {}) {
       verdict: results.includes("fail") ? "fail" : results.includes("pass") ? "pass" : "nothing_to_check",
       requests: state.requests,
       faultsInjected: state.faults,
+      faultedReplay: state.faulted.map((f) => ({ ...f })),
       accepted: state.accepted,
-      telemetry: { events: state.events, spans: state.spans },
+      telemetry: { events: state.events, spans: state.spans, sessions: state.sessions },
       streams,
       // A stream with chunks and no end record is still open (or its end was lost): not a failure here.
       openStreams: streams.filter((s) => s.ended.length === 0).map((s) => s.stream),
@@ -408,6 +445,7 @@ export function createCollector(options = {}) {
       const failing = options.failFirst !== undefined ? state.requests <= options.failFirst : options.status !== undefined;
       if (failing) {
         state.faults++;
+        faulted(path, req.headers, Buffer.concat(parts));
         res.writeHead(options.status ?? 503, options.retryAfter !== undefined ? { "retry-after": String(options.retryAfter) } : {});
         res.end();
         return;
@@ -434,8 +472,10 @@ export function formatReport(r) {
     lines.push(`  [${rule.result === "pass" ? "PASS" : rule.result === "fail" ? "FAIL" : " -- "}] ${name}: ${rule.rule} (${rule.checked} checked)`);
     for (const f of rule.failures.slice(0, 5)) lines.push(`         ${f}`);
   }
+  for (const f of r.faultedReplay ?? []) lines.push(`  faulted replay request ${f.request}: retried ${f.retried}`);
   for (const s of r.streams) lines.push(`  stream ${s.stream}: ${s.chunks} chunk(s), highest sequence ${s.highestSequence}, ${s.bytes} bytes, ${s.duplicates} duplicate(s), ended: ${s.ended.length ? s.ended.map((e) => `${e.endState}/${e.endReason}/last=${e.lastSequence}`).join(", ") : "no"}`);
   lines.push(`  telemetry events: ${Object.entries(r.telemetry.events).map(([k, v]) => `${k}=${v}`).join(", ") || "none"}`);
+  lines.push(`  telemetry session.id: ${Object.entries(r.telemetry.sessions ?? {}).map(([k, v]) => `${k}=${v}`).join(", ") || "none"}`);
   lines.push(`  spans: ${Object.entries(r.telemetry.spans).map(([k, v]) => `${k}=${v}`).join(", ") || "none"}`);
   return lines.join("\n");
 }
