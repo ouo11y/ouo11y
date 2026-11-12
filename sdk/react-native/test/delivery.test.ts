@@ -72,7 +72,7 @@ describe("outbox", () => {
     const storage = new MemoryAsyncStorage();
     const clock = fakeClock();
     const down = collector([0, 0, 0, 0]);
-    const first = new Outbox({ storage, send: down.send, logger, clock });
+    const first = new Outbox({ storage, send: down.send, logger, clock, random: () => 1 });
     for (const n of [1, 2, 3]) await first.put(`${ENDPOINT}/v1/traces`, `batch-${n}`);
     await settle(first);
     expect(first.size).toBe(3);
@@ -81,33 +81,35 @@ describe("outbox", () => {
     first.stop();
 
     const up = collector();
-    const next = new Outbox({ storage: storage.clone(), send: up.send, logger, clock });
+    const next = new Outbox({ storage: storage.clone(), send: up.send, logger, clock, random: () => 1 });
     await next.drain();
     expect(up.bodies).toEqual(["batch-1", "batch-2", "batch-3"]);
     expect(next.size).toBe(0);
   });
 
-  it("retries with a doubling backoff capped at 30 s, honouring Retry-After", async () => {
+  // Spec TRN-7, TRN-8: the ceiling doubles from 1 s to 300 s (the wait is a random part of it:
+  // `random: () => 1` here takes the whole ceiling) and Retry-After is capped at 300 s.
+  it("retries with a doubling backoff capped at 300 s, honouring Retry-After", async () => {
     const clock = fakeClock();
-    const c = collector([503, 0, { status: 429, retryAfterMs: 45_000 }, 0, 0, 0, 0, 0]);
-    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock });
+    const c = collector([503, 0, { status: 429, retryAfterMs: 45_000 }, 0, 0, 0, 0, 0, 0, 0, { status: 503, retryAfterMs: 3_600_000 }]);
+    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock, random: () => 1 });
     await outbox.put("u", "a");
     await settle(outbox);
     const waits: number[] = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 11; i++) {
       const [w] = clock.pending();
       waits.push(w!);
       await clock.advance(w!);
     }
-    expect(waits).toEqual([1000, 2000, 45_000, 8000, 16_000, 30_000, 30_000, 30_000]);
-    expect(c.send).toHaveBeenCalledTimes(9);
+    expect(waits).toEqual([1000, 2000, 45_000, 8000, 16_000, 32_000, 64_000, 128_000, 256_000, 300_000, 300_000]);
+    expect(c.send).toHaveBeenCalledTimes(12);
     expect(outbox.size).toBe(0);
   });
 
   it("a put during the backoff waits for it; drain() tries at once", async () => {
     const clock = fakeClock();
     const c = collector([0]);
-    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock });
+    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock, random: () => 1 });
     await outbox.put("u", "a");
     await settle(outbox);
     await outbox.put("u", "b");
@@ -141,7 +143,7 @@ describe("outbox", () => {
       bodies.push(body);
       return { status: body === "poison" ? 500 : 200 };
     });
-    const outbox = new Outbox({ storage, send, logger, clock });
+    const outbox = new Outbox({ storage, send, logger, clock, random: () => 1 });
     for (const b of ["poison", "a", "b"]) await outbox.put("u", b);
     await settle(outbox);
     expect(bodies).toEqual(["poison", "a", "b"]);
@@ -155,7 +157,7 @@ describe("outbox", () => {
   it("N55: 502, 503 and 504 keep the request and retry it", async () => {
     const clock = fakeClock();
     const c = collector([502, 503, 504]);
-    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock });
+    const outbox = new Outbox({ storage: new MemoryAsyncStorage(), send: c.send, logger, clock, random: () => 1 });
     await outbox.put("u", "a");
     await outbox.put("u", "b");
     await settle(outbox);
@@ -184,17 +186,17 @@ describe("outbox", () => {
     const storage = new MemoryAsyncStorage();
     const down = collector(Array(20).fill(0));
     const clock = fakeClock();
-    const byBytes = new Outbox({ storage, send: down.send, logger, clock, maxBytes: 25 });
+    const byBytes = new Outbox({ storage, send: down.send, logger, clock, random: () => 1, maxBytes: 25 });
     for (const n of [1, 2, 3, 4, 5]) await byBytes.put("u", `ten bytes${n}`);
     expect(byBytes.size).toBe(2);
     expect(byBytes.stats.dropped).toBe(3);
     expect(storage.peek(`${OUTBOX_KEY}.1`)).toBeNull();
 
     const countStore = new MemoryAsyncStorage();
-    const byCount = new Outbox({ storage: countStore, send: down.send, logger, clock, maxEntries: 3 });
+    const byCount = new Outbox({ storage: countStore, send: down.send, logger, clock, random: () => 1, maxEntries: 3 });
     for (const n of [1, 2, 3, 4, 5]) await byCount.put("u", `${n}`);
     const up = collector();
-    await new Outbox({ storage: countStore.clone(), send: up.send, logger, clock }).drain();
+    await new Outbox({ storage: countStore.clone(), send: up.send, logger, clock, random: () => 1 }).drain();
     expect(up.bodies).toEqual(["3", "4", "5"]);
   });
 
@@ -203,13 +205,13 @@ describe("outbox", () => {
   it("N83: a clock moved two days forward drops nothing; the next launch sends it all in order", async () => {
     const storage = new MemoryAsyncStorage();
     const clock = fakeClock();
-    const first = new Outbox({ storage, send: collector([0]).send, logger, clock });
+    const first = new Outbox({ storage, send: collector([0]).send, logger, clock, random: () => 1 });
     await first.put("u", "a");
     await settle(first);
     first.stop();
     await clock.advance(2 * DAY);
     const c = collector();
-    const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock });
+    const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock, random: () => 1 });
     await next.put("u", "b");
     await next.drain();
     expect(c.bodies).toEqual(["a", "b"]);
@@ -219,7 +221,7 @@ describe("outbox", () => {
   it("N83: a clock moved back keeps the order of put, and the bound drops the oldest", async () => {
     const storage = new MemoryAsyncStorage();
     const clock = fakeClock();
-    const first = new Outbox({ storage, send: collector(Array(10).fill(0)).send, logger, clock, maxEntries: 3 });
+    const first = new Outbox({ storage, send: collector(Array(10).fill(0)).send, logger, clock, random: () => 1, maxEntries: 3 });
     await first.put("u", "a");
     await settle(first);
     await first.put("u", "b");
@@ -227,7 +229,7 @@ describe("outbox", () => {
     await first.put("u", "c");
     first.stop();
     const c = collector();
-    const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock, maxEntries: 3 });
+    const next = new Outbox({ storage: storage.clone(), send: c.send, logger, clock, random: () => 1, maxEntries: 3 });
     await next.put("u", "d");
     await next.drain();
     expect(c.bodies).toEqual(["b", "c", "d"]);

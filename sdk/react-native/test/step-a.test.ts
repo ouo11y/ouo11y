@@ -408,15 +408,15 @@ describe("drop counting (ERR-7, ERR-9)", () => {
       expect(reports).toEqual([["log/sampling=1000", "span/queue_full=3"]]);
       vi.advanceTimersByTime(10 * DROP_REPORT_INTERVAL_MS);
       expect(reports).toHaveLength(1);
-      counter.count("log", "rejected");
+      counter.count("log", "rejected_status");
       counter.flush();
-      expect(reports[1]).toEqual(["log/rejected=1"]);
+      expect(reports[1]).toEqual(["log/rejected_status=1"]);
       expect(counter.total("log", "sampling")).toBe(1000);
       counter.stop();
-      counter.count("log", "rejected");
+      counter.count("log", "rejected_status");
       vi.advanceTimersByTime(10 * DROP_REPORT_INTERVAL_MS);
       expect(reports).toHaveLength(2);
-      expect(counter.total("log", "rejected")).toBe(2);
+      expect(counter.total("log", "rejected_status")).toBe(2);
     } finally {
       vi.useRealTimers();
     }

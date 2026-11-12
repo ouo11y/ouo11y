@@ -304,7 +304,8 @@ function build(
   const globals = (): Attrs => globalAttributes;
 
   // ---- logs (events) ----
-  const logExporter = createLogExporter(endpoints.logs, outbox);
+  const limits = { maxRequestBytes: config.maxRequestBytes, onTooLarge: (signal: "span" | "log") => drops.count(signal, "too_large") };
+  const logExporter = createLogExporter(endpoints.logs, outbox, limits);
   // The session's last timeline events, for the records that carry them (feedback, exception).
   const recent = new RecentEvents();
   // Error context (C2): the previous run's screen and last events, read before this run persists
@@ -351,7 +352,7 @@ function build(
   });
 
   // ---- traces ----
-  const traceExporter = createTraceExporter(endpoints.traces, outbox);
+  const traceExporter = createTraceExporter(endpoints.traces, outbox, limits);
   const tracerProvider = new BasicTracerProvider({
     resource,
     spanProcessors: [

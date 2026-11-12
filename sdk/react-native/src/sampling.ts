@@ -43,6 +43,15 @@ export function sampleRate(value: number | undefined, fallback: number): number 
   return Math.min(1, Math.max(0, value));
 }
 
+/**
+ * The bypass set (spec SMP-5): the records an unsampled session still sends, and the last ones
+ * the offline store evicts. Today's names: an `exception` with `ouo.exception.handled = false`,
+ * which covers unhandled errors and rejections, native crashes, terminations and hangs.
+ */
+export function isBypassRecord(attributes: Record<string, unknown>): boolean {
+  return attributes["event.name"] === "exception" && attributes["ouo.exception.handled"] === false;
+}
+
 const sessionOf = (attrs: Record<string, unknown>): string | undefined => {
   const id = attrs["session.id"];
   return typeof id === "string" ? id : undefined;

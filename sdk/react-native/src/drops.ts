@@ -20,8 +20,14 @@ export type DropReason =
   | "queue_full"
   /** The offline store was over its bounds: the oldest request was evicted. */
   | "outbox_evicted"
-  /** The collector answered with a non-retryable status. */
-  | "rejected"
+  /** The collector answered with a non-retryable status (spec 8.2). */
+  | "rejected_status"
+  /** The collector accepted the request but rejected some of its records (`partial_success`). */
+  | "partial_rejected"
+  /** One record alone is over `transport.maxRequestBytes`. */
+  | "too_large"
+  /** No valid session, and the record is not in the bypass set (spec SES-10). */
+  | "no_session"
   /** The session is outside the session sample. */
   | "sampling"
   /** `beforeSend` returned null or false. */

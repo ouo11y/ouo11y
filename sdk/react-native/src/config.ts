@@ -3,6 +3,7 @@ import { DEFAULT_SELF_DISABLE_THRESHOLD } from "./guard";
 import { sampleRate } from "./sampling";
 import { DEFAULT_BACKGROUND_TIMEOUT_MS, DEFAULT_INACTIVITY_TIMEOUT_MS, DEFAULT_MAX_DURATION_MS } from "./session/manager";
 import type { UrlPrivacy } from "./privacy";
+import { DEFAULT_MAX_REQUEST_BYTES } from "./transport/exporter";
 import type { BeforeSend, RUMOptions, ServiceOptions } from "./types";
 
 /** Spec CFG-2: inactivity and background timeouts are at least a minute, the maximum duration at most a day. */
@@ -20,6 +21,7 @@ export interface Config {
   session: { inactivityTimeoutMs: number; maxDurationMs: number; backgroundTimeoutMs: number; sampleRate: number };
   selfDisableThreshold: number;
   shutdownDeadlineMs: number;
+  maxRequestBytes: number;
   fatalFlushTimeoutMs: number;
   beforeSend: BeforeSend | undefined;
   urlPrivacy: UrlPrivacy;
@@ -133,6 +135,7 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
         },
         selfDisableThreshold: Math.floor(duration("diagnostics.selfDisableThreshold", diagnosticsOptions["selfDisableThreshold"], DEFAULT_SELF_DISABLE_THRESHOLD, 1, Infinity)),
         shutdownDeadlineMs: duration("transport.shutdownDeadlineMs", transport["shutdownDeadlineMs"], DEFAULT_SHUTDOWN_DEADLINE_MS, 0, 30_000),
+        maxRequestBytes: Math.floor(duration("transport.maxRequestBytes", transport["maxRequestBytes"], DEFAULT_MAX_REQUEST_BYTES, 1024, 16 * 1024 * 1024)),
         fatalFlushTimeoutMs: duration("errors.fatalFlushTimeoutMs", errors["fatalFlushTimeoutMs"], DEFAULT_FATAL_FLUSH_TIMEOUT_MS, 0, 30_000),
         beforeSend,
         urlPrivacy: {

@@ -141,6 +141,11 @@ export interface TransportOptions {
    * backoff. The oldest are dropped beyond the bounds. False sends from memory only. Default on.
    */
   offline?: OfflineOptions | false;
+  /**
+   * Largest OTLP request, in bytes before gzip (spec TRN-4). A batch over it is split; a record
+   * that alone is over it is dropped and counted (`too_large`). Default 1 MiB.
+   */
+  maxRequestBytes?: number;
   /** How long `shutdown()` waits for its last flush, in milliseconds. Default 2000. */
   shutdownDeadlineMs?: number;
 }

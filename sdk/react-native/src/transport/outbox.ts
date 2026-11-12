@@ -8,8 +8,9 @@ import type { AsyncKeyValueStorage } from "../types";
 export const OUTBOX_KEY = "ouo.outbox";
 export const DEFAULT_OUTBOX_MAX_BYTES = 5 * 1024 * 1024;
 export const DEFAULT_OUTBOX_MAX_ENTRIES = 500;
-/** Retry waits double from 1 s up to this. */
-export const MAX_RETRY_DELAY_MS = 30_000;
+/** Retry waits (spec TRN-7): exponential from the first to the last, with full jitter. */
+export const RETRY_INITIAL_MS = 1000;
+export const RETRY_MAX_MS = 300_000;
 /** A stored index that cannot be read within this runs the process memory-only (`persistent` false). */
 const LOAD_TIMEOUT_MS = 5000;
 const TIMED_OUT = Symbol("timed out");
@@ -19,6 +20,8 @@ export interface SendResult {
   status: number;
   /** `Retry-After` in milliseconds, when the answer had one. */
   retryAfterMs?: number;
+  /** Records a 2xx answer rejected (`partial_success` in its body), when it said so. */
+  rejected?: number;
 }
 
 export type Send = (url: string, body: string) => Promise<SendResult>;
@@ -30,6 +33,8 @@ interface Item {
   bytes: number;
   /** Records in the request, for the drop count (absent in an index written by an older SDK: counted as 1). */
   n?: number;
+  /** The request holds a bypass-set record (an unhandled exception, a crash): evicted last (TRN-14). */
+  keep?: boolean;
 }
 
 interface Index {
@@ -47,12 +52,16 @@ export interface OutboxOptions {
   clock?: Clock;
   /** Counts the records of every request dropped here (spec ERR-7). */
   drops?: DropCounter;
+  /** Jitter source, 0 to 1 (tests pass a constant). Default `Math.random`. */
+  random?: () => number;
 }
 
 /**
- * OTLP/HTTP's retryable answers (429, 502, 503, 504) and no answer (0): try again later. Any other
- * status is final: the request is dropped and counted as `rejected`, so a request the collector
- * answers 500 to every time costs one attempt instead of blocking the queue (checklist N55).
+ * Spec 8.2 (TRN-6): 429 and 503 are retried honouring `Retry-After`; 502, 504 and no answer (0)
+ * are retried with backoff. Any other status is final: the request is dropped and counted as
+ * `rejected_status`, so a request the collector answers 500 to every time costs one attempt
+ * instead of blocking the queue (checklist N55). A 2xx that rejected some records
+ * (`partial_success`) is not retried either: deleted, and the rejected records counted.
  */
 export function retryable(status: number): boolean {
   return status === 0 || status === 429 || status === 502 || status === 503 || status === 504;
@@ -87,6 +96,7 @@ export class Outbox {
   private readonly maxEntries: number;
   private readonly clock: Clock;
   private readonly drops: DropCounter | undefined;
+  private readonly random: () => number;
 
   private index: Index = { next: 1, items: [] };
   /** Bodies queued by this process: sent from memory, so a failing storage only costs the next launch. */
@@ -114,6 +124,7 @@ export class Outbox {
     this.maxEntries = opts.maxEntries ?? DEFAULT_OUTBOX_MAX_ENTRIES;
     this.clock = opts.clock ?? systemClock;
     this.drops = opts.drops;
+    this.random = opts.random ?? Math.random;
     this.loaded = this.load();
   }
 
@@ -123,13 +134,13 @@ export class Outbox {
   }
 
   /** Persists the request, then sends it unless a retry is already scheduled. Never rejects. */
-  put(url: string, body: string, records = 1): Promise<void> {
-    return guard.run("outbox.put", () => this.doPut(url, body, records), Promise.resolve());
+  put(url: string, body: string, records = 1, bypass = false): Promise<void> {
+    return guard.run("outbox.put", () => this.doPut(url, body, records, bypass), Promise.resolve());
   }
 
-  private async doPut(url: string, body: string, records: number): Promise<void> {
+  private async doPut(url: string, body: string, records: number, bypass: boolean): Promise<void> {
     await this.loaded;
-    const item: Item = { id: this.index.next++, url, bytes: body.length, n: records };
+    const item: Item = { id: this.index.next++, url, bytes: body.length, n: records, ...(bypass ? { keep: true } : {}) };
     this.index.items.push(item);
     this.bodies.set(item.id, body);
     this.enforceBound();
@@ -191,6 +202,11 @@ export class Outbox {
         this.inFlight = null;
       }
       if (res.status >= 200 && res.status < 300) {
+        // Accepted; what `partial_success` rejected is not retried (spec 8.2), only counted.
+        if (typeof res.rejected === "number" && res.rejected > 0) {
+          this.drops?.count(signalOf(head.url), "partial_rejected", res.rejected);
+          this.logger.warn(`delivery: ${head.url} accepted, ${res.rejected} record(s) rejected by the collector`);
+        }
         this.stats.sent++;
         this.forget(head);
         this.failures = 0;
@@ -198,13 +214,15 @@ export class Outbox {
       }
       if (!retryable(res.status)) {
         this.stats.rejected++;
-        this.count(head, "rejected");
+        this.count(head, "rejected_status");
         this.logger.warn(`delivery: ${head.url} rejected with HTTP ${res.status}, dropped (not retryable)`);
         this.forget(head);
         continue;
       }
       this.failures++;
-      const delay = Math.max(res.retryAfterMs ?? 0, Math.min(1000 * 2 ** (this.failures - 1), MAX_RETRY_DELAY_MS));
+      // TRN-7: full jitter over an exponential ceiling. TRN-8: `Retry-After` wins, capped at the maximum.
+      const ceiling = Math.min(RETRY_INITIAL_MS * 2 ** Math.min(this.failures - 1, 30), RETRY_MAX_MS);
+      const delay = res.retryAfterMs !== undefined ? Math.min(res.retryAfterMs, RETRY_MAX_MS) : Math.round(this.random() * ceiling);
       this.logger.log(`delivery: ${res.status === 0 ? "network error" : `HTTP ${res.status}`}, ${this.index.items.length} request(s) kept, retry in ${delay} ms`);
       this.retryTimer = this.clock.setTimeout(() => {
         this.retryTimer = null;
@@ -240,8 +258,10 @@ export class Outbox {
 
   private enforceBound(): void {
     let bytes = this.index.items.reduce((n, i) => n + i.bytes, 0);
-    // Oldest first; never the newest, nor the one in flight (its answer removes it).
-    for (const victim of this.index.items.slice(0, -1)) {
+    // Oldest first, ordinary telemetry before requests that hold a bypass-set record (TRN-11,
+    // TRN-14); never the newest, nor the one in flight (its answer removes it).
+    const candidates = this.index.items.slice(0, -1);
+    for (const victim of [...candidates.filter((i) => !i.keep), ...candidates.filter((i) => i.keep)]) {
       if (bytes <= this.maxBytes && this.index.items.length <= this.maxEntries) break;
       if (victim.id === this.inFlight) continue;
       bytes -= victim.bytes;
@@ -250,7 +270,7 @@ export class Outbox {
   }
 
   private count(item: Item, reason: DropReason): void {
-    this.drops?.count(/\/v1\/traces(?:[?#]|$)/.test(item.url) ? "span" : "log", reason, item.n ?? 1);
+    this.drops?.count(signalOf(item.url), reason, item.n ?? 1);
   }
 
   private remove(item: Item, why: string): void {
@@ -287,6 +307,10 @@ export class Outbox {
       return fallback as T;
     }
   }
+}
+
+function signalOf(url: string): "span" | "log" {
+  return /\/v1\/traces(?:[?#]|$)/.test(url) ? "span" : "log";
 }
 
 function bodyKey(id: number): string {
