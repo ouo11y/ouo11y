@@ -6,16 +6,21 @@ import type { AttrValue } from "../types";
 
 export const PLATFORM = "mobile";
 
+/** `user.id`, only once the app called `setUser` (spec PRV-13): the SDK makes up no id. */
+function userAttributes(session: SessionManager): Record<string, AttrValue> {
+  const id = session.userId();
+  return id ? { "user.id": id, "ouo.user.anonymous": false } : {};
+}
+
 /** Attributes every span and log record must carry (spec: identifiers carried on every signal). */
 export function correlationAttributes(session: SessionManager, serviceVersion: string, globals?: () => Record<string, AttrValue>): Record<string, AttrValue> {
   const attrs: Record<string, AttrValue> = {
     // `setGlobalAttributes`: under the SDK's own attributes, which win on a clash.
     ...globals?.(),
     "session.id": session.id(),
-    "user.id": session.userId(),
-    "ouo.user.anonymous": session.isAnonymousUser(),
     "ouo.platform": PLATFORM,
     "service.version": serviceVersion,
+    ...userAttributes(session),
   };
   const previous = session.previousId();
   if (previous) attrs["session.previous_id"] = previous;
@@ -67,8 +72,8 @@ export class SessionLogProcessor implements LogRecordProcessor {
     set("service.version", this.serviceVersion);
     if (existing["session.id"] !== undefined) {
       // Record about a named session (session.start / session.end): fill only user fields.
-      set("user.id", this.session.userId());
-      set("ouo.user.anonymous", this.session.isAnonymousUser());
+      const user = userAttributes(this.session);
+      for (const key of Object.keys(user)) set(key, user[key]!);
       const current = this.session.peek();
       if (current && current.id === existing["session.id"] && current.previousId) set("session.previous_id", current.previousId);
     } else {

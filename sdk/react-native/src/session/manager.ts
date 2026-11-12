@@ -125,7 +125,8 @@ export class SessionManager {
 
   private current: SessionRecord | null = null;
   private lastEnded: SessionRecord | null = null;
-  private user: UserRecord;
+  /** Set by `setUser` only (spec PRV-13): there is no anonymous id. */
+  private user: UserRecord | undefined;
   private lastPersist = 0;
   private timer: unknown = null;
   private startPromise: Promise<void> | null = null;
@@ -195,12 +196,9 @@ export class SessionManager {
     return this.ensure().startedAt;
   }
 
+  /** The id given to `setUser`, "" when there is none (spec PRV-13: no id is made up). */
   userId(): string {
-    return this.user.id;
-  }
-
-  isAnonymousUser(): boolean {
-    return this.user.anonymous;
+    return this.user?.id ?? "";
   }
 
   setUser(id: string): void {
@@ -213,13 +211,13 @@ export class SessionManager {
     }
   }
 
-  /** `setUser(null)`: back to a new anonymous id. */
+  /** `setUser(null)`: no user id from here on. */
   clearUser(): void {
-    this.user = { id: uuidv4(), anonymous: true };
-    this.process.user = this.user;
-    void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
+    this.user = undefined;
+    delete this.process.user;
+    void this.storage.removeItem(USER_STORAGE_KEY);
     if (this.current) {
-      this.current.userId = this.user.id;
+      this.current.userId = "";
       this.persist(this.current, true);
     }
   }
@@ -320,14 +318,15 @@ export class SessionManager {
     const jsCrash = parse<CrashMarker>(rawCrash);
     const persistedUser = parse<UserRecord>(rawUser);
 
-    if (this.user.anonymous) {
-      if (persistedUser && typeof persistedUser.id === "string") {
-        // No user given at init: keep the device's persisted identity (anonymous or last known user).
-        this.user = { id: persistedUser.id, anonymous: persistedUser.anonymous !== false };
+    if (!this.user && persistedUser) {
+      if (typeof persistedUser.id === "string" && persistedUser.id !== "" && persistedUser.anonymous === false) {
+        // No user given at init: the user an earlier run set with `setUser` is still the user.
+        this.user = { id: persistedUser.id, anonymous: false };
         this.process.user = this.user;
         rec.userId = this.user.id;
       } else {
-        void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
+        // An anonymous id written by an older SDK: not used any more (PRV-13), and removed.
+        void this.storage.removeItem(USER_STORAGE_KEY);
       }
     }
 
@@ -378,7 +377,7 @@ export class SessionManager {
     if (!native?.sessionId || native.sessionId === rec.id || native.sessionId === persisted?.id) return null;
     const at = Math.min(native.at, rec.startedAt);
     const startedAt = native.startedAt !== undefined && native.startedAt <= at ? native.startedAt : at;
-    const lost: SessionRecord = { id: native.sessionId, startedAt, lastActivity: at, userId: this.user.id };
+    const lost: SessionRecord = { id: native.sessionId, startedAt, lastActivity: at, userId: this.userId() };
     if (this.serviceVersion !== undefined) lost.serviceVersion = this.serviceVersion;
     return lost;
   }
@@ -434,7 +433,7 @@ export class SessionManager {
       id: uuidv4(),
       startedAt: now,
       lastActivity: now,
-      userId: this.user.id,
+      userId: this.userId(),
     };
     if (this.serviceVersion !== undefined) rec.serviceVersion = this.serviceVersion;
     if (previousId) rec.previousId = previousId;
@@ -454,9 +453,9 @@ export class SessionManager {
   private emitStart(rec: SessionRecord): void {
     const attributes: Attrs = {
       "session.id": rec.id,
-      "user.id": rec.userId,
       "ouo.session.started_at": rec.startedAt,
     };
+    if (rec.userId) attributes["user.id"] = rec.userId;
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
     this.onEvent({ name: "session.start", attributes, timestamp: rec.startedAt });
   }
@@ -494,12 +493,12 @@ export class SessionManager {
     this.logger?.log("session ended", rec.id, reason);
     const attributes: Attrs = {
       "session.id": rec.id,
-      "user.id": rec.userId,
       "ouo.session.end_reason": reason,
       "ouo.session.duration_ms": Math.max(0, endedAt - rec.startedAt),
       "ouo.session.started_at": rec.startedAt,
       "ouo.session.ended_at": endedAt,
     };
+    if (rec.userId) attributes["user.id"] = rec.userId;
     if (rec.serviceVersion !== undefined) attributes["service.version"] = rec.serviceVersion;
     if (rec.previousId) attributes["session.previous_id"] = rec.previousId;
     this.onEvent({ name: "session.end", attributes, timestamp: endedAt });
@@ -536,7 +535,7 @@ export class SessionManager {
   private validRecord(rec: SessionRecord | null): SessionRecord | null {
     if (!rec || typeof rec.id !== "string" || typeof rec.startedAt !== "number") return null;
     if (typeof rec.lastActivity !== "number") rec.lastActivity = rec.startedAt;
-    if (typeof rec.userId !== "string") rec.userId = this.user.id;
+    if (typeof rec.userId !== "string") rec.userId = this.userId();
     return rec;
   }
 
@@ -550,18 +549,15 @@ export class SessionManager {
     void this.storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(rec));
   }
 
-  private initialUser(initialUserId: string | undefined): UserRecord {
+  private initialUser(initialUserId: string | undefined): UserRecord | undefined {
     if (initialUserId) {
       const user = { id: initialUserId, anonymous: false };
       this.process.user = user;
       void this.storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       return user;
     }
-    if (this.process.user) return this.process.user;
-    // A persisted anonymous id (if any) is adopted during the cold start read.
-    const user = { id: uuidv4(), anonymous: true };
-    this.process.user = user;
-    return user;
+    // A user set earlier in this process; one persisted by an earlier run is adopted during the cold start read.
+    return this.process.user && this.process.user.anonymous === false ? this.process.user : undefined;
   }
 
   private clearTimer(): void {

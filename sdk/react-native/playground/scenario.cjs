@@ -38,7 +38,7 @@ async function main() {
   await rum.ready;
   const id = rum.session.id();
   console.log(`scenario=${SCENARIO} version=${VERSION} session=${id} previous=${rum.session.previousId() ?? "-"} user=${rum.session.userId()}`);
-  const headers = { "x-user-id": rum.session.userId(), accept: "application/json" };
+  const headers = { "x-user-id": rum.session.userId() || "guest", accept: "application/json" };
   const get = (p) => fetch(`${BACKEND}${p}`, { headers });
   const post = (p, body) => fetch(`${BACKEND}${p}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) });
 

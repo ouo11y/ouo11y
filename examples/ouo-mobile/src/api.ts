@@ -59,7 +59,8 @@ async function api<T>(path: string, init: { method?: string; json?: unknown; fla
     method: init.method ?? "GET",
     headers: {
       accept: "application/json",
-      "x-user-id": rum.session.userId(),
+      // No user id until setUser (the SDK makes up none): the demo backend then sees a guest.
+      "x-user-id": rum.session.userId() || "guest",
       ...(init.json !== undefined ? { "content-type": "application/json" } : {}),
     },
     ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),

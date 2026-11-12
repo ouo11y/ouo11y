@@ -431,6 +431,7 @@ export interface FeedbackInput {
 
 export interface RUMSession {
   id(): string;
+  /** The id given to `setUser`, "" when there is none. */
   userId(): string;
   /** Set on the first signals of a session that replaced an ended one. */
   previousId(): string | undefined;
@@ -443,7 +444,11 @@ export interface RUMSession {
  * dropped and counted, except `ouo.exception.fingerprint`.
  */
 export interface RUM {
-  /** Set the user id (`setUser("u-1")` or `setUser({ id: "u-1" })`), or clear it with `null`: a new anonymous id. */
+  /**
+   * Set the user id (`setUser("u-1")` or `setUser({ id: "u-1" })`), or clear it with `null`.
+   * Records carry `user.id` only after this (spec PRV-13): the SDK makes up no anonymous id.
+   * The id is kept across launches until it is cleared.
+   */
   setUser(user: UserOptions | string | null): void;
   /** Attributes for every later record (spans and log records). Replaces the previous set; `{}` clears it. */
   setGlobalAttributes(attributes: Attrs): void;

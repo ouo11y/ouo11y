@@ -181,7 +181,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
       expect(attr(s.attributes, "session.id")).toBe(sessionId);
       expect(attr(s.attributes, "ouo.platform")).toBe("mobile");
       expect(attr(s.attributes, "service.version")).toBe("2.3.0");
-      expect(typeof attr(s.attributes, "user.id")).toBe("string");
+      // Spec PRV-13: no user id before setUser.
+      expect(attr(s.attributes, "user.id")).toBeUndefined();
     }
     expect(attr(spans[1]!.attributes, "http.response.status_code")).toBe(500);
     expect(attr(spans[2]!.attributes, "http.response.status_code")).toBe(404);
@@ -236,7 +237,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     ]);
     expect(attr(byName("exception")[0]!.attributes, "screen")).toBe("Cart");
     // user.id switches after setUser
-    expect(attr(byName("exception")[0]!.attributes, "user.id")).not.toBe("user-7");
+    expect(attr(byName("exception")[0]!.attributes, "user.id")).toBeUndefined();
+    expect(attr(byName("exception")[0]!.attributes, "ouo.user.anonymous")).toBeUndefined();
     expect(attr(byName("exception")[3]!.attributes, "user.id")).toBe("user-7");
     expect(attr(byName("exception")[3]!.attributes, "ouo.user.anonymous")).toBe(false);
 
