@@ -96,6 +96,7 @@ describe("sessions and records on the wire", () => {
     expect(r["telemetry.sdk.version"]).toBe(ouo.SDK_VERSION);
     // jsdom has no userAgentData: the user agent stands in for browser.brands.
     expect(typeof r["user_agent.original"]).toBe("string");
+    expect(r["browser.brands"]).toBeUndefined();
   });
 
   it("only OTLP to the configured endpoint, gzip when large, credential in the header only (REL-2, REL-6, CFG-3)", async () => {

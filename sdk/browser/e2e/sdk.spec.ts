@@ -59,8 +59,10 @@ test("a page view: session, navigation, clicks, a traced request, a soft navigat
 
 test("document load: one span after the fact under the server's traceparent, navigation timing, web vitals at page hide", async ({ page, browserName }) => {
   const parent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
-  await open(page, `/?traceparent=${parent}`);
+  await open(page, `/?traceparent=${parent}&resources=1`);
   await page.click("#mutate");
+  // A soft navigation before the page is hidden: the vitals still belong to the page load's view.
+  await page.click("#route");
   await page.waitForTimeout(300);
   // Leaving the page: final vitals and the last flush go out with keepalive.
   await page.goto("about:blank");
@@ -97,6 +99,12 @@ test("document load: one span after the fact under the server's traceparent, nav
     expect(v.attributes["ouo.view.id"]).toBe(view);
   }
   expect(c.events("session.end")).toHaveLength(0);
+
+  // Resource timing is off by default; switched on, one event per resource at the resource's start.
+  const resources = c.events("browser.resource_timing");
+  expect(resources.map((r) => String(r.attributes["url.full"]))).toEqual(expect.arrayContaining([expect.stringContaining("/app.css"), expect.stringContaining("/dist/index.js")]));
+  expect(resources.every((r) => !String(r.attributes["url.full"]).includes(":" + String(Number(new URL(page.url() === "about:blank" ? "http://x:1" : page.url()).port) + 1) + "/v1/"))).toBe(true);
+  expect(BigInt(resources[0]!.timeUnixNano)).toBeLessThan(BigInt(c.events("browser.navigation_timing")[0]!.timeUnixNano));
 });
 
 test("page close: a request still in flight ends as an abandoned span, and everything leaves with keepalive", async ({ page }) => {

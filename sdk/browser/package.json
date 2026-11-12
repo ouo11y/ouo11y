@@ -111,5 +111,8 @@
     "react": {
       "optional": true
     }
+  },
+  "ouo": {
+    "specVersion": "0.1.0-draft"
   }
 }

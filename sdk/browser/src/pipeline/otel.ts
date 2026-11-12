@@ -100,10 +100,13 @@ export function buildResource(cfg: Pick<Config, "serviceName" | "serviceVersion"
     if (os.version) attrs["os.version"] = os.version;
   }
   // browser.brands, .platform, .mobile, .language where the browser has them; user_agent.original
-  // only when it has no brands (the detector does exactly that).
+  // only when it has no brands (RES-0 says to omit it otherwise).
   const detected = attempt(() => detectResources({ detectors: [browserDetector] }));
-  const base = resourceFromAttributes(attrs);
-  return detected ? detected.merge(base) : base;
+  for (const [key, value] of Object.entries(detected?.attributes ?? {})) {
+    if (value !== undefined && attrs[key] === undefined) attrs[key] = value;
+  }
+  if (attrs["browser.brands"] !== undefined) delete attrs["user_agent.original"];
+  return resourceFromAttributes(attrs);
 }
 
 /** Session sampling for spans (SMP-3, SMP-4): record only in a valid, sampled session. */

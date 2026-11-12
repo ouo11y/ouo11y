@@ -30,7 +30,7 @@ const ELEMENT_NODE = 2;
 
 const TEXT_ATTRIBUTES = new Set(["title", "alt", "placeholder", "aria-label", "aria-description", "aria-valuetext", "label", "value"]);
 const FORM_CONTROLS = new Set(["input", "textarea", "select", "option", "button"]);
-const URL_ATTRIBUTES = new Set(["href", "action", "formaction", "ping"]);
+const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction", "ping", "poster", "data", "xlink:href"]);
 /** rrweb's own helper iframes (Safari, pages with patched DOM prototypes) are not part of the page. */
 const ALWAYS_BLOCKED = "iframe.rr-block";
 
@@ -89,7 +89,7 @@ export function createStructureAdapter(o: AdapterOptions): ReplayAdapter {
         continue;
       }
       if (typeof v !== "string" || v === "") continue;
-      if (URL_ATTRIBUTES.has(name) && tag !== "link") attrs[name] = o.sanitize(v);
+      if (URL_ATTRIBUTES.has(name) && !v.startsWith("data:")) attrs[name] = o.sanitize(v);
       else if (TEXT_ATTRIBUTES.has(name) && isMasked()) attrs[name] = MASKED_TEXT;
     }
   };

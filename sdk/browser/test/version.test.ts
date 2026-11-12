@@ -18,6 +18,8 @@ describe("spec version (VER-2, VER-3)", () => {
     expect(SPEC_VERSION).toBe("0.1.0-draft");
     expect(SCHEMA_URL).toBe("https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev");
     expect(readFileSync(join(__dirname, "../README.md"), "utf8")).toContain(`spec version \`${SPEC_VERSION}\``);
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { ouo: { specVersion: string } };
+    expect(pkg.ouo.specVersion).toBe(SPEC_VERSION);
   });
 
   it("no unload or beforeunload handler and no synchronous XHR anywhere in the source (LIF-6, ERR-4)", () => {
@@ -39,6 +41,8 @@ describe("spec version (VER-2, VER-3)", () => {
       expect(src, f).not.toMatch(/\.open\([^)]*,\s*false\s*\)/);
       expect(src, f).not.toMatch(/localStorage\.clear\(|document\.cookie/);
       expect(src, f).not.toMatch(/console\.error/);
+      // Gated until the convention lands (SIG-30).
+      expect(src, f).not.toMatch(/long_animation_frame/);
     }
   });
 });
