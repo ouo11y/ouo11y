@@ -1,0 +1,19 @@
+00:02:00.229 launch
+00:02:06.457 cmd screen/Product?id=p-1001
+00:02:08.594 cmd action/add?id=p-1001
+00:02:10.731 cmd screen/Cart
+00:02:12.896 cmd action/type?field=feedback-message&text=The%20total%20is%20wrong%20for%20order%2042
+00:02:15.015 cmd action/type?field=feedback-contact&text=qa%40example.invalid
+00:02:17.172 cmd screen/Checkout
+00:02:19.305 cmd action/shutdown
+00:02:32.913 launch (rotation)
+00:02:39.063 cmd screen/Products
+00:02:41.287 cmd screen/Chaos
+00:02:43.414 background 9 s
+00:02:52.665 foreground
+00:02:56.914 cmd screen/Products
+00:02:59.062 cmd action/flush
+00:03:39.145 background 65 s
+00:04:44.345 foreground
+00:04:48.571 cmd screen/Chaos
+00:04:50.685 cmd action/flush
