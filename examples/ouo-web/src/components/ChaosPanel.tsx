@@ -172,7 +172,7 @@ export function ChaosPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={compact ? "chaos chaos-compact" : "chaos"} data-testid="chaos-panel">
-      <div className="chaos-buttons ouo-unmask">
+      <div className="chaos-buttons" data-ouo-unmask="">
         {actions.map((a) => (
           <button
             key={a.id}

@@ -2,7 +2,7 @@ import { ChaosPanel } from "../components/ChaosPanel";
 
 export function ChaosPage() {
   return (
-    <section className="page ouo-unmask">
+    <section className="page" data-ouo-unmask="">
       <h1>Chaos</h1>
       <p className="muted">
         Each button exercises one path the RUM SDK must capture. Watch the log below, the browser console and

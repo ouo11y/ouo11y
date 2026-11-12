@@ -52,7 +52,7 @@ export function ProductPage() {
   if (!product) return <p className="muted page">Loading…</p>;
 
   return (
-    <section className="page product-detail ouo-unmask">
+    <section className="page product-detail" data-ouo-unmask="">
       <ProductArt product={product} large />
       <div>
         <p className="crumbs">

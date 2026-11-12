@@ -9,7 +9,7 @@ import { SourceMapConsumer } from "source-map";
 
 /** File pattern -> a string literal in it and the source file that must contain it. */
 const KNOWN = [
-  [/^index\.js$/, "ouo.sdk.dropped", /src\/index\.ts$/],
+  [/^index\.js$/, "ouo.sdk.disabled", /src\/index\.ts$/],
   [/^react\.js$/, "ouo.react.component_stack", /src\/react\/index\.ts$/],
   [/^engine-.*\.js$/, "ouo.replay.sha256", /src\/replay\/engine\.ts$/],
   [/^structure-.*\.js$/, "takeFullSnapshot", /rrweb|src\/replay\/structure\.ts$/],

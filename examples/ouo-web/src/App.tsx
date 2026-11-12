@@ -39,7 +39,7 @@ function PageFailed({ error, reset }: { error: unknown; reset: () => void }) {
 
 export default function App() {
   const location = useLocation();
-  // `app.screen.name` = the matched route template (`/products/:id`), via @ouo11y/browser/react.
+  // `ouo.view.name` = the matched route template (`/products/:id`), via @ouo11y/browser/react.
   // The cast: react-router's RouteObject and AgnosticRouteObject disagree under exactOptionalPropertyTypes.
   useOuoRoute(routeTemplate(matchRoutes(routes as Parameters<typeof matchRoutes>[0], location)));
   const element = useRoutes(routes);

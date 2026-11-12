@@ -70,7 +70,7 @@ export function CheckoutPage() {
               Card number
               <input
                 name="card"
-                className="ouo-mask"
+                data-ouo-mask=""
                 inputMode="numeric"
                 placeholder="4242 4242 4242 4242"
                 value={card}
@@ -93,7 +93,7 @@ export function CheckoutPage() {
             <button type="button" className="link-button" onClick={() => setShowPromo((s) => !s)}>
               {showPromo ? "Hide promo code" : "Have a promo code?"}
             </button>
-            <label className="ouo-block" hidden={!showPromo}>
+            <label data-ouo-block="" hidden={!showPromo}>
               Promo code
               <input name="promo" value={promo} onChange={(e) => setPromo(e.target.value)} autoComplete="off" />
             </label>
