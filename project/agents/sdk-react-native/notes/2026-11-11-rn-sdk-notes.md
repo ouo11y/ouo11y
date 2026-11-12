@@ -25,7 +25,7 @@ One OTLP/HTTP protobuf `ExportLogsServiceRequest` per chunk to `${endpoint}/v1/l
 ## Native code
 
 `@ouo11y/react-native` vendors `sdk/ios/Sources` and `sdk/android` at build (`sdk/react-native/scripts/sync-*.mjs`), so RN replay work necessarily touches those two folders. I keep changes there additive.
-- ADR numbers: rn-sdk took 0019 (docs/adr/0019-react-native-sdk-keep-and-extend.md); 0018 left for web-sdk.
+- ADR numbers: rn-sdk first took 0019, renumbered to 0021 (docs/adr/0021-react-native-sdk-keep-and-extend.md) on 2026-11-12: 0019 is the Collector to Muninn ADR, 0020 the web SDK.
 
 ## npm fails in every worktree right now (2026-11-11 22:40)
 

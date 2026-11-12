@@ -1,6 +1,6 @@
-# ADR-0019 React Native SDK: keep the OpenTelemetry JS core and extend it, in two steps
+# ADR-0021 React Native SDK: keep the OpenTelemetry JS core and extend it, in two steps
 
-Status: proposed (2026-11-11, React Native SDK session). Decision 3 is the founder's (2026-11-11). Decision 2 departs from the draft SDK spec and goes to the founder with Step 7.
+Status: proposed (2026-11-11, React Native SDK session; first drafted as ADR-0019, renumbered because the Collector to Muninn ADR holds that number). Decisions 3, 5 and 6 are the founder's (2026-11-11 and 2026-11-12). Decision 2 departs from the draft SDK spec and goes to the founder with Step 7.
 
 ## Context
 
@@ -26,12 +26,22 @@ What works today and is on OpenTelemetry: the OTel JS logger and tracer provider
    - **Step B**: names, scope `ouo.rum`, `schema_url`, `ouo.view.id`, session and sampling id rules, protobuf, and replay over OTLP.
    - CI checks that assert the MVP wire against rum-api (`tests/e2e/mobile/conformance.mjs`, `examples/ouo-mobile/scripts/verify.py`) fail once the names change. They are not skipped or edited: each pull request lists the failing jobs and why, and the founder, who alone merges, decides.
 4. **Failure isolation is one mechanism, tested by injection.** Every entry point (public API, patched `fetch` and XHR, global handlers, timers, AppState and navigation listeners, processors, exporters, native module methods and callbacks) runs inside one guard that catches, counts and, past `diagnostics.selfDisableThreshold`, turns the SDK into a no-op. A fault-injection suite throws from each seam and asserts the host call still returns what it would without the SDK.
-5. **Replay: native capture, native queue, OTLP envelope.**
-   - When to look stays as it is: the run loop on iOS, the draw listener on Android.
-   - What is recorded is a format adapter (RPL-27) with two implementations: **pixel** (`ouo-frames/3`: masked JPEG frames and tile patches, today's recorder) and **structure** (`ouo-wireframe/1`: the view tree as rectangles with type, colours and text replaced by `***`). Both produce newline-delimited JSON events, so the chunks of a segment concatenate into a valid payload (RPL-7).
-   - A chunk is one OTLP/HTTP protobuf request to `/v1/logs` holding one log record: scope `ouo.replay`, event `ouo.replay.chunk`, bytes body compressed by the format layer, attributes of spec 11.3. The native layer encodes it with a small hand-written protobuf writer (one message shape, no dependency) and sends it from its own disk queue, so a replay backlog cannot delay telemetry (TRN-3) and a chunk survives a crash (RPL-15). `ouo.replay.ended` is sent the same way, at stop or at the next launch.
-   - Buffer mode keeps the last `replay.bufferSeconds` as whole segments in a ring and sends them when a bypass-set record or `replay.capture()` triggers.
-6. **Third-party code.** None is copied in step A. For the structure format the wireframe model follows PostHog's mobile replay (MIT) and Datadog's (Apache-2.0) as described in [vendor-internals](../../project/kb/vendor-internals/index.md); Sentry (MIT) has no wireframe mode, so the founder's preference order starts at Datadog here. Any file taken over keeps its licence header and is listed in the package's `NOTICE`.
+5. **Replay: native capture, native queue, OTLP envelope, one option.**
+   - The customer option is one string, `replay.mode`. The format id goes on the wire in `ouo.replay.format`. Every format id ends in `/<n>`, the version of the chunk layout, and is named by what the chunk holds, not by a vendor.
+
+     | `replay.mode` | `ouo.replay.format` | Recorder | Platforms |
+     |---|---|---|---|
+     | `pixel/frames` (default) | `ouo-frames/3` | ouo's own: masked JPEG frames and tile patches | iOS, Android |
+     | `pixel/video` | `ouo-video/1` | Sentry's recorder core: masked frames encoded as H.264 segments | iOS, Android |
+     | `structure/wireframe` | `ouo-wireframe/1` | Datadog's Session Replay recorder: the view tree as rectangles, text as `***` | iOS, Android, in its own pull request after pixel works on both |
+     | `structure/dom` | `rrweb/2` | rrweb | web only |
+
+   - There is no shorthand: `pixel` or `structure` alone is not valid, and the SDK never picks between frames and video. A value that is not valid on the platform leaves replay off with a warning and never throws. A per-OS choice is the app's code: `Platform.select({ ios: "pixel/video", android: "pixel/frames" })`.
+   - Both pixel recorders stay and mask identically from the customer's point of view: the same defaults and the same overrides (`.ouoMask()` / `.ouoUnmask()`, `ouo-mask` / `ouo-unmask`). `pixel/video` does not ship until the screen-transition leak its spike measured (masked text readable for one frame at a push or pop, 2 of 5 runs) is fixed.
+   - When to look stays as it is in each recorder: the run loop on iOS, the draw listener on Android.
+   - A chunk is one OTLP/HTTP protobuf request to `/v1/logs` holding one log record: scope `ouo.replay`, event `ouo.replay.chunk`, bytes body compressed by the format layer where the format compresses (`ouo.replay.encoding`), attributes of spec 11.3. The native layer encodes it with a small hand-written protobuf writer (one message shape, no dependency) and sends it from its own disk queue, so a replay backlog cannot delay telemetry (TRN-3) and a chunk survives a crash (RPL-15). `ouo.replay.ended` is sent the same way, at stop or at the next launch.
+   - Buffer-on-error keeps the last `replay.bufferSeconds` as whole segments in a ring and sends them when a bypass-set record or `replay.capture()` triggers. It is a sampling setting (`replay.bufferRate`), not a value of `replay.mode`.
+6. **Third-party code is borrowed, credited and kept in sync by script.** `pixel/video` builds on the Sentry iOS spike (PR #181: 28 files of sentry-cocoa 9.33.0 behind `Seams.swift`, MIT, `sdk/ios/scripts/sentry-core-sync.sh`) and the same approach for sentry-java on Android. `structure/wireframe` borrows Datadog's native Session Replay recorders (Apache-2.0); before its schema is adopted, a short check decides whether PostHog's wireframe-to-rrweb conversion would let one rrweb player serve web and mobile, and the result is recorded in the kb. Every borrowed file keeps its licence header and is listed in `NOTICE`. The hand-written wireframe recorder started on 2026-11-11 is parked; its OTLP envelope, chunking and stream code is kept.
 7. **`sdk/ios` and `sdk/android` are edited additively.** The package compiles those sources into the app (`scripts/sync-ios.mjs`, `sync-android.mjs`), so React Native replay work lands there. The native SDKs' own public behaviour is not changed by this work.
 
 ## Consequences
@@ -39,7 +49,8 @@ What works today and is on OpenTelemetry: the OTel JS logger and tracer provider
 - Until step B merges, the package is not conformant at `0.1.0-draft`: the name, scope and replay rows stay open and are listed in the agent summary.
 - Step B makes React Native sessions and replay unreadable by today's rum-api and plugin until the Collector route to Muninn and the new read side exist. That is accepted.
 - The JavaScript layer stays the single place where session and sampling are decided; native reads both through the bridge. A crash before the bridge is up is attributed through the persisted session, as today.
-- Two replay formats double the reader work in the plugin. The format id on every chunk (RPL-24) keeps that a reader concern.
+- Three mobile formats mean three readers in the plugin. The format id on every chunk (RPL-24) keeps that a reader concern.
+- Borrowed recorder cores add binary size (the iOS spike measured about 236 KiB before dead-stripping) and an upstream to follow; the sync script fails on drift.
 
 ## Alternatives considered
 
