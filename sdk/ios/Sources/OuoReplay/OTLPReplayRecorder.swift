@@ -339,6 +339,7 @@ final class OTLPReplayRecorder: ReplayRecording {
             pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
             pacer.dropped(reason, now: start)
             maskDrops += 1
+            logger.log("look \(reason.rawValue) dropped: a masked view is moving (\(maskDrops) so far)")
             return
         }
         var snapshot: ScreenCapturer.Snapshot?
@@ -350,11 +351,17 @@ final class OTLPReplayRecorder: ReplayRecording {
             return
         }
         let look = PixelLook(image: snap.image, rects: snap.rects, width: Double(bounds.width), height: Double(bounds.height), scale: Double(snap.scale), reason: reason)
-        pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+        let mainSeconds = ProcessInfo.processInfo.systemUptime - start
+        pacer.spent(mainSeconds, now: start)
         captureInFlight = true
         let stream = self.stream
+        let logger = self.logger
+        let handedAt = ProcessInfo.processInfo.systemUptime
         Self.queue.async { [weak self] in
+            let queuedAt = ProcessInfo.processInfo.systemUptime
             stream.look(look, at: ts)
+            // What one look cost: on the main thread (counted against the time bank) and on the queue.
+            logger.log(String(format: "look %@: main %.0f ms, waited %.0f ms, encode %.0f ms", reason.rawValue, mainSeconds * 1000, (queuedAt - handedAt) * 1000, (ProcessInfo.processInfo.systemUptime - queuedAt) * 1000))
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.captureInFlight = false
