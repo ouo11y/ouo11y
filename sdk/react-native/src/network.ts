@@ -175,10 +175,13 @@ export function installFetchInstrumentation(opts: NetworkOptions): () => void {
       if (matchesAny(url, opts.propagateTo)) {
         const requestHeaders = input && typeof input === "object" && "headers" in (input as object) ? (input as Request).headers : undefined;
         const bag = headerBag(requestHeaders, init?.headers);
-        inject(opts, trace.setSpan(context.active(), span), bag, {
-          set: (carrier, key, value) => (carrier as HeaderBag).set(key, value),
-        });
-        nextInit = { ...(init ?? {}), headers: bag.toInit() };
+        // PRP-3: a request that already has a `traceparent` (the app's, another SDK's) is left alone.
+        if (bag.get("traceparent") === undefined) {
+          inject(opts, trace.setSpan(context.active(), span), bag, {
+            set: (carrier, key, value) => (carrier as HeaderBag).set(key, value),
+          });
+          nextInit = { ...(init ?? {}), headers: bag.toInit() };
+        }
       }
       return { url: recorded, method, span, nextInit };
     });
@@ -263,9 +266,9 @@ interface XhrProto {
  * with the same attributes, propagation and failed-request rule as the fetch wrapper. Clients
  * built on XHR (axios, superagent) are traced this way; fetch's own XHR is skipped.
  *
- * `traceparent` is only added when the request has none yet: XHR joins repeated headers into
- * one value, and two trace parents (another SDK, e.g. Sentry with `propagateTraceparent`, ran
- * first) would be an invalid header. `baggage` is merged the same way, which is valid.
+ * Nothing is injected when the request already has a `traceparent` (spec PRP-3): XHR joins
+ * repeated headers into one value, and two trace parents (another SDK, e.g. Sentry with
+ * `propagateTraceparent`, ran first) would be an invalid header.
  */
 export function installXhrInstrumentation(opts: NetworkOptions): () => void {
   const Xhr = (globalThis as { XMLHttpRequest?: { prototype: XhrProto & { __ouo?: true } } }).XMLHttpRequest;
@@ -310,12 +313,11 @@ export function installXhrInstrumentation(opts: NetworkOptions): () => void {
       const url = opts.sanitizeUrl ? opts.sanitizeUrl(state.url) : state.url;
       const span = startClientSpan(tracer, method, url);
 
-      if (matchesAny(state.url, opts.propagateTo)) {
+      // PRP-3: nothing is injected into a request that already has a `traceparent`.
+      if (matchesAny(state.url, opts.propagateTo) && !state.headers.has("traceparent")) {
         const carrier: Record<string, string> = {};
         inject(opts, trace.setSpan(context.active(), span), carrier);
         for (const [name, value] of Object.entries(carrier)) {
-          const lower = name.toLowerCase();
-          if ((lower === "traceparent" || lower === "tracestate") && state.headers.has("traceparent")) continue;
           try {
             // Through the instance, so an SDK that patched after ouo (Sentry) sees the header.
             this.setRequestHeader(name, value);

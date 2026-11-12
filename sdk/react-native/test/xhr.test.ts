@@ -170,8 +170,8 @@ describe("XMLHttpRequest instrumentation (axios and other XHR clients)", () => {
     };
     const xhr = request("GET", "http://api/products");
     expect(xhr.header("traceparent")).toEqual(["00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"]);
-    // XHR joins repeated headers: "sentry-trace_id=..., session.id=s1" is one valid baggage list.
-    expect(xhr.header("baggage")).toEqual(["sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "session.id=s1"]);
+    // Spec PRP-3: a request that already has a traceparent gets nothing from ouo, baggage included.
+    expect(xhr.header("baggage")).toEqual(["sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
     uninstall();
   });
 

@@ -480,7 +480,7 @@ describe("no global registration unless asked (REL-4)", () => {
     const http = captured.spans.find((s) => s.name === "HTTP GET")!;
     expect(http.parentSpanId).toBe(parent.spanId);
     expect(captured.requests[0]!.headers["traceparent"]).toBe(`00-${parent.traceId}-${http.spanId}-01`);
-    expect(captured.requests[0]!.headers["baggage"]).toContain(`session.id=${rum.session.id()}`);
+    expect(captured.requests[0]!.headers["baggage"]).toBeUndefined();
     expect(captured.byName("log")[0]!.spanId).toBe(parent.spanId);
     await rum.shutdown();
     // The host's registration survived the SDK's whole life.
@@ -563,5 +563,31 @@ describe("truncation at source (REC-8)", () => {
     expect(appAttributes({ a: 1, b: "x", c: true, d: null, e: undefined, f: NaN, g: cyclic, h: [1], "ouo.x": 1, "session.y": 2, "ouo.exception.fingerprint": "fp" }, counter)).toEqual({ a: 1, b: "x", c: true, "ouo.exception.fingerprint": "fp" });
     expect(counter.total("attribute", "reserved_name")).toBe(2);
     for (const junk of [undefined, null, 5, "s", [], cyclic]) expect(appAttributes(junk, counter)).toEqual({});
+  });
+});
+
+describe("propagation (PRP-3, PRP-6)", () => {
+  it("sessionBaggage sends only session.id, and only to the URLs that get traceparent", async () => {
+    const { rum, captured } = await start({ propagation: { sessionBaggage: true }, user: { id: "u-1" } });
+    await fetch(`${BACKEND}/api/a`);
+    await fetch("http://elsewhere.test/b");
+    expect(captured.requests[0]!.headers["baggage"]).toBe(`session.id=${rum.session.id()}`);
+    expect(captured.requests[0]!.headers["traceparent"]).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+    expect(captured.requests[1]!.headers["baggage"]).toBeUndefined();
+    expect(captured.requests[1]!.headers["traceparent"]).toBeUndefined();
+  });
+
+  it("never overwrites a traceparent the app set (fetch)", async () => {
+    const { rum, captured } = await start({ propagation: { sessionBaggage: true } });
+    const mine = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01";
+    const init = { headers: { TraceParent: mine, "x-app": "1" } };
+    await fetch(`${BACKEND}/api/a`, init);
+    await fetch(new Request(`${BACKEND}/api/b`, { headers: { traceparent: mine } }));
+    await rum.flush();
+    // The app's init object reached the original fetch untouched: nothing injected, baggage included.
+    expect(captured.requests[0]!.headers).toBe(init.headers);
+    expect(captured.requests[1]!.headers).toEqual({});
+    // The requests are still recorded.
+    expect(captured.spans.filter((s) => s.name === "HTTP GET")).toHaveLength(2);
   });
 });

@@ -29,6 +29,8 @@ async function main() {
     ...(REPLAY_ENDPOINT ? { replayEndpoint: REPLAY_ENDPOINT } : {}),
     service: { name: "mobile-store", version: VERSION, environment: "local" },
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
+    // The demo backend reads the session id from W3C baggage (off by default, spec PRP-6).
+    propagation: { sessionBaggage: true },
     session: { backgroundTimeoutMs: 2000 },
     device: { modelIdentifier: "iPhone15,2", modelName: "iPhone 14 Pro", manufacturer: "Apple" },
     debug: process.env.OUO_DEBUG === "1",

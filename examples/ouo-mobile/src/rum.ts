@@ -43,6 +43,8 @@ export const rum: RUM = initRUM({
   projectToken: config.projectToken,
   service: { name: "mobile-store", version: appVersion, environment: config.environment },
   tracing: { propagateTo: [new RegExp(`^${escapeRegExp(config.backendUrl)}`)] },
+  // The demo backend puts the session id on its own spans and logs: it reads it from W3C baggage.
+  propagation: { sessionBaggage: true },
   device: {
     ...(Device.modelId ? { modelIdentifier: String(Device.modelId) } : {}),
     ...(Device.modelName ? { modelName: Device.modelName } : {}),

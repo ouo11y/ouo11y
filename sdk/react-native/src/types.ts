@@ -17,12 +17,22 @@ export interface ServiceOptions {
 
 export interface TracingOptions {
   /**
-   * URL prefixes (RegExp or exact strings) that receive `traceparent` and `baggage`
-   * headers on outbound fetch requests. Requests to other hosts still get a client span.
+   * URL prefixes (RegExp or exact strings) that receive `traceparent` (and `baggage` with
+   * `propagation.sessionBaggage`) on outbound requests. Requests to other hosts still get a
+   * client span. A request that already carries a `traceparent` is never changed.
    */
   propagateTo?: Array<RegExp | string>;
   /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` / `replayEndpoint` are always ignored. */
   ignoreUrls?: Array<RegExp | string>;
+}
+
+export interface PropagationOptions {
+  /**
+   * Also send W3C `baggage: session.id=<id>` on the requests that get `traceparent`
+   * (`tracing.propagateTo`), so a backend can put the session id on its own telemetry. Default
+   * false (spec PRP-6); nothing but the session id is ever sent.
+   */
+  sessionBaggage?: boolean;
 }
 
 export interface SessionOptions {
@@ -348,6 +358,7 @@ export interface RUMOptions {
   projectToken: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
+  propagation?: PropagationOptions;
   replay?: ReplayOptions;
   session?: SessionOptions;
   user?: UserOptions;

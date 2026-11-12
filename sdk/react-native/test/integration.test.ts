@@ -189,10 +189,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
 
     // ---- propagation ----
     expect(captured.requests[0]!.headers["traceparent"]).toBe(`00-${spans[0]!.traceId}-${spans[0]!.spanId}-01`);
-    const baggage = captured.requests[0]!.headers["baggage"]!;
-    expect(baggage).toContain(`session.id=${sessionId}`);
-    expect(baggage).toContain("ouo.platform=mobile");
-    expect(baggage).toMatch(/user\.id=/);
+    // No baggage unless `propagation.sessionBaggage` is set (spec PRP-6; test/step-a.test.ts covers it).
+    expect(captured.requests[0]!.headers["baggage"]).toBeUndefined();
     expect(captured.requests[1]!.headers["content-type"]).toBe("application/json");
     expect(captured.requests[3]!.headers["traceparent"]).toBeUndefined();
 

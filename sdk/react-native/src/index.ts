@@ -380,7 +380,7 @@ function build(
   });
   // REL-4: the SDK works on its own instances (provider, propagator, `sdkContext`). They become
   // the OpenTelemetry globals only when asked, and never in place of one the app registered.
-  const propagator = new SessionPropagator(session);
+  const propagator = new SessionPropagator(session, options.propagation?.sessionBaggage === true);
   if (config.registerGlobal) {
     if (trace.setGlobalTracerProvider(tracerProvider)) hooks.push(() => trace.disable());
     if (logs.setGlobalLoggerProvider(loggerProvider) === loggerProvider) hooks.push(() => logs.disable());

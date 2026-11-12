@@ -1,27 +1,30 @@
 import { propagation, type Context, type TextMapGetter, type TextMapPropagator, type TextMapSetter } from "@opentelemetry/api";
 import { CompositePropagator, W3CBaggagePropagator, W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { SessionManager } from "../session/manager";
-import { PLATFORM } from "./correlation";
 
 /**
- * W3C TraceContext + Baggage propagator that always injects the session baggage
- * (`session.id`, `user.id`, `ouo.platform`). React Native has no async context manager,
- * so baggage is merged at inject time, exactly like the browser SDK.
+ * W3C TraceContext propagator of the SDK. With `propagation.sessionBaggage` it also sends W3C
+ * `baggage: session.id=<id>` (spec PRP-6), to the same URLs and with the value the records
+ * carry; off by default, and nothing but the session id is ever added. React Native has no
+ * async context manager, so the baggage is merged at inject time.
  */
 export class SessionPropagator implements TextMapPropagator {
   private readonly inner = new CompositePropagator({
     propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
   });
 
-  constructor(private readonly session: SessionManager) {}
+  constructor(
+    private readonly session: SessionManager,
+    private readonly sessionBaggage = false,
+  ) {}
 
   inject(context: Context, carrier: unknown, setter: TextMapSetter): void {
+    if (!this.sessionBaggage) {
+      this.inner.inject(context, carrier, setter);
+      return;
+    }
     const existing = propagation.getBaggage(context) ?? propagation.createBaggage();
-    const baggage = existing
-      .setEntry("session.id", { value: this.session.id() })
-      .setEntry("user.id", { value: this.session.userId() })
-      .setEntry("ouo.platform", { value: PLATFORM });
-    this.inner.inject(propagation.setBaggage(context, baggage), carrier, setter);
+    this.inner.inject(propagation.setBaggage(context, existing.setEntry("session.id", { value: this.session.id() })), carrier, setter);
   }
 
   extract(context: Context, carrier: unknown, getter: TextMapGetter): Context {
