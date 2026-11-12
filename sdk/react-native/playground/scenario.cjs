@@ -31,7 +31,7 @@ async function main() {
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
     // The demo backend reads the session id from W3C baggage (off by default, spec PRP-6).
     propagation: { sessionBaggage: true },
-    session: { backgroundTimeoutMs: 2000 },
+    session: { backgroundTimeoutMs: 60_000 }, // the spec minimum (CFG-2); lower values are clamped up,
     device: { modelIdentifier: "iPhone15,2", modelName: "iPhone 14 Pro", manufacturer: "Apple" },
     debug: process.env.OUO_DEBUG === "1",
   });
@@ -84,7 +84,7 @@ async function main() {
     case "background": {
       await get("/api/products");
       require("react-native").AppState.__emit("background");
-      await sleep(2500);
+      await sleep(61_000); // longer than the 60 s timeout
       require("react-native").AppState.__emit("active");
       console.log("after background: session", rum.session.id(), "previous", rum.session.previousId());
       await get("/api/cart");
