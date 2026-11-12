@@ -136,7 +136,7 @@ alone is not a mode) and the SDK never chooses between two.
 | `replay.mode` | Recorded | On the wire (`ouo.replay.format`) | Platforms | In this build |
 |---|---|---|---|---|
 | `pixel/frames` (default) | masked JPEG frames and tile patches | `ouo-frames/3` | iOS, Android | yes |
-| `pixel/video` | masked frames encoded as H.264 segments | `ouo-video/1` | iOS, Android | not yet |
+| `pixel/video` | masked frames encoded as H.264 segments, masks identical to `pixel/frames` | `ouo-video/1` | iOS, Android 8+ | yes |
 | `structure/wireframe` | the view tree as rectangles, text as `***` | `ouo-wireframe/1` | iOS, Android | not yet |
 | `structure/dom` | rrweb | `rrweb/2` | web only (`@ouo11y/browser`) | no |
 
@@ -147,7 +147,7 @@ warning in the debug log; it never throws. A per-OS choice is the app's code:
 replay: { enabled: true, mode: Platform.select({ ios: "pixel/video", android: "pixel/frames" }) },
 ```
 
-(Today that example turns replay off on iOS, with the warning: `pixel/video` is not in this build.)
+Which to pick: on a scroll-heavy iOS journey `pixel/video` sent about half the bytes of `pixel/frames` (98 against 209 KiB per minute) for more main-thread time per capture (45 against 28 ms); on a mostly still screen `pixel/frames` is smaller. Measurements and method: `project/kb/session-replay/borrowing/`.
 
 `cadence`: `session` records a frame at most every `frameInterval` seconds while the screen
 changes; `navigation` records one frame per screen (start, resume, and every route change the
@@ -453,9 +453,8 @@ the app sets on its own spans is left as the app wrote it (`beforeSend` sees it)
 This release implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`) and is **not yet
 conformant**: it is step A of the React Native SDK ADR. Still open, for step B: the spec's
 event and attribute names (`enduser.id`, `app.crash`, ...), the `ouo.rum` scope and
-`schema_url`, `ouo.view.id`, the session id format and sampling hash, the 15 minute default
-background timeout, OTLP protobuf for telemetry, `ouo.view.id` on the SDK's own records, the
-`pixel/video` and `structure/wireframe` replay modes, and reading `partial_success` on the
+`schema_url`, `ouo.view.id`, the session id format and sampling hash, OTLP protobuf for telemetry, `ouo.view.id` on the SDK's own records, the
+`structure/wireframe` replay mode, and reading `partial_success` on the
 native transport. Replay already goes out as `ouo.replay.chunk` over OTLP.
 
 ## Sessions (mobile rules)

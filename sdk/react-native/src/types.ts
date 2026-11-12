@@ -76,7 +76,9 @@ export interface UserOptions {
  * `Platform.select({ ios: "pixel/video", android: "pixel/frames" })`.
  *
  * - `pixel/frames` (default): masked JPEG frames and tile patches. iOS and Android.
- * - `pixel/video`: masked frames encoded as H.264 segments. Not in this build yet.
+ * - `pixel/video`: masked frames encoded as H.264 segments (`ouo-video/1`), the encoder borrowed from
+ *   Sentry, masks identical to `pixel/frames`. iOS, and Android 8 (API 26) or later; older Android
+ *   leaves replay off natively.
  * - `structure/wireframe`: the view tree as rectangles, text as `***`. Not in this build yet.
  *
  * (`structure/dom`, rrweb, is the web SDK's.) A value that is not a mode, or a mode this build

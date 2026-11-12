@@ -474,8 +474,7 @@ describe("replay.mode (ADR-0021 decision 5)", () => {
       expect(r.mode).toBeUndefined();
       expect(r.warning).toMatch(/not available in this build/);
     }
-    // One line makes a mode available: the supported set. The tests run as iOS (the mock's
-    // Platform.OS), where pixel/video records.
+    // One line makes a mode available: the supported set. pixel/video records on iOS and Android.
     expect(resolveReplayMode({ mode: "pixel/video" }, new Set<ReplayMode>(["pixel/frames", "pixel/video"]))).toEqual({ mode: "pixel/video", cadence: "auto" });
     expect(resolveReplayMode({ mode: "pixel/video" })).toEqual({ mode: "pixel/video", cadence: "auto" });
     expect([...NATIVE_REPLAY_MODES]).toEqual(["pixel/frames", "pixel/video"]);
@@ -496,15 +495,15 @@ describe("replay.mode (ADR-0021 decision 5)", () => {
     expect(resolveReplayMode({ cadence: "junk" as never }).cadence).toBe("auto");
   });
 
-  it("pixel/video is supported on iOS only", async () => {
+  it("pixel/video is supported on Android too", async () => {
     // A fresh module graph whose react-native stand-in says Android.
     vi.resetModules();
     try {
       const rn = await import("./mocks/react-native");
       rn.Platform.OS = "android";
       const onAndroid = await import("../src/replay");
-      expect([...onAndroid.NATIVE_REPLAY_MODES]).toEqual(["pixel/frames"]);
-      expect(onAndroid.resolveReplayMode({ mode: "pixel/video" }).mode).toBeUndefined();
+      expect([...onAndroid.NATIVE_REPLAY_MODES]).toEqual(["pixel/frames", "pixel/video"]);
+      expect(onAndroid.resolveReplayMode({ mode: "pixel/video" }).mode).toBe("pixel/video");
     } finally {
       vi.resetModules();
     }

@@ -8,7 +8,7 @@ The transition-leak check of [sentry-android-video-over-otlp.md](../../../../kb/
 - [sheet-frames.png](sheet-frames.png) — all 61 `pixel/frames` images of the comparison run
 - [ocr-summary.json](ocr-summary.json) — Vision OCR over every image of the three runs: only product titles found
 - [collector-report-video.json](collector-report-video.json), [collector-report-video2.json](collector-report-video2.json), [collector-report-frames.json](collector-report-frames.json) — the fake collector's `/__report` per run (all pass; `ended` checked in run 2 and frames)
-- [transitions-video-run1.log](transitions-video-run1.log), [transitions-video-run2.log](transitions-video-run2.log), [transitions-frames.log](transitions-frames.log) — epoch ms of each transition command
+- [transitions-video-run1.txt](transitions-video-run1.txt), [transitions-video-run2.txt](transitions-video-run2.txt), [transitions-frames.txt](transitions-frames.txt) — epoch ms of each transition command
 - [leak-run.sh](leak-run.sh) — drives the 10 runs of six transitions over adb broadcasts
 - [extract.py](extract.py) — frames bodies to JPEGs, video chunks to mp4, with times
 - [frames-ocr.swift](frames-ocr.swift) — every mp4 sample and JPEG through AVFoundation and Vision OCR
