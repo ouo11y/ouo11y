@@ -2,8 +2,8 @@
 //   :4180  the test pages (e2e/pages), the built SDK (dist/) and a tiny API (/api/*) on one origin,
 //          plus /otel/* : a first-party proxy route to the collector stub (README, "First-party
 //          endpoint"); like a proxy holding the credential it adds Authorization when absent (beacons)
-//   :4181  a collector stub: OTLP/HTTP JSON on /v1/{traces,logs}, replay chunks (gzip) on
-//          /v1/replay/chunks, CORS like the real collector, Basic auth checked. What it received
+//   :4181  a collector stub: OTLP/HTTP JSON on /v1/{traces,logs}, replay chunks as OTLP protobuf on
+//          /v1/logs, CORS like the real collector, Basic auth checked. What it received
 //          is kept in memory and read back with GET /__captured, cleared with POST /__reset.
 //          POST /__fault {status, retryAfter, delayMs, count, paths} answers ingest requests on
 //          `paths` (default all) with that status and/or after that delay (a slow collector), the
@@ -19,7 +19,7 @@ const root = resolve(new URL("..", import.meta.url).pathname);
 const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
 const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? PAGE_PORT + 1);
 const basic = "Basic " + Buffer.from("e2e:pt_e2e").toString("base64");
-const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".map": "application/json" };
+const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".map": "application/json" };
 
 const empty = () => ({ traces: [], logs: [], replay: [], api: [], rejected: 0, faulted: 0, requests: [] });
 let captured = empty();
@@ -29,6 +29,7 @@ const CSP = {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self'",
+    // The pixel replay format draws an SVG data URL; structure replay needs nothing here.
     "img-src 'self' data:",
     `connect-src 'self' http://localhost:${COLLECTOR_PORT}`,
     "require-trusted-types-for 'script'",
@@ -69,7 +70,7 @@ createServer((req, res) => {
 
 createServer((req, res) => {
   res.setHeader("access-control-allow-origin", req.headers.origin ?? "*");
-  res.setHeader("access-control-allow-headers", "authorization, content-type, content-encoding, x-ouo-session-id, x-ouo-seq");
+  res.setHeader("access-control-allow-headers", "authorization, content-type, content-encoding");
   res.setHeader("access-control-allow-methods", "POST, OPTIONS");
   res.setHeader("access-control-max-age", "7200");
   res.setHeader("access-control-expose-headers", "Retry-After");
@@ -100,11 +101,13 @@ createServer((req, res) => {
       captured.faulted++;
       if (fault.count !== undefined) fault.count--;
     }
-    const record = { path: req.url, at: Date.now(), encoding: req.headers["content-encoding"] ?? null, bytes: Buffer.concat(parts).length, status: 200 };
+    // A request answered late (a slow-collector fault) belongs to the test that sent it.
+    const bucket = captured;
+    const record = { path: req.url, at: Date.now(), encoding: req.headers["content-encoding"] ?? null, type: req.headers["content-type"] ?? null, bytes: Buffer.concat(parts).length, status: 200 };
     captured.requests.push(record);
-    setTimeout(() => answer(active, record), active?.delayMs ?? 0);
+    setTimeout(() => answer(active, record, bucket), active?.delayMs ?? 0);
   });
-  const answer = (f, record) => {
+  const answer = (f, record, bucket) => {
     if (f?.status) {
       record.status = f.status;
       return res.writeHead(f.status, f.retryAfter !== undefined ? { "retry-after": String(f.retryAfter) } : {}).end();
@@ -116,11 +119,12 @@ createServer((req, res) => {
     const raw = Buffer.concat(parts);
     try {
       // Like the collector's confighttp: gzip or identity on every route.
-      const json = (req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw).toString("utf8");
-      if (req.url === "/v1/traces" || req.url === "/v1/logs") {
-        captured[req.url.slice(4)].push(JSON.parse(json));
-      } else if (req.url === "/v1/replay/chunks") {
-        captured.replay.push(JSON.parse(json));
+      const plain = req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw;
+      if (req.url === "/v1/logs" && req.headers["content-type"] === "application/x-protobuf") {
+        // Replay: one OTLP protobuf logs request per chunk, kept as it arrived.
+        bucket.replay.push(plain.toString("base64"));
+      } else if (req.url === "/v1/traces" || req.url === "/v1/logs") {
+        bucket[req.url.slice(4)].push(JSON.parse(plain.toString("utf8")));
       } else {
         return res.writeHead(404).end();
       }

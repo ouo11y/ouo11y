@@ -59,6 +59,8 @@ interface Batch {
   names: Map<string, number>;
   failures: number;
   due: number;
+  /** Outbox id, once a copy is stored: a batch that failed once, or one sent at page hide. */
+  stored?: Promise<number | null>;
 }
 
 export const JSON_CONTENT_TYPE = "application/json";
@@ -71,6 +73,8 @@ export class TelemetryQueue<T> {
   private retryTimer: TimerHandle | null = null;
   private readonly pending = new Set<Promise<void>>();
   private closed = false;
+  /** The last answer was a failure: what is sent at page hide is also stored. */
+  private failing = false;
   private readonly clock: Clock;
   readonly stats = { sent: 0, retried: 0 };
 
@@ -128,6 +132,7 @@ export class TelemetryQueue<T> {
   /** Drops what is queued (consent denied or withdrawn). */
   discard(): void {
     this.queue = [];
+    for (const b of this.retries) void quiet(this.forget(b));
     this.retries = [];
   }
 
@@ -173,33 +178,55 @@ export class TelemetryQueue<T> {
     this.pending.add(p);
   }
 
+  /** Stores a copy of the batch for a later page, once. */
+  private store(batch: Batch): Promise<number | null> {
+    const outbox = this.o.outbox();
+    if (!outbox) return Promise.resolve(null);
+    batch.stored ??= outbox.put({ kind: batch.bypass ? "bypass" : "telemetry", signal: this.o.signal, body: batch.body, records: batch.records, createdAt: this.clock.now() }).then(
+      (r) => {
+        this.countEvicted(r.evicted);
+        return r.id;
+      },
+      () => null,
+    );
+    return batch.stored;
+  }
+
+  private async forget(batch: Batch): Promise<void> {
+    const id = await batch.stored;
+    delete batch.stored;
+    if (id !== null && id !== undefined) await this.o.outbox()?.delete(id);
+  }
+
   private async send(batch: Batch, urgent: boolean): Promise<void> {
     const { http, url } = this.o;
-    const outbox = this.o.outbox();
     const post = { contentType: JSON_CONTENT_TYPE, rejected: this.o.rejected };
     if (!urgent) {
       this.settle(batch, (await http.post(url, batch.body, { ...post, gzip: true }))!);
       return;
     }
-    // Page hide: a copy goes to the outbox for the next page, then the request leaves with
-    // keepalive if the budget allows, or as a plain request in case the page lives on.
-    const stored = outbox
-      ? outbox.put({ kind: batch.bypass ? "bypass" : "telemetry", signal: this.o.signal, body: batch.body, records: batch.records, createdAt: this.clock.now() }).then(
-          (r) => {
-            this.countEvicted(r.evicted);
-            return r.id;
-          },
-          () => null,
-        )
-      : Promise.resolve(null);
-    const res = (await http.post(url, batch.body, { ...post, mustKeepalive: true })) ?? (await http.post(url, batch.body, post))!;
-    const id = await stored;
-    if (res.kind === "retry" && id !== null) return; // The outbox has it.
-    if (id !== null) await outbox!.delete(id);
+    // Page hide: the request leaves with keepalive if the budget allows. A copy goes to the
+    // outbox for a later page when the collector has been failing, the browser is offline or
+    // the budget is spent; not otherwise, or every page close would send its last batch twice.
+    const offline = (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+    let stored = this.failing || offline || batch.stored ? this.store(batch) : null;
+    let res = await http.post(url, batch.body, { ...post, mustKeepalive: true });
+    if (res === null) {
+      stored ??= this.store(batch);
+      // A plain request, in case the page lives on.
+      res = (await http.post(url, batch.body, post))!;
+    }
+    // Not accepted and safely stored: the outbox drainer of this or a later page takes over.
+    if (res.kind === "retry" && stored && (await stored) !== null) {
+      this.failing = true;
+      return;
+    }
     this.settle(batch, res);
   }
 
   private settle(batch: Batch, res: PostResult): void {
+    this.failing = res.kind === "retry";
+    if (res.kind !== "retry" && batch.stored) void quiet(this.forget(batch));
     if (res.kind === "ok") {
       this.stats.sent += batch.records;
       return;
@@ -218,6 +245,9 @@ export class TelemetryQueue<T> {
       for (const [name, n] of batch.names) this.o.drops.add(name, "queue_full", n);
       return;
     }
+    // A batch the collector could not take is at risk if the page closes: keep a copy now,
+    // while there is time to write it.
+    void this.store(batch);
     batch.failures++;
     batch.due = this.clock.now() + retryDelay(batch.failures, res.retryAfterMs, this.o.settings.retryInitialMs, this.o.settings.retryMaxMs, this.o.random);
     this.stats.retried++;
@@ -244,6 +274,7 @@ export class TelemetryQueue<T> {
   private evict(forBypass: boolean): boolean {
     const drop = (b: Batch): void => {
       this.retries.splice(this.retries.indexOf(b), 1);
+      void quiet(this.forget(b));
       for (const [name, n] of b.names) this.o.drops.add(name, "queue_full", n);
     };
     const oldRetry = this.retries.find((b) => !b.bypass);

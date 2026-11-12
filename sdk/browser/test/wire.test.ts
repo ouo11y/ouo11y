@@ -600,8 +600,8 @@ describe("consent (PRV-1 to PRV-4)", () => {
     ouo.setConsent({ telemetry: true });
     await flushed();
     // Errors travel in their own batch, so arrival order is not creation order: Timestamp is.
-    const byTime = [...collector.logs].sort((a, b) => (BigInt(a.timeUnixNano) < BigInt(b.timeUnixNano) ? -1 : BigInt(a.timeUnixNano) > BigInt(b.timeUnixNano) ? 1 : 0));
-    expect(byTime[0]!.eventName).toBe("session.start");
+    const start = BigInt(collector.events("session.start")[0]!.timeUnixNano);
+    for (const l of collector.logs) expect(BigInt(l.timeUnixNano)).toBeGreaterThanOrEqual(start);
     expect(collector.logs.map((l) => l.eventName).sort()).toEqual(["browser.navigation", "cart.add", "exception", "session.start"]);
     expect(localStorage.getItem("ouo.session")).not.toBeNull();
   });
@@ -693,5 +693,101 @@ describe("delivery (TRN-4, TRN-6, TRN-9 to TRN-11)", () => {
     for (const r of collector.requests) expect(r.body.byteLength).toBeGreaterThan(0);
     expect(collector.events("cart.add")).toHaveLength(25);
     expect(collector.requests.length - before).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("page lifecycle (LIF-7, LIF-8, LIF-10) and host OpenTelemetry (REL-4)", () => {
+  it("a prerendered page starts no session and sends nothing until it activates", async () => {
+    let prerendering = true;
+    Object.defineProperty(document, "prerendering", { configurable: true, get: () => prerendering });
+    try {
+      ouo.init(base);
+      ouo.recordEvent("cart.add");
+      await wait(400);
+      expect(ouo.getSessionId()).toBeUndefined();
+      expect(collector.requests).toHaveLength(0);
+      expect(localStorage.length).toBe(0);
+      // A second init while waiting is still a second init.
+      ouo.init(base);
+      prerendering = false;
+      document.dispatchEvent(new Event("prerenderingchange"));
+      expect(ouo.getSessionId()).toMatch(/^[0-9a-f]{32}$/);
+      await flushed();
+      expect(collector.events("session.start")).toHaveLength(1);
+      expect(collector.events("browser.navigation")).toHaveLength(1);
+    } finally {
+      delete (document as unknown as { prerendering?: boolean }).prerendering;
+    }
+  });
+
+  it("shutdown while waiting for a prerendered page to activate leaves nothing behind", async () => {
+    Object.defineProperty(document, "prerendering", { configurable: true, get: () => true });
+    try {
+      ouo.init(base);
+      await ouo.shutdown();
+      document.dispatchEvent(new Event("prerenderingchange"));
+      expect(ouo.getSessionId()).toBeUndefined();
+    } finally {
+      delete (document as unknown as { prerendering?: boolean }).prerendering;
+    }
+  });
+
+  it("a page restored from the back/forward cache is a new view in the same session", async () => {
+    ouo.init(base);
+    const sid = ouo.getSessionId();
+    window.dispatchEvent(new Event("pagehide"));
+    const restore = new Event("pageshow") as Event & { persisted?: boolean };
+    Object.defineProperty(restore, "persisted", { value: true });
+    window.dispatchEvent(restore);
+    ouo.recordEvent("cart.add");
+    await flushed();
+    const nav = collector.events("browser.navigation");
+    expect(nav).toHaveLength(2);
+    expect(nav[1]!.attributes).toMatchObject({ "browser.navigation.same_document": false, "browser.navigation.type": "traverse" });
+    expect(nav[1]!.attributes["ouo.view.id"]).not.toBe(nav[0]!.attributes["ouo.view.id"]);
+    expect(collector.events("cart.add")[0]!.attributes).toMatchObject({ "ouo.view.id": nav[1]!.attributes["ouo.view.id"], "session.id": sid });
+    expect(collector.events("session.start")).toHaveLength(1);
+  });
+
+  it("at page hide everything queued leaves at once, with keepalive, errors first", async () => {
+    ouo.init({ ...base, transport: { flushIntervalMs: 60_000 } });
+    ouo.recordEvent("cart.add");
+    window.dispatchEvent(new ErrorEvent("error", { error: new Error("last"), message: "last" }));
+    expect(collector.requests).toHaveLength(0);
+    window.dispatchEvent(new Event("pagehide"));
+    await wait(30);
+    await collector.settled();
+    expect(collector.requests.length).toBeGreaterThanOrEqual(2);
+    for (const r of collector.requests) {
+      expect(r.keepalive).toBe(true);
+      // Nothing is awaited before the request leaves, so it is not compressed (TRN-2).
+      expect(r.headers["content-encoding"]).toBeUndefined();
+    }
+    expect(collector.requests.reduce((n, r) => n + r.body.byteLength, 0)).toBeLessThanOrEqual(60 * 1024);
+    expect(new TextDecoder().decode(collector.requests[0]!.body)).toContain('"exception"');
+    window.dispatchEvent(new Event("pageshow"));
+  });
+
+  it("a host that registered its own OpenTelemetry first keeps it, and still gets it back after shutdown", async () => {
+    const { trace, propagation, context } = await import("@opentelemetry/api");
+    const { BasicTracerProvider } = await import("@opentelemetry/sdk-trace-base");
+    const host = new BasicTracerProvider();
+    const hostPropagator = { inject: vi.fn(), extract: (c: never) => c, fields: () => [] };
+    trace.setGlobalTracerProvider(host);
+    propagation.setGlobalPropagator(hostPropagator);
+    try {
+      ouo.init({ ...base, otel: { registerGlobalProviders: true } });
+      // The proxy still delegates to the host's provider, not the SDK's.
+      expect(trace.getTracerProvider().getTracer("x")).not.toBe(ouo.getTracerProvider().getTracer("x"));
+      await fetch("http://localhost:3000/api/x");
+      expect(hostPropagator.inject).toHaveBeenCalled();
+      await ouo.shutdown();
+      await fetch("http://localhost:3000/api/y");
+      expect(hostPropagator.inject.mock.calls.length).toBeGreaterThan(0);
+    } finally {
+      trace.disable();
+      propagation.disable();
+      context.disable();
+    }
   });
 });

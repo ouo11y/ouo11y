@@ -423,7 +423,9 @@ export class ReplayEngine {
     return attempt(() => {
       point("replay.record");
       this.captured = undefined;
-      this.d.logger.emit({ eventName: name, timestamp: time, observedTimestamp: this.d.clock.now(), attributes, ...(body ? { body: body as AnyValue } : {}) });
+      // A view made here, so the serializer recognises the bytes whatever made the buffer.
+      const bytes = body && new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+      this.d.logger.emit({ eventName: name, timestamp: time, observedTimestamp: this.d.clock.now(), attributes, ...(bytes ? { body: bytes as AnyValue } : {}) });
       const rec = this.captured as ReadableLogRecord | undefined;
       this.captured = undefined;
       return rec ? serialize(rec) : undefined;
@@ -616,7 +618,8 @@ export async function recoverStreams(d: RecoveryDeps): Promise<boolean> {
         } else d.drops.add("ouo.replay.chunk", "storage_error");
         await d.outbox.delete(m.id);
       }
-      if (!row.ended && row.last >= 0) {
+      // The row may not have been rewritten at page close; a stored end record says the same.
+      if (!row.ended && row.last >= 0 && !mine.some((m) => m.seq === -1)) {
         // The page died before it could say the stream was over.
         let rec: ReadableLogRecord | undefined;
         d.setSink((r) => {

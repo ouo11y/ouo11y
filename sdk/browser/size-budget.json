@@ -1,8 +1,11 @@
 {
-  "_comment": "Gzip (level 9) budget per built file in KB, checked by `npm run size:check` in CI (checklist N10). Raise a budget only in a PR that says why.",
+  "_comment": "Gzip (level 9) budget per built file in KB, checked by `npm run size:check` in CI. The page loads index.js and the chunk-*.js files at once (together at most 50 KB, the Step 5 budget for initial JS); engine, structure and pixel load only when a session records replay. Raise a budget only in a PR that says why.",
   "files": {
-    "index.js": 44.2,
+    "index.js": 42.0,
+    "chunk-*.js": 7.5,
     "react.js": 1.0,
-    "rrweb-*.js": 60.0
+    "engine-*.js": 8.0,
+    "structure-*.js": 58.0,
+    "pixel-*.js": 3.5
   }
 }

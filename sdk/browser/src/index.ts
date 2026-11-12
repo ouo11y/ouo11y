@@ -339,6 +339,8 @@ class Runtime {
       if (off) this.cleanup.push(off);
     }
 
+    // Opened now, not at page hide: a database opened while the page is closing never gets written.
+    this.outbox();
     this.installLifecycle();
     this.drops.onFirst(() => this.armDropReport());
     this.holdTabLock();
@@ -527,6 +529,7 @@ class Runtime {
         const wasDenied = this.telemetryConsent === "denied";
         this.telemetryConsent = "granted";
         this.storage.persist();
+        this.outbox();
         // After a withdrawal the next session is a new start with no previous id (PRV-4).
         if (wasDenied) this.session.start(document.visibilityState === "visible");
         else this.session.persist();

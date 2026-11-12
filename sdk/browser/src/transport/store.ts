@@ -160,7 +160,7 @@ export function openDatabase(factory: IDBFactory, name = IDB_NAME, timeoutMs = 3
     }
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "id", autoIncrement: true });
+      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "id" });
       if (!db.objectStoreNames.contains(BODY)) db.createObjectStore(BODY);
       if (!db.objectStoreNames.contains(STREAMS)) db.createObjectStore(STREAMS, { keyPath: "stream" });
     };
@@ -189,27 +189,32 @@ export class IdbOutbox implements Outbox {
     point("store.put");
     const bytes = entry.body.byteLength;
     if (bytes > this.maxBytes) return { id: null, evicted: [] };
-    const tx = this.db.transaction([META, BODY], "readwrite");
-    const metas = tx.objectStore(META);
-    const bodies = tx.objectStore(BODY);
     const { body, id: _ignored, ...rest } = entry;
-    let id: number | null = null;
-    const evicted: OutboxMeta[] = [];
-    // One transaction: tabs writing at once cannot together exceed the cap.
-    const add = metas.add({ ...rest, bytes });
-    add.onsuccess = () => {
-      id = add.result as number;
-      bodies.put(body, id);
-      const all = metas.getAll();
-      all.onsuccess = () => {
-        for (const m of toEvict(all.result as OutboxMeta[], this.maxBytes, id!)) {
-          metas.delete(m.id);
-          bodies.delete(m.id);
-          evicted.push(m);
-        }
-      };
-    };
+    // The key is made here, not by the database, so both writes are issued in this very task
+    // and committed at once: a write that waits for a callback is lost when the page is closing.
+    const id = Date.now() * 4096 + Math.floor(Math.random() * 4096);
+    const tx = this.db.transaction([META, BODY], "readwrite");
+    tx.objectStore(META).put({ ...rest, id, bytes });
+    tx.objectStore(BODY).put(body, id);
+    try {
+      (tx as IDBTransaction & { commit?: () => void }).commit?.();
+    } catch {
+      // Commits by itself.
+    }
     await done(tx);
+    // The cap is enforced in a second transaction; tabs writing at once may overshoot it briefly.
+    const evicted: OutboxMeta[] = [];
+    const trim = this.db.transaction([META, BODY], "readwrite");
+    const metas = trim.objectStore(META);
+    const all = metas.getAll();
+    all.onsuccess = () => {
+      for (const m of toEvict(all.result as OutboxMeta[], this.maxBytes, id)) {
+        metas.delete(m.id);
+        trim.objectStore(BODY).delete(m.id);
+        evicted.push(m);
+      }
+    };
+    await done(trim);
     return { id, evicted };
   }
 
@@ -272,6 +277,11 @@ export class IdbOutbox implements Outbox {
   async putStream(row: StreamRow): Promise<void> {
     const tx = this.db.transaction([STREAMS], "readwrite");
     tx.objectStore(STREAMS).put(row);
+    try {
+      (tx as IDBTransaction & { commit?: () => void }).commit?.();
+    } catch {
+      // Commits by itself.
+    }
     await done(tx);
   }
 

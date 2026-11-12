@@ -38,9 +38,27 @@ export function installNetwork(d: NetworkDeps): () => void {
     // Network timings would be span events (REL-7).
     ignoreNetworkEvents: true,
   };
+  // Taken before the instrumentations exist: they patch in their constructors.
+  const g = globalThis as { fetch?: typeof fetch };
+  const xhr = (globalThis as { XMLHttpRequest?: typeof XMLHttpRequest }).XMLHttpRequest?.prototype;
+  const before = { fetch: g.fetch, open: xhr?.open, send: xhr?.send };
   const instrumentations: Instrumentation[] = [];
   if (d.fetch && typeof fetch === "function") instrumentations.push(new FetchInstrumentation(common));
   if (d.xhr && typeof XMLHttpRequest === "function") instrumentations.push(new XMLHttpRequestInstrumentation(common));
   if (instrumentations.length === 0) return () => undefined;
-  return registerInstrumentations({ instrumentations, tracerProvider: d.tracerProvider });
+  // The instrumentations leave their wrappers in place when disabled (inert, but they would pile
+  // up over init and shutdown cycles). What is still the SDK's own wrapper at shutdown is put
+  // back; a wrapper another tool added on top is left alone (GR-HDR-4).
+  const disable = registerInstrumentations({ instrumentations, tracerProvider: d.tracerProvider });
+  const patched = { fetch: g.fetch, open: xhr?.open, send: xhr?.send };
+  return () => {
+    disable();
+    try {
+      if (before.fetch && g.fetch === patched.fetch) g.fetch = before.fetch;
+      if (xhr && before.open && xhr.open === patched.open) xhr.open = before.open;
+      if (xhr && before.send && xhr.send === patched.send) xhr.send = before.send;
+    } catch {
+      // A locked global stays as it is.
+    }
+  };
 }

@@ -115,6 +115,8 @@ export function installErrorCapture(d: ErrorCaptureDeps): () => void {
     if (ev.target && typeof (ev.target as Element).tagName === "string") return;
     const err = ev.error ?? ev.message ?? "Unknown error";
     if (err && typeof err === "object" && reported.has(err)) return;
+    // The same error object dispatched again (React rethrows in development) is one error.
+    markReported(err);
     d.emit(exceptionAttributes(err, { source: "error", handled: false, sanitize: d.sanitize, sanitizeStack: d.sanitizeStack, file: ev.filename, line: ev.lineno, column: ev.colno }));
   }, true);
   const offRejection = listen(win, "unhandledrejection", (event) => {

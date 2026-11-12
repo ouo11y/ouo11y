@@ -2,16 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>ouo e2e strict CSP</title>
-    <link rel="stylesheet" href="csp.css" />
+    <title>ouo e2e</title>
+    <link rel="stylesheet" href="/app.css" />
   </head>
   <body>
-    <h1>Strict CSP and Trusted Types</h1>
+    <h1 class="hero">Welcome back, Jane Doe</h1>
     <p id="status">loading</p>
-    <button id="mutate">Mutate</button>
     <button id="fetch">Fetch</button>
-    <input id="name" value="secret" />
+    <button id="slow">Slow request</button>
+    <button id="route">Open product 7</button>
+    <button id="dead">Does nothing</button>
+    <button id="mutate">Mutate</button>
+    <button id="throw">Throw</button>
+    <button id="handled">Handled error</button>
+    <div data-ouo-unmask>
+      <p id="public">Public heading</p>
+      <p data-ouo-mask>Masked again inside unmask</p>
+    </div>
+    <p id="patient" title="Patient Jane Doe">Jane Doe, born 1970</p>
+    <input id="card" autocomplete="cc-number" value="4111111111111111" />
+    <input id="name" value="Jane Doe" />
+    <img id="avatar" src="/avatar.svg" alt="Jane's face" width="64" height="64" />
     <div id="out"></div>
-    <script type="module" src="/csp.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

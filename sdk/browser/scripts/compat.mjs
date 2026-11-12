@@ -1,7 +1,7 @@
-// Checks of the built bundle (checklist N42), the second half of `npm run compat:check` after
-// es-check:
-//   - both entries import in plain Node (no window, no document) and initRUM there is inert,
-//     which is what server rendering (Next.js, Remix) does;
+// Checks of the built bundle, the second half of `npm run compat:check` after es-check:
+//   - both entries import in plain Node (no window, no document) and the SDK there is a no-op,
+//     which is what server rendering (Next.js, Remix) does (LIF-9);
+//   - the files a page loads at once do not contain the replay engine or rrweb;
 //   - every dist/*.js.map maps the minified code back to its source: a known string in each file
 //     resolves to the right source file (a map from before minification maps nothing).
 import { readdirSync, readFileSync } from "node:fs";
@@ -9,13 +9,19 @@ import { SourceMapConsumer } from "source-map";
 
 /** File pattern -> a string literal in it and the source file that must contain it. */
 const KNOWN = [
-  [/^index\.js$/, "ouo.replay.skipped", /src\/index\.ts$/],
-  [/^react\.js$/, "react.error_boundary", /src\/react\/index\.ts$/],
-  [/^rrweb-.*\.js$/, "takeFullSnapshot", /rrweb/],
+  [/^index\.js$/, "ouo.sdk.dropped", /src\/index\.ts$/],
+  [/^react\.js$/, "ouo.react.component_stack", /src\/react\/index\.ts$/],
+  [/^engine-.*\.js$/, "ouo.replay.sha256", /src\/replay\/engine\.ts$/],
+  [/^structure-.*\.js$/, "takeFullSnapshot", /rrweb|src\/replay\/structure\.ts$/],
+  [/^pixel-.*\.js$/, "foreignObject", /src\/replay\/pixel\.ts$/],
+  // Shared chunks: any mapping is enough.
+  [/^chunk-.*\.js$/, null, /./],
 ];
 for (const file of readdirSync("dist").filter((f) => f.endsWith(".js"))) {
-  const [, needle, source] = KNOWN.find(([re]) => re.test(file)) ?? [];
-  if (!needle) throw new Error(`no source-map probe for dist/${file}`);
+  const probe = KNOWN.find(([re]) => re.test(file));
+  if (!probe) throw new Error(`no source-map probe for dist/${file}`);
+  const [, needle, source] = probe;
+  if (needle === null) continue;
   const code = readFileSync(`dist/${file}`, "utf8").split("\n");
   const line = code.findIndex((l) => l.includes(needle));
   const column = code[line].indexOf(needle);
@@ -25,10 +31,19 @@ for (const file of readdirSync("dist").filter((f) => f.endsWith(".js"))) {
   console.log(`ok: dist/${file}.map maps ${line + 1}:${column} to ${pos.source}:${pos.line}`);
 }
 if (typeof globalThis.window !== "undefined" || typeof globalThis.document !== "undefined") throw new Error("expected a Node global scope");
+// What a page loads at once: the entry and the chunks it imports statically.
+const eager = ["index.js", ...[...readFileSync("dist/index.js", "utf8").matchAll(/from\s*"\.\/(chunk-[^"]+\.js)"/g)].map((m) => m[1])];
+for (const file of eager) {
+  const code = readFileSync(`dist/${file}`, "utf8");
+  for (const lazy of ["takeFullSnapshot", "ouo.replay.sha256", "foreignObject"]) if (code.includes(lazy)) throw new Error(`dist/${file} is loaded at once but contains replay code ("${lazy}")`);
+}
+console.log(`ok: replay is not in the files loaded at once (${eager.join(", ")})`);
 const core = await import("../dist/index.js");
 await import("../dist/react.js");
-const rum = core.initRUM({ endpoint: "http://localhost:4318", projectId: "p", projectToken: "t", service: { name: "ssr", version: "1", environment: "ci" } });
-if (rum.session.id() !== "" || core.getRUM() !== undefined) throw new Error("initRUM is not inert on the server");
-await rum.flush();
-await rum.shutdown();
-console.log("ok: entries import in Node and initRUM is inert there");
+core.init({ endpoint: "http://localhost:4318", serviceName: "ssr" });
+core.recordEvent("x");
+core.recordException(new Error("x"));
+if (core.getSessionId() !== undefined || core.diagnostics().state !== "off") throw new Error("the SDK is not a no-op on the server");
+await core.flush();
+await core.shutdown();
+console.log("ok: entries import in Node and the SDK is a no-op there");
