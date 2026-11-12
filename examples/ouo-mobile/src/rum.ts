@@ -12,6 +12,8 @@ interface Extra {
   environment: string;
   /** The golden app of the Android conformance suite (OUO_CONFORMANCE=1, app.config.ts). */
   conformance?: boolean;
+  /** The SDK's debug log in a Release build (OUO_DEBUG=1, app.config.ts). */
+  debug?: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -23,6 +25,7 @@ export const config: Extra = {
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
   conformance: extra.conformance === true,
+  debug: extra.debug === true,
 };
 
 /** `service.version` is the app version from app.config.ts (APP_VERSION env). */
@@ -58,7 +61,7 @@ export const rum: RUM = initRUM({
   // masked) and ends a session after 5 s in the background (C1.1 without a 30 s wait).
   replay: config.conformance ? { enabled: true, mode: "pixel/frames" } : { enabled: true, mode: "pixel/frames", maskText: false },
   ...(config.conformance ? { session: { backgroundTimeoutMs: 5000 } } : {}),
-  debug: __DEV__,
+  debug: __DEV__ || config.debug === true,
 });
 
 /**

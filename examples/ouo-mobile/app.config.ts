@@ -42,6 +42,8 @@ const config: ExpoConfig = {
     // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
     // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
     conformance: process.env.OUO_CONFORMANCE === "1",
+    // OUO_DEBUG=1: the SDK's debug log in a Release build (the native replay log goes to NSLog / logcat).
+    debug: process.env.OUO_DEBUG === "1",
   },
 };
 
