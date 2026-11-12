@@ -3,13 +3,15 @@
 Ad blockers and privacy extensions block requests to known telemetry hosts and paths. A user running one sends nothing, so their sessions are missing from the health numbers and their errors are invisible. The fix is to serve the collector from the site's own origin. The browser then sees an ordinary same-origin request.
 
 ```ts
-import { initRUM } from "@ouo11y/browser";
+import { init } from "@ouo11y/browser";
 
-initRUM({
+init({
   endpoint: "/otel", // relative: a route on the page's own origin
   projectId: "web-store",
   projectToken: "pt_...",
-  service: { name: "web-store", version: "1.4.2", environment: "production" },
+  serviceName: "web-store",
+  serviceVersion: "1.4.2",
+  environment: "production",
 });
 ```
 
@@ -18,15 +20,14 @@ With a relative `endpoint` the SDK resolves it against the page and posts to:
 | SDK request | Path on your origin | Proxy to |
 |---|---|---|
 | OTLP traces | `/otel/v1/traces` | collector OTLP/HTTP receiver, port 4318, `/v1/traces` |
-| OTLP logs (events) | `/otel/v1/logs` | collector OTLP/HTTP receiver, port 4318, `/v1/logs` |
-| replay chunks | `/otel/v1/replay/chunks` | collector replay receiver, port 4319, `/v1/replay/chunks` |
+| OTLP logs (events, and replay chunks as `ouo.replay.chunk` records) | `/otel/v1/logs` | collector OTLP/HTTP receiver, port 4318, `/v1/logs` |
 
-Any prefix works (`/otel` is an example; something app-specific like `/_t` is less likely to be on a list). `replayEndpoint` can stay unset: when `endpoint` is not on port 4318 the SDK sends replay to the same base, so the proxy splits `/v1/replay/*` from the rest.
+Any prefix works (`/otel` is an example; something app-specific like `/_t` is less likely to be on a list). From `@ouo11y/browser` 0.4 replay travels on `/v1/logs` as OTLP protobuf, so the browser SDK needs no second route; the `/v1/replay/*` rules in the examples below are only for the mobile SDKs and older browser SDK versions, which post replay to the collector's replay receiver on port 4319.
 
 ## What the proxy must do
 
-- Strip the prefix and forward to the right receiver: `/otel/v1/replay/*` to port 4319, everything else under `/otel/` to port 4318. Put the replay rule first where rules match in order.
-- Pass the body and its headers through untouched: `Authorization` (the SDK still sends the project credential), `Content-Type`, and `Content-Encoding: gzip` (the SDK compresses bodies of 1 KB or more; the collector decompresses them). Do not decompress or re-encode.
+- Strip the prefix and forward everything under `/otel/` to port 4318 (and, for SDKs that still use the replay receiver, `/otel/v1/replay/*` to port 4319, with that rule first where rules match in order).
+- Pass the body and its headers through untouched: `Authorization` (the SDK still sends the project credential), `Content-Type` (`application/json` for telemetry, `application/x-protobuf` for replay chunks), and `Content-Encoding: gzip` (the SDK compresses bodies of 1 KB or more; the collector decompresses them). Do not decompress or re-encode.
 - Allow bodies up to 8 MB (the replay receiver's limit; chunks are 256 KB by default).
 - Pass `429` and `503` answers and their `Retry-After` header back unchanged: the SDK retries on them and waits as asked.
 - Add `X-Forwarded-For` and run the collector with `OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for`. Otherwise every user shares the proxy's address and one per-client rate-limit bucket.

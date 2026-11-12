@@ -1,5 +1,4 @@
-dist/
-playground/.chunks/
 test-results/
+pixel-frames/
 playwright-report/
 soak-results/

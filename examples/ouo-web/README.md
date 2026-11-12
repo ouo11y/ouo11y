@@ -44,11 +44,16 @@ stock ports), serves it with `vite preview`, runs the scripted journey in a head
 `broken-card` checkout that the backend fails with 500, then on the Chaos page a dead button, four
 fast clicks on it, a 300 ms long task and a render error) and then `scripts/verify.py`:
 
-- rum-api has the journey's session with its timeline, traces and the failed request;
-- Loki: every Web Vital the browser supports, `ouo.dead_click`, `ouo.rage_click`, the error
-  boundary's `exception` (`react.error_boundary`), route names (`app.screen.name`) and, in
-  Chromium, `ouo.long_animation_frame`;
-- Tempo: `click` spans parent the backend requests they cause, `soft-navigation` spans exist;
+- Loki, the wire of the client SDK spec: one `session.start`, `ouo.view.id` and a sanitised document
+  URL on every record, no MVP event names, every Web Vital the browser supports as
+  `browser.web_vital`, clicks as `browser.user_action.click`, a dead and a rage click as
+  `ouo.user_action.frustration`, the error boundary's handled `exception` with its debug ids,
+  route names (`ouo.view.name`), and replay as `ouo.replay.chunk` records in sequence with one
+  `ouo.replay.ended`;
+- Tempo: every backend request is a client span in a trace of its own (a click never starts a
+  trace), no `click` or `soft-navigation` spans, one `documentLoad` span;
+- rum-api (the MVP read path): the journey's session with its timeline and traces, and the render
+  error symbolicated back to its source;
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
   - no backend span has a missing parent;
@@ -118,16 +123,16 @@ Copy `.env.example` to `.env` and adjust.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_OTLP_ENDPOINT` | `http://localhost:4318` | collector OTLP/HTTP base URL. The SDK posts to `/v1/traces` and `/v1/logs` and derives the replay receiver (`:4319/v1/replay/chunks`) from it (ADR-0007) |
+| `VITE_OTLP_ENDPOINT` | `http://localhost:4318` | collector OTLP/HTTP base URL. The SDK posts to `/v1/traces` and `/v1/logs`; replay chunks are `ouo.replay.chunk` log records on `/v1/logs` |
 | `VITE_OUO_PROJECT_ID` | `demo` | project id, the HTTP Basic username |
 | `VITE_OUO_PROJECT_TOKEN` | `pt_dev_demo_0000000000000000` | public project token, the HTTP Basic password; the development value the whole local stack agrees on |
-| `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `tracing.propagateTo` is derived from it |
+| `VITE_BACKEND_URL` | `http://localhost:8081` | demo backend; `propagation.urls` is derived from it |
 | `VITE_APP_VERSION` | `1.4.2` | reported as `service.version` |
 | `VITE_RUM_STUB` | unset | `1` builds against `src/rum-stub.ts` instead of `@ouo11y/browser` |
 | `VITE_RUM_DEBUG` | unset | `1` turns on SDK debug logging |
-| `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `session.sampleRate`: fraction of sessions that send anything |
-| `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | `replay.sampleRate`: fraction of sessions with a full replay |
-| `VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE` | `0` | `replay.onErrorSampleRate`: of the others, the fraction that buffer replay and upload it after an error |
+| `VITE_OUO_SESSION_SAMPLE_RATE` | `1` | `sampling.sessionRate`: fraction of sessions that send telemetry |
+| `VITE_OUO_REPLAY_SAMPLE_RATE` | `1` | fraction of sampled sessions that record replay: passed as `replay.sessionRate`, or as `replay.bufferRate` when the mode below is `buffer` |
+| `VITE_OUO_REPLAY_MODE` | `session` | the demo's own switch: `session` (record the whole session), `buffer` (kept in memory, sent after an unhandled error) or `off`. The SDK's `replay.mode` is the technique and stays at its default, `structure/dom` |
 
 All SDK usage is in `src/rum.ts`; pages import `rum` from there. The id and
 token are read from `VITE_OUO_PROJECT_ID` / `VITE_OUO_PROJECT_TOKEN` and are
@@ -161,7 +166,7 @@ Any one of these marks the session `errored` (ADR-0004):
 - Checkout with payment method `broken-card`: the backend answers 500, the SDK
   emits `http.request.failed`.
 - Chaos: "500 response" (`POST /api/checkout?fail=500`).
-- Chaos: "Handled error" (`rum.captureError(new Error("handled"))`,
+- Chaos: "Handled error" (`recordException(new Error("handled"))`,
   `ouo.exception.fatal = false`).
 - Chaos: "Timeout" (`GET /api/products?fail=timeout`, aborted client-side after
   5 s) ends with no response status, which the SDK counts as a failed request
@@ -193,10 +198,11 @@ twice in `vite dev`. The production build (`vite preview`) reports it once.
 
 ### Replay privacy
 
-On the checkout form the card number input has class `ouo-mask` (text masked
-in the replay), the promo code field has class `ouo-block` (not recorded at
-all), and all inputs are masked anyway because the SDK is initialised with
-`maskAllInputs: true`.
+All text and every input are masked in the replay by default; the public
+storefront is marked `data-ouo-unmask`. On the checkout form the card number
+input has `data-ouo-mask` (masked even inside an unmasked area; payment fields
+can never be unmasked anyway) and the promo code field has `data-ouo-block`
+(not recorded at all).
 
 ## What to look for in Grafana
 
@@ -229,7 +235,7 @@ From a Tempo span, "Logs for this span" jumps to Loki filtered on the same
 `session_id` (provisioned trace-to-logs correlation).
 
 Everything the SDK sends goes to the collector: `POST <VITE_OTLP_ENDPOINT>/v1/traces`
-and `/v1/logs`, and `POST :4319/v1/replay/chunks` on the same host, each with
+and `/v1/logs` (replay chunks too, as OTLP protobuf), each with
 `Authorization: Basic base64(id:token)`. A `401` in the network tab means the id
 or token does not match the collector's htpasswd; a CORS error with no POST at
 all means `http://localhost:5173` is not in the collector's `allowed_origins`

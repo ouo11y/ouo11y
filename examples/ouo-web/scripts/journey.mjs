@@ -6,13 +6,13 @@
 //
 // Products -> product -> add to cart -> second product -> add -> cart -> checkout (card) ->
 // product -> add -> checkout (broken-card, the backend answers 500) -> Chaos page: a dead button
-// (ouo.dead_click), four fast clicks on it (ouo.rage_click), a 300 ms long task, a render error
-// (OuoErrorBoundary). Every request the page sends to the backend is counted (preflights
+// (`ouo.user_action.frustration` type dead), four fast clicks on it (type rage), a 300 ms long
+// task, a render error (OuoErrorBoundary). Every request the page sends to the backend is counted (preflights
 // excluded) with the trace id of its traceparent; the summary written to --out is what
 // scripts/verify.py checks Tempo, Loki and rum-api against:
 //   {start, end, requests, traces, sessions: [session ids], url, backend, browser, vitals, loaf}
-// `traces` is the number of distinct trace ids: a click's span parents every request it causes,
-// so one checkout click with two requests is one trace. `vitals` lists the Web Vitals this engine
+// `traces` is the number of distinct trace ids: every request is its own trace (a click never
+// starts one), so it equals `requests`. `vitals` lists the Web Vitals this engine
 // reports (verify expects each of them). The journey leaves the page at the end so the SDK flushes
 // (pagehide, visibilitychange, keepalive), and the browser stays up until those requests are out.
 import { chromium, firefox, webkit } from "playwright";
@@ -84,7 +84,7 @@ async function chaos() {
   await page.getByTestId("chaos-log").waitFor();
   const button = (id) => page.locator(`[data-chaos="${id}"]`);
   await button("dead").click();
-  await page.waitForTimeout(1500); // the click goes idle with nothing happening: a dead click
+  await page.waitForTimeout(2400); // nothing happens for two seconds after the click: a dead click
   for (let i = 0; i < 4; i++) await button("dead").click({ delay: 20 });
   await page.waitForTimeout(1200);
   await button("long-task").click();

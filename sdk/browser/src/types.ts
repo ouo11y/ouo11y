@@ -1,263 +1,154 @@
-/** Primitive attribute values accepted by the public API. */
-export type AttrValue = string | number | boolean;
-export type Attrs = Record<string, AttrValue>;
+import type { AttrValue, Attrs } from "./core/limits";
 
-export interface ServiceOptions {
-  /** `service.name`, for example `web-store`. */
+export type { AttrValue, Attrs };
+
+/** A URL matcher: an exact string, a prefix ending in `*`, or a RegExp. */
+export type UrlPattern = string | RegExp;
+
+/** What a `beforeSend` hook sees and may change (CFG-4). Replay chunks never reach the hook. */
+export interface OutgoingRecord {
+  /** `event` for a log record with an event name, `log` for a plain log record, `span` for a span. */
+  type: "event" | "log" | "span";
+  /** Event name or span name. Read-only: changing it has no effect. */
   name: string;
-  /** `service.version`, the app version dimension used for health percentages. */
-  version: string;
-  /** `deployment.environment.name`, for example `local`. */
-  environment: string;
+  /** Mutable copy of the record's attributes. */
+  attributes: Record<string, unknown>;
+  /** Log body, when there is one. */
+  body?: unknown;
 }
 
-export interface TracingOptions {
-  /**
-   * Origins (as RegExp or exact strings) that receive `traceparent` and `baggage`
-   * headers on outbound fetch / XHR requests. Same-origin requests always get them.
-   */
-  propagateTo?: Array<RegExp | string>;
-  /** URLs (RegExp or exact strings) never traced. The OTLP and replay endpoints are always ignored. */
-  ignoreUrls?: Array<RegExp | string>;
-  /**
-   * Record a `documentLoad` span from Navigation Timing. Default true. A server-rendered page
-   * that writes `<meta name="traceparent" content="00-<trace>-<span>-01">` makes it a child of
-   * the server span that rendered the page (see the README, "Linking the page load").
-   */
-  documentLoad?: boolean;
-  /**
-   * A `click` span per click that parents the requests and the soft navigation the click causes
-   * (interaction tracing). It ends one idle period after the last request or DOM change; a click
-   * that caused no request is not exported. Default true.
-   */
-  interactions?: boolean;
-  /** A `soft-navigation` span per SPA route change, ending when the new route settles. Default true. */
-  softNavigations?: boolean;
-  /** Quiet period that ends a click or soft-navigation span. Default 1000 ms. */
-  idleTimeoutMs?: number;
+export type BeforeSend = (record: OutgoingRecord) => OutgoingRecord | null | undefined | false | void;
+
+/**
+ * The replay technique, named by what a chunk holds. On the web there is one: `structure/dom`, a
+ * description of the DOM driven by a MutationObserver, with text replaced by `***`. It goes on the
+ * wire as `ouo.replay.format: "rrweb/2"`. The other ouo techniques (`structure/wireframe`,
+ * `pixel/frames`, `pixel/video`) belong to React Native and are not valid here.
+ */
+export type ReplayMode = "structure/dom";
+
+export interface Consent {
+  telemetry?: boolean;
+  replay?: boolean;
 }
 
-export interface RageClickOptions {
-  /** Clicks in one burst that make it a rage click. Default 3. */
-  threshold?: number;
-  /** Every click of a burst falls within this time from its first click. Default 1000 ms. */
-  windowMs?: number;
-  /** Clicks on different elements still join a burst within this distance. Default 30 px. */
-  radiusPx?: number;
-}
-
-export interface ClickOptions {
-  /** `ouo.rage_click` events, or false. Default on. */
-  rageClicks?: RageClickOptions | false;
-  /** `ouo.dead_click` events: a button or link click after which nothing happened. Default true. */
-  deadClicks?: boolean;
-}
-
-export interface LongTaskOptions {
-  /** Report long animation frames (long tasks where unsupported) at least this long. Default 100 ms. */
-  thresholdMs?: number;
-  /** At most this many events per page load. Default 50. */
-  maxPerPage?: number;
-}
-
-
-
-export interface ReplayOptions {
-  /** When false rrweb is never loaded. Default true. */
-  enabled?: boolean;
-  /**
-   * Mask the value of every form control (text-like inputs, radios, checkboxes, hidden inputs,
-   * `<select>` / `<option>`, `<button>`) and leave out radio / checkbox / option state, everywhere,
-   * `ouo-unmask` included. Default true.
-   */
-  maskAllInputs?: boolean;
-  /** Fraction of (sampled) sessions that get a replay: `sampled(id, rate, "replay")`, persisted. Default 1. */
-  sampleRate?: number;
-  /**
-   * Fraction of the sessions without a replay (`sampleRate`) that keep the last 30 to 60 s of
-   * replay in memory and upload it, and the rest of the session, after the first error. Decided
-   * with `sampled(id, rate, "replay_on_error")` and persisted. Default 0.
-   */
-  onErrorSampleRate?: number;
-  /** Flush a chunk at least this often. Default 5000. */
-  flushIntervalMs?: number;
-  /** Flush a chunk when the buffered events exceed this many bytes. Default 262144 (256 KB). */
-  maxChunkBytes?: number;
-  /**
-   * CSS selector of elements recorded as an empty box of the same size, in addition to the
-   * `ouo-block` class: privacy, and the cheapest way to keep a huge widget (a grid, a map, a
-   * chart) out of the replay's snapshot and mutation cost.
-   */
-  blockSelector?: string;
-  /**
-   * CSS selector of elements whose text is masked, in addition to the `ouo-mask` class. It masks
-   * inside `ouo-unmask` too.
-   */
-  maskTextSelector?: string;
-  /**
-   * Mask every text node of the replay (each non-space character becomes `*`), and the
-   * attributes `title`, `alt`, `placeholder`, `aria-label`, `aria-description`,
-   * `aria-valuetext`, `label` and `value` (of elements that are not form controls, whose values
-   * follow `maskAllInputs`), except inside an element with
-   * the class `ouo-unmask` or matching `unmaskTextSelector`. `ouo-mask` and `maskTextSelector`
-   * still mask inside an unmasked area; `ouo-block` wins over both. Click names
-   * (`app.widget.name`) follow the same rule: outside the allow-list a click is named by its
-   * `data-testid` only. Default true (since 0.4.0; ADR-0003 revision 2026-11-03).
-   */
-  maskAllText?: boolean;
-  /** CSS selector of elements whose text is recorded with `maskAllText`, in addition to the `ouo-unmask` class. */
-  unmaskTextSelector?: string;
-  /**
-   * Never-record routes: while `location.pathname` matches one of these, the replay records
-   * nothing (route templates from `setRoute` arrive after the page rendered and are not matched). A string matches exactly, or as a prefix
-   * when it ends with `*` (`/patients/*`, like funnel `page:` steps); a RegExp is tested. Entering
-   * such a route writes an `ouo.replay.hidden` marker (reason `route`) into the replay and the
-   * timeline; leaving it records again from a full snapshot, 500 ms later (routers change the
-   * URL before they render the next page).
-   */
-  excludeRoutes?: Array<string | RegExp>;
-}
-
-export interface SessionOptions {
-  /** Default 30 minutes. */
-  inactivityTimeoutMs?: number;
-  /** Default 4 hours. */
-  maxDurationMs?: number;
-  /**
-   * Fraction of sessions that send anything (spans, events, replay). Decided from the session id
-   * with the rule shared with the React Native SDK and rum-api (`sampled(id, rate, "session")`) and
-   * persisted. Unsampled sessions propagate `traceparent` with the sampled flag off. Default 1.
-   */
-  sampleRate?: number;
-}
-
-export interface OfflineOptions {
-  /** Hard cap on the bytes kept; the oldest requests are evicted (and counted as dropped) beyond it. Default 5 MB. */
-  maxBytes?: number;
-  /** Requests kept longer than this are dropped unsent. Default 24 hours. */
-  maxAgeMs?: number;
-}
-
-/** How telemetry reaches the collector (README, "Delivery"). */
-export interface TransportOptions {
-  /** gzip request bodies of 1 KB or more with `CompressionStream` where the browser has it. Default true. */
-  compression?: boolean;
-  /**
-   * Attempts per request, the first included, on network errors, 408, 429 and 5xx (exponential
-   * backoff with jitter, `Retry-After` honoured) before the request goes to the offline store.
-   * Other 4xx answers are never retried. Default 5.
-   */
-  maxAttempts?: number;
-  /**
-   * Keep requests that could not be sent (offline, retries spent, page closed over the keepalive
-   * budget) in IndexedDB, or memory where storage is unavailable, and send them when the browser is
-   * back online or on the next page load of the origin. False drops them. Default on.
-   */
-  offline?: OfflineOptions | false;
-  /**
-   * At page hide, fall back to `navigator.sendBeacon` when the 64 KB keepalive budget is spent. A
-   * beacon cannot carry `Authorization`: enable it only when `endpoint` is a first-party proxy
-   * route that adds the header. Default false.
-   */
-  beacon?: boolean;
-}
-
-export interface UserOptions {
-  id: string;
-}
-
-export interface RUMOptions {
-  /**
-   * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
-   * `http://localhost:4318`. The SDK posts OTLP to `${endpoint}/v1/traces` and `/v1/logs`
-   * (ADR-0007).
-   */
+/** `init` configuration (SDK spec section 3.2). Every key but `endpoint` and `serviceName` is optional. */
+export interface OuoConfig {
+  /** Collector OTLP/HTTP base URL, or a same-origin path such as `/otel`. */
   endpoint: string;
-  /**
-   * Replay receiver base URL; chunks go to `${replayEndpoint}/v1/replay/chunks`. Optional:
-   * when `endpoint` uses port 4318 the default is the same scheme and host on port 4319
-   * (the collector's replay receiver), otherwise `endpoint` itself (a proxy routing
-   * `/v1/replay/*` to the receiver).
-   */
-  replayEndpoint?: string;
-  /**
-   * Project identifier, the HTTP Basic username. Required: `initRUM` throws when it is missing,
-   * empty or contains `:`.
-   */
-  projectId: string;
-  /**
-   * Public project token, the HTTP Basic password. Every ingest request (OTLP and replay)
-   * carries `Authorization: Basic base64(projectId + ":" + projectToken)`. It is not a secret
-   * (browser code is readable by anyone); it only selects the project telemetry is written to.
-   * Required: `initRUM` throws when it is missing or empty.
-   */
-  projectToken: string;
-  service: ServiceOptions;
-  tracing?: TracingOptions;
-  replay?: ReplayOptions;
-  clicks?: ClickOptions;
-  /** `ouo.long_animation_frame` (Chromium 123+) or `ouo.long_task` events, or false. Default on. */
-  longTasks?: LongTaskOptions | false;
-  session?: SessionOptions;
-  user?: UserOptions;
-  transport?: TransportOptions;
-  /** Log SDK decisions to the console with the `[ouo]` prefix. */
+  /** Sent on every export request. Values may be public ingest keys; they are never logged or put in a URL. */
+  headers?: Record<string, string>;
+  /** Shorthand for `headers.Authorization = "Basic base64(projectId:projectToken)"`. */
+  projectId?: string;
+  projectToken?: string;
+  serviceName: string;
+  serviceVersion?: string;
+  environment?: string;
+  /** `false` makes `init` a no-op that touches nothing. Default true. */
+  enabled?: boolean;
+
+  session?: {
+    /** Default 30 min, at least 1 min. */
+    inactivityTimeoutMs?: number;
+    /** Default 4 h, at most 24 h. */
+    maxDurationMs?: number;
+  };
+  sampling?: {
+    /** Fraction of sessions that send telemetry. Default 1. */
+    sessionRate?: number;
+    bypass?: {
+      /** Unhandled errors sent from a session that is not sampled, per session. Default 10. */
+      perSessionCap?: number;
+    };
+  };
+  replay?: {
+    /**
+     * The technique. Default, and the only valid value on the web, `structure/dom`. Any other
+     * value leaves replay off, with a warning. Whether a session records is decided by the rates.
+     */
+    mode?: ReplayMode;
+    /** Fraction of sampled sessions recorded from start to end. Default 0. */
+    sessionRate?: number;
+    /**
+     * Fraction of sampled sessions, besides those, that keep the last `bufferSeconds` in memory
+     * and send them, and what follows, after an unhandled error or `replay.capture()`. Default 0.
+     */
+    bufferRate?: number;
+    /** Seconds the buffer ring holds at least. Default 60. */
+    bufferSeconds?: number;
+    /** Default 256 KiB (compressed), hard limit 1 MiB. */
+    chunkMaxBytes?: number;
+    /** Default 5000. */
+    chunkMaxMs?: number;
+    /** Default 300 000. */
+    keyframeIntervalMs?: number;
+  };
+  consent?: {
+    /** Start with consent pending: nothing is sent or stored until `setConsent`. Default false. */
+    required?: boolean;
+  };
+  privacy?: {
+    /** Query keys whose values are kept in URLs. Default none. */
+    urlQueryAllow?: string[];
+    /** Keep the URL fragment (sanitised when query-shaped). Default false. */
+    keepUrlFragment?: boolean;
+  };
+  /** Runs after the built-in URL sanitising. */
+  sanitizeUrl?: (url: string) => string;
+  /** Last look at every log record and span before it is queued, stored or sent. */
+  beforeSend?: BeforeSend;
+  propagation?: {
+    /** Cross-origin URLs that get `traceparent`. Same-origin requests always do. Default none. */
+    urls?: UrlPattern[];
+    /** Send `baggage: session.id=<id>` with `traceparent`. Default false. */
+    sessionBaggage?: boolean;
+  };
+  transport?: {
+    flushIntervalMs?: number;
+    maxBatchRecords?: number;
+    maxRequestBytes?: number;
+    maxQueueRecords?: number;
+    shutdownDeadlineMs?: number;
+    retry?: { initialMs?: number; maxMs?: number };
+    persist?: { ttlHours?: number; maxBytes?: number; enabled?: boolean };
+    /** Request timeout. Default 30 000. */
+    timeoutMs?: number;
+  };
+  /** Diagnostics on the console. Default false. */
   debug?: boolean;
+  diagnostics?: {
+    /** Internal errors after which the SDK turns itself off. Default 20. */
+    selfDisableThreshold?: number;
+  };
+  /** Per-signal switches. All on unless noted. */
+  instrumentations?: {
+    errors?: boolean;
+    webVitals?: boolean;
+    /** Full INP attribution object in the event body. Default false. */
+    vitalAttributionBody?: boolean;
+    clicks?: boolean;
+    frustration?: boolean;
+    navigation?: boolean;
+    /** Report hash-only URL changes as soft navigations. Default false. */
+    hashNavigation?: boolean;
+    documentLoad?: boolean;
+    navigationTiming?: boolean;
+    /** One event per loaded resource. Default false. */
+    resourceTiming?: boolean;
+    fetch?: boolean;
+    xhr?: boolean;
+  };
+  otel?: {
+    /** Register the SDK's tracer and logger providers as the OpenTelemetry globals. Default false. */
+    registerGlobalProviders?: boolean;
+    /** URLs whose requests are not traced, besides the SDK's own exports. */
+    ignoreUrls?: UrlPattern[];
+  };
 }
 
-export interface RUMReplay {
-  pause(): void;
-  resume(): void;
-  isRecording(): boolean;
-}
-
-export interface RUMSession {
-  id(): string;
-  userId(): string;
-  /** This browser's `device.id`: random, persisted apart from the user and the session. */
-  deviceId(): string;
-}
-
-export interface RUM {
-  /**
-   * Identify the user. Anonymous to identified (a login) keeps the session; one identified user
-   * to another ends it (`user_change`) and starts a new one.
-   */
-  setUser(user: UserOptions): void;
-  /** Logout: back to a fresh anonymous user id, in a new session (`user_change`). */
-  clearUser(): void;
-  /** End the session now (`manual`); the next activity starts a new one. */
-  endSession(): void;
-  /** Report a handled, non-fatal exception. */
-  captureError(err: unknown, context?: Attrs): void;
-  /** Emit a custom event (an OTel log record with `event.name = name`). */
-  addEvent(name: string, attrs?: Attrs): void;
-  /**
-   * Name the current route by its template (`/products/:id`): `app.screen.name` on the open
-   * soft-navigation span and on every later span and event. Router integrations call it.
-   */
-  setRoute(name: string): void;
-  replay: RUMReplay;
-  session: RUMSession;
-  /** Force export of pending spans, log records and replay chunks. Never rejects. */
-  flush(): Promise<void>;
-  /**
-   * Flushes, then removes every hook, listener, observer and timer the SDK installed and
-   * restores patched globals. `initRUM` can be called again afterwards. Never rejects.
-   */
-  shutdown(): Promise<void>;
-  /** Counters of the delivery layer since `initRUM`: sent, retried, kept offline, dropped (and why), bytes before and after gzip. */
-  deliveryStats(): DeliveryStats;
-}
-
-export interface DeliveryStats {
-  sent: number;
-  retried: number;
-  queued: number;
-  dropped: number;
-  droppedBytes: number;
-  /** `rejected`: a 4xx other than 408 and 429. `store_full`: evicted from the offline store. `too_large`: larger than the store. `expired`: stored too long. `no_store`: failed with `offline: false`. `queue_full`: the export queue overflowed. */
-  dropReasons: Partial<Record<"rejected" | "store_full" | "too_large" | "expired" | "no_store" | "queue_full", number>>;
-  rawBytes: number;
-  wireBytes: number;
+export interface NavigationOptions {
+  /** URL of the view; default the page's current URL. */
+  url?: string;
+  /** View id to use instead of a new random one. */
+  id?: string;
 }

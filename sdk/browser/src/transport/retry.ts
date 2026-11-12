@@ -1,17 +1,18 @@
-/** What to do with an HTTP answer: done, try again later, or give up (the request is wrong). */
-export type StatusClass = "ok" | "retry" | "drop";
+/** Responses and retries (SDK spec section 8.2, TRN-6 to TRN-8). Pure. */
 
-/** 2xx is delivered; 408, 429 and 5xx are retried; any other status will not get better. */
-export function classifyStatus(status: number): StatusClass {
-  if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429 || status >= 500) return "retry";
-  return "drop";
-}
+export type Verdict = "ok" | "retry" | "reject";
 
 /**
- * `Retry-After` in milliseconds: delta-seconds or an HTTP date (RFC 9110 §10.2.3). Undefined when
- * absent or unreadable; a date in the past is 0.
+ * Any 2xx is accepted; 429 and 503 are retried honouring `Retry-After`; 502 and 504 are retried
+ * with backoff; every other status (400, 413, 408, 500, ...) will not get better and is dropped.
  */
+export function classifyStatus(status: number): Verdict {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 429 || status === 503 || status === 502 || status === 504) return "retry";
+  return "reject";
+}
+
+/** `Retry-After` in ms: delta-seconds or an HTTP date. Undefined when absent or unreadable. */
 export function parseRetryAfter(value: string | null | undefined, now: number): number | undefined {
   if (value === null || value === undefined) return undefined;
   const v = value.trim();
@@ -21,19 +22,16 @@ export function parseRetryAfter(value: string | null | undefined, now: number): 
   return Number.isNaN(at) ? undefined : Math.max(0, at - now);
 }
 
-export interface BackoffPolicy {
-  /** Delay before the first retry. */
-  baseDelayMs: number;
-  /** No single delay is longer. */
-  maxDelayMs: number;
+/**
+ * Exponential backoff with full jitter (TRN-7): after the n-th failure (1-based) wait a random
+ * time in [0, min(max, initial * 2^(n-1))], never less than 1 ms so a retry is never immediate.
+ */
+export function backoffDelay(failures: number, initialMs: number, maxMs: number, random: () => number = Math.random): number {
+  const ceiling = Math.min(maxMs, initialMs * 2 ** Math.min(30, Math.max(0, failures - 1)));
+  return Math.max(1, Math.round(random() * ceiling));
 }
 
-/**
- * Exponential backoff with equal jitter: attempt n (1-based, the attempt that failed) waits
- * between half and all of `min(max, base * 2^(n-1))`, so clients that failed together do not
- * retry together and no retry is immediate.
- */
-export function backoffDelay(attempt: number, policy: BackoffPolicy, random: () => number = Math.random): number {
-  const ceiling = Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** Math.max(0, attempt - 1));
-  return Math.round(ceiling / 2 + random() * (ceiling / 2));
+/** The wait before the next try: `Retry-After` capped at the maximum (TRN-8), else backoff. */
+export function retryDelay(failures: number, retryAfterMs: number | undefined, initialMs: number, maxMs: number, random?: () => number): number {
+  return retryAfterMs !== undefined ? Math.min(maxMs, Math.max(1, retryAfterMs)) : backoffDelay(failures, initialMs, maxMs, random);
 }

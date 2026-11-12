@@ -1,13 +1,12 @@
-# Long-session checks of @ouo11y/browser (checklist N43), by hand only: never on a PR, so an
-# hour of soak never sits in the per-PR path of the self-hosted runner.
+# Long-session checks of @ouo11y/browser, by hand only: never on a PR, so an hour of soak never
+# sits in the per-PR path of the self-hosted runner.
 #
-#   soak        e2e/soak.spec.ts: the busy SPA with replay on for `minutes` (default 60) in each
-#               engine of `projects`; listeners, observers, timers, DOM nodes and (Chromium) heap
-#               must not grow after the warm-up.
-#   rrweb cost  e2e/rrweb-cost.spec.ts: main-thread time, heap and replay bytes on a large DOM.
+#   soak   e2e/soak.spec.ts: a busy single-page app with replay on for `minutes` (default 60) in
+#          each engine of `projects`; listeners, observers, pending timers and (Chromium) heap must
+#          not grow after the warm-up, the page must see no error and the SDK must contain none.
 #
-# Both run in the Playwright image (the per-PR e2e job's image, same browsers), engines one after
-# the other. The JSON results and an HTML report are uploaded as the `browser-soak` artifact. Locally:
+# Runs in the Playwright image (the per-PR e2e job's image, same browsers), engines one after the
+# other. The samples are uploaded as the `browser-soak` artifact (JSON per engine). Locally:
 #   OUO_SOAK_MINUTES=60 npm run -w sdk/browser test:soak
 name: browser-soak
 
@@ -44,7 +43,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run -w sdk/browser build
-      - name: soak and rrweb cost (Playwright image)
+      - name: soak (Playwright image)
         env:
           MINUTES: ${{ inputs.minutes }}
           PROJECTS: ${{ inputs.projects }}
@@ -53,10 +52,6 @@ jobs:
           docker run --rm --ipc=host --network host -e CI=true -e OUO_SOAK_MINUTES="$MINUTES" -e OUO_SOAK_PROJECTS="$PROJECTS" \
             -e OUO_SOAK_OUT=soak-results -v "$PWD:$PWD" -w "$PWD/sdk/browser" "$PLAYWRIGHT_IMAGE" \
             npx playwright test -c e2e/soak.config.ts
-      - name: HTML report (soak-results/report.html)
-        if: always()
-        working-directory: sdk/browser
-        run: node scripts/soak-report.mjs soak-results soak-results/report.html
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

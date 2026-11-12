@@ -1,5 +1,5 @@
 // All @ouo11y/browser usage lives here. Pages import { rum } and never the SDK.
-import { initRUM, type RUM } from "@ouo11y/browser";
+import { diagnostics, flush, getSessionId, init, recordEvent, recordException, replay, setUser as sdkSetUser, type Attrs } from "@ouo11y/browser";
 
 declare const __OUO_RUM_STUB__: boolean;
 
@@ -13,11 +13,9 @@ function rate(value: string | undefined, fallback: number): number {
 }
 
 export const config = {
-  // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
-  // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
+  // The collector is the only host the SDK talks to: OTLP/HTTP to ${otlpEndpoint}/v1/{traces,logs}.
+  // Replay chunks are log records on /v1/logs too (event `ouo.replay.chunk`, scope `ouo.replay`).
   otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
-  // Optional: only needed when the collector's replay receiver is not on port 4319 of the OTLP host.
-  replayEndpoint: env.VITE_OUO_REPLAY_ENDPOINT || undefined,
   // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
   // names the project. These are the development values the local stack is provisioned with.
   projectId: env.VITE_OUO_PROJECT_ID ?? "demo",
@@ -26,10 +24,12 @@ export const config = {
   appVersion: env.VITE_APP_VERSION ?? "1.4.2",
   stub: typeof __OUO_RUM_STUB__ !== "undefined" && __OUO_RUM_STUB__,
   debug: env.VITE_RUM_DEBUG === "1",
-  // Sampling (roadmap 8b): fractions 0..1, all sessions with a full replay by default.
+  // Sampling: fractions 0..1, every session with a full replay by default.
   sessionSampleRate: rate(env.VITE_OUO_SESSION_SAMPLE_RATE, 1),
   replaySampleRate: rate(env.VITE_OUO_REPLAY_SAMPLE_RATE, 1),
-  replayOnErrorSampleRate: rate(env.VITE_OUO_REPLAY_ON_ERROR_SAMPLE_RATE, 0),
+  // The demo's own switch, turned into the SDK's two replay rates below. `buffer`: keep the last
+  // minute in memory and send it only after an unhandled error.
+  replayMode: env.VITE_OUO_REPLAY_MODE === "buffer" || env.VITE_OUO_REPLAY_MODE === "off" ? env.VITE_OUO_REPLAY_MODE : ("session" as const),
 } as const;
 
 export function storedUserId(): string | undefined {
@@ -40,32 +40,53 @@ export function storedUserId(): string | undefined {
   }
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 const initialUser = storedUserId();
 
-export const rum: RUM = initRUM({
+init({
   endpoint: config.otlpEndpoint,
-  ...(config.replayEndpoint ? { replayEndpoint: config.replayEndpoint } : {}),
   projectId: config.projectId,
   projectToken: config.projectToken,
-  service: { name: "web-store", version: config.appVersion, environment: "local" },
-  tracing: { propagateTo: [new RegExp("^" + escapeRegExp(config.backendUrl))] },
-  session: { sampleRate: config.sessionSampleRate },
-  // Replay masks every input and all text by default (ADR-0003). The public storefront (header,
-  // catalogue, chaos panel) is marked `ouo-unmask` so its replay stays readable; the cart,
-  // checkout, order and session footer stay masked.
+  serviceName: "web-store",
+  serviceVersion: config.appVersion,
+  environment: "local",
+  // traceparent goes to the backend (another origin), with the session id as baggage so the
+  // backend can put it on its own spans and logs.
+  propagation: { urls: [`${config.backendUrl}*`], sessionBaggage: true },
+  sampling: { sessionRate: config.sessionSampleRate },
+  // Replay masks all text and every input by default. The public storefront (header, catalogue,
+  // chaos panel) is marked `data-ouo-unmask` so its replay stays readable; the cart, checkout,
+  // order and session footer stay masked.
   replay: {
-    enabled: true,
-    maskAllInputs: true,
-    sampleRate: config.replaySampleRate,
-    onErrorSampleRate: config.replayOnErrorSampleRate,
+    sessionRate: config.replayMode === "session" ? config.replaySampleRate : 0,
+    bufferRate: config.replayMode === "buffer" ? config.replaySampleRate : 0,
   },
-  ...(initialUser ? { user: { id: initialUser } } : {}),
   debug: config.debug,
 });
+if (initialUser) sdkSetUser(initialUser);
+
+let recording = config.replayMode !== "off";
+
+/** What the pages use: a thin facade over the SDK's functions. */
+export const rum = {
+  addEvent: (name: string, attrs?: Attrs): void => recordEvent(name, attrs),
+  captureError: (err: unknown, attrs?: Attrs): void => recordException(err, attrs),
+  replay: {
+    pause(): void {
+      recording = false;
+      replay.stop();
+    },
+    resume(): void {
+      recording = true;
+      replay.start();
+    },
+    isRecording: (): boolean => recording && diagnostics().replayRecording,
+  },
+  session: {
+    id: (): string => getSessionId() ?? "",
+    userId: (): string => storedUserId() ?? "",
+  },
+  flush,
+};
 
 export function setUser(id: string): void {
   const trimmed = id.trim();
@@ -75,5 +96,5 @@ export function setUser(id: string): void {
   } catch {
     // storage unavailable; the SDK still gets the user for this page
   }
-  if (trimmed) rum.setUser({ id: trimmed });
+  sdkSetUser(trimmed || null);
 }

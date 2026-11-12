@@ -32,7 +32,6 @@
     "src",
     "test",
     "scripts",
-    "playground/*.ts",
     "e2e"
   ]
 }

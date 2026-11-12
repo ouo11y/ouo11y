@@ -1,270 +1,321 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SessionManager, SESSION_STORAGE_KEY, USER_STORAGE_KEY, type SessionEvent } from "../src/session/manager";
-import { MemoryStorage } from "../src/session/storage";
-import { isSampled } from "../src/session/sampling";
-import type { Clock } from "../src/session/clock";
+/** Sessions (SDK spec section 5), driven by a fake clock over a shared in-memory `localStorage`. */
+import { beforeEach, describe, expect, it } from "vitest";
+import type { Clock } from "../src/core/clock";
+import { PERSIST_EVERY_MS, SESSION_KEY, SessionManager, type EndReason, type SessionRecord } from "../src/session/manager";
+import { ConsentStorage, MemoryStorage } from "../src/session/storage";
+
+class FakeClock implements Clock {
+  t = 1_700_000_000_000;
+  private timers = new Map<number, { at: number; fn: () => void }>();
+  private next = 1;
+  now(): number {
+    return this.t;
+  }
+  setTimeout(fn: () => void, ms: number): unknown {
+    this.timers.set(this.next, { at: this.t + ms, fn });
+    return this.next++;
+  }
+  clearTimeout(h: unknown): void {
+    this.timers.delete(h as number);
+  }
+  advance(ms: number): void {
+    const end = this.t + ms;
+    for (;;) {
+      const due = [...this.timers.entries()].filter(([, v]) => v.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      this.timers.delete(due[0]);
+      this.t = Math.max(this.t, due[1].at);
+      due[1].fn();
+    }
+    this.t = end;
+  }
+}
 
 const MIN = 60_000;
-const HOUR = 60 * MIN;
-const INACTIVITY = 30 * MIN;
-const MAX = 4 * HOUR;
 
-/** Clock driven by vitest fake timers (Date.now advances with the timers). */
-const fakeClock: Clock = {
-  now: () => Date.now(),
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
-};
-
-function makeManager(storage: MemoryStorage, events: SessionEvent[], rotations: string[] = []) {
-  return new SessionManager({
+function tab(storage: MemoryStorage, clock: FakeClock, o: { rate?: number; inactivity?: number; max?: number } = {}) {
+  const log: string[] = [];
+  const starts: SessionRecord[] = [];
+  const ends: Array<{ rec: SessionRecord; reason: EndReason }> = [];
+  let held = 0;
+  const m = new SessionManager({
     storage,
-    clock: fakeClock,
-    inactivityTimeoutMs: INACTIVITY,
-    maxDurationMs: MAX,
-    onEvent: (e) => events.push(e),
-    onRotate: (next) => rotations.push(next.id),
+    clock,
+    locks: null,
+    inactivityTimeoutMs: o.inactivity ?? 30 * MIN,
+    maxDurationMs: o.max ?? 240 * MIN,
+    sessionRate: o.rate ?? 1,
+    hooks: {
+      onStart: (rec) => {
+        starts.push({ ...rec });
+        log.push(`start ${rec.id}`);
+      },
+      onEnd: (rec, reason) => {
+        ends.push({ rec: { ...rec }, reason });
+        log.push(`end ${rec.id} ${reason}`);
+      },
+      onChange: () => undefined,
+      hold: () => held++,
+      release: () => held--,
+      restamp: () => undefined,
+    },
   });
+  return { m, log, starts, ends, held: () => held };
 }
 
-function persisted(storage: MemoryStorage) {
-  return JSON.parse(storage.get(SESSION_STORAGE_KEY)!) as {
-    id: string;
-    startedAt: number;
-    lastActivity: number;
-    previousId?: string;
-    replaySeq: number;
-    endedAt?: number;
-    endReason?: string;
-  };
-}
+let storage: MemoryStorage;
+let clock: FakeClock;
+beforeEach(() => {
+  storage = new MemoryStorage();
+  clock = new FakeClock();
+});
 
-describe("SessionManager (docs/specs/session-lifecycle.md)", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-06T10:00:00Z"));
+describe("start and activity (SES-3, SES-5, SES-10)", () => {
+  it("a visible init starts a session; a hidden one waits for activity", () => {
+    const hidden = tab(storage, clock);
+    hidden.m.start(false);
+    expect(hidden.m.id()).toBeUndefined();
+    expect(hidden.starts).toHaveLength(0);
+    hidden.m.activity();
+    expect(hidden.m.id()).toMatch(/^[0-9a-f]{32}$/);
+    expect(hidden.starts).toHaveLength(1);
+    expect(hidden.held()).toBe(0);
   });
 
-  it("case 1: fresh init creates a session and emits session.start", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    expect(events).toHaveLength(1);
-    expect(events[0]!.name).toBe("session.start");
-    expect(events[0]!.attributes["session.id"]).toBe(m.id());
-    expect(events[0]!.attributes["ouo.session.started_at"]).toBe(Date.now());
-    expect(events[0]!.attributes["session.previous_id"]).toBeUndefined();
-    expect(m.id()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(persisted(storage).id).toBe(m.id());
-    expect(persisted(storage).replaySeq).toBe(0);
-  });
-
-  it("case 2: init within the inactivity window resumes the session with no new event", () => {
-    const storage = new MemoryStorage();
-    const events1: SessionEvent[] = [];
-    const m1 = makeManager(storage, events1);
-    m1.start();
-    const id = m1.id();
-    m1.stop();
-
-    vi.advanceTimersByTime(10 * MIN);
-    const events2: SessionEvent[] = [];
-    const m2 = makeManager(storage, events2);
-    m2.start();
-    expect(m2.id()).toBe(id);
-    expect(events2).toHaveLength(0);
-  });
-
-  it("case 3: init after the inactivity window ends the old session (inactivity) and starts a new one with previous_id", () => {
-    const storage = new MemoryStorage();
-    const m1 = makeManager(storage, []);
-    m1.start();
-    const oldId = m1.id();
-    const startedAt = Date.now();
-    m1.stop();
-
-    vi.setSystemTime(startedAt + INACTIVITY + 5 * MIN);
-    const events: SessionEvent[] = [];
-    const m2 = makeManager(storage, events);
-    m2.start();
-
-    expect(events.map((e) => e.name)).toEqual(["session.end", "session.start"]);
-    const end = events[0]!.attributes;
-    expect(end["session.id"]).toBe(oldId);
-    expect(end["ouo.session.end_reason"]).toBe("inactivity");
-    expect(end["ouo.session.duration_ms"]).toBe(INACTIVITY);
-    const start = events[1]!.attributes;
-    expect(start["session.id"]).toBe(m2.id());
-    expect(start["session.previous_id"]).toBe(oldId);
-    expect(m2.id()).not.toBe(oldId);
-    expect(m2.previousId()).toBe(oldId);
-  });
-
-  it("case 4: activity after MAX_DURATION rotates the session (max_duration), timer path", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    const oldId = m.id();
-    // Keep the user active every 10 minutes so inactivity never triggers.
-    for (let t = 0; t < MAX; t += 10 * MIN) {
-      vi.advanceTimersByTime(10 * MIN);
-      if (t + 10 * MIN < MAX) m.touch();
+  it("asking for a stamp never creates a session: a polling tab makes none", () => {
+    const t = tab(storage, clock);
+    t.m.start(false);
+    for (let i = 0; i < 5; i++) {
+      const s = t.m.stamp();
+      expect(s.expired).toBe(true);
+      clock.advance(MIN);
     }
-    // The max-duration timer has fired: the session is ended but not replaced until activity.
-    expect(events.map((e) => e.name)).toEqual(["session.start", "session.end"]);
-    expect(events[1]!.attributes["ouo.session.end_reason"]).toBe("max_duration");
-    expect(events[1]!.attributes["ouo.session.duration_ms"]).toBe(MAX);
-    expect(m.peek()).toBeNull();
-
-    m.touch();
-    expect(events.map((e) => e.name)).toEqual(["session.start", "session.end", "session.start"]);
-    expect(m.id()).not.toBe(oldId);
-    expect(events[2]!.attributes["session.previous_id"]).toBe(oldId);
+    expect(storage.get(SESSION_KEY)).toBeNull();
+    expect(t.starts).toHaveLength(0);
+    // The made-up id for bypass records is stable for the page.
+    expect(t.m.stamp().id).toBe(t.m.stamp().id);
   });
 
-  it("case 4 (no timer): activity after MAX_DURATION detected on touch()", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const noTimerClock: Clock = { now: () => Date.now(), setTimeout: () => null, clearTimeout: () => undefined };
-    const m = new SessionManager({ storage, clock: noTimerClock, inactivityTimeoutMs: INACTIVITY, maxDurationMs: MAX, onEvent: (e) => events.push(e) });
-    m.start();
-    const oldId = m.id();
-    for (let t = 10 * MIN; t < MAX; t += 10 * MIN) {
-      vi.setSystemTime(Date.now() + 10 * MIN);
-      m.touch();
+  it("stamps do not extend the session, activity does", () => {
+    const t = tab(storage, clock, { inactivity: 10 * MIN });
+    t.m.start(true);
+    const id = t.m.id()!;
+    clock.advance(6 * MIN);
+    t.m.stamp();
+    clock.advance(6 * MIN);
+    expect(t.m.stamp().expired).toBe(true);
+    expect(t.ends.map((e) => e.reason)).toEqual(["timeout"]);
+    // The expired stamp names the last session.
+    expect(t.m.stamp().id).toBe(id);
+
+    const u = tab(new MemoryStorage(), clock, { inactivity: 10 * MIN });
+    u.m.start(true);
+    clock.advance(6 * MIN);
+    u.m.activity();
+    clock.advance(6 * MIN);
+    expect(u.m.stamp().expired).toBe(false);
+  });
+});
+
+describe("end and rollover (SES-4, SES-7, SES-9)", () => {
+  it("activity after the timeout ends the old session at its last activity and starts a linked one", () => {
+    const t = tab(storage, clock, { inactivity: 10 * MIN });
+    t.m.start(true);
+    const first = t.m.id()!;
+    clock.advance(3 * MIN);
+    t.m.activity();
+    const lastActivity = clock.now();
+    clock.advance(9 * MIN);
+    // Not yet expired by the timer margin; the user comes back after the timeout.
+    clock.advance(2 * MIN);
+    t.m.activity();
+    const second = t.m.id()!;
+    expect(second).not.toBe(first);
+    expect(t.log).toEqual([`start ${first}`, `end ${first} timeout`, `start ${second}`]);
+    expect(t.ends[0]!.rec.last).toBe(lastActivity);
+    expect(t.starts[1]!.prev).toBe(first);
+    expect(t.starts[0]!.prev).toBeUndefined();
+  });
+
+  it("an idle page ends the session once, by its timer", () => {
+    const t = tab(storage, clock, { inactivity: 10 * MIN });
+    t.m.start(true);
+    const id = t.m.id()!;
+    clock.advance(11 * MIN);
+    expect(t.log).toEqual([`start ${id}`, `end ${id} timeout`]);
+    clock.advance(60 * MIN);
+    expect(t.ends).toHaveLength(1);
+  });
+
+  it("reaching the maximum duration with the user present rolls at once", () => {
+    const t = tab(storage, clock, { inactivity: 30 * MIN, max: 60 * MIN });
+    t.m.start(true);
+    const first = t.m.id()!;
+    for (let i = 0; i < 12; i++) {
+      clock.advance(5 * MIN - 1);
+      t.m.activity();
     }
-    vi.setSystemTime(Date.now() + 10 * MIN);
-    m.touch();
-    expect(events.map((e) => e.name)).toEqual(["session.start", "session.end", "session.start"]);
-    expect(events[1]!.attributes["ouo.session.end_reason"]).toBe("max_duration");
-    expect(m.id()).not.toBe(oldId);
+    expect(t.m.id()).toBe(first);
+    clock.advance(2 * MIN);
+    t.m.activity();
+    const second = t.m.id()!;
+    expect(second).not.toBe(first);
+    expect(t.ends.map((e) => e.reason)).toEqual(["max_duration"]);
+    expect(t.starts[1]!.prev).toBe(first);
   });
 
-  it("same-tab inactivity timer ends the session and the next signal starts a new one", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    const oldId = m.id();
-    vi.advanceTimersByTime(INACTIVITY);
-    expect(events.map((e) => e.name)).toEqual(["session.start", "session.end"]);
-    expect(events[1]!.attributes["ouo.session.end_reason"]).toBe("inactivity");
-    expect(persisted(storage).endedAt).toBeDefined();
-    // A span starting now needs a session id: a new session is created lazily.
-    const newId = m.id();
-    expect(newId).not.toBe(oldId);
-    expect(events[2]!.name).toBe("session.start");
-    expect(events[2]!.attributes["session.previous_id"]).toBe(oldId);
+  it("restart ends with `manual` and starts the next one now; end leaves none", () => {
+    const t = tab(storage, clock);
+    t.m.start(true);
+    const first = t.m.id()!;
+    t.m.restart();
+    expect(t.m.id()).not.toBe(first);
+    expect(t.ends.map((e) => e.reason)).toEqual(["manual"]);
+    t.m.end("shutdown");
+    expect(t.m.id()).toBeUndefined();
+    expect(t.ends.map((e) => e.reason)).toEqual(["manual", "shutdown"]);
+    t.m.end("shutdown");
+    expect(t.ends).toHaveLength(2);
   });
 
-  it("activity persists lastActivity throttled to once per second", () => {
-    const storage = new MemoryStorage();
-    const m = makeManager(storage, []);
-    m.start();
-    const t0 = persisted(storage).lastActivity;
-    vi.advanceTimersByTime(500);
-    m.touch();
-    expect(persisted(storage).lastActivity).toBe(t0);
-    vi.advanceTimersByTime(600);
-    m.touch();
-    expect(persisted(storage).lastActivity).toBe(t0 + 1100);
+  it("after consent is withdrawn the next session names no previous one (PRV-4)", () => {
+    const t = tab(storage, clock);
+    t.m.start(true);
+    t.m.end("consent");
+    t.m.sever();
+    expect(storage.get(SESSION_KEY)).toBeNull();
+    t.m.activity();
+    expect(t.starts[1]!.prev).toBeUndefined();
+  });
+});
+
+describe("tabs (SES-11) and persistence (SES-6, SMP-1)", () => {
+  it("two tabs share one session and emit one start", () => {
+    const a = tab(storage, clock);
+    const b = tab(storage, clock);
+    a.m.start(true);
+    b.m.start(true);
+    expect(b.m.id()).toBe(a.m.id());
+    expect(a.starts.length + b.starts.length).toBe(1);
   });
 
-  it("cross-tab: storage event with a new session id adopts it without emitting session.start", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const rotations: string[] = [];
-    const m = makeManager(storage, events, rotations);
-    m.start();
-    const oldId = m.id();
-    const other = { id: "11111111-1111-4111-8111-111111111111", startedAt: Date.now(), lastActivity: Date.now(), replaySeq: 0, previousId: oldId };
-    m.handleStorageEvent(JSON.stringify(other));
-    expect(m.id()).toBe(other.id);
-    expect(events).toHaveLength(1);
-    expect(rotations).toEqual([oldId, other.id]);
+  it("a second tab keeps the session alive for the first, and only one tab ends it", () => {
+    const a = tab(storage, clock, { inactivity: 10 * MIN });
+    const b = tab(storage, clock, { inactivity: 10 * MIN });
+    a.m.start(true);
+    b.m.start(true);
+    const id = a.m.id()!;
+    clock.advance(8 * MIN);
+    b.m.activity();
+    b.m.persist();
+    clock.advance(5 * MIN);
+    // Tab A was idle for 13 minutes, but the session is alive through tab B.
+    expect(a.m.stamp()).toMatchObject({ id, expired: false });
+    clock.advance(20 * MIN);
+    expect(a.ends.length + b.ends.length).toBe(1);
+    // Whoever comes back first starts the next one; the other adopts it.
+    a.m.activity();
+    b.m.handleStorage(storage.get(SESSION_KEY));
+    expect(b.m.id()).toBe(a.m.id());
+    expect(a.starts.length + b.starts.length).toBe(2);
+    expect(a.ends.length + b.ends.length).toBe(1);
   });
 
-  it("cross-tab: storage event with an ended marker drops the session without a second session.end", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    const rec = persisted(storage);
-    m.handleStorageEvent(JSON.stringify({ ...rec, endedAt: Date.now(), endReason: "inactivity" }));
-    expect(m.peek()).toBeNull();
-    expect(events).toHaveLength(1);
+  it("a reload continues the stored session without a new start", () => {
+    const a = tab(storage, clock);
+    a.m.start(true);
+    const id = a.m.id();
+    a.m.persist();
+    a.m.stop();
+    clock.advance(MIN);
+    const b = tab(storage, clock);
+    b.m.start(true);
+    expect(b.m.id()).toBe(id);
+    expect(b.starts).toHaveLength(0);
   });
 
-  it("cross-tab: activity in another tab postpones this tab's inactivity timer", () => {
-    const storage = new MemoryStorage();
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    vi.advanceTimersByTime(20 * MIN);
-    const rec = persisted(storage);
-    m.handleStorageEvent(JSON.stringify({ ...rec, lastActivity: Date.now() }));
-    vi.advanceTimersByTime(15 * MIN);
-    expect(events).toHaveLength(1);
-    vi.advanceTimersByTime(15 * MIN);
-    expect(events.map((e) => e.name)).toEqual(["session.start", "session.end"]);
+  it("writes last activity at most once per 5 s", () => {
+    let writes = 0;
+    const counting = new (class extends MemoryStorage {
+      override set(k: string, v: string): void {
+        writes++;
+        super.set(k, v);
+      }
+    })();
+    const t = tab(counting, clock);
+    t.m.start(true);
+    const before = writes;
+    for (let i = 0; i < 100; i++) {
+      clock.advance(100);
+      t.m.activity();
+    }
+    expect(writes - before).toBe(Math.floor((100 * 100) / PERSIST_EVERY_MS));
   });
 
-  it("replay seq persists with the session and continues after a reload; a new session resets to 0", () => {
-    const storage = new MemoryStorage();
-    const m1 = makeManager(storage, []);
-    m1.start();
-    expect(m1.nextReplaySeq()).toBe(0);
-    expect(m1.nextReplaySeq()).toBe(1);
-    expect(m1.nextReplaySeq()).toBe(2);
-    expect(persisted(storage).replaySeq).toBe(3);
-    m1.stop();
-
-    vi.advanceTimersByTime(MIN);
-    const m2 = makeManager(storage, []);
-    m2.start();
-    expect(m2.nextReplaySeq()).toBe(3);
-
-    vi.advanceTimersByTime(INACTIVITY + MIN);
-    const m3 = makeManager(storage, []);
-    m3.start();
-    expect(m3.nextReplaySeq()).toBe(0);
+  it("the sampling decision is made once from the id and stored with the session", () => {
+    const a = tab(storage, clock, { rate: 0.5 });
+    a.m.start(true);
+    const rec = JSON.parse(storage.get(SESSION_KEY)!) as SessionRecord;
+    expect(rec.s).toBe(parseInt(rec.id.slice(0, 8), 16) / 2 ** 32 < 0.5);
+    expect(rec.rate).toBe(0.5);
+    // Another tab with another configured rate still follows the stored decision.
+    const b = tab(storage, clock, { rate: rec.s ? 0 : 1 });
+    b.m.start(true);
+    expect(b.m.stamp().sampled).toBe(rec.s);
   });
 
-  it("replay sampling is decided once per session from its id and persisted", () => {
-    const storage = new MemoryStorage();
-    const m = makeManager(storage, []);
-    m.start();
-    const decided = m.replaySampled(0.5);
-    expect(decided).toBe(isSampled(m.id(), 0.5, "replay"));
-    // Persisted: a later call with another rate keeps the first decision.
-    expect(m.replaySampled(decided ? 0 : 1)).toBe(decided);
-    expect(JSON.parse(storage.get(SESSION_STORAGE_KEY)!).replaySampled).toBe(decided);
+  it("garbage or another version in storage is discarded, never a crash (GR-UPG-1)", () => {
+    for (const raw of ["{", "null", '{"v":2,"id":"x"}', '{"v":1,"id":"not-hex","start":1,"last":1,"s":true}', "[]"]) {
+      storage.set(SESSION_KEY, raw);
+      const t = tab(storage, clock);
+      expect(() => t.m.start(true)).not.toThrow();
+      expect(t.m.id()).toMatch(/^[0-9a-f]{32}$/);
+      storage.remove(SESSION_KEY);
+    }
+  });
+});
+
+describe("users (PRV-13)", () => {
+  it("no user until setUser; a different user starts a new session; null clears", () => {
+    const t = tab(storage, clock);
+    t.m.start(true);
+    const first = t.m.id()!;
+    expect(t.m.stamp().user).toBeUndefined();
+    t.m.setUser("u-1");
+    expect(t.m.stamp()).toMatchObject({ id: first, user: "u-1" });
+    t.m.setUser("u-1");
+    expect(t.m.id()).toBe(first);
+    t.m.setUser("u-2");
+    expect(t.m.id()).not.toBe(first);
+    expect(t.m.stamp().user).toBe("u-2");
+    t.m.setUser(null);
+    expect(t.m.stamp().user).toBeUndefined();
+  });
+});
+
+describe("consent storage (PRV-1, PRV-4, SES-12)", () => {
+  it("stays in memory until granted, moves to localStorage, and forgets on withdrawal", () => {
+    localStorage.clear();
+    const s = new ConsentStorage(false);
+    s.set("ouo.session", "x");
+    expect(localStorage.getItem("ouo.session")).toBeNull();
+    expect(s.get("ouo.session")).toBe("x");
+    s.persist();
+    expect(localStorage.getItem("ouo.session")).toBe("x");
+    localStorage.setItem("app.key", "keep");
+    s.forget();
+    expect(localStorage.getItem("ouo.session")).toBeNull();
+    expect(localStorage.getItem("app.key")).toBe("keep");
+    expect(s.get("ouo.session")).toBeNull();
+    expect(document.cookie).toBe("");
   });
 
-  it("anonymous user id is generated once and persisted under ouo.user", () => {
-    const storage = new MemoryStorage();
-    const m1 = makeManager(storage, []);
-    m1.start();
-    expect(m1.isAnonymousUser()).toBe(true);
-    const stored = JSON.parse(storage.get(USER_STORAGE_KEY)!);
-    expect(stored).toEqual({ id: m1.userId(), anonymous: true });
-    const m2 = makeManager(storage, []);
-    expect(m2.userId()).toBe(m1.userId());
-    m2.setUser("user-42");
-    expect(m2.userId()).toBe("user-42");
-    expect(m2.isAnonymousUser()).toBe(false);
-    expect(JSON.parse(storage.get(USER_STORAGE_KEY)!)).toEqual({ id: "user-42", anonymous: false });
-  });
-
-  it("ignores corrupt persisted state", () => {
-    const storage = new MemoryStorage();
-    storage.set(SESSION_STORAGE_KEY, "{not json");
-    const events: SessionEvent[] = [];
-    const m = makeManager(storage, events);
-    m.start();
-    expect(events.map((e) => e.name)).toEqual(["session.start"]);
-    expect(m.id()).toBeTruthy();
+  it("blocked storage falls back to memory", () => {
+    const s = new ConsentStorage(true, () => {
+      throw new DOMException("denied", "SecurityError");
+    });
+    s.set("ouo.session", "x");
+    expect(s.get("ouo.session")).toBe("x");
+    expect(s.persistent()).toBe(false);
   });
 });

@@ -1,46 +1,33 @@
 // @vitest-environment node
-/**
- * Server rendering (checklist N42): importing either entry in Node without `window` or
- * `document` does not throw, `initRUM` returns an inert instance, and the React entry renders
- * on the server (what Next.js does with a client component during SSR).
- */
+/** LIF-9, GR-CFG-5: on a server or any runtime without a DOM the SDK is a no-op and importing it touches nothing. */
 import { describe, expect, it } from "vitest";
-import { createElement } from "react";
-import { renderToString } from "react-dom/server";
 
-describe("server-side import and rendering", () => {
-  it("has no window or document here", () => {
+describe("server-side import", () => {
+  it("imports without a DOM and every function is a silent no-op", async () => {
     expect(typeof window).toBe("undefined");
     expect(typeof document).toBe("undefined");
+    const ouo = await import("../src/index");
+    expect(() => {
+      ouo.init({ endpoint: "https://otel.test", serviceName: "ssr" });
+      ouo.recordEvent("x");
+      ouo.recordException(new Error("x"));
+      ouo.setUser("u");
+      ouo.setConsent({ telemetry: true, replay: true });
+      ouo.trackNavigation("/x");
+      ouo.replay.start();
+      ouo.replay.capture();
+      ouo.getTracerProvider().getTracer("t").startSpan("s").end();
+      ouo.getLoggerProvider().getLogger("l").emit({ body: "b" });
+    }).not.toThrow();
+    expect(ouo.getSessionId()).toBeUndefined();
+    expect(ouo.diagnostics().state).toBe("off");
+    await expect(ouo.flush()).resolves.toBeUndefined();
+    await expect(ouo.shutdown()).resolves.toBeUndefined();
   });
 
-  it("initRUM on the server is inert and does not register an instance", async () => {
-    const { initRUM, getRUM } = await import("../src/index");
-    const rum = initRUM({
-      endpoint: "http://localhost:4318",
-      projectId: "p",
-      projectToken: "t",
-      service: { name: "ssr", version: "1", environment: "test" },
-    });
-    expect(getRUM()).toBeUndefined();
-    expect(rum.session.id()).toBe("");
-    expect(() => rum.captureError(new Error("x"))).not.toThrow();
-    await expect(rum.flush()).resolves.toBeUndefined();
-    await expect(rum.shutdown()).resolves.toBeUndefined();
-  });
-
-  it("still throws on a configuration error on the server, like in the browser", async () => {
-    const { initRUM } = await import("../src/index");
-    expect(() => initRUM({ endpoint: "", projectId: "p", projectToken: "t", service: { name: "ssr", version: "1", environment: "test" } })).toThrow(/endpoint/);
-  });
-
-  it("the React entry renders on the server", async () => {
-    const { OuoErrorBoundary, useOuoRoute } = await import("../src/react/index");
-    function Page(): ReturnType<typeof createElement> {
-      useOuoRoute("/products/:id");
-      return createElement("p", null, "hello");
-    }
-    const html = renderToString(createElement(OuoErrorBoundary, { fallback: createElement("p", null, "oops") }, createElement(Page)));
-    expect(html).toBe("<p>hello</p>");
+  it("the React entry imports on the server too", async () => {
+    const react = await import("../src/react/index");
+    expect(typeof react.OuoErrorBoundary).toBe("function");
+    expect(react.routeTemplate([{ route: { path: "/" } }, { route: { path: "products/:id" } }])).toBe("/products/:id");
   });
 });
