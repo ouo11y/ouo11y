@@ -37,7 +37,31 @@ data class ViewNode(
   /** The walk stopped at its depth limit with children left unvisited: masked whole. */
   val truncated: Boolean = false,
   val children: List<ViewNode> = emptyList(),
+  /**
+   * A password or other secure input (or one whose kind could not be read): always masked, whatever
+   * the rules, tags and overrides say (client SDK spec PRV-7).
+   */
+  val secure: Boolean = false,
+  /** View-level masking set by the host at run time: true masks the view, false unmasks its subtree, null follows the rules. Mask wins. */
+  val maskOverride: Boolean? = null,
+  /** What the structure format (`ouo-wireframe/1`) draws; null when the walk did not collect it. */
+  val wire: WireStyle? = null,
 )
+
+/** Colours are ARGB ints, lengths are window pixels. [text] is the source text: it only leaves the device when no mask applies. */
+data class WireStyle(
+  val text: String? = null,
+  val bg: Int? = null,
+  val fg: Int? = null,
+  val radius: Float? = null,
+  val borderWidth: Float? = null,
+  val borderColor: Int? = null,
+  val fontSize: Float? = null,
+  val align: String? = null,
+)
+
+/** What a view is to the masking rules. */
+enum class ViewKind { INPUT, TEXT, IMAGE, WEB, EXTRA, OTHER }
 
 /** Which classes get redacted (docs/specs/mobile-replay.md, capture rules for Android) and the override tags. */
 data class RedactionRules(
@@ -88,28 +112,33 @@ data class RedactionRules(
 class RedactionPlanner(val rules: RedactionRules = RedactionRules()) {
   fun rects(root: ViewNode, window: Box): List<Box> {
     val out = mutableListOf<Box>()
-    visit(root, window, out)
+    visit(root, window, out, false)
     return merge(out)
   }
 
-  private fun visit(node: ViewNode, window: Box, out: MutableList<Box>) {
+  private fun visit(node: ViewNode, window: Box, out: MutableList<Box>, unmasked: Boolean) {
     if (node.hidden || node.alpha <= 0.01f) return
-    // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
-    if (node.tag == RedactionRules.UNMASK_TAG) return
     val clipped = node.frame.intersect(window)
     val visible = !clipped.isEmpty
-    val forced = node.tag == RedactionRules.MASK_TAG
+    // Mask wins over unmask, and a secure input is masked whatever anything says (PRV-7).
+    val forced = node.tag == RedactionRules.MASK_TAG || node.maskOverride == true || node.secure
     if (visible && (forced || node.truncated)) {
       out.add(clipped)
       return
     }
+    // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels); the walk goes
+    // on only for the secure inputs and the explicit masks inside it.
+    if (unmasked || node.tag == RedactionRules.UNMASK_TAG || node.maskOverride == false) {
+      for (child in node.children) visit(child, window, out, true)
+      return
+    }
     // A masked view covers its subtree; text is masked per line and its children are still walked.
-    val coversSubtree = when (kind(node)) {
-      Kind.INPUT -> rules.maskInputs
-      Kind.IMAGE -> rules.maskImages
-      Kind.WEB -> rules.maskWebViews
-      Kind.EXTRA -> true
-      Kind.TEXT -> {
+    val coversSubtree = when (kind(node, rules)) {
+      ViewKind.INPUT -> rules.maskInputs
+      ViewKind.IMAGE -> rules.maskImages
+      ViewKind.WEB -> rules.maskWebViews
+      ViewKind.EXTRA -> true
+      ViewKind.TEXT -> {
         if (rules.maskText) {
           val lines = node.textLines
           if (lines == null) {
@@ -120,31 +149,30 @@ class RedactionPlanner(val rules: RedactionRules = RedactionRules()) {
         }
         false
       }
-      Kind.OTHER -> false
+      ViewKind.OTHER -> false
     }
     if (coversSubtree) {
       if (visible) out.add(clipped)
       return
     }
-    for (child in node.children) visit(child, window, out)
-  }
-
-  private enum class Kind { INPUT, TEXT, IMAGE, WEB, EXTRA, OTHER }
-
-  private fun kind(node: ViewNode): Kind {
-    fun isA(classes: Set<String>) = node.className in classes || node.superclassNames.any { it in classes }
-    return when {
-      // Inputs first: an EditText is also a TextView, and maskInputs alone governs it.
-      isA(RedactionRules.inputClasses) -> Kind.INPUT
-      isA(RedactionRules.textClasses) -> Kind.TEXT
-      isA(RedactionRules.imageClasses) -> Kind.IMAGE
-      isA(RedactionRules.webViewClasses) -> Kind.WEB
-      rules.extraClasses.isNotEmpty() && isA(rules.extraClasses) -> Kind.EXTRA
-      else -> Kind.OTHER
-    }
+    for (child in node.children) visit(child, window, out, false)
   }
 
   companion object {
+    /** The class rules, shared with the structure format so both formats mask the same views. */
+    fun kind(node: ViewNode, rules: RedactionRules): ViewKind {
+      fun isA(classes: Set<String>) = node.className in classes || node.superclassNames.any { it in classes }
+      return when {
+        // Inputs first: an EditText is also a TextView, and maskInputs alone governs it.
+        isA(RedactionRules.inputClasses) -> ViewKind.INPUT
+        isA(RedactionRules.textClasses) -> ViewKind.TEXT
+        isA(RedactionRules.imageClasses) -> ViewKind.IMAGE
+        isA(RedactionRules.webViewClasses) -> ViewKind.WEB
+        rules.extraClasses.isNotEmpty() && isA(rules.extraClasses) -> ViewKind.EXTRA
+        else -> ViewKind.OTHER
+      }
+    }
+
     /** Union-merges every pair of intersecting rectangles until none intersect. */
     fun merge(rects: List<Box>): List<Box> {
       val result = rects.toMutableList()

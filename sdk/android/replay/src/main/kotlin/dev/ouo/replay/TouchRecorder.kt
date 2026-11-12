@@ -12,7 +12,7 @@ import dev.ouo.replay.core.TouchPhase
  * first pointer of every event it forwards (Sentry's and curtains' technique). Coordinates are in
  * dp of the window, the replay's points. Moves are sampled every [moveIntervalMs]. Main thread.
  */
-internal class TouchRecorder(private val density: () -> Float, private val onTouch: (Touch) -> Unit) {
+internal class TouchRecorder(private val density: () -> Float, private val onTouch: (touch: Touch, xPx: Float, yPx: Float) -> Unit) {
   private var window: Window? = null
   private var wrapper: Callback? = null
   private var lastMoveAt = 0L
@@ -53,15 +53,22 @@ internal class TouchRecorder(private val density: () -> Float, private val onTou
       if (now - lastMoveAt < moveIntervalMs) return
       lastMoveAt = now
     }
-    val d = density()
-    onTouch(Touch(now, (e.getX(0) / d).toDouble(), (e.getY(0) / d).toDouble(), phase))
+    val d = density().let { if (it.isFinite() && it > 0f) it else 1f }
+    // The legacy chunk takes dp; the OTLP formats take the window pixels as they are.
+    onTouch(Touch(now, (e.getX(0) / d).toDouble(), (e.getY(0) / d).toDouble(), phase), e.getX(0), e.getY(0))
   }
 
   private inner class Callback(val delegate: Window.Callback) : Window.Callback by delegate {
     var active = true
 
     override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-      if (active && event != null) runCatching { record(event) }
+      // Never let the recorder change what the app's own callback sees or throws.
+      if (active && event != null) {
+        try {
+          record(event)
+        } catch (ignored: Throwable) {
+        }
+      }
       return delegate.dispatchTouchEvent(event)
     }
 
