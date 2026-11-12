@@ -1,0 +1,29 @@
+{
+ "video": {
+  "images": 165,
+  "ocr_text": {
+   "Insulated Water Bottle": 9,
+   "Trail Runner Shoes": 5,
+   "Merino Base Layer": 8,
+   "Headlamp 400lm": 4
+  }
+ },
+ "video2": {
+  "images": 160,
+  "ocr_text": {
+   "Insulated Water Bottle": 8,
+   "Trail Runner Shoes": 6,
+   "Merino Base Layer": 8,
+   "Headlamp 400lm": 5
+  }
+ },
+ "frames": {
+  "images": 61,
+  "ocr_text": {
+   "Insulated Water Bottle": 3,
+   "Merino Base Layer": 3,
+   "Headlamp 400lm": 2,
+   "Trail Runner Shoes": 2
+  }
+ }
+}
