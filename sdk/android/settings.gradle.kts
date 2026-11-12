@@ -16,4 +16,4 @@ dependencyResolutionManagement {
   }
 }
 rootProject.name = "ouo11y-android"
-include(":replay-core", ":replay", ":signals-core", ":signals")
+include(":replay-core", ":replay-sentry-core", ":replay", ":signals-core", ":signals")

@@ -10,10 +10,23 @@ class ReplayEvent(
   val t: EpochMillis,
   /** The event alone restores the whole screen: a segment can start with it (RPL-6). */
   val keyframe: Boolean,
-  /** The JSON object, UTF-8, without the trailing newline. */
+  /** The JSON object, UTF-8, without the trailing newline; for a [segment], the segment's bytes. */
   val json: ByteArray,
+  /**
+   * The event is a whole segment, not a line: its bytes are the body of one chunk alone, never
+   * joined with other events or cut (a format whose segments are files, like the mp4 of
+   * `ouo-video/1`). The stream starts a new segment for it and closes its chunk at once (RPL-25).
+   */
+  val segment: Boolean = false,
+  /** Epoch milliseconds the event covers up to: the chunk's end time. [t] for a line. */
+  val end: EpochMillis = t,
 ) {
   constructor(t: EpochMillis, keyframe: Boolean, json: String) : this(t, keyframe, json.toByteArray(Charsets.UTF_8))
+
+  companion object {
+    /** A whole self-contained segment from [start] to [end]: always a keyframe. */
+    fun segment(start: EpochMillis, end: EpochMillis, bytes: ByteArray): ReplayEvent = ReplayEvent(start, true, bytes, true, maxOf(start, end))
+  }
 }
 
 /**
@@ -75,6 +88,14 @@ interface ReplayFormatAdapter {
 
   /** Compresses the bytes of a chunk ([encoding]), once. Each result decompresses on its own. */
   fun compress(payload: ByteArray): ByteArray = Gzip.compress(payload)
+
+  /**
+   * What the format still holds and can give now: a format that builds a segment over several
+   * looks (`ouo-video/1`) returns it here once it is complete at [t], and with [closing] whatever it
+   * has, complete or not (flush, background, capture, end). Formats that emit on every look have
+   * nothing to give. Throws like [events]: what it held is dropped.
+   */
+  fun pending(t: EpochMillis, closing: Boolean): List<ReplayEvent> = emptyList()
 }
 
 /** The JSON the formats write by hand: fixed key order and no escaping surprises. */

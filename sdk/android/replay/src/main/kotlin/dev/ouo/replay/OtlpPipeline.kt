@@ -4,15 +4,18 @@ import android.content.Context
 import dev.ouo.replay.core.FileReplayStateStore
 import dev.ouo.replay.core.Logger
 import dev.ouo.replay.core.ReplayEndReason
+import dev.ouo.replay.core.ReplayFormatAdapter
+import dev.ouo.replay.core.ReplayRecorderMode
 import dev.ouo.replay.core.ReplayOTLPOptions
 import dev.ouo.replay.core.ReplayStream
 import dev.ouo.replay.core.ReplayTrigger
 import dev.ouo.replay.core.Touch
+import dev.ouo.sentrycore.Mp4SegmentWriter
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The OTLP half of the frames recorder (`mode: "pixel/frames"`, ADR-0021 decision 5, client SDK
+ * The OTLP half of the pixel recorders (`mode: "pixel/frames"` or `"pixel/video"`, ADR-0021 decision 5, client SDK
  * spec 11), what the Swift `OTLPReplayRecorder` adds to the capture loop. "When to look" stays
  * [ReplayRecorder]'s (the draw listener and the `CapturePacer`). What a look becomes is the format
  * adapter's (`ouo-frames/3`, [PixelFormatAdapter]); numbering, chunking, the buffer ring and the
@@ -37,9 +40,19 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
     ""
   }
 
-  private fun makeStream(sessionId: String, replayId: String?): ReplayStream =
+  /** The adapter of the stream in use: the video adapter holds an open segment to drop on discard. */
+  @Volatile private var adapter: ReplayFormatAdapter? = null
+  private val videoDirectory = File(OuoReplayConfig.directory(context), "video")
+
+  private fun makeStream(sessionId: String, replayId: String?): ReplayStream {
     // Secure fields are masked whatever the options say, so masking always ran on a frame.
-    ReplayStream(sessionId, replayId, options.scope, options.streamConfig, PixelFormatAdapter(capturer, masked = true), delivery, store, logger)
+    val a: ReplayFormatAdapter = when (options.recorder) {
+      ReplayRecorderMode.PIXEL_VIDEO -> VideoFormatAdapter(capturer, videoDirectory, config.debug, logger, masked = true)
+      else -> PixelFormatAdapter(capturer, masked = true)
+    }
+    adapter = a
+    return ReplayStream(sessionId, replayId, options.scope, options.streamConfig, a, delivery, store, logger)
+  }
 
   /** False once the stream ended on its own (the store refused a chunk, or too many errors): the recorder stops capturing. */
   val isActive: Boolean get() = stream.isActive && faults.get() < FAULT_LIMIT
@@ -55,10 +68,18 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
   fun start(): Boolean {
     val previousExit = options.previousExit
     onCompose {
+      // Segment files a killed process left half written: never sent, never kept.
+      videoDirectory.listFiles()?.forEach { it.delete() }
       ReplayStream.endOpenStream(store, delivery, previousExit)
       delivery.drain {}
     }
     delivery.onLoss = { streamId -> stream.chunkLost(streamId) }
+    if (options.recorder == ReplayRecorderMode.PIXEL_VIDEO && !Mp4SegmentWriter.isSupported) {
+      // The encoder needs Android 8: nothing is recorded rather than another format unasked.
+      logger.warn("pixel/video needs Android 8 (API 26): replay not started")
+      OuoReplay.count("replay.mode_unsupported")
+      return false
+    }
     if (stream.sessionId.isEmpty()) {
       logger.warn("no session id: replay not started")
       OuoReplay.count("replay.no_session")
@@ -128,6 +149,7 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
     val posted = onCompose {
       try {
         stream.abandon()
+        (adapter as? VideoFormatAdapter)?.reset()
         delivery.discardPending()
       } finally {
         completion?.invoke()
@@ -154,7 +176,7 @@ internal class OtlpPipeline(context: Context, private val config: OuoReplayConfi
       "replay.partial_rejected" to d.partialRejected,
       "replay.rejected_status" to d.rejectedStatus,
       "replay.evicted" to d.evicted,
-    )
+    ) + ((adapter as? VideoFormatAdapter)?.let { mapOf("replay.video_segments" to it.segments) } ?: emptyMap())
   }
 
   /** Runs [body] on the compose thread; what it throws is counted, never rethrown. False when it could not be posted. */

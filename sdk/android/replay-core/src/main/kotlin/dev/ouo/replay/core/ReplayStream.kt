@@ -291,18 +291,23 @@ class ReplayStream(
     append(listOf(event))
   }
 
-  /** Call about once a second: closes a chunk that is old enough and lets the ring go of what it no longer needs. */
+  /** Call about once a second: takes what the adapter completed, closes a chunk that is old enough and lets the ring go of what it no longer needs. */
   fun tick(t: EpochMillis = now()) = locked {
     if (ended) return@locked
+    drainAdapter(t, closing = false)
     closeIfOld(t)
     if (buffering) evictRing(t)
   }
 
-  /** Closes the open chunk now (a host flush). */
-  fun flush() = locked { closeChunk() }
+  /** Closes the open chunk now (a host flush), after what the adapter still held. */
+  fun flush() = locked {
+    drainAdapter(now(), closing = true)
+    closeChunk()
+  }
 
   /** The app left the foreground (or capture paused): the chunk closes and whatever comes next starts a new segment with a keyframe (RPL-9, RPL-10). */
   fun background() = locked {
+    drainAdapter(now(), closing = true)
     closeChunk()
     needSegment = true
   }
@@ -327,6 +332,7 @@ class ReplayStream(
    */
   fun capture(trigger: ReplayTrigger): Int? = locked {
     if (ended || !buffering) return@locked null
+    drainAdapter(now(), closing = true)
     closeChunk()
     triggered = true
     this.trigger = trigger
@@ -414,6 +420,44 @@ class ReplayStream(
     }
   }
 
+  /** Appends what the adapter completed (or, [closing], everything it held); what it throws is dropped and counted. */
+  private fun drainAdapter(t: EpochMillis, closing: Boolean) {
+    if (ended) return
+    val events = try {
+      adapter.pending(t, closing)
+    } catch (e: Throwable) {
+      counters = counters.copy(framesDropped = counters.framesDropped + 1)
+      warn("held frames dropped: ${e.javaClass.simpleName}")
+      needSegment = true
+      if ((e as? ReplayFormatError)?.kind != ReplayFormatError.Kind.MASKING_FAILED) noteError()
+      return
+    }
+    append(events)
+  }
+
+  /**
+   * A whole segment (RPL-25): the open chunk closes, a new segment starts, and the bytes are one
+   * chunk alone, never split (a body over the hard limit is dropped: a part of a file plays nowhere).
+   */
+  private fun appendSegment(event: ReplayEvent) {
+    if (event.json.isEmpty() || event.json.size > config.hardLimitBytes || event.json.size > config.maxEventBytes) {
+      counters = counters.copy(eventsDropped = counters.eventsDropped + 1)
+      warn("segment dropped: ${event.json.size} bytes")
+      needSegment = true
+      return
+    }
+    closeChunk()
+    if (ended) return
+    if (buffering) ring.add(RingSegment(event.t)) else segmentIndex++
+    needSegment = false
+    segmentStartedAt = event.t
+    val o = Open(event.t, true, viewId, Int.MAX_VALUE)
+    o.data.write(event.json, 0, event.json.size)
+    o.end = event.end
+    open = o
+    closeChunk()
+  }
+
   private fun valid(event: ReplayEvent?): Boolean {
     val json = event?.json ?: return false
     if (json.size < 2 || json.size > config.maxEventBytes || json[0] != '{'.code.toByte() || json[json.size - 1] != '}'.code.toByte()) return false
@@ -423,6 +467,10 @@ class ReplayStream(
   private fun append(events: List<ReplayEvent>?) {
     for (event in events ?: emptyList()) {
       if (ended) return
+      if (event.segment) {
+        appendSegment(event)
+        continue
+      }
       if (!valid(event)) {
         // What the adapter thinks it sent is not in the payload: later events may build on it.
         counters = counters.copy(eventsDropped = counters.eventsDropped + 1)
@@ -591,6 +639,8 @@ class ReplayStream(
   }
 
   private fun finish(reason: ReplayEndReason) {
+    if (ended) return
+    drainAdapter(now(), closing = true)
     if (ended) return
     if (buffering) {
       ended = true
